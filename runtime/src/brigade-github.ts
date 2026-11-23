@@ -84,6 +84,9 @@ import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/no
 import { ouvrirGuerison } from "./guerison/index.ts";
 import type { ManagerDuSuperviseur } from "./superviseur/brancher.ts";
 import { relancerLesRouges } from "./superviseur/gestes.ts";
+import { OUTCOME } from "./autonomie/agents/gestes.ts";
+import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
+import { geste as gesteDeBox } from "./geste.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -332,6 +335,9 @@ export const brancheDuTicket = (issue: number) => `cook/${runDuTicket(issue)}`;
 export type OptionsDeStation = {
   // Le nom de la station : celui de ses prises et de ses verdicts.
   nom: string;
+  // La porte des gestes du runtime (#4039) : la prise d'un ticket par un cook et le merge de la pass y passent, selon
+  // leur niveau d'autonomie. Absente, ils se font sans porte ni journal des gestes.
+  porte?: PorteDesGestes | null;
   // Combien de cooks elle tient à la fois — un nombre, ou relu à chaque tour :
   // le plafond que le chef règle à chaud (`github-seul/places/`, #3446).
   places: number | (() => number);
@@ -443,6 +449,9 @@ export const PREFIXE_BESOIN = "needs:";
 export const besoinsDuTicket = (labels: readonly string[]): string[] => labels.filter((label) => label.startsWith(PREFIXE_BESOIN)).map((label) => label.slice(PREFIXE_BESOIN.length));
 
 export type StationGitHub = {
+  // La porte des gestes du runtime (#4039), relue à chaque prise et à chaque merge : la station la reçoit après sa
+  // construction (`stationDuDepot`).
+  porte?: PorteDesGestes | null;
   // Un tour : relit et merge ce qui est en pass, puis prend ce que ses places
   // libres permettent et lance leurs cooks, sans les attendre.
   tour(): Promise<void>;
@@ -2004,7 +2013,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       return { fait: false, motif: sensible };
                     }
                     chrono.marquer(ticket.number, "merge");
-                    return github.merger(numero, sha);
+                    // Le merge est le geste de la pass : il passe par la porte de son niveau (#4039).
+                    const porte = station.porte ?? null;
+                    if (porte === null) return github.merger(numero, sha);
+                    const dit = { line: `merge PR #${numero} of #${ticket.number}`, reason: `its delivery is green on \`${sha.slice(0, 7)}\``, outcome: OUTCOME.FIXED_BY_SELF };
+                    const passage = await porte.passer({ agent: "pass", reglable: "pass" }, dit, () => github.merger(numero, sha), (merge) => (merge.fait ? { ...dit, line: `merged PR #${numero} of #${ticket.number}` } : null));
+                    if (passage.etat === "done") return passage.valeur;
+                    // Attendu ou observé, il est retenu comme une livraison que le chef valide : il ne se retente pas sur la même tête.
+                    retenue = true;
+                    return { fait: false, motif: "held by the pass's autonomy level" };
                   },
                 },
                 { ciDesPR: ciDesPR(sienne) },
@@ -2403,24 +2420,54 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         sauter(ticket.number, direSaut(ticket.number, sansTests));
         continue;
       }
-      let pris: { prise: boolean };
-      try {
-        pris = await prise.prendre(ticket);
-      } catch (erreur) {
-        // La prise a pu partir avant le refus : le ticket est à rendre, et le tour s'arrête là.
-        aRendre.set(ticket.number, ticket);
-        throw erreur;
+      // Le prendre et le cuire : le geste du cook, qui passe par la porte de son niveau (#4039).
+      let refusDeLaPrise: { erreur: unknown } | null = null;
+      const prendreEtCuire = async (): Promise<boolean> => {
+        let pris: { prise: boolean };
+        try {
+          pris = await prise.prendre(ticket);
+        } catch (erreur) {
+          // La prise a pu partir avant le refus : le ticket est à rendre, et le tour s'arrête là.
+          aRendre.set(ticket.number, ticket);
+          refusDeLaPrise = { erreur };
+          throw erreur;
+        }
+        if (!pris.prise) return false;
+        attendentDuTour.delete(ticket.number);
+        chrono.prendre(ticket.number);
+        enVol.set(ticket.number, cuire(ticket, calibrage));
+        return true;
+      };
+      let cuit: boolean;
+      const porte = station.porte ?? null;
+      if (porte === null) cuit = await prendreEtCuire();
+      else {
+        const dit = { line: `take #${ticket.number} and cook it`, reason: `it is cookable, at ${calibrage.model} / ${calibrage.effort}`, outcome: OUTCOME.FIXED_BY_SELF };
+        let passage: Awaited<ReturnType<typeof porte.passer<boolean>>>;
+        try {
+          passage = await porte.passer({ agent: `cook #${ticket.number}`, reglable: "cook" }, dit, prendreEtCuire, (fait) => (fait ? { ...dit, line: `took #${ticket.number} and cooks it` } : null));
+        } catch (erreur) {
+          if (refusDeLaPrise === null) {
+            // Une porte qui ne se lit pas n'arrête pas le tour : le ticket ne part pas, ou il est parti sans être consigné.
+            avertir(`brigade : #${ticket.number} on ${nom} — ${message(erreur)}`);
+            if (enVol.has(ticket.number)) prisCeTour.add(ticket.number);
+            continue;
+          }
+          throw erreur;
+        }
+        if (passage.etat === "done") cuit = passage.valeur;
+        else {
+          sauter(ticket.number, direSaut(ticket.number, passage.etat === "held" ? `its cook waits for the chef's OK — \`${gesteDeBox(`manager approve ${passage.id}`)}\`` : "the cooks observe: no cook takes it"));
+          continue;
+        }
       }
-      if (!pris.prise) continue;
-      prisCeTour.add(ticket.number);
-      attendentDuTour.delete(ticket.number);
-      chrono.prendre(ticket.number);
-      enVol.set(ticket.number, cuire(ticket, calibrage));
+      if (cuit) prisCeTour.add(ticket.number);
     }
     await gardes?.redire(enVol.size + enEcriture().length);
   };
 
   const station: StationGitHub = {
+    porte: options.porte ?? null,
     tour,
     arreter: () => {
       arretee = true;
@@ -2680,6 +2727,8 @@ export type Lancer = (lancement: Lancement & { entree?: string; cwd: string; env
 
 export type OptionsDuDepot = {
   nom: string;
+  // La porte des gestes du runtime (#4039), donnée à la station.
+  porte?: PorteDesGestes | null;
   places: number | (() => number);
   base: string;
   // L'heure de la station ; les tests la fixent.
@@ -3891,6 +3940,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   };
   const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
+  station.porte = options.porte ?? null;
   station.lacune = options.lacune;
   const quitter = station.quitter;
   station.quitter = async () => {

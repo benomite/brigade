@@ -11,11 +11,14 @@
 // pas un run du manager à chaque réveil.
 //
 // Chaque geste fait entre au journal des gestes du superviseur (#4037), dans le
-// répertoire d'état de ses sources, à l'heure de son horloge.
-import { consignerGeste } from "../autonomie/agents/gestes.ts";
+// répertoire d'état de ses sources, à l'heure de son horloge. Le run passe par
+// la porte de son niveau d'autonomie (#4039, autonomie/agents/porte.ts) : sur
+// « propose », il attend l'OK du chef ; sur « observe », il n'est que consigné.
+import { OUTCOME } from "../autonomie/agents/gestes.ts";
+import { porteDesGestes, type PorteDesGestes } from "../autonomie/agents/porte.ts";
 import { reveil, type FaitsDuProjet } from "./declencheur.ts";
 import { dossierDuManager, type Dossier, type SourcesDuDossier } from "./dossier.ts";
-import { jouerLeRun, type Decision, type GitHubDesGestes } from "./gestes.ts";
+import { annonceDuGeste, direReveil, jouerLeRun, type Decision, type GitHubDesGestes } from "./gestes.ts";
 import { lancerUnSeulRun } from "./un-seul-run.ts";
 
 export type OptionsDuSuperviseur = {
@@ -25,12 +28,15 @@ export type OptionsDuSuperviseur = {
   sources: SourcesDuDossier & { github: GitHubDesGestes };
   manager: (dossier: Dossier) => Promise<Decision>;
   maintenant?: () => Date;
+  // La porte de ses gestes. Par défaut, celle du répertoire d'état de ses sources ; sans lui, ou nulle, le run se joue
+  // sans porte ni journal.
+  porte?: PorteDesGestes | null | undefined;
 };
 
 const REVEIL_REPRIS_MS = 30 * 60_000;
 
 // Rend la promesse du run lancé, ou null quand rien ne part.
-export function superviseur({ projet, depot, sources, manager, maintenant = () => new Date() }: OptionsDuSuperviseur): (faits: FaitsDuProjet) => Promise<void> | null {
+export function superviseur({ projet, depot, sources, manager, maintenant = () => new Date(), porte = sources.repertoireEtat === undefined ? null : porteDesGestes({ repertoire: sources.repertoireEtat, projet, horloge: maintenant }) }: OptionsDuSuperviseur): (faits: FaitsDuProjet) => Promise<void> | null {
   // La cause du dernier run lancé, et quand.
   let dernier: { cle: string; a: number } | null = null;
   return (faits) => {
@@ -40,13 +46,14 @@ export function superviseur({ projet, depot, sources, manager, maintenant = () =
     if (dernier !== null && dernier.cle === cle && instant.getTime() - dernier.a < REVEIL_REPRIS_MS) return null;
     const run = lancerUnSeulRun(projet, cause, async (lue) => {
       const decision = await manager(await dossierDuManager(sources, lue));
-      const { gesture } = await jouerLeRun({ github: sources.github, depot, branche: sources.branche, maintenant: maintenant() }, lue, decision);
-      if (gesture === null || sources.repertoireEtat === undefined) return;
-      try {
-        consignerGeste(sources.repertoireEtat, "supervisor", gesture, maintenant);
-      } catch (erreur) {
-        throw new Error(`its gesture was done but not logged (${gesture.line}) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      const jouer = () => jouerLeRun({ github: sources.github, depot, branche: sources.branche, maintenant: maintenant() }, lue, decision);
+      if (porte === null) {
+        await jouer();
+        return;
       }
+      // Le run fait, son journal garde ce que le run dit avoir fait (`jouerLeRun`), et son issue.
+      const annonce = { line: annonceDuGeste(decision.gesture), reason: direReveil(lue), outcome: OUTCOME.FIXED_BY_SELF };
+      await porte.passer({ agent: "supervisor", reglable: "supervisor" }, annonce, jouer, ({ gesture }) => gesture);
     });
     if (run !== null) dernier = { cle, a: instant.getTime() };
     return run;
