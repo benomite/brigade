@@ -419,11 +419,12 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   calibration — no manager given by the station — nothing is launched.
 - **The run.** The project's manager is launched, read-only, in a worktree of the base, with the supervisor's brief
   and its dossier: the queue, the tail of the log, the failing CI step and its log lines, the history of the ticket
-  at fault, and what the claim gate said of the cookable tickets it skipped. It answers one JSON object. Only six
+  at fault, the supervisor's last ten gestures and counters (its gesture log, [`autonomie.md`](autonomie.md)), and what
+  the claim gate said of the cookable tickets it skipped. It answers one JSON object. Only six
   gestures are played (`superviseur/gestes.ts`): rerun the failed CI jobs; back on the rail with a note; WAITING for a
   named third party; close a duplicate; file ONE `fix` ticket for a new cause, after checking that no open ticket
   carries the same cause mark; a TODO card, only for a product or design question. The run writes one comment on the
-  ticket it acted on. A run that fails is said in the station's service log
+  ticket it acted on, and each gesture done enters the supervisor's gesture log. A run that fails is said in the station's service log
   (`supervisor on <project>: its run failed — …`).
 - **A red base.** A `fix` for a red check of the base requires the check's failed jobs to have been re-run first
   (the rerun gesture) and to be still red. It carries `fire`, `prio:0`, `model:opus`, `effort:medium`, `fix` and the

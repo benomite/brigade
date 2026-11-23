@@ -9,6 +9,10 @@
 // Une même cause ne relance pas un run avant `REVEIL_REPRIS_MS` : un rail
 // immobile, un ticket pris trois fois, une base rouge qui le restent ne font
 // pas un run du manager à chaque réveil.
+//
+// Chaque geste fait entre au journal des gestes du superviseur (#4037), dans le
+// répertoire d'état de ses sources, à l'heure de son horloge.
+import { consignerGeste } from "../autonomie/agents/gestes.ts";
 import { reveil, type FaitsDuProjet } from "./declencheur.ts";
 import { dossierDuManager, type Dossier, type SourcesDuDossier } from "./dossier.ts";
 import { jouerLeRun, type Decision, type GitHubDesGestes } from "./gestes.ts";
@@ -36,7 +40,13 @@ export function superviseur({ projet, depot, sources, manager, maintenant = () =
     if (dernier !== null && dernier.cle === cle && instant.getTime() - dernier.a < REVEIL_REPRIS_MS) return null;
     const run = lancerUnSeulRun(projet, cause, async (lue) => {
       const decision = await manager(await dossierDuManager(sources, lue));
-      await jouerLeRun({ github: sources.github, depot, branche: sources.branche, maintenant: maintenant() }, lue, decision);
+      const { gesture } = await jouerLeRun({ github: sources.github, depot, branche: sources.branche, maintenant: maintenant() }, lue, decision);
+      if (gesture === null || sources.repertoireEtat === undefined) return;
+      try {
+        consignerGeste(sources.repertoireEtat, "supervisor", gesture, maintenant);
+      } catch (erreur) {
+        throw new Error(`its gesture was done but not logged (${gesture.line}) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      }
     });
     if (run !== null) dernier = { cle, a: instant.getTime() };
     return run;

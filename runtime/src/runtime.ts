@@ -47,6 +47,8 @@ export type OptionsRuntime = {
 export type Runtime = {
   projet: string;
   journal: Journal;
+  // Le répertoire d'état du projet, où ses post-mortems sont rangés (#4023).
+  repertoireEtat?: string;
   // Abonne un écouteur aux réveils ; rend de quoi le désabonner.
   surReveil(ecouter: (cause: CauseReveil) => void): () => void;
   // Journalise l'arrêt, rend le verrou. Sans effet la seconde fois.
@@ -128,6 +130,7 @@ export function demarrer(options: OptionsRuntime): Runtime {
   return {
     projet,
     journal,
+    repertoireEtat,
     surReveil(ecouter) {
       if (arrete) return () => {};
       ecouteurs.add(ecouter);
