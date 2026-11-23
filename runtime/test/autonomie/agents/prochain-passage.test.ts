@@ -6,6 +6,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
+import { magasinDeNiveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import { horaireDe, HoraireIllisible, noterHoraire, prochainPassage } from "../../../src/autonomie/agents/prochain-passage.ts";
 import { brancherCloserGithub, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, type GitHubDuCloser } from "../../../src/closer-github-passe/closer-github-passe.ts";
 import type { Ajout } from "../../../src/evenements.ts";
@@ -104,6 +105,18 @@ describe("the next run of each record of `equipe`", () => {
       closer: { text: "closer: next pass in 3 h", at: "2026-11-23T15:00:00.000Z" },
       pass: { text: "pass: reviews each delivery as it comes", at: null },
     });
+  });
+
+  test("the records with their next run are those of the unit's project, not of the log's last one", (t) => {
+    const { repertoire, env } = etat(t);
+    const journal = ouvrirJournal(repertoire);
+    journal.ajouter({ project: "other", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 2, host: "box", node: "v26.0.0" } } as Ajout);
+    journal.fermer();
+    magasinDeNiveaux(repertoire).poser("shop", "closer", "act");
+    noterHoraire(repertoire, "closer", new Date(MAINTENANT.getTime() + 3 * 3_600_000));
+    const closer = (lireLesFaits(env, MAINTENANT).equipe as ReturnType<typeof equipeDuProjet>).find(({ agent }) => agent === "closer");
+    assert.equal(closer?.autonomy, "act");
+    assert.deepEqual(closer?.nextRun, { text: "closer: next pass in 3 h", at: "2026-11-23T15:00:00.000Z" });
   });
 
   test("a schedule never noted is not known yet; one that cannot be read says so, and the other records are still given", (t) => {
