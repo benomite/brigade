@@ -4,6 +4,10 @@ Internal draft. **Nothing is posted from this repository.** The chef reads this 
 
 Angle: **Autonomy you can trust**, the README's angle (#3580), set out in [`positioning.md`](positioning.md); the plan first used "you are no longer at your computer", which is now the promise inside it. Refreshed on 2026-11-23 (#4053). Demo video, for the wide places: [`demo-script.md`](demo-script.md) (#1550). This plan replaces the older drafts that were in `docs/communication/`, now removed.
 
+The README's sentence (line 29), copied as is:
+
+> **Autonomy you can trust.** Brigade works through everything it can do while you are away from your computer, and calls you on your phone only for the choices that are yours. Every change it makes is bounded, judged before it lands, and left in your repository's history, where you can read it and revert it.
+
 Links used in every post: site https://benomite.github.io/brigade/ and repo https://github.com/benomite/brigade. Terms follow [`docs/glossary.md`](../glossary.md).
 
 ## Two stages
@@ -50,6 +54,7 @@ Independent orchestrators are closing or being absorbed by larger companies, and
 - **Why first**: the readers know the chef and forgive a rough edge. Their first reactions and install problems feed #1912 and the wide posts.
 - **Needs**: the capture or GIF above. Not the demo video, not #1912.
 - **Rules link**: https://www.linkedin.com/legal/professional-community-policies (not verified: LinkedIn refuses unauthenticated reads).
+- **Rule for the positioning sentence**: LinkedIn professional community policies (link above; text not readable from the station). The post names no company and criticises none.
 - **Checklist**: attach the capture or GIF to the post; repo link in the first comment if the chef prefers reach; no engagement baiting.
 
 **Post**
@@ -171,6 +176,8 @@ These are the wide-place posts, for after #1912 (the soft launch post is above).
 
 ### 1. r/ClaudeAI
 
+**Rule for the positioning sentence:** r/ClaudeAI: rule to check at https://www.reddit.com/r/ClaudeAI/about/rules (text not readable from the station, see "Rule quoted" above). The positioning sentence names no company and criticises none.
+
 **Title**
 
 I built an open-source app where Claude Code cooks work my GitHub tickets while I'm away from my computer
@@ -202,6 +209,8 @@ Site: https://benomite.github.io/brigade/ · Repo (MIT): https://github.com/beno
 
 ### 2. r/ClaudeCode
 
+**Rule for the positioning sentence:** r/ClaudeCode: rule to check at https://www.reddit.com/r/ClaudeCode/about/rules (text not readable from the station). The positioning sentence names no company and criticises none.
+
 **Title**
 
 Claude Code cooks in git worktrees, one per GitHub ticket, so you can leave the keyboard (open source)
@@ -226,6 +235,8 @@ https://benomite.github.io/brigade/ · https://github.com/benomite/brigade
 
 ### 3. Show HN
 
+**Rule for the positioning sentence:** Show HN: rule to check at https://news.ycombinator.com/newsguidelines.html (text not readable from the station). The positioning sentence names no company and criticises none.
+
 **Title**
 
 Show HN: Brigade, Claude Code agents that work your GitHub tickets while you're away
@@ -248,6 +259,8 @@ If it's useful, a star on the repo helps others find it.
 
 ### 4. r/SideProject
 
+**Rule for the positioning sentence:** r/SideProject: rule to check at https://www.reddit.com/r/SideProject/about/rules (text not readable from the station). The positioning sentence names no company and criticises none.
+
 **Title**
 
 I built Brigade so my side project keeps shipping when I'm not at my computer
@@ -265,6 +278,8 @@ If it's useful, a star on the repo helps others find it.
 https://benomite.github.io/brigade/ · https://github.com/benomite/brigade
 
 ### 5. Claude community (showcase channel)
+
+**Rule for the positioning sentence:** Claude community: rule to check in the server's `#rules` channel (not readable from the station). The positioning sentence names no company and criticises none.
 
 **Title / first line**: Brigade: Claude Code cooks that work GitHub tickets while you're away
 
