@@ -28,14 +28,14 @@ On 2026-11-08 the chef decided to start communicating now, without waiting for #
 
 ## Figures
 
-Counted on `main` on 2026-11-23 (window 2026-10-02 to 2026-11-23), at commit 50987e3:
+Counted on `main` on 2026-11-23 (window 2026-10-02 to 2026-11-23), at commit 1c73109:
 
 ```
-git log --merges --format=%s | grep -c 'Merge pull request'                  # 1677
-git log --merges --format=%s | grep 'Merge pull request' | grep -c '/cook/'  # 1502
+git log --merges --format=%s | grep -c 'Merge pull request'                  # 1678
+git log --merges --format=%s | grep 'Merge pull request' | grep -c '/cook/'  # 1503
 ```
 
-So 1,502 of 1,677 merged PRs (90%) came from a `cook/<n>-…` branch. The branch name shows who cooked, not who clicked merge.
+So 1,503 of 1,678 merged PRs (90%) came from a `cook/<n>-…` branch. The branch name shows who cooked, not who clicked merge.
 
 ## Where Brigade stands (market, 2026-11-23)
 
@@ -65,7 +65,7 @@ You can't stay at your desk all day, and your backlog doesn't care. For months I
 
 How it works: I describe what I want to an assistant, which writes the ticket. An AI agent takes it in its own branch and opens a pull request. A second step checks the tests and reviews it, and merges it if everything is green. I'm called, on my phone, only for what is mine to decide.
 
-The proof is the project itself: 1,502 of its 1,677 merged pull requests (90%) came from an agent's branch (counted on 2026-11-23).
+The proof is the project itself: 1,503 of its 1,678 merged pull requests (90%) came from an agent's branch (counted on 2026-11-23).
 
 Other orchestrators are closing or being absorbed; Brigade stays open source, and keeps serving a GitHub project on its own, asking you only for decisions.
 
@@ -199,7 +199,7 @@ What happens next:
 - Guardrails: caps on duration, tokens and simultaneous cooks, a breaker after repeated failures, and one `stop` that halts every cook.
 - It only calls you for a product or design choice, or a review only you can make. On my phone that is a GitHub notification, plus a notification in the Android app.
 
-Brigade builds itself: 1,502 of its 1,677 merged PRs (90%, counted on 2026-11-23) came from a cook's branch (the branch name shows who cooked, not who clicked merge). Other orchestrators are closing or being absorbed; Brigade stays open source and serves a GitHub project on its own. Demo, two minutes: [DEMO LINK]
+Brigade builds itself: 1,503 of its 1,678 merged PRs (90%, counted on 2026-11-23) came from a cook's branch (the branch name shows who cooked, not who clicked merge). Other orchestrators are closing or being absorbed; Brigade stays open source and serves a GitHub project on its own. Demo, two minutes: [DEMO LINK]
 
 It's young and opinionated, and the cooks run on your Claude Max session (an API key does not fit). Does a ticket-in, reviewed-PR-out loop match how you'd trust agents with your repo? Where would you want a human gate I haven't put?
 
@@ -247,7 +247,7 @@ Hi HN, I'm the author. Brigade is an MIT-licensed desktop app (Mac, Windows) plu
 
 What it is not: it is not hosted, it does not use an API key (the cooks run on your Claude Max session), and the stop halts every cook within the second.
 
-Numbers, counted on 2026-11-23: of 1,677 merged PRs in this repo, 1,502 (90%) came from a cook's branch. The branch name shows who cooked, not who clicked merge.
+Numbers, counted on 2026-11-23: of 1,678 merged PRs in this repo, 1,503 (90%) came from a cook's branch. The branch name shows who cooked, not who clicked merge.
 
 Known limits: self-healing is partly done, teams (one question routed to the right human) are not shipped, and the review is a model, not a person.
 
@@ -269,7 +269,7 @@ I built Brigade so my side project keeps shipping when I'm not at my computer
 
 My side projects stall when I leave the desk. So I built a small kitchen for them: I write a ticket on GitHub, put a label on it, and an AI agent (Claude Code) cooks it in its own branch and opens a pull request. Another step checks it and merges it if the tests are green. I'm only called for the choices that are mine, on my phone.
 
-It's open source (MIT), a desktop app for Mac and Windows, built around "Autonomy you can trust". It builds itself: 1,502 of its 1,677 merged PRs (90%, counted on 2026-11-23) come from its own agents' branches. Other orchestrators are closing or being absorbed; this one stays open source.
+It's open source (MIT), a desktop app for Mac and Windows, built around "Autonomy you can trust". It builds itself: 1,503 of its 1,678 merged PRs (90%, counted on 2026-11-23) come from its own agents' branches. Other orchestrators are closing or being absorbed; this one stays open source.
 
 What I'd love to know: would you leave your own side project to something like this, and what would stop you? Two-minute demo: [DEMO LINK]
 
