@@ -4,15 +4,19 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { equipeDuProjet, type FicheDAgent } from "../../../src/autonomie/agents/agents.ts";
-import { FICHIER_DES_NIVEAUX, NIVEAUX_PAR_DEFAUT } from "../../../src/autonomie/agents/niveaux.ts";
-import { principal as autonomy } from "../../../src/autonomie-cli.ts";
+import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
+import { principal as autonomy } from "../../../src/autonomie/agents/commande.ts";
+import type { Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import type { Ajout } from "../../../src/evenements.ts";
 import { lireLesFaits } from "../../../src/faits.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { appeler, repertoireTemporaire } from "../../outils.ts";
 
 const PROJET = "shop";
+const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
+// The chef's defaults (niveaux.test.ts reads them from a fresh store).
+const NIVEAUX_PAR_DEFAUT: Niveaux = { manager: "act", "manager split-epic": "propose", supervisor: "act", closer: "propose", pass: "act", cook: "act" };
+type FicheDAgent = ReturnType<typeof equipeDuProjet>[number];
 const MAINTENANT = new Date("2026-11-23T12:00:00.000Z");
 const VIDE = { nextRun: null, counters: { fixedBySelf: 0, handedToChef: 0 }, gestures: [] };
 const role = (nom: string, latest: { what: string; at: string } | null = null) => ({ role: nom, does: "", latest: latest === null ? null : { ...latest, ticket: null } });

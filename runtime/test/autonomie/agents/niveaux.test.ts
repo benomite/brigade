@@ -4,9 +4,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { FICHIER_DES_NIVEAUX, magasinDeNiveaux, NiveauxIllisibles, type Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
+import { magasinDeNiveaux, NiveauxIllisibles, type Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import { repertoireTemporaire } from "../../outils.ts";
 
+const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
 // The chef's answer of 2026-11-23 (Q2): supervisor and pass on act, closer on propose, manager on act except
 // splitting an epic, on propose.
 const DU_CHEF: Niveaux = { manager: "act", "manager split-epic": "propose", supervisor: "act", closer: "propose", pass: "act", cook: "act" };

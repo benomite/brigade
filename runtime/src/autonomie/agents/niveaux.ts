@@ -22,7 +22,7 @@ export type Niveaux = Record<Reglable, Niveau>;
 
 // The defaults the chef chose on 2026-11-23. The cooks' is not in that answer: a cook already does its ticket and
 // says so, which is `act`.
-export const NIVEAUX_PAR_DEFAUT: Readonly<Niveaux> = {
+const NIVEAUX_PAR_DEFAUT: Readonly<Niveaux> = {
   manager: "act",
   "manager split-epic": "propose",
   supervisor: "act",
@@ -31,7 +31,7 @@ export const NIVEAUX_PAR_DEFAUT: Readonly<Niveaux> = {
   cook: "act",
 };
 
-export const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
+const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
 
 export class NiveauxIllisibles extends Error {}
 

@@ -19,7 +19,7 @@ The autonomy table (rows, positions, profiles) and the routing of decisions that
 ## Each agent's record and autonomy level
 
 Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036). Code:
-`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`) and `niveaux.ts` (`magasinDeNiveaux`).
+`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`) and `commande.ts` (the `autonomy` command).
 
 `facts` gives one record per agent in `equipe`: the manager, the supervisor, the closer, the pass, then each cook running
 (its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)). The next run, the

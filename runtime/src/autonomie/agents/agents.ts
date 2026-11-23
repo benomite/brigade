@@ -9,8 +9,8 @@ import type { AgentEnCours } from "../../agents-en-cours.ts";
 import type { DerniereAction, RoleDeCuisine } from "../../roles-cuisine/roles.ts";
 import type { Niveau, Niveaux } from "./niveaux.ts";
 
-export type GesteDAgent = { at: string; line: string; reason: string; outcome: string };
-export type FicheDAgent = {
+type GesteDAgent = { at: string; line: string; reason: string; outcome: string };
+type FicheDAgent = {
   agent: string;
   // `idle`, `working on #N`, or `working` for a run on no ticket.
   state: string;
