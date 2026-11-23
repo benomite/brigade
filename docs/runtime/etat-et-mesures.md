@@ -463,3 +463,7 @@ write) is only renotified; a summary file that does not read is left as is. Each
 npm --prefix runtime run report -- --week 2026-11-02   # the stored summary of the week starting that day, as JSON; exits 1 if there is none
 ```
 
+
+## Outage post-mortems
+
+When `main` has been red and turns green after more than 30 minutes (the red `main` the supervisor already tracks, `mainRougeDepuis`), the supervisor's wake-up writes a post-mortem for it (#4023, spec `2026-11-23-autonomy-trust-control`, section T4): five fields — cause, duration, who saw it first (`system` or `chef`), what fixed it, the fix ticket — kept per project and per outage in `<BRIGADE_STATE_DIR>/post-mortems/<project>.json`, with the end of the outage beside them. An outage of 30 minutes or less leaves none, and writing the same outage again adds none. « Who saw it first » is read from two dates, the system's first detection and the chef's first report, and the earlier wins (a tie goes to the system). Today the system's date is the start the supervisor recorded, and nothing yet records a chef's report, nor what fixed the outage: those two stay unset (« not recorded » on screen) until a source gives them. `facts` publishes the list as `postMortems`; the project's Settings section shows it, newest first, with the number of outages seen first by the chef over the last 7 days. The supervisor tracks nothing across a restart: an outage open while the runtime restarts is not recorded.
