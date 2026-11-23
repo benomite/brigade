@@ -1,3 +1,7 @@
+// gates: base
+// Un vrai runtime et une vraie cuisine : plus de 2 s sur une station chargée. Il cite `main.ts`, et tout fichier de ce
+// nom le rendait proche, `app/src/main.ts` compris (#4071) : il tourne avec toute la suite, que les gates jouent pour
+// tout changement du runtime ou de l'app, et sur la base.
 // Le superviseur (#3945) est atteint des deux points d'entrée du runtime : la
 // cuisine d'un projet de la station (`station/cuisine.ts`, `ouvrirCuisine`) et
 // le runtime d'un seul projet (`main.ts`). La base de leur projet est rouge
