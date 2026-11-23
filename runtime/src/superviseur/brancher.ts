@@ -11,11 +11,16 @@
 //
 // Les checks Windows de la base y gardent leur carte (#2413), lue du même tour ;
 // la base rouge que la cuisine ne rend plus verte seule aussi (#3953).
+//
+// Un ticket sans progrès depuis 30 minutes, dans quelque état qu'il soit, réveille
+// aussi le superviseur (`inactivite/`, #4027) : ses progrès se lisent du tour, et les
+// labels que posent ou retirent les gestes du superviseur — un agent — en sont.
 import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
 import { evaluerMain, statutsDesChecks } from "../statuts-ci/regles.ts";
 import { objet } from "../juger.ts";
 import { etatDesGardeFous } from "../projections/guardrails.ts";
 import { etatDeLInterrupteur } from "../projections/switch.ts";
+import { ouvrirInactivite } from "../inactivite/inactivite.ts";
 import type { Runtime } from "../runtime.ts";
 import type { GitHub } from "../github.ts";
 import type { Dossier } from "./dossier.ts";
@@ -87,11 +92,21 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
   const maintenant = options.maintenant ?? (() => new Date());
   const dire = options.dire ?? ((ligne: string) => console.error(`brigade : ${ligne}`));
   const { teteDeLaBase } = options.github;
+  // Un label que pose ou retire un geste du superviseur est un progrès de son ticket.
+  const parUnAgent = (ticket: number) => inactivite?.progres(ticket, { kind: "label", by: "agent", at: maintenant().toISOString() });
   const github = {
     ...options.github,
     teteDeLaBase: async (nom: string) => {
       if (teteDeLaBase === undefined) throw new Error("this GitHub client cannot read the head of the integration branch");
       return teteDeLaBase.call(options.github, nom);
+    },
+    labelliser: async (numero: number, labels: string[]) => {
+      await options.github.labelliser(numero, labels);
+      parUnAgent(numero);
+    },
+    delabelliser: async (numero: number, label: string) => {
+      await options.github.delabelliser(numero, label);
+      parUnAgent(numero);
     },
   };
   const superviser = superviseur({
@@ -105,6 +120,21 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     },
     maintenant,
   });
+  const inactivite =
+    tour === null
+      ? null
+      : ouvrirInactivite({
+          maintenant,
+          dire,
+          github: options.github,
+          // Un run qui tient déjà le projet : le réveil se retente au tour suivant.
+          reveiller: ({ ticket, state, since }) => {
+            const run = superviser(tour.faits(), { cause: "no-progress", ticket, state, since });
+            if (run === null) return false;
+            run.catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: its run failed — ${message(erreur)}`));
+          },
+        });
+  tour?.progres.ecouter((ticket, progres) => inactivite?.progres(ticket, progres));
   const passer = () => {
     if (tour === null) return;
     try {
@@ -123,6 +153,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       if (etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false) return;
       if (options.consulter() === null) return;
       superviser(tour.faits())?.catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: its run failed — ${message(erreur)}`));
+      inactivite?.passer(tour.progres.tickets()).catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: no progress not evaluated — ${message(erreur)}`));
     } catch (erreur) {
       dire(`supervisor on ${runtime.projet}: not evaluated — ${message(erreur)}`);
     }

@@ -20,6 +20,8 @@
 //   nul dès qu'aucun ne l'est.
 //
 // Rien n'est tenu d'un process à l'autre : à l'ouverture, les comptes repartent.
+//
+// Le même client porte ce que lit le réveil sans progrès (`inactivite/observer.ts`, #4027).
 import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
@@ -29,6 +31,7 @@ import { estMisDeCote, MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
 import { PRIO_REPARATION } from "../reparation.ts";
+import { suivreLesProgres, type SuiviDesProgres } from "../inactivite/observer.ts";
 import type { FaitsDuProjet } from "./declencheur.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
@@ -53,6 +56,8 @@ export type SuiviDuTour = {
   // tour — ses cooks ont échoué, la cuisine ne rendra plus la base verte seule
   // (statuts-ci/regles.ts, #3953). Faux avant le premier tour.
   reparationMiseDeCote(): boolean;
+  // Les progrès des tickets et leurs états, que lit le réveil sans progrès (#4027).
+  progres: SuiviDesProgres;
 };
 
 export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDuTour {
@@ -72,6 +77,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   // encore leur cause, jamais rien ; ceux qu'elle n'a pas sautés tombent.
   let sautesDuTour = new Set<number>();
   const prises = new Map<number, number>();
+  const progres = suivreLesProgres(maintenant);
 
   const nAttendQueLaCuisson = (ticket: number): boolean => {
     const attendus = attentes.get(ticket) ?? [];
@@ -103,7 +109,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       attentes.delete(ticket);
       if (attendus !== undefined) attentes.set(ticket, [...attendus]);
     },
-    envelopper: (github) => ({
+    envelopper: (github) => progres.envelopper({
       ...github,
       fires: async () => {
         const tickets = await github.fires();
@@ -141,5 +147,6 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     sauts: () => [...sauts].filter(([ticket]) => cuisinables.has(ticket) && !nAttendQueLaCuisson(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne),
     checks: () => checks,
     reparationMiseDeCote: () => reparationMiseDeCote,
+    progres,
   };
 }

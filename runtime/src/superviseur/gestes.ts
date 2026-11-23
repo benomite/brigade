@@ -226,7 +226,9 @@ const direReveil = (reveil: Reveil): string =>
     ? `the base has been red since ${reveil.since}`
     : reveil.cause === "takes"
       ? `#${reveil.ticket} was taken ${reveil.takes} times without delivering`
-      : `nothing was merged since ${reveil.since} while #${reveil.ticket} is cookable`;
+      : reveil.cause === "no-progress"
+        ? `#${reveil.ticket} (${reveil.state}) has made no progress since ${reveil.since}`
+        : `nothing was merged since ${reveil.since} while #${reveil.ticket} is cookable`;
 
 const ETATS = { done: "did", refused: "refused", failed: "failed" } as const;
 
