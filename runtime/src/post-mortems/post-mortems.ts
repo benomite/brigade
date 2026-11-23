@@ -9,7 +9,7 @@ import { join } from "node:path";
 // Strictement au-delà : une panne de 30 minutes pile n'en laisse aucun.
 export const POST_MORTEM_APRES_MS = 30 * 60_000;
 
-export type Panne = {
+type Panne = {
   id: string;
   debut: string;
   fin: string;
@@ -26,7 +26,8 @@ export type Panne = {
 export type PostMortem = { cause: string; duree: string; vuEnPremier: "system" | "chef"; corrige: string | null; ticket: string | null };
 // Ce que le projet publie : le post-mortem et l'instant où sa panne a fini, d'où la vue les trie et compte sur 7 jours.
 export type PostMortemDate = PostMortem & { fin: string };
-type Rangee = { id: string; postMortem: PostMortemDate };
+// Rangé : le post-mortem à ses cinq champs, et la fin de sa panne à côté.
+type Rangee = { id: string; fin: string; postMortem: PostMortem };
 
 const chemin = (dossier: string, projet: string) => join(dossier, "post-mortems", `${encodeURIComponent(projet)}.json`);
 
@@ -67,33 +68,30 @@ export function terminerLaPanne(dossier: string, projet: string, panne: Panne): 
   const fin = instant(panne.fin, "the end of the outage") as number;
   if (fin - debut <= POST_MORTEM_APRES_MS) return null;
   const rangees = lireRangees(dossier, projet);
-  const deja = rangees.find(({ id }) => id === panne.id);
-  if (deja !== undefined) return sansLaFin(deja.postMortem);
-  const postMortem: PostMortemDate = {
+  const deja = rangees.findIndex(({ id }) => id === panne.id);
+  if (deja !== -1) return lirePostMortems(dossier, projet)[deja] as PostMortem;
+  const postMortem: PostMortem = {
     cause: panne.cause,
     duree: `${Math.round((fin - debut) / 60_000)} min`,
     vuEnPremier: vuEnPremier(panne.detecteeParLeSysteme, panne.signaleeParLeChef),
     corrige: panne.corrigePar,
     ticket: panne.ticketDuCorrectif,
-    fin: panne.fin,
   };
   mkdirSync(join(dossier, "post-mortems"), { recursive: true });
   const fichier = chemin(dossier, projet);
-  writeFileSync(`${fichier}.tmp`, JSON.stringify([...rangees, { id: panne.id, postMortem }]));
+  writeFileSync(`${fichier}.tmp`, JSON.stringify([...rangees, { id: panne.id, fin: panne.fin, postMortem }]));
   renameSync(`${fichier}.tmp`, fichier);
-  return sansLaFin(postMortem);
+  return postMortem;
 }
-
-const sansLaFin = ({ fin: _fin, ...champs }: PostMortemDate): PostMortem => champs;
 
 // Les post-mortems du projet, dans l'ordre où ils ont été rangés.
 export function lirePostMortems(dossier: string, projet: string): PostMortem[] {
-  return lireRangees(dossier, projet).map(({ postMortem }) => sansLaFin(postMortem));
+  return lireRangees(dossier, projet).map(({ postMortem }) => postMortem);
 }
 
 // Les mêmes, chacun avec la fin de sa panne : ce que `facts` publie à la vue du projet.
 export function lirePostMortemsDates(dossier: string, projet: string): PostMortemDate[] {
-  return lireRangees(dossier, projet).map(({ postMortem }) => postMortem);
+  return lireRangees(dossier, projet).map(({ fin, postMortem }) => ({ ...postMortem, fin }));
 }
 
 // `main` rouge, la panne que le superviseur observe déjà (`mainRougeDepuis`, tour.ts) : son début est celui qu'il a noté,

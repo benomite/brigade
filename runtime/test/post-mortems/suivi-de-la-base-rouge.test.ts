@@ -5,12 +5,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { lirePostMortemsDates, suivreLaBaseRouge, type Panne } from "../../src/post-mortems/post-mortems.ts";
+import { lirePostMortemsDates, suivreLaBaseRouge, terminerLaPanne } from "../../src/post-mortems/post-mortems.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { brancherSuperviseur } from "../../src/superviseur/brancher.ts";
 import type { SuiviDuTour } from "../../src/superviseur/tour.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
+type Panne = Parameters<typeof terminerLaPanne>[2];
 const A = (hhmm: string) => `2026-11-20T${hhmm}:00.000Z`;
 
 test("a red main that turns green is recorded once, when it ends, system first", () => {
