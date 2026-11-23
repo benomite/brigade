@@ -2914,6 +2914,18 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     try {
       return await cuisinerLeTicket(ticket, calibrage);
     } finally {
+      // Le cook a fini, quelle qu'en soit la sortie : ce que son worktree garde
+      // (node_modules, caches de build) ne reste pas sur le disque d'une erreur
+      // qui a coupé le tour avant que le worktree ne soit rangé. Rangé : son
+      // travail est d'abord commité sur sa branche. Illisible, il reste, dit.
+      const lieu = lieuxEnVol.get(ticket.number);
+      if (lieu !== undefined && existsSync(lieu.worktree)) {
+        try {
+          await depot.ranger(lieu.worktree, lieu.branche);
+        } catch (erreur) {
+          avertir(`brigade : #${ticket.number} sur ${nom} — the worktree of the cook that ended could not be tidied, it stays on disk: ${message(erreur)}`);
+        }
+      }
       lieuxEnVol.delete(ticket.number);
       sauves.delete(ticket.number);
     }
