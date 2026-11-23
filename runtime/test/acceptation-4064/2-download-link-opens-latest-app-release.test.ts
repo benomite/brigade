@@ -16,8 +16,8 @@ const VERS_L_APP = /^https:\/\/github\.com\/benomite\/brigade\/releases\/(?:late
 
 test("every download link of the page and its downloadUrl open the latest app release", () => {
   const index = lire("index.html");
-  const liens = [...index.matchAll(/<a[^>]*id="download-[^"]*"[^>]*href="([^"]*)"/g)].map((m) => m[1]);
-  const structure = [...index.matchAll(/"downloadUrl":\s*"([^"]*)"/g)].map((m) => m[1]);
+  const liens = [...index.matchAll(/<a[^>]*id="download-[^"]*"[^>]*href="([^"]*)"/g)].map((m) => m[1] ?? "");
+  const structure = [...index.matchAll(/"downloadUrl":\s*"([^"]*)"/g)].map((m) => m[1] ?? "");
   assert.ok(liens.length >= 2);
   assert.ok(structure.length >= 1);
   for (const url of [...liens, ...structure]) assert.match(url, VERS_L_APP);

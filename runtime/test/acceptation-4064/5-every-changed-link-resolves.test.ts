@@ -22,7 +22,7 @@ test("every repository URL in site/ is an existing path or a known release patte
       vus++;
       const chemin = url.slice(BASE.length).replace(/[#?].*$/, "").replace(/\/$/, "");
       const fichier = chemin.match(/^\/(?:blob|tree)\/main\/(.+)$/);
-      if (fichier) assert.ok(existsSync(join(RACINE, fichier[1])), `${f}: ${url} does not exist`);
+      if (fichier) assert.ok(existsSync(join(RACINE, fichier[1] ?? "")), `${f}: ${url} does not exist`);
       else assert.ok([...MOTIFS_DE_RELEASE, ...AUTRES].some((m) => m.test(chemin)), `${f}: ${url} matches no known pattern`);
     }
   }
