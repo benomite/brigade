@@ -130,7 +130,12 @@ base, the stale-branch pruning).
   [spec](../superpowers/specs/2026-11-23-autonomy-trust-control.md), A1). Before any other gesture of the turn, the
   station checks four sentences, each once. When one breaks, it is repaired with a gesture the supervisor already has,
   and a comment on the ticket (`<!-- brigade:invariant n=<k> … -->`) says which invariant broke and what was done —
-  once per break:
+  once per break. The turn that runs them is `tour` in `runtime/src/brigade-github.ts`, through
+  `controleurDesInvariants` (`runtime/src/invariants/invariants.ts`); `runtime/src/superviseur/tour.ts` only observes
+  that turn for the supervisor. No gesture is added: invariants 3 and 4 play `waiting` (its mark), `back-on-rail` and
+  `rerun` (`runtime/src/superviseur/gestes.ts`); invariant 1 needs no write — the claim gate stops counting the PR —
+  and invariant 2 stops the ticket the way its last failed try does (to the manager, or `set-aside:failures`, which
+  hands it to the supervisor), the closest the rail has, as none of the six gestures stops a ticket:
   1. a ticket no cook cooks and not in pass holds no file zone and reserves none: an open PR whose ticket is free,
      set aside, in WAITING or `taken` with no readable claim no longer holds the zone of the tickets waiting for it —
      an epic's PR included, whatever its body says (#3979, #3932). The claim gate reads the same rule (`tientSaZone`);
