@@ -14,7 +14,7 @@ import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { DitDuSecond, Terminal } from "../../src/terminaux.ts";
-import { A_QUOI_IL_SERT, PAGE_DE, poserOutilsDuSecond, PUIS_LA_CONNEXION, REESSAYER_LE_SECOND } from "../../src/vue/outils-du-second.js";
+import { PAGE_DE, poserOutilsDuSecond, REESSAYER_LE_SECOND } from "../../src/vue/outils-du-second.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) } as never;
@@ -23,6 +23,7 @@ const EMPECHE: DitDuSecond = {
   reason: "The second cannot start: Claude Code is missing on this Mac.",
   tools: [{ tool: "claude", reason: "`claude` is not installed on this Mac, and the second is a Claude Code session.", install: SUR_MAC, link: "https://code.claude.com/docs/en/setup" }],
 };
+const PUIS_LA_CONNEXION = "Once it is installed, click “Try again”: the second opens, and Claude Code asks you to sign in with your Max account.";
 const boutons = (lieu: Faux) => lieu.dessous("button").map((b) => b.textContent);
 
 test("sans Claude Code, l'onglet Second nomme le produit, dit à quoi il sert, pose son pas à copier et la connexion qui suit", () => {
@@ -36,7 +37,6 @@ test("sans Claude Code, l'onglet Second nomme le produit, dit à quoi il sert, p
   // « ? » : le survol qui porte le binaire.
   assert.deepEqual(boutons(lieu), ["?", "how to get Claude Code", REESSAYER_LE_SECOND]);
   assert.equal(PAGE_DE("gh"), "how to get the GitHub CLI");
-  assert.equal(A_QUOI_IL_SERT.git, "Git makes and keeps the project's local copy, a git clone.");
 });
 
 test("un second qui part sans le GitHub CLI le nomme, sans la connexion de Claude Code", () => {
@@ -44,6 +44,7 @@ test("un second qui part sans le GitHub CLI le nomme, sans la connexion de Claud
   const sansGh: DitDuSecond = { reason: "The second starts, but the GitHub CLI is missing on this Mac.", tools: [{ tool: "gh", reason: "`gh` is missing.", install: "Install the GitHub CLI with its macOS installer.", link: "https://github.com/cli/cli/releases/latest" }] };
   lieu.append(poserOutilsDuSecond(doc, sansGh, { bloque: false, reessayer: () => {}, ouvrirLaPage: () => {} }) as unknown as Faux);
   assert.equal(lieu.dessous("strong")[0]?.textContent, "The GitHub CLI");
+  assert.match(lieu.textContent, /The GitHub CLI is how brigade reads your stations, their rails and your repositories on GitHub\./);
   assert.equal(lieu.textContent.includes(PUIS_LA_CONNEXION), false);
 });
 

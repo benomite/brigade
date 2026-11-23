@@ -29,13 +29,13 @@ const Nom = (outil) => nom(outil).replace(/^the /, "The ");
 export const PAGE_DE = (outil) => `how to get ${nom(outil)}`;
 // À quoi sert chacun, ici.
 /** @type {Record<string, string>} */
-export const A_QUOI_IL_SERT = {
+const A_QUOI_IL_SERT = {
   claude: "Claude Code is what the second and the cooks run on, with your Max account.",
   gh: "The GitHub CLI is how brigade reads your stations, their rails and your repositories on GitHub.",
   git: "Git makes and keeps the project's local copy, a git clone.",
 };
 // Après l'installation de Claude Code, la connexion.
-export const PUIS_LA_CONNEXION = `Once it is installed, click “${REESSAYER}”: the second opens, and Claude Code asks you to sign in with your Max account.`;
+const PUIS_LA_CONNEXION = `Once it is installed, click “${REESSAYER}”: the second opens, and Claude Code asks you to sign in with your Max account.`;
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
