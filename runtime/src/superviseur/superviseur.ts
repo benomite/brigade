@@ -36,7 +36,7 @@ export type OptionsDuSuperviseur = {
 const REVEIL_REPRIS_MS = 30 * 60_000;
 
 // Rend la promesse du run lancé, ou null quand rien ne part.
-export function superviseur({ projet, depot, sources, manager, maintenant = () => new Date(), porte = sources.repertoireEtat !== undefined ? null : porteDesGestes({ repertoire: sources.repertoireEtat, projet, horloge: maintenant }) }: OptionsDuSuperviseur): (faits: FaitsDuProjet) => Promise<void> | null {
+export function superviseur({ projet, depot, sources, manager, maintenant = () => new Date(), porte = sources.repertoireEtat === undefined ? null : porteDesGestes({ repertoire: sources.repertoireEtat, projet, horloge: maintenant }) }: OptionsDuSuperviseur): (faits: FaitsDuProjet) => Promise<void> | null {
   // La cause du dernier run lancé, et quand.
   let dernier: { cle: string; a: number } | null = null;
   return (faits) => {
