@@ -2744,7 +2744,7 @@ export type OptionsDuDepot = {
   // Le dépôt de la station, d'où partent les worktrees de ses cooks. Sans
   // `vue`, `fichiers` et `lire`, ses workflows ne se lisent pas : la CI des PR
   // est attendue, comme avant (#2456).
-  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "garer" | "surLOrigine" | "elaguer" | "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "ajouts" | "recevoir">>;
+  depot: Pick<Depot, "preparer" | "reprendre" | "connait" | "retirer" | "ranger" | "pousser" | "commits" | "changes" | "diff"> & Partial<Pick<Depot, "garer" | "surLOrigine" | "elaguer" | "tete" | "livree" | "vue" | "fichiers" | "lire" | "recolter" | "sujet" | "recevoirPR" | "lancerGit" | "essayer" | "jeter" | "ajouts" | "recevoir" | "alleger">>;
   // La prise de #2056, liée à la station.
   prise: (github: GitHubDuTour, station: string) => Prise;
   claude: string;
@@ -2973,6 +2973,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           await depot.ranger(lieu.worktree, lieu.branche);
         } catch (erreur) {
           avertir(`brigade : #${ticket.number} sur ${nom} — the worktree of the cook that ended could not be tidied, it stays on disk: ${message(erreur)}`);
+          // Son travail reste, pas son build : les `node_modules` d'un cook sorti n'ont plus d'usage.
+          try {
+            depot.alleger?.(lieu.worktree);
+          } catch (echec) {
+            avertir(`brigade : #${ticket.number} sur ${nom} — the build output of the cook that ended could not be released: ${message(echec)}`);
+          }
         }
       }
       lieuxEnVol.delete(ticket.number);

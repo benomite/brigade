@@ -54,6 +54,10 @@ export type Depot = {
   // récolte, ou null. Un worktree déjà absent n'est pas un échec ; ce qui ne
   // peut être ni commité ni retiré lève, et rien n'est touché.
   ranger(worktree: string, branche: string): Promise<string | null>;
+  // Rend le disque que le build d'un cook sorti laisse dans un worktree qu'on
+  // ne peut pas ranger (il garde alors son travail) : ses `node_modules`
+  // non suivis, à la racine ou un niveau plus bas. Le reste n'est pas touché.
+  alleger?(worktree: string): void;
   // Retire le worktree d'un cook qui ne désigne plus son dépôt dans le clone
   // (`WorktreeDetourne`) : `git` n'y est pas lancé, rien de ce qui y
   // traîne n'est commité, la branche reste telle que le clone la porte. Rend
@@ -789,6 +793,22 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         await gitAsync("worktree", "prune");
         return null;
       }),
+    alleger(worktree) {
+      duCook(worktree);
+      if (!existsSync(worktree)) return;
+      const dans = gitDans(worktree);
+      const candidats = ["node_modules", ...readdirSync(worktree, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "node_modules" && e.name !== ".git").map((e) => join(e.name, "node_modules"))];
+      for (const relatif of candidats) {
+        if (!existsSync(join(worktree, relatif))) continue;
+        // Un dossier que l'index suit fait partie du travail : il reste.
+        try {
+          if (dans("ls-files", "--", relatif) !== "") continue;
+        } catch {
+          continue;
+        }
+        rmSync(join(worktree, relatif), { recursive: true, force: true });
+      }
+    },
     abandonner: (worktree, branche) =>
       aSonTour(async () => {
         duCook(worktree);

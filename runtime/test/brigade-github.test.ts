@@ -1282,6 +1282,51 @@ const reglagesDuFauxClaude = (repertoire: string, lancer: Lancer): Pick<OptionsD
   lancer,
 });
 
+test("a cook that ended and whose worktree cannot be tidied gives back its build output, and the station says why the worktree stays", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(11, ["fire", "model:opus", "effort:high"]);
+  const fait: string[] = [];
+  const avertissements: string[] = [];
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, fluxQuiConclut("done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => {
+        mkdirSync(join(repertoire, run), { recursive: true });
+        return { worktree: join(repertoire, run), branche: `cook/${run}` };
+      },
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => {
+        throw new Error("detached head");
+      },
+      alleger: (worktree) => void fait.push(`alleger ${worktree.slice(repertoire.length + 1)}`),
+      pousser: () => {},
+      commits: () => 0,
+      changes: () => [],
+      diff: () => "",
+    },
+    ...reglagesDuFauxClaude(repertoire, lancer),
+    avertir: (texte) => void avertissements.push(texte),
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(fait, ["alleger 11-github"]);
+  assert.match(avertissements.join("\n"), /could not be tidied, it stays on disk: detached head/);
+});
+
 test("the station of this runtime: a ticket is cooked in the station's repository, reviewed by the reviewer and merged, through the real GitHub client", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));

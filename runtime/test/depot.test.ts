@@ -698,6 +698,39 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
   });
 
+  test("un worktree qu'on ne peut pas ranger rend ses node_modules non suivis ; son travail et le worktree d'un cook vivant restent", async (t) => {
+    const { depot } = projet(t);
+    const sorti = await depot.preparer("15-abc");
+    const vivant = await depot.preparer("16-abc");
+    commiter(sorti.worktree);
+    git(sorti.worktree, "checkout", "-q", "--detach");
+    for (const lieu of [sorti.worktree, vivant.worktree]) {
+      mkdirSync(join(lieu, "node_modules", "paquet"), { recursive: true });
+      writeFileSync(join(lieu, "node_modules", "paquet", "index.js"), "x\n");
+      mkdirSync(join(lieu, "app", "node_modules"), { recursive: true });
+      writeFileSync(join(lieu, "app", "node_modules", "index.js"), "x\n");
+    }
+    writeFileSync(join(sorti.worktree, "brouillon.txt"), "jamais commité\n");
+
+    depot.alleger?.(sorti.worktree);
+
+    assert.deepEqual([existsSync(join(sorti.worktree, "node_modules")), existsSync(join(sorti.worktree, "app", "node_modules"))], [false, false]);
+    assert.equal(readFileSync(join(sorti.worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
+    assert.deepEqual([existsSync(join(vivant.worktree, "node_modules", "paquet", "index.js")), existsSync(join(vivant.worktree, "app", "node_modules", "index.js"))], [true, true]);
+  });
+
+  test("alléger laisse les node_modules que l'index suit, et refuse un chemin hors des worktrees", async (t) => {
+    const { depot } = projet(t);
+    const { worktree } = await depot.preparer("15-abc");
+    mkdirSync(join(worktree, "node_modules"), { recursive: true });
+    writeFileSync(join(worktree, "node_modules", "suivi.js"), "x\n");
+    git(worktree, "add", "-f", "node_modules/suivi.js");
+
+    depot.alleger?.(worktree);
+    assert.equal(existsSync(join(worktree, "node_modules", "suivi.js")), true);
+    assert.throws(() => depot.alleger?.(dirname(worktree)), /hors du répertoire des worktrees/);
+  });
+
   test("ce qui est livré d'une branche est ce que l'origine en a reçu : une récolte posée après le push n'en fait pas partie", async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
