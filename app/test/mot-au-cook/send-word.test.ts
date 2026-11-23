@@ -54,9 +54,13 @@ test("an unreadable answer, or a refusal without a reason, never reads as sent",
   }
 });
 
-test("a runtime without the command says to update it", async () => {
+test("a runtime without the command is never a word sent, and says to update it", async () => {
   const lue = await geste(rendu("", sortiePar(66), "send-word is not a runtime command")).envoyer({ ticket: 14, text: "hi" });
-  assert.equal(lue.reason, "nothing was sent: this station's runtime cannot pass a word to a cook yet — update it");
+  assert.deepEqual(lue, {
+    ok: false,
+    reason: "nothing was sent: this station's runtime cannot pass a word to a cook yet — update it",
+    detail: "$ node geste.ts parade send-word\nsend-word is not a runtime command",
+  });
 });
 
 test("a project with no station, or one that left the projects file, launches nothing", async () => {
