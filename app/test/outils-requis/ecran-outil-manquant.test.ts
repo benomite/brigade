@@ -20,6 +20,8 @@ test("chaque outil est dit par son produit — le binaire au détail —, avec p
   assert.match(lieu.textContent, /needs Claude Code \(claude\) to cook/);
   assert.equal(lieu.dessous("code").map((c) => c.textContent).join(" "), "claude curl -fsSL https://claude.ai/install.sh | bash");
   assert.deepEqual(boutons(lieu), ["install Claude Code", DEJA_INSTALLE]);
+  // « install … » est le geste recommandé.
+  assert.deepEqual(lieu.dessous("button").map((b) => b.className), ["recommande", ""]);
   assert.equal(MANQUE("gh"), "The GitHub CLI is not installed on this computer.");
   assert.equal(INSTALLER("git"), "install Git");
   // Sans chemin connu, l'outil reste nommé, avec ses deux gestes.
@@ -56,7 +58,9 @@ test("installé par une commande, l'outil est relu aussitôt : là, le pas repre
     rendre: () => {},
     quandPret: () => pret++,
   });
+  assert.equal(outils.etat.lu, false);
   assert.equal(await outils.verifier(), false);
+  assert.equal(outils.etat.lu, true);
   assert.deepEqual(demandes, [["git", "gh"]]);
   assert.equal(outils.etat.manque?.outil, "git");
   await outils.installer();
@@ -102,10 +106,12 @@ test("une lecture qui lève se dit, et le pas reste offert ; un pont qui ne lit 
   const leve = tenirLesOutils({ pont: { outilsManquants: async () => Promise.reject(new Error("no runtime")) }, rendre: () => {} });
   assert.equal(await leve.verifier(), true);
   assert.deepEqual(leve.etat.illisible, { refus: ILLISIBLE, detail: "no runtime" });
+  assert.equal(leve.etat.lu, true);
   assert.equal(leve.etat.manque, undefined);
   const muet = tenirLesOutils({ pont: { outilsManquants: async () => undefined as never }, rendre: () => {} });
   assert.equal(await muet.verifier(), true);
   assert.equal(muet.etat.illisible, undefined);
+  assert.equal(muet.etat.lu, true);
   const sans = tenirLesOutils({ pont: {}, rendre: () => {} });
   assert.equal(await sans.verifier(), true);
   assert.equal(sans.etat.lu, true);

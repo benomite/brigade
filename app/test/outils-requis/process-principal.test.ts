@@ -14,16 +14,16 @@ const fichiers = (chemins: Set<string>) => (chemin: string) => chemins.has(chemi
 // Une machine simulée : ses fichiers lançables, que le test change ; une commande lancée est notée, et finit comme on le lui dit.
 function uneMachine(plateforme: NodeJS.Platform, poses: string[], { reussit = () => false }: { reussit?: () => boolean } = {}) {
   const chemins = new Set(poses);
-  const lancees: { programme: string; args: readonly string[]; enfant: Enfant }[] = [];
+  const lancees: { programme: string; args: readonly string[]; options: { windowsHide?: boolean; env?: unknown }; enfant: Enfant }[] = [];
   const runtime: Runtime = {
     ...requis,
     ...machine,
     programmesDe,
     lireLaMachine: (options) => machine.lireLaMachine({ ...options, plateforme, maison: plateforme === "win32" ? "C:\\Users\\chef" : "/Users/chef", existe: fichiers(chemins), reussit }),
   };
-  const lancer = ((programme: string, args: readonly string[]) => {
+  const lancer = ((programme: string, args: readonly string[], options: { windowsHide?: boolean; env?: unknown }) => {
     const enfant = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), tue: false, kill: () => void (enfant.tue = true) }) as Enfant;
-    lancees.push({ programme, args, enfant });
+    lancees.push({ programme, args, options, enfant });
     return enfant;
   }) as never;
   return { chemins, lancees, runtime, lancer };
@@ -55,7 +55,8 @@ test("un outil posé par son installeur hors du PATH de l'app y est ajouté : l'
 
 test("Claude Code s'installe par sa commande : finie, il est dit installé ; ratée, sa dernière ligne le dit", async () => {
   const { runtime, lancer, lancees } = uneMachine("darwin", ["/usr/local/bin/gh"]);
-  const outils = tenirOutilsRequis({ charger: async () => runtime, env: { PATH: "/usr/bin" }, ouvrir: async () => true, lancer });
+  const env = { PATH: "/usr/bin" };
+  const outils = tenirOutilsRequis({ charger: async () => runtime, env, ouvrir: async () => true, lancer });
   const rendu = outils.installer("claude");
   // Un second clic attend la même installation.
   assert.equal(outils.installer("claude"), rendu);
@@ -63,6 +64,9 @@ test("Claude Code s'installe par sa commande : finie, il est dit installé ; rat
   assert.equal(lancees.length, 1);
   assert.equal(lancees[0]?.programme, "/bin/bash");
   assert.deepEqual(lancees[0]?.args, ["-c", "curl -fsSL https://claude.ai/install.sh | bash"]);
+  // Sans fenêtre de console, dans l'environnement de l'app.
+  assert.equal(lancees[0]?.options.windowsHide, true);
+  assert.equal(lancees[0]?.options.env, env);
   lancees[0]?.enfant.emit("close", 0, null);
   assert.deepEqual(await rendu, { fait: "Claude Code is installed", installe: true });
   const rate = outils.installer("claude");
@@ -73,6 +77,8 @@ test("Claude Code s'installe par sa commande : finie, il est dit installé ; rat
   const absente = outils.installer("claude");
   await new Promise((fini) => setImmediate(fini));
   lancees[2]?.enfant.emit("error", new Error("spawn /bin/bash ENOENT"));
+  // La fermeture qui suit l'erreur ne change rien.
+  lancees[2]?.enfant.emit("close", -2, null);
   assert.deepEqual(await absente, { refus: "the install of Claude Code could not start: spawn /bin/bash ENOENT", detail: "spawn /bin/bash ENOENT" });
 });
 

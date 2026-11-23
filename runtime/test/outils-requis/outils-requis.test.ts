@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { choisirInstallation, OUTILS_REQUIS } from "../../src/outils-requis/outils-requis.ts";
-import { lireLaMachine, outilsManquants } from "../../src/outils-requis/machine.ts";
+import { lireLaMachine, outilsManquants, reussitPourDeBon } from "../../src/outils-requis/machine.ts";
 
 const fichiers = (...chemins: string[]) => {
   const tous = new Set(chemins);
@@ -43,6 +43,14 @@ test("ailleurs, Claude Code par son script, Git et le GitHub CLI par la page qui
   assert.equal(choisirInstallation("claude", linux).moyen, "commande");
   assert.equal(choisirInstallation("git", linux).moyen, "page");
   assert.equal(choisirInstallation("gh", linux).moyen, "page");
+  assert.equal(choisirInstallation("git", linux).lien, "https://git-scm.com/download/linux");
+  assert.equal(choisirInstallation("gh", linux).lien, "https://github.com/cli/cli#installation");
+});
+
+test("une commande lancée pour de bon réussit à son code 0 ; un autre code, ou un programme absent, compte pour un échec", () => {
+  assert.equal(reussitPourDeBon(process.execPath, ["-e", "process.exit(0)"]), true);
+  assert.equal(reussitPourDeBon(process.execPath, ["-e", "process.exit(3)"]), false);
+  assert.equal(reussitPourDeBon("/nulle/part/xcode-select", ["-p"]), false);
 });
 
 test("sur un Mac sans les outils de développement, le /usr/bin/git du système ne compte pas : git manque", () => {

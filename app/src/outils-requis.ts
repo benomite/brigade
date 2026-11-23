@@ -14,7 +14,7 @@ type Outils = typeof import("../../runtime/src/second/outils.ts");
 export type OutilRequis = import("../../runtime/src/outils-requis/outils-requis.ts").OutilRequis;
 export type OutilManquant = import("../../runtime/src/outils-requis/machine.ts").OutilManquant;
 // `installe` : la commande finie, l'outil doit être là — la vue le relit aussitôt.
-export type RenduDInstallation = { fait: string; installe?: true } | { refus: string; detail?: string };
+export type RenduDInstallation = { fait: string; installe?: boolean } | { refus: string; detail?: string };
 
 export type Runtime = Pick<Requis, "choisirInstallation" | "NOMS" | "OUTILS_REQUIS"> & Pick<DeLaMachine, "lireLaMachine" | "outilsManquants"> & Pick<Outils, "programmesDe">;
 
@@ -37,8 +37,11 @@ const derniereLigne = (texte: string) =>
     .trim()
     .split("\n")
     .map((ligne) => ligne.trim())
-    .filter((ligne) => ligne !== "")
+    .filter((ligne) => ligne.length > 0)
     .at(-1) ?? "";
+
+const REQUIS: readonly unknown[] = ["git", "gh", "claude"];
+const estRequis = (outil: unknown): outil is OutilRequis => REQUIS.includes(outil);
 
 export function tenirOutilsRequis(options: OptionsDesOutilsRequis) {
   const lancer = options.lancer ?? spawn;
@@ -60,14 +63,12 @@ export function tenirOutilsRequis(options: OptionsDesOutilsRequis) {
     const [programme = "", ...args] = argv;
     return new Promise((rendre) => {
       let sortie = "";
-      let rendu = false;
+      // Une erreur peut être suivie de la fermeture : la première fin est la bonne, la promesse ignore la seconde.
       const finir = (fin: RenduDInstallation) => {
-        if (rendu) return;
-        rendu = true;
         clearTimeout(garde);
         rendre(fin);
       };
-      const enfant = lancer(programme, args, { env: options.env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      const enfant = lancer(programme, args, { env: options.env, windowsHide: false, stdio: ["ignore", "pipe", "pipe"] });
       const garde = setTimeout(() => enfant.kill(), options.delaiMs ?? DELAI_MS);
       for (const flux of [enfant.stdout, enfant.stderr]) flux?.on("data", (morceau: Buffer) => void (sortie = `${sortie}${morceau.toString()}`.slice(-16_384)));
       enfant.once("error", (erreur) => finir({ refus: `the install of ${nom} could not start: ${erreur.message}`, detail: erreur.message }));
@@ -84,13 +85,13 @@ export function tenirOutilsRequis(options: OptionsDesOutilsRequis) {
     const { runtime, machine } = await lire();
     const nom = runtime.NOMS[outil];
     if (machine.presents.includes(outil)) return { fait: `${nom} is already on this computer`, installe: true };
-    const choix = runtime.choisirInstallation(outil, machine);
-    if (choix.commande !== undefined) return jouer(choix.commande.argv, nom, choix.commande.installeEnFinissant);
+    const { commande, lien } = runtime.choisirInstallation(outil, machine);
+    if (commande) return jouer(commande.argv, nom, commande.installeEnFinissant);
     try {
-      await options.ouvrir(choix.lien);
+      await options.ouvrir(lien);
     } catch (erreur) {
       const detail = erreur instanceof Error ? erreur.message : String(erreur);
-      return { refus: `the page of ${nom} did not open in your browser: ${choix.lien}`, detail };
+      return { refus: `the page of ${nom} did not open in your browser: ${lien}`, detail };
     }
     return { fait: "its download page is open in your browser: install it from there, then click “I installed it”" };
   }
@@ -104,9 +105,9 @@ export function tenirOutilsRequis(options: OptionsDesOutilsRequis) {
     },
     // Une installation à la fois par outil : un second clic attend la même.
     installer(outil: unknown): Promise<RenduDInstallation> {
-      if (outil !== "gh" && outil !== "git" && outil !== "claude") return Promise.resolve({ refus: "this is not a tool brigade installs" });
+      if (!estRequis(outil)) return Promise.resolve({ refus: "this is not a tool brigade installs" });
       const deja = enCours.get(outil);
-      if (deja !== undefined) return deja;
+      if (deja) return deja;
       const lance = installer(outil)
         .catch((erreur: unknown) => ({ refus: "the install could not start: the app failed while preparing it", detail: erreur instanceof Error ? erreur.message : String(erreur) }))
         .finally(() => enCours.delete(outil));

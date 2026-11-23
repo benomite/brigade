@@ -21,7 +21,7 @@ export type OptionsDeLaMachine = OptionsDesOutils & {
 export type MachineLue = Machine & { horsDuPath: Partial<Record<OutilRequis, string>> };
 export type OutilManquant = { outil: OutilRequis; installation: Installation };
 
-const lancer = (programme: string, args: string[]) => {
+export const reussitPourDeBon = (programme: string, args: string[]) => {
   try {
     return spawnSync(programme, args, { stdio: "ignore", windowsHide: true, timeout: 10_000 }).status === 0;
   } catch {
@@ -31,7 +31,7 @@ const lancer = (programme: string, args: string[]) => {
 
 export function lireLaMachine(options: OptionsDeLaMachine = {}): MachineLue {
   const plateforme = options.plateforme ?? process.platform;
-  const reussit = options.reussit ?? lancer;
+  const reussit = options.reussit ?? reussitPourDeBon;
   const presents: string[] = [];
   const horsDuPath: Partial<Record<OutilRequis, string>> = {};
   const outilsDeveloppeur = plateforme === "darwin" && reussit("xcode-select", ["-p"]);

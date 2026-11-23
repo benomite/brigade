@@ -97,8 +97,8 @@ const fichier = (chemin: string) => {
 // Le pas qui installe Git for Windows et son Git Bash, tel que les outils requis le choisissent (#4059) : winget
 // seulement s'il est sur ce PC, son installeur sinon.
 function gitPourWindows(env: Record<string, string | undefined>, existe: (chemin: string) => boolean): string {
-  const winget = dansLePath("winget", { plateforme: "win32", env, existe }) !== null;
-  const { texte } = choisirInstallation("git", { plateforme: "win32", presents: winget ? ["winget"] : [] });
+  const presents = dansLePath("winget", { plateforme: "win32", env, existe }) === null ? [] : ["winget"];
+  const { texte } = choisirInstallation("git", { plateforme: "win32", presents });
   return `${texte.charAt(0).toLowerCase()}${texte.slice(1)}`;
 }
 
