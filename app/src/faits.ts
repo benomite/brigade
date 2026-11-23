@@ -11,6 +11,7 @@
 // d'après ce que la forme dit de chaque ticket (`tiers`). Chaque carte porte ce que la file dit du ticket : sa station
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
 // Ce sont les deux seules choses lues hors de la forme.
+import { vueDesPostMortems, type VueDesPostMortems } from "./projets/post-mortems.ts";
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
@@ -115,6 +116,23 @@ export function rolesCuisineLus(brut: unknown): RoleDeCuisine[] | undefined {
     const { role, does, latest } = un as Record<string, unknown>;
     const lue = action(latest);
     return texte(role) && texte(does) && lue !== undefined ? [{ role, does, latest: lue }] : [];
+  });
+}
+
+// Un post-mortem de panne (runtime/src/post-mortems/post-mortems.ts, #4023) : ses cinq champs — la cause, la durée, qui l'a vue
+// en premier, ce qui l'a corrigée, le ticket du correctif ; ces deux derniers nuls quand rien ne les a dits —, et la fin de sa panne.
+export type PostMortemDeLaPanne = { cause: string; duree: string; vuEnPremier: string; corrige: string | null; ticket: string | null; fin: string };
+
+// Le champ `postMortems` d'un `facts` : une liste. Une entrée qui n'a pas cette forme n'est pas lue, ni une liste qui n'en est
+// pas une — la vue dit alors qu'elle ne les a pas lus.
+export function postMortemsLus(brut: unknown): PostMortemDeLaPanne[] | undefined {
+  const plein = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.length > 0;
+  const oupas = (valeur: unknown): valeur is string | null => valeur === null || plein(valeur);
+  if (!Array.isArray(brut)) return undefined;
+  return brut.flatMap((un: unknown) => {
+    if (typeof un !== "object" || un === null) return [];
+    const { cause, duree, vuEnPremier, corrige, ticket, fin } = un as Record<string, unknown>;
+    return plein(cause) && plein(duree) && plein(vuEnPremier) && oupas(corrige) && oupas(ticket) && plein(fin) && !Number.isNaN(Date.parse(fin)) ? [{ cause, duree, vuEnPremier, corrige, ticket, fin }] : [];
   });
 }
 
@@ -460,6 +478,8 @@ export type Faits = {
   // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action (ticket 1274) ; absent d'un runtime
   // d'avant ce champ.
   rolesCuisine?: RoleDeCuisine[];
+  // Les post-mortems des pannes du projet (#4023) — absent d'un runtime qui ne les donne pas.
+  postMortems?: PostMortemDeLaPanne[];
   // Ce que coûtent les gates du projet face à son budget, et le ticket que la cuisine a ouvert seule (ticket 1318) ;
   // absent d'un runtime d'avant ce champ.
   coutDesGates?: CoutDesGates;
@@ -579,6 +599,9 @@ export type Tableau = {
   activiteCuisine?: ActiviteCuisine;
   // Les rôles de la cuisine du projet, sur l'onglet Cooks — absent d'un runtime qui ne les donne pas.
   rolesCuisine?: RoleDeCuisine[];
+  // Les post-mortems des pannes du projet (#4023), la liste et le compte de la section de Settings du projet, tels que
+  // projets/post-mortems.ts les met en forme à cette lecture — absent d'un runtime qui ne les donne pas.
+  postMortems?: VueDesPostMortems;
   // Ce que coûtent les gates du projet face à son budget : la file le pose en tête, l'onglet Cooks ses 24 h (ticket
   // 1318) — absent d'un runtime qui ne le donne pas.
   coutDesGates?: CoutDesGates;
@@ -979,6 +1002,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(activiteCuisineLue(racine.activiteCuisine) === undefined ? {} : { activiteCuisine: activiteCuisineLue(racine.activiteCuisine) }),
       ...(cadenceLue(racine.cadence) === undefined ? {} : { cadence: cadenceLue(racine.cadence) }),
       ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
+      ...(postMortemsLus(racine.postMortems) === undefined ? {} : { postMortems: postMortemsLus(racine.postMortems) }),
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
       ...(budgetDesAppelsLu(racine.budgetDesAppels) === undefined ? {} : { budgetDesAppels: budgetDesAppelsLu(racine.budgetDesAppels) }),
       ...(racine.apprentissage === undefined ? {} : { apprentissage: apprentissageLu(racine.apprentissage) }),
@@ -1573,6 +1597,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
+    ...(faits.postMortems === undefined ? {} : { postMortems: vueDesPostMortems(faits.postMortems, new Date(faits.lu)) }),
     ...(faits.coutDesGates === undefined ? {} : { coutDesGates: faits.coutDesGates }),
     ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
     apprentissage: apprentissageDe(faits.apprentissage),

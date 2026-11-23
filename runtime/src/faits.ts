@@ -24,6 +24,7 @@ import { reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
 import { coutDuProjet, lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { ticketDuBudget } from "./budget-des-gates.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
+import { lireLesFinsDesPannes, lirePostMortems } from "./post-mortems/post-mortems.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
 
@@ -99,7 +100,17 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
     // L'interrupteur GitHub seul, quand il est allumé : accepté, ou refusé et pourquoi (`github-seul-etat.ts`).
     const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
-    return { ...forme, blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat), ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(appris ? { apprentissage } : {}) };
+    // Les post-mortems des pannes du projet (#4023) : un fichier illisible les retire des faits, il ne les fait pas taire.
+    let postMortems;
+    try {
+      // Rangés en ajout seul : lus avant leurs fins, ils les précèdent de même rang.
+      const lus = projet ? lirePostMortems(repertoireEtat, projet) : undefined;
+      const fins = projet ? lireLesFinsDesPannes(repertoireEtat, projet) : [];
+      postMortems = lus?.map((postMortem, rang) => ({ ...postMortem, fin: fins[rang] as string }));
+    } catch {
+      postMortems = undefined;
+    }
+    return { ...forme, blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat), ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(postMortems === undefined ? {} : { postMortems }), ...(github === null ? {} : { github }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
