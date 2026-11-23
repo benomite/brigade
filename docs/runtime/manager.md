@@ -17,7 +17,11 @@ npm --prefix runtime run manager                # whether it judges, its last fi
 npm --prefix runtime run manager -- return 77   # hand back an issue it set aside because you removed one of its labels
 npm --prefix runtime run manager -- backlog     # what turning it on commits it to: open issues, and how many carry blocked-on-human
 npm --prefix runtime run manager -- upstream    # every open issue not on the rail, and what is happening to it — for the app
+npm --prefix runtime run manager -- approve 3   # your OK to a gesture an agent on `propose` holds (#4039): the runtime does it at its next tick
 ```
+
+`manager` alone also lists the gestures the agents hold for your OK, with their number: the closer's passes and the
+splits of an epic, on `propose` by default. The gate is described in [`autonomie.md`](autonomie.md).
 
 ⚠️ **Once on, it judges the whole open backlog**, and whatever it judges executable goes straight to the
 kitchen and is merged when green. Before switching on, set `blocked-on-human` on whatever must not go:

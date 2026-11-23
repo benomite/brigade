@@ -25,6 +25,7 @@ import { direRefus, environnementCook, lireFlux, REFUS_MAX, verdict, type Lectur
 import type { Decisions } from "./decisions.ts";
 import { estUneVision, sortirLaVision } from "./besoin/vision.ts";
 import { ouvrirSupervision } from "./manager/supervision.ts";
+import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
@@ -120,6 +121,8 @@ export function configManager(env: Record<string, string | undefined>): ConfigMa
 
 export type OptionsManager = ConfigManager & {
   github: GitHub;
+  // La porte des gestes du runtime (#4039) : le découpage d'une épique y passe, « propose » par défaut.
+  porte?: PorteDesGestes | null;
   // `<owner>/<repo>`, pour la consigne du jugement.
   depotGitHub: string;
   repertoireEtat: string;
@@ -850,6 +853,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     avertir,
     signature,
     ...(options.surLeRail === undefined ? {} : { surLeRail: options.surLeRail }),
+    porte: options.porte ?? null,
   });
 
   // L'issue d'un auteur sans l'écriture : une proposition de tri, et une carte
