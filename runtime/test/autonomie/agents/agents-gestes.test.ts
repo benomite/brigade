@@ -5,12 +5,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
-import { consignerGeste, enregistrementDe, FICHIER_DES_GESTES, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
+import { consignerGeste, enregistrementDe, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
 import { magasinDeNiveaux, type Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import type { Ajout } from "../../../src/evenements.ts";
 import { lireLesFaits } from "../../../src/faits.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { repertoireTemporaire } from "../../outils.ts";
+
+// The file of the log, in the directory it is given (gestes.ts).
+const FICHIER = "autonomy-gestures.json";
 
 const PROJET = "shop";
 const NIVEAUX: Niveaux = { manager: "act", "manager split-epic": "propose", supervisor: "act", closer: "propose", pass: "act", cook: "act" };
@@ -62,19 +65,19 @@ test("`facts` gives each agent's logged gestures in `equipe`", (t) => {
 
 test("an unreadable gesture log is said in `equipe`, the rest of `facts` is still given, and the file is left as it is", (t) => {
   const { repertoire, env } = etat(t);
-  writeFileSync(join(repertoire, FICHIER_DES_GESTES), "{not json");
+  writeFileSync(join(repertoire, FICHIER), "{not json");
   const lus = lireLesFaits(env, MAINTENANT);
   assert.match((lus.equipe as { illisible: string }).illisible, /cannot be read/);
   assert.ok(Array.isArray(lus.rolesCuisine));
-  assert.equal(readFileSync(join(repertoire, FICHIER_DES_GESTES), "utf8"), "{not json");
+  assert.equal(readFileSync(join(repertoire, FICHIER), "utf8"), "{not json");
 });
 
 test("a log whose agent has an entry that is not a gesture is said in `equipe`, never read as given", (t) => {
   const { repertoire, env } = etat(t);
   const contenu = `{"closer": [{"at": "x", "line": "l", "outcome": "fixed by itself"}]}`;
-  writeFileSync(join(repertoire, FICHIER_DES_GESTES), contenu);
+  writeFileSync(join(repertoire, FICHIER), contenu);
   assert.match((lireLesFaits(env, MAINTENANT).equipe as { illisible: string }).illisible, /the gestures of closer are not a list/);
-  assert.equal(readFileSync(join(repertoire, FICHIER_DES_GESTES), "utf8"), contenu);
+  assert.equal(readFileSync(join(repertoire, FICHIER), "utf8"), contenu);
 });
 
 test("without `BRIGADE_PROJECT`, `facts` gives each agent its gestures with the levels of the log's project", (t) => {

@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
-import { consignerGeste, enregistrementDe, FICHIER_DES_GESTES, gestesDe, GestesIllisibles, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
+import { consignerGeste, enregistrementDe, gestesDe, GestesIllisibles, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
 
 let dossier = "";
 beforeEach(() => { dossier = mkdtempSync(join(tmpdir(), "gestes-")); });
@@ -20,7 +20,7 @@ describe("an unreadable gesture log", () => {
     ["an entry with an unknown outcome", `{"closer": [{"at": "x", "line": "l", "reason": "r", "outcome": "green"}]}`],
   ] as const) {
     test(`${cas}: refused by the read and the write, and left as it is`, () => {
-      const fichier = join(dossier, FICHIER_DES_GESTES);
+      const fichier = join(dossier, "autonomy-gestures.json");
       writeFileSync(fichier, contenu);
       assert.throws(() => gestesDe(dossier, "closer"), GestesIllisibles);
       assert.throws(() => enregistrementDe(dossier, "closer"), GestesIllisibles);

@@ -22,7 +22,7 @@ export type Geste = { at: string; line: string; reason: string; outcome: Outcome
 export type Compteurs = { fixedBySelf: number; handedToChef: number };
 export type EnregistrementDeGestes = { agent: string; lastGesture?: Geste; counters: Compteurs; gestures: Geste[] };
 
-export const FICHIER_DES_GESTES = "autonomy-gestures.json";
+const FICHIER_DES_GESTES = "autonomy-gestures.json";
 
 export class GestesIllisibles extends Error {}
 

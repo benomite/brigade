@@ -32,7 +32,10 @@ itself` and `handed to the chef`. The record's `counters` count them (`fixedBySe
 the log, oldest first, and its `lastGesture` is the log's most recent entry, unless its roles' last action is later. The
 log is kept in `autonomy-gestures.json` of the state directory, one list per agent. A missing file is a log with no
 gesture. A file that cannot be read is said in `equipe` of `facts`, and refused when a gesture is logged: nothing is
-guessed in its place and the file is never overwritten. No agent logs a gesture yet.
+guessed in its place and the file is never overwritten. The supervisor logs each gesture it does
+(`superviseur/superviseur.ts`): a TODO card as `handed to the chef`, any other as `fixed by itself`, with what woke it as
+its reason; a refused or failed gesture is not logged. Its last ten gestures and its counters are in the dossier its
+manager gets. The other agents log none yet.
 
 Each agent has an autonomy level per project: `observe` (it says what it would do), `propose` (it waits for the chef's
 OK), `act` (it does it, then says so). The manager's splitting of an epic has its own level. A level never set
