@@ -22,7 +22,7 @@ import { coutsDesFlux, noterDeriveGithub } from "./closer-github-passe/derive-gi
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { brancherElagageGithub, elagageDuClone } from "./github-seul/elagage/elagage.ts";
-import { lieuxARecuperer, reclamerLesRestes } from "./reclamation.ts";
+import { lieuxARecuperer, reclamerLesRestes } from "./github-seul/garde-fous/recuperation.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { noterLeModeDesIdentites } from "./appels-par-identite.ts";

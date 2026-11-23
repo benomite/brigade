@@ -38,7 +38,7 @@ import { brancherTicketDEssai } from "../essai-projet/ticket.ts";
 import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
-import { lieuxARecuperer, reclamerLesRestes } from "../reclamation.ts";
+import { lieuxARecuperer, reclamerLesRestes } from "../github-seul/garde-fous/recuperation.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";

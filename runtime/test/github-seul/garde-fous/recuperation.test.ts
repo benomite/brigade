@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { reclamerLesRestes } from "../src/reclamation.ts";
+import { reclamerLesRestes } from "../../../src/github-seul/garde-fous/recuperation.ts";
 
 type LieuxARecuperer = Parameters<typeof reclamerLesRestes>[0];
-import { repertoireTemporaire } from "./outils.ts";
+import { repertoireTemporaire } from "../../outils.ts";
 
 const LAISSE_MS = 3_600_000;
 const MAINTENANT = 10 * LAISSE_MS;

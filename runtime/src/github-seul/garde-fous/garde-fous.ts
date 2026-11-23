@@ -72,7 +72,7 @@ export type OptionsDesGardes = {
   // La machine sous la station et ses seuils (`configMachine`). Absente : rien
   // ne se retient sur elle.
   machine?: { lire: () => Machine; seuils: Seuils };
-  // Rend à la machine ce que la brigade a laissé derrière ses cooks (`reclamation.ts`) :
+  // Rend à la machine ce que la brigade a laissé derrière ses cooks (`recuperation.ts`) :
   // jouée quand la machine est vue saturée sans aucun cook vivant, avant de retenir (#4089).
   reclamer?: () => { retires: string[]; echecs: string[] };
   maintenant?: () => Date;

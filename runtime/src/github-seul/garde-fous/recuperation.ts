@@ -5,11 +5,11 @@
 // relecture en cours y vit peut-être. Ce qui porte du travail — worktree sale,
 // ou dont la tête n'est sur aucune branche distante — reste : `git worktree
 // remove` sans `--force` le refuse de lui-même.
-import { execFileSync } from "./sans-invite.ts";
+import { execFileSync } from "../../sans-invite.ts";
 import { readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { worktreesDuProjet } from "./depot.ts";
+import { worktreesDuProjet } from "../../depot.ts";
 
 // En deçà, un reste n'en est peut-être pas un.
 const LAISSE_MS = 3_600_000;
