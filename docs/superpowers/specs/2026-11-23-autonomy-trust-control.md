@@ -10,7 +10,7 @@ That fixed the worst of it, but on 2026-11-22 the chef asked for the next step: 
 
 ### The one measure
 
-**Outages the chef sees before the system does.** From 2026-11-19 to 2026-11-22, that was nearly all of them. The chef found each one through GitHub mails or a screenshot, and the second fixed it by hand. The target is zero. Every proposal below is judged by what it removes from that count.
+**Outages the chef sees before the system does.** From 2026-11-19 to 2026-11-22, that was nearly all of them. The chef found each one through GitHub mails or a screenshot, and the second (the chef's product assistant, see `docs/glossary.md`) fixed it by hand. The target is zero. Every proposal below is judged by what it removes from that count. The definition, the way to count it and the baseline are in [Measurement](#the-key-measure-outages-seen-by-the-chef-first).
 
 ### What those outages were (2026-11-19 → 22)
 
@@ -85,7 +85,7 @@ There is one place, short, per project and per day. It says what was delivered, 
 
 ### T2. Proof with every delivery
 
-**Ground:** 2026-11-21: a frozen acceptance test already green on main was counted as a send-back reason (#3921 `db9b3ea`, `f6796e9`), so the chef could not tell from a delivery what had really been proven.
+**Ground:** 2026-11-20: the cook ↔ review loop of about 15 rounds in 40 min (#3955 `f8b8232`, #3959, #3961 `9364563`): the delivery and the review disagreed on what was proven, and nothing showed the proof of each criterion. A proof shown with each delivery would have exposed the disagreement at the first round.
 
 Every merged delivery shows its acceptance criteria, the test that proves each one and its result, plus a capture for a screen. The chef can trust a delivery without reading its code.
 
@@ -109,7 +109,7 @@ Each ticket shows an estimate, and the actual time is compared with it. A ticket
 
 ### T6. Reversibility
 
-**Ground:** 2026-11-20 → 21: the supervisor's closed set of gestures (#3944 `684d09f`, 2026-11-20) acted on the rail from the first day, with no undo, and it turned `main` green three times by itself from 2026-11-21.
+**Ground:** 2026-11-21: a closed PR put back in pass by an automatic gesture (#3990 `435495c`) and a delivery pushed before the gates passed (#3996 `65bcec8`). Both were wrong, and both could only be undone by hand; a logged gesture with its undo would have shortened them.
 
 Every automatic gesture is logged with its reason, and can be undone when it is reversible: reopen, rerun, revert a closer merge by a PR. The chef can pause the kitchen, or one agent, in one click.
 
@@ -134,7 +134,7 @@ The top of the project view shows one badge per agent: manager, supervisor, clos
 
 ### C2. An agent's thread
 
-**Ground:** 2026-11-21: the supervisor's turn keeps skips of the previous turn (#3761 `5ce38b5`) — a state no one could read from outside.
+**Ground:** the outage of the night of 2026-11-20 → 21: tickets parked and never put back, nobody saw it for 6 h (#3911 `35407a8`). A thread that lists each gesture of the supervisor, with its reason, would have shown within the hour that none was made. The same blindness hit the zone cycle of 2026-11-21 (#3979 `5df4a7e`).
 
 Clicking a badge shows the agent's last gestures, one line each, with the reason and the outcome:
 - « Supervisor · 17:01 · reran `tests` on 0de1ff5 (red for 10 min) → green »;
@@ -173,7 +173,7 @@ Every gesture carries its evidence: the log, or the rule applied. When the chef 
 
 ### C7. What the closer does, in plain words
 
-**Ground:** 2026-11-19 and 2026-11-21: the closer's passes (#3857 `46d61b3`, #3993 `e648205`) moved tests around and merged with nothing the chef could read afterwards. No outage of 2026-11-19 → 22 is recorded against the closer itself; this proposal rests on the same blindness as the supervisor's (#3911).
+**Ground:** none of its own, and it is not a first ticket. No outage of 2026-11-19 → 22 involves the closer. This proposal only extends C2 to the closer, which the chef asked for; its ground is the outage of C2 (#3911 `35407a8`, 2026-11-20 → 21).
 
 Each pass of the closer has a summary:
 - the lines deleted and the duplicates merged;
@@ -200,15 +200,16 @@ The logbook digest (T1) replaces mails as the way to tell the chef something. A 
 - **An outage** is a period of 30 minutes or more when the kitchen delivers nothing it should, or when `main` is red, or when a card asks the chef something an agent could decide (the same bar as T4).
 - **Seen by the chef first** when the first trace of it that reached the chef (a GitHub mail, a screenshot, a message, a TODO card) is dated before the first trace that the system itself wrote (a supervisor gesture, a logbook line, a post-mortem note, an alert).
 - **How to count.** Until T4 exists, count by hand each week from the issues, the PRs and the supervisor's comments: for each outage list the two dates and keep the earlier. Once T4 exists, count the post-mortem notes whose « seen first by » says « chef ». The measure is that count per week, and its share of all outages.
-- **Baseline.** 2026-11-19 → 22: nearly all of the outages in the table above (the chef or the second first). **Target: zero.**
+- **Baseline.** 2026-11-19 → 22: nearly all of the outages in the table above were seen first by the chef or by the second. **Target: zero.**
 
 ### Success measure per axis
 
 | Axis | Success measure | Read from |
 |---|---|---|
 | Autonomy | Outages that an invariant (A1) or the progress trigger (A2) caught before the chef: at least 9 in 10, over 4 weeks | post-mortem notes (T4) |
-| Trust | Share of alerts the chef acts on (T3), and share of outages whose note says « seen first by: system »: 100 % over 4 weeks | the logbook (T1), post-mortem notes (T4) |
-| View and control | Every gesture of the supervisor, the closer, the manager and the pass appears in its agent's thread with a reason; the chef can pause each agent; the count of questions « what did X do? » asked of the second falls to zero | the agents' threads (C2) |
+| Trust | Share of outages whose note says « seen first by: system »: 100 % over 4 weeks | post-mortem notes (T4) |
+| Trust | Share of alerts the chef acts on (T3): at least 9 in 10 over 4 weeks (proposed) | the logbook (T1) |
+| View and control | Every gesture of the supervisor, the closer, the manager and the pass appears in its agent's thread with a reason; the chef can pause each agent; the count of questions « what did X do? » that the chef asks the second falls to zero | the agents' threads (C2) |
 
 These thresholds are proposals: the chef sets them by validating this spec.
 
