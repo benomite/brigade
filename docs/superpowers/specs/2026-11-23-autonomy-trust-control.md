@@ -10,7 +10,7 @@ That fixed the worst of it, but on 2026-11-22 the chef asked for the next step: 
 
 ### The one measure
 
-**Outages the chef sees before the system does.** From 2026-11-19 to 2026-11-22, that was nearly all of them. The chef found each one through GitHub mails or a screenshot, and the second (the chef's product assistant, see `docs/glossary.md`) fixed it by hand. The target is zero. Every proposal below is judged by what it removes from that count. The definition, the way to count it and the baseline are in [Measurement](#the-key-measure-outages-seen-by-the-chef-first).
+**Outages the chef sees before the system does.** From 2026-11-19 to 2026-11-22, that was nearly all of them. The target is zero; the definition, the way to count it and the baseline are in [Measurement](#the-key-measure-outages-seen-by-the-chef-first).
 
 ### What those outages were (2026-11-19 → 22)
 
@@ -48,7 +48,7 @@ Write down a short list of invariants of the rail and check them on every tick. 
 
 **Ground:** 2026-11-19 → 21: tickets that looked healthy while nothing moved — a `taken` ticket with no cook and no wait (#3883 `bb08533`, 2026-11-19) and the night of 2026-11-20 → 21 when tickets were parked and the kitchen stayed empty for 6 h (#3911 `35407a8`, the supervisor takes the tickets set aside).
 
-The supervisor already wakes on « nothing merged for 30 min », « taken 3 times » and « `main` red for 10 min ». Add one generic trigger that covers the outages nobody foresaw: **no progress on a ticket for X minutes, whatever its state**. Progress means a new commit, a CI result, a review verdict or a label change made by an agent.
+The supervisor already wakes on « nothing merged for 30 min », « taken 3 times » and « `main` red for 10 min ». Add one generic trigger that covers the outages nobody foresaw: **no progress on a ticket for X minutes, whatever its state** (proposed: X = 30). Progress means a new commit, a CI result, a review verdict or a label change made by an agent.
 
 ### A3. Never relaunch blind
 
@@ -122,7 +122,7 @@ What this axis gives each of the four autonomous agents:
 | Agent | What the chef sees | What the chef controls |
 |---|---|---|
 | **Supervisor** | its wake reason, each gesture of its closed set with the evidence (C1, C2) | pause, undo a rerun or a ticket put back (C5, T6); starts on « act » |
-| **Closer** | each closing pass in plain words, what it left and why (C7) | « propose »: a preview before the merge, one-click OK (C4); starts on « propose » |
+| **Closer** | each closing pass in plain words, what it left and why (C2) | « propose »: a preview before the merge, one-click OK (C4); starts on « propose » |
 | **Manager** | its rewrites, calibrations and splits in a card's history (C3) | « act » by default, except that splitting an epic is « propose » (Q2) |
 | **Pass** | the steps it ran, what each caught and cost (A5, C8) | pause; starts on « act » |
 
@@ -141,6 +141,8 @@ Clicking a badge shows the agent's last gestures, one line each, with the reason
 - « Closer · 03:12 · deleted 412 dead lines in `runtime/src/retenue/` → merged ».
 
 The thread also shows the agent's « fixed by itself / handed to the chef » counter.
+
+The closer's thread is the same thread. Each pass of the closer is one entry, in plain words: the lines deleted and the duplicates merged, the drifts it measured, what it left and why, and, on « propose », a preview before the merge.
 
 ### C3. A card's history
 
@@ -171,16 +173,6 @@ Each agent has its own switch, and each automatic gesture has its « undo » whe
 
 Every gesture carries its evidence: the log, or the rule applied. When the chef answers « I disagree », the manager turns it into a rule or a ticket, so that the agent does not do it again.
 
-### C7. What the closer does, in plain words
-
-**Ground:** none of its own, and it is not a first ticket. No outage of 2026-11-19 → 22 involves the closer. This proposal only extends C2 to the closer, which the chef asked for; its ground is the outage of C2 (#3911 `35407a8`, 2026-11-20 → 21).
-
-Each pass of the closer has a summary:
-- the lines deleted and the duplicates merged;
-- the drifts it measured;
-- what it left, and why;
-- on « propose », a preview before the merge.
-
 ### C8. What each agent costs
 
 **Ground:** 2026-11-21 → 22: about 35 cook runs and 3.5 h on a red CI of #4001 before anyone noticed (#4006 `4dc780f`).
@@ -200,7 +192,7 @@ The logbook digest (T1) replaces mails as the way to tell the chef something. A 
 - **An outage** is a period of 30 minutes or more when the kitchen delivers nothing it should, or when `main` is red, or when a card asks the chef something an agent could decide (the same bar as T4).
 - **Seen by the chef first** when the first trace of it that reached the chef (a GitHub mail, a screenshot, a message, a TODO card) is dated before the first trace that the system itself wrote (a supervisor gesture, a logbook line, a post-mortem note, an alert).
 - **How to count.** Until T4 exists, count by hand each week from the issues, the PRs and the supervisor's comments: for each outage list the two dates and keep the earlier. Once T4 exists, count the post-mortem notes whose « seen first by » says « chef ». The measure is that count per week, and its share of all outages.
-- **Baseline.** 2026-11-19 → 22: nearly all of the outages in the table above were seen first by the chef or by the second. **Target: zero.**
+- **Baseline.** 2026-11-19 → 22: nearly all of the outages in the table above were seen first by the chef or by the second (the chef's product assistant, see `docs/glossary.md`). **Target: zero.**
 
 ### Success measure per axis
 
@@ -229,7 +221,7 @@ A proposal only: **no issue is created by this spec.** Each entry becomes a `pro
 - **Acceptance criteria:**
   - the supervisor's tick checks each invariant listed in A1 and writes one line per broken invariant, naming it;
   - a fixture rail where a ticket nobody cooks holds a file zone is repaired by the tick with no human and no new ticket;
-  - a ticket with no commit, CI result, review verdict or agent label change for X minutes makes the supervisor wake and name it;
+  - a ticket with no commit, CI result, review verdict or agent label change for 30 minutes (proposed value, the same bar as an outage) makes the supervisor wake and name it;
   - a healthy rail makes the tick write nothing.
 
 ### 2. Write an automatic post-mortem with « seen first by »
@@ -242,7 +234,7 @@ A proposal only: **no issue is created by this spec.** Each entry becomes a `pro
   - an outage shorter than 30 minutes makes no note.
 
 ### 3. Show the team strip and the supervisor's and closer's threads
-- **Axis:** view and control of the agents (C1, C2; C7 for the closer).
+- **Axis:** view and control of the agents (C1, C2, which covers the closer).
 - **Outage answered:** 2026-11-20 → 21, the supervisor acting (#3944, `684d09f`) and tickets parked all night with the chef seeing nothing (#3911, `35407a8`).
 - **Acceptance criteria:**
   - the top of the project view shows one badge each for the manager, the supervisor, the closer and the pass, with state, last gesture, and next run;
