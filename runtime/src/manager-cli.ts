@@ -4,6 +4,8 @@
 //   npm --prefix runtime run manager -- return <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
 //   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien portent `blocked-on-human`
 //   npm --prefix runtime run manager -- upstream    ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour un programme
+//   npm --prefix runtime run manager -- approve <n> l'OK du chef à un geste en attente d'un agent sur « propose » (#4039, autonomie/agents/porte.ts) :
+//                                                   le runtime qui tourne le fait à son prochain réveil, une fois ; `manager` seul les liste
 // Les anciens mots (`allumer`, `eteindre`, `rendre`) répondent encore, en
 // disant le nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit à son
@@ -19,6 +21,7 @@ import { decrire, decrireEcart, ecart } from "./dire-manager.ts";
 import type { Ecart } from "./events/manager.ts";
 import { type IssueOuverte } from "./github.ts";
 import { ouvrirGitHubDuGeste } from "./gestes/github-du-geste.ts";
+import { approuverGeste, gestesEnAttente } from "./autonomie/agents/porte.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
@@ -30,7 +33,7 @@ import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactio
 import { sessionEnCours } from "./projections/sessions.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run manager -- [return <issue number> | backlog | upstream]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run manager -- [return <issue number> | backlog | upstream]\n       BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run manager -- approve <pending gesture>";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const ECARTEES_MONTREES = 10;
@@ -81,6 +84,19 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
       case "escalate":
         return `${apres}, escalated to the chef — ${reaction.reason}${reaction.proposal === null ? "" : ` Proposed: ${reaction.proposal}`}`;
     }
+  }
+
+  // Les gestes des agents qui attendent l'OK du chef ; un fichier illisible est dit, jamais lu vide.
+  function montrerLesAttentes(repertoireEtat: string): void {
+    let attentes: ReturnType<typeof gestesEnAttente>;
+    try {
+      attentes = gestesEnAttente(repertoireEtat);
+    } catch (erreur) {
+      ligne("held gestures", `not read — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      return;
+    }
+    ligne("held gestures", attentes.length === 0 ? "none" : "");
+    for (const attente of attentes) dire(`  ${attente.at}  ${attente.id}  ${attente.agent}: ${attente.line} — ${attente.reason}${attente.approved ? " (approved: done at the runtime's next tick)" : ` — \`${geste(`manager approve ${attente.id}`)}\``}`);
   }
 
   function montrer(journal: Journal): void {
@@ -206,6 +222,17 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const montre = args.length === 0;
   const numero = commande === "return" && args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
   const amont = commande === "upstream" && args.length === 1;
+  if (commande === "approve") {
+    const id = args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
+    if (id === null) echouer(2, `the pending gesture's number is needed\n${USAGE}`);
+    try {
+      const attente = approuverGeste(repertoireEtat, id);
+      dire(`brigade : gesture ${attente.id} of the ${attente.agent} approved (${attente.line}) — the running runtime does it at its next tick, once`);
+    } catch (erreur) {
+      echouer(1, `${erreur instanceof Error ? erreur.message : String(erreur)} — nothing is approved`);
+    }
+    return;
+  }
   // Le manager n'a plus d'interrupteur à lui (#1406) : il suit celui du projet.
   if (args.length === 1 && (commande === "on" || commande === "off")) {
     echouer(1, `the manager has no switch of its own any more: it follows the project switch, which also takes the tickets and merges the green deliveries — \`${geste(`switch ${commande}`)}\`. Nothing is written`);
@@ -218,7 +245,10 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
 
   const journal = ouvrirJournal(repertoireEtat, { lectureSeule: montre });
   try {
-    if (montre) montrer(journal);
+    if (montre) {
+      montrer(journal);
+      montrerLesAttentes(repertoireEtat);
+    }
     else if (numero !== null) {
       const { fait, message } = rendre(journal, numero);
       dire(`brigade : ${message}`);

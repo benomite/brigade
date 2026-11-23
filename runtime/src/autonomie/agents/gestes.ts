@@ -11,10 +11,12 @@ import { join } from "node:path";
 import { ecrireAtomique } from "../../relais.ts";
 
 // The outcomes of a gesture, in the spec's words (C2): the agent fixed it by itself, or handed it to the chef. Each
-// moves its own counter, and only its own.
+// moves its own counter, and only its own. A gesture an agent on `observe` would make is logged `not done` (C4,
+// porte.ts), and moves neither.
 export const OUTCOME = {
   FIXED_BY_SELF: "fixed by itself",
   HANDED_TO_CHEF: "handed to the chef",
+  NOT_DONE: "not done",
 } as const;
 export type Outcome = (typeof OUTCOME)[keyof typeof OUTCOME];
 

@@ -33,7 +33,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "recap", description: "What the kitchen did since the chef last looked, for the app: <owner>/<repo> reads it (served tickets and their pull requests, sends back and refusals, guardrail stops), <owner>/<repo> seen <instant> marks it shown up to that instant" },
   { nom: "contributor-stations", description: "The contributor stations that took a ticket, for the app: refuse <station>, accept <station> — a refused station takes no ticket" },
   { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },
-  { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
+  { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream; approve <n> does once a gesture an agent holds for the chef's OK", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
   {
     nom: "waiting",
     ancien: "attente",
