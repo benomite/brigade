@@ -30,8 +30,9 @@ function commandeDe(pid: number, plateforme: NodeJS.Platform = process.platform)
 
 // Le pid laissé par un process qui s'est arrêté est rendu par le système à un autre — l'icône de fond, l'hôte de la station,
 // n'importe quel process (#4071). Ne tient la place que celui qui est lancé comme ce process-ci : le même binaire, les mêmes
-// arguments — l'ancien `-psn_…` que le Mac ajoutait parfois mis à part. Une commande qui ne se lit pas ne prouve rien.
-const sansPsn = (commande: string) => commande.replace(/\s+-psn_\S+/g, "").trim();
+// arguments — l'ancien `-psn_…` que le Mac ajoutait parfois, et les guillemets qu'un raccourci Windows met autour du binaire,
+// mis à part. Une commande qui ne se lit pas ne prouve rien.
+const sansPsn = (commande: string) => commande.replace(/\s+-psn_\S+/g, "").replaceAll('"', "").trim();
 export function memeProcess(pid: number, soi: number = process.pid, lire: (pid: number) => string | undefined = commandeDe): boolean {
   const autre = lire(pid);
   const nous = lire(soi);

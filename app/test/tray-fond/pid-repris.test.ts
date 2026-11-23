@@ -32,12 +32,15 @@ test("a process launched like this one is the same; another command, or one that
     [2, "/Applications/Brigade.app/Contents/MacOS/Brigade -psn_0_12345"],
     [3, "/Applications/Brigade.app/Contents/MacOS/Brigade --tray-fond"],
     [4, "/usr/local/bin/node /Users/chef/.brigade/runtime/src/station/principal.ts"],
+    [5, "C:\\Program Files\\Brigade\\Brigade.exe"],
+    [6, '"C:\\Program Files\\Brigade\\Brigade.exe"'],
   ]);
   const lire = (pid: number) => commandes.get(pid);
   assert.equal(memeProcess(2, 1, lire), true, "the same app, launched by the old LaunchServices");
   assert.equal(memeProcess(1, 2, lire), true);
   assert.equal(memeProcess(3, 1, lire), false, "the icon process of the same bundle is not the app");
   assert.equal(memeProcess(4, 1, lire), false, "the station host is not the app");
+  assert.equal(memeProcess(6, 5, lire), true, "the same app, its binary quoted by a Windows shortcut");
   assert.equal(memeProcess(9, 1, lire), false, "a command that cannot be read proves nothing");
   assert.equal(memeProcess(1, 9, lire), false);
 });
