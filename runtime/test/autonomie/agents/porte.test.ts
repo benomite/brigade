@@ -161,6 +161,21 @@ test("an unreadable pending file: a proposed gesture is not held nor done, an ap
   }
 });
 
+test("a held gesture whose pending file turns unreadable is not done on approval, and stays held until the file reads again", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  magasinDeNiveaux(repertoire).poser(PROJET, "supervisor", "propose");
+  const porte = porteDesGestes({ repertoire, projet: PROJET, horloge: A(9) });
+  const { appels, faire } = fauxGeste(1);
+  assert.deepEqual(await porte.passer(SUPERVISEUR, DIT, faire), { etat: "held", id: 1 });
+  const lisible = readFileSync(join(repertoire, FICHIER_DES_ATTENTES), "utf8");
+  writeFileSync(join(repertoire, FICHIER_DES_ATTENTES), "{not json");
+  await assert.rejects(porte.approuver(1), /autonomy-pending\.json cannot be read/);
+  assert.equal(appels.n, 0);
+  writeFileSync(join(repertoire, FICHIER_DES_ATTENTES), lisible);
+  assert.deepEqual(await porte.approuver(1), { etat: "done", valeur: 1 });
+  assert.equal(appels.n, 1);
+});
+
 test("an act gesture done on an unreadable gesture log is done, and its failure to log is said", async (t) => {
   const repertoire = repertoireTemporaire(t);
   writeFileSync(join(repertoire, "autonomy-gestures.json"), "{not json");

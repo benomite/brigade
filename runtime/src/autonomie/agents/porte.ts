@@ -107,9 +107,10 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
   const approuver = async (id: number): Promise<Passage<unknown> | null> => {
     const tenu = tenus.get(id);
     if (tenu === undefined) return null;
-    // Out of the pending gestures before it is done: a second approval finds nothing.
-    tenus.delete(id);
+    // Out of the pending gestures before it is done: a second approval finds nothing. A file that cannot be read
+    // leaves it held.
     ecrire(repertoire, gestesEnAttente(repertoire).filter((une) => !(une.id === id)));
+    tenus.delete(id);
     const { valeur, dit } = await tenu.faire();
     consigner(tenu.agent, dit);
     return { etat: "done", valeur };
