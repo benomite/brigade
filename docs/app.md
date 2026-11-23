@@ -678,6 +678,18 @@ the idle guard"**, then one line per stop — its time and the activity where th
 `no activity read`), the run on hover. It stays as long as the box sends it: the ticket is not relaunched silently. A ticket
 stopped once, or by two different guardrails, shows nothing.
 
+### A word to the cook, from the card of a taken ticket (#4048, epic #4043)
+
+The card of a taken ticket has a one-line field, **"a word to the cook…"**, and a **send** button: the chef steers the cook
+without opening its session. Enter or **send** passes the line once to the runtime command `send-word`, with
+`{ticket, text}`, where the project's kitchen runs; a blank line sends nothing, and nothing more is sent while a word is on
+its way. On `{ok: true}` the field empties. On `{ok: false, reason}` the reason is shown on one line under the field, the
+detail on hover, and the text stays in the field. What is typed, and a reason, survive a redraw of the rail. Cards of
+tickets in other steps (in pass, served…) have no field. An app whose bridge does not carry the gesture says so on that line.
+
+*Code: `app/src/vue/mot-au-cook/` — `mot-au-cook.js` (the field), `source.js` (the call), `mot-au-cook-box.ts` (the command,
+main process).*
+
 ### The line of figures is gone (#2486, #3013, #3523)
 
 The line of figures that stood above the columns — ticket time, first try, `Cooks 2 running` / `Cooks none running`, last

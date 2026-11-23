@@ -124,6 +124,7 @@ const pont = {
   lireLesExplications: (projet) => ipcRenderer.invoke("lireLesExplications", projet),
   marquerUneExplication: (projet, mot) => ipcRenderer.invoke("marquerUneExplication", projet, mot),
   remontrerLesExplications: (projet) => ipcRenderer.invoke("remontrerLesExplications", projet),
+  envoyerUnMot: (projet, entree) => ipcRenderer.invoke("envoyerUnMot", projet, entree), // le mot au cook (ticket 4048, mot-au-cook/)
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : lu, dit montré, et la PR d'un ticket servi ouverte (recap/recap-box.ts).
   lireLeRecap: (projet) => ipcRenderer.invoke("lireLeRecap", projet),
   marquerLeRecap: (projet, until) => ipcRenderer.invoke("marquerLeRecap", projet, until),
