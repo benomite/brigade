@@ -27,6 +27,6 @@ for (const state of ["cooking", "in pass", "set aside", "parked", "WAITING"]) {
     avancer(1);
     await inactivite.passer([{ number: 7, state }]);
     assert.deepEqual(reveils.map((r) => r.ticket), [7]);
-    assert.equal(reveils[0].state, state);
+    assert.equal(reveils[0]?.state, state);
   });
 }
