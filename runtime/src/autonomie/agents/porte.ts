@@ -42,7 +42,7 @@ export type PorteDesGestes = {
 
 const FICHIER_DES_ATTENTES = "autonomy-pending.json";
 
-export class AttentesIllisibles extends Error {}
+class AttentesIllisibles extends Error {}
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 const estAttente = (valeur: unknown): valeur is GesteEnAttente =>
