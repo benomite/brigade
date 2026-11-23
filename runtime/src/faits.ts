@@ -17,7 +17,7 @@ import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
 import { equipeDuProjet } from "./autonomie/agents/agents.ts";
 import { magasinDeNiveaux, NiveauxIllisibles } from "./autonomie/agents/niveaux.ts";
 import { enregistrementDe, GestesIllisibles } from "./autonomie/agents/gestes.ts";
-import { horaireDe } from "./autonomie/agents/prochain-passage.ts";
+import { horaireDe } from "./autonomie/agents/horaires.ts";
 import { lacuneDeLaStation } from "./routage-station/lacune.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";

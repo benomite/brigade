@@ -5,7 +5,8 @@
 // Built from what is already read, never read again: what runs outside the tickets (agents-en-cours.ts), the cooks
 // of the stations, each role's last action (roles-cuisine/roles.ts), the levels (niveaux.ts) and each agent's gesture
 // log (gestes.ts), which gives its counters, its gestures and, when it is later than its roles' last action, its last
-// gesture — and each agent's next run, from the schedules the runtime noted (prochain-passage.ts, #4038).
+// gesture — and each agent's next run, from the schedules the runtime noted (horaires.ts) and a clock, both handed in
+// (prochain-passage.ts, #4038).
 import type { AgentEnCours } from "../../agents-en-cours.ts";
 import type { DerniereAction, RoleDeCuisine } from "../../roles-cuisine/roles.ts";
 import type { EnregistrementDeGestes, Geste } from "./gestes.ts";

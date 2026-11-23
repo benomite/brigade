@@ -20,7 +20,7 @@ The autonomy table (rows, positions, profiles) and the routing of decisions that
 
 Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036, #4037, #4038). Code:
 `runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`), `gestes.ts`
-(the gesture log) and `prochain-passage.ts` (the next run).
+(the gesture log), `prochain-passage.ts` (the next run's text) and `horaires.ts` (the schedules noted).
 
 `facts` gives one record per agent in `equipe`: the manager, the supervisor, the closer, the pass, then each cook running
 (its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)).
@@ -31,7 +31,7 @@ Each record's next run (#4038) is built from the agent's real schedule and a clo
   no cookable ticket, « supervisor: no wake scheduled »;
 - the closer opens a pass at most a day after the last one, at once with none known, never while one is open, and only
   once `MERGES_PER_PASS` merges are in (`prochainePasse`, `closer-github-passe/closer-github-passe.ts`): « closer: next
-  pass in 3 h », then « closer: next pass once 20 merges are in » when its day is over; while it is not set or a pass
+  pass in 3 h », then « closer: next pass once its merges are in » when its day is over; while it is not set or a pass
   is open, « closer: no pass scheduled »;
 - the manager, the pass and the cooks keep no schedule, and say what they do instead: « manager: runs when a ticket or
   the supervisor calls it », « pass: reviews each delivery as it comes », « cook #12: works until it delivers ».

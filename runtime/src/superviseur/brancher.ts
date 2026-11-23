@@ -22,7 +22,7 @@ import type { Dossier } from "./dossier.ts";
 import type { Decision } from "./gestes.ts";
 import { superviseur } from "./superviseur.ts";
 import { echeanceSansMerge, type FaitsDuProjet } from "./declencheur.ts";
-import { noterHoraire } from "../autonomie/agents/prochain-passage.ts";
+import { noterHoraire } from "../autonomie/agents/horaires.ts";
 import type { SuiviDuTour } from "./tour.ts";
 import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
 

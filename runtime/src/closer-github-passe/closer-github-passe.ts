@@ -50,7 +50,7 @@ import { direJaugeEn } from "../mesures.ts";
 import { execFile } from "../sans-invite.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { releverDerive, ticketDuMerge, type CoutsDesCooks, type DeriveGithub, type MergeDuClone } from "./derive-github.ts";
-import { noterHoraire } from "../autonomie/agents/prochain-passage.ts";
+import { noterHoraire } from "../autonomie/agents/horaires.ts";
 
 // The merges since the last pass beyond which a pass is opened.
 export const MERGES_PER_PASS = 20;

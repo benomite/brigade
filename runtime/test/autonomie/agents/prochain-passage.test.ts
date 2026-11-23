@@ -7,8 +7,9 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
 import { magasinDeNiveaux } from "../../../src/autonomie/agents/niveaux.ts";
-import { horaireDe, HoraireIllisible, noterHoraire, prochainPassage } from "../../../src/autonomie/agents/prochain-passage.ts";
-import { brancherCloserGithub, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, type GitHubDuCloser } from "../../../src/closer-github-passe/closer-github-passe.ts";
+import { horaireDe, noterHoraire } from "../../../src/autonomie/agents/horaires.ts";
+import { HoraireIllisible, prochainPassage } from "../../../src/autonomie/agents/prochain-passage.ts";
+import { brancherCloserGithub, ONE_PASS_A_DAY_MS, type GitHubDuCloser } from "../../../src/closer-github-passe/closer-github-passe.ts";
 import type { Ajout } from "../../../src/evenements.ts";
 import { lireLesFaits } from "../../../src/faits.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
@@ -29,7 +30,7 @@ describe("the text of a next run", () => {
   test("the closer counts minutes under an hour, and once its day is over it waits for its merges", () => {
     assert.equal(prochainPassage("closer", MAINTENANT, { at: new Date(MAINTENANT.getTime() + 20 * MINUTE) }).text, "closer: next pass in 20 min");
     assert.equal(prochainPassage("closer", MAINTENANT, { at: new Date(MAINTENANT.getTime() + 30 * 1000) }).text, "closer: next pass in 1 min");
-    assert.deepEqual(prochainPassage("closer", MAINTENANT, { at: MAINTENANT }), { text: `closer: next pass once ${MERGES_PER_PASS} merges are in`, at: MAINTENANT.toISOString() });
+    assert.deepEqual(prochainPassage("closer", MAINTENANT, { at: MAINTENANT }), { text: "closer: next pass once its merges are in", at: MAINTENANT.toISOString() });
   });
 
   test("an agent with a schedule other than the closer's and the supervisor's runs in a time, or now", () => {
