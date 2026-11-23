@@ -3,7 +3,10 @@
 // s'écrit pas, un ticket qui sort des états suivis, le texte de la raison.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MARQUE_D_INACTIVITE, ouvrirInactivite, type ReveilSansProgres } from "../../src/inactivite/inactivite.ts";
+import { ouvrirInactivite } from "../../src/inactivite/inactivite.ts";
+
+const MARQUE_D_INACTIVITE = "<!-- brigade:no-progress";
+type ReveilSansProgres = { ticket: number; state: string; since: string; kind: string | null };
 
 const MIN = 60_000;
 const T0 = Date.parse("2026-11-23T10:00:00Z");

@@ -21,7 +21,7 @@ import type { GenreDeProgres, Progres, TicketSuivi } from "./inactivite.ts";
 // L'état d'un ticket dans les mots du glossaire, ou null s'il n'est dans aucun des cinq :
 // WAITING l'emporte, puis la pass, la cuisine, la mise de côté, puis le ticket parqué
 // pour un humain (`blocked-on-human`, `chef-todo`).
-export function etatSuivi(labels: readonly string[]): string | null {
+function etatSuivi(labels: readonly string[]): string | null {
   if (labels.includes(LABEL_WAITING)) return "WAITING";
   if (labels.includes(LABEL_IN_PASS)) return "in pass";
   if (labels.includes(LABEL_TAKEN)) return "cooking";

@@ -6,7 +6,6 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { GitHubDuTour } from "../../src/brigade-github.ts";
-import { MARQUE_D_INACTIVITE } from "../../src/inactivite/inactivite.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { brancherSuperviseur, type ManagerDuSuperviseur } from "../../src/superviseur/brancher.ts";
@@ -14,6 +13,7 @@ import { suivreLeTour } from "../../src/superviseur/tour.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 import { FauxDepot } from "../superviseur/faux-depot.ts";
 
+const MARQUE_D_INACTIVITE = "<!-- brigade:no-progress";
 const A = (hhmm: string) => `2026-11-23T${hhmm}:00.000Z`;
 const BACK = (ticket: number) => JSON.stringify({ saw: `#${ticket} is parked with no progress`, gesture: { gesture: "back-on-rail", ticket, note: "nothing holds it" } });
 

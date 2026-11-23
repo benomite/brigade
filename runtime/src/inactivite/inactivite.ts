@@ -17,7 +17,7 @@
 
 export const SANS_PROGRES_MS = 30 * 60_000;
 
-export const MARQUE_D_INACTIVITE = "<!-- brigade:no-progress";
+const MARQUE_D_INACTIVITE = "<!-- brigade:no-progress";
 
 export type GenreDeProgres = "commit" | "ci" | "review" | "label";
 
@@ -30,7 +30,7 @@ export type TicketSuivi = { number: number; state: string };
 
 // Le réveil : le ticket, son état, et depuis quand il ne progresse plus — `kind` nul quand
 // aucun progrès n'a été vu, le compte partant alors du premier tour qui l'a vu.
-export type ReveilSansProgres = { ticket: number; state: string; since: string; kind: string | null };
+type ReveilSansProgres = { ticket: number; state: string; since: string; kind: string | null };
 
 export type OptionsDeLInactivite = {
   maintenant?: () => Date;

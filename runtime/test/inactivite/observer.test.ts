@@ -6,7 +6,7 @@ import { test } from "node:test";
 import type { GitHubDuTour, TicketLu } from "../../src/brigade-github.ts";
 import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import type { Progres } from "../../src/inactivite/inactivite.ts";
-import { etatSuivi, suivreLesProgres } from "../../src/inactivite/observer.ts";
+import { suivreLesProgres } from "../../src/inactivite/observer.ts";
 
 const A = "2026-11-23T10:00:00.000Z";
 const SHA1 = "1".repeat(40);
@@ -35,15 +35,21 @@ function monter() {
 
 const ticket = (number: number, labels: string[]): TicketLu => ({ number, title: `Ticket ${number}`, labels, state: "open" });
 
-test("the state of a ticket, in the words of the glossary, from its labels", () => {
-  assert.equal(etatSuivi(["fire", "taken"]), "cooking");
-  assert.equal(etatSuivi(["fire", "in-pass", "taken"]), "in pass");
-  assert.equal(etatSuivi(["fire", "set-aside:failures"]), "set aside");
-  assert.equal(etatSuivi(["fire", "served-elsewhere"]), "set aside");
-  assert.equal(etatSuivi(["fire", "blocked-on-human"]), "parked");
-  assert.equal(etatSuivi(["fire", "chef-todo"]), "parked");
-  assert.equal(etatSuivi(["fire", "waiting", "in-pass"]), "WAITING");
-  assert.equal(etatSuivi(["fire", "model:opus"]), null);
+test("the state of a ticket, in the words of the glossary, from its labels", async () => {
+  const { suivi, dicte, github } = monter();
+  const cas: Array<[string[], string | null]> = [
+    [["fire", "taken"], "cooking"],
+    [["fire", "in-pass", "taken"], "in pass"],
+    [["fire", "set-aside:failures"], "set aside"],
+    [["fire", "served-elsewhere"], "set aside"],
+    [["fire", "blocked-on-human"], "parked"],
+    [["fire", "chef-todo"], "parked"],
+    [["fire", "waiting", "in-pass"], "WAITING"],
+    [["fire", "model:opus"], null],
+  ];
+  dicte.tickets = cas.map(([labels], i) => ticket(i + 1, labels));
+  await github.fires();
+  assert.deepEqual(suivi.tickets(), cas.flatMap(([, state], i) => (state === null ? [] : [{ number: i + 1, state }])));
 });
 
 test("each reading of the tickets says which are followed, and in which state; a queued ticket is not", async () => {
