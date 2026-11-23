@@ -219,6 +219,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // suffirait pas à le vider assez, le chef en est averti — une seule carte
   // tant que l'état dure. Un disque qui respire lève la carte. Une sonde ou une
   // pose qui échoue se dit et se retente au tour suivant : rien ne se devine.
+  // Elle ne retient pas le tour : `du` peut durer. Une seule à la fois.
+  let disqueEnCours: Promise<void> | null = null;
   const direLeDisque = async (cooks: number) => {
     const { disquePlein } = options;
     if (disquePlein === undefined) return;
@@ -248,7 +250,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     if (etat.breakerOpenedAt !== null) return "breaker";
     if (surQuelMoteur().blocked) return "quota";
     const courte = machineAcourt(cooks);
-    await direLeDisque(cooks);
+    disqueEnCours ??= direLeDisque(cooks).finally(() => {
+      disqueEnCours = null;
+    });
     if (courte) return "machine";
     if (arbitre === null) return null;
     const reponse = await echanger(cooks, true);
