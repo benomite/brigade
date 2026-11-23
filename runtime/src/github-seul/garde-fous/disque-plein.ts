@@ -12,7 +12,7 @@ import type { GitHub } from "../../github.ts";
 import { execFile } from "../../sans-invite.ts";
 import { leverCarte, poserCarte, type Carte, type GitHubDesCartes } from "../carte-todo/carte-todo.ts";
 
-export const MARQUEUR_DISQUE = "<!-- brigade:disk-full -->";
+const MARQUEUR_DISQUE = "<!-- brigade:disk-full -->";
 export const TITRE_DISQUE = "The station disk is full of things the kitchen cannot free";
 
 const MO = 1024 * 1024;

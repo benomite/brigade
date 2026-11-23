@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CHEF_TODO } from "../../../src/github-seul/carte-todo/carte-todo.ts";
-import { carteDuDisque, leverLaCarteDuDisque, lireDu, MARQUEUR_DISQUE, peutEncoreLiberer, poserLaCarteDuDisque, type GitHubDuDisque } from "../../../src/github-seul/garde-fous/disque-plein.ts";
+import { carteDuDisque, leverLaCarteDuDisque, lireDu, peutEncoreLiberer, poserLaCarteDuDisque, type GitHubDuDisque } from "../../../src/github-seul/garde-fous/disque-plein.ts";
 
 function githubFaux() {
   const issues = new Map<number, { labels: Set<string>; body: string; comments: string[] }>();
@@ -29,7 +29,7 @@ test("the disk card is written once on its own issue, found again by its marker,
   await poserLaCarteDuDisque(github, carte);
   await poserLaCarteDuDisque(github, carte);
   assert.equal(issues.size, 1);
-  assert.equal(issues.get(7)?.body.startsWith(MARQUEUR_DISQUE), true);
+  assert.equal(issues.get(7)?.body.startsWith("<!-- brigade:disk-full -->"), true);
   assert.equal(issues.get(7)?.comments.length, 1);
   assert.equal(issues.get(7)?.labels.has(CHEF_TODO), true);
 
