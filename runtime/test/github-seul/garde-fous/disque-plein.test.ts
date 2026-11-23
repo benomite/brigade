@@ -1,9 +1,12 @@
 // La carte du disque plein (#4091) sur GitHub : une issue à elle, une seule
 // carte tant qu'elle attend le chef, levée quand le disque respire.
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { CHEF_TODO } from "../../../src/github-seul/carte-todo/carte-todo.ts";
-import { carteDuDisque, leverLaCarteDuDisque, lireDu, peutEncoreLiberer, poserLaCarteDuDisque, type GitHubDuDisque } from "../../../src/github-seul/garde-fous/disque-plein.ts";
+import { carteDuDisque, disqueDuProjet, peutEncoreLiberer } from "../../../src/github-seul/garde-fous/disque-plein.ts";
 
 function githubFaux() {
   const issues = new Map<number, { labels: Set<string>; body: string; comments: string[] }>();
@@ -18,7 +21,7 @@ function githubFaux() {
     commenter: async (n: number, corps: string) => void issues.get(n)?.comments.push(corps),
     labelliser: async (n: number, labels: string[]) => labels.forEach((l) => issues.get(n)?.labels.add(l)),
     delabelliser: async (n: number, label: string) => void issues.get(n)?.labels.delete(label),
-  } as unknown as GitHubDuDisque;
+  } as unknown as Parameters<typeof disqueDuProjet>[1];
   return { github, issues };
 }
 
@@ -26,14 +29,15 @@ const carte = carteDuDisque({ libreMo: 2048, minMo: 5120, propre: 1024, consomma
 
 test("the disk card is written once on its own issue, found again by its marker, and lifted when the disk recovers (#4091)", async () => {
   const { github, issues } = githubFaux();
-  await poserLaCarteDuDisque(github, carte);
-  await poserLaCarteDuDisque(github, carte);
+  const disque = disqueDuProjet("/nonexistent", github);
+  await disque.poser(carte);
+  await disque.poser(carte);
   assert.equal(issues.size, 1);
   assert.equal(issues.get(7)?.body.startsWith("<!-- brigade:disk-full -->"), true);
   assert.equal(issues.get(7)?.comments.length, 1);
   assert.equal(issues.get(7)?.labels.has(CHEF_TODO), true);
 
-  await leverLaCarteDuDisque(github);
+  await disque.lever();
   assert.equal(issues.get(7)?.labels.has(CHEF_TODO), false);
 });
 
@@ -43,9 +47,10 @@ test("what the kitchen holds counts only if it could bring the disk back to the 
   assert.equal(peutEncoreLiberer(2048 * MO, 3071 * MO, 5120), false);
 });
 
-test("du's lines read as sizes in bytes, and anything else is left out (#4091)", () => {
-  assert.deepEqual(lireDu("48\t/var/lib/docker\nnot a line\n1\t/tmp\n"), [
-    { chemin: "/var/lib/docker", octets: 48 * 1024 },
-    { chemin: "/tmp", octets: 1024 },
-  ]);
+test("the probe sizes the kitchen's own state with du (#4091)", async () => {
+  const dossier = mkdtempSync(join(tmpdir(), "disque-"));
+  writeFileSync(join(dossier, "gros"), Buffer.alloc(256 * 1024));
+  const { github } = githubFaux();
+  const { propre } = await disqueDuProjet(dossier, github).sonder();
+  assert.equal(propre >= 256 * 1024, true);
 });

@@ -13,12 +13,12 @@ import { execFile } from "../../sans-invite.ts";
 import { leverCarte, poserCarte, type Carte, type GitHubDesCartes } from "../carte-todo/carte-todo.ts";
 
 const MARQUEUR_DISQUE = "<!-- brigade:disk-full -->";
-export const TITRE_DISQUE = "The station disk is full of things the kitchen cannot free";
+const TITRE_DISQUE = "The station disk is full of things the kitchen cannot free";
 
 const MO = 1024 * 1024;
 const DELAI_DU_MS = 120_000;
 
-export type Consommateur = { chemin: string; octets: number };
+type Consommateur = { chemin: string; octets: number };
 
 // Ce que la cuisine sait de son disque : ce qu'elle tient elle-même, donc ce
 // qu'elle pourrait encore rendre, et les plus gros occupants, s'ils se lisent.
@@ -53,7 +53,7 @@ export function carteDuDisque(figures: { libreMo: number; minMo: number; propre:
   };
 }
 
-export type GitHubDuDisque = GitHubDesCartes & Pick<GitHub, "ouvertes" | "creerIssue">;
+type GitHubDuDisque = GitHubDesCartes & Pick<GitHub, "ouvertes" | "creerIssue">;
 
 async function issueDuDisque(github: GitHubDuDisque): Promise<number> {
   const sondage = await github.ouvertes();
@@ -63,18 +63,18 @@ async function issueDuDisque(github: GitHubDuDisque): Promise<number> {
 }
 
 // La carte du disque sur son issue : une seule tant qu'elle attend le chef.
-export async function poserLaCarteDuDisque(github: GitHubDuDisque, carte: Carte): Promise<void> {
+async function poserLaCarteDuDisque(github: GitHubDuDisque, carte: Carte): Promise<void> {
   await poserCarte(await issueDuDisque(github), carte, github);
 }
 
-export async function leverLaCarteDuDisque(github: GitHubDuDisque): Promise<void> {
+async function leverLaCarteDuDisque(github: GitHubDuDisque): Promise<void> {
   await leverCarte(await issueDuDisque(github), github, "blocked");
 }
 
 const execFileP = promisify(execFile);
 
 // La taille en octets de ce que `du` rend pour chaque chemin : `<ko>\t<chemin>`.
-export function lireDu(sortie: string): Consommateur[] {
+function lireDu(sortie: string): Consommateur[] {
   return sortie
     .split("\n")
     .map((ligne) => /^(\d+)\t(.+)$/.exec(ligne))
@@ -85,7 +85,7 @@ const du = async (args: string[]): Promise<Consommateur[]> => lireDu((await exec
 
 // La sonde réelle : `du` sur l'état de la cuisine, et sur la racine de son
 // volume pour les plus gros occupants (au mieux — `du` peut échouer ou durer).
-export function sondeDuDisque(repertoireEtat: string, nombre = 5): () => Promise<SondeDuDisque> {
+function sondeDuDisque(repertoireEtat: string, nombre = 5): () => Promise<SondeDuDisque> {
   return async () => {
     const propre = (await du(["-sk", repertoireEtat]))[0]?.octets;
     if (propre === undefined) throw new Error(`du did not size ${repertoireEtat}`);
