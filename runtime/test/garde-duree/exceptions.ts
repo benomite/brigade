@@ -139,6 +139,8 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/geste.test.ts", test: "un ancien nom de commande — un script qui lance `ancien-nom.ts` — est lancé comme les autres, sous le nom tapé, mais le refus d'une commande inconnue ne le nomme pas" },
   { file: "test/geste.test.ts", test: "une commande qui n'est pas du runtime est refusée, en nommant celles de la station" },
   { file: "test/geste.test.ts", test: "une valeur de l'unité qui contient des espaces, des guillemets ou un dollar arrive entière" },
+  { file: "test/geste.test.ts", test: "un `systemctl` qui échoue arrête le geste en le disant : ni compte ni environnement supposés" },
+  { file: "test/sandbox/installation.test.ts", test: "un setup qui lance `pnpm install` va au bout : node_modules porte chaque dépendance du lockfile" },
   { file: "test/installation.test.ts", test: "« installation terminée » n'est atteinte qu'avec une vérification verte : un manque la refuse, nomme son étape et la remet à faire" },
   { file: "test/installation.test.ts", test: "`--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment" },
   { file: "test/installation.test.ts", test: "`--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe" },
