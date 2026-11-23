@@ -14,8 +14,8 @@ import { join } from "node:path";
 import { app, BrowserWindow } from "electron";
 import { estInstallee } from "../emplacements.ts";
 import { ARGUMENT_FOND } from "../station-fond/inscription.ts";
-import { prendreLaPlace } from "./instance.ts";
-import { ARGUMENT, executer, inscrireLeFond, stationDeFondInstallee } from "./systeme.ts";
+import { memeProcess, prendreLaPlace } from "./instance.ts";
+import { ARGUMENT, executer, fondPerime, inscrireLeFond, stationDeFondInstallee } from "./systeme.ts";
 
 if (process.argv.includes(ARGUMENT_FOND)) {
   // La station de fond, lancée à l'ouverture de session de Windows (station-fond/inscription.ts).
@@ -25,10 +25,11 @@ if (process.argv.includes(ARGUMENT_FOND)) {
 } else {
   const installee = estInstallee({ ressources: process.resourcesPath, src: join(import.meta.dirname, "..") });
   // Une autre app tourne déjà : le verrou d'Electron lui passe la main, et elle ramène sa fenêtre. Sans autre app, celle-ci
-  // montre la sienne, que le verrou d'Electron lui soit rendu ou non (#3864) — l'icône de fond ne le tient plus.
+  // montre la sienne, que le verrou d'Electron lui soit rendu ou non (#3864) — l'icône de fond ne le tient plus. Le pid
+  // laissé par l'app quittée, repris par un autre process — l'icône, l'hôte de la station —, n'est pas une app (#4071).
   // Dans l'app installée seulement : les essais depuis le dépôt ne gardent pas de place.
   const uneAutreAppTourne = (): boolean => {
-    const autreApp = prendreLaPlace(join(app.getPath("userData"), "app.pid"));
+    const autreApp = prendreLaPlace(join(app.getPath("userData"), "app.pid"), process.pid, (pid) => memeProcess(pid));
     return !app.requestSingleInstanceLock() && autreApp !== undefined;
   };
   const passeLaMain = installee && uneAutreAppTourne();
@@ -46,7 +47,8 @@ if (process.argv.includes(ARGUMENT_FOND)) {
     const systeme = { plateforme: process.platform, maison: homedir(), localAppData: process.env.LOCALAPPDATA };
     if (installee && stationDeFondInstallee(systeme)) {
       void app.whenReady().then(async () => {
-        const refus = await inscrireLeFond({ ...systeme, uid: userInfo().uid, binaire: process.execPath, executer });
+        const perime = fondPerime(app.getPath("userData"), app.getVersion());
+        const refus = await inscrireLeFond({ ...systeme, uid: userInfo().uid, binaire: process.execPath, executer, fondPerime: perime });
         if (refus !== undefined) console.error(`brigade: ${refus}`);
         // Sous Windows, la valeur `Run` ne joue qu'à l'ouverture de session : l'icône est lancée ici — une deuxième s'efface.
         if (refus !== undefined || process.platform !== "win32") return;

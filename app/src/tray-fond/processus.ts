@@ -19,7 +19,7 @@ import { servisPar } from "../poste/cuisine-ici.ts";
 import { prendreLaPlace } from "./instance.ts";
 import { ICONE_DE_LA_BARRE, pastillee } from "./icone.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
-import { executer, quitterLaStation } from "./systeme.ts";
+import { DOSSIER_DU_FOND, ecrireLaVersionDuFond, executer, quitterLaStation } from "./systeme.ts";
 import { confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
 import type { Veille } from "../vue/veille-machine/veille-machine.js";
 
@@ -27,11 +27,23 @@ const INTERVALLE_MS = 15_000;
 const DELAI_MS = 30_000;
 
 // Ses propres données, à part de celles de l'app : les deux tournent en même temps. Un seul process d'icône par compte.
-app.setPath("userData", join(app.getPath("userData"), "tray-fond"));
+app.setPath("userData", join(app.getPath("userData"), DOSSIER_DU_FOND));
 // Pas le verrou d'Electron, réservé à l'app (entree.ts, #3864) : un fichier de pid dans ses données.
 if (prendreLaPlace(join(app.getPath("userData"), "tray.pid")) !== undefined) app.exit(0);
+else {
+  // La version de l'icône qui tient la place, que l'app relit pour relancer une icône restée sur le code d'avant une mise à
+  // jour (#4071). Non écrite, l'app la relance à chacune de ses ouvertures, sans plus.
+  try {
+    ecrireLaVersionDuFond(app.getPath("userData"), app.getVersion());
+  } catch (erreur) {
+    console.error(`brigade: the icon could not write its version — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  }
+}
 // Ni fenêtre, ni icône dans le Dock.
 app.on("window-all-closed", () => {});
+// Sur un Mac, l'icône est un process du paquet de l'app : un clic sur l'app (Dock, Finder, Launchpad) pendant qu'elle tourne
+// lui est adressé, et ne lançait rien — l'app quittée ne se rouvrait plus (#4071). Il ouvre l'app.
+app.on("activate", () => ouvrirLApp());
 
 const plateforme = process.platform;
 const src = join(import.meta.dirname, "..");
