@@ -2,7 +2,7 @@
 // de disque, et les seuils en deçà desquels la station cesse de prendre des
 // tickets. C'est le vrai plafond du parallélisme : celui des cooks peut être
 // très haut, ou absent.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "./sans-invite.ts";
 import { statfsSync } from "node:fs";
 import { availableParallelism, loadavg, totalmem } from "node:os";
 import type { Manque, OrigineDuSeuil, Ressource } from "./events/station.ts";

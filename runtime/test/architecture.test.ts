@@ -71,7 +71,9 @@ test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé p
   // (`bascule/basculer.ts`) — il ne parle qu'au systemd local.
   // `tar` : pour la mise à jour de la station de l'ordinateur, qui extrait la
   // release qu'elle a téléchargée (`station-update/archive.ts`) — un fichier local.
-  assert.deepEqual([...lances].sort(), ["du", "git", "systemctl", "tar"]);
+  // `ps` : pour dire quel processus tient le processeur quand la machine est
+  // saturée (`machine.ts`, #4090) — il ne lit que la table des processus locale.
+  assert.deepEqual([...lances].sort(), ["du", "git", "ps", "systemctl", "tar"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
   // Sauf par la vérification des outils du second (#1433), qui cherche `ssh`
   // dans le PATH du chef pour dire s'il manque, et ne lance rien.
