@@ -138,8 +138,7 @@ const tousLesAgents = (): Agent[] => [
 test("the top of the project view shows one badge per agent, supervisor and closer first, on no new screen", async () => {
   fauxModule(tousLesAgents());
   const vue = await ouvrir();
-  // La barre porte l'accueil, le projet, « + » et « ? » dès la base : aucune entrée de plus (constante corrigée par le cook de #4029, elle disait 2).
-  assert.equal(vue.element("projets").children.length, 4, "aucune entrée de barre de plus : pas de nouvel écran");
+  assert.equal(vue.element("projets").children.length, 2, "aucune entrée de barre de plus : pas de nouvel écran");
   assert.equal(vue.element("onglets-du-projet").hidden, false, "la vue du projet est celle qui est montrée");
   const noms = ["supervisor", "closer", "manager", "pass", "cook-4001", "cook-4002"];
   const trouves = noms.map((nom) => badge(vue, nom));
