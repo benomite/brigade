@@ -1,5 +1,5 @@
 // @ts-check
-// Les post-mortems de panne du projet (#4023), dans la section de Settings du projet : le nombre de pannes vues d'abord par
+// Les post-mortems de panne du projet (ticket 4023), dans la section de Settings du projet : le nombre de pannes vues d'abord par
 // le chef sur les 7 derniers jours, puis chaque post-mortem, le plus récent d'abord, avec ses cinq champs. Un champ que rien
 // n'a dit se dit « not recorded », jamais inventé. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 

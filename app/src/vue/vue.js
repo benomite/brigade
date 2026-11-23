@@ -7004,7 +7004,7 @@ function autonomieDuProjet(projet) {
   return tenue;
 }
 // `garder` : une relecture ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
-// Les post-mortems de panne du projet (#4023), d'après les derniers faits de sa box — rien de lu tant qu'elle ne les donne pas.
+// Les post-mortems de panne du projet (ticket 4023), d'après les derniers faits de sa box — rien de lu tant qu'elle ne les donne pas.
 /** @param {Projet} projet */
 function postMortemsDe(projet) {
   const tenu = tenus.get(projet.nom);
@@ -7034,8 +7034,8 @@ function poserLeBandeauDeSante(projet, garder = true) {
     }),
     poserLeCloserDeSante(projet),
     poserBlocTempsDeLaPasse(document, vu?.temps),
-    poserBlocPostMortems(document, postMortemsDe(projet)),
     autonomieDuProjet(projet).poser(),
+    poserBlocPostMortems(document, postMortemsDe(projet)),
     deTousLesProjets,
   );
   if (Date.now() - (plafondsLusLe.get(projet.nom) ?? 0) > 60_000) void lireLesPlafondsDuree(projet);

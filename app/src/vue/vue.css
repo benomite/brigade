@@ -4167,6 +4167,6 @@ main > header {
   font-variant-numeric: tabular-nums;
 }
 
-/* Les post-mortems de panne du projet (#4023) : une panne par rangée, ses cinq champs l'un sous l'autre. */
+/* Les post-mortems de panne du projet (ticket 4023) : une panne par rangée, ses cinq champs l'un sous l'autre. */
 .post-mortems-liste { list-style: none; margin: 0; padding: 0; }
-.post-mortems-liste li { margin-top: 0.75rem; }
+.post-mortems-liste li { margin-top: var(--pas-3); }
