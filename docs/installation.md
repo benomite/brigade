@@ -56,8 +56,8 @@ the line gives a **Download** link to the package for your computer: install it 
    it), `gh` (<https://cli.github.com>) and `claude`. Log in to Claude with your Max account: run
    `claude` once and follow its login. You do not need `node` or `npm`.
 3. **Run the installer.** The build is unsigned, so Windows **SmartScreen** warns about an unknown
-   app (“Windows protected your PC”): click **More info**, then **Run anyway**. It installs for your account only, with no administrator rights, and adds
-   **Brigade** to the Start menu.
+   app (“Windows protected your PC”): click **More info**, then **Run anyway**. It installs for your
+   account only, with no administrator rights, and adds **Brigade** to the Start menu.
 4. **Open Brigade** from the Start menu.
 5. Go to [Your first ticket](#your-first-ticket).
 
@@ -111,8 +111,8 @@ must be authorized, click **authorize on GitHub**. When it ends, the page says:
 
 On GitHub, open a new issue in your repository, something small (title `Add a CONTRIBUTING.md`,
 body `Create a CONTRIBUTING.md with a three-line "how to propose a change" section.`), and put the
-label **`fire`** on it (the label already exists in your repository). The button **post the first ticket** opens the
-new-issue page for you.
+label **`fire`** on it (the repository's preparation has already created that label). The button
+**post the first ticket** opens the new-issue page for you.
 
 **You see**: within a minute or so, the ticket as a card in the **Rail** tab.
 
