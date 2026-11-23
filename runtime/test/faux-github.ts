@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import type { ReprendreLeTicket } from "../src/reprise-du-manager.ts";
-import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
+import { brancheDuTicket, clientDuTour, priseDeLaStation, stationGitHub, type GitHubDuTour, type Juger, type JugerEnSecond, type OptionsDeStation, type OptionsDuDepot, type Prise, type StationGitHub, type TicketLu } from "../src/brigade-github.ts";
 import { lienDuCorps } from "../src/besoin/besoin.ts";
 import { porteListe } from "../src/epique.ts";
 import { avecLAlerte } from "../src/issue-de-la-cuisine.ts";
@@ -31,6 +31,9 @@ export type OptionsDuFaux = {
   sauter?: (ticket: number, ligne: string) => void;
   // Le manager consulté après le dernier essai raté (#3513).
   reprendre?: ReprendreLeTicket;
+  // Les contrôles des invariants du rail, et la relance de la base rouge (#4026).
+  invariants?: OptionsDeStation["invariants"];
+  relancerLaBase?: OptionsDeStation["relancerLaBase"];
 };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
@@ -283,6 +286,8 @@ export class FauxGitHub {
       ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),
       ...(options.clone === undefined ? {} : { clone: options.clone }),
       ...(options.reprendre === undefined ? {} : { reprendre: options.reprendre }),
+      ...(options.invariants === undefined ? {} : { invariants: options.invariants }),
+      ...(options.relancerLaBase === undefined ? {} : { relancerLaBase: options.relancerLaBase }),
       places: options.places ?? 1,
       ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",

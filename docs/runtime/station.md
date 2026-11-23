@@ -483,7 +483,10 @@ A station on GitHub alone sets a ticket aside when its tries are spent and the m
 rework it, or did already (above). It puts `set-aside:failures` on it and says so in its own
 words in its comment ("Set aside by its failure count") and on its card: nobody else serves it.
 `served-elsewhere` is never put by the station: it says that another station serves the ticket, and
-is set by whoever knows it does (#3528). No timer relaunches a ticket set aside: the supervisor acts on `set-aside:failures` (#3911), and to relaunch it by hand, fix the cause, then **remove
+is set by whoever knows it does (#3528). The supervisor acts on `set-aside:failures` (#3911); a ticket set aside also
+gets a named reason and a date to look at it again, seven days on, past which it is put back on the rail (invariant 3,
+#4026). A ticket whose cook was relaunched on its PR's head and stopped on that same head is stopped there too
+(invariant 2). To relaunch it by hand, fix the cause, then **remove
 `set-aside:failures`** (or `served-elsewhere`, on a ticket set aside before #3528)
 from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
 the next turn, and both counts restart: the cooks without a delivery and the sends back are counted
