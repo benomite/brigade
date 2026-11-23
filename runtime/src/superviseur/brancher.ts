@@ -22,6 +22,8 @@ import type { Dossier } from "./dossier.ts";
 import type { Decision } from "./gestes.ts";
 import { superviseur } from "./superviseur.ts";
 import { porteDuRuntime } from "../autonomie/agents/porte.ts";
+import { echeanceSansMerge, type FaitsDuProjet } from "./declencheur.ts";
+import { noterHoraire } from "../autonomie/agents/horaires.ts";
 import type { SuiviDuTour } from "./tour.ts";
 import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
 
@@ -120,6 +122,15 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       dire(`supervisor on ${runtime.projet}: the post-mortem of an outage was not written — ${message(erreur)}`);
     }
   });
+  // Quand il se réveillera si rien n'est mergé (#4038), là où `facts` le lit ; une note qui échoue n'arrête pas son tour.
+  const noterLeReveil = (faits: FaitsDuProjet) => {
+    if (repertoireEtat === undefined) return;
+    try {
+      noterHoraire(repertoireEtat, "supervisor", echeanceSansMerge(faits));
+    } catch (erreur) {
+      dire(`supervisor on ${runtime.projet}: its next wake was not noted — ${message(erreur)}`);
+    }
+  };
   const passer = () => {
     if (tour === null) return;
     try {
@@ -138,6 +149,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       const { base } = runtime.journal;
       if (etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false) return;
       if (options.consulter() === null) return;
+      noterLeReveil(tour.faits());
       superviser(tour.faits())?.catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: its run failed — ${message(erreur)}`));
     } catch (erreur) {
       dire(`supervisor on ${runtime.projet}: not evaluated — ${message(erreur)}`);

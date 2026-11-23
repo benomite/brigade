@@ -58,6 +58,7 @@ import { direJaugeEn } from "../mesures.ts";
 import { execFile } from "../sans-invite.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { releverDerive, ticketDuMerge, type CoutsDesCooks, type DeriveGithub, type MergeDuClone } from "./derive-github.ts";
+import { noterHoraire } from "../autonomie/agents/horaires.ts";
 
 // The merges since the last pass beyond which a pass is opened.
 export const MERGES_PER_PASS = 20;
@@ -108,6 +109,9 @@ export type OptionsCloserGithub = {
   derive?: { seuils: () => Seuils; couts: CoutsDesCooks; noter: (derive: DeriveGithub) => void };
   // The gate of the closer's gesture: the runtime's (`porteDuRuntime`). Absent, the pass opens with no gate and no log.
   porte?: PorteDesGestes | null;
+  // Where the next pass goes at each pass (#4038): `prochainePasse`, or null while the closer is not set. Absent, it is
+  // noted in the runtime's state directory, where `facts` reads it (`noterHoraire`); with neither, it is not noted.
+  noterProchainePasse?: (at: Date | null) => void;
 };
 
 // The shortest gap between two passes, ten ticks: a pass is due at most once
@@ -133,6 +137,13 @@ export function aOuvrir(derniere: Passe | null, merges: MergeDuClone[], maintena
   if (derniere !== null && (derniere.state === "open" || maintenant.getTime() - Date.parse(derniere.createdAt) < ONE_PASS_A_DAY_MS)) return null;
   const nouveaux = merges.filter(({ at }) => Date.parse(at) > depuisLaPasse(derniere)).length;
   return nouveaux >= MERGES_PER_PASS ? { merges: nouveaux } : null;
+}
+
+// When the next pass can open at the earliest (#4038): a day after the last one, at once with none known — at its
+// `MERGES_PER_PASS` merges either way —, never while one is open.
+function prochainePasse(derniere: Passe | null, maintenant: Date): Date | null {
+  if (derniere === null) return maintenant;
+  return derniere.state === "open" ? null : new Date(Date.parse(derniere.createdAt) + ONE_PASS_A_DAY_MS);
 }
 
 export function titreDeLaFermeture(base: string): string {
@@ -235,6 +246,8 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
   const ecartMs = options.ecartMs ?? ECART_MS;
   const { github, clone, base } = options;
   const porte = options.porte ?? null;
+  const { repertoireEtat } = runtime;
+  const noterProchainePasse = options.noterProchainePasse ?? (repertoireEtat === undefined ? undefined : (at: Date | null) => noterHoraire(repertoireEtat, "closer", at));
   let arrete = false;
   let occupe = false;
   let derniereFois = Number.NEGATIVE_INFINITY;
@@ -303,10 +316,20 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     }
   };
 
+  // A note that fails stops neither the pass nor the kitchen: the next pass notes it again.
+  const noterLaProchaine = (noter: (at: Date | null) => void, at: Date | null) => {
+    try {
+      noter(at);
+    } catch (erreur) {
+      avertir(`brigade : the closer's next pass not noted — ${message(erreur)}`);
+    }
+  };
+
   const passer = async () => {
     const { calibration, removedLines } = options.reglages();
     if (calibration === null && options.derive === undefined) return;
     const derniere = (await passes()).at(-1) ?? null;
+    if (noterProchainePasse !== undefined) noterLaProchaine(noterProchainePasse, calibration === null ? null : prochainePasse(derniere, maintenant()));
     const merges = await clone.merges();
     if (options.derive !== undefined && !arrete) relever(options.derive, derniere, merges);
     if (calibration === null) return;
