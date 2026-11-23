@@ -18,6 +18,8 @@ const NIVEAUX_PAR_DEFAUT: Niveaux = { manager: "act", "manager split-epic": "pro
 type FicheDAgent = ReturnType<typeof equipeDuProjet>[number];
 const MAINTENANT = new Date("2026-11-23T12:00:00.000Z");
 const VIDE = { nextRun: null, counters: { fixedBySelf: 0, handedToChef: 0 }, gestures: [] };
+// An agent with no gesture logged.
+const SANS_GESTE = () => ({ counters: { fixedBySelf: 0, handedToChef: 0 }, gestures: [] });
 const role = (nom: string, latest: { what: string; at: string } | null = null) => ({ role: nom, does: "", latest: latest === null ? null : { ...latest, ticket: null } });
 
 test("one record per agent: the manager, the supervisor, the closer, the pass, then each cook, in the shape of #4036", () => {
@@ -26,6 +28,7 @@ test("one record per agent: the manager, the supervisor, the closer, the pass, t
     cooks: [{ ticket: 12 }, { ticket: 14 }],
     roles: [role("manager"), role("reviewer", { what: "reviewed #31: green", at: "2026-11-23T10:00:00.000Z" }), role("second judge", { what: "found the checks of #30 not weakened", at: "2026-11-23T09:00:00.000Z" }), role("triage"), role("closer", { what: "ended a cleanup with nothing removed", at: "2026-11-23T08:00:00.000Z" })],
     niveaux: { ...NIVEAUX_PAR_DEFAUT, closer: "observe" },
+    gestes: SANS_GESTE,
   });
   assert.deepEqual(
     equipe.map(({ agent }) => agent),
@@ -42,7 +45,7 @@ test("one record per agent: the manager, the supervisor, the closer, the pass, t
 
 test("the pass's last gesture is the later of its two roles, whichever comes first in the list", () => {
   const passe = (premier: string, second: string) =>
-    equipeDuProjet({ agents: [], cooks: [], roles: [role("second judge", { what: premier, at: "2026-11-23T11:00:00.000Z" }), role("reviewer", { what: second, at: "2026-11-23T10:00:00.000Z" })], niveaux: NIVEAUX_PAR_DEFAUT }).find(({ agent }) => agent === "pass")?.lastGesture;
+    equipeDuProjet({ agents: [], cooks: [], roles: [role("second judge", { what: premier, at: "2026-11-23T11:00:00.000Z" }), role("reviewer", { what: second, at: "2026-11-23T10:00:00.000Z" })], niveaux: NIVEAUX_PAR_DEFAUT, gestes: SANS_GESTE }).find(({ agent }) => agent === "pass")?.lastGesture;
   assert.deepEqual(passe("judged", "reviewed"), { line: "judged", at: "2026-11-23T11:00:00.000Z" });
 });
 

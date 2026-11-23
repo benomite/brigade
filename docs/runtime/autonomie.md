@@ -18,12 +18,21 @@ The autonomy table (rows, positions, profiles) and the routing of decisions that
 
 ## Each agent's record and autonomy level
 
-Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036). Code:
-`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`) and `niveaux.ts` (`magasinDeNiveaux`).
+Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036, #4037). Code:
+`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`) and `gestes.ts`
+(the gesture log).
 
 `facts` gives one record per agent in `equipe`: the manager, the supervisor, the closer, the pass, then each cook running
-(its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)). The next run, the
-counters and the gestures of an agent's thread start empty; later tickets fill them in.
+(its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)). The next run starts
+empty; a later ticket fills it in.
+
+Each agent has a gesture log (#4037): each entry is `{at, line, reason, outcome}` — its time, one line (a line break
+becomes a space), its reason and its outcome. The outcomes are listed once, in `OUTCOME` of `gestes.ts`: `fixed by
+itself` and `handed to the chef`. The record's `counters` count them (`fixedBySelf`, `handedToChef`), its `gestures` are
+the log, oldest first, and its `lastGesture` is the log's most recent entry, unless its roles' last action is later. The
+log is kept in `autonomy-gestures.json` of the state directory, one list per agent. A missing file is a log with no
+gesture. A file that cannot be read is said in `equipe` of `facts`, and refused when a gesture is logged: nothing is
+guessed in its place and the file is never overwritten. No agent logs a gesture yet.
 
 Each agent has an autonomy level per project: `observe` (it says what it would do), `propose` (it waits for the chef's
 OK), `act` (it does it, then says so). The manager's splitting of an epic has its own level. A level never set
