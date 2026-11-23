@@ -13,6 +13,9 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { ABSENT } from "../../src/pannes/login.ts";
+import type { OutilManquant } from "../../src/outils-requis.ts";
+import { echecDeGh } from "../../../runtime/src/appairage/stations-du-chef.ts";
+import { choisirInstallation, type OutilRequis } from "../../../runtime/src/outils-requis/outils-requis.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
@@ -32,7 +35,10 @@ const base = () => ({
   code: undefined,
 });
 const neuf = () => ({ ...base(), configuration: pourLaBarre({ chemin: "/home/chef/.config/brigade/app.json", projets: [] }), poste: { nom: "this Mac", mac: true } });
-const SANS_COMPTE = { state: "sign-in-required" as const, reason: "Sign in to GitHub to see your stations." };
+// Le `gh` de ce Mac n'est connecté à aucun compte, tel que le runtime le lit.
+const SANS_COMPTE = echecDeGh("gh", 30_000, { code: 4, message: "Command failed: gh api /gists" }, "To get started with GitHub CLI, please run:  gh auth login\n");
+// Ce qui manque, tel que le runtime le rend pour un Mac nu.
+const manquant = (outil: OutilRequis): OutilManquant => ({ outil, installation: choisirInstallation(outil, { plateforme: "darwin", presents: [] }) });
 
 const tous = (vue: Jouee) => vue.element("tous");
 const boutons = (ou: Faux) => ou.dessous("button").map((b) => b.textContent);
@@ -41,7 +47,7 @@ const outilManquant = (ou: Faux) => ou.dessous("section").find((s) => s.classNam
 const appels = (vue: Jouee, geste: string) => vue.appels.filter((appel) => appel.geste === geste);
 
 test("sans gh, le premier lancement montre son écran à la place du compte ; installé, le compte revient, sans connexion lancée", async () => {
-  let manque: { outil: string }[] = [{ outil: "gh" }];
+  let manque: OutilManquant[] = [manquant("gh")];
   const vue = await jouerLaVue({ demarrage: neuf, stationsDuChef: () => SANS_COMPTE, compteGitHub: () => ({ nonConnecte: true }), outilsManquants: () => manque, espace: () => [] });
   await repos();
   assert.deepEqual(appels(vue, "outilsManquants")[0]?.args, [["git", "gh"]]);
@@ -59,10 +65,10 @@ test("sans gh, le premier lancement montre son écran à la place du compte ; in
 });
 
 test("la connexion vérifie d'abord : gh parti entre-temps, elle ne tourne pas, et son écran le dit", async () => {
-  let manque: { outil: string }[] = [];
+  let manque: OutilManquant[] = [];
   const vue = await jouerLaVue({ demarrage: neuf, stationsDuChef: () => SANS_COMPTE, compteGitHub: () => ({ nonConnecte: true }), outilsManquants: () => manque, seConnecterAGitHub: () => ({ code: "ABCD-1234", page: "https://github.com/login/device" }), espace: () => [] });
   await repos();
-  manque = [{ outil: "gh" }];
+  manque = [manquant("gh")];
   bouton(tous(vue), SE_CONNECTER).click();
   await repos();
   assert.equal(appels(vue, "seConnecterAGitHub").length, 0);
@@ -77,7 +83,7 @@ test("la connexion vérifie d'abord : gh parti entre-temps, elle ne tourne pas, 
 });
 
 test("sans git, l'ouverture d'un projet attend son écran, puis repart d'elle-même, le projet tapé gardé", async () => {
-  let manque: { outil: string }[] = [];
+  let manque: OutilManquant[] = [];
   const vue = await jouerLaVue({
     demarrage: neuf,
     stationsDuChef: () => SANS_COMPTE,
@@ -87,7 +93,7 @@ test("sans git, l'ouverture d'un projet attend son écran, puis repart d'elle-m�
     espace: () => [],
   });
   await repos();
-  manque = [{ outil: "git" }];
+  manque = [manquant("git")];
   const champ = tous(vue).dessous("input").find((entree) => entree.id === "projet-du-premier") ?? assert.fail("pas de champ");
   champ.value = "chef/parade";
   champ.declencher("input");
@@ -106,7 +112,7 @@ const BOX: StationVue = { id: "g1", nom: "box", machine: "macOS 26", etat: "en-l
 const ACCUEIL: Accueil = { projets: [], stations: [{ id: "g1", nom: "box", ton: "rouge", dit: "online · Max connection lost", phrase: "online · no cook running", survol: "macOS 26" }], sante: { ton: "rouge", dit: "Max: connection lost on box", survol: "" } };
 
 test("le login Max sans Claude Code : l'écran de l'outil manquant s'ouvre dans l'avis, et se referme une fois installé", async () => {
-  let manque: { outil: string }[] = [{ outil: "claude" }];
+  let manque: OutilManquant[] = [manquant("claude")];
   const vue = await jouerLaVue({
     demarrage: () => ({ ...base(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true), stations: { a: "2026-10-15T12:00:00.000Z", stations: [BOX] }, accueil: ACCUEIL }),
     panne: () => ({ outilManquant: "claude", refus: ABSENT }),
@@ -129,7 +135,7 @@ test("le login Max sans Claude Code : l'écran de l'outil manquant s'ouvre dans 
   await repos();
   assert.equal(avis.hidden, true);
   // Un login qui part ne l'ouvre pas.
-  manque = [{ outil: "claude" }];
+  manque = [manquant("claude")];
   const autre = await jouerLaVue({
     demarrage: () => ({ ...base(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true), stations: { a: "2026-10-15T12:00:00.000Z", stations: [BOX] }, accueil: ACCUEIL }),
     panne: () => ({ fait: "the login page opens in your browser" }),
