@@ -13,6 +13,7 @@ import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions }
 import { lancerIci, type Locale } from "../box.ts";
 import type { ProjetLu } from "../barre-de-menus.ts";
 import { cheminConfiguration, lireConfiguration } from "../config.ts";
+import { RELEASES_URL } from "../mise-a-jour/android.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "../emplacements.ts";
 import { estUnMac, shellDuPoste } from "../plateforme.ts";
 import { servisPar } from "../poste/cuisine-ici.ts";
@@ -69,7 +70,11 @@ let enCours = false;
 function ouvrirLApp(): void {
   const args = emplacements.facon === "installee" ? [] : [app.getAppPath()];
   const enfant = spawn(process.execPath, args, { detached: true, stdio: "ignore", windowsHide: false });
-  enfant.once("error", (erreur) => void dialog.showMessageBox({ type: "error", message: "brigade could not be opened", detail: erreur.message }));
+  // Une app qui ne s'ouvre pas est dite en une phrase, avec quoi faire (#4071) ; la raison du système va au journal.
+  enfant.once("error", (erreur) => {
+    console.error(`brigade: the app could not be opened — ${erreur.message}`);
+    void dialog.showMessageBox({ type: "error", message: "brigade could not be opened", detail: `Brigade could not open its window, so try again from this icon, and if it still does not open, download it again from ${RELEASES_URL} and reinstall it.` });
+  });
   enfant.unref();
 }
 
