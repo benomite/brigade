@@ -26,15 +26,19 @@ export type OptionsConnexion = {
   ouvrir: (adresse: string) => unknown;
   apres: (fin: FinDeConnexion) => void;
   gardeMs?: number;
+  // Le temps laissé à `gh` pour dire son code et sa page : au-delà, le bouton cesse de tourner.
+  lectureMs?: number;
 };
 
 // Le temps laissé au chef pour taper le code : au-delà, le login est arrêté.
 const GARDE_MS = 15 * 60_000;
+const LECTURE_MS = 8_000;
 const DETAIL_MAX = 2_000;
 // Ce que `gh` écrit (cli/cli, internal/authflow) : « ! First copy your one-time code: ABCD-1234 »,
 // puis, s'il peut attendre Entrée, « Press Enter to open https://github.com/login/device in your
 // browser... » — sinon « Open this URL to continue in your web browser: https://github.com/login/device ».
-const CODE = /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})/i;
+// Les versions récentes le formulent autrement (« Your device code is: ABCD-1234 ») : on lit le code après le mot « code ».
+const CODE = /\bcode\b[^\n:]*:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/i;
 const PAGE = /(?:https?:\/\/)?[\w.-]+\/login\/device\b\S*/i;
 const ENTREE = /press enter/i;
 // Les couleurs que `gh` poserait malgré `NO_COLOR`.
@@ -66,6 +70,14 @@ export function tenirConnexionGitHub(options: OptionsConnexion): () => Promise<D
         const garde = setTimeout(() => enfant.kill(), options.gardeMs ?? GARDE_MS);
         // `gh` lit Entrée sur son entrée : fermée trop tôt, l'écriture échoue — sans rien arrêter.
         enfant.stdin.on("error", () => undefined);
+        // `gh` en vie mais illisible : on le dit au lieu de tourner jusqu'à la garde.
+        const lecture = setTimeout(() => {
+          if (debut !== undefined) return;
+          const detail = sortie.trim().slice(-DETAIL_MAX);
+          enCours = undefined;
+          commencer({ refus: "GitHub sign-in did not show a code the app could read, so it was stopped.", detail: detail === "" ? "gh said nothing." : detail });
+          enfant.kill();
+        }, options.lectureMs ?? LECTURE_MS);
         const lire = (morceau: Buffer) => {
           sortie = `${sortie}${morceau.toString().replace(COULEURS, "")}`.slice(-16_384);
           if (debut !== undefined) return;
@@ -76,12 +88,14 @@ export function tenirConnexionGitHub(options: OptionsConnexion): () => Promise<D
           // Il attend Entrée pour ouvrir la page lui-même ; sinon, c'est l'app qui l'ouvre.
           if (ENTREE.test(sortie)) enfant.stdin.write("\n");
           else void Promise.resolve(options.ouvrir(page)).catch(() => undefined);
+          clearTimeout(lecture);
           commencer({ code: code.toUpperCase(), page });
         };
         enfant.stdout.on("data", lire);
         enfant.stderr.on("data", lire);
         enfant.once("error", (erreur: NodeJS.ErrnoException) => {
           clearTimeout(garde);
+          clearTimeout(lecture);
           commencer(
             erreur.code === "ENOENT"
               ? { refus: `The GitHub CLI (\`${gh}\`) is not installed on this computer, so brigade cannot sign you in to GitHub.`, detail: erreur.message }
@@ -91,6 +105,7 @@ export function tenirConnexionGitHub(options: OptionsConnexion): () => Promise<D
         });
         enfant.once("close", (code, signal) => {
           clearTimeout(garde);
+          clearTimeout(lecture);
           enCours = undefined;
           const detail = sortie.trim().slice(-DETAIL_MAX);
           const dit = derniereLigne(sortie).replace(/[.\s]+$/, "");
