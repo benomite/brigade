@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { lireLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
+import { autreProcess, lireLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
 
 const SOUS_POSIX: string | false = process.platform === "win32" ? "the command line is read with ps, which Windows does not have" : false;
 
@@ -43,6 +43,47 @@ test("a process launched like this one is the same; another command, or one that
   assert.equal(memeProcess(6, 5, lire), true, "the same app, its binary quoted by a Windows shortcut");
   assert.equal(memeProcess(9, 1, lire), false, "a command that cannot be read proves nothing");
   assert.equal(memeProcess(1, 9, lire), false);
+});
+
+test("a process known to be launched otherwise is another; one launched alike, or whose command cannot be read, is not known as another", () => {
+  const commandes = new Map<number, string>([
+    [1, "/Applications/Brigade.app/Contents/MacOS/Brigade --tray-fond"],
+    [2, "/Applications/Brigade.app/Contents/MacOS/Brigade --tray-fond -psn_0_12345"],
+    [3, "/Applications/Brigade.app/Contents/MacOS/Brigade"],
+  ]);
+  const lire = (pid: number) => commandes.get(pid);
+  assert.equal(autreProcess(3, 1, lire), true, "the app is not the icon");
+  assert.equal(autreProcess(2, 1, lire), false, "another icon is launched like this one");
+  assert.equal(autreProcess(9, 1, lire), false, "an unreadable command says nothing");
+  assert.equal(autreProcess(1, 9, lire), false);
+});
+
+// Quand `ps` ne lit pas la commande, la place de l'app est prise : une seconde app peut s'ouvrir à côté d'une vivante, deux
+// fenêtres plutôt qu'aucune (#4071).
+test("the app's place: free when no file, its own pid or a dead one; held by a living app launched alike; taken from another process, or when the command cannot be read", (t) => {
+  const fichier = join(repertoireTemporaire(t), "app.pid");
+  const vivante = lancer(t, "--une-app");
+  const soi = 4_000_001;
+  const commandes = new Map<number, string>([[soi, "Brigade"]]);
+  const lire = (pid: number) => commandes.get(pid);
+  const estTenant = (pid: number) => memeProcess(pid, soi, lire);
+  assert.equal(prendreLaPlace(fichier, soi, estTenant), undefined, "no file: the place is free");
+  assert.equal(readFileSync(fichier, "utf8"), String(soi));
+  assert.equal(prendreLaPlace(fichier, soi, () => true), undefined, "its own pid does not hold it");
+  writeFileSync(fichier, String(4_000_002));
+  assert.equal(prendreLaPlace(fichier, soi, () => true), undefined, "a dead pid does not hold it");
+  writeFileSync(fichier, String(vivante));
+  assert.equal(prendreLaPlace(fichier, soi, estTenant), undefined, "ps cannot read the living pid: the place is taken");
+  assert.equal(readFileSync(fichier, "utf8"), String(soi));
+  writeFileSync(fichier, String(vivante));
+  commandes.set(vivante, "Brigade --tray-fond");
+  assert.equal(prendreLaPlace(fichier, soi, estTenant), undefined, "held by another process: taken");
+  writeFileSync(fichier, String(vivante));
+  commandes.set(vivante, "Brigade");
+  assert.equal(prendreLaPlace(fichier, soi, estTenant), vivante, "held by an app like this one: kept");
+  assert.equal(readFileSync(fichier, "utf8"), String(vivante));
+  commandes.delete(soi);
+  assert.equal(prendreLaPlace(fichier, soi, estTenant), undefined, "ps cannot read this process: the place is taken");
 });
 
 test("the app's place left with a pid now held by another process is taken; held by an app like this one, it is kept", { skip: SOUS_POSIX }, async (t) => {

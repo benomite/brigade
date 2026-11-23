@@ -93,3 +93,9 @@ export function confirmationDeQuitter(projets: readonly ProjetLu[]): { message: 
 
 // Combien de questions attendent : la pastille de l'icône sous Windows, qui n'a pas de titre.
 export const questionsDuFond = (projets: readonly ProjetLu[]): number => enAttente(etatDeLaCuisine(projets));
+
+// Un `activate` adressé à l'icône est-il un clic du chef sur l'app (#4071) ? Electron l'émet aussi au lancement du process,
+// quand launchd démarre l'agent à l'ouverture de session : celui des premières secondes est ignoré, sans quoi la fenêtre
+// s'ouvrirait à chaque connexion.
+export const ACTIVATE_IGNORE_MS = 2_000;
+export const clicSurLApp = (demarrage: number, maintenant: number): boolean => maintenant - demarrage >= ACTIVATE_IGNORE_MS;

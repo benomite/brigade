@@ -21,7 +21,7 @@ import { prendreLaPlace } from "./instance.ts";
 import { ICONE_DE_LA_BARRE, pastillee } from "./icone.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
 import { DOSSIER_DU_FOND, ecrireLaVersionDuFond, executer, quitterLaStation } from "./systeme.ts";
-import { confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
+import { clicSurLApp, confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
 import type { Veille } from "../vue/veille-machine/veille-machine.js";
 
 const INTERVALLE_MS = 15_000;
@@ -43,8 +43,12 @@ else {
 // Ni fenêtre, ni icône dans le Dock.
 app.on("window-all-closed", () => {});
 // Sur un Mac, l'icône est un process du paquet de l'app : un clic sur l'app (Dock, Finder, Launchpad) pendant qu'elle tourne
-// lui est adressé, et ne lançait rien — l'app quittée ne se rouvrait plus (#4071). Il ouvre l'app.
-app.on("activate", () => ouvrirLApp());
+// lui est adressé, et ne lançait rien — l'app quittée ne se rouvrait plus (#4071). Il ouvre l'app, sauf celui que le
+// lancement de l'icône émet lui-même (`clicSurLApp`).
+const demarrage = Date.now();
+app.on("activate", () => {
+  if (clicSurLApp(demarrage, Date.now())) ouvrirLApp();
+});
 
 const plateforme = process.platform;
 const src = join(import.meta.dirname, "..");
