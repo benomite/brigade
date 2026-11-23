@@ -32,6 +32,7 @@ import type { Check } from "../events/pass.ts";
 import { jobDuCheck, LABEL, MIS_DE_COTE, type GitHub } from "../github.ts";
 import { GesteRefuse } from "../rail.ts";
 import { causeDuCheck, LABELS_REPARATION, marqueDeCause } from "../reparation.ts";
+import { OUTCOME, type Geste as GesteDuJournal } from "../autonomie/agents/gestes.ts";
 import type { Reveil } from "./declencheur.ts";
 
 const GESTES = ["rerun", "back-on-rail", "waiting", "close-duplicate", "fix", "todo"] as const;
@@ -57,8 +58,10 @@ export type GitHubDesGestes = Pick<GitHub, "issue" | "commentaires" | "commenter
 export type ContexteDesGestes = { github: GitHubDesGestes; depot: string; branche: string; maintenant: Date };
 
 // Ce que le run a fait, et le commentaire qu'il a écrit — nul quand il n'a agi
-// sur aucun ticket (une relance de la base seule).
-export type Trace = { outcome: "done" | "refused" | "failed"; ticket: number | null; comment: string | null };
+// sur aucun ticket (une relance de la base seule). `gesture` : le geste fait,
+// tel que le journal des gestes du superviseur le garde (#4037) ; nul quand
+// rien n'a été fait, refusé ou en échec.
+export type Trace = { outcome: "done" | "refused" | "failed"; ticket: number | null; comment: string | null; gesture: Omit<GesteDuJournal, "at"> | null };
 
 const MARQUE_DU_SUPERVISEUR = "<!-- brigade:supervisor -->";
 
@@ -278,7 +281,9 @@ export async function jouerLeRun(ctx: ContexteDesGestes, reveil: Reveil, decisio
   }
   const saw = texte(decision.saw) ?? "the manager did not say what it saw";
   const trace = [MARQUE_DU_SUPERVISEUR, `**Supervisor** — woke because ${direReveil(reveil)}.`, "", `- **saw**: ${saw}`, `- **${ETATS[resultat.outcome]}**: ${resultat.dit}`].join("\n");
-  if (resultat.ticket === null) return { outcome: resultat.outcome, ticket: null, comment: null };
+  // Une carte TODO remet la question au chef ; tout autre geste fait, la cuisine l'a réglé seule.
+  const fait = "refus" in geste || resultat.outcome !== "done" ? null : { line: resultat.dit, reason: direReveil(reveil), outcome: geste.gesture === "todo" ? OUTCOME.HANDED_TO_CHEF : OUTCOME.FIXED_BY_SELF };
+  if (resultat.ticket === null) return { outcome: resultat.outcome, ticket: null, comment: null, gesture: fait };
   const corps = [...ecrits, trace].join("\n\n");
   try {
     await ctx.github.commenter(resultat.ticket, corps);
@@ -286,5 +291,5 @@ export async function jouerLeRun(ctx: ContexteDesGestes, reveil: Reveil, decisio
     await resultat.defaire?.().catch(() => undefined);
     throw erreur;
   }
-  return { outcome: resultat.outcome, ticket: resultat.ticket, comment: corps };
+  return { outcome: resultat.outcome, ticket: resultat.ticket, comment: corps, gesture: fait };
 }
