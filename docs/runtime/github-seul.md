@@ -126,6 +126,30 @@ base, the stale-branch pruning).
   anything reads its tickets, so no cook takes it (`runtime/src/issue-de-la-cuisine.ts`). Seen on benomite/secondes
   #46. The idle-kitchen bug the turn filed on `benomite/brigade` is gone (#3945): a kitchen where nothing merges wakes
   the [supervisor](#the-supervisor).
+- **The rail's invariants are checked on every turn** (#4026, `runtime/src/invariants/`,
+  [spec](../superpowers/specs/2026-11-23-autonomy-trust-control.md), A1). Before any other gesture of the turn, the
+  station checks four sentences, each once. When one breaks, it is repaired with a gesture the supervisor already has,
+  and a comment on the ticket (`<!-- brigade:invariant n=<k> … -->`) says which invariant broke and what was done —
+  once per break. The turn that runs them is `tour` in `runtime/src/brigade-github.ts`, through
+  `controleurDesInvariants` (`runtime/src/invariants/invariants.ts`); `runtime/src/superviseur/tour.ts` only observes
+  that turn for the supervisor. No gesture is added: invariants 3 and 4 play `waiting` (its mark), `back-on-rail` and
+  `rerun` (`runtime/src/superviseur/gestes.ts`); invariant 1 needs no write — the claim gate stops counting the PR —
+  and invariant 2 stops the ticket the way its last failed try does (to the manager, or `set-aside:failures`, which
+  hands it to the supervisor), the closest the rail has, as none of the six gestures stops a ticket:
+  1. a ticket no cook cooks and not in pass holds no file zone and reserves none: an open PR whose ticket is free,
+     set aside, in WAITING or `taken` with no readable claim no longer holds the zone of the tickets waiting for it —
+     an epic's PR included, whatever its body says (#3979, #3932). The claim gate reads the same rule (`tientSaZone`);
+  2. the same failure on the same commit is never judged nor relaunched twice: a cook's failure names the PR head it
+     started from and left unchanged (`<!-- brigade:echec n=… sha=<head> -->`), and a ticket relaunched once on that
+     head is stopped there — it goes to the manager, or is set aside (`set-aside:failures`) — instead of being
+     relaunched (#4001). A head is judged once already (#3961);
+  3. a ticket set aside, parked or in WAITING has a named reason and a date to look at it again: without a WAITING
+     mark, the supervisor adds one (the reason the kitchen gave, by `the supervisor`, follow-up in seven days, back on
+     the rail on its own); past that date, a WAITING ticket comes back as the kitchen's do, and a ticket set aside is
+     put back on the rail (the `back-on-rail` gesture);
+  4. a red check on `main` is rerun once before anything else (the `rerun` gesture, for GitHub Actions jobs): the
+     turn that reruns it does nothing else, nor do the turns while the rerun runs (30 min at most). A check rerun
+     once is not rerun again. Said in the service log: a red base has no ticket.
 - **The supervisor reads what the claim gate said** (#3699). Every line the claim gate gives for a cookable ticket it
   skips — a ticket it waits for, a missing capability, a card with no zone, the wait after a stop — is kept by the
   turn, and its dossier carries them ([the supervisor](#the-supervisor)).
@@ -416,11 +440,12 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   (the rerun gesture) and to be still red. It carries `fire`, `prio:0`, `model:opus`, `effort:medium`, `fix` and the
   mark `<!-- brigade:supervisor-cause check:<check name> -->`. That mark with `prio:0` makes it a repair
   (`estUneReparation`, `runtime/src/reparation.ts`): the only delivery judged and merged on a red base, and what the
-  quality figures count as a repair. The GitHub-only turn itself no longer re-runs the base's red jobs nor opens or
-  closes a repair ticket; a red base still holds merges as before.
-- **A set-aside ticket.** No timer and no loop puts a ticket set aside for its failures (`set-aside:failures`) back on
-  the rail: the healing turn leaves it where it is, and `runtime/src/manager/supervision.ts` hands it to the supervisor,
-  which answers with one of its closed list of gestures (#3911).
+  quality figures count as a repair. The GitHub-only turn reruns a red check of the base once, first (invariant 4,
+  #4026); it opens or closes no repair ticket, and a red base still holds merges as before.
+- **A set-aside ticket.** The healing turn leaves a ticket set aside for its failures (`set-aside:failures`) where it
+  is, and `runtime/src/manager/supervision.ts` hands it to the supervisor, which answers with one of its closed list of
+  gestures (#3911). It is not parked for ever: it carries a date to look at it again, and past that date it is put
+  back on the rail (invariant 3, #4026).
 - **The Windows CI card of the base** (#2413, `carte-ci-windows.ts`) is kept, read by the supervisor's wiring from the
   same turn.
 
