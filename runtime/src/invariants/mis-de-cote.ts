@@ -21,7 +21,9 @@ export const misDeCoteSansDate: Invariant = async (tour) => {
   for (const ticket of tour.tickets) {
     const retenu = [...MIS_DE_COTE, LABEL_WAITING].filter((label) => ticket.labels.includes(label));
     if (retenu.length === 0) continue;
-    const commentaires = await tour.github.commentaires(ticket.number);
+    // Illisibles, il est relu au tour suivant : rien ne se pose sur une issue qu'on ne lit pas.
+    const commentaires = await tour.github.commentaires(ticket.number).catch(() => null);
+    if (commentaires === null) continue;
     // Mis de côté, seule une marque posée depuis sa mise de côté compte : celle d'une attente d'avant ne dit pas pourquoi il l'est.
     const cuisine = commentaires.findLastIndex(({ body }) => body.startsWith(MARQUE_D_ECHEC) || body.startsWith(MARQUE_DE_RENVOI));
     const depuis = ticket.labels.includes(LABEL_WAITING) ? commentaires : commentaires.slice(cuisine + 1);

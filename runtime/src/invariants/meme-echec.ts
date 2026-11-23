@@ -18,7 +18,9 @@ const teteDeLEchec = (corps: string) => /^<!-- brigade:echec [^\n]*\bsha=([0-9a-
 export const memeEchecRelance: Invariant = async (tour) => {
   for (const ticket of tour.tickets) {
     if (tour.enCuisine(ticket.number) || estMisDeCote(ticket.labels) || [LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => ticket.labels.includes(label))) continue;
-    const commentaires = await tour.github.commentaires(ticket.number);
+    // Illisibles, il n'est pas jugé à ce tour : la prise relit ses commentaires, et ne prend rien qu'elle ne lit pas.
+    const commentaires = await tour.github.commentaires(ticket.number).catch(() => null);
+    if (commentaires === null) continue;
     // Le dernier mot de la cuisine sur le ticket : un échec, ou un renvoi qui relance sur une tête neuve.
     const dernier = commentaires.filter(({ body }) => body.startsWith(MARQUE_D_ECHEC) || body.startsWith(MARQUE_DE_RENVOI)).at(-1);
     const sha = dernier === undefined ? null : teteDeLEchec(dernier.body);
