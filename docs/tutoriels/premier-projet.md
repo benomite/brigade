@@ -13,17 +13,23 @@ Words (*rail*, *cook*, *pass*, *served*…) are those of [`docs/glossary.md`](..
 
 ## 1. Add the project
 
-On the first-run screen, type your GitHub login and the repository as `owner/repo`, and click **open this project**.
+On the first-run screen, type the repository as `owner/repo` and click **open this project**. You type no GitHub login: the app reads your account from `gh`, which you signed in to at installation.
 
-**You see**: the repository cloned, the project in the icon bar, and its space with two tabs, **Rail** and **Cooks**, and the terminal of the second on the right.
+**You see**: the repository cloned, and the project's page, which asks one question at a time under a line saying where you are (`1 of 2: who cooks it`, `2 of 2: its setup for Brigade`).
 
-## 2. Start the kitchen
+## 2. Choose the station and start the kitchen
 
-Click **choose its machine**, keep the presets, and click **Start the kitchen**. Four steps (`done`, `now`, `to come`) show the station preparing the repository with a ticket of its own.
+The first question is `Who cooks <owner/repo>?`. Pick **this computer** (listed first, and recommended when no server of yours is online), keep the presets, and click **Start the kitchen on this computer**.
 
-**You see**: every step ticked, the **Rail** tab with its columns, and the **project** switch reading `project on` (green): a project added from the app starts on.
+**You see**: the question answered, and the page moving on to `2 of 2: its setup for Brigade`.
 
-## 3. Open the ticket
+## 3. The setup pull request comes first
+
+Before your own ticket, a repository must be set up for brigade: its bindings and its labels, among them `fire`. Brigade does it itself, with a pull request of its own, `Merge the setup pull request`. The page says at each moment what is awaited and from whom: the second reads your repository (`Nothing is awaited from you yet`), and may ask you a question in its column on the right. Then it says `The setup pull request is waiting for your merge`: open its card (**open its card**, red on the rail, counted in **TODO**) and merge it. Only you merge it: it sets what will judge every future delivery.
+
+**You see**: the page say the project is ready, the **Rail** taking its place, and the project's **project** switch reading `project on` (green).
+
+## 4. Open your own ticket
 
 1. In the app, the second asks what you want to change first. Tell it, for example: `Create a CONTRIBUTING.md with a three-line "how to propose a change" section.`
 2. The second writes the issue on the throwaway repository and shows it to you.
@@ -31,15 +37,15 @@ Click **choose its machine**, keep the presets, and click **Start the kitchen**.
 
 **You see**: the ticket as a card in **On the rail**.
 
-**Alternative, on GitHub**: open an issue on the throwaway repository, for example titled `Add a CONTRIBUTING.md`, with the same body, and add the label **`fire`**, which puts it on the rail too. For a quick run, add `model:haiku` and `effort:low` too. Create the labels first if they do not exist.
+**Alternative, on GitHub**: open an issue on the throwaway repository, for example titled `Add a CONTRIBUTING.md`, with the same body, and add the label **`fire`**, which puts it on the rail. The setup already created that label: nothing else has to be set on the issue.
 
-## 4. Watch the cook work
+## 5. Watch the cook work
 
 The card moves to **Taken**, with the cook's name. **Cooks** shows the station's state and the ticket in flight; a click on its card opens its sheet. The cook works in its own worktree, pushes a branch and opens a pull request.
 
 **You see**: the card go from **Taken** to **Pass** once the pull request is open.
 
-## 5. Review at the pass
+## 6. Review at the pass
 
 The pass runs the gates and the review on the pull request and writes its verdict on the issue. Open the pull request from the **Pass** card to read the diff and the verdict.
 
@@ -50,7 +56,7 @@ A delivery waits for you, in **TODO** with the buttons `send back to the kitchen
 - the pass escalates it (a verdict it cannot settle alone);
 - the project switch is off (`project off`). Switch it back on and waiting deliveries are merged.
 
-## 6. The PR is merged
+## 7. The PR is merged
 
 For a green delivery the pass merges. Otherwise merge the pull request on GitHub yourself.
 

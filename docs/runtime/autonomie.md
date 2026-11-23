@@ -18,12 +18,40 @@ The autonomy table (rows, positions, profiles) and the routing of decisions that
 
 ## Each agent's record and autonomy level
 
-Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036). Code:
-`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`) and `niveaux.ts` (`magasinDeNiveaux`).
+Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036, #4037, #4038). Code:
+`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`), `gestes.ts`
+(the gesture log), `prochain-passage.ts` (the next run's text) and `horaires.ts` (the schedules noted).
 
 `facts` gives one record per agent in `equipe`: the manager, the supervisor, the closer, the pass, then each cook running
-(its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)). The next run, the
-counters and the gestures of an agent's thread start empty; later tickets fill them in.
+(its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)).
+
+Each record's next run (#4038) is built from the agent's real schedule and a clock, both handed in (`prochainPassage`):
+- the supervisor wakes when nothing was merged 30 min after the oldest cookable ticket began to wait, or after a later
+  merge (`echeanceSansMerge`, `superviseur/declencheur.ts`): « supervisor: wakes if nothing is merged by 18:40 »; with
+  no cookable ticket, « supervisor: no wake scheduled »;
+- the closer opens a pass at most a day after the last one, at once with none known, never while one is open, and only
+  once `MERGES_PER_PASS` merges are in (`prochainePasse`, `closer-github-passe/closer-github-passe.ts`): « closer: next
+  pass in 3 h », then « closer: next pass once its merges are in » when its day is over; while it is not set or a pass
+  is open, « closer: no pass scheduled »;
+- the manager, the pass and the cooks keep no schedule, and say what they do instead: « manager: runs when a ticket or
+  the supervisor calls it », « pass: reviews each delivery as it comes », « cook #12: works until it delivers ».
+
+The supervisor notes its wake at each wake of the runtime it is branched on, once it is not stopped and has a manager to
+consult; the closer notes its next pass at each of its passes. Each goes to `autonomy-next-run-<agent>.json` of the
+state directory, where `facts` reads it back. A schedule never noted reads « <agent>: next run not known yet »; a file
+that cannot be read is said in the text, never read as no schedule. A note that cannot be written is said, and stops
+neither the supervisor nor the closer.
+
+Each agent has a gesture log (#4037): each entry is `{at, line, reason, outcome}` — its time, one line (a line break
+becomes a space), its reason and its outcome. The outcomes are listed once, in `OUTCOME` of `gestes.ts`: `fixed by
+itself` and `handed to the chef`. The record's `counters` count them (`fixedBySelf`, `handedToChef`), its `gestures` are
+the log, oldest first, and its `lastGesture` is the log's most recent entry, unless its roles' last action is later. The
+log is kept in `autonomy-gestures.json` of the state directory, one list per agent. A missing file is a log with no
+gesture. A file that cannot be read is said in `equipe` of `facts`, and refused when a gesture is logged: nothing is
+guessed in its place and the file is never overwritten. The supervisor logs each gesture it does
+(`superviseur/superviseur.ts`): a TODO card as `handed to the chef`, any other as `fixed by itself`, with what woke it as
+its reason; a refused or failed gesture is not logged. Its last ten gestures and its counters are in the dossier its
+manager gets. The other agents log theirs through the gate (below).
 
 Each agent has an autonomy level per project: `observe` (it says what it would do), `propose` (it waits for the chef's
 OK), `act` (it does it, then says so). The manager's splitting of an epic has its own level. A level never set
@@ -42,4 +70,38 @@ The levels set are kept in `autonomy-levels.json` of the state directory, per pr
 defaults. A file that cannot be read is said in `equipe` of `facts`, and refused by the store when it sets a level:
 nothing is guessed in its place and the file is never overwritten.
 
-No command sets a level yet, and nothing reads the levels to decide: the agents act as before.
+No command sets a level yet.
+
+## The gate of the agents' gestures
+
+Spec C4 (#4039). Code: `runtime/src/autonomie/agents/porte.ts` (`porteDesGestes`). Every gesture of an agent goes
+through one gate, which reads the agent's level and takes the gesture as a function:
+
+- `act`: the gesture is done, then logged in the agent's gesture log;
+- `propose`: the gesture is held as a pending gesture, not done. The chef's approval does it once and logs it; a second
+  approval does nothing;
+- `observe`: the gesture is logged with the outcome `not done`, and never done. The same gesture seen again in a row is
+  not logged twice.
+
+The gestures that go through it:
+
+| Agent | Gesture | Level read | Logged line |
+|---|---|---|---|
+| closer | opening a closing pass on GitHub (`closer-github-passe.ts`) | `closer` | `opened the closing pass #N on \`main\`` |
+| supervisor | its run: the gesture the manager chose, and its comment (`superviseur/superviseur.ts`) | `supervisor` | the run's own line, as before |
+| manager | creating the tickets of an epic it split (`decoupage.ts`) | `manager split-epic` | `split the epic #N into K tickets` |
+| pass | merging a green delivery (`brigade-github.ts`) | `pass` | `merged PR #P of #N` |
+| cook | taking a ticket and cooking it (`brigade-github.ts`) | `cook` | `took #N and cooks it`, in the log of `cook #N` |
+
+The manager's other gestures do not go through it yet: only splitting an epic is held by default.
+
+A held gesture is kept in `autonomy-pending.json` of the state directory (`id`, `agent`, `line`, `reason`, `at`,
+`approved`), and its function in the runtime's memory. `npm --prefix runtime run manager` lists them under `held
+gestures`; `npm --prefix runtime run manager -- approve <id>` marks one approved, and the running runtime does it at its
+next tick, once. Proposed again — the same agent, the same line —, a gesture keeps its id, and its approval if the chef
+gave it meanwhile: this is how a gesture held before a restart is done after it. Until the closer, the manager, the pass
+or a cook proposes it again, an approved gesture waits.
+
+A levels file, a pending file or a gesture log that cannot be read is refused: the gesture is not done, nothing is
+guessed in its place, and no file is overwritten. A cook's gate that cannot be read is said, and the turn goes on with
+the next ticket.

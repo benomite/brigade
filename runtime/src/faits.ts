@@ -16,6 +16,8 @@ import { refusDuProjet } from "./mise-a-jour/en-service.ts";
 import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
 import { equipeDuProjet } from "./autonomie/agents/agents.ts";
 import { magasinDeNiveaux, NiveauxIllisibles } from "./autonomie/agents/niveaux.ts";
+import { enregistrementDe, GestesIllisibles } from "./autonomie/agents/gestes.ts";
+import { horaireDe } from "./autonomie/agents/horaires.ts";
 import { lacuneDeLaStation } from "./routage-station/lacune.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
@@ -91,12 +93,13 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action — nulle s'il n'a rien fait.
     const rolesCuisine = rolesDeLaCuisine(journal.base, projet || projetDuJournal || "");
     // Une fiche par agent — le manager, le superviseur, le closer, la pass, puis chaque cook —, avec son niveau
-    // d'autonomie. Un fichier de niveaux illisible ne fait pas taire les faits : il est dit à la place des fiches.
+    // d'autonomie, son journal de gestes et son prochain passage (#4038). Un fichier de niveaux ou de gestes illisible ne fait pas taire les faits :
+    // il est dit à la place des fiches.
     let equipe;
     try {
-      equipe = equipeDuProjet({ agents: forme.agents, cooks: forme.cooks, roles: rolesCuisine, niveaux: magasinDeNiveaux(repertoireEtat).lire(projet || projetDuJournal || "") });
+      equipe = equipeDuProjet({ agents: forme.agents, cooks: forme.cooks, roles: rolesCuisine, niveaux: magasinDeNiveaux(repertoireEtat).lire(projet || projetDuJournal || ""), gestes: (agent) => enregistrementDe(repertoireEtat, agent), horaires: { maintenant, de: (agent) => horaireDe(repertoireEtat, agent) } });
     } catch (erreur) {
-      if (!(erreur instanceof NiveauxIllisibles)) throw erreur;
+      if (!(erreur instanceof NiveauxIllisibles || erreur instanceof GestesIllisibles)) throw erreur;
       equipe = { illisible: erreur.message };
     }
     // Ce que coûtent les gates du projet face à son budget — posé par le chef,

@@ -2,7 +2,7 @@
 
 This guide takes you from a bare Mac to the brigade app installed, opened and ready to run the **station** of your Mac. Your first ticket is the job of [`premier-projet.md`](premier-projet.md). Words (*station*, *cook*, *rail*…) are those of [`docs/glossary.md`](../glossary.md).
 
-> **What was checked.** On an Apple-silicon Mac running macOS 26.6, release `app-v1.0.62` was downloaded (`Brigade-1.0.62-mac-arm64.dmg`, about 195 MB), its `.dmg` found to hold **Brigade** and the **Applications** shortcut, and the app inspected: arm64, ad hoc signature, Gatekeeper `rejected`. That Mac was **not clean** (`git`, `gh`, `claude` were there) and nobody went through the Gatekeeper dialogs. Steps 1–3 and the first-launch screens (6, 7) come from [`docs/installation.md`](../installation.md) and the release notes. If a screen differs, trust the screen and open an issue on [benomite/brigade](https://github.com/benomite/brigade).
+> **What was checked.** The latest app release was downloaded on an Apple-silicon Mac, its `.dmg` found to hold **Brigade** and the **Applications** shortcut, and the app inspected: arm64, ad hoc signature, Gatekeeper `rejected`. That Mac was **not clean** (`git`, `gh`, `claude` were there) and nobody went through the Gatekeeper dialogs. Steps 1–3 and the first-launch screens (6, 7) come from [`docs/installation.md`](../installation.md) and the release notes. The version and the size of the file are not written here: they change with each release, so read them on the [latest release](https://github.com/benomite/brigade/releases/latest). If a screen differs, trust the screen and open an issue on [benomite/brigade](https://github.com/benomite/brigade).
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ Run `gh auth login`, then `claude` (use your **Max** account), and leave it with
 
 On the **[releases page](https://github.com/benomite/brigade/releases/latest)**, the release marked “Latest” is the app, named **“Brigade `<version>`”** (tag `app-v<version>`). Download **`Brigade-<version>-mac-arm64.dmg`**.
 
-**You see**: a file of about 190 MB in `Downloads`.
+**You see**: the `.dmg` in `Downloads`.
 
 ### 5. Install it
 
@@ -44,9 +44,13 @@ Open the `.dmg`, drag **Brigade** onto **Applications**, eject the image.
 
 ### 6. Open it the first time
 
-The build is **unsigned** and Gatekeeper rejects it. Right-click **Brigade** in Applications, choose **Open**, then **Open** again. On **macOS 15 and later**, also go to **System Settings > Privacy & Security**, click **Open Anyway** next to the message about Brigade, and confirm.
+The build is **unsigned**, so Gatekeeper blocks it. Go through it like this:
 
-**You see**: the Brigade window, on a first-run screen asking for your GitHub account and the project. Afterwards the app opens normally.
+1. Right-click **Brigade** in Applications, choose **Open**, then **Open** again.
+2. On **macOS 15 and later**, that is not enough: go to **System Settings > Privacy & Security**, click **Open Anyway** next to the message about Brigade, and confirm.
+3. If macOS says **“Brigade” is damaged and can’t be opened. You should move it to the Trash**, the app is not damaged: the download carries a quarantine mark. Do **not** move it to the Trash. In **Terminal**, run `xattr -dr com.apple.quarantine /Applications/Brigade.app`, then open **Brigade** again (steps 1 and 2 if the dialogs come back).
+
+**You see**: the Brigade window, on a first-run screen asking for the project to work on. Your GitHub account is read from `gh`, not typed. Afterwards the app opens normally.
 
 ### 7. If a tool is reported missing
 
@@ -67,4 +71,4 @@ To check: `ls -d /Applications/Brigade.app`, the window shows the first-run scre
 
 ## Updating
 
-The app does not update itself: download the new `.dmg` and drag **Brigade** over the old one.
+The app updates itself. When a newer version is out, a line at the top of the window says so and shows where the update is (downloading, then **Install now**, or it installs at the next launch). Only if that line offers a **Download** link instead, download the new `.dmg` and drag **Brigade** over the old one.
