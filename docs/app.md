@@ -319,6 +319,20 @@ Open one of your projects on this PC: one click, no folder to choose.
   GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
   the stations are read again; a clone that was held for want of an account starts again by itself.
   The same button appears under a clone refused for that reason.
+- **A tool the app does not ship is checked first** (#4059): the screen, the `connect to GitHub` button and
+  `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
+  (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
+  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence, the install step
+  for this machine — the command, or the installer to download —, `install the GitHub CLI` (recommended) and
+  `I installed it`. The button never spins on a sign-in that cannot start. The install path never needs a tool the
+  computer lacks: no Homebrew; on macOS, Git comes from Apple's command line developer tools (`xcode-select
+  --install`), the GitHub CLI from its `.pkg` installer, Claude Code from its official script; on Windows, `winget`
+  when it is there, the installers otherwise, and Claude Code from its PowerShell script. A command the app runs
+  itself; an installer opens its download page. Installed, the app checks again (by itself after a command, or on
+  `I installed it`), adds to its PATH a tool its installer put outside it, and the step comes back where it was —
+  the button, or the project that was opening, which starts again by itself. A failed install, or a tool still
+  missing, says so in one line, and the offer stays. The same screen opens in the notice when **log in** on a lost
+  Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
 - **When the stations cannot be read** — no `gh`, no network, GitHub limiting the account —, the
   head says why in the runtime's sentence, its detail in the hover, with the button of the page that
   lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
@@ -333,7 +347,8 @@ Open one of your projects on this PC: one click, no folder to choose.
   the bar, open **Add a project** (below). **T** opens All projects.
 
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
-`app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
+`app/src/vue/premier-lancement.js` (the screen), `app/src/outils-requis.ts` and `app/src/vue/outils-requis/` (the
+missing-tool screen). Captures: `docs/captures/1434/`, `docs/captures/4059/`.*
 
 ### On first launch: brigade added on its own, and a tour of its real kitchen (#3165, epic #3162)
 

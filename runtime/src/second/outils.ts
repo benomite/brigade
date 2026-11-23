@@ -17,8 +17,8 @@
 //   - `missing` : `missing`, les noms de ceux qui manquent, `reason`, une phrase
 //     qui les nomme, et dans `tools`, pour chacun d'eux, `reason` — pourquoi le
 //     second en a besoin —, `install`, une phrase qui dit comment l'obtenir sur
-//     cette plateforme (une commande, puis relancer l'app), `link`, la page qui
-//     l'explique, et `found` quand il est installé hors du PATH.
+//     cette machine (le chemin des outils requis, outils-requis/, #4059), `link`,
+//     la page qui l'explique, et `found` quand il est installé hors du PATH.
 //
 // L'app l'importe (`verifierLesOutils`), ou lance la commande :
 //
@@ -31,6 +31,7 @@ import { accessSync, constants, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
+import { choisirInstallation } from "../outils-requis/outils-requis.ts";
 
 export const OUTILS = ["claude", "gh", "git"] as const;
 export type Outil = (typeof OUTILS)[number];
@@ -138,23 +139,13 @@ function besoin(outil: Outil, plateforme: NodeJS.Platform): string {
 
 const RELANCER = "then restart the app";
 
-// Comment obtenir chacun, sur cette plateforme : une phrase, et la page qui l'explique.
-function commentLObtenir(outil: Outil, plateforme: NodeJS.Platform): { install: string; link: string } {
-  if (plateforme === "win32") {
-    const parOutil: Record<Outil, { install: string; link: string }> = {
-      claude: { install: `Install Claude Code by running \`irm https://claude.ai/install.ps1 | iex\` in PowerShell, ${RELANCER}.`, link: "https://code.claude.com/docs/en/setup" },
-      gh: { install: `Install the GitHub CLI by running \`winget install --id GitHub.cli\` in a terminal, ${RELANCER}.`, link: "https://cli.github.com" },
-      git: { install: `Install Git for Windows, which brings Git Bash, by running \`winget install --id Git.Git\` in a terminal, ${RELANCER}.`, link: "https://git-scm.com/download/win" },
-    };
-    return parOutil[outil];
-  }
-  if (plateforme === "darwin") {
-    const parOutil: Record<Outil, { install: string; link: string }> = {
-      claude: { install: `Install Claude Code by running \`curl -fsSL https://claude.ai/install.sh | bash\` in a terminal, ${RELANCER}.`, link: "https://code.claude.com/docs/en/setup" },
-      gh: { install: `Install the GitHub CLI by running \`brew install gh\` in a terminal, ${RELANCER}.`, link: "https://cli.github.com" },
-      git: { install: `Install git with Apple's command line tools by running \`xcode-select --install\` in a terminal, ${RELANCER}.`, link: "https://git-scm.com/download/mac" },
-    };
-    return parOutil[outil];
+// Comment obtenir chacun, sur cette plateforme : une phrase, et la page qui l'explique. Sur un Mac et sous Windows,
+// le chemin que choisissent les outils requis (outils-requis/outils-requis.ts, #4059) — jamais un outil que la machine
+// n'a pas, ni Homebrew ; `winget` : il est sur cette machine.
+function commentLObtenir(outil: Outil, plateforme: NodeJS.Platform, winget: boolean): { install: string; link: string } {
+  if (plateforme === "win32" || plateforme === "darwin") {
+    const { texte, lien } = choisirInstallation(outil, { plateforme, presents: winget ? ["winget"] : [] });
+    return { install: texte, link: lien };
   }
   const parOutil: Record<Outil, { install: string; link: string }> = {
     claude: { install: `Install Claude Code by running \`curl -fsSL https://claude.ai/install.sh | bash\` in a terminal, ${RELANCER}.`, link: "https://code.claude.com/docs/en/setup" },
@@ -175,7 +166,7 @@ export function voirLOutil(outil: Outil, options: OptionsDesOutils = {}): OutilV
   const plateforme = options.plateforme ?? process.platform;
   const env = options.env ?? process.env;
   const existe = options.existe ?? lancable(plateforme);
-  const { install, link } = commentLObtenir(outil, plateforme);
+  const { install, link } = commentLObtenir(outil, plateforme, plateforme === "win32" && dansLePath("winget", { plateforme, env, existe }) !== null);
   const ici = poste(plateforme);
   const programme = options.programmes?.[outil] ?? outil;
   // Un chemin est pris tel quel : c'est lui, ou rien.

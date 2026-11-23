@@ -6,6 +6,9 @@
 // montre le code à taper sur la page de GitHub qu'il a ouverte, comme le premier lancement du desktop le montre — la même
 // brique, `connexionDite` (premier-lancement.js). Connecté, l'app passe à ses projets ; refusé sur GitHub, le code
 // expiré ou GitHub injoignable, une ligne le dit sous le bouton, le détail au survol, et le chef recommence d'un clic.
+// Un pont qui sait lire les outils de sa machine (`outilsManquants`, ticket 4059) les vérifie à l'ouverture et avant
+// chaque connexion : un outil qui manque prend la place du bouton — l'écran de l'outil manquant (outils-requis/) —, et
+// le bouton revient, sans connexion relancée, quand il est installé.
 // Ce module ne touche pas `document` et ne joint rien : il reçoit de quoi créer un élément (briques.js) et le pont, et
 // rend la carte qu'il tient.
 
@@ -13,11 +16,12 @@ import { boutonAction, survol } from "./briques.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { connexionDite } from "./premier-lancement.js";
 import { PAS_ENCORE } from "./lexique.js";
+import { poserLesOutils, tenirLesOutils } from "./outils-requis/outils-requis.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../connexion-github.ts").DebutDeConnexion} DebutDeConnexion */
 /** @typedef {import("../connexion-github.ts").FinDeConnexion} FinDeConnexion */
-/** @typedef {{ seConnecterAGitHub?(): Promise<DebutDeConnexion>, surConnexionGitHub?(recevoir: (fin: FinDeConnexion) => void): void, ouvrirLaPage?(url: string): Promise<boolean> }} PontDeConnexion */
+/** @typedef {{ seConnecterAGitHub?(): Promise<DebutDeConnexion>, surConnexionGitHub?(recevoir: (fin: FinDeConnexion) => void): void, ouvrirLaPage?(url: string): Promise<boolean> } & import("./outils-requis/outils-requis.js").PontDesOutils} PontDeConnexion */
 
 export const TITRE = "Sign in to GitHub";
 export const ATTENDU = "Sign in with your GitHub account to see your projects.";
@@ -48,13 +52,20 @@ export function tenirConnexionGitHub(lieu, doc, { pont, apres }) {
   /** @type {{ enRoute: true } | DebutDeConnexion | FinDeConnexion | undefined} */
   let connexion;
   const attend = () => connexion !== undefined && ("enRoute" in connexion || "code" in connexion);
-  const poser = () =>
+  // Les outils d'abord : tant que l'un manque, ou que leur lecture est en route, son écran tient la place du bouton.
+  const outils = tenirLesOutils({ pont, rendre: () => poser() });
+  const poser = () => {
+    const { etat } = outils;
+    if (etat.manque !== undefined || (etat.enCours === "verification" && !etat.lu))
+      return suite.replaceChildren(...poserLesOutils(doc, etat, { installer: () => void outils.installer(), verifier: () => void outils.verifier(true) }));
     suite.replaceChildren(
+      ...poserLesOutils(doc, etat, { installer: () => void outils.installer(), verifier: () => void outils.verifier(true) }),
       ...connexionDite(doc, connexion, SE_CONNECTER, {
         seConnecter: () => void seConnecter(),
         ouvrirLaPage: (url) => void pont.ouvrirLaPage?.(url),
       }),
     );
+  };
   /** @param {FinDeConnexion} fin */
   const finir = (fin) => {
     if ("connecte" in fin) {
@@ -67,6 +78,11 @@ export function tenirConnexionGitHub(lieu, doc, { pont, apres }) {
 
   async function seConnecter() {
     if (attend()) return;
+    // Une connexion qui ne peut pas partir ne tourne pas : l'outil qui manque se dit à sa place.
+    if (pont.outilsManquants !== undefined) {
+      if (!(await outils.verifier())) return;
+      if (attend()) return;
+    }
     connexion = { enRoute: true };
     poser();
     /** @type {DebutDeConnexion} */
@@ -85,6 +101,7 @@ export function tenirConnexionGitHub(lieu, doc, { pont, apres }) {
     if (attend()) finir(fin);
   });
   poser();
+  void outils.verifier();
   return { carte };
 }
 

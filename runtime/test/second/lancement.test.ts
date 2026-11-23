@@ -72,7 +72,8 @@ test("sous Windows sans `git`, le second ne part pas : Claude Code y exige le Gi
   assert.equal(plan.reason, "The second cannot start: `git` is missing on this PC.");
   const git = plan.tools?.find(({ tool }) => tool === "git");
   assert.ok(git !== undefined && !git.present);
-  assert.match(git.install, /winget install --id Git\.Git/);
+  // Sans winget sur ce PC, son installeur (outils-requis, #4059).
+  assert.match(git.install, /git-scm\.com/);
 });
 
 test("sous Windows, un `git` sans son Git Bash, ou un CLAUDE_CODE_GIT_BASH_PATH qui ne mène à rien : le second ne part pas, et le dit", (t) => {

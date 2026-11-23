@@ -41,7 +41,8 @@ import { resolve, win32 } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { lancementSousWindows, premiereLigne, spawn } from "../sans-invite.ts";
 import { argumentsDeMiseEnPlace } from "../second-init/demarrage.ts";
-import { enListe, poste, programmesDe, variable, verifierLesOutils, type OptionsDesOutils, type Outil, type OutilVu } from "./outils.ts";
+import { choisirInstallation } from "../outils-requis/outils-requis.ts";
+import { dansLePath, enListe, poste, programmesDe, variable, verifierLesOutils, type OptionsDesOutils, type Outil, type OutilVu } from "./outils.ts";
 
 export type LancementDuSecond = { command: string; args: string[]; verbatim: boolean; folder: string; env: Record<string, string> };
 
@@ -93,6 +94,14 @@ const fichier = (chemin: string) => {
 };
 
 // Ce qu'il faut lancer pour le second dans ce dossier. Ne lève pas.
+// Le pas qui installe Git for Windows et son Git Bash, tel que les outils requis le choisissent (#4059) : winget
+// seulement s'il est sur ce PC, son installeur sinon.
+function gitPourWindows(env: Record<string, string | undefined>, existe: (chemin: string) => boolean): string {
+  const winget = dansLePath("winget", { plateforme: "win32", env, existe }) !== null;
+  const { texte } = choisirInstallation("git", { plateforme: "win32", presents: winget ? ["winget"] : [] });
+  return `${texte.charAt(0).toLowerCase()}${texte.slice(1)}`;
+}
+
 export function planDuSecond(options: OptionsDuSecond): PlanDuSecond {
   const plateforme = options.plateforme ?? process.platform;
   const env = options.env ?? process.env;
@@ -135,7 +144,7 @@ export function planDuSecond(options: OptionsDuSecond): PlanDuSecond {
         return {
           state: "cannot-start",
           cause: "git-bash-missing",
-          reason: `The second cannot start: Claude Code runs its commands in Git Bash, and the git of ${ici} (${chemin("git")}) comes without it — install Git for Windows with \`winget install --id Git.Git\`, then restart the app.`,
+          reason: `The second cannot start: Claude Code runs its commands in Git Bash, and the git of ${ici} (${chemin("git")}) comes without it — ${gitPourWindows(env, existe)}`,
         };
       }
       ajouts.CLAUDE_CODE_GIT_BASH_PATH = bash;

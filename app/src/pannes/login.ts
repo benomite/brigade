@@ -13,6 +13,7 @@ const FICHIER_LOCAL = "appairage.json";
 // Le temps laissé au chef pour se connecter : au-delà, le login est arrêté, et un clic le relance.
 const GARDE_MS = 15 * 60_000;
 
+export const ABSENT = "the login was not launched: Claude Code is not installed on this computer";
 export const LANCE = "the login page opens in your browser: once you are signed in, cooking resumes by itself within the minute";
 
 // Le gist de la station tenue dans `racine`, ou null tant qu'elle n'en a pas.
@@ -48,8 +49,10 @@ export function tenirLogin(options: OptionsLogin): () => Promise<RenduDePanne> {
         enCours = true;
         resoudre({ fait: LANCE });
       });
-      lance.once("error", (erreur) => {
+      lance.once("error", (erreur: NodeJS.ErrnoException) => {
         clearTimeout(garde);
+        // `claude` absent n'est pas une panne : c'est l'écran de l'outil manquant qui le dit, et l'installe (#4059).
+        if (erreur.code === "ENOENT") return resoudre({ outilManquant: "claude", refus: ABSENT });
         resoudre({ refus: `the login was not launched: Claude Code could not be started on this computer (${erreur.message})` });
       });
       lance.once("close", (code, signal) => {
