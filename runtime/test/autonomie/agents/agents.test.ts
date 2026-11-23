@@ -65,6 +65,13 @@ test("`facts` gives the records in `equipe`, each with the chef's default level 
   assert.deepEqual(niveaux(), [["manager", "act", { "split-epic": "act" }], ["supervisor", "act", {}], ["closer", "act", {}], ["pass", "act", {}]]);
 });
 
+test("without `BRIGADE_PROJECT`, `facts` gives the levels of the log's project", (t) => {
+  const { repertoire, env } = etat(t);
+  magasinDeNiveaux(repertoire).poser(PROJET, "supervisor", "observe");
+  const equipe = lireLesFaits({ BRIGADE_STATE_DIR: env.BRIGADE_STATE_DIR }, MAINTENANT).equipe as FicheDAgent[];
+  assert.equal(equipe.find(({ agent }) => agent === "supervisor")?.autonomy, "observe");
+});
+
 test("an unreadable levels file is said in `equipe`, and the rest of `facts` is still given", (t) => {
   const { repertoire, env } = etat(t);
   writeFileSync(join(repertoire, FICHIER_DES_NIVEAUX), "{not json");
