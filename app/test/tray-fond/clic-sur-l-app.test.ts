@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { setTimeout as attendre } from "node:timers/promises";
-import { ACTIVATE_IGNORE_MS, clicSurLApp } from "../../src/tray-fond/tray-fond.ts";
+import { clicSurLApp } from "../../src/tray-fond/tray-fond.ts";
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 
 const APP = join(import.meta.dirname, "..", "..");
@@ -49,8 +49,8 @@ Object.defineProperty(process, "resourcesPath", { value: process.env.FAKE_RESOUR
 
 test("an activate in the icon's first seconds is its own launch; a later one is a click on the app", () => {
   assert.equal(clicSurLApp(10_000, 10_000), false, "at launch");
-  assert.equal(clicSurLApp(10_000, 10_000 + ACTIVATE_IGNORE_MS - 1), false);
-  assert.equal(clicSurLApp(10_000, 10_000 + ACTIVATE_IGNORE_MS), true);
+  assert.equal(clicSurLApp(10_000, 10_000 + 1_999), false);
+  assert.equal(clicSurLApp(10_000, 12_000), true);
   assert.equal(clicSurLApp(10_000, 60_000), true);
 });
 

@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { autreProcess, lireLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
+import { lireLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
 
 const SOUS_POSIX: string | false = process.platform === "win32" ? "the command line is read with ps, which Windows does not have" : false;
 
@@ -45,17 +45,20 @@ test("a process launched like this one is the same; another command, or one that
   assert.equal(memeProcess(1, 9, lire), false);
 });
 
-test("a process known to be launched otherwise is another; one launched alike, or whose command cannot be read, is not known as another", () => {
-  const commandes = new Map<number, string>([
-    [1, "/Applications/Brigade.app/Contents/MacOS/Brigade --tray-fond"],
-    [2, "/Applications/Brigade.app/Contents/MacOS/Brigade --tray-fond -psn_0_12345"],
-    [3, "/Applications/Brigade.app/Contents/MacOS/Brigade"],
-  ]);
-  const lire = (pid: number) => commandes.get(pid);
-  assert.equal(autreProcess(3, 1, lire), true, "the app is not the icon");
-  assert.equal(autreProcess(2, 1, lire), false, "another icon is launched like this one");
-  assert.equal(autreProcess(9, 1, lire), false, "an unreadable command says nothing");
-  assert.equal(autreProcess(1, 9, lire), false);
+test("by default, a place held by a living process whose command cannot be read stays held: an unreadable command proves nothing", { skip: SOUS_POSIX }, async (t) => {
+  const fichier = join(repertoireTemporaire(t), "tray.pid");
+  const app = lancer(t, "--une-app");
+  const soi = lancer(t, "--tray-fond");
+  await jusqua(() => lireLaCommande(app) !== undefined && lireLaCommande(soi) !== undefined, 5_000);
+  const chemin = process.env.PATH;
+  t.after(() => (process.env.PATH = chemin));
+  // Sans PATH, `ps` ne se lance pas : aucune commande ne se lit.
+  process.env.PATH = "";
+  writeFileSync(fichier, String(app));
+  assert.equal(prendreLaPlace(fichier, soi), app, "not known as another: kept");
+  process.env.PATH = chemin;
+  assert.equal(prendreLaPlace(fichier, soi), undefined, "read, and launched otherwise: taken");
+  assert.equal(readFileSync(fichier, "utf8"), String(soi));
 });
 
 // Quand `ps` ne lit pas la commande, la place de l'app est prise : une seconde app peut s'ouvrir à côté d'une vivante, deux

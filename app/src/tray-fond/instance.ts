@@ -42,7 +42,7 @@ export function memeProcess(pid: number, soi: number, lire: (pid: number) => str
 }
 
 // Le contraire prudent : un process qu'on sait lancé autrement que celui-ci. Une commande qui ne se lit pas n'en dit rien.
-export function autreProcess(pid: number, soi: number = process.pid, lire: (pid: number) => string | undefined = lireLaCommande): boolean {
+function autreProcess(pid: number, soi: number = process.pid, lire: (pid: number) => string | undefined = lireLaCommande): boolean {
   const autre = lire(pid);
   const nous = lire(soi);
   return autre !== undefined && nous !== undefined && sansPsn(autre) !== sansPsn(nous);
