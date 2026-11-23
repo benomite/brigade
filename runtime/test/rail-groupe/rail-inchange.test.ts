@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { ouvrirLimitesDuCompte } from "../../src/github-limite.ts";
 import { ouvrirGitHub, type Transport } from "../../src/github.ts";
@@ -24,6 +25,8 @@ const DEPOT = "faux/rail-inchange";
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 const TICKETS = 20;
 const POIGNEE = 6;
+// Un ticket en WAITING porte sa marque : ce qu'il attend, de qui, jusqu'à quand (invariant 3, #4026).
+const ATTENTE = corpsDeLAttente({ what: "the client's API key", who: "the client", followUp: "2099-01-01T00:00:00.000Z" });
 
 type CommentaireFaux = { id: number; body: string; created_at: string; author_association: string; user: { login: string } };
 
@@ -32,7 +35,10 @@ test("a turn over 20 fire tickets takes, labels and comments exactly what it did
   for (let numero = 1; numero <= TICKETS; numero += 1) {
     // 1-2 : prenables ; 3-8 : en attente ; 9-14 : tenus par une autre station ; 15-20 : non calibrés.
     if (numero <= 2) faux.feu(numero, CALIBRE);
-    else if (numero <= 8) faux.feu(numero, [...CALIBRE, "waiting"]);
+    else if (numero <= 8) {
+      faux.feu(numero, [...CALIBRE, "waiting"]);
+      faux.commenterCommeLeDepot(numero, ATTENTE);
+    }
     else if (numero <= 14) {
       faux.feu(numero, [...CALIBRE, "taken"]);
       faux.commenterCommeLeDepot(numero, corpsDePrise("mac/claude"));
@@ -85,7 +91,7 @@ test("a turn over 20 fire tickets takes, labels and comments exactly what it did
   }
   // Les autres sont tels qu'ils étaient : mêmes labels, aucun commentaire de plus.
   for (let numero = 3; numero <= TICKETS; numero += 1) assert.deepEqual(faux.issue(numero).labels, avant.get(numero), `#${numero} keeps its labels`);
-  for (let numero = 3; numero <= TICKETS; numero += 1) assert.equal(commentairesDe(numero).length, numero >= 9 ? 1 : 0, `#${numero} bears no new comment`);
+  for (let numero = 3; numero <= TICKETS; numero += 1) assert.equal(commentairesDe(numero).length, 1, `#${numero} bears no new comment`);
 
   const lectures = requetes.filter((requete) => !/^(POST|PUT|PATCH|DELETE) /.test(requete));
   assert.ok(lectures.length <= POIGNEE, `${lectures.length} read requests for the rail of ${TICKETS} tickets, over a handful of ${POIGNEE}:\n${lectures.join("\n")}`);

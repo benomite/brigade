@@ -94,6 +94,7 @@ import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
+import { tenirLEquipe } from "./autonomie/equipe.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -693,6 +694,9 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+// L'équipe du projet affiché (ticket 4029, autonomie/equipe.js), en tête de sa vue : relue à son ouverture et à chaque
+// lecture de son rail, montrée pour lui seul.
+const equipeDuProjet = tenirLEquipe(document, element("equipe-du-projet"));
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
@@ -6869,6 +6873,7 @@ function poserStationsDuProjet() {
     pretMontre = undefined;
   }
   stationsDuProjet.hidden = projet === undefined;
+  equipeDuProjet.montrer(projet?.nom);
   if (projet === undefined) {
     poserLesChoix(undefined);
     poserLesBlocages(undefined);
@@ -8890,6 +8895,7 @@ function gestesDuRailPublie(projet) {
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
+  equipeDuProjet.lire(projet.nom);
   // Le projet que le premier lancement a ajouté pour la visite (ticket 3165) : son espace s'ouvre sur elle.
   if (visiteAOuvrir === projet.nom) {
     visiteAOuvrir = undefined;
@@ -9077,6 +9083,7 @@ brigade.surFaits((recue) => {
   // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
   if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {
+    equipeDuProjet.lire(courant.nom);
     void lireLesEssais(courant);
     dessiner();
     poserLeRecitDuPremierTicket();

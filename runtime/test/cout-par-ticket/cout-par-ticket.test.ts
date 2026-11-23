@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancherBrigadeGithub, stationDuDepot, type Lancer, type StationGitHub } from "../../src/brigade-github.ts";
+import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { corpsDeVerdict } from "../../src/github-etat/fusion.ts";
 import { ouvrirLimitesDuCompte } from "../../src/github-limite.ts";
@@ -176,6 +177,8 @@ test("waiting tickets left an hour on a fake clock cost no counted GitHub call: 
   const faux = new FauxGitHub(DEPOT);
   // Il attend : le label `waiting`.
   faux.feu(5, [...CALIBRE, "waiting"]);
+  // Avec sa marque : ce qu'il attend, de qui, jusqu'à quand (invariant 3, #4026).
+  faux.commenterCommeLeDepot(5, corpsDeLAttente({ what: "the client's API key", who: "the client", followUp: "2099-01-01T00:00:00.000Z" }));
   // Il attend son calibrage.
   faux.feu(6, ["fire"]);
   // Une autre station le cuisine : sa prise date d'à l'instant, un cook peut tourner dessous (#3883).

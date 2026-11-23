@@ -48,6 +48,7 @@
     <link rel="stylesheet" href="identites-github.css" />
     <link rel="stylesheet" href="projets-servis/projets-servis.css" />
     <link rel="stylesheet" href="autonomie/chiffres.css" />
+    <link rel="stylesheet" href="autonomie/equipe.css" />
     <link rel="stylesheet" href="resume-hebdomadaire/resume-hebdomadaire.css" />
     <link rel="stylesheet" href="reglages-stations/stations.css" />
     <link rel="stylesheet" href="visite/visite.css" />
@@ -110,6 +111,10 @@
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
       </header>
+      <!-- L'équipe du projet (ticket 4029, autonomie/equipe.js) : un badge par agent — supervisor et closer d'abord —, son état,
+           son dernier geste et sa prochaine passe ; un clic ouvre son fil, son niveau d'autonomie et ce qui attend l'OK du chef.
+           Vide, et cachée, tant que le runtime ne publie aucun agent. -->
+      <section id="equipe-du-projet" aria-label="The agents" aria-live="polite" hidden></section>
       <!-- Tant que le projet qu'« Add a project » vient d'ouvrir n'est pas prêt (ticket 3166) : à la place du rail, une question
            à la fois — qui le cuit, puis sa mise en place s'il le faut —, ce qui est attendu et de qui. Prêt, une ligne au-dessus
            du rail propose d'écrire son premier ticket avec le second. -->
