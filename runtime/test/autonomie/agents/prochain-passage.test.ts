@@ -16,7 +16,7 @@ import type { Runtime } from "../../../src/runtime.ts";
 import { brancherSuperviseur } from "../../../src/superviseur/brancher.ts";
 import { echeanceSansMerge, reveil, type FaitsDuProjet } from "../../../src/superviseur/declencheur.ts";
 import type { SuiviDuTour } from "../../../src/superviseur/tour.ts";
-import { jusqua, repertoireTemporaire } from "../../outils.ts";
+import { repertoireTemporaire } from "../../outils.ts";
 
 const MAINTENANT = new Date("2026-11-23T12:00:00.000Z");
 const A = (hhmm: string) => new Date(`2026-11-23T${hhmm}:00.000Z`);
@@ -174,18 +174,20 @@ describe("the runtime notes the schedules as it reads them", () => {
     assert.match(dits[0] ?? "", /^supervisor on shop: its next wake was not noted — /);
   });
 
-  // A closer branched on a runtime of its wakes only, whose GitHub knows `passes`.
+  // A closer branched on a runtime of its wakes only, whose GitHub knows `passes`. `merges` resolves once its pass has
+  // read the clone's merges, after it noted its next pass: no timer is waited on.
   function closer(t: TestContext, options: { calibre: boolean; passes: Array<{ number: number; createdAt: string; state: "open" | "closed" }>; noter?: (at: Date | null) => void; repertoireEtat?: string }) {
     const ecouteurs = new Set<(cause: "tick" | "log") => void>();
     const runtime = { projet: "shop", repertoireEtat: options.repertoireEtat, surReveil: (ecouter: (cause: "tick" | "log") => void) => (ecouteurs.add(ecouter), () => void ecouteurs.delete(ecouter)), arreter: () => {} } as unknown as Runtime;
     const body = "<!-- brigade:fermeture sha=abc -->";
     const github = { issuesDepuis: async () => options.passes.map((passe) => ({ ...passe, title: "Closing pass", labels: [], association: "MEMBER", body })) } as unknown as GitHubDuCloser;
-    const lectures = { merges: 0 };
+    let lues = () => {};
+    const merges = new Promise<void>((resoudre) => (lues = resoudre));
     const avertissements: string[] = [];
     const branche = brancherCloserGithub(runtime, {
       reglages: () => ({ calibration: options.calibre ? { model: "sonnet", effort: "low" } : null, removedLines: 20 }),
       github,
-      clone: { merges: async () => (lectures.merges++, []), observer: async () => ({ sha: "0", merges: [], textes: [] }) },
+      clone: { merges: async () => (lues(), []), observer: async () => ({ sha: "0", merges: [], textes: [] }) },
       base: "main",
       ecartMs: 0,
       maintenant: () => MAINTENANT,
@@ -194,7 +196,7 @@ describe("the runtime notes the schedules as it reads them", () => {
       noterProchainePasse: options.noter,
     });
     t.after(() => branche.arreter("test"));
-    return { reveiller: () => ecouteurs.forEach((ecouter) => ecouter("tick")), lectures, avertissements };
+    return { reveiller: () => ecouteurs.forEach((ecouter) => ecouter("tick")), merges, avertissements };
   }
 
   test("the closer notes its next pass at each pass, and none while it is not set", async (t) => {
@@ -202,14 +204,14 @@ describe("the runtime notes the schedules as it reads them", () => {
     const hier = new Date(MAINTENANT.getTime() - 21 * 3_600_000).toISOString();
     const calibre = closer(t, { calibre: true, passes: [{ number: 3, createdAt: hier, state: "closed" }], noter: (at) => void notes.push(at) });
     calibre.reveiller();
-    await jusqua(() => calibre.lectures.merges > 0);
+    await calibre.merges;
     assert.deepEqual(notes, [new Date(MAINTENANT.getTime() + 3 * 3_600_000)]);
     assert.equal(prochainPassage("closer", MAINTENANT, { at: notes[0] as Date }).text, "closer: next pass in 3 h");
 
     const sansLui: Array<Date | null> = [];
     const sansReglage = closer(t, { calibre: false, passes: [], noter: (at) => void sansLui.push(at) });
     sansReglage.reveiller();
-    await jusqua(() => sansReglage.lectures.merges > 0);
+    await sansReglage.merges;
     assert.deepEqual(sansLui, [null]);
   });
 
@@ -218,7 +220,7 @@ describe("the runtime notes the schedules as it reads them", () => {
       const notes: Array<Date | null> = [];
       const branche = closer(t, { calibre: true, passes, noter: (at) => void notes.push(at) });
       branche.reveiller();
-      await jusqua(() => branche.lectures.merges > 0);
+      await branche.merges;
       return notes;
     };
     assert.deepEqual(await noteDe([]), [MAINTENANT]);
@@ -231,7 +233,7 @@ describe("the runtime notes the schedules as it reads them", () => {
     const hier = new Date(MAINTENANT.getTime() - 21 * 3_600_000).toISOString();
     const branche = closer(t, { calibre: true, passes: [{ number: 3, createdAt: hier, state: "closed" }], repertoireEtat: repertoire });
     branche.reveiller();
-    await jusqua(() => branche.lectures.merges > 0);
+    await branche.merges;
     assert.deepEqual(horaireDe(repertoire, "closer"), { at: new Date(MAINTENANT.getTime() + 3 * 3_600_000) });
     assert.deepEqual(branche.avertissements, []);
   });
@@ -245,7 +247,7 @@ describe("the runtime notes the schedules as it reads them", () => {
       },
     });
     ferme.reveiller();
-    await jusqua(() => ferme.lectures.merges > 0);
+    await ferme.merges;
     assert.deepEqual(ferme.avertissements, ["brigade : the closer's next pass not noted — disk full"]);
   });
 });
