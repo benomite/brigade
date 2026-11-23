@@ -199,6 +199,7 @@ test("a level the runtime refuses leaves the level as it was and says it in one 
   assert.equal(nomme(cadre, "propose")[0]?.ariaPressed, "true");
   assert.equal(nomme(cadre, "act")[0]?.ariaPressed, "false");
   assert.ok(cadre.textContent.includes(NIVEAU_NON_CHANGE("closer")));
+  assert.equal(cadre.dessous("p").find((ligne) => ligne.textContent.startsWith(NIVEAU_NON_CHANGE("closer")))?.role, "alert", "a failed gesture is read out at once");
   assert.ok(cadre.dessous("button").some((aide) => aide.ariaLabel === "runtime: unknown agent"), "its detail on hover");
   assert.equal(badgeDe(cadre, "closer").textContent.includes("propose"), true);
 });

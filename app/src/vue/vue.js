@@ -5393,7 +5393,7 @@ const TEXTE_GARDE = "your text is kept here, nothing was sent";
 function direLaCarteResolue(carte, dit) {
   const avant = [...carte.children].find(({ className }) => className === "resolue-entre-temps");
   if (dit === undefined) return avant?.remove();
-  if (avant == undefined) return void (avant.textContent = dit);
+  if (avant !== undefined) return void (avant.textContent = dit);
   const ligne = bloc("p", dit);
   ligne.className = "resolue-entre-temps";
   const phrase = [...carte.children].find(({ className }) => className === "phrase");
