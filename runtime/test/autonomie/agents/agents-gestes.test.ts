@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
 import { consignerGeste, enregistrementDe, FICHIER_DES_GESTES, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
-import type { Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
+import { magasinDeNiveaux, type Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import type { Ajout } from "../../../src/evenements.ts";
 import { lireLesFaits } from "../../../src/faits.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
@@ -67,4 +67,21 @@ test("an unreadable gesture log is said in `equipe`, the rest of `facts` is stil
   assert.match((lus.equipe as { illisible: string }).illisible, /cannot be read/);
   assert.ok(Array.isArray(lus.rolesCuisine));
   assert.equal(readFileSync(join(repertoire, FICHIER_DES_GESTES), "utf8"), "{not json");
+});
+
+test("a log whose agent has an entry that is not a gesture is said in `equipe`, never read as given", (t) => {
+  const { repertoire, env } = etat(t);
+  const contenu = `{"closer": [{"at": "x", "line": "l", "outcome": "fixed by itself"}]}`;
+  writeFileSync(join(repertoire, FICHIER_DES_GESTES), contenu);
+  assert.match((lireLesFaits(env, MAINTENANT).equipe as { illisible: string }).illisible, /the gestures of closer are not a list/);
+  assert.equal(readFileSync(join(repertoire, FICHIER_DES_GESTES), "utf8"), contenu);
+});
+
+test("without `BRIGADE_PROJECT`, `facts` gives each agent its gestures with the levels of the log's project", (t) => {
+  const { repertoire, env } = etat(t);
+  magasinDeNiveaux(repertoire).poser(PROJET, "supervisor", "observe");
+  consignerGeste(repertoire, "supervisor", { line: "parked #12", reason: "three failed tries", outcome: OUTCOME.HANDED_TO_CHEF }, A(9));
+  const superviseur = (lireLesFaits({ BRIGADE_STATE_DIR: env.BRIGADE_STATE_DIR }, MAINTENANT).equipe as FicheDAgent[]).find(({ agent }) => agent === "supervisor") as FicheDAgent;
+  assert.equal(superviseur.autonomy, "observe");
+  assert.deepEqual(superviseur.counters, { fixedBySelf: 0, handedToChef: 1 });
 });
