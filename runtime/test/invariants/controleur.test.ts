@@ -37,3 +37,27 @@ test("while the red base's rerun has no result, no other invariant is repaired",
   await a.calme();
   assert.match((faux.commentaires.get(1) ?? []).map((c) => c.body).join("\n"), /Invariant 3 broke/);
 });
+
+test("a repair says whether it repaired: not when the tick is held, not twice in one tick, not when the ticket already says it, not when its gesture fails", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE);
+  faux.poster(1, "A", "<!-- brigade:invariant n=3 deja -->");
+  const rendus: Record<string, boolean> = {};
+  const gestes: string[] = [];
+  const reparation = (cle: string, geste: () => Promise<string | null> = async () => (gestes.push(cle), "did it")) => ({ invariant: 3 as const, ticket: 1, cle, casse: "it broke", geste });
+  const invariants: Invariant[] = [
+    async (tour) => {
+      rendus.premier = await tour.reparer(reparation("neuf"));
+      rendus.second = await tour.reparer(reparation("neuf"));
+      rendus.dit = await tour.reparer(reparation("deja"));
+      rendus.echoue = await tour.reparer(reparation("echoue", async () => { throw new Error("GitHub said 502"); }));
+      tour.retenir();
+      rendus.retenu = await tour.reparer(reparation("retenu"));
+    },
+  ];
+  const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, cuisiner: async () => ({ echec: "not the point" }), invariants });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(rendus, { premier: true, second: false, dit: false, echoue: false, retenu: false });
+  assert.deepEqual(gestes, ["neuf"], "the held tick and the already said break make no gesture");
+});

@@ -54,3 +54,20 @@ test("a cook that moved its PR's head before failing is relaunched on the new he
   assert.doesNotMatch(echecs(faux, 1)[0] ?? "", / sha=/, "the first failure left another commit than it started from");
   assert.match(echecs(faux, 1)[1] ?? "", new RegExp(`${avecLaTete(pr.sha)} -->`));
 });
+
+test("a ticket cooked on this station is not stopped, even when its last failure names its PR's head and its labels no longer say it is taken", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE);
+  const pr = faux.prOuverte(["runtime/src/a.ts"], "cook/1-abcdef01");
+  pr.issue = 1;
+  let finir = () => {};
+  const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, cuisiner: () => new Promise((fini) => void (finir = () => fini({ echec: "not the point" }))) });
+  await a.tour();
+  assert.equal(faux.cuissons.length, 1);
+  faux.ticket(1).labels.delete("taken");
+  faux.poster(1, "A", `<!-- brigade:echec n=1${avecLaTete(pr.sha)} -->\nA — tests red`);
+  await a.tour();
+  assert.ok(!(faux.commentaires.get(1) ?? []).some((c) => /invariant 2/i.test(c.body)), "a cook in cooking is not stopped");
+  finir();
+  await a.calme();
+});

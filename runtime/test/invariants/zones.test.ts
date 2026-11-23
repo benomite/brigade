@@ -123,3 +123,22 @@ test("the zone the invariant reads is the claim gate's: a path the body names th
   await a.calme();
   seuleLaCasse(faux);
 });
+
+test("a ticket cooked on this station keeps the zone of its open PR, even when its labels no longer say it is taken", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE);
+  faux.poster(1, "manager", fiche("runtime/src/a.ts"));
+  faux.prOuverte(["runtime/src/b.ts"], "cook/1-abcdef01");
+  let finir = () => {};
+  const a = faux.station("A", { places: 2, sauter: () => {}, avertir: () => {}, cuisiner: (ticket) => new Promise((fini) => void (finir = () => fini({ echec: `#${ticket.number} not the point` }))) });
+  await a.tour();
+  assert.deepEqual(faux.cuissons.map(({ issue }) => issue), [1]);
+  // #1 cuit ici ; ses labels, eux, ne le disent plus.
+  faux.ticket(1).labels.delete("taken");
+  faux.feu(2, CALIBRE);
+  faux.poster(2, "manager", fiche("runtime/src/b.ts"));
+  await a.tour();
+  assert.ok(!faux.cuissons.some(({ issue }) => issue === 2), "#2 waits for the zone #1's PR holds");
+  finir();
+  await a.calme();
+});
