@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ABSENT, gistLocal, LANCE, tenirLogin } from "../../src/pannes/login.ts";
+import { gistLocal, LANCE, tenirLogin } from "../../src/pannes/login.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
 
 const repertoire = (t: TestContext) => {
@@ -59,7 +59,7 @@ test("un login qui échoue se dit au terminal de l'app ; un `claude` absent est 
   assert.deepEqual(dit, ["brigade: Max login on this computer did not finish (code 1) — Login failed: timed out"]);
   const absent = await tenirLogin({ claude: join(repertoire(t), "claude"), env: process.env, dire: () => {} })();
   // Absent, il n'est plus « could not be started » : l'écran de l'outil manquant le prend (#4059).
-  assert.deepEqual(absent, { outilManquant: "claude", refus: ABSENT });
+  assert.deepEqual(absent, { outilManquant: "claude", refus: "the login was not launched: Claude Code is not installed on this computer" });
 });
 
 test("le gist de la station de cet ordinateur se lit là où elle le garde ; sans lui, aucune station n'est d'ici", (t) => {

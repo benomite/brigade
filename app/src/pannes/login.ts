@@ -13,7 +13,7 @@ const FICHIER_LOCAL = "appairage.json";
 // Le temps laissé au chef pour se connecter : au-delà, le login est arrêté, et un clic le relance.
 const GARDE_MS = 15 * 60_000;
 
-export const ABSENT = "the login was not launched: Claude Code is not installed on this computer";
+const ABSENT = "the login was not launched: Claude Code is not installed on this computer";
 export const LANCE = "the login page opens in your browser: once you are signed in, cooking resumes by itself within the minute";
 
 // Le gist de la station tenue dans `racine`, ou null tant qu'elle n'en a pas.

@@ -12,7 +12,6 @@ import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { ABSENT } from "../../src/pannes/login.ts";
 import type { OutilManquant } from "../../src/outils-requis.ts";
 import { echecDeGh } from "../../../runtime/src/appairage/stations-du-chef.ts";
 import { choisirInstallation, type OutilRequis } from "../../../runtime/src/outils-requis/outils-requis.ts";
@@ -115,7 +114,7 @@ test("le login Max sans Claude Code : l'écran de l'outil manquant s'ouvre dans 
   let manque: OutilManquant[] = [manquant("claude")];
   const vue = await jouerLaVue({
     demarrage: () => ({ ...base(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true), stations: { a: "2026-10-15T12:00:00.000Z", stations: [BOX] }, accueil: ACCUEIL }),
-    panne: () => ({ outilManquant: "claude", refus: ABSENT }),
+    panne: () => ({ outilManquant: "claude", refus: "the login was not launched: Claude Code is not installed on this computer" }),
     outilsManquants: () => manque,
     espace: () => [],
   });
