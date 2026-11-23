@@ -176,7 +176,8 @@ describe("the runtime notes the schedules as it reads them", () => {
   });
 
   // A closer branched on a runtime of its wakes only, whose GitHub knows `passes`. `merges` resolves once its pass has
-  // read the clone's merges, after it noted its next pass: no timer is waited on.
+  // read the clone's merges, after it noted its next pass, or once the pass says it did not run: no timer is waited on,
+  // and a pass that fails before the clone's read fails the test instead of leaving it waiting.
   function closer(t: TestContext, options: { calibre: boolean; passes: Array<{ number: number; createdAt: string; state: "open" | "closed" }>; noter?: (at: Date | null) => void; repertoireEtat?: string }) {
     const ecouteurs = new Set<(cause: "tick" | "log") => void>();
     const runtime = { projet: "shop", repertoireEtat: options.repertoireEtat, surReveil: (ecouter: (cause: "tick" | "log") => void) => (ecouteurs.add(ecouter), () => void ecouteurs.delete(ecouter)), arreter: () => {} } as unknown as Runtime;
@@ -192,7 +193,10 @@ describe("the runtime notes the schedules as it reads them", () => {
       base: "main",
       ecartMs: 0,
       maintenant: () => MAINTENANT,
-      avertir: (m) => void avertissements.push(m),
+      avertir: (m) => {
+        avertissements.push(m);
+        if (m.startsWith("brigade : closing pass not run")) lues();
+      },
       derive: { seuils: () => ({}) as never, couts: {} as never, noter: () => {} },
       noterProchainePasse: options.noter,
     });
