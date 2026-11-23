@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
+import { lectureDeLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
 
 const SOUS_POSIX: string | false = process.platform === "win32" ? "the command line is read with ps, which Windows does not have" : false;
 
@@ -58,4 +58,27 @@ test("the app's place left with a pid now held by another process is taken; held
   writeFileSync(fichier, String(app));
   assert.equal(prendreLaPlace(fichier, soi, estTenant), app, "another app holds it");
   assert.equal(readFileSync(fichier, "utf8"), String(app));
+});
+
+test("by default, a place is held only by a process launched like the one asking: the icon's pid given to the app does not keep the icon away", { skip: SOUS_POSIX }, async (t) => {
+  const fichier = join(repertoireTemporaire(t), "tray.pid");
+  const app = lancer(t, "--une-app");
+  const icone = lancer(t, "--tray-fond");
+  const soi = lancer(t, "--tray-fond");
+  await jusqua(() => memeProcess(icone, soi), 5_000);
+  writeFileSync(fichier, String(app));
+  assert.equal(prendreLaPlace(fichier, soi), undefined, "the app does not hold the icon's place");
+  assert.equal(readFileSync(fichier, "utf8"), String(soi));
+  writeFileSync(fichier, String(icone));
+  assert.equal(prendreLaPlace(fichier, soi), icone, "another icon holds it");
+});
+
+test("the command line is read by ps on POSIX, and by PowerShell on Windows without a console window flashing at each start", () => {
+  const windows = lectureDeLaCommande(42, "win32");
+  assert.equal(windows.commande, "powershell.exe");
+  assert.match(windows.args.join(" "), /ProcessId=42/);
+  assert.equal(windows.options.windowsHide, true);
+  const mac = lectureDeLaCommande(42, "darwin");
+  assert.deepEqual([mac.commande, ...mac.args], ["ps", "-ww", "-o", "command=", "-p", "42"]);
+  assert.equal(mac.options.windowsHide, undefined);
 });
