@@ -38,5 +38,6 @@ test("on the second no-op relaunch for the same red check, the ticket goes to th
     await station.calme();
   }
   assert.equal(lancements(), avant, "the ticket is not relaunched");
-  assert.equal((faux.commentaires.get(14) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length, 2, "two counted tries, no more");
+  // Invariant 2 du rail (#4026) : la relance laisse la même tête, rouge du même check ; elle n'est pas rejouée une seconde fois.
+  assert.equal((faux.commentaires.get(14) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length, 1, "one relaunch on the same commit, then a stop");
 });

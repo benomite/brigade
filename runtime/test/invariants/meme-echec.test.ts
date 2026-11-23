@@ -1,0 +1,63 @@
+// Invariant 2 du rail (#4026) : le même échec sur le même commit n'est ni jugé
+// ni relancé deux fois.
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { avecLaTete } from "../../src/invariants/meme-echec.ts";
+import { CALIBRE, FauxGitHub } from "../faux-github.ts";
+
+const echecs = (faux: FauxGitHub, numero: number) => (faux.commentaires.get(numero) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).map((c) => c.body);
+
+test("the stop is written on the ticket, and the ticket is set aside for the supervisor", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE);
+  const pr = faux.prOuverte(["runtime/src/a.ts"], "cook/1-abcdef01");
+  pr.issue = 1;
+  const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, cuisiner: async () => ({ echec: "tests red" }) });
+  for (let i = 0; i < 3; i++) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.match(echecs(faux, 1)[0] ?? "", new RegExp(`^<!-- brigade:echec n=1${avecLaTete(pr.sha)} -->`), "the failure names the commit it left");
+  const arret = (faux.commentaires.get(1) ?? []).map((c) => c.body).find((body) => /invariant 2/i.test(body)) ?? "";
+  assert.match(arret, new RegExp(`relaunched on commit \`${pr.sha.slice(0, 7)}\` of PR #${pr.number}[\\s\\S]*stopped it[\\s\\S]*set-aside:failures`));
+  assert.ok(faux.ticket(1).labels.has("set-aside:failures"));
+});
+
+test("a cook that moved its PR's head before failing is relaunched on the new head, and stopped only when it fails on the same one", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE);
+  const pr = faux.prOuverte(["runtime/src/a.ts"], "cook/1-abcdef01");
+  pr.issue = 1;
+  let fois = 0;
+  const a = faux.station("A", {
+    places: 1,
+    sauter: () => {},
+    avertir: () => {},
+    cuisiner: async () => {
+      fois += 1;
+      // Le premier pousse un commit, puis s'arrête ; le second ne pousse rien.
+      if (fois === 1) pr.sha = faux.sha();
+      return { echec: `failure ${fois}` };
+    },
+  });
+  for (let i = 0; i < 5; i++) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(fois, 2, "relaunched once on the new head, then stopped");
+  assert.doesNotMatch(echecs(faux, 1)[0] ?? "", / sha=/, "the first failure left another commit than it started from");
+  assert.match(echecs(faux, 1)[1] ?? "", new RegExp(`${avecLaTete(pr.sha)} -->`));
+});
+
+test("a ticket without a PR names no commit when its cook fails, and is relaunched as before", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE);
+  let fois = 0;
+  const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, cuisiner: async () => ({ echec: `failure ${(fois += 1)}` }) });
+  for (let i = 0; i < 2; i++) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.equal(fois, 2);
+  assert.deepEqual(echecs(faux, 1).map((body) => body.split("\n")[0]), ["<!-- brigade:echec n=1 -->", "<!-- brigade:echec n=2 -->"]);
+});

@@ -51,6 +51,10 @@ import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_
 import type { CheckDeLaBase } from "./checks-de-la-branche.ts";
 import { lireInstantane, REQUETE, type Instantane, type PRDeLInstantane } from "./github-etat/instantane.ts";
 import { estLaPauseDeGitHub, LimiteGitHubAtteinte } from "./limite-github.ts";
+import type { RelancerLaBase } from "./invariants/base-rouge.ts";
+import { controleurDesInvariants, invariantsDuRail, type Invariant } from "./invariants/invariants.ts";
+import { tientSaZone } from "./invariants/zones.ts";
+import { avecLaTete } from "./invariants/meme-echec.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { tenant as tenantDeLaPrise, faitsDePrise, lacher, premierePrise, prendre, purger, stationsDesPrises } from "./github-etat/prise.ts";
 import { stationsDuManager } from "./github-etat/prise-du-manager.ts";
@@ -79,6 +83,7 @@ import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts
 import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
 import type { ManagerDuSuperviseur } from "./superviseur/brancher.ts";
+import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -416,6 +421,12 @@ export type OptionsDeStation = {
   // l'origine (#3928) : le label est périmé, la station le retire et ses tests
   // s'écrivent de nouveau, avant qu'aucun cook ne le prenne. Absente, le label est cru.
   testsPerdus?: (numero: number) => Promise<boolean>;
+  // Les contrôles des invariants du rail, joués chacun une fois à chaque tour
+  // (#4026). Absents, les quatre du rail (`invariants/`).
+  invariants?: readonly Invariant[];
+  // La relance des checks rouges de la base (invariant 4). Absente, le geste
+  // `rerun` du superviseur, sur les jobs de GitHub Actions.
+  relancerLaBase?: RelancerLaBase;
 };
 
 // Ce que la station donne au service d'une PR externe (`pr-externe/`).
@@ -601,6 +612,7 @@ const ISSUES_LUES_AU_PLUS = 40;
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
+  const controlerLesInvariants = controleurDesInvariants(options.invariants ?? invariantsDuRail(options.relancerLaBase ?? ((rouges) => relancerLesRouges(github, base, rouges))), avertir);
   // Nomme à chaque tour, sur son ticket, la livraison qui a rendu la base rouge (#3817).
   const nommerLaLivraison = github.livraison ? nommeLaLivraison({ github: github.livraison, base, avertir }) : undefined;
   // Le chef que la demande de validation posée sur le ticket mentionne (#3615) :
@@ -742,12 +754,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // lecture des PR coûte un point de débit à chaque tour. Rend les PR ouvertes lues, ou
   // null si le balayage n'a pas lieu à ce tour.
   let dernierBalayage = Number.NEGATIVE_INFINITY;
-  const fermerLesPRDesTicketsFermes = async (ouverts: ReadonlySet<number>) => {
+  const fermerLesPRDesTicketsFermes = async (ouverts: ReadonlySet<number>, prsOuvertes: () => ReturnType<GitHubDuTour["prsOuvertes"]>) => {
     const { fermerPR } = github;
     if (fermerPR === undefined || github.issue === undefined || instant() - dernierBalayage < BALAYAGE_DES_PR_MS) return null;
     dernierBalayage = instant();
     const externes = new Set((await github.prsExternes?.())?.map(({ number }) => number));
-    const ouvertes = await github.prsOuvertes();
+    const ouvertes = await prsOuvertes();
     for (const pr of ouvertes) {
       if (pr.number === undefined || externes.has(pr.number)) continue;
       // Un ticket que le tour a lu ouvert (il porte `fire`) n'a pas à être relu.
@@ -1146,6 +1158,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   // Le cook d'un ticket pris, jusqu'à sa livraison en pass ; sans livraison,
   // le ticket est rendu sur l'issue, et pourquoi s'y dit.
+  // La tête de la PR ouverte de chaque ticket pris, lue à sa prise.
+  const tetesAuDepart = new Map<number, string | null>();
   const cuire = async (ticket: TicketLu, calibrage: Calibrage) => {
     const issue = ticket.number;
     // Le ticket est rendu sur l'issue sans livraison : sa place est libre.
@@ -1160,6 +1174,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         avertir(`brigade : #${issue} sur ${nom} — station ${aReprendre.station} has no manager and posted its cook's question: it goes to the manager here, before a cook`);
         await github.commenter(issue, corpsDeLaReprise({ station: nom, de: aReprendre.station }));
       }
+      // La tête de sa PR ouverte au départ du cook : arrêté sans livraison sur la même, il en a rencontré l'échec (invariant 2, #4026).
+      // Illisible, elle n'est pas dite : l'échec compte comme avant, par son nombre.
+      const depart = tetesAuDepart.get(issue) ?? null;
+      tetesAuDepart.delete(issue);
       let fait = aReprendre === undefined ? await cuisiner(ticket, calibrage) : { bloque: aReprendre.question };
       if (fait.testsMs !== undefined) chrono.tests(issue, fait.testsMs);
       if ("branche" in fait) {
@@ -1423,10 +1441,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const sortie = fini || horsCuisine(essais.filter((essai) => !essai.runOk).map((essai) => ({ motif: essai.motif, desaccord: false })));
       // Ses essais épuisés, le ticket va au manager, pas au chef (#3513).
       const suite = sortie ? await apresLesEssais(ticket, echoues) : null;
+      const tete = depart === null ? null : await github.prDuTicket(issue).then((pr) => (pr?.state === "open" ? pr.sha : null), () => null);
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (${fini ? "its run ended ok, not counted" : `try ${echecs}/${ECHECS_MAX}`}): ${fait.echec}`);
       await github.commenter(
         issue,
-        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere: the supervisor takes it and decides what happens to it.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere. The supervisor takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
+        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere: the supervisor takes it and decides what happens to it.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere. The supervisor takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
       );
       chrono.rater(issue);
       if (suite !== null && "auChef" in suite) {
@@ -1708,15 +1727,97 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const tour = async () => {
     renvoyes.clear();
     retenuesDuTour.clear();
-    // Une base rouge se relance, et se répare, au run du superviseur (#3945) : le tour la lit telle quelle.
+    // Une base rouge se relance au tour même (invariant 4, #4026), et se répare au run du superviseur (#3945).
     const checksDeLaBase = await github.checksDeLaBase();
-    void nommerLaLivraison?.(checksDeLaBase);
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
     // autres ni le tour. Le tour lit les tickets tels qu'elle les laisse.
     // Une issue que la station a ouverte sur la cuisine n'est pas un ticket du
     // projet, même lancée et calibrée : aucun cook ne la prend, rien du tour ne la
     // lit (#3620).
     const fires = (await github.fires()).filter((ticket) => !horsDesTickets(ticket.alerte));
+    // La zone d'un ticket : la section `Zone` de son corps, et la ligne `zone`
+    // de sa fiche — où le découpage l'écrit. Lue du corps seul, la zone d'un
+    // ticket né d'une épique n'était jamais tenue : deux cooks partaient sur
+    // les mêmes fichiers, et le second livré revenait en conflit (#2741). Une
+    // fiche illisible, ou des commentaires que GitHub ne donne pas, ne font
+    // pas foi : la zone est alors celle du corps.
+    // Sans zone ni fiche — tout ticket qui ne naît pas d'une épique —, la zone
+    // est faite des chemins que son corps nomme (`fichiersDuCorps`) : sans
+    // elle, il ne tenait ni n'attendait rien, et ces tickets revenaient en
+    // conflit avec la base (#2758). Un ticket que la station a ouvert (corps à
+    // marque) nomme aussi ce qu'il ne doit pas toucher, et une fiche illisible
+    // ne possède rien : ni l'un ni l'autre n'en tient.
+    const zones = new Map<number, Promise<string[]>>();
+    // Les fichiers suivis de la base, lus au premier besoin, une fois par tour.
+    // Illisibles, la zone garde tous les chemins du corps, comme avant #2826 :
+    // elle tient trop, elle ne laisse pas partir deux cooks sur un même fichier.
+    let suivisDuTour: string[] | null | undefined;
+    const fichiersSuivisDuTour = (): string[] | null => {
+      if (suivisDuTour !== undefined) return suivisDuTour;
+      try {
+        // Une base sans un fichier suivi n'est pas lue : elle ne garderait aucun chemin.
+        const lus = options.fichiersSuivis?.() ?? [];
+        suivisDuTour = lus.length === 0 ? null : lus;
+      } catch (erreur) {
+        suivisDuTour = null;
+        avertir(`brigade : the base's tracked files could not be read on ${nom} — a ticket with no declared zone holds every path its body names this turn: ${message(erreur)}`);
+      }
+      return suivisDuTour;
+    };
+    // Un ticket parti ne tient que sa zone, et non plus ses compagnons — les
+    // fichiers partagés qu'aucune zone ne nomme (#2963). Toutes les zones de
+    // l'app lues le 2026-11-11 avaient les mêmes (`app/src/vue/vue.js`,
+    // `docs/app.md`) : chaque ticket de l'app attendait le merge du précédent,
+    // et cinq d'entre eux ont attendu 883 min leur prise, un à la fois, quand
+    // quatre écrans partis ensemble le même jour écrivaient tous `vue.js` sans
+    // un renvoi pour conflit (#3250).
+    // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
+    const prisCeTour = new Set<number>();
+    // Les tickets dont la fiche n'annonce aucune zone (#3509) : ils ne partent pas.
+    const sansZone = new Set<number>();
+    const zoneDuTicket = (numero: number): Promise<string[]> => {
+      const deja = zones.get(numero);
+      if (deja !== undefined) return deja;
+      const lue = (async () => {
+        const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero).catch(() => [])]);
+        const laFiche = fiche(commentaires.map(({ body }) => body));
+        const declaree = zoneDeclaree(corps, laFiche);
+        if (zoneVide(laFiche, declaree) && !corps.startsWith("<!-- brigade:")) sansZone.add(numero);
+        if (declaree.length > 0 || (laFiche?.problems.length ?? 0) > 0 || corps.startsWith("<!-- brigade:")) return declaree;
+        const nommes = [...new Set(fichiersDuCorps(corps))];
+        const suivis = fichiersSuivisDuTour();
+        return suivis === null ? nommes : cheminsDuDepot(nommes, suivis);
+      })();
+      zones.set(numero, lue);
+      return lue;
+    };
+    // Les invariants du rail (#4026), contrôlés avant tout geste du tour : une
+    // base rouge relancée retient le reste du tour jusqu'au résultat de sa relance.
+    // Les PR ouvertes, lues une fois par tour, au premier qui les demande.
+    let ouvertesDuTour: ReturnType<GitHubDuTour["prsOuvertes"]> | undefined;
+    const prsOuvertesDuTour = () => (ouvertesDuTour ??= github.prsOuvertes());
+    const retenu = await controlerLesInvariants({
+      station: nom,
+      base,
+      maintenant: new Date(instant()),
+      github,
+      tickets: fires,
+      checksDeLaBase,
+      enCuisine: (numero) => enVol.has(numero),
+      prsOuvertes: prsOuvertesDuTour,
+      zoneDuTicket,
+      arreter: async (ticket, motifs) => {
+        const suite = await apresLesEssais(ticket, motifs);
+        if ("auChef" in suite) {
+          await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
+          return `set aside (\`${ECHECS_ATTEINTS}\`): the supervisor takes it and decides what happens to it. ${suite.auChef}`;
+        }
+        await direLaReprise(ticket.number, suite);
+        return "it went to the manager, not to the chef — its comment says what it did.";
+      },
+    });
+    if (retenu) return;
+    void nommerLaLivraison?.(checksDeLaBase);
     // Un ticket que la cuisine a mis en WAITING rentre seul sur le rail à sa relance (#3814) : ce tour le lit encore en
     // WAITING, le suivant le prend. Un geste qui échoue est dit ; le tour suivant réessaie.
     await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));
@@ -1737,10 +1838,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Les tickets `taken` sans cook ici que la veille des orphelins a regardés à ce tour (#3883).
     const vusSansCookIci = new Set<number>();
     // Les PR ouvertes, lues au premier besoin, une fois par tour.
-    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = await fermerLesPRDesTicketsFermes(new Set(lus.map(({ number }) => number))).catch((echec) => {
+    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = await fermerLesPRDesTicketsFermes(new Set(lus.map(({ number }) => number)), prsOuvertesDuTour).catch((echec) => {
       avertir(`brigade : the open PRs of closed tickets could not be listed on ${nom} — ${message(echec)}`);
       return null;
     });
+    // Celles que les invariants ont lues à ce tour ; illisibles, la porte de zone les relit.
+    ouvertes ??= (await ouvertesDuTour?.catch(() => null)) ?? null;
 
     await fermerLesCartesCaduquesDuTour().catch((echec) => avertir(`brigade : the validation cards without an object could not be swept on ${nom} — ${message(echec)}`));
 
@@ -2003,62 +2106,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         break;
       }
     }
-    // La zone d'un ticket : la section `Zone` de son corps, et la ligne `zone`
-    // de sa fiche — où le découpage l'écrit. Lue du corps seul, la zone d'un
-    // ticket né d'une épique n'était jamais tenue : deux cooks partaient sur
-    // les mêmes fichiers, et le second livré revenait en conflit (#2741). Une
-    // fiche illisible, ou des commentaires que GitHub ne donne pas, ne font
-    // pas foi : la zone est alors celle du corps.
-    // Sans zone ni fiche — tout ticket qui ne naît pas d'une épique —, la zone
-    // est faite des chemins que son corps nomme (`fichiersDuCorps`) : sans
-    // elle, il ne tenait ni n'attendait rien, et ces tickets revenaient en
-    // conflit avec la base (#2758). Un ticket que la station a ouvert (corps à
-    // marque) nomme aussi ce qu'il ne doit pas toucher, et une fiche illisible
-    // ne possède rien : ni l'un ni l'autre n'en tient.
-    const zones = new Map<number, Promise<string[]>>();
-    // Les fichiers suivis de la base, lus au premier besoin, une fois par tour.
-    // Illisibles, la zone garde tous les chemins du corps, comme avant #2826 :
-    // elle tient trop, elle ne laisse pas partir deux cooks sur un même fichier.
-    let suivisDuTour: string[] | null | undefined;
-    const fichiersSuivisDuTour = (): string[] | null => {
-      if (suivisDuTour !== undefined) return suivisDuTour;
-      try {
-        // Une base sans un fichier suivi n'est pas lue : elle ne garderait aucun chemin.
-        const lus = options.fichiersSuivis?.() ?? [];
-        suivisDuTour = lus.length === 0 ? null : lus;
-      } catch (erreur) {
-        suivisDuTour = null;
-        avertir(`brigade : the base's tracked files could not be read on ${nom} — a ticket with no declared zone holds every path its body names this turn: ${message(erreur)}`);
-      }
-      return suivisDuTour;
-    };
-    // Un ticket parti ne tient que sa zone, et non plus ses compagnons — les
-    // fichiers partagés qu'aucune zone ne nomme (#2963). Toutes les zones de
-    // l'app lues le 2026-11-11 avaient les mêmes (`app/src/vue/vue.js`,
-    // `docs/app.md`) : chaque ticket de l'app attendait le merge du précédent,
-    // et cinq d'entre eux ont attendu 883 min leur prise, un à la fois, quand
-    // quatre écrans partis ensemble le même jour écrivaient tous `vue.js` sans
-    // un renvoi pour conflit (#3250).
-    // Les tickets pris à ce tour : la liste lue ne porte pas encore leur `taken`.
-    const prisCeTour = new Set<number>();
-    // Les tickets dont la fiche n'annonce aucune zone (#3509) : ils ne partent pas.
-    const sansZone = new Set<number>();
-    const zoneDuTicket = (numero: number): Promise<string[]> => {
-      const deja = zones.get(numero);
-      if (deja !== undefined) return deja;
-      const lue = (async () => {
-        const [corps, commentaires] = await Promise.all([github.corpsDuTicket(numero), github.commentaires(numero).catch(() => [])]);
-        const laFiche = fiche(commentaires.map(({ body }) => body));
-        const declaree = zoneDeclaree(corps, laFiche);
-        if (zoneVide(laFiche, declaree) && !corps.startsWith("<!-- brigade:")) sansZone.add(numero);
-        if (declaree.length > 0 || (laFiche?.problems.length ?? 0) > 0 || corps.startsWith("<!-- brigade:")) return declaree;
-        const nommes = [...new Set(fichiersDuCorps(corps))];
-        const suivis = fichiersSuivisDuTour();
-        return suivis === null ? nommes : cheminsDuDepot(nommes, suivis);
-      })();
-      zones.set(numero, lue);
-      return lue;
-    };
     // Une zone tenue : un de ses chemins en recoupe un que change une PR
     // ouverte qui n'est pas celle du ticket, ou un de la zone d'un ticket en
     // cuisson, ici ou sur une autre station — un cook tient sa zone avant
@@ -2090,30 +2137,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
       return numero !== undefined && retenuesDuTour.has(Number(numero));
     };
-    // Un ticket mis de côté (échecs, hors cuisine) ne tient pas sa zone : personne ne le cuit tant qu'on ne l'a pas regardé (#3798).
-    // Un ticket en WAITING non plus : il attend un tiers, pas un cook (#3814).
-    // Remis sur le rail, il perd ce label et attend sa zone comme les autres.
-    const misDeCoteCeTour = (branche: string): boolean => {
-      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
-      return numero !== undefined && lus.some((lu) => lu.number === Number(numero) && (estMisDeCote(lu.labels) || lu.labels.includes(LABEL_WAITING)));
-    };
     // Une épique ne tient pas de zone : sa livraison ouverte ne doit pas bloquer ses propres sous-tickets (#3932).
     // Un corps qui ne se lit pas ne l'en exempte pas : la zone reste tenue.
     const estUneEpique = async (branche: string): Promise<boolean> => {
       const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
       if (numero === undefined) return false;
       return porteDesTachesDeTickets(await github.corpsDuTicket(Number(numero)).catch(() => ""));
-    };
-    // Un ticket qu'on ne cuit pas et qui n'est pas en pass ne tient aucune zone, sa PR ouverte pas plus : sinon des tickets en file se retiennent en cycle (#3979).
-    // Un ticket qu'on ne lit pas, ou dont la prise ne se lit pas, la tient encore : dans le doute, la zone reste tenue.
-    const enFileCeTour = async (branche: string): Promise<boolean> => {
-      const numero = /^cook\/(\d+)-/.exec(branche)?.[1];
-      const lu = numero === undefined ? undefined : tickets.find((autre) => autre.number === Number(numero));
-      if (lu === undefined || lu.labels.includes(LABEL_IN_PASS) || enVol.has(lu.number) || prisCeTour.has(lu.number)) return false;
-      // Sa livraison attend le chef : elle tient sa zone tant qu'il ne l'a pas vue (#2977).
-      if (lu.labels.includes(A_LA_MAIN)) return false;
-      if (!lu.labels.includes(LABEL_TAKEN)) return true;
-      return !(await github.commentaires(lu.number).then((commentaires) => tenantDeLaPrise(commentaires, []) !== null).catch(() => true));
     };
     const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
       const zone = await zoneDuTicket(ticket.number);
@@ -2125,8 +2154,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       for (const ouverte of ouvertes) {
         if (ouverte.branche === propre || !ouverte.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier)))) continue;
         if (pourLeChefCeTour(ouverte.branche)) continue;
-        if (misDeCoteCeTour(ouverte.branche)) continue;
-        if (await enFileCeTour(ouverte.branche)) continue;
+        // Invariant 1 (#4026) : un ticket qu'aucun cook ne cuit et qui n'est pas en pass ne tient aucune zone, sa PR ouverte pas plus.
+        if (!(await tientSaZone(ouverte.branche, { tickets: lus, enCuisine: (numero) => enVol.has(numero) || prisCeTour.has(numero), commentaires: (numero) => github.commentaires(numero) }))) continue;
         if (await ticketFerme(ouverte.branche)) continue;
         if (await estUneEpique(ouverte.branche)) continue;
         pr = ouverte;
@@ -2259,6 +2288,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Illisible, la PR ne se devine pas : le ticket ne part pas à un cook.
       try {
         const sienne = await (github.prOuverteDuTicket ?? github.prDuTicket).call(github, ticket.number);
+        // La tête où son cook partira, s'il part (invariant 2, #4026).
+        tetesAuDepart.set(ticket.number, sienne?.state === "open" ? sienne.sha : null);
         // Sauf si la station l'a renvoyé sur cette tête même (CI rouge, conflit,
         // second juge) : l'approbation tient, mais la tête reste à reprendre.
         if (sienne !== null && sienne.state === "open" && !sienne.merged && approuvee(await github.commentaires(sienne.number)) && !(await github.commentaires(ticket.number)).some((c) => c.body.startsWith(MARQUE_DE_RENVOI) && c.body.includes(` sha=${sienne.sha} `))) {
