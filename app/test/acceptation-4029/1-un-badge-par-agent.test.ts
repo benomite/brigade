@@ -78,9 +78,11 @@ function fauxModule(enregistrements: Agent[]) {
   return { reglages, approbations };
 }
 
+let barreAvant = -1;
 async function ouvrir(): Promise<Jouee> {
   const faits = { etat: "ouverte", lu: "2026-11-23T12:04:11.000Z", dernierTick: "2026-11-23T12:04:11.000Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [] };
   const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }] } as never);
+  barreAvant = vue.element("projets").children.length;
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   const demandes = vue.appels.filter(({ geste }) => geste === "faits" || geste === "relireBox");
@@ -138,7 +140,7 @@ const tousLesAgents = (): Agent[] => [
 test("the top of the project view shows one badge per agent, supervisor and closer first, on no new screen", async () => {
   fauxModule(tousLesAgents());
   const vue = await ouvrir();
-  assert.equal(vue.element("projets").children.length, 2, "aucune entrée de barre de plus : pas de nouvel écran");
+  assert.equal(vue.element("projets").children.length, barreAvant, "no new bar entry: no new screen");
   assert.equal(vue.element("onglets-du-projet").hidden, false, "la vue du projet est celle qui est montrée");
   const noms = ["supervisor", "closer", "manager", "pass", "cook-4001", "cook-4002"];
   const trouves = noms.map((nom) => badge(vue, nom));
