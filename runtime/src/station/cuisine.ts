@@ -308,7 +308,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
     // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
     // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
-    const superviser = <R extends Runtime>(runtime: R) => brancherSuperviseur(runtime, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, repertoireEtat, dire });
+    const superviser = <R extends Runtime>(runtime: R) => brancherSuperviseur(runtime, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, dire });
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
     // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
     const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));

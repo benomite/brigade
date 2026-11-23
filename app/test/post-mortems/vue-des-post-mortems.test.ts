@@ -2,7 +2,7 @@
 // récent d'abord ; rien lu, ou rien à dire, se dit. Les faits d'une box le portent jusqu'au tableau.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { postMortemsLus } from "../../src/faits.ts";
+import { comprendre, postMortemsLus, tableau, type Faits } from "../../src/faits.ts";
 import { vueDesPostMortems } from "../../src/projets/post-mortems.ts";
 import { poserBlocPostMortems } from "../../src/vue/projet/bandeau-sante/PostMortems.js";
 import { Faux } from "../aides/fausse-vue.ts";
@@ -32,4 +32,30 @@ test("the facts read a list of post-mortems, and drop an entry that is not one",
   const bon = pm("c", "chef", "2026-11-22T10:00:00.000Z");
   assert.deepEqual(postMortemsLus([bon, { ...bon, fin: "never" }, { ...bon, cause: "" }, null, 3]), [bon]);
   assert.equal(postMortemsLus("nope"), undefined);
+});
+
+test("a post-mortem whose fix and ticket are null is kept, not dropped", () => {
+  const nul = pm("c", "system", "2026-11-22T10:00:00.000Z", null, null);
+  assert.deepEqual(postMortemsLus([nul]), [nul]);
+});
+
+test("the blocks's rows carry their class names, the title none", () => {
+  const bloc = poserBlocPostMortems(doc, vueDesPostMortems([pm("c", "chef", "2026-11-22T10:00:00.000Z")], new Date("2026-11-23T12:00:00.000Z")));
+  const [rangee] = bloc.dessous("li");
+  assert.equal(rangee.dessous("div").map((d: Faux) => d.className).join(","), "cause,duree,vu-en-premier,corrige,ticket");
+  assert.equal(bloc.dessous("h3")[0].className, "");
+});
+
+const FAITS_MINIMAUX = { etat: "ouverte", lu: "2026-11-23T12:00:00.000Z", dernierTick: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [] };
+
+test("the facts text reaches the board: post-mortems read and counted, and none when the box gives none", () => {
+  const bon = pm("c", "chef", "2026-11-22T10:00:00.000Z");
+  const lus = comprendre(JSON.stringify({ ...FAITS_MINIMAUX, postMortems: [bon] }));
+  assert.ok(!("informe" in lus));
+  assert.deepEqual((lus as Faits).postMortems, [bon]);
+  assert.equal(tableau(lus as Faits).postMortems?.vusParLeChef, 1);
+  const sans = comprendre(JSON.stringify(FAITS_MINIMAUX));
+  assert.ok(!("informe" in sans));
+  assert.equal("postMortems" in (sans as Faits), false);
+  assert.equal("postMortems" in tableau(sans as Faits), false);
 });

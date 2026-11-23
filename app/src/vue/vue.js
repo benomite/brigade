@@ -7007,9 +7007,8 @@ function autonomieDuProjet(projet) {
 // Les post-mortems de panne du projet (ticket 4023), d'après les derniers faits de sa box — rien de lu tant qu'elle ne les donne pas.
 /** @param {Projet} projet */
 function postMortemsDe(projet) {
-  const tenu = tenus.get(projet.nom);
-  const postMortems = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.postMortems : undefined;
-  return postMortems;
+  const tenu = /** @type {{ tableau?: { postMortems?: import("../projets/post-mortems.ts").VueDesPostMortems } } | undefined} */ (tenus.get(projet.nom));
+  return muets.has(projet.nom) ? undefined : tenu?.tableau?.postMortems;
 }
 /** @param {Projet} projet @param {boolean} [garder] */
 function poserLeBandeauDeSante(projet, garder = true) {

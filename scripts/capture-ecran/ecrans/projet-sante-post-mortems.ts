@@ -22,7 +22,6 @@ export const ecran: Ecran = {
   donnees: () => {
     const base = donnees({ ...SUR_LA_BOX, temps: { enregistrements: NORMAL, lostTimeMaxMin: 2 } }, { plafondsDuree: PLAFONDS_LUS });
     const envois = cuisine({ ...RENDUS, parade: { ...RENDUS.parade!, facts: { ...RENDUS.parade!.facts, postMortems: POST_MORTEMS } } });
-    const secondDit = base.envois.regarder?.parade?.at(-1);
-    return { ...base, envois: { ...envois, regarder: { ...envois.regarder, parade: [...(envois.regarder.parade ?? []), ...(secondDit === undefined ? [] : [secondDit])] } } };
+    return { ...base, envois: { ...envois, regarder: { ...envois.regarder, parade: [...(envois.regarder.parade ?? []), ...(base.envois.regarder?.parade?.slice(-1) ?? [])] } } };
   },
 };

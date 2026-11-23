@@ -37,7 +37,7 @@ export type OptionsDuBranchement = {
   branche: string;
   // Le manager, tel que la station le donne ; nul tant qu'elle ne l'a pas donné.
   consulter: () => ManagerDuSuperviseur | null;
-  // Le répertoire d'état du projet : une panne de `main` de plus de 30 minutes y laisse son post-mortem (#4023). Sans lui, rien n'est rangé.
+  // Le répertoire d'état du projet, sinon celui du runtime : une panne de `main` de plus de 30 minutes y laisse son post-mortem (#4023). Sans lui, rien n'est rangé.
   repertoireEtat?: string;
   maintenant?: () => Date;
   dire?: (ligne: string) => void;
@@ -108,7 +108,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     },
     maintenant,
   });
-  const { repertoireEtat } = options;
+  const repertoireEtat = options.repertoireEtat ?? runtime.repertoireEtat;
   const suivreLaBase = suivreLaBaseRouge((panne) => {
     if (repertoireEtat === undefined) return;
     try {

@@ -37,5 +37,16 @@ test("a post-mortem file that cannot be read leaves the facts without them, the 
   writeFileSync(join(repertoire, "post-mortems", "shop.json"), "{not json");
   const forme = await faits(repertoire);
   assert.equal("postMortems" in forme, false);
+  assert.equal("githubSeul" in forme, false);
   assert.equal(typeof forme.etat, "string");
+});
+
+test("the GitHub-only state is still in the facts next to the post-mortems when it is on", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  ouvrirJournal(repertoire).fermer();
+  writeFileSync(join(repertoire, "github-seul-etat.json"), JSON.stringify({ etat: "accepted", since: A("09:00") }));
+  terminerLaPanne(repertoire, "shop", panne("a", A("10:00"), A("10:40")));
+  const forme = await faits(repertoire);
+  assert.deepEqual(forme.githubSeul, { etat: "accepted", since: A("09:00") });
+  assert.equal(forme.postMortems?.length, 1);
 });
