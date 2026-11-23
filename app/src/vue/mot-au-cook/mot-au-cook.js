@@ -15,9 +15,9 @@ import { source } from "./source.js";
 /** @typedef {{ texte: string, raison?: string, detail?: string, enRoute: boolean }} Etat */
 
 // Les mots de l'étape d'un ticket qu'un cook tient : celui du runtime, et celui du rail lu sur GitHub (vue/rail/github.ts).
-export const EN_CUISINE = ["pris", "taken"];
-export const CHAMP_DU_MOT = "mot-au-cook";
-export const ENVOYER = "send";
+const EN_CUISINE = ["pris", "taken"];
+const CHAMP_DU_MOT = "mot-au-cook";
+const ENVOYER = "send";
 
 /** @type {Map<string, Etat>} */
 const etats = new Map();

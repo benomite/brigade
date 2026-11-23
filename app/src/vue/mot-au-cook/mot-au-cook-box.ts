@@ -22,14 +22,14 @@ function reponseDe(rendu: Rendu): unknown {
 }
 
 // La commande, ou pourquoi rien ne part : un numéro de ticket, et une ligne qui n'est pas vide.
-export function commandeDuMot(entree: unknown): { commande: string } | { refus: string } {
+function commandeDuMot(entree: unknown): { commande: string } | { refus: string } {
   if (!estObjet(entree) || typeof entree.ticket !== "number" || !Number.isInteger(entree.ticket) || entree.ticket <= 0) return { refus: "nothing was sent: this is not a ticket" };
   if (typeof entree.text !== "string" || entree.text.trim() === "") return { refus: "nothing was sent: the word is empty" };
   return { commande: `send-word ${cite(JSON.stringify({ ticket: entree.ticket, text: entree.text }))}` };
 }
 
 // Envoie le mot au cook du ticket par le runtime du projet : `{ok: true}`, ou la raison en une ligne.
-export async function envoyerLeMot(projet: string, lu: Lu | undefined, entree: unknown, lancer: (lu: Lu, commande: string) => Promise<Rendu>): Promise<Reponse> {
+async function envoyerLeMot(projet: string, lu: Lu | undefined, entree: unknown, lancer: (lu: Lu, commande: string) => Promise<Rendu>): Promise<Reponse> {
   const ecrite = commandeDuMot(entree);
   if ("refus" in ecrite) return { ok: false, reason: ecrite.refus };
   if (lu === undefined) return { ok: false, reason: `nothing was sent: “${projet}” has no station — there is no runtime to pass it on` };

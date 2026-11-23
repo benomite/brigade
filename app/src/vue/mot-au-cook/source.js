@@ -9,8 +9,8 @@ import { NON_ATTEINT } from "../lexique.js";
 
 /** @typedef {{ ok: true } | { ok: false, reason: string, detail?: string }} Reponse */
 
-export const SANS_LE_GESTE = "nothing was sent: this app cannot pass a word to a cook";
-export const SANS_REPONSE = `${NON_ATTEINT("the kitchen")} The word was not sent.`;
+const SANS_LE_GESTE = "nothing was sent: this app cannot pass a word to a cook";
+const SANS_REPONSE = `${NON_ATTEINT("the kitchen")} The word was not sent.`;
 
 export const source = {
   /** @param {{ ticket: number, text: string }} entree @param {string} projet @returns {Promise<Reponse>} */
