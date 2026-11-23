@@ -7,12 +7,14 @@ import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 const echecs = (faux: FauxGitHub, numero: number) => (faux.commentaires.get(numero) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).map((c) => c.body);
 
-test("the stop is written on the ticket, and the ticket is set aside for the supervisor", async () => {
+test("the stop is written on the ticket, and the ticket is set aside for the supervisor; a ticket without a PR names no commit, and is relaunched as before", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, CALIBRE);
   const pr = faux.prOuverte(["runtime/src/a.ts"], "cook/1-abcdef01");
   pr.issue = 1;
-  const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, cuisiner: async () => ({ echec: "tests red" }) });
+  faux.feu(3, CALIBRE);
+  let fois = 0;
+  const a = faux.station("A", { places: 2, sauter: () => {}, avertir: () => {}, cuisiner: async (issue) => ({ echec: issue === 1 ? "tests red" : `failure ${(fois += 1)}` }) });
   for (let i = 0; i < 3; i++) {
     await a.tour();
     await a.calme();
@@ -21,6 +23,10 @@ test("the stop is written on the ticket, and the ticket is set aside for the sup
   const arret = (faux.commentaires.get(1) ?? []).map((c) => c.body).find((body) => /invariant 2/i.test(body)) ?? "";
   assert.match(arret, new RegExp(`relaunched on commit \`${pr.sha.slice(0, 7)}\` of PR #${pr.number}[\\s\\S]*stopped it[\\s\\S]*set-aside:failures`));
   assert.ok(faux.ticket(1).labels.has("set-aside:failures"));
+  assert.equal(faux.cuissons.filter(({ issue }) => issue === 1).length, 1);
+  // Sans PR : ni tête dite, ni arrêt — ses essais comptent comme avant.
+  assert.equal(fois, 3);
+  assert.deepEqual(echecs(faux, 3).slice(0, 2).map((body) => body.split("\n")[0]), ["<!-- brigade:echec n=1 -->", "<!-- brigade:echec n=2 -->"]);
 });
 
 test("a cook that moved its PR's head before failing is relaunched on the new head, and stopped only when it fails on the same one", async () => {
@@ -47,19 +53,6 @@ test("a cook that moved its PR's head before failing is relaunched on the new he
   assert.equal(fois, 2, "relaunched once on the new head, then stopped");
   assert.doesNotMatch(echecs(faux, 1)[0] ?? "", / sha=/, "the first failure left another commit than it started from");
   assert.match(echecs(faux, 1)[1] ?? "", new RegExp(`${avecLaTete(pr.sha)} -->`));
-});
-
-test("a ticket without a PR names no commit when its cook fails, and is relaunched as before", async () => {
-  const faux = new FauxGitHub();
-  faux.feu(1, CALIBRE);
-  let fois = 0;
-  const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, cuisiner: async () => ({ echec: `failure ${(fois += 1)}` }) });
-  for (let i = 0; i < 2; i++) {
-    await a.tour();
-    await a.calme();
-  }
-  assert.equal(fois, 2);
-  assert.deepEqual(echecs(faux, 1).map((body) => body.split("\n")[0]), ["<!-- brigade:echec n=1 -->", "<!-- brigade:echec n=2 -->"]);
 });
 
 test("stopped, then rewritten by the manager, the ticket keeps its delivery: its PR stays open", async () => {

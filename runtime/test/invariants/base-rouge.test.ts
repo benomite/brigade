@@ -2,11 +2,13 @@
 // fois, avant toute autre chose.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { RESULTAT_DE_LA_RELANCE_MS } from "../../src/invariants/base-rouge.ts";
 import type { Reveil } from "../../src/superviseur/declencheur.ts";
 import { jouerLeRun, relancerLesRouges } from "../../src/superviseur/gestes.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 import { FauxDepot } from "../superviseur/faux-depot.ts";
+
+// Au plus 30 min, une relance sans résultat retient le tour.
+const RESULTAT_DE_LA_RELANCE_MS = 30 * 60_000;
 
 const fixer = (faux: FauxGitHub, outcome: "green" | "red" | "pending") => {
   (faux as { base: string }).base = outcome;

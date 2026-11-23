@@ -52,10 +52,10 @@ export type Invariant = (tour: TourDesInvariants) => Promise<void>;
 export type Reparation = { invariant: 1 | 2 | 3 | 4; ticket: number | null; cle: string; casse: string; geste: () => Promise<string | null>; entete?: string };
 
 const MARQUE = "<!-- brigade:invariant";
-export const marqueDeLInvariant = (invariant: number, cle: string) => `${MARQUE} n=${invariant} ${cle} -->`;
+const marqueDeLInvariant = (invariant: number, cle: string) => `${MARQUE} n=${invariant} ${cle} -->`;
 
 // Le commentaire d'une réparation : quel invariant a cassé, ce que le superviseur a fait.
-export const corpsDeLaReparation = ({ invariant, cle, casse, entete }: Omit<Reparation, "geste" | "ticket">, fait: string, station: string) =>
+const corpsDeLaReparation = ({ invariant, cle, casse, entete }: Omit<Reparation, "geste" | "ticket">, fait: string, station: string) =>
   [...(entete === undefined ? [] : [entete, ""]), marqueDeLInvariant(invariant, cle), `**Invariant ${invariant} broke** — ${casse}`, "", `What the supervisor did (station \`${station}\`): ${fait}`].join("\n");
 
 // Le contrôleur des invariants d'une station : chaque contrôle une fois par tour,

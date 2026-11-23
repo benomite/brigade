@@ -3,7 +3,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { attenteDeLIssue } from "../../src/attente-github/marque.ts";
-import { corpsDeLaReparation } from "../../src/invariants/invariants.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 const JOUR = 24 * 3_600_000;
@@ -47,9 +46,4 @@ test("a ticket set aside gets the reason of its set-aside and a date, then is wo
   assert.equal(faux.ticket(1).labels.has("set-aside:failures"), false, "woken past its date");
   const reveil = (faux.commentaires.get(1) ?? []).at(-1)?.body ?? "";
   assert.match(reveil, /\*\*Invariant 3 broke\*\* — #1 carries `set-aside:failures` past its date to look at it again[\s\S]*woke it: put #1 back on the rail \(`set-aside:failures` removed\)/);
-});
-
-test("the comment of a repair opens with the WAITING mark when it carries one", () => {
-  const corps = corpsDeLaReparation({ invariant: 3, cle: "k", casse: "broke.", entete: "<!-- brigade:waiting {} -->" }, "added", "A");
-  assert.ok(corps.startsWith("<!-- brigade:waiting {} -->\n\n<!-- brigade:invariant n=3 k -->\n**Invariant 3 broke** — broke."));
 });

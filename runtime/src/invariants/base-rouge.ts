@@ -12,7 +12,7 @@ import { jobDuCheck } from "../github.ts";
 import type { Invariant } from "./invariants.ts";
 
 // Au-delà, une relance qui ne rend rien ne retient plus le tour.
-export const RESULTAT_DE_LA_RELANCE_MS = 30 * 60_000;
+const RESULTAT_DE_LA_RELANCE_MS = 30 * 60_000;
 
 // Relance les checks rouges ; rend ce qui a été relancé, ou nul quand aucun ne se relance.
 export type RelancerLaBase = (rouges: readonly CheckDeLaBase[]) => Promise<string | null | void>;
