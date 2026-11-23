@@ -384,6 +384,11 @@ export type Pont = {
   // Un téléphone déjà connecté au compte GitHub de cet ordinateur (ticket 3303, telephone-connecte.ts) : la trace que
   // l'app Android pose dans un gist ; `illisible` quand la liste des gists ne se lit pas.
   telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
+  // Les agents d'un projet (ticket 4029, autonomie/source.js) : un enregistrement par agent, tel que le runtime le publie ;
+  // le niveau d'autonomie d'un agent, réglé ; un geste en attente, approuvé. Le côté runtime vient d'un autre ticket.
+  lireLesAgents?(projet: string): Promise<unknown[] | undefined>;
+  reglerLAutonomie?(projet: string, agent: string, niveau: import("./autonomie/source.js").Niveau): Promise<void>;
+  approuverLeGeste?(projet: string, agent: string, id: string): Promise<void>;
   // Le projet de démo du premier lancement (ticket 3734, runtime/src/demo/) : ce qui en est noté, son premier ticket servi
   // et la durée depuis le premier lancement ; le créer — un dépôt privé et trois tickets prêts à cuire — ; supprimer le
   // dépôt noté, et lui seul ; la permission `delete_repo` que `gh` fait accorder, sa fin par `surPermissionDeSuppression`.

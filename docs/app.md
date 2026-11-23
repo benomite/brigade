@@ -963,6 +963,26 @@ yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures).
 
+### The agents at the top of the project view (#4029, epic #4024)
+
+The top of the project view, under its menu, shows one badge per agent: supervisor and closer first, then the
+manager, the pass and each cook, in the same form (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`,
+C1, C2, C4). Each badge says the agent's state, its last gesture with its time, its next run as the runtime words it
+(`closer: next pass in 3 h`), its autonomy level, and how many of its gestures await your OK. A click on a badge opens
+the agent's thread under the badges: its last gestures, one line each with its reason and its outcome, its two counters
+`fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
+pressed, its meaning on hover — and each gesture that awaits your OK with one `OK` button. A level click sets the level
+once; an `OK` approves the gesture once and removes it. A gesture that fails changes nothing and says it in one line,
+its detail on hover. A second click on the badge closes the thread.
+
+The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which
+calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The runtime side is another ticket of the
+epic: until the bridge carries them, the reading gives nothing and the project view shows no badge. A reading that
+fails says `The agents not reached.`, and a record missing a field says the reading is not readable: no value is made
+up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
+`app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
+`propose`, with a gesture awaiting its `OK`).
+
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail and Cooks tabs are drawn from

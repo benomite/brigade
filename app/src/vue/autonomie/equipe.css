@@ -1,0 +1,121 @@
+/* L'équipe d'un projet (ticket 4029) : en tête de sa vue, une rangée de badges, un par agent, qui passe à la ligne ; le fil
+   de l'agent ouvert dessous, dans la carte de l'app. Seules des variables de jetons.css portent une couleur. */
+#equipe-du-projet {
+  padding: var(--pas-2) var(--pas-4);
+  border-bottom: 1px solid var(--trait-doux);
+}
+.equipe .badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2);
+}
+.equipe .badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 180px;
+  max-width: 260px;
+  padding: var(--pas-1) var(--pas-2);
+  font: inherit;
+  font-size: var(--taille-meta);
+  text-align: left;
+  color: var(--texte-doux);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+  cursor: pointer;
+}
+.equipe .badge:hover,
+.equipe .badge.ouvert {
+  border-color: var(--accent);
+}
+.equipe .badge[data-etat="casse"] {
+  border-left: 3px solid var(--rouge);
+}
+.equipe .badge > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.equipe .badge .tete {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+}
+.equipe .badge .nom {
+  font-weight: 600;
+  color: var(--texte);
+}
+.equipe .badge .etat {
+  color: var(--texte);
+}
+.equipe .niveau {
+  padding: 0 var(--pas-1);
+  color: var(--discret);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-pastille);
+}
+.equipe .badge .prochaine {
+  color: var(--discret);
+}
+.equipe .badge .attente {
+  color: var(--accent);
+  font-weight: 600;
+}
+.equipe .fil {
+  margin-top: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.equipe .fil .tete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2) var(--pas-4);
+  margin-bottom: var(--pas-2);
+}
+.equipe .fil h3 {
+  margin: 0;
+  font-weight: 600;
+}
+.equipe .fil p {
+  margin: 0;
+}
+.equipe .compteurs {
+  color: var(--texte-doux);
+}
+.equipe .niveaux {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-1);
+  margin-left: auto;
+}
+.equipe .niveaux .nom {
+  margin-right: var(--pas-1);
+  color: var(--discret);
+}
+.equipe .fil ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.equipe .en-attente li {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-3);
+  padding: var(--pas-1) 0;
+}
+.equipe .en-attente {
+  margin-bottom: var(--pas-2);
+  padding-bottom: var(--pas-2);
+  border-bottom: 1px solid var(--trait-doux);
+}
+.equipe .derniers-gestes li {
+  display: block;
+  padding: var(--pas-1) 0;
+  color: var(--texte-doux);
+}
