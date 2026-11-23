@@ -3,13 +3,14 @@
 // and its autonomy level. `facts` gives them in `equipe`.
 //
 // Built from what is already read, never read again: what runs outside the tickets (agents-en-cours.ts), the cooks
-// of the stations, each role's last action (roles-cuisine/roles.ts), and the levels (niveaux.ts). The next run, the
-// counters and the gestures of a thread are not read yet: they start empty — no next run, zero, no gesture.
+// of the stations, each role's last action (roles-cuisine/roles.ts), the levels (niveaux.ts) and each agent's gesture
+// log (gestes.ts), which gives its counters, its gestures and, when it is later than its roles' last action, its last
+// gesture. The next run is not read yet: there is none.
 import type { AgentEnCours } from "../../agents-en-cours.ts";
 import type { DerniereAction, RoleDeCuisine } from "../../roles-cuisine/roles.ts";
+import type { EnregistrementDeGestes, Geste } from "./gestes.ts";
 import type { Niveau, Niveaux } from "./niveaux.ts";
 
-type GesteDAgent = { at: string; line: string; reason: string; outcome: string };
 type FicheDAgent = {
   agent: string;
   // `idle`, `working on #N`, or `working` for a run on no ticket.
@@ -22,7 +23,7 @@ type FicheDAgent = {
   // The gestures whose level differs from the agent's own: the manager's splitting of an epic.
   exceptions: Record<string, Niveau>;
   counters: { fixedBySelf: number; handedToChef: number };
-  gestures: GesteDAgent[];
+  gestures: Geste[];
 };
 
 const AGENTS = ["manager", "supervisor", "closer", "pass"] as const;
@@ -39,6 +40,8 @@ export type SourcesDeLEquipe = {
   // Each role's last action, as `facts` gives it in `rolesCuisine`.
   roles: readonly RoleDeCuisine[];
   niveaux: Niveaux;
+  // Each agent's gesture log, by its name (`supervisor`, `cook #12`).
+  gestes: (agent: string) => Pick<EnregistrementDeGestes, "lastGesture" | "counters" | "gestures">;
 };
 
 const etatDe = (tickets: ReadonlyArray<number | null>): string => {
@@ -47,32 +50,30 @@ const etatDe = (tickets: ReadonlyArray<number | null>): string => {
   return numeros.length === 0 ? "working" : `working on ${numeros.map((ticket) => `#${ticket}`).join(", ")}`;
 };
 
-const neutre = () => ({ nextRun: null, counters: { fixedBySelf: 0, handedToChef: 0 }, gestures: [] });
-
-export function equipeDuProjet({ agents, cooks, roles, niveaux }: SourcesDeLEquipe): FicheDAgent[] {
+export function equipeDuProjet({ agents, cooks, roles, niveaux, gestes }: SourcesDeLEquipe): FicheDAgent[] {
+  // What the agent's log gives its record; its last gesture is the later of the log's last entry and `actions`.
+  const duJournal = (agent: string, actions: readonly DerniereAction[]) => {
+    const { lastGesture: geste, counters, gestures } = gestes(agent);
+    const candidats = geste === undefined ? actions : [...actions, { what: geste.line, at: geste.at }];
+    const latest = candidats.reduce<Pick<DerniereAction, "what" | "at"> | null>((plusTard, une) => (plusTard === null || une.at > plusTard.at ? une : plusTard), null);
+    return { lastGesture: latest === null ? null : { line: latest.what, at: latest.at }, nextRun: null, counters, gestures };
+  };
   const fixes = AGENTS.map((agent): FicheDAgent => {
-    const latest = roles
-      .filter(({ role }) => ROLES_DE[agent].includes(role))
-      .flatMap(({ latest }) => (latest === null ? [] : [latest]))
-      .reduce<DerniereAction | null>((plusTard, une) => (plusTard === null || une.at > plusTard.at ? une : plusTard), null);
+    const actions = roles.filter(({ role }) => ROLES_DE[agent].includes(role)).flatMap(({ latest }) => (latest === null ? [] : [latest]));
+    const { lastGesture, ...journal } = duJournal(agent, actions);
     return {
       agent,
       state: etatDe(agents.filter(({ role }) => role === agent).map(({ ticket }) => ticket)),
-      lastGesture: latest === null ? null : { line: latest.what, at: latest.at },
+      lastGesture,
       thread: FILS[agent],
       autonomy: niveaux[agent],
       exceptions: agent === "manager" ? { "split-epic": niveaux["manager split-epic"] } : {},
-      ...neutre(),
+      ...journal,
     };
   });
-  const cuisiniers = cooks.map(({ ticket }): FicheDAgent => ({
-    agent: `cook #${ticket}`,
-    state: etatDe([ticket]),
-    lastGesture: null,
-    thread: `Cook #${ticket}`,
-    autonomy: niveaux.cook,
-    exceptions: {},
-    ...neutre(),
-  }));
+  const cuisiniers = cooks.map(({ ticket }): FicheDAgent => {
+    const { lastGesture, ...journal } = duJournal(`cook #${ticket}`, []);
+    return { agent: `cook #${ticket}`, state: etatDe([ticket]), lastGesture, thread: `Cook #${ticket}`, autonomy: niveaux.cook, exceptions: {}, ...journal };
+  });
   return [...fixes, ...cuisiniers];
 }
