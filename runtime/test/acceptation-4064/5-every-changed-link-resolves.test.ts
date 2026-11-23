@@ -13,7 +13,7 @@ const urlsDepot = (texte: string) => [...texte.matchAll(/https:\/\/github\.com\/
 
 const BASE = "https://github.com/benomite/brigade";
 const MOTIFS_DE_RELEASE = [/^\/releases\/latest$/, /^\/releases\/tag\/app-v\d+\.\d+\.\d+$/, /^\/releases\/download\/station\/[\w.-]+$/];
-const AUTRES = [/^$/, /^\/discussions$/, /^\/issues$/, /^\/issues\/new\/choose$/];
+const AUTRES = [/^$/, /^\/discussions$/, /^\/issues$/, /^\/issues\/new$/, /^\/issues\/new\/choose$/, /^\/issues\/\d+$/, /^\/pull\/\d+$/, /^\/pulls$/];
 
 test("every repository URL in site/ is an existing path or a known release pattern", () => {
   let vus = 0;
