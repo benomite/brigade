@@ -1,11 +1,12 @@
 // Le dossier que le superviseur remet au manager (#3943, spec
 // 2026-11-20-kitchen-spinning, section B) : la file, la queue du journal,
-// l'étape de CI en échec avec ses lignes de log, et l'historique du ticket en
-// faute.
+// l'étape de CI en échec avec ses lignes de log, l'historique du ticket en
+// faute, et le fil du superviseur : ses derniers gestes et ses compteurs (#4037).
 //
 // Chaque lecture peut échouer : elle est alors dite illisible, avec sa raison,
 // et le dossier part avec les autres. Rien n'y est inventé à la place d'une
 // lecture qui manque.
+import { compteursDe, gestesDe, type Compteurs, type Geste } from "../autonomie/agents/gestes.ts";
 import { sortieDErreur } from "../checks-de-la-branche.ts";
 import type { Evenement } from "../evenements.ts";
 import type { GitHub } from "../github.ts";
@@ -15,6 +16,8 @@ import type { Reveil } from "./declencheur.ts";
 
 // Combien d'événements de la fin du journal le dossier porte.
 export const QUEUE_DU_JOURNAL = 50;
+// Combien des derniers gestes du superviseur le dossier porte.
+const DERNIERS_GESTES = 10;
 
 export type Lu<T> = { lu: T } | { illisible: string };
 
@@ -22,13 +25,15 @@ export type Lu<T> = { lu: T } | { illisible: string };
 // log, jusqu'à sa dernière erreur.
 export type EchecDeCi = { check: string; url: string | null; steps: Lu<string[]>; log: Lu<string> };
 
-// `history` : null quand le réveil ne nomme aucun ticket en faute.
+// `history` : null quand le réveil ne nomme aucun ticket en faute. `thread` :
+// null sans répertoire d'état, où rien n'est gardé.
 export type Dossier = {
   reveil: Reveil;
   queue: Lu<TicketRail[]>;
   journal: Lu<Evenement[]>;
   ci: Lu<EchecDeCi[]>;
   history: Lu<Evenement[]> | null;
+  thread: Lu<{ gestures: Geste[]; counters: Compteurs }> | null;
 };
 
 export type SourcesDuDossier = {
@@ -36,6 +41,8 @@ export type SourcesDuDossier = {
   github: Pick<GitHub, "ciDeLaBase" | "journalDuCheck" | "etapesEnEchec">;
   // La branche d'intégration du projet.
   branche: string;
+  // Le répertoire d'état du projet, où le journal des gestes du superviseur est gardé.
+  repertoireEtat?: string;
 };
 
 const raison = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -59,7 +66,7 @@ async function echecDeCi(github: SourcesDuDossier["github"], check: Awaited<Retu
   return { check: check.name, url: check.url, steps, log };
 }
 
-export async function dossierDuManager({ journal, github, branche }: SourcesDuDossier, reveil: Reveil): Promise<Dossier> {
+export async function dossierDuManager({ journal, github, branche, repertoireEtat }: SourcesDuDossier, reveil: Reveil): Promise<Dossier> {
   const queue = await lire(() => lireRail(journal.base));
   const fin = await lire(() => journal.derniers(QUEUE_DU_JOURNAL));
   const ci = await lire(async () => {
@@ -67,5 +74,6 @@ export async function dossierDuManager({ journal, github, branche }: SourcesDuDo
     return Promise.all(rouges.map((check) => echecDeCi(github, check)));
   });
   const history = reveil.ticket === null ? null : await lire(() => journal.duTicket(reveil.ticket as number));
-  return { reveil, queue, journal: fin, ci, history };
+  const thread = repertoireEtat === undefined ? null : await lire(() => ({ gestures: gestesDe(repertoireEtat, "supervisor").slice(-DERNIERS_GESTES), counters: compteursDe(repertoireEtat, "supervisor") }));
+  return { reveil, queue, journal: fin, ci, history, thread };
 }
