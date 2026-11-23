@@ -131,6 +131,13 @@ function lireGeste(brut: unknown): Geste | { refus: string } {
   }
 }
 
+// Le geste que le manager demande, en une ligne, avant qu'il ne soit joué : ce que la porte des gestes garde en
+// attente ou consigne sans le faire (#4039).
+export function annonceDuGeste(brut: unknown): string {
+  const { gesture, ...champs } = typeof brut === "object" && brut !== null ? (brut as Record<string, unknown>) : { gesture: brut };
+  return `${typeof gesture === "string" ? gesture : JSON.stringify(gesture) ?? "no gesture"} ${JSON.stringify(champs)}`;
+}
+
 // L'issue ouverte du ticket, ou le refus.
 async function issueOuverte(github: Pick<GitHubDesGestes, "issue">, ticket: number) {
   const issue = await github.issue(ticket);
@@ -235,7 +242,8 @@ async function poserLaQuestion(gh: GitHubDesGestes, ticket: number, kind: "produ
   return { ticket, fait: `posted a TODO card for the chef on #${ticket}, a ${kind} question: ${question}` };
 }
 
-const direReveil = (reveil: Reveil): string =>
+// Ce que le réveil dit, la raison d'un geste au journal des gestes.
+export const direReveil = (reveil: Reveil): string =>
   reveil.cause === "main-red"
     ? `the base has been red since ${reveil.since}`
     : reveil.cause === "takes"
