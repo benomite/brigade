@@ -15,6 +15,7 @@ import { brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, 
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
+import type { DisquePlein } from "../../../src/github-seul/garde-fous/disque-plein.ts";
 import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
 import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
@@ -111,12 +112,12 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; disquePlein?: DisquePlein } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const machine = options.machine;
-  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), avertir: options.avertir ?? (() => {}) });
+  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), ...(options.disquePlein === undefined ? {} : { disquePlein: options.disquePlein }), avertir: options.avertir ?? (() => {}) });
   const faux = new FauxGitHub();
   const fins: string[] = [];
   const station = stationGitHub({
@@ -513,4 +514,78 @@ test("replaying 2026-11-15: #3615 fails four times at launch (spawn E2BIG), the 
   const [pourquoi] = faux.commentaires.filter(({ issue }) => issue === 3615).map(({ corps }) => corps);
   assert.ok(pourquoi?.includes(`the cook of #3615 never started, its launch failed: ${erreurs()[0]!.error}`), pourquoi ?? "no comment on #3615");
   assert.match(pourquoi ?? "", /does not count toward the kitchen's breaker: the kitchen keeps serving other tickets/);
+});
+
+// Le disque de #4091 : 2 Go libres, le seuil par défaut est de 5 Go.
+const DISQUE_PLEIN = (libre: number): Machine => ({ ...BOX(0), disqueLibre: libre });
+
+function disqueFaux(propre: number) {
+  const poses: string[] = [];
+  let levees = 0;
+  const disquePlein: DisquePlein = {
+    sonder: async () => ({ propre, consommateurs: [{ chemin: "/var/lib/docker", octets: 47 * GO }] }),
+    poser: async (carte) => void poses.push(carte.texte),
+    lever: async () => void levees++,
+  };
+  return { disquePlein, poses, levees: () => levees };
+}
+
+test("a full disk the kitchen cannot free, with no cook, raises one TODO card with the figures and the biggest consumers, and no duplicate (#4091)", async (t) => {
+  const { disquePlein, poses } = disqueFaux(100 * 1024 * 1024);
+  const { gardes } = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein });
+  await gardes.retenue(0);
+  await gardes.retenue(0);
+  assert.equal(poses.length, 1);
+  assert.match(String(poses[0]), /2,048 MB free, the kitchen needs at least 5,120 MB/);
+  assert.match(String(poses[0]), /\/var\/lib\/docker: 48,128 MB/);
+});
+
+test("a disk the kitchen could still free enough, or a cook still in flight, raises no card (#4091)", async (t) => {
+  const reclamable = disqueFaux(4 * GO);
+  const a = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein: reclamable.disquePlein });
+  await a.gardes.retenue(0);
+  assert.deepEqual(reclamable.poses, []);
+
+  const pleine = disqueFaux(0);
+  const b = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein: pleine.disquePlein });
+  await b.gardes.retenue(1);
+  assert.deepEqual(pleine.poses, []);
+});
+
+test("a disk that recovers raises no card, and lifts the one it had raised (#4091)", async (t) => {
+  const sain = disqueFaux(0);
+  const a = cuisine(t, { machine: () => BOX(0), disquePlein: sain.disquePlein });
+  await a.gardes.retenue(0);
+  assert.deepEqual(sain.poses, []);
+  assert.equal(sain.levees(), 0);
+
+  let libre = 2 * GO;
+  const { disquePlein, poses, levees } = disqueFaux(0);
+  const b = cuisine(t, { machine: () => DISQUE_PLEIN(libre), disquePlein });
+  await b.gardes.retenue(0);
+  libre = 100 * GO;
+  await b.gardes.retenue(0);
+  assert.equal(poses.length, 1);
+  assert.equal(levees(), 1);
+});
+
+test("a disk probe that fails raises nothing, says so, and is tried again next round (#4091)", async (t) => {
+  const avertis: string[] = [];
+  const { poses } = disqueFaux(0);
+  let essais = 0;
+  const disquePlein: DisquePlein = {
+    sonder: async () => {
+      if (++essais === 1) throw new Error("du timed out");
+      return { propre: 0, consommateurs: [] };
+    },
+    poser: async (carte) => void poses.push(carte.texte),
+    lever: async () => {},
+  };
+  const { gardes } = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein, avertir: (texte) => avertis.push(texte) });
+  await gardes.retenue(0);
+  assert.deepEqual(poses, []);
+  assert.match(avertis.join("\n"), /could not be settled \(du timed out\)/);
+  await gardes.retenue(0);
+  assert.equal(poses.length, 1);
+  assert.match(String(poses[0]), /biggest consumers could not be read/);
 });
