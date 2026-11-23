@@ -131,7 +131,7 @@ export function aOuvrir(derniere: Passe | null, merges: MergeDuClone[], maintena
 // When the next pass can open at the earliest (#4038): a day after the last one, at once with none known — at its
 // `MERGES_PER_PASS` merges either way —, never while one is open.
 function prochainePasse(derniere: Passe | null, maintenant: Date): Date | null {
-  if (derniere !== null) return maintenant;
+  if (derniere === null) return maintenant;
   return derniere.state === "open" ? null : new Date(Date.parse(derniere.createdAt) + ONE_PASS_A_DAY_MS);
 }
 
