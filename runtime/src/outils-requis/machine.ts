@@ -8,7 +8,7 @@
 //     dans `Program Files`), est rendu dans `horsDuPath` avec son dossier : l'app l'ajoute à son PATH et le relit,
 //     sans redémarrer.
 // Ne lève pas : une commande qui ne se lance pas compte pour absente.
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "../sans-invite.ts";
 import { posix, win32 } from "node:path";
 import { dansLePath, voirLOutil, type OptionsDesOutils } from "../second/outils.ts";
 import { choisirInstallation, OUTILS_REQUIS, type Installation, type Machine, type OutilRequis } from "./outils-requis.ts";

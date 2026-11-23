@@ -68,7 +68,7 @@ export function tenirOutilsRequis(options: OptionsDesOutilsRequis) {
         clearTimeout(garde);
         rendre(fin);
       };
-      const enfant = lancer(programme, args, { env: options.env, windowsHide: false, stdio: ["ignore", "pipe", "pipe"] });
+      const enfant = lancer(programme, args, { env: options.env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
       const garde = setTimeout(() => enfant.kill(), options.delaiMs ?? DELAI_MS);
       for (const flux of [enfant.stdout, enfant.stderr]) flux?.on("data", (morceau: Buffer) => void (sortie = `${sortie}${morceau.toString()}`.slice(-16_384)));
       enfant.once("error", (erreur) => finir({ refus: `the install of ${nom} could not start: ${erreur.message}`, detail: erreur.message }));
