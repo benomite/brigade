@@ -98,6 +98,9 @@ export type OptionsCloserGithub = {
   // Absent, or `null`, nothing is read.
   statut?: () => StatutDeCloture | null | Promise<StatutDeCloture | null>;
   derive?: { seuils: () => Seuils; couts: CoutsDesCooks; noter: (derive: DeriveGithub) => void };
+  // Where the next pass goes at each pass (#4038): `prochainePasse`, or null while the closer is not set. Absent, it is
+  // not noted.
+  noterProchainePasse?: (at: Date | null) => void;
 };
 
 // The shortest gap between two passes, ten ticks: a pass is due at most once
@@ -123,6 +126,13 @@ export function aOuvrir(derniere: Passe | null, merges: MergeDuClone[], maintena
   if (derniere !== null && (derniere.state === "open" || maintenant.getTime() - Date.parse(derniere.createdAt) < ONE_PASS_A_DAY_MS)) return null;
   const nouveaux = merges.filter(({ at }) => Date.parse(at) > depuisLaPasse(derniere)).length;
   return nouveaux >= MERGES_PER_PASS ? { merges: nouveaux } : null;
+}
+
+// When the next pass can open at the earliest (#4038): a day after the last one, at once with none known — at its
+// `MERGES_PER_PASS` merges either way —, never while one is open.
+export function prochainePasse(derniere: Passe | null, maintenant: Date): Date | null {
+  if (derniere === null) return maintenant;
+  return derniere.state === "open" ? null : new Date(Date.parse(derniere.createdAt) + ONE_PASS_A_DAY_MS);
 }
 
 export function titreDeLaFermeture(base: string): string {
@@ -292,10 +302,20 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     }
   };
 
+  // A note that fails stops neither the pass nor the kitchen: the next pass notes it again.
+  const noterLaProchaine = (noter: (at: Date | null) => void, at: Date | null) => {
+    try {
+      noter(at);
+    } catch (erreur) {
+      avertir(`brigade : the closer's next pass not noted — ${message(erreur)}`);
+    }
+  };
+
   const passer = async () => {
     const { calibration, removedLines } = options.reglages();
     if (calibration === null && options.derive === undefined) return;
     const derniere = (await passes()).at(-1) ?? null;
+    if (options.noterProchainePasse !== undefined) noterLaProchaine(options.noterProchainePasse, calibration === null ? null : prochainePasse(derniere, maintenant()));
     const merges = await clone.merges();
     if (options.derive !== undefined && !arrete) relever(options.derive, derniere, merges);
     if (calibration === null) return;

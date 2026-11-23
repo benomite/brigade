@@ -5,18 +5,20 @@
 // Built from what is already read, never read again: what runs outside the tickets (agents-en-cours.ts), the cooks
 // of the stations, each role's last action (roles-cuisine/roles.ts), the levels (niveaux.ts) and each agent's gesture
 // log (gestes.ts), which gives its counters, its gestures and, when it is later than its roles' last action, its last
-// gesture. The next run is not read yet: there is none.
+// gesture — and each agent's next run, from the schedules the runtime noted (prochain-passage.ts, #4038).
 import type { AgentEnCours } from "../../agents-en-cours.ts";
 import type { DerniereAction, RoleDeCuisine } from "../../roles-cuisine/roles.ts";
 import type { EnregistrementDeGestes, Geste } from "./gestes.ts";
 import type { Niveau, Niveaux } from "./niveaux.ts";
+import { HoraireIllisible, prochainPassage, type Horaire, type ProchainPassage } from "./prochain-passage.ts";
 
 type FicheDAgent = {
   agent: string;
   // `idle`, `working on #N`, or `working` for a run on no ticket.
   state: string;
   lastGesture: { line: string; at: string } | null;
-  nextRun: { text: string; at: string } | null;
+  // Null when the reader gave no schedules.
+  nextRun: ProchainPassage | null;
   // The name its thread's lines start with: « Supervisor · 17:01 · … ».
   thread: string;
   autonomy: Niveau;
@@ -42,6 +44,8 @@ export type SourcesDeLEquipe = {
   niveaux: Niveaux;
   // Each agent's gesture log, by its name (`supervisor`, `cook #12`).
   gestes: (agent: string) => Pick<EnregistrementDeGestes, "lastGesture" | "counters" | "gestures">;
+  // Each agent's schedule as the runtime noted it (`horaireDe`), read at `maintenant`.
+  horaires?: { maintenant: Date; de: (agent: string) => Horaire | undefined };
 };
 
 const etatDe = (tickets: ReadonlyArray<number | null>): string => {
@@ -50,13 +54,24 @@ const etatDe = (tickets: ReadonlyArray<number | null>): string => {
   return numeros.length === 0 ? "working" : `working on ${numeros.map((ticket) => `#${ticket}`).join(", ")}`;
 };
 
-export function equipeDuProjet({ agents, cooks, roles, niveaux, gestes }: SourcesDeLEquipe): FicheDAgent[] {
+export function equipeDuProjet({ agents, cooks, roles, niveaux, gestes, horaires }: SourcesDeLEquipe): FicheDAgent[] {
+  // A schedule never noted, or one that cannot be read, is said as such: never as « no schedule ».
+  const prochain = (agent: string): ProchainPassage | null => {
+    if (horaires === undefined) return null;
+    try {
+      const horaire = horaires.de(agent);
+      return horaire === undefined ? { text: `${agent}: next run not known yet`, at: null } : prochainPassage(agent, horaires.maintenant, horaire);
+    } catch (erreur) {
+      if (!(erreur instanceof HoraireIllisible)) throw erreur;
+      return { text: `${agent}: next run cannot be read — ${erreur.message}`, at: null };
+    }
+  };
   // What the agent's log gives its record; its last gesture is the later of the log's last entry and `actions`.
   const duJournal = (agent: string, actions: readonly DerniereAction[]) => {
     const { lastGesture: geste, counters, gestures } = gestes(agent);
     const candidats = geste === undefined ? actions : [...actions, { what: geste.line, at: geste.at }];
     const latest = candidats.reduce<Pick<DerniereAction, "what" | "at"> | null>((plusTard, une) => (plusTard === null || une.at > plusTard.at ? une : plusTard), null);
-    return { lastGesture: latest === null ? null : { line: latest.what, at: latest.at }, nextRun: null, counters, gestures };
+    return { lastGesture: latest === null ? null : { line: latest.what, at: latest.at }, nextRun: prochain(agent), counters, gestures };
   };
   const fixes = AGENTS.map((agent): FicheDAgent => {
     const actions = roles.filter(({ role }) => ROLES_DE[agent].includes(role)).flatMap(({ latest }) => (latest === null ? [] : [latest]));
