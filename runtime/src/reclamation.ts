@@ -5,7 +5,7 @@
 // relecture en cours y vit peut-être. Ce qui porte du travail — worktree sale,
 // ou dont la tête n'est sur aucune branche distante — reste : `git worktree
 // remove` sans `--force` le refuse de lui-même.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "./sans-invite.ts";
 import { readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +18,7 @@ const DELAI_MS = 120_000;
 const ESSAIS = ".essais";
 const SANS_COMMANDE = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"];
 
-export type LieuxARecuperer = {
+type LieuxARecuperer = {
   // Le répertoire des worktrees des cooks, et le clone dont ils dépendent.
   worktrees: string;
   clone: string;
@@ -30,7 +30,7 @@ export type LieuxARecuperer = {
   cacheNpm: boolean;
 };
 
-export type OptionsDeLaReclamation = {
+type OptionsDeLaReclamation = {
   maintenant?: () => number;
   // Joue une commande ; lève si elle échoue. Doublée par les tests.
   jouer?: (commande: string, args: string[], cwd: string) => string;

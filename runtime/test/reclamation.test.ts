@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { reclamerLesRestes, type LieuxARecuperer } from "../src/reclamation.ts";
+import { reclamerLesRestes } from "../src/reclamation.ts";
+
+type LieuxARecuperer = Parameters<typeof reclamerLesRestes>[0];
 import { repertoireTemporaire } from "./outils.ts";
 
 const LAISSE_MS = 3_600_000;
