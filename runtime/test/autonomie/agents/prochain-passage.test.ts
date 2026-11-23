@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
 import { horaireDe, HoraireIllisible, noterHoraire, prochainPassage } from "../../../src/autonomie/agents/prochain-passage.ts";
-import { brancherCloserGithub, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, prochainePasse, type GitHubDuCloser } from "../../../src/closer-github-passe/closer-github-passe.ts";
+import { brancherCloserGithub, MERGES_PER_PASS, ONE_PASS_A_DAY_MS, type GitHubDuCloser } from "../../../src/closer-github-passe/closer-github-passe.ts";
 import type { Ajout } from "../../../src/evenements.ts";
 import { lireLesFaits } from "../../../src/faits.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
@@ -60,11 +60,6 @@ describe("the schedules the runtime keeps", () => {
     assert.deepEqual(reveil(vus, A("18:40")), { cause: "no-merge", since: A("18:10").toISOString(), ticket: 4 });
   });
 
-  test("the closer's next pass is a day after the last one, now with none known, and none while one is open", () => {
-    assert.deepEqual(prochainePasse(null, MAINTENANT), MAINTENANT);
-    assert.deepEqual(prochainePasse({ number: 3, createdAt: A("09:00").toISOString(), state: "closed" }, MAINTENANT), new Date(A("09:00").getTime() + ONE_PASS_A_DAY_MS));
-    assert.equal(prochainePasse({ number: 3, createdAt: A("09:00").toISOString(), state: "open" }, MAINTENANT), null);
-  });
 });
 
 describe("the schedules noted in the state directory", () => {
@@ -201,6 +196,19 @@ describe("the runtime notes the schedules as it reads them", () => {
     sansReglage.reveiller();
     await jusqua(() => sansReglage.lectures.merges > 0);
     assert.deepEqual(sansLui, [null]);
+  });
+
+  test("the closer's next pass is a day after the last one, now with none known, and none while one is open", async (t) => {
+    const noteDe = async (passes: Array<{ number: number; createdAt: string; state: "open" | "closed" }>) => {
+      const notes: Array<Date | null> = [];
+      const branche = closer(t, { calibre: true, passes, noter: (at) => void notes.push(at) });
+      branche.reveiller();
+      await jusqua(() => branche.lectures.merges > 0);
+      return notes;
+    };
+    assert.deepEqual(await noteDe([]), [MAINTENANT]);
+    assert.deepEqual(await noteDe([{ number: 3, createdAt: A("09:00").toISOString(), state: "closed" }]), [new Date(A("09:00").getTime() + ONE_PASS_A_DAY_MS)]);
+    assert.deepEqual(await noteDe([{ number: 3, createdAt: A("09:00").toISOString(), state: "open" }]), [null]);
   });
 
   test("a note the closer cannot write is said, and its pass goes on", async (t) => {

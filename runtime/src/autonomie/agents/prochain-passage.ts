@@ -22,7 +22,7 @@ export type ProchainPassage = { text: string; at: string | null };
 
 // The agents that keep a schedule.
 const A_HORAIRE = ["supervisor", "closer"] as const;
-export type AgentAHoraire = (typeof A_HORAIRE)[number];
+type AgentAHoraire = (typeof A_HORAIRE)[number];
 
 // What an agent with no schedule does instead, by kind.
 const SANS_HORAIRE: Record<string, string> = {
