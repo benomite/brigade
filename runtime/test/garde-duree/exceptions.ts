@@ -780,8 +780,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/acceptation-4001/2-mutations-of-the-places-limit-fail-the-test.test.ts", test: "with the places limit raised by one in the dispatch code, the test fails on an assertion, not on a timeout" },
   { file: "test/acceptation-4001/2-mutations-of-the-places-limit-fail-the-test.test.ts", test: "with the places limit lowered by one in the dispatch code, the test fails on an assertion, not on a timeout" },
   { file: "test/acceptation-4001/2-mutations-of-the-places-limit-fail-the-test.test.ts", test: "with a tests-only queue (one writing at a time) in the dispatch code, the test fails on an assertion, not on a timeout" },
-  { file: "test/regles-claude-md/3-each-checkable-rule-has-a-gate.test.ts", test: "a test's git call outside ENV_GIT fails the gates, and the message names ENV_GIT" },
-  { file: "test/station-ecriture-brigade.test.ts", test: "un ticket de setup pris par la station : son cook écrit et édite reseau, gates.sh et worktree-setup.sh sous `.claude/brigade/`, et rien hors de sa zone (#2888)" },
   { file: "test/acceptation-4001/2-mutations-of-the-places-limit-fail-the-test.test.ts", garde: "timeout: 60000" },
   { file: "test/acceptation-4001/2-mutations-of-the-places-limit-fail-the-test.test.ts", garde: "timeout: 90_000" },
   { file: "test/bac-a-sable/configuration.test.ts", garde: "timeout: 90_000" },

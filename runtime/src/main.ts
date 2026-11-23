@@ -19,7 +19,6 @@ import { brancherDerive, lireSeuils } from "./derive.ts";
 import { brancherCloserGithub, lectureDuClone } from "./closer-github-passe/closer-github-passe.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "./closer-github-passe/derive-github.ts";
-import { noterHoraire } from "./autonomie/agents/prochain-passage.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { brancherElagageGithub, elagageDuClone } from "./github-seul/elagage/elagage.ts";
@@ -253,7 +252,7 @@ try {
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,
   // et il relève la dérive que `status` lit, des flux des cooks.
-  const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) }, noterProchainePasse: (at) => noterHoraire(repertoireEtat, "closer", at) });
+  const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.

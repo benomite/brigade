@@ -32,7 +32,6 @@ import { brancherElagageGithub, elagageDuClone } from "../github-seul/elagage/el
 import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/closer-github-passe.ts";
 import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
-import { noterHoraire } from "../autonomie/agents/prochain-passage.ts";
 import { brancherRapportHebdo } from "../rapport-hebdo-qualite.ts";
 import { brancherRecurrents } from "../recurrents/planificateur.ts";
 import { brancherTicketDEssai } from "../essai-projet/ticket.ts";
@@ -316,7 +315,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, qualite: () => {
         const { enregistrements } = lesTempsDesTickets(station.clone);
         return direLaQualite(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(station.clone)));
-      }, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) }, noterProchainePasse: (at) => noterHoraire(repertoireEtat, "closer", at) });
+      }, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherRapportHebdo(superviser(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat }), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);

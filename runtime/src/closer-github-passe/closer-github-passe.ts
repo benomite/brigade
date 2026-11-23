@@ -50,6 +50,7 @@ import { direJaugeEn } from "../mesures.ts";
 import { execFile } from "../sans-invite.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import { releverDerive, ticketDuMerge, type CoutsDesCooks, type DeriveGithub, type MergeDuClone } from "./derive-github.ts";
+import { noterHoraire } from "../autonomie/agents/prochain-passage.ts";
 
 // The merges since the last pass beyond which a pass is opened.
 export const MERGES_PER_PASS = 20;
@@ -99,7 +100,7 @@ export type OptionsCloserGithub = {
   statut?: () => StatutDeCloture | null | Promise<StatutDeCloture | null>;
   derive?: { seuils: () => Seuils; couts: CoutsDesCooks; noter: (derive: DeriveGithub) => void };
   // Where the next pass goes at each pass (#4038): `prochainePasse`, or null while the closer is not set. Absent, it is
-  // not noted.
+  // noted in the runtime's state directory, where `facts` reads it (`noterHoraire`); with neither, it is not noted.
   noterProchainePasse?: (at: Date | null) => void;
 };
 
@@ -234,6 +235,8 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
   const maintenant = options.maintenant ?? (() => new Date());
   const ecartMs = options.ecartMs ?? ECART_MS;
   const { github, clone, base } = options;
+  const { repertoireEtat } = runtime;
+  const noterProchainePasse = options.noterProchainePasse ?? (repertoireEtat === undefined ? undefined : (at: Date | null) => noterHoraire(repertoireEtat, "closer", at));
   let arrete = false;
   let occupe = false;
   let derniereFois = Number.NEGATIVE_INFINITY;
@@ -315,7 +318,7 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     const { calibration, removedLines } = options.reglages();
     if (calibration === null && options.derive === undefined) return;
     const derniere = (await passes()).at(-1) ?? null;
-    if (options.noterProchainePasse !== undefined) noterLaProchaine(options.noterProchainePasse, calibration === null ? null : prochainePasse(derniere, maintenant()));
+    if (noterProchainePasse !== undefined) noterLaProchaine(noterProchainePasse, calibration === null ? null : prochainePasse(derniere, maintenant()));
     const merges = await clone.merges();
     if (options.derive !== undefined && !arrete) relever(options.derive, derniere, merges);
     if (calibration === null) return;

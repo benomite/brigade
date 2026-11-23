@@ -175,9 +175,9 @@ describe("the runtime notes the schedules as it reads them", () => {
   });
 
   // A closer branched on a runtime of its wakes only, whose GitHub knows `passes`.
-  function closer(t: TestContext, options: { calibre: boolean; passes: Array<{ number: number; createdAt: string; state: "open" | "closed" }>; noter: (at: Date | null) => void }) {
+  function closer(t: TestContext, options: { calibre: boolean; passes: Array<{ number: number; createdAt: string; state: "open" | "closed" }>; noter?: (at: Date | null) => void; repertoireEtat?: string }) {
     const ecouteurs = new Set<(cause: "tick" | "log") => void>();
-    const runtime = { projet: "shop", surReveil: (ecouter: (cause: "tick" | "log") => void) => (ecouteurs.add(ecouter), () => void ecouteurs.delete(ecouter)), arreter: () => {} } as unknown as Runtime;
+    const runtime = { projet: "shop", repertoireEtat: options.repertoireEtat, surReveil: (ecouter: (cause: "tick" | "log") => void) => (ecouteurs.add(ecouter), () => void ecouteurs.delete(ecouter)), arreter: () => {} } as unknown as Runtime;
     const body = "<!-- brigade:fermeture sha=abc -->";
     const github = { issuesDepuis: async () => options.passes.map((passe) => ({ ...passe, title: "Closing pass", labels: [], association: "MEMBER", body })) } as unknown as GitHubDuCloser;
     const lectures = { merges: 0 };
@@ -224,6 +224,16 @@ describe("the runtime notes the schedules as it reads them", () => {
     assert.deepEqual(await noteDe([]), [MAINTENANT]);
     assert.deepEqual(await noteDe([{ number: 3, createdAt: A("09:00").toISOString(), state: "closed" }]), [new Date(A("09:00").getTime() + ONE_PASS_A_DAY_MS)]);
     assert.deepEqual(await noteDe([{ number: 3, createdAt: A("09:00").toISOString(), state: "open" }]), [null]);
+  });
+
+  test("given no note, the closer notes its next pass in its runtime's state directory, where `facts` reads it", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const hier = new Date(MAINTENANT.getTime() - 21 * 3_600_000).toISOString();
+    const branche = closer(t, { calibre: true, passes: [{ number: 3, createdAt: hier, state: "closed" }], repertoireEtat: repertoire });
+    branche.reveiller();
+    await jusqua(() => branche.lectures.merges > 0);
+    assert.deepEqual(horaireDe(repertoire, "closer"), { at: new Date(MAINTENANT.getTime() + 3 * 3_600_000) });
+    assert.deepEqual(branche.avertissements, []);
   });
 
   test("a note the closer cannot write is said, and its pass goes on", async (t) => {
