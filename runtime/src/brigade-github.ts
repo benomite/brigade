@@ -1806,9 +1806,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       enCuisine: (numero) => enVol.has(numero),
       prsOuvertes: prsOuvertesDuTour,
       zoneDuTicket,
-      // Arrêté sur la tête de sa livraison : comme après les renvois de la pass, elle reste la sienne.
       arreter: async (ticket, motifs) => {
-        const suite = await apresLesEssais(ticket, motifs, { livraisonGardee: true });
+        const suite = await apresLesEssais(ticket, motifs);
         if ("auChef" in suite) {
           await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
           return `set aside (\`${ECHECS_ATTEINTS}\`): the supervisor takes it and decides what happens to it. ${suite.auChef}`;
