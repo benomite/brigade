@@ -108,6 +108,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | — | `sensitive` | A green delivery of a ticket labelled `sensitive`, held on its `review before merge` card (#3223) | `merge <owner>/<repo>#<ticket>`, `send-back <owner>/<repo>#<ticket> --note <note>` — new, with no old name |
 | — | `undo` | A served ticket undone from its card (#3274): a pull request reverts its merge and goes through the pass like any delivery, and the ticket is reopened | `<owner>/<repo>#<ticket>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
+| — | `autonomy` | Each agent's autonomy level, per project (#4036): `observe`, `propose` or `act` | `<agent> <level>`, `manager split-epic <level>` — new, with no old name |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
 | `fermeture` | `closing` | The closing pass | — |
