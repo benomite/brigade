@@ -68,8 +68,9 @@ test("a parked ticket with no progress for 30 minutes wakes the supervisor; its 
   // #42 is just as silent, but the run on #41 holds the project: its wake waits, nothing is written on it.
   assert.deepEqual(p.raisons(42), []);
   (liberer as (() => void) | null)?.();
-  await jusqua(() => (p.depot.commentaires.get(41) ?? []).some((corps) => corps.includes("has made no progress since")));
-  assert.match((p.depot.commentaires.get(41) ?? []).at(-1) ?? "", /woke because #41 \(parked\) has made no progress since 2026-11-23T10:00:00.000Z\./);
+  // The run's trace names the cause it woke on.
+  await jusqua(() => (p.depot.commentaires.get(41) ?? []).some((corps) => corps.startsWith("<!-- brigade:supervisor -->")));
+  assert.match((p.depot.commentaires.get(41) ?? []).find((corps) => corps.startsWith("<!-- brigade:supervisor -->")) ?? "", /woke because #41 \(parked\) has made no progress since 2026-11-23T10:00:00.000Z\./);
   assert.deepEqual(p.depot.labelsDe(41), ["fire"]);
   p.a("10:31");
   p.reveiller();
