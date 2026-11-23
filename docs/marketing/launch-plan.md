@@ -1,8 +1,8 @@
-# Launch plan: "you are no longer at your computer"
+# Launch plan: "Autonomy you can trust"
 
 Internal draft. **Nothing is posted from this repository.** The chef reads this plan, edits it and publishes by hand: the soft launch this week, the wide places after #1912. No file here holds a command, script or API call that publishes. Epic: #1546.
 
-Angle chosen by the chef on 2026-11-07: [`positioning.md`](positioning.md). Demo video, for the wide places: [`demo-script.md`](demo-script.md) (#1550). This plan supersedes the older [`docs/communication/plan-lancement.md`](../communication/plan-lancement.md) for the angle; its two Reddit and LinkedIn drafts predate it.
+Angle: **Autonomy you can trust**, the README's angle (#3580), set out in [`positioning.md`](positioning.md); the plan first used "you are no longer at your computer", which is now the promise inside it. Refreshed on 2026-11-23 (#4053). Demo video, for the wide places: [`demo-script.md`](demo-script.md) (#1550). This plan replaces the older drafts that were in `docs/communication/`, now removed.
 
 Links used in every post: site https://benomite.github.io/brigade/ and repo https://github.com/benomite/brigade. Terms follow [`docs/glossary.md`](../glossary.md).
 
@@ -20,12 +20,27 @@ On 2026-11-08 the chef decided to start communicating now, without waiting for #
 1. **Capture or GIF**: the post uses a capture or GIF of the app in place of `[DEMO LINK]`. `docs/marketing/assets/app-capture.png` or `.gif` (#2873) is **not in the repo yet**, and none is made up: producing it (a screenshot of the app, or a short screen recording as a GIF) is still to do before posting. Attach it to the post itself.
 2. **Turn Pages on, once** (#2872): see step 4 of the wide gate below. The post links the site and the repo.
 3. **Repo card**: run the `gh repo edit` command in "Repo card" below, so the repo looks finished when the first readers open it.
-4. The figures in the post are those counted on 2026-11-07; recount them if the post goes out later (see [`positioning.md`](positioning.md) for the commands).
+4. The figures in the post were counted on `main` on 2026-11-23 (see "Figures" below); recount them if the post goes out on a later day.
+
+## Figures
+
+Counted on `main` on 2026-11-23 (window 2026-10-02 to 2026-11-23), at commit 61f0164:
+
+```
+git log --merges --format=%s | grep -c 'Merge pull request'                  # 1676
+git log --merges --format=%s | grep 'Merge pull request' | grep -c '/cook/'  # 1501
+```
+
+So 1,501 of 1,676 merged PRs (90%) came from a `cook/<n>-…` branch. The branch name shows who cooked, not who clicked merge.
+
+## Where Brigade stands (market, 2026-11-23)
+
+Independent orchestrators are closing or being absorbed by larger companies, and the model vendors ship their own multi-agent surfaces. Every post says, in one or two sentences, that Brigade stays open source and serves a GitHub project on its own, asking the human only for decisions. **No post names or criticises a company**: the sentence speaks of "other orchestrators" in general. Rules were not readable from the station (see "Rules" below), so none is quoted; the chef checks, on each place, that the sentence breaks nothing.
 
 ## Before the wide places (gate)
 
 1. **#1912 is done**: a stranger installed Brigade and cooked a first ticket with only the README and the app. Do not post before. A first install that fails there costs the launch.
-2. **Recount the figures** in the posts (merged PRs, share cooked by the kitchen). Those below were counted on `main` on 2026-11-07 (see [`positioning.md`](positioning.md) for the commands): 1,191 merged PRs, 1,016 (85%) from a `cook/<n>-…` branch.
+2. **Recount the figures** in the posts (merged PRs, share cooked by the kitchen) if the day is not 2026-11-23: see "Figures" below.
 3. **Add the demo video link** where a wide post says `[DEMO LINK]` (or embed it where the place allows).
 4. **Turn Pages on, once** (#2872): in the repo, Settings → Pages → Source: **GitHub Actions**. Until then `.github/workflows/pages.yml` builds but the site is not served; then re-run it (Actions → pages → Run workflow) or push to `site/`, and open https://benomite.github.io/brigade/ to check it shows the landing page.
 5. **Read each place's rules in a browser** (next section) and apply the checklist.
@@ -39,19 +54,21 @@ On 2026-11-08 the chef decided to start communicating now, without waiting for #
 
 **Post**
 
-You can't stay at your desk all day. Your backlog doesn't care.
+Autonomy you can trust: that is what I wanted from AI agents, and why I built Brigade.
 
-For months I've worked differently: I write a ticket, I leave, and the work is done when I come back. I built a tool for it, Brigade.
+You can't stay at your desk all day, and your backlog doesn't care. For months I've worked differently: I write a ticket, I leave, and the work is done when I come back.
 
 How it works: I describe what I want to an assistant, which writes the ticket. An AI agent takes it in its own branch and opens a pull request. A second step checks the tests and reviews it, and merges it if everything is green. I'm called, on my phone, only for what is mine to decide.
 
-The proof is the project itself: 1,016 of its 1,191 merged pull requests (85%) came from an agent's branch.
+The proof is the project itself: 1,501 of its 1,676 merged pull requests (90%) came from an agent's branch (counted on 2026-11-23).
+
+Other orchestrators are closing or being absorbed; Brigade stays open source, and keeps serving a GitHub project on its own, asking you only for decisions.
 
 It's young and rough in places, and it's open source and free; the agents run on your own Claude subscription. If you try it and something breaks, tell me: that is what I'm here for.
 
 If it speaks to you, a star on the repo helps others find it.
 
-*(Capture or GIF attached to the post.)*
+*(Capture or GIF attached here by the chef.)*
 
 First comment: Site https://benomite.github.io/brigade/ · Repo https://github.com/benomite/brigade
 
@@ -101,7 +118,7 @@ gh repo edit benomite/brigade --description "AI agents work your GitHub tickets 
 
 **Acceptance criterion 1 is not fully met, on purpose.** The station tried again on 2026-11-07 through a fetch tool: `news.ycombinator.com` (showhn.html, newsguidelines.html) answered "proxy refused the connection", and `www.reddit.com` / `old.reddit.com` (`about/rules.json` for r/ClaudeAI, r/ClaudeCode, r/SideProject) answered "unable to fetch". No rule text was readable, so none is quoted; inventing one from memory would be worse than a gap. **Decision for the chef**: open the links below in a browser and paste the exact sentences into the "Rule quoted" lines, or paste them to a cook to fold in. Until then the criterion is open.
 
-The station has no authenticated browser: Reddit and LinkedIn refuse unauthenticated tools (proxy `403`, already recorded on 2026-10-23 and 2026-11-01 in the older plan), and a web search on 2026-11-07 returned no rule text for the subreddits. **So no rule below is quoted from memory.** Each place gives its rules link and the one-line check the chef must do; the chef pastes the exact sentence into the "Rule quoted" line when reading the page. The only facts taken from a search are marked "(secondary source)" and are not rules.
+The station has no authenticated browser: Reddit and LinkedIn refuse unauthenticated tools (proxy `403`, already recorded on 2026-10-23 and 2026-11-01 in the earlier drafts, since removed), and a web search on 2026-11-07 returned no rule text for the subreddits. **So no rule below is quoted from memory.** Each place gives its rules link and the one-line check the chef must do; the chef pastes the exact sentence into the "Rule quoted" line when reading the page. The only facts taken from a search are marked "(secondary source)" and are not rules.
 
 ## Wide places, in posting order (after #1912)
 
@@ -150,7 +167,7 @@ Space them out: Show HN and Reddit on a weekday morning US Eastern time, never t
 
 ## Ready-to-paste first posts
 
-These are the wide-place posts, for after #1912 (the soft launch post is above). Each asks for a star in one line, once; the link line carries no second ask. Placeholders: `[DEMO LINK]`, and the figures to recount. Everything else can be pasted.
+These are the wide-place posts, for after #1912 (the soft launch post is above). Each asks for a star in one line, once; the link line carries no second ask. Placeholder: `[DEMO LINK]`. The figures were counted on 2026-11-23. Everything else can be pasted.
 
 ### 1. r/ClaudeAI
 
@@ -160,7 +177,7 @@ I built an open-source app where Claude Code cooks work my GitHub tickets while 
 
 **Body**
 
-I'm a solo dev. I got tired of babysitting agent sessions, so I built Brigade around one idea: all the coordination lives in GitHub, never in a session's memory, so I can close the laptop and the work goes on.
+I'm a solo dev. I got tired of babysitting agent sessions, so I built Brigade around "Autonomy you can trust": all the coordination lives in GitHub, never in a session's memory, so I can close the laptop and the work goes on.
 
 How you use it:
 
@@ -175,7 +192,7 @@ What happens next:
 - Guardrails: caps on duration, tokens and simultaneous cooks, a breaker after repeated failures, and one `stop` that halts every cook.
 - It only calls you for a product or design choice, or a review only you can make. On my phone that is a GitHub notification, plus a notification in the Android app.
 
-Brigade builds itself: 1,016 of its 1,191 merged PRs (85%) came from a cook's branch (the branch name shows who cooked, not who clicked merge). Demo, two minutes: [DEMO LINK]
+Brigade builds itself: 1,501 of its 1,676 merged PRs (90%, counted on 2026-11-23) came from a cook's branch (the branch name shows who cooked, not who clicked merge). Other orchestrators are closing or being absorbed; Brigade stays open source and serves a GitHub project on its own. Demo, two minutes: [DEMO LINK]
 
 It's young and opinionated, and the cooks run on your Claude Max session (an API key does not fit). Does a ticket-in, reviewed-PR-out loop match how you'd trust agents with your repo? Where would you want a human gate I haven't put?
 
@@ -191,7 +208,7 @@ Claude Code cooks in git worktrees, one per GitHub ticket, so you can leave the 
 
 **Body**
 
-I wanted Claude Code to keep working when I'm not at my computer, without a pile of sessions to watch. Brigade is what I ended up with.
+I wanted Claude Code to keep working when I'm not at my computer, without a pile of sessions to watch: autonomy you can trust. Brigade is what I ended up with. Other orchestrators are closing or being absorbed; this one stays open source and serves a GitHub project on its own.
 
 - Put the `fire` label on a GitHub issue; a `claude` session takes it in its own worktree and opens a PR.
 - A separate pass runs your gates and CI and reviews the PR before merging.
@@ -215,11 +232,11 @@ Show HN: Brigade, Claude Code agents that work your GitHub tickets while you're 
 
 **Text** (form to confirm against the HN pages: URL field = the repo, this text as the first comment; HN also accepts a text-only submission, but then there is no URL)
 
-Hi HN, I'm the author. Brigade is an MIT-licensed desktop app (Mac, Windows) plus a runtime. You put a `fire` label on a GitHub issue; a `claude` session takes it in its own git worktree and opens a PR; a separate "pass" runs the gates and CI, has a model review it, and merges only if everything is green. You are called only for product or design choices.
+Hi HN, I'm the author. Brigade is an MIT-licensed desktop app (Mac, Windows) plus a runtime. You put a `fire` label on a GitHub issue; a `claude` session takes it in its own git worktree and opens a PR; a separate "pass" runs the gates and CI, has a model review it, and merges only if everything is green. You are called only for product or design choices. The angle is autonomy you can trust: bounded, judged, reversible. Other orchestrators are closing or being absorbed; this one stays open source and serves a GitHub project on its own.
 
 What it is not: it is not hosted, it does not use an API key (the cooks run on your Claude Max session), and the stop halts every cook within the second.
 
-Numbers, counted on 2026-11-07: of 1,191 merged PRs in this repo, 1,016 came from a cook's branch. The branch name shows who cooked, not who clicked merge.
+Numbers, counted on 2026-11-23: of 1,676 merged PRs in this repo, 1,501 (90%) came from a cook's branch. The branch name shows who cooked, not who clicked merge.
 
 Known limits: self-healing is partly done, teams (one question routed to the right human) are not shipped, and the review is a model, not a person.
 
@@ -239,7 +256,7 @@ I built Brigade so my side project keeps shipping when I'm not at my computer
 
 My side projects stall when I leave the desk. So I built a small kitchen for them: I write a ticket on GitHub, put a label on it, and an AI agent (Claude Code) cooks it in its own branch and opens a pull request. Another step checks it and merges it if the tests are green. I'm only called for the choices that are mine, on my phone.
 
-It's open source (MIT), a desktop app for Mac and Windows. It builds itself: most of its merged PRs come from its own agents' branches.
+It's open source (MIT), a desktop app for Mac and Windows, built around "Autonomy you can trust". It builds itself: 1,501 of its 1,676 merged PRs (90%, counted on 2026-11-23) come from its own agents' branches. Other orchestrators are closing or being absorbed; this one stays open source.
 
 What I'd love to know: would you leave your own side project to something like this, and what would stop you? Two-minute demo: [DEMO LINK]
 
@@ -251,7 +268,7 @@ https://benomite.github.io/brigade/ · https://github.com/benomite/brigade
 
 **Title / first line**: Brigade: Claude Code cooks that work GitHub tickets while you're away
 
-Hi all, I built Brigade, an open-source app (Mac, Windows) that runs Claude Code sessions on your GitHub tickets. Label an issue `fire`, a session opens a PR in its own worktree, a separate pass checks and merges it, and you're pinged only for decisions that are yours. It runs on a Claude Max session.
+Hi all, I built Brigade, an open-source app (Mac, Windows), "Autonomy you can trust", that runs Claude Code sessions on your GitHub tickets. Label an issue `fire`, a session opens a PR in its own worktree, a separate pass checks and merges it, and you're pinged only for decisions that are yours. It runs on a Claude Max session. Other orchestrators are closing or being absorbed; this one stays open source.
 
 Demo: [DEMO LINK] · Site: https://benomite.github.io/brigade/ · Repo: https://github.com/benomite/brigade
 
