@@ -14,20 +14,17 @@ export function vivant(pid: number): boolean {
   }
 }
 
-// Ce que le système lance pour lire la ligne de commande d'un process : `ps` sous POSIX, PowerShell sous Windows — sans
-// fenêtre de console, que chaque démarrage de l'app ferait clignoter.
-export function lectureDeLaCommande(pid: number, plateforme: NodeJS.Platform = process.platform): { commande: string; args: string[]; options: ExecFileSyncOptionsWithStringEncoding } {
+// La ligne de commande d'un process vivant, telle que le système la donne ; `undefined` quand elle ne se lit pas. `ps` la
+// lit sous POSIX, PowerShell sous Windows — sans fenêtre de console, que chaque démarrage de l'app ferait clignoter.
+type Lancer = (commande: string, args: string[], options: ExecFileSyncOptionsWithStringEncoding) => string;
+export function lireLaCommande(pid: number, plateforme: NodeJS.Platform = process.platform, lancer: Lancer = execFileSync): string | undefined {
   const options: ExecFileSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] };
-  if (plateforme !== "win32") return { commande: "ps", args: ["-ww", "-o", "command=", "-p", String(pid)], options: { ...options, timeout: 5_000 } };
-  return { commande: "powershell.exe", args: ["-NoProfile", "-NonInteractive", "-Command", `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`], options: { ...options, timeout: 10_000, windowsHide: true } };
-}
-
-// La ligne de commande d'un process vivant, telle que le système la donne ; `undefined` quand elle ne se lit pas.
-function commandeDe(pid: number): string | undefined {
   try {
-    const { commande, args, options } = lectureDeLaCommande(pid);
-    const lue = execFileSync(commande, args, options).trim();
-    return lue === "" ? undefined : lue;
+    const lue =
+      plateforme !== "win32"
+        ? lancer("ps", ["-ww", "-o", "command=", "-p", String(pid)], { ...options, timeout: 5_000 })
+        : lancer("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`], { ...options, timeout: 10_000, windowsHide: true });
+    return lue.trim() === "" ? undefined : lue.trim();
   } catch {
     return undefined;
   }
@@ -38,14 +35,14 @@ function commandeDe(pid: number): string | undefined {
 // arguments — l'ancien `-psn_…` que le Mac ajoutait parfois, et les guillemets qu'un raccourci Windows met autour du binaire,
 // mis à part. Une commande qui ne se lit pas ne prouve rien.
 const sansPsn = (commande: string) => commande.replace(/\s+-psn_\S+/g, "").replaceAll('"', "").trim();
-export function memeProcess(pid: number, soi: number = process.pid, lire: (pid: number) => string | undefined = commandeDe): boolean {
+export function memeProcess(pid: number, soi: number, lire: (pid: number) => string | undefined): boolean {
   const autre = lire(pid);
   const nous = lire(soi);
   return autre !== undefined && nous !== undefined && sansPsn(autre) === sansPsn(nous);
 }
 
 // Le contraire prudent : un process qu'on sait lancé autrement que celui-ci. Une commande qui ne se lit pas n'en dit rien.
-export function autreProcess(pid: number, soi: number = process.pid, lire: (pid: number) => string | undefined = commandeDe): boolean {
+export function autreProcess(pid: number, soi: number = process.pid, lire: (pid: number) => string | undefined = lireLaCommande): boolean {
   const autre = lire(pid);
   const nous = lire(soi);
   return autre !== undefined && nous !== undefined && sansPsn(autre) !== sansPsn(nous);

@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { lectureDeLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
+import { lireLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
 
 const SOUS_POSIX: string | false = process.platform === "win32" ? "the command line is read with ps, which Windows does not have" : false;
 
@@ -20,10 +20,10 @@ test("two living processes launched with the same command are the same; another 
   const une = lancer(t, "--une-app");
   const autre = lancer(t, "--une-app");
   const icone = lancer(t, "--tray-fond");
-  await jusqua(() => memeProcess(une, autre), 5_000);
-  assert.equal(memeProcess(une, autre), true);
-  assert.equal(memeProcess(icone, autre), false);
-  assert.equal(memeProcess(4_000_000, autre), false, "a dead process has no command line");
+  await jusqua(() => memeProcess(une, autre, lireLaCommande), 5_000);
+  assert.equal(memeProcess(une, autre, lireLaCommande), true);
+  assert.equal(memeProcess(icone, autre, lireLaCommande), false);
+  assert.equal(memeProcess(4_000_000, autre, lireLaCommande), false, "a dead process has no command line");
 });
 
 test("a process launched like this one is the same; another command, or one that cannot be read, is not", () => {
@@ -50,7 +50,7 @@ test("the app's place left with a pid now held by another process is taken; held
   const icone = lancer(t, "--tray-fond");
   const app = lancer(t, "--une-app");
   const soi = lancer(t, "--une-app");
-  const estTenant = (pid: number) => memeProcess(pid, soi);
+  const estTenant = (pid: number) => memeProcess(pid, soi, lireLaCommande);
   await jusqua(() => estTenant(app), 5_000);
   writeFileSync(fichier, String(icone));
   assert.equal(prendreLaPlace(fichier, soi, estTenant), undefined, "the icon does not hold the app's place");
@@ -65,7 +65,7 @@ test("by default, a place is held only by a process launched like the one asking
   const app = lancer(t, "--une-app");
   const icone = lancer(t, "--tray-fond");
   const soi = lancer(t, "--tray-fond");
-  await jusqua(() => memeProcess(icone, soi), 5_000);
+  await jusqua(() => memeProcess(icone, soi, lireLaCommande), 5_000);
   writeFileSync(fichier, String(app));
   assert.equal(prendreLaPlace(fichier, soi), undefined, "the app does not hold the icon's place");
   assert.equal(readFileSync(fichier, "utf8"), String(soi));
@@ -74,11 +74,18 @@ test("by default, a place is held only by a process launched like the one asking
 });
 
 test("the command line is read by ps on POSIX, and by PowerShell on Windows without a console window flashing at each start", () => {
-  const windows = lectureDeLaCommande(42, "win32");
-  assert.equal(windows.commande, "powershell.exe");
-  assert.match(windows.args.join(" "), /ProcessId=42/);
-  assert.equal(windows.options.windowsHide, true);
-  const mac = lectureDeLaCommande(42, "darwin");
-  assert.deepEqual([mac.commande, ...mac.args], ["ps", "-ww", "-o", "command=", "-p", "42"]);
-  assert.equal(mac.options.windowsHide, undefined);
+  const appels: { commande: string; args: string[]; windowsHide: boolean | undefined }[] = [];
+  const lancer = (sortie: string) => (commande: string, args: string[], options: { windowsHide?: boolean }) => {
+    appels.push({ commande, args, windowsHide: options.windowsHide });
+    return sortie;
+  };
+  assert.equal(lireLaCommande(42, "win32", lancer("C:\\Brigade\\Brigade.exe\r\n")), "C:\\Brigade\\Brigade.exe");
+  assert.equal(appels[0]?.commande, "powershell.exe");
+  assert.match(appels[0]?.args.join(" ") ?? "", /ProcessId=42/);
+  assert.equal(appels[0]?.windowsHide, true, "no console window on Windows");
+  assert.equal(lireLaCommande(42, "darwin", lancer("/Applications/Brigade.app/Contents/MacOS/Brigade\n")), "/Applications/Brigade.app/Contents/MacOS/Brigade");
+  assert.deepEqual([appels[1]?.commande, ...(appels[1]?.args ?? [])], ["ps", "-ww", "-o", "command=", "-p", "42"]);
+  assert.equal(appels[1]?.windowsHide, undefined);
+  assert.equal(lireLaCommande(42, "darwin", lancer("  \n")), undefined, "an empty answer is a command that cannot be read");
+  assert.equal(lireLaCommande(42, "darwin", () => { throw new Error("ps: no such process"); }), undefined, "nor a failed read");
 });

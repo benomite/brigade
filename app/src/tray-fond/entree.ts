@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { app, BrowserWindow } from "electron";
 import { estInstallee } from "../emplacements.ts";
 import { ARGUMENT_FOND } from "../station-fond/inscription.ts";
-import { memeProcess, prendreLaPlace } from "./instance.ts";
+import { lireLaCommande, memeProcess, prendreLaPlace } from "./instance.ts";
 import { ARGUMENT, executer, fondPerime, inscrireLeFond, stationDeFondInstallee } from "./systeme.ts";
 
 if (process.argv.includes(ARGUMENT_FOND)) {
@@ -29,7 +29,7 @@ if (process.argv.includes(ARGUMENT_FOND)) {
   // laissé par l'app quittée, repris par un autre process — l'icône, l'hôte de la station —, n'est pas une app (#4071).
   // Dans l'app installée seulement : les essais depuis le dépôt ne gardent pas de place.
   const uneAutreAppTourne = (): boolean => {
-    const autreApp = prendreLaPlace(join(app.getPath("userData"), "app.pid"), process.pid, (pid) => memeProcess(pid));
+    const autreApp = prendreLaPlace(join(app.getPath("userData"), "app.pid"), process.pid, (pid) => memeProcess(pid, process.pid, lireLaCommande));
     return !app.requestSingleInstanceLock() && autreApp !== undefined;
   };
   const passeLaMain = installee && uneAutreAppTourne();
