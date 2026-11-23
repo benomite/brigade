@@ -1791,11 +1791,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       zones.set(numero, lue);
       return lue;
     };
-    // Les invariants du rail (#4026), contrôlés avant tout geste du tour : une
-    // base rouge relancée retient le reste du tour jusqu'au résultat de sa relance.
     // Les PR ouvertes, lues une fois par tour, au premier qui les demande.
     let ouvertesDuTour: ReturnType<GitHubDuTour["prsOuvertes"]> | undefined;
     const prsOuvertesDuTour = () => (ouvertesDuTour ??= github.prsOuvertes());
+    // Les invariants du rail (#4026), contrôlés avant tout geste du tour : une
+    // base rouge relancée retient le reste du tour jusqu'au résultat de sa relance.
     const retenu = await controlerLesInvariants({
       station: nom,
       base,
@@ -1806,8 +1806,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       enCuisine: (numero) => enVol.has(numero),
       prsOuvertes: prsOuvertesDuTour,
       zoneDuTicket,
+      // Arrêté sur la tête de sa livraison : comme après les renvois de la pass, elle reste la sienne.
       arreter: async (ticket, motifs) => {
-        const suite = await apresLesEssais(ticket, motifs);
+        const suite = await apresLesEssais(ticket, motifs, { livraisonGardee: true });
         if ("auChef" in suite) {
           await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
           return `set aside (\`${ECHECS_ATTEINTS}\`): the supervisor takes it and decides what happens to it. ${suite.auChef}`;

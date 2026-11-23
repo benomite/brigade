@@ -61,3 +61,20 @@ test("a ticket without a PR names no commit when its cook fails, and is relaunch
   assert.equal(fois, 2);
   assert.deepEqual(echecs(faux, 1).map((body) => body.split("\n")[0]), ["<!-- brigade:echec n=1 -->", "<!-- brigade:echec n=2 -->"]);
 });
+
+test("stopped, then rewritten by the manager, the ticket keeps its delivery: its PR stays open", async () => {
+  const faux = new FauxGitHub();
+  faux.corpsEcrivables = true;
+  faux.feu(1, CALIBRE, "## Context\n\nMake the rail faster.");
+  const pr = faux.prOuverte(["runtime/src/a.ts"], "cook/1-abcdef01");
+  pr.issue = 1;
+  const reprendre = async () => ({ reprise: { choix: "reecrire", motif: "The ticket never names the file.", corps: "Edit `runtime/src/a.ts`." } }) as never;
+  const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, cuisiner: async () => ({ echec: "tests red" }), reprendre });
+  for (let i = 0; i < 2; i++) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.match((faux.commentaires.get(1) ?? []).map((c) => c.body).join("\n"), /Invariant 2 broke[\s\S]*it went to the manager/);
+  assert.match(faux.ticket(1).corps, /Edit `runtime\/src\/a\.ts`\./, "rewritten by the manager");
+  assert.equal(faux.pr(pr.number).state, "open", "its delivery is kept");
+});
