@@ -44,9 +44,10 @@ first time you open one; the steps are below.
    then open Brigade again.
 5. Go to [Your first ticket](#your-first-ticket).
 
-The app updates itself. When a newer version is out, a line at the top of the app says so, then
-downloads it: click **Install now**, or it installs at the next launch. If it cannot update itself,
-the line gives a **Download** link to the package for your computer: install it over the old one.
+The app updates itself. When a newer version is out, a line at the top of the app says so and
+downloads it: once it is downloaded, click **Update now**, or it installs at the next launch. If it
+cannot update itself, the line gives a **Download** link to the package for your computer: install
+it over the old one.
 
 ## On Windows
 
