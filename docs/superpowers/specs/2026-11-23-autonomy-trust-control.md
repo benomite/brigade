@@ -1,6 +1,6 @@
 # Autonomy, trust, control — the three axes after the supervisor
 
-Date: 2026-11-23 · Epic: #4019 · Status: **proposal, awaiting the chef's validation**
+Date: 2026-11-23 · Epic: #4019 · Status: **validated by the chef on 2026-11-23 (answers below)**
 
 ## Why
 
@@ -158,8 +158,8 @@ Recommended, in this order:
 
 Each one becomes a `product` issue with observable criteria, filed once this spec is validated.
 
-## Questions for the chef
+## The chef's answers (2026-11-23)
 
-- **Q1 — the first tickets.** Is the order above right, or should the view of the agents (C1, C2) come first, because trust is the more urgent of the two?
-- **Q2 — autonomy levels.** Which agent starts at which step? Recommendation: the supervisor and the pass on « act », the closer on « propose », the manager on « act » except for splitting an epic, which is « propose ».
-- **Q3 — the logbook's rhythm.** Live in the project view only, or also a morning digest of the previous day?
+- **Q1 — the first tickets.** The order above stands: A1 + A2, then T4, then C1 + C2, then T1.
+- **Q2 — autonomy levels.** The supervisor and the pass start on « act », the closer on « propose ». The manager starts on « act », except that splitting an epic is « propose ».
+- **Q3 — the logbook's rhythm.** Both: live in the project view, and a morning digest of the previous day.
