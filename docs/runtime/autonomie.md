@@ -18,13 +18,29 @@ The autonomy table (rows, positions, profiles) and the routing of decisions that
 
 ## Each agent's record and autonomy level
 
-Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036, #4037). Code:
-`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`) and `gestes.ts`
-(the gesture log).
+Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036, #4037, #4038). Code:
+`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`), `gestes.ts`
+(the gesture log), `prochain-passage.ts` (the next run's text) and `horaires.ts` (the schedules noted).
 
 `facts` gives one record per agent in `equipe`: the manager, the supervisor, the closer, the pass, then each cook running
-(its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)). The next run starts
-empty; a later ticket fills it in.
+(its fields are in "Les faits, pour un programme" of [`etat-et-mesures.md`](etat-et-mesures.md)).
+
+Each record's next run (#4038) is built from the agent's real schedule and a clock, both handed in (`prochainPassage`):
+- the supervisor wakes when nothing was merged 30 min after the oldest cookable ticket began to wait, or after a later
+  merge (`echeanceSansMerge`, `superviseur/declencheur.ts`): « supervisor: wakes if nothing is merged by 18:40 »; with
+  no cookable ticket, « supervisor: no wake scheduled »;
+- the closer opens a pass at most a day after the last one, at once with none known, never while one is open, and only
+  once `MERGES_PER_PASS` merges are in (`prochainePasse`, `closer-github-passe/closer-github-passe.ts`): « closer: next
+  pass in 3 h », then « closer: next pass once its merges are in » when its day is over; while it is not set or a pass
+  is open, « closer: no pass scheduled »;
+- the manager, the pass and the cooks keep no schedule, and say what they do instead: « manager: runs when a ticket or
+  the supervisor calls it », « pass: reviews each delivery as it comes », « cook #12: works until it delivers ».
+
+The supervisor notes its wake at each wake of the runtime it is branched on, once it is not stopped and has a manager to
+consult; the closer notes its next pass at each of its passes. Each goes to `autonomy-next-run-<agent>.json` of the
+state directory, where `facts` reads it back. A schedule never noted reads « <agent>: next run not known yet »; a file
+that cannot be read is said in the text, never read as no schedule. A note that cannot be written is said, and stops
+neither the supervisor nor the closer.
 
 Each agent has a gesture log (#4037): each entry is `{at, line, reason, outcome}` — its time, one line (a line break
 becomes a space), its reason and its outcome. The outcomes are listed once, in `OUTCOME` of `gestes.ts`: `fixed by
