@@ -1,16 +1,15 @@
 // One record per agent of a project — manager, supervisor, closer, pass, then each cook — in the shape of #4036
-// (spec 2026-11-23-autonomy-trust-control, C1 and C2), given by `facts` in `equipe` and set by `autonomy`.
+// (spec 2026-11-23-autonomy-trust-control, C1 and C2), given by `facts` in `equipe`.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
-import { principal as autonomy } from "../../../src/autonomie/agents/commande.ts";
-import type { Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
+import { magasinDeNiveaux, type Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import type { Ajout } from "../../../src/evenements.ts";
 import { lireLesFaits } from "../../../src/faits.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
-import { appeler, repertoireTemporaire } from "../../outils.ts";
+import { repertoireTemporaire } from "../../outils.ts";
 
 const PROJET = "shop";
 const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
@@ -56,25 +55,17 @@ function etat(t: TestContext) {
   return { repertoire, env: { BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: PROJET } };
 }
 
-test("`facts` gives the records in `equipe`, each with the chef's default level on a fresh project, then the one `autonomy` set", async (t) => {
+test("`facts` gives the records in `equipe`, each with the chef's default level on a fresh project, then the one the store set", (t) => {
   const { repertoire, env } = etat(t);
   const niveaux = () => (lireLesFaits(env, MAINTENANT).equipe as FicheDAgent[]).map(({ agent, autonomy, exceptions }) => [agent, autonomy, exceptions]);
   assert.deepEqual(niveaux(), [["manager", "act", { "split-epic": "propose" }], ["supervisor", "act", {}], ["closer", "propose", {}], ["pass", "act", {}]]);
 
-  const posee = appeler(autonomy, ["closer", "act"], env);
-  assert.equal(await posee.fin, 0, posee.sortie());
-  assert.match(posee.sortie(), /closer is now on act/);
-  const decoupe = appeler(autonomy, ["manager", "split-epic", "act"], env);
-  assert.equal(await decoupe.fin, 0, decoupe.sortie());
+  magasinDeNiveaux(repertoire).poser(PROJET, "closer", "act");
+  magasinDeNiveaux(repertoire).poser(PROJET, "manager split-epic", "act");
   assert.deepEqual(niveaux(), [["manager", "act", { "split-epic": "act" }], ["supervisor", "act", {}], ["closer", "act", {}], ["pass", "act", {}]]);
-
-  const montree = appeler(autonomy, [], env);
-  assert.equal(await montree.fin, 0, montree.sortie());
-  assert.deepEqual(montree.sortie().trim().split("\n").map((ligne) => ligne.split(/\s{2,}/)), [["manager", "act"], ["manager split-epic", "act"], ["supervisor", "act"], ["closer", "act"], ["pass", "act"], ["cook", "act"]]);
-  assert.ok(readFileSync(join(repertoire, FICHIER_DES_NIVEAUX), "utf8").includes(PROJET));
 });
 
-test("an unreadable levels file is said in `equipe` and by `autonomy`, and the rest of `facts` is still given", async (t) => {
+test("an unreadable levels file is said in `equipe`, and the rest of `facts` is still given", (t) => {
   const { repertoire, env } = etat(t);
   writeFileSync(join(repertoire, FICHIER_DES_NIVEAUX), "{not json");
   const lus = lireLesFaits(env, MAINTENANT);
@@ -82,20 +73,5 @@ test("an unreadable levels file is said in `equipe` and by `autonomy`, and the r
   assert.ok(Array.isArray(lus.rolesCuisine));
   // Its line in `facts` changed with `equipe`: what it gives only when it is there is still left out.
   assert.equal("githubSeul" in lus || "github" in lus, false);
-  for (const args of [[], ["pass", "observe"]]) {
-    const lancee = appeler(autonomy, args, env);
-    assert.equal(await lancee.fin, 1, args.join(" "));
-  }
   assert.equal(readFileSync(join(repertoire, FICHIER_DES_NIVEAUX), "utf8"), "{not json");
-});
-
-test("`autonomy` refuses an agent, a level or a gesture it does not know, and writes nothing", async (t) => {
-  const { env } = etat(t);
-  for (const args of [["chef", "act"], ["pass", "maybe"], ["closer"], ["manager", "split", "act"], ["closer", "split-epic", "act"], ["closer", "act", "now"]]) {
-    const lancee = appeler(autonomy, args, env);
-    assert.equal(await lancee.fin, 2, args.join(" "));
-  }
-  assert.equal(await appeler(autonomy, [], { BRIGADE_STATE_DIR: env.BRIGADE_STATE_DIR }).fin, 2);
-  assert.equal(await appeler(autonomy, [], { BRIGADE_PROJECT: PROJET }).fin, 2);
-  assert.deepEqual((lireLesFaits(env, MAINTENANT).equipe as FicheDAgent[]).map(({ autonomy: niveau }) => niveau), ["act", "act", "propose", "act"]);
 });

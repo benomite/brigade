@@ -1,6 +1,6 @@
 // One record per agent of a project (spec 2026-11-23-autonomy-trust-control, C1 and C2, #4036): the manager, the
 // supervisor, the closer, the pass, then each cook — who it is, its state, its last gesture, its next run, its thread
-// and its autonomy level. `facts` gives them in `equipe`; `autonomy` shows them and sets a level.
+// and its autonomy level. `facts` gives them in `equipe`.
 //
 // Built from what is already read, never read again: what runs outside the tickets (agents-en-cours.ts), the cooks
 // of the stations, each role's last action (roles-cuisine/roles.ts), and the levels (niveaux.ts). The next run, the
@@ -25,7 +25,7 @@ type FicheDAgent = {
   gestures: GesteDAgent[];
 };
 
-export const AGENTS = ["manager", "supervisor", "closer", "pass"] as const;
+const AGENTS = ["manager", "supervisor", "closer", "pass"] as const;
 const FILS: Record<(typeof AGENTS)[number], string> = { manager: "Manager", supervisor: "Supervisor", closer: "Closer", pass: "Pass" };
 // The roles of roles-cuisine/roles.ts whose last action is the agent's: the reviewer and the second judge are the
 // pass. The supervisor writes none of them yet.

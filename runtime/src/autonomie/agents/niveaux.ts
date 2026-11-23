@@ -12,11 +12,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ecrireAtomique } from "../../relais.ts";
 
-export const NIVEAUX = ["observe", "propose", "act"] as const;
+const NIVEAUX = ["observe", "propose", "act"] as const;
 export type Niveau = (typeof NIVEAUX)[number];
 
 // What holds a level: each agent, and the manager's splitting of an epic. The cooks share one level.
-export const REGLABLES = ["manager", "manager split-epic", "supervisor", "closer", "pass", "cook"] as const;
+const REGLABLES = ["manager", "manager split-epic", "supervisor", "closer", "pass", "cook"] as const;
 export type Reglable = (typeof REGLABLES)[number];
 export type Niveaux = Record<Reglable, Niveau>;
 
@@ -35,8 +35,8 @@ const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
 
 export class NiveauxIllisibles extends Error {}
 
-export const estNiveau = (valeur: unknown): valeur is Niveau => (NIVEAUX as readonly unknown[]).includes(valeur);
-export const estReglable = (valeur: unknown): valeur is Reglable => (REGLABLES as readonly unknown[]).includes(valeur);
+const estNiveau = (valeur: unknown): valeur is Niveau => (NIVEAUX as readonly unknown[]).includes(valeur);
+const estReglable = (valeur: unknown): valeur is Reglable => (REGLABLES as readonly unknown[]).includes(valeur);
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 

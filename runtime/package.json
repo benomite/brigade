@@ -24,7 +24,6 @@
     "recap": "node src/recap-cli.ts",
     "contributor-stations": "node src/contributor-stations-cli.ts",
     "switch": "node src/interrupteur-cli.ts",
-    "autonomy": "node src/autonomie-cli.ts",
     "manager": "node src/manager-cli.ts",
     "waiting": "node src/attente-cli.ts",
     "design": "node src/design-cli.ts",
