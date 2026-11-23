@@ -92,7 +92,7 @@ test("un `claude` installé hors du PATH manque, et la vérification dit où il 
   assert.deepEqual(etat.missing, ["claude"]);
   const claude = manquant(etat.tools, "claude");
   assert.equal(claude.found, "C:\\Users\\chef\\.local\\bin\\claude.exe");
-  assert.equal(claude.install, "Add C:\\Users\\chef\\.local\\bin to your PATH, then restart the app.");
+  assert.equal(claude.install, "Add C:\\Users\\chef\\.local\\bin to your PATH, then try again.");
   assert.match(claude.reason, /is installed on this PC, in C:\\Users\\chef\\\.local\\bin, but that folder is not on the PATH/);
   unePhrase(claude.reason);
 });

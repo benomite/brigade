@@ -947,11 +947,15 @@ still show something, always:
   computer.
 - **Second** starts as the runtime plans it (#1433): the `claude` the PATH gives, and on Windows what
   launches it. When it cannot start, there is no terminal: its note says why in one sentence
-  (`The second cannot start: claude and git are missing on this PC.`), and under it each missing
-  tool by name, with `how to get <tool>`, which opens the page that explains it: the button carries
-  the gesture, no command is written out to copy. Why the second needs the tool, and the runtime's
-  sentence on how to get it, are in the `?` hover. `try again` checks the tools again and starts the
-  second when they are there. When it starts but a tool is missing (`gh`, `git`), the terminal is
+  (`The second cannot start: Claude Code and Git are missing on this PC.`), and under it each missing
+  tool by its product name (#4059) — Claude Code, the GitHub CLI, Git; the binary name (`claude`) is
+  in the `?` hover, with the runtime's reason —, one line on what it is for here (Claude Code: the
+  second and the cooks run on it, with the chef's Max account), the install step for this machine
+  written out, its command ready to copy, then for Claude Code the sign-in that follows, and
+  `how to get <product>`, which opens the page that explains it. `Try again` first reads the
+  app's tools again — which adds to the app's PATH a tool its installer put outside it — then
+  checks the tools again and starts the
+  second when they are there, with no restart of the app. When it starts but a tool is missing (`gh`, `git`), the terminal is
   there, and above it the sentence that says what will fail, then the tool and its button. Any other
   failure — the project's folder missing, a launch refused — is said in the note's one sentence,
   with `try again`.

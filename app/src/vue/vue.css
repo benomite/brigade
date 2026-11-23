@@ -3405,6 +3405,17 @@ main > header {
   font-size: var(--taille-intertitre);
   color: var(--texte);
 }
+/* À quoi il sert et son pas d'installation (ticket 4059), chacun sur sa ligne ; la commande se sélectionne d'un clic. */
+.outil-manquant > p:not(.gestes) {
+  flex-basis: 100%;
+  margin: 0;
+}
+.outil-manquant > .pas {
+  color: var(--texte-doux);
+}
+.outil-manquant > .pas code {
+  user-select: all;
+}
 .outils-du-second .gestes {
   padding: var(--pas-4) 0 0;
 }

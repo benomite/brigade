@@ -137,7 +137,8 @@ function besoin(outil: Outil, plateforme: NodeJS.Platform): string {
   return parOutil[outil];
 }
 
-const RELANCER = "then restart the app";
+// Sans relancer l'app : elle relit ses outils, et rattache à son PATH le dossier qu'un installeur a posé hors de lui (#4059).
+const RELANCER = "then try again";
 
 // Comment obtenir chacun, sur cette plateforme : une phrase, et la page qui l'explique. Sur un Mac et sous Windows,
 // le chemin que choisissent les outils requis (outils-requis/outils-requis.ts, #4059) — jamais un outil que la machine

@@ -1601,12 +1601,25 @@ function poserSecond(ouvrable, montre) {
           poserOutilsDuSecond(document, dit, {
             bloque: montre.empeche !== undefined,
             // Comme une touche dans un second arrêté : il est relancé, et ses outils revérifiés (terminaux.ts).
-            reessayer: () => brigade.ecrire(montre.id, ""),
+            reessayer: () => void reessayerLeSecond(montre.id),
             ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
           }),
         ]),
   );
   poserSousLeSecond(ouvrable && telephoneVu === undefined ? montre : undefined);
+}
+
+// « Try again » d'un second empêché : les outils relus d'abord (ticket 4059) — la lecture rattache au PATH de l'app un
+// outil que son installeur vient de poser hors de lui —, puis le second relancé, qui les revérifie : installé, il part
+// sans que l'app redémarre. Une lecture qui échoue ne retient rien : le plan du second dit lui-même ce qui manque.
+/** @param {number} id */
+async function reessayerLeSecond(id) {
+  try {
+    await brigade.outilsManquants?.();
+  } catch {
+    // Rien à dire ici : le second relancé dit ce qui lui manque.
+  }
+  brigade.ecrire(id, "");
 }
 
 // Sous le terminal du second, ses choix quand il demande de choisir (ticket 1520), ou le geste qu'il nomme (ticket

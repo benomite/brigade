@@ -41,7 +41,7 @@ import { resolve, win32 } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { lancementSousWindows, premiereLigne, spawn } from "../sans-invite.ts";
 import { argumentsDeMiseEnPlace } from "../second-init/demarrage.ts";
-import { choisirInstallation } from "../outils-requis/outils-requis.ts";
+import { choisirInstallation, NOMS } from "../outils-requis/outils-requis.ts";
 import { dansLePath, enListe, poste, programmesDe, variable, verifierLesOutils, type OptionsDesOutils, type Outil, type OutilVu } from "./outils.ts";
 
 export type LancementDuSecond = { command: string; args: string[]; verbatim: boolean; folder: string; env: Record<string, string> };
@@ -93,7 +93,6 @@ const fichier = (chemin: string) => {
   }
 };
 
-// Ce qu'il faut lancer pour le second dans ce dossier. Ne lève pas.
 // Le pas qui installe Git for Windows et son Git Bash, tel que les outils requis le choisissent (#4059) : winget
 // seulement s'il est sur ce PC, son installeur sinon.
 function gitPourWindows(env: Record<string, string | undefined>, existe: (chemin: string) => boolean): string {
@@ -102,6 +101,7 @@ function gitPourWindows(env: Record<string, string | undefined>, existe: (chemin
   return `${texte.charAt(0).toLowerCase()}${texte.slice(1)}`;
 }
 
+// Ce qu'il faut lancer pour le second dans ce dossier. Ne lève pas.
 export function planDuSecond(options: OptionsDuSecond): PlanDuSecond {
   const plateforme = options.plateforme ?? process.platform;
   const env = options.env ?? process.env;
@@ -110,7 +110,8 @@ export function planDuSecond(options: OptionsDuSecond): PlanDuSecond {
   const manquants = outils.state === "ready" ? [] : outils.missing;
   const bloquants = manquants.filter((outil) => indispensables(plateforme).includes(outil));
   if (bloquants.length > 0) {
-    const noms = enListe(bloquants.map((outil) => `\`${outil}\``));
+    // Le produit nommé, pas son binaire (#4059) : le binaire est au détail de chaque outil.
+    const noms = enListe(bloquants.map((outil) => NOMS[outil]));
     return { state: "cannot-start", cause: "tools-missing", reason: `The second cannot start: ${noms} ${bloquants.length === 1 ? "is" : "are"} missing on ${ici}.`, tools: outils.tools };
   }
 
@@ -160,7 +161,7 @@ export function planDuSecond(options: OptionsDuSecond): PlanDuSecond {
 
   const autres = manquants.filter((outil) => !bloquants.includes(outil));
   if (autres.length === 0) return { state: "ready", launch, missing: [], tools: outils.tools };
-  const noms = enListe(autres.map((outil) => `\`${outil}\``));
+  const noms = enListe(autres.map((outil) => NOMS[outil]));
   return {
     state: "ready",
     launch,

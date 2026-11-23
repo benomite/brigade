@@ -69,7 +69,7 @@ test("sous Windows, le `claude.exe` de l'installateur part tel quel, et un CLAUD
 test("sous Windows sans `git`, le second ne part pas : Claude Code y exige le Git Bash, et la phrase dit comment l'obtenir", (t) => {
   const plan = refuse(planDuSecond({ ...SOUS_WINDOWS, existe: fichiers(`${NPM}\\claude.cmd`, GH), folder: repertoireTemporaire(t) }));
   assert.equal(plan.cause, "tools-missing");
-  assert.equal(plan.reason, "The second cannot start: `git` is missing on this PC.");
+  assert.equal(plan.reason, "The second cannot start: Git is missing on this PC.");
   const git = plan.tools?.find(({ tool }) => tool === "git");
   assert.ok(git !== undefined && !git.present);
   // Sans winget sur ce PC, son installeur (outils-requis, #4059).
@@ -92,7 +92,7 @@ test("sous Windows, un `git` sans son Git Bash, ou un CLAUDE_CODE_GIT_BASH_PATH 
 test("sans `claude`, le second ne part pas, et la phrase le nomme", (t) => {
   const plan = refuse(planDuSecond({ plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/gh", "/usr/bin/git"), folder: repertoireTemporaire(t) }));
   assert.equal(plan.cause, "tools-missing");
-  assert.equal(plan.reason, "The second cannot start: `claude` is missing on this computer.");
+  assert.equal(plan.reason, "The second cannot start: Claude Code is missing on this computer.");
   const claude = plan.tools?.find(({ tool }) => tool === "claude");
   assert.ok(claude !== undefined && !claude.present);
   assert.match(claude.install, /install\.sh/);
@@ -101,7 +101,7 @@ test("sans `claude`, le second ne part pas, et la phrase le nomme", (t) => {
 test("sans `gh`, le second part quand même — et dit ce qui échouera tant qu'il manque", (t) => {
   const plan = pret(planDuSecond({ plateforme: "darwin", env: { PATH: "/usr/bin" }, maison: "/Users/chef", existe: fichiers("/usr/bin/claude", "/usr/bin/git"), folder: repertoireTemporaire(t) }));
   assert.deepEqual(plan.missing, ["gh"]);
-  assert.equal(plan.reason, "The second starts, but `gh` is missing on this Mac, and what needs it will fail until it is installed.");
+  assert.equal(plan.reason, "The second starts, but the GitHub CLI is missing on this Mac, and what needs it will fail until it is installed.");
   assert.deepEqual(
     plan.tools.filter((vu) => !vu.present).map((vu) => vu.tool),
     ["gh"],
