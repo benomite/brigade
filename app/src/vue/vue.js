@@ -183,6 +183,7 @@ import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserBlocTempsDeLaPasse } from "./projet/bandeau-sante/TempsDeLaPasse.js";
+import { poserBlocPostMortems } from "./projet/bandeau-sante/PostMortems.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
 import { casesDesVersions, caseDIci, poserVersionsDesStations, statutLu } from "./station-version/station-version.js";
@@ -7008,6 +7009,12 @@ function autonomieDuProjet(projet) {
   return tenue;
 }
 // `garder` : une relecture ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
+// Les post-mortems de panne du projet (ticket 4023), d'après les derniers faits de sa box — rien de lu tant qu'elle ne les donne pas.
+/** @param {Projet} projet */
+function postMortemsDe(projet) {
+  const tenu = /** @type {{ tableau?: { postMortems?: import("../projets/post-mortems.ts").VueDesPostMortems } } | undefined} */ (tenus.get(projet.nom));
+  return muets.has(projet.nom) ? undefined : tenu?.tableau?.postMortems;
+}
 /** @param {Projet} projet @param {boolean} [garder] */
 function poserLeBandeauDeSante(projet, garder = true) {
   const tape = /** @type {HTMLElement | null} */ (document.activeElement);
@@ -7032,6 +7039,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
     poserLeCloserDeSante(projet),
     poserBlocTempsDeLaPasse(document, vu?.temps),
     autonomieDuProjet(projet).poser(),
+    poserBlocPostMortems(document, postMortemsDe(projet)),
     deTousLesProjets,
   );
   if (Date.now() - (plafondsLusLe.get(projet.nom) ?? 0) > 60_000) void lireLesPlafondsDuree(projet);
