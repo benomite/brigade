@@ -82,6 +82,8 @@ describe("the schedules noted in the state directory", () => {
     assert.throws(() => horaireDe(repertoire, "closer"), /holds no \{at\}/);
     writeFileSync(join(repertoire, "autonomy-next-run-closer.json"), "[]");
     assert.throws(() => horaireDe(repertoire, "closer"), /holds no \{at\}/);
+    writeFileSync(join(repertoire, "autonomy-next-run-closer.json"), "null");
+    assert.throws(() => horaireDe(repertoire, "closer"), /holds no \{at\}/);
   });
 });
 
