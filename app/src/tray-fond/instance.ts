@@ -21,9 +21,9 @@ export function lireLaCommande(pid: number, plateforme: NodeJS.Platform = proces
   const options: ExecFileSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] };
   try {
     const lue =
-      plateforme !== "win32"
-        ? lancer("ps", ["-ww", "-o", "command=", "-p", String(pid)], { ...options, timeout: 5_000 })
-        : lancer("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`], { ...options, timeout: 10_000, windowsHide: true });
+      plateforme === "win32"
+        ? lancer("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine`], { ...options, timeout: 10_000, windowsHide: true })
+        : lancer("ps", ["-ww", "-o", "command=", "-p", String(pid)], { ...options, timeout: 5_000 });
     return lue.trim() === "" ? undefined : lue.trim();
   } catch {
     return undefined;
@@ -33,20 +33,17 @@ export function lireLaCommande(pid: number, plateforme: NodeJS.Platform = proces
 // Le pid laissé par un process qui s'est arrêté est rendu par le système à un autre — l'icône de fond, l'hôte de la station,
 // n'importe quel process (#4071). Ne tient la place que celui qui est lancé comme ce process-ci : le même binaire, les mêmes
 // arguments — l'ancien `-psn_…` que le Mac ajoutait parfois, et les guillemets qu'un raccourci Windows met autour du binaire,
-// mis à part. Une commande qui ne se lit pas ne prouve rien.
+// mis à part. Une commande qui ne se lit pas ne prouve rien : `undefined`.
 const sansPsn = (commande: string) => commande.replace(/\s+-psn_\S+/g, "").replaceAll('"', "").trim();
-export function memeProcess(pid: number, soi: number, lire: (pid: number) => string | undefined): boolean {
+function lanceCommeSoi(pid: number, soi: number, lire: (pid: number) => string | undefined): boolean | undefined {
   const autre = lire(pid);
   const nous = lire(soi);
-  return autre !== undefined && nous !== undefined && sansPsn(autre) === sansPsn(nous);
+  if (autre === undefined || nous === undefined) return undefined;
+  return sansPsn(autre) === sansPsn(nous);
 }
-
+export const memeProcess = (pid: number, soi: number, lire: (pid: number) => string | undefined): boolean => lanceCommeSoi(pid, soi, lire) === true;
 // Le contraire prudent : un process qu'on sait lancé autrement que celui-ci. Une commande qui ne se lit pas n'en dit rien.
-function autreProcess(pid: number, soi: number = process.pid, lire: (pid: number) => string | undefined = lireLaCommande): boolean {
-  const autre = lire(pid);
-  const nous = lire(soi);
-  return autre !== undefined && nous !== undefined && sansPsn(autre) !== sansPsn(nous);
-}
+const autreProcess = (pid: number, soi: number): boolean => lanceCommeSoi(pid, soi, lireLaCommande) === false;
 
 // Le pid d'un autre process qui tient déjà la place ; `undefined` si elle est libre — fichier absent, illisible, d'un
 // process mort, ou d'un process que `estTenant` ne reconnaît pas — par défaut, un process qu'on sait lancé autrement que
@@ -59,7 +56,8 @@ export function tenuePar(fichier: string, soi: number = process.pid, estTenant: 
   } catch {
     pid = 0;
   }
-  return Number.isInteger(pid) && pid > 0 && pid !== soi && vivant(pid) && estTenant(pid) ? pid : undefined;
+  if (!Number.isInteger(pid) || pid <= 0 || pid === soi || !vivant(pid)) return undefined;
+  return estTenant(pid) ? pid : undefined;
 }
 
 // Prend la place si elle est libre ; rend le pid de celui qui la tient sinon.

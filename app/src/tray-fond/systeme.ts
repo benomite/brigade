@@ -34,7 +34,8 @@ export function ecrireLaVersionDuFond(dossier: string, version: string): void {
 // est celui de l'app) ? Rien de lisible compte comme une autre : une icône d'avant #4071 n'en écrit pas.
 export function fondPerime(dossierDeLApp: string, version: string): boolean {
   try {
-    return readFileSync(join(dossierDeLApp, DOSSIER_DU_FOND, VERSION_DU_FOND), "utf8").trim() !== version;
+    const ecrite = readFileSync(join(dossierDeLApp, DOSSIER_DU_FOND, VERSION_DU_FOND), "utf8").trim();
+    return !(ecrite === version);
   } catch {
     return true;
   }
