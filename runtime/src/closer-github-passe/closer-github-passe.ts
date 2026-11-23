@@ -29,6 +29,11 @@
 // or completes the open one. The closing issue's body says what was found and done, or that
 // the times are stable.
 //
+// Opening the pass is the closer's gesture: it goes through the gate of its
+// autonomy level (`autonomie/agents/porte.ts`, #4039). On `propose`, its
+// default, the pass is held until the chef approves it; on `observe`, it is
+// only logged as not done.
+//
 // What the old closer kept in the log has no GitHub-only counterpart yet, and
 // is not carried: the memory of what a pass left (a candidate left may be
 // proposed again), its run condition on the cooks in flight, and a drift
@@ -44,6 +49,9 @@ import { lireDepot, type Depot } from "../closing/reading.ts";
 import type { Depot as DepotDeStation } from "../depot.ts";
 import type { ReglagesDeFermeture } from "../events/closing.ts";
 import type { Seuils } from "../events/drift.ts";
+import { OUTCOME } from "../autonomie/agents/gestes.ts";
+import type { PorteDesGestes } from "../autonomie/agents/porte.ts";
+import { geste } from "../geste.ts";
 import { LABEL, type IssueOuverte } from "../github.ts";
 import type { Runtime } from "../runtime.ts";
 import { direJaugeEn } from "../mesures.ts";
@@ -98,6 +106,8 @@ export type OptionsCloserGithub = {
   // Absent, or `null`, nothing is read.
   statut?: () => StatutDeCloture | null | Promise<StatutDeCloture | null>;
   derive?: { seuils: () => Seuils; couts: CoutsDesCooks; noter: (derive: DeriveGithub) => void };
+  // The gate of the closer's gesture: the runtime's (`porteDuRuntime`). Absent, the pass opens with no gate and no log.
+  porte?: PorteDesGestes | null;
 };
 
 // The shortest gap between two passes, ten ticks: a pass is due at most once
@@ -224,6 +234,7 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
   const maintenant = options.maintenant ?? (() => new Date());
   const ecartMs = options.ecartMs ?? ECART_MS;
   const { github, clone, base } = options;
+  const porte = options.porte ?? null;
   let arrete = false;
   let occupe = false;
   let derniereFois = Number.NEGATIVE_INFINITY;
@@ -310,6 +321,21 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
       avertir(`brigade : closing pass not opened — the observation spots neither duplicate nor dead code on \`${base}\` (${observation.sha.slice(0, 7)})`);
       return;
     }
+    const pourOuvrir = { derniere, observation, due, proposes, ecartes, zone, calibration, removedLines };
+    if (porte === null) {
+      await ouvrir(pourOuvrir);
+      return;
+    }
+    const enCandidats = `${proposes.length} candidate${proposes.length > 1 ? "s" : ""}`;
+    const dit = { line: `open a closing pass on \`${base}\``, reason: `${due.merges} merges since the last one, ${enCandidats}`, outcome: OUTCOME.FIXED_BY_SELF };
+    const passage = await porte.passer({ agent: "closer", reglable: "closer" }, dit, () => ouvrir(pourOuvrir), (creee) => (creee === undefined ? null : { ...dit, line: `opened the closing pass #${creee} on \`${base}\`` }));
+    if (passage.etat === "held") avertir(`brigade : closing pass held for the chef's OK — \`${geste(`manager approve ${passage.id}`)}\` opens it (${dit.reason})`);
+    if (passage.etat === "observed") avertir(`brigade : closing pass not opened — the closer observes: it would ${dit.line} (${dit.reason})`);
+  };
+
+  // Opens the closing issue the pass decided — at once, or once the chef approved it. Its number, or nothing when
+  // another station opened one first.
+  const ouvrir = async ({ derniere, observation, due, proposes, ecartes, zone, calibration, removedLines }: { derniere: Passe | null; observation: Pick<Depot, "sha" | "merges">; due: { merges: number }; proposes: Candidat[]; ecartes: unknown[]; zone: string[]; calibration: { model: string; effort: string }; removedLines: number }): Promise<number | undefined> => {
     // Read again before writing: another station may have opened it meanwhile.
     if (((await passes()).at(-1)?.number ?? null) !== (derniere?.number ?? null) || arrete) return;
     const temps = options.temps === undefined ? undefined : await lesTemps(options.temps, derniere);
@@ -323,6 +349,7 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
       return;
     }
     avertir(`brigade : closing pass opened on GitHub — #${creee}, ${due.merges} merges since the last one, ${proposes.length} candidate${proposes.length > 1 ? "s" : ""}`);
+    return creee;
   };
 
   const desabonner = runtime.surReveil((cause) => {

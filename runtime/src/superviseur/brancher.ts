@@ -21,6 +21,7 @@ import type { GitHub } from "../github.ts";
 import type { Dossier } from "./dossier.ts";
 import type { Decision } from "./gestes.ts";
 import { superviseur } from "./superviseur.ts";
+import { porteDuRuntime } from "../autonomie/agents/porte.ts";
 import type { SuiviDuTour } from "./tour.ts";
 import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
 
@@ -108,6 +109,8 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       return decisionDe(await consulter(consigne(depot, dossier, tour?.sauts() ?? [])));
     },
     maintenant,
+    // La porte de ses gestes (#4039) : celle du runtime, qui fait à chaque tick ceux que le chef approuve.
+    porte: porteDuRuntime({ projet: runtime.projet, repertoireEtat, surReveil: (ecouter) => runtime.surReveil(ecouter) }),
   });
   const suivreLaBase = suivreLaBaseRouge((panne) => {
     if (repertoireEtat === undefined) return;
