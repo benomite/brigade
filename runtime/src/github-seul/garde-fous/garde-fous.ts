@@ -27,7 +27,7 @@ import type { Lancer } from "../../brigade-github.ts";
 import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
-import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
+import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Consommateur, type Machine, type Saturation, type Seuils } from "../../machine.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
@@ -71,7 +71,7 @@ export type OptionsDesGardes = {
   arbitre: Arbitrage | null;
   // La machine sous la station et ses seuils (`configMachine`). Absente : rien
   // ne se retient sur elle.
-  machine?: { lire: () => Machine; seuils: Seuils };
+  machine?: { lire: () => Machine; seuils: Seuils; consommateur?: Consommateur };
   maintenant?: () => Date;
   avertir?: (message: string) => void;
   // L'environnement de la station, où se lit son moteur de repli (#3745).
@@ -191,13 +191,17 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
-      const [premier, ...autres] = manques;
+      const nommes = manques.map((manque) => {
+        const gros = manque.resource === "memory" ? null : (options.machine?.consommateur?.(manque.resource) ?? null);
+        return gros === null ? manque : { ...manque, biggest: gros };
+      });
+      const [premier, ...autres] = nommes;
       if (premier === undefined) {
         noter({ type: "station.relieved", payload: { station } });
         avertir(`brigade : the machine under GitHub-only station ${station} has room again`);
       } else {
         noter({ type: "station.saturated", payload: { station, ...premier, ...(autres.length > 0 ? { also: autres } : {}) } });
-        const dit = direSaturationsEn(manques);
+        const dit = direSaturationsEn(nommes);
         avertir(`brigade : the machine under GitHub-only station ${station} runs short of ${dit.ressources} — ${dit.detail}`);
       }
       saturees = ressources;

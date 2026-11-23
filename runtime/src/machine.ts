@@ -2,6 +2,7 @@
 // de disque, et les seuils en deçà desquels la station cesse de prendre des
 // tickets. C'est le vrai plafond du parallélisme : celui des cooks peut être
 // très haut, ou absent.
+import { execFileSync } from "node:child_process";
 import { statfsSync } from "node:fs";
 import { availableParallelism, loadavg, totalmem } from "node:os";
 import type { Manque, OrigineDuSeuil, Ressource } from "./events/station.ts";
@@ -106,6 +107,53 @@ export function lireMachine(repertoire: string): Machine {
   };
 }
 
+// Le plus gros consommateur d'une ressource, nommé : pour le disque, le plus
+// gros répertoire sous `repertoire` (la taille en Mo) ; pour le processeur, le
+// processus qui en prend le plus. Null quand rien ne peut être nommé — mesure
+// qui échoue, ressource qui n'a pas de consommateur (la mémoire).
+export type Consommateur = (resource: Ressource) => string | null;
+
+export const PLUS_GROS_REPERTOIRE_MS = 20_000;
+
+// Dernière ligne de `du -k -d 1` mise de côté : c'est le total du répertoire.
+export function plusGrosRepertoire(sortieDu: string, racine: string): string | null {
+  let gros: { chemin: string; ko: number } | null = null;
+  for (const ligne of sortieDu.split("\n")) {
+    const trouve = /^(\d+)\s+(.+)$/.exec(ligne);
+    if (trouve === null) continue;
+    const chemin = trouve[2] as string;
+    const ko = Number(trouve[1]);
+    if (chemin.replace(/\/+$/, "") === racine.replace(/\/+$/, "")) continue;
+    if (gros === null || ko > gros.ko) gros = { chemin, ko };
+  }
+  return gros === null ? null : `${gros.chemin.replace(/^.*\//, "")}/ (${Math.round(gros.ko / 1024)} MB)`;
+}
+
+// Le processus qui prend le plus de processeur : `ps` le trie, la première ligne le nomme.
+export function plusGrosProcessus(sortiePs: string): string | null {
+  for (const ligne of sortiePs.split("\n")) {
+    const trouve = /^\s*(\d+)\s+(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/.exec(ligne);
+    if (trouve !== null) return `${trouve[3]} (pid ${trouve[1]}, ${trouve[2]}% CPU)`;
+  }
+  return null;
+}
+
+export function lireConsommateur(repertoire: string): Consommateur {
+  return (resource) => {
+    try {
+      if (resource === "disk") {
+        return plusGrosRepertoire(execFileSync("du", ["-k", "-d", "1", repertoire], { encoding: "utf8", timeout: PLUS_GROS_REPERTOIRE_MS, stdio: ["ignore", "pipe", "ignore"] }), repertoire);
+      }
+      if (resource === "cpu") {
+        return plusGrosProcessus(execFileSync("ps", ["-eo", "pid=,pcpu=,comm=", "--sort=-pcpu"], { encoding: "utf8", timeout: PLUS_GROS_REPERTOIRE_MS, stdio: ["ignore", "pipe", "ignore"] }));
+      }
+    } catch {
+      // Une mesure qui échoue ne retient rien : la saturation se dit sans consommateur.
+    }
+    return null;
+  };
+}
+
 // Tout ce dont la machine manque, dans l'ordre — processeur, mémoire, disque —,
 // ou rien si elle tient. `tenues` : les ressources pour lesquelles la station
 // se retient déjà — chacune ne se lève qu'avec de la marge.
@@ -144,14 +192,15 @@ const origineFr = (origine: OrigineDuSeuil | undefined) =>
   origine === undefined || origine === "env" ? "" : ` (par défaut : ${nombre(PART_MEMOIRE * 100)} % des ${nombre(origine.totalMb)} Mo de la machine)`;
 
 // La même, en anglais : ce que dit `status`.
-export function direSaturationEn({ resource, observed, limit, limitFrom }: Saturation): string {
+export function direSaturationEn({ resource, observed, limit, limitFrom, biggest }: Saturation): string {
+  const gros = biggest === undefined ? "" : ` — biggest consumer: ${biggest}`;
   switch (resource) {
     case "cpu":
-      return `load of ${nombreEn(observed)} for at most ${nombreEn(limit)}`;
+      return `load of ${nombreEn(observed)} for at most ${nombreEn(limit)}${gros}`;
     case "memory":
       return `${nombreEn(observed)} MB of memory available for at least ${nombreEn(limit)} MB${origineEn(limitFrom)}`;
     case "disk":
-      return `${nombreEn(observed)} MB of disk free for at least ${nombreEn(limit)} MB`;
+      return `${nombreEn(observed)} MB of disk free for at least ${nombreEn(limit)} MB${gros}`;
   }
 }
 
@@ -168,14 +217,15 @@ export function direSaturationsEn(manques: readonly Saturation[]): { ressources:
 }
 
 // Une saturation telle que le chef la lit.
-export function direSaturation({ resource, observed, limit, limitFrom }: Saturation): string {
+export function direSaturation({ resource, observed, limit, limitFrom, biggest }: Saturation): string {
+  const gros = biggest === undefined ? "" : ` — plus gros consommateur : ${biggest}`;
   switch (resource) {
     case "cpu":
-      return `charge de ${nombre(observed)} pour ${nombre(limit)} au plus`;
+      return `charge de ${nombre(observed)} pour ${nombre(limit)} au plus${gros}`;
     case "memory":
       return `${nombre(observed)} Mo de mémoire disponible pour ${nombre(limit)} au moins${origineFr(limitFrom)}`;
     case "disk":
-      return `${nombre(observed)} Mo de disque libre pour ${nombre(limit)} au moins`;
+      return `${nombre(observed)} Mo de disque libre pour ${nombre(limit)} au moins${gros}`;
   }
 }
 

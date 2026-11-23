@@ -2,7 +2,7 @@
 // tient pour saturée. Aucun test ne dépend de la charge réelle du poste.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { configMachine, direSaturation, direSaturationsEn, lireMachine, memoireMinParDefaut, reserver, saturation, saturations, seuilMemoire, type Machine, type Seuils } from "../src/machine.ts";
+import { configMachine, direSaturation, direSaturationEn, lireConsommateur, plusGrosProcessus, plusGrosRepertoire, direSaturationsEn, lireMachine, memoireMinParDefaut, reserver, saturation, saturations, seuilMemoire, type Machine, type Seuils } from "../src/machine.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -118,4 +118,22 @@ test("la machine se lit : des cœurs, une charge, de la mémoire et du disque", 
   assert.equal(machine.memoireDisponible > 0, true);
   assert.equal(machine.memoireTotale >= machine.memoireDisponible, true);
   assert.equal(machine.disqueLibre > 0, true);
+});
+
+test("the biggest directory is named from `du`, without the root itself (#4090)", () => {
+  const sortie = "100\t/s/brigade\n5000000\t/s/espace\n7\t/s/tmp\n5100107\t/s\n";
+  assert.equal(plusGrosRepertoire(sortie, "/s"), "espace/ (4883 MB)");
+  assert.equal(plusGrosRepertoire("12\t/s\n", "/s"), null);
+  assert.equal(plusGrosRepertoire("", "/s"), null);
+});
+
+test("the biggest process is the first line `ps` sorts (#4090)", () => {
+  assert.equal(plusGrosProcessus("  42 380.5 node\n   1  0.1 systemd\n"), "node (pid 42, 380.5% CPU)");
+  assert.equal(plusGrosProcessus(""), null);
+});
+
+test("a saturation says its biggest consumer only when it has one (#4090)", () => {
+  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10 }), "5 MB of disk free for at least 10 MB");
+  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10, biggest: "espace/ (3 MB)" }), "5 MB of disk free for at least 10 MB — biggest consumer: espace/ (3 MB)");
+  assert.equal(lireConsommateur("/nulle/part")("memory"), null);
 });

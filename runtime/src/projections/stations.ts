@@ -113,11 +113,11 @@ const RESSOURCES: unknown[] = ["cpu", "memory", "disk"] satisfies Ressource[];
 // minimum comes from is kept only when it reads.
 function manque(valeur: unknown): Manque | null {
   if (typeof valeur !== "object" || valeur === null) return null;
-  const { resource, observed, limit, limitFrom } = valeur as Record<string, unknown>;
+  const { resource, observed, limit, limitFrom, biggest } = valeur as Record<string, unknown>;
   if (!RESSOURCES.includes(resource) || !Number.isFinite(observed) || !Number.isFinite(limit)) return null;
   const total = typeof limitFrom === "object" && limitFrom !== null ? (limitFrom as Record<string, unknown>).totalMb : undefined;
   const origine = limitFrom === "env" ? { limitFrom: "env" as const } : Number.isFinite(total) ? { limitFrom: { totalMb: Number(total) } } : {};
-  return { resource: resource as Ressource, observed: Number(observed), limit: Number(limit), ...origine };
+  return { resource: resource as Ressource, observed: Number(observed), limit: Number(limit), ...origine, ...(typeof biggest === "string" && biggest !== "" ? { biggest } : {}) };
 }
 
 // Each hold as the chef reads it.
