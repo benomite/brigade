@@ -113,10 +113,10 @@ export function lireMachine(repertoire: string): Machine {
 // qui échoue, ressource qui n'a pas de consommateur (la mémoire).
 export type Consommateur = (resource: Ressource) => string | null;
 
-export const PLUS_GROS_REPERTOIRE_MS = 20_000;
+const PLUS_GROS_REPERTOIRE_MS = 20_000;
 
 // Dernière ligne de `du -k -d 1` mise de côté : c'est le total du répertoire.
-export function plusGrosRepertoire(sortieDu: string, racine: string): string | null {
+function plusGrosRepertoire(sortieDu: string, racine: string): string | null {
   let gros: { chemin: string; ko: number } | null = null;
   for (const ligne of sortieDu.split("\n")) {
     const trouve = /^(\d+)\s+(.+)$/.exec(ligne);
@@ -130,7 +130,7 @@ export function plusGrosRepertoire(sortieDu: string, racine: string): string | n
 }
 
 // Le processus qui prend le plus de processeur : `ps` le trie, la première ligne le nomme.
-export function plusGrosProcessus(sortiePs: string): string | null {
+function plusGrosProcessus(sortiePs: string): string | null {
   for (const ligne of sortiePs.split("\n")) {
     const trouve = /^\s*(\d+)\s+(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/.exec(ligne);
     if (trouve !== null) return `${trouve[3]} (pid ${trouve[1]}, ${trouve[2]}% CPU)`;
@@ -138,15 +138,21 @@ export function plusGrosProcessus(sortiePs: string): string | null {
   return null;
 }
 
-export function lireConsommateur(repertoire: string): Consommateur {
+// Les deux mesures, injectables : les tests rendent la sortie de `du` et de `ps` sans les lancer.
+type Mesures = { du: (repertoire: string) => string; ps: () => string };
+
+const OPTIONS_MESURE: { encoding: "utf8"; timeout: number; stdio: ("ignore" | "pipe")[] } = { encoding: "utf8", timeout: PLUS_GROS_REPERTOIRE_MS, stdio: ["ignore", "pipe", "ignore"] };
+
+const MESURES: Mesures = {
+  du: (repertoire) => execFileSync("du", ["-k", "-d", "1", repertoire], OPTIONS_MESURE),
+  ps: () => execFileSync("ps", ["-eo", "pid=,pcpu=,comm=", "--sort=-pcpu"], OPTIONS_MESURE),
+};
+
+export function lireConsommateur(repertoire: string, mesures: Mesures = MESURES): Consommateur {
   return (resource) => {
     try {
-      if (resource === "disk") {
-        return plusGrosRepertoire(execFileSync("du", ["-k", "-d", "1", repertoire], { encoding: "utf8", timeout: PLUS_GROS_REPERTOIRE_MS, stdio: ["ignore", "pipe", "ignore"] }), repertoire);
-      }
-      if (resource === "cpu") {
-        return plusGrosProcessus(execFileSync("ps", ["-eo", "pid=,pcpu=,comm=", "--sort=-pcpu"], { encoding: "utf8", timeout: PLUS_GROS_REPERTOIRE_MS, stdio: ["ignore", "pipe", "ignore"] }));
-      }
+      if (resource === "disk") return plusGrosRepertoire(mesures.du(repertoire), repertoire);
+      if (resource === "cpu") return plusGrosProcessus(mesures.ps());
     } catch {
       // Une mesure qui échoue ne retient rien : la saturation se dit sans consommateur.
     }
