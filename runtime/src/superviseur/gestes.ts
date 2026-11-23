@@ -28,6 +28,7 @@ import { A_LA_MAIN } from "../brigade-github.ts";
 import { gesteGit, LABELS_DE_REPARATION } from "../garde-todo/geste-git.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
 import { CHEF_TODO, carteQuestionProduit, poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
+import type { Check } from "../events/pass.ts";
 import { jobDuCheck, LABEL, MIS_DE_COTE, type GitHub } from "../github.ts";
 import { GesteRefuse } from "../rail.ts";
 import { causeDuCheck, LABELS_REPARATION, marqueDeCause } from "../reparation.ts";
@@ -128,7 +129,7 @@ function lireGeste(brut: unknown): Geste | { refus: string } {
 }
 
 // L'issue ouverte du ticket, ou le refus.
-async function issueOuverte(github: GitHubDesGestes, ticket: number) {
+async function issueOuverte(github: Pick<GitHubDesGestes, "issue">, ticket: number) {
   const issue = await github.issue(ticket);
   if (issue === null || issue.pr === true) throw new Refus(`#${ticket} is not an issue of the repository`);
   if (issue.state !== "open") throw new Refus(`#${ticket} is closed`);
@@ -140,16 +141,26 @@ async function rougesDeLaBase({ github, branche }: ContexteDesGestes) {
   return (await github.ci(await github.teteDeLaBase(branche))).filter(({ outcome }) => outcome === "red");
 }
 
-async function relancer(ctx: ContexteDesGestes, ticket: number | null): Promise<Effet> {
-  const rouges = await rougesDeLaBase(ctx);
-  const runs = [...new Set(rouges.flatMap((check) => jobDuCheck(check)?.run ?? []))];
-  if (rouges.length === 0) throw new Refus(`${ctx.branche} has no red check on its head: there is nothing to rerun`);
-  if (runs.length === 0) throw new Refus(`the red checks of ${ctx.branche} (${rouges.map(({ name }) => name).join(", ")}) are not GitHub Actions jobs: none can be rerun`);
-  for (const run of runs) await ctx.github.relancerLesEchecs(run);
-  return { ticket, fait: `reran the failed jobs of ${ctx.branche} (${rouges.map(({ name }) => name).join(", ")}; run ${runs.join(", ")})` };
+// Le geste `rerun` même : relance les jobs en échec des checks rouges de la
+// base, et dit ce qu'il a relancé ; nul quand aucun n'est un job de GitHub
+// Actions. L'invariant 4 du rail le joue aussi (invariants/base-rouge.ts, #4026).
+export async function relancerLesRouges(github: Pick<GitHub, "relancerLesEchecs">, branche: string, rouges: readonly { name?: string; url?: string | null }[]): Promise<string | null> {
+  const runs = [...new Set(rouges.flatMap((check) => jobDuCheck({ url: check.url ?? null } as Check)?.run ?? []))];
+  if (runs.length === 0) return null;
+  for (const run of runs) await github.relancerLesEchecs(run);
+  return `reran the failed jobs of ${branche} (${rouges.map(({ name }) => name).join(", ")}; run ${runs.join(", ")})`;
 }
 
-async function remettreSurLeRail({ github }: ContexteDesGestes, ticket: number, note: string): Promise<Effet> {
+async function relancer(ctx: ContexteDesGestes, ticket: number | null): Promise<Effet> {
+  const rouges = await rougesDeLaBase(ctx);
+  if (rouges.length === 0) throw new Refus(`${ctx.branche} has no red check on its head: there is nothing to rerun`);
+  const fait = await relancerLesRouges(ctx.github, ctx.branche, rouges);
+  if (fait === null) throw new Refus(`the red checks of ${ctx.branche} (${rouges.map(({ name }) => name).join(", ")}) are not GitHub Actions jobs: none can be rerun`);
+  return { ticket, fait };
+}
+
+// Le geste `back-on-rail` ; l'invariant 3 du rail le joue aussi, sur un ticket mis de côté dont la date est passée (#4026).
+export async function remettreSurLeRail({ github }: { github: Pick<GitHubDesGestes, "issue" | "labelliser" | "delabelliser"> }, ticket: number, note: string): Promise<Effet> {
   const issue = await issueOuverte(github, ticket);
   const tenu = [LABEL_TAKEN, LABEL_IN_PASS].find((label) => issue.labels.includes(label));
   if (tenu !== undefined) throw new Refus(`#${ticket} carries \`${tenu}\`: the kitchen holds it`);

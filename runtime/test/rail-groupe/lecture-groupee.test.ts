@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { ouvrirLimitesDuCompte } from "../../src/github-limite.ts";
 import { ouvrirGitHub, type Transport } from "../../src/github.ts";
@@ -24,12 +25,15 @@ const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 const TICKETS = 20;
 // Une poignée : le dépôt, ses issues, leurs commentaires, la base… jamais un par ticket.
 const POIGNEE = 6;
+// Un ticket en WAITING porte sa marque : ce qu'il attend, de qui, jusqu'à quand (invariant 3, #4026).
+const ATTENTE = corpsDeLAttente({ what: "the client's API key", who: "the client", followUp: "2099-01-01T00:00:00.000Z" });
 
 test("the rail of a project with 20 fire tickets, their labels and their latest comments is read in a handful of requests per turn", async (t) => {
   const faux = new FauxGitHub(DEPOT);
   for (let numero = 1; numero <= TICKETS; numero += 1) {
     // Des tickets que la cuisine ne prend pas : ils attendent, l'un est tenu par une autre station.
     faux.feu(numero, numero % 2 === 0 ? [...CALIBRE, "waiting"] : [...CALIBRE, "taken"]);
+    if (numero % 2 === 0) faux.commenterCommeLeDepot(numero, ATTENTE);
     faux.commenterCommeLeDepot(numero, numero % 2 === 0 ? `latest comment on ${numero}` : corpsDePrise("mac/claude"));
   }
   const requetes: string[] = [];

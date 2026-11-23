@@ -124,10 +124,11 @@ test("a rewritten ticket that fails its tries again goes to the chef, once, with
   assert.match(echecs[5] ?? "", /n=3 -->[\s\S]*Set aside by its failure count[\s\S]*\*\*What was tried\.\*\* The manager already reworked this ticket after its first failed tries: it was rewritten more precisely — The ticket never names the file\./);
   assert.match(echecs[5] ?? "", /The ticket never names the file\.[\s\S]*1\. reason 4\n2\. reason 5\n3\. reason 6/);
   assert.equal(reprisesDe(faux, TICKET).length, 1);
-  // Une seule fois : mis de côté, plus aucun cook ni commentaire.
-  const avant = (faux.commentaires.get(TICKET) ?? []).length;
+  // Une seule fois : mis de côté, plus aucun cook ni commentaire — hors celui qui lui donne une raison et une date (invariant 3, #4026).
+  const dits = () => (faux.commentaires.get(TICKET) ?? []).filter((c) => !c.body.includes("<!-- brigade:invariant n=3 ")).length;
+  const avant = dits();
   await tourner(a, 3);
-  assert.equal((faux.commentaires.get(TICKET) ?? []).length, avant);
+  assert.equal(dits(), avant);
 });
 
 test("split: the ticket becomes the epic of smaller tickets born on the rail with its calibration, and is no longer taken", async () => {
