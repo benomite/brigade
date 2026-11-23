@@ -19,7 +19,7 @@ import { poserLeCompte, SE_CONNECTER } from "./parcours-projet/compte.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
-import { REESSAYER, LECTURE_DE, PAS_ENCORE } from "./lexique.js";
+import { REESSAYER, PAS_ENCORE } from "./lexique.js";
 import { ajoutOuDemo } from "./ajout-projet/ajout-ou-demo.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
@@ -66,7 +66,9 @@ export const OUVRIR_CE_PROJET = "open this project";
 export const PROJET_MANQUE = "Type the project to work on: its GitHub repository, `owner/repo`.";
 export const COMPTE_MANQUE = "Connect to GitHub above, or type the project as `owner/repo`: a name alone does not say whose it is.";
 export const PROJET_ILLISIBLE = "This is not a GitHub repository, `owner/repo`.";
-export const LECTURE = LECTURE_DE("the stations you have paired, on GitHub");
+// Ce que l'app fait pendant qu'elle lit (elle cherche les stations liées au compte GitHub de cet ordinateur), et la suite sans station :
+// le formulaire et « pick one of your repositories instead » restent sous la phrase (sans station, le projet s'ouvre sur cet ordinateur).
+export const LECTURE = "Looking for the stations linked to your GitHub account… If you have no station yet, go on to the next step: type the project to work on below, or add one of your repositories.";
 /** @param {string} poste */
 export const OUVRIR_UN_PROJET = (poste) => `Open one of your projects on ${poste}: one click, no folder to choose.`;
 export const RELIRE = "read again";
