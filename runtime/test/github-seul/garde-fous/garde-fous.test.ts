@@ -111,12 +111,12 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; reclamer?: () => { retires: string[]; echecs: string[] } } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const machine = options.machine;
-  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), avertir: options.avertir ?? (() => {}) });
+  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), ...(options.reclamer === undefined ? {} : { reclamer: options.reclamer }), avertir: options.avertir ?? (() => {}) });
   const faux = new FauxGitHub();
   const fins: string[] = [];
   const station = stationGitHub({
@@ -230,6 +230,61 @@ test("each claim granted counts on the machine before its load shows it: a full 
   const { gardes } = cuisine(t, { machine: () => BOX(11.5) });
   assert.equal(await gardes.retenue(1), null);
   assert.equal(await gardes.retenue(2), "machine");
+});
+
+test("a saturated machine with no live cook is reclaimed, measured again, and the gate claims once it has room (#4089)", async (t) => {
+  let disque = 2 * GO;
+  let reclames = 0;
+  const avertis: string[] = [];
+  const { gardes, faits } = cuisine(t, {
+    machine: () => ({ ...BOX(1), disqueLibre: disque }),
+    reclamer: () => {
+      reclames++;
+      disque = 100 * GO;
+      return { retires: ["worktree a", "npm cache"], echecs: [] };
+    },
+    avertir: (texte) => avertis.push(texte),
+  });
+  // Un ticket en vol que plus aucun cook ne porte : sans la récupération, la porte retient.
+  assert.equal(await gardes.retenue(1), null);
+  assert.equal(reclames, 1);
+  assert.deepEqual(faits("station.saturated"), []);
+  assert.match(avertis.join("\n"), /reclaimed 2 leftovers/);
+});
+
+test("a saturation that the reclaim does not lift still holds the claim, and a reclaim that fails is said (#4089)", async (t) => {
+  const avertis: string[] = [];
+  const { gardes } = cuisine(t, {
+    machine: () => ({ ...BOX(1), disqueLibre: 2 * GO }),
+    reclamer: () => {
+      throw new Error("npm gone");
+    },
+    avertir: (texte) => avertis.push(texte),
+  });
+  assert.equal(await gardes.retenue(1), "machine");
+  assert.match(avertis.join("\n"), /failed \(npm gone\) — the saturation stands/);
+});
+
+// brigade:guard
+test("a saturated machine with a live cook is left alone: nothing is reclaimed (#4089)", async (t) => {
+  let reclames = 0;
+  const { repertoire, faux, station, faits, gardes } = cuisine(t, {
+    scenario: () => "bavard",
+    machine: () => ({ ...BOX(1), disqueLibre: 2 * GO }),
+    reclamer: () => {
+      reclames++;
+      return { retires: [], echecs: [] };
+    },
+  });
+  // Le tour part avec la machine saturée : jamais moins d'un cook, mais avant lui rien ne vit — la récupération a pu jouer.
+  faux.feu(1);
+  await station.tour();
+  await jusqua(() => faits("cook.launched").length > 0);
+  const avant = reclames;
+  assert.equal(await gardes.retenue(1), "machine");
+  assert.equal(reclames, avant);
+  chef(repertoire, "kitchen.stopped");
+  await station.calme();
 });
 
 test("a machine that cannot be read holds nothing: the station's places still bound its cooks, and it is said once (#3560)", async (t) => {

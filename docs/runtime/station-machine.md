@@ -571,3 +571,7 @@ The "no station chosen" case is computed too, but a station publishes only the p
 only the app sees it. The onboarding's field names and status words (`etapes`, `etat`, `faite`, `courante`, `a-venir`,
 `en-cours`, `en-echec`, `a-relire`, `suspendu`, `abandonne`, `pret`, `termine`…) stay French until
 translated.
+
+## Reclaiming leftovers when the machine is saturated with no live cook
+
+When the claim gate measures the machine short of processor, memory or disk and no cook launched by this turn is alive, the station first reclaims what brigade itself left (`runtime/src/reclamation.ts`), then measures again and holds only if the machine is still short. It removes, when older than an hour: worktrees of cooks whose head is on a remote branch (`git worktree remove`, never forced — a dirty worktree stays), run streams under `runs/`, entries of the private `claude-<uid>` tmp directory, and the npm cache. With a live cook, nothing is touched. A reclaim that fails is said in the station's log and does not lift the hold. Orphaned test processes of exited cooks are not reclaimed.

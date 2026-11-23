@@ -72,6 +72,9 @@ export type OptionsDesGardes = {
   // La machine sous la station et ses seuils (`configMachine`). Absente : rien
   // ne se retient sur elle.
   machine?: { lire: () => Machine; seuils: Seuils };
+  // Rend à la machine ce que la brigade a laissé derrière ses cooks (`reclamation.ts`) :
+  // jouée quand la machine est vue saturée sans aucun cook vivant, avant de retenir (#4089).
+  reclamer?: () => { retires: string[]; echecs: string[] };
   maintenant?: () => Date;
   avertir?: (message: string) => void;
   // L'environnement de la station, où se lit son moteur de repli (#3745).
@@ -139,6 +142,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   let accordees: number[] = [];
   let machineIllisible = false;
   let saturee = false;
+  // Les cooks lancés par ce tour et pas encore finis : leurs worktrees, leurs
+  // répertoires temporaires et leurs processus ne se touchent jamais.
+  let vivants = 0;
 
   const dire = (retenue: RetenueDuTour | null) => {
     if (retenue === tenue) return;
@@ -179,10 +185,25 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   const machineAcourt = (cooks: number): boolean => {
     if (options.machine === undefined) return false;
     let manques: Saturation[];
-    try {
+    const mesurer = () => {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
-      manques = saturations(reserver(options.machine.lire(), accordees.length), options.machine.seuils, saturees);
+      return saturations(reserver(options.machine!.lire(), accordees.length), options.machine!.seuils, saturees);
+    };
+    try {
+      manques = mesurer();
+      // Saturée sans aucun cook vivant : ce que la brigade a laissé la sature
+      // peut-être ; rendu, la machine se mesure de nouveau (#4089).
+      if (manques.length > 0 && vivants === 0 && options.reclamer !== undefined) {
+        try {
+          const { retires, echecs } = options.reclamer();
+          if (retires.length > 0) avertir(`brigade : the machine under GitHub-only station ${station} was saturated with no live cook — reclaimed ${retires.length} leftover${retires.length > 1 ? "s" : ""}`);
+          for (const echec of echecs) avertir(`brigade : reclaim on GitHub-only station ${station}: ${echec}`);
+        } catch (erreur) {
+          avertir(`brigade : reclaiming leftovers under GitHub-only station ${station} failed (${message(erreur)}) — the saturation stands`);
+        }
+        manques = mesurer();
+      }
       machineIllisible = false;
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
@@ -237,6 +258,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     // station lance ce qu'on lui demande encore (une relecture) sur le principal.
     const moteur = surQuelMoteur().engine ?? engine;
     try {
+      vivants++;
       const lance = garde.lancer({
         ticket: null,
         run,
@@ -258,10 +280,17 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       // flux qui se lit après la fin est celui du dernier essai.
       let dernier = run;
       return {
-        fin: lance.fin.then((fin) => {
-          dernier = fin.run;
-          return fin;
-        }),
+        fin: lance.fin.then(
+          (fin) => {
+            vivants--;
+            dernier = fin.run;
+            return fin;
+          },
+          (erreur) => {
+            vivants--;
+            throw erreur;
+          },
+        ),
         get flux() {
           return fluxDe(dernier);
         },
@@ -269,6 +298,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     } catch (erreur) {
       // Le « stop » ou le disjoncteur tombé entre la prise et le lancement :
       // rien n'est parti, et le cook le dit comme une fin sans livraison.
+      vivants--;
       if (!(erreur instanceof LancementRefuse)) throw erreur;
       const fin: Fin = { code: null, signal: null, turns: 0, tokens: 0, durationMs: 0, arret: null, erreur: `launch refused: ${erreur.message}` };
       return { fin: Promise.resolve(fin), flux };
