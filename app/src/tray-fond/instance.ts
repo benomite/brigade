@@ -33,7 +33,8 @@ function lireLaCommande(pid: number, plateforme: NodeJS.Platform = process.platf
 // Le pid laissé par un process qui s'est arrêté est rendu par le système à un autre — l'icône de fond, l'hôte de la station,
 // n'importe quel process (#4071). Ne tient la place que celui qui est lancé comme ce process-ci : le même binaire, les mêmes
 // arguments — l'ancien `-psn_…` que le Mac ajoutait parfois, et les guillemets qu'un raccourci Windows met autour du binaire,
-// mis à part. Une commande qui ne se lit pas ne prouve rien : `undefined`.
+// mis à part. Une commande qui ne se lit pas ne prouve rien : `undefined`. Une app ouverte avec d'autres arguments (un
+// `--inspect`) n'est donc pas reconnue : la nouvelle prend la place et montre sa fenêtre — au pire deux, jamais aucune.
 const sansPsn = (commande: string) => commande.replace(/\s+-psn_\S+/g, "").replaceAll('"', "").trim();
 function lanceCommeSoi(pid: number, soi: number, lire: (pid: number) => string | undefined): boolean | undefined {
   const autre = lire(pid);
