@@ -83,14 +83,15 @@ describe("la lecture du rail tire les alertes de ce qu'elle sait, et `facts` les
     assert.deepEqual(sortes(faitsDe([reparation, ticket(4)], [station()])).filter((sorte) => sorte === "base-rouge"), []);
   });
 
-  test("rejeu de #3813 : un ticket pris 1 198 fois — l'alerte nomme le ticket, et le geste qui arrête la boucle", () => {
+  test("rejeu de #3813 : un ticket pris 1 198 fois — l'alerte nomme le ticket, et dit ce que la cuisine fait : aucun geste pour le chef", () => {
     const boucle = ticket(3813, { etat: "pris", prise: { station: "parade-box/claude", le: iso(T0 - 60_000) }, entreLe: undefined, prises: { fois: 1198, depuis: IL_Y_A_26_H } });
     const faits = faitsDe([boucle, ticket(4, { entreLe: IL_Y_A_26_H })], [station()]);
     const alerte = faits.alertesDuRail?.find(({ sorte }) => sorte === "relance-en-boucle");
     assert.ok(alerte);
     assert.equal(alerte.fait.ticket, 3813);
     assert.match(alerte.phrase, /#3813 has been relaunched 1,198 times/);
-    assert.equal(alerte.geste, "Put #3813 in WAITING to stop the loop.");
+    assert.equal(alerte.geste, null);
+    assert.equal(alerte.geree, "The kitchen puts #3813 in WAITING by itself.");
   });
 
   test("des `alertesDuRail` mal formés, ou une alerte sans geste ni prise en charge, ne sont pas posés", () => {
