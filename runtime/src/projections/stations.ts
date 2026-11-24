@@ -705,6 +705,19 @@ export function cooksEnCoursDeStation(base: Base, station: string): CookDeStatio
   );
 }
 
+// The runs of every station that are over and whose worktree the cleanup did not keep
+// (work not pushed, PR open): what they left behind is safe to give back. A run no
+// station launched, or still running, is not in it.
+export function runsRendables(base: Base): string[] {
+  return base
+    .lire<{ run: string }>(
+      `SELECT run FROM station_cooks
+       WHERE ended_at IS NOT NULL
+         AND (worktree IS NULL OR worktree NOT IN (SELECT worktree FROM worktree_fates WHERE state = 'kept'))`,
+    )
+    .map(({ run }) => run);
+}
+
 // What a cook cost, by its run — or null if no station launched it.
 export function cookDeRun(base: Base, run: string): CookDeStation | null {
   return (
