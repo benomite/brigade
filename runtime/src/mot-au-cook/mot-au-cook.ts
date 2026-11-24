@@ -49,16 +49,16 @@ export type MotAuCook = {
 };
 
 // La marque du commentaire posé sur l'issue.
-export const MARQUE_DU_MOT = "<!-- brigade:mot-au-cook -->";
+const MARQUE_DU_MOT = "<!-- brigade:mot-au-cook -->";
 
 // Le commentaire qui garde le mot sur l'issue, pour la pass et les cooks d'après.
-export const corpsDuMot = (texte: string) => `${MARQUE_DU_MOT}\n**A word from the chef to the cook.** It reaches the cook at the end of its current turn:\n\n> ${texte}`;
+const corpsDuMot = (texte: string) => `${MARQUE_DU_MOT}\n**A word from the chef to the cook.** It reaches the cook at the end of its current turn:\n\n> ${texte}`;
 
 // Ce qu'un message d'erreur devient dans une raison : une seule ligne.
 export const surUneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
 
 // Pourquoi le mot est refusé pour ce ticket dans cet état, ou null s'il est en cuisine.
-export function raisonDuRefus(ticket: number, etat: EtatDuTicket): string | null {
+function raisonDuRefus(ticket: number, etat: EtatDuTicket): string | null {
   switch (etat) {
     case "taken":
       return null;
@@ -77,12 +77,12 @@ export function raisonDuRefus(ticket: number, etat: EtatDuTicket): string | null
 
 // L'entrée d'un tour, avec les mots du chef. En français : c'est la langue des
 // consignes du cook.
-export function entreeAvecLesMots(base: string, mots: readonly string[]): string {
+function entreeAvecLesMots(base: string, mots: readonly string[]): string {
   const bloc = ["## Un mot du chef", "Le chef t'a envoyé ce mot pendant que tu cuisinais. Tiens-en compte dans ce tour :", ...mots.map((mot) => `> ${mot}`)].join("\n\n");
   return base === "" ? bloc : `${base}\n\n${bloc}`;
 }
 
-export function fileEnMemoire(): FileDesMots {
+function fileEnMemoire(): FileDesMots {
   const mots = new Map<number, string[]>();
   return {
     ajouter: (ticket, texte) => void mots.set(ticket, [...(mots.get(ticket) ?? []), texte]),

@@ -10,7 +10,7 @@ import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync } from "nod
 import { join } from "node:path";
 import type { FileDesMots } from "./mot-au-cook.ts";
 
-export const DOSSIER_DES_MOTS = "mots-au-cook";
+const DOSSIER_DES_MOTS = "mots-au-cook";
 
 const absent = (erreur: unknown) => (erreur as NodeJS.ErrnoException | null)?.code === "ENOENT";
 

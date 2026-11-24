@@ -6,9 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { Sortie, type Appel } from "../../src/appel.ts";
-import { etatDeLIssue, principal, type OuvrirGitHub } from "../../src/mot-au-cook/commande.ts";
-import { DOSSIER_DES_MOTS, fileSurDisque } from "../../src/mot-au-cook/file.ts";
-import { creerMotAuCook, MARQUE_DU_MOT, type FileDesMots } from "../../src/mot-au-cook/mot-au-cook.ts";
+import { principal } from "../../src/mot-au-cook/commande.ts";
+import { fileSurDisque } from "../../src/mot-au-cook/file.ts";
+import { creerMotAuCook, type FileDesMots } from "../../src/mot-au-cook/mot-au-cook.ts";
+
+type OuvrirGitHub = NonNullable<Parameters<typeof principal>[1]>;
 
 const racine = mkdtempSync(join(tmpdir(), "mot-au-cook-commande-"));
 after(() => rmSync(racine, { recursive: true, force: true }));
@@ -49,15 +51,6 @@ function jouer(args: string[], issue: Issue | Error, options: { commenter?: Erro
   return { fin, sortie, erreur, commentaires, depots, ferme: () => ferme, file: () => fileSurDisque(repertoireEtat).prendre(7), repertoireEtat };
 }
 
-test("the state of a ticket is read on its issue", () => {
-  assert.equal(etatDeLIssue(null), undefined);
-  assert.equal(etatDeLIssue({ state: "closed", labels: ["taken"] }), "served");
-  assert.equal(etatDeLIssue({ state: "open", labels: ["taken", "waiting"] }), "waiting");
-  assert.equal(etatDeLIssue({ state: "open", labels: ["taken", "in-pass"] }), "in pass");
-  assert.equal(etatDeLIssue({ state: "open", labels: ["fire", "taken"] }), "taken");
-  assert.equal(etatDeLIssue({ state: "open", labels: ["fire"] }), "queued");
-});
-
 test("send-word on a taken ticket posts the word on its issue, queues it and answers ok on one JSON line", async () => {
   const jeu = jouer(["benomite/brigade#7", "use", "the", "small", "table"], { state: "open", labels: ["fire", "taken"] });
   assert.equal(await jeu.fin, 0);
@@ -65,7 +58,7 @@ test("send-word on a taken ticket posts the word on its issue, queues it and ans
   assert.deepEqual(jeu.depots, ["benomite/brigade"]);
   assert.equal(jeu.commentaires.length, 1);
   assert.equal(jeu.commentaires[0]?.numero, 7);
-  assert.ok(jeu.commentaires[0]?.corps.startsWith(MARQUE_DU_MOT));
+  assert.ok(jeu.commentaires[0]?.corps.startsWith("<!-- brigade:mot-au-cook -->"));
   assert.match(jeu.commentaires[0]?.corps ?? "", /> use the small table$/);
   assert.deepEqual(jeu.file(), ["use the small table"]);
   assert.equal(jeu.ferme(), true);
@@ -78,6 +71,9 @@ test("send-word on a ticket that is not taken answers ok false with its reason, 
     [null, /^#7 is unknown/],
     [{ state: "open", labels: ["waiting"] }, /^#7 is waiting on a third party/],
     [{ state: "open", labels: ["fire"] }, /^#7 is not taken/],
+    [{ state: "open", labels: ["taken", "in-pass"] }, /^#7 is in pass/],
+    [{ state: "open", labels: ["taken", "waiting"] }, /^#7 is waiting/],
+    [{ state: "closed", labels: ["taken"] }, /^#7 is closed/],
   ];
   for (const [issue, raison] of cas) {
     const jeu = jouer(["benomite/brigade#7", "hello"], issue);
@@ -87,7 +83,7 @@ test("send-word on a ticket that is not taken answers ok false with its reason, 
     assert.equal(reponse.ok, false);
     assert.match(reponse.reason, raison);
     assert.equal(jeu.commentaires.length, 0);
-    assert.equal(existsSync(join(jeu.repertoireEtat, DOSSIER_DES_MOTS)), false);
+    assert.equal(existsSync(join(jeu.repertoireEtat, "mots-au-cook")), false);
     assert.equal(jeu.ferme(), true);
   }
 });

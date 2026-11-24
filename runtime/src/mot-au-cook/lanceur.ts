@@ -23,12 +23,12 @@ const FIN_DES_ARGUMENTS = "--disallowedTools";
 
 // L'entrée du tour qui reprend la session pour un mot du chef, en français
 // comme toute consigne du cook ; les mots s'y ajoutent (`entreeDuTour`).
-export const ENTREE_DE_LA_REPRISE =
+const ENTREE_DE_LA_REPRISE =
   "Ton tour est fini, et le chef t'a envoyé un mot pendant ce tour. Tiens-en compte, puis termine comme ta consigne le demande : ton dernier message porte ton compte-rendu entier, avec ton livrable — c'est lui que la station lit.";
 
 // Les arguments du cook, sa session reprise : une reprise d'avant (celle d'un
 // renvoi, bifurquée) cède la place à celle-ci.
-export function avecReprise(args: readonly string[], session: string): string[] {
+function avecReprise(args: readonly string[], session: string): string[] {
   const sans: string[] = [];
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === "--resume") i += 1;
@@ -39,7 +39,7 @@ export function avecReprise(args: readonly string[], session: string): string[] 
 }
 
 // Le flux du tour de plus : à côté de celui du cook.
-export const fluxDeLaReprise = (flux: string, reprise: number) => `${flux.replace(/\.flux\.jsonl$/, "")}-word-${reprise}.flux.jsonl`;
+const fluxDeLaReprise = (flux: string, reprise: number) => `${flux.replace(/\.flux\.jsonl$/, "")}-word-${reprise}.flux.jsonl`;
 
 const sessionLue = (flux: string): string | null => {
   try {
@@ -53,7 +53,7 @@ const fini = (fin: Fin) => fin.code === 0 && fin.arret === null;
 const message = (erreur: unknown) => surUneLigne(erreur instanceof Error ? erreur.message : String(erreur));
 
 // `lancer`, avec les tours du cook bornés par le mot au cook `mot`.
-export function avecLesMots(lancer: Lancer, mot: MotAuCook, avertir: (texte: string) => void): Lancer {
+function avecLesMots(lancer: Lancer, mot: MotAuCook, avertir: (texte: string) => void): Lancer {
   return (lancement) => {
     const { ticket } = lancement;
     if (ticket === undefined || !lancement.args.includes(FIN_DES_ARGUMENTS)) return lancer(lancement);

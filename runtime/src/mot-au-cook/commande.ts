@@ -20,7 +20,7 @@ const USAGE = ["usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime 
 const PLAFOND = 2;
 
 // L'état d'un ticket lu sur son issue (github-etat/etats.ts) ; null : elle n'existe pas.
-export function etatDeLIssue(issue: Pick<Issue, "state" | "labels"> | null): EtatDuTicket {
+function etatDeLIssue(issue: Pick<Issue, "state" | "labels"> | null): EtatDuTicket {
   if (issue === null) return undefined;
   if (issue.state !== "open") return "served";
   const labels = new Set(issue.labels);
@@ -30,7 +30,7 @@ export function etatDeLIssue(issue: Pick<Issue, "state" | "labels"> | null): Eta
   return "queued";
 }
 
-export type OuvrirGitHub = (depot: string, env: Appel["env"]) => { issue(numero: number): Promise<Pick<Issue, "state" | "labels"> | null>; commenter(numero: number, corps: string): Promise<void>; fermer(): void };
+type OuvrirGitHub = (depot: string, env: Appel["env"]) => { issue(numero: number): Promise<Pick<Issue, "state" | "labels"> | null>; commenter(numero: number, corps: string): Promise<void>; fermer(): void };
 
 const githubDuGeste: OuvrirGitHub = (depot, env) => ouvrirGitHubDuGeste({ depot, bin: env.BRIGADE_GH_BIN || "gh", env, plafond: PLAFOND });
 
