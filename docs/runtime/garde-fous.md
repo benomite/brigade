@@ -108,6 +108,9 @@ them within the second (the ticket is given back on its issue), their failures c
 breaker, the caps are the project's. A cook stopped by a cap counts as a failure here, as any
 launch off a ticket does — except a stall, which is relaunched (above). Each launch also records the
 ticket it serves (`cook.launched` carries `serves`), which the supervisor names when it closes the breaker (#3656).
+A cook launch on a station held for `machine` is refused at once (`LancementRefuse`, reason `held`): no `cook.launched`, no failure, no breaker; the manager's and the pass's runs still start, and cooks start again after `station.released` (#4097).
+The one cook that does start there is the saturation repair the claim gate let through (`saturation-repair`,
+`cook.launched` carries `saturationRepair`, #4100).
 
 A cook whose launch fails before it runs (0 turns, a launch error: `spawn E2BIG` when its prompt is too
 long for the system) does not count for the breaker: the kitchen keeps serving other tickets. Its

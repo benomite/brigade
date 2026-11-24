@@ -79,3 +79,15 @@ test("the gates that play every test give the runtime suite the PR's duration mo
   assert.equal(readFileSync(join(racine, "runtime/duree.txt"), "utf8"), `pr|${base}|test/a.test.ts`, sortie);
   assert.equal(passage.status, 0, sortie);
 });
+
+test("the gates that play every test because the change sets a whole suite still judge the 2 s rule as the PR's CI, with no close test named as strict (#4110)", { skip: posixOnly("plays this repository's real gates.sh on a test project; on Windows its Python check reads the role paths with backslashes") }, (t) => {
+  const racine = projet(t);
+  const base = git(racine, "rev-parse", "main");
+  // A tsconfig sets a whole suite: the selection plays everything.
+  writeFileSync(join(racine, "runtime/tsconfig.json"), "{}\n");
+
+  const passage = spawnSync("bash", [GATES, racine], { env: { ...ENV_ENFANT, HOME: join(racine, "..") }, encoding: "utf8" });
+  const sortie = passage.stdout + passage.stderr;
+
+  assert.equal(readFileSync(join(racine, "runtime/duree.txt"), "utf8"), `pr|${base}|`, sortie);
+});
