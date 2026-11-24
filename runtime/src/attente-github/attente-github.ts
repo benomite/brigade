@@ -28,10 +28,10 @@ import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.
 import { LABEL, MIS_DE_COTE, type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
 import { carteEnCours, CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { GesteRefuse } from "../rail.ts";
-import { attenteDeLIssue, MARQUE, type AttenteGitHub } from "./marque.ts";
+import { attenteDeLIssue, MARQUE, type AttenteGitHub, type AttenteMarquee } from "./marque.ts";
 
 // Relue de sa marque sans import lourd (marque.ts) : la lecture du rail de l'app la lit aussi (#3761).
-export { attenteDeLIssue, type AttenteGitHub };
+export { attenteDeLIssue, type AttenteGitHub, type AttenteMarquee };
 
 // Ce que les gestes demandent au client de GitHub, et rien de plus.
 export type GitHubDeLAttente = Pick<GitHub, "issue" | "commentaires" | "commenter" | "labelliser" | "delabelliser" | "ouvertes">;
@@ -58,7 +58,7 @@ export const direRelance = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11,
 // de ses mots ne la fermerait pas.
 // Posée par la cuisine, l'attente dit la station et les mots du cook dont elle vient (`par`), et que le ticket rentre
 // seul sur le rail à sa relance.
-export function corpsDeLAttente(attente: AttenteGitHub, par?: { station: string; mots: string }): string {
+export function corpsDeLAttente(attente: AttenteMarquee, par?: { station: string; mots: string }): string {
   const marque = JSON.stringify(attente).replace(/>/g, "\\u003e");
   return [
     `${MARQUE} ${marque} -->`,
@@ -69,7 +69,7 @@ export function corpsDeLAttente(attente: AttenteGitHub, par?: { station: string;
     `- **follow-up**: ${direRelance(attente.followUp)}`,
     "",
     attente.backOnFollowUp === true
-      ? `As long as it has the \`${LABEL_WAITING}\` label, no station takes it, it holds no file zone and it is not in TODO. On its follow-up date it goes back on the rail on its own; removing the label sends it back sooner.`
+      ? `As long as it has the \`${LABEL_WAITING}\` label, no station takes it, it holds no file zone and it is not in TODO. On its follow-up date it goes back on the rail on its own${attente.whileSetAside === true ? `, and as soon as \`set-aside:failures\` is removed` : ""}; removing the label sends it back sooner.`
       : `As long as it has the \`${LABEL_WAITING}\` label, no station takes it and it is not in TODO.`,
     ...(par === undefined ? [] : ["", `Set by station \`${par.station}\`, from what the cook said:`, "", ...par.mots.trim().split("\n").map((ligne) => `> ${ligne}`)]),
   ].join("\n");
