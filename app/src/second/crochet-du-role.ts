@@ -10,14 +10,19 @@ import type { Crochets } from "./lancement.ts";
 const DELAI_DU_DEBUT_S = 10;
 // Le prompt lit le `CLAUDE.md` de la branche d'intégration, puis la file : le délai de celui de la file.
 const DELAI_DU_PROMPT_S = 45;
+// La vue ne lit qu'un fichier du poste.
+const DELAI_DE_LA_VUE_S = 10;
 
 export function crochetsDuRole(options: { node: string; gh: string; cible: Cible; script?: string; separateur?: string }): Crochets {
   const separateur = options.separateur ?? sep;
   const script = options.script ?? join(import.meta.dirname, "role-apres-init.ts");
-  const commande = (moment: "debut" | "prompt") =>
+  const commande = (moment: "debut" | "prompt" | "vue") =>
     [options.node, script, moment, options.cible.nom, options.cible.depot ?? "", options.cible.base ?? "", options.gh].map((mot) => cite1(mot, separateur)).join(" ");
   return {
     SessionStart: [{ matcher: MATCHER, hooks: [{ type: "command", command: commande("debut"), timeout: DELAI_DU_DEBUT_S }] }],
-    UserPromptSubmit: [{ hooks: [{ type: "command", command: commande("prompt"), timeout: DELAI_DU_PROMPT_S }] }],
+    UserPromptSubmit: [
+      { hooks: [{ type: "command", command: commande("prompt"), timeout: DELAI_DU_PROMPT_S }] },
+      { hooks: [{ type: "command", command: commande("vue"), timeout: DELAI_DE_LA_VUE_S }] },
+    ],
   };
 }

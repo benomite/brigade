@@ -5,13 +5,16 @@ import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuDeLApp } from "./aide-communaute.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
-import { ICONE_DE_LA_BARRE, pastillee } from "./tray-fond/icone.ts";
+import { creerLIcone, ICONE_DE_LA_BARRE } from "./tray/icone.ts";
+import { ligneDuFond } from "./tray/ligne.ts";
+import { etatDeLaStation } from "./tray-fond/tray-fond.ts";
 import { executer, garderLIcone, stationDeFondInstallee } from "./tray-fond/systeme.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
+import { deposerLaVue } from "./second/vue-du-projet.ts";
 import { lireFeu } from "./feu.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
@@ -32,6 +35,7 @@ import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
+import { brancherLeMotAuCook } from "./vue/mot-au-cook/mot-au-cook-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -74,6 +78,7 @@ import { changerLeJour, lireLeJour, lireLesResumes, publierLeResume, type Resume
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
+import { poserLaCommande } from "./commande-brigade.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { apkLink, RELEASES_URL } from "./mise-a-jour/android.ts";
@@ -99,7 +104,7 @@ import { tenirLaStationDeFond } from "./station-fond/attache.ts";
 import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
 import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
-import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
+import { claudeDe, connexionDeLaSession, ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
@@ -372,6 +377,7 @@ const colonnesDuRail = tenirLesColonnes((ligne) => {
 });
 function direLesFaits(recue: Dessinable): void {
   colonnesDuRail.voir(recue);
+  if ("tableau" in recue) deposerLaVue(recue.projet, recue.tableau);
   dire("faits", recue);
 }
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
@@ -442,20 +448,17 @@ function entreeDuMenu(entree: Entree): MenuItemConstructorOptions {
   }
 }
 const barreDeMenus = tenirBarreDeMenus({
+  // L'icône unique dit l'état de la station avec les comptes, qu'elle soit posée par l'app ou par la station de fond (#4079).
+  ligne: (projets) => ligneDuFond(projets, etatDeLaStation(projets)),
   creer: () => {
     const image = nativeImage.createFromPath(ICONE_DE_LA_BARRE);
     if (image.isEmpty()) throw new Error(`its icon could not be read: ${ICONE_DE_LA_BARRE}`);
-    const icone = new Tray(image);
-    // Sous Windows, le clic gauche n'ouvre pas le menu de lui-même : sur un Mac, si.
-    if (!estUnMac(plateforme)) icone.on("click", () => icone.popUpContextMenu());
+    // Une seule icône dans la barre (#4079) : si celle de la station de fond la tient, cela lève `PlaceTenue`, et l'app la pose à sa lecture suivante.
+    const icone = creerLIcone(image, plateforme);
     return {
-      poser: (ligne, questions) => {
-        icone.setToolTip(`brigade — ${ligne}`);
-        if (estUnMac(plateforme)) icone.setTitle(` ${ligne}`);
-        else icone.setImage(pastillee(image, questions));
-      },
-      menu: (entrees) => icone.setContextMenu(Menu.buildFromTemplate(entrees.map(entreeDuMenu))),
-      retirer: () => icone.destroy(),
+      poser: (ligne, questions) => icone.ligne(image, { infobulle: "brigade", ligne, questions }),
+      menu: (entrees) => icone.menu(entrees.map(entreeDuMenu)),
+      retirer: () => icone.retirer(),
     };
   },
 });
@@ -773,7 +776,17 @@ const stationLocale =
     : undefined;
 // Les pannes d'une station, sur sa ligne de la home : chacune a son bouton (pannes/gestes.ts). Le
 // login ne part que pour la station de cet ordinateur, par le `claude` officiel (pannes/login.ts).
-const loginIci = tenirLogin({ claude: process.env.BRIGADE_CLAUDE_BIN || "claude", env: process.env, dire: (ligne) => console.error(ligne), apres: () => void stations.relire() });
+// Sa fin part aussi à la vue : une ouverture de projet qu'il retenait, au premier lancement, repart (#4057).
+const claudeIci = claudeDe(process.env);
+const loginIci = tenirLogin({
+  claude: claudeIci,
+  env: process.env,
+  dire: (ligne) => console.error(ligne),
+  apres: () => {
+    void stations.relire();
+    dire("loginClaude");
+  },
+});
 const gestesDesPannes = { stations, stationLocale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), login: loginIci };
 if (role.role === "poste") console.error(`brigade: this app is a workstation, not a station — ${role.pourquoi}: it pilots, nothing cooks here`);
 // Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
@@ -1405,6 +1418,11 @@ const ouvrirUnProjetDUneStation = ouvrirDUneStation({
   configuration: () => suivi.configuration(),
   ajouter: (projet) => suivi.ajouter(projet),
   progres: (depot, etape) => dire("ouverture", depot, etape),
+  // Avant que la cuisine démarre (#4057) : ce que `claude auth status` dit de cet ordinateur, sans appel au modèle.
+  connexionClaude: async () => {
+    const { sessionClaude } = await duRuntime<typeof import("../../runtime/src/claude.ts")>("claude.ts");
+    return connexionDeLaSession(await sessionClaude(claudeIci, process.env));
+  },
 });
 // Le dépôt choisi dans « Add a project » (#2627) : est-il prêt pour brigade — ses bindings, ses labels —, et le
 // geste qui l'y prépare, par le contrat du runtime (#2626) joué sur sa copie locale (projets/preparation-du-depot.ts).
@@ -1471,6 +1489,8 @@ const outilsRequis = tenirOutilsRequis({
 });
 ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
 ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
+// Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
+ipcMain.handle("seConnecterAClaude", () => loginIci());
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();
@@ -1644,6 +1664,7 @@ ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unkno
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
 });
+brancherLeMotAuCook(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le mot au cook (#4048, vue/mot-au-cook/mot-au-cook-box.ts)
 // Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
 // marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
 // (vue/explications/explications-box.ts).
@@ -2019,6 +2040,8 @@ if (plateforme === "win32") app.setAppUserModelId(process.execPath);
 void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installeeAuLancement) return app.quit();
+  // La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
+  poserLaCommande({ plateforme, facon: emplacements.facon, maison: homedir(), version: app.getVersion(), runtime: emplacements.runtime, node: emplacements.node, racine: racineDeLaStation, chemin: process.env.PATH ?? "" });
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.
   // Windows : l'exécutable garde l'icône d'Electron, la fenêtre reçoit donc toujours la sienne — le
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.

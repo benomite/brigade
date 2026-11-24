@@ -89,7 +89,7 @@ async function carteDEssai(avant: (faux: ReturnType<typeof fauxGitHub>) => void 
   const motif = await retenirLeDesign(faux.github, {
     depot: DEPOT,
     station: "box/claude",
-    ticket: { number: TICKET, title: "Export the journal as CSV", labels: ["cook:design"] },
+    ticket: { number: TICKET, title: "Export the journal as CSV", labels: ["fire"] },
     pr: { number: PR, sha: SHA },
     fichiers: ["app/src/vue/rail.js", `docs/captures/${TICKET}/rail-avant.png`, `docs/captures/${TICKET}/rail-apres.png`],
     renvoyer: async () => assert.fail("une livraison qui porte ses captures n'est pas renvoyée"),

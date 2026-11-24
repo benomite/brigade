@@ -26,7 +26,7 @@ const GARNI: ApprentissageDuRuntime = {
     {
       nom: "app-src-vue",
       domaine: "app/src/vue",
-      skills: ["agents/cook-design.md"],
+      skills: [],
       perimetre: ["app/src/vue"],
       carnet: [
         { id: "L-001", texte: "keep the view thin", etat: "promoted", origine: { kind: "retro" } },

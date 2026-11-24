@@ -28,12 +28,13 @@ import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicke
 import { consigneDeLAttenteLongue, lireRevue, origineDeLAttente, suiviDesAttentesLongues, type RevoirLAttente } from "./attente-longue/attente-longue.ts";
 import { leveesDesCommentaires } from "./boucle-attente/levee.ts";
 import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
-import { calibrage as calibrageDesLabels, complet, LABEL_COOK_DESIGN, type Calibrage } from "./calibrage.ts";
+import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { garderLeCook } from "./garde-cook/garde.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
+import { besoinDeSecret } from "./besoin-de-secret.ts";
 import { enFluxClaude } from "./passe-moteur/flux.ts";
 import { lireBlocage, lireDejaServi, lireLivrable } from "./livrable.ts";
 import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-servi.ts";
@@ -45,7 +46,10 @@ import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
+import { labelPoseLe } from "./attente-du-rail/lecture.ts";
+import { ordreDeMerge } from "./ordre-de-merge/ordre.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "./github-etat/etats.ts";
+import { RELANCE_PAR_DEFAUT_MS } from "./attente.ts";
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
 import { termeDeLAttente, veilleDesOrphelins } from "./reprise-attente/orphelins.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
@@ -64,6 +68,7 @@ import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validati
 import { avecChangements, lireChangements } from "./validation-design/changements.ts";
 import { cleDansLaLivraison, lancementDuCook, moteurDeLaStation, noterLaLivraison } from "./moteur/moteur.ts";
 import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-design/choix-de-design.ts";
+import { consigneDesOutils, outilsDuCook } from "./outils-du-cook.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
@@ -175,6 +180,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // Quand l'issue a été déposée et mise sur le rail : d'où part le temps du
     // ticket servi (#2662). Absent ou null, il part de la prise.
     depotDuTicket?(numero: number): Promise<DepotDuTicket | null>;
+    // L'instant où `in-pass` a été posé sur l'issue pour la dernière fois, ou null s'il ne se lit pas : l'ordre des livraisons qui
+    // changent un même fichier (#4044). Absent, aucune n'en retient une autre par ses fichiers.
+    entreeEnPass?(numero: number): Promise<string | null>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
     // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui sont encore ouvertes — celles d'un
@@ -952,9 +960,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await github.labelliser(numero, [`model:${reprise.calibrage.model}`, `effort:${reprise.calibrage.effort}`]);
       }
       if (reprise.choix === "decouper") {
-        // Nés sur le rail avec le calibrage, la priorité et le cook du ticket ;
+        // Nés sur le rail avec le calibrage, la priorité du ticket ;
         // lui devient leur épique : il ne se prend plus, et se ferme avec eux.
-        const labels = [LABEL, ...ticket.labels.filter((l) => /^(model|effort|prio):/.test(l) || l === LABEL_COOK_DESIGN)];
+        const labels = [LABEL, ...ticket.labels.filter((l) => /^(model|effort|prio):/.test(l))];
         const lignes = [];
         for (const sous of reprise.tickets) {
           const ne = await github.creerIssue({ titre: sous.titre, corps: corpsDuSousTicket(numero, sous, calibrage), labels });
@@ -979,6 +987,24 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (!suite.question) return void (await github.commenter(numero, suite.commentaire));
     const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, numero, suite.commentaire);
     if (!pose.pose) avertir(`brigade : ${pose.echec}`);
+  };
+
+  // Une boucle de relances — ses essais épuisés sans livraison, ou un invariant
+  // cassé par ses relances — s'arrête ici, sans geste du chef (#4041) : mis de
+  // côté (`set-aside:failures`), le superviseur reçoit son dossier, et le ticket
+  // passe en WAITING avec sa raison écrite et sa relance, sept jours plus loin
+  // (l'invariant 3). Il en sort à cette relance, ou dès que sa mise de côté est
+  // retirée (`ramenerALaRelance`). Une attente qui ne se pose pas est dite ; la
+  // mise de côté le tient hors du rail.
+  const arreterLaBoucle = async (numero: number, motifs: readonly string[]): Promise<void> => {
+    await github.labelliser(numero, [ECHECS_ATTEINTS]);
+    const raison = motifs.at(-1)?.trim().split("\n")[0] || "its cooks stopped without a delivery";
+    const attente = { what: `the station stopped its relaunch loop, taken again and again without a delivery. The reason: ${raison}`, who: "the supervisor", followUp: new Date(instant() + RELANCE_PAR_DEFAUT_MS).toISOString(), backOnFollowUp: true as const, whileSetAside: true };
+    try {
+      await mettreEnAttenteParLaCuisine(github, numero, attente, { station: nom, mots: motifs.join("\n") });
+    } catch (erreur) {
+      avertir(`brigade : #${numero} sur ${nom} — its relaunch loop is set aside, but it could not be put in WAITING: ${message(erreur)}`);
+    }
   };
 
   const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
@@ -1029,6 +1055,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : #${issue} sur ${nom} — the cook blocked on a technical question: the manager answered it${ecrite ? " and its decision is written into the ticket" : ""}, the ticket goes back to a cook`);
       await github.commenter(issue, corpsDeLaReponseAuBlocage({ station: nom, n: deja.length + 1, questionEn, avis, ecrite }));
       return "liberee";
+    }
+    // Un secret ou un compte sur la station — une clé d'API, l'URL d'une base, un
+    // login — est une vraie carte du chef, posée une fois, jamais un geste git
+    // même si les mots du cook nomment sa branche (#4041) : sous `blocked-on-human`,
+    // le ticket n'est pas relancé tant qu'elle attend.
+    if (besoinDeSecret(avis.issue === "geste" ? avis.geste : "")) {
+      avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked on a secret or an account only the chef can add on the station: the ticket goes to the chef`);
+      const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, corpsDeLaCarte({ station: nom, questionEn, avis, secret: true }));
+      if ("echec" in pose) avertir(`brigade : ${pose.echec}`);
+      return "retenue";
     }
     // Une installation, un service à démarrer, une base à créer ou migrer n'est
     // jamais une carte du ticket (#3058) : seul le prérequis qu'un humain pose une
@@ -1468,7 +1504,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       chrono.rater(issue);
       if (suite !== null && "auChef" in suite) {
         chrono.oublier(issue);
-        await github.labelliser(issue, [ECHECS_ATTEINTS]);
+        await arreterLaBoucle(issue, [...echoues, ...(fini ? [fait.echec] : [])]);
       } else if (suite !== null) {
         await direLaReprise(issue, suite);
       }
@@ -1827,8 +1863,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       arreter: async (ticket, motifs) => {
         const suite = await apresLesEssais(ticket, motifs);
         if ("auChef" in suite) {
-          await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
-          return `set aside (\`${ECHECS_ATTEINTS}\`): the supervisor takes it and decides what happens to it. ${suite.auChef}`;
+          await arreterLaBoucle(ticket.number, motifs);
+          return `set aside (\`${ECHECS_ATTEINTS}\`) and in WAITING with its reason: the supervisor takes it and decides what happens to it. ${suite.auChef}`;
         }
         await direLaReprise(ticket.number, suite);
         return "it went to the manager, not to the chef — its comment says what it did.";
@@ -1838,7 +1874,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     void nommerLaLivraison?.(checksDeLaBase);
     // Un ticket que la cuisine a mis en WAITING rentre seul sur le rail à sa relance (#3814) : ce tour le lit encore en
     // WAITING, le suivant le prend. Un geste qui échoue est dit ; le tour suivant réessaie.
-    await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));
+    // Sorti de WAITING parce que sa mise de côté est retirée (#4041), il se prend à ce tour, comme sans l'attente.
+    const leve = (numero: number) => fires.filter((ticket) => ticket.number === numero).forEach((ticket) => void (ticket.labels = ticket.labels.filter((label) => label !== LABEL_WAITING)));
+    await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir, leve }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));
     const { tickets: gueris } = await guerir(fires, new Set(enVol.keys()));
     // Ce que l'ancien chemin du conflit avec la base a laissé — un ticket ouvert
     // pour changer la branche d'un autre, une carte qui demande un geste git au
@@ -1863,6 +1901,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Celles que les invariants ont lues à ce tour ; illisibles, la porte de zone les relit.
     ouvertes ??= (await ouvertesDuTour?.catch(() => null)) ?? null;
 
+    // Les tickets dont le merge attend celui d'un autre (#4044) : lus au premier ticket en pass, une fois par tour.
+    let retenusDuTour: Map<number, number[]> | undefined;
+    const aineesDuTour = async (): Promise<Map<number, number[]>> => {
+      if (retenusDuTour !== undefined) return retenusDuTour;
+      try {
+        const enPass = tickets.filter(({ labels }) => labels.includes(LABEL_IN_PASS)).map(({ number }) => number);
+        const declarees = new Map<number, number[]>();
+        for (const numero of enPass) declarees.set(numero, (await github.dependancesOuvertes(numero)).filter((autre) => autre !== numero && ouvertsDuTour.has(autre)));
+        const fichiers = new Map((await github.prsOuvertes()).flatMap((pr) => (/^cook\/(\d+)-/.test(pr.branche) ? [[Number(/^cook\/(\d+)-/.exec(pr.branche)?.[1]), pr.fichiers] as const] : [])));
+        const livraisons = await Promise.all(
+          enPass.flatMap((numero) => {
+            const siens = fichiers.get(numero);
+            if (siens === undefined || ![...fichiers].some(([autre, a]) => autre !== numero && enPass.includes(autre) && a.some((f) => siens.includes(f)))) return [];
+            return [(async () => ({ ticket: numero, fichiers: siens, enPassLe: (await github.entreeEnPass?.(numero).catch(() => null)) ?? null }))()];
+          }),
+        );
+        retenusDuTour = ordreDeMerge({ declarees, livraisons });
+      } catch (echec) {
+        // Un ordre qui ne se lit pas ne retient rien : la pass sert comme avant.
+        avertir(`brigade : the merge order of the tickets in pass could not be read on ${nom} — ${message(echec)}`);
+        retenusDuTour = new Map();
+      }
+      return retenusDuTour;
+    };
+
     await fermerLesCartesCaduquesDuTour().catch((echec) => avertir(`brigade : the validation cards without an object could not be swept on ${nom} — ${message(echec)}`));
 
     for (const ticket of tickets) {
@@ -1879,6 +1942,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await cloreLeServi(ticket);
         continue;
       }
+      // Un ticket dont le merge attend celui d'un autre (#4044) — une dépendance déclarée encore ouverte, ou une livraison arrivée
+      // avant la sienne à la pass sur un même fichier — n'est ni relu, ni mis à jour, ni mergé, ni renvoyé pour un conflit :
+      // l'aîné servi ou fermé, il repart seul au tour qui suit.
+      if (etat === "pass" && pr !== null && !pr.merged && ((await aineesDuTour()).get(ticket.number)?.length ?? 0) > 0) continue;
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
       if (etat === "pass" && pr !== null && pr.enConflit === true) {
@@ -2730,6 +2797,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       return github.commenter(numero, corps);
     },
     retraitsDeLabels: (numero) => retraitsDeLabels.call(github, numero),
+    ...(github.evenements === undefined ? {} : { entreeEnPass: async (numero: number) => labelPoseLe(((await github.evenements?.(numero)) ?? []).flatMap((un) => (typeof un === "object" && un !== null ? [un as Record<string, unknown>] : [])), LABEL_IN_PASS) }),
     relancerLesEchecs: (run) => github.relancerLesEchecs(run),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
     ...(github.fichiersEntre === undefined ? {} : { fichiersEntre: github.fichiersEntre.bind(github) }),
@@ -3101,6 +3169,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
     // identifiant, et `gh issue view` lui serait refusé.
     let joint: string;
+    let corpsDuTicket = "";
     // Ses critères admettent un constat écrit pour tout livrable (#2854).
     let constatAdmis: boolean;
     let brigade = false;
@@ -3110,6 +3179,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (lue === null) throw new Error("the issue no longer exists");
       commentairesDuTicket = commentaires;
       joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
+      corpsDuTicket = lue.body ?? "";
       constatAdmis = admetUnConstat(lue.body ?? "");
       brigade = livreSousBrigade(lue.body ?? "", commentaires.map(({ body }) => body));
     } catch (erreur) {
@@ -3277,6 +3347,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     } else if (prOuverte !== null) joint += `\n\n${consigneDuDesaccord(prOuverte)}`;
     const brief = briefDuRenvoi(renvoi, base);
     if (brief !== "") joint += `\n\n${brief}`;
+    // Les outils que le ticket demande et que le projet déclare (#4162) ; un
+    // outil demandé et non déclaré est dit, ici et au cook.
+    const outils = outilsDuCook({ projet: options.projet?.(), corpsDuTicket });
+    if (outils.message) avertir(`brigade : #${ticket.number} sur ${nom} — ${outils.message}`);
+    const consigneOutils = consigneDesOutils(ticket.number, outils);
+    if (consigneOutils) joint += `\n\n${consigneOutils}`;
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
     // dépendances, ses premières gates sortaient rouges — contrôle de types
     // injouable —, et il les rejouait après le setup. Le setup part sans le

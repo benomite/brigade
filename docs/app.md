@@ -333,6 +333,13 @@ Open one of your projects on this PC: one click, no folder to choose.
   the button, or the project that was opening, which starts again by itself. A failed install, or a tool still
   missing, says so in one line, and the offer stays. The same screen opens in the notice when **log in** on a lost
   Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
+- **Claude Code is asked before the kitchen starts** (#4057): opening a project first asks `claude auth status`
+  whether Claude Code is logged in on this computer — no call to the model. Logged in, the project opens as before,
+  with no extra step, and later openings in the same session do not ask again. Not logged in, nothing is cloned or
+  added: the project's place says `Claude Code is not logged in on this computer: log in, and parade starts cooking.`,
+  with `log in` (recommended) — the same login as the `log in` of a lost Max connection (`claude auth login`) — and
+  `Try again`. What the login says shows under the sentence; when it ends, the opening starts again by itself. An
+  answer that cannot be read holds nothing back: the project opens, and the first cook says a lost connection.
 - **When the stations cannot be read** — no `gh`, no network, GitHub limiting the account —, the
   head says why in the runtime's sentence, its detail in the hover, with the button of the page that
   lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
@@ -348,7 +355,7 @@ Open one of your projects on this PC: one click, no folder to choose.
 
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
 `app/src/vue/premier-lancement.js` (the screen), `app/src/outils-requis.ts` and `app/src/vue/outils-requis/` (the
-missing-tool screen). Captures: `docs/captures/1434/`, `docs/captures/4059/`.*
+missing-tool screen). Captures: `docs/captures/1434/`, `docs/captures/4059/`, `docs/captures/4057/`.*
 
 ### On first launch: visit a real kitchen, or add my project (#4087, epic #4086; born as the tour of #3165)
 
@@ -658,6 +665,18 @@ When the same guardrail has stopped the same ticket twice (`gardeRepetee` of its
 the idle guard"**, then one line per stop — its time and the activity where the cook was (`07:12 — was finishing`, or
 `no activity read`), the run on hover. It stays as long as the box sends it: the ticket is not relaunched silently. A ticket
 stopped once, or by two different guardrails, shows nothing.
+
+### A word to the cook, from the card of a taken ticket (#4048, epic #4043)
+
+The card of a taken ticket has a one-line field, **"a word to the cook…"**, and a **send** button: the chef steers the cook
+without opening its session. Enter or **send** passes the line once to the runtime command `send-word`, with
+`{ticket, text}`, where the project's kitchen runs; a blank line sends nothing, and nothing more is sent while a word is on
+its way. On `{ok: true}` the field empties. On `{ok: false, reason}` the reason is shown on one line under the field, the
+detail on hover, and the text stays in the field. What is typed, and a reason, survive a redraw of the rail. Cards of
+tickets in other steps (in pass, served…) have no field. An app whose bridge does not carry the gesture says so on that line.
+
+*Code: `app/src/vue/mot-au-cook/` — `mot-au-cook.js` (the field), `source.js` (the call), `mot-au-cook-box.ts` (the command,
+main process).*
 
 ### The line of figures is gone (#2486, #3013, #3523)
 
@@ -1379,6 +1398,10 @@ TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-gith
 #41; before, there was no button to open it), `attente-github-fiche-avant.png` / `attente-github-fiche-apres.png` (the
 sheet of #41), `attente-github-telephone-*.png` and `attente-github-waiting-telephone-*.png` (the same cards at phone
 width).
+
+### The `brigade` command on the chef's Mac (#4072)
+
+The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `waiting set` and `waiting resume`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
 
 ### The second's choices, as buttons under its terminal (#1520)
 
@@ -4563,8 +4586,7 @@ GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that a
 `app-v<version>` releases, the same checks, the same states, the same actions and the same words. Only
 two things differ. It reads the release's `latest.yml` and downloads the setup `.exe` it names. A
 release that carries only the Mac's files is not a new version for Windows, and the reverse holds
-too — and while the builds are unsigned, releases carry no `latest.yml`: an installed app on Windows
-does not update itself to an unsigned installer, and the new-version line gives it the **Download** link. And its installer is a PowerShell script started next to the app, in a hidden console, that outlives it
+too — signed or not, every release that ships the Windows setup also ships `latest.yml` (#4058). And its installer is a PowerShell script started next to the app, in a hidden console, that outlives it
 (`app/src/mise-a-jour/windows.ts`). Once the app has quit, the script moves the installed folder aside
 (Windows refuses while one of its files is still open, and then nothing has moved). It runs the setup
 silently (`/S`) into that same folder (`/D=`) and checks that `resources\app\package.json` now holds

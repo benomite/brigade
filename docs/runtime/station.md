@@ -470,7 +470,7 @@ read-only worktree of the integration branch — the reason of each try, and the
 | Its choice | What happens |
 |---|---|
 | **rewrite** | the issue's body is rewritten more precisely, the former body kept below it in a folded block; the ticket goes back on the rail as it is |
-| **split** | 2 to 5 smaller tickets are opened on the rail, with the ticket's `fire`, `model:`, `effort:`, `prio:` and `cook:design` labels and `Epic: #N` in their body; the ticket becomes their epic (the list of its tickets in its body): it is no longer taken, and closes once they are all closed |
+| **split** | 2 to 5 smaller tickets are opened on the rail, with the ticket's `fire`, `model:`, `effort:` and `prio:` labels and `Epic: #N` in their body; the ticket becomes their epic (the list of its tickets in its body): it is no longer taken, and closes once they are all closed |
 | **recalibrate** | its `model:` and `effort:` labels are replaced — never above the project's calibration ceiling (`manager.md`) — and it goes back on the rail |
 | **question** | only when the reasons show a product or design choice: `blocked-on-human`, and the card asks that question — never "the ticket failed" |
 
@@ -496,7 +496,10 @@ words in its comment ("Set aside by its failure count") and on its card: nobody 
 is set by whoever knows it does (#3528). The supervisor acts on `set-aside:failures` (#3911); a ticket set aside also
 gets a named reason and a date to look at it again, seven days on, past which it is put back on the rail (invariant 3,
 #4026). A ticket whose cook was relaunched on its PR's head and stopped on that same head is stopped there too
-(invariant 2). To relaunch it by hand, fix the cause, then **remove
+(invariant 2). The station stops the relaunch loop itself, with no gesture from the chef (#4041): set aside by its
+failure count or by invariant 2, the ticket also goes to WAITING, its reason written in the WAITING mark (awaiting
+`the supervisor`, follow-up seven days on). That WAITING is lifted on its follow-up date, or at the turn
+`set-aside:failures` is removed. To relaunch it by hand, fix the cause, then **remove
 `set-aside:failures`** (or `served-elsewhere`, on a ticket set aside before #3528)
 from the issue (anyone with a hand on the repository; `fire` stays). The ticket is served again at
 the next turn, and both counts restart: the cooks without a delivery and the sends back are counted

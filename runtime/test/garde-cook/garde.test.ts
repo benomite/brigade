@@ -113,7 +113,7 @@ test("gh : l'administration, les réglages, les suppressions, un autre dépôt e
     "issue comment 3506 --body 'fait'",
     "issue comment 3506 --body 'comme https://github.com/autre/depot/pull/3'",
     "issue comment https://github.com/benomite/brigade/issues/3506 -b ok",
-    "issue edit 3506 --add-label cook:design",
+    "issue edit 3506 --add-label bug",
     "pr view",
     "pr view 3510 --json files",
     "pr comment --body 'prête'",

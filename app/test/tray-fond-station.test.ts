@@ -13,7 +13,8 @@ import { garderLIcone, inscrireLeFond, quitterLaStation, stationDeFondInstallee 
 
 type Systeme = Parameters<typeof inscrireLeFond>[0];
 type Executer = Systeme["executer"];
-import { ligneDuFond, etatDeLaStation } from "../src/tray-fond/tray-fond.ts";
+import { etatDeLaStation } from "../src/tray-fond/tray-fond.ts";
+import { ligneDuFond } from "../src/tray/ligne.ts";
 
 const A = "2026-11-15T10:00:00.000Z";
 const faits = (cooks: number, questions: number, etat = "ouverte"): Faits => ({
@@ -224,7 +225,7 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
     assert.equal(JSON.parse(lire("package.json")).main, "src/tray-fond/entree.ts");
     const entree = lire("src/tray-fond/entree.ts");
     assert.match(entree, /if \(process\.argv\.includes\(ARGUMENT\)\) \{\n  await import\("\.\/processus\.ts"\);\n\} else \{/);
-    assert.ok(entree.includes('await import("../main.ts");'));
+    assert.ok(entree.includes('await import(' + '"../main.ts");'));
     assert.ok(entree.includes("if (installee && stationDeFondInstallee(systeme))"));
     assert.ok(entree.includes("await inscrireLeFond("));
   });

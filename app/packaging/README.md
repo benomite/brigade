@@ -87,10 +87,10 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
 | --- | --- | --- |
 | Quand | les six secrets sont posés | aucun n'est posé |
 | Mac | `Brigade-<v>-mac-arm64.dmg`, signé Developer ID, notarisé, agrafé, et `latest-mac.yml` | `Brigade-<v>-mac-arm64.dmg`, signé ad hoc, et `latest-mac.yml` (#2431) |
-| Windows | `Brigade-<v>-windows-x64-setup.exe`, signé, et `latest.yml` | `Brigade-<v>-windows-x64-setup.exe`, non signé |
+| Windows | `Brigade-<v>-windows-x64-setup.exe`, signé, et `latest.yml` | `Brigade-<v>-windows-x64-setup.exe`, non signé, et `latest.yml` |
 | Android | rien | `Brigade-<v>-android.apk`, signé de la clé de debug |
 | Linux | `brigade-<v>-linux-x64.AppImage`, non signée, attachée ensuite par `app-release-linux` | la même |
-| Mise à jour des apps installées | oui, par `latest-mac.yml` et `latest.yml` | sur un Mac, oui, par `latest-mac.yml` ; sous Windows, non : `latest.yml` n'est pas publié, une app installée ne se met pas à jour vers un installeur non signé |
+| Mise à jour des apps installées | oui, par `latest-mac.yml` et `latest.yml` | sur un Mac, oui, par `latest-mac.yml` ; sous Windows aussi, par `latest.yml` (#4058) |
 
 Quatre fichiers sur chaque chemin, publiés par `publier-app`. Le workflow
 [`app-release-linux`](../../.github/workflows/app-release-linux.yml) joue après chaque run réussi de

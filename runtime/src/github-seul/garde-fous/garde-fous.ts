@@ -21,6 +21,7 @@
 // écrit et lit déjà, et `status` les montre de même.
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import type { Arbitrage, Reponse } from "../../arbitrage.ts";
 import type { Lancer } from "../../brigade-github.ts";
@@ -28,9 +29,11 @@ import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
+import { worktreesDuProjet } from "../../depot.ts";
 import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
+import { recuperer, type Fichiers, type Processus } from "./recuperation.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
-import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
+import { consommationDesCooks, etatStation, runsRendables } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
 import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
@@ -96,6 +99,10 @@ export type OptionsDesGardes = {
   // Un disque saturé que la cuisine ne peut plus libérer, sans cook en vol,
   // est dit au chef par une carte de TODO (#4091). Absent : rien ne se dit.
   disquePlein?: DisquePlein;
+  // Ce que la récupération lit et retire sur le disque (`recuperation.ts`) ; le vrai disque par défaut.
+  fichiers?: Fichiers;
+  // Les processus que la récupération lit et arrête (#4108) ; les vrais par défaut.
+  processus?: Processus;
   maintenant?: () => Date;
   avertir?: (message: string) => void;
   // L'environnement de la station, où se lit son moteur de repli (#3745).
@@ -162,6 +169,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // rail plein ne parte pas d'un bloc.
   let accordees: number[] = [];
   let machineIllisible = false;
+  // Les restes des cooks partis ont été rendus ce tour-ci : une seule fois par tour.
+  let recupereCeTour = false;
   // Les lectures de suite où le processeur dépasse à peine son seuil (#4142).
   let pic = 0;
   let saturee = false;
@@ -223,26 +232,44 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // Une machine qui ne se lit pas ne retient rien — les places de la station
   // bornent toujours ses cooks — et le dit une fois.
   const machineAcourt = (cooks: number): boolean => {
-    if (options.machine === undefined) return false;
-    let manques: Saturation[];
-    let lue: Machine;
-    try {
+    const { machine } = options;
+    if (machine === undefined) return false;
+    const mesurer = () => {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
-      lue = options.machine.lire();
+      const lue = machine.lire();
       const vue = reserver(lue, accordees.length);
-      manques = saturations(vue, options.machine.seuils, saturees);
+      let manques = saturations(vue, machine.seuils, saturees);
       // Un pic ne retient rien (#4142) : la lecture brute passe le seuil, la charge comptée d'avance de peu, et la station n'est pas déjà retenue pour le processeur.
       const cpu = manques.find(({ resource }) => resource === "cpu");
       const bref = cpu !== undefined && !saturees.includes("cpu") && lue.charge > cpu.limit && vue.charge <= cpu.limit * (1 + MARGE_DU_PIC);
       pic = bref ? pic + 1 : 0;
       if (bref && pic < LECTURES_DU_PIC) manques = manques.filter(({ resource }) => resource !== "cpu");
+      return { lue, manques };
+    };
+    let mesure: { lue: Machine; manques: Saturation[] };
+    try {
+      mesure = mesurer();
+      // Saturée sans cook en vol : ce que les cooks partis ont laissé se rend, puis la machine se relit.
+      if (mesure.manques.length > 0 && cooks === 0 && !recupereCeTour) {
+        recupereCeTour = true;
+        try {
+          const { retires, echecs, tues } = recuperer({ worktrees: worktreesDuProjet(options.env ?? {}, repertoireEtat), repertoireEtat, clone: options.env?.BRIGADE_REPO_DIR, finis: runsRendables(base), cacheNpm: options.env?.npm_config_cache || join(homedir(), ".npm") }, options.fichiers, options.processus);
+          if (tues.length > 0) avertir(`brigade : GitHub-only station ${station} stopped ${tues.length} orphaned process(es) of exited cooks`);
+          if (retires.length > 0) avertir(`brigade : GitHub-only station ${station} gave back ${retires.length} leftover worktree(s), run file(s), tmp dir(s) and npm cache of exited cooks`);
+          if (echecs.length > 0) avertir(`brigade : GitHub-only station ${station} could not reclaim ${echecs.join(", ")}`);
+        } catch (erreur) {
+          avertir(`brigade : GitHub-only station ${station} could not reclaim what exited cooks left (${message(erreur)})`);
+        }
+        mesure = mesurer();
+      }
       machineIllisible = false;
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
       machineIllisible = true;
       return false;
     }
+    const { lue, manques } = mesure;
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
       const [premier] = manques;
@@ -383,6 +410,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       // Aucun ticket à prendre ce tour : plus rien ne retient la station.
       if (!lueCeTour) dire(null);
       lueCeTour = false;
+      recupereCeTour = false;
       if (arbitre !== null) await echanger(cooks, false);
       enAttente = false;
     },

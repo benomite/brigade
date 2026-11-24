@@ -4,6 +4,8 @@
 // - rien n'a été mergé depuis 30 min alors qu'un ticket est cuisinable ;
 // - un ticket a été pris 3 fois sans livrer ;
 // - `main` est rouge depuis 10 min.
+// Un quatrième, un ticket sans progrès depuis 30 min, se compte dans
+// `inactivite/inactivite.ts` (#4027) et réveille le superviseur par `brancher.ts`.
 //
 // Sans E/S : il reçoit ce qui a été observé du projet, et rend la cause du
 // réveil — ou null.
@@ -31,7 +33,8 @@ export type FaitsDuProjet = {
 export type Reveil =
   | { cause: "no-merge"; since: string; ticket: number }
   | { cause: "takes"; takes: number; ticket: number }
-  | { cause: "main-red"; since: string; ticket: null };
+  | { cause: "main-red"; since: string; ticket: null }
+  | { cause: "no-progress"; since: string; ticket: number; state: string };
 
 const instant = (iso: string | null): number | null => {
   const ms = iso === null ? Number.NaN : Date.parse(iso);

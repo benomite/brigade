@@ -168,7 +168,7 @@ test("a gesture that fails midway says what was already done, so nothing is redo
 // Le cas de #3228 : cinq issues de suivi demandées par le cook.
 const SUIVIS = [
   { titre: "Closing pass drops the last comment", corps: "The closing pass reads one comment short.", suit: "the dropped last comment", labels: ["bug"] },
-  { titre: "Pass ignores the design label", corps: "A `cook:design` delivery goes to review without its captures.", suit: "design deliveries without captures" },
+  { titre: "Pass ignores the design label", corps: "A `design` delivery goes to review without its captures.", suit: "design deliveries without captures" },
   { titre: "Manager retranslates the cook's question", corps: "The card quotes the question twice.", suit: "the doubled question on the card" },
   { titre: "Station restart loses the wait", corps: "A waiting ticket is taken at once after a restart.", suit: "waits lost on restart" },
   { titre: "Gates time out on the app suite", corps: "The app suite exceeds the gates' clock on a loaded station.", suit: "" },

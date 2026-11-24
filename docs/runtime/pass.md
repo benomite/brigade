@@ -499,7 +499,7 @@ On a project whose settings say `humanValidatesDesigns: true` (`.claude/brigade/
 benomite/brigade, off by default), **the pass does not merge a green design delivery itself** (#3184,
 `runtime/src/validation-design/`). A design delivery changes what the user sees: it touches the app's
 view (`app/src/vue/`), the site (`site/`) or a mockup (`docs/maquettes/`), carries captures for its
-ticket (`docs/captures/<ticket>/`), or its ticket is for the design cook (`cook:design`). Any other
+ticket (`docs/captures/<ticket>/`). Any other
 delivery, and every delivery of a project without the setting, is merged as before.
 
 | When the delivery is green (reviewed, CI green), at the merge | What the pass does |

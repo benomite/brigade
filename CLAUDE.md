@@ -8,14 +8,14 @@ The section title and the bold labels of the bindings below stay in French on pu
 
 - **Language** : code, docs and issues are in English. The conversation with the chef is in French, and so is every dialogue with the agents. The word for each object is in `docs/glossary.md`.
 - **Acteurs** : the chef, the second (local) and the kitchen (runtime, manager, cooks, pass)
-- **Interface** : all interface work is carried by the kitchen's design cook (#837)
+- **Interface** : the project declares its tools (screenshots come from `scripts/capture-ecran/`), and a ticket states the tools it needs
 - **Branche d'intégration** : `main`
 - **Worktrees** : `<parent of the repo>/brigade-wt/<n>-<slug>` — a sibling of the repo, the parent is computed (`dirname "$(git rev-parse --show-toplevel)"`)
 - **Setup worktree** : `.claude/brigade/worktree-setup.sh <n> <WT>`
 - **Gates** : `.claude/brigade/gates.sh <WT>`, then `/code-review`
 - **Zones de fichiers** : three product zones, with different rules.
   - **Runtime** — `runtime/`: TypeScript run by Node 26, with its own `package.json`. A runtime issue writes here, and nowhere in the plugin zone.
-  - **App** — `app/`: the desktop app (Electron, xterm.js, node-pty), TypeScript with no build, with its own `package.json`. An app issue writes here and adds **nothing** to the runtime: the app runs the commands that exist. `app/src/vue/` (the skin) is carried by the design cook (#837). The mockup is in `docs/maquettes/app/`; an app ticket names the screen it serves.
+  - **App** — `app/`: the desktop app (Electron, xterm.js, node-pty), TypeScript with no build, with its own `package.json`. An app issue writes here and adds **nothing** to the runtime: the app runs the commands that exist. `app/src/vue/` (the skin) is interface work: its ticket states the tools it needs (screenshots, via the project tool list). The mockup is in `docs/maquettes/app/`; an app ticket names the screen it serves.
   - **Plugin V1** — `commands/` (roles), `agents/`, `codex/skills/` (Codex mirror, copied by `/brigade:sync`), `.claude-plugin/` (manifests). `evals/` holds the evaluation cases of these roles.
   - **Common** — `scripts/` (release tooling), `docs/`, `.claude/brigade/` (gates and worktree setup).
 - **Dev local** :
