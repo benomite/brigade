@@ -102,7 +102,7 @@ import { tenirLaStationDeFond } from "./station-fond/attache.ts";
 import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
 import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
-import { connexionDeLaSession, ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
+import { claudeDe, connexionDeLaSession, ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
@@ -775,8 +775,9 @@ const stationLocale =
 // Les pannes d'une station, sur sa ligne de la home : chacune a son bouton (pannes/gestes.ts). Le
 // login ne part que pour la station de cet ordinateur, par le `claude` officiel (pannes/login.ts).
 // Sa fin part aussi à la vue : une ouverture de projet qu'il retenait, au premier lancement, repart (#4057).
+const claudeIci = claudeDe(process.env);
 const loginIci = tenirLogin({
-  claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
+  claude: claudeIci,
   env: process.env,
   dire: (ligne) => console.error(ligne),
   apres: () => {
@@ -1418,7 +1419,7 @@ const ouvrirUnProjetDUneStation = ouvrirDUneStation({
   // Avant que la cuisine démarre (#4057) : ce que `claude auth status` dit de cet ordinateur, sans appel au modèle.
   connexionClaude: async () => {
     const { sessionClaude } = await duRuntime<typeof import("../../runtime/src/claude.ts")>("claude.ts");
-    return connexionDeLaSession(await sessionClaude(process.env.BRIGADE_CLAUDE_BIN || "claude", process.env));
+    return connexionDeLaSession(await sessionClaude(claudeIci, process.env));
   },
 });
 // Le dépôt choisi dans « Add a project » (#2627) : est-il prêt pour brigade — ses bindings, ses labels —, et le

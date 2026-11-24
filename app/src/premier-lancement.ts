@@ -34,6 +34,9 @@ export function connexionDeLaSession(session: Session): ConnexionClaude {
   return session === "absente" ? "perdue" : "inconnue";
 }
 
+// Le `claude` de cet ordinateur : celui que nomme `BRIGADE_CLAUDE_BIN` (un essai), sinon celui du PATH.
+export const claudeDe = (env: NodeJS.ProcessEnv): string => env.BRIGADE_CLAUDE_BIN || "claude";
+
 export const PAS_CONNECTE = (projet: string) => `Claude Code is not logged in on this computer: log in, and ${projet} starts cooking.`;
 
 export type OptionsDOuvrir = {

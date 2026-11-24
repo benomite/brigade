@@ -1,7 +1,7 @@
 // Ce que `claude auth status` dit de cet ordinateur (#4057), lu en connexion : seul un « non » net retient l'ouverture.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { connexionDeLaSession, ouvrirDUneStation } from "../src/premier-lancement.ts";
+import { claudeDe, connexionDeLaSession, ouvrirDUneStation } from "../src/premier-lancement.ts";
 
 test("only a clear no from Claude Code reads as not logged in", () => {
   assert.equal(connexionDeLaSession("connectee"), "connectee");
@@ -41,4 +41,10 @@ test("logged in once, the next openings do not ask again; an unknown answer is a
     await ouvrir("parade", "benomite/parade");
     assert.equal(lues, demandes, dit);
   }
+});
+
+test("the claude asked is the one BRIGADE_CLAUDE_BIN names, else the one on the PATH", () => {
+  assert.equal(claudeDe({}), "claude");
+  assert.equal(claudeDe({ BRIGADE_CLAUDE_BIN: "" }), "claude");
+  assert.equal(claudeDe({ BRIGADE_CLAUDE_BIN: "/opt/claude-double" }), "/opt/claude-double");
 });

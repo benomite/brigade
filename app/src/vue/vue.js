@@ -8694,7 +8694,7 @@ async function seConnecterAClaude() {
     rendu = { refus: `the login was not launched: the app failed while launching it (${erreur instanceof Error ? erreur.message : String(erreur)})` };
   }
   siClaudeManque(rendu);
-  if (premier.ouverture?.echec?.state !== "login") return;
+  if (premier.ouverture?.echec?.state === "login") return;
   premier.ouverture.login = rendu;
   poserLePremier();
 }
@@ -8891,6 +8891,8 @@ function choisirLeDepot(choisi) {
   // dit que le compte peut écrire dans son dépôt. Une ouverture ratée n'a rien à guider.
   aGuider.set(lu.nom, lu.depot);
   void ouvrirDUneStation("", lu.nom, lu.depot, choisi.base).then(() => {
+    // Retenue tant que Claude Code n'est pas connecté (ticket 4057) : elle repart à la fin du login, son projet reste à guider.
+    if (premier.ouverture?.echec?.state === "login") return;
     if (premier.ouverture?.echec !== undefined && premier.ouverture.projet === lu.nom) aGuider.delete(lu.nom);
     // Le projet était déjà lu — dans le fichier avant d'être choisi : sa lecture tenue décide sans attendre la suivante.
     else suivreLeParcours(lu.nom);
