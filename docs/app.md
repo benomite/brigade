@@ -2423,6 +2423,15 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   that runs. On desktop Linux, and when the app is launched from the repository, nothing is registered: the station
   does not start at login there, only when the app opens, and it then outlives the app
   (`app/src/station-fond/inscription.ts`).
+- **A screen tells the newcomer first (#4081).** On a Mac, registering the launchd agent makes macOS show its
+  "Background Items Added" notice. On the first launch of the installed app on a Mac where the station is not registered
+  yet, the app first shows a screen, "Brigade runs in the background", that says the station keeps running with the
+  app closed and that macOS will tell about it, with one button, **continue**; the app stays hidden behind it, and
+  the registration waits until the button is pressed. The button pressed, the file `avis-de-fond-vu` next to the
+  projects file notes it: on the next launches the screen does not come back, and the registration runs without
+  waiting. If that file cannot be written, the screen comes back at the next launch. On Windows, on desktop Linux,
+  and on a Mac where the installer already put the agent, no screen shows (`app/src/premier-lancement/`,
+  `app/src/vue/premier-lancement/`).
 - **Only one per machine and per account.** The app that opens attaches to the station that runs — whoever started
   it, `station/app.pid` names the process that holds it, which removes it when it stops; a mark written before the
   system started does not count, its pid may have gone to another process — and never starts a second one: same process, same pid
