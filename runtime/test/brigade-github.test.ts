@@ -6,7 +6,8 @@
 // `github-etat/prise.ts`) : seul le client GitHub est faux, plus bas qu'eux.
 import { SUJET_DE_SAUVEGARDE } from "../src/mise-a-jour/attente/attente.ts";
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -63,6 +64,33 @@ test("the station names the fired tickets that wait for a claim at its last turn
   assert.deepEqual(a.enAttente?.(), [2]);
   await a.tour();
   assert.deepEqual(a.enAttente?.(), []);
+  await a.calme();
+});
+
+test("places full, a place opens: the ticket the no-merge wake names is claimed before the others (#4102)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(10);
+  const cuits: number[] = [];
+  let ouvrir = () => {};
+  const a = faux.station("A", {
+    places: 1,
+    cuisiner: async (issue) => {
+      cuits.push(issue);
+      if (issue === 10) await new Promise<void>((fini) => (ouvrir = fini));
+      return { branche: `b${issue}` };
+    },
+    enPremier: () => [30],
+  });
+  await a.tour();
+  assert.deepEqual(cuits, [10], "the one place is taken");
+  faux.feu(20);
+  faux.feu(30);
+  await a.tour();
+  assert.deepEqual(cuits, [10], "places full: neither #20 nor #30 is claimed");
+  ouvrir();
+  await a.calme();
+  await a.tour();
+  assert.equal(cuits[1], 30, "the place that opens goes to #30, not to #20 which is older");
   await a.calme();
 });
 
@@ -959,6 +987,32 @@ test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
 });
 
+// brigade:guard
+test("places full, a place opens: a `prio:0` repair ticket is claimed before an older ticket without prio (#4102)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(10, CALIBRE);
+  const cuits: number[] = [];
+  let ouvrir = () => {};
+  const a = faux.station("A", {
+    places: 1,
+    cuisiner: async (issue) => {
+      cuits.push(issue);
+      if (issue === 10) await new Promise<void>((fini) => (ouvrir = fini));
+      return { branche: `b${issue}` };
+    },
+  });
+  await a.tour();
+  faux.feu(20, CALIBRE);
+  faux.feu(30, [...CALIBRE, "prio:0"]);
+  await a.tour();
+  assert.deepEqual(cuits, [10], "places full: neither #20 nor #30 is claimed");
+  ouvrir();
+  await a.calme();
+  await a.tour();
+  assert.equal(cuits[1], 30, "the place that opens goes to the `prio:0` #30, not to the older #20");
+  await a.calme();
+});
+
 test("a red check that runs only on the base (Windows) holds nothing; a red check the PR also runs holds its merge (#2279)", async () => {
   const faux = new FauxGitHub();
   faux.feu(37);
@@ -1344,6 +1398,64 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
     ],
   );
   assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Advice \(`a\.ts`\): a nit/);
+});
+
+test("the station of this runtime: a cook that exits loses its worktree, build output, run streams and tmp dir; a live cook keeps its own, process included (#4104)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const etat = join(repertoire, "etat");
+  const faux = new FauxGitHub();
+  faux.feu(11, ["fire", "model:opus", "effort:high"]);
+  faux.feu(12, ["fire", "model:opus", "effort:high"]);
+  const vivant = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+  t.after(() => void vivant.kill());
+  // Ce que chaque cook laisse : son worktree et son build, ses flux (tour et garde-fous), son tmp.
+  const restes = (run: string) => {
+    const worktree = join(repertoire, run);
+    mkdirSync(join(worktree, "node_modules", "x"), { recursive: true });
+    writeFileSync(join(worktree, "node_modules", "x", "i.js"), "");
+    mkdirSync(join(etat, "runs"), { recursive: true });
+    mkdirSync(join(etat, "tmp", run), { recursive: true });
+    const flux = [join(repertoire, `${run}.flux.jsonl.stderr`), join(etat, "runs", `${run}-9c4e9d20.jsonl`)];
+    for (const fichier of flux) writeFileSync(fichier, "{}\n");
+    return [worktree, join(worktree, "node_modules"), ...flux, join(etat, "tmp", run)];
+  };
+  const sorti = restes("11-github");
+  const tenu = restes("12-github");
+  const lancer: Lancer = ({ flux }) => {
+    if (flux.includes("12-github")) return { fin: new Promise(() => {}) };
+    writeFileSync(flux, fluxQuiConclut("done"));
+    return { fin: Promise.resolve({ code: 1, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: "boom" }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 2,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 0,
+      changes: () => [],
+      diff: () => "",
+    },
+    ...reglagesDuFauxClaude(repertoire, lancer),
+    repertoireEtat: etat,
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  await station.tour();
+  await jusqua(() => !station.enCuisine().includes(11));
+  assert.deepEqual(station.enCuisine(), [12], "le cook 12 tourne toujours");
+  assert.ok(sorti.every((c) => !existsSync(c)), "les restes du cook sorti sont partis");
+  assert.ok(tenu.every(existsSync), "ceux du cook vivant sont intacts");
+  assert.doesNotThrow(() => process.kill(vivant.pid ?? 0, 0), "son process tourne encore");
 });
 
 test("the station of this runtime: a delivery that changes what judges it is reviewed, then judged by a second, separate launch under opus / high with the brief of agents/second-juge.md, and merged on its approval (#2555)", async (t) => {

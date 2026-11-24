@@ -105,7 +105,7 @@ test("l'installeur met la nouvelle version à la place de l'app, range le .dmg e
   assert.equal(machine.echec(), undefined);
   const appels = machine.appels();
   assert.ok(appels.some((appel) => appel.startsWith(`codesign --verify --deep --strict `)));
-  assert.equal(appels.at(-1), `open ${machine.paquet}`);
+  assert.equal(appels.at(-1), `open -n ${machine.paquet}`);
   assert.ok(appels.indexOf(appels.find((appel) => appel.startsWith("hdiutil detach")) ?? "") < appels.length - 1);
 });
 
@@ -127,7 +127,7 @@ for (const [cas, reglages, raison] of [
     assert.deepEqual(machine.applications(), ["Brigade.app"]);
     assert.equal(machine.echec(), raison);
     assert.equal(existsSync(machine.dmg), false);
-    assert.equal(machine.appels().at(-1), `open ${machine.paquet}`);
+    assert.equal(machine.appels().at(-1), `open -n ${machine.paquet}`);
   });
 }
 
@@ -144,7 +144,7 @@ test("l'installeur, détaché, attend que l'app soit fermée avant de rien touch
   assert.equal(machine.version(), "1.0.0");
   app.stdin?.end();
   await fermee;
-  await jusqua(() => machine.appels().at(-1) === `open ${machine.paquet}`);
+  await jusqua(() => machine.appels().at(-1) === `open -n ${machine.paquet}`);
   assert.equal(machine.version(), "1.1.0");
 });
 

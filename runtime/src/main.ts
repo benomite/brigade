@@ -23,6 +23,7 @@ import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { brancherElagageGithub, elagageDuClone } from "./github-seul/elagage/elagage.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
+import { disqueDuProjet } from "./github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
@@ -33,6 +34,7 @@ import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { lireLeDepot, roadmapALaBase, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
+import { porteDuRuntime } from "./autonomie/agents/porte.ts";
 import { brancherSuperviseur, type ManagerDuSuperviseur } from "./superviseur/brancher.ts";
 import { suivreLeTour } from "./superviseur/tour.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
@@ -133,6 +135,8 @@ try {
   const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"), () => republierReseau());
   const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
   socle = demarrer({ repertoireEtat, projet });
+  // La porte des gestes des agents (#4039) : chacun y passe selon son niveau d'autonomie, et ce que le chef approuve s'y fait.
+  const gestes = porteDuRuntime(socle);
   // Le fichier de l'app, créé neutre s'il manque et complété de ce qui lui manque : le chef
   // n'en écrit aucun à la main. Un échec se dit, et le runtime démarre.
   const fichierDeLApp = cheminDeLApp(process.env);
@@ -179,8 +183,9 @@ try {
       ici === undefined
         ? { refus: "the project declares no station on this machine" }
         : (() => {
-            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, env });
+            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), env });
             const ecrivaine = stationDuDepot({
+              porte: gestes,
               nom: ici.nom,
               places,
               capacites: ici.fournit,
@@ -208,6 +213,7 @@ try {
               flux: join(repertoireEtat, "github-seul"),
               observer: suiviDuTour.envelopper,
               sauter: suiviDuTour.sauter,
+              enPremier: suiviDuTour.enPremier,
               superviseur: (consulter) => (managerDuSuperviseur = consulter),
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,
@@ -247,12 +253,12 @@ try {
   brancherDerive(socle, decisions.seuils);
   // Le manager : il ne lance que des jugements et des découpages. Son travail
   // sur une issue se prend sur GitHub au nom de la station (#2568).
-  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,
   // et il relève la dérive que `status` lit, des flux des cooks.
-  const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
+  const closee = brancherCloserGithub(elaguee, { porte: gestes, reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, temps: () => lesTempsDesTickets(station.clone).enregistrements, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
