@@ -233,10 +233,10 @@ test("a saturated machine names the biggest consumer of its CPU or disk, in the 
   await station.tour();
   await station.calme();
   assert.deepEqual(faits("station.saturated").map(({ payload }) => payload), [
-    { station: STATION, resource: "cpu", observed: 16.2, limit: 12, biggest: "node (pid 42, 380% CPU)", also: [{ resource: "disk", observed: 4096, limit: 5120, biggest: "espace/ (3200 MB)" }] },
+    { station: STATION, resource: "cpu", observed: 16.2, limit: 12, consumer: "node (pid 42, 380% CPU)", also: [{ resource: "disk", observed: 4096, limit: 5120, consumer: "espace/ (3200 MB)" }] },
   ]);
-  assert.deepEqual(etatStation(runtime.journal.base, STATION)?.saturatedCauses.map(({ biggest }) => biggest), ["node (pid 42, 380% CPU)", "espace/ (3200 MB)"]);
-  assert.match(avertis.join("\n"), /biggest consumer: node \(pid 42, 380% CPU\)/);
+  assert.deepEqual(etatStation(runtime.journal.base, STATION)?.saturatedCauses.map(({ consumer }) => consumer), ["node (pid 42, 380% CPU)", "espace/ (3200 MB)"]);
+  assert.match(avertis.join("\n"), /biggest: node \(pid 42, 380% CPU\)/);
 });
 
 test("a consumer that cannot be named leaves the saturation as it was (#4090)", async (t) => {

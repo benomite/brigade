@@ -139,7 +139,7 @@ test("a failing measure names nothing (#4090)", () => {
 
 test("a saturation says its biggest consumer only when it has one (#4090)", () => {
   assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10 }), "5 MB of disk free for at least 10 MB");
-  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10, biggest: "espace/ (3 MB)" }), "5 MB of disk free for at least 10 MB — biggest consumer: espace/ (3 MB)");
+  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10, consumer: "espace/ (3 MB)" }), "5 MB of disk free for at least 10 MB — biggest: espace/ (3 MB)");
   assert.equal(lireConsommateur("/nulle/part")("memory"), null);
 });
 

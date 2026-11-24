@@ -198,8 +198,8 @@ const origineFr = (origine: OrigineDuSeuil | undefined) =>
   origine === undefined || origine === "env" ? "" : ` (par défaut : ${nombre(PART_MEMOIRE * 100)} % des ${nombre(origine.totalMb)} Mo de la machine)`;
 
 // La même, en anglais : ce que dit `status`.
-export function direSaturationEn({ resource, observed, limit, limitFrom, biggest }: Saturation): string {
-  const gros = biggest === undefined ? "" : ` — biggest consumer: ${biggest}`;
+export function direSaturationEn({ resource, observed, limit, limitFrom, consumer }: Saturation): string {
+  const gros = consumer === undefined ? "" : ` — biggest: ${consumer}`;
   switch (resource) {
     case "cpu":
       return `load of ${nombreEn(observed)} for at most ${nombreEn(limit)}${gros}`;
@@ -223,8 +223,8 @@ export function direSaturationsEn(manques: readonly Saturation[]): { ressources:
 }
 
 // Une saturation telle que le chef la lit.
-export function direSaturation({ resource, observed, limit, limitFrom, biggest }: Saturation): string {
-  const gros = biggest === undefined ? "" : ` — plus gros consommateur : ${biggest}`;
+export function direSaturation({ resource, observed, limit, limitFrom, consumer }: Saturation): string {
+  const gros = consumer === undefined ? "" : ` — plus gros : ${consumer}`;
   switch (resource) {
     case "cpu":
       return `charge de ${nombre(observed)} pour ${nombre(limit)} au plus${gros}`;
