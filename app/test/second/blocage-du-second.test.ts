@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { crochetsDuRole } from "../../src/second/crochet-du-role.ts";
-import { blocage, vueDe } from "../../src/second/blocage-du-second.ts";
+import { blocage } from "../../src/second/blocage-du-second.ts";
 
 const VUE = {
   banners: [{ label: "STOPPED", waitsFor: "a restart", waitsOn: "the chef" }, { label: "FAULT #221", waitsFor: "a fix", waitsOn: "the cook" }],
@@ -18,7 +18,7 @@ function avecVue(corps: string | undefined, essai: (vues: string) => void) {
   const vues = mkdtempSync(join(tmpdir(), "vue-4121-"));
   try {
     mkdirSync(vues, { recursive: true });
-    if (corps !== undefined) writeFileSync(vueDe(vues, "espace"), corps);
+    if (corps !== undefined) writeFileSync(join(vues, "espace.json"), corps);
     essai(vues);
   } finally {
     rmSync(vues, { recursive: true, force: true });

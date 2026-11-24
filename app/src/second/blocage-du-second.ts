@@ -12,7 +12,7 @@ export const QUESTION_DE_BLOCAGE = /bloqu|blocked|stuck|what('| i)s (happening|g
 // L'état de la vue du projet — bandeaux et cartes du rail — que l'app dépose pour le second : un fichier JSON du
 // dossier temporaire du poste, au nom du projet (une `VueDuProjet`). Pas de fichier, ou un fichier illisible : pas de vue.
 export const VUES = (): string => join(tmpdir(), "brigade-second-vue");
-export const vueDe = (vues: string, nom: string): string => join(vues, `${nom.replace(/[^\w.-]/g, "_")}.json`);
+const vueDe = (vues: string, nom: string): string => join(vues, `${nom.replace(/[^\w.-]/g, "_")}.json`);
 
 function lireLaVue(vues: string, nom: string): VueDuProjet | undefined {
   try {
