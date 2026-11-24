@@ -139,8 +139,6 @@ and 512 MB. The gates the pass plays load the machine too.
 in `run status` (`withholding` in `run station`), and the reason on the ticket's line (`withheld by
 <station> (…)`).
 
-A station held for `machine` also launches no cook (#4097): the guarded launch (`runtime/src/garde-fous.ts`) refuses one — a cook taken before the hold, or the relaunch of a ticket whose cook just exited — until `station.released`.
-
 | `reason` | What withholds the station |
 |---|---|
 | `ramp`, `machine` | the gradual ramp-up; the machine saturated |

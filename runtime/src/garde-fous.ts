@@ -337,9 +337,10 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         );
       }
       // Une station retenue pour saturation de sa machine ne lance ni ne relance aucun cook (#4097) : un cook
-      // pris avant la retenue, ou relancé après sa fin, attend qu'elle se lève.
+      // pris avant la retenue, ou relancé après sa fin, attend qu'elle se lève. Le manager, la pass (relecture,
+      // mutations, blocage) et les autres runs hors ticket partent, comme avec le disjoncteur.
       const station = demande.contexte?.station ?? null;
-      if (station !== null && station !== STATION_DU_MANAGER && etatStation(base, station)?.heldReason === "machine") {
+      if (station !== null && natureDuRun(run, station) === "cook" && etatStation(base, station)?.heldReason === "machine") {
         throw new LancementRefuse("held", `station ${station} retenue : sa machine est saturée, aucun cook n'est lancé avant qu'elle se libère`);
       }
       const lance = noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;

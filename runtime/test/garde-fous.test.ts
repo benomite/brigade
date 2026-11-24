@@ -742,10 +742,16 @@ test("une station retenue pour sa machine ne lance ni ne relance aucun cook, et 
     assert.throws(() => lancer(ticket), (erreur: unknown) => erreur instanceof LancementRefuse && erreur.motif === "held");
   }
   assert.equal(lances(), 1);
+  // La relecture de la pass et le jugement du manager, eux, partent : seuls les cooks sont retenus.
+  const horsCook = (run: string, station: string) =>
+    runtime.lancer({ ticket: null, run, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" }, contexte: { station } });
+  assert.equal((await horsCook("review-pr-12-github-ab12", "parade-box/claude").fin).outcome, "ok");
+  assert.equal((await horsCook("manager-github-ab12", "manager").fin).outcome, "ok");
+  assert.equal(lances(), 3);
   // Une autre station, elle, n'est pas retenue.
   assert.equal((await cook(4070, "fini").fin).outcome, "ok");
 
   ecrire("station.released", { station: "parade-box/claude" });
   assert.equal((await lancer(4064).fin).outcome, "ok");
-  assert.equal(lances(), 3);
+  assert.equal(lances(), 5);
 });
