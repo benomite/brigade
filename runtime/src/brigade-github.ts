@@ -319,7 +319,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true } | { arrete: string } | { baseAbsente: string } | { reste: string; rouges?: string[] } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true; detail?: string } | { arrete: string } | { baseAbsente: string } | { reste: string; rouges?: string[] } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -1460,7 +1460,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (${fini ? "its run ended ok, not counted" : `try ${echecs}/${ECHECS_MAX}`}): ${fait.echec}`);
       await github.commenter(
         issue,
-        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere: the supervisor takes it and decides what happens to it.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere. The supervisor takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
+        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${detailDesGates(fait)}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere: the supervisor takes it and decides what happens to it.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere. The supervisor takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
       );
       chrono.rater(issue);
       if (suite !== null && "auChef" in suite) {
@@ -2868,6 +2868,15 @@ export function lecteurDeLaCiDesPR(depot: Partial<Pick<Depot, "vue" | "fichiers"
 }
 
 // Ce que des gates rendues disent, pour le statut et pour le cook.
+// Ce que des gates rouges ont dit, replié sous le motif d'un échec : un commentaire de ticket ne garde que sa fin, au-delà
+// de ce qu'une issue affiche (#4113).
+const DETAIL_MAX = 6000;
+function detailDesGates(fait: { detail?: string }): string {
+  if (fait.detail === undefined || fait.detail === "") return "";
+  const detail = fait.detail.length > DETAIL_MAX ? `…\n${fait.detail.slice(-DETAIL_MAX)}` : fait.detail;
+  return `\n\n<details><summary>What the gates said</summary>\n\n${detail}\n\n</details>`;
+}
+
 export function verdictDesGates(gates: Gates, delaiMs: number): VerdictDesGates {
   const vert = gates.outcome === "green";
   const resume = vert ? "" : gates.outcome === "timeout" ? `stopped after ${Math.round(delaiMs / 1000)} s` : (gates.failures[0] ?? `exit code ${gates.code ?? "none"}`);
@@ -3023,13 +3032,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // qui le livre sans y rien changer n'a pas à les rejouer — même arbre, même
   // verdict —, ce qui coûtait une suite entière de plus. Un arbre qui ne se lit
   // pas les rejoue.
-  const arbresRouges = new Map<number, { arbre: string; echec: string }>();
-  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string } | { subi: string } | null> => {
+  const arbresRouges = new Map<number, { arbre: string; echec: string; detail: string }>();
+  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string; detail?: string } | { subi: string } | null> => {
     if (!aDesGates(worktree) || (await gatesQuiNeJugentPas(worktree, ticket, lireFondations)) !== null) return null;
     const lu = await depot.lancerGit?.(["rev-parse", "HEAD^{tree}"], worktree);
     const arbre = lu?.code === 0 ? lu.stdout.trim() : null;
     const dejaRouge = arbresRouges.get(ticket.number);
-    if (arbre !== null && dejaRouge?.arbre === arbre) return { echec: `${dejaRouge.echec} (the same tree as its previous delivery: the gates were not played again)` };
+    if (arbre !== null && dejaRouge?.arbre === arbre) return { echec: `${dejaRouge.echec} (the same tree as its previous delivery: the gates were not played again)`, detail: dejaRouge.detail };
     const secrets = lireSecrets(worktree, options.gates?.secrets ?? null);
     if (!secrets.pret) return { echec: `its gates could not run before the push, so its delivery was not pushed: the secrets the project declares cannot be given to them — ${secrets.problemes.join("; ")}` };
     const delaiMs = options.gates?.delaiMs ?? delaiDesGatesMs(options.env);
@@ -3048,14 +3057,16 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       signal: abandon.signal,
     });
     if (abandon.signal.aborted) return { subi: "the station stopped during the gates of the delivery, before its push" };
-    const { vert, resume } = verdictDesGates(gates, delaiMs);
+    const { vert, resume, detail } = verdictDesGates(gates, delaiMs);
     if (vert) {
       arbresRouges.delete(ticket.number);
       return null;
     }
     const echec = `its gates are red, so its delivery was not pushed: ${resume}`;
-    if (arbre !== null) arbresRouges.set(ticket.number, { arbre, echec });
-    return { echec };
+    if (arbre !== null) arbresRouges.set(ticket.number, { arbre, echec, detail });
+    // Ce qu'elles ont dit — les tests rouges par leur nom, la fin de leur sortie —, et pas seulement leur première ligne :
+    // sans eux, ni le cook suivant ni le manager ne savent quoi corriger (#4113).
+    return { echec, detail };
   };
   const cuisinerLeTicket: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
@@ -3184,7 +3195,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           return retenue;
         }
         avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` carries a delivery that was never pushed, and ${retenue.echec}: a cook resumes it`);
-        joint += `\n\n## Gates red on the delivery\n\nThis branch carries a delivery that was never pushed: ${retenue.echec}. Fix what is red, run the gates and commit.`;
+        joint += `\n\n## Gates red on the delivery\n\nThis branch carries a delivery that was never pushed: ${retenue.echec}. Fix what is red, run the gates and commit.${retenue.detail === undefined || retenue.detail === "" ? "" : `\n\nWhat the gates said:\n\n${retenue.detail}`}`;
       }
       if (!surGitHub && retenue === null && depot.commits(branche) > 0) {
         try {
