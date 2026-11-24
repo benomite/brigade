@@ -41,3 +41,52 @@ describe("#3797 critère 1", () => {
     }
   });
 });
+
+describe("#3797 critère 2", () => {
+  // brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+  test("une station montée sur sa machine, sans sélection de l'app, est dite servir le projet qu'elle cuit", () => {
+    const faits = faitsDe(lu("pris", [parade()]));
+    const bloque = faits.railBloque;
+    // Soit rien n'est bloqué, soit la cause nomme parade-box comme celle qui sert le projet.
+    if (bloque !== undefined && "cause" in bloque) {
+      assert.notEqual(bloque.cause, "aucune-station");
+      assert.notEqual(bloque.cause, "inconnue");
+      assert.ok(bloque.stations.includes("parade-box/claude"), "the cause names parade-box as the station serving the project");
+    }
+    assert.ok((faits.cooks ?? []).some(({ station }) => station === "parade-box/claude"));
+    assert.ok(JSON.stringify(faits.stations ?? {}).includes("parade-box"));
+  });
+});
+
+describe("#3797 critère 3", () => {
+  // brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+  test("la faute et son geste ne se montrent que lorsqu'aucune station ne sert vraiment le projet", () => {
+    const sansCuisson = (stations: StationDuCompte[]) => faitsDe(avecLeRail(VIDE, { lu: LU, tickets: [ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: stations })).railBloque;
+    // Vraiment aucune : aucune station, une autre sélection, ou la station sans sélection hors ligne ou arrêtée qui ne cuit rien.
+    for (const stations of [[], [parade({ selection: ["benomite/autre"] })], [parade({ lastSeen: "2026-11-17T09:00:00.000Z" })], [parade({ stoppedAt: "2026-11-17T14:21:40.000Z" })]]) {
+      const bloque = sansCuisson(stations);
+      assert.ok(bloque !== undefined && "cause" in bloque);
+      assert.equal(bloque.cause, "aucune-station");
+      assert.equal(bloque.geste, "ajouter-a-une-station");
+      assert.match(bloque.phrase, /no station serves this project\. Add the project to a station\.$/);
+    }
+    // Mais pas quand la même station cuit un ticket du projet.
+    const cuit = faitsDe(lu("pris", [parade()])).railBloque;
+    assert.ok(cuit === undefined || !("cause" in cuit) || cuit.cause !== "aucune-station");
+  });
+});
+
+describe("#3797 critère 4", () => {
+  // brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+  test("la file du second (`status`) et l'alerte du rail bloqué ne disent pas « no station » quand une station sert le projet", () => {
+    for (const etat of ["pris", "en pass"] as const) {
+      const lue = lu(etat, [parade()]);
+      assert.doesNotMatch(statusDuTableau(lue), /no station/i);
+      assert.doesNotMatch(JSON.stringify(lue.faits.railBloque ?? {}), /no station/i);
+      assert.doesNotMatch(JSON.stringify(lue.faits.attenteDuRail ?? {}), /no station/i);
+    }
+    // Vraiment aucune station : la ligne reste.
+    const sans = avecLeRail(VIDE, { lu: LU, tickets: [ticket(4), ticket(5)], nonPris: NON_PRIS }, { lus: [] });
+    assert.match(statusDuTableau(sans), /no station serves this project/);
+  });
+});
