@@ -381,6 +381,14 @@ if [ -z "$PORTEE" ] && [ "$COMME_LA_CI_WINDOWS" -eq 1 ]; then
   SELECTION_runtime=tout
   SELECTION_app=tout
 fi
+# Toute la suite jouée parce que le changement règle une suite entière (un
+# tsconfig, un lockfile, le setup), elle aussi jugée comme la CI de la PR : un
+# test lent que le changement ajoute ou change rougit les gates, les autres
+# sont rapportés (#4110). En strict, chaque test de la suite qui passait 2 s
+# sur une box chargée rougissait toutes les livraisons, quel que soit leur code.
+if [ -z "$PORTEE" ] && [ "${#DUREE[@]}" -eq 0 ] && [ "$SELECTION_runtime" = tout ] && [ -n "${SOUCHE:-}" ] && [ "${BRIGADE_GATES_TOUT:-}" != 1 ]; then
+  DUREE=(BRIGADE_DUREE_MODE=pr "BRIGADE_DUREE_BASE=$SOUCHE" BRIGADE_DUREE_STRICTS=)
+fi
 
 # 6 bis. Le tour : sur une box, les suites de tests de deux passages ne courent
 # jamais en même temps — c'est ce qui fait que la garde d'horloge ne coupe plus
