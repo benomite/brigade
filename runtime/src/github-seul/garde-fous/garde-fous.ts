@@ -192,7 +192,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
       const nommes = manques.map((manque) => {
-        const gros = manque.resource === "memory" ? null : (options.machine?.consommateur?.(manque.resource) ?? null);
+        let gros: string | null = null;
+        try {
+          gros = manque.resource === "memory" ? null : (options.machine?.consommateur?.(manque.resource) ?? null);
+        } catch {
+          // Un consommateur qui échoue ne se nomme pas : la saturation se dit sans lui.
+        }
         return gros === null ? manque : { ...manque, consumer: gros };
       });
       const [premier, ...autres] = nommes;
