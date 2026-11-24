@@ -122,6 +122,10 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // Le jour du résumé hebdomadaire de la cuisine (#3261, `resume-hebdomadaire/`).
   // Absent : lundi.
   weeklySummaryDay?: JourDuResume;
+  // Les entrées du calendrier (#4138) : le travail qui revient, une issue par
+  // période. Gardées telles qu'écrites : `recurrences/recurrences.ts` refuse
+  // chaque entrée qui ne se lit pas, sans refuser la fiche ni les autres.
+  recurring?: unknown[];
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -165,7 +169,7 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
 // accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
 // sa réécriture le retire.
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "githubOnlyState", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "recurring", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -325,6 +329,10 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     if (typeof objet.weeklySummaryDay !== "string" || !(JOURS_DU_RESUME as readonly string[]).includes(objet.weeklySummaryDay)) throw invalide("weeklySummaryDay", `must be a day of the week: ${JOURS_DU_RESUME.map((jour) => `\`${jour}\``).join(", ")}`);
     reglages.weeklySummaryDay = objet.weeklySummaryDay as JourDuResume;
   }
+  if (objet.recurring !== undefined) {
+    if (!Array.isArray(objet.recurring)) throw invalide("recurring", "must be a list of `{ name, frequency, priority }` entries");
+    if (objet.recurring.length > 0) reglages.recurring = objet.recurring;
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -343,7 +351,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay, recurring } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -370,6 +378,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(humans === undefined || humans.length === 0 ? {} : { humans: humans.map(({ login, roles }) => ({ login, roles })) }),
       ...(humanValidatesDesigns === undefined ? {} : { humanValidatesDesigns }),
       ...(weeklySummaryDay === undefined ? {} : { weeklySummaryDay }),
+      ...(recurring === undefined || recurring.length === 0 ? {} : { recurring }),
       ...Object.fromEntries(desSeuils),
     },
     null,

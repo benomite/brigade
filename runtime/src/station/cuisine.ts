@@ -33,6 +33,7 @@ import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/clo
 import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { brancherRapportHebdo } from "../rapport-hebdo-qualite.ts";
+import { brancherCalendrier } from "../recurrences/recurrences.ts";
 import { brancherRecurrents } from "../recurrents/planificateur.ts";
 import { brancherTicketDEssai } from "../essai-projet/ticket.ts";
 import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
@@ -335,6 +336,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     brancherReponseParCommentaire(ouverte, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Les tickets récurrents du projet : à leur date, une issue avec `fire`, sous l'identité du manager (#3230).
     brancherRecurrents(ouverte, { repertoireEtat, github: githubs.manager, avertir: dire });
+    // Les entrées `recurring` de la fiche du projet : à chaque période, une issue dans le backlog (#4138).
+    brancherCalendrier(ouverte, { entrees: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.recurring ?? null, github: githubs.manager, avertir: dire });
     // Un projet dont la base n'a pas de `.brigade/try.json` reçoit, une fois, le ticket qui l'ajoute (#3559).
     brancherTicketDEssai(ouverte, { projet, repertoireEtat, depot: { base: station.base, lire: (chemin) => lireALaBase(station, chemin), fichiers: depot.fichiers }, github: githubs.manager, avertir: dire });
     // Le résumé hebdomadaire de ce que la cuisine a servi, au jour de `weeklySummaryDay`, mentionne le chef sur GitHub (#3261).

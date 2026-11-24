@@ -35,6 +35,7 @@ The file is versioned with the code. Its fields:
 | `humans` | the humans working on the project and their roles (#2759): a list of `{login, roles}`, `login` a GitHub login, `roles` a list among `product`, `design`, `review`, `client-contact`. Roles belong to this project: the same login may carry other roles elsewhere. Validated by `runtime/src/humains/humains.ts`, which looks humans up by role; the kitchen, opening, says them role by role at the end of its `project settings` line (`humans product alice, review alice bob`) | a list (optional; without it, the project has no humans declared). An unknown role, an empty login or a login declared twice is refused, naming the entry |
 | `humanValidatesDesigns` | a human validates the project's designs and visuals (#3184): once the pass judges a design delivery green (one that changes what the user sees — the app's view, the site, a mockup, captures, or a ticket for the design cook), it does not merge it but holds it on a `chef-todo` card, `Validate its screen`, asked on the ticket itself and its PR (#3615) ([`runtime/pass.md`](runtime/pass.md), "A design validated by a human") | `true` or `false` (optional; without it, off: the pass merges a green design delivery itself). `true` on benomite/brigade |
 | `weeklySummaryDay` | the day each week the kitchen writes its summary of what it served over the seven days before and @-mentions the chef with it (#3261, [`runtime/etat-et-mesures.md`](runtime/etat-et-mesures.md), "The weekly kitchen summary") | `monday` to `sunday` (optional; without it, `monday`). Any other value is refused |
+| `recurring` | the calendar (#4138): the project's recurring work, each entry opening one issue in the backlog per period. An entry is `{ "name", "frequency", "priority" }`: `name` is the title of the issue to open, `frequency` is exactly `daily` (a period is a day), `weekly` (an ISO week) or `monthly` (a calendar month), `priority` is a `prio:N` label (N from 0 to 9). Periods are UTC | a list of entries (optional; without it, no recurring work). An entry with a missing field, an unknown frequency or a malformed priority is refused alone, with an error naming the entry and the field — the kitchen says it on its service log and goes on with the other entries |
 | `githubOnlyState` | **No longer read** (#2061): every project runs on the GitHub-only state, the only path ([`runtime/github-seul.md`](runtime/github-seul.md)). The key is still accepted, so a settings file that carries it stays readable; it can be removed. | `true` or `false` (optional; ignored) |
 
 The `closer` keys, each one in place of a setting the box held (`brigade <projet> station <gesture>`):
@@ -95,6 +96,27 @@ Example:
     "calibration": { "model": "sonnet", "effort": "medium" },
     "maxTokens": 300000
   }
+}
+```
+
+### The calendar: recurring entries
+
+On each run of the kitchen's loop, an entry whose period has started and which has no issue yet for that
+period opens one: its title is the entry's `name`, its label the entry's `priority`. Each issue holds a hidden
+marker, `<!-- brigade:recurrence id="<name>" period=<period> -->`, which the loop looks for among the open and
+the closed issues before opening: running it again within the period opens nothing, and a new period opens a
+new issue whether the previous one is open or closed. An entry removed from the file opens nothing more; the
+issues already opened are left as they are. The `name` is the entry's id: renaming an entry makes a new one.
+
+One example for each frequency:
+
+```json
+{
+  "recurring": [
+    { "name": "Daily closer pass", "frequency": "daily", "priority": "prio:3" },
+    { "name": "Publish the weekly episode", "frequency": "weekly", "priority": "prio:2" },
+    { "name": "Close the month's books", "frequency": "monthly", "priority": "prio:1" }
+  ]
 }
 ```
 
