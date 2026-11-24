@@ -141,6 +141,15 @@ test("a doc-only delivery: 0 of 0 mutations caught, no checkout made, nothing se
   assert.deepEqual(checkouts, []);
 });
 
+test("a delivery that changes only tooling (scripts/, app/packaging/, .claude/): 0 of 0 mutations caught, nothing sent back", async (t) => {
+  const { outils, checkouts } = livraison(t, ADDITION);
+  const outillage = ["diff --git a/scripts/outil.ts b/scripts/outil.ts", "--- a/scripts/outil.ts", "+++ b/scripts/outil.ts", "@@ -1 +1,2 @@", " export const a = 1;", "+export const actif = (n: number) => n > 0;", ""].join("\n");
+  const mutations = await muter({ rejeux: [gele("adds two numbers")] }, { ...outils, fichiers: ["scripts/outil.ts"], diff: outillage });
+  assert.equal(ligneDesMutations(mutations), "Mutation check: 0 of 0 mutations caught — the delivery changes no line of code to mutate.");
+  assert.deepEqual(motifDesMutations(mutations), []);
+  assert.deepEqual(checkouts, []);
+});
+
 test("the time budget runs out: the running mutants are stopped and the line says so, instead of hanging", async (t) => {
   const { outils, jetes } = livraison(t, ADDITION);
   const pendu: OutilsDesMutations["jouer"] = (_worktree, _dossier, _args, signal) => new Promise((resolve) => signal.addEventListener("abort", () => resolve({ code: null, lignes: [] })));
