@@ -6,7 +6,8 @@
 //
 // Ce qui est raconté :
 //   - le premier projet du chef : le premier qu'« Add a project » ajoute quand le fichier des projets n'en a pas d'autre
-//     que la cuisine de démonstration de la visite (visite/visite.js) ; un chef qui en avait déjà n'a rien de raconté ;
+//     que benomite/brigade (visite/visite.js), que l'app ajoutait d'elle-même avant le ticket 4087 ; un chef qui en avait
+//     déjà n'a rien de raconté ;
 //   - son premier ticket : le premier qu'une lecture du rail montre pris ou en pass, après l'ajout du projet ;
 //   - une étape, quand une lecture du rail la montre (`etapesDesTickets` du tableau, faits.ts) : une étape passée entre
 //     deux lectures n'est pas inventée — sauf le renvoi, dont la marque reste sur l'issue avec son rang et sa raison.
