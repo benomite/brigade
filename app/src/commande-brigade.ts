@@ -1,6 +1,6 @@
-// La commande `brigade` du chef sur son Mac (#4072) : l'app installée la pose dans
-// `~/.local/bin`, que son PATH et celui du shell de connexion portent (emplacements.ts), pour qu'un
-// terminal neuf et l'onglet du second la trouvent sans geste du chef. Elle lance le geste de la
+// La commande `brigade` du chef sur son Mac (#4072) : l'app installée la pose dans `~/.local/bin`,
+// que son PATH porte (emplacements.ts : l'onglet du second), et ajoute ce dossier au PATH des shells
+// du chef (`~/.zshenv`, et `~/.bash_profile` s'il existe) : un Terminal neuf la trouve sans geste du chef. Elle lance le geste de la
 // station (`runtime/src/station/geste.ts`, comme `deploy/brigade` sous Linux et
 // installer-station.sh) avec le runtime et le `node` du paquet. Réécrite à chaque lancement de
 // l'app, avec sa version en tête : après une mise à jour, elle pointe le runtime de la nouvelle.
@@ -31,11 +31,31 @@ function texteDeLaCommande(o: OptionsCommande): string {
 #   brigade <project> <command> [arguments…]
 #   brigade <project> help
 cd ${cite(o.runtime)} 2>/dev/null || {
-  echo ${cite(`brigade : le runtime de l'app (${o.runtime}) n'est pas là — réinstalle l'app Brigade`)} >&2
+  echo ${cite(`brigade : le runtime de l'app (${o.runtime}) n'est pas là — relance l'app Brigade`)} >&2
   exit 70
 }
 exec env -i BRIGADE_STATION_DIR=${cite(o.racine)} HOME=${cite(o.maison)} PATH=${cite(o.chemin)} LANG=en_US.UTF-8 \${USER:+"USER=$USER"} \${LOGNAME:+"LOGNAME=$LOGNAME"} \${TMPDIR:+"TMPDIR=$TMPDIR"} \${TERM:+"TERM=$TERM"} ${cite(o.node)} src/station/geste.ts "$@"
 `;
+}
+
+const DEBUT_PATH = "# >>> brigade (écrit par l'app Brigade) >>>";
+const FIN_PATH = "# <<< brigade <<<";
+
+// Le bloc que l'app tient dans les fichiers de démarrage des shells : `~/.local/bin` au PATH, une fois.
+function blocDuPath(): string {
+  return `${DEBUT_PATH}\ncase ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH ;; esac\n${FIN_PATH}\n`;
+}
+
+function poserLeBloc(fichier: string, creer: boolean): void {
+  let present = "";
+  try {
+    present = readFileSync(fichier, "utf8");
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "ENOENT") throw erreur;
+    if (!creer) return;
+  }
+  if (present.includes(DEBUT_PATH)) return;
+  writeFileSync(fichier, `${present}${present === "" || present.endsWith("\n") ? "" : "\n"}${blocDuPath()}`);
 }
 
 // Pose la commande ; rend son chemin, ou rien si ce poste n'en reçoit pas ou si l'écriture échoue
@@ -53,6 +73,8 @@ export function poserLaCommande(o: OptionsCommande, ecrire: (message: string) =>
     } catch {
       present = undefined;
     }
+    poserLeBloc(join(o.maison, ".zshenv"), true);
+    poserLeBloc(join(o.maison, ".bash_profile"), false);
     if (present === texte) return fichier;
     mkdirSync(dossier, { recursive: true });
     const provisoire = `${fichier}.${process.pid}.tmp`;
