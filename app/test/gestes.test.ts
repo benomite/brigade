@@ -285,7 +285,7 @@ describe("les gestes du chef", () => {
     // Aucun module de Node : pas de `child_process`, donc rien qui s'exécute. De la veille, `cite`, et
     // de quoi écrire le geste de la station de cet ordinateur (`GESTE`, `mots`) — rien qui lance.
     assert.deepEqual(imports, ["./box.ts", "./config.ts", "./terminaux.ts"]);
-    assert.ok(source.includes('import { GESTE, mots, type Cuisine, type Locale } from "./box.ts";'));
+    assert.ok(source.includes('import { GESTE, mots, type Cuisine, type Locale } from ' + '"./box.ts";'));
     assert.doesNotMatch(source, /\bimport\(|require\(|process\.|execFile|spawn/);
   });
 });

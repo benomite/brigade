@@ -85,7 +85,8 @@ export function menuDe(etat: EtatDeLaCuisine): Entree[] {
 
 // L'icône tenue : posée quand le réglage est allumé, retirée quand il est éteint, redite seulement quand ce qu'elle dit
 // change. `creer` rend l'icône du système, ou la raison pour laquelle elle n'a pas pu être posée — dite une fois.
-export function tenirBarreDeMenus({ creer, dire = (ligne) => console.error(ligne) }: { creer: () => Icone; dire?: (ligne: string) => void }) {
+// `ligne` dit la ligne de l'icône : celle de la cuisine par défaut, celle qui porte aussi l'état de la station quand l'app la donne (#4079).
+export function tenirBarreDeMenus({ creer, dire = (ligne) => console.error(ligne), ligne = (_projets, etat) => ligneDe(etat) }: { creer: () => Icone; dire?: (ligne: string) => void; ligne?: (projets: readonly ProjetLu[], etat: EtatDeLaCuisine) => string }) {
   let icone: Icone | undefined;
   let dite = "";
   let refus = "";
@@ -113,7 +114,7 @@ export function tenirBarreDeMenus({ creer, dire = (ligne) => console.error(ligne
       const pose = JSON.stringify(entrees);
       if (pose === dite) return;
       dite = pose;
-      icone.poser(ligneDe(etat), enAttente(etat));
+      icone.poser(ligne(projets, etat), enAttente(etat));
       icone.menu(entrees);
     },
     fermer(): void {
