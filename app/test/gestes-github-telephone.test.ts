@@ -455,7 +455,12 @@ const auRepos = async () => {
 // (#2985), lu de son fichier ou, sans lui, du propriétaire du dépôt (#3052), et le `CLAUDE.md` qui nomme la roadmap du
 // Backlog (#3589) —, mis à part : il reste ce que le geste y a écrit, et ce qu'il a lu pour l'écrire.
 const LECTURE = /^https:\/\/api\.github\.com\/(gists[/?]|repos\/[^/]+\/[^/]+(\/(issues\?|pulls\?|issues\/\d+\/(comments|events)\?|contents\/(\.claude\/brigade\/projet\.json|CLAUDE\.md)$)|$))/;
-const duGeste = (recues: Recue[]) => recues.filter(({ methode, url }) => !(methode === "GET" && LECTURE.test(url)));
+// Le rail relu après le geste lit aussi chaque PR seule, pour sa taille (#4051) : ces lectures-là, venues après la dernière
+// écriture, ne sont pas du geste — celles qui le précèdent (le merge lit sa PR) en sont.
+const duGeste = (recues: Recue[]) => {
+  const derniere = recues.findLastIndex(({ methode }) => methode !== "GET");
+  return recues.filter(({ methode, url }, rang) => !(methode === "GET" && (LECTURE.test(url) || (rang > derniere && /\/pulls\/\d+$/.test(url)))));
+};
 const json = (valeur: unknown) => JSON.parse(JSON.stringify(valeur));
 
 // Le geste du desktop, puis le même par le pont de l'APK, chacun sur son GitHub neuf : ce que le pont y écrit est ce que

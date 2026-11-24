@@ -57,7 +57,7 @@ const liste = (valeur: unknown): Brut[] => (Array.isArray(valeur) ? valeur.flatM
 const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
 
 // La PR qui livre un ticket, telle que la carte la dit.
-export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null };
+export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null; taille?: { additions: number; deletions: number } };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
 // `sensible` : l'issue porte le label `sensitive` (ticket 3224). `renvoi` : le dernier renvoi de sa livraison à un cook, et
@@ -70,7 +70,7 @@ export type PrDuTicket = { numero: number; url: string; le: string; station?: st
 // commentaires, `auMoins` quand elle est pleine ; absent sans prise lue (ticket 3823).
 export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; miseDeCoteLe?: string; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; qui?: string | null; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
-export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
+export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string; prLue?: { additions?: number; deletions?: number; ouvertLe?: string } };
 // `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, rail-bloque/diagnostic.ts), ou pourquoi ils ne se
 // lisent pas ; absent d'une lecture qui ne les a pas cherchés.
 export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[]; nonPris?: NonPrisLus };
@@ -192,6 +192,23 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   const maintenant = (options.maintenant ?? (() => new Date()))();
   const lu = maintenant.toISOString();
   const servis = await lireLesServis(lire, depot, maintenant.getTime());
+  // La liste des PR ne dit ni leur taille ni leur ouverture : la PR seule les dit (ticket 4051). Une PR qui ne se lit pas n'en montre rien.
+  await Promise.all(
+    servis.map(async (servi, rang) => {
+      const numero = /\/pull\/(\d+)$/.exec(servi.pr)?.[1];
+      if (numero === undefined) return;
+      try {
+        const { additions, deletions, created_at: ouvert } = objet(await lire(`/repos/${depot}/pulls/${numero}`)) ?? {};
+        const prLue = {
+          ...(Number.isSafeInteger(additions) && Number.isSafeInteger(deletions) ? { additions: additions as number, deletions: deletions as number } : {}),
+          ...(typeof ouvert === "string" ? { ouvertLe: ouvert } : {}),
+        };
+        servis[rang] = { ...servi, prLue };
+      } catch {
+        // Illisible : la carte ne dit rien de sa taille.
+      }
+    }),
+  );
   const livrees = new Map<number, PrDuTicket>();
   for (const pr of prs) {
     const ticket = ticketDeLaPR(texte(objet(pr.head)?.ref), texte(pr.body));
@@ -205,6 +222,22 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     if (labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE) || porteListe(texte(issue.body))) return [];
     return [{ numero: issue.number, titre: texte(issue.title), url: texte(issue.html_url), creeLe: texte(issue.created_at), labels, corps: texte(issue.body), reparationDeMain: labels.includes(LABEL_REPARATION_DE_MAIN) }];
   });
+  // La liste des PR ne dit pas leur taille : la PR seule la dit (ticket 4051). C'est une lecture de plus par ticket du rail, à chaque
+  // lecture, toutes ensemble : autant d'appels sur la limite de GitHub. Une PR qui ne se lit pas n'en montre aucune — jamais un zéro.
+  await Promise.all(
+    duRail.flatMap(({ numero }) => {
+      const pr = livrees.get(numero);
+      if (pr === undefined) return [];
+      return [
+        lire(`/repos/${depot}/pulls/${pr.numero}`)
+          .then((brute) => {
+            const { additions, deletions } = objet(brute) ?? {};
+            if (Number.isSafeInteger(additions) && Number.isSafeInteger(deletions)) livrees.set(numero, { ...pr, taille: { additions: additions as number, deletions: deletions as number } });
+          })
+          .catch(() => undefined),
+      ];
+    }),
+  );
   // La base ne se lit que si un ticket est en pass : c'est le seul que sa couleur touche.
   let base: EtatDeLaBase | null = null;
   if (duRail.some(({ numero, labels }) => labels.includes("in-pass") && livrees.has(numero))) {
@@ -398,7 +431,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
       ...lu.faits,
       lu: luLe,
       compteurs: { attend: 0, ...compteurs, livres24h: servis.length, rail: montres.length, auTravail: nombre("pris"), aLaPass: nombre("en pass", "base rouge") },
-      livres: servis.map(({ ticket, titre, url, livre, station, pr }) => ({ ticket, titre, url, livre, station, pr })),
+      livres: servis.map(({ ticket, titre, url, livre, station, pr, prLue }) => ({ ticket, titre, url, livre, station, pr, ...(prLue === undefined ? {} : { prLue }) })),
       rail: montres.map((ticket) => ({
         ...(ticket.miseDeCote === undefined || ticket.miseDeCote.auChef ? {} : { attente: { raison: ticket.miseDeCote.raison ?? SANS_RAISON, ...(ticket.miseDeCote.complete === undefined ? {} : { complete: ticket.miseDeCote.complete }), label: ticket.miseDeCote.label, colonne: COLONNE_DE_LA_MISE_DE_COTE, retour: null } }),
         ticket: ticket.ticket,
@@ -412,7 +445,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
         ...activiteDe(ticket),
         ...(ticket.sensible === true ? { sensible: true } : {}),
         // Sa PR ouverte et son dernier renvoi (ticket 3302) : le récit du premier ticket les dit.
-        ...(ticket.pr === null ? {} : { pr: { numero: ticket.pr.numero, url: ticket.pr.url } }),
+        ...(ticket.pr === null ? {} : { pr: { numero: ticket.pr.numero, url: ticket.pr.url, ...ticket.pr.taille, ...(ticket.pr.le === "" ? {} : { ouvertLe: ticket.pr.le }) } }),
         ...(ticket.renvoi === undefined ? {} : { renvoi: ticket.renvoi }),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),
