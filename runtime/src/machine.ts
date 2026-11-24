@@ -4,6 +4,7 @@
 // très haut, ou absent.
 import { statfsSync } from "node:fs";
 import { availableParallelism, loadavg, totalmem } from "node:os";
+import { lectures, lireConsommateur, type LireConsommateur } from "./consommateur.ts";
 import type { Manque, OrigineDuSeuil, Ressource } from "./events/station.ts";
 import { lire } from "./plafonds.ts";
 
@@ -19,6 +20,10 @@ export type Machine = {
   memoireDisponible: number;
   memoireTotale: number;
   disqueLibre: number;
+  // Qui tient le disque ou le processeur quand il manque (#4090) : la machine
+  // lue pour de vrai le mesure sur elle-même. Absent d'une machine que l'appelant
+  // rend : la saturation se dit sans lui.
+  consommateur?: LireConsommateur;
 };
 
 export type Seuils = {
@@ -103,6 +108,7 @@ export function lireMachine(repertoire: string): Machine {
     memoireDisponible: process.availableMemory(),
     memoireTotale: lireMemoireTotale(),
     disqueLibre: disque.bavail * disque.bsize,
+    consommateur: lireConsommateur(lectures(repertoire)),
   };
 }
 
@@ -144,14 +150,15 @@ const origineFr = (origine: OrigineDuSeuil | undefined) =>
   origine === undefined || origine === "env" ? "" : ` (par défaut : ${nombre(PART_MEMOIRE * 100)} % des ${nombre(origine.totalMb)} Mo de la machine)`;
 
 // La même, en anglais : ce que dit `status`.
-export function direSaturationEn({ resource, observed, limit, limitFrom }: Saturation): string {
+export function direSaturationEn({ resource, observed, limit, limitFrom, consumer }: Saturation): string {
+  const gros = consumer === undefined ? "" : ` — biggest: ${consumer}`;
   switch (resource) {
     case "cpu":
-      return `load of ${nombreEn(observed)} for at most ${nombreEn(limit)}`;
+      return `load of ${nombreEn(observed)} for at most ${nombreEn(limit)}${gros}`;
     case "memory":
       return `${nombreEn(observed)} MB of memory available for at least ${nombreEn(limit)} MB${origineEn(limitFrom)}`;
     case "disk":
-      return `${nombreEn(observed)} MB of disk free for at least ${nombreEn(limit)} MB`;
+      return `${nombreEn(observed)} MB of disk free for at least ${nombreEn(limit)} MB${gros}`;
   }
 }
 

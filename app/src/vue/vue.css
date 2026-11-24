@@ -3405,6 +3405,17 @@ main > header {
   font-size: var(--taille-intertitre);
   color: var(--texte);
 }
+/* À quoi il sert et son pas d'installation (ticket 4059), chacun sur sa ligne ; la commande se sélectionne d'un clic. */
+.outil-manquant > p:not(.gestes) {
+  flex-basis: 100%;
+  margin: 0;
+}
+.outil-manquant > .pas {
+  color: var(--texte-doux);
+}
+.outil-manquant > .pas code {
+  user-select: all;
+}
 .outils-du-second .gestes {
   padding: var(--pas-4) 0 0;
 }
@@ -4170,3 +4181,23 @@ main > header {
 /* Les post-mortems de panne du projet (ticket 4023) : une panne par rangée, ses cinq champs l'un sous l'autre. */
 .post-mortems-liste { list-style: none; margin: 0; padding: 0; }
 .post-mortems-liste li { margin-top: var(--pas-3); }
+/* L'écran de l'outil manquant (ticket 4059, outils-requis/) : à la place du pas qu'il retient — le compte du premier
+   lancement, ou l'avis —, l'outil nommé, pourquoi, son pas d'installation et ses deux boutons. La commande du pas se
+   sélectionne d'un clic, pour la copier. */
+#tous .ecran-outil-manquant h3,
+.ecran-outil-manquant h3 {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  color: var(--texte);
+}
+.ecran-outil-manquant .pourquoi {
+  margin: var(--pas-2) 0 0;
+}
+.ecran-outil-manquant .pas {
+  margin: var(--pas-2) 0 0;
+  color: var(--texte-doux);
+}
+.ecran-outil-manquant .pas code {
+  user-select: all;
+}

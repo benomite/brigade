@@ -49,6 +49,8 @@ export const RELEVE = "cook.progressed";
 // computer slept.
 // `serves` (#3656): the ticket a GitHub-only launch serves, which the log
 // keeps off any ticket — what the breaker's issue names when it fails.
+// `saturationRepair` (#4100): that ticket repairs the machine's saturation and
+// the claim gate let it through: a station held for `machine` still launches it.
 // `lessons`: the ids of the project's provisional lessons the cook of a ticket
 // received in its prompt, most recent first (`apprentissage/injection.ts`) —
 // empty, it received none. Absent: a cook that serves no ticket (a manager
@@ -70,6 +72,7 @@ export type ContexteCook = {
   stallRetry?: { of: string; attempt: number };
   sleepRetry?: { of: string; attempt: number };
   serves?: number;
+  saturationRepair?: boolean;
 };
 
 export type FaitGardeFous =
