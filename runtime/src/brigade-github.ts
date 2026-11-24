@@ -645,6 +645,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const enVol = new Map<number, Promise<void>>();
   // Les tickets de réparation de la saturation que cette station a pris (#4100) : un seul en vol à la fois.
   const reparationsPrises = new Set<number>();
+  const reparationEnVol = (): boolean => {
+    for (const numero of reparationsPrises) if (!enVol.has(numero)) reparationsPrises.delete(numero);
+    return reparationsPrises.size > 0;
+  };
   // Le parcours de chaque ticket, de sa prise à son merge, phase par phase
   // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
   // Illisible, le temps part de la prise, et la station le dit.
@@ -2407,10 +2411,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
       // Le ticket qui répare la saturation passe la machine à court, un seul à la fois (#4100).
-      const reparation = ticket.labels.includes(LABEL_REPARATION_SATURATION) && ![...reparationsPrises].some((numero) => enVol.has(numero));
-      const retenue = gardes === undefined ? null : await gardes.retenue(enVol.size + enEcriture().length, reparation);
-      if (retenue === "machine") {
-        // Les autres tickets restent retenus ; une réparation plus loin dans la file se lit encore.
+      const reparation = ticket.labels.includes(LABEL_REPARATION_SATURATION) && !reparationEnVol();
+      const retenue = gardes === undefined ? null : await gardes.retenue([...enVol.keys(), ...enEcriture()].length, reparation);
+      if (retenue === "machine" && libres.slice(rang).some(({ labels }) => labels.includes(LABEL_REPARATION_SATURATION))) {
+        // La machine retient ce ticket, pas la réparation plus loin sur le rail : la lecture continue jusqu'à elle.
         await direLesAttentes([ticket], DIT_DES_RETENUES[retenue]);
         continue;
       }

@@ -254,7 +254,7 @@ base, the stale-branch pruning).
 - **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
   disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
   the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
-  The one exception is a ticket labelled `repair:saturation`, the repair of the saturation itself: the machine does not
+  The one exception is a ticket labelled `saturation-repair`, the repair of the saturation itself: the machine does not
   hold it (nor does the arbiter read the project as saturated for it), while the stop, the breaker, the quota, the
   places and the zone holds still apply, and a station takes one such ticket at a time (#4100). Every other ticket is
   skipped for saturation, and the scan goes on past it to a repair further down the rail.

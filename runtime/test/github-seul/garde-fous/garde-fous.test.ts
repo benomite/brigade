@@ -12,11 +12,11 @@ import { test, type TestContext } from "node:test";
 import type { Arbitrage } from "../../../src/arbitrage.ts";
 import { ATTENTE_DE_PLACE_MS, ouvrirArbitre, type Mot } from "../../../src/arbitre.ts";
 import { brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
-import { LABEL_REPARATION_SATURATION } from "../../../src/reparation.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
-import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
+import { DIT_DES_RETENUES, gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
+import { direSaut } from "../../../src/attente-ticket/attente-ticket.ts";
 import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { etatDesGardeFous } from "../../../src/projections/guardrails.ts";
@@ -112,14 +112,16 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; places?: number } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; places?: number; maintenant?: () => Date } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const machine = options.machine;
-  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), avertir: options.avertir ?? (() => {}) });
+  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), avertir: options.avertir ?? (() => {}) });
   const faux = new FauxGitHub();
   const fins: string[] = [];
+  // Ce que la porte de prise dit de chaque ticket qu'elle saute.
+  const sauts = new Map<number, string>();
   const station = stationGitHub({
     nom: STATION,
     places: options.places ?? 2,
@@ -134,11 +136,12 @@ function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario
     },
     juger: async () => assert.fail("nothing is in pass"),
     gardes,
+    sauter: (ticket, ligne) => sauts.set(ticket, ligne),
     avertir: (texte) => { if (!/the cook stopped without a delivery/.test(texte)) assert.fail(texte); },
   });
   // Les faits d'un type, et ce qu'ils portent.
   const faits = (type: string) => runtime.journal.tout().flatMap((evenement) => (evenement.type === type ? [{ payload: evenement.payload as Record<string, unknown> }] : []));
-  return { repertoire, runtime, gardes, faux, station, fins, faits };
+  return { repertoire, runtime, gardes, faux, station, fins, faits, sauts };
 }
 
 // Ce que ferait la CLI du chef depuis son propre process : une autre connexion.
@@ -233,45 +236,80 @@ test("each claim granted counts on the machine before its load shows it: a full 
   assert.equal(await gardes.retenue(2), "machine");
 });
 
-test("a saturated machine lets the ticket that repairs the saturation through, one at a time, and holds every other (#4100)", async (t) => {
-  const { gardes, faux, station } = cuisine(t, { machine: () => BOX(16.2), scenario: () => "bavard", places: 4 });
-  // Un cook déjà en vol : la machine, saturée, ne retient plus que ce qui vient derrière lui.
-  faux.feu(1);
+// La machine sature sous les cooks qui tournent (#4100) : une horloge fixe, une
+// charge de 16,2 pour 12 au plus. #1, le premier cook, part toujours.
+const INSTANT = new Date("2026-11-23T22:35:00Z");
+// Le label que le chef ou le superviseur pose sur la réparation.
+const REPARATION = "saturation-repair";
+const saturee = (t: TestContext) => {
+  const cuisson = cuisine(t, { machine: () => BOX(16.2), maintenant: () => INSTANT, scenario: () => "bavard", places: 4 });
+  cuisson.faux.feu(1);
+  return cuisson;
+};
+const SAUT_MACHINE = (ticket: number) => direSaut(ticket, DIT_DES_RETENUES.machine);
+
+test("a saturated machine takes the ticket labelled as the saturation repair, and only it: the other is skipped for saturation (#4100)", async (t) => {
+  const { runtime, faux, station, faits, sauts } = saturee(t);
   await station.tour();
   assert.deepEqual(faux.prises, [1]);
-  assert.equal(await gardes.retenue(1), "machine");
-  assert.equal(await gardes.retenue(1, true), null);
 
   faux.feu(2);
-  faux.feu(3, [LABEL_REPARATION_SATURATION]);
+  faux.feu(3, [REPARATION]);
   await station.tour();
   assert.deepEqual(faux.prises, [1, 3]);
-
-  // Une seule réparation à la fois : la seconde attend que la première soit finie.
-  faux.feu(4, [LABEL_REPARATION_SATURATION]);
-  await station.tour();
-  assert.deepEqual(faux.prises, [1, 3]);
+  assert.equal(sauts.get(2), SAUT_MACHINE(2));
+  assert.equal(sauts.has(3), false);
+  // La station reste retenue par la machine pour les autres : la réparation ne la dit pas libre.
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason, "machine");
+  assert.deepEqual(faits("station.held").map(({ payload }) => payload.reason), ["machine"]);
+  assert.deepEqual(faits("station.released"), []);
+  assert.equal(faits("station.saturated").length, 1);
 });
 
-test("a saturated machine with no repair ticket takes nothing past the first cook; with the machine at ease the repair label changes nothing (#4100)", async (t) => {
-  const sature = cuisine(t, { machine: () => BOX(16.2), scenario: () => "bavard", places: 4 });
-  sature.faux.feu(1);
-  await sature.station.tour();
-  sature.faux.feu(2);
-  await sature.station.tour();
-  assert.deepEqual(sature.faux.prises, [1]);
+// brigade:guard
+test("a saturated machine with no repair ticket takes nothing more, and says each ticket is held for saturation (#4100)", async (t) => {
+  const { runtime, faux, station, sauts } = saturee(t);
+  await station.tour();
+  faux.feu(2);
+  faux.feu(3);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1]);
+  assert.equal(sauts.get(2), SAUT_MACHINE(2));
+  assert.equal(sauts.get(3), SAUT_MACHINE(3));
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason, "machine");
+});
 
-  const libre = cuisine(t, { machine: () => BOX(1), scenario: () => "bavard", places: 4 });
-  libre.faux.feu(1);
-  libre.faux.feu(2, [LABEL_REPARATION_SATURATION]);
-  await libre.station.tour();
-  assert.deepEqual(libre.faux.prises.sort(), [1, 2]);
+test("a repair cook already in flight on a saturated machine: nothing more is taken, another repair included (#4100)", async (t) => {
+  const { faux, station, sauts } = saturee(t);
+  await station.tour();
+  faux.feu(2, [REPARATION]);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 2]);
+
+  faux.feu(3, [REPARATION]);
+  faux.feu(4);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 2]);
+  assert.equal(sauts.get(3), SAUT_MACHINE(3));
+  assert.equal(sauts.get(4), SAUT_MACHINE(4));
+});
+
+// brigade:guard
+test("with the machine at ease, the repair label changes nothing: every claimable ticket is taken, as before (#4100)", async (t) => {
+  const { runtime, faux, station, sauts } = cuisine(t, { machine: () => BOX(1), maintenant: () => INSTANT, scenario: () => "bavard", places: 4 });
+  faux.feu(1);
+  faux.feu(2, [REPARATION]);
+  faux.feu(3);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 2, 3]);
+  assert.equal(sauts.size, 0);
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason ?? null, null);
 });
 
 test("the arbiter is not told the machine is saturated when the ticket asking for a place repairs the saturation (#4100)", async (t) => {
   const dits: boolean[] = [];
   const arbitre: Arbitrage = { port: 0, echanger: async (_projet, mot) => (dits.push(mot.machine), { accorde: true, motif: null }), quitter: async () => {}, attendreUnePlace: async () => false, etat: async () => assert.fail("not read") };
-  const { gardes } = cuisine(t, { machine: () => BOX(16.2), arbitre });
+  const { gardes } = cuisine(t, { machine: () => BOX(16.2), maintenant: () => INSTANT, arbitre });
   assert.equal(await gardes.retenue(1, true), null);
   assert.equal(await gardes.retenue(1, false), "machine");
   assert.deepEqual(dits, [false]);

@@ -140,6 +140,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   let accordees: number[] = [];
   let machineIllisible = false;
   let saturee = false;
+  // La machine à court retient les tickets de ce tour, sauf la réparation de la saturation (#4100).
+  let machineRetient = false;
 
   const dire = (retenue: RetenueDuTour | null) => {
     if (retenue === tenue) return;
@@ -209,11 +211,13 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
 
   // Le ticket qui répare la saturation passe la machine à court — elle se lit et se dit quand même —, pas les autres bornes (#4100).
   const retenueLue = async (cooks: number, reparation: boolean): Promise<RetenueDuTour | null> => {
+    machineRetient = false;
     const etat = etatDesGardeFous(base);
     if (etat.stoppedAt !== null) return "stopped";
     if (etat.breakerOpenedAt !== null) return "breaker";
     if (surQuelMoteur().blocked) return "quota";
-    if (machineAcourt(cooks) && !reparation) return "machine";
+    machineRetient = machineAcourt(cooks);
+    if (machineRetient && !reparation) return "machine";
     if (arbitre === null) return null;
     const reponse = await echanger(cooks, true, reparation);
     if (reponse === null) return cooks === 0 ? null : "unarbitrated";
@@ -284,7 +288,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       const retenue = await retenueLue(cooks, reparation);
       if (retenue === null) accordees.push(maintenant().getTime());
       if (retenue === "arbiter" || retenue === "unarbitrated") enAttente = true;
-      dire(retenue);
+      // La réparation passée, la machine retient encore les autres : la station ne se dit pas libre.
+      if (retenue !== null || !machineRetient) dire(retenue);
       return retenue;
     },
     redire: async (cooks) => {
