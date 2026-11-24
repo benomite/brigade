@@ -39,6 +39,7 @@ import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
+import { disqueDuProjet } from "../github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
@@ -46,6 +47,7 @@ import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
+import { porteDuRuntime } from "../autonomie/agents/porte.ts";
 import { brancherSuperviseur, type ManagerDuSuperviseur } from "../superviseur/brancher.ts";
 import { suivreLeTour } from "../superviseur/tour.ts";
 import { ecrireLaLacune } from "../routage-station/lacune.ts";
@@ -195,6 +197,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
     socle = demarrer({ repertoireEtat, projet, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }) });
+    // La porte des gestes des agents (#4039) : chacun y passe selon son niveau d'autonomie, et ce que le chef approuve s'y fait.
+    const gestes = porteDuRuntime(socle);
     // L'interrupteur du projet, posé comme au démarrage du runtime d'un projet : un projet que la
     // station ouvre — au lancement ou quand l'app l'ajoute — part allumé, un interrupteur posé reste tel quel.
     const pose = etablirLInterrupteur(socle.journal, projet);
@@ -233,8 +237,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
         ici === undefined
           ? { refus: "the project declares no station on this machine" }
           : (() => {
-              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, avertir: dire, env });
+              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), avertir: dire, env });
               const ecrivaine = stationDuDepot({
+                porte: gestes,
                 nom: ici.nom,
                 places,
                 capacites: ici.fournit,
@@ -305,14 +310,14 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
-    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
     // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
     // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
     const superviser = <R extends Runtime>(runtime: R) => brancherSuperviseur(runtime, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, dire });
     // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick ; et le closer sur GitHub (#2361) :
     // sa passe est une issue que les stations cuisinent, et il relève la dérive que `status` lit, des flux des cooks.
     const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env, avertir: dire }));
-    const closee = brancherCloserGithub(elaguee, { reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, qualite: () => {
+    const closee = brancherCloserGithub(elaguee, { porte: gestes, reglages: decisions.fermeture, github: githubs.station, statut: () => ({ blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat) }), clone: lectureDuClone({ depot, clone: station.clone, base: station.base, env }), base: station.base, avertir: dire, temps: () => lesTempsDesTickets(station.clone).enregistrements, qualite: () => {
         const { enregistrements } = lesTempsDesTickets(station.clone);
         return direLaQualite(mesurerQualite(enregistrements, qualitesDesTemps(enregistrements), projetDuClone(station.clone)));
       }, derive: { seuils: decisions.seuils, couts: coutsDesFlux(join(repertoireEtat, "github-seul")), noter: (derive) => noterDeriveGithub(repertoireEtat, derive) } });

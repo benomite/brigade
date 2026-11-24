@@ -47,10 +47,22 @@ export function reveil(faits: FaitsDuProjet, maintenant: Date): Reveil | null {
   const [plusPris] = [...faits.prises].sort((a, b) => b.prises - a.prises);
   if (plusPris !== undefined && plusPris.prises >= PRISES_SANS_LIVRER) return { cause: "takes", takes: plusPris.prises, ticket: plusPris.ticket };
   const [tete] = faits.cuisinables;
-  if (tete === undefined) return null;
+  const depuis = repereSansMerge(faits);
+  if (tete === undefined || depuis === null || maintenant.getTime() - depuis < SANS_MERGE_MS) return null;
+  return { cause: "no-merge", since: new Date(depuis).toISOString(), ticket: tete.ticket };
+}
+
+// Le repère du compte des 30 min, ou null quand aucun ticket n'est cuisinable.
+function repereSansMerge(faits: FaitsDuProjet): number | null {
+  if (faits.cuisinables.length === 0) return null;
   const attente = Math.min(...faits.cuisinables.map(({ depuis }) => instant(depuis) ?? Number.POSITIVE_INFINITY));
   const merge = instant(faits.dernierMerge) ?? Number.NEGATIVE_INFINITY;
   const depuis = Math.max(attente, merge);
-  if (!Number.isFinite(depuis) || maintenant.getTime() - depuis < SANS_MERGE_MS) return null;
-  return { cause: "no-merge", since: new Date(depuis).toISOString(), ticket: tete.ticket };
+  return Number.isFinite(depuis) ? depuis : null;
+}
+
+// L'instant où le superviseur se réveille si rien n'est mergé d'ici là (#4038), ou null quand rien ne l'y attend.
+export function echeanceSansMerge(faits: FaitsDuProjet): Date | null {
+  const depuis = repereSansMerge(faits);
+  return depuis === null ? null : new Date(depuis + SANS_MERGE_MS);
 }

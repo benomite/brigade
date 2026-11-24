@@ -21,6 +21,9 @@ import type { GitHub } from "../github.ts";
 import type { Dossier } from "./dossier.ts";
 import type { Decision } from "./gestes.ts";
 import { superviseur } from "./superviseur.ts";
+import { porteDuRuntime } from "../autonomie/agents/porte.ts";
+import { echeanceSansMerge, type FaitsDuProjet } from "./declencheur.ts";
+import { noterHoraire } from "../autonomie/agents/horaires.ts";
 import type { SuiviDuTour } from "./tour.ts";
 import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
 
@@ -48,7 +51,7 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 // La consigne du manager : son dossier, les six gestes, et la forme de sa réponse.
 function consigne(depot: string, dossier: Dossier, sauts: readonly string[]): string {
   return [
-    `Tu es le manager de la brigade sur le dépôt ${depot}, et le superviseur de ce run : la cuisine ne bouge pas. Lis le dossier ci-dessous — la file, la fin du journal, les checks rouges de la base et leur log, l'historique du ticket en faute —, dis ce que tu vois, et choisis UN geste parmi les six. Tu es dans un worktree de la base, en lecture : vérifie dans le dépôt ce que le dossier nomme.`,
+    `Tu es le manager de la brigade sur le dépôt ${depot}, et le superviseur de ce run : la cuisine ne bouge pas. Lis le dossier ci-dessous — la file, la fin du journal, les checks rouges de la base et leur log, l'historique du ticket en faute, tes derniers gestes et leurs compteurs —, dis ce que tu vois, et choisis UN geste parmi les six. Tu es dans un worktree de la base, en lecture : vérifie dans le dépôt ce que le dossier nomme.`,
     "",
     "## Les six gestes, les seuls permis",
     "",
@@ -97,18 +100,20 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       return teteDeLaBase.call(options.github, nom);
     },
   };
+  const repertoireEtat = options.repertoireEtat ?? runtime.repertoireEtat;
   const superviser = superviseur({
     projet: runtime.projet,
     depot,
-    sources: { journal: runtime.journal, github, branche },
+    sources: { journal: runtime.journal, github, branche, repertoireEtat },
     manager: async (dossier) => {
       const consulter = options.consulter();
       if (consulter === null) throw new Error("no manager to consult: the station did not give it");
       return decisionDe(await consulter(consigne(depot, dossier, tour?.sauts() ?? [])));
     },
     maintenant,
+    // La porte de ses gestes (#4039) : celle du runtime, qui fait à chaque tick ceux que le chef approuve.
+    porte: porteDuRuntime({ projet: runtime.projet, repertoireEtat, surReveil: (ecouter) => runtime.surReveil(ecouter) }),
   });
-  const repertoireEtat = options.repertoireEtat ?? runtime.repertoireEtat;
   const suivreLaBase = suivreLaBaseRouge((panne) => {
     if (repertoireEtat === undefined) return;
     try {
@@ -117,6 +122,15 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       dire(`supervisor on ${runtime.projet}: the post-mortem of an outage was not written — ${message(erreur)}`);
     }
   });
+  // Quand il se réveillera si rien n'est mergé (#4038), là où `facts` le lit ; une note qui échoue n'arrête pas son tour.
+  const noterLeReveil = (faits: FaitsDuProjet) => {
+    if (repertoireEtat === undefined) return;
+    try {
+      noterHoraire(repertoireEtat, "supervisor", echeanceSansMerge(faits));
+    } catch (erreur) {
+      dire(`supervisor on ${runtime.projet}: its next wake was not noted — ${message(erreur)}`);
+    }
+  };
   const passer = () => {
     if (tour === null) return;
     try {
@@ -135,6 +149,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       const { base } = runtime.journal;
       if (etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false) return;
       if (options.consulter() === null) return;
+      noterLeReveil(tour.faits());
       superviser(tour.faits())?.catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: its run failed — ${message(erreur)}`));
     } catch (erreur) {
       dire(`supervisor on ${runtime.projet}: not evaluated — ${message(erreur)}`);

@@ -42,6 +42,8 @@ test("red gates keep the delivery in the clone, marked as saved work; the next c
   assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "nothing was pushed: the gates are red");
   assert.match(git(lieux.clone, "log", "-1", "--format=%s", brancheDuTicket(TICKET)), /work in progress saved/);
   assert.ok([...faux.commentaires.values()].flat().some((c) => /its gates are red, so its delivery was not pushed: FAIL {2}the button test is red/.test(c.body)));
+  // Le commentaire d'échec dit ce que les gates ont dit, replié (#4113).
+  assert.ok([...faux.commentaires.values()].flat().some((c) => /<details><summary>What the gates said<\/summary>[\s\S]*FAIL {2}the button test is red/.test(c.body)), "the failure comment carries what the gates said");
 
   for (let tour = 0; tour < 4 && git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)) === ""; tour += 1) {
     await station.tour();
@@ -123,7 +125,7 @@ test("a delivery cut before its push, found only in the clone, plays the gates: 
   const branche = brancheDuTicket(TICKET);
   git(lieux.clone, "checkout", "-q", "-b", branche);
   mkdirSync(join(lieux.clone, ".claude/brigade"), { recursive: true });
-  writeFileSync(join(lieux.clone, ".claude/brigade/gates.sh"), '#!/bin/sh\necho "FAIL  the button test is red" >&2\nexit 1\n');
+  writeFileSync(join(lieux.clone, ".claude/brigade/gates.sh"), '#!/bin/sh\necho "FAIL  the button test is red" >&2\necho "✖ the button is shown on the card" >&2\nexit 1\n');
   chmodSync(join(lieux.clone, ".claude/brigade/gates.sh"), 0o755);
   writeFileSync(join(lieux.clone, "bouton.ts"), "export const bouton = 1;\n");
   git(lieux.clone, "add", ".");
@@ -146,4 +148,6 @@ test("a delivery cut before its push, found only in the clone, plays the gates: 
   assert.equal(git(lieux.origine, "branch", "--list", branche), "", "red gates: the cut delivery is not pushed");
   assert.equal(faux.prs.length, 0, "nor sent to the pass");
   assert.match(consignes[0] ?? "", /## Gates red on the delivery[\s\S]*its gates are red, so its delivery was not pushed: FAIL {2}the button test is red/, "a cook resumes it with what the gates say");
+  // Pas seulement leur première ligne : le test rouge par son nom, pour que le cook sache quoi corriger (#4113).
+  assert.match(consignes[0] ?? "", /What the gates said:[\s\S]*✖ the button is shown on the card/, "the next cook is told which test is red");
 });
