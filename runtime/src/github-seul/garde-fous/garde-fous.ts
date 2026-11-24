@@ -34,6 +34,9 @@ import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } fr
 import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
 
+// Le début de l'erreur d'un lancement refusé parce que la station est retenue : un arrêt subi, que le cook n'a pas causé.
+export const LANCEMENT_RETENU = "launch refused (station held)";
+
 // Ce qui retient une prise sur ce chemin : le « stop » du chef, le
 // disjoncteur, le quota du compte épuisé, la machine à court, l'arbitre qui
 // refuse — ou qui ne répond pas alors qu'un cook tourne déjà.
@@ -270,7 +273,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       // Le « stop » ou le disjoncteur tombé entre la prise et le lancement :
       // rien n'est parti, et le cook le dit comme une fin sans livraison.
       if (!(erreur instanceof LancementRefuse)) throw erreur;
-      const fin: Fin = { code: null, signal: null, turns: 0, tokens: 0, durationMs: 0, arret: null, erreur: `launch refused: ${erreur.message}` };
+      const fin: Fin = { code: null, signal: null, turns: 0, tokens: 0, durationMs: 0, arret: null, erreur: `${erreur.motif === "held" ? LANCEMENT_RETENU : "launch refused"}: ${erreur.message}` };
       return { fin: Promise.resolve(fin), flux };
     }
   };

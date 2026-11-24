@@ -11,11 +11,11 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Arbitrage } from "../../../src/arbitrage.ts";
 import { ATTENTE_DE_PLACE_MS, ouvrirArbitre, type Mot } from "../../../src/arbitre.ts";
-import { brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
+import { arretSubi, brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
-import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
+import { gardesDuTour, LANCEMENT_RETENU } from "../../../src/github-seul/garde-fous/garde-fous.ts";
 import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { etatDesGardeFous } from "../../../src/projections/guardrails.ts";
@@ -513,4 +513,25 @@ test("replaying 2026-11-15: #3615 fails four times at launch (spawn E2BIG), the 
   const [pourquoi] = faux.commentaires.filter(({ issue }) => issue === 3615).map(({ corps }) => corps);
   assert.ok(pourquoi?.includes(`the cook of #3615 never started, its launch failed: ${erreurs()[0]!.error}`), pourquoi ?? "no comment on #3615");
   assert.match(pourquoi ?? "", /does not count toward the kitchen's breaker: the kitchen keeps serving other tickets/);
+});
+
+test("a cook launched for a station held for its machine is refused at once, as a stop it did not cause; released, the same launch starts (#4097)", async (t) => {
+  const { repertoire, runtime, gardes, faits } = cuisine(t);
+  const ecrire = (type: "station.held" | "station.released", payload: Record<string, unknown>) =>
+    runtime.journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type, payload } as never);
+  const lancer = (ticket: number) => gardes.lancer({ commande: FAUX_CLAUDE, args: [], cwd: repertoire, env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" }, flux: join(repertoire, `${ticket}-github.flux.jsonl`), ticket });
+
+  ecrire("station.held", { station: STATION, reason: "machine" });
+  const refuse = await lancer(4064).fin;
+  assert.ok(refuse.erreur?.startsWith(LANCEMENT_RETENU), String(refuse.erreur));
+  assert.equal(refuse.turns, 0);
+  // Ni échec compté au ticket ni disjoncteur : la station le rend comme un arrêt subi.
+  assert.equal(arretSubi("failed", refuse), true);
+  assert.equal(arretSubi("failed", { ...refuse, erreur: "spawn E2BIG" }), false);
+  assert.deepEqual(faits("cook.launched"), []);
+  assert.deepEqual(faits("breaker.opened"), []);
+
+  ecrire("station.released", { station: STATION });
+  assert.equal((await lancer(4064).fin).code, 0);
+  assert.equal(faits("cook.launched").length, 1);
 });
