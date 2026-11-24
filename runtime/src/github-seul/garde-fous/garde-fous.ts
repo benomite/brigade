@@ -28,6 +28,7 @@ import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
+import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
@@ -73,6 +74,9 @@ export type OptionsDesGardes = {
   // La machine sous la station et ses seuils (`configMachine`). Absente : rien
   // ne se retient sur elle.
   machine?: { lire: () => Machine; seuils: Seuils };
+  // Un disque saturé que la cuisine ne peut plus libérer, sans cook en vol,
+  // est dit au chef par une carte de TODO (#4091). Absent : rien ne se dit.
+  disquePlein?: DisquePlein;
   maintenant?: () => Date;
   avertir?: (message: string) => void;
   // L'environnement de la station, où se lit son moteur de repli (#3745).
@@ -142,6 +146,10 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   let saturee = false;
   // La machine à court retient les tickets de ce tour, sauf la réparation de la saturation (#4100).
   let machineRetient = false;
+  // Ce dont le disque manque, tel que la dernière lecture de la machine le dit.
+  let manqueDisque: Saturation | null = null;
+  // La carte du disque est posée : elle ne se repose pas tant qu'il reste plein.
+  let carteDuDisquePosee = false;
 
   const dire = (retenue: RetenueDuTour | null) => {
     if (retenue === tenue) return;
@@ -222,7 +230,37 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       saturees = ressources;
     }
     saturee = manques.length > 0;
+    manqueDisque = manques.find(({ resource }) => resource === "disk") ?? null;
     return saturee && cooks > 0;
+  };
+
+  // Le disque est plein, aucun cook ne tourne : si ce que la cuisine tient ne
+  // suffirait pas à le vider assez, le chef en est averti — une seule carte
+  // tant que l'état dure. Un disque qui respire lève la carte. Une sonde ou une
+  // pose qui échoue se dit et se retente au tour suivant : rien ne se devine.
+  // Elle ne retient pas le tour : `du` peut durer. Une seule à la fois.
+  let disqueEnCours: Promise<void> | null = null;
+  const direLeDisque = async (cooks: number) => {
+    const { disquePlein } = options;
+    if (disquePlein === undefined) return;
+    try {
+      if (manqueDisque === null) {
+        if (carteDuDisquePosee) {
+          await disquePlein.lever();
+          carteDuDisquePosee = false;
+        }
+        return;
+      }
+      if (cooks > 0 || carteDuDisquePosee) return;
+      const { observed, limit } = manqueDisque;
+      const sonde = await disquePlein.sonder();
+      if (peutEncoreLiberer(observed * 1024 * 1024, sonde.propre, limit)) return;
+      await disquePlein.poser(carteDuDisque({ libreMo: observed, minMo: limit, propre: sonde.propre, consommateurs: sonde.consommateurs, station }));
+      carteDuDisquePosee = true;
+      avertir(`brigade : the disk under GitHub-only station ${station} is full of things the kitchen cannot free — a TODO card tells the chef`);
+    } catch (erreur) {
+      avertir(`brigade : the disk card of GitHub-only station ${station} could not be settled (${message(erreur)}) — tried again next round`);
+    }
   };
 
   // Le ticket qui répare la saturation passe la machine à court — elle se lit et se dit quand même —, pas les autres bornes (#4100).
@@ -233,6 +271,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     if (etat.breakerOpenedAt !== null) return "breaker";
     if (surQuelMoteur().blocked) return "quota";
     machineRetient = machineAcourt(cooks);
+    disqueEnCours ??= direLeDisque(cooks).finally(() => {
+      disqueEnCours = null;
+    });
     if (machineRetient && !reparation) return "machine";
     if (arbitre === null) return null;
     const reponse = await echanger(cooks, true, reparation);
