@@ -124,7 +124,8 @@ Short of disk or CPU, it also names the biggest consumer when it can (#4090), in
 (`consumer`), the service log and `run status`: for disk, the biggest of what brigade leaves on the
 machine — each project's state directory (`espace/`, `brigade/`), the station's temporary directory
 and the npm cache, measured by `du`, never the whole disk; for CPU, the process `ps` shows taking the
-most. A measure that fails, or a missing tool, names nobody and the line reads as before:
+most. A measure that fails or takes more than 5 s, or a missing tool (Windows has neither `du` nor
+`ps`), names nobody and the line reads as before:
 
 ```
 MACHINE SATURATED for 3 min on disk — 4,096 MB of disk free for at least 5,120 MB — biggest: espace/ (3.2 GB): box/claude takes no more tickets as long as it lasts
