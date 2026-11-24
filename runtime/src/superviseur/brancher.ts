@@ -26,7 +26,11 @@ import type { GitHub } from "../github.ts";
 import type { Dossier } from "./dossier.ts";
 import type { Decision } from "./gestes.ts";
 import { superviseur } from "./superviseur.ts";
+import { porteDuRuntime } from "../autonomie/agents/porte.ts";
+import { echeanceSansMerge, type FaitsDuProjet } from "./declencheur.ts";
+import { noterHoraire } from "../autonomie/agents/horaires.ts";
 import type { SuiviDuTour } from "./tour.ts";
+import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
 
 // Le manager lancé sur une consigne : sa réponse, ou pourquoi il n'y en a pas.
 export type ManagerDuSuperviseur = (consigne: string) => Promise<{ message: string } | { illisible: string }>;
@@ -41,6 +45,8 @@ export type OptionsDuBranchement = {
   branche: string;
   // Le manager, tel que la station le donne ; nul tant qu'elle ne l'a pas donné.
   consulter: () => ManagerDuSuperviseur | null;
+  // Le répertoire d'état du projet, sinon celui du runtime : une panne de `main` de plus de 30 minutes y laisse son post-mortem (#4023). Sans lui, rien n'est rangé.
+  repertoireEtat?: string;
   maintenant?: () => Date;
   dire?: (ligne: string) => void;
 };
@@ -50,7 +56,7 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 // La consigne du manager : son dossier, les six gestes, et la forme de sa réponse.
 function consigne(depot: string, dossier: Dossier, sauts: readonly string[]): string {
   return [
-    `Tu es le manager de la brigade sur le dépôt ${depot}, et le superviseur de ce run : la cuisine ne bouge pas. Lis le dossier ci-dessous — la file, la fin du journal, les checks rouges de la base et leur log, l'historique du ticket en faute —, dis ce que tu vois, et choisis UN geste parmi les six. Tu es dans un worktree de la base, en lecture : vérifie dans le dépôt ce que le dossier nomme.`,
+    `Tu es le manager de la brigade sur le dépôt ${depot}, et le superviseur de ce run : la cuisine ne bouge pas. Lis le dossier ci-dessous — la file, la fin du journal, les checks rouges de la base et leur log, l'historique du ticket en faute, tes derniers gestes et leurs compteurs —, dis ce que tu vois, et choisis UN geste parmi les six. Tu es dans un worktree de la base, en lecture : vérifie dans le dépôt ce que le dossier nomme.`,
     "",
     "## Les six gestes, les seuls permis",
     "",
@@ -109,19 +115,23 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       parUnAgent(numero);
     },
   };
+  const repertoireEtat = options.repertoireEtat ?? runtime.repertoireEtat;
   const superviser = superviseur({
     projet: runtime.projet,
     depot,
-    sources: { journal: runtime.journal, github, branche },
+    sources: { journal: runtime.journal, github, branche, repertoireEtat },
     manager: async (dossier) => {
       const consulter = options.consulter();
       if (consulter === null) throw new Error("no manager to consult: the station did not give it");
       return decisionDe(await consulter(consigne(depot, dossier, tour?.sauts() ?? [])));
     },
     maintenant,
+    // La porte de ses gestes (#4039) : celle du runtime, qui fait à chaque tick ceux que le chef approuve.
+    porte: porteDuRuntime({ projet: runtime.projet, repertoireEtat, surReveil: (ecouter) => runtime.surReveil(ecouter) }),
   });
+  // Un tour qui ne suit pas les progrès ne réveille pas sur leur absence.
   const inactivite =
-    tour === null
+    tour?.progres === undefined
       ? null
       : ouvrirInactivite({
           maintenant,
@@ -134,10 +144,28 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
             run.catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: its run failed — ${message(erreur)}`));
           },
         });
-  tour?.progres.ecouter((ticket, progres) => inactivite?.progres(ticket, progres));
+  tour?.progres?.ecouter((ticket, progres) => inactivite?.progres(ticket, progres));
+  const suivreLaBase = suivreLaBaseRouge((panne) => {
+    if (repertoireEtat === undefined) return;
+    try {
+      terminerLaPanne(repertoireEtat, runtime.projet, panne);
+    } catch (erreur) {
+      dire(`supervisor on ${runtime.projet}: the post-mortem of an outage was not written — ${message(erreur)}`);
+    }
+  });
+  // Quand il se réveillera si rien n'est mergé (#4038), là où `facts` le lit ; une note qui échoue n'arrête pas son tour.
+  const noterLeReveil = (faits: FaitsDuProjet) => {
+    if (repertoireEtat === undefined) return;
+    try {
+      noterHoraire(repertoireEtat, "supervisor", echeanceSansMerge(faits));
+    } catch (erreur) {
+      dire(`supervisor on ${runtime.projet}: its next wake was not noted — ${message(erreur)}`);
+    }
+  };
   const passer = () => {
     if (tour === null) return;
     try {
+      suivreLaBase(tour.faits().mainRougeDepuis, maintenant());
       const checks = tour.checks();
       if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, branche, checks);
       // La base rouge que la cuisine ne rend plus verte seule a sa carte dans TODO, une seule ; verte, elle en sort (#3953).
@@ -152,8 +180,9 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       const { base } = runtime.journal;
       if (etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false) return;
       if (options.consulter() === null) return;
+      noterLeReveil(tour.faits());
       superviser(tour.faits())?.catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: its run failed — ${message(erreur)}`));
-      inactivite?.passer(tour.progres.tickets()).catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: no progress not evaluated — ${message(erreur)}`));
+      if (tour.progres !== undefined) inactivite?.passer(tour.progres.tickets()).catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: no progress not evaluated — ${message(erreur)}`));
     } catch (erreur) {
       dire(`supervisor on ${runtime.projet}: not evaluated — ${message(erreur)}`);
     }

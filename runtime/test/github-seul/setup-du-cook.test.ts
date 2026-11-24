@@ -32,7 +32,7 @@ echo 'export ANTHROPIC_API_KEY=sk-ant-versLeCook'
 `;
 const SETUP_ROUGE = "#!/usr/bin/env bash\necho 'registre injoignable' >&2\nexit 7\n";
 
-type Lance = { env: NodeJS.ProcessEnv; avecDependances: boolean };
+type Lance = { env: NodeJS.ProcessEnv; avecDependances: boolean; recuParLeSetup: string };
 
 function cuisine(t: TestContext, options: { setup?: string; reglage?: { delaiMs: number } }) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-setup-du-cook-"));
@@ -41,7 +41,8 @@ function cuisine(t: TestContext, options: { setup?: string; reglage?: { delaiMs:
   const lances: Lance[] = [];
   const dits: string[] = [];
   const lancer: Lancer = ({ env, flux }) => {
-    lances.push({ env, avecDependances: existsSync(join(worktree, "node_modules")) });
+    // Lu pendant le cook : le worktree d'un cook sorti est retiré par la station (#4104).
+    lances.push({ env, avecDependances: existsSync(join(worktree, "node_modules")), recuParLeSetup: existsSync(join(worktree, "setup-a-recu")) ? readFileSync(join(worktree, "setup-a-recu"), "utf8") : "" });
     writeFileSync(flux, fluxQuiConclut);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
@@ -124,9 +125,9 @@ test("the setup gets neither the Claude key nor a GitHub token, and cannot hand 
   const { servir, lances, worktree } = cuisine(t, { setup: SETUP_VERT, reglage: { delaiMs: 2_000 } });
   await servir();
 
-  assert.equal(readFileSync(join(worktree, "setup-a-recu"), "utf8"), "|");
   const [cook] = lances;
   assert.ok(cook);
+  assert.equal(cook.recuParLeSetup, "|");
   assert.equal(cook.env.GH_TOKEN, undefined);
   assert.equal(cook.env.ANTHROPIC_API_KEY, undefined);
 });

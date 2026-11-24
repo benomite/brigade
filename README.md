@@ -43,6 +43,8 @@ You need two accounts:
 - a **GitHub account**, with a repository you can push to (a throwaway one is fine for a first run);
 - a **Claude account**: the cooks run on a Claude Max session, and an API key does not fit.
 
+The app also needs three tools on your computer: **`gh`** (the GitHub CLI), **`git`** and **`claude`** (Claude Code). If one of them is missing, the app says which one and why, shows the shortest way to install it on that machine, and carries on where you left off. A Mac without Homebrew (Apple silicon) and a Windows PC (x64) are supported, and you are never asked to install Homebrew. The details for each tool are in **[docs/installation.md](docs/installation.md)**.
+
 1. **Download the app** (macOS on Apple silicon, Windows x64, or Linux x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)** and open it. On Linux, see **[docs/installation-linux.md](docs/installation-linux.md)**.
 2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
 3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
@@ -51,7 +53,7 @@ You need two accounts:
 
 **Alternative, on GitHub**: open an issue in that repository and put the label `fire` on it. It goes on the rail the same way.
 
-No command to type, no file to edit. Every screen is described in **[docs/installation.md](docs/installation.md)**.
+You type almost no command: the app runs the tools it needs. What you still type is the GitHub code shown on the GitHub page (step 2), your repository as `owner/repo` (step 4), and your answers to the second (step 5). Every screen is described in **[docs/installation.md](docs/installation.md)**.
 
 ## Where brigade is going
 

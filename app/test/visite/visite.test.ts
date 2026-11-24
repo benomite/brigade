@@ -1,28 +1,25 @@
-// La visite guidée du premier lancement (#3165, épique #3162). D'abord ses morceaux, devant un faux document : les six
-// étapes dans l'ordre, chacune ancrée sur un élément vivant et dite en une ou deux phrases qui nomment le mot de Brigade ;
-// une étape sans rien de vivant qui le dit et montre le dernier exemple ; la bulle, son « skip the tour » à chaque étape
-// et son seul appel à agir à la dernière ; la trace du premier lancement. Puis la vue jouée entière (vue.js tel qu'il
-// est, un faux pont) : l'ordinateur neuf où benomite/brigade s'ajoute sans rien taper et la visite démarre, le second
-// lancement où rien ne se rajoute ni ne démarre, la visite passée puis rejouée depuis la barre, son dernier geste qui
-// mène à l'ajout d'un projet.
+// La visite d'une vraie cuisine (#4087, née visite guidée du premier lancement, #3165). D'abord ses morceaux, devant un
+// faux document : les six étapes dans l'ordre, chacune ancrée sur un élément vivant et dite en une ou deux phrases qui
+// nomment le mot de Brigade ; une étape sans rien de vivant qui le dit et montre le dernier exemple ; la bulle, son « next »
+// et son seul appel à agir à la dernière ; l'écran de la cuisine visitée, en lecture seule — en lecture, lu, illisible ;
+// la visite tenue. Puis la vue jouée entière (vue.js tel qu'il est, un faux pont) : la visite choisie sur l'écran
+// d'accueil, lue sur GitHub sans clone ni ajout, ses étapes sur la cuisine lue, quittée d'une étape avancée, rejouée depuis
+// la barre, sa lecture qui échoue puis se relit, et son dernier geste qui mène à l'ajout d'un projet.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { mettreAPart } from "../../src/attend.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
-import type { CompteGitHub } from "../../src/connexion-github.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
+import { BANNIERE, tenirFaits, type Faits, type Tableau } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Ouverture, StationsDuChef } from "../../src/premier-lancement.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import type { Terminal } from "../../src/terminaux.ts";
+import { mettreAPart } from "../../src/attend.ts";
 import {
   AJOUTER_LE_SIEN,
-  CLE_DE_LA_VISITE,
   COOK_EN_COURS,
   COOK_EXEMPLE,
   COOK_SANS_EXEMPLE,
@@ -39,9 +36,8 @@ import {
   PASS_EN_COURS,
   PASS_EXEMPLE,
   PASS_SANS_EXEMPLE,
-  PASSER,
+  poserLaCuisineVisitee,
   poserVisite,
-  PROJET_DE_LA_VISITE,
   RANG,
   REJOUER,
   SERVI,
@@ -57,6 +53,13 @@ import {
 } from "../../src/vue/visite/visite.js";
 import { Faux, FauxStockage, jouerLaVue, type Jouee, repos } from "../aides/fausse-vue.ts";
 
+// Les mots de l'écran de la visite et de l'écran d'accueil, tels que le nouveau venu les lit.
+const VISITER = "visit a real kitchen";
+const QUITTER = "leave the visit";
+const RELIRE = "read again";
+const LECTURE_SEULE = "Read-only: you watch the kitchen cook, nothing here acts on its tickets.";
+const SECOND_DE_LA_VISITE = "Your second opens with your own project.";
+const CUISINE_ILLISIBLE = "Brigade's kitchen cannot be read right now.";
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
 const carte = (ticket: number) => ({ ticket, ouvrable: true, attendu: false, attend: [], fiche: {} }) as unknown as ColonneLue["cartes"][number];
@@ -226,28 +229,29 @@ describe("l'élément vivant que l'étape désigne", () => {
 
 describe("la bulle de l'étape", () => {
   const faits: string[] = [];
-  const gestes = { suivante: () => void faits.push("suivante"), passer: () => void faits.push("passer"), ajouter: () => void faits.push("ajouter") };
+  const gestes = { suivante: () => void faits.push("suivante"), ajouter: () => void faits.push("ajouter") };
   const etapes = etapesDeLaVisite(VIVANT);
   const boutons = (bulle: Faux) => bulle.dessous("button").map(({ textContent }) => textContent);
 
-  test("à chaque étape : où on en est, le mot, la phrase, « next » et « skip the tour »", () => {
+  test("à chaque étape : où on en est, le mot, la phrase, et « next »", () => {
     for (let rang = 0; rang < etapes.length - 1; rang++) {
       const bulle = poserVisite(doc, { etapes, rang }, gestes) as Faux;
       assert.equal(bulle.dessous("p")[0]?.textContent, RANG(rang + 1, 6));
       assert.equal(bulle.dessous("h3")[0]?.textContent, etapes[rang]?.mot);
       assert.equal(bulle.dessous("p").find(({ className }) => className === "dit")?.textContent, etapes[rang]?.texte);
-      assert.deepEqual(boutons(bulle), [SUIVANTE, PASSER]);
+      assert.deepEqual(boutons(bulle), [SUIVANTE]);
     }
+    (poserVisite(doc, { etapes, rang: 0 }, gestes) as Faux).dessous("button")[0]?.click();
+    assert.deepEqual(faits.splice(0), ["suivante"]);
   });
 
-  test("la dernière : un seul appel à agir, « add your own project », et toujours de quoi passer", () => {
+  test("la dernière : un seul appel à agir, « add my project », le mot même de l'écran d'accueil", () => {
     const bulle = poserVisite(doc, { etapes, rang: 5 }, gestes) as Faux;
     assert.equal(bulle.dessous("h3")[0]?.textContent, MOT_SECOND);
-    assert.deepEqual(boutons(bulle), [AJOUTER_LE_SIEN, PASSER]);
+    assert.deepEqual(boutons(bulle), ["add my project"]);
     assert.equal(bulle.dessous("button").filter((bouton) => bouton.dataset.bouton === "recommande").length, 1);
     bulle.dessous("button")[0]?.click();
-    bulle.dessous("button")[1]?.click();
-    assert.deepEqual(faits.splice(0), ["ajouter", "passer"]);
+    assert.deepEqual(faits.splice(0), ["ajouter"]);
   });
 
   test("une étape qui montre le dernier exemple le marque", () => {
@@ -257,55 +261,90 @@ describe("la bulle de l'étape", () => {
   });
 });
 
-describe("la trace du premier lancement", () => {
-  const AU = "2026-11-11T10:00:00.000Z";
-  test("sans trace, c'est le premier lancement ; commencée, la visite laisse la sienne, et ne l'est plus", () => {
-    const stockage = new FauxStockage();
+// Un tableau tel que le process principal le range de la cuisine lue (visite.ts) : ses colonnes, rien d'autre n'y est lu.
+const tableauDe = (colonnes: ColonneLue[]) => ({ rail: { colonnes: colonnes.map((colonne) => ({ ton: "", compte: "", vide: `nothing in ${colonne.nom}`, ...colonne })), hors: [] } }) as unknown as Tableau;
+
+describe("l'écran de la cuisine visitée", () => {
+  const faits: string[] = [];
+  const gestes = { quitter: () => void faits.push("quitter"), relire: () => void faits.push("relire") };
+  const boutons = (racine: Faux) => racine.dessous("button").map(({ textContent }) => textContent);
+
+  test("en tête : la cuisine de Brigade, en lecture seule, et « leave the visit », qui quitte", () => {
+    const { racine } = poserLaCuisineVisitee(doc, undefined, gestes) as { racine: Faux };
+    assert.equal(racine.dessous("h2")[0]?.textContent, "Brigade's own kitchen");
+    assert.ok(racine.dessous("span").some(({ textContent }) => textContent === "benomite/brigade"));
+    assert.ok(racine.dessous("p").some(({ textContent }) => textContent === LECTURE_SEULE));
+    const quitter = racine.dessous("button").find(({ textContent }) => textContent === QUITTER) ?? assert.fail("pas de « leave the visit »");
+    quitter.click();
+    assert.deepEqual(faits.splice(0), ["quitter"]);
+  });
+
+  test("en lecture : le rail le dit ; le second, que la visite n'ouvre pas, le dit aussi", () => {
+    const { rail, second } = poserLaCuisineVisitee(doc, undefined, gestes) as { rail: Faux; second: Faux };
+    assert.equal(rail.textContent, LECTURE_DU_RAIL);
+    assert.equal(second.dessous("h4")[0]?.textContent, MOT_SECOND);
+    assert.equal(second.dessous("p")[0]?.textContent, SECOND_DE_LA_VISITE);
+  });
+
+  test("lue : une colonne par étape, une carte par ticket, celles qui attendent un humain rouges en tête de leur étape — et aucun autre geste que de quitter", () => {
+    const attendue = { ...carte(41), titre: "Une question", etape: "Pass", mot: "awaiting you", ton: "rouge" } as unknown as ColonneLue["cartes"][number];
+    const colonnes = [...VIVANT.filter(({ nom }) => nom !== "Awaiting you"), { nom: "Awaiting you", cartes: [attendue] }];
+    const { racine, rail } = poserLaCuisineVisitee(doc, { tableau: tableauDe(colonnes) }, gestes) as { racine: Faux; rail: Faux };
+    const sections = rail.dessous("section");
+    assert.deepEqual(sections.map(({ dataset }) => dataset.colonne), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
+    const pass = sections.find(({ dataset }) => dataset.colonne === "Pass") ?? assert.fail("pas de Pass");
+    assert.deepEqual(pass.dessous("li").map(({ dataset }) => [dataset.ticket, dataset.carte]), [["41", "attente"], ["31", undefined]]);
+    assert.equal(pass.dessous("h4")[0]?.textContent, "Pass2");
+    // Son numéro, le mot de son état — dans son ton — et son titre ; une carte sans mot n'en pose pas de vide.
+    assert.equal(pass.dessous("li")[0]?.textContent, "#41awaiting youUne question");
+    assert.deepEqual(pass.dessous("span").filter(({ className }) => className === "mot-visite").map(({ dataset }) => dataset.ton), ["rouge"]);
+    assert.equal(pass.dessous("li")[1]?.textContent, "#31");
+    assert.equal(sections.find(({ dataset }) => dataset.colonne === "Waiting")?.dessous("p")[0]?.textContent, "nothing in Waiting");
+    assert.deepEqual(boutons(racine), [QUITTER]);
+    // Les étapes désignent ce que cet écran montre.
+    assert.equal(trouverLaCible({ rail, second: new Faux("aside") }, { colonne: "Taken", ticket: 30 }).dataset.ticket, "30");
+  });
+
+  test("illisible : une ligne, la raison au survol, et « read again », qui relit", () => {
+    const { racine, rail } = poserLaCuisineVisitee(doc, { sans: "GitHub could not be reached to read the rail of benomite/brigade." }, gestes) as { racine: Faux; rail: Faux };
+    const ligne = rail.children[0] ?? assert.fail("rien sur le rail");
+    assert.equal(ligne.dataset.ligne, "erreur");
+    assert.match(ligne.textContent, new RegExp(CUISINE_ILLISIBLE.replace(/[.']/g, "\\$&")));
+    assert.ok([...ligne.descendants(), ligne].some(({ title, ariaLabel }) => `${title} ${ariaLabel}`.includes("GitHub could not be reached")), "la raison est au survol");
+    // Le « ? » est le survol de la raison, pas un geste.
+    assert.deepEqual(boutons(racine), [QUITTER, "?", RELIRE]);
+    assert.equal(racine.dessous("button")[2]?.dataset.bouton, "recommande", "« read again » est le geste recommandé");
+    racine.dessous("button")[2]?.click();
+    assert.deepEqual(faits.splice(0), ["relire"]);
+  });
+});
+
+describe("la visite tenue", () => {
+  test("commencée, elle part de la première étape ; « next » ne va pas au-delà de la dernière ; quittée, elle n'est plus", () => {
     let rendus = 0;
-    const visite = tenirLaVisite({ stockage, rendre: () => void rendus++, maintenant: () => AU });
-    assert.equal(visite.aDecouvrir(), true);
-    visite.commencer("brigade");
-    assert.deepEqual(visite.etat, { projet: "brigade", rang: 0 });
-    assert.equal(stockage.getItem(CLE_DE_LA_VISITE), JSON.stringify({ montree: AU }));
-    assert.equal(visite.aDecouvrir(), false);
+    const visite = tenirLaVisite({ rendre: () => void rendus++ });
+    // Relue à chaque fois : une assertion ne la fige pas pour la suite.
+    const etat = () => visite.etat;
+    assert.deepEqual(etat(), undefined);
+    visite.suivante(6);
+    assert.deepEqual(etat(), undefined, "pas commencée, rien n'avance");
+    visite.commencer();
+    assert.deepEqual(etat(), { rang: 0 });
     for (let fois = 0; fois < 9; fois++) visite.suivante(6);
-    assert.equal(visite.etat?.rang, 5);
-    visite.fermer();
-    assert.equal(visite.etat, undefined);
-    assert.equal(rendus, 11);
-    // Relue par une autre vue — l'app rouverte —, la trace tient.
-    assert.equal(tenirLaVisite({ stockage, rendre: () => {} }).aDecouvrir(), false);
-  });
-
-  test("un stockage absent ou illisible n'est pas un premier lancement : rien ne s'ajouterait à chaque lancement", () => {
-    assert.equal(tenirLaVisite({ stockage: undefined, rendre: () => {} }).aDecouvrir(), false);
-    const illisible = {
-      getItem: (): string | null => {
-        throw new Error("SecurityError");
-      },
-      setItem: () => {},
-    };
-    assert.equal(tenirLaVisite({ stockage: illisible, rendre: () => {} }).aDecouvrir(), false);
-  });
-
-  test("une trace qui ne s'écrit pas n'empêche pas la visite", () => {
-    const plein = {
-      getItem: (): string | null => null,
-      setItem: () => {
-        throw new Error("QuotaExceededError");
-      },
-    };
-    const visite = tenirLaVisite({ stockage: plein, rendre: () => {} });
-    visite.commencer("brigade");
-    assert.deepEqual(visite.etat, { projet: "brigade", rang: 0 });
+    assert.equal(etat()?.rang, 5);
+    visite.quitter();
+    assert.deepEqual(etat(), undefined);
+    visite.commencer();
+    assert.deepEqual(etat(), { rang: 0 }, "rejouée, elle repart de la première étape");
+    assert.equal(rendus, 12);
   });
 });
 
 // La vue jouée entière.
 const CHEMIN = "/home/chef/.config/brigade/app.json";
-const BRIGADE: Projet = { nom: PROJET_DE_LA_VISITE, dossier: "/home/chef/.local/share/brigade/projects/brigade", depot: DEPOT_DE_LA_VISITE, base: "main" };
-const demarrage = (projets: Projet[], servi = false) => ({
-  configuration: pourLaBarre({ chemin: CHEMIN, projets }, () => servi),
+const MIEN: Projet = { nom: "mine", dossier: "/home/chef/Brigade/mine", depot: "chef/mine", base: "main" };
+const demarrage = (projets: Projet[]) => ({
+  configuration: pourLaBarre({ chemin: CHEMIN, projets }, () => false),
   poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXEMPLE,
@@ -318,195 +357,194 @@ const demarrage = (projets: Projet[], servi = false) => ({
 });
 // Le chef n'a encore appairé aucune station : l'ordinateur est neuf.
 const AUCUNE: StationsDuChef = { state: "listed", unreadable: [], stations: [] };
-const OUVERT: Ouverture = { state: "open", project: PROJET_DE_LA_VISITE, repository: DEPOT_DE_LA_VISITE, folder: BRIGADE.dossier, cloned: true };
-const SECOND: Terminal = { id: 1, projet: PROJET_DE_LA_VISITE, genre: "second", titre: "second · claude", note: "", arrete: false };
+const OUVERT: Ouverture = { state: "open", project: "brigade", repository: DEPOT_DE_LA_VISITE, folder: "/home/chef/Brigade/brigade", cloned: true };
 
-const bulle = (vue: Jouee) => vue.element("visite");
+// La cuisine de Brigade telle que le process principal la range (visite.ts) : #30 en cuisson, #31 en pass, #12 servi.
+function cuisineLue(enCuisson: boolean): { tableau: Tableau } {
+  const A = "2026-11-11T10:04:12.000Z";
+  const url = (ticket: number) => `https://github.com/benomite/brigade/issues/${ticket}`;
+  const entree = (ticket: number, etat: string) => ({ ticket, etat, titre: `Ticket ${ticket}`, url: url(ticket), activite: null, attente: null });
+  const faits: Faits = {
+    etat: "ouverte",
+    lu: A,
+    dernierTick: A,
+    compteurs: { rail: 1, auTravail: enCuisson ? 1 : 0, aLaPass: 1, attend: 0, livres24h: 1 },
+    dernierEvenement: null,
+    rail: [entree(21, "en attente"), ...(enCuisson ? [entree(30, "pris")] : []), entree(31, "en pass"), entree(12, "servi")],
+    cooks: [],
+    attend: [],
+  };
+  const tenus = tenirFaits();
+  const recue = tenus.recevoir(mettreAPart({ projet: "brigade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] }));
+  return "tableau" in recue ? { tableau: recue.tableau } : assert.fail("la cuisine figée ne se range pas");
+}
+
+const bulle = (vue: Jouee) => vue.element("visite").dessous("div").find(({ className }) => className === "visite") ?? assert.fail("pas de bulle");
 const enTete = (vue: Jouee) => bulle(vue).dessous("h3")[0]?.textContent;
-const bouton = (vue: Jouee, libelle: string) => bulle(vue).dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} » : ${bulle(vue).dessous("button").map(({ textContent }) => textContent).join(", ")}`);
-const ouvertures = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "ouvrirDUneStation");
+const dit = (vue: Jouee) => bulle(vue).dessous("p").find(({ className }) => className === "dit")?.textContent;
+const visible = (vue: Jouee, libelle: string) => vue.poses().find((p) => p.balise === "button" && !p.hidden && p.textContent === libelle);
+const bouton = (vue: Jouee, libelle: string) => vue.element("visite").dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} » : ${vue.element("visite").dessous("button").map(({ textContent }) => textContent).join(", ")}`);
+const lectures = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "lireLaCuisineVisitee");
+const ajouts = (vue: Jouee) => vue.appels.filter(({ geste }) => /ouvrirDUneStation|clone|ajouter/i.test(geste));
+const marquee = (vue: Jouee) => vue.poses().filter(({ dataset }) => dataset.visite !== undefined);
 const rejouer = (vue: Jouee) => vue.poses().find(({ id }) => id === "entree-visite") ?? assert.fail("pas d'entrée pour rejouer la visite");
 
-// Un premier lancement : le fichier sans projet, le compte GitHub de cet ordinateur lu, la copie de brigade faite.
-async function premierLancement(stockage: FauxStockage, compte: () => CompteGitHub = () => ({ login: "newcomer" })) {
-  const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => AUCUNE, compteGitHub: compte, ouvrirDUneStation: () => OUVERT, espace: () => [SECOND] }, { stockage });
+// Un premier lancement, connecté à GitHub, la cuisine de Brigade lue comme le pont la rend.
+async function premierLancement(lire: () => unknown = () => cuisineLue(true)) {
+  const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => AUCUNE, compteGitHub: () => ({ login: "newcomer" }), ouvrirDUneStation: () => OUVERT, espace: () => [], lireLaCuisineVisitee: lire as never }, { stockage: new FauxStockage() });
   await repos();
   return vue;
 }
-// Le fichier relu, brigade dedans : son espace s'ouvre.
-async function brigadeAjoute(vue: Jouee) {
-  vue.dire("surConfiguration", pourLaBarre({ chemin: CHEMIN, projets: [BRIGADE] }), []);
+async function visiter(vue: Jouee) {
+  (visible(vue, VISITER) ?? assert.fail("pas de « visit a real kitchen »")).click();
   await repos();
 }
 
-describe("la vue jouée : l'ordinateur neuf, puis le lancement suivant", () => {
-  test("premier lancement, connecté à GitHub : benomite/brigade s'ajoute sans rien taper, son espace s'ouvre sur la visite", async () => {
-    const stockage = new FauxStockage();
-    const vue = await premierLancement(stockage);
-    assert.deepEqual(
-      ouvertures(vue).map(({ args }) => args),
-      [[PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE]],
-    );
-    await brigadeAjoute(vue);
-    assert.equal(vue.element("espace").textContent, PROJET_DE_LA_VISITE);
-    assert.equal(bulle(vue).hidden, false);
+describe("la vue jouée : la visite choisie sur l'écran d'accueil", () => {
+  test("rien ne démarre seul ; choisie, la cuisine de benomite/brigade est lue — sans clone ni ajout — et la visite part de sa première étape", async () => {
+    const vue = await premierLancement();
+    assert.deepEqual(lectures(vue), [], "rien n'est lu avant le choix");
+    assert.equal(vue.element("visite").hidden, true);
+    await visiter(vue);
+    assert.deepEqual(lectures(vue).map(({ args }) => args), [[DEPOT_DE_LA_VISITE]]);
+    assert.deepEqual(ajouts(vue), []);
+    assert.equal(vue.element("visite").hidden, false);
     assert.equal(enTete(vue), MOT_RAIL);
-    assert.notEqual(stockage.getItem(CLE_DE_LA_VISITE), null);
+    // Le rail lu : sa rangée de colonnes, désignée.
+    assert.deepEqual(marquee(vue).map(({ className }) => className), ["colonnes"]);
+    assert.ok(vue.element("visite").dessous("li").some(({ dataset }) => dataset.ticket === "30"));
   });
 
-  test("pas encore connecté : rien ne s'ajoute ; la connexion faite, brigade s'ajoute", async () => {
-    let comptes = 0;
-    const vue = await premierLancement(new FauxStockage(), () => (++comptes === 1 ? { nonConnecte: true } : { login: "newcomer" }));
-    assert.equal(ouvertures(vue).length, 0);
-    vue.dire("surConnexionGitHub", { connecte: true });
+  test("chaque étape désigne ce que la cuisine lue montre ; la dernière, le second, puis « add my project » ouvre l'ajout et quitte la visite", async () => {
+    const vue = await premierLancement();
+    await visiter(vue);
+    bouton(vue, SUIVANTE).click();
     await repos();
-    assert.deepEqual(ouvertures(vue).map(({ args }) => args), [[PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE]]);
-  });
-
-  test("la copie qui échoue : la raison se dit sur le premier écran, la visite ne démarre pas et n'est pas tenue pour montrée", async () => {
-    const stockage = new FauxStockage();
-    const echec: Ouverture = { state: "failed", project: PROJET_DE_LA_VISITE, repository: DEPOT_DE_LA_VISITE, cause: "network", reason: "GitHub could not be reached to clone benomite/brigade." } as Ouverture;
-    const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => AUCUNE, compteGitHub: () => ({ login: "newcomer" }), ouvrirDUneStation: () => echec, espace: () => [] }, { stockage });
+    assert.equal(dit(vue), COOK_EN_COURS(30));
+    assert.deepEqual(marquee(vue).map(({ dataset }) => dataset.ticket), ["30"]);
+    bouton(vue, SUIVANTE).click();
     await repos();
-    assert.equal(ouvertures(vue).length, 1);
-    assert.ok(vue.element("tous").dessous("span").some(({ textContent }) => textContent === "GitHub could not be reached to clone benomite/brigade."));
-    assert.equal(bulle(vue).hidden, true);
-    assert.equal(stockage.getItem(CLE_DE_LA_VISITE), null);
-  });
-
-  test("second lancement, la visite passée : aucun projet ne se rajoute, la visite ne démarre pas — même brigade retiré du fichier", async () => {
-    const stockage = new FauxStockage();
-    const premiere = await premierLancement(stockage);
-    await brigadeAjoute(premiere);
-    bouton(premiere, PASSER).click();
-    await repos();
-    assert.equal(bulle(premiere).hidden, true);
-
-    const seconde = await jouerLaVue({ demarrage: () => demarrage([BRIGADE]), stationsDuChef: () => AUCUNE, compteGitHub: () => ({ login: "newcomer" }), ouvrirDUneStation: () => OUVERT, espace: () => [] }, { stockage });
-    await repos();
-    assert.equal(ouvertures(seconde).length, 0);
-    assert.equal(bulle(seconde).hidden, true);
-    (seconde.element("projets").children.at(1) ?? assert.fail("pas de case brigade")).click();
-    await repos();
-    assert.equal(bulle(seconde).hidden, true);
-
-    const sansProjet = await premierLancement(stockage);
-    assert.equal(ouvertures(sansProjet).length, 0);
-    assert.equal(bulle(sansProjet).hidden, true);
-  });
-
-  test("second lancement, la visite finie jusqu'au bout : rien ne se rajoute ni ne démarre", async () => {
-    const stockage = new FauxStockage();
-    const premiere = await premierLancement(stockage);
-    await brigadeAjoute(premiere);
-    for (let fois = 0; fois < 5; fois++) {
-      bouton(premiere, SUIVANTE).click();
+    assert.equal(dit(vue), PASS_EN_COURS(31));
+    const vues = [enTete(vue)];
+    for (let fois = 0; fois < 3; fois++) {
+      bouton(vue, SUIVANTE).click();
       await repos();
-    }
-    bouton(premiere, AJOUTER_LE_SIEN).click();
-    await repos();
-    const seconde = await premierLancement(stockage);
-    assert.equal(ouvertures(seconde).length, 0);
-    assert.equal(bulle(seconde).hidden, true);
-  });
-});
-
-describe("la vue jouée : la visite en marche", () => {
-  test("six étapes, « skip the tour » à chacune ; la dernière mène à l'ajout d'un projet", async () => {
-    const vue = await premierLancement(new FauxStockage());
-    await brigadeAjoute(vue);
-    const vues: (string | undefined)[] = [];
-    for (let fois = 0; fois < 5; fois++) {
       vues.push(enTete(vue));
-      bouton(vue, PASSER);
+    }
+    assert.deepEqual(vues, [MOT_PASS, MOT_SERVED, MOT_TODO, MOT_SECOND]);
+    assert.deepEqual(marquee(vue).map(({ balise }) => balise), ["aside"]);
+    bouton(vue, AJOUTER_LE_SIEN).click();
+    await repos();
+    assert.equal(vue.element("visite").hidden, true);
+    assert.equal(vue.element("ajout").hidden, false);
+    assert.deepEqual(marquee(vue), []);
+    assert.deepEqual(ajouts(vue), [], "l'écran d'ajout s'ouvre : rien n'est encore ajouté");
+  });
+
+  test("sans cook en cours, l'étape du cook montre le dernier ticket servi", async () => {
+    const vue = await premierLancement(() => cuisineLue(false));
+    await visiter(vue);
+    bouton(vue, SUIVANTE).click();
+    await repos();
+    assert.equal(dit(vue), COOK_EXEMPLE(12));
+    assert.deepEqual(marquee(vue).map(({ dataset }) => dataset.ticket), ["12"]);
+  });
+
+  test("quittée d'une étape avancée : « leave the visit » ramène à l'écran d'accueil et ses deux choix", async () => {
+    const vue = await premierLancement();
+    await visiter(vue);
+    for (let fois = 0; fois < 3; fois++) {
       bouton(vue, SUIVANTE).click();
       await repos();
     }
-    vues.push(enTete(vue));
-    assert.deepEqual(vues, [MOT_RAIL, MOT_COOK, MOT_PASS, MOT_SERVED, MOT_TODO, MOT_SECOND]);
-    assert.deepEqual(bulle(vue).dessous("button").map(({ textContent }) => textContent), [AJOUTER_LE_SIEN, PASSER]);
-    // Le second désigné : sa colonne.
-    assert.equal(vue.element("second").dataset.visite, "");
-    bouton(vue, AJOUTER_LE_SIEN).click();
+    assert.equal(bulle(vue).dessous("p")[0]?.textContent, RANG(4, 6));
+    bouton(vue, QUITTER).click();
     await repos();
-    assert.equal(bulle(vue).hidden, true);
-    assert.equal(vue.element("ajout").hidden, false);
-    assert.equal(vue.element("second").dataset.visite, undefined);
+    assert.equal(vue.element("visite").hidden, true);
+    assert.deepEqual(vue.element("visite").children, []);
+    assert.ok(visible(vue, VISITER) && visible(vue, "add my project"));
+  });
+});
+
+describe("la vue jouée : la lecture de la cuisine", () => {
+  test("une lecture qui lève : une ligne, la raison au survol ; « read again » relit, et la cuisine lue se pose", async () => {
+    let fois = 0;
+    const vue = await premierLancement(() => (++fois === 1 ? Promise.reject(new Error("GitHub could not be reached")) : cuisineLue(true)));
+    await visiter(vue);
+    const rail = () => vue.element("visite").dessous("section").find(({ className }) => className === "rail-de-la-visite") ?? assert.fail("pas de rail");
+    assert.equal(rail().children[0]?.dataset.ligne, "erreur");
+    assert.ok(rail().textContent.includes(CUISINE_ILLISIBLE));
+    assert.ok([...rail().descendants()].some(({ title, ariaLabel }) => `${title} ${ariaLabel}`.includes("GitHub could not be reached")));
+    assert.equal(enTete(vue), MOT_RAIL, "la visite reste là, à sa première étape");
+    bouton(vue, RELIRE).click();
+    await repos();
+    assert.equal(lectures(vue).length, 2);
+    assert.ok(rail().dessous("li").some(({ dataset }) => dataset.ticket === "30"));
   });
 
-  test("passée, puis rejouée depuis la barre : elle repart de sa première étape, sur brigade", async () => {
-    const vue = await premierLancement(new FauxStockage());
-    await brigadeAjoute(vue);
-    bouton(vue, SUIVANTE).click();
-    await repos();
-    bouton(vue, PASSER).click();
-    await repos();
-    assert.equal(bulle(vue).hidden, true);
-    assert.equal(rejouer(vue).title, REJOUER);
-    // Ailleurs dans l'app : la visite rejouée y ramène.
-    vue.poses().find(({ id }) => id === "entree-tous")?.click();
+  test("un pont qui ne rend rien : la lecture le dit, jamais un écran vide", async () => {
+    const vue = await premierLancement(() => undefined);
+    await visiter(vue);
+    const lignes = [...vue.element("visite").descendants()];
+    assert.ok(lignes.some(({ title, ariaLabel }) => `${title} ${ariaLabel}`.includes("the app gave no answer")));
+  });
+
+  test("seule la dernière lecture demandée se pose : une réponse en retard n'écrase pas la suivante", async () => {
+    const reponses: ((lue: unknown) => void)[] = [];
+    const vue = await premierLancement(() => new Promise((resoudre) => void reponses.push(resoudre)));
+    await visiter(vue);
+    bouton(vue, QUITTER).click();
     await repos();
     rejouer(vue).click();
     await repos();
-    assert.equal(vue.element("espace").textContent, PROJET_DE_LA_VISITE);
-    assert.equal(bulle(vue).hidden, false);
-    assert.equal(enTete(vue), MOT_RAIL);
+    assert.equal(reponses.length, 2);
+    reponses[1]?.(cuisineLue(true));
+    await repos();
+    reponses[0]?.({ sans: "late and stale" });
+    await repos();
+    assert.ok(vue.element("visite").dessous("li").some(({ dataset }) => dataset.ticket === "30"), "la lecture en retard ne remplace pas la dernière");
   });
+});
 
-  test("rejouée après avoir été finie, au lancement suivant", async () => {
-    const stockage = new FauxStockage();
-    stockage.setItem(CLE_DE_LA_VISITE, JSON.stringify({ montree: "2026-11-10T09:00:00.000Z" }));
-    const vue = await jouerLaVue({ demarrage: () => demarrage([BRIGADE]), espace: () => [] }, { stockage });
-    assert.equal(bulle(vue).hidden, true);
+describe("la vue jouée : la visite, avec un compte qui peut écrire sur benomite/brigade", () => {
+  test("à chaque étape, l'écran de la visite n'offre que de quitter, d'avancer et, à la fin, « add my project » ; l'app dessous est inerte, rendue quittée", async () => {
+    const ecrivain = { login: "maintainer", permission: "admin" } as unknown as { login: string };
+    const vue = await jouerLaVue({ demarrage: () => demarrage([MIEN]), compteGitHub: () => ecrivain, espace: () => [], lireLaCuisineVisitee: (() => cuisineLue(true)) as never }, { stockage: new FauxStockage() });
+    await repos();
+    assert.equal(vue.element("cadre").inert, false, "hors visite, l'app se manie");
     rejouer(vue).click();
     await repos();
-    assert.equal(bulle(vue).hidden, false);
-    assert.equal(enTete(vue), MOT_RAIL);
-  });
-
-  test("sur le vrai rail : chaque étape désigne la carte du moment ; sans cook en cours, le dernier ticket servi", async () => {
-    const A = "2026-11-11T10:04:12.000Z";
-    const url = (ticket: number) => `https://github.com/benomite/brigade/issues/${ticket}`;
-    const entree = (ticket: number, etat: string) => ({ ticket, etat, titre: `Ticket ${ticket}`, url: url(ticket), activite: null, attente: null });
-    const faits = (enCuisson: boolean): Faits => ({
-      etat: "ouverte",
-      lu: A,
-      dernierTick: A,
-      compteurs: { rail: 1, auTravail: enCuisson ? 1 : 0, aLaPass: 1, attend: 0, livres24h: 1 },
-      dernierEvenement: null,
-      rail: [entree(21, "en attente"), ...(enCuisson ? [entree(30, "pris")] : []), entree(31, "en pass"), entree(12, "servi")],
-      cooks: [],
-      attend: [],
-    });
-    const dessinable = (enCuisson: boolean) => {
-      const tenus = tenirFaits();
-      const recue = tenus.recevoir({ projet: PROJET_DE_LA_VISITE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits(enCuisson)) }] });
-      return tenus.attendre(mettreAPart({ projet: PROJET_DE_LA_VISITE, demande: 0, a: A, sorties: [{ commande: "status", texte: "projet     brigade\ncuisine    ouverte\n" }] })) ?? recue;
-    };
-    const stockage = new FauxStockage();
-    stockage.setItem(CLE_DE_LA_VISITE, JSON.stringify({ montree: A }));
-    const vue = await jouerLaVue({ demarrage: () => demarrage([BRIGADE], true), espace: () => [SECOND] }, { stockage });
-    rejouer(vue).click();
-    await repos();
-    const recevoir = async (enCuisson: boolean) => {
-      vue.dire("surFaits", { ...dessinable(enCuisson), demande: vue.dernier("faits")[0] as number });
+    const offerts: string[][] = [];
+    for (let pas = 1; pas <= 6; pas++) {
+      offerts.push(vue.element("visite").dessous("button").map(({ textContent }) => textContent));
+      assert.equal(vue.element("cadre").inert, true, `étape ${pas} : aucun geste de l'app dessous ne se manie sous la visite`);
+      if (pas < 6) bouton(vue, SUIVANTE).click();
       await repos();
-    };
-    await recevoir(true);
-    const marquee = () => vue.poses().filter(({ dataset }) => dataset.visite !== undefined);
-    // Le rail : sa rangée de colonnes.
-    assert.deepEqual(marquee().map(({ className }) => className), ["colonnes"]);
+    }
+    assert.deepEqual(offerts, [...Array(5).fill([QUITTER, SUIVANTE]), [QUITTER, AJOUTER_LE_SIEN]]);
+    assert.deepEqual(vue.appels.filter(({ geste }) => /creer|deplacer|commenter|fermer|lancer|poster|approuver|ouvrirDUneStation|clone|ajouter/i.test(geste)), []);
+    bouton(vue, QUITTER).click();
+    await repos();
+    assert.equal(vue.element("cadre").inert, false, "quittée, l'app se manie de nouveau");
+  });
+});
+
+describe("la vue jouée : la visite rejouée depuis la barre", () => {
+  test("avec un projet à soi : l'entrée « Replay the visit » la rejoue de sa première étape, sans ouvrir ni ajouter de projet", async () => {
+    const vue = await jouerLaVue({ demarrage: () => demarrage([MIEN]), espace: () => [], lireLaCuisineVisitee: (() => cuisineLue(true)) as never }, { stockage: new FauxStockage() });
+    await repos();
+    assert.equal(rejouer(vue).title, REJOUER);
+    rejouer(vue).click();
+    await repos();
     bouton(vue, SUIVANTE).click();
     await repos();
-    assert.equal(bulle(vue).dessous("p").find(({ className }) => className === "dit")?.textContent, COOK_EN_COURS(30));
-    assert.deepEqual(marquee().map(({ dataset }) => dataset.ticket), ["30"]);
-    // Le cook a rendu sa livraison : la lecture suivante n'a plus personne en cuisson.
-    await recevoir(false);
-    assert.equal(bulle(vue).dessous("p").find(({ className }) => className === "dit")?.textContent, COOK_EXEMPLE(12));
-    assert.deepEqual(marquee().map(({ dataset }) => dataset.ticket), ["12"]);
-    bouton(vue, SUIVANTE).click();
+    bouton(vue, QUITTER).click();
     await repos();
-    assert.equal(bulle(vue).dessous("p").find(({ className }) => className === "dit")?.textContent, PASS_EN_COURS(31));
-    assert.deepEqual(marquee().map(({ dataset }) => dataset.ticket), ["31"]);
+    rejouer(vue).click();
+    await repos();
+    assert.equal(vue.element("visite").hidden, false);
+    assert.equal(enTete(vue), MOT_RAIL);
+    assert.equal(vue.element("espace").textContent, "", "aucun projet ne s'ouvre");
+    assert.deepEqual(ajouts(vue), []);
   });
 });

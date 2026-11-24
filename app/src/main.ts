@@ -33,7 +33,6 @@ import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
-import { pagesDeLaDemo } from "./vue/demo/pages.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -53,6 +52,7 @@ import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
 import { FRAICHEUR_MAX_D_UNE_LECTURE_MS } from "./vue/servi/fraicheur.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
+import { lireLaCuisineVisitee } from "./visite.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
@@ -76,7 +76,7 @@ import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts"
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
-import { apkLink } from "./mise-a-jour/android.ts";
+import { apkLink, RELEASES_URL } from "./mise-a-jour/android.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { voir as voirManager } from "./manager.ts";
@@ -84,6 +84,7 @@ import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandesDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
+import { tenirOutilsRequis } from "./outils-requis.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
@@ -99,6 +100,7 @@ import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
 import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
+import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
@@ -739,6 +741,16 @@ async function tenirCeQueFournitCetOrdinateur(vu: VuDesStations): Promise<void> 
     console.error(`brigade: what this computer's station provides could not be written on GitHub — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
 }
+// L'écran du premier lancement avant l'avis de macOS (premier-lancement/, #4081) : sur un Mac neuf, inscrire la station à
+// l'ouverture de session fait dire à macOS qu'un élément d'arrière-plan s'est ajouté. L'inscription attend que le nouvel
+// arrivant ait vu l'écran qui le lui annonce et pressé son bouton ; la marque, à côté du fichier des projets, dit qu'il
+// l'a vu, et l'écran ne revient plus.
+const avisDeFond = tenirLAvisDeFond(() => dire("avisDeFond"));
+const marqueDeLAvisDeFond = join(dirname(cheminConfiguration()), "avis-de-fond-vu");
+ipcMain.handle("avisDeFond", () => avisDeFond.attendu());
+ipcMain.handle("continuerLePremierLancement", () => avisDeFond.continuer());
+const apresLAvisDeFond = <T>(declencher: () => Promise<T>): Promise<T> =>
+  passerLePremierLancement({ avis: avisDeMacOS({ mac: estUnMac(plateforme), inscrite: stationDeFondInstallee({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA }) }), marque: marqueDeLAvisDeFond, afficher: avisDeFond.afficher, declencher, dire: (ligne) => console.error(ligne) });
 // Sur un ordinateur, l'app est une station (`role`) : la station de la machine — la même que celle d'un serveur —, sous
 // `station/` à côté du fichier des projets, tourne en fond, sans dépendre de l'app (station-fond/, #3630). L'app
 // installée l'inscrit à l'ouverture de session ; ouverte, elle la rejoint si elle tourne, la lance sinon, et l'appaire
@@ -749,7 +761,7 @@ const stationLocale =
         racine: racineDeLaStation,
         inscrire: async () =>
           emplacements.facon === "installee"
-            ? inscrireLaStationDeFond({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer, node: emplacements.node, hote: HOTE, racine: racineDeLaStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath })
+            ? apresLAvisDeFond(() => inscrireLaStationDeFond({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer, node: emplacements.node, hote: HOTE, racine: racineDeLaStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath }))
             : { par: "aucune" },
         // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
         lancer: () => lancerLeFond({ node: emplacements.node, embarque: role.principal, racine: racineDeLaStation, env: process.env }),
@@ -1443,6 +1455,22 @@ ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
   void stations.relire();
   return rendu;
 });
+// Les outils que l'app ne livre pas (#4059, outils-requis.ts) : la connexion à GitHub, le clone et le login Max les
+// demandent d'abord ; un outil qui manque a son écran, qui l'installe par le chemin que le runtime choisit.
+const outilsRequis = tenirOutilsRequis({
+  charger: async () => {
+    const [requis, machine, outils] = await Promise.all([
+      duRuntime<typeof import("../../runtime/src/outils-requis/outils-requis.ts")>("outils-requis", "outils-requis.ts"),
+      duRuntime<typeof import("../../runtime/src/outils-requis/machine.ts")>("outils-requis", "machine.ts"),
+      duRuntime<typeof import("../../runtime/src/second/outils.ts")>("second", "outils.ts"),
+    ]);
+    return { ...requis, ...machine, programmesDe: outils.programmesDe };
+  },
+  env: process.env,
+  ouvrir: (url) => shell.openExternal(url),
+});
+ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
+ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();
@@ -1473,41 +1501,15 @@ ipcMain.handle("telephoneConnecte", async (): Promise<{ connecte: boolean } | { 
     return { illisible: erreur instanceof Error ? erreur.message : String(erreur) };
   }
 });
-// Le projet de démo du premier lancement (#3734, né projet d'essai, #3227, runtime/src/demo/) : l'instant du premier
-// lancement, noté une fois ; le dépôt privé créé sur le compte du `gh` de cet ordinateur avec trois tickets prêts à
-// cuire ; son service lu
-// sur GitHub ; sa suppression — du seul dépôt noté —, et la permission `delete_repo` que `gh` fait accorder quand elle
-// manque, comme la connexion (connexion-github.ts). Tout ce qui en est gardé est à côté du fichier des projets.
-const projetDEssai = () => duRuntime<typeof import("../../runtime/src/demo/projet-de-demo.ts")>("demo", "projet-de-demo.ts");
-const ghDeLEssai = async () => (await duRuntime<typeof import("../../runtime/src/proteger-branche.ts")>("proteger-branche.ts")).clientGh(ghIci, process.env);
-const dossierDeLEssai = dirname(cheminConfiguration());
-void projetDEssai().then(
-  ({ noterLePremierLancement }) => {
-    const lu = noterLePremierLancement(dossierDeLEssai, new Date());
-    if ("illisible" in lu) console.error(`brigade: the first launch is not recorded — ${lu.illisible}`);
-  },
-  (erreur: unknown) => console.error(`brigade: the first launch is not recorded — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
+// La cuisine que la visite montre (#4087, visite.ts) : benomite/brigade, son rail et ce qui y attend un humain, lus sur
+// GitHub par la lecture même du rail d'un projet — des lectures seules, sous le budget du jeton du chef. Rien n'est cloné
+// ni ajouté au fichier des projets.
+ipcMain.handle("lireLaCuisineVisitee", (_, depot: unknown) =>
+  lireLaCuisineVisitee(depot, async (vise) => {
+    const lu = await lireLeTableauDuDepot({ depot: vise, appeler: appelerSousBudget, memoire: memoireDuRail(vise) });
+    return avecCeQuiAttendLeChef(lu, lectureConditionnelle(appelerSousBudget, memoireDuRail(vise)));
+  }),
 );
-// Ses pages — le dépôt, ses tickets, sa PR — s'ouvrent depuis l'écran.
-const retenirLEssai = <T extends object>(rendu: T): T => {
-  const projet = "sample" in rendu ? (rendu.sample as { url: string; ticketUrl?: string; pullRequest?: string } | undefined) : undefined;
-  for (const page of pagesDeLaDemo(projet)) pagesDuPremier.add(page);
-  return rendu;
-};
-ipcMain.handle("projetDEssai", async () => retenirLEssai(await (await projetDEssai()).suivreLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai)));
-ipcMain.handle("creerLeProjetDEssai", async () => retenirLEssai(await (await projetDEssai()).creerLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai, new Date())));
-ipcMain.handle("supprimerLeProjetDEssai", async (_, depot: unknown) => (await projetDEssai()).supprimerLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai, depot, new Date()));
-const permissionDeSuppression = tenirConnexionGitHub({
-  commande: async () => [ghIci, "auth", "refresh", "--hostname", "github.com", "--scopes", (await projetDEssai()).PERMISSION],
-  env: process.env,
-  ouvrir: (adresse) => shell.openExternal(adresse),
-  apres: (fin) => dire("permissionDeSuppression", fin),
-});
-ipcMain.handle("demanderLaPermissionDeSuppression", async () => {
-  const debut = await permissionDeSuppression();
-  if ("page" in debut) pagesDuPremier.add(debut.page);
-  return debut;
-});
 // Le rail qu'une station publie dans son gist pour un projet qu'aucune station connue ne sert ici (#1435), lu par
 // l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui que l'app lit sur GitHub, pour
 // tout projet. Tant qu'il ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
@@ -2056,7 +2058,9 @@ void app.whenReady().then(() => {
   preferences.demarrer();
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
 }).catch((erreur: unknown) => {
-  // Un démarrage qui échoue ne reste pas muet : le chef voit pourquoi aucune fenêtre ne s'ouvre.
-  dialog.showErrorBox("brigade could not start", erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur));
+  // Un démarrage qui échoue ne reste pas muet : le chef lit en une phrase que la fenêtre ne s'ouvre pas, et quoi faire (#4071).
+  // Le détail, qu'il ne saurait lire, va au journal.
+  console.error(`brigade: the window could not be shown — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+  dialog.showErrorBox("brigade could not start", `Brigade could not show its window, so quit it and open it again, and if it still does not show, download it again from ${RELEASES_URL} and reinstall it.`);
   app.quit();
 });

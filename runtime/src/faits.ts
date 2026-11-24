@@ -14,6 +14,10 @@ import { limiteDuCompteDeLaStation } from "./github-limite.ts";
 import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
 import { refusDuProjet } from "./mise-a-jour/en-service.ts";
 import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
+import { equipeDuProjet } from "./autonomie/agents/agents.ts";
+import { magasinDeNiveaux, NiveauxIllisibles } from "./autonomie/agents/niveaux.ts";
+import { enregistrementDe, GestesIllisibles } from "./autonomie/agents/gestes.ts";
+import { horaireDe } from "./autonomie/agents/horaires.ts";
 import { lacuneDeLaStation } from "./routage-station/lacune.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
@@ -24,6 +28,7 @@ import { reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
 import { coutDuProjet, lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { ticketDuBudget } from "./budget-des-gates.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
+import { lireLesFinsDesPannes, lirePostMortems } from "./post-mortems/post-mortems.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
 
@@ -87,6 +92,16 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     const cadence = cadenceDeLaCuisine(journal.base, projet || projetDuJournal || "", maintenant);
     // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action — nulle s'il n'a rien fait.
     const rolesCuisine = rolesDeLaCuisine(journal.base, projet || projetDuJournal || "");
+    // Une fiche par agent — le manager, le superviseur, le closer, la pass, puis chaque cook —, avec son niveau
+    // d'autonomie, son journal de gestes et son prochain passage (#4038). Un fichier de niveaux ou de gestes illisible ne fait pas taire les faits :
+    // il est dit à la place des fiches.
+    let equipe;
+    try {
+      equipe = equipeDuProjet({ agents: forme.agents, cooks: forme.cooks, roles: rolesCuisine, niveaux: magasinDeNiveaux(repertoireEtat).lire(projet || projetDuJournal || ""), gestes: (agent) => enregistrementDe(repertoireEtat, agent), horaires: { maintenant, de: (agent) => horaireDe(repertoireEtat, agent) } });
+    } catch (erreur) {
+      if (!(erreur instanceof NiveauxIllisibles || erreur instanceof GestesIllisibles)) throw erreur;
+      equipe = { illisible: erreur.message };
+    }
     // Ce que coûtent les gates du projet face à son budget — posé par le chef,
     // ou son défaut : le dernier passage, son dépassement, le dernier jour ; et
     // le ticket que la cuisine a ouvert seule pour les y ramener, tant que rien
@@ -99,7 +114,17 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
     // L'interrupteur GitHub seul, quand il est allumé : accepté, ou refusé et pourquoi (`github-seul-etat.ts`).
     const githubSeul = lireGitHubSeul(env.BRIGADE_STATE_DIR);
-    return { ...forme, blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat), ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(github === null ? {} : { github }), ...(appris ? { apprentissage } : {}) };
+    // Les post-mortems des pannes du projet (#4023) : un fichier illisible les retire des faits, il ne les fait pas taire.
+    let postMortems;
+    try {
+      // Rangés en ajout seul : lus avant leurs fins, ils les précèdent de même rang.
+      const lus = projet ? lirePostMortems(repertoireEtat, projet) : undefined;
+      const fins = projet ? lireLesFinsDesPannes(repertoireEtat, projet) : [];
+      postMortems = lus?.map((postMortem, rang) => ({ ...postMortem, fin: fins[rang] as string }));
+    } catch {
+      postMortems = undefined;
+    }
+    return { ...forme, blockedWithoutQuestion: lireBlocagesSansQuestion(repertoireEtat), ...(githubSeul === null ? {} : { githubSeul }), plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, equipe, coutDesGates, ...(postMortems === undefined ? {} : { postMortems }), ...(github === null ? {} : { github }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

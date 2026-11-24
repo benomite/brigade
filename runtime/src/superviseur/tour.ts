@@ -32,7 +32,7 @@ import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
 import { PRIO_REPARATION } from "../reparation.ts";
 import { suivreLesProgres, type SuiviDesProgres } from "../inactivite/observer.ts";
-import type { FaitsDuProjet } from "./declencheur.ts";
+import { reveil, type FaitsDuProjet } from "./declencheur.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
 const AILLEURS: readonly string[] = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING, LABEL_TAKEN, LABEL_IN_PASS];
@@ -50,14 +50,16 @@ export type SuiviDuTour = {
   faits(): FaitsDuProjet;
   // Ce que la porte de prise a dit, à son dernier tour, des cuisinables qu'elle a sautés.
   sauts(): string[];
+  // Le ticket que le réveil sans merge nomme, à l'instant : la porte de prise le prend avant les autres (#4102).
+  enPremier(): number[];
   // Les checks de la base au dernier tour (nom et issue), nuls avant le premier.
   checks(): CheckVu[] | null;
   // Un ticket de réparation de la base (`prio:0`) est mis de côté au dernier
   // tour — ses cooks ont échoué, la cuisine ne rendra plus la base verte seule
   // (statuts-ci/regles.ts, #3953). Faux avant le premier tour.
   reparationMiseDeCote(): boolean;
-  // Les progrès des tickets et leurs états, que lit le réveil sans progrès (#4027).
-  progres: SuiviDesProgres;
+  // Les progrès des tickets et leurs états, que lit le réveil sans progrès (#4027) ; sans eux, ce réveil ne part pas.
+  progres?: SuiviDesProgres;
 };
 
 export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDuTour {
@@ -101,7 +103,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     cuisinables = suivants;
   };
 
-  return {
+  const suivi: SuiviDuTour = {
     sauter: (ticket, ligne, attendus) => {
       sauts.set(ticket, ligne);
       sautesDuTour.add(ticket);
@@ -148,5 +150,10 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     checks: () => checks,
     reparationMiseDeCote: () => reparationMiseDeCote,
     progres,
+    enPremier: () => {
+      const cause = reveil(suivi.faits(), maintenant());
+      return cause?.cause === "no-merge" ? [cause.ticket] : [];
+    },
   };
+  return suivi;
 }

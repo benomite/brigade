@@ -22,6 +22,24 @@ const ETIQUETTE_DU_FOND = "brigade.tray-fond";
 const CLE_RUN = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const VALEUR_RUN = "brigade-tray";
 export const ARGUMENT = "--tray-fond";
+// Les données de l'icône, dans celles de l'app (processus.ts), et la version qu'elle y écrit en démarrant.
+export const DOSSIER_DU_FOND = "tray-fond";
+const VERSION_DU_FOND = "version";
+
+export function ecrireLaVersionDuFond(dossier: string, version: string): void {
+  writeFileSync(join(dossier, VERSION_DU_FOND), version);
+}
+
+// L'icône qui tourne est-elle d'une autre version que l'app, d'après ce qu'elle a écrit dans ses données (`dossierDeLApp`
+// est celui de l'app) ? Rien de lisible compte comme une autre : une icône d'avant #4071 n'en écrit pas.
+export function fondPerime(dossierDeLApp: string, version: string): boolean {
+  try {
+    const ecrite = readFileSync(join(dossierDeLApp, DOSSIER_DU_FOND, VERSION_DU_FOND), "utf8").trim();
+    return !(ecrite === version);
+  } catch {
+    return true;
+  }
+}
 
 // Une commande du système, lancée une fois : son code de sortie (null : elle n'a pas pu partir) et ce qu'elle a écrit.
 type Executer = (commande: string, args: readonly string[]) => Promise<{ code: number | null; sortie: string }>;
@@ -47,6 +65,9 @@ type Systeme = {
   // Le binaire de l'app, que l'icône relance avec `--tray-fond`.
   binaire: string;
   executer: Executer;
+  // L'icône qui tourne est d'une autre version que l'app (`fondPerime`) : launchd ne la relance pas d'elle-même après
+  // une mise à jour, et elle garderait le code d'avant (#4071).
+  fondPerime?: boolean;
 };
 
 const plist = (s: Pick<Systeme, "maison">) => join(s.maison, "Library", "LaunchAgents", `${ETIQUETTE_DU_FOND}.plist`);
@@ -120,7 +141,12 @@ export async function inscrireLeFond(s: Systeme): Promise<string | undefined> {
     }
     const domaine = `gui/${s.uid}`;
     const charge = (await s.executer("launchctl", ["print", `${domaine}/${ETIQUETTE_DU_FOND}`])).code === 0;
-    if (charge && ecrit === voulu) return undefined;
+    if (charge && ecrit === voulu) {
+      if (!s.fondPerime) return undefined;
+      // Le même agent, mais l'icône d'une version d'avant : relancée sur le binaire du paquet, sans toucher à la station.
+      const relance = await s.executer("launchctl", ["kickstart", "-k", `${domaine}/${ETIQUETTE_DU_FOND}`]);
+      return relance.code === 0 ? undefined : echec(`launchd would not restart the menu bar icon on this version of the app (${domaine}/${ETIQUETTE_DU_FOND})`, relance);
+    }
     // Un plist changé ne se relit qu'en rechargeant l'agent.
     if (charge) await s.executer("launchctl", ["bootout", `${domaine}/${ETIQUETTE_DU_FOND}`]);
     const lance = await s.executer("launchctl", ["bootstrap", domaine, chemin]);
