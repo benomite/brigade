@@ -8164,6 +8164,7 @@ function siClaudeManque(rendu) {
 const gestesDuPremier = {
   ouvrir: (station, projet, depot, base) => void ouvrirDUneStation(station, projet, depot, base),
   seConnecter: () => void seConnecterAGitHub(),
+  ...(brigade.seConnecterAClaude === undefined ? {} : { seConnecterAClaude: () => void seConnecterAClaude() }),
   changerDeCompte: () => void seConnecterAGitHub(),
   relireLeCompte: () => void compteDuParcours.lire(),
   relire: () => void relireLePremier(),
@@ -8667,7 +8668,8 @@ async function ouvrirDUneStation(station, projet, depot, base) {
     const detail = erreur instanceof Error ? erreur.message : String(erreur);
     issue = { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app failed while opening it.`, detail };
   }
-  if (issue.state === "failed") {
+  // Ratée, ou retenue tant que Claude Code n'est pas connecté sur cet ordinateur (#4057) : rien n'a démarré.
+  if (issue.state !== "open") {
     premier.ouverture = { station, projet, depot, ...(base === undefined ? {} : { base }), echec: issue };
     return poserLePremier();
   }
@@ -8678,6 +8680,22 @@ async function ouvrirDUneStation(station, projet, depot, base) {
   const ouvert = projetDe(issue.project);
   if (ouvert !== undefined) return void ouvrir(ouvert);
   premierAOuvrir = issue.project;
+  poserLePremier();
+}
+
+// Le login de Claude Code qu'une ouverture retenue demande (#4057) : celui de la panne « Max connection lost ». Ce qu'il
+// rend se dit sous le projet ; sa fin arrive par `surLoginClaude`, et l'ouverture repart.
+async function seConnecterAClaude() {
+  /** @type {import("../pannes/gestes.ts").RenduDePanne} */
+  let rendu;
+  try {
+    rendu = (await brigade.seConnecterAClaude?.()) ?? { refus: "the login was not launched: the app gave no answer" };
+  } catch (erreur) {
+    rendu = { refus: `the login was not launched: the app failed while launching it (${erreur instanceof Error ? erreur.message : String(erreur)})` };
+  }
+  siClaudeManque(rendu);
+  if (premier.ouverture?.echec?.state !== "login") return;
+  premier.ouverture.login = rendu;
   poserLePremier();
 }
 
@@ -8721,6 +8739,11 @@ brigade.surOuverture?.((depot, etape) => {
   if (ouverture === undefined || ouverture.depot !== depot || ouverture.echec !== undefined) return;
   ouverture.etape = etape;
   poserLePremier();
+});
+// Le login de Claude Code fini : l'ouverture qu'il retenait repart — connecté, la cuisine démarre ; sinon, « log in » revient.
+brigade.surLoginClaude?.(() => {
+  const retenue = premier.ouverture?.echec?.state === "login" ? premier.ouverture : undefined;
+  if (retenue !== undefined) void ouvrirDUneStation(retenue.station, retenue.projet, retenue.depot, retenue.base);
 });
 // Sur le téléphone, la connexion à GitHub est celle de son premier écran (connexion-github.js) : elle n'est pas d'ici.
 brigade.surConnexionGitHub?.((fin) => {

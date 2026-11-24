@@ -37,14 +37,15 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
 /** @typedef {import("./parcours-projet/compte.js").GestesDuCompte} GestesDuCompte */
 
 // Ce que la vue tient de l'écran. `stations` : absentes, leur lecture est en route. `ouverture` : le projet qu'un
-// clic ouvre — sa branche d'intégration quand GitHub l'a donnée, l'étape de sa copie, puis, ratée, ce que le runtime en dit. `connexion` : la connexion à GitHub
+// clic ouvre — sa branche d'intégration quand GitHub l'a donnée, l'étape de sa copie, puis, ratée, ce que le runtime en dit —
+// ou, Claude Code pas connecté sur cet ordinateur, rien de commencé (#4057) et ce que son login a rendu. `connexion` : la connexion à GitHub
 // lancée — en route, son code à taper, ou pourquoi elle n'a pas abouti. `compte` : le compte GitHub de cet
 // ordinateur, que l'écran dit en tête — absent, sa lecture est en route.
 /**
  * @typedef {{
  *   poste: string,
  *   stations?: StationsDuChef,
- *   ouverture?: { station: string, projet: string, depot: string, base?: string, etape?: Progres, echec?: Extract<Ouverture, { state: "failed" }> },
+ *   ouverture?: { station: string, projet: string, depot: string, base?: string, etape?: Progres, echec?: Extract<Ouverture, { state: "failed" | "login" }>, login?: import("../pannes/gestes.ts").RenduDePanne },
  *   connexion?: Connexion,
  *   compte?: CompteGitHub,
  *   saisie?: { projet: string },
@@ -55,6 +56,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  * @typedef {{
  *   ouvrir: (station: string, projet: string, depot: string, base?: string) => void,
  *   seConnecter: () => void,
+ *   seConnecterAClaude?: () => void,
  *   relire: () => void,
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnProjet: () => void,
@@ -83,6 +85,8 @@ export const DEPOT_INCONNU = "its station does not say which GitHub repository i
 export const SANS_CUISINE = "does not cook";
 /** @param {string} projet */
 export const ouvertureDe = (projet) => `Opening ${projet}…`;
+// Le geste qui connecte Claude Code sur cet ordinateur : le mot du bouton de la panne « Max connection lost » (pannes/pannes.ts).
+export const SE_CONNECTER_A_CLAUDE = "log in";
 
 // Ce que le chef a tapé, lu : un dépôt `owner/repo` — ou un nom seul, complété par le compte connecté —, sinon pourquoi
 // rien ne s'ouvre. Rien n'est deviné : l'adresse de GitHub se reconnaît, le reste se refuse. Le nom du projet est celui du
@@ -111,7 +115,7 @@ function cree(doc, balise, texte) {
 // sous le formulaire quand il vient de là (station vide) — ou sous la liste de l'écran « Add a project » (ajout.js).
 /**
  * @param {Fabrique} doc @param {NonNullable<EtatDuPremier["ouverture"]>} ouverture @param {{ connexion?: Connexion }} etat
- * @param {Pick<GestesDuPremier, "ouvrir" | "seConnecter" | "ouvrirLaPage">} geste
+ * @param {Pick<GestesDuPremier, "ouvrir" | "seConnecter" | "seConnecterAClaude" | "ouvrirLaPage">} geste
  */
 export function ouvertureDite(doc, ouverture, etat, geste) {
   if (ouverture.echec === undefined) {
@@ -121,6 +125,16 @@ export function ouvertureDite(doc, ouverture, etat, geste) {
     return [dit];
   }
   const { echec } = ouverture;
+  const reessayer = boutonAction(doc, REESSAYER, () => geste.ouvrir(ouverture.station, ouverture.projet, ouverture.depot, ouverture.base));
+  // Claude Code pas connecté (#4057) : rien n'a commencé. « log in » lance son login ; la copie repart quand il finit.
+  if (echec.state === "login") {
+    const login = ouverture.login;
+    return [
+      ligneErreur(doc, phrase(doc, "span", echec.reason), undefined, { classe: "refus" }),
+      ...(login === undefined || "outilManquant" in login ? [] : ["fait" in login ? phrase(doc, "p", login.fait) : ligneErreur(doc, phrase(doc, "span", login.refus), undefined, { classe: "refus" })]),
+      gestes(doc, [...(geste.seConnecterAClaude === undefined ? [] : [boutonAction(doc, SE_CONNECTER_A_CLAUDE, () => geste.seConnecterAClaude?.(), { recommande: true })]), reessayer]),
+    ];
+  }
   const refus = ligneErreur(doc, phrase(doc, "span", echec.reason), echec.detail, { classe: "refus" });
   const lien = "link" in echec ? echec.link : undefined;
   return [
@@ -129,7 +143,7 @@ export function ouvertureDite(doc, ouverture, etat, geste) {
     ...("action" in echec && echec.action !== undefined ? connexionDite(doc, etat.connexion, SE_CONNECTER, geste) : []),
     gestes(doc, [
       ...(lien === undefined ? [] : [boutonAction(doc, boutonDeLaPage(lien), () => geste.ouvrirLaPage(lien), { recommande: !("action" in echec && echec.action !== undefined) })]),
-      boutonAction(doc, REESSAYER, () => geste.ouvrir(ouverture.station, ouverture.projet, ouverture.depot, ouverture.base)),
+      reessayer,
     ]),
   ];
 }

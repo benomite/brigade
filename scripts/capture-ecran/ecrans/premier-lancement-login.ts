@@ -4,5 +4,5 @@ import { PAS_CONNECTE } from "../../../app/src/premier-lancement.ts";
 import { LISTEES, premierLancement } from "./premier-lancement-commun.ts";
 
 export const ecran = premierLancement("Le premier lancement, Claude Code pas connecté (#4057) : « log in » sous la station, avant que la cuisine de parade démarre", LISTEES, [{ cliquer: "section[aria-label=\"parade-box\"] button[title=\"benomite/parade\"]" }], {
-  ouvrirDUneStation: { state: "login" as const, project: "parade", repository: "benomite/parade", reason: PAS_CONNECTE("parade") },
+  ouvrirDUneStation: { state: "login" as const, project: "parade", repository: "benomite/parade", cause: "login" as const, reason: PAS_CONNECTE("parade") },
 });

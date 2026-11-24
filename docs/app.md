@@ -333,6 +333,13 @@ Open one of your projects on this PC: one click, no folder to choose.
   the button, or the project that was opening, which starts again by itself. A failed install, or a tool still
   missing, says so in one line, and the offer stays. The same screen opens in the notice when **log in** on a lost
   Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
+- **Claude Code is asked before the kitchen starts** (#4057): opening a project first asks `claude auth status`
+  whether Claude Code is logged in on this computer — no call to the model. Logged in, the project opens as before,
+  with no extra step, and later openings in the same session do not ask again. Not logged in, nothing is cloned or
+  added: the project's place says `Claude Code is not logged in on this computer: log in, and parade starts cooking.`,
+  with `log in` (recommended) — the same login as the `log in` of a lost Max connection (`claude auth login`) — and
+  `Try again`. What the login says shows under the sentence; when it ends, the opening starts again by itself. An
+  answer that cannot be read holds nothing back: the project opens, and the first cook says a lost connection.
 - **When the stations cannot be read** — no `gh`, no network, GitHub limiting the account —, the
   head says why in the runtime's sentence, its detail in the hover, with the button of the page that
   lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
@@ -348,7 +355,7 @@ Open one of your projects on this PC: one click, no folder to choose.
 
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
 `app/src/vue/premier-lancement.js` (the screen), `app/src/outils-requis.ts` and `app/src/vue/outils-requis/` (the
-missing-tool screen). Captures: `docs/captures/1434/`, `docs/captures/4059/`.*
+missing-tool screen). Captures: `docs/captures/1434/`, `docs/captures/4059/`, `docs/captures/4057/`.*
 
 ### On first launch: visit a real kitchen, or add my project (#4087, epic #4086; born as the tour of #3165)
 

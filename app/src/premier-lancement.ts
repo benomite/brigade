@@ -22,7 +22,7 @@ export type { CopieLocale, Progres } from "../../runtime/src/projets/copie-local
 export type Ouverture =
   | CopieLocale
   | { state: "failed"; project: string; repository: string; cause: "not-added" | "busy"; reason: string; detail?: string }
-  | { state: "login"; project: string; repository: string; reason: string };
+  | { state: "login"; project: string; repository: string; cause: "login"; reason: string };
 
 // La connexion de Claude Code sur cet ordinateur, dite comme la station la publie (pannes/etats.ts).
 export type ConnexionClaude = "connectee" | "perdue" | "inconnue";
@@ -34,7 +34,7 @@ export function connexionDeLaSession(session: Session): ConnexionClaude {
   return session === "absente" ? "perdue" : "inconnue";
 }
 
-export const PAS_CONNECTE = (projet: string) => `Claude Code is not logged in on this computer, so ${projet} cannot cook yet: log in, and its kitchen starts once you are.`;
+export const PAS_CONNECTE = (projet: string) => `Claude Code is not logged in on this computer: log in, and ${projet} starts cooking.`;
 
 export type OptionsDOuvrir = {
   // L'opération du runtime, chargée depuis son dossier (emplacements.ts).
@@ -58,6 +58,7 @@ const texte = (valeur: unknown): valeur is string => typeof valeur === "string" 
 export function ouvrirDUneStation(options: OptionsDOuvrir): (nom: unknown, depot: unknown, base?: unknown) => Promise<Ouverture> {
   // Une ouverture à la fois : un clone en cours ne se double pas d'un second.
   let enCours: string | undefined;
+  let connecte = false;
   return async (nom, depot, donnee) => {
     const project = texte(nom) ? nom.trim() : "";
     const repository = texte(depot) ? depot.trim() : "";
@@ -70,10 +71,17 @@ export function ouvrirDUneStation(options: OptionsDOuvrir): (nom: unknown, depot
     enCours = project;
     try {
       // Une lecture qui échoue ne retient rien : la connexion reste inconnue, et le premier cook la dira.
-      const connexion = await Promise.resolve()
-        .then(() => options.connexionClaude())
-        .catch((): ConnexionClaude => "inconnue");
-      if (connexion === "perdue") return { state: "login", project, repository, reason: PAS_CONNECTE(project) };
+      // Connecté une fois, il l'est pour la suite : une perte plus tard, la panne « Max connection lost » la dit.
+      if (!connecte) {
+        let connexion: ConnexionClaude;
+        try {
+          connexion = await options.connexionClaude();
+        } catch {
+          connexion = "inconnue";
+        }
+        if (connexion === "perdue") return { state: "login", project, repository, cause: "login", reason: PAS_CONNECTE(project) };
+        connecte = connexion === "connectee";
+      }
       const deja = options.configuration().projets.find((projet) => projet.nom === project);
       const copie = await options.ouvrirLaCopie({ repository, project, ...(deja === undefined ? {} : { folder: deja.dossier }), progres: (etape) => options.progres(repository, etape) });
       if (copie.state !== "open" || (deja !== undefined && deja.dossier === copie.folder)) return copie;
