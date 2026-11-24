@@ -8,7 +8,7 @@ import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "n
 import { dirname, join } from "node:path";
 import { estUnMac } from "./plateforme.ts";
 
-export type OptionsCommande = {
+type OptionsCommande = {
   plateforme: string;
   // Seule l'app installée a un runtime et un `node` à elle ; depuis le dépôt, rien n'est posé.
   facon: "depot" | "installee";
@@ -24,7 +24,7 @@ export type OptionsCommande = {
 
 const cite = (texte: string): string => `'${texte.replaceAll("'", `'\\''`)}'`;
 
-export function texteDeLaCommande(o: OptionsCommande): string {
+function texteDeLaCommande(o: OptionsCommande): string {
   return `#!/bin/sh
 # Écrit par l'app Brigade ${o.version}, et réécrit à chaque lancement : ne pas l'éditer.
 # brigade-version: ${o.version}

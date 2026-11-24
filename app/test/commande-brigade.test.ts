@@ -4,7 +4,8 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { poserLaCommande, type OptionsCommande } from "../src/commande-brigade.ts";
+import { poserLaCommande } from "../src/commande-brigade.ts";
+type OptionsCommande = Parameters<typeof poserLaCommande>[0];
 
 const options = (maison: string, plus: Partial<OptionsCommande> = {}): OptionsCommande => ({
   plateforme: "darwin", facon: "installee", maison, version: "1.2.3", runtime: "/App/Resources/runtime", node: "/App/Resources/node/bin/node", racine: "/h/station", chemin: "/usr/bin:/bin", ...plus,
