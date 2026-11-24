@@ -23,7 +23,7 @@
   "operatingSystem": "macOS, Windows",
   "license": "https://github.com/benomite/brigade/blob/main/LICENSE",
   "url": "https://benomite.github.io/brigade/",
-  "downloadUrl": "https://github.com/benomite/brigade/releases",
+  "downloadUrl": "https://github.com/benomite/brigade/releases/latest",
   "codeRepository": "https://github.com/benomite/brigade",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
@@ -170,11 +170,13 @@
     <h2>Install Brigade, ship your first ticket</h2>
     <p>You need a GitHub repository you can push to (a throwaway one is fine) and a Claude Max subscription: the agents run on your Max session, an API key does not fit.</p>
     <ol class="install">
-      <li><strong>Download the app</strong> with the button at the top of this page and open it.</li>
+      <li><strong>Download the app</strong> with the button at the top of this page. The app is <strong>unsigned</strong>: Mac and Windows refuse it the first time you open it. <a href="https://github.com/benomite/brigade/blob/main/docs/installation.md">docs/installation.md</a> shows how to open it anyway.</li>
       <li><strong>Sign in with GitHub</strong>: the app shows a code to type on the page it opens.</li>
       <li><strong>Sign in with Claude</strong> with your Max account, if the app asks.</li>
       <li><strong>Open your repository</strong>: type it as <code>owner/repo</code> and click <em>open this project</em>.</li>
-      <li><strong>Send a ticket</strong>: open an issue and put on it the label from step 1 of How it works.</li>
+      <li><strong>Choose a station</strong>: the app asks which machine cooks the project. Pick this computer, then click <em>Start the kitchen</em>.</li>
+      <li><strong>Wait for the setup PR</strong>: brigade first cooks a setup pull request for your repository, before your own issue.</li>
+      <li><strong>Send your own issue</strong>: open an issue and put the <code>fire</code> label on it. The label already exists, so you do not create it.</li>
     </ol>
     <p>No command to type, no file to edit. <a href="https://github.com/benomite/brigade/blob/main/docs/installation.md">Every screen, step by step</a>.</p>
   </section>
