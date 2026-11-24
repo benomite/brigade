@@ -36,7 +36,24 @@ test("une PR qui ne se lit pas ou sans taille n'en dit aucune, et le rail se lit
   }
 });
 
-test("une PR dont seul un côté de la taille se lit n'en dit aucun", async () => {
+test("une PR dont seul un côté de la taille se lit n'en dit aucune, et le rail se lit quand même", async () => {
   const rail = await railDe(async () => ok({ additions: 135 }));
-  for (const [, laPR] of rail) assert.ok(laPR !== undefined && !("additions" in laPR) && !("deletions" in laPR));
+  for (const [, laPR] of rail) {
+    assert.ok(laPR !== undefined && !("additions" in laPR) && !("deletions" in laPR));
+    assert.equal(laPR.ouvertLe, "2026-11-24T11:15:00Z", "son ouverture, elle, se dit");
+  }
+  assert.equal(rail.length, 2);
+});
+
+test("la PR d'un ticket servi dit sa taille et son ouverture dans `livres`", async () => {
+  const mergee = { number: 51, html_url: `https://github.com/${DEPOT}/pull/51`, title: "#32 — Servi", merged_at: "2026-11-24T11:00:00Z", updated_at: "2026-11-24T11:00:00Z", head: { ref: "cook/32-github" }, body: "" };
+  const appeler = async (chemin: string): Promise<ReponseGitHub> => {
+    if (chemin.includes("/issues?")) return ok([]);
+    if (chemin.includes("state=closed")) return ok([mergee]);
+    if (chemin.endsWith("/pulls/51")) return ok({ additions: 8, deletions: 2, created_at: "2026-11-24T10:00:00Z" });
+    return ok([]);
+  };
+  const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant: () => new Date(A) });
+  const { faits } = avecLeRail({ lu: true, depot: DEPOT, luLe: A, cuisine: { rubriques: [] }, faits: { rail: [] }, file: [], bilans: [], lignesDuRail: [], activites: [] }, rail);
+  assert.deepEqual((faits.livres as { prLue?: unknown }[])[0]?.prLue, { additions: 8, deletions: 2, ouvertLe: "2026-11-24T10:00:00Z" });
 });

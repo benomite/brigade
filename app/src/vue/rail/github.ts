@@ -70,7 +70,7 @@ export type PrDuTicket = { numero: number; url: string; le: string; station?: st
 // commentaires, `auMoins` quand elle est pleine ; absent sans prise lue (ticket 3823).
 export type TicketSurGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrDuTicket | null; prise: Prise | null; miseDeCote?: MiseDeCote; miseDeCoteLe?: string; sensible?: true; renvoi?: Renvoi; depend?: number[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; qui?: string | null; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
-export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string };
+export type ServiSurGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string; prLue?: { additions?: number; deletions?: number; ouvertLe?: string } };
 // `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, rail-bloque/diagnostic.ts), ou pourquoi ils ne se
 // lisent pas ; absent d'une lecture qui ne les a pas cherchés.
 export type RailSurGithub = { lu: string; tickets: TicketSurGithub[]; servis?: ServiSurGithub[]; nonPris?: NonPrisLus };
@@ -192,6 +192,23 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
   const maintenant = (options.maintenant ?? (() => new Date()))();
   const lu = maintenant.toISOString();
   const servis = await lireLesServis(lire, depot, maintenant.getTime());
+  // La liste des PR ne dit ni leur taille ni leur ouverture : la PR seule les dit (ticket 4051). Une PR qui ne se lit pas n'en montre rien.
+  await Promise.all(
+    servis.map(async (servi, rang) => {
+      const numero = /\/pull\/(\d+)$/.exec(servi.pr)?.[1];
+      if (numero === undefined) return;
+      try {
+        const { additions, deletions, created_at: ouvert } = objet(await lire(`/repos/${depot}/pulls/${numero}`)) ?? {};
+        const prLue = {
+          ...(Number.isSafeInteger(additions) && Number.isSafeInteger(deletions) ? { additions: additions as number, deletions: deletions as number } : {}),
+          ...(typeof ouvert === "string" ? { ouvertLe: ouvert } : {}),
+        };
+        servis[rang] = { ...servi, prLue };
+      } catch {
+        // Illisible : la carte ne dit rien de sa taille.
+      }
+    }),
+  );
   const livrees = new Map<number, PrDuTicket>();
   for (const pr of prs) {
     const ticket = ticketDeLaPR(texte(objet(pr.head)?.ref), texte(pr.body));
@@ -413,7 +430,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
       ...lu.faits,
       lu: luLe,
       compteurs: { attend: 0, ...compteurs, livres24h: servis.length, rail: montres.length, auTravail: nombre("pris"), aLaPass: nombre("en pass", "base rouge") },
-      livres: servis.map(({ ticket, titre, url, livre, station, pr }) => ({ ticket, titre, url, livre, station, pr })),
+      livres: servis.map(({ ticket, titre, url, livre, station, pr, prLue }) => ({ ticket, titre, url, livre, station, pr, ...(prLue === undefined ? {} : { prLue }) })),
       rail: montres.map((ticket) => ({
         ...(ticket.miseDeCote === undefined || ticket.miseDeCote.auChef ? {} : { attente: { raison: ticket.miseDeCote.raison ?? SANS_RAISON, ...(ticket.miseDeCote.complete === undefined ? {} : { complete: ticket.miseDeCote.complete }), label: ticket.miseDeCote.label, colonne: COLONNE_DE_LA_MISE_DE_COTE, retour: null } }),
         ticket: ticket.ticket,

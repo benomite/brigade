@@ -45,6 +45,7 @@ function fauxGitHub(horloge: { t: number }, options: { changeToutesLes?: number;
     if (chemin.includes("/issues?")) return { data: [...auFeu, issue(depot, 5, ["blocked-on-human"]), issue(depot, 6, ["model:opus", "effort:high"]), issue(depot, 7, [])], version };
     if (chemin.includes("/pulls?state=open")) return { data: [{ number: 40, html_url: `https://github.com/${depot}/pull/40`, created_at: "2026-11-09T07:00:00Z", head: { ref: "cook/3-x" }, body: "" }], version: 0 };
     if (chemin.includes("/pulls?")) return { data: [], version: 0 };
+    if (/\/pulls\/\d+$/.test(chemin)) return { data: { additions: 135, deletions: 21, created_at: "2026-11-09T07:00:00Z" }, version: 0 };
     if (chemin === `/repos/${depot}`) return { data: { default_branch: "main", owner: { login: "chef", type: "User" } }, version: 0 };
     if (chemin.includes("/contents/")) return { data: { content: btoa(JSON.stringify({ chef: "chef" })) }, version: 0 };
     if (chemin.includes("/check-runs")) return { data: { check_runs: [{ conclusion: "success" }] }, version: 0 };

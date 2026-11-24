@@ -27,6 +27,17 @@ const demarrage = () => ({
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
+const livres = (prLue?: Record<string, unknown>) => ({
+  etat: "ouverte",
+  lu: LU,
+  dernierTick: LU,
+  compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 1 },
+  dernierEvenement: null,
+  rail: [],
+  cooks: [],
+  attend: [],
+  livres: [{ ticket: 80, titre: "Served one", url: "https://github.com/chef/parade/issues/80", livre: "2026-11-24T11:50:00Z", station: null, pr: "https://github.com/chef/parade/pull/81", ...(prLue === undefined ? {} : { prLue }) }],
+});
 const faits = (pr: Record<string, unknown>) => ({
   etat: "ouverte",
   lu: LU,
@@ -58,10 +69,7 @@ test("la carte dit ce que GitHub a donné de sa PR, et rien de ce qu'il n'a pas 
   assert.equal(await ouvrir({ ...TAILLE }).then(dit), "PR 71 +135 −21");
   assert.equal(await ouvrir({ ...OUVERT }).then(dit), "PR 71 45 min");
   assert.equal(await ouvrir({}).then(dit), "PR 71");
-});
-
-test("une PR dont le lien ne s'ouvre pas en https n'a pas de ligne sur la carte", async () => {
-  assert.equal(await ouvrir({ ...TAILLE, url: "http://github.com/chef/parade/pull/71" }).then(ligneDeLaPr), undefined);
+  assert.equal(await ouvrir({ ...TAILLE, url: "http://github.com/chef/parade/pull/71" }).then(ligneDeLaPr), undefined, "un lien qui ne s'ouvre pas en https n'a pas de ligne");
 });
 
 test("un lu qui ne donne qu'un côté de la taille, ou une heure qui n'en est pas une, ne la dit pas", () => {
@@ -84,4 +92,20 @@ test("un clic sur le lien de la PR l'ouvre par le process principal ; refusé, p
     assert.deepEqual(vue.dernier("ouvrirLien"), ["parade", 70, URL_PR]);
     assert.deepEqual(ouvertes, ouverte ? [[URL_PR, "_blank", "noopener"]] : []);
   }
+});
+
+test("la carte servie, celle de `livres`, dit la taille et l'âge de sa PR — et rien sans eux", async () => {
+  const servie = async (prLue?: Record<string, unknown>) => {
+    const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }] } as never);
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const recue = tenirFaits(() => new Map()).recevoir({ projet: "parade", demande: 0, a: LU, sorties: [{ commande: "facts", texte: JSON.stringify(livres(prLue)) }] });
+    vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
+    await repos();
+    const ou = carteDuTicket(vue, 80) ?? assert.fail("pas de carte servie");
+    return ou.dessous("p").find((p) => /livraison-carte/.test(p.className))?.textContent;
+  };
+  assert.equal(await servie({ ...TAILLE, ...OUVERT }), "PR 81 +135 −21 45 min");
+  assert.equal(await servie({ ...OUVERT }), "PR 81 45 min");
+  assert.equal(await servie(), undefined);
 });
