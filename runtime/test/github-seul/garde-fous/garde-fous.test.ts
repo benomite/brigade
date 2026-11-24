@@ -230,6 +230,30 @@ test("a machine short of processor holds the GitHub-only claim beyond the first 
   assert.equal(etatStation(runtime.journal.base, STATION)?.saturatedResource, null);
 });
 
+test("one CPU reading just over the limit, the next under it: the claim goes on and no station.held is emitted (#4142)", async (t) => {
+  let charge = 12.48;
+  const { faux, station, faits } = cuisine(t, { machine: () => BOX(charge) });
+  faux.feu(1);
+  await station.tour();
+  await station.calme();
+  charge = 3;
+  faux.feu(2);
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(faux.prises, [1, 2]);
+  assert.equal(faits("station.held").length, 0);
+  assert.equal(faits("station.saturated").length, 0);
+});
+
+test("a CPU reading that stays just over the limit across three readings holds the station for its machine (#4142)", async (t) => {
+  let instant = INSTANT.getTime();
+  const { gardes, faits } = cuisine(t, { machine: () => BOX(12.48), maintenant: () => new Date((instant += 61_000)) });
+  assert.equal(await gardes.retenue(1), null);
+  assert.equal(await gardes.retenue(1), null);
+  assert.equal(await gardes.retenue(1), "machine");
+  assert.deepEqual(faits("station.held").map(({ payload }) => payload.reason), ["machine"]);
+});
+
 test("each claim granted counts on the machine before its load shows it: a full rail does not leave in one block (#3560)", async (t) => {
   // 11,5 : une prise tient sous 12 ; la suivante, comptée d'avance, la passerait.
   const { gardes } = cuisine(t, { machine: () => BOX(11.5) });
