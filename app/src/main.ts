@@ -84,6 +84,7 @@ import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandesDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
+import { tenirOutilsRequis } from "./outils-requis.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
@@ -1443,6 +1444,22 @@ ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
   void stations.relire();
   return rendu;
 });
+// Les outils que l'app ne livre pas (#4059, outils-requis.ts) : la connexion à GitHub, le clone et le login Max les
+// demandent d'abord ; un outil qui manque a son écran, qui l'installe par le chemin que le runtime choisit.
+const outilsRequis = tenirOutilsRequis({
+  charger: async () => {
+    const [requis, machine, outils] = await Promise.all([
+      duRuntime<typeof import("../../runtime/src/outils-requis/outils-requis.ts")>("outils-requis", "outils-requis.ts"),
+      duRuntime<typeof import("../../runtime/src/outils-requis/machine.ts")>("outils-requis", "machine.ts"),
+      duRuntime<typeof import("../../runtime/src/second/outils.ts")>("second", "outils.ts"),
+    ]);
+    return { ...requis, ...machine, programmesDe: outils.programmesDe };
+  },
+  env: process.env,
+  ouvrir: (url) => shell.openExternal(url),
+});
+ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
+ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();

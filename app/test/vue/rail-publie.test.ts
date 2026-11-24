@@ -141,16 +141,10 @@ describe("le second qui ne part pas, ou part sans tous ses outils", () => {
     const outils = sous(pose).filter((enfant) => enfant.className === "outil-manquant");
     assert.deepEqual(
       outils.map((outil) => sous(outil).find((enfant) => enfant.balise === "strong")?.textContent),
-      ["claude", "gh"],
+      ["Claude Code", "The GitHub CLI"],
     );
-    // Aucune commande à recopier à plat (#830) : le bouton de sa page porte le geste. Pourquoi le second en a besoin,
-    // et comment l'obtenir, sont au survol seulement — sans accents graves.
-    assert.equal(outils[0]?.textContent.includes("curl"), false);
-    assert.equal(sous(outils[0]).some((enfant) => enfant.balise === "code"), false);
-    assert.equal(
-      sous(outils[0]).find((enfant) => enfant.className === "aide")?.ariaLabel,
-      "claude is not on the PATH, and the second is a Claude Code session. Install Claude Code by running curl -fsSL https://claude.ai/install.sh | bash in a terminal, then restart brigade.",
-    );
+    // Le produit est nommé (#4059) : le binaire, et pourquoi le runtime le dit absent, sont au survol — sans accents graves.
+    assert.equal(sous(outils[0]).find((enfant) => enfant.className === "aide")?.ariaLabel, "claude is not on the PATH, and the second is a Claude Code session.");
     // La raison est dans la note du second : elle ne se redit pas ici.
     assert.equal(pose.textContent.includes("The second cannot start"), false);
     assert.deepEqual(boutons([pose]).map((enfant) => [enfant.textContent, enfant.className]), [[PAGE_DE("claude"), ""], [PAGE_DE("gh"), ""], [REESSAYER_LE_SECOND, "recommande"]]);
@@ -299,8 +293,7 @@ describe("dans la vue : l'onglet Second dit ce qui manque", () => {
     const outils = vue.element("outils-du-second");
     assert.equal(outils.hidden, false);
     assert.equal(vue.element("fil").hidden, true);
-    assert.match(outils.textContent, /^claude.*how to get claude/);
-    assert.equal(outils.textContent.includes("Install Claude Code"), false);
+    assert.match(outils.textContent, /^Claude Code.*how to get Claude Code/);
     bouton([outils], PAGE_DE("claude")).click();
     bouton([outils], REESSAYER_LE_SECOND).click();
     await repos();
