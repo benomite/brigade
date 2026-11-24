@@ -446,7 +446,7 @@ export type Faits = {
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
   // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
   // absents sans eux, et d'un runtime d'avant ces champs.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; gardeRepetee?: GardeRepeteeLue; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string } & TailleDePr; renvoi?: { n: number; raison: string } }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; gardeRepetee?: GardeRepeteeLue; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Attendu[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -1294,7 +1294,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
         };
   const carte = (ticket: number): Carte => {
     const connu = connus.get(ticket);
-    const pr = connu?.pr;
+    const pr: (NonNullable<Faits["rail"][number]["pr"]> & TailleDePr) | undefined = connu?.pr;
     const donne = faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket);
     const url = connu?.url ?? donne?.url;
     // Une carte qui demande de juger une livraison est la carte du ticket livré (#3519) : elle en porte le titre, la marque

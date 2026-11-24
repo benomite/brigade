@@ -56,3 +56,18 @@ test("la PR d'un ticket servi dit sa taille et son ouverture dans `livres`", asy
   const { faits } = avecLeRail({ lu: true, depot: DEPOT, luLe: A, cuisine: { rubriques: [] }, faits: { rail: [] }, file: [], bilans: [], lignesDuRail: [], activites: [] }, rail);
   assert.deepEqual((faits.livres as { prLue?: unknown }[])[0]?.prLue, { additions: 8, deletions: 2, ouvertLe: "2026-11-24T10:00:00Z" });
 });
+
+test("la PR d'un ticket servi dont un côté seul de la taille se lit n'en dit aucun, mais dit son ouverture", async () => {
+  const mergee = { number: 51, html_url: `https://github.com/${DEPOT}/pull/51`, title: "#32 — Servi", merged_at: "2026-11-24T11:00:00Z", updated_at: "2026-11-24T11:00:00Z", head: { ref: "cook/32-github" }, body: "" };
+  for (const lue of [{ additions: 8 }, { deletions: 2 }]) {
+    const appeler = async (chemin: string): Promise<ReponseGitHub> => {
+      if (chemin.includes("/issues?")) return ok([]);
+      if (chemin.includes("state=closed")) return ok([mergee]);
+      if (chemin.endsWith("/pulls/51")) return ok({ ...lue, created_at: "2026-11-24T10:00:00Z" });
+      return ok([]);
+    };
+    const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler, maintenant: () => new Date(A) });
+    const { faits } = avecLeRail({ lu: true, depot: DEPOT, luLe: A, cuisine: { rubriques: [] }, faits: { rail: [] }, file: [], bilans: [], lignesDuRail: [], activites: [] }, rail);
+    assert.deepEqual((faits.livres as { prLue?: unknown }[])[0]?.prLue, { ouvertLe: "2026-11-24T10:00:00Z" });
+  }
+});
