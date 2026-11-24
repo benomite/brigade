@@ -104,7 +104,8 @@ to decide for a first run on your own repository.
 Before your own ticket moves, brigade prepares your repository: when it needs it, a cook works a
 setup pull request in it, and it is merged. The project's page shows four steps, each `done`,
 `now` or `to come`: **Repository**, **Cooking machine**, **Repository preparation**, **First
-ticket**. If a GitHub App must be authorized, click **authorize on GitHub**. When it ends, the page says:
+ticket**. If a GitHub App must be authorized, click **authorize on GitHub**. When it ends, the
+page says:
 
 > `<project> is ready: post your first ticket with the fire label`
 
