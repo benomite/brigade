@@ -160,3 +160,14 @@ test("un cuisinable que la porte de prise a sauté parce qu'il n'attend que des 
   assert.deepEqual(tour.sauts(), []);
   assert.deepEqual(tour.faits().cuisinables.map(({ ticket }) => ticket), [1, 2, 3, 5]);
 });
+
+test("enPremier : le ticket que le réveil sans merge nomme, rien avant les 30 min ni sur une autre cause (#4102)", async () => {
+  const { dicte, github, tour, a } = suivi();
+  assert.deepEqual(tour.enPremier(), []);
+  dicte.tickets = [ticket(7), ticket(4)];
+  await github.fires();
+  a("10:29");
+  assert.deepEqual(tour.enPremier(), [], "30 min not yet gone");
+  a("10:30");
+  assert.deepEqual(tour.enPremier(), [4], "the head of the cookable tickets");
+});

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { LIMITE_MS } from "../test/garde-duree/regle.ts";
 import { juge } from "../test/garde-duree/reporteur.ts";
-import { dureeSansCharge, etirement, FACTEUR_MAX, PAS_MS, Releve } from "./charge.ts";
+import { chargeDeLaMachine, dureeSansCharge, etirement, FACTEUR_MAX, PAS_MS, Releve } from "./charge.ts";
 
 // A reporter run over synthetic `test:pass` events; the exit code it sets is read then restored. It judges in strict
 // mode, as the gates do: the CI sets `BRIGADE_DUREE_MODE=main`, where nothing fails, and the verdict must not depend on it.
@@ -55,4 +55,25 @@ test("a window with no tick, a late timer and a broken value give the right stre
   for (const v of [NaN, Infinity, -1, 0]) assert.equal(etirement(v), 1);
   assert.ok(dureeSansCharge(3000, 3) <= LIMITE_MS);
   assert.ok(dureeSansCharge(2500, 1) > LIMITE_MS);
+});
+
+test("a machine loaded above its cores stretches on-time ticks: the runner's timer alone missed it on the box (#4110)", () => {
+  let t = 0;
+  let charge = 2; // load 16 on 8 cores
+  const releve = new Releve(() => t, () => charge);
+  for (let i = 1; i <= 20; i++) {
+    t = i * PAS_MS;
+    releve.mesure(PAS_MS); // the timer fires on time
+  }
+  assert.equal(releve.facteurSur(1000), 2);
+  assert.ok(dureeSansCharge(2672, releve.facteurSur(1000)) <= LIMITE_MS, "a 2.7 s test at load 2× its cores did about 1.3 s of its own work");
+  charge = 1;
+  t = 2000;
+  for (let i = 1; i <= 20; i++) {
+    t = 1000 + i * PAS_MS + 1000;
+    releve.mesure(PAS_MS);
+  }
+  assert.equal(releve.facteurSur(1000), 1, "a quiet machine excuses nothing");
+  const lue = chargeDeLaMachine();
+  assert.ok(Number.isFinite(lue) && lue >= 1);
 });
