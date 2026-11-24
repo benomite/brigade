@@ -317,7 +317,6 @@ describe("les faits que l'app dessine", () => {
             },
           ],
           hors: [],
-          plusieursStations: false,
         },
       },
     });
@@ -1027,12 +1026,6 @@ describe("station et capacités sur les cartes du rail", () => {
     assert.match(illisible(avec({ requires: "macos" })), /rail\[0\]\.requires/);
     assert.match(illisible(avec({ requires: ["macos", 3] })), /rail\[0\]\.requires\[1\]/);
     assert.match(illisible(avec({ station: 7 })), /rail\[0\]\.station/);
-  });
-
-  test("le rail dit si le projet a plusieurs stations, d'après celles de ses cartes", () => {
-    assert.equal(cartes(brut([ticket(14, { station: "box/claude" }), ticket(15, { station: "mac/claude" })])).posee.plusieursStations, true);
-    assert.equal(cartes(brut([ticket(14, { station: "box/claude" }), ticket(15, { station: "box/claude" }), ticket(16)])).posee.plusieursStations, false);
-    assert.equal(cartes(brut([ticket(14)])).posee.plusieursStations, false);
   });
 
   test("le même ticket relu avec une autre station porte la nouvelle", () => {

@@ -141,7 +141,7 @@ import { choixDuDeplacement } from "./stations-tab/choix.js";
 import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET, QUI_D_AUTRE } from "./stations-tab/stations-tab.js";
 import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
-import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
+import { cookDuTicket, duree as dureeDuCook, geste as gesteDuCook, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
 import { poserRangDEssai } from "./carte/essai.js";
 import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
@@ -2977,9 +2977,15 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // du bon ne le redit pas. Répondue — envoyée, ou jouée —, elle ne demande plus de répondre : la phrase se tait aussi.
   const vuDeTodo = attendu && carte.todo !== undefined ? vuDeLaCarte(carte.todo, etatDeLaCarte(projet, ticket, carte.todo)).vu : undefined;
   const todoRepondue = vuDeTodo === "attente" || vuDeTodo === "jouee";
-  if (carte.ligne !== undefined && carte.refus === undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
+  // Le rail d'un projet sur GitHub seul ne donne pas d'activité à la carte (ticket 4076) : tant que son cook travaille, la carte dit
+  // ce que sa fiche dit (« writing app/src/bon.ts · 2 min ago »), jamais « no activity yet ».
+  const publiees = activitesPubliees.get(projet.nom);
+  const cookAuTravail = carte.repere === true ? cookDuTicket(publiees, ticket) : undefined;
+  const enCours = cookAuTravail === undefined || cookAuTravail.finiLe !== null || cookAuTravail.maintenant === null || publiees === undefined || "sans" in publiees ? undefined : cookAuTravail.maintenant;
+  const ligneDeCarte = enCours === undefined || publiees === undefined || "sans" in publiees ? carte.ligne : `${gesteDuCook(enCours)} · ${dureeDuCook(Date.parse(publiees.lu) - Date.parse(enCours.depuis))} ago`;
+  if (ligneDeCarte !== undefined && carte.refus === undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
     const liens = carte.miseDeCote?.liens ?? carte.liens;
-    const phrase = liens === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, liens);
+    const phrase = liens === undefined ? bloc("p", ligneDeCarte) : ligneAvecSesNumeros(projet, ligneDeCarte, liens);
     phrase.className = "ligne-carte";
     bon.append(phrase);
   }
@@ -5264,7 +5270,7 @@ function poserLeRail(projet) {
       // Pass et Waiting — WAITING — : l'explication de leur mot, sous leur titre (ticket 3308).
       const motDeLaColonne = MOT_DE_LA_COLONNE[nom];
       if (motDeLaColonne !== undefined && muet === undefined) colonne.append(...explicationDuRail(projet.nom, motDeLaColonne));
-      if (cartes.length > 0) colonne.append(bons(cartes, etatDuTon(ton), tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass")));
+      if (cartes.length > 0) colonne.append(bons(cartes, etatDuTon(ton), nom === "Taken" || nom === "Pass"));
       else colonne.append(bloc("p", nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
       return colonne;
     }),
@@ -9070,6 +9076,8 @@ brigade.surEtat((terminal) => {
 brigade.surActivites((publiees) => {
   const avant = activitesPubliees.get(publiees.projet);
   activitesPubliees.set(publiees.projet, publiees);
+  // Les cartes de Taken et de Pass disent ce que fait leur cook quand le rail ne le dit pas (ticket 4076) : elles suivent sa lecture.
+  if (courant?.nom === publiees.projet && JSON.stringify(avant) !== JSON.stringify(publiees)) dessiner();
   if (ouverte === undefined || ouverte.projet.nom !== publiees.projet) return;
   const { ticket } = ouverte.carte;
   /** @param {import("./activite-du-cook.js").Publiees | undefined} lues */
