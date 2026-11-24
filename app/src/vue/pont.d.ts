@@ -393,13 +393,9 @@ export type Pont = {
   lireLesAgents?(projet: string): Promise<unknown[] | undefined>;
   reglerLAutonomie?(projet: string, agent: string, niveau: import("./autonomie/source.js").Niveau): Promise<void>;
   approuverLeGeste?(projet: string, agent: string, id: string): Promise<void>;
-  // Le projet de démo du premier lancement (ticket 3734, runtime/src/demo/) : ce qui en est noté, son premier ticket servi
-  // et la durée depuis le premier lancement ; le créer — un dépôt privé et trois tickets prêts à cuire — ; supprimer le
-  // dépôt noté, et lui seul ; la permission `delete_repo` que `gh` fait accorder, sa fin par `surPermissionDeSuppression`.
-  projetDEssai?(): Promise<import("../../../runtime/src/demo/projet-de-demo.ts").VuDeLEssai>;
-  creerLeProjetDEssai?(): Promise<import("../../../runtime/src/demo/projet-de-demo.ts").Cree>;
-  supprimerLeProjetDEssai?(depot: string): Promise<import("../../../runtime/src/demo/projet-de-demo.ts").Suppression>;
-  demanderLaPermissionDeSuppression?(): Promise<DebutDeConnexion>;
+  // La cuisine que la visite montre (ticket 4087, visite.ts) : son rail, lu sur GitHub en lectures seules — rien n'est
+  // cloné ni ajouté —, ou pourquoi il ne se lit pas. Seule benomite/brigade se visite.
+  lireLaCuisineVisitee?(depot: string): Promise<import("../visite.ts").CuisineVisitee>;
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.ts) : listées — chacune
   // disponible ou non, avec les projets qu'elle sert —, une connexion à GitHub qui manque, ou pourquoi elles ne se
   // lisent pas. Le téléphone ne les porte pas.
@@ -513,7 +509,6 @@ export type Pont = {
   surOuverture?(recevoir: (depot: string, etape: Progres) => void): void;
   // La connexion à GitHub finie : connecté, ou pourquoi pas.
   surConnexionGitHub?(recevoir: (fin: FinDeConnexion) => void): void;
-  surPermissionDeSuppression?(recevoir: (fin: FinDeConnexion) => void): void;
 };
 
 declare global {

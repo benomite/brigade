@@ -1,19 +1,25 @@
 // @ts-check
-// La visite guidée du premier lancement (ticket 3165, épique 3162). Sur un ordinateur neuf, le compte GitHub lu, l'app
-// ajoute d'elle-même benomite/brigade — la cuisine de démonstration, cuisinée chaque jour en public — et ouvre la visite
-// sur ses vrais écrans : six étapes, dans l'ordre — le rail et ses colonnes, une carte en cuisson, la pass qui juge une
-// livraison, un ticket servi, TODO et ce qu'une carte demande, le second. Chaque étape désigne un élément vivant
-// de l'écran (`trouverLaCible`, `marquerLaCible`) et dit en une ou deux phrases ce que le nouveau venu voit, avec le mot
-// de Brigade (docs/glossary.md). Quand le moment n'a rien à montrer — aucun cook en cours, rien en pass —, l'étape le dit
-// et montre le dernier exemple à la place : le dernier ticket servi, la dernière livraison jugée.
-// La visite se montre une fois, au premier lancement ; elle se passe à chaque étape, se rejoue depuis la barre, et finit
-// sur un seul geste : « add your own project ».
+// La visite d'une vraie cuisine (ticket 4087, épique 4086 ; née visite guidée du premier lancement, ticket 3165). Offerte, jamais
+// imposée : l'écran d'accueil la propose à côté de « add my project » (accueil/choix/choix.js), et l'entrée « ? » de la barre
+// la rejoue. Elle montre la cuisine de Brigade elle-même, benomite/brigade, en lecture seule : son rail lu sur GitHub par
+// des lectures seules (visite.ts, côté process principal) — rien n'est cloné, aucun projet n'est ajouté, rien n'est écrit
+// dans ~/Brigade. La lecture seule tient à la visite, pas aux droits du compte : même un compte qui peut écrire dans
+// benomite/brigade n'y voit aucun geste sur un ticket. Par-dessus, la bulle de la visite guidée : six étapes, dans
+// l'ordre — le rail et ses colonnes, une carte en cuisson, la pass qui juge une livraison, un ticket servi, TODO et ce
+// qu'une carte demande, le second. Chaque étape désigne un élément de l'écran (`trouverLaCible`, `marquerLaCible`) et dit
+// en une ou deux phrases ce que le nouveau venu voit, avec le mot de Brigade (docs/glossary.md). Quand le moment n'a rien
+// à montrer — aucun cook en cours, rien en pass —, l'étape le dit et montre le dernier exemple à la place : le dernier
+// ticket servi, la dernière livraison jugée. « leave the visit », en tête, ramène à l'écran d'accueil à toute étape ; la
+// dernière finit sur un seul geste : « add my project ».
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "../briques.js";
+import { bouton } from "../composants/bouton/bouton.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { gestes } from "../parcours-projet/connexion.js";
 import { LECTURE_DE } from "../lexique.js";
 import { LISTE_DU_CHEF, colonneDe } from "../todo/todo.js";
+import { AJOUTER_LE_MIEN } from "../accueil/choix/choix.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../faits.ts").Colonne} Colonne */
@@ -23,15 +29,14 @@ import { LISTE_DU_CHEF, colonneDe } from "../todo/todo.js";
 // `mot` : le mot de Brigade pour ce qui est montré, en titre. `exemple` : le moment n'a rien à montrer, l'étape montre
 // le dernier exemple à la place.
 /** @typedef {{ cle: string, mot: string, texte: string, cible: Cible, exemple?: true }} Etape */
-/** @typedef {{ projet: string, rang: number }} VisiteEnCours */
-/** @typedef {{ suivante: () => void, passer: () => void, ajouter: () => void }} GestesDeLaVisite */
+/** @typedef {{ rang: number }} VisiteEnCours */
+/** @typedef {{ suivante: () => void, ajouter: () => void }} GestesDeLaVisite */
+// Ce que le process principal a lu de la cuisine visitée (visite.ts) : son tableau, ou pourquoi il ne s'est pas lu.
+/** @typedef {import("../../visite.ts").CuisineVisitee} CuisineVisitee */
+/** @typedef {{ quitter: () => void, relire: () => void }} GestesDeLaCuisine */
 
-// La cuisine de démonstration, et le nom que le fichier des projets lui donne.
+// La cuisine visitée : celle de Brigade, cuisinée chaque jour en public. Le process principal (visite.ts) ne lit qu'elle.
 export const DEPOT_DE_LA_VISITE = "benomite/brigade";
-export const PROJET_DE_LA_VISITE = "brigade";
-// La trace, dans le stockage de la vue, que la visite a été montrée : présente, l'app n'ajoute plus rien et ne la montre
-// plus d'elle-même.
-export const CLE_DE_LA_VISITE = "brigade.visite";
 
 // Les colonnes du rail, telles que faits.ts les nomme.
 const TAKEN = "Taken";
@@ -42,9 +47,15 @@ export const TITRE_DE_LA_VISITE = "Tour of a real kitchen";
 /** @param {number} rang @param {number} total */
 export const RANG = (rang, total) => `${TITRE_DE_LA_VISITE} · ${rang} of ${total}`;
 export const SUIVANTE = "next";
-export const PASSER = "skip the tour";
-export const AJOUTER_LE_SIEN = "add your own project";
-export const REJOUER = "Replay the tour";
+export const QUITTER = "leave the visit";
+export const QUITTER_SURVOL = "Back to the welcome screen. Nothing was added or cloned.";
+export const AJOUTER_LE_SIEN = AJOUTER_LE_MIEN;
+export const REJOUER = "Replay the visit";
+export const TITRE_DE_LA_CUISINE = "Brigade's own kitchen";
+export const LECTURE_SEULE = "Read-only: you watch the kitchen cook, nothing here acts on its tickets.";
+export const SECOND_DE_LA_VISITE = "Your second opens with your own project.";
+export const CUISINE_ILLISIBLE = "Brigade's kitchen cannot be read right now.";
+export const RELIRE = "read again";
 export const LECTURE_DU_RAIL = LECTURE_DE("the rail");
 
 export const MOT_RAIL = "The rail";
@@ -158,7 +169,7 @@ export function marqueurDeCible() {
 }
 
 // La bulle de l'étape : où on en est, le mot de Brigade, ce que le nouveau venu voit ; puis le geste qui avance — à la
-// dernière, le seul appel à agir, « add your own project » —, et, à chaque étape, de quoi passer la visite.
+// dernière, le seul appel à agir, « add my project ». De quoi quitter la visite est en tête de son écran, à chaque étape.
 /** @param {Fabrique} doc @param {{ etapes: Etape[], rang: number }} etat @param {GestesDeLaVisite} geste */
 export function poserVisite(doc, { etapes, rang }, geste) {
   const etape = etapes[rang] ?? etapes[0];
@@ -181,50 +192,143 @@ export function poserVisite(doc, { etapes, rang }, geste) {
     ou,
     mot,
     dit,
-    gestes(doc, [derniere ? boutonAction(doc, AJOUTER_LE_SIEN, geste.ajouter, { recommande: true }) : boutonAction(doc, SUIVANTE, geste.suivante, { recommande: true }), boutonAction(doc, PASSER, geste.passer, { sorte: "discret" })]),
+    gestes(doc, [derniere ? boutonAction(doc, AJOUTER_LE_SIEN, geste.ajouter, { recommande: true }) : boutonAction(doc, SUIVANTE, geste.suivante, { recommande: true })]),
   );
   return racine;
 }
 
-// La visite tenue pour la vue : celle en cours — son projet, son étape —, et la trace qu'elle a été montrée, dans le
-// stockage de la vue (`localStorage`, qui survit à la fermeture de l'app). `aDecouvrir` : aucune trace, c'est le premier
-// lancement. Un stockage absent ou illisible n'est pas un premier lancement : l'app n'ajouterait le projet, et ne
-// montrerait la visite, à chaque lancement. Commencée, la visite laisse sa trace : passée, finie ou interrompue, elle ne
-// revient pas d'elle-même. Une trace qui ne s'écrit pas n'arrête pas la visite : au lancement suivant, le projet ajouté
-// est dans le fichier, et le premier lancement n'est plus.
-/** @param {{ stockage: { getItem(cle: string): string | null, setItem(cle: string, valeur: string): void } | undefined, rendre: () => void, maintenant?: () => string }} options */
-export function tenirLaVisite({ stockage, rendre, maintenant = () => new Date().toISOString() }) {
+// Une carte de la cuisine visitée : son numéro, son titre, son état — à lire, sans geste. `attente` : elle attend un humain
+// de la cuisine, rouge dans la colonne de son étape, comme sur le rail (ticket 3458).
+/** @param {Fabrique} doc @param {import("../../faits.ts").Carte} carte @param {boolean} attente */
+function carteVisitee(doc, carte, attente) {
+  const li = doc.createElement("li");
+  li.className = "carte-visitee";
+  li.dataset.ticket = String(carte.ticket);
+  if (attente) li.dataset.carte = "attente";
+  const numero = doc.createElement("span");
+  numero.className = "numero-visite mono";
+  numero.textContent = `#${carte.ticket}`;
+  li.append(numero);
+  if (carte.mot !== undefined && carte.mot !== "") {
+    const mot = doc.createElement("span");
+    mot.className = "mot-visite";
+    if (carte.ton !== undefined) mot.dataset.ton = carte.ton;
+    mot.textContent = carte.mot;
+    li.append(mot);
+  }
+  const titre = doc.createElement("p");
+  titre.className = "titre-visite";
+  titre.textContent = carte.titre ?? "";
+  li.append(titre);
+  return li;
+}
+
+// Le rail de la cuisine visitée, tel que l'écran d'un projet le range : une colonne par étape (`data-colonne`), une carte
+// par ticket (`data-ticket`). TODO n'est pas une colonne (ticket 3458) : ses cartes viennent en tête de la colonne de leur
+// étape.
+/** @param {Fabrique} doc @param {ColonneLue[]} colonnes */
+function colonnesVisitees(doc, colonnes) {
+  const rangee = doc.createElement("div");
+  rangee.className = "colonnes";
+  const etapes = colonnes.filter(({ nom }) => nom !== LISTE_DU_CHEF);
+  const rouges = colonnes.find(({ nom }) => nom === LISTE_DU_CHEF)?.cartes ?? [];
+  const noms = etapes.map(({ nom }) => nom);
+  for (const colonne of etapes) {
+    const section = doc.createElement("section");
+    section.className = "colonne";
+    section.dataset.colonne = colonne.nom;
+    const tete = doc.createElement("h4");
+    const nom = doc.createElement("span");
+    nom.textContent = colonne.nom;
+    const venues = rouges.filter((carte) => colonneDe(carte, noms) === colonne.nom);
+    const compte = doc.createElement("span");
+    compte.textContent = String(venues.length + colonne.cartes.length);
+    tete.append(nom, compte);
+    section.append(tete);
+    if (venues.length + colonne.cartes.length === 0) {
+      const vide = doc.createElement("p");
+      vide.textContent = /** @type {{ vide?: string }} */ (colonne).vide ?? "";
+      section.append(vide);
+    } else {
+      const liste = doc.createElement("ol");
+      liste.append(...venues.map((carte) => carteVisitee(doc, carte, true)), ...colonne.cartes.map((carte) => carteVisitee(doc, carte, false)));
+      section.append(liste);
+    }
+    rangee.append(section);
+  }
+  return rangee;
+}
+
+// L'écran de la visite : en tête, la cuisine visitée, la ligne qui la dit en lecture seule et « leave the visit » ; dessous,
+// son rail — en lecture, lu, ou pourquoi il ne se lit pas, avec « read again » — et, à côté, la colonne du second, que
+// la visite n'ouvre pas. Aucun geste sur un ticket : ni créer, ni déplacer, ni commenter, ni fermer, ni lancer. Rend
+// l'écran, et ses deux éléments que les étapes désignent.
+/** @param {Fabrique} doc @param {CuisineVisitee | undefined} lue @param {GestesDeLaCuisine} geste */
+export function poserLaCuisineVisitee(doc, lue, geste) {
+  const racine = doc.createElement("div");
+  racine.className = "cuisine-visitee";
+  const tete = doc.createElement("header");
+  tete.className = "tete-de-la-visite";
+  const titre = doc.createElement("h2");
+  titre.textContent = TITRE_DE_LA_CUISINE;
+  const depot = doc.createElement("span");
+  depot.className = "mono";
+  depot.textContent = DEPOT_DE_LA_VISITE;
+  const seule = doc.createElement("p");
+  seule.className = "lecture-seule-de-la-visite";
+  seule.textContent = LECTURE_SEULE;
+  const quitter = bouton(doc, QUITTER, geste.quitter);
+  quitter.title = QUITTER_SURVOL;
+  quitter.dataset.geste = "quitter-la-visite";
+  tete.append(titre, depot, seule, quitter);
+  const rail = doc.createElement("section");
+  rail.className = "rail-de-la-visite";
+  rail.ariaLabel = "The rail";
+  if (lue === undefined) {
+    const lecture = doc.createElement("p");
+    lecture.className = "lecture";
+    lecture.textContent = LECTURE_DU_RAIL;
+    rail.append(lecture);
+  } else if ("tableau" in lue) {
+    rail.append(colonnesVisitees(doc, lue.tableau.rail.colonnes));
+  } else {
+    rail.append(ligneErreur(doc, CUISINE_ILLISIBLE, lue.sans), gestes(doc, [boutonAction(doc, RELIRE, geste.relire, { recommande: true })]));
+  }
+  const second = doc.createElement("aside");
+  second.className = "second-de-la-visite";
+  const mot = doc.createElement("h4");
+  mot.textContent = MOT_SECOND;
+  const dit = doc.createElement("p");
+  dit.textContent = SECOND_DE_LA_VISITE;
+  second.append(mot, dit);
+  const corps = doc.createElement("div");
+  corps.className = "corps-de-la-visite";
+  corps.append(rail, second);
+  racine.append(tete, corps);
+  return { racine, rail, second };
+}
+
+// La visite tenue pour la vue : en cours ou non, et son étape. Rien n'en est gardé : elle ne démarre jamais d'elle-même,
+// seulement du choix de l'écran d'accueil ou de l'entrée qui la rejoue, et repart alors de sa première étape.
+/** @param {{ rendre: () => void }} options */
+export function tenirLaVisite({ rendre }) {
   /** @type {VisiteEnCours | undefined} */
   let enCours;
   return {
     get etat() {
       return enCours;
     },
-    aDecouvrir() {
-      if (stockage === undefined) return false;
-      try {
-        return stockage.getItem(CLE_DE_LA_VISITE) === null;
-      } catch {
-        return false;
-      }
-    },
-    /** @param {string} projet */
-    commencer(projet) {
-      try {
-        stockage?.setItem(CLE_DE_LA_VISITE, JSON.stringify({ montree: maintenant() }));
-      } catch {
-        // Voir plus haut : le fichier des projets tient le projet ajouté, le lancement suivant n'est plus le premier.
-      }
-      enCours = { projet, rang: 0 };
+    commencer() {
+      enCours = { rang: 0 };
       rendre();
     },
     /** @param {number} total */
     suivante(total) {
       if (enCours === undefined) return;
-      enCours = { ...enCours, rang: Math.min(enCours.rang + 1, total - 1) };
+      enCours = { rang: Math.min(enCours.rang + 1, total - 1) };
       rendre();
     },
-    fermer() {
+    quitter() {
       enCours = undefined;
       rendre();
     },
