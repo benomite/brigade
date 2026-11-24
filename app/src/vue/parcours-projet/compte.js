@@ -69,6 +69,7 @@ export function poserLeCompte(doc, etat, geste) {
     const [changer, ...suite] = connexionDite(doc, connexion, CHANGER_DE_COMPTE, { seConnecter: geste.changerDeCompte, ouvrirLaPage: geste.ouvrirLaPage }, { recommande: false, sorte: "discret" });
     // Un petit lien sous le compte, pas un bouton : la suite du parcours est d'ajouter un projet.
     changer.className = "gestes changer-de-compte";
+    changer.dataset.boutons = "lien";
     changer.children[0].children[0].title = CHANGER_DE_COMPTE_SURVOL;
     const carte = cree(doc, "div");
     carte.className = "compte-carte";

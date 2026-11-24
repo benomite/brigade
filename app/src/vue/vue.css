@@ -1395,16 +1395,6 @@ main > header,
 .compte-du-premier .compte-connecte strong {
   font-weight: 700;
 }
-.compte-du-premier .changer-de-compte button {
-  min-height: 0;
-  height: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: var(--taille-meta);
-  color: var(--discret);
-  text-decoration: underline;
-}
 .compte-du-premier .dit {
   color: var(--texte-doux);
 }
