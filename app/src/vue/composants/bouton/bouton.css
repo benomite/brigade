@@ -45,7 +45,7 @@
   border-color: transparent;
 }
 /* Le discret en petit lien, sous un compte : `data-boutons="lien"` sur la rangée (ticket 4085). */
-[data-boutons="lien"] [data-bouton="discret"] {
+[data-boutons="lien"][data-boutons="lien"] [data-bouton="discret"] {
   min-height: 0;
   height: auto;
   padding: 0;

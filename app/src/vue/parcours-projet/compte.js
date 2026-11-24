@@ -1,7 +1,7 @@
 // @ts-check
 // Le compte GitHub de cet ordinateur (ticket 2475), tel que son `gh` le tient (`compteGitHub`, connexion-github.ts) —
-// jamais tapé. Connecté, le premier lancement le dit, « connected » et « Connected to GitHub as … » (le login en évidence), et offre d'en changer en petit lien discret ; sans compte,
-// il n'y a qu'un bouton, « connect to GitHub » ; illisible, il dit pourquoi en une phrase, son détail au survol, avec la
+// jamais tapé. Connecté, le premier lancement le dit, « connected » et « Connected to GitHub as … » (le login en
+// évidence), et offre d'en changer en petit lien discret ; sans compte, il n'y a qu'un bouton, « connect to GitHub » ; illisible, il dit pourquoi en une phrase, son détail au survol, avec la
 // page qui le lève et « read again ». L'écran « Add a project » (ajout.js, ticket 3181) n'en pose que la connexion qui
 // manque, ou pourquoi il ne se lit pas : connecté, il ne dit pas le compte, qui se change dans les réglages.
 // Changer de compte, c'est se connecter d'un autre dans le navigateur, par le même geste que la connexion ; au bout, le
