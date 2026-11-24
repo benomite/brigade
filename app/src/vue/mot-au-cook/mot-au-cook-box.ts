@@ -23,7 +23,7 @@ function reponseDe(rendu: Rendu): unknown {
 
 // La commande, ou pourquoi rien ne part : un numéro de ticket, et une ligne qui n'est pas vide.
 function commandeDuMot(entree: unknown): { commande: string } | { refus: string } {
-  if (!estObjet(entree) || typeof entree.ticket !== "number" || !Number.isInteger(entree.ticket) || entree.ticket <= 0) return { refus: "nothing was sent: this is not a ticket" };
+  if (!estObjet(entree) || !Number.isInteger(entree.ticket) || (entree.ticket as number) <= 0) return { refus: "nothing was sent: this is not a ticket" };
   if (typeof entree.text !== "string" || entree.text.trim() === "") return { refus: "nothing was sent: the word is empty" };
   return { commande: `send-word ${cite(JSON.stringify({ ticket: entree.ticket, text: entree.text }))}` };
 }
