@@ -1,12 +1,15 @@
 // Ce que les cooks partis ont laissé dans l'état de la cuisine, rendu quand la
-// machine sature sans cook en vol : leur worktree et le flux de leur run. Seuls
+// machine sature sans cook en vol : leur worktree, le flux de leur run et leur
+// dossier temporaire privé (`<état>/tmp/<run>`), puis le cache npm de la station
+// (`cacheNpm`, que npm refait au besoin). Seuls
 // les runs que le journal dit finis, toutes stations confondues, sont rendus :
 // le worktree d'un cook en vol d'une autre station, d'une relecture ou de gates
 // que le journal ne connaît pas reste où il est. Rien hors du répertoire des
-// worktrees du projet et du dossier `runs` de son état n'est touché.
+// worktrees du projet, des dossiers `runs` et `tmp` de son état et du cache npm
+// nommé n'est touché.
 import { execFileSync } from "../../sans-invite.ts";
 import { readdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 
 // Ce que la récupération demande au disque : les noms d'un dossier, le retrait
 // d'un chemin, et l'oubli par le clone des worktrees disparus.
@@ -26,17 +29,18 @@ type Recuperation = { retires: string[]; echecs: string[] };
 
 const absent = (erreur: unknown) => (erreur as NodeJS.ErrnoException).code === "ENOENT";
 
-// Retire le worktree `<run>` et le flux `<run>.jsonl` de chaque run fini, puis fait
+// Retire le worktree `<run>`, le flux `<run>.jsonl` et le dossier `tmp/<run>` de chaque run fini, puis fait
 // oublier au clone ses worktrees disparus (sinon leur branche resterait prise). Un
 // dossier absent ne porte rien ; tout autre échec — lecture, retrait — se dit dans
 // `echecs`, sans arrêter le reste.
-export function recuperer(lieux: { worktrees: string; repertoireEtat: string; clone?: string; finis: string[] }, fichiers: Fichiers = fichiersReels): Recuperation {
+export function recuperer(lieux: { worktrees: string; repertoireEtat: string; clone?: string; finis: string[]; cacheNpm?: string }, fichiers: Fichiers = fichiersReels): Recuperation {
   const retires: string[] = [];
   const echecs: string[] = [];
   const finis = new Set(lieux.finis);
   for (const [dossier, nomDe] of [
     [lieux.worktrees, (run: string) => run],
     [join(lieux.repertoireEtat, "runs"), (run: string) => `${run}.jsonl`],
+    [join(lieux.repertoireEtat, "tmp"), (run: string) => run],
   ] as const) {
     let noms: string[];
     try {
@@ -54,6 +58,18 @@ export function recuperer(lieux: { worktrees: string; repertoireEtat: string; cl
       } catch {
         echecs.push(chemin);
       }
+    }
+  }
+  // Le cache npm : un chemin absolu et qui n'est pas la racine, retiré s'il existe.
+  const cache = lieux.cacheNpm;
+  if (cache !== undefined && isAbsolute(cache) && dirname(cache) !== cache) {
+    try {
+      if (fichiers.lister(dirname(cache)).includes(basename(cache))) {
+        fichiers.retirer(cache);
+        retires.push(cache);
+      }
+    } catch (erreur) {
+      if (!absent(erreur)) echecs.push(cache);
     }
   }
   if (lieux.clone !== undefined && retires.length > 0) {

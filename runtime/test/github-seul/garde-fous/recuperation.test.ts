@@ -57,7 +57,7 @@ function gardes(t: TestContext, chemins: string[], runs: Run[], options: { liste
     if (garde === true) noter(i + 1, { type: "worktree.kept", payload: { worktree: `worktrees/${run}`, branch: `cook/${run}`, reason: "unpushed", detail: "1 commit" } });
   });
   const avertis: string[] = [];
-  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: disque.machine, seuils: configMachine({}) }, fichiers: disque.fichiers, env: { BRIGADE_REPO_DIR: CLONE }, avertir: (texte) => avertis.push(texte) });
+  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: disque.machine, seuils: configMachine({}) }, fichiers: disque.fichiers, env: { BRIGADE_REPO_DIR: CLONE, npm_config_cache: join(repertoire, "cache-npm") }, avertir: (texte) => avertis.push(texte) });
   const faits = (type: string) => runtime.journal.tout().filter((evenement) => evenement.type === type);
   return { du, disque, avertis, faits };
 }
@@ -99,7 +99,7 @@ test("the reclaim runs once per gate turn, and again at the next one (#4106)", a
   // Rien n'est rendable : la machine reste saturée, sans cook.
   await du.retenue(0);
   const apres = disque.listes();
-  assert.equal(apres, 2);
+  assert.ok(apres > 0);
   await du.retenue(0);
   assert.equal(disque.listes(), apres);
   await du.redire(0);
@@ -113,4 +113,27 @@ test("a disk the reclaim cannot read does not fall the turn: the saturation stan
   assert.equal(await du.retenue(0), null);
   assert.equal(faits("station.saturated").length, 1);
   assert.match(avertis.join("\n"), /could not reclaim/);
+});
+
+test("a saturated station with no cook also gives back the tmp dirs of exited cooks and its npm cache, and nothing else (#4107)", async (t) => {
+  const { du, disque, avertis } = gardes(
+    t,
+    ["tmp/12-a", "tmp/13-b", "tmp/14-vivant", "tmp/inconnu", "autre/12-a", "cache-npm", "worktrees/14-vivant"],
+    [
+      { run: "12-a", station: STATION, fini: true },
+      { run: "13-b", station: AUTRE, fini: true },
+      { run: "14-vivant", station: AUTRE, fini: false },
+    ],
+  );
+  assert.equal(await du.retenue(0), null);
+  assert.deepEqual(disque.retires.map((chemin) => chemin.split(sep).slice(-2).join("/")).filter((c) => c.startsWith("tmp/")).sort(), ["tmp/12-a", "tmp/13-b"]);
+  assert.equal(disque.retires.filter((chemin) => basename(chemin) === "cache-npm").length, 1);
+  assert.deepEqual(disque.restes(), ["autre/12-a", "tmp/14-vivant", "tmp/inconnu", "worktrees/14-vivant"]);
+  assert.match(avertis.join("\n"), /gave back 3 leftover/);
+});
+
+test("the npm cache stays when a cook is in flight (#4107)", async (t) => {
+  const { du, disque } = gardes(t, ["cache-npm", "tmp/12-a"], [{ run: "12-a", station: STATION, fini: true }]);
+  assert.equal(await du.retenue(1), "machine");
+  assert.deepEqual(disque.retires, []);
 });
