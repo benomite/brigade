@@ -1382,7 +1382,7 @@ main > header,
   gap: var(--pas-3);
 }
 .compte-du-premier .etat-connecte {
-  padding: 2px var(--pas-2);
+  padding: var(--pas-1) var(--pas-2);
   border-radius: var(--rayon-bouton);
   border: 1px solid currentColor;
   font-size: var(--taille-meta);
