@@ -100,6 +100,7 @@ import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
 import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
+import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
@@ -740,6 +741,16 @@ async function tenirCeQueFournitCetOrdinateur(vu: VuDesStations): Promise<void> 
     console.error(`brigade: what this computer's station provides could not be written on GitHub — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
 }
+// L'écran du premier lancement avant l'avis de macOS (premier-lancement/, #4081) : sur un Mac neuf, inscrire la station à
+// l'ouverture de session fait dire à macOS qu'un élément d'arrière-plan s'est ajouté. L'inscription attend que le nouvel
+// arrivant ait vu l'écran qui le lui annonce et pressé son bouton ; la marque, à côté du fichier des projets, dit qu'il
+// l'a vu, et l'écran ne revient plus.
+const avisDeFond = tenirLAvisDeFond(() => dire("avisDeFond"));
+const marqueDeLAvisDeFond = join(dirname(cheminConfiguration()), "avis-de-fond-vu");
+ipcMain.handle("avisDeFond", () => avisDeFond.attendu());
+ipcMain.handle("continuerLePremierLancement", () => avisDeFond.continuer());
+const apresLAvisDeFond = <T>(declencher: () => Promise<T>): Promise<T> =>
+  passerLePremierLancement({ avis: avisDeMacOS({ mac: estUnMac(plateforme), inscrite: stationDeFondInstallee({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA }) }), marque: marqueDeLAvisDeFond, afficher: avisDeFond.afficher, declencher, dire: (ligne) => console.error(ligne) });
 // Sur un ordinateur, l'app est une station (`role`) : la station de la machine — la même que celle d'un serveur —, sous
 // `station/` à côté du fichier des projets, tourne en fond, sans dépendre de l'app (station-fond/, #3630). L'app
 // installée l'inscrit à l'ouverture de session ; ouverte, elle la rejoint si elle tourne, la lance sinon, et l'appaire
@@ -750,7 +761,7 @@ const stationLocale =
         racine: racineDeLaStation,
         inscrire: async () =>
           emplacements.facon === "installee"
-            ? inscrireLaStationDeFond({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer, node: emplacements.node, hote: HOTE, racine: racineDeLaStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath })
+            ? apresLAvisDeFond(() => inscrireLaStationDeFond({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer, node: emplacements.node, hote: HOTE, racine: racineDeLaStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath }))
             : { par: "aucune" },
         // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
         lancer: () => lancerLeFond({ node: emplacements.node, embarque: role.principal, racine: racineDeLaStation, env: process.env }),
