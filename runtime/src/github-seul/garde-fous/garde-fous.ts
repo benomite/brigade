@@ -21,6 +21,7 @@
 // écrit et lit déjà, et `status` les montre de même.
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import type { Arbitrage, Reponse } from "../../arbitrage.ts";
 import type { Lancer } from "../../brigade-github.ts";
@@ -253,9 +254,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       if (mesure.manques.length > 0 && cooks === 0 && !recupereCeTour) {
         recupereCeTour = true;
         try {
-          const { retires, echecs, tues } = recuperer({ worktrees: worktreesDuProjet(options.env ?? {}, repertoireEtat), repertoireEtat, clone: options.env?.BRIGADE_REPO_DIR, finis: runsRendables(base) }, options.fichiers, options.processus);
+          const { retires, echecs, tues } = recuperer({ worktrees: worktreesDuProjet(options.env ?? {}, repertoireEtat), repertoireEtat, clone: options.env?.BRIGADE_REPO_DIR, finis: runsRendables(base), cacheNpm: options.env?.npm_config_cache || join(homedir(), ".npm") }, options.fichiers, options.processus);
           if (tues.length > 0) avertir(`brigade : GitHub-only station ${station} stopped ${tues.length} orphaned process(es) of exited cooks`);
-          if (retires.length > 0) avertir(`brigade : GitHub-only station ${station} gave back ${retires.length} leftover worktree(s) and run file(s) of exited cooks`);
+          if (retires.length > 0) avertir(`brigade : GitHub-only station ${station} gave back ${retires.length} leftover worktree(s), run file(s), tmp dir(s) and npm cache of exited cooks`);
           if (echecs.length > 0) avertir(`brigade : GitHub-only station ${station} could not reclaim ${echecs.join(", ")}`);
         } catch (erreur) {
           avertir(`brigade : GitHub-only station ${station} could not reclaim what exited cooks left (${message(erreur)})`);
