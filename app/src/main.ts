@@ -99,7 +99,7 @@ import { tenirLaStationDeFond } from "./station-fond/attache.ts";
 import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
 import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
-import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
+import { connexionDeLaSession, ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
@@ -773,7 +773,16 @@ const stationLocale =
     : undefined;
 // Les pannes d'une station, sur sa ligne de la home : chacune a son bouton (pannes/gestes.ts). Le
 // login ne part que pour la station de cet ordinateur, par le `claude` officiel (pannes/login.ts).
-const loginIci = tenirLogin({ claude: process.env.BRIGADE_CLAUDE_BIN || "claude", env: process.env, dire: (ligne) => console.error(ligne), apres: () => void stations.relire() });
+// Sa fin part aussi à la vue : une ouverture de projet qu'il retenait, au premier lancement, repart (#4057).
+const loginIci = tenirLogin({
+  claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
+  env: process.env,
+  dire: (ligne) => console.error(ligne),
+  apres: () => {
+    void stations.relire();
+    dire("loginClaude");
+  },
+});
 const gestesDesPannes = { stations, stationLocale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), login: loginIci };
 if (role.role === "poste") console.error(`brigade: this app is a workstation, not a station — ${role.pourquoi}: it pilots, nothing cooks here`);
 // Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
@@ -1405,6 +1414,11 @@ const ouvrirUnProjetDUneStation = ouvrirDUneStation({
   configuration: () => suivi.configuration(),
   ajouter: (projet) => suivi.ajouter(projet),
   progres: (depot, etape) => dire("ouverture", depot, etape),
+  // Avant que la cuisine démarre (#4057) : ce que `claude auth status` dit de cet ordinateur, sans appel au modèle.
+  connexionClaude: async () => {
+    const { sessionClaude } = await duRuntime<typeof import("../../runtime/src/claude.ts")>("claude.ts");
+    return connexionDeLaSession(await sessionClaude(process.env.BRIGADE_CLAUDE_BIN || "claude", process.env));
+  },
 });
 // Le dépôt choisi dans « Add a project » (#2627) : est-il prêt pour brigade — ses bindings, ses labels —, et le
 // geste qui l'y prépare, par le contrat du runtime (#2626) joué sur sa copie locale (projets/preparation-du-depot.ts).
@@ -1471,6 +1485,8 @@ const outilsRequis = tenirOutilsRequis({
 });
 ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
 ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
+// Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
+ipcMain.handle("seConnecterAClaude", () => loginIci());
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();

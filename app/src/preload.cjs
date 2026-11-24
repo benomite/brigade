@@ -156,6 +156,7 @@ const pont = {
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
   stationsDuChef: () => ipcRenderer.invoke("stationsDuChef"),
   ouvrirDUneStation: (nom, depot, base) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot, base),
+  seConnecterAClaude: () => ipcRenderer.invoke("seConnecterAClaude"),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   outilsManquants: (outils) => ipcRenderer.invoke("outilsManquants", outils),
   installerOutil: (outil) => ipcRenderer.invoke("installerOutil", outil),
@@ -224,6 +225,7 @@ const pont = {
   surAccueil: (recevoir) => void ipcRenderer.on("accueil", (_, vu) => recevoir(vu)),
   surOuverture: (recevoir) => void ipcRenderer.on("ouverture", (_, depot, etape) => recevoir(depot, etape)),
   surConnexionGitHub: (recevoir) => void ipcRenderer.on("connexionGitHub", (_, fin) => recevoir(fin)),
+  surLoginClaude: (recevoir) => void ipcRenderer.on("loginClaude", () => recevoir()),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
 contextBridge.exposeInMainWorld("brigade", pont);

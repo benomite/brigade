@@ -7,15 +7,34 @@
 // ouverte, le projet entre dans le fichier des projets (config.ts), avec son dépôt et sa branche
 // d'intégration : la branche par défaut que GitHub a donnée du dépôt, quand la vue la passe (l'écran
 // « Add a project », #3181), sinon celle que l'origine de la copie désigne. La vue l'ouvre alors.
+// Avant la copie, l'app demande si Claude Code est connecté sur cet ordinateur (#4057) : pas connecté, rien ne
+// démarre, et la vue propose « log in » ; la cuisine démarre une fois le chef connecté, à l'ouverture suivante.
 import type { Configuration, Declare } from "./config.ts";
 import type { CopieLocale, OptionsDOuverture, Progres } from "../../runtime/src/projets/copie-locale.ts";
+import type { Session } from "../../runtime/src/claude.ts";
 
 export type { StationsDuChef, StationAppairee, ProjetPorte, Connexion } from "../../runtime/src/appairage/stations-du-chef.ts";
 export type { CopieLocale, Progres } from "../../runtime/src/projets/copie-locale.ts";
 
 // Ce que l'ouverture d'un projet rend à la vue : la copie du runtime — ouverte, ou pourquoi elle ne
-// l'est pas —, ou une copie faite que le fichier des projets n'a pas prise (`not-added`), et pourquoi.
-export type Ouverture = CopieLocale | { state: "failed"; project: string; repository: string; cause: "not-added" | "busy"; reason: string; detail?: string };
+// l'est pas —, ou une copie faite que le fichier des projets n'a pas prise (`not-added`), et pourquoi —, ou rien de
+// commencé tant que Claude Code n'est pas connecté sur cet ordinateur (`login`, #4057).
+export type Ouverture =
+  | CopieLocale
+  | { state: "failed"; project: string; repository: string; cause: "not-added" | "busy"; reason: string; detail?: string }
+  | { state: "login"; project: string; repository: string; reason: string };
+
+// La connexion de Claude Code sur cet ordinateur, dite comme la station la publie (pannes/etats.ts).
+export type ConnexionClaude = "connectee" | "perdue" | "inconnue";
+
+// Ce que `claude auth status` a dit (runtime/src/claude.ts, `sessionClaude`), en connexion : seul un « non » net la dit
+// perdue. Un binaire muet ou absent la laisse inconnue — l'écran de l'outil manquant, ou le premier cook, le dira.
+export function connexionDeLaSession(session: Session): ConnexionClaude {
+  if (session === "connectee") return "connectee";
+  return session === "absente" ? "perdue" : "inconnue";
+}
+
+export const PAS_CONNECTE = (projet: string) => `Claude Code is not logged in on this computer, so ${projet} cannot cook yet: log in, and its kitchen starts once you are.`;
 
 export type OptionsDOuvrir = {
   // L'opération du runtime, chargée depuis son dossier (emplacements.ts).
@@ -27,6 +46,8 @@ export type OptionsDOuvrir = {
   ajouter: (projet: Declare) => string | undefined;
   // Chaque étape de la copie, pour la vue.
   progres: (depot: string, etape: Progres) => void;
+  // Claude Code est-il connecté sur cet ordinateur (`connexionDeLaSession`) — demandé avant que la cuisine démarre.
+  connexionClaude: () => Promise<ConnexionClaude>;
 };
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.trim() !== "";
@@ -48,6 +69,11 @@ export function ouvrirDUneStation(options: OptionsDOuvrir): (nom: unknown, depot
     }
     enCours = project;
     try {
+      // Une lecture qui échoue ne retient rien : la connexion reste inconnue, et le premier cook la dira.
+      const connexion = await Promise.resolve()
+        .then(() => options.connexionClaude())
+        .catch((): ConnexionClaude => "inconnue");
+      if (connexion === "perdue") return { state: "login", project, repository, reason: PAS_CONNECTE(project) };
       const deja = options.configuration().projets.find((projet) => projet.nom === project);
       const copie = await options.ouvrirLaCopie({ repository, project, ...(deja === undefined ? {} : { folder: deja.dossier }), progres: (etape) => options.progres(repository, etape) });
       if (copie.state !== "open" || (deja !== undefined && deja.dossier === copie.folder)) return copie;

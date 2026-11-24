@@ -30,6 +30,7 @@ function unRuntime(rendre: (demande: Demande) => CopieLocale | Promise<CopieLoca
   const demandes: Demande[] = [];
   return {
     demandes,
+    connexionClaude: async () => "connectee" as const,
     ouvrirLaCopie: async (demande: Demande) => {
       demandes.push(demande);
       demande.progres?.({ stage: "looking", sentence: `Looking for a local copy of ${demande.repository}.` });
