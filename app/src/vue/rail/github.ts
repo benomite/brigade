@@ -57,7 +57,7 @@ const liste = (valeur: unknown): Brut[] => (Array.isArray(valeur) ? valeur.flatM
 const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
 
 // La PR qui livre un ticket, telle que la carte la dit.
-export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null; additions?: number; deletions?: number };
+export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null; taille?: { additions: number; deletions: number } };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
 // `sensible` : l'issue porte le label `sensitive` (ticket 3224). `renvoi` : le dernier renvoi de sa livraison à un cook, et
@@ -214,7 +214,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
         lire(`/repos/${depot}/pulls/${pr.numero}`)
           .then((brute) => {
             const { additions, deletions } = objet(brute) ?? {};
-            if (Number.isSafeInteger(additions) && Number.isSafeInteger(deletions)) livrees.set(numero, { ...pr, additions: additions as number, deletions: deletions as number });
+            if (Number.isSafeInteger(additions) && Number.isSafeInteger(deletions)) livrees.set(numero, { ...pr, taille: { additions: additions as number, deletions: deletions as number } });
           })
           .catch(() => undefined),
       ];
@@ -427,7 +427,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
         ...activiteDe(ticket),
         ...(ticket.sensible === true ? { sensible: true } : {}),
         // Sa PR ouverte et son dernier renvoi (ticket 3302) : le récit du premier ticket les dit.
-        ...(ticket.pr === null ? {} : { pr: { numero: ticket.pr.numero, url: ticket.pr.url, ...(ticket.pr.additions === undefined || ticket.pr.deletions === undefined ? {} : { additions: ticket.pr.additions, deletions: ticket.pr.deletions }), ...(ticket.pr.le === "" ? {} : { ouvertLe: ticket.pr.le }) } }),
+        ...(ticket.pr === null ? {} : { pr: { numero: ticket.pr.numero, url: ticket.pr.url, ...ticket.pr.taille, ...(ticket.pr.le === "" ? {} : { ouvertLe: ticket.pr.le }) } }),
         ...(ticket.renvoi === undefined ? {} : { renvoi: ticket.renvoi }),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),

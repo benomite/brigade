@@ -3093,10 +3093,10 @@ function poserLaLivraison(projet, ticket, livraison) {
     });
   });
   ligne.append(ouvre);
-  if (livraison.ajoutees !== undefined && livraison.retirees !== undefined) {
-    const ajoutees = bloc("span", `+${livraison.ajoutees}`);
+  if (livraison.lignes !== undefined) {
+    const ajoutees = bloc("span", `+${livraison.lignes.ajoutees}`);
     ajoutees.className = "lignes-ajoutees";
-    const retirees = bloc("span", `\u2212${livraison.retirees}`);
+    const retirees = bloc("span", `\u2212${livraison.lignes.retirees}`);
     retirees.className = "lignes-retirees";
     ligne.append(" ", ajoutees, " ", retirees);
   }

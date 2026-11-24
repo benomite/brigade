@@ -534,7 +534,7 @@ export type Faits = {
 // quand GitHub les a donnés (#4051).
 // Sa PR telle que le rail la lit : sa taille et l'heure de son ouverture, quand GitHub les a données.
 type PrLue = { numero: number; url: string; additions?: number; deletions?: number; ouvertLe?: string };
-export type LivraisonLue = { numero: number; url: string; ajoutees?: number; retirees?: number; age?: string };
+export type LivraisonLue = { numero: number; url: string; lignes?: { ajoutees: number; retirees: number }; age?: string };
 export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: LivraisonLue; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
@@ -1354,7 +1354,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
             livraisonLue: {
               numero: pr.numero,
               url: pr.url,
-              ...(pr.additions === undefined || pr.deletions === undefined ? {} : { ajoutees: pr.additions, retirees: pr.deletions }),
+              ...(pr.additions === undefined || pr.deletions === undefined ? {} : { lignes: { ajoutees: pr.additions, retirees: pr.deletions } }),
               ...(pr.ouvertLe === undefined ? {} : { age: duree(Date.parse(faits.lu) - Date.parse(pr.ouvertLe)) }),
             },
           }),
