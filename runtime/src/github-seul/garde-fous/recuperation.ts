@@ -4,7 +4,7 @@
 // le worktree d'un cook en vol d'une autre station, d'une relecture ou de gates
 // que le journal ne connaît pas reste où il est. Rien hors du répertoire des
 // worktrees du projet et du dossier `runs` de son état n'est touché.
-import { execFileSync } from "node:child_process";
+import { execFileSync } from "../../sans-invite.ts";
 import { readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 

@@ -2,7 +2,7 @@
 // machine sature sans cook en vol (#4106) : les gardes du tour, sur un vrai
 // runtime, avec un disque et une machine que le test rend.
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
 import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
@@ -30,14 +30,14 @@ function disqueFaux(repertoire: string, chemins: string[], options: { listeEchou
     lister: (dossier) => {
       listes++;
       if (options.listeEchoue === true) throw Object.assign(new Error("EACCES"), { code: "EACCES" });
-      return [...presents].filter((chemin) => chemin.startsWith(`${dossier}/`)).map((chemin) => chemin.slice(dossier.length + 1));
+      return [...presents].filter((chemin) => dirname(chemin) === dossier).map((chemin) => basename(chemin));
     },
     retirer: (chemin) => void (presents.delete(chemin), retires.push(chemin)),
     elaguer: (clone) => void elagues.push(clone),
   };
   // 8 cœurs, de la mémoire à revendre : seul le disque manque tant que ces restes l'occupent.
   const machine = (): Machine => ({ charge: 0, coeurs: 8, memoireDisponible: 16 * GO, memoireTotale: 32 * GO, disqueLibre: retires.length > 0 ? 100 * GO : 4 * GO });
-  const restes = () => [...presents].map((chemin) => chemin.slice(repertoire.length + 1)).sort();
+  const restes = () => [...presents].map((chemin) => chemin.slice(repertoire.length + 1).split(sep).join("/")).sort();
   return { fichiers, machine, retires, elagues, restes, listes: () => listes };
 }
 
@@ -74,7 +74,7 @@ test("a station saturated with no cook of its own gives back only the finished r
     ],
   );
   assert.equal(await du.retenue(0), null);
-  assert.deepEqual(disque.retires.map((chemin) => chemin.split("/").slice(-2).join("/")).sort(), ["runs/12-a.jsonl", "worktrees/12-a", "worktrees/13-b"]);
+  assert.deepEqual(disque.retires.map((chemin) => chemin.split(sep).slice(-2).join("/")).sort(), ["runs/12-a.jsonl", "worktrees/12-a", "worktrees/13-b"]);
   // Le cook en vol d'une autre station, le travail gardé, une relecture et un flux inconnu restent.
   assert.deepEqual(disque.restes(), ["runs/14-vivant.jsonl", "runs/inconnu.jsonl", "worktrees/14-vivant", "worktrees/15-garde", "worktrees/review-4106-github"]);
   // Le clone oublie les worktrees disparus : leur branche ne reste pas prise.
