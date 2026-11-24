@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { crochetsDuRole } from "../../src/second/crochet-du-role.ts";
 import { blocage } from "../../src/second/blocage-du-second.ts";
@@ -38,10 +39,26 @@ test("rien pour un autre message, sans vue déposée, ou avec une vue illisible"
   avecVue(JSON.stringify(VUE), (vues) => assert.equal(blocage({ prompt: "bonjour" }, { nom: "espace" }, vues), ""));
   avecVue(undefined, (vues) => assert.equal(blocage({ prompt: "pourquoi on est bloqués ?" }, { nom: "espace" }, vues), ""));
   avecVue("pas du json", (vues) => assert.equal(blocage({ prompt: "pourquoi on est bloqués ?" }, { nom: "espace" }, vues), ""));
+  avecVue(JSON.stringify({ banners: [] }), (vues) => assert.equal(blocage({ prompt: "pourquoi on est bloqués ?" }, { nom: "espace" }, vues), ""));
+  avecVue(JSON.stringify({ rail: [] }), (vues) => assert.equal(blocage({ prompt: "pourquoi on est bloqués ?" }, { nom: "espace" }, vues), ""));
   avecVue("{}", (vues) => assert.equal(blocage({ prompt: "pourquoi on est bloqués ?" }, { nom: "espace" }, vues), ""));
 });
 
 test("le crochet de la vue est déclaré à UserPromptSubmit", () => {
   const commandes = (crochetsDuRole({ node: "node", gh: "gh", cible: { nom: "espace" } }).UserPromptSubmit ?? []).flatMap((c) => c.hooks.map((h) => h.command));
   assert.ok(commandes.some((c) => /role-apres-init\.ts' 'vue' 'espace'/.test(c)));
+});
+
+test("le crochet lancé au moment `vue` écrit la vue du projet, et rien au moment `debut`", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "vue-4121-main-"));
+  try {
+    mkdirSync(join(tmp, "brigade-second-vue"));
+    writeFileSync(join(tmp, "brigade-second-vue", "espace.json"), JSON.stringify(VUE));
+    const lance = (moment: string) =>
+      spawnSync(process.execPath, ["src/second/role-apres-init.ts", moment, "espace"], { input: JSON.stringify({ prompt: "pourquoi on est bloqués ?" }), env: { ...process.env, TMPDIR: tmp }, encoding: "utf8" }).stdout;
+    assert.match(lance("vue"), /FAULT #221/);
+    assert.equal(lance("debut"), "");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
