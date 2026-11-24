@@ -15,8 +15,8 @@
 # Deux chemins, selon les secrets de signature (#1441, #1526), sur un seul jeu de jobs. Le job
 # `detecter-secrets` regarde leur seule présence. Si aucun des six n'est posé, le chemin NON SIGNÉ
 # construit et publie le .dmg (signé ad hoc) et son `latest-mac.yml` — l'app installée d'un Mac se met
-# à jour vers lui (#2431) —, l'installeur .exe et l'.apk, sans `latest.yml` : une app installée sous
-# Windows ne se met pas à jour vers un installeur non signé. Sinon, le chemin SIGNÉ (#1441) joue : le
+# à jour vers lui (#2431) —, l'installeur .exe et l'.apk, et `latest.yml` : l'app installée sous
+# Windows se met à jour vers lui comme celle du Mac (#4058). Sinon, le chemin SIGNÉ (#1441) joue : le
 # .dmg est signé Developer ID, notarisé et agrafé, l'installeur Windows est signé, et la release porte
 # les deux fichiers de mise à jour. Les jobs `mac`, `windows` et `publier`
 # sont les mêmes des deux côtés ; seules leurs étapes de signature, et l'`android` du seul chemin non
@@ -413,12 +413,10 @@ jobs:
           installeur="Brigade-${TAG#app-v}-x64-setup.exe"
           test -f "$RUNNER_TEMP/dist/$installeur"
           if [ "$NON_SIGNE" = true ]; then
-            # Une app non signée ne se met pas à jour : la construction écrit `latest.yml`, il ne part pas.
             echo "::warning::The builds are unsigned: no signing secret is set."
-            rm -f "$RUNNER_TEMP/dist/latest.yml"
-          else
-            tr -d '\r' < "$RUNNER_TEMP/dist/latest.yml" | grep -qx "path: $installeur" || { echo "::error::latest.yml does not name $installeur"; cat "$RUNNER_TEMP/dist/latest.yml"; exit 1; }
           fi
+          # Signé ou non, `latest.yml` part : l'app installée sous Windows se met à jour par lui (#4058).
+          tr -d '\r' < "$RUNNER_TEMP/dist/latest.yml" | grep -qx "path: $installeur" || { echo "::error::latest.yml does not name $installeur"; cat "$RUNNER_TEMP/dist/latest.yml"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: app-windows
@@ -507,7 +505,7 @@ jobs:
           node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" renommer --version "$version" --dossier .
           node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" notes --produit app --version "$version" --commit "$GITHUB_SHA" "${signe[@]}" > "$RUNNER_TEMP/notes.md"
           if [ "$NON_SIGNE" = true ]; then
-            fichiers=("Brigade-$version-mac-arm64.dmg" latest-mac.yml "Brigade-$version-windows-x64-setup.exe" "Brigade-$version-android.apk")
+            fichiers=("Brigade-$version-mac-arm64.dmg" latest-mac.yml "Brigade-$version-windows-x64-setup.exe" latest.yml "Brigade-$version-android.apk")
             resume="The builds are unsigned. Published $TAG: ${fichiers[*]}."
           else
             fichiers=("Brigade-$version-mac-arm64.dmg" latest-mac.yml "Brigade-$version-windows-x64-setup.exe" latest.yml)
