@@ -122,6 +122,9 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // Le jour du résumé hebdomadaire de la cuisine (#3261, `resume-hebdomadaire/`).
   // Absent : lundi.
   weeklySummaryDay?: JourDuResume;
+  // Les outils que le projet offre à ses cooks (#4162, `outils-du-cook.ts`) :
+  // `screenshots`, `browser`, la CLI du projet, un connecteur.
+  tools?: string[];
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -139,6 +142,7 @@ export type ReglagesLus = {
   commonPaths?: string[];
   chef?: string;
   humans?: Humain[];
+  tools?: string[];
 } & SeuilsDuProjet;
 
 // Pourquoi un réglage est refusé : il est à la machine ou au chef, ou il n'est
@@ -165,7 +169,7 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
 // accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
 // sa réécriture le retire.
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "githubOnlyState", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "tools", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -269,6 +273,16 @@ function cheminsCommunsDe(valeur: unknown): string[] {
   });
 }
 
+function outilsDe(valeur: unknown): string[] {
+  if (!Array.isArray(valeur)) throw invalide("tools", "must be a list of tool names, such as `screenshots`");
+  const noms = valeur.map((nom, i) => {
+    if (typeof nom !== "string" || !/^[a-z][a-z0-9-]*$/.test(nom)) throw invalide(`tools.${i}`, "must be a tool name: lowercase letters, digits and dashes, starting with a letter");
+    return nom;
+  });
+  if (new Set(noms).size !== noms.length) throw invalide("tools", "names a tool twice");
+  return noms;
+}
+
 // Les réglages valides tirés d'un objet quelconque, ou un refus qui dit
 // lequel et pourquoi. `version` : vrai pour le contenu du fichier, qui la
 // porte ; faux pour ce qu'on demande d'écrire, qui ne la porte pas.
@@ -325,6 +339,10 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     if (typeof objet.weeklySummaryDay !== "string" || !(JOURS_DU_RESUME as readonly string[]).includes(objet.weeklySummaryDay)) throw invalide("weeklySummaryDay", `must be a day of the week: ${JOURS_DU_RESUME.map((jour) => `\`${jour}\``).join(", ")}`);
     reglages.weeklySummaryDay = objet.weeklySummaryDay as JourDuResume;
   }
+  if (objet.tools !== undefined) {
+    const outils = outilsDe(objet.tools);
+    if (outils.length > 0) reglages.tools = outils;
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -343,7 +361,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay, tools } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -370,6 +388,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(humans === undefined || humans.length === 0 ? {} : { humans: humans.map(({ login, roles }) => ({ login, roles })) }),
       ...(humanValidatesDesigns === undefined ? {} : { humanValidatesDesigns }),
       ...(weeklySummaryDay === undefined ? {} : { weeklySummaryDay }),
+      ...(tools === undefined || tools.length === 0 ? {} : { tools }),
       ...Object.fromEntries(desSeuils),
     },
     null,
@@ -469,6 +488,7 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     ...(reglages.commonPaths === undefined ? {} : { commonPaths: reglages.commonPaths }),
     ...(reglages.chef === undefined ? {} : { chef: reglages.chef }),
     ...(reglages.humans === undefined ? {} : { humans: reglages.humans }),
+    ...(reglages.tools === undefined ? {} : { tools: reglages.tools }),
     ...seuilsDuProjet(reglages),
   };
 }
