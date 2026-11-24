@@ -43,3 +43,23 @@ test("an out-of-date icon is restarted by launchd; the station's agent is not to
   assert.equal(await inscrireLeFond({ ...s, fondPerime: true }), "launchd would not restart the menu bar icon on this version of the app (gui/501/brigade.tray-fond) (exit code 1): not permitted");
   assert.equal(lancees.some((l) => l.includes("brigade.station")), false);
 });
+
+test("an out-of-date icon whose agent launchd has not loaded is loaded, not restarted", async (t) => {
+  const lancees: string[] = [];
+  const s: Systeme = {
+    plateforme: "darwin",
+    maison: repertoireTemporaire(t),
+    localAppData: undefined,
+    uid: 501,
+    binaire: "/Applications/Brigade.app/Contents/MacOS/Brigade",
+    executer: async (commande, args) => {
+      lancees.push([commande, ...args].join(" "));
+      return { code: args[0] === "print" ? 113 : 0, sortie: "" };
+    },
+  };
+  assert.equal(await inscrireLeFond(s), undefined, "the plist is written");
+  lancees.length = 0;
+  assert.equal(await inscrireLeFond({ ...s, fondPerime: true }), undefined);
+  assert.equal(lancees.some((l) => l.includes("kickstart")), false, "an agent launchd does not hold cannot be restarted");
+  assert.equal(lancees.some((l) => l.startsWith("launchctl bootstrap gui/501 ")), true, "it is loaded");
+});
