@@ -19,6 +19,12 @@ function liaisons(texte: string): string | null {
   return m ? m[0] : null;
 }
 
+// #4164 réécrit, avec la règle 4 du process simplifié, la ligne Interface et la ligne App (le cook design n'existe plus) :
+// ces deux lignes sont écartées de la comparaison, le reste des liaisons reste mot pour mot celui de `origin/main`.
+function sansReecrites(texte: string | null): string | null {
+  return texte === null ? null : texte.split("\n").filter((l) => !l.startsWith("- **Interface**") && !l.startsWith("  - **App**")).join("\n");
+}
+
 function lire(ref: string): string | null {
   const lu = spawnSync("git", ["show", `${ref}:CLAUDE.md`], { cwd: RACINE, env: ENV_GIT, encoding: "utf8" });
   return lu.status === 0 ? lu.stdout : null;
@@ -34,7 +40,7 @@ test("the bindings of the Équipe multi-agents section are kept, word for word a
   assert.ok(ref, "neither origin/main nor main exists: the checkout must fetch origin/main (git fetch origin main)");
   const avant = lire(ref);
   assert.ok(avant, `${ref}:CLAUDE.md cannot be read`);
-  const attendues = liaisons(avant);
+  const attendues = sansReecrites(liaisons(avant));
   assert.ok(attendues, `${ref}'s CLAUDE.md has the Équipe multi-agents section`);
-  assert.equal(liaisons(readFileSync(join(RACINE, "CLAUDE.md"), "utf8")), attendues);
+  assert.equal(sansReecrites(liaisons(readFileSync(join(RACINE, "CLAUDE.md"), "utf8"))), attendues);
 });

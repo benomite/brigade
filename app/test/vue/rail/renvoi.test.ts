@@ -72,7 +72,7 @@ describe("la lecture du rail le porte, avec la PR du ticket", () => {
     assert.ok(lu.lu);
     const entrees = lu.faits.rail as { ticket: number; pr?: unknown; renvoi?: unknown }[];
     assert.deepEqual(entrees.map(({ ticket, pr, renvoi }) => ({ ticket, pr, renvoi })), [
-      { ticket: 5, pr: { numero: 6, url: `https://github.com/${DEPOT}/pull/6` }, renvoi: { n: 1, raison: RAISON } },
+      { ticket: 5, pr: { numero: 6, url: `https://github.com/${DEPOT}/pull/6`, ouvertLe: "2026-11-11T09:30:00Z" }, renvoi: { n: 1, raison: RAISON } },
       { ticket: 7, pr: undefined, renvoi: undefined },
     ]);
   });
