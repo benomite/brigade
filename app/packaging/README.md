@@ -126,12 +126,15 @@ mais pas notarisée. À côté du `.dmg` s'écrit **`latest-mac.yml`** — versi
 
 ## Ce qu'il porte
 
+`verifier-plist.ts <Brigade.app>` lit les `Info.plist` d'un paquet et sort en 1 si son nom n'est pas `Brigade` ; la construction le joue avant de signer.
+
 Le `.dmg` porte `Brigade.app` et un lien vers Applications, où la glisser.
 
 | Chemin dans `Brigade.app/Contents/` | Quoi |
 |---|---|
-| `MacOS/Electron`, `Frameworks/` | l'Electron officiel, tel quel ; l'exécutable et ses auxiliaires gardent leur nom — c'est sous lui qu'Electron cherche ses auxiliaires |
-| `Info.plist` | celui d'Electron, au nom de l'app : `Brigade`, `com.github.benomite.brigade`, la version construite |
+| `MacOS/Electron`, `Frameworks/` | l'Electron officiel ; l'exécutable et ses auxiliaires gardent leur nom de fichier — c'est sous lui qu'Electron cherche ses auxiliaires — mais le `Info.plist` de chaque auxiliaire porte `Brigade Helper…` et `com.github.benomite.brigade.helper…` : c'est le nom que macOS montre |
+| `Info.plist` | celui d'Electron, au nom de l'app : `Brigade`, `com.github.benomite.brigade`, l'icône `Brigade.icns`, la version construite |
+| `Resources/Brigade.icns` | l'icône de l'app (`icones/Brigade.icns`) ; celle d'Electron n'y est plus |
 | `Resources/app/` | `src/`, le `package.json` de l'app (sans scripts ni dépendances de dev) et ses dépendances de production ; node-pty n'y garde que ce qui est compilé pour darwin-arm64 |
 | `Resources/runtime/` | `src/` et `package.json` du runtime, à la version construite — celle que la station dit d'elle |
 | `Resources/node/bin/node` | le `node` qui joue la station |
