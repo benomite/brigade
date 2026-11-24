@@ -37,7 +37,7 @@ register("data:text/javascript," + encodeURIComponent('export async function res
 // l'icône (`gestes`, d'après OPS) et dire ce que le Tray a reçu.
 const POSEUR = `import { existsSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { creerLIcone, PlaceTenue } from ${JSON.stringify(pathToFileURL(join(APP, "src", "tray", "icone.ts")).href)};
+import { creerLIcone, creerSiLibre } from ${JSON.stringify(pathToFileURL(join(APP, "src", "tray", "icone.ts")).href)};
 const image = ([largeur, hauteur, octets]) => ({ etiquette: "origine", isEmpty: () => false, getScaleFactors: () => [1], getSize: () => ({ width: largeur, height: hauteur }), toBitmap: () => Buffer.alloc(octets ?? largeur * hauteur * 4) });
 if (process.env.SCENARIO === "gestes") {
   const ops = JSON.parse(process.env.OPS);
@@ -53,13 +53,7 @@ if (process.env.SCENARIO === "gestes") {
     process.stdout.write("@@" + JSON.stringify({ erreur: erreur.message }) + "\\n");
   }
 } else {
-  try {
-    creerLIcone(image([16, 16]), "darwin");
-    process.stdout.write("created\\n");
-  } catch (erreur) {
-    if (!(erreur instanceof PlaceTenue)) throw erreur;
-    process.stdout.write("yielded\\n");
-  }
+  process.stdout.write(creerSiLibre(image([16, 16]), "darwin") === undefined ? "yielded\\n" : "created\\n");
   setInterval(() => {}, 60_000);
 }
 `;
@@ -182,5 +176,22 @@ test("une image qui ne se lit pas : l'erreur le dit et aucun Tray n'est posé", 
   await new Promise((fini) => p.on("close", fini));
   assert.match(sortie, /its icon could not be read/);
   assert.equal(crees().length, 0);
+  void lancer;
+});
+
+test("une image qui ne se lit pas n'est pas une place tenue : creerSiLibre lève l'erreur", async (t) => {
+  const { machine, lancer } = await installer(t);
+  writeFileSync(join(machine, "poseur-vide.mjs"), POSEUR.replace("isEmpty: () => false", "isEmpty: () => true"));
+  const p = spawn(process.execPath, ["--import", pathToFileURL(join(machine, "crochet.mjs")).href, join(machine, "poseur-vide.mjs")], {
+    cwd: APP,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, ...CACHE_DE_COMPILATION, HOME: join(machine, "maison"), FAKE_ELECTRON: join(machine, "faux-electron.mjs"), FAKE_TRAYS: join(machine, "trays"), BRIGADE_APP_CONFIG: join(machine, "app.json") },
+  });
+  let sortie = "";
+  p.stderr.on("data", (m: Buffer) => (sortie += m.toString()));
+  p.stdout.on("data", (m: Buffer) => (sortie += m.toString()));
+  const code = await new Promise((fini) => p.on("close", fini));
+  assert.notEqual(code, 0);
+  assert.match(sortie, /its icon could not be read/);
   void lancer;
 });

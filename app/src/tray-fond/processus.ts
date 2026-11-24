@@ -18,7 +18,7 @@ import { cheminDe, emplacementsDe, lireCheminDuShell } from "../emplacements.ts"
 import { shellDuPoste } from "../plateforme.ts";
 import { servisPar } from "../poste/cuisine-ici.ts";
 import { prendreLaPlace } from "./instance.ts";
-import { creerLIcone, ICONE_DE_LA_BARRE, PlaceTenue, type IconeUnique } from "../tray/icone.ts";
+import { creerSiLibre, ICONE_DE_LA_BARRE, type IconeUnique } from "../tray/icone.ts";
 import { ligneDuFond } from "../tray/ligne.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
 import { DOSSIER_DU_FOND, ecrireLaVersionDuFond, executer, quitterLaStation } from "./systeme.ts";
@@ -145,9 +145,9 @@ function poser(actif: boolean): void {
     }
     // Une seule icône dans la barre (#4079) : tenue par l'app, elle n'en pose pas — et la pose quand l'app part.
     try {
-      icone = creerLIcone(image, plateforme);
+      icone = creerSiLibre(image, plateforme);
     } catch (erreur) {
-      if (!(erreur instanceof PlaceTenue)) console.error(`brigade: the station's icon could not be posed — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      console.error(`brigade: the station's icon could not be posed — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       return;
     }
   }
@@ -155,10 +155,11 @@ function poser(actif: boolean): void {
   const entrees = menuDuFond(projets, station, veille);
   const pose = JSON.stringify(entrees);
   if (pose === dite) return;
-  dite = pose;
+  // Une place tenue par l'app : rien n'est dit, et la lecture suivante essaie encore.
+  dite = icone ? pose : "";
   const ligne = ligneDuFond(projets, station);
-  icone.ligne(image, { infobulle: "brigade station", ligne, questions: questionsDuFond(projets) });
-  icone.menu(entrees.map(entreeDuMenu));
+  icone?.ligne(image, { infobulle: "brigade station", ligne, questions: questionsDuFond(projets) });
+  icone?.menu(entrees.map(entreeDuMenu));
 }
 
 async function relire(): Promise<void> {

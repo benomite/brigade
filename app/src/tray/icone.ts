@@ -75,3 +75,13 @@ export function creerLIcone(image: NativeImage, plateforme: string): IconeUnique
     },
   };
 }
+
+// Comme `creerLIcone`, mais une place tenue par un autre process n'est pas une erreur : rien n'est posé, et `undefined` le dit.
+export function creerSiLibre(image: NativeImage, plateforme: string): IconeUnique | undefined {
+  try {
+    return creerLIcone(image, plateforme);
+  } catch (erreur) {
+    if (erreur instanceof PlaceTenue) return undefined;
+    throw erreur;
+  }
+}
