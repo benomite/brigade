@@ -37,8 +37,8 @@ test("a station saturated on CPU and disk names the top process and the biggest 
     `brigade : the machine under GitHub-only station ${STATION} runs short of CPU and disk — load of 16.2 for at most 12 — biggest: node (pid 42) (380% CPU) · 4,096 MB of disk free for at least 5,120 MB — biggest: espace/ (3.2 GB)`);
 });
 
-// brigade:guard
 // Sans consommateur nommé, la saturation reste ce qu'elle était, octet pour octet (« byte-for-byte what they are today »).
+// brigade:guard
 test("a consumer that names nobody, throws or is absent leaves the saturation byte for byte as before (#4090)", async (t) => {
   const AVANT = { station: STATION, resource: "cpu", observed: 16.2, limit: 12, also: [{ resource: "disk", observed: 4096, limit: 5120 }] };
   const DIT = `brigade : the machine under GitHub-only station ${STATION} runs short of CPU and disk — load of 16.2 for at most 12 · 4,096 MB of disk free for at least 5,120 MB`;
