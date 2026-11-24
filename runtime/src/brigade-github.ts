@@ -46,6 +46,8 @@ import { envelopper, type Cloison, type Lancement } from "./cloison.ts";
 import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
+import { labelPoseLe } from "./attente-du-rail/lecture.ts";
+import { ordreDeMerge } from "./ordre-de-merge/ordre.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "./github-etat/etats.ts";
 import { RELANCE_PAR_DEFAUT_MS } from "./attente.ts";
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
@@ -177,6 +179,9 @@ export type GitHubDuTour = GitHubDeLaFusion &
     // Quand l'issue a été déposée et mise sur le rail : d'où part le temps du
     // ticket servi (#2662). Absent ou null, il part de la prise.
     depotDuTicket?(numero: number): Promise<DepotDuTicket | null>;
+    // L'instant où `in-pass` a été posé sur l'issue pour la dernière fois, ou null s'il ne se lit pas : l'ordre des livraisons qui
+    // changent un même fichier (#4044). Absent, aucune n'en retient une autre par ses fichiers.
+    entreeEnPass?(numero: number): Promise<string | null>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
     // Les issues dont le ticket dépend (`Depends on #N` dans son corps) et qui sont encore ouvertes — celles d'un
@@ -1895,6 +1900,31 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Celles que les invariants ont lues à ce tour ; illisibles, la porte de zone les relit.
     ouvertes ??= (await ouvertesDuTour?.catch(() => null)) ?? null;
 
+    // Les tickets dont le merge attend celui d'un autre (#4044) : lus au premier ticket en pass, une fois par tour.
+    let retenusDuTour: Map<number, number[]> | undefined;
+    const aineesDuTour = async (): Promise<Map<number, number[]>> => {
+      if (retenusDuTour !== undefined) return retenusDuTour;
+      try {
+        const enPass = tickets.filter(({ labels }) => labels.includes(LABEL_IN_PASS)).map(({ number }) => number);
+        const declarees = new Map<number, number[]>();
+        for (const numero of enPass) declarees.set(numero, (await github.dependancesOuvertes(numero)).filter((autre) => autre !== numero && ouvertsDuTour.has(autre)));
+        const fichiers = new Map((await github.prsOuvertes()).flatMap((pr) => (/^cook\/(\d+)-/.test(pr.branche) ? [[Number(/^cook\/(\d+)-/.exec(pr.branche)?.[1]), pr.fichiers] as const] : [])));
+        const livraisons = await Promise.all(
+          enPass.flatMap((numero) => {
+            const siens = fichiers.get(numero);
+            if (siens === undefined || ![...fichiers].some(([autre, a]) => autre !== numero && enPass.includes(autre) && a.some((f) => siens.includes(f)))) return [];
+            return [(async () => ({ ticket: numero, fichiers: siens, enPassLe: (await github.entreeEnPass?.(numero).catch(() => null)) ?? null }))()];
+          }),
+        );
+        retenusDuTour = ordreDeMerge({ declarees, livraisons });
+      } catch (echec) {
+        // Un ordre qui ne se lit pas ne retient rien : la pass sert comme avant.
+        avertir(`brigade : the merge order of the tickets in pass could not be read on ${nom} — ${message(echec)}`);
+        retenusDuTour = new Map();
+      }
+      return retenusDuTour;
+    };
+
     await fermerLesCartesCaduquesDuTour().catch((echec) => avertir(`brigade : the validation cards without an object could not be swept on ${nom} — ${message(echec)}`));
 
     for (const ticket of tickets) {
@@ -1911,6 +1941,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await cloreLeServi(ticket);
         continue;
       }
+      // Un ticket dont le merge attend celui d'un autre (#4044) — une dépendance déclarée encore ouverte, ou une livraison arrivée
+      // avant la sienne à la pass sur un même fichier — n'est ni relu, ni mis à jour, ni mergé, ni renvoyé pour un conflit :
+      // l'aîné servi ou fermé, il repart seul au tour qui suit.
+      if (etat === "pass" && pr !== null && !pr.merged && ((await aineesDuTour()).get(ticket.number)?.length ?? 0) > 0) continue;
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
       if (etat === "pass" && pr !== null && pr.enConflit === true) {
@@ -2762,6 +2796,7 @@ export function clientDuTour(github: GitHub, base: string, depotGitHub?: string)
       return github.commenter(numero, corps);
     },
     retraitsDeLabels: (numero) => retraitsDeLabels.call(github, numero),
+    ...(github.evenements === undefined ? {} : { entreeEnPass: async (numero: number) => labelPoseLe(((await github.evenements?.(numero)) ?? []).flatMap((un) => (typeof un === "object" && un !== null ? [un as Record<string, unknown>] : [])), LABEL_IN_PASS) }),
     relancerLesEchecs: (run) => github.relancerLesEchecs(run),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
     ...(github.fichiersEntre === undefined ? {} : { fichiersEntre: github.fichiersEntre.bind(github) }),
