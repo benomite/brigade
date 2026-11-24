@@ -201,7 +201,28 @@ describe("ce qu'un test cite", () => {
 
   test("le nom d'un import n'est pas cité : il ne tire pas le fichier du même nom de l'autre zone", (t) => {
     const racine = deuxCuisines(t);
-    assert.deepEqual(choisir(racine, ["runtime/test/aides/cuisine.ts"]), ["runtime fichiers test/cuisine.test.ts", "app fichiers test/lance.test.ts"]);
+    // Le `src/cuisine.ts` que lance le test de l'app est le sien, pas le helper du runtime (#4071).
+    assert.deepEqual(choisir(racine, ["runtime/test/aides/cuisine.ts"]), ["runtime fichiers test/cuisine.test.ts", "app rien"]);
+  });
+
+  test("un nom cité que les deux zones portent est celui de la zone du test ; un chemin cité vers l'autre zone y mène (#4071)", (t) => {
+    const racine = repertoireTemporaire(t);
+    ecrire(racine, "runtime/package.json", "{}\n");
+    ecrire(racine, "app/package.json", "{}\n");
+    ecrire(racine, "runtime/src/main.ts", "export const m = 1;\n");
+    ecrire(racine, "runtime/src/etat.ts", "export const e = 1;\n");
+    ecrire(racine, "app/src/main.ts", "export const m = 1;\n");
+    ecrire(racine, "app/src/etat.ts", "export const e = 1;\n");
+    // Un test du runtime qui lance son `main.ts`, et le nomme seul dans son titre.
+    ecrire(racine, "runtime/test/lance.test.ts", 'const MAIN = join(import.meta.dirname, "../src/main.ts");\ntest("the runtime (main.ts) starts", () => {});\n');
+    ecrire(racine, "runtime/test/autre.test.ts", "// ne lit rien de tout cela\n");
+    ecrire(racine, "app/test/autre.test.ts", "// ne lit rien de tout cela\n");
+    // Un test de l'app qui lit l'état du runtime par son chemin.
+    ecrire(racine, "app/test/lit.test.ts", 'readFileSync(join(RACINE, "../../runtime/src/etat.ts"), "utf8");\n');
+    assert.deepEqual(choisir(racine, ["app/src/main.ts"]), ["runtime rien", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/src/main.ts"]), ["runtime fichiers test/lance.test.ts", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/src/etat.ts"]), ["runtime rien", "app fichiers test/lit.test.ts"]);
+    assert.deepEqual(choisir(racine, ["app/src/etat.ts"]), ["runtime rien", "app rien"]);
   });
 
   test("un fichier qu'un test n'importe que pour ses types, seul changé, le touche — par son chemin, pas par son nom", (t) => {
