@@ -57,7 +57,7 @@ const liste = (valeur: unknown): Brut[] => (Array.isArray(valeur) ? valeur.flatM
 const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
 
 // La PR qui livre un ticket, telle que la carte la dit.
-export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null };
+export type PrDuTicket = { numero: number; url: string; le: string; station?: string | null; additions?: number; deletions?: number };
 // Un ticket du rail lu sur GitHub : son mot d'état (faits.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
 // `sensible` : l'issue porte le label `sensitive` (ticket 3224). `renvoi` : le dernier renvoi de sa livraison à un cook, et
@@ -205,6 +205,21 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     if (labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE) || porteListe(texte(issue.body))) return [];
     return [{ numero: issue.number, titre: texte(issue.title), url: texte(issue.html_url), creeLe: texte(issue.created_at), labels, corps: texte(issue.body), reparationDeMain: labels.includes(LABEL_REPARATION_DE_MAIN) }];
   });
+  // La liste des PR ne dit pas leur taille : la PR seule la dit (#4051). Une PR qui ne se lit pas n'en montre aucune — jamais un zéro.
+  await Promise.all(
+    duRail.flatMap(({ numero }) => {
+      const pr = livrees.get(numero);
+      if (pr === undefined) return [];
+      return [
+        lire(`/repos/${depot}/pulls/${pr.numero}`)
+          .then((brute) => {
+            const { additions, deletions } = objet(brute) ?? {};
+            if (Number.isSafeInteger(additions) && Number.isSafeInteger(deletions)) livrees.set(numero, { ...pr, additions: additions as number, deletions: deletions as number });
+          })
+          .catch(() => undefined),
+      ];
+    }),
+  );
   // La base ne se lit que si un ticket est en pass : c'est le seul que sa couleur touche.
   let base: EtatDeLaBase | null = null;
   if (duRail.some(({ numero, labels }) => labels.includes("in-pass") && livrees.has(numero))) {
@@ -406,7 +421,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
         ...activiteDe(ticket),
         ...(ticket.sensible === true ? { sensible: true } : {}),
         // Sa PR ouverte et son dernier renvoi (ticket 3302) : le récit du premier ticket les dit.
-        ...(ticket.pr === null ? {} : { pr: { numero: ticket.pr.numero, url: ticket.pr.url } }),
+        ...(ticket.pr === null ? {} : { pr: { numero: ticket.pr.numero, url: ticket.pr.url, ...(ticket.pr.additions === undefined || ticket.pr.deletions === undefined ? {} : { additions: ticket.pr.additions, deletions: ticket.pr.deletions }), ...(ticket.pr.le === "" ? {} : { ouvertLe: ticket.pr.le }) } }),
         ...(ticket.renvoi === undefined ? {} : { renvoi: ticket.renvoi }),
       })),
       cooks: cooks.map(({ ticket, titre, station }) => ({ ticket, titre, station })),

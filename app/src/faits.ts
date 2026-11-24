@@ -446,7 +446,7 @@ export type Faits = {
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
   // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
   // absents sans eux, et d'un runtime d'avant ces champs.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; gardeRepetee?: GardeRepeteeLue; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; gardeRepetee?: GardeRepeteeLue; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string; additions?: number; deletions?: number; ouvertLe?: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Attendu[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -530,7 +530,10 @@ export type Faits = {
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
+// Ce que la carte d'un ticket en pass ou servi dit de sa PR : son numéro et son lien ; ses lignes ajoutées et retirées, et son âge
+// quand GitHub les a donnés (#4051).
+export type LivraisonLue = { numero: number; url: string; ajoutees?: number; retirees?: number; age?: string };
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: LivraisonLue; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -936,7 +939,10 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             : {
                 pr: (() => {
                   const dit = objet(lu.pr, `${lequel}.pr`);
-                  return { numero: entier(dit.numero, `${lequel}.pr.numero`), url: texte(dit.url, `${lequel}.pr.url`) };
+                  // Sa taille et l'heure de son ouverture : dites seulement quand GitHub les a données, jamais inventées.
+                  const taille = Number.isSafeInteger(dit.additions) && Number.isSafeInteger(dit.deletions) ? { additions: dit.additions as number, deletions: dit.deletions as number } : {};
+                  const ouvert = typeof dit.ouvertLe === "string" && !Number.isNaN(Date.parse(dit.ouvertLe)) ? { ouvertLe: dit.ouvertLe } : {};
+                  return { numero: entier(dit.numero, `${lequel}.pr.numero`), url: texte(dit.url, `${lequel}.pr.url`), ...taille, ...ouvert };
                 })(),
               }),
           ...(lu.renvoi === undefined
@@ -1339,6 +1345,16 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(essais === undefined ? {} : { essais }),
       ...(connu?.essais === undefined || connu.essais.length < 2 ? {} : { essai: connu.essais.length }),
       ...(connu?.gardeRepetee === undefined ? {} : { garde: ligneDeGarde(connu.gardeRepetee) }),
+      ...(connu?.pr === undefined || !ouvrable(connu.pr.url)
+        ? {}
+        : {
+            livraisonLue: {
+              numero: connu.pr.numero,
+              url: connu.pr.url,
+              ...(connu.pr.additions === undefined || connu.pr.deletions === undefined ? {} : { ajoutees: connu.pr.additions, retirees: connu.pr.deletions }),
+              ...(connu.pr.ouvertLe === undefined ? {} : { age: duree(Date.parse(faits.lu) - Date.parse(connu.pr.ouvertLe)) }),
+            },
+          }),
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
       ...(titre === undefined ? {} : { titre }),
       ...((connu?.station ?? livree?.station) === undefined ? {} : { station: connu?.station ?? livree?.station }),

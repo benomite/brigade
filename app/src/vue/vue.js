@@ -2982,6 +2982,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     phrase.className = "ligne-carte";
     bon.append(phrase);
   }
+  // Une carte qui porte une livraison dit sa PR : son numéro en lien, ses lignes ajoutées et retirées, son âge (ticket 4051).
+  if (carte.livraisonLue !== undefined) bon.append(poserLaLivraison(projet, ticket, carte.livraisonLue));
   // Prise, sans aucun cook qui la cuise ni attente vivante : la carte le dit (ticket 3884).
   if (carte.sansCook === true) {
     const sans = bloc("p", SANS_COOK);
@@ -3067,6 +3069,43 @@ function ligneAvecSesNumeros(projet, ligne, liens) {
     phrase.append(ouvre);
   }
   return phrase;
+}
+
+/**
+ * La PR d'une carte en pass ou servie : « PR 71 », lien qui l'ouvre, puis `+135 −21` au vert et au rouge de la palette, puis son âge.
+ * Ce que GitHub n'a pas donné n'est pas écrit.
+ * @param {Projet} projet @param {number} ticket @param {import("../faits.ts").LivraisonLue} livraison
+ */
+function poserLaLivraison(projet, ticket, livraison) {
+  const ligne = document.createElement("p");
+  ligne.className = "livraison-carte mono";
+  const ouvre = /** @type {HTMLAnchorElement} */ (document.createElement("a"));
+  ouvre.href = livraison.url;
+  ouvre.target = "_blank";
+  ouvre.rel = "noopener";
+  ouvre.textContent = `PR ${livraison.numero}`;
+  ouvre.addEventListener("click", (clic) => {
+    clic.stopPropagation();
+    if (brigade.ouvrirLien === undefined) return;
+    clic.preventDefault();
+    void Promise.resolve(brigade.ouvrirLien(projet.nom, ticket, livraison.url)).then((ouvert) => {
+      if (ouvert === false) window.open(livraison.url, "_blank", "noopener");
+    });
+  });
+  ligne.append(ouvre);
+  if (livraison.ajoutees !== undefined && livraison.retirees !== undefined) {
+    const ajoutees = bloc("span", `+${livraison.ajoutees}`);
+    ajoutees.className = "lignes-ajoutees";
+    const retirees = bloc("span", `\u2212${livraison.retirees}`);
+    retirees.className = "lignes-retirees";
+    ligne.append(" ", ajoutees, " ", retirees);
+  }
+  if (livraison.age !== undefined) {
+    const age = bloc("span", livraison.age);
+    age.className = "age-de-la-pr";
+    ligne.append(" ", age);
+  }
+  return ligne;
 }
 
 // Les trois gestes d'une carte mise de côté (ticket 3147) : « Relaunch » et « Close as already done » partent sur l'issue
