@@ -64,7 +64,11 @@ base, the stale-branch pruning).
   back to a cook from its branch, with no `blocked-on-human` and not counted among its tries. A product or design
   question sets `blocked-on-human`, the comment opening on the question in one line
   (`**Question for the chef (product):** …`); a gesture only the chef can make sets it too, the comment opening on the
-  exact gesture (`**Gesture for the chef:** …`) — unless that gesture is a `gh` command the station makes itself with
+  exact gesture (`**Gesture for the chef:** …`). A gesture that needs a secret or an account on the station — an API
+  key, a database URL, a password, an account or a login to open (`runtime/src/besoin-de-secret.ts`) — is that card,
+  its head saying so (`**Gesture for the chef (secret or account):** …`): posted once, never read as a git gesture even
+  when the cook's words also name its branch, and the ticket is not relaunched while it waits under `blocked-on-human`.
+  Seen on BOBL-tech/mirrorlab #894, taken 10 times (#4041). Other gestures stay as they were — unless that gesture is a `gh` command the station makes itself with
   its GitHub access: `gh issue create`, `gh issue|pr comment`, `gh issue|pr edit --add-label|--remove-label`,
   `gh run rerun` (`runtime/src/geste-station/`). The station makes it, posts the result (the new issue's number…) on
   the ticket, where the resuming cook reads it, removes `blocked-on-human`, and the ticket goes back to a cook — no
@@ -110,7 +114,8 @@ base, the stale-branch pruning).
   branch (its title names `cook/<n>-…`, or a git gesture of `#n` names that branch). At each turn, the station undoes
   what the old path left: such an open ticket is closed and folded into its owner's send-back, with the files it named;
   a `blocked-on-human` card asking the chef for a git gesture is withdrawn and the ticket it names goes back to its own
-  cook (`runtime/src/conflit-main/`). Seen on benomite/secondes #18/#28 (#3476).
+  cook (`runtime/src/conflit-main/`) — never a card that asks for a secret or an account, even when it names a cook's
+  branch (#4041). Seen on benomite/secondes #18/#28 (#3476).
 - **A red cook PR held for the chef goes back to a cook.** At each turn's healing, an open PR on a `cook/<n>-github`
   branch whose head has a red check, and whose ticket is on the rail and held for the chef (`blocked-on-human`,
   `chef-todo`) with no cook on it — not cooking on this station, not `taken`, not `in-pass` (the pass sends its own
@@ -135,7 +140,7 @@ base, the stale-branch pruning).
   that turn for the supervisor. No gesture is added: invariants 3 and 4 play `waiting` (its mark), `back-on-rail` and
   `rerun` (`runtime/src/superviseur/gestes.ts`); invariant 1 needs no write — the claim gate stops counting the PR —
   and invariant 2 stops the ticket the way its last failed try does (to the manager, or `set-aside:failures`, which
-  hands it to the supervisor), the closest the rail has, as none of the six gestures stops a ticket:
+  hands it to the supervisor, and WAITING with its reason — #4041), the closest the rail has, as none of the six gestures stops a ticket:
   1. a ticket no cook cooks and not in pass holds no file zone and reserves none: an open PR whose ticket is free,
      set aside, in WAITING or `taken` with no readable claim no longer holds the zone of the tickets waiting for it —
      an epic's PR included, whatever its body says (#3979, #3932). The claim gate reads the same rule (`tientSaZone`);
