@@ -204,7 +204,7 @@ test("engine claude-api-key, no Claude subscription logged in: the test ticket e
 
   // La clé : ni dans l'état de la station (flux, livraisons), ni à son journal, ni sur GitHub, ni dans la sortie.
   const garde = toutCeQuiEstGardeOuPublie(cuisine);
-  assert.ok(garde.includes("my key is [jeton Claude masqué]"), "the cook's stream is kept, its key masked");
+  // Le flux du cook sorti est retiré par la station (#4104) : la clé n'est dans rien de ce qui reste.
   assert.ok(!garde.includes(CLE), "the API key is in what the station keeps or publishes");
   assert.ok(!sortie.includes(CLE), "the API key is in the test's output");
   // Ni dans ce que la station a poussé pour la PR.
@@ -230,9 +230,6 @@ test("engine codex, no Claude subscription logged in: the same test ticket ends 
   assert.equal(args.at(-1), "-");
   const [livraison] = livraisons(cuisine);
   assert.deepEqual({ ...livraison, at: undefined }, { at: undefined, ticket: TICKET, branch: "cook/7-github", engine: "codex" });
-  // Son flux est celui d'un cook Claude : son dernier message, sa fin.
-  const flux = readFileSync(join(cuisine.racine, "flux", "7-github.flux.jsonl"), "utf8");
-  assert.match(flux, /"type":"result","subtype":"success","is_error":false.*Added codex\.txt/);
   t.diagnostic(`codex: branch cook/7-github at ${poussee.slice(0, 7)}, PR #${cuisine.faux.prs[0]?.number} open: ${JSON.stringify(cuisine.faux.prs[0]?.corps)}; delivery ${JSON.stringify(livraison)}`);
 });
 
@@ -242,9 +239,6 @@ test("engine codex, codex not logged in: the cook ends disconnected, no PR is op
   await servir(cuisine);
   assert.deepEqual(cuisine.faux.prs, []);
   assert.equal(existsSync(join(cuisine.racine, "flux", "livraisons.jsonl")), false);
-  const flux = readFileSync(join(cuisine.racine, "flux", "7-github.flux.jsonl"), "utf8");
-  assert.match(flux, /"error":"authentication_failed"/);
-  assert.match(flux, /"type":"result","subtype":"error_during_execution","is_error":true/);
 });
 
 test("an unknown engine, or claude-api-key without a key in the station's secrets, refuses to open the station — without the key's value", (t) => {
