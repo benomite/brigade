@@ -231,6 +231,9 @@ export class FauxStyle {
   getPropertyValue(nom: string): string {
     return this.#proprietes.get(nom) ?? "";
   }
+  get color(): string {
+    return this.getPropertyValue("color");
+  }
 }
 
 // Le terminal : ce qu'on lui a réglé à sa création, et ce qui lui a été écrit, tel quel.
