@@ -35,3 +35,8 @@ test("une PR qui ne se lit pas ou sans taille n'en dit aucune, et le rail se lit
     assert.equal(laPR.ouvertLe, "2026-11-24T11:15:00Z");
   }
 });
+
+test("une PR dont seul un côté de la taille se lit n'en dit aucun", async () => {
+  const rail = await railDe(async () => ok({ additions: 135 }));
+  for (const [, laPR] of rail) assert.ok(laPR !== undefined && !("additions" in laPR) && !("deletions" in laPR));
+});

@@ -446,7 +446,7 @@ export type Faits = {
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
   // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
   // absents sans eux, et d'un runtime d'avant ces champs.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; gardeRepetee?: GardeRepeteeLue; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string; additions?: number; deletions?: number; ouvertLe?: string }; renvoi?: { n: number; raison: string } }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; gardeRepetee?: GardeRepeteeLue; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Attendu[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -532,6 +532,8 @@ export type Faits = {
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
 // Ce que la carte d'un ticket en pass ou servi dit de sa PR : son numéro et son lien ; ses lignes ajoutées et retirées, et son âge
 // quand GitHub les a donnés (#4051).
+// Sa PR telle que le rail la lit : sa taille et l'heure de son ouverture, quand GitHub les a données.
+type PrLue = { numero: number; url: string; additions?: number; deletions?: number; ouvertLe?: string };
 export type LivraisonLue = { numero: number; url: string; ajoutees?: number; retirees?: number; age?: string };
 export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: LivraisonLue; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
@@ -1276,6 +1278,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   // adresse si la box l'a rendue —, puis ce que la file dit de lui.
   const carte = (ticket: number): Carte => {
     const connu = connus.get(ticket);
+    const pr: PrLue | undefined = connu?.pr;
     const donne = faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket);
     const url = connu?.url ?? donne?.url;
     // Une carte qui demande de juger une livraison est la carte du ticket livré (#3519) : elle en porte le titre, la marque
@@ -1345,14 +1348,14 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(essais === undefined ? {} : { essais }),
       ...(connu?.essais === undefined || connu.essais.length < 2 ? {} : { essai: connu.essais.length }),
       ...(connu?.gardeRepetee === undefined ? {} : { garde: ligneDeGarde(connu.gardeRepetee) }),
-      ...(connu?.pr === undefined || !ouvrable(connu.pr.url)
+      ...(pr === undefined || !ouvrable(pr.url)
         ? {}
         : {
             livraisonLue: {
-              numero: connu.pr.numero,
-              url: connu.pr.url,
-              ...(connu.pr.additions === undefined || connu.pr.deletions === undefined ? {} : { ajoutees: connu.pr.additions, retirees: connu.pr.deletions }),
-              ...(connu.pr.ouvertLe === undefined ? {} : { age: duree(Date.parse(faits.lu) - Date.parse(connu.pr.ouvertLe)) }),
+              numero: pr.numero,
+              url: pr.url,
+              ...(pr.additions === undefined || pr.deletions === undefined ? {} : { ajoutees: pr.additions, retirees: pr.deletions }),
+              ...(pr.ouvertLe === undefined ? {} : { age: duree(Date.parse(faits.lu) - Date.parse(pr.ouvertLe)) }),
             },
           }),
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
