@@ -170,12 +170,8 @@ const pont = {
   lienDeLApk: () => ipcRenderer.invoke("lienDeLApk"),
   // Un téléphone déjà connecté au compte GitHub du poste (ticket 3303) : la trace qu'il pose dans un gist.
   telephoneConnecte: () => ipcRenderer.invoke("telephoneConnecte"),
-  // Le projet d'essai du premier lancement (ticket 3227) : ce qui en est noté et son service, le créer, le supprimer, et
-  // la permission de suppression que `gh` fait accorder — sa fin arrive par `surPermissionDeSuppression`.
-  projetDEssai: () => ipcRenderer.invoke("projetDEssai"),
-  creerLeProjetDEssai: () => ipcRenderer.invoke("creerLeProjetDEssai"),
-  supprimerLeProjetDEssai: (depot) => ipcRenderer.invoke("supprimerLeProjetDEssai", depot),
-  demanderLaPermissionDeSuppression: () => ipcRenderer.invoke("demanderLaPermissionDeSuppression"),
+  // La cuisine que la visite montre (ticket 4087) : son rail, lu sur GitHub en lectures seules, sans clone.
+  lireLaCuisineVisitee: (depot) => ipcRenderer.invoke("lireLaCuisineVisitee", depot),
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706), et les projets que chacune sert, écrits dans
   // son gist.
   stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
@@ -212,6 +208,11 @@ const pont = {
   surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
   // Une question cliquée dans le menu de la barre des menus (barre-de-menus.ts) : sa carte s'ouvre.
   surOuvrirCarte: (recevoir) => void ipcRenderer.on("ouvrirCarte", (_, projet, ticket) => recevoir(projet, ticket)),
+  // L'écran du premier lancement avant l'avis de macOS (ticket 4081, vue/premier-lancement/) : attendu dès l'ouverture de
+  // la vue, ou plus tard par `surAvisDeFond` ; son bouton rend la main à l'inscription de la station.
+  avisDeFond: () => ipcRenderer.invoke("avisDeFond"),
+  surAvisDeFond: (recevoir) => void ipcRenderer.on("avisDeFond", () => recevoir()),
+  continuerLePremierLancement: () => ipcRenderer.invoke("continuerLePremierLancement"),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
@@ -223,7 +224,6 @@ const pont = {
   surAccueil: (recevoir) => void ipcRenderer.on("accueil", (_, vu) => recevoir(vu)),
   surOuverture: (recevoir) => void ipcRenderer.on("ouverture", (_, depot, etape) => recevoir(depot, etape)),
   surConnexionGitHub: (recevoir) => void ipcRenderer.on("connexionGitHub", (_, fin) => recevoir(fin)),
-  surPermissionDeSuppression: (recevoir) => void ipcRenderer.on("permissionDeSuppression", (_, fin) => recevoir(fin)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
 contextBridge.exposeInMainWorld("brigade", pont);
