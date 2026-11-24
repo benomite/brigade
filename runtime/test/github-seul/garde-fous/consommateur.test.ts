@@ -1,6 +1,6 @@
 // Le plus gros consommateur nommé avec `station.saturated` (#4090) : les gardes
-// du tour, sur un vrai runtime, avec une machine que le test rend, et le lecteur
-// qu'elle porte.
+// du tour, sur un vrai runtime, avec une machine et un lecteur de consommateur
+// que le test rend.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { LireConsommateur } from "../../../src/consommateur.ts";
@@ -21,14 +21,21 @@ function gardes(t: TestContext, consommateur?: LireConsommateur) {
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const avertis: string[] = [];
-  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: () => (consommateur === undefined ? BOX : { ...BOX, consommateur }), seuils: configMachine({}) }, avertir: (texte) => avertis.push(texte) });
+  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: () => BOX, seuils: configMachine({}) }, ...(consommateur === undefined ? {} : { consommateur }), avertir: (texte) => avertis.push(texte) });
   const saturees = () => runtime.journal.tout().flatMap((evenement) => (evenement.type === "station.saturated" ? [evenement.payload] : []));
   return { du, avertis, saturees, etat: () => etatStation(runtime.journal.base, STATION) };
 }
 
 test("a station saturated on CPU and disk names the top process and the biggest brigade directory: in the journal, the state and the warning (#4090)", async (t) => {
-  const { du, avertis, saturees, etat } = gardes(t, (resource) => (resource === "cpu" ? { name: "node (pid 42)", amount: "380% CPU" } : { name: "espace/", amount: "3.2 GB" }));
+  const lues: string[] = [];
+  const { du, avertis, saturees, etat } = gardes(t, (resource) => {
+    lues.push(resource);
+    return resource === "cpu" ? { name: "node (pid 42)", amount: "380% CPU" } : { name: "espace/", amount: "3.2 GB" };
+  });
   assert.equal(await du.retenue(1), "machine");
+  // La machine reste à court des mêmes ressources : rien ne se remesure.
+  assert.equal(await du.retenue(1), "machine");
+  assert.deepEqual(lues, ["cpu", "disk"]);
   assert.deepEqual(saturees(), [
     { station: STATION, resource: "cpu", observed: 16.2, limit: 12, consumer: "node (pid 42) (380% CPU)", also: [{ resource: "disk", observed: 4096, limit: 5120, consumer: "espace/ (3.2 GB)" }] },
   ]);

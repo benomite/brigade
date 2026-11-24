@@ -3,10 +3,11 @@
 // que le chef n'ait plus à mesurer la machine à la main.
 //   - Le disque : seulement ce que brigade laisse — le répertoire d'état de
 //     chaque projet de la machine (`espace/`, `brigade/`, les frères du sien),
-//     le temporaire privé de la station et le cache npm. Jamais tout le disque.
+//     le temporaire de la station et le cache npm. Jamais tout le disque.
 //   - Le processeur : le processus qui en prend le plus.
-// Une mesure qui échoue, un outil qui manque : personne n'est nommé, et la
-// saturation se dit comme avant. Rien ici ne lève.
+// Une mesure qui échoue, expire, un outil qui manque (Windows n'a ni `du` ni
+// `ps`) : personne n'est nommé, et la saturation se dit comme avant. Rien ici
+// ne lève.
 import { readdirSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -20,17 +21,18 @@ export type LireConsommateur = (resource: Ressource) => Consommateur | null;
 
 // Les lectures, injectables : les tests rendent leurs sorties sans rien lancer.
 // `repertoires` : les répertoires de brigade à mesurer ; `du` : la sortie de
-// `du -sk` sur eux ; `ps` : une ligne `pid pcpu comm` par processus.
-type Lectures = { repertoires: () => string[]; du: (repertoires: string[]) => string; ps: () => string };
+// `du -sk` sur eux ; `ps` : une ligne `pid pcpu comm` par processus. Une
+// lecture qui ne rend rien de lisible rend null.
+type Lectures = { repertoires: () => string[]; du: (repertoires: string[]) => string | null; ps: () => string | null };
 
 // Une mesure qui traîne lâche au bout de ce délai : elle ne retient pas la prise.
 const MESURE_MS = 5_000;
 
 const KO_PAR_GO = 1024 * 1024;
 
-// Le répertoire d'état de chaque projet de la machine — ils sont frères sous
-// `/var/lib/brigade` —, le temporaire de la station et le cache npm.
-function repertoiresDeBrigade(repertoireEtat: string, env: NodeJS.ProcessEnv): string[] {
+// Le répertoire d'état de chaque projet de la machine — ils sont frères —, le
+// temporaire de la station et le cache npm.
+function repertoiresDeBrigade(repertoireEtat: string, env: Record<string, string | undefined>): string[] {
   const parent = dirname(repertoireEtat);
   let projets: string[] = [repertoireEtat];
   try {
@@ -38,15 +40,17 @@ function repertoiresDeBrigade(repertoireEtat: string, env: NodeJS.ProcessEnv): s
   } catch {
     // Un parent qui ne se lit pas : le seul répertoire de la station se mesure.
   }
-  return [...new Set([...projets, tmpdir(), env.npm_config_cache || join(homedir(), ".npm")])];
+  return [...new Set([...projets, env.TMPDIR || tmpdir(), env.npm_config_cache || join(env.HOME || homedir(), ".npm")])];
 }
 
-// `du` dit ce qu'il a pu mesurer même quand un sous-répertoire lui est fermé :
-// sa sortie se lit quel que soit son code.
+// `du` dit ce qu'il a pu mesurer même quand un répertoire lui est fermé : sa
+// sortie se lit quel que soit son code. Un outil absent ou une mesure qui
+// expire — sa sortie serait partielle — ne se lit pas.
 const MESURE: { encoding: "utf8"; timeout: number; stdio: ("ignore" | "pipe")[] } = { encoding: "utf8", timeout: MESURE_MS, stdio: ["ignore", "pipe", "ignore"] };
-const sortie = ({ stdout }: { stdout: string | null }): string => stdout ?? "";
+const sortie = ({ stdout, error }: { stdout: string | null; error?: Error }): string | null => (error === undefined ? stdout : null);
 
-export function lectures(repertoireEtat: string, env: NodeJS.ProcessEnv = process.env): Lectures {
+// Les vraies lectures, sur la machine de la station et dans l'environnement de son projet.
+export function lectures(repertoireEtat: string, env: Record<string, string | undefined>): Lectures {
   return {
     repertoires: () => repertoiresDeBrigade(repertoireEtat, env),
     du: (repertoires) => sortie(spawnSync("du", ["-sk", "--", ...repertoires], MESURE)),
@@ -59,7 +63,7 @@ const taille = (ko: number): string => (ko >= KO_PAR_GO ? `${(ko / KO_PAR_GO).to
 // Le plus gros des répertoires que `du` a mesurés.
 function plusGrosRepertoire(sortie: string): Consommateur | null {
   let gros: { chemin: string; ko: number } | null = null;
-  for (const ligne of sortie.split("\n")) {
+  for (const ligne of sortie.split(/\r?\n/)) {
     const trouve = /^(\d+)\s+(.+)$/.exec(ligne);
     if (trouve === null) continue;
     const ko = Number(trouve[1]);
@@ -71,7 +75,7 @@ function plusGrosRepertoire(sortie: string): Consommateur | null {
 // Le processus qui prend le plus de processeur.
 function plusGrosProcessus(sortie: string): Consommateur | null {
   let gros: { pid: string; pcpu: number; nom: string } | null = null;
-  for (const ligne of sortie.split("\n")) {
+  for (const ligne of sortie.split(/\r?\n/)) {
     const trouve = /^\s*(\d+)\s+(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/.exec(ligne);
     if (trouve === null) continue;
     const pcpu = Number(trouve[2]);
@@ -83,8 +87,14 @@ function plusGrosProcessus(sortie: string): Consommateur | null {
 export function lireConsommateur(lu: Lectures): LireConsommateur {
   return (resource) => {
     try {
-      if (resource === "disk") return plusGrosRepertoire(lu.du(lu.repertoires()));
-      if (resource === "cpu") return plusGrosProcessus(lu.ps());
+      if (resource === "disk") {
+        const du = lu.du(lu.repertoires());
+        return du === null ? null : plusGrosRepertoire(du);
+      }
+      if (resource === "cpu") {
+        const ps = lu.ps();
+        return ps === null ? null : plusGrosProcessus(ps);
+      }
     } catch {
       // Une lecture qui échoue ne nomme personne : la saturation se dit sans lui.
     }

@@ -8,6 +8,8 @@
 // label.
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -18,6 +20,7 @@ import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../src/station/configuration.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { DEPOT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -126,6 +129,36 @@ test("the box's kitchen reads its machine before each claim: short of disk, it s
     try {
       const station = etatStation(journal.base, "box/claude");
       assert.deepEqual([station?.saturatedResource, station?.saturatedLimit], ["disk", 1_000_000_000]);
+    } finally {
+      journal.fermer();
+    }
+  } finally {
+    cuisine.arreter("fin du test");
+    await cuisine.arretee?.();
+  }
+});
+
+test("the box's kitchen short of disk names the biggest of what brigade leaves on it, in the fact and the log, and still asks its arbiter (#4090)", { skip: posixOnly("the kitchen measures with `du`, which Windows has not: there it names nobody") }, async (t) => {
+  // Un arbitre qui compte ce qu'on lui demande, et ne répond rien d'utile : la prise part quand même.
+  let demandes = 0;
+  const arbitre = createServer((_requete, reponse) => {
+    demandes += 1;
+    reponse.writeHead(503).end();
+  });
+  await new Promise<void>((pret) => arbitre.listen(0, "127.0.0.1", pret));
+  t.after(() => arbitre.close());
+  const port = String((arbitre.address() as AddressInfo).port);
+  const { cuisine, dits, prises, etat } = ouvrir(t, { variables: { BRIGADE_MIN_FREE_DISK_MB: "1000000000", BRIGADE_MAX_LOAD_PER_CORE: "1000000", BRIGADE_MIN_FREE_MEMORY_MB: "0", BRIGADE_ARBITER_PORT: port } });
+  try {
+    await jusqua(() => prises().length > 0);
+    // Le lecteur du consommateur s'ajoute aux gardes de la prise sans en retirer aucune : l'arbitre est consulté.
+    assert.ok(demandes > 0);
+    const journal = ouvrirJournal(etat, { lectureSeule: true });
+    try {
+      const [cause] = etatStation(journal.base, "box/claude")?.saturatedCauses ?? [];
+      assert.equal(cause?.resource, "disk");
+      assert.match(cause?.consumer ?? "", /^[^/\\ ]+\/ \(\d+(\.\d)? [MG]B\)$/);
+      assert.ok(dits.some((dit) => dit.includes(`MB — biggest: ${cause?.consumer}`)), dits.join("\n"));
     } finally {
       journal.fermer();
     }
