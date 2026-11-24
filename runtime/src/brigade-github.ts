@@ -68,6 +68,7 @@ import { corpsDeCeQuiEstFait, lirePointsALEcran, numeroDeLaPR } from "./validati
 import { avecChangements, lireChangements } from "./validation-design/changements.ts";
 import { cleDansLaLivraison, lancementDuCook, moteurDeLaStation, noterLaLivraison } from "./moteur/moteur.ts";
 import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-design/choix-de-design.ts";
+import { consigneDesOutils, outilsDuCook } from "./outils-du-cook.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
@@ -3168,6 +3169,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
     // identifiant, et `gh issue view` lui serait refusé.
     let joint: string;
+    let corpsDuTicket = "";
     // Ses critères admettent un constat écrit pour tout livrable (#2854).
     let constatAdmis: boolean;
     let brigade = false;
@@ -3177,6 +3179,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (lue === null) throw new Error("the issue no longer exists");
       commentairesDuTicket = commentaires;
       joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
+      corpsDuTicket = lue.body ?? "";
       constatAdmis = admetUnConstat(lue.body ?? "");
       brigade = livreSousBrigade(lue.body ?? "", commentaires.map(({ body }) => body));
     } catch (erreur) {
@@ -3344,6 +3347,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     } else if (prOuverte !== null) joint += `\n\n${consigneDuDesaccord(prOuverte)}`;
     const brief = briefDuRenvoi(renvoi, base);
     if (brief !== "") joint += `\n\n${brief}`;
+    // Les outils que le ticket demande et que le projet déclare (#4162) ; un
+    // outil demandé et non déclaré est dit, ici et au cook.
+    const outils = outilsDuCook({ projet: options.projet?.(), corpsDuTicket });
+    if (outils.message) avertir(`brigade : #${ticket.number} sur ${nom} — ${outils.message}`);
+    const consigneOutils = consigneDesOutils(ticket.number, outils);
+    if (consigneOutils) joint += `\n\n${consigneOutils}`;
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
     // dépendances, ses premières gates sortaient rouges — contrôle de types
     // injouable —, et il les rejouait après le setup. Le setup part sans le
