@@ -78,6 +78,7 @@ import { changerLeJour, lireLeJour, lireLesResumes, publierLeResume, type Resume
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
+import { poserLaCommande } from "./commande-brigade.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { apkLink, RELEASES_URL } from "./mise-a-jour/android.ts";
@@ -103,7 +104,7 @@ import { tenirLaStationDeFond } from "./station-fond/attache.ts";
 import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
 import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
-import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
+import { claudeDe, connexionDeLaSession, ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
@@ -775,7 +776,17 @@ const stationLocale =
     : undefined;
 // Les pannes d'une station, sur sa ligne de la home : chacune a son bouton (pannes/gestes.ts). Le
 // login ne part que pour la station de cet ordinateur, par le `claude` officiel (pannes/login.ts).
-const loginIci = tenirLogin({ claude: process.env.BRIGADE_CLAUDE_BIN || "claude", env: process.env, dire: (ligne) => console.error(ligne), apres: () => void stations.relire() });
+// Sa fin part aussi à la vue : une ouverture de projet qu'il retenait, au premier lancement, repart (#4057).
+const claudeIci = claudeDe(process.env);
+const loginIci = tenirLogin({
+  claude: claudeIci,
+  env: process.env,
+  dire: (ligne) => console.error(ligne),
+  apres: () => {
+    void stations.relire();
+    dire("loginClaude");
+  },
+});
 const gestesDesPannes = { stations, stationLocale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), login: loginIci };
 if (role.role === "poste") console.error(`brigade: this app is a workstation, not a station — ${role.pourquoi}: it pilots, nothing cooks here`);
 // Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
@@ -1407,6 +1418,11 @@ const ouvrirUnProjetDUneStation = ouvrirDUneStation({
   configuration: () => suivi.configuration(),
   ajouter: (projet) => suivi.ajouter(projet),
   progres: (depot, etape) => dire("ouverture", depot, etape),
+  // Avant que la cuisine démarre (#4057) : ce que `claude auth status` dit de cet ordinateur, sans appel au modèle.
+  connexionClaude: async () => {
+    const { sessionClaude } = await duRuntime<typeof import("../../runtime/src/claude.ts")>("claude.ts");
+    return connexionDeLaSession(await sessionClaude(claudeIci, process.env));
+  },
 });
 // Le dépôt choisi dans « Add a project » (#2627) : est-il prêt pour brigade — ses bindings, ses labels —, et le
 // geste qui l'y prépare, par le contrat du runtime (#2626) joué sur sa copie locale (projets/preparation-du-depot.ts).
@@ -1473,6 +1489,8 @@ const outilsRequis = tenirOutilsRequis({
 });
 ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
 ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
+// Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
+ipcMain.handle("seConnecterAClaude", () => loginIci());
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();
@@ -2022,6 +2040,8 @@ if (plateforme === "win32") app.setAppUserModelId(process.execPath);
 void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installeeAuLancement) return app.quit();
+  // La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
+  poserLaCommande({ plateforme, facon: emplacements.facon, maison: homedir(), version: app.getVersion(), runtime: emplacements.runtime, node: emplacements.node, racine: racineDeLaStation, chemin: process.env.PATH ?? "" });
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.
   // Windows : l'exécutable garde l'icône d'Electron, la fenêtre reçoit donc toujours la sienne — le
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.
