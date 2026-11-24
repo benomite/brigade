@@ -310,6 +310,9 @@ function stockageDeLaVue() {
 // La visite d'une vraie cuisine (ticket 4087, visite/) : son écran par-dessus tout, la cuisine de Brigade en lecture seule,
 // l'étape où en est la visite guidée, et ce que la dernière lecture de cette cuisine a rendu — absente, elle est en route.
 const sectionVisite = element("visite");
+// L'app derrière la visite : inerte tant que la visite est ouverte — aucun de ses gestes sur un ticket ne se focalise, ne
+// se lit ni ne se clique sous l'écran de la visite, même quand un projet est ouvert dessous.
+const cadreSousLaVisite = element("cadre");
 const visite = tenirLaVisite({ rendre: () => poserLaVisite() });
 /** @type {import("../visite.ts").CuisineVisitee | undefined} */
 let cuisineVisitee;
@@ -8259,6 +8262,7 @@ function poserLaVisite() {
   if (enCours === undefined) {
     marquerLaCible(undefined);
     sectionVisite.hidden = true;
+    cadreSousLaVisite.inert = false;
     return sectionVisite.replaceChildren();
   }
   const ecran = poserLaCuisineVisitee(document, cuisineVisitee, { quitter: () => visite.quitter(), relire: () => void lireLaCuisineVisitee() });
@@ -8276,6 +8280,7 @@ function poserLaVisite() {
     }),
   );
   sectionVisite.hidden = false;
+  cadreSousLaVisite.inert = true;
   marquerLaCible(etape === undefined ? undefined : trouverLaCible({ rail: ecran.rail, second: ecran.second }, etape.cible));
 }
 

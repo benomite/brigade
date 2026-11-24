@@ -506,6 +506,29 @@ describe("la vue jouée : la lecture de la cuisine", () => {
   });
 });
 
+describe("la vue jouée : la visite, avec un compte qui peut écrire sur benomite/brigade", () => {
+  test("à chaque étape, l'écran de la visite n'offre que de quitter, d'avancer et, à la fin, « add my project » ; l'app dessous est inerte, rendue quittée", async () => {
+    const ecrivain = { login: "maintainer", permission: "admin" } as unknown as { login: string };
+    const vue = await jouerLaVue({ demarrage: () => demarrage([MIEN]), compteGitHub: () => ecrivain, espace: () => [], lireLaCuisineVisitee: (() => cuisineLue(true)) as never }, { stockage: new FauxStockage() });
+    await repos();
+    assert.equal(vue.element("cadre").inert, false, "hors visite, l'app se manie");
+    rejouer(vue).click();
+    await repos();
+    const offerts: string[][] = [];
+    for (let pas = 1; pas <= 6; pas++) {
+      offerts.push(vue.element("visite").dessous("button").map(({ textContent }) => textContent));
+      assert.equal(vue.element("cadre").inert, true, `étape ${pas} : aucun geste de l'app dessous ne se manie sous la visite`);
+      if (pas < 6) bouton(vue, SUIVANTE).click();
+      await repos();
+    }
+    assert.deepEqual(offerts, [...Array(5).fill([QUITTER, SUIVANTE]), [QUITTER, AJOUTER_LE_SIEN]]);
+    assert.deepEqual(vue.appels.filter(({ geste }) => /creer|deplacer|commenter|fermer|lancer|poster|approuver|ouvrirDUneStation|clone|ajouter/i.test(geste)), []);
+    bouton(vue, QUITTER).click();
+    await repos();
+    assert.equal(vue.element("cadre").inert, false, "quittée, l'app se manie de nouveau");
+  });
+});
+
 describe("la vue jouée : la visite rejouée depuis la barre", () => {
   test("avec un projet à soi : l'entrée « Replay the visit » la rejoue de sa première étape, sans ouvrir ni ajouter de projet", async () => {
     const vue = await jouerLaVue({ demarrage: () => demarrage([MIEN]), espace: () => [], lireLaCuisineVisitee: (() => cuisineLue(true)) as never }, { stockage: new FauxStockage() });
