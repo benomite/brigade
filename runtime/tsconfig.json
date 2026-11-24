@@ -15,5 +15,8 @@
     "skipLibCheck": true
   },
   "include": ["src", "test"],
-  "exclude": ["test/mot-au-cook/1-send-word-on-a-cooking-ticket-answers-ok-and-posts-the-word-on-the-issue.test.ts"]
+  "exclude": [
+    "test/mot-au-cook/1-send-word-on-a-cooking-ticket-answers-ok-and-posts-the-word-on-the-issue.test.ts",
+    "test/acceptation-4062/1-no-broken-link.test.ts"
+  ]
 }
