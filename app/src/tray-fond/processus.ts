@@ -9,7 +9,7 @@ import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { setTimeout as attendre } from "node:timers/promises";
-import { app, dialog, nativeImage, type Tray, type MenuItemConstructorOptions } from "electron";
+import { app, dialog, nativeImage, type MenuItemConstructorOptions } from "electron";
 import { lancerIci, type Locale } from "../box.ts";
 import type { ProjetLu } from "../barre-de-menus.ts";
 import { cheminConfiguration, lireConfiguration } from "../config.ts";
@@ -18,7 +18,7 @@ import { cheminDe, emplacementsDe, lireCheminDuShell } from "../emplacements.ts"
 import { shellDuPoste } from "../plateforme.ts";
 import { servisPar } from "../poste/cuisine-ici.ts";
 import { prendreLaPlace } from "./instance.ts";
-import { creerLIcone, ICONE_DE_LA_BARRE, poserLaLigne, poserLeMenu, retirerLIcone } from "../tray/icone.ts";
+import { creerLIcone, ICONE_DE_LA_BARRE, PlaceTenue, type IconeUnique } from "../tray/icone.ts";
 import { ligneDuFond } from "../tray/ligne.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
 import { DOSSIER_DU_FOND, ecrireLaVersionDuFond, executer, quitterLaStation } from "./systeme.ts";
@@ -61,7 +61,7 @@ const racine = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfigurati
 const locale: Locale = { node: emplacements.node, runtime: emplacements.runtime, racine, env: process.env };
 const lancer: Lancer = (projet, commande) => lancerIci(locale, projet, commande, DELAI_MS);
 
-let icone: Tray | undefined;
+let icone: IconeUnique | undefined;
 let projets: ProjetLu[] = [];
 // Garder ce Mac éveillé tant qu'un cook cuit (#3642) : le réglage et l'état que la station écrit sous son répertoire, lus
 // et écrits par le module du runtime qui les tient.
@@ -132,7 +132,7 @@ function entreeDuMenu(entree: EntreeDuFond): MenuItemConstructorOptions {
 
 function poser(actif: boolean): void {
   if (!actif) {
-    if (icone !== undefined) retirerLIcone(icone);
+    icone?.retirer();
     icone = undefined;
     dite = "";
     return;
@@ -144,8 +144,12 @@ function poser(actif: boolean): void {
       return;
     }
     // Une seule icône dans la barre (#4079) : tenue par l'app, elle n'en pose pas — et la pose quand l'app part.
-    icone = creerLIcone(image, plateforme);
-    if (icone === undefined) return;
+    try {
+      icone = creerLIcone(image, plateforme);
+    } catch (erreur) {
+      if (!(erreur instanceof PlaceTenue)) console.error(`brigade: the station's icon could not be posed — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      return;
+    }
   }
   const station = etatDeLaStation(projets);
   const entrees = menuDuFond(projets, station, veille);
@@ -153,8 +157,8 @@ function poser(actif: boolean): void {
   if (pose === dite) return;
   dite = pose;
   const ligne = ligneDuFond(projets, station);
-  poserLaLigne(icone, image, { infobulle: "brigade station", ligne, questions: questionsDuFond(projets), plateforme });
-  poserLeMenu(icone, entrees.map(entreeDuMenu));
+  icone.ligne(image, { infobulle: "brigade station", ligne, questions: questionsDuFond(projets) });
+  icone.menu(entrees.map(entreeDuMenu));
 }
 
 async function relire(): Promise<void> {

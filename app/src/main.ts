@@ -8,7 +8,9 @@ import { menuDeLApp } from "./aide-communaute.ts";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
-import { creerLIcone, ICONE_DE_LA_BARRE, poserLaLigne, poserLeMenu, retirerLIcone } from "./tray/icone.ts";
+import { creerLIcone, ICONE_DE_LA_BARRE } from "./tray/icone.ts";
+import { ligneDuFond } from "./tray/ligne.ts";
+import { etatDeLaStation } from "./tray-fond/tray-fond.ts";
 import { executer, garderLIcone, stationDeFondInstallee } from "./tray-fond/systeme.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
@@ -442,18 +444,17 @@ function entreeDuMenu(entree: Entree): MenuItemConstructorOptions {
   }
 }
 const barreDeMenus = tenirBarreDeMenus({
+  // L'icône unique dit l'état de la station avec les comptes, qu'elle soit posée par l'app ou par la station de fond (#4079).
+  ligne: (projets) => ligneDuFond(projets, etatDeLaStation(projets)),
   creer: () => {
     const image = nativeImage.createFromPath(ICONE_DE_LA_BARRE);
     if (image.isEmpty()) throw new Error(`its icon could not be read: ${ICONE_DE_LA_BARRE}`);
+    // Une seule icône dans la barre (#4079) : si celle de la station de fond la tient, cela lève `PlaceTenue`, et l'app la pose à sa lecture suivante.
     const icone = creerLIcone(image, plateforme);
-    // Une seule icône dans la barre (#4079) : celle de la station de fond la tient, l'app la pose à sa lecture suivante si elle part.
-    if (icone === undefined) throw new Error("the station's icon already holds the menu bar");
     return {
-      poser: (ligne, questions) => {
-        poserLaLigne(icone, image, { infobulle: "brigade", ligne, questions, plateforme });
-      },
-      menu: (entrees) => poserLeMenu(icone, entrees.map(entreeDuMenu)),
-      retirer: () => retirerLIcone(icone),
+      poser: (ligne, questions) => icone.ligne(image, { infobulle: "brigade", ligne, questions }),
+      menu: (entrees) => icone.menu(entrees.map(entreeDuMenu)),
+      retirer: () => icone.retirer(),
     };
   },
 });

@@ -13,7 +13,8 @@ import { garderLIcone, inscrireLeFond, quitterLaStation, stationDeFondInstallee 
 
 type Systeme = Parameters<typeof inscrireLeFond>[0];
 type Executer = Systeme["executer"];
-import { ligneDuFond, etatDeLaStation } from "../src/tray-fond/tray-fond.ts";
+import { etatDeLaStation } from "../src/tray-fond/tray-fond.ts";
+import { ligneDuFond } from "../src/tray/ligne.ts";
 
 const A = "2026-11-15T10:00:00.000Z";
 const faits = (cooks: number, questions: number, etat = "ouverte"): Faits => ({

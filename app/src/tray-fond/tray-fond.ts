@@ -10,12 +10,8 @@
 // « Piloter ») : la pause, `switch off` — les cooks en cours finissent, rien de neuf n'est pris — ; l'arrêt,
 // `station stop <station>` sur chaque station de cet ordinateur — elle ne prend plus rien, ses cooks finissent.
 import { enAttente, etatDeLaCuisine, type ProjetLu } from "../barre-de-menus.ts";
-import { ligneDuFond } from "../tray/ligne.ts";
+import { ligneDuFond, type EtatDeLaStation } from "../tray/ligne.ts";
 import { menuDeVeille, type Veille } from "../vue/veille-machine/veille-machine.js";
-
-// La station de fond, d'après les faits de ses projets : en pause quand chacun est éteint, arrêtée quand chaque station
-// de cet ordinateur l'est sur chacun — ou rien d'elle ne se lit.
-export type EtatDeLaStation = { pause: boolean; arret: boolean } | "illisible";
 
 export type Geste = "ouvrir" | "pause" | "reprise" | "arret" | "demarrage" | "quitter" | "veille";
 // `case` : un réglage qui se coche — garder ce Mac éveillé tant qu'un cook cuit (#3642).
@@ -28,6 +24,8 @@ export type EntreeDuFond =
 // Un projet tel que le fond le lit : `ProjetLu`, et les stations de cet ordinateur que ses faits déclarent.
 const stationsIci = ({ faits }: ProjetLu): { station: string; cuisson?: string }[] => (faits?.stations ?? []).filter(({ distante }) => !distante);
 
+// La station de fond, d'après les faits de ses projets : en pause quand chacun est éteint, arrêtée quand chaque station
+// de cet ordinateur l'est sur chacun — ou rien d'elle ne se lit.
 export function etatDeLaStation(projets: readonly ProjetLu[]): EtatDeLaStation {
   const lus = projets.filter(({ faits }) => faits !== undefined);
   if (lus.length === 0) return "illisible";
@@ -91,5 +89,3 @@ export const questionsDuFond = (projets: readonly ProjetLu[]): number => enAtten
 // s'ouvrirait à chaque connexion.
 const ACTIVATE_IGNORE_MS = 2_000;
 export const clicSurLApp = (demarrage: number, maintenant: number): boolean => maintenant - demarrage >= ACTIVATE_IGNORE_MS;
-
-export { ligneDuFond };
