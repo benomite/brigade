@@ -34,7 +34,6 @@ import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrent
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { brancherLeMotAuCook } from "./vue/mot-au-cook/mot-au-cook-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
-import { pagesDeLaDemo } from "./vue/demo/pages.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -54,6 +53,7 @@ import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lectureSousBudget, tenirLeBudgetGitHub } from "./budget-github.ts";
 import { FRAICHEUR_MAX_D_UNE_LECTURE_MS } from "./vue/servi/fraicheur.ts";
 import { activitesPubliees, lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
+import { lireLaCuisineVisitee } from "./visite.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
@@ -1502,41 +1502,15 @@ ipcMain.handle("telephoneConnecte", async (): Promise<{ connecte: boolean } | { 
     return { illisible: erreur instanceof Error ? erreur.message : String(erreur) };
   }
 });
-// Le projet de démo du premier lancement (#3734, né projet d'essai, #3227, runtime/src/demo/) : l'instant du premier
-// lancement, noté une fois ; le dépôt privé créé sur le compte du `gh` de cet ordinateur avec trois tickets prêts à
-// cuire ; son service lu
-// sur GitHub ; sa suppression — du seul dépôt noté —, et la permission `delete_repo` que `gh` fait accorder quand elle
-// manque, comme la connexion (connexion-github.ts). Tout ce qui en est gardé est à côté du fichier des projets.
-const projetDEssai = () => duRuntime<typeof import("../../runtime/src/demo/projet-de-demo.ts")>("demo", "projet-de-demo.ts");
-const ghDeLEssai = async () => (await duRuntime<typeof import("../../runtime/src/proteger-branche.ts")>("proteger-branche.ts")).clientGh(ghIci, process.env);
-const dossierDeLEssai = dirname(cheminConfiguration());
-void projetDEssai().then(
-  ({ noterLePremierLancement }) => {
-    const lu = noterLePremierLancement(dossierDeLEssai, new Date());
-    if ("illisible" in lu) console.error(`brigade: the first launch is not recorded — ${lu.illisible}`);
-  },
-  (erreur: unknown) => console.error(`brigade: the first launch is not recorded — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
+// La cuisine que la visite montre (#4087, visite.ts) : benomite/brigade, son rail et ce qui y attend un humain, lus sur
+// GitHub par la lecture même du rail d'un projet — des lectures seules, sous le budget du jeton du chef. Rien n'est cloné
+// ni ajouté au fichier des projets.
+ipcMain.handle("lireLaCuisineVisitee", (_, depot: unknown) =>
+  lireLaCuisineVisitee(depot, async (vise) => {
+    const lu = await lireLeTableauDuDepot({ depot: vise, appeler: appelerSousBudget, memoire: memoireDuRail(vise) });
+    return avecCeQuiAttendLeChef(lu, lectureConditionnelle(appelerSousBudget, memoireDuRail(vise)));
+  }),
 );
-// Ses pages — le dépôt, ses tickets, sa PR — s'ouvrent depuis l'écran.
-const retenirLEssai = <T extends object>(rendu: T): T => {
-  const projet = "sample" in rendu ? (rendu.sample as { url: string; ticketUrl?: string; pullRequest?: string } | undefined) : undefined;
-  for (const page of pagesDeLaDemo(projet)) pagesDuPremier.add(page);
-  return rendu;
-};
-ipcMain.handle("projetDEssai", async () => retenirLEssai(await (await projetDEssai()).suivreLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai)));
-ipcMain.handle("creerLeProjetDEssai", async () => retenirLEssai(await (await projetDEssai()).creerLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai, new Date())));
-ipcMain.handle("supprimerLeProjetDEssai", async (_, depot: unknown) => (await projetDEssai()).supprimerLeProjetDEssai(await ghDeLEssai(), dossierDeLEssai, depot, new Date()));
-const permissionDeSuppression = tenirConnexionGitHub({
-  commande: async () => [ghIci, "auth", "refresh", "--hostname", "github.com", "--scopes", (await projetDEssai()).PERMISSION],
-  env: process.env,
-  ouvrir: (adresse) => shell.openExternal(adresse),
-  apres: (fin) => dire("permissionDeSuppression", fin),
-});
-ipcMain.handle("demanderLaPermissionDeSuppression", async () => {
-  const debut = await permissionDeSuppression();
-  if ("page" in debut) pagesDuPremier.add(debut.page);
-  return debut;
-});
 // Le rail qu'une station publie dans son gist pour un projet qu'aucune station connue ne sert ici (#1435), lu par
 // l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui que l'app lit sur GitHub, pour
 // tout projet. Tant qu'il ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
