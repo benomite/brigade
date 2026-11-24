@@ -18,7 +18,7 @@ import type { AttenteSourcee, TicketDuRail, TicketEnWaiting } from "../../../../
 import { attenteDeLIssue } from "../../../../runtime/src/attente-github/marque.ts";
 import { attentesDuTicket } from "../../../../runtime/src/carte-attente/carte-attente.ts";
 import { etatDuTicket, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
-import { alertesDuRail, type AlerteDuRail, type BaseRougeLue } from "../../attente-du-rail/alertes.ts";
+import { alertesDuRail, type AlerteDuRail, type BaseRougeLue, type RelanceLue } from "../../attente-du-rail/alertes.ts";
 import { etapeDuRail } from "../../../../runtime/src/tests-acceptation/etape.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
 import type { Cook } from "../../faits.ts";
@@ -348,6 +348,12 @@ function baseRougeDuRail(tickets: readonly TicketSurGithub[]): BaseRougeLue | nu
 // Les alertes du haut du rail (ticket 3823, attente-du-rail/alertes.ts), de ce que la lecture du rail sait : l'en-tête
 // — les stations qui cuisent ce projet —, le dernier cook — la PR la plus récente qu'un cook a ouverte —, le dernier service, la
 // réparation de main, et les prises de chaque ticket. Le plafond de cooks, que GitHub ne publie pas, n'est jamais deviné.
+// Ce que le ticket dit déjà de sa boucle : en WAITING, ou une carte qui attend le chef (#4042).
+function arretDeLaBoucle(etat: string, qui: string | null | undefined, miseDeCote: MiseDeCote | undefined): { arret?: NonNullable<RelanceLue["arret"]> } {
+  if (miseDeCote?.auChef === true) return { arret: { sorte: "carte", besoin: miseDeCote.raison } };
+  return etat === MOT_DE_L_ETAT.waiting ? { arret: { sorte: "waiting", qui: qui ?? null } } : {};
+}
+
 function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: readonly ServiSurGithub[], cuisinent: readonly string[], stations: StationsLues, maintenant: number): { alertesDuRail?: AlerteDuRail[] } {
   const plusRecent = (instants: readonly string[]) => instants.filter((le) => !Number.isNaN(Date.parse(le))).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
   const alertes = alertesDuRail({
@@ -360,7 +366,7 @@ function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: r
     cookEnCours: tickets.some(({ etat }) => etat === "pris"),
     dernierCook: plusRecent(tickets.flatMap(({ pr }) => (pr === null ? [] : [pr.le]))),
     baseRouge: baseRougeDuRail(tickets),
-    relances: tickets.flatMap(({ ticket, prises }) => (prises === undefined ? [] : [{ ticket, ...prises }])),
+    relances: tickets.flatMap(({ ticket, prises, etat, qui, miseDeCote }) => (prises === undefined ? [] : [{ ticket, ...prises, ...arretDeLaBoucle(etat, qui, miseDeCote) }])),
     dernierServiLe: plusRecent(servis.map(({ livre }) => livre)),
     misDeCoteParEchecs: tickets.flatMap(({ ticket, miseDeCote, miseDeCoteLe: le }) => (le === undefined || miseDeCote === undefined ? [] : [{ ticket, depuis: le, raison: miseDeCote.raison }])),
   });
