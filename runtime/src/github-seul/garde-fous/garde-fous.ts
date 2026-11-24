@@ -28,7 +28,9 @@ import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
+import { worktreesDuProjet } from "../../depot.ts";
 import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
+import { recuperer, type Fichiers } from "./recuperation.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
@@ -91,6 +93,8 @@ export type OptionsDesGardes = {
   // Un disque saturé que la cuisine ne peut plus libérer, sans cook en vol,
   // est dit au chef par une carte de TODO (#4091). Absent : rien ne se dit.
   disquePlein?: DisquePlein;
+  // Ce que la récupération lit et retire sur le disque (`recuperation.ts`) ; le vrai disque par défaut.
+  fichiers?: Fichiers;
   maintenant?: () => Date;
   avertir?: (message: string) => void;
   // L'environnement de la station, où se lit son moteur de repli (#3745).
@@ -157,6 +161,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // rail plein ne parte pas d'un bloc.
   let accordees: number[] = [];
   let machineIllisible = false;
+  // Les restes des cooks partis ont été rendus ce tour-ci : une seule fois par tour.
+  let recupereCeTour = false;
   let saturee = false;
   // La machine à court retient les tickets de ce tour, sauf la réparation de la saturation (#4100).
   let machineRetient = false;
@@ -216,20 +222,36 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // Une machine qui ne se lit pas ne retient rien — les places de la station
   // bornent toujours ses cooks — et le dit une fois.
   const machineAcourt = (cooks: number): boolean => {
-    if (options.machine === undefined) return false;
-    let manques: Saturation[];
-    let lue: Machine;
-    try {
+    const { machine } = options;
+    if (machine === undefined) return false;
+    const mesurer = () => {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
-      lue = options.machine.lire();
-      manques = saturations(reserver(lue, accordees.length), options.machine.seuils, saturees);
+      const lue = machine.lire();
+      return { lue, manques: saturations(reserver(lue, accordees.length), machine.seuils, saturees) };
+    };
+    let mesure: { lue: Machine; manques: Saturation[] };
+    try {
+      mesure = mesurer();
+      // Saturée sans cook en vol : ce que les cooks partis ont laissé se rend, puis la machine se relit.
+      if (mesure.manques.length > 0 && cooks === 0 && !recupereCeTour) {
+        recupereCeTour = true;
+        try {
+          const { retires, echecs } = recuperer({ worktrees: worktreesDuProjet(options.env ?? {}, repertoireEtat), repertoireEtat }, options.fichiers, maintenant);
+          if (retires.length > 0) avertir(`brigade : GitHub-only station ${station} gave back ${retires.length} leftover worktree(s) and run file(s) of exited cooks`);
+          if (echecs.length > 0) avertir(`brigade : GitHub-only station ${station} could not reclaim ${echecs.join(", ")}`);
+        } catch (erreur) {
+          avertir(`brigade : GitHub-only station ${station} could not reclaim what exited cooks left (${message(erreur)})`);
+        }
+        mesure = mesurer();
+      }
       machineIllisible = false;
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
       machineIllisible = true;
       return false;
     }
+    const { lue, manques } = mesure;
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
       const [premier] = manques;
@@ -370,6 +392,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       // Aucun ticket à prendre ce tour : plus rien ne retient la station.
       if (!lueCeTour) dire(null);
       lueCeTour = false;
+      recupereCeTour = false;
       if (arbitre !== null) await echanger(cooks, false);
       enAttente = false;
     },
