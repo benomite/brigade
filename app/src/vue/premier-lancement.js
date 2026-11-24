@@ -9,7 +9,8 @@
 // le runtime en nomme une. L'écran n'est jamais vide.
 // Sous elle, le projet qu'il veut cuisiner — un dépôt `owner/repo`, ou un nom seul que complète le compte connecté. Rien
 // n'y est prérempli ; son exemple est neutre. L'écran « Add a project », qui choisit parmi ses dépôts (ticket 3181), reste
-// à un clic, sous la liste. À côté de « open this project », « try on a demo project » (ticket 3734, ajout-projet/ajout-ou-demo.js).
+// à un clic, sous la liste. Sous le compte, les deux choix du nouveau venu, côte à côte (ticket 4087, accueil/choix/choix.js) :
+// « visit a real kitchen » et « add my project ». Rien ne s'ouvre ni ne s'ajoute de lui-même.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "./briques.js";
@@ -20,7 +21,7 @@ import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { REESSAYER, PAS_ENCORE } from "./lexique.js";
-import { ajoutOuDemo } from "./ajout-projet/ajout-ou-demo.js";
+import { poserLesDeuxChoix } from "./accueil/choix/choix.js";
 import { poserLesOutils } from "./outils-requis/outils-requis.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
@@ -47,7 +48,6 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   connexion?: Connexion,
  *   compte?: CompteGitHub,
  *   saisie?: { projet: string },
- *   essai?: import("./demo/demo.js").EtatDeLEssai,
  *   outils?: import("./outils-requis/outils-requis.js").EtatDesOutils,
  * }} EtatDuPremier
  */
@@ -58,7 +58,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   relire: () => void,
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnProjet: () => void,
- *   essayer?: () => void,
+ *   visiter?: () => void,
  *   outils?: { installer: () => void, verifier: () => void },
  * } & GestesDuCompte} GestesDuPremier
  */
@@ -214,8 +214,7 @@ function formulaireDuProjet(doc, etat, geste) {
   // Tant qu'aucun compte n'est connecté, le geste recommandé est celui du compte.
   const bouton = boutonAction(doc, OUVRIR_CE_PROJET, ouvrir, { recommande: compte !== "" });
   bouton.children[0].disabled = enCours;
-  // À côté, le projet de démo (ticket 3734) : rien à taper.
-  racine.append(...champ("projet-du-premier", PROJET, PROJET_EXEMPLE, "projet"), refus, ajoutOuDemo(doc, bouton, etat.essai, geste.essayer));
+  racine.append(...champ("projet-du-premier", PROJET, PROJET_EXEMPLE, "projet"), refus, gestes(doc, [bouton]));
   if (etat.ouverture?.station === "") racine.append(...ouvertureDite(doc, etat.ouverture, etat, geste));
   return racine;
 }
@@ -239,7 +238,7 @@ export function poserPremierLancement(doc, etat, geste) {
   accueil.className = "bienvenue";
   const compte = cree(doc, "div");
   compte.className = "compte-du-premier";
-  racine.append(accueil, compte);
+  racine.append(accueil, compte, poserLesDeuxChoix(doc, { visiter: geste.visiter, ajouter: geste.ajouterUnProjet }));
   // Un outil qui manque (ticket 4059) tient la place du compte : sans lui, ni la connexion ni le clone ne partent. Le
   // projet tapé reste dessous, tel quel ; les stations, qui ne se lisent pas sans lui, attendent.
   const outils = etat.outils === undefined || geste.outils === undefined ? [] : poserLesOutils(doc, etat.outils, geste.outils);
