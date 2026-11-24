@@ -171,6 +171,18 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
   };
 
+  // Une ressource qui manque, avec son plus gros consommateur quand la machine
+  // lue le mesure (#4090) : un lecteur absent, qui échoue ou ne nomme rien la
+  // laisse telle quelle.
+  const nommer = (machine: Machine) => (manque: Saturation): Saturation => {
+    try {
+      const gros = machine.consommateur?.(manque.resource) ?? null;
+      return gros === null ? manque : { ...manque, consumer: `${gros.name} (${gros.amount})` };
+    } catch {
+      return manque;
+    }
+  };
+
   // Ce dont la machine manque, ses prises récentes comptées d'avance ; le
   // journal le dit quand les ressources en cause changent. Sans cook en vol,
   // elle ne retient rien : jamais moins d'un cook, comme le plafond des cœurs.
@@ -179,10 +191,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   const machineAcourt = (cooks: number): boolean => {
     if (options.machine === undefined) return false;
     let manques: Saturation[];
+    let lue: Machine;
     try {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
-      manques = saturations(reserver(options.machine.lire(), accordees.length), options.machine.seuils, saturees);
+      lue = options.machine.lire();
+      manques = saturations(reserver(lue, accordees.length), options.machine.seuils, saturees);
       machineIllisible = false;
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
@@ -191,13 +205,15 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
-      const [premier, ...autres] = manques;
+      const [premier] = manques;
       if (premier === undefined) {
         noter({ type: "station.relieved", payload: { station } });
         avertir(`brigade : the machine under GitHub-only station ${station} has room again`);
       } else {
-        noter({ type: "station.saturated", payload: { station, ...premier, ...(autres.length > 0 ? { also: autres } : {}) } });
-        const dit = direSaturationsEn(manques);
+        const nommes = manques.map(nommer(lue));
+        const [tete = premier, ...aussi] = nommes;
+        noter({ type: "station.saturated", payload: { station, ...tete, ...(aussi.length > 0 ? { also: aussi } : {}) } });
+        const dit = direSaturationsEn(nommes);
         avertir(`brigade : the machine under GitHub-only station ${station} runs short of ${dit.ressources} — ${dit.detail}`);
       }
       saturees = ressources;

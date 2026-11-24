@@ -16,7 +16,10 @@ export type Ressource = "cpu" | "memory" | "disk";
 // `limitFrom`, de la mémoire seulement : d'où vient son minimum — dérivé de la
 // mémoire totale de la machine, en Mo, ou réglé par `BRIGADE_MIN_FREE_MEMORY_MB`
 // (`env`). Absent d'un fait écrit avant qu'il existe.
-export type Manque = { resource: Ressource; observed: number; limit: number; limitFrom?: OrigineDuSeuil };
+// `consumer`, du disque et du processeur : le plus gros consommateur au moment
+// où la machine a manqué — un répertoire, un processus —, ou absent quand rien
+// ne peut être nommé.
+export type Manque = { resource: Ressource; observed: number; limit: number; limitFrom?: OrigineDuSeuil; consumer?: string };
 export type OrigineDuSeuil = { totalMb: number } | "env";
 
 // Ce qui retient une station de prendre un ticket qui pourrait partir : le
