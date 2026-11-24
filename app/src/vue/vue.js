@@ -7943,6 +7943,9 @@ function marquer() {
 // Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638), puis toutes les stations et
 // « + station », relues à chaque ouverture (ticket 3195) : l'écran se regarde, et un clic ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
 function ouvrirTous() {
+  // Sans projet (ticket 4082), « Tous les projets » est l'écran d'accueil du premier lancement : la marque du logo, et
+  // chaque retour des pages de l'app, y ramènent le novice en un clic.
+  if (avecPremier()) return ouvrirPremier();
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
