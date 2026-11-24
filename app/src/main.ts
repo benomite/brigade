@@ -76,7 +76,7 @@ import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts"
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
-import { apkLink } from "./mise-a-jour/android.ts";
+import { apkLink, RELEASES_URL } from "./mise-a-jour/android.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { voir as voirManager } from "./manager.ts";
@@ -2073,7 +2073,9 @@ void app.whenReady().then(() => {
   preferences.demarrer();
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
 }).catch((erreur: unknown) => {
-  // Un démarrage qui échoue ne reste pas muet : le chef voit pourquoi aucune fenêtre ne s'ouvre.
-  dialog.showErrorBox("brigade could not start", erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur));
+  // Un démarrage qui échoue ne reste pas muet : le chef lit en une phrase que la fenêtre ne s'ouvre pas, et quoi faire (#4071).
+  // Le détail, qu'il ne saurait lire, va au journal.
+  console.error(`brigade: the window could not be shown — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+  dialog.showErrorBox("brigade could not start", `Brigade could not show its window, so quit it and open it again, and if it still does not show, download it again from ${RELEASES_URL} and reinstall it.`);
   app.quit();
 });
