@@ -164,24 +164,7 @@ const textes = new Map(fichiers.map((f) => [f, readFileSync(f, "utf8")]));
 // Les arêtes d'un fichier : ses imports relatifs résolus, et, pour un test, tout
 // nom de fichier de code qu'il cite (un chemin qu'il lance ou lit) — par son nom,
 // donc au large.
-const CITE = /[\w.@/-]+\.(?:ts|mts|js|mjs|cjs)\b/g;
-// Les fichiers qu'une citation désigne : ceux qui portent le plus long des
-// suffixes de son chemin, `./` et `../` mis à part — `runtime/src/etat.ts` cité
-// par un test de l'app est celui du runtime. Si les deux zones portent ce
-// suffixe, celui de la zone du test : le `main.ts` qu'un test du runtime lance
-// n'est pas `app/src/main.ts`, qui touchait cinquante tests du runtime (#4071).
-const zoneDe = (f) => f.slice(0, f.indexOf("/"));
-function designes(f, cite) {
-  const segments = cite.split("/").filter((s) => s !== "" && s !== "." && s !== "..");
-  for (let i = 0; i < segments.length; i++) {
-    const suffixe = segments.slice(i).join("/");
-    const memes = (parNom.get(segments.at(-1)) ?? []).filter((g) => g !== f && (g === suffixe || g.endsWith(`/${suffixe}`)));
-    if (memes.length === 0) continue;
-    const ici = memes.filter((g) => zoneDe(g) === zoneDe(f));
-    return ici.length > 0 ? ici : memes;
-  }
-  return [];
-}
+const CITE = /[\w.@-]+\.(?:ts|mts|js|mjs|cjs)\b/g;
 const IMPORT = /(?:from\s*|import\s*\(\s*|import\s+)["'`](\.{1,2}\/[^"'`]+)["'`]/g;
 // Un import de type ne fait rien tourner : le typecheck le couvre. Un helper ne
 // le suit pas ; un test, si : sans lui, un fichier que ses tests n'importent que
@@ -205,7 +188,7 @@ for (const [f, texte] of textes) {
   // Le chemin d'un import est déjà une arête, résolue : son nom seul, cité, ferait
   // toucher chaque fichier du même nom — `../src/cuisine.ts` de l'app tirait
   // `runtime/test/aides/cuisine.ts`, qui sert presque tout le runtime (#1611).
-  if (f.endsWith(".test.ts")) for (const [cite] of texte.replace(IMPORT, "").matchAll(CITE)) for (const g of designes(f, cite)) vers.add(g);
+  if (f.endsWith(".test.ts")) for (const [nom] of texte.replace(IMPORT, "").matchAll(CITE)) for (const g of parNom.get(basename(nom)) ?? []) if (g !== f) vers.add(g);
   aretes.set(f, vers);
 }
 
