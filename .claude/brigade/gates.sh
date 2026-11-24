@@ -372,7 +372,13 @@ if [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] &
     done <<<"$SELECTION"
   fi
 fi
-if [ -z "$PORTEE" ] && [ "$COMME_LA_CI_WINDOWS" -eq 1 ]; then
+# Ce mode coûtait cher : 1 141 s de processeur par passage sur la box (#4090),
+# deux à trois passages par livraison, pour rejouer sur Linux ce que la CI
+# rejoue de toute façon en parallèle — et sans rien voir d'un rouge propre à
+# Windows. Il ne joue plus que sur demande (`BRIGADE_GATES_COMME_LA_CI=1`) : par
+# défaut, une station joue la fermeture du changement, et la CI de la PR reste
+# le juge complet avant le merge (#4141, le pass seul juge).
+if [ -z "$PORTEE" ] && [ "$COMME_LA_CI_WINDOWS" -eq 1 ] && [ "${BRIGADE_GATES_COMME_LA_CI:-}" = 1 ]; then
   ok "tests : tous, comme la CI Windows sur ce changement (runtime/, app/, docs/runtime/ ou .claude/brigade/)"
   case "$SELECTION_runtime" in
     rien) DUREE=(BRIGADE_DUREE_MODE=pr "BRIGADE_DUREE_BASE=$SOUCHE" BRIGADE_DUREE_STRICTS=) ;;
