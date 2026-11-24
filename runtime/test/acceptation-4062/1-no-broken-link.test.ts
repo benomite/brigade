@@ -16,11 +16,11 @@ const ancre = (titre: string): string =>
 test("every link of the install page and of the docs index points to a path that exists", () => {
   for (const fichier of FICHIERS) {
     const texte = readFileSync(resolve(RACINE, fichier), "utf8");
-    const liens = [...texte.matchAll(/\]\(\s*([^)\s]+)[^)]*\)/g)].map((m) => m[1]);
+    const liens = [...texte.matchAll(/\]\(\s*([^)\s]+)[^)]*\)/g)].map((m) => m[1] ?? "");
     assert.ok(liens.length > 0, `${fichier} has no link`);
     for (const lien of liens) {
       if (/^(https?:|mailto:)/.test(lien)) continue;
-      const [chemin, fragment] = lien.split("#");
+      const [chemin = "", fragment] = lien.split("#");
       const cible = chemin ? resolve(RACINE, dirname(fichier), chemin) : resolve(RACINE, fichier);
       assert.ok(existsSync(cible), `${fichier}: broken link to ${lien}`);
       if (fragment && cible.endsWith(".md")) {
