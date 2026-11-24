@@ -1,14 +1,26 @@
 // #4121 : le tableau que l'app dessine devient la vue que le second lit — déposée, relue par le crochet, bandeaux et carte avant le reste.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import type { VueDuProjet } from "../../src/second/contexte-du-blocage.ts";
 import type { Tableau } from "../../src/faits.ts";
 import { blocage } from "../../src/second/blocage-du-second.ts";
-import { deposerLaVue, vueDuTableau } from "../../src/second/vue-du-projet.ts";
+import { deposerLaVue } from "../../src/second/vue-du-projet.ts";
 
 const carte = { ticket: 221, etat: "queued", titre: "Espace: sync the board", ligne: "ready, waits for a place in the kitchen", ouvrable: true, attendu: false, attend: [], fiche: {}, dit: [] };
+// La vue que l'app dépose pour ce tableau, relue du fichier.
+function vueDeposee(t: Tableau): VueDuProjet {
+  const vues = mkdtempSync(join(tmpdir(), "vue-4121-lue-"));
+  try {
+    deposerLaVue("espace", t, vues);
+    return JSON.parse(readFileSync(join(vues, "espace.json"), "utf8")) as VueDuProjet;
+  } finally {
+    rmSync(vues, { recursive: true, force: true });
+  }
+}
+
 const tableau = {
   arretCuisine: { cause: { kind: "unknown" }, since: "2026-11-24T10:00:00Z" },
   alertesDuRail: [{ sorte: "aucun-cook", phrase: "No cook can start", fait: { depuis: "2026-11-24T10:00:00Z", ticket: 221 }, geste: "Start it on its computer", geree: null }],
@@ -17,7 +29,7 @@ const tableau = {
 } as unknown as Tableau;
 
 test("le tableau devient la vue : bandeaux STOPPED et FAULT #221, carte #221 affichée prête, état réel et geste", () => {
-  const vue = vueDuTableau(tableau);
+  const vue = vueDeposee(tableau);
   assert.deepEqual(vue.banners.map((b) => b.label), ["STOPPED", "FAULT #221"]);
   assert.equal(vue.rail[0]!.number, 221);
   assert.equal(vue.rail[0]!.displayed, "queued - ready, waits for a place in the kitchen");
@@ -27,7 +39,7 @@ test("le tableau devient la vue : bandeaux STOPPED et FAULT #221, carte #221 aff
 });
 
 test("sans raison dite à la file, la carte n'a pas d'état réel différent, et sans geste la vue n'en invente pas", () => {
-  const vue = vueDuTableau({ ...tableau, attenteDuRail: undefined } as unknown as Tableau);
+  const vue = vueDeposee({ ...tableau, attenteDuRail: undefined } as unknown as Tableau);
   assert.equal(vue.rail[0]!.real, vue.rail[0]!.displayed);
   assert.equal(vue.gesture, undefined);
 });

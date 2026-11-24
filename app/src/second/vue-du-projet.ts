@@ -17,7 +17,7 @@ function bandeauDArret(arret: NonNullable<Tableau["arretCuisine"]>): BandeauDeLa
   return { label: "STOPPED", waitsFor: "the cause is unknown", waitsOn: LE_CHEF };
 }
 
-export function vueDuTableau(tableau: Tableau): VueDuProjet {
+function vueDuTableau(tableau: Tableau): VueDuProjet {
   const geste = tableau.attenteDuRail?.geste;
   const banners: BandeauDeLaVue[] = [];
   if (tableau.arretCuisine !== undefined) banners.push(bandeauDArret(tableau.arretCuisine));
