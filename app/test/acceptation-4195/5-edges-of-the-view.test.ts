@@ -48,18 +48,18 @@ test("qui est attendu : chaque raison, seule", () => {
 
 test("« base rouge » : attendu tel quel quand le rail dit la base rouge, sinon ramené à « in pass »", () => {
   const rouge = deposee([carte(5, { etat: "base rouge" })], [{ sorte: "base-rouge", geree: null, fait: {}, phrase: "main is red" }]);
-  assert.equal(rouge.rail[0].waitsOn, "main to be green");
-  assert.equal(rouge.rail[0].displayed, "base rouge");
+  assert.equal(rouge.rail[0]!.waitsOn, "main to be green");
+  assert.equal(rouge.rail[0]!.displayed, "base rouge");
   const verte = deposee([carte(5, { etat: "base rouge" })]);
-  assert.equal(verte.rail[0].displayed, "in pass");
-  assert.match(verte.rail[0].waitsOn, /pass/);
+  assert.equal(verte.rail[0]!.displayed, "in pass");
+  assert.match(verte.rail[0]!.waitsOn, /pass/);
 });
 
 test("la ligne de la carte s'ajoute à son état quand elle en a une", () => {
   const vue = deposee([carte(1, { etat: "cooking", ligne: "cook on box" }), carte(2, { etat: "cooking" }), carte(3, { etat: "cooking", mot: "Cooking" })]);
-  assert.equal(vue.rail[0].displayed, "cooking - cook on box");
-  assert.equal(vue.rail[1].displayed, "cooking");
-  assert.equal(vue.rail[2].displayed, "Cooking");
+  assert.equal(vue.rail[0]!.displayed, "cooking - cook on box");
+  assert.equal(vue.rail[1]!.displayed, "cooking");
+  assert.equal(vue.rail[2]!.displayed, "Cooking");
 });
 
 test("le crochet : un message sans question de blocage, ou un événement de fond qui en parle, ne reçoit rien", () => {
