@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { crochetsDuRole } from "../../src/second/crochet-du-role.ts";
-import { blocage, vueDe } from "../../src/second/role-apres-init.ts";
+import { blocage, vueDe } from "../../src/second/blocage-du-second.ts";
 
 const VUE = {
   banners: [{ label: "STOPPED", waitsFor: "a restart", waitsOn: "the chef" }, { label: "FAULT #221", waitsFor: "a fix", waitsOn: "the cook" }],
