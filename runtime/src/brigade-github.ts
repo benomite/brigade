@@ -2412,9 +2412,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Un garde-fou retient la cuisine : ni ce ticket ni un autre ne se prend.
       // Le ticket qui répare la saturation passe la machine à court, un seul à la fois (#4100).
       const reparation = ticket.labels.includes(LABEL_REPARATION_SATURATION) && !reparationEnVol();
-      const retenue = gardes === undefined ? null : await gardes.retenue([...enVol.keys(), ...enEcriture()].length, reparation);
-      if (retenue === "machine" && libres.slice(rang).some(({ labels }) => labels.includes(LABEL_REPARATION_SATURATION))) {
+      const retenue = gardes === undefined ? null : await gardes.retenue(enVol.size + enEcriture().length, reparation);
+      if (retenue === "machine" && !reparationEnVol() && libres.slice(rang).some(({ labels }) => labels.includes(LABEL_REPARATION_SATURATION))) {
         // La machine retient ce ticket, pas la réparation plus loin sur le rail : la lecture continue jusqu'à elle.
+        // Une réparation déjà en vol, plus rien ne passe : la lecture s'arrête là, comme avant.
         await direLesAttentes([ticket], DIT_DES_RETENUES[retenue]);
         continue;
       }

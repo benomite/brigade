@@ -307,12 +307,13 @@ test("with the machine at ease, the repair label changes nothing: every claimabl
 });
 
 test("the arbiter is not told the machine is saturated when the ticket asking for a place repairs the saturation (#4100)", async (t) => {
-  const dits: boolean[] = [];
-  const arbitre: Arbitrage = { port: 0, echanger: async (_projet, mot) => (dits.push(mot.machine), { accorde: true, motif: null }), quitter: async () => {}, attendreUnePlace: async () => false, etat: async () => assert.fail("not read") };
+  const dits: Array<{ machine: boolean; veut: boolean }> = [];
+  const arbitre: Arbitrage = { port: 0, echanger: async (_projet, mot) => (dits.push({ machine: mot.machine, veut: mot.veut }), { accorde: true, motif: null }), quitter: async () => {}, attendreUnePlace: async () => false, etat: async () => assert.fail("not read") };
   const { gardes } = cuisine(t, { machine: () => BOX(16.2), maintenant: () => INSTANT, arbitre });
   assert.equal(await gardes.retenue(1, true), null);
   assert.equal(await gardes.retenue(1, false), "machine");
-  assert.deepEqual(dits, [false]);
+  // La réparation demande sa place, comme tout ticket : seule la saturation est tue.
+  assert.deepEqual(dits, [{ machine: false, veut: true }]);
 });
 
 test("a machine that cannot be read holds nothing: the station's places still bound its cooks, and it is said once (#3560)", async (t) => {
