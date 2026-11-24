@@ -107,4 +107,13 @@ describe("tout mis de côté : le ticket le plus ancien est nommé, à date éga
     assert.doesNotMatch(alerte?.phrase ?? "", /Remove|back on the rail\./);
     assert.match(alerte?.phrase ?? "", /The supervisor has #5/);
   });
+
+  test("un ticket en WAITING dit ce qu'il attend quand on le lit, et ne l'invente pas sinon (#4042)", () => {
+    const relance = (qui: string | null) => entree({ dernierServiLe: iso(T0), relances: [{ ticket: 7, fois: 12, depuis: iso(T0 - 3_600_000), arret: { sorte: "waiting", qui } }] });
+    const [avec] = deSorte("relance-en-boucle", relance("the supervisor"));
+    assert.match(avec?.phrase ?? "", /^The system put #7 in WAITING, awaiting the supervisor: it was relaunched 12 times/);
+    const [sans] = deSorte("relance-en-boucle", relance(null));
+    assert.match(sans?.phrase ?? "", /^The system put #7 in WAITING: it was relaunched 12 times/);
+    assert.doesNotMatch(sans?.phrase ?? "", /awaiting/);
+  });
 });
