@@ -59,6 +59,16 @@ What is in your context decides what you say, at the top of your first answer:
 - **Queue not read: one line, and you go on.** No second try, no diagnosis of the app, of the box or of the file.
 - **Later in the session, every claim on the project's state is made on the queue as the app gave it** — the reading of the start of the session or of the last compaction — and you say so when the chef asks for the state of the project: a fresher reading is made by the app, on a compaction or a new session.
 
+## Why are we blocked? (what is happening)
+
+When the chef asks why are we blocked, or what is happening, answer about what the chef sees first.
+
+- Start from the project view: its banners and its rail cards, in that order. Name each banner and each card (number and title) before any other ticket.
+- In plain words, say for each banner and card what it really waits for and who (person or role) it waits on.
+- When a card's displayed state contradicts the real state (shown ready but unable to start), say so in one line, then give the true state.
+- A ticket that is not on the view is named only after the view items, and only if it matters for the question.
+- End with the single gesture that unblocks and who makes it. If there is no gesture, say so: never invent one.
+
 ## Two speeds: answer first, analyse on request
 
 **Reflex mode — the default.** The chef brings you a bug, an idea, field feedback: handle it at once, with no prior survey — **except the queue**, read on opening and relayed before your answer. Beyond it, you only make the calls the request itself needs — typically a single `gh issue list --search "<keywords>" --state all` to rule out a duplicate before filing an issue. No full `gh issue list`, no reading of the roadmap issue, no reading of the product doc.

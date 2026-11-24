@@ -192,13 +192,20 @@ export function sectionDeLaDecision(questionEn: string | null, avis: Extract<Avi
 }
 
 // Ce que la carte du chef porte : la question sur une ligne, ou le geste exact.
-export function corpsDeLaCarte({ station, questionEn, avis }: { station: string; questionEn: string | null; avis: Exclude<Avis, { issue: "technique" }> }): string {
-  const tete = avis.issue === "geste" ? `**Gesture for the chef:** ${avis.geste}` : `**Question for the chef (${avis.issue === "produit" ? "product" : "design"}):** ${avis.question}`;
+// `secret` : le geste est un secret ou un compte à poser sur la station (#4041) —
+// la carte le dit dans sa tête, que la station relit pour ne jamais la retirer.
+export function corpsDeLaCarte({ station, questionEn, avis, secret = false }: { station: string; questionEn: string | null; avis: Exclude<Avis, { issue: "technique" }>; secret?: boolean }): string {
+  const tete = avis.issue === "geste" ? `**Gesture for the chef${secret ? " (secret or account)" : ""}:** ${avis.geste}` : `**Question for the chef (${avis.issue === "produit" ? "product" : "design"}):** ${avis.question}`;
+  const lu = secret
+    ? "the cook needs a secret or an account on the station (an API key, a database URL, a login), and only the chef can add it. The ticket is not relaunched while this card waits"
+    : avis.issue === "geste"
+      ? "nothing in it is to decide, but only the chef can make this gesture"
+      : `it is a ${avis.issue === "produit" ? "product" : "design"} decision, only the chef makes it`;
   const ensuite = avis.issue === "geste" ? "Once it is done, remove `blocked-on-human`: a cook resumes the ticket from its branch." : "Answer it on this issue, then remove `blocked-on-human`: a cook resumes the ticket from its branch.";
   return [
     tete,
     "",
-    `Station \`${station}\`: the cook stopped, blocked — nothing it did goes to review. The manager read its question: ${avis.issue === "geste" ? "nothing in it is to decide, but only the chef can make this gesture" : `it is a ${avis.issue === "produit" ? "product" : "design"} decision, only the chef makes it`}. ${ensuite}`,
+    `Station \`${station}\`: the cook stopped, blocked — nothing it did goes to review. The manager read its question: ${lu}. ${ensuite}`,
     "",
     ...laQuestionDuCook("The cook's question", questionEn),
   ].join("\n");
