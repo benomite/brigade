@@ -986,6 +986,32 @@ test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
 });
 
+// brigade:guard
+test("places full, a place opens: a `prio:0` repair ticket is claimed before an older ticket without prio (#4102)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(10, CALIBRE);
+  const cuits: number[] = [];
+  let ouvrir = () => {};
+  const a = faux.station("A", {
+    places: 1,
+    cuisiner: async (issue) => {
+      cuits.push(issue);
+      if (issue === 10) await new Promise<void>((fini) => (ouvrir = fini));
+      return { branche: `b${issue}` };
+    },
+  });
+  await a.tour();
+  faux.feu(20, CALIBRE);
+  faux.feu(30, [...CALIBRE, "prio:0"]);
+  await a.tour();
+  assert.deepEqual(cuits, [10], "places full: neither #20 nor #30 is claimed");
+  ouvrir();
+  await a.calme();
+  await a.tour();
+  assert.equal(cuits[1], 30, "the place that opens goes to the `prio:0` #30, not to the older #20");
+  await a.calme();
+});
+
 test("a red check that runs only on the base (Windows) holds nothing; a red check the PR also runs holds its merge (#2279)", async () => {
   const faux = new FauxGitHub();
   faux.feu(37);
