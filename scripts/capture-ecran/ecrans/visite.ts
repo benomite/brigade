@@ -1,10 +1,5 @@
-// La visite guidée (#3165), rejouée depuis la barre sur l'espace de « parade » : sa première étape, le rail et ses
-// colonnes, la rangée entourée de l'accent, la bulle en bas à droite.
-import { ecran as espace } from "./espace-projet.ts";
-import type { Ecran } from "./commun.ts";
+// La visite d'une vraie cuisine (#4087), choisie sur le premier écran : la cuisine de Brigade en lecture seule, « leave the
+// visit » en tête, sa première étape — le rail et ses colonnes, la rangée entourée de l'accent, la bulle en bas.
+import { visite } from "./visite-commun.ts";
 
-export const ecran: Ecran = {
-  ...espace,
-  dit: "La visite guidée rejouée sur « parade » (#3165) : sa première étape, le rail et ses colonnes",
-  etapes: [...espace.etapes, { cliquer: "#entree-visite" }],
-};
+export const ecran = visite("La visite d'une vraie cuisine (#4087) : la cuisine de Brigade en lecture seule, sa première étape, le rail et ses colonnes");
