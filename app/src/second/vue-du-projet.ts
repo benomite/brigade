@@ -23,7 +23,7 @@ function quiAttend(c: Carte, etat: string | undefined): string {
   if (c.enWaiting || c.relancePassee) return c.relancePassee ? LE_CHEF : "the station, which set the card aside";
   const mot = (etat ?? "").toLowerCase();
   if (/^(cooking|pris|taken|tests written|tests écrits)$/.test(mot)) return "a cook";
-  if (/pass/.test(mot) || mot === "base rouge") return mot === "base rouge" ? "main to be green" : "the pass";
+  if (mot === "in pass" || mot === "pass" || mot === "base rouge") return mot === "base rouge" ? "main to be green" : "the pass";
   if (mot === "queued" || mot === "en attente") return "the kitchen, which will take it";
   return "a third party";
 }

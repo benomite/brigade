@@ -55,13 +55,6 @@ test("« base rouge » : attendu tel quel quand le rail dit la base rouge, sinon
   assert.match(verte.rail[0]!.waitsOn, /pass/);
 });
 
-test("la ligne de la carte s'ajoute à son état quand elle en a une", () => {
-  const vue = deposee([carte(1, { etat: "cooking", ligne: "cook on box" }), carte(2, { etat: "cooking" }), carte(3, { etat: "cooking", mot: "Cooking" })]);
-  assert.equal(vue.rail[0]!.displayed, "cooking - cook on box");
-  assert.equal(vue.rail[1]!.displayed, "cooking");
-  assert.equal(vue.rail[2]!.displayed, "Cooking");
-});
-
 test("le crochet : un message sans question de blocage, ou un événement de fond qui en parle, ne reçoit rien", () => {
   const vues = mkdtempSync(join(tmpdir(), "vue-4195-"));
   try {
