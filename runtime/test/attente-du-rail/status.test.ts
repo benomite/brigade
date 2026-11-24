@@ -25,14 +25,14 @@ describe("les lignes de l'attente de la file", () => {
 
   test("des tickets en file, aucune station : la phrase de la raison 1, puis la ligne de chaque carte qui attend", async () => {
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: [issue(4, ["fire"]), issue(5, ["fire"], "Depends on #4")] }), stations: aucune, maintenant: MAINTENANT });
-    assert.deepEqual(lignes, ["queue wait No station serves this project, so no cook can start. Add the project to a station.", "  #5  waits for #4 — read from the body: 'Depends on #4'"]);
+    assert.deepEqual(lignes, ["queue wait No station serves this project, so no cook can start. Add the project to a station.", "  #5  after #4 — waiting for its merge; waits for #4 — read from the body: 'Depends on #4'"]);
   });
 
   test("un ticket qui dit en toutes lettres bâtir sur une épique découpée : sa ligne nomme le ticket du découpage, pas l'épique (#3622)", async () => {
     const epique = issue(49, ["fire"], `The app's identity.\n${DEBUT}\n- [ ] #53\n${FIN}`);
     const feux = [epique, issue(53, ["fire", "taken"]), issue(50, ["fire"], "Restyle the screen.\nDepends on #49")];
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: feux }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT });
-    assert.deepEqual(lignes, ["  #50  waits for #53 — read from the body: 'Depends on #49'"]);
+    assert.deepEqual(lignes, ["  #50  after #53 — waiting for its merge; waits for #53 — read from the body: 'Depends on #49'"]);
   });
 
   test("une station en ligne : l'attente normale, depuis l'instant où `fire` a été posé", async () => {
@@ -47,7 +47,7 @@ describe("les lignes de l'attente de la file", () => {
 
   test("un cook tourne : pas de phrase, les stations ne se lisent pas, la ligne d'une carte derrière lui se dit", async () => {
     const lignes = await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: [issue(3, ["fire", "taken"]), issue(4, ["fire"], "Depends on #3")] }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT });
-    assert.deepEqual(lignes, ["  #4  waits for #3 — read from the body: 'Depends on #3'"]);
+    assert.deepEqual(lignes, ["  #4  after #3 — waiting for its merge; waits for #3 — read from the body: 'Depends on #3'"]);
   });
 
   test("rien en file : aucune ligne ; un ticket mis de côté, en WAITING ou épique n'est pas en file", async () => {

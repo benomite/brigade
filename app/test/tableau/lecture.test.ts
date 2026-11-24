@@ -295,6 +295,9 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/events/rail.ts",
     "runtime/src/fiche.ts",
     "runtime/src/github-etat/etats.ts",
+    // L'ordre de merge des tickets qui touchent au même terrain, lu de GitHub sans station (ticket 4044).
+    "runtime/src/ordre-de-merge/lecture.ts",
+    "runtime/src/ordre-de-merge/ordre.ts",
     // Le ticket qu'une PR sert, sans E/S : la règle que le récapitulatif du runtime lit sur les mêmes PR (ticket 3581).
     "runtime/src/recap/servis.ts",
     // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).
