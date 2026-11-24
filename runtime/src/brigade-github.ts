@@ -93,7 +93,7 @@ import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDe
 import { degelerLesConflits, partirSurLaBase, renvoisPourLaBase, suiteDuConflitBloque } from "./conflit-main/conflit-main.ts";
 import { DIT_L_ARRET_DU_BAC, natureDeLArret } from "./bac-a-sable/nature-arret.ts";
 import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renvoi.ts";
-import { DIT_DES_RETENUES, LANCEMENT_RETENU, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
+import { arretSubi, DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
 import { BUDGET_DES_MUTATIONS_MS, consigneDesMutations, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, RELANCES_DES_MUTATIONS, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
@@ -604,16 +604,6 @@ function direLaFin({ conclusion, fin, flux }: { conclusion: string; fin: { code:
   const lignes = dernieresLignes(flux);
   return `${motif} (${fini})${lignes === "" ? "; claude wrote nothing" : `; last lines of claude: ${lignes}`}`;
 }
-
-// Un arrêt que le cook n'a pas causé : le quota, la session Claude, une station
-// arrêtée ou un process tué (un signal sans erreur du lanceur). Un plafond (jetons, durée, inactivité) est le sien.
-export const arretSubi = (conclusion: string, fin: { code: number | null; signal: string | null; arret: { reason: string } | null; erreur: string | null }): boolean => {
-  if (conclusion === "86" || conclusion === "disconnected") return true;
-  if (fin.erreur?.startsWith(LANCEMENT_RETENU)) return true;
-  if (fin.arret !== null) return fin.arret.reason === "stop";
-  // SIGTERM : le signal, ou le code 143 quand un relais ou un shell l'a rendu en code de sortie (#3528).
-  return fin.erreur === null && (fin.signal !== null || fin.code === 143);
-};
 
 // Ce que la lecture des stations du projet sur GitHub regarde : les issues qui ont bougé depuis deux jours, et pas plus de quarante.
 const FENETRE_DES_STATIONS_MS = 2 * 24 * 3600_000;

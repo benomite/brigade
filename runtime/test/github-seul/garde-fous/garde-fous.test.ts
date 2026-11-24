@@ -11,11 +11,11 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Arbitrage } from "../../../src/arbitrage.ts";
 import { ATTENTE_DE_PLACE_MS, ouvrirArbitre, type Mot } from "../../../src/arbitre.ts";
-import { arretSubi, brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
+import { brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
-import { gardesDuTour, LANCEMENT_RETENU } from "../../../src/github-seul/garde-fous/garde-fous.ts";
+import { arretSubi, gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
 import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { etatDesGardeFous } from "../../../src/projections/guardrails.ts";
@@ -523,7 +523,7 @@ test("a cook launched for a station held for its machine is refused at once, as 
 
   ecrire("station.held", { station: STATION, reason: "machine" });
   const refuse = await lancer(4064).fin;
-  assert.ok(refuse.erreur?.startsWith(LANCEMENT_RETENU), String(refuse.erreur));
+  assert.ok(refuse.erreur?.startsWith("launch refused (station held)"), String(refuse.erreur));
   assert.equal(refuse.turns, 0);
   // Ni échec compté au ticket ni disjoncteur : la station le rend comme un arrêt subi.
   assert.equal(arretSubi("failed", refuse), true);

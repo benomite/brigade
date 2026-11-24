@@ -35,7 +35,17 @@ import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
 
 // Le début de l'erreur d'un lancement refusé parce que la station est retenue : un arrêt subi, que le cook n'a pas causé.
-export const LANCEMENT_RETENU = "launch refused (station held)";
+const LANCEMENT_RETENU = "launch refused (station held)";
+
+// Un arrêt que le cook n'a pas causé : le quota, la session Claude, une station
+// arrêtée ou un process tué (un signal sans erreur du lanceur). Un plafond (jetons, durée, inactivité) est le sien.
+export const arretSubi = (conclusion: string, fin: { code: number | null; signal: string | null; arret: { reason: string } | null; erreur: string | null }): boolean => {
+  if (conclusion === "86" || conclusion === "disconnected") return true;
+  if (fin.erreur?.startsWith(LANCEMENT_RETENU)) return true;
+  if (fin.arret !== null) return fin.arret.reason === "stop";
+  // SIGTERM : le signal, ou le code 143 quand un relais ou un shell l'a rendu en code de sortie (#3528).
+  return fin.erreur === null && (fin.signal !== null || fin.code === 143);
+};
 
 // Ce qui retient une prise sur ce chemin : le « stop » du chef, le
 // disjoncteur, le quota du compte épuisé, la machine à court, l'arbitre qui
