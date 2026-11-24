@@ -224,7 +224,7 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
     assert.equal(JSON.parse(lire("package.json")).main, "src/tray-fond/entree.ts");
     const entree = lire("src/tray-fond/entree.ts");
     assert.match(entree, /if \(process\.argv\.includes\(ARGUMENT\)\) \{\n  await import\("\.\/processus\.ts"\);\n\} else \{/);
-    assert.ok(entree.includes('await import("../main.ts");'));
+    assert.ok(entree.includes('await import(' + '"../main.ts");'));
     assert.ok(entree.includes("if (installee && stationDeFondInstallee(systeme))"));
     assert.ok(entree.includes("await inscrireLeFond("));
   });
