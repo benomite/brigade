@@ -43,7 +43,7 @@ test("the installer reopens the new app as a new instance, so a running icon pro
   assert.equal(readFileSync(join(paquet, "Contents", "version"), "utf8"), "1.1.0", "the new version is in place");
   const ouvertures = readFileSync(appels, "utf8").trim().split("\n").filter((l) => l.startsWith("open "));
   assert.equal(ouvertures.length, 1, "the app is reopened once");
-  assert.match(ouvertures[0] ?? "", /^open (-\w*n\w* |--new )/, `reopened with 'open -n', got: ${ouvertures[0] ?? ""}`);
-  assert.ok((ouvertures[0] ?? "").endsWith(paquet), "and it opens the installed bundle");
+  assert.match(ouvertures[0], /^open (-\w*n\w* |--new )/, `reopened with 'open -n', got: ${ouvertures[0]}`);
+  assert.ok(ouvertures[0].endsWith(paquet), "and it opens the installed bundle");
   assert.deepEqual(readdirSync(join(racine, "Applications")), ["Brigade.app"]);
 });
