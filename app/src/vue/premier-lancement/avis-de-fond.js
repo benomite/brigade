@@ -1,5 +1,5 @@
 // @ts-check
-// L'écran du premier lancement avant l'avis de macOS (#4081, épique #4078) : sur un Mac neuf, Brigade inscrit la station
+// L'écran du premier lancement avant l'avis de macOS (ticket 4081, épique 4078) : sur un Mac neuf, Brigade inscrit la station
 // de cet ordinateur à l'ouverture de session, et macOS le signale d'un avis que le nouvel arrivant n'attend pas. Avant
 // lui, cet écran le dit : ce qu'on attend, en tête, en une phrase ; dessous, ce que macOS va montrer ; puis un seul
 // bouton, « continue ». L'app derrière reste cachée tant qu'il n'est pas pressé ; pressé, l'inscription part
@@ -8,11 +8,12 @@
 // la carte.
 
 import { sorteDuBouton } from "../composants/bouton/bouton.js";
+import { CET_ORDINATEUR } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
 const TITRE = "Brigade runs in the background";
-const ATTENDU = "Brigade keeps this computer's station running in the background, even when the app is closed.";
+const ATTENDU = `Brigade keeps ${CET_ORDINATEUR}'s station running in the background, even when the app is closed.`;
 const AVIS = "macOS will then tell you that Brigade added a background item: this is it, and you can leave it on.";
 const CONTINUER = "continue";
 
