@@ -29,7 +29,6 @@ import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherLeChef } from "./chef/chef.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
-import { lectures, lireConsommateur } from "./consommateur.ts";
 import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
 import { plafondDuProjet } from "./reagir.ts";
@@ -183,7 +182,7 @@ try {
       ici === undefined
         ? { refus: "the project declares no station on this machine" }
         : (() => {
-            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre ? joindreArbitre(arbitre) : null, machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, consommateur: lireConsommateur(lectures(repertoireEtat)), env });
+            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, env });
             const ecrivaine = stationDuDepot({
               porte: gestes,
               nom: ici.nom,

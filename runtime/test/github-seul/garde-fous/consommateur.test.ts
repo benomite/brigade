@@ -1,5 +1,6 @@
 // Le plus gros consommateur nommé avec `station.saturated` (#4090) : les gardes
-// du tour, sur un vrai runtime, avec une machine et un lecteur que le test rend.
+// du tour, sur un vrai runtime, avec une machine que le test rend, et le lecteur
+// qu'elle porte.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import type { LireConsommateur } from "../../../src/consommateur.ts";
@@ -20,7 +21,7 @@ function gardes(t: TestContext, consommateur?: LireConsommateur) {
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const avertis: string[] = [];
-  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: () => BOX, seuils: configMachine({}) }, ...(consommateur === undefined ? {} : { consommateur }), avertir: (texte) => avertis.push(texte) });
+  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: () => (consommateur === undefined ? BOX : { ...BOX, consommateur }), seuils: configMachine({}) }, avertir: (texte) => avertis.push(texte) });
   const saturees = () => runtime.journal.tout().flatMap((evenement) => (evenement.type === "station.saturated" ? [evenement.payload] : []));
   return { du, avertis, saturees, etat: () => etatStation(runtime.journal.base, STATION) };
 }

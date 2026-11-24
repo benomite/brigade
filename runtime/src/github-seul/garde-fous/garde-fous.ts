@@ -27,7 +27,6 @@ import type { Lancer } from "../../brigade-github.ts";
 import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
-import type { LireConsommateur } from "../../consommateur.ts";
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
@@ -73,9 +72,6 @@ export type OptionsDesGardes = {
   // La machine sous la station et ses seuils (`configMachine`). Absente : rien
   // ne se retient sur elle.
   machine?: { lire: () => Machine; seuils: Seuils };
-  // Le plus gros consommateur d'une ressource qui manque (`consommateur.ts`,
-  // #4090), nommé avec la saturation. Absent : elle se dit sans lui.
-  consommateur?: LireConsommateur;
   maintenant?: () => Date;
   avertir?: (message: string) => void;
   // L'environnement de la station, où se lit son moteur de repli (#3745).
@@ -175,11 +171,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
   };
 
-  // Une ressource qui manque, avec son plus gros consommateur quand il se lit :
-  // un lecteur absent, qui échoue ou ne nomme rien la laisse telle quelle.
-  const nommer = (manque: Saturation): Saturation => {
+  // Une ressource qui manque, avec son plus gros consommateur quand la machine
+  // lue le mesure (#4090) : un lecteur absent, qui échoue ou ne nomme rien la
+  // laisse telle quelle.
+  const nommer = (machine: Machine) => (manque: Saturation): Saturation => {
     try {
-      const gros = options.consommateur?.(manque.resource) ?? null;
+      const gros = machine.consommateur?.(manque.resource) ?? null;
       return gros === null ? manque : { ...manque, consumer: `${gros.name} (${gros.amount})` };
     } catch {
       return manque;
@@ -194,10 +191,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   const machineAcourt = (cooks: number): boolean => {
     if (options.machine === undefined) return false;
     let manques: Saturation[];
+    let lue: Machine;
     try {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
-      manques = saturations(reserver(options.machine.lire(), accordees.length), options.machine.seuils, saturees);
+      lue = options.machine.lire();
+      manques = saturations(reserver(lue, accordees.length), options.machine.seuils, saturees);
       machineIllisible = false;
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
@@ -206,12 +205,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
-      const [premier, ...autres] = manques;
+      const [premier] = manques;
       if (premier === undefined) {
         noter({ type: "station.relieved", payload: { station } });
         avertir(`brigade : the machine under GitHub-only station ${station} has room again`);
       } else {
-        const nommes = manques.map(nommer);
+        const nommes = manques.map(nommer(lue));
         const [tete = premier, ...aussi] = nommes;
         noter({ type: "station.saturated", payload: { station, ...tete, ...(aussi.length > 0 ? { also: aussi } : {}) } });
         const dit = direSaturationsEn(nommes);

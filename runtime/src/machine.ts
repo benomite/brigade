@@ -4,6 +4,7 @@
 // très haut, ou absent.
 import { statfsSync } from "node:fs";
 import { availableParallelism, loadavg, totalmem } from "node:os";
+import { lectures, lireConsommateur, type LireConsommateur } from "./consommateur.ts";
 import type { Manque, OrigineDuSeuil, Ressource } from "./events/station.ts";
 import { lire } from "./plafonds.ts";
 
@@ -19,6 +20,10 @@ export type Machine = {
   memoireDisponible: number;
   memoireTotale: number;
   disqueLibre: number;
+  // Qui tient le disque ou le processeur quand il manque (#4090) : la machine
+  // lue pour de vrai le mesure sur elle-même. Absent d'une machine que l'appelant
+  // rend : la saturation se dit sans lui.
+  consommateur?: LireConsommateur;
 };
 
 export type Seuils = {
@@ -103,6 +108,7 @@ export function lireMachine(repertoire: string): Machine {
     memoireDisponible: process.availableMemory(),
     memoireTotale: lireMemoireTotale(),
     disqueLibre: disque.bavail * disque.bsize,
+    consommateur: lireConsommateur(lectures(repertoire)),
   };
 }
 

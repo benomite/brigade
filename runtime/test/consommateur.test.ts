@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { lectures, lireConsommateur } from "../src/consommateur.ts";
+import { lireMachine } from "../src/machine.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const casse = (): never => {
@@ -56,4 +57,11 @@ test("the real `du` measures what it can read, and a directory it cannot read na
   const reel = lectures(join(box, "espace"), {});
   assert.deepEqual(lireConsommateur({ ...reel, repertoires: () => [join(box, "espace")] })("disk"), { name: "espace/", amount: "0 MB" });
   assert.equal(lireConsommateur({ ...reel, repertoires: () => [join(box, "absent")] })("disk"), null);
+});
+
+test("the machine read for real carries the real reader: the top process of `ps` names the CPU, nobody names the memory (#4090)", (t) => {
+  const { consommateur } = lireMachine(repertoireTemporaire(t));
+  assert.match(consommateur?.("cpu")?.name ?? "", /^\S.* \(pid \d+\)$/);
+  assert.match(consommateur?.("cpu")?.amount ?? "", /^\d+(\.\d+)?% CPU$/);
+  assert.equal(consommateur?.("memory"), null);
 });
