@@ -113,7 +113,7 @@ export function lireMachine(repertoire: string): Machine {
 // qui échoue, ressource qui n'a pas de consommateur (la mémoire).
 export type Consommateur = (resource: Ressource) => string | null;
 
-const PLUS_GROS_REPERTOIRE_MS = 20_000;
+const PLUS_GROS_REPERTOIRE_MS = 5_000;
 
 // Dernière ligne de `du -k -d 1` mise de côté : c'est le total du répertoire.
 function plusGrosRepertoire(sortieDu: string, racine: string): string | null {
