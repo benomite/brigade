@@ -9,6 +9,7 @@ import { Sortie, type Appel } from "../../src/appel.ts";
 import { principal } from "../../src/mot-au-cook/commande.ts";
 import { fileSurDisque } from "../../src/mot-au-cook/file.ts";
 import { creerMotAuCook, type FileDesMots } from "../../src/mot-au-cook/mot-au-cook.ts";
+import { appeler, DEPOT, fauxGh, issueGitHub } from "../outils.ts";
 
 type OuvrirGitHub = NonNullable<Parameters<typeof principal>[1]>;
 
@@ -123,4 +124,16 @@ test("a word posted that cannot be queued says so on one line", async () => {
   const casse: FileDesMots = { ajouter: () => { throw new Error("disk full"); }, prendre: () => [] };
   const mot = creerMotAuCook({ etat: () => "taken", commenter: async () => {}, livrer: () => {}, file: casse });
   assert.deepEqual(await mot.envoyer({ ticket: 7, text: "hello" }), { ok: false, reason: "the word is posted on #7 but could not be queued for its cook: disk full" });
+});
+
+test("send-word talks to GitHub through the gh the station names in BRIGADE_GH_BIN", async (t) => {
+  const gh = fauxGh(t);
+  gh.issues([issueGitHub(7, { labels: ["fire", "taken"] })]);
+  gh.repondre(`repos/${DEPOT}/issues/7/comments`, { statut: 201, corps: {} });
+  const repertoireEtat = join(racine, `etat-${(n += 1)}`);
+  const jeu = appeler(principal, [`${DEPOT}#7`, "use", "the", "small", "table"], { BRIGADE_STATE_DIR: repertoireEtat, BRIGADE_GH_BIN: gh.bin });
+  assert.equal(await jeu.fin, 0, jeu.sortie());
+  assert.equal(jeu.sortie(), '{"ok":true}\n');
+  assert.ok(gh.appels().some((args) => args.includes(`repos/${DEPOT}/issues/7/comments`)), JSON.stringify(gh.appels()));
+  assert.deepEqual(fileSurDisque(repertoireEtat).prendre(7), ["use the small table"]);
 });
