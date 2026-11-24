@@ -23,6 +23,7 @@ import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { brancherElagageGithub, elagageDuClone } from "./github-seul/elagage/elagage.ts";
 import { gardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
+import { disqueDuProjet } from "./github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
@@ -182,7 +183,7 @@ try {
       ici === undefined
         ? { refus: "the project declares no station on this machine" }
         : (() => {
-            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, env });
+            const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), env });
             const ecrivaine = stationDuDepot({
               porte: gestes,
               nom: ici.nom,
@@ -212,6 +213,7 @@ try {
               flux: join(repertoireEtat, "github-seul"),
               observer: suiviDuTour.envelopper,
               sauter: suiviDuTour.sauter,
+              enPremier: suiviDuTour.enPremier,
               superviseur: (consulter) => (managerDuSuperviseur = consulter),
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,
