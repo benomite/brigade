@@ -243,6 +243,11 @@ export type Pont = {
   // Le chef a touché la notification d'une carte de TODO sur le téléphone (le ticket 2747), ou cliqué une question dans le
   // menu de la barre des menus sur un ordinateur (ticket 3269) — sa fiche s'ouvre.
   surOuvrirCarte?(recevoir: (projet: string, ticket: number) => void): void;
+  // L'écran du premier lancement avant l'avis de macOS (ticket 4081, premier-lancement/avis-de-fond.js) : le process
+  // principal l'attend-il déjà, le demande plus tard, et son bouton pressé. Pas sur le téléphone.
+  avisDeFond?(): Promise<boolean>;
+  surAvisDeFond?(recevoir: () => void): void;
+  continuerLePremierLancement?(): Promise<void>;
   // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le

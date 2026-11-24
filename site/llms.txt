@@ -11,4 +11,5 @@ It needs a GitHub repository and a Claude subscription. It is MIT licensed and c
 - [Install steps](https://benomite.github.io/brigade/#install): install Brigade and cook a first ticket
 - [README](https://github.com/benomite/brigade/blob/main/README.md): overview in the repository
 - [Documentation](https://github.com/benomite/brigade/blob/main/docs/index.md): the full docs
-- [Repository](https://github.com/benomite/brigade): source code and releases
+- [Repository](https://github.com/benomite/brigade): source code
+- [Latest app release](https://github.com/benomite/brigade/releases/latest): download the app (unsigned: how to open it is in https://github.com/benomite/brigade/blob/main/docs/installation.md)
