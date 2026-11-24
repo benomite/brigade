@@ -17,7 +17,7 @@ export function vivant(pid: number): boolean {
 // La ligne de commande d'un process vivant, telle que le système la donne ; `undefined` quand elle ne se lit pas. `ps` la
 // lit sous POSIX, PowerShell sous Windows — sans fenêtre de console, que chaque démarrage de l'app ferait clignoter.
 type Lancer = (commande: string, args: string[], options: ExecFileSyncOptionsWithStringEncoding) => string;
-export function lireLaCommande(pid: number, plateforme: NodeJS.Platform = process.platform, lancer: Lancer = execFileSync): string | undefined {
+function lireLaCommande(pid: number, plateforme: NodeJS.Platform = process.platform, lancer: Lancer = execFileSync): string | undefined {
   const options: ExecFileSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] };
   try {
     const lue =
@@ -41,7 +41,7 @@ function lanceCommeSoi(pid: number, soi: number, lire: (pid: number) => string |
   if (autre === undefined || nous === undefined) return undefined;
   return sansPsn(autre) === sansPsn(nous);
 }
-export const memeProcess = (pid: number, soi: number, lire: (pid: number) => string | undefined): boolean => lanceCommeSoi(pid, soi, lire) === true;
+const memeProcess = (pid: number, soi: number, lire: (pid: number) => string | undefined): boolean => lanceCommeSoi(pid, soi, lire) === true;
 // Le contraire prudent : un process qu'on sait lancé autrement que celui-ci. Une commande qui ne se lit pas n'en dit rien.
 const autreProcess = (pid: number, soi: number): boolean => lanceCommeSoi(pid, soi, lireLaCommande) === false;
 
@@ -72,7 +72,8 @@ export function prendreLaPlace(fichier: string, soi: number = process.pid, estTe
 // L'app qui s'ouvre passe-t-elle la main à une autre (#3864, #4071) ? Seulement quand le verrou d'Electron lui est refusé et
 // que sa place est tenue par une app lancée comme elle. Le verrou rendu, aucune autre app ne tourne : la place est prise sans
 // lire de ligne de commande — `ps`, ou PowerShell sous Windows, ne ralentit que le démarrage où le verrou est refusé.
-export function autreAppTourne(fichier: string, verrouRendu: boolean, soi: number = process.pid, lire: (pid: number) => string | undefined = lireLaCommande): boolean {
+export function autreAppTourne(fichier: string, verrouRendu: boolean, soi: number = process.pid, plateforme: NodeJS.Platform = process.platform, lancer: Lancer = execFileSync): boolean {
+  const lire = (pid: number) => lireLaCommande(pid, plateforme, lancer);
   const tenant = prendreLaPlace(fichier, soi, (pid) => !verrouRendu && memeProcess(pid, soi, lire));
   return !verrouRendu && tenant !== undefined;
 }
