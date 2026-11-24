@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { lireLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
+import { autreAppTourne, lireLaCommande, memeProcess, prendreLaPlace } from "../../src/tray-fond/instance.ts";
 
 const SOUS_POSIX: string | false = process.platform === "win32" ? "the command line is read with ps, which Windows does not have" : false;
 
@@ -115,6 +115,32 @@ test("by default, a place is held only by a process launched like the one asking
   assert.equal(readFileSync(fichier, "utf8"), String(soi));
   writeFileSync(fichier, String(icone));
   assert.equal(prendreLaPlace(fichier, soi), icone, "another icon holds it");
+});
+
+test("the app hands off only when Electron refuses its lock and its place is held by an app like it; with the lock, no command line is read", (t) => {
+  const fichier = join(repertoireTemporaire(t), "app.pid");
+  // Le pid laissé dans la place : celui du process qui joue ce test, vivant.
+  const laisse = process.pid;
+  const soi = 4_000_003;
+  const commandes = new Map<number, string>([[soi, "Brigade"], [laisse, "Brigade"]]);
+  const lus: number[] = [];
+  const lire = (pid: number) => {
+    lus.push(pid);
+    return commandes.get(pid);
+  };
+  writeFileSync(fichier, String(laisse));
+  assert.equal(autreAppTourne(fichier, true, soi, lire), false, "the lock given: no other app runs");
+  assert.deepEqual(lus, [], "and no command line is read");
+  assert.equal(readFileSync(fichier, "utf8"), String(soi), "the place is taken");
+  writeFileSync(fichier, String(laisse));
+  assert.equal(autreAppTourne(fichier, false, soi, lire), true, "the lock refused, the place held by an app like this one: hand off");
+  assert.equal(readFileSync(fichier, "utf8"), String(laisse));
+  commandes.set(laisse, "Brigade --tray-fond");
+  assert.equal(autreAppTourne(fichier, false, soi, lire), false, "the lock refused, the place held by the icon process: the window shows");
+  assert.equal(readFileSync(fichier, "utf8"), String(soi));
+  commandes.delete(laisse);
+  writeFileSync(fichier, String(laisse));
+  assert.equal(autreAppTourne(fichier, false, soi, lire), false, "the lock refused, the holder's command unreadable: the window shows");
 });
 
 test("the command line is read by ps on POSIX, and by PowerShell on Windows without a console window flashing at each start", () => {

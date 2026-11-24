@@ -68,3 +68,11 @@ export function prendreLaPlace(fichier: string, soi: number = process.pid, estTe
   writeFileSync(fichier, String(soi));
   return undefined;
 }
+
+// L'app qui s'ouvre passe-t-elle la main à une autre (#3864, #4071) ? Seulement quand le verrou d'Electron lui est refusé et
+// que sa place est tenue par une app lancée comme elle. Le verrou rendu, aucune autre app ne tourne : la place est prise sans
+// lire de ligne de commande — `ps`, ou PowerShell sous Windows, ne ralentit que le démarrage où le verrou est refusé.
+export function autreAppTourne(fichier: string, verrouRendu: boolean, soi: number = process.pid, lire: (pid: number) => string | undefined = lireLaCommande): boolean {
+  const tenant = prendreLaPlace(fichier, soi, (pid) => !verrouRendu && memeProcess(pid, soi, lire));
+  return !verrouRendu && tenant !== undefined;
+}
