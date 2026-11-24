@@ -42,7 +42,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/decoupage.test.ts", test: "le découpage lit l'épique, ses commentaires de confiance et le plan du dépôt — en un seul jugement, sans outil" },
   { file: "test/decoupage.test.ts", test: "le découpage pose sur la fiche les capacités que chaque ticket demande, devant celles que les stations du projet fournissent" },
   { file: "test/decoupage.test.ts", test: "les tickets nés du découpage ne sont pas rejugés, et ne reçoivent pas un second calibrage" },
-  { file: "test/decoupage.test.ts", test: "un ticket d'interface sort du découpage désigné pour le cook design — label, corps, commentaire — et les autres non, au même calibrage" },
+  { file: "test/decoupage.test.ts", test: "un ticket d'interface sort du découpage comme les autres — sans label ni mention d'un cook — au calibrage du jugement" },
   { file: "test/decoupage.test.ts", test: "un ticket fermé sans livraison : l'épique reste ouverte, et « upcoming » dit lequel manque" },
   { file: "test/decoupage.test.ts", test: "une épique devient des tickets : chacun avec ses critères, son calibrage, sa fiche, puis `fire`" },
   { file: "test/decoupage.test.ts", test: "une épique dont tous les tickets sont servis se ferme d'elle-même, avec ses tickets, une seule fois" },

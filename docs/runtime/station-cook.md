@@ -237,7 +237,7 @@ not serve.
 
 **The cook delivers what the user sees with its captures.** Its instructions (the first cook's and the
 resuming cook's) tell it that a diff changing what the user sees — under `app/src/vue/`, `site/` or
-`docs/maquettes/` — or a ticket labelled `cook:design` is a design delivery: the review blocks one that
+`docs/maquettes/` — is a design delivery: the review blocks one that
 changes the app's view with no capture, and the pass sends back to a cook any design delivery missing
 one when the project has a human validate its designs (`validation-design/`). For each screen it
 changes, the cook takes the before capture before touching it and the after capture with

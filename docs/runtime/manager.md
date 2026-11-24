@@ -273,17 +273,12 @@ between disjoint zones is refused, and the split redone once.
 `requires`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends
 on (see "A ticket's card", in `station.md`).
 
-**An interface ticket states the tools it needs** (the project declares its tools, screenshots among them): its zone touches the app's view
-(`app/src/vue/` or a path under it, or a folder containing it like `app/src` when the repository has a view —
-a file under `app/src/vue/` in its plan), or the split says so (`"cook": "design"`, only in a repository that
-defines an interface profile). A folder containing the view in a repository without one is not an interface zone:
-on BOBL-tech/espace, `app/src/` is the server, and its server tickets were sent back for screen captures no
-screen could give (#2800). It carries `cook:design`, an "Interface ticket" paragraph at
-the head of its body, and `· interface` in the split comment's "Calibration" column. Calibration is
-unchanged.
+**There is a single cook kind.** The split does not designate a cook: a ticket that changes what the user
+sees is cooked like any other, and the screenshots it needs come from the project's tool list (`scripts/capture-ecran/`),
+not from a cook specialty. The split writes no `cook` field and no cook label; calibration is unchanged.
 
 **Its delivery shows the screen before and after** (`runtime/src/captures.ts`). A ticket is an interface
-ticket when its zone, at the taking, touches the app's view or its issue carries `cook:design`. The
+ticket when its zone, at the taking, touches the app's view. The
 cook commits one pair per changed screen, taken with `scripts/capture-ecran/`:
 `docs/captures/<ticket>/<écran>-avant.png` and `…-apres.png`. At the pushed delivery the station shows
 them under the PR's head line and on the ticket, one `Avant | Après` table per screen. **A delivery without

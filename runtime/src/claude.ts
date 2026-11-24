@@ -4,7 +4,7 @@
 // identifiants — c'est `claude` qui porte la connexion Max de la machine, ou le
 // jeton longue durée que `claude setup-token` a créé pour elle (`jeton-claude.ts`).
 import { execFile } from "./sans-invite.ts";
-import { type Calibrage, LABEL_COOK_DESIGN, VUE_DE_L_APP } from "./calibrage.ts";
+import { type Calibrage, VUE_DE_L_APP } from "./calibrage.ts";
 import { dossierDesCaptures, VISUELS } from "./captures.ts";
 import type { FinDeCook } from "./events/station.ts";
 import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
@@ -201,15 +201,12 @@ export const CONSIGNE_DE_RELECTURE = `Avant de commiter, relis ton diff comme le
 // après (`captures.ts`). #3259 : 6 des 18 renvois de 21 tickets mergés, le
 // premier motif, sont des livraisons design renvoyées par la pass sans
 // captures (#3195, #3212, #3215, #3219, #3220, #3221) ; leurs captures sont
-// arrivées dans un second commit (#3221 : 804f07b). La règle n'était écrite que
-// dans `agents/cook-design.md`, que le cook ne lit que s'il part sous ce profil
-// — ni quand ce profil est occupé, ni quand la zone du ticket est vide, ni pour
-// le site. Elle nomme ici ce que la pass tient pour design
+// arrivées dans un second commit (#3221 : 804f07b). Elle nomme ici ce que la pass tient pour design
 // (`estUneLivraisonDesign`), de ses propres constantes.
 function consigneDesCaptures(ticket: number): string {
   const dossier = dossierDesCaptures(ticket);
   const visuels = [VUE_DE_L_APP, ...VISUELS].map((chemin) => `\`${chemin}/\``).join(", ");
-  return `Si ton diff change ce que l'utilisateur voit — sous ${visuels} — ou si le ticket porte le label \`${LABEL_COOK_DESIGN}\`, ta livraison est une livraison design : la relecture bloque une livraison qui change la vue de l'app sans aucune capture, et la pass renvoie au cook toute livraison design à qui il en manque une quand le projet fait valider ses designs par un humain. Pour chaque écran que ton diff change, prends sa capture avant — avant d'y toucher — et sa capture après, avec l'outil de \`scripts/capture-ecran/\` (son README dit l'appel), regarde-les, et commite-les sur ta branche à \`${dossier}/<écran>-avant.png\` et \`${dossier}/<écran>-apres.png\`. Si le dépôt n'a pas cet outil, ou qu'il ne sait pas rendre l'écran, dis-le dans ton compte-rendu. ${CONSIGNE_DU_BRIEF} ${CONSIGNE_DES_CHANGEMENTS}`;
+  return `Si ton diff change ce que l'utilisateur voit — sous ${visuels}, ta livraison est une livraison design : la relecture bloque une livraison qui change la vue de l'app sans aucune capture, et la pass renvoie au cook toute livraison design à qui il en manque une quand le projet fait valider ses designs par un humain. Pour chaque écran que ton diff change, prends sa capture avant — avant d'y toucher — et sa capture après, avec l'outil de \`scripts/capture-ecran/\` (son README dit l'appel), regarde-les, et commite-les sur ta branche à \`${dossier}/<écran>-avant.png\` et \`${dossier}/<écran>-apres.png\`. Si le dépôt n'a pas cet outil, ou qu'il ne sait pas rendre l'écran, dis-le dans ton compte-rendu. ${CONSIGNE_DU_BRIEF} ${CONSIGNE_DES_CHANGEMENTS}`;
 }
 
 // Comment un cook livre une branche qui se fusionne : à jour de la base qui a

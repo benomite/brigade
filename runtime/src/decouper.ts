@@ -3,7 +3,7 @@
 // dépôt —, ce qu'il lit de sa réponse, et ce qu'il écrit des tickets qui en
 // naissent : leur corps, leur fiche. Sans E/S : un découpage dont un seul
 // ticket ne se lit pas n'est pas un découpage, c'est un motif dit.
-import { COOKS, EFFORTS, LABEL_COOK_DESIGN, MODELES, PROFIL_COOK_DESIGN, toucheLaVue, VUE_DE_L_APP } from "./calibrage.ts";
+import { EFFORTS, MODELES } from "./calibrage.ts";
 import { partDe } from "./besoin/besoin.ts";
 import { CONSIGNE_STE } from "./ste.ts";
 import { capacite, CAPACITE, CLE_DES_CAPACITES_EN, FORME_DE_CAPACITE } from "./capacites.ts";
@@ -11,7 +11,7 @@ import { DEBUT_DIAGRAMME, FIN_DIAGRAMME, sansBloc } from "./diagramme-epique.ts"
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
-import { possede, recouvrement, segments } from "./zones.ts";
+import { recouvrement, segments } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
 // Au-delà, ce n'est plus un découpage qu'un humain relit d'un coup d'œil :
@@ -76,8 +76,6 @@ export function plan(fichiers: string[]): string[] {
 // `capacites` : ce que fournissent les stations que le projet déclare.
 export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger; commentaires: string[]; fichiers: string[]; communs?: string[]; capacites?: string[] }): string {
   const { depot, issue, commentaires, fichiers, communs = [], capacites = [] } = mission;
-  // Le cook design ne se désigne que dans un dépôt qui le définit.
-  const design = fichiers.includes(PROFIL_COOK_DESIGN);
   return [
     `Tu es le manager de la brigade sur le dépôt ${depot}. Le chef a posé une épique, en langage produit. Tu la découpes en tickets, chacun confié tel quel à un cook — un agent qui exécute un ticket seul, sans personne pour lui répondre, et livre une PR.`,
     "",
@@ -96,11 +94,6 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     `- \`capacites\` : ce que la machine doit savoir faire pour que le ticket soit **possible** — un navigateur, un Chrome connecté. Vide le plus souvent : un ticket n'en demande une que s'il est infaisable sans elle. ${
       capacites.length === 0 ? "Ce projet ne déclare aucune station, donc aucune capacité." : `Les stations de ce projet fournissent : ${capacites.map((nom) => `\`${nom}\``).join(", ")} — reprends le nom tel quel.`
     } Une capacité qu'aucune station ne fournit se nomme quand même, si le ticket est infaisable sans elle : il ne partira pas, et le chef saura quoi déclarer. Ce n'est ni un domaine ni une spécialité (sécu, rédaction, BDD) — ceux-là ne se demandent pas —, ni une permission : demander une capacité n'autorise rien.`,
-    ...(design
-      ? [
-          `- \`cook\` : \`design\` pour un **ticket d'interface** — il change ce que l'utilisateur voit dans l'app : un écran, un libellé, un bouton, un état affiché ; la vue de l'app est sous \`${VUE_DE_L_APP}/\`. Il sera cuisiné par le cook design (\`${PROFIL_COOK_DESIGN}\`), qui voit les écrans qu'il change. Tout autre ticket — runtime, doc, scripts, logique sans effet à l'écran — est \`general\`. Une zone qui touche \`${VUE_DE_L_APP}/\` est au cook design de toute façon. Le cook ne change rien au calibrage : modèle et effort se choisissent comme pour tout ticket.`,
-        ]
-      : []),
     "",
     "## Le calibrage de chaque ticket",
     "",
@@ -130,7 +123,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "Un seul objet JSON, et rien après lui. Un découpage :",
     "",
     "```json",
-    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], ${design ? '"cook": "general", ' : ""}"modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}`,
+    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}`,
     "```",
     "",
     "une question :",
@@ -184,21 +177,7 @@ export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "re
 
 const REPONSES = ["tickets", "question", "deja-decoupee"];
 
-// Vrai si la zone d'un ticket le donne au cook design. Une zone qui nomme la
-// vue de l'app, ou un chemin dessous, la touche. Une zone qui ne nomme qu'un
-// dossier qui la contient (`app/src/`) ne la touche que si le dépôt a une vue :
-// le plan `fichiers` en porte un fichier. Sur BOBL-tech/espace, dont `app/src/`
-// est le serveur et qui n'a ni vue ni cook design, ce dossier faisait des
-// tickets serveur des tickets d'interface, que la relecture renvoyait faute de
-// captures avant et après qu'aucun écran ne pouvait donner (#2800 : #727,
-// #729). `fichiers` null : le plan est inconnu, le dossier compte.
-function zoneDuCookDesign(zone: string[], fichiers: readonly string[] | null): boolean {
-  if (!toucheLaVue(zone)) return false;
-  if (fichiers === null) return true;
-  return [...zone, ...fichiers].some((chemin) => possede(VUE_DE_L_APP, chemin));
-}
-
-function lireTicket(brut: unknown, rang: number, fichiers: readonly string[] | null): TicketPrevu | string {
+function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   const ou = `ticket ${rang}`;
   if (brut === null || typeof brut !== "object" || Array.isArray(brut)) return `${ou}: not an object`;
   const lu = brut as Record<string, unknown>;
@@ -230,17 +209,12 @@ function lireTicket(brut: unknown, rang: number, fichiers: readonly string[] | n
   if (!effort) return `${ou}: an effort the manager does not set: ${JSON.stringify(lu.effort)} — expected ${EFFORTS_DU_MANAGER.join(", ")}`;
   const calibration = phrase(lu.calibrage);
   if (!calibration) return `${ou}: calibration not justified`;
-  const cook = parmi(lu.cook ?? "general", COOKS);
-  if (!cook) return `${ou}: unknown cook ${JSON.stringify(lu.cook)} — expected ${COOKS.join(", ")}`;
-  // Une zone qui touche la vue de l'app est au cook design, quoi qu'en dise
-  // le jugement.
-  const design = cook === "design" || zoneDuCookDesign(prevu.zone, fichiers);
-  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration, ...(design ? { cook: "design" as const } : {}) };
+  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration };
 }
 
 // Lit le découpage dans le dernier message du jugement. `fichiers` : le plan
 // du dépôt donné au jugement, null s'il est inconnu.
-export function lireDecoupage(message: string | null, fichiers: readonly string[] | null = null): { valeur: Decoupe } | { illisible: string } {
+export function lireDecoupage(message: string | null): { valeur: Decoupe } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "no answer" };
   const lu = objet(message);
   if (!lu) return { illisible: "no JSON object in the answer" };
@@ -259,7 +233,7 @@ export function lireDecoupage(message: string | null, fichiers: readonly string[
   if (lu.tickets.length > TICKETS_MAX) return { illisible: `${lu.tickets.length} tickets — ${TICKETS_MAX} at most: beyond, the epic is to be reduced` };
   const tickets: TicketPrevu[] = [];
   for (const [i, brut] of lu.tickets.entries()) {
-    const ticket = lireTicket(brut, i + 1, fichiers);
+    const ticket = lireTicket(brut, i + 1);
     if (typeof ticket === "string") return { illisible: ticket };
     tickets.push(ticket);
   }
@@ -334,7 +308,6 @@ export function joindre(tickets: TicketPrevu[], communs: string[] = []): TicketP
       model: plusHaut(MODELES, membres.map((m) => m.model), "debut") ?? premier.model,
       effort: plusHaut(EFFORTS, membres.map((m) => m.effort), "fin") ?? premier.effort,
       calibration: sans(membres.map((m) => m.calibration)).join(" "),
-      ...(membres.some((m) => m.cook === "design") ? { cook: "design" as const } : {}),
     };
   });
 }
@@ -372,16 +345,6 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     reference(epic),
     marque(epic, index),
     "",
-    // Le cook lit son ticket en entier : c'est ici qu'il apprend qu'il est le
-    // cook design.
-    ...(prevu.cook === "design"
-      ? [
-          "## Design cook",
-          "",
-          `Interface ticket: it touches the app's view. It is cooked by the **design cook** — before writing anything, read \`${PROFIL_COOK_DESIGN}\` and follow it: the app's visual language, and the screenshots before and after.`,
-          "",
-        ]
-      : []),
     "## Context",
     "",
     prevu.context || `Ticket born of the split of epic #${epic}.`,
@@ -395,7 +358,7 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     "",
     "---",
     "",
-    `_Born of the split of epic #${epic} by the manager. Calibrated \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? `, for the design cook (\`${LABEL_COOK_DESIGN}\`)` : ""} — ${prevu.calibration} This ticket is yours: change a criterion, replace a calibration label, remove \`fire\` or close it, the manager will not come back to it._`,
+    `_Born of the split of epic #${epic} by the manager. Calibrated \`${prevu.model}\` / \`${prevu.effort}\` — ${prevu.calibration} This ticket is yours: change a criterion, replace a calibration label, remove \`fire\` or close it, the manager will not come back to it._`,
   ].join("\n");
 }
 

@@ -470,7 +470,7 @@ read-only worktree of the integration branch — the reason of each try, and the
 | Its choice | What happens |
 |---|---|
 | **rewrite** | the issue's body is rewritten more precisely, the former body kept below it in a folded block; the ticket goes back on the rail as it is |
-| **split** | 2 to 5 smaller tickets are opened on the rail, with the ticket's `fire`, `model:`, `effort:`, `prio:` and `cook:design` labels and `Epic: #N` in their body; the ticket becomes their epic (the list of its tickets in its body): it is no longer taken, and closes once they are all closed |
+| **split** | 2 to 5 smaller tickets are opened on the rail, with the ticket's `fire`, `model:`, `effort:` and `prio:` labels and `Epic: #N` in their body; the ticket becomes their epic (the list of its tickets in its body): it is no longer taken, and closes once they are all closed |
 | **recalibrate** | its `model:` and `effort:` labels are replaced — never above the project's calibration ceiling (`manager.md`) — and it goes back on the rail |
 | **question** | only when the reasons show a product or design choice: `blocked-on-human`, and the card asks that question — never "the ticket failed" |
 

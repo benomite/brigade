@@ -76,11 +76,10 @@ export function designsValidesParUnHumain(config: unknown): boolean {
   return typeof config === "object" && config !== null && (config as { humanValidatesDesigns?: unknown }).humanValidatesDesigns === true;
 }
 
-// Une livraison design change ce que l'utilisateur voit : la vue de l'app, ou
-// un ticket désigné pour le cook design (`estDInterface`), le site, une
-// maquette, ou des captures d'écran livrées pour le ticket.
-export function estUneLivraisonDesign(ticket: number, fichiers: readonly string[], labels: readonly string[]): boolean {
-  return estDInterface({ zone: [...fichiers], labels }) || fichiers.some((fichier) => VISUELS.some((visuel) => possede(visuel, fichier))) || capturesLivrees(ticket, fichiers).length > 0;
+// Une livraison design change ce que l'utilisateur voit : la vue de l'app
+// (`estDInterface`), le site, une maquette, ou des captures d'écran livrées pour le ticket.
+export function estUneLivraisonDesign(ticket: number, fichiers: readonly string[]): boolean {
+  return estDInterface({ zone: [...fichiers] }) || fichiers.some((fichier) => VISUELS.some((visuel) => possede(visuel, fichier))) || capturesLivrees(ticket, fichiers).length > 0;
 }
 
 // ── La carte ──
@@ -443,7 +442,7 @@ async function ecranChange(github: Pick<GitHubDeLaRetenue, "fichiersEntre">, ecr
 export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: LivraisonARetenir): Promise<string | null> {
   const { ticket, pr, fichiers } = livraison;
   if (fichiers === null) throw new Error(`the files of PR #${pr.number} could not be read: whether it is a design delivery, which a human validates on this project, is not known — not merged on this turn`);
-  if (!estUneLivraisonDesign(ticket.number, fichiers, ticket.labels)) return null;
+  if (!estUneLivraisonDesign(ticket.number, fichiers)) return null;
   // Un ticket technique ne demande jamais le chef, sans modèle (#3609).
   const issue = github.issue === undefined ? null : await github.issue(ticket.number);
   const corps = issue?.body ?? "";
@@ -464,7 +463,7 @@ export async function retenirLeDesign(github: GitHubDeLaRetenue, livraison: Livr
     return `design delivery without its captures (${manque}): sent back to its cook for them`;
   }
   // L'écran de la livraison : ceux de ses fichiers qui en font une livraison design.
-  const ecran = fichiers.filter((fichier) => estUneLivraisonDesign(ticket.number, [fichier], []));
+  const ecran = fichiers.filter((fichier) => estUneLivraisonDesign(ticket.number, [fichier]));
   const suite = async (depot: string) => {
     const comparaison = await comparer(github, depot, ticket.number, pr.sha, screens);
     if ("sansChangement" in comparaison) {
