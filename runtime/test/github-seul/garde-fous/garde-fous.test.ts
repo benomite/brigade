@@ -16,7 +16,8 @@ import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
 import type { DisquePlein } from "../../../src/github-seul/garde-fous/disque-plein.ts";
-import { arretSubi, gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
+import { arretSubi, DIT_DES_RETENUES, gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
+import { direSaut } from "../../../src/attente-ticket/attente-ticket.ts";
 import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { etatDesGardeFous } from "../../../src/projections/guardrails.ts";
@@ -36,8 +37,8 @@ class FauxGitHub {
   commentaires: Array<{ issue: number; corps: string }> = [];
   prises: number[] = [];
 
-  feu(number: number): void {
-    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(CALIBRE), state: "open" });
+  feu(number: number, en_plus: string[] = []): void {
+    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set([...CALIBRE, ...en_plus]), state: "open" });
   }
 
   labels(number: number): string[] {
@@ -112,33 +113,36 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; disquePlein?: DisquePlein } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; places?: number; maintenant?: () => Date; disquePlein?: DisquePlein } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const machine = options.machine;
-  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), ...(options.disquePlein === undefined ? {} : { disquePlein: options.disquePlein }), avertir: options.avertir ?? (() => {}) });
+  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.disquePlein === undefined ? {} : { disquePlein: options.disquePlein }), avertir: options.avertir ?? (() => {}) });
   const faux = new FauxGitHub();
   const fins: string[] = [];
+  // Ce que la porte de prise dit de chaque ticket qu'elle saute.
+  const sauts = new Map<number, string>();
   const station = stationGitHub({
     nom: STATION,
-    places: 2,
+    places: options.places ?? 2,
     base: "main",
     github: faux.client(),
     prise: faux.prise(),
     cuisiner: async (ticket) => {
-      const lance = gardes.lancer({ commande: FAUX_CLAUDE, args: [], cwd: repertoire, env: { ...ENV_ENFANT, FAUX_CLAUDE: options.scenario?.(ticket.number) ?? "fini" }, flux: join(repertoire, `${ticket.number}-github.flux.jsonl`) });
+      const lance = gardes.lancer({ commande: FAUX_CLAUDE, args: [], cwd: repertoire, env: { ...ENV_ENFANT, FAUX_CLAUDE: options.scenario?.(ticket.number) ?? "fini" }, flux: join(repertoire, `${ticket.number}-github.flux.jsonl`), ticket: ticket.number });
       const fin = await lance.fin;
       fins.push(fin.arret?.reason ?? (fin.code === 0 ? "ok" : `code ${fin.code}`));
       return fin.code === 0 && fin.arret === null ? { branche: brancheDuTicket(ticket.number) } : { echec: fin.arret ? `guard:${fin.arret.reason}` : "failed" };
     },
     juger: async () => assert.fail("nothing is in pass"),
     gardes,
+    sauter: (ticket, ligne) => sauts.set(ticket, ligne),
     avertir: (texte) => { if (!/the cook stopped without a delivery/.test(texte)) assert.fail(texte); },
   });
   // Les faits d'un type, et ce qu'ils portent.
   const faits = (type: string) => runtime.journal.tout().flatMap((evenement) => (evenement.type === type ? [{ payload: evenement.payload as Record<string, unknown> }] : []));
-  return { repertoire, runtime, gardes, faux, station, fins, faits };
+  return { repertoire, runtime, gardes, faux, station, fins, faits, sauts };
 }
 
 // Ce que ferait la CLI du chef depuis son propre process : une autre connexion.
@@ -226,11 +230,118 @@ test("a machine short of processor holds the GitHub-only claim beyond the first 
   assert.equal(etatStation(runtime.journal.base, STATION)?.saturatedResource, null);
 });
 
+test("one CPU reading just over the limit, the next under it: the claim goes on and no station.held is emitted (#4142)", async (t) => {
+  let charge = 12.48;
+  const { faux, station, faits } = cuisine(t, { machine: () => BOX(charge) });
+  faux.feu(1);
+  await station.tour();
+  await station.calme();
+  charge = 3;
+  faux.feu(2);
+  await station.tour();
+  await station.calme();
+  assert.deepEqual(faux.prises, [1, 2]);
+  assert.equal(faits("station.held").length, 0);
+  assert.equal(faits("station.saturated").length, 0);
+});
+
+test("a CPU reading that stays just over the limit across three readings holds the station for its machine (#4142)", async (t) => {
+  let instant = INSTANT.getTime();
+  const { gardes, faits } = cuisine(t, { machine: () => BOX(12.48), maintenant: () => new Date((instant += 61_000)) });
+  assert.equal(await gardes.retenue(1), null);
+  assert.equal(await gardes.retenue(1), null);
+  assert.equal(await gardes.retenue(1), "machine");
+  assert.deepEqual(faits("station.held").map(({ payload }) => payload.reason), ["machine"]);
+});
+
 test("each claim granted counts on the machine before its load shows it: a full rail does not leave in one block (#3560)", async (t) => {
   // 11,5 : une prise tient sous 12 ; la suivante, comptée d'avance, la passerait.
   const { gardes } = cuisine(t, { machine: () => BOX(11.5) });
   assert.equal(await gardes.retenue(1), null);
   assert.equal(await gardes.retenue(2), "machine");
+});
+
+// La machine sature sous les cooks qui tournent (#4100) : une horloge fixe, une
+// charge de 16,2 pour 12 au plus. #1, le premier cook, part toujours.
+const INSTANT = new Date("2026-11-23T22:35:00Z");
+// Le label que le chef ou le superviseur pose sur la réparation.
+const REPARATION = "saturation-repair";
+const saturee = (t: TestContext) => {
+  const cuisson = cuisine(t, { machine: () => BOX(16.2), maintenant: () => INSTANT, scenario: () => "bavard", places: 4 });
+  cuisson.faux.feu(1);
+  return cuisson;
+};
+const SAUT_MACHINE = (ticket: number) => direSaut(ticket, DIT_DES_RETENUES.machine);
+
+test("a saturated machine takes the ticket labelled as the saturation repair, and only it: the other is skipped for saturation (#4100)", async (t) => {
+  const { runtime, faux, station, faits, sauts } = saturee(t);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1]);
+
+  faux.feu(2);
+  faux.feu(3, [REPARATION]);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 3]);
+  assert.equal(sauts.get(2), SAUT_MACHINE(2));
+  assert.equal(sauts.has(3), false);
+  // La station est retenue pour sa machine, et le cook de la réparation part quand même (#4097).
+  await jusqua(() => faits("cook.launched").some(({ payload }) => payload.serves === 3));
+  assert.deepEqual(faits("cook.launched").map(({ payload }) => [payload.serves, payload.saturationRepair ?? false]), [[1, false], [3, true]]);
+  // La station reste retenue par la machine pour les autres : la réparation ne la dit pas libre.
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason, "machine");
+  assert.deepEqual(faits("station.held").map(({ payload }) => payload.reason), ["machine"]);
+  assert.deepEqual(faits("station.released"), []);
+  assert.equal(faits("station.saturated").length, 1);
+});
+
+// brigade:guard
+test("a saturated machine with no repair ticket takes nothing more, and says each ticket is held for saturation (#4100)", async (t) => {
+  const { runtime, faux, station, sauts } = saturee(t);
+  await station.tour();
+  faux.feu(2);
+  faux.feu(3);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1]);
+  assert.equal(sauts.get(2), SAUT_MACHINE(2));
+  assert.equal(sauts.get(3), SAUT_MACHINE(3));
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason, "machine");
+});
+
+test("a repair cook already in flight on a saturated machine: nothing more is taken, another repair included (#4100)", async (t) => {
+  const { faux, station, sauts } = saturee(t);
+  await station.tour();
+  faux.feu(2, [REPARATION]);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 2]);
+
+  faux.feu(3, [REPARATION]);
+  faux.feu(4);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 2]);
+  assert.equal(sauts.get(3), SAUT_MACHINE(3));
+  assert.equal(sauts.get(4), SAUT_MACHINE(4));
+});
+
+// brigade:guard
+test("with the machine at ease, the repair label changes nothing: every claimable ticket is taken, as before (#4100)", async (t) => {
+  const { runtime, faux, station, sauts } = cuisine(t, { machine: () => BOX(1), maintenant: () => INSTANT, scenario: () => "bavard", places: 4 });
+  faux.feu(1);
+  faux.feu(2, [REPARATION]);
+  faux.feu(3);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 2, 3]);
+  assert.equal(sauts.size, 0);
+  assert.equal(etatStation(runtime.journal.base, STATION)?.heldReason ?? null, null);
+});
+
+test("the arbiter is not told the machine is saturated when the ticket asking for a place repairs the saturation (#4100)", async (t) => {
+  const dits: Array<{ machine: boolean; veut: boolean }> = [];
+  const arbitre: Arbitrage = { port: 0, echanger: async (_projet, mot) => (dits.push({ machine: mot.machine, veut: mot.veut }), { accorde: true, motif: null }), quitter: async () => {}, attendreUnePlace: async () => false, etat: async () => assert.fail("not read") };
+  const { gardes } = cuisine(t, { machine: () => BOX(16.2), maintenant: () => INSTANT, arbitre });
+  assert.equal(await gardes.retenue(1, 4097), null);
+  assert.equal(await gardes.retenue(1), "machine");
+  // La réparation demande sa place, comme tout ticket : seule la saturation est tue.
+  assert.deepEqual(dits, [{ machine: false, veut: true }]);
 });
 
 test("a machine that cannot be read holds nothing: the station's places still bound its cooks, and it is said once (#3560)", async (t) => {
@@ -535,6 +646,17 @@ test("a cook launched for a station held for its machine is refused at once, as 
   ecrire("station.released", { station: STATION });
   assert.equal((await lancer(4064).fin).code, 0);
   assert.equal(faits("cook.launched").length, 1);
+});
+
+test("on a station held for its machine, the cook of the saturation repair the claim gate let through starts; another ticket's cook is still refused (#4100)", async (t) => {
+  const { repertoire, gardes, faits } = cuisine(t, { machine: () => BOX(16.2), maintenant: () => INSTANT });
+  const lancer = (ticket: number) => gardes.lancer({ commande: FAUX_CLAUDE, args: [], cwd: repertoire, env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" }, flux: join(repertoire, `${ticket}-github.flux.jsonl`), ticket });
+
+  assert.equal(await gardes.retenue(1), "machine");
+  assert.equal(await gardes.retenue(1, 4097), null);
+  assert.equal((await lancer(4097).fin).code, 0);
+  assert.ok((await lancer(4098).fin).erreur?.startsWith("launch refused (station held)"));
+  assert.deepEqual(faits("cook.launched").map(({ payload }) => [payload.serves, payload.saturationRepair]), [[4097, true]]);
 });
 
 // Le disque de #4091 : 2 Go libres, le seuil par défaut est de 5 Go.
