@@ -14,6 +14,7 @@ import { etatDeLaStation } from "./tray-fond/tray-fond.ts";
 import { executer, garderLIcone, stationDeFondInstallee } from "./tray-fond/systeme.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
+import { deposerLaVue } from "./second/vue-du-projet.ts";
 import { lireFeu } from "./feu.ts";
 import { ALLUMAGE, compter } from "./allumage.ts";
 import { COMMANDE as COMMANDE_AMONT, tenirAmont } from "./amont.ts";
@@ -374,6 +375,7 @@ const colonnesDuRail = tenirLesColonnes((ligne) => {
 });
 function direLesFaits(recue: Dessinable): void {
   colonnesDuRail.voir(recue);
+  if ("tableau" in recue) deposerLaVue(recue.projet, recue.tableau);
   dire("faits", recue);
 }
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
