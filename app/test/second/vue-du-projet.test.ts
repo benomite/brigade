@@ -56,3 +56,10 @@ test("la vue déposée par l'app est celle que le crochet rend", () => {
     rmSync(vues, { recursive: true, force: true });
   }
 });
+
+test("le bandeau STOPPED dit ce que l'arrêt attend selon la cause que le runtime a nommée", () => {
+  const avec = (cause: unknown) => vueDeposee({ ...tableau, arretCuisine: { cause, since: "2026-11-24T10:00:00Z" } } as unknown as Tableau).banners[0]!;
+  assert.deepEqual(avec({ kind: "frozen-zone", ticket: 1078, zone: "app/src" }), { label: "STOPPED", waitsFor: "frozen ticket #1078 holds the file zone app/src", waitsOn: "whoever serves #1078, or the chef who sets it free" });
+  assert.deepEqual(avec({ kind: "main-red" }), { label: "STOPPED", waitsFor: "main is red", waitsOn: "the repair of main" });
+  assert.deepEqual(avec({ kind: "unknown" }), { label: "STOPPED", waitsFor: "the cause is unknown", waitsOn: "the chef" });
+});
