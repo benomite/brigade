@@ -46,3 +46,29 @@ test("a delivery merged a moment ago is in Served at the next reading, a few sec
   const apres = servis(dessine(await lectures.lire({ nom: "parade" })));
   assert.deepEqual(apres.map(({ ticket }) => ticket), [7], "the merged delivery is in Served 3 s after its merge");
 });
+
+// #3925, critère 2 : chaque livraison servie dit quand elle a été mergée (« merged 2 min ago »), et cet âge avance à chaque lecture.
+// Test d'acceptation gelé.
+const textes = (vu: Tableau, ticket: number): string => {
+  const carte = servis(vu).find((c) => c.ticket === ticket) ?? assert.fail(`no card #${ticket} in Served`);
+  return [carte.ligne ?? "", ...(carte.dit ?? []).map((d) => `${d.libelle} ${d.valeur}`)].join(" | ");
+};
+
+// brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+test("a served delivery says how long ago it was merged, and the age moves with the reading", async () => {
+  const appeler = github(() => [fermee(7, new Date(T0 - 2 * 60_000).toISOString())]);
+  assert.match(textes(dessine(await lireA(appeler, T0)), 7), /merged 2 min ago/);
+  assert.match(textes(dessine(await lireA(appeler, T0 + 3 * 60_000)), 7), /merged 5 min ago/);
+});
+
+// #3925, critère 3 : les chiffres de la colonne Served restent, avec leurs valeurs — comme avant.
+// Test d'acceptation gelé : il passe déjà sur la base, et c'est voulu.
+// brigade:guard
+test("the figures of the Served column stay and keep their values", async () => {
+  const appeler = github(() => [fermee(7, new Date(T0 - 2 * 60_000).toISOString()), fermee(8, new Date(T0 - 30 * 60_000).toISOString())]);
+  const lu = await lireA(appeler, T0);
+  const vu = dessine(lu);
+  assert.equal(servis(vu).length, 2);
+  assert.equal(vu.compteurs.find(({ libelle }) => libelle === "served 24 h")?.nombre, 2);
+  assert.equal(lu.faits.compteurs.livres24h, 2);
+});

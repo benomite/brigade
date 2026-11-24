@@ -46,3 +46,41 @@ for (const [base, etat] of [["success", "en pass"], ["failure", "base rouge"]] a
     assert.deepEqual(rail.map(({ ticket, etat: e, station }) => [ticket, e, station]), [[3891, etat, "parade-box/claude"], [3895, etat, "macbook-air-de-benoit/claude"]]);
   });
 }
+
+// Ticket #3902 — critère 2 : la ligne « in pass » de la file dit « cooked by <station> ». Lu de GitHub seul, sur un faux GitHub : le rail d'un projet, ses cartes (`facts`) et les lignes que `status` écrit.
+// brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+test("critère 2 — la ligne `in pass` dit « cooked by <station> » d'après la PR, label taken retiré", async () => {
+  const { lignes } = await lire({
+    issues: [issue(3893, ["fire", "in-pass"])],
+    prs: [pr(3894, 3893, "Delivers #3893.\n\nCooked by station `parade-box/claude`")],
+    commentaires: { 3893: [prise(1, "parade-box/claude", "2026-11-20T09:00:00Z")] },
+    evenements: { 3893: [retrait("2026-11-20T10:00:00Z")] },
+  });
+  assert.equal(lignes.get(3893), "in pass  -  since 2026-11-20 10:00 UTC, cooked by parade-box/claude  Ticket 3893");
+});
+
+// Ticket #3902 — critère 3 : une livraison sans marque de station ne montre aucune puce, rien n'est deviné. Lu de GitHub seul, sur un faux GitHub : le rail d'un projet, ses cartes (`facts`) et les lignes que `status` écrit.
+// brigade:guard
+test("critère 3 — une PR sans marque « Cooked by station » : ni puce ni « cooked by », même si une prise a existé", async () => {
+  const { rail, lignes } = await lire({
+    issues: [issue(3891, ["fire", "in-pass"])],
+    prs: [pr(3892, 3891, "Delivers #3891.")],
+    commentaires: { 3891: [prise(1, "parade-box/claude", "2026-11-20T09:00:00Z")] },
+    evenements: { 3891: [retrait("2026-11-20T10:00:00Z")] },
+  });
+  assert.equal(rail[0]?.etat, "en pass");
+  assert.equal(rail[0]?.station, undefined);
+  assert.doesNotMatch(lignes.get(3891) ?? "", /cooked by/);
+});
+
+// Ticket #3902 — critère 4 : une carte taken ne perd jamais sa station pendant qu'elle passe en pass. Lu de GitHub seul, sur un faux GitHub : le rail d'un projet, ses cartes (`facts`) et les lignes que `status` écrit.
+// brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+test("critère 4 — label `taken` encore là, mais `unlabeled taken` déjà lu : la carte garde sa station et sa ligne `taken`", async () => {
+  const { rail, lignes } = await lire({
+    issues: [issue(3895, ["fire", "taken"])],
+    commentaires: { 3895: [prise(1, "macbook-air-de-benoit/claude", "2026-11-20T09:00:00Z")] },
+    evenements: { 3895: [retrait("2026-11-20T10:00:00Z")] },
+  });
+  assert.deepEqual(rail.map(({ ticket, etat, station }) => [ticket, etat, station]), [[3895, "pris", "macbook-air-de-benoit/claude"]]);
+  assert.equal(lignes.get(3895), "taken  -  by macbook-air-de-benoit/claude since 2026-11-20 09:00 UTC  Ticket 3895");
+});
