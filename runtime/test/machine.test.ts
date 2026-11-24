@@ -146,3 +146,9 @@ test("a saturation says its biggest consumer only when it has one (#4090)", () =
 test("a missing `ps` names no process (#4090)", () => {
   assert.equal(lireConsommateur("/s", { du: () => "", ps: () => { throw new Error("ps: not found"); } })("cpu"), null);
 });
+
+test("each resource reads only its own measure: a failing `du` leaves the CPU named, a failing `ps` the disk (#4090)", () => {
+  const casse = () => { throw new Error("boom"); };
+  assert.equal(lireConsommateur("/s", { du: casse, ps: () => "  7 50 node\n" })("cpu"), "node (pid 7, 50% CPU)");
+  assert.equal(lireConsommateur("/s", { du: () => "9\t/s/espace\n9\t/s\n", ps: casse })("disk"), "espace/ (0 MB)");
+});
