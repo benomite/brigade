@@ -35,6 +35,25 @@ a{color:#ece9e3}a:hover{color:#f2994a}
       <span>Last merge <strong style="color: #ece9e3">4 min</strong> ago</span>
     </div>
 
+    <section data-cook-roster aria-label="Cooks at work" style="padding: 12px 24px; border-bottom: 1px solid #23272d; display: flex; flex-direction: column; gap: 6px">
+      <sc-if value="{{cookRoster.empty}}" hint-placeholder-val="{{ false }}">
+        <p style="margin: 0; font-size: 13px; color: #a3a7ae">{{cookRoster.emptyLine}}</p>
+      </sc-if>
+      <sc-for list="{{cookRoster.groups}}" as="g" hint-placeholder-count="2">
+        <h2 style="margin: 4px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #a3a7ae">{{g.heading}}</h2>
+        <sc-for list="{{g.lines}}" as="l" hint-placeholder-count="2">
+          <a data-cook-line href="{{l.href}}" style="display: flex; align-items: center; gap: 12px; min-height: 32px; padding: 4px 10px; border-radius: 8px; background: #16181c; border: 1px solid {{l.border}}; opacity: {{l.opacity}}; color: #ece9e3; text-decoration: none; font-size: 13px">
+            <span aria-hidden="true" style="flex: none; width: 8px; height: 8px; border-radius: 999px; background: {{l.dot}}"></span>
+            <span style="flex: none; font: 600 13px 'JetBrains Mono', monospace">{{l.num}}</span>
+            <span style="flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{l.title}}</span>
+            <span style="flex: 0 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c9c4bc">{{l.doing}}</span>
+            <span style="flex: none; font: 500 11px 'JetBrains Mono', monospace; color: {{l.sinceColor}}">{{l.since}}</span>
+            <span style="flex: none; font: 500 11px 'JetBrains Mono', monospace; color: #a3a7ae">{{l.model}}</span>
+          </a>
+        </sc-for>
+      </sc-for>
+    </section>
+
     <div style="overflow-x: auto; padding: 16px 24px">
       <div style="display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 12px; min-width: 1240px">
         <sc-for list="{{columns}}" as="c" hint-placeholder-count="6">
@@ -89,10 +108,46 @@ a{color:#ece9e3}a:hover{color:#f2994a}
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+// A cook with no recorded move for this long is shown as stalled.
+const STALLED_AFTER_MS = 5 * 60 * 1000;
+
 class Component extends DCLogic {
+  cookRoster() {
+    const now = Date.now();
+    const ago = (min) => new Date(now - min * 60000).toISOString();
+    const cooks = this.props.cooks ?? [
+      { num: '#2894', title: 'A cook’s technical block goes to the manager first', stage: 'Taken', step: 'Running tests 28/28', model: 'claude-sonnet-5-5', lastMoveAt: ago(1) },
+      { num: '#2873', title: 'Social preview image and a README first screen', stage: 'Taken', model: 'claude-opus-5-5', lastMoveAt: ago(8) },
+      { num: '#2875', title: 'Demo video sources: real captures of each scene', stage: 'Pass', model: 'claude-sonnet-5-5', lastMoveAt: ago(2), waiting: 'pass' },
+      { num: '#2771', title: 'Marketing: write the positioning', stage: 'Awaiting you', model: 'claude-opus-5-5', lastMoveAt: ago(14), waiting: 'question' }
+    ];
+    const compact = (min) => (min < 1 ? '<1 min' : min < 60 ? min + ' min' : Math.floor(min / 60) + ' h' + (min % 60 ? ' ' + (min % 60) + ' min' : ''));
+    const line = (c) => {
+      const elapsed = now - Date.parse(c.lastMoveAt);
+      const idle = !c.waiting && elapsed >= STALLED_AFTER_MS;
+      return {
+        num: c.num, title: c.title, model: c.model, stalled: idle,
+        doing: c.step || c.stage,
+        since: compact(Math.max(0, Math.floor(elapsed / 60000))),
+        href: '#ticket-' + String(c.num).replace('#', ''),
+        dot: c.waiting ? '#e9c46a' : idle ? '#ee6b5b' : '#6cc28a',
+        border: idle ? '#5c3a35' : '#23272d',
+        opacity: idle ? '0.6' : '1',
+        sinceColor: idle ? '#ffb4a8' : '#a3a7ae'
+      };
+    };
+    const working = cooks.filter((c) => !c.waiting).map(line);
+    const waiting = cooks.filter((c) => c.waiting).map(line);
+    const groups = [
+      { state: 'working', heading: 'Working', lines: working },
+      { state: 'waiting', heading: 'Waiting: on the pass or on a question', lines: waiting }
+    ].filter((g) => g.lines.length > 0);
+    return { empty: groups.length === 0, emptyLine: 'No cook is at work right now.', groups };
+  }
   renderVals() {
     const v = (num, title, meta, prio) => ({ voucher: true, awaiting: false, num, title, meta, prio });
     return {
+      cookRoster: this.cookRoster(),
       columns: [
         { title: 'On the rail', count: 2, color: '#7a808a', path: 'M5 1.5 A3.5 3.5 0 1 1 4.99 1.5 Z', empty: false, emptyLine: '', cards: [
           v('#2872', 'Publish site/ to GitHub Pages with an Actions workflow', 'queued 3 min', 'prio:1'),
