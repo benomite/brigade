@@ -52,11 +52,11 @@ export function gestes(doc, boutons) {
 // geste recommandé, sauf là où un autre l'est (changer de compte, quand un compte est déjà connecté).
 /**
  * @param {Fabrique} doc @param {Connexion | undefined} connexion @param {string} libelle
- * @param {{ seConnecter: () => void, ouvrirLaPage: (url: string) => void }} geste @param {{ recommande?: boolean }} [options]
+ * @param {{ seConnecter: () => void, ouvrirLaPage: (url: string) => void }} geste @param {{ recommande?: boolean, sorte?: import("../composants/bouton/bouton.js").Sorte }} [options]
  */
-export function connexionDite(doc, connexion, libelle, geste, { recommande = true } = {}) {
+export function connexionDite(doc, connexion, libelle, geste, { recommande = true, sorte } = {}) {
   const enRoute = connexion !== undefined && ("enRoute" in connexion || "code" in connexion);
-  const bouton = boutonAction(doc, enRoute ? CONNEXION_EN_ROUTE : libelle, geste.seConnecter, { recommande });
+  const bouton = boutonAction(doc, enRoute ? CONNEXION_EN_ROUTE : libelle, geste.seConnecter, { recommande, ...(sorte === undefined ? {} : { sorte }) });
   const pose = [gestes(doc, [bouton])];
   bouton.children[0].disabled = enRoute;
   if (connexion === undefined || "enRoute" in connexion || "connecte" in connexion) return pose;

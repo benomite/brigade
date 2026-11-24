@@ -79,7 +79,7 @@ and a button **open this project**. Nothing is prefilled.
 **Connect GitHub, if the screen asks.** With no account connected, it shows one button, **connect to GitHub**. The app
 runs `gh auth login --web` and shows `Type the code ABCD-1234 on the GitHub page that opened in your browser.` (`open
 the GitHub page again` reopens it). Type the code, authorize, and the screen says which account is connected.
-**switch GitHub account** does the same with another account, and the account is read again afterwards.
+**switch GitHub account**, a small link under the account, does the same with another account, and the account is read again afterwards.
 
 ### 2. Connect your project
 
