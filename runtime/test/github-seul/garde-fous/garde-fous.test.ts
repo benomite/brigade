@@ -253,6 +253,21 @@ test("a saturated machine lets the ticket that repairs the saturation through, o
   assert.deepEqual(faux.prises, [1, 3]);
 });
 
+test("a saturated machine with no repair ticket takes nothing past the first cook; with the machine at ease the repair label changes nothing (#4100)", async (t) => {
+  const sature = cuisine(t, { machine: () => BOX(16.2), scenario: () => "bavard", places: 4 });
+  sature.faux.feu(1);
+  await sature.station.tour();
+  sature.faux.feu(2);
+  await sature.station.tour();
+  assert.deepEqual(sature.faux.prises, [1]);
+
+  const libre = cuisine(t, { machine: () => BOX(1), scenario: () => "bavard", places: 4 });
+  libre.faux.feu(1);
+  libre.faux.feu(2, [LABEL_REPARATION_SATURATION]);
+  await libre.station.tour();
+  assert.deepEqual(libre.faux.prises.sort(), [1, 2]);
+});
+
 test("the arbiter is not told the machine is saturated when the ticket asking for a place repairs the saturation (#4100)", async (t) => {
   const dits: boolean[] = [];
   const arbitre: Arbitrage = { port: 0, echanger: async (_projet, mot) => (dits.push(mot.machine), { accorde: true, motif: null }), quitter: async () => {}, attendreUnePlace: async () => false, etat: async () => assert.fail("not read") };
