@@ -340,7 +340,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       // pris avant la retenue, ou relancé après sa fin, attend qu'elle se lève. Le manager, la pass (relecture,
       // mutations, blocage) et les autres runs hors ticket partent, comme avec le disjoncteur.
       const station = demande.contexte?.station ?? null;
-      if (station !== null && natureDuRun(run, station) === "cook" && etatStation(base, station)?.heldReason === "machine") {
+      // Le cook de la réparation de la saturation, que la porte de prise a laissé passer, part (#4100).
+      if (station !== null && natureDuRun(run, station) === "cook" && demande.contexte?.saturationRepair !== true && etatStation(base, station)?.heldReason === "machine") {
         throw new LancementRefuse("held", `station ${station} retenue : sa machine est saturée, aucun cook n'est lancé avant qu'elle se libère`);
       }
       const lance = noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
