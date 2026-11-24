@@ -16,8 +16,9 @@
 // (`github-etat/fusion.ts`, #2058). Le cook et la relecture sont ceux
 // d'aujourd'hui — worktree du dépôt de la station, cloison, consignes du cook
 // et du reviewer —, lancés ici sans journal.
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { retirerLesRestesDuCook } from "./station/restes-du-cook.ts";
 import { horsDesBesoins } from "./besoin/besoin.ts";
 import { horsDesTickets } from "./issue-de-la-cuisine.ts";
 import { fiche, type Fiche } from "./fiche.ts";
@@ -2992,10 +2993,29 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     return faits;
   };
+  // Les flux d'un run (`<run>.flux.jsonl`, ses relances, leur `.stderr`) : ceux du
+  // tour sous `options.flux`, ceux des garde-fous sous `<état>/runs`.
+  const fluxDuRun = (run: string): string[] =>
+    [options.flux, ...(options.repertoireEtat === undefined ? [] : [join(options.repertoireEtat, "runs")])].flatMap((dossier) => {
+      try {
+        return readdirSync(dossier).filter((nom) => nom.startsWith(`${run}.`) || nom.startsWith(`${run}-`)).map((nom) => join(dossier, nom));
+      } catch {
+        return [];
+      }
+    });
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
+    const run = runDuTicket(ticket.number);
     try {
       return await cuisinerLeTicket(ticket, calibrage);
     } finally {
+      // Le cook est sorti : la station reprend ce qu'il a laissé sur le disque
+      // (#4104). Un échec ici ne remonte jamais jusqu'à la sortie du cook.
+      try {
+        const worktree = lieuxEnVol.get(ticket.number)?.worktree;
+        retirerLesRestesDuCook({ cook: run, sorti: true, chemins: [...(worktree === undefined ? [] : [worktree]), ...fluxDuRun(run), ...(options.repertoireEtat === undefined ? [] : [join(options.repertoireEtat, "tmp", run)])], avertir });
+      } catch (erreur) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — the leftovers of its cook could not be removed: ${message(erreur)}`);
+      }
       lieuxEnVol.delete(ticket.number);
       sauves.delete(ticket.number);
     }

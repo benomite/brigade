@@ -466,13 +466,14 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     assert.equal(vue.element("tous").dessous("p").find((pose) => pose.className === "ouverture")?.textContent, ouvertureDe("parade"));
   });
 
-  test("« T » mène à « Tous les projets », le bouton du bas à l'écran « Add a project »", async () => {
+  test("« T » ramène à l'accueil du premier lancement (4082), le bouton du bas à l'écran « Add a project »", async () => {
     const vue = await jouerLaVue({ demarrage: () => demarrage([]), stationsDuChef: () => LISTEES, espace: () => [] });
     (vue.element("tous").dessous("button").find((bouton) => bouton.textContent === PAR_SES_DEPOTS) ?? assert.fail()).click();
     await repos();
     assert.equal(vue.element("ajout").hidden, false);
     (vue.poses().find((pose) => pose.id === "entree-tous") ?? assert.fail()).click();
     await repos();
-    assert.equal(vue.element("tous").dessous("h2")[0]?.textContent, "Projects");
+    assert.equal(vue.element("ajout").hidden, true);
+    assert.equal(vue.element("tous").dessous("p").some((ligne) => ligne.textContent === BIENVENUE), true);
   });
 });
