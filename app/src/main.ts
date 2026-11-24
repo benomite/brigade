@@ -5,10 +5,10 @@ import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuDeLApp } from "./aide-communaute.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, Tray, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
-import { ICONE_DE_LA_BARRE, pastillee } from "./tray-fond/icone.ts";
+import { creerLIcone, ICONE_DE_LA_BARRE, poserLaLigne, poserLeMenu, retirerLIcone } from "./tray/icone.ts";
 import { executer, garderLIcone, stationDeFondInstallee } from "./tray-fond/systeme.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
@@ -445,17 +445,15 @@ const barreDeMenus = tenirBarreDeMenus({
   creer: () => {
     const image = nativeImage.createFromPath(ICONE_DE_LA_BARRE);
     if (image.isEmpty()) throw new Error(`its icon could not be read: ${ICONE_DE_LA_BARRE}`);
-    const icone = new Tray(image);
-    // Sous Windows, le clic gauche n'ouvre pas le menu de lui-même : sur un Mac, si.
-    if (!estUnMac(plateforme)) icone.on("click", () => icone.popUpContextMenu());
+    const icone = creerLIcone(image, plateforme);
+    // Une seule icône dans la barre (#4079) : celle de la station de fond la tient, l'app la pose à sa lecture suivante si elle part.
+    if (icone === undefined) throw new Error("the station's icon already holds the menu bar");
     return {
       poser: (ligne, questions) => {
-        icone.setToolTip(`brigade — ${ligne}`);
-        if (estUnMac(plateforme)) icone.setTitle(` ${ligne}`);
-        else icone.setImage(pastillee(image, questions));
+        poserLaLigne(icone, image, { infobulle: "brigade", ligne, questions, plateforme });
       },
-      menu: (entrees) => icone.setContextMenu(Menu.buildFromTemplate(entrees.map(entreeDuMenu))),
-      retirer: () => icone.destroy(),
+      menu: (entrees) => poserLeMenu(icone, entrees.map(entreeDuMenu)),
+      retirer: () => retirerLIcone(icone),
     };
   },
 });

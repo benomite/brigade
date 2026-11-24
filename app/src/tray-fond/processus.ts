@@ -9,19 +9,20 @@ import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { setTimeout as attendre } from "node:timers/promises";
-import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
+import { app, dialog, nativeImage, type Tray, type MenuItemConstructorOptions } from "electron";
 import { lancerIci, type Locale } from "../box.ts";
 import type { ProjetLu } from "../barre-de-menus.ts";
 import { cheminConfiguration, lireConfiguration } from "../config.ts";
 import { RELEASES_URL } from "../mise-a-jour/android.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "../emplacements.ts";
-import { estUnMac, shellDuPoste } from "../plateforme.ts";
+import { shellDuPoste } from "../plateforme.ts";
 import { servisPar } from "../poste/cuisine-ici.ts";
 import { prendreLaPlace } from "./instance.ts";
-import { ICONE_DE_LA_BARRE, pastillee } from "./icone.ts";
+import { creerLIcone, ICONE_DE_LA_BARRE, poserLaLigne, poserLeMenu, retirerLIcone } from "../tray/icone.ts";
+import { ligneDuFond } from "../tray/ligne.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
 import { DOSSIER_DU_FOND, ecrireLaVersionDuFond, executer, quitterLaStation } from "./systeme.ts";
-import { clicSurLApp, confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
+import { clicSurLApp, confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
 import type { Veille } from "../vue/veille-machine/veille-machine.js";
 
 const INTERVALLE_MS = 15_000;
@@ -131,7 +132,7 @@ function entreeDuMenu(entree: EntreeDuFond): MenuItemConstructorOptions {
 
 function poser(actif: boolean): void {
   if (!actif) {
-    icone?.destroy();
+    if (icone !== undefined) retirerLIcone(icone);
     icone = undefined;
     dite = "";
     return;
@@ -142,9 +143,9 @@ function poser(actif: boolean): void {
       console.error(`brigade: the station's icon could not be read: ${ICONE_DE_LA_BARRE}`);
       return;
     }
-    icone = new Tray(image);
-    // Sous Windows, le clic gauche n'ouvre pas le menu de lui-même : sur un Mac, si.
-    if (!estUnMac(plateforme)) icone.on("click", () => icone?.popUpContextMenu());
+    // Une seule icône dans la barre (#4079) : tenue par l'app, elle n'en pose pas — et la pose quand l'app part.
+    icone = creerLIcone(image, plateforme);
+    if (icone === undefined) return;
   }
   const station = etatDeLaStation(projets);
   const entrees = menuDuFond(projets, station, veille);
@@ -152,10 +153,8 @@ function poser(actif: boolean): void {
   if (pose === dite) return;
   dite = pose;
   const ligne = ligneDuFond(projets, station);
-  icone.setToolTip(`brigade station — ${ligne}`);
-  if (estUnMac(plateforme)) icone.setTitle(` ${ligne}`);
-  else icone.setImage(pastillee(image, questionsDuFond(projets)));
-  icone.setContextMenu(Menu.buildFromTemplate(entrees.map(entreeDuMenu)));
+  poserLaLigne(icone, image, { infobulle: "brigade station", ligne, questions: questionsDuFond(projets), plateforme });
+  poserLeMenu(icone, entrees.map(entreeDuMenu));
 }
 
 async function relire(): Promise<void> {

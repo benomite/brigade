@@ -198,10 +198,10 @@ describe("l'icône livrée", () => {
 
   test("le process principal la pose depuis ce dossier, et la redit à chaque lecture de `facts`", () => {
     const principal = readFileSync(join(import.meta.dirname, "../src/main.ts"), "utf8");
-    // Le chemin de l'icône est partagé avec l'icône de la station de fond (tray-fond/icone.ts, #3631).
-    const icone = readFileSync(join(import.meta.dirname, "../src/tray-fond/icone.ts"), "utf8");
+    // Le chemin de l'icône est partagé avec l'icône de la station de fond (tray/icone.ts, #3631).
+    const icone = readFileSync(join(import.meta.dirname, "../src/tray/icone.ts"), "utf8");
     assert.ok(icone.includes('join(import.meta.dirname, "..", "icones", "barre-de-menus.png")'));
-    assert.ok(principal.includes('import { ICONE_DE_LA_BARRE, pastillee } from "./tray-fond/icone.ts";'));
+    assert.ok(principal.includes('import { creerLIcone, ICONE_DE_LA_BARRE, poserLaLigne, poserLeMenu, retirerLIcone } from "./tray/icone.ts";'));
     assert.ok(principal.includes("nativeImage.createFromPath(ICONE_DE_LA_BARRE)"));
     const veille = /const veilleDesFaits = ouvrirVeilleDuTableau\(\{[\s\S]*?\n\}\);/.exec(principal)?.[0] ?? assert.fail("pas de veille des faits");
     assert.ok(veille.includes("poserLaBarreDeMenus();"), "une lecture de `facts` ne redit pas l'icône");
