@@ -229,3 +229,12 @@ test("a file that is not valid, or written by a newer brigade, is refused on rea
   await assert.rejects(lire(JSON.stringify({ version: 1, integrationBranch: "v2", note: jeton })), (erreur: unknown) => erreur instanceof ReglageRefuse && erreur.motif === "secret" && !erreur.message.includes(jeton));
   await assert.rejects(lire(`{ "token": "${jeton}"`), (erreur: unknown) => erreur instanceof ReglageRefuse && !erreur.message.includes(jeton));
 });
+
+test("a clone's projet.json tools come back from the read, and are absent when the file declares none", async (t) => {
+  const avec = clone(t);
+  poser(avec, FICHIER, JSON.stringify({ version: 1, integrationBranch: "main", tools: ["screenshots", "browser"] }));
+  assert.deepEqual((await lireReglagesProjet(avec)).tools, ["screenshots", "browser"]);
+  const sans = clone(t);
+  poser(sans, FICHIER, JSON.stringify({ version: 1, integrationBranch: "main" }));
+  assert.equal("tools" in (await lireReglagesProjet(sans)), false);
+});
