@@ -75,5 +75,5 @@ export function prendreLaPlace(fichier: string, soi: number = process.pid, estTe
 export function autreAppTourne(fichier: string, verrouRendu: boolean, soi: number = process.pid, plateforme: NodeJS.Platform = process.platform, lancer: Lancer = execFileSync): boolean {
   const lire = (pid: number) => lireLaCommande(pid, plateforme, lancer);
   const tenant = prendreLaPlace(fichier, soi, (pid) => !verrouRendu && memeProcess(pid, soi, lire));
-  return !verrouRendu && tenant !== undefined;
+  return !verrouRendu && typeof tenant === "number";
 }
