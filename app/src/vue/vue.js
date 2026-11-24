@@ -145,6 +145,7 @@ import { cookDuTicket, duree as dureeDuCook, geste as gesteDuCook, poserLActivit
 import { poserAge, poserEssais } from "./cadence.js";
 import { poserRangDEssai } from "./carte/essai.js";
 import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
+import { poserLeMotAuCook } from "./mot-au-cook/mot-au-cook.js";
 import { poserTestsDeFiche } from "./fiche-tests/fiche-tests.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { poserLEssai } from "./essai/essai.js";
@@ -3005,6 +3006,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     signal.className = "signal";
     bon.append(signal);
   }
+  // En cuisine : un mot au cook, d'une ligne, sans ouvrir sa session (ticket 4048, mot-au-cook/).
+  bon.append(...poserLeMotAuCook(document, projet.nom, carte));
   // Une carte de TODO entrée par la porte du runtime : sa question, ses captures, un bouton par choix et
   // un champ pour répondre dans tes mots — tranchée sur la carte même, sans ouvrir sa fiche.
   if (attendu && carte.todo !== undefined) {

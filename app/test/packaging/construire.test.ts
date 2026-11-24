@@ -20,11 +20,13 @@ import {
   estMachOArm64,
   metadonneesDeMiseAJour,
   reecrirePlist,
+  reecrirePlistAuxiliaire,
   versionCourte,
   versionDuCommit,
   type Executer,
 } from "../../packaging/construire.ts";
 import { emplacementsDe, estInstallee } from "../../src/emplacements.ts";
+import { defautsDeNom } from "../../packaging/verifier-plist.ts";
 import { roleDe } from "../../src/poste/role.ts";
 import { PAQUETS } from "../aides/posix.ts";
 
@@ -287,6 +289,52 @@ test("l'Info.plist d'Electron passe au nom de l'app ; l'exécutable garde le sie
   assert.equal(plist.match(/<dict>/g)?.length, plist.match(/<\/dict>/g)?.length);
   assert.match(plist, /<key>CFBundleVersion<\/key>\s*<string>0\.20261019\.151600<\/string>\s*<key>LSMinimumSystemVersion<\/key>/);
   assert.match(plist, /<\/dict>\n<\/plist>\n$/);
+});
+
+const plistAide = (...lignes: string[]) => `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n${lignes.map((l) => `\t${l}\n`).join("")}</dict>\n</plist>\n`;
+const chaine = (cle: string, valeur: string) => `<key>${cle}</key>\n\t<string>${valeur}</string>`;
+
+// Un paquet dont le seul auxiliaire porte ce plist (réécrit), vu par verifier-plist.
+function defautsAvecAide(t: TestContext, xml: string, dossierAide: string): { defauts: string[]; reecrit: string } {
+  const racine = dossier(t);
+  const contenu = join(racine, "Brigade.app", "Contents");
+  mkdirSync(join(contenu, "Frameworks", dossierAide, "Contents"), { recursive: true });
+  writeFileSync(join(contenu, "Info.plist"), plistAide(chaine("CFBundleName", "Brigade"), chaine("CFBundleDisplayName", "Brigade")));
+  const reecrit = reecrirePlistAuxiliaire(xml, dossierAide);
+  writeFileSync(join(contenu, "Frameworks", dossierAide, "Contents", "Info.plist"), reecrit);
+  return { defauts: defautsDeNom(join(racine, "Brigade.app")), reecrit };
+}
+const valeurDe = (xml: string, cle: string) => new RegExp(`<key>${cle}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
+
+test("un auxiliaire sans CFBundleDisplayName : il est posé, du nom renommé", (t) => {
+  const xml = plistAide(chaine("CFBundleName", "Electron Helper (GPU)"), chaine("CFBundleIdentifier", "com.github.Electron.helper.GPU"));
+  const { defauts, reecrit } = defautsAvecAide(t, xml, "Electron Helper (GPU).app");
+  assert.deepEqual(defauts, []);
+  assert.equal(valeurDe(reecrit, "CFBundleName"), "Brigade Helper (GPU)");
+  assert.equal(valeurDe(reecrit, "CFBundleDisplayName"), "Brigade Helper (GPU)");
+  assert.equal(valeurDe(reecrit, "CFBundleIdentifier"), "com.github.benomite.brigade.helper.GPU");
+});
+
+test("un auxiliaire dont CFBundleDisplayName diffère de CFBundleName : il prend le nom renommé", (t) => {
+  const xml = plistAide(chaine("CFBundleName", "Electron Helper (Renderer)"), chaine("CFBundleDisplayName", "Electron"), chaine("CFBundleIdentifier", "com.github.Electron.helper.Renderer"));
+  const { defauts, reecrit } = defautsAvecAide(t, xml, "Electron Helper (Renderer).app");
+  assert.deepEqual(defauts, []);
+  assert.equal(valeurDe(reecrit, "CFBundleDisplayName"), "Brigade Helper (Renderer)");
+});
+
+test("un auxiliaire dont aucun nom n'est de la forme attendue : le nom vient de son dossier", (t) => {
+  const xml = plistAide(chaine("CFBundleName", "Helper"), chaine("CFBundleDisplayName", "Electron"));
+  const { defauts, reecrit } = defautsAvecAide(t, xml, "Electron Helper (Plugin).app");
+  assert.deepEqual(defauts, []);
+  assert.equal(valeurDe(reecrit, "CFBundleName"), "Brigade Helper (Plugin)");
+  assert.equal(valeurDe(reecrit, "CFBundleDisplayName"), "Brigade Helper (Plugin)");
+  const sansNoms = defautsAvecAide(t, plistAide(chaine("CFBundleExecutable", "Electron Helper")), "Electron Helper.app");
+  assert.deepEqual(sansNoms.defauts, []);
+  assert.equal(valeurDe(sansNoms.reecrit, "CFBundleName"), "Brigade Helper");
+});
+
+test("ce qui n'est pas un plist est refusé avec un message clair", () => {
+  assert.throws(() => reecrirePlistAuxiliaire("not a plist", "Electron Helper.app"), { code: 1, message: /is not a plist/ });
 });
 
 test("la version : celle du commit construit, et ce qu'un Mac en garde", () => {

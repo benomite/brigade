@@ -35,6 +35,7 @@ import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
+import { brancherLeMotAuCook } from "./vue/mot-au-cook/mot-au-cook-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -1648,6 +1649,7 @@ ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unkno
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
 });
+brancherLeMotAuCook(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le mot au cook (#4048, vue/mot-au-cook/mot-au-cook-box.ts)
 // Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
 // marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
 // (vue/explications/explications-box.ts).
