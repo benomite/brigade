@@ -33,7 +33,7 @@ import { brancherCloserGithub, lectureDuClone } from "../closer-github-passe/clo
 import { lireBlocagesSansQuestion } from "../blocages-sans-question.ts";
 import { coutsDesFlux, noterDeriveGithub } from "../closer-github-passe/derive-github.ts";
 import { brancherRapportHebdo } from "../rapport-hebdo-qualite.ts";
-import { brancherCalendrier } from "../recurrences/recurrences.ts";
+import { brancherCalendrier } from "../recurrences/calendrier.ts";
 import { brancherRecurrents } from "../recurrents/planificateur.ts";
 import { brancherTicketDEssai } from "../essai-projet/ticket.ts";
 import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
