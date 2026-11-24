@@ -5,7 +5,7 @@ import { appendFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { fileSurDisque } from "../../src/mot-au-cook/file.ts";
+import { fileSurDisque, fileVide } from "../../src/mot-au-cook/file.ts";
 
 const racine = mkdtempSync(join(tmpdir(), "mot-au-cook-file-"));
 after(() => rmSync(racine, { recursive: true, force: true }));
@@ -46,4 +46,14 @@ test("a queue that cannot be read throws, instead of reading as empty", () => {
   writeFileSync(join(racine, "pas-un-dossier"), "");
   const file = fileSurDisque(join(racine, "pas-un-dossier"));
   assert.throws(() => file.prendre(7));
+});
+
+// Windows dit ENOENT, et non ENOTDIR, quand un fichier coupe le chemin de la
+// file : joué ici sur Linux avec l'erreur que Windows donne.
+test("a queue cut by a file is unreadable even when the system says it is absent, as Windows does", () => {
+  const sansEntree = Object.assign(new Error("no such file"), { code: "ENOENT" });
+  writeFileSync(join(racine, "coupe"), "");
+  assert.equal(fileVide(sansEntree, join(racine, "coupe", "mots-au-cook")), false, "a file on the path: unreadable");
+  assert.equal(fileVide(sansEntree, join(racine, "pas-encore", "mots-au-cook")), true, "nothing on the path yet: empty");
+  assert.equal(fileVide(Object.assign(new Error("not a directory"), { code: "ENOTDIR" }), join(racine, "pas-encore", "mots-au-cook")), false, "any other error: unreadable");
 });
