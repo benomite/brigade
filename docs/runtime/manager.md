@@ -263,7 +263,7 @@ not proven (a cook cannot read that journal), only that a new issue no longer wa
 **The tickets of a split never await each other** (#3130): two tickets whose zones overlap (the project's
 common paths aside), or one the answer makes await another, are **joined into one ticket** by the code —
 its title the titles joined by `; `, all their criteria, zones and capabilities, the highest model and effort
-of theirs, the design cook if one had it —, and the split comment names each one joined, with the path they
+of theirs, the interface label if one had it —, and the split comment names each one joined, with the path they
 shared, under "Tickets joined". Before, the second awaited the first, and lost its whole cooking, pass, CI
 and merge waiting for its claim. The instruction asks for disjoint zones and an empty `attend`; an `attend`
 between disjoint zones is refused, and the split redone once.
@@ -273,17 +273,17 @@ between disjoint zones is refused, and the split redone once.
 `requires`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends
 on (see "A ticket's card", in `station.md`).
 
-**An interface ticket goes to the design cook** (`agents/cook-design.md`): its zone touches the app's view
+**An interface ticket states the tools it needs** (the project declares its tools, screenshots among them): its zone touches the app's view
 (`app/src/vue/` or a path under it, or a folder containing it like `app/src` when the repository has a view —
 a file under `app/src/vue/` in its plan), or the split says so (`"cook": "design"`, only in a repository that
-defines the design cook). A folder containing the view in a repository without one is not an interface zone:
+defines an interface profile). A folder containing the view in a repository without one is not an interface zone:
 on BOBL-tech/espace, `app/src/` is the server, and its server tickets were sent back for screen captures no
-screen could give (#2800). It carries `cook:design`, a "Design cook" paragraph at
-the head of its body, and `· design cook` in the split comment's "Calibration" column. Calibration is
+screen could give (#2800). It carries `cook:design`, an "Interface ticket" paragraph at
+the head of its body, and `· interface` in the split comment's "Calibration" column. Calibration is
 unchanged.
 
 **Its delivery shows the screen before and after** (`runtime/src/captures.ts`). A ticket is an interface
-ticket when its zone, at the taking, touches the app's view or its issue carries `cook:design`. The design
+ticket when its zone, at the taking, touches the app's view or its issue carries `cook:design`. The
 cook commits one pair per changed screen, taken with `scripts/capture-ecran/`:
 `docs/captures/<ticket>/<écran>-avant.png` and `…-apres.png`. At the pushed delivery the station shows
 them under the PR's head line and on the ticket, one `Avant | Après` table per screen. **A delivery without

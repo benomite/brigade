@@ -243,8 +243,8 @@ one when the project has a human validate its designs (`validation-design/`). Fo
 changes, the cook takes the before capture before touching it and the after capture with
 `scripts/capture-ecran/`, and commits them as `docs/captures/<ticket>/<screen>-avant.png` and
 `-apres.png`; a repo without the tool is said in its report. The paths come from the constants the pass
-judges with (`captures.ts`). The rule was written only in `agents/cook-design.md`, which a cook reads
-only under the design profile — not when that profile is busy, not when the ticket has no zone, not for
+judges with (`captures.ts`). The rule was written only in a profile file, which a cook reads
+only under that profile — not when that profile is busy, not when the ticket has no zone, not for
 the site. It was the first send-back reason (#3259: 6 of the 18 send-backs over 21 merged tickets — #3195,
 #3212, #3215, #3219, #3220, #3221 — each sent back by the pass for its captures).
 
