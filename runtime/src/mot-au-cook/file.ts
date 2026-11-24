@@ -6,13 +6,23 @@
 // Le runtime le prend en le renommant d'abord — un mot ajouté pendant qu'il le
 // lit va dans un fichier neuf, pour le tour suivant. Une ligne illisible est
 // écartée et dite : le mot reste lisible sur l'issue, où il a été posté.
-import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { FileDesMots } from "./mot-au-cook.ts";
 
 const DOSSIER_DES_MOTS = "mots-au-cook";
 
 const absent = (erreur: unknown) => (erreur as NodeJS.ErrnoException | null)?.code === "ENOENT";
+
+// Windows dit ENOENT là où Linux dit ENOTDIR : un fichier sur le chemin de la
+// file la rend illisible, pas vide. Le premier chemin qui existe en remontant
+// le dit — la racine existe toujours.
+function cheminCoupe(chemin: string): boolean {
+  for (let courant = chemin; ; courant = dirname(courant)) {
+    const trouve = statSync(courant, { throwIfNoEntry: false });
+    if (trouve) return !trouve.isDirectory();
+  }
+}
 
 export function fileSurDisque(repertoireEtat: string, avertir: (texte: string) => void = (texte) => console.error(texte)): FileDesMots {
   const dossier = join(repertoireEtat, DOSSIER_DES_MOTS);
@@ -27,8 +37,9 @@ export function fileSurDisque(repertoireEtat: string, avertir: (texte: string) =
       try {
         renameSync(fichier(ticket), pris);
       } catch (erreur) {
-        if (absent(erreur)) return [];
-        throw erreur;
+        if (!absent(erreur)) throw erreur;
+        if (cheminCoupe(dossier)) throw erreur;
+        return [];
       }
       const contenu = readFileSync(pris, "utf8");
       rmSync(pris);
