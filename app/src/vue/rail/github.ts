@@ -335,7 +335,7 @@ function baseRougeDuRail(tickets: readonly TicketSurGithub[]): BaseRougeLue | nu
 // Les alertes du haut du rail (ticket 3823, attente-du-rail/alertes.ts), de ce que la lecture du rail sait : l'en-tête
 // — les stations qui cuisent ce projet —, le dernier cook — la PR la plus récente qu'un cook a ouverte —, le dernier service, la
 // réparation de main, et les prises de chaque ticket. Le plafond de cooks, que GitHub ne publie pas, n'est jamais deviné.
-// Ce que le ticket dit déjà de sa boucle : en WAITING, ou une carte qui attend le chef (#4042).
+// Ce que le ticket dit déjà de sa boucle : en WAITING, ou une carte qui attend le chef.
 function arretDeLaBoucle(etat: string, qui: string | null | undefined, miseDeCote: MiseDeCote | undefined): { arret?: NonNullable<RelanceLue["arret"]> } {
   if (miseDeCote?.auChef === true) return { arret: { sorte: "carte", besoin: miseDeCote.raison } };
   return etat === MOT_DE_L_ETAT.waiting ? { arret: { sorte: "waiting", qui: qui ?? null } } : {};
