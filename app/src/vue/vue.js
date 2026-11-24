@@ -74,6 +74,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirBandeau } from "./mise-a-jour/bandeau.js";
 import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./connexion-github.js";
+import { tenirAvisDeFond } from "./premier-lancement/avis-de-fond.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { poserLesProjetsDeLaStation, projetsServisPar } from "./station/page/ProjetsDeLaStation.js";
@@ -150,9 +151,9 @@ import { poserLEssai } from "./essai/essai.js";
 import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
-import { poserLeProjetDEssai, tenirLeProjetDEssai } from "./demo/demo.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
-import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
+import { poserLesOutils, tenirLesOutils } from "./outils-requis/outils-requis.js";
+import { DEPOT_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserLaCuisineVisitee, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
 import { poserLeDepart, tenirLesDeparts } from "./parcours-premier-projet/depart.js";
@@ -306,10 +307,16 @@ function stockageDeLaVue() {
     return undefined;
   }
 }
-// La visite guidée du premier lancement (ticket 3165, visite/) : sa bulle par-dessus l'écran, l'étape où elle en est, et
-// la trace, dans le stockage de la vue, qu'elle a été montrée.
+// La visite d'une vraie cuisine (ticket 4087, visite/) : son écran par-dessus tout, la cuisine de Brigade en lecture seule,
+// l'étape où en est la visite guidée, et ce que la dernière lecture de cette cuisine a rendu — absente, elle est en route.
 const sectionVisite = element("visite");
-const visite = tenirLaVisite({ stockage: stockageDeLaVue(), rendre: () => poserLaVisite() });
+// L'app derrière la visite : inerte tant que la visite est ouverte — aucun de ses gestes sur un ticket ne se focalise, ne
+// se lit ni ne se clique sous l'écran de la visite, même quand un projet est ouvert dessous.
+const cadreSousLaVisite = element("cadre");
+const visite = tenirLaVisite({ rendre: () => poserLaVisite() });
+/** @type {import("../visite.ts").CuisineVisitee | undefined} */
+let cuisineVisitee;
+let lectureDeLaVisite = 0;
 const marquerLaCible = marqueurDeCible();
 // L'écran « since you were away » (ticket 3305, absence/) : décidé une fois, à l'ouverture — la date de la dernière ouverture
 // est alors réécrite —, et montré avant tout autre écran. Vaut la date de l'ancienne ouverture quand l'écran vient.
@@ -321,9 +328,6 @@ const resumesDeLAbsence = new Map();
 const lecturesDeLAbsence = new Set();
 let absenceFermee = false;
 let absencePosee = "";
-// Le projet que le premier lancement ajoute pour la visite : son espace s'ouvre sur elle dès qu'il est dans le fichier.
-/** @type {string | undefined} */
-let visiteAOuvrir;
 // Ce que le second de chaque projet propose, tel que son canal le dit (ticket 1520) : ses choix, sous son terminal — ou
 // le geste qu'il nomme (ticket 1521).
 const propositionsDuSecond = tenirLesChoix();
@@ -800,6 +804,8 @@ confianceDite.ariaLive = "polite";
 const ouvrirLeDemenagement = /** @type {HTMLButtonElement} */ (bouton("move the kitchen", undefined));
 ouvrirLeDemenagement.className = "ajout-de-station";
 ouvrirLeDemenagement.dataset.geste = "demenager";
+// Caché tant qu'aucun projet ouvert ne l'offre : rien ne le montre avant (ticket 4087, la visite n'offre aucun geste).
+ouvrirLeDemenagement.hidden = true;
 const choixDuDemenagement = document.createElement("section");
 choixDuDemenagement.className = "demenagement";
 choixDuDemenagement.ariaLabel = "Move the kitchen";
@@ -1600,12 +1606,25 @@ function poserSecond(ouvrable, montre) {
           poserOutilsDuSecond(document, dit, {
             bloque: montre.empeche !== undefined,
             // Comme une touche dans un second arrêté : il est relancé, et ses outils revérifiés (terminaux.ts).
-            reessayer: () => brigade.ecrire(montre.id, ""),
+            reessayer: () => void reessayerLeSecond(montre.id),
             ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
           }),
         ]),
   );
   poserSousLeSecond(ouvrable && telephoneVu === undefined ? montre : undefined);
+}
+
+// « Try again » d'un second empêché : les outils relus d'abord (ticket 4059) — la lecture rattache au PATH de l'app un
+// outil que son installeur vient de poser hors de lui —, puis le second relancé, qui les revérifie : installé, il part
+// sans que l'app redémarre. Une lecture qui échoue ne retient rien : le plan du second dit lui-même ce qui manque.
+/** @param {number} id */
+async function reessayerLeSecond(id) {
+  try {
+    await brigade.outilsManquants?.();
+  } catch {
+    // Rien à dire ici : le second relancé dit ce qui lui manque.
+  }
+  brigade.ecrire(id, "");
 }
 
 // Sous le terminal du second, ses choix quand il demande de choisir (ticket 1520), ou le geste qu'il nomme (ticket
@@ -5027,6 +5046,7 @@ function lignesDeCetOrdinateur(projet) {
       let dite;
       try {
         const rendu = await brigade.panne(station.id, cle);
+        siClaudeManque(rendu);
         dite = "refus" in rendu ? rendu.refus : rendu.fait;
       } catch (erreur) {
         dite = `nothing was done: ${rateDit(erreur)}`;
@@ -5064,8 +5084,6 @@ function poserRail(projet) {
   if ((railPoseDe !== undefined && railPoseDe !== projet.nom) || ongletDe(projet) !== RAIL) for (const nom of new Set([projet.nom, railPoseDe ?? projet.nom])) replierLeBacklog(nom);
   poserLeRail(projet);
   reposerLEtiquetteDeStation(projet);
-  // La visite désigne un élément du rail qui vient d'être reposé.
-  poserLaVisite();
   if (disjoncteursEnTodo.has(projet.nom) !== avant && courant?.nom === projet.nom) poserAlertes(projet);
 }
 // Le refus du dernier « Start this computer's station », par projet (ticket 3637) : sa raison se dit à côté du bouton.
@@ -6429,6 +6447,7 @@ function poserLesSectionsDeStation(station) {
         const panne = vue?.pannes.find(({ sujet }) => sujet === "connexion-max");
         if (panne === undefined) return "Claude Code is signed in: there is nothing to renew yet.";
         const rendu = await brigade.panne(station.id, panne.cle);
+        siClaudeManque(rendu);
         return "refus" in rendu ? { refus: rendu.refus } : rendu.fait;
       },
     },
@@ -7568,6 +7587,7 @@ async function jouerPanne(id, cle, bouton) {
   let dit;
   try {
     const rendu = await brigade.panne(id, cle);
+    siClaudeManque(rendu);
     dit = "refus" in rendu ? rendu.refus : rendu.fait;
   } catch (erreur) {
     dit = `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
@@ -7914,7 +7934,6 @@ function marquer() {
   principal.hidden = !refuse && courant === undefined;
   colonneSecond.hidden = courant === undefined;
   lireOnglet();
-  poserLaVisite();
   poserLeProjetAPreparer();
   poserLaDemandeDeStationIci();
   poserLeRecitDuPremierTicket();
@@ -7923,6 +7942,9 @@ function marquer() {
 // Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638), puis toutes les stations et
 // « + station », relues à chaque ouverture (ticket 3195) : l'écran se regarde, et un clic ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
 function ouvrirTous() {
+  // Sans projet (ticket 4082), « Tous les projets » est l'écran d'accueil du premier lancement : la marque du logo, et
+  // chaque retour des pages de l'app, y ramènent le novice en un clic.
+  if (avecPremier()) return ouvrirPremier();
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
@@ -8098,6 +8120,46 @@ let premierAOuvrir;
 const compteDuParcours = tenirLeCompte({ pont: brigade, rendre: () => poserLePremier() });
 /** @returns {import("./parcours-projet/compte.js").EtatDuCompte} */
 const etatDuParcours = () => ({ ...compteDuParcours.etat, ...(premier.connexion === undefined ? {} : { connexion: premier.connexion }) });
+// Les outils que l'app ne livre pas (ticket 4059, outils-requis/) : la connexion à GitHub et le clone d'un projet
+// demandent Git et le GitHub CLI, le login Max demande Claude Code. Un pas qui en manque cède la place à l'écran de
+// l'outil manquant — sur le premier lancement, à la place du compte ; ailleurs, dans l'avis —, et reprend où il était
+// une fois l'outil là : l'ouverture d'un projet repart, la connexion retrouve son bouton.
+/** @type {(() => void) | undefined} */
+let reprendreApresLesOutils;
+const outilsDuParcours = tenirLesOutils({
+  pont: brigade,
+  outils: ["git", "gh"],
+  rendre: () => poserLesOutilsIci(),
+  quandPret: () => {
+    const reprendre = reprendreApresLesOutils;
+    reprendreApresLesOutils = undefined;
+    reprendre?.();
+  },
+});
+const outilsDuLogin = tenirLesOutils({ pont: brigade, outils: ["claude"], rendre: () => poserLesOutilsIci() });
+/** @param {ReturnType<typeof tenirLesOutils>} tenus */
+const gestesDesOutils = (tenus) => ({ installer: () => void tenus.installer(), verifier: () => void tenus.verifier(true) });
+let avisDesOutils = false;
+function poserLesOutilsIci() {
+  const surLePremier = ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous && !tous.hidden;
+  if (surLePremier) poserLePremier();
+  const tenus = [...(surLePremier ? [] : [outilsDuParcours]), outilsDuLogin].find(({ etat }) => etat.manque !== undefined);
+  if (tenus === undefined) {
+    if (avisDesOutils) avis.hidden = true;
+    avisDesOutils = false;
+    return;
+  }
+  avisDesOutils = true;
+  avis.replaceChildren(...poserLesOutils(document, tenus.etat, gestesDesOutils(tenus)), bouton("close", () => {
+      avis.hidden = true;
+      avisDesOutils = false;
+    }, "discret"));
+  avis.hidden = false;
+}
+/** @param {import("../pannes/gestes.ts").RenduDePanne} rendu */
+function siClaudeManque(rendu) {
+  if ("outilManquant" in rendu) void outilsDuLogin.verifier();
+}
 /** @type {import("./premier-lancement.js").GestesDuPremier} */
 const gestesDuPremier = {
   ouvrir: (station, projet, depot, base) => void ouvrirDUneStation(station, projet, depot, base),
@@ -8107,51 +8169,21 @@ const gestesDuPremier = {
   relire: () => void relireLePremier(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
   ajouterUnProjet: () => ouvrirAjout(),
+  visiter: () => commencerLaVisite(),
+  outils: gestesDesOutils(outilsDuParcours),
 };
 // Le desktop porte le premier lancement ; un pont qui ne le porte pas s'ouvre sur l'écran « Add a project ».
 const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
-// Le projet de démo (ticket 3734, demo/demo.js ; né projet d'essai, ticket 3227) : « try on a demo project » sur le premier
-// lancement le crée et le mène jusqu'au rail par les gestes de l'app — sa mise en place, la station de cet ordinateur,
-// l'ouverture de son espace. Son encart, par-dessus tout écran, dit où il en est ; GitHub est relu chaque minute tant
-// qu'aucun de ses tickets n'est mergé. « add my own project » y ouvre « Add a project » ; « delete demo project », confirmé,
-// supprime son dépôt et retire le projet de l'app.
-const sectionEssai = element("projet-d-essai");
-const essai = tenirLeProjetDEssai({
-  pont: brigade,
-  rendre: () => poserLEncartDEssai(),
-  ouvrir: (projet, depot, base) => ouvrirDUneStation("", projet, depot, base),
-  projetsDeLApp: () => configuration.projets,
-});
-premier.essai = essai.etat;
-gestesDuPremier.essayer = () => void essai.essayer();
-function poserLEncartDEssai() {
-  const poses = poserLeProjetDEssai(document, essai.etat, {
-    essayer: () => void essai.essayer(),
-    demanderLaSuppression: () => essai.demanderLaSuppression(),
-    annulerLaSuppression: () => essai.annulerLaSuppression(),
-    supprimer: () => void essai.supprimer(),
-    ouvrirLaPage: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url),
-    ajouterLeMien: () => ouvrirAjout(),
-  });
-  sectionEssai.replaceChildren(...poses);
-  sectionEssai.hidden = poses.length === 0;
-  poserLePremier();
-}
-brigade.surPermissionDeSuppression?.((fin) => void essai.apresLaPermission(fin));
-void essai.lire();
-setInterval(() => {
-  if (essai.aSuivre()) void essai.lire();
-}, 60_000);
-
 function ouvrirPremier() {
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
   pageDeLApp = undefined;
   marquer();
-  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
+  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom, outils: outilsDuParcours.etat }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
   compteDuParcours.lireUneFois();
+  if (!outilsDuParcours.etat.lu && outilsDuParcours.etat.enCours === undefined) void outilsDuParcours.verifier();
   if (premier.stations === undefined && lectureDuPremier === 0) void relireLePremier();
 }
 
@@ -8165,20 +8197,8 @@ function poserLePremier() {
   // L'écran « Add a project » dit aussi le compte, la connexion en route et le dépôt qui s'ouvre.
   if (ajoute) poserLAjout();
   if (ecranDuPremier === undefined || ecranDuPremier.parentElement !== tous || tous.hidden) return;
-  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
+  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom, outils: outilsDuParcours.etat }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
-  ajouterLaCuisineDeLaVisite();
-}
-
-// Le premier lancement, le compte GitHub lu (ticket 3165) : sans rien taper, benomite/brigade s'ajoute — par l'ouverture
-// que le premier écran fait d'un clic, sa copie dite sous la tête, son échec avec « Try again » — puis son espace s'ouvre
-// sur la visite. Une seule fois : la visite montrée laisse sa trace, et l'app ne l'ajoute plus.
-function ajouterLaCuisineDeLaVisite() {
-  const compte = compteDuParcours.etat.compte;
-  // Un projet d'essai en route : c'est lui qui s'ouvre.
-  if (!avecPremier() || compte === undefined || !("login" in compte) || premier.ouverture !== undefined || visiteAOuvrir !== undefined || essai.etat.etape !== undefined || !visite.aDecouvrir()) return;
-  visiteAOuvrir = PROJET_DE_LA_VISITE;
-  void ouvrirDUneStation("", PROJET_DE_LA_VISITE, DEPOT_DE_LA_VISITE);
 }
 
 // L'écran « since you were away » : par projet qui se lit, ce que ses résumés disent de l'absence et ce qui attend le chef
@@ -8235,40 +8255,56 @@ function poserLAbsence() {
   sectionAbsence.hidden = false;
 }
 
-// La bulle de l'étape, sur l'espace du projet visité ; ailleurs, rien. L'étape désigne ce que le rail montre à l'instant.
+// L'écran de la visite, par-dessus tout, et la bulle de son étape ; la visite pas commencée ou quittée, rien. L'étape
+// désigne ce que l'écran de la cuisine visitée montre à l'instant.
 function poserLaVisite() {
   const enCours = visite.etat;
-  if (enCours === undefined || courant?.nom !== enCours.projet) {
+  if (enCours === undefined) {
     marquerLaCible(undefined);
     sectionVisite.hidden = true;
+    cadreSousLaVisite.inert = false;
     return sectionVisite.replaceChildren();
   }
-  const tenu = tenus.get(enCours.projet);
-  const etapes = etapesDeLaVisite(tenu !== undefined && "tableau" in tenu ? tenu.tableau.rail.colonnes : undefined);
+  const ecran = poserLaCuisineVisitee(document, cuisineVisitee, { quitter: () => visite.quitter(), relire: () => void lireLaCuisineVisitee() });
+  const etapes = etapesDeLaVisite(cuisineVisitee !== undefined && "tableau" in cuisineVisitee ? cuisineVisitee.tableau.rail.colonnes : undefined);
   const etape = etapes[enCours.rang] ?? etapes[0];
-  marquerLaCible(etape === undefined ? undefined : trouverLaCible({ rail, second: colonneSecond }, etape.cible));
   sectionVisite.replaceChildren(
+    ecran.racine,
     poserVisite(document, { etapes, rang: enCours.rang }, {
       suivante: () => visite.suivante(etapes.length),
-      passer: () => visite.fermer(),
-      // Le seul appel à agir de la dernière étape : l'ajout d'un projet, le même que « + ».
+      // Le seul appel à agir de la dernière étape : l'ajout d'un projet, le même que « add my project ».
       ajouter: () => {
-        visite.fermer();
+        visite.quitter();
         ouvrirAjout();
       },
     }),
   );
   sectionVisite.hidden = false;
+  cadreSousLaVisite.inert = true;
+  marquerLaCible(etape === undefined ? undefined : trouverLaCible({ rail: ecran.rail, second: ecran.second }, etape.cible));
 }
 
-// Rejouée : sur benomite/brigade s'il est dans le fichier, sinon sur le projet ouvert, sinon sur le premier — sur Rail.
-function rejouerLaVisite() {
-  const projet = configuration.projets.find(({ depot }) => depot === DEPOT_DE_LA_VISITE) ?? courant ?? configuration.projets[0];
-  if (projet === undefined) return;
-  visite.commencer(projet.nom);
-  if (courant?.nom === projet.nom) return choisirOnglet(RAIL);
-  retenir(projet.nom, RAIL);
-  void ouvrir(projet);
+// La visite, choisie sur l'écran d'accueil ou rejouée depuis la barre : de sa première étape, sur la cuisine relue.
+function commencerLaVisite() {
+  visite.commencer();
+  void lireLaCuisineVisitee();
+}
+
+// La cuisine de Brigade, lue sur GitHub par le process principal en lectures seules (visite.ts) : aucun clone, aucun
+// projet ajouté. Ce qui ne se lit pas — un pont qui ne répond pas, ou qui lève — se dit sur l'écran, avec « read again ».
+// Seule la dernière lecture demandée se pose.
+async function lireLaCuisineVisitee() {
+  const demande = ++lectureDeLaVisite;
+  cuisineVisitee = undefined;
+  poserLaVisite();
+  /** @type {import("../visite.ts").CuisineVisitee} */
+  const lue = await Promise.resolve(brigade.lireLaCuisineVisitee?.(DEPOT_DE_LA_VISITE)).then(
+    (rendue) => rendue ?? { sans: "Brigade's kitchen could not be read: the app gave no answer." },
+    (/** @type {unknown} */ erreur) => ({ sans: erreur instanceof Error ? erreur.message : String(erreur) }),
+  );
+  if (demande !== lectureDeLaVisite) return;
+  cuisineVisitee = lue;
+  poserLaVisite();
 }
 
 // La page d'un projet pas encore prêt (ticket 3166, parcours-premier-projet/). La lecture d'un projet qu'« Add a project »
@@ -8286,7 +8322,8 @@ function suivreLeParcours(nom) {
     aGuider.delete(nom);
     if (lectureSeuleDe(projet) !== undefined) return;
     parcoursDesProjets.commencer(nom, depot, dejaCuit(projet, depot));
-    // Le premier projet du chef : le fichier n'en a pas d'autre que la cuisine de démonstration de la visite.
+    // Le premier projet du chef : le fichier n'en a pas d'autre que benomite/brigade, que l'app ajoutait d'elle-même avant
+    // la visite en lecture seule (ticket 4087).
     recitDuPremierTicket.projetAjoute(nom, configuration.projets.some((autre) => autre.nom !== nom && autre.depot !== DEPOT_DE_LA_VISITE));
     if (tenu !== undefined && "tableau" in tenu) recitDuPremierTicket.observer(nom, tenu.tableau.etapesDesTickets);
     departsDesProjets.commencer(nom);
@@ -8615,6 +8652,11 @@ async function relireLePremier() {
 // de sa copie désigne.
 /** @param {string} station @param {string} projet @param {string} depot @param {string} [base] */
 async function ouvrirDUneStation(station, projet, depot, base) {
+  // Le clone demande Git et le GitHub CLI : l'un manque, son écran le dit, et l'ouverture repart une fois installé.
+  if (!(await outilsDuParcours.verifier())) {
+    reprendreApresLesOutils = () => void ouvrirDUneStation(station, projet, depot, base);
+    return;
+  }
   premier.ouverture = { station, projet, depot, ...(base === undefined ? {} : { base }) };
   poserLePremier();
   /** @type {import("../premier-lancement.ts").Ouverture} */
@@ -8640,6 +8682,12 @@ async function ouvrirDUneStation(station, projet, depot, base) {
 }
 
 async function seConnecterAGitHub() {
+  // Une connexion qui ne peut pas partir — sans `gh` — ne tourne pas : l'écran de l'outil manquant la remplace, et le
+  // bouton revient tel quel une fois l'outil installé.
+  if (!(await outilsDuParcours.verifier())) {
+    reprendreApresLesOutils = undefined;
+    return;
+  }
   premier.connexion = { enRoute: true };
   poserLePremier();
   /** @type {import("../connexion-github.ts").DebutDeConnexion} */
@@ -8896,11 +8944,6 @@ function gestesDuRailPublie(projet) {
 async function ouvrir(projet) {
   courant = projet;
   equipeDuProjet.lire(projet.nom);
-  // Le projet que le premier lancement a ajouté pour la visite (ticket 3165) : son espace s'ouvre sur elle.
-  if (visiteAOuvrir === projet.nom) {
-    visiteAOuvrir = undefined;
-    visite.commencer(projet.nom);
-  }
   enregistreesARelire = true;
   stationOuverte = undefined;
   pageDeLApp = undefined;
@@ -9361,10 +9404,10 @@ function afficher() {
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);
-  // Rejouer la visite (ticket 3165), sous « + » : finie ou passée, elle repart de sa première étape. Le téléphone n'a pas
-  // de visite ; sans projet, elle n'a rien à montrer.
-  if (telephone === undefined && configuration.projets.length > 0) {
-    const tour = icone("?", REJOUER, rejouerLaVisite);
+  // Rejouer la visite (ticket 4087), sous « + » : elle repart de sa première étape, en lecture seule et sans clone. Le
+  // téléphone n'a pas de visite.
+  if (telephone === undefined) {
+    const tour = icone("?", REJOUER, commencerLaVisite);
     tour.id = "entree-visite";
     barre.append(tour);
   }
@@ -9454,6 +9497,9 @@ if (telephone !== undefined && telephone.github === undefined) {
   connexionDuTelephone.className = "fait";
   connexionDuTelephone.replaceChildren(poserConnecte(document, telephone.github.compte));
 }
+// Sur un Mac neuf, avant l'avis de macOS (ticket 4081) : l'écran qui annonce que Brigade tourne en arrière-plan, l'app
+// cachée derrière jusqu'à son bouton.
+await tenirAvisDeFond(element("avis-de-fond"), cadreDeLApp, document, brigade);
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.
 await Promise.all(["13px", "bold 13px"].map((corps) => document.fonts.load(`${corps} ${jeton("--police-mono")}`))).catch(() => undefined);

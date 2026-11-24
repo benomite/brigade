@@ -42,6 +42,7 @@
     <link rel="stylesheet" href="fiche-tests/fiche-tests.css" />
     <link rel="stylesheet" href="fiche-diagramme/fiche-diagramme.css" />
     <link rel="stylesheet" href="vue.css" />
+    <link rel="stylesheet" href="premier-lancement/avis-de-fond.css" />
     <link rel="stylesheet" href="settings-humans/humains.css" />
     <link rel="stylesheet" href="recurrents/recurrents.css" />
     <link rel="stylesheet" href="explications/explications.css" />
@@ -54,7 +55,6 @@
     <link rel="stylesheet" href="visite/visite.css" />
     <link rel="stylesheet" href="absence/absence.css" />
     <link rel="stylesheet" href="recap/recap.css" />
-    <link rel="stylesheet" href="demo/demo.css" />
     <link rel="stylesheet" href="parcours-premier-projet/parcours-premier-projet.css" />
     <link rel="stylesheet" href="premier-ticket/premier-ticket.css" />
     <link rel="stylesheet" href="recit-premier-ticket/recit-premier-ticket.css" />
@@ -87,6 +87,9 @@
     <!-- La connexion du téléphone à GitHub (l'app Android, ticket 2500) : sur une installation neuve, le premier écran —
          l'app derrière reste cachée. Connecté, il ne garde qu'une ligne, en tête des projets, qui dit sous quel compte. -->
     <section id="connexion-github" aria-label="Sign in to GitHub" hidden></section>
+    <!-- L'écran du premier lancement sur un Mac neuf, avant l'avis de macOS (ticket 4081) : vide, et caché, sauf au
+         premier lancement, où l'app derrière reste cachée jusqu'à son bouton. -->
+    <section id="avis-de-fond" aria-label="Brigade runs in the background" hidden></section>
     <div id="cadre">
     <nav id="projets" aria-label="Projects"></nav>
     <section id="tous" aria-label="All projects" hidden></section>
@@ -219,7 +222,6 @@
     <p id="relecture" aria-live="polite" hidden></p>
     <section id="avis" aria-live="polite" hidden></section>
     <section id="absence" aria-label="Since you were away" aria-live="polite" hidden></section>
-    <section id="visite" aria-label="Tour of a real kitchen" aria-live="polite" hidden></section>
-    <section id="projet-d-essai" aria-label="Your demo project" aria-live="polite" hidden></section>
+    <section id="visite" aria-label="Visit of a real kitchen" aria-live="polite" hidden></section>
   </body>
 </html>

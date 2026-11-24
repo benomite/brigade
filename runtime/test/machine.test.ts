@@ -2,7 +2,7 @@
 // tient pour saturée. Aucun test ne dépend de la charge réelle du poste.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { configMachine, direSaturation, direSaturationsEn, lireMachine, memoireMinParDefaut, reserver, saturation, saturations, seuilMemoire, type Machine, type Seuils } from "../src/machine.ts";
+import { configMachine, direSaturation, direSaturationEn, direSaturationsEn, lireMachine, memoireMinParDefaut, reserver, saturation, saturations, seuilMemoire, type Machine, type Seuils } from "../src/machine.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -118,4 +118,10 @@ test("la machine se lit : des cœurs, une charge, de la mémoire et du disque", 
   assert.equal(machine.memoireDisponible > 0, true);
   assert.equal(machine.memoireTotale >= machine.memoireDisponible, true);
   assert.equal(machine.disqueLibre > 0, true);
+});
+
+test("a saturation says its biggest consumer only when it has one (#4090)", () => {
+  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10 }), "5 MB of disk free for at least 10 MB");
+  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10, consumer: "espace/ (3.2 GB)" }), "5 MB of disk free for at least 10 MB — biggest: espace/ (3.2 GB)");
+  assert.equal(direSaturationEn({ resource: "cpu", observed: 13, limit: 12, consumer: "node (pid 42) (380% CPU)" }), "load of 13 for at most 12 — biggest: node (pid 42) (380% CPU)");
 });

@@ -254,6 +254,15 @@ base, the stale-branch pruning).
 - **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
   disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
   the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
+  The one exception is a ticket labelled `saturation-repair`, the repair of the saturation itself: the machine does not
+  hold it (nor does the arbiter read the project as saturated for it), while the stop, the breaker, the quota, the
+  places and the zone holds still apply, and a station takes one such ticket at a time (#4100). Every other ticket is
+  skipped for saturation, and the scan goes on past it to a repair further down the rail.
+  When the disk is the lack, no cook runs, and what the kitchen holds itself (the size of its state directory) could
+  not bring the free space back to the floor, the chef gets one TODO card on an issue of its own
+  (`<!-- brigade:disk-full -->`): the figures and the biggest consumers on the volume, if `du` reads them. It is
+  not raised while that reclaim could still be enough, nor twice for the same state, and it is lifted once the disk
+  has room (#4091).
 - **A cook that adds nothing.** A cook that resumes a ticket's branch and ends without moving its head delivered
   nothing: it counts as a cook without delivery (`ECHECS_MAX`), so a ticket cannot loop between the cook and a pass
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the
@@ -419,11 +428,12 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   calibration — no manager given by the station — nothing is launched.
 - **The run.** The project's manager is launched, read-only, in a worktree of the base, with the supervisor's brief
   and its dossier: the queue, the tail of the log, the failing CI step and its log lines, the history of the ticket
-  at fault, and what the claim gate said of the cookable tickets it skipped. It answers one JSON object. Only six
+  at fault, the supervisor's last ten gestures and counters (its gesture log, [`autonomie.md`](autonomie.md)), and what
+  the claim gate said of the cookable tickets it skipped. It answers one JSON object. Only six
   gestures are played (`superviseur/gestes.ts`): rerun the failed CI jobs; back on the rail with a note; WAITING for a
   named third party; close a duplicate; file ONE `fix` ticket for a new cause, after checking that no open ticket
   carries the same cause mark; a TODO card, only for a product or design question. The run writes one comment on the
-  ticket it acted on. A run that fails is said in the station's service log
+  ticket it acted on, and each gesture done enters the supervisor's gesture log. A run that fails is said in the station's service log
   (`supervisor on <project>: its run failed — …`).
 - **A red base.** A `fix` for a red check of the base requires the check's failed jobs to have been re-run first
   (the rerun gesture) and to be still red. It carries `fire`, `prio:0`, `model:opus`, `effort:medium`, `fix` and the
