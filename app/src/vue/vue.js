@@ -8668,7 +8668,7 @@ async function ouvrirDUneStation(station, projet, depot, base) {
     const detail = erreur instanceof Error ? erreur.message : String(erreur);
     issue = { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app failed while opening it.`, detail };
   }
-  // Ratée, ou retenue tant que Claude Code n'est pas connecté sur cet ordinateur (#4057) : rien n'a démarré.
+  // Ratée, ou retenue tant que Claude Code n'est pas connecté sur cet ordinateur (ticket 4057) : rien n'a démarré.
   if (issue.state !== "open") {
     premier.ouverture = { station, projet, depot, ...(base === undefined ? {} : { base }), echec: issue };
     return poserLePremier();
@@ -8683,7 +8683,7 @@ async function ouvrirDUneStation(station, projet, depot, base) {
   poserLePremier();
 }
 
-// Le login de Claude Code qu'une ouverture retenue demande (#4057) : celui de la panne « Max connection lost ». Ce qu'il
+// Le login de Claude Code qu'une ouverture retenue demande (ticket 4057) : celui de la panne « Max connection lost ». Ce qu'il
 // rend se dit sous le projet ; sa fin arrive par `surLoginClaude`, et l'ouverture repart.
 async function seConnecterAClaude() {
   /** @type {import("../pannes/gestes.ts").RenduDePanne} */

@@ -38,7 +38,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
 
 // Ce que la vue tient de l'écran. `stations` : absentes, leur lecture est en route. `ouverture` : le projet qu'un
 // clic ouvre — sa branche d'intégration quand GitHub l'a donnée, l'étape de sa copie, puis, ratée, ce que le runtime en dit —
-// ou, Claude Code pas connecté sur cet ordinateur, rien de commencé (#4057) et ce que son login a rendu. `connexion` : la connexion à GitHub
+// ou, Claude Code pas connecté sur cet ordinateur, rien de commencé (ticket 4057) et ce que son login a rendu. `connexion` : la connexion à GitHub
 // lancée — en route, son code à taper, ou pourquoi elle n'a pas abouti. `compte` : le compte GitHub de cet
 // ordinateur, que l'écran dit en tête — absent, sa lecture est en route.
 /**
@@ -126,7 +126,7 @@ export function ouvertureDite(doc, ouverture, etat, geste) {
   }
   const { echec } = ouverture;
   const reessayer = boutonAction(doc, REESSAYER, () => geste.ouvrir(ouverture.station, ouverture.projet, ouverture.depot, ouverture.base));
-  // Claude Code pas connecté (#4057) : rien n'a commencé. « log in » lance son login ; la copie repart quand il finit.
+  // Claude Code pas connecté (ticket 4057) : rien n'a commencé. « log in » lance son login ; la copie repart quand il finit.
   if (echec.state === "login") {
     const login = ouverture.login;
     return [
