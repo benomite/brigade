@@ -120,6 +120,16 @@ fault, with what it has, its threshold, and where the memory's comes from:
 MACHINE SATURATED for 1 min on memory — 812 MB of memory available for at least 2,000 MB (set by BRIGADE_MIN_FREE_MEMORY_MB): box/claude takes no more tickets as long as it lasts
 ```
 
+Short of disk or CPU, it also names the biggest consumer when it can (#4090), in the fact
+(`consumer`), the service log and `run status`: for disk, the biggest of what brigade leaves on the
+machine — each project's state directory (`espace/`, `brigade/`), the station's temporary directory
+and the npm cache, measured by `du`, never the whole disk; for CPU, the process `ps` shows taking the
+most. A measure that fails, or a missing tool, names nobody and the line reads as before:
+
+```
+MACHINE SATURATED for 3 min on disk — 4,096 MB of disk free for at least 5,120 MB — biggest: espace/ (3.2 GB): box/claude takes no more tickets as long as it lasts
+```
+
 **The running cooks continue**, and the station resumes by itself when the machine breathes (ten
 percent of margin, resource by resource). **A full rail does not leave in one block**: during its
 first minute, each cook launched — and each ticket in the entry — weighs in advance one unit of load
