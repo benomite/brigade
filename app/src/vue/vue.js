@@ -74,6 +74,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirBandeau } from "./mise-a-jour/bandeau.js";
 import { poserConnecte, poserLaListeGitHub, tenirConnexionGitHub } from "./connexion-github.js";
+import { tenirAvisDeFond } from "./premier-lancement/avis-de-fond.js";
 import { poserLesIdentites, tenirLesIdentites } from "./identites-github.js";
 import { poserLesProjetsServis, tenirLesProjetsServis } from "./projets-servis/projets-servis.js";
 import { poserLesProjetsDeLaStation, projetsServisPar } from "./station/page/ProjetsDeLaStation.js";
@@ -9524,6 +9525,9 @@ if (telephone !== undefined && telephone.github === undefined) {
   connexionDuTelephone.className = "fait";
   connexionDuTelephone.replaceChildren(poserConnecte(document, telephone.github.compte));
 }
+// Sur un Mac neuf, avant l'avis de macOS (ticket 4081) : l'écran qui annonce que Brigade tourne en arrière-plan, l'app
+// cachée derrière jusqu'à son bouton.
+await tenirAvisDeFond(element("avis-de-fond"), cadreDeLApp, document, brigade);
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.
 await Promise.all(["13px", "bold 13px"].map((corps) => document.fonts.load(`${corps} ${jeton("--police-mono")}`))).catch(() => undefined);
