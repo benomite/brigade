@@ -116,6 +116,7 @@ test("trois tickets sur le même fichier, et un entre eux sur un autre, font deu
   );
 });
 
+// brigade:guard
 test("le ticket joint prend le calibrage le plus haut des siens et toutes leurs capacités", () => {
   const [haut, bas] = prevus([["a.ts"]], [["a.ts"]]) as [TicketPrevu, TicketPrevu];
   const [joint] = joindre([
@@ -281,9 +282,9 @@ test("des capacités qui ne sont pas des noms rendent le découpage illisible, e
   assert.match(illisible(reponse([ticket(), ticket({ capacites: [12] })])), /ticket 2: capacites \[12\]/);
 });
 
-test("la consigne ne connaît qu'un seul genre de cook, et garde le calibrage de la table", () => {
+test("la consigne ne connaît qu'un seul genre de cook, même dans un dépôt qui garde un profil de cook design, et garde le calibrage de la table", () => {
   const mission = { depot: "acme/brigade", issue: EPIQUE, commentaires: [] };
-  const avec = consigneDeDecoupage({ ...mission, fichiers: ["app/src/vue/carte.js", "runtime/src/rail.ts"] });
+  const avec = consigneDeDecoupage({ ...mission, fichiers: ["agents/cook-design.md", "app/src/vue/carte.js", "runtime/src/rail.ts"] });
 
   assert.doesNotMatch(avec, /"cook"|cook design/);
   // Le calibrage reste celui de la table : ni `xhigh` ni `max`, et `high` ne se pose pas d'office (#2575).
@@ -299,6 +300,7 @@ test("un ticket dont la zone touche la vue de l'app ne porte aucun champ de cook
   for (const prevu of lu.valeur.tickets) assert.equal(Object.hasOwn(prevu, "cook"), false);
 });
 
+// brigade:guard
 test("le calibrage d'un ticket de la vue se lit comme celui des autres, sans `xhigh` ni `max`", () => {
   const lu = lireDecoupage(reponse([ticket({ zone: ["app/src/vue/carte.js"], modele: "opus", effort: "high" })]));
   assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");

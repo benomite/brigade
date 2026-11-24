@@ -807,6 +807,7 @@ test("a delivery that is not design is merged as before, whatever the setting", 
   }
 });
 
+// brigade:guard
 test("a design delivery is one that changes what the user sees: the app's view, the site, a mockup, or captures", () => {
   assert.ok(estUneLivraisonDesign(1, ["app/src/vue/rail.js"]));
   assert.ok(estUneLivraisonDesign(1, ["site/index.html"]));
