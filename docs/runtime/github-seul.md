@@ -424,6 +424,17 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   (`superviseur/declencheur.ts`) when nothing merged for 30 min while a ticket is cookable, when a ticket was taken 3
   times without delivering, or when `main` has been red for 10 min. One run per project at a time; the same cause
   starts no new run before 30 min (`REVEIL_REPRIS_MS`).
+- **No progress on a ticket** (#4027, [spec](../superpowers/specs/2026-11-23-autonomy-trust-control.md), section A2).
+  A ticket with no progress for 30 minutes wakes the supervisor too, whatever its state: cooking (`taken`), in pass
+  (`in-pass`), set aside (`set-aside:failures`, `served-elsewhere`), parked (`blocked-on-human`, `chef-todo`) or
+  WAITING (`waiting`). Progress is a new commit (a new head of the ticket's PR), a CI result (the concluded checks of
+  that head change), a review verdict (`brigade:verdict` posted on its PR) or a label change by an agent (a supervisor
+  gesture). The labels the station sets or removes, and a human's, do not count. The count starts from the last
+  progress, or from the turn that first saw the ticket in one of these states; a ticket that leaves them forgets it.
+  It wakes the supervisor once per silent period: the next wake needs a new 30 minutes without progress. The wake
+  writes its reason on the ticket (`<!-- brigade:no-progress since=… -->`), with the date of the last progress, and
+  the manager receives the cause `no-progress`. A run that already holds the project delays the wake to the next
+  turn. The code is in `runtime/src/inactivite/`, wired into `superviseur/tour.ts` and `superviseur/brancher.ts`.
 - **What it does not supervise.** A kitchen stopped by the chef (`stop`) or switched off. Without a manager
   calibration — no manager given by the station — nothing is launched.
 - **The run.** The project's manager is launched, read-only, in a worktree of the base, with the supervisor's brief
