@@ -53,7 +53,8 @@ test("a failing far-away test, one that walks a folder instead of importing the 
   const racine = projet(t);
   writeFileSync(join(racine, "runtime/src/interdit.ts"), "export const interdit = 1;\n");
 
-  const passage = spawnSync("bash", [GATES, racine], { env: { ...ENV_ENFANT, HOME: join(racine, "..") }, encoding: "utf8" });
+  // Ce mode — toutes les suites, comme la CI Windows — ne joue plus que sur demande (#4141).
+  const passage = spawnSync("bash", [GATES, racine], { env: { ...ENV_ENFANT, HOME: join(racine, ".."), BRIGADE_GATES_COMME_LA_CI: "1" }, encoding: "utf8" });
   const sortie = passage.stdout + passage.stderr;
 
   assert.match(sortie, /forbidden module: interdit\.ts/, "the far-away test was played");
