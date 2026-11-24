@@ -8694,7 +8694,7 @@ async function seConnecterAClaude() {
     rendu = { refus: `the login was not launched: the app failed while launching it (${erreur instanceof Error ? erreur.message : String(erreur)})` };
   }
   siClaudeManque(rendu);
-  if (premier.ouverture?.echec?.state === "login") return;
+  if (premier.ouverture?.echec?.state !== "login") return;
   premier.ouverture.login = rendu;
   poserLePremier();
 }
