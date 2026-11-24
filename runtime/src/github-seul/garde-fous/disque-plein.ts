@@ -85,12 +85,12 @@ const du = async (args: string[]): Promise<Consommateur[]> => lireDu((await exec
 
 // La sonde réelle : `du` sur l'état de la cuisine, et sur la racine de son
 // volume pour les plus gros occupants (au mieux — `du` peut échouer ou durer).
-function sondeDuDisque(repertoireEtat: string, nombre = 5): () => Promise<SondeDuDisque> {
+function sondeDuDisque(repertoireEtat: string, racine: string, nombre = 5): () => Promise<SondeDuDisque> {
   return async () => {
     const propre = (await du(["-sk", repertoireEtat]))[0]?.octets;
     if (propre === undefined) throw new Error(`du did not size ${repertoireEtat}`);
-    const consommateurs = await du(["-xk", "-d", "2", "/"]).then(
-      (lignes) => lignes.filter(({ chemin }) => chemin !== "/").sort((a, b) => b.octets - a.octets).slice(0, nombre),
+    const consommateurs = await du(["-xk", "-d", "2", racine]).then(
+      (lignes) => lignes.filter(({ chemin }) => chemin !== racine).sort((a, b) => b.octets - a.octets).slice(0, nombre),
       () => [],
     );
     return { propre, consommateurs };
@@ -99,8 +99,8 @@ function sondeDuDisque(repertoireEtat: string, nombre = 5): () => Promise<SondeD
 
 // Le disque plein tel que le tour le branche : la sonde réelle, et la carte sur
 // l'issue du disque, de ce client GitHub.
-export const disqueDuProjet = (repertoireEtat: string, github: GitHubDuDisque): DisquePlein => ({
-  sonder: sondeDuDisque(repertoireEtat),
+export const disqueDuProjet = (repertoireEtat: string, github: GitHubDuDisque, racine = "/"): DisquePlein => ({
+  sonder: sondeDuDisque(repertoireEtat, racine),
   poser: (carte) => poserLaCarteDuDisque(github, carte),
   lever: () => leverLaCarteDuDisque(github),
 });

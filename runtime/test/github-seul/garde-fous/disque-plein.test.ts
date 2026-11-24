@@ -1,7 +1,7 @@
 // La carte du disque plein (#4091) sur GitHub : une issue à elle, une seule
 // carte tant qu'elle attend le chef, levée quand le disque respire.
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -49,8 +49,10 @@ test("what the kitchen holds counts only if it could bring the disk back to the 
 
 test("the probe sizes the kitchen's own state with du (#4091)", async () => {
   const dossier = mkdtempSync(join(tmpdir(), "disque-"));
-  writeFileSync(join(dossier, "gros"), Buffer.alloc(256 * 1024));
+  mkdirSync(join(dossier, "a"));
+  writeFileSync(join(dossier, "a", "gros"), Buffer.alloc(256 * 1024));
   const { github } = githubFaux();
-  const { propre } = await disqueDuProjet(dossier, github).sonder();
+  const { propre, consommateurs } = await disqueDuProjet(dossier, github, dossier).sonder();
   assert.equal(propre >= 256 * 1024, true);
+  assert.equal(consommateurs[0]?.chemin, join(dossier, "a"));
 });
