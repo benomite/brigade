@@ -2976,7 +2976,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // du bon ne le redit pas. Répondue — envoyée, ou jouée —, elle ne demande plus de répondre : la phrase se tait aussi.
   const vuDeTodo = attendu && carte.todo !== undefined ? vuDeLaCarte(carte.todo, etatDeLaCarte(projet, ticket, carte.todo)).vu : undefined;
   const todoRepondue = vuDeTodo === "attente" || vuDeTodo === "jouee";
-  // Le rail d'un projet sur GitHub seul ne donne pas d'activité à la carte (#4076) : tant que son cook travaille, la carte dit
+  // Le rail d'un projet sur GitHub seul ne donne pas d'activité à la carte (ticket 4076) : tant que son cook travaille, la carte dit
   // ce que sa fiche dit (« writing app/src/bon.ts · 2 min ago »), jamais « no activity yet ».
   const publiees = activitesPubliees.get(projet.nom);
   const cookAuTravail = carte.repere === true ? cookDuTicket(publiees, ticket) : undefined;
@@ -9073,7 +9073,7 @@ brigade.surEtat((terminal) => {
 brigade.surActivites((publiees) => {
   const avant = activitesPubliees.get(publiees.projet);
   activitesPubliees.set(publiees.projet, publiees);
-  // Les cartes de Taken et de Pass disent ce que fait leur cook quand le rail ne le dit pas (#4076) : elles suivent sa lecture.
+  // Les cartes de Taken et de Pass disent ce que fait leur cook quand le rail ne le dit pas (ticket 4076) : elles suivent sa lecture.
   if (courant?.nom === publiees.projet && JSON.stringify(avant) !== JSON.stringify(publiees)) dessiner();
   if (ouverte === undefined || ouverte.projet.nom !== publiees.projet) return;
   const { ticket } = ouverte.carte;
