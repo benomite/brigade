@@ -2979,7 +2979,7 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // Le rail d'un projet sur GitHub seul ne donne pas d'activité à la carte (#4076) : tant que son cook travaille, la carte dit
   // ce que sa fiche dit (« writing app/src/bon.ts · 2 min ago »), jamais « no activity yet ».
   const publiees = activitesPubliees.get(projet.nom);
-  const cookAuTravail = carte.ligne === "no activity yet" ? cookDuTicket(publiees, ticket) : undefined;
+  const cookAuTravail = carte.repere === true ? cookDuTicket(publiees, ticket) : undefined;
   const enCours = cookAuTravail === undefined || cookAuTravail.finiLe !== null || cookAuTravail.maintenant === null || publiees === undefined || "sans" in publiees ? undefined : cookAuTravail.maintenant;
   const ligneDeCarte = enCours === undefined || publiees === undefined || "sans" in publiees ? carte.ligne : `${gesteDuCook(enCours)} · ${dureeDuCook(Date.parse(publiees.lu) - Date.parse(enCours.depuis))} ago`;
   if (ligneDeCarte !== undefined && carte.refus === undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
