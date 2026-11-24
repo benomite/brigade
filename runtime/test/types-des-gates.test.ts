@@ -82,7 +82,13 @@ describe("le contrôle de types des gates d'une station, sans test touché par l
 
     const { code, sortie } = jouer(racine);
 
-    assert.deepEqual(lignesDesTypes(sortie), ["ok    contrôle de types du runtime", "ok    contrôle de types de l'app"]);
+    // Aucun test ne touche ce changement : aucune suite ne joue, les types des deux zones si (#4141).
+    assert.deepEqual(lignesDesTypes(sortie), [
+      "ok    tests du runtime non joués : aucun ne touche ce changement — la suite entière tourne sur la base",
+      "ok    contrôle de types du runtime",
+      "ok    tests de l'app non joués : aucun ne touche ce changement — la suite entière tourne sur la base",
+      "ok    contrôle de types de l'app",
+    ]);
     assert.equal(code, 0, sortie);
   });
 
@@ -119,7 +125,7 @@ describe("les tests que les gates d'une station jouent : la fermeture du changem
 
     const { code, sortie } = jouer(racine);
 
-    assert.match(sortie, /^ok {4}tests : tous, comme la CI Windows sur ce changement/m);
+    assert.match(sortie, /^ok {4}tests du runtime : \d+ fichiers touchés par ce changement/m);
     assert.deepEqual(sortie.match(/^FAIL.*$/gm), ["FAIL  tests du runtime en échec — rejoue : npm --prefix runtime test"]);
     assert.match(sortie, /loin vaut 2/);
     assert.equal(code, 1, sortie);

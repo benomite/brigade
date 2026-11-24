@@ -319,6 +319,20 @@ Open one of your projects on this PC: one click, no folder to choose.
   GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
   the stations are read again; a clone that was held for want of an account starts again by itself.
   The same button appears under a clone refused for that reason.
+- **A tool the app does not ship is checked first** (#4059): the screen, the `connect to GitHub` button and
+  `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
+  (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
+  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence, the install step
+  for this machine — the command, or the installer to download —, `install the GitHub CLI` (recommended) and
+  `I installed it`. The button never spins on a sign-in that cannot start. The install path never needs a tool the
+  computer lacks: no Homebrew; on macOS, Git comes from Apple's command line developer tools (`xcode-select
+  --install`), the GitHub CLI from its `.pkg` installer, Claude Code from its official script; on Windows, `winget`
+  when it is there, the installers otherwise, and Claude Code from its PowerShell script. A command the app runs
+  itself; an installer opens its download page. Installed, the app checks again (by itself after a command, or on
+  `I installed it`), adds to its PATH a tool its installer put outside it, and the step comes back where it was —
+  the button, or the project that was opening, which starts again by itself. A failed install, or a tool still
+  missing, says so in one line, and the offer stays. The same screen opens in the notice when **log in** on a lost
+  Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
 - **When the stations cannot be read** — no `gh`, no network, GitHub limiting the account —, the
   head says why in the runtime's sentence, its detail in the hover, with the button of the page that
   lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
@@ -333,7 +347,8 @@ Open one of your projects on this PC: one click, no folder to choose.
   the bar, open **Add a project** (below). **T** opens All projects.
 
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
-`app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
+`app/src/vue/premier-lancement.js` (the screen), `app/src/outils-requis.ts` and `app/src/vue/outils-requis/` (the
+missing-tool screen). Captures: `docs/captures/1434/`, `docs/captures/4059/`.*
 
 ### On first launch: brigade added on its own, and a tour of its real kitchen (#3165, epic #3162)
 
@@ -932,11 +947,15 @@ still show something, always:
   computer.
 - **Second** starts as the runtime plans it (#1433): the `claude` the PATH gives, and on Windows what
   launches it. When it cannot start, there is no terminal: its note says why in one sentence
-  (`The second cannot start: claude and git are missing on this PC.`), and under it each missing
-  tool by name, with `how to get <tool>`, which opens the page that explains it: the button carries
-  the gesture, no command is written out to copy. Why the second needs the tool, and the runtime's
-  sentence on how to get it, are in the `?` hover. `try again` checks the tools again and starts the
-  second when they are there. When it starts but a tool is missing (`gh`, `git`), the terminal is
+  (`The second cannot start: Claude Code and Git are missing on this PC.`), and under it each missing
+  tool by its product name (#4059) — Claude Code, the GitHub CLI, Git; the binary name (`claude`) is
+  in the `?` hover, with the runtime's reason —, one line on what it is for here (Claude Code: the
+  second and the cooks run on it, with the chef's Max account), the install step for this machine
+  written out, its command ready to copy, then for Claude Code the sign-in that follows, and
+  `how to get <product>`, which opens the page that explains it. `Try again` first reads the
+  app's tools again — which adds to the app's PATH a tool its installer put outside it — then
+  checks the tools again and starts the
+  second when they are there, with no restart of the app. When it starts but a tool is missing (`gh`, `git`), the terminal is
   there, and above it the sentence that says what will fail, then the tool and its button. Any other
   failure — the project's folder missing, a launch refused — is said in the note's one sentence,
   with `try again`.
@@ -2438,6 +2457,15 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   that runs. On desktop Linux, and when the app is launched from the repository, nothing is registered: the station
   does not start at login there, only when the app opens, and it then outlives the app
   (`app/src/station-fond/inscription.ts`).
+- **A screen tells the newcomer first (#4081).** On a Mac, registering the launchd agent makes macOS show its
+  "Background Items Added" notice. On the first launch of the installed app on a Mac where the station is not registered
+  yet, the app first shows a screen, "Brigade runs in the background", that says the station keeps running with the
+  app closed and that macOS will tell about it, with one button, **continue**; the app stays hidden behind it, and
+  the registration waits until the button is pressed. The button pressed, the file `avis-de-fond-vu` next to the
+  projects file notes it: on the next launches the screen does not come back, and the registration runs without
+  waiting. If that file cannot be written, the screen comes back at the next launch. On Windows, on desktop Linux,
+  and on a Mac where the installer already put the agent, no screen shows (`app/src/premier-lancement/`,
+  `app/src/vue/premier-lancement/`).
 - **Only one per machine and per account.** The app that opens attaches to the station that runs — whoever started
   it, `station/app.pid` names the process that holds it, which removes it when it stops; a mark written before the
   system started does not count, its pid may have gone to another process — and never starts a second one: same process, same pid
@@ -3123,7 +3151,7 @@ or the app's `inscrite-par-l-app` mark there on Windows), the installed app
 hands the icon to a process of its own binary started with `--tray-fond`, which stays when the app closes. The app
 registers it at login on each opening — a launchd agent `~/Library/LaunchAgents/brigade.tray-fond.plist` on a Mac, the
 `brigade-tray` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows — and no longer puts its own
-icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front. The icon process does not hold Electron's single-instance lock, which belongs to the app alone: it keeps a pid file in its own data folder, so an app opened while the icon runs shows its window instead of handing off to a process that has none (#3864).
+icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front. The icon process does not hold Electron's single-instance lock, which belongs to the app alone: it keeps a pid file in its own data folder, so an app opened while the icon runs shows its window instead of handing off to a process that has none (#3864). The app hands off only to a process launched like itself: the pid left by a quit app, given by the system to another process (the icon, the station host), does not stop it from showing its window (#4071). On a Mac the icon is a process of the app's bundle, so a click on the quit app (Dock, Finder) is sent to the icon while it runs: the icon then opens the app. It ignores the same event in its first two seconds, which Electron also sends when launchd starts the icon at login, so the window does not open at each login. After an update installed by the app, the installer reopens it with `open -n`, a new instance, for the same reason; and the app, on opening, restarts an icon that still runs another version (`launchctl kickstart -k`), without touching the station or its cooks. If the window cannot be shown, the app says so in one sentence with what to do — quit and open it again, or download it again from the releases page — and writes the details to its log; the icon says the same when it cannot open the app.
 
 - **The line** is the same (`3 cooking · 1 for you`, the disc on Windows), read every 15 s from the `facts` of each
   project the station serves, through the station's own gesture, as the app reads them. It adds `· paused` or

@@ -48,6 +48,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { APP_DU_PAQUET, COMMANDES_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
 import { COMMANDES } from "../src/plugin-app.ts";
+import { defautsDeNom } from "./verifier-plist.ts";
 
 const REFUS = 2;
 const ECHEC = 1;
@@ -55,6 +56,8 @@ const ECHEC = 1;
 export const NOM = "Brigade";
 export const IDENTIFIANT = "com.github.benomite.brigade";
 export const ARCH = "arm64";
+// L'icône du paquet, sous `Contents/Resources/` : celle de `icones/`, que CFBundleIconFile nomme.
+export const ICONE = "Brigade.icns";
 
 const ICI = import.meta.dirname;
 export const APP = resolve(ICI, "..");
@@ -109,7 +112,7 @@ export function versionCourte(version: string): string {
 }
 
 // Le `Info.plist` d'Electron, au nom de l'app. L'exécutable et les auxiliaires gardent le nom
-// d'Electron : c'est sous lui qu'Electron cherche ses auxiliaires. L'intégrité de `default_app.asar`
+// d'Electron (seuls les noms que macOS montre changent, voir reecrirePlistAuxiliaire) : c'est sous lui qu'Electron cherche ses auxiliaires. L'intégrité de `default_app.asar`
 // part avec lui — l'app n'est pas une archive asar.
 export function reecrirePlist(xml: string, courte: string): string {
   const remplacer = (texte: string, cle: string, valeur: string) => {
@@ -126,7 +129,23 @@ export function reecrirePlist(xml: string, courte: string): string {
     ["CFBundleVersion", courte],
   ] as const)
     texte = remplacer(texte, cle, valeur);
+  // L'icône : le plist d'Electron en nomme une (`electron.icns`) ; à défaut, on pose la clé.
+  texte = /<key>CFBundleIconFile<\/key>/.test(texte) ? remplacer(texte, "CFBundleIconFile", ICONE) : texte.replace("<dict>", `<dict>\n\t<key>CFBundleIconFile</key>\n\t<string>${ICONE}</string>`);
   return sansCle(texte, "ElectronAsarIntegrity");
+}
+
+// Le `Info.plist` d'un auxiliaire d'Electron (« Electron Helper (GPU) »…), au nom de l'app : c'est
+// ce nom que macOS montre pour l'activité d'arrière-plan d'un processus auxiliaire. Son dossier,
+// son exécutable et ses fichiers gardent le nom d'Electron : Electron les cherche sous lui.
+export function reecrirePlistAuxiliaire(xml: string): string {
+  const nom = (texte: string, cle: string) => {
+    const motif = new RegExp(`(<key>${cle}</key>\\s*<string>)Electron( Helper[^<]*</string>)`);
+    if (!motif.test(texte)) echouer(`an Electron helper's Info.plist has no ${cle} starting with “Electron Helper”`);
+    return texte.replace(motif, `$1${NOM}$2`);
+  };
+  const identifiant = /(<key>CFBundleIdentifier<\/key>\s*<string>)com\.github\.Electron(\.helper[^<]*<\/string>)/;
+  if (!identifiant.test(xml)) echouer("an Electron helper's Info.plist has no CFBundleIdentifier starting with “com.github.Electron.helper”");
+  return nom(nom(xml, "CFBundleName"), "CFBundleDisplayName").replace(identifiant, `$1${IDENTIFIANT}$2`);
 }
 
 // Le plist sans une clé de premier niveau ni sa valeur : un dictionnaire, jusqu'à son `</dict>`
@@ -222,8 +241,15 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
   const plist = join(contenu, "Info.plist");
   writeFileSync(plist, reecrirePlist(readFileSync(plist, "utf8"), courte));
   rmSync(join(ressources, "default_app.asar"), { force: true });
-  // L'icône du Dock : Electron la lit dans `electron.icns` (CFBundleIconFile), qu'on remplace.
-  cpSync(join(ICI, "icones", "Brigade.icns"), join(ressources, "electron.icns"));
+  // L'icône : celle d'Electron s'en va, celle de Brigade vient, et CFBundleIconFile la nomme.
+  rmSync(join(ressources, "electron.icns"), { force: true });
+  cpSync(join(ICI, "icones", ICONE), join(ressources, ICONE));
+  const auxiliaires = join(contenu, "Frameworks");
+  for (const nom of existsSync(auxiliaires) ? readdirSync(auxiliaires) : [])
+    if (/^Electron Helper.*\.app$/.test(nom)) {
+      const plistAuxiliaire = join(auxiliaires, nom, "Contents", "Info.plist");
+      writeFileSync(plistAuxiliaire, reecrirePlistAuxiliaire(readFileSync(plistAuxiliaire, "utf8")));
+    }
 
   // L'app : ses sources, son package.json — au nom de l'app, à la version construite — et ses
   // dépendances de production, rangées comme dans le dépôt : la vue les charge par `../../node_modules`.
@@ -327,6 +353,8 @@ export function construire(options: OptionsConstruction): string {
   verifierNode(options.node, executer);
   const volume = join(options.atelier, "volume");
   const paquet = assembler(options, volume);
+  const defauts = defautsDeNom(paquet);
+  if (defauts.length > 0) echouer(`the built app is not named “${NOM}”: ${defauts.join("; ")}`);
   const lancer = (commande: string, args: string[], quoi: string) => {
     const rendu = executer(commande, args);
     if (rendu.status !== 0) echouer(`${quoi} failed (\`${commande} ${args.join(" ")}\`): ${dit(rendu)}`);

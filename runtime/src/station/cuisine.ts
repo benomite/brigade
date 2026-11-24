@@ -39,6 +39,7 @@ import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
+import { disqueDuProjet } from "../github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
@@ -236,7 +237,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
         ici === undefined
           ? { refus: "the project declares no station on this machine" }
           : (() => {
-              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, avertir: dire, env });
+              const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), avertir: dire, env });
               const ecrivaine = stationDuDepot({
                 porte: gestes,
                 nom: ici.nom,
