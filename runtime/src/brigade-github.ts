@@ -36,6 +36,7 @@ import { garderLeCook } from "./garde-cook/garde.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
 import { besoinDeSecret } from "./besoin-de-secret.ts";
 import { enFluxClaude } from "./passe-moteur/flux.ts";
+import { avecLesMotsAuCook } from "./mot-au-cook/lanceur.ts";
 import { lireBlocage, lireDejaServi, lireLivrable } from "./livrable.ts";
 import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-servi.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "./constat-seul.ts";
@@ -2978,6 +2979,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   mkdirSync(options.flux, { recursive: true });
   const lancer: Lancer = options.lancer ?? options.gardes?.lancer ?? (({ commande, args, entree, cwd, env, flux }) => superviser({ commande, args, ...(entree === undefined ? {} : { entree }), cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));
+  // Les tours du cook, et le mot du chef remis à la fin de chacun (#4047).
+  const lancerLeCook = avecLesMotsAuCook(lancer, { repertoireEtat: options.repertoireEtat, avertir });
   // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
@@ -3379,7 +3382,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { subi: surLeMoteur.refus };
     }
     const lancement = envelopper(cloison, { commande: surLeMoteur.commande, args: surLeMoteur.args }, { cwd: worktree, depot: "ecriture" });
-    let lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
+    let lance = lancerLeCook({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
     let fin = await lance.fin;
     let conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     // Une livraison dont une mutation survit revient à son cook avant sa PR
@@ -3393,7 +3396,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before its PR: ${survivantes.length} surviving, its cook gets them back`);
       const fini = { lance, fin, flux };
       flux = join(options.flux, `${run}-mutations-${relance}.flux.jsonl`);
-      lance = lancer({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
+      lance = lancerLeCook({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number });
       fin = await lance.fin;
       conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
       if (conclusion !== "done") {
