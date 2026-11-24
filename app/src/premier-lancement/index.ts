@@ -15,15 +15,14 @@ export type OptionsDuPremierLancement<T> = {
   declencher: () => Promise<T>;
   // Une marque qui ne s'écrit pas : l'action part quand même, et l'écran reviendra au lancement suivant.
   dire?: (ligne: string) => void;
+  // L'avis de macOS viendra-t-il (`avisDeMacOS`) ? Faux, l'action part seule, et rien n'est noté. Vrai par défaut.
+  avis?: boolean;
 };
-
-// L'écran a-t-il déjà été vu sur cet ordinateur ?
-export const premierLancementVu = (marque: string): boolean => existsSync(marque);
 
 // Montre l'écran au premier lancement, attend le bouton, note qu'il a été vu, puis lance l'action ; ensuite, l'action seule.
 // Un écran qui échoue (la fenêtre fermée avant le bouton) lève, et l'action ne part pas.
-export async function passerLePremierLancement<T>({ marque, afficher, declencher, dire }: OptionsDuPremierLancement<T>): Promise<T> {
-  if (!premierLancementVu(marque)) {
+export async function passerLePremierLancement<T>({ marque, afficher, declencher, dire, avis = true }: OptionsDuPremierLancement<T>): Promise<T> {
+  if (avis && !existsSync(marque)) {
     await afficher();
     try {
       mkdirSync(dirname(marque), { recursive: true });
@@ -36,10 +35,8 @@ export async function passerLePremierLancement<T>({ marque, afficher, declencher
 }
 
 // L'avis ne vient que sur un Mac où la station n'est pas encore inscrite : là seulement, l'écran passe avant l'action.
-// Ailleurs — Windows, Linux, ou un Mac où l'installeur l'a déjà posée —, l'action part seule, et rien n'est noté.
-export function avantLAvisDeMacOS<T>({ mac, inscrite, ...options }: OptionsDuPremierLancement<T> & { mac: boolean; inscrite: boolean }): Promise<T> {
-  return mac && !inscrite ? passerLePremierLancement(options) : options.declencher();
-}
+// Ailleurs — Windows, Linux, ou un Mac où l'installeur l'a déjà posée —, l'action part seule.
+export const avisDeMacOS = ({ mac, inscrite }: { mac: boolean; inscrite: boolean }): boolean => mac && !inscrite;
 
 // L'écran tel que le process principal le tient : `afficher` le demande à la vue (`montrer`) et attend le bouton ;
 // `attendu` dit à une vue qui s'ouvre s'il l'attend ; `continuer` est le bouton pressé.

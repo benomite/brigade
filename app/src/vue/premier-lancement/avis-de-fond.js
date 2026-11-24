@@ -11,14 +11,14 @@ import { sorteDuBouton } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
-export const TITRE = "Brigade runs in the background";
-export const ATTENDU = "Brigade keeps this computer's station running in the background, even when the app is closed.";
-export const AVIS = "macOS will then tell you that Brigade added a background item: this is it, and you can leave it on.";
-export const CONTINUER = "continue";
+const TITRE = "Brigade runs in the background";
+const ATTENDU = "Brigade keeps this computer's station running in the background, even when the app is closed.";
+const AVIS = "macOS will then tell you that Brigade added a background item: this is it, and you can leave it on.";
+const CONTINUER = "continue";
 
 // La carte de l'écran : son titre, ses deux lignes et son bouton, recommandé et grand, comme au premier lancement.
 /** @param {Fabrique} doc @param {() => void} continuer */
-export function poserAvisDeFond(doc, continuer) {
+function poserAvisDeFond(doc, continuer) {
   const carte = doc.createElement("div");
   carte.className = "avis-de-fond";
   const titre = doc.createElement("h2");

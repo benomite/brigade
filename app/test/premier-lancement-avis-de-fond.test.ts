@@ -6,8 +6,8 @@ import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { avantLAvisDeMacOS, passerLePremierLancement, premierLancementVu, tenirLAvisDeFond } from "../src/premier-lancement/index.ts";
-import { ATTENDU, AVIS, CONTINUER, TITRE, poserAvisDeFond, tenirAvisDeFond } from "../src/vue/premier-lancement/avis-de-fond.js";
+import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "../src/premier-lancement/index.ts";
+import { tenirAvisDeFond } from "../src/vue/premier-lancement/avis-de-fond.js";
 import { Faux } from "./aides/fausse-vue.ts";
 
 const marqueNeuve = () => join(mkdtempSync(join(tmpdir(), "avis-de-fond-")), "app", "avis-de-fond-vu");
@@ -22,7 +22,7 @@ test("first launch: the screen shows, the action waits for the button, then runs
   await repos();
   assert.equal(avis.attendu(), true, "the screen is awaited");
   assert.equal(actions, 0, "the action waits for the button");
-  assert.equal(premierLancementVu(marque), false, "nothing is noted before the button");
+  assert.equal(existsSync(marque), false, "nothing is noted before the button");
   avis.continuer();
   assert.equal(await fini, 1, "the action's result is handed back");
   assert.equal(avis.attendu(), false);
@@ -32,7 +32,7 @@ test("after confirmation: the mark is written, and the second launch runs the ac
   const marque = marqueNeuve();
   let ecrans = 0;
   await passerLePremierLancement({ marque, afficher: async () => void ecrans++, declencher: async () => undefined });
-  assert.equal(premierLancementVu(marque), true, "the confirmation is noted");
+  assert.equal(existsSync(marque), true, "the confirmation is noted");
   let actions = 0;
   await passerLePremierLancement({ marque, afficher: async () => void ecrans++, declencher: async () => void actions++ });
   assert.equal(ecrans, 1, "second launch: no screen");
@@ -48,7 +48,7 @@ test("a mark that cannot be written: the action still runs, and the line says th
   let actions = 0;
   await passerLePremierLancement({ marque, afficher: async () => undefined, declencher: async () => void actions++, dire: (ligne) => lignes.push(ligne) });
   assert.equal(actions, 1);
-  assert.equal(premierLancementVu(marque), false);
+  assert.equal(existsSync(marque), false);
   assert.equal(lignes.length, 1);
   assert.match(lignes[0] ?? "", /shows again at the next launch/);
 });
@@ -66,10 +66,10 @@ test("the screen comes first only on a Mac where the station is not registered y
     const marque = marqueNeuve();
     let ecrans = 0;
     let actions = 0;
-    await avantLAvisDeMacOS({ mac, inscrite, marque, afficher: async () => void ecrans++, declencher: async () => void actions++ });
+    await passerLePremierLancement({ avis: avisDeMacOS({ mac, inscrite }), marque, afficher: async () => void ecrans++, declencher: async () => void actions++ });
     assert.equal(ecrans, ecran, `mac ${mac}, registered ${inscrite}`);
     assert.equal(actions, 1, `mac ${mac}, registered ${inscrite}`);
-    assert.equal(premierLancementVu(marque), ecran === 1, "only a shown screen is noted");
+    assert.equal(existsSync(marque), ecran === 1, "only a shown screen is noted");
   }
 });
 
@@ -87,20 +87,19 @@ test("the main process asks the view for the screen, and the button resolves the
   avis.continuer();
 });
 
-test("the screen card: its title names Brigade, it says macOS will tell, and it has one recommended button", () => {
-  let continue_ = 0;
-  const carte = poserAvisDeFond(doc, () => void continue_++) as unknown as Faux;
-  assert.match(TITRE, /Brigade/);
-  assert.match(ATTENDU, /background/);
-  assert.match(AVIS, /macOS/);
-  assert.deepEqual(carte.children.map((enfant) => enfant.balise), ["h2", "p", "p", "div"]);
-  assert.equal(carte.textContent, `${TITRE}${ATTENDU}${AVIS}${CONTINUER}`);
-  const boutons = carte.querySelectorAll("button");
+test("the screen card: its title names Brigade, it says macOS will tell, and it has one recommended button", async () => {
+  const lieu = new Faux("section");
+  await tenirAvisDeFond(lieu, new Faux("div"), doc, { avisDeFond: async () => true });
+  const carte = lieu.children[0];
+  assert.deepEqual(carte?.children.map((enfant) => enfant.balise), ["h2", "p", "p", "div"]);
+  assert.match(carte?.children[0]?.textContent ?? "", /^Brigade runs in the background$/);
+  assert.match(carte?.children[1]?.textContent ?? "", /background/);
+  assert.match(carte?.children[2]?.textContent ?? "", /macOS/);
+  const boutons = lieu.querySelectorAll("button");
   assert.equal(boutons.length, 1);
+  assert.equal(boutons[0]?.textContent, "continue");
   assert.equal(boutons[0]?.className, "recommande");
   assert.equal(boutons[0]?.dataset.taille, "grand");
-  boutons[0]?.click();
-  assert.equal(continue_, 1);
 });
 
 test("the view shows the screen over the hidden app when the main process awaits it, and the button gives the app back", async () => {

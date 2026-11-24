@@ -100,7 +100,7 @@ import { HOTE, lancerLeFond } from "./station-fond/fond.ts";
 import { inscrireLaStationDeFond } from "./station-fond/inscription.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
-import { avantLAvisDeMacOS, tenirLAvisDeFond } from "./premier-lancement/index.ts";
+import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
@@ -750,7 +750,7 @@ const marqueDeLAvisDeFond = join(dirname(cheminConfiguration()), "avis-de-fond-v
 ipcMain.handle("avisDeFond", () => avisDeFond.attendu());
 ipcMain.handle("continuerLePremierLancement", () => avisDeFond.continuer());
 const apresLAvisDeFond = <T>(declencher: () => Promise<T>): Promise<T> =>
-  avantLAvisDeMacOS({ mac: estUnMac(plateforme), inscrite: stationDeFondInstallee({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA }), marque: marqueDeLAvisDeFond, afficher: avisDeFond.afficher, declencher, dire: (ligne) => console.error(ligne) });
+  passerLePremierLancement({ avis: avisDeMacOS({ mac: estUnMac(plateforme), inscrite: stationDeFondInstallee({ plateforme, maison: homedir(), localAppData: process.env.LOCALAPPDATA }) }), marque: marqueDeLAvisDeFond, afficher: avisDeFond.afficher, declencher, dire: (ligne) => console.error(ligne) });
 // Sur un ordinateur, l'app est une station (`role`) : la station de la machine — la même que celle d'un serveur —, sous
 // `station/` à côté du fichier des projets, tourne en fond, sans dépendre de l'app (station-fond/, #3630). L'app
 // installée l'inscrit à l'ouverture de session ; ouverte, elle la rejoint si elle tourne, la lance sinon, et l'appaire
