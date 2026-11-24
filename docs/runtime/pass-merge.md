@@ -149,3 +149,9 @@ without network, and a branch merged by *squash* would be kept wrongly.
 - **A ticket off the rail closes nothing behind it**, and its departure is seen only at the poll.
 - **A new file the project does not ignore goes into the PR** if the cook left it; the only guard is
   `.gitignore`.
+- **A delivery held for an earlier ticket is neither merged nor sent back** (#4044). Ticket B is "after #A" when B declares
+  `Depends on #A`, or when the open deliveries of A and B change a common file (the one that reached the pass first goes
+  first; a link that would close a cycle is not laid). B waits until A's delivery is merged into the base branch, or until A
+  leaves the rail unserved (closed, abandoned): then B is released with no action from the chef. The links are computed in
+  `runtime/src/ordre-de-merge/ordre.ts`; the rail card says "after #A" and shows the waiting state. A ticket with no link
+  shows nothing more.
