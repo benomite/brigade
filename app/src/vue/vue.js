@@ -152,6 +152,7 @@ import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from ".
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
 import { poserLeProjetDEssai, tenirLeProjetDEssai } from "./demo/demo.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
+import { poserLesOutils, tenirLesOutils } from "./outils-requis/outils-requis.js";
 import { DEPOT_DE_LA_VISITE, PROJET_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
@@ -1600,12 +1601,25 @@ function poserSecond(ouvrable, montre) {
           poserOutilsDuSecond(document, dit, {
             bloque: montre.empeche !== undefined,
             // Comme une touche dans un second arrêté : il est relancé, et ses outils revérifiés (terminaux.ts).
-            reessayer: () => brigade.ecrire(montre.id, ""),
+            reessayer: () => void reessayerLeSecond(montre.id),
             ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
           }),
         ]),
   );
   poserSousLeSecond(ouvrable && telephoneVu === undefined ? montre : undefined);
+}
+
+// « Try again » d'un second empêché : les outils relus d'abord (ticket 4059) — la lecture rattache au PATH de l'app un
+// outil que son installeur vient de poser hors de lui —, puis le second relancé, qui les revérifie : installé, il part
+// sans que l'app redémarre. Une lecture qui échoue ne retient rien : le plan du second dit lui-même ce qui manque.
+/** @param {number} id */
+async function reessayerLeSecond(id) {
+  try {
+    await brigade.outilsManquants?.();
+  } catch {
+    // Rien à dire ici : le second relancé dit ce qui lui manque.
+  }
+  brigade.ecrire(id, "");
 }
 
 // Sous le terminal du second, ses choix quand il demande de choisir (ticket 1520), ou le geste qu'il nomme (ticket
@@ -5027,6 +5041,7 @@ function lignesDeCetOrdinateur(projet) {
       let dite;
       try {
         const rendu = await brigade.panne(station.id, cle);
+        siClaudeManque(rendu);
         dite = "refus" in rendu ? rendu.refus : rendu.fait;
       } catch (erreur) {
         dite = `nothing was done: ${rateDit(erreur)}`;
@@ -6429,6 +6444,7 @@ function poserLesSectionsDeStation(station) {
         const panne = vue?.pannes.find(({ sujet }) => sujet === "connexion-max");
         if (panne === undefined) return "Claude Code is signed in: there is nothing to renew yet.";
         const rendu = await brigade.panne(station.id, panne.cle);
+        siClaudeManque(rendu);
         return "refus" in rendu ? { refus: rendu.refus } : rendu.fait;
       },
     },
@@ -7568,6 +7584,7 @@ async function jouerPanne(id, cle, bouton) {
   let dit;
   try {
     const rendu = await brigade.panne(id, cle);
+    siClaudeManque(rendu);
     dit = "refus" in rendu ? rendu.refus : rendu.fait;
   } catch (erreur) {
     dit = `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
@@ -8098,6 +8115,46 @@ let premierAOuvrir;
 const compteDuParcours = tenirLeCompte({ pont: brigade, rendre: () => poserLePremier() });
 /** @returns {import("./parcours-projet/compte.js").EtatDuCompte} */
 const etatDuParcours = () => ({ ...compteDuParcours.etat, ...(premier.connexion === undefined ? {} : { connexion: premier.connexion }) });
+// Les outils que l'app ne livre pas (ticket 4059, outils-requis/) : la connexion à GitHub et le clone d'un projet
+// demandent Git et le GitHub CLI, le login Max demande Claude Code. Un pas qui en manque cède la place à l'écran de
+// l'outil manquant — sur le premier lancement, à la place du compte ; ailleurs, dans l'avis —, et reprend où il était
+// une fois l'outil là : l'ouverture d'un projet repart, la connexion retrouve son bouton.
+/** @type {(() => void) | undefined} */
+let reprendreApresLesOutils;
+const outilsDuParcours = tenirLesOutils({
+  pont: brigade,
+  outils: ["git", "gh"],
+  rendre: () => poserLesOutilsIci(),
+  quandPret: () => {
+    const reprendre = reprendreApresLesOutils;
+    reprendreApresLesOutils = undefined;
+    reprendre?.();
+  },
+});
+const outilsDuLogin = tenirLesOutils({ pont: brigade, outils: ["claude"], rendre: () => poserLesOutilsIci() });
+/** @param {ReturnType<typeof tenirLesOutils>} tenus */
+const gestesDesOutils = (tenus) => ({ installer: () => void tenus.installer(), verifier: () => void tenus.verifier(true) });
+let avisDesOutils = false;
+function poserLesOutilsIci() {
+  const surLePremier = ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous && !tous.hidden;
+  if (surLePremier) poserLePremier();
+  const tenus = [...(surLePremier ? [] : [outilsDuParcours]), outilsDuLogin].find(({ etat }) => etat.manque !== undefined);
+  if (tenus === undefined) {
+    if (avisDesOutils) avis.hidden = true;
+    avisDesOutils = false;
+    return;
+  }
+  avisDesOutils = true;
+  avis.replaceChildren(...poserLesOutils(document, tenus.etat, gestesDesOutils(tenus)), bouton("close", () => {
+      avis.hidden = true;
+      avisDesOutils = false;
+    }, "discret"));
+  avis.hidden = false;
+}
+/** @param {import("../pannes/gestes.ts").RenduDePanne} rendu */
+function siClaudeManque(rendu) {
+  if ("outilManquant" in rendu) void outilsDuLogin.verifier();
+}
 /** @type {import("./premier-lancement.js").GestesDuPremier} */
 const gestesDuPremier = {
   ouvrir: (station, projet, depot, base) => void ouvrirDUneStation(station, projet, depot, base),
@@ -8107,6 +8164,7 @@ const gestesDuPremier = {
   relire: () => void relireLePremier(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
   ajouterUnProjet: () => ouvrirAjout(),
+  outils: gestesDesOutils(outilsDuParcours),
 };
 // Le desktop porte le premier lancement ; un pont qui ne le porte pas s'ouvre sur l'écran « Add a project ».
 const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
@@ -8149,9 +8207,10 @@ function ouvrirPremier() {
   stationOuverte = undefined;
   pageDeLApp = undefined;
   marquer();
-  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
+  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom, outils: outilsDuParcours.etat }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
   compteDuParcours.lireUneFois();
+  if (!outilsDuParcours.etat.lu && outilsDuParcours.etat.enCours === undefined) void outilsDuParcours.verifier();
   if (premier.stations === undefined && lectureDuPremier === 0) void relireLePremier();
 }
 
@@ -8165,7 +8224,7 @@ function poserLePremier() {
   // L'écran « Add a project » dit aussi le compte, la connexion en route et le dépôt qui s'ouvre.
   if (ajoute) poserLAjout();
   if (ecranDuPremier === undefined || ecranDuPremier.parentElement !== tous || tous.hidden) return;
-  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom }, gestesDuPremier);
+  ecranDuPremier = poserPremierLancement(document, { ...premier, ...etatDuParcours(), poste: POSTE.nom, outils: outilsDuParcours.etat }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
   ajouterLaCuisineDeLaVisite();
 }
@@ -8615,6 +8674,11 @@ async function relireLePremier() {
 // de sa copie désigne.
 /** @param {string} station @param {string} projet @param {string} depot @param {string} [base] */
 async function ouvrirDUneStation(station, projet, depot, base) {
+  // Le clone demande Git et le GitHub CLI : l'un manque, son écran le dit, et l'ouverture repart une fois installé.
+  if (!(await outilsDuParcours.verifier())) {
+    reprendreApresLesOutils = () => void ouvrirDUneStation(station, projet, depot, base);
+    return;
+  }
   premier.ouverture = { station, projet, depot, ...(base === undefined ? {} : { base }) };
   poserLePremier();
   /** @type {import("../premier-lancement.ts").Ouverture} */
@@ -8640,6 +8704,12 @@ async function ouvrirDUneStation(station, projet, depot, base) {
 }
 
 async function seConnecterAGitHub() {
+  // Une connexion qui ne peut pas partir — sans `gh` — ne tourne pas : l'écran de l'outil manquant la remplace, et le
+  // bouton revient tel quel une fois l'outil installé.
+  if (!(await outilsDuParcours.verifier())) {
+    reprendreApresLesOutils = undefined;
+    return;
+  }
   premier.connexion = { enRoute: true };
   poserLePremier();
   /** @type {import("../connexion-github.ts").DebutDeConnexion} */
