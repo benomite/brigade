@@ -11,7 +11,7 @@ import { estUnMac } from "./plateforme.ts";
 export type OptionsCommande = {
   plateforme: string;
   // Seule l'app installée a un runtime et un `node` à elle ; depuis le dépôt, rien n'est posé.
-  installee: boolean;
+  facon: "depot" | "installee";
   maison: string;
   version: string;
   runtime: string;
@@ -42,7 +42,7 @@ exec env -i BRIGADE_STATION_DIR=${cite(o.racine)} HOME=${cite(o.maison)} PATH=${
 // (l'app démarre quand même : la commande manque, elle n'arrête rien).
 export function poserLaCommande(o: OptionsCommande, ecrire: (message: string) => void = console.error): string | undefined {
   // Un Mac (darwin) seulement : Linux a le paquet de la station, Windows son brigade.cmd.
-  if (!estUnMac(o.plateforme) || !o.installee) return undefined;
+  if (!estUnMac(o.plateforme) || o.facon !== "installee") return undefined;
   const fichier = join(o.maison, ".local", "bin", "brigade");
   const dossier = dirname(fichier);
   const texte = texteDeLaCommande(o);
