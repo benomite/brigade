@@ -1,7 +1,7 @@
 // #4162 : les outils du projet, la ligne `Tools:` du ticket, et ce que le cook en reçoit.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { consigneDesOutils, outilsDemandes, outilsDuCook } from "../src/outils-du-cook.ts";
+import { consigneDesOutils, outilsDuCook } from "../src/outils-du-cook.ts";
 import { ReglageRefuse, reglagesDuTexte, texteDuFichier } from "../src/reglages-projet/reglages.ts";
 
 const fichier = (tools: unknown) => JSON.stringify({ version: 1, integrationBranch: "main", tools });
@@ -20,8 +20,9 @@ test("projet.json refuses tools that are not a list of names, naming the key", (
 });
 
 test("the ticket's Tools line lists its tools, without duplicates, and ignores prose", () => {
-  assert.deepEqual(outilsDemandes("## Context\n\nTools: Screenshots, `browser`, screenshots\n"), ["screenshots", "browser"]);
-  assert.deepEqual(outilsDemandes("We use many tools here, see below.\n"), []);
+  const tous = { tools: ["screenshots", "browser"] };
+  assert.deepEqual(outilsDuCook({ projet: tous, corpsDuTicket: "## Context\n\nTools: Screenshots, `browser`, screenshots\n" }).outils, ["screenshots", "browser"]);
+  assert.deepEqual(outilsDuCook({ projet: tous, corpsDuTicket: "We use many tools here, see below.\n" }).outils, []);
 });
 
 test("a project without tools declares none: what the ticket needs is missing", () => {

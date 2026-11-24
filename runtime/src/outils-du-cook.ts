@@ -32,7 +32,7 @@ export function outilsDuProjet(projet: unknown): string[] {
 }
 
 // Les outils que le corps du ticket demande, dans l'ordre, sans doublon.
-export function outilsDemandes(corpsDuTicket: string): string[] {
+function outilsDemandes(corpsDuTicket: string): string[] {
   const ligne = LIGNE.exec(corpsDuTicket)?.[1] ?? "";
   const noms = ligne.split(",").map((nom) => nom.trim().toLowerCase().replace(/^`|`$/g, "")).filter((nom) => NOM_D_OUTIL.test(nom));
   return [...new Set(noms)];
