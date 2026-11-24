@@ -58,8 +58,8 @@ test("un login qui échoue se dit au terminal de l'app ; un `claude` absent est 
   await jusqua(() => relues === 1);
   assert.deepEqual(dit, ["brigade: Max login on this computer did not finish (code 1) — Login failed: timed out"]);
   const absent = await tenirLogin({ claude: join(repertoire(t), "claude"), env: process.env, dire: () => {} })();
-  assert.ok("refus" in absent);
-  assert.match(absent.refus, /^the login was not launched: Claude Code could not be started on this computer/);
+  // Absent, il n'est plus « could not be started » : l'écran de l'outil manquant le prend (#4059).
+  assert.deepEqual(absent, { outilManquant: "claude", refus: "the login was not launched: Claude Code is not installed on this computer" });
 });
 
 test("le gist de la station de cet ordinateur se lit là où elle le garde ; sans lui, aucune station n'est d'ici", (t) => {
