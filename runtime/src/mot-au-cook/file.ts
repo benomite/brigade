@@ -27,11 +27,13 @@ function cheminCoupe(chemin: string): boolean {
 // La file d'un ticket ne se prend pas : vide (elle n'a aucun mot) ou illisible
 // (l'erreur à lever) ? Seule une file absente, sur un chemin que rien ne coupe,
 // est vide — quel que soit le système qui le dit.
-export function fileVide(erreur: unknown, dossier: string): boolean {
+function fileVide(erreur: unknown, dossier: string): boolean {
   return absent(erreur) && !cheminCoupe(dossier);
 }
 
-export function fileSurDisque(repertoireEtat: string, avertir: (texte: string) => void = (texte) => console.error(texte)): FileDesMots {
+// `renommer` : le renommage du système, que les tests remplacent pour jouer
+// l'erreur d'un autre système.
+export function fileSurDisque(repertoireEtat: string, avertir: (texte: string) => void = (texte) => console.error(texte), renommer: (de: string, vers: string) => void = renameSync): FileDesMots {
   const dossier = join(repertoireEtat, DOSSIER_DES_MOTS);
   const fichier = (ticket: number) => join(dossier, `${ticket}.jsonl`);
   return {
@@ -42,7 +44,7 @@ export function fileSurDisque(repertoireEtat: string, avertir: (texte: string) =
     prendre(ticket) {
       const pris = `${fichier(ticket)}.pris`;
       try {
-        renameSync(fichier(ticket), pris);
+        renommer(fichier(ticket), pris);
       } catch (erreur) {
         if (!fileVide(erreur, dossier)) throw erreur;
         return [];
