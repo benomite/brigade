@@ -24,6 +24,7 @@ import type { AppelGitHub } from "../tableau/client.ts";
 import type { Cible } from "./crochet-de-la-file.ts";
 import { appelParGh, contexteDeLaFile, DELAI_MS, lireLaFile, type Lecture } from "./file.ts";
 import { ROLE_DU_SECOND } from "./lancement.ts";
+import { contexteDuBlocage, type VueDuProjet } from "./contexte-du-blocage.ts";
 
 export const SECTION = "## Équipe multi-agents";
 
@@ -37,7 +38,7 @@ export function sectionDesBindings(claudeMd: string): string | undefined {
 }
 
 // Ce que `claude` passe au crochet sur son entrée standard — seuls ces deux champs servent.
-export type Entree = { session_id?: string; cwd?: string };
+export type Entree = { session_id?: string; cwd?: string; prompt?: string };
 // Ce qu'une session a de noté : `sans`, née sans la section et pas encore redite ; `avec`, rien à redire.
 type Note = "avec" | "sans";
 
@@ -103,6 +104,31 @@ export async function prompt(entree: Entree, cible: Cible, appeler: AppelGitHub,
   return sortieDuPrompt(contexteDuRole({ ...cible, depot }, role, section, lecture));
 }
 
+// Le chef demande pourquoi on est bloqués, ou ce qui se passe (#4121).
+export const QUESTION_DE_BLOCAGE = /bloqu|blocked|stuck|what('| i)s (happening|going on)|qu'est-ce qui se passe|que se passe/i;
+
+// L'état de la vue du projet — bandeaux et cartes du rail — que l'app dépose pour le second : un fichier JSON du
+// dossier temporaire du poste, au nom du projet (une `VueDuProjet`). Pas de fichier, ou un fichier illisible : pas de vue.
+export const VUES = (): string => join(tmpdir(), "brigade-second-vue");
+export const vueDe = (vues: string, nom: string): string => join(vues, `${nom.replace(/[^\w.-]/g, "_")}.json`);
+
+function lireLaVue(vues: string, nom: string): VueDuProjet | undefined {
+  try {
+    const vue = JSON.parse(readFileSync(vueDe(vues, nom), "utf8")) as Partial<VueDuProjet>;
+    return Array.isArray(vue.banners) && Array.isArray(vue.rail) ? (vue as VueDuProjet) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// À une question de blocage : le contexte de la vue du projet, d'abord ce que le chef voit ; rien sans vue déposée
+// ou pour un autre message.
+export function blocage(entree: Entree, cible: Cible, vues: string = VUES()): string {
+  if (!entree.prompt || !QUESTION_DE_BLOCAGE.test(entree.prompt)) return "";
+  const vue = lireLaVue(vues, cible.nom);
+  return vue === undefined ? "" : sortieDuPrompt(contexteDuBlocage(entree.prompt, vue));
+}
+
 const lireEntree = (): Entree => {
   try {
     return JSON.parse(readFileSync(0, "utf8")) as Entree;
@@ -118,6 +144,10 @@ if (import.meta.main) {
     const entree = lireEntree();
     const cible: Cible = { nom: nom ?? "", ...(depot ? { depot } : {}), ...(base ? { base } : {}) };
     if (moment === "debut") debut(entree);
+    else if (moment === "vue") {
+      const sortie = blocage(entree, cible);
+      if (sortie !== "") process.stdout.write(`${sortie}\n`);
+    }
     else if (moment === "prompt") {
       const sortie = await prompt(entree, cible, appelParGh(gh || "gh", DELAI_MS));
       if (sortie !== "") process.stdout.write(`${sortie}\n`);
