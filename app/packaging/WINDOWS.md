@@ -158,7 +158,7 @@ writes the script, then `makensis` compiles it.
   on the `app-v<version>` release, downloads the installer and runs it silently with
   `/S /D=<its folder>` once it has quit (`app/src/mise-a-jour/windows.ts`). The `publier-app`
   workflow attaches `Brigade-<version>-x64-setup.exe` and `latest.yml` to the same `app-v<version>`
-  release as the `.dmg`. Signing goes in its "Signature (Windows)" step, before the release is
+  release as the `.dmg`, signed or not (#4058). Signing goes in its "Signature (Windows)" step, before the release is
   published, and must rewrite `latest.yml` for the signed installer. The installer's name and
   location do not change.
 
