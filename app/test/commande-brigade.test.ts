@@ -60,21 +60,30 @@ test("a new terminal on a default PATH finds `brigade`, with no step from the ch
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   poserLaCommande(options(maison));
   poserLaCommande(options(maison));
-  const zshenv = readFileSync(join(maison, ".zshenv"), "utf8");
-  assert.equal(zshenv.split("# >>> brigade").length, 2, "the block is written once");
-  const r = spawnSync("/bin/sh", ["-c", `. "$HOME/.zshenv"; command -v brigade`], { encoding: "utf8", env: { HOME: maison, PATH: "/usr/bin:/bin" } });
+  const profil = readFileSync(join(maison, ".zprofile"), "utf8");
+  assert.equal(profil.split("installer-station.sh").length, 2, "the line is written once");
+  const r = spawnSync("/bin/sh", ["-c", `. "$HOME/.zprofile"; command -v brigade`], { encoding: "utf8", env: { HOME: maison, PATH: "/usr/bin:/bin" } });
   assert.equal(r.stdout.trim(), join(maison, ".local", "bin", "brigade"));
 });
 
-test("the shell files of the chef keep their text and a missing .bash_profile is not created", () => {
+test("the shell files of the chef keep their text, a missing bash profile is not created, and the station installer's line is not doubled", () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
-  writeFileSync(join(maison, ".zshenv"), "export A=1");
+  writeFileSync(join(maison, ".zprofile"), "export A=1");
   poserLaCommande(options(maison));
-  assert.match(readFileSync(join(maison, ".zshenv"), "utf8"), /^export A=1\n# >>> brigade/);
+  assert.match(readFileSync(join(maison, ".zprofile"), "utf8"), /^export A=1\n\nexport PATH="\$HOME\/\.local\/bin:\$PATH" # la commande brigade \(installer-station\.sh\)\n$/);
   assert.throws(() => statSync(join(maison, ".bash_profile")));
   writeFileSync(join(maison, ".bash_profile"), "x=1\n");
-  poserLaCommande(options(maison));
-  assert.match(readFileSync(join(maison, ".bash_profile"), "utf8"), /^x=1\n# >>> brigade/);
+  const autre = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
+  writeFileSync(join(autre, ".bash_profile"), "x=1\n");
+  poserLaCommande(options(autre));
+  assert.match(readFileSync(join(autre, ".bash_profile"), "utf8"), /^x=1\n\nexport PATH=.*installer-station\.sh\)\n$/);
+  // The station installer already wrote its line: the app adds nothing.
+  const ligne = readFileSync(join(maison, ".zprofile"), "utf8").trim().split("\n").at(-1)!;
+  const deja = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
+  writeFileSync(join(deja, ".bash_login"), `${ligne}\n`);
+  poserLaCommande(options(deja));
+  assert.equal(readFileSync(join(deja, ".bash_login"), "utf8"), `${ligne}\n`);
+  assert.throws(() => statSync(join(deja, ".zprofile")));
 });
 
 test("the command runs the gesture with the app's node, a clean environment and the arguments", () => {

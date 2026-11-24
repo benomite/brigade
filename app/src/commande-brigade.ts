@@ -1,6 +1,6 @@
 // La commande `brigade` du chef sur son Mac (#4072) : l'app installée la pose dans `~/.local/bin`,
 // que son PATH porte (emplacements.ts : l'onglet du second), et ajoute ce dossier au PATH des shells
-// du chef (`~/.zshenv`, et `~/.bash_profile` s'il existe) : un Terminal neuf la trouve sans geste du chef. Elle lance le geste de la
+// du chef (`~/.zprofile`, et le profil bash s'il existe), par la ligne de installer-station.sh : un Terminal neuf la trouve sans geste du chef. Elle lance le geste de la
 // station (`runtime/src/station/geste.ts`, comme `deploy/brigade` sous Linux et
 // installer-station.sh) avec le runtime et le `node` du paquet. Réécrite à chaque lancement de
 // l'app, avec sa version en tête : après une mise à jour, elle pointe le runtime de la nouvelle.
@@ -38,24 +38,29 @@ exec env -i BRIGADE_STATION_DIR=${cite(o.racine)} HOME=${cite(o.maison)} PATH=${
 `;
 }
 
-const DEBUT_PATH = "# >>> brigade (écrit par l'app Brigade) >>>";
-const FIN_PATH = "# <<< brigade <<<";
+// La ligne que installer-station.sh pose dans le profil du shell : la même, donc jamais écrite deux fois.
+const LIGNE_PATH = 'export PATH="$HOME/.local/bin:$PATH" # la commande brigade (installer-station.sh)';
+// Les profils que lit un terminal neuf (login) : zsh, celui de macOS, et ceux de bash.
+const PROFILS = [".zprofile", ".bash_profile", ".bash_login", ".profile"];
 
-// Le bloc que l'app tient dans les fichiers de démarrage des shells : `~/.local/bin` au PATH, une fois.
-function blocDuPath(): string {
-  return `${DEBUT_PATH}\ncase ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH ;; esac\n${FIN_PATH}\n`;
+function contenu(fichier: string): string | undefined {
+  try {
+    return readFileSync(fichier, "utf8");
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw erreur;
+  }
 }
 
-function poserLeBloc(fichier: string, creer: boolean): void {
-  let present = "";
-  try {
-    present = readFileSync(fichier, "utf8");
-  } catch (erreur) {
-    if ((erreur as NodeJS.ErrnoException).code !== "ENOENT") throw erreur;
-    if (!creer) return;
+// `~/.local/bin` sur le PATH des terminaux neufs : `~/.zprofile` (créé au besoin), et le profil bash qui existe.
+function poserLaLigne(maison: string): void {
+  const textes = PROFILS.map((p) => ({ fichier: join(maison, p), texte: contenu(join(maison, p)) }));
+  if (textes.some((t) => t.texte?.split("\n").includes(LIGNE_PATH))) return;
+  const bash = textes.find((t, i) => i > 0 && t.texte !== undefined);
+  for (const t of [textes[0]!, ...(bash ? [bash] : [])]) {
+    const present = t.texte ?? "";
+    writeFileSync(t.fichier, `${present}${present === "" || present.endsWith("\n") ? "" : "\n"}\n${LIGNE_PATH}\n`);
   }
-  if (present.includes(DEBUT_PATH)) return;
-  writeFileSync(fichier, `${present}${present === "" || present.endsWith("\n") ? "" : "\n"}${blocDuPath()}`);
 }
 
 // Pose la commande ; rend son chemin, ou rien si ce poste n'en reçoit pas ou si l'écriture échoue
@@ -73,8 +78,7 @@ export function poserLaCommande(o: OptionsCommande, ecrire: (message: string) =>
     } catch {
       present = undefined;
     }
-    poserLeBloc(join(o.maison, ".zshenv"), true);
-    poserLeBloc(join(o.maison, ".bash_profile"), false);
+    poserLaLigne(o.maison);
     if (present === texte) return fichier;
     mkdirSync(dossier, { recursive: true });
     const provisoire = `${fichier}.${process.pid}.tmp`;
