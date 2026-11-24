@@ -200,6 +200,8 @@ export class FauxGitHub {
         this.retraits.set(issue, [...(this.retraits.get(issue) ?? []), { label, createdAt: new Date(Date.UTC(2026, 10, 2) + this.horloge * 1000).toISOString() }]);
       },
       retraitsDeLabels: async (numero) => this.retraits.get(numero) ?? [],
+      // Le faux date l'entrée en pass par le rang du ticket dans le faux : le premier déposé est le premier arrivé.
+      entreeEnPass: async (numero) => new Date(Date.UTC(2026, 10, 2) + [...this.tickets.keys()].indexOf(numero) * 1000).toISOString(),
       relancerLesEchecs: async () => {
         await noter("relancerLesEchecs");
       },
@@ -353,7 +355,11 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     commenter: bas.commenter,
     mettreAJour: bas.mettreAJour,
     merger: bas.merger,
-    labelliser: bas.labelliser,
+    // Une station du dépôt (`stationDuDepot`) cuisine ce qu'elle prend : chaque prise compte une cuisson (#4041).
+    labelliser: async (numero, labels) => {
+      if (labels.includes(LABEL_TAKEN) && !faux.ticket(numero).labels.has(LABEL_TAKEN)) faux.cuissons.push({ station, issue: numero });
+      await bas.labelliser(numero, labels);
+    },
     delabelliser: bas.delabelliser,
     fermerIssue: async (numero) => {
       faux.ticket(numero).state = "closed";

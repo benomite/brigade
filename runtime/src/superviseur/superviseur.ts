@@ -16,7 +16,7 @@
 // « propose », il attend l'OK du chef ; sur « observe », il n'est que consigné.
 import { OUTCOME } from "../autonomie/agents/gestes.ts";
 import { porteDesGestes, type PorteDesGestes } from "../autonomie/agents/porte.ts";
-import { reveil, type FaitsDuProjet } from "./declencheur.ts";
+import { reveil, type FaitsDuProjet, type Reveil } from "./declencheur.ts";
 import { dossierDuManager, type Dossier, type SourcesDuDossier } from "./dossier.ts";
 import { annonceDuGeste, direReveil, jouerLeRun, type Decision, type GitHubDesGestes } from "./gestes.ts";
 import { lancerUnSeulRun } from "./un-seul-run.ts";
@@ -35,13 +35,14 @@ export type OptionsDuSuperviseur = {
 
 const REVEIL_REPRIS_MS = 30 * 60_000;
 
-// Rend la promesse du run lancé, ou null quand rien ne part.
-export function superviseur({ projet, depot, sources, manager, maintenant = () => new Date(), porte = sources.repertoireEtat === undefined ? null : porteDesGestes({ repertoire: sources.repertoireEtat, projet, horloge: maintenant }) }: OptionsDuSuperviseur): (faits: FaitsDuProjet) => Promise<void> | null {
+// Rend la promesse du run lancé, ou null quand rien ne part. `donne` : une cause
+// comptée hors du déclencheur — un ticket sans progrès (#4027) —, à la place de la sienne.
+export function superviseur({ projet, depot, sources, manager, maintenant = () => new Date(), porte = sources.repertoireEtat === undefined ? null : porteDesGestes({ repertoire: sources.repertoireEtat, projet, horloge: maintenant }) }: OptionsDuSuperviseur): (faits: FaitsDuProjet, donne?: Reveil) => Promise<void> | null {
   // La cause du dernier run lancé, et quand.
   let dernier: { cle: string; a: number } | null = null;
-  return (faits) => {
+  return (faits, donne) => {
     const instant = maintenant();
-    const cause = reveil(faits, instant);
+    const cause = donne ?? reveil(faits, instant);
     const cle = JSON.stringify(cause);
     if (dernier !== null && dernier.cle === cle && instant.getTime() - dernier.a < REVEIL_REPRIS_MS) return null;
     const run = lancerUnSeulRun(projet, cause, async (lue) => {
