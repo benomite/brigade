@@ -7,7 +7,9 @@
 // machine (stations/github.ts) : le login d'une station serveur ne part pas d'ici, et le refus le dit.
 import type { Stations } from "../stations/stations.ts";
 
-export type RenduDePanne = { fait: string } | { refus: string };
+// `outilManquant` : l'outil que le geste demande n'est pas sur cet ordinateur — la vue montre l'écran qui l'installe
+// (vue/outils-requis/, #4059) ; le refus le dit en une ligne là où la vue ne le montre pas.
+export type RenduDePanne = { fait: string } | { refus: string } | { outilManquant: "claude"; refus: string };
 
 export type OptionsGestes = {
   stations: Pick<Stations, "vu" | "relire" | "ecarter">;

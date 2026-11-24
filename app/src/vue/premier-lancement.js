@@ -19,8 +19,9 @@ import { poserLeCompte, SE_CONNECTER } from "./parcours-projet/compte.js";
 import { bouton as boutonDeLaFamille } from "./composants/bouton/bouton.js";
 import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
-import { REESSAYER, LECTURE_DE, PAS_ENCORE } from "./lexique.js";
+import { REESSAYER, PAS_ENCORE } from "./lexique.js";
 import { ajoutOuDemo } from "./ajout-projet/ajout-ou-demo.js";
+import { poserLesOutils } from "./outils-requis/outils-requis.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
 export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDetail, ROUVRIR_LA_PAGE, tapeLeCode } from "./parcours-projet/connexion.js";
@@ -47,6 +48,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   compte?: CompteGitHub,
  *   saisie?: { projet: string },
  *   essai?: import("./demo/demo.js").EtatDeLEssai,
+ *   outils?: import("./outils-requis/outils-requis.js").EtatDesOutils,
  * }} EtatDuPremier
  */
 /**
@@ -57,6 +59,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnProjet: () => void,
  *   essayer?: () => void,
+ *   outils?: { installer: () => void, verifier: () => void },
  * } & GestesDuCompte} GestesDuPremier
  */
 
@@ -66,7 +69,9 @@ export const OUVRIR_CE_PROJET = "open this project";
 export const PROJET_MANQUE = "Type the project to work on: its GitHub repository, `owner/repo`.";
 export const COMPTE_MANQUE = "Connect to GitHub above, or type the project as `owner/repo`: a name alone does not say whose it is.";
 export const PROJET_ILLISIBLE = "This is not a GitHub repository, `owner/repo`.";
-export const LECTURE = LECTURE_DE("the stations you have paired, on GitHub");
+// Ce que l'app fait pendant qu'elle lit (elle cherche les stations liées au compte GitHub de cet ordinateur), et la suite sans station :
+// le formulaire et « pick one of your repositories instead » restent sous la phrase (sans station, le projet s'ouvre sur cet ordinateur).
+export const LECTURE = "Looking for the stations linked to your GitHub account… If you have no station yet, go on to the next step: type the project to work on below, or add one of your repositories.";
 /** @param {string} poste */
 export const OUVRIR_UN_PROJET = (poste) => `Open one of your projects on ${poste}: one click, no folder to choose.`;
 export const RELIRE = "read again";
@@ -234,8 +239,16 @@ export function poserPremierLancement(doc, etat, geste) {
   accueil.className = "bienvenue";
   const compte = cree(doc, "div");
   compte.className = "compte-du-premier";
-  compte.append(...poserLeCompte(doc, { ...(etat.compte === undefined ? {} : { compte: etat.compte }), ...(etat.connexion === undefined ? {} : { connexion: etat.connexion }) }, geste));
   racine.append(accueil, compte);
+  // Un outil qui manque (ticket 4059) tient la place du compte : sans lui, ni la connexion ni le clone ne partent. Le
+  // projet tapé reste dessous, tel quel ; les stations, qui ne se lisent pas sans lui, attendent.
+  const outils = etat.outils === undefined || geste.outils === undefined ? [] : poserLesOutils(doc, etat.outils, geste.outils);
+  if (etat.outils?.manque !== undefined) {
+    compte.append(...outils);
+    racine.append(formulaireDuProjet(doc, etat, geste), gestes(doc, [boutonAction(doc, PAR_SES_DEPOTS, geste.ajouterUnProjet)]));
+    return racine;
+  }
+  compte.append(...outils, ...poserLeCompte(doc, { ...(etat.compte === undefined ? {} : { compte: etat.compte }), ...(etat.connexion === undefined ? {} : { connexion: etat.connexion }) }, geste));
   const { stations } = etat;
   /** @param {string} texte @param {string} [detail] */
   const enTete = (texte, detail) => {
