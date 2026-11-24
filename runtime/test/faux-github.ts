@@ -23,6 +23,7 @@ export type OptionsDuFaux = {
   // Le second juge (#2555) ; null : la station n'en lance aucun.
   jugerEnSecond?: JugerEnSecond | null;
   avertir?: (texte: string) => void;
+  enPremier?: () => readonly number[];
   ciDesPR?: (fichiers: string[]) => boolean;
   gates?: (ticket: { number: number }, pr: { number: number; sha: string }) => Promise<LieuDesGates>;
   maintenant?: () => Date;
@@ -283,6 +284,7 @@ export class FauxGitHub {
     return stationGitHub({
       nom,
       ...(options.sauter === undefined ? {} : { sauter: options.sauter }),
+      ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }),
       ...(options.ciDesPR === undefined ? {} : { ciDesPR: options.ciDesPR }),
       ...(options.gates === undefined ? {} : { gates: options.gates }),
       ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }),

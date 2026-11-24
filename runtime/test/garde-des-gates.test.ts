@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { availableParallelism } from "node:os";
 import { describe, test, type TestContext } from "node:test";
 import { aArreter, ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
@@ -60,11 +61,11 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
 
     // Le délai ne court qu'une fois le fichier d'essai figé, témoin posé : c'est
     // lui qui doit être trouvé mort, aussi tard qu'il démarre.
-    const { code, lignes } = await jouer(racine, { ...horlogeDeLaGarde(t), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    const { code, lignes } = await jouer(racine, { ...horlogeDeLaGarde(t), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_CHARGE: "0", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     // Aucun test en échec avant la coupure : c'est la ligne que le runtime
     // reconnaît pour rejouer ces gates plus tard, sur une machine saturée.
-    assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 1 s sans rendre la main"], lignes.join("\n"));
+    assert.deepEqual(desTests(lignes), ["FAIL  tests du runtime arrêtés par la garde d'horloge, aucun test en échec : plus de 1 s sans rendre la main, charge de la machine déduite"], lignes.join("\n"));
     assert.equal(code, 1);
     // Tuer le lanceur ne suffit pas : le process du fichier lui survivrait.
     assert.ok(existsSync(temoin), "la garde est tombée avant que le fichier d'essai ne démarre");
@@ -86,15 +87,24 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
       }
     });
 
-    const { code, lignes } = await jouer(racine, { ...horlogeDeLaGarde(t), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
+    const { code, lignes } = await jouer(racine, { ...horlogeDeLaGarde(t), BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_CHARGE: "0", BRIGADE_GATES_GARDE_APRES: temoin, TEMOIN: temoin });
 
     assert.deepEqual(
       desTests(lignes),
-      ["FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 1 s sans rendre la main, et des tests en échec avant la coupure"],
+      ["FAIL  tests du runtime arrêtés par la garde d'horloge : plus de 1 s sans rendre la main, charge de la machine déduite, et des tests en échec avant la coupure"],
       lignes.join("\n"),
     );
     assert.equal(code, 1);
     await mort(Number(readFileSync(temoin, "utf8")));
+  });
+
+  test("sur une machine chargée, une suite qui dure plus que le délai sans se figer n'est pas coupée : la charge est déduite (#4110)", { skip: posixOnly("plays the real gates.sh on a suite that waits past the guard's delay on a machine whose load is imposed above its cores, and expects the suite to finish green") }, async (t) => {
+    // Une suite de 1,1 s, une garde de 1 s, une machine chargée à quatre fois ses cœurs : à l'horloge brute
+    // elle était coupée ; charge déduite, elle n'a compté qu'un quart de seconde par seconde.
+    const racine = projet(t, `node -e "setTimeout(() => {}, 1100)"`);
+    const { lignes } = await jouer(racine, { BRIGADE_GATES_DELAI_TESTS: "1", BRIGADE_GATES_CHARGE: String(availableParallelism() * 4) });
+
+    assert.deepEqual(desTests(lignes), ["ok    tests du runtime"], lignes.join("\n"));
   });
 
   test("un délai illisible rougit sans jouer la suite, au lieu de la laisser sans garde", async (t) => {

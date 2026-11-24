@@ -2,7 +2,8 @@
 // pendant qu'elle tourne : un installeur part à côté d'elle, détaché, et attend qu'elle soit fermée.
 // Il ouvre alors le .dmg, vérifie que l'app qu'il porte est bien signée — et, quand celle qui
 // tourne l'est par un développeur identifié, par le même —, la copie à côté de l'installée, prend
-// sa place par deux renommages, puis la rouvre. Quoi qu'il échoue, l'app en place n'est pas touchée :
+// sa place par deux renommages, puis la rouvre — en nouvelle instance (`open -n`) : l'icône de fond, un process du même
+// paquet, tourne, et un simple `open` ne ferait que la réveiller, sans fenêtre (#4071). Quoi qu'il échoue, l'app en place n'est pas touchée :
 // il écrit la raison dans `echec.txt`, que l'app rouverte dit, et rouvre l'ancienne.
 //
 // L'installeur est un script `sh` et les outils du système (`hdiutil`, `codesign`, `ditto`, `open`) :
@@ -51,7 +52,7 @@ echouer() {
   [ -n "$point" ] && rmdir "$point" 2>/dev/null
   [ -n "$neuve" ] && rm -rf "$neuve"
   rm -f "$dmg"
-  "$ouvrir" "$paquet"
+  "$ouvrir" -n "$paquet"
   exit 1
 }
 # L'app se ferme : deux minutes au plus. Toujours ouverte, rien n'est remplacé ni rouvert.
@@ -95,7 +96,7 @@ fi
 neuve=""
 rm -rf "$ancienne"
 rm -f "$dmg"
-"$ouvrir" "$paquet"
+"$ouvrir" -n "$paquet"
 `;
 
 export type OptionsInstallation = {
