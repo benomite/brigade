@@ -8,6 +8,7 @@ import { test } from "node:test";
 import { lectures, lireConsommateur } from "../src/consommateur.ts";
 import { lireMachine } from "../src/machine.ts";
 import { repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const casse = (): never => {
   throw new Error("boom");
@@ -59,7 +60,7 @@ test("the real `du` measures what it can read, and a directory it cannot read na
   assert.equal(lireConsommateur({ ...reel, repertoires: () => [join(box, "absent")] })("disk"), null);
 });
 
-test("the machine read for real carries the real reader: the top process of `ps` names the CPU, nobody names the memory (#4090)", (t) => {
+test("the machine read for real carries the real reader: the top process of `ps` names the CPU, nobody names the memory (#4090)", { skip: posixOnly("reads the real process table through `ps -Ao pid=,pcpu=,comm=`, which Windows has not: there the CPU names nobody and the saturation reads as before") }, (t) => {
   const { consommateur } = lireMachine(repertoireTemporaire(t));
   assert.match(consommateur?.("cpu")?.name ?? "", /^\S.* \(pid \d+\)$/);
   assert.match(consommateur?.("cpu")?.amount ?? "", /^\d+(\.\d+)?% CPU$/);
