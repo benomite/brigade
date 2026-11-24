@@ -27,7 +27,11 @@ export const RELANCES_DES_MUTATIONS = 2;
 // Le code qui se mute : un module JavaScript ou TypeScript, hors des tests et
 // de leurs aides, hors des déclarations de types.
 const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
-const estDuCode = (fichier: string) => CODE.test(fichier) && !fichier.endsWith(".d.ts") && !FICHIER_DE_TEST.test(fichier) && !SOUS_LES_TESTS.test(fichier);
+// L'outillage du dépôt — scripts, fabrication de l'app, gates — ne se mute pas
+// (décision du chef, 2026-11-24) : le tester ligne à ligne coûtait des essais
+// aux cooks pour une preuve sans valeur produit (#4080, #4081).
+const OUTILLAGE = /^(?:scripts|app\/packaging|\.claude)\//;
+const estDuCode = (fichier: string) => CODE.test(fichier) && !fichier.endsWith(".d.ts") && !FICHIER_DE_TEST.test(fichier) && !SOUS_LES_TESTS.test(fichier) && !OUTILLAGE.test(fichier);
 
 // Une ligne que la livraison ajoute ou change, sur sa branche (numérotée de 1).
 type LigneChangee = { fichier: string; ligne: number };

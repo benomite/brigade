@@ -32,7 +32,7 @@ import { worktreesDuProjet } from "../../depot.ts";
 import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
 import { recuperer, type Fichiers } from "./recuperation.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
-import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
+import { consommationDesCooks, etatStation, runsRendables } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
 import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
@@ -54,6 +54,11 @@ export const arretSubi = (conclusion: string, fin: { code: number | null; signal
 // disjoncteur, le quota du compte épuisé, la machine à court, l'arbitre qui
 // refuse — ou qui ne répond pas alors qu'un cook tourne déjà.
 export type RetenueDuTour = Extract<Retenue, "stopped" | "breaker" | "quota" | "machine" | "arbiter" | "unarbitrated">;
+
+// Un processeur qui dépasse son seuil de moins de cette part ne retient la
+// station que s'il le dépasse ainsi sur ce nombre de lectures de suite (#4142).
+const MARGE_DU_PIC = 0.1;
+const LECTURES_DU_PIC = 3;
 
 // Sans heure de retour dans le flux, le quota est tenu pour épuisé une heure,
 // comme sur l'ancien chemin.
@@ -163,6 +168,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   let machineIllisible = false;
   // Les restes des cooks partis ont été rendus ce tour-ci : une seule fois par tour.
   let recupereCeTour = false;
+  // Les lectures de suite où le processeur dépasse à peine son seuil (#4142).
+  let pic = 0;
   let saturee = false;
   // La machine à court retient les tickets de ce tour, sauf la réparation de la saturation (#4100).
   let machineRetient = false;
@@ -228,7 +235,14 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
       const lue = machine.lire();
-      return { lue, manques: saturations(reserver(lue, accordees.length), machine.seuils, saturees) };
+      const vue = reserver(lue, accordees.length);
+      let manques = saturations(vue, machine.seuils, saturees);
+      // Un pic ne retient rien (#4142) : la lecture brute passe le seuil, la charge comptée d'avance de peu, et la station n'est pas déjà retenue pour le processeur.
+      const cpu = manques.find(({ resource }) => resource === "cpu");
+      const bref = cpu !== undefined && !saturees.includes("cpu") && lue.charge > cpu.limit && vue.charge <= cpu.limit * (1 + MARGE_DU_PIC);
+      pic = bref ? pic + 1 : 0;
+      if (bref && pic < LECTURES_DU_PIC) manques = manques.filter(({ resource }) => resource !== "cpu");
+      return { lue, manques };
     };
     let mesure: { lue: Machine; manques: Saturation[] };
     try {
@@ -237,7 +251,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       if (mesure.manques.length > 0 && cooks === 0 && !recupereCeTour) {
         recupereCeTour = true;
         try {
-          const { retires, echecs } = recuperer({ worktrees: worktreesDuProjet(options.env ?? {}, repertoireEtat), repertoireEtat }, options.fichiers, maintenant);
+          const { retires, echecs } = recuperer({ worktrees: worktreesDuProjet(options.env ?? {}, repertoireEtat), repertoireEtat, clone: options.env?.BRIGADE_REPO_DIR, finis: runsRendables(base) }, options.fichiers);
           if (retires.length > 0) avertir(`brigade : GitHub-only station ${station} gave back ${retires.length} leftover worktree(s) and run file(s) of exited cooks`);
           if (echecs.length > 0) avertir(`brigade : GitHub-only station ${station} could not reclaim ${echecs.join(", ")}`);
         } catch (erreur) {

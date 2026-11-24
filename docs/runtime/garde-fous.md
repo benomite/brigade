@@ -134,7 +134,8 @@ dossier (the ticket, its last comments, the log's last facts on it) and answers 
 rail with a note, set it aside in WAITING for a named third party, close it as a duplicate or stale alert, or post a
 TODO card for a product or design question. Any other answer is applied as nothing and the dossier is handed again
 after 10 minutes, three times at most. Its trace is one comment on the ticket, and the `set-aside:failures` label falls
-after the gesture. No timer or healing turn puts a set-aside ticket back on the rail.
+after the gesture. The WAITING the station put on the ticket when it stopped its relaunch loop (#4041) falls with it,
+at the station's next turn — unless the gesture was to set it aside in WAITING, whose mark then holds it. No timer or healing turn puts a set-aside ticket back on the rail.
 
 ### See and command
 

@@ -16,8 +16,9 @@
 // (`github-etat/fusion.ts`, #2058). Le cook et la relecture sont ceux
 // d'aujourd'hui — worktree du dépôt de la station, cloison, consignes du cook
 // et du reviewer —, lancés ici sans journal.
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { retirerLesRestesDuCook } from "./station/restes-du-cook.ts";
 import { horsDesBesoins } from "./besoin/besoin.ts";
 import { horsDesTickets } from "./issue-de-la-cuisine.ts";
 import { fiche, type Fiche } from "./fiche.ts";
@@ -33,6 +34,7 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { garderLeCook } from "./garde-cook/garde.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
+import { besoinDeSecret } from "./besoin-de-secret.ts";
 import { enFluxClaude } from "./passe-moteur/flux.ts";
 import { lireBlocage, lireDejaServi, lireLivrable } from "./livrable.ts";
 import { MARQUE_DEJA_SERVI, verifierDejaServi, type DejaServi } from "./deja-servi.ts";
@@ -45,6 +47,7 @@ import type { Depot } from "./depot.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "./github-etat/etats.ts";
+import { RELANCE_PAR_DEFAUT_MS } from "./attente.ts";
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
 import { termeDeLAttente, veilleDesOrphelins } from "./reprise-attente/orphelins.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
@@ -980,6 +983,24 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (!pose.pose) avertir(`brigade : ${pose.echec}`);
   };
 
+  // Une boucle de relances — ses essais épuisés sans livraison, ou un invariant
+  // cassé par ses relances — s'arrête ici, sans geste du chef (#4041) : mis de
+  // côté (`set-aside:failures`), le superviseur reçoit son dossier, et le ticket
+  // passe en WAITING avec sa raison écrite et sa relance, sept jours plus loin
+  // (l'invariant 3). Il en sort à cette relance, ou dès que sa mise de côté est
+  // retirée (`ramenerALaRelance`). Une attente qui ne se pose pas est dite ; la
+  // mise de côté le tient hors du rail.
+  const arreterLaBoucle = async (numero: number, motifs: readonly string[]): Promise<void> => {
+    await github.labelliser(numero, [ECHECS_ATTEINTS]);
+    const raison = motifs.at(-1)?.trim().split("\n")[0] || "its cooks stopped without a delivery";
+    const attente = { what: `the station stopped its relaunch loop, taken again and again without a delivery. The reason: ${raison}`, who: "the supervisor", followUp: new Date(instant() + RELANCE_PAR_DEFAUT_MS).toISOString(), backOnFollowUp: true as const, whileSetAside: true };
+    try {
+      await mettreEnAttenteParLaCuisine(github, numero, attente, { station: nom, mots: motifs.join("\n") });
+    } catch (erreur) {
+      avertir(`brigade : #${numero} sur ${nom} — its relaunch loop is set aside, but it could not be put in WAITING: ${message(erreur)}`);
+    }
+  };
+
   const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
     const issue = ticket.number;
     if (options.consulter === undefined) return poserLaQuestionAilleurs(issue, question);
@@ -1028,6 +1049,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : #${issue} sur ${nom} — the cook blocked on a technical question: the manager answered it${ecrite ? " and its decision is written into the ticket" : ""}, the ticket goes back to a cook`);
       await github.commenter(issue, corpsDeLaReponseAuBlocage({ station: nom, n: deja.length + 1, questionEn, avis, ecrite }));
       return "liberee";
+    }
+    // Un secret ou un compte sur la station — une clé d'API, l'URL d'une base, un
+    // login — est une vraie carte du chef, posée une fois, jamais un geste git
+    // même si les mots du cook nomment sa branche (#4041) : sous `blocked-on-human`,
+    // le ticket n'est pas relancé tant qu'elle attend.
+    if (besoinDeSecret(avis.issue === "geste" ? avis.geste : "")) {
+      avertir(`brigade : #${issue} sur ${nom} — the cook declared itself blocked on a secret or an account only the chef can add on the station: the ticket goes to the chef`);
+      const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, issue, corpsDeLaCarte({ station: nom, questionEn, avis, secret: true }));
+      if ("echec" in pose) avertir(`brigade : ${pose.echec}`);
+      return "retenue";
     }
     // Une installation, un service à démarrer, une base à créer ou migrer n'est
     // jamais une carte du ticket (#3058) : seul le prérequis qu'un humain pose une
@@ -1467,7 +1498,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       chrono.rater(issue);
       if (suite !== null && "auChef" in suite) {
         chrono.oublier(issue);
-        await github.labelliser(issue, [ECHECS_ATTEINTS]);
+        await arreterLaBoucle(issue, [...echoues, ...(fini ? [fait.echec] : [])]);
       } else if (suite !== null) {
         await direLaReprise(issue, suite);
       }
@@ -1826,8 +1857,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       arreter: async (ticket, motifs) => {
         const suite = await apresLesEssais(ticket, motifs);
         if ("auChef" in suite) {
-          await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
-          return `set aside (\`${ECHECS_ATTEINTS}\`): the supervisor takes it and decides what happens to it. ${suite.auChef}`;
+          await arreterLaBoucle(ticket.number, motifs);
+          return `set aside (\`${ECHECS_ATTEINTS}\`) and in WAITING with its reason: the supervisor takes it and decides what happens to it. ${suite.auChef}`;
         }
         await direLaReprise(ticket.number, suite);
         return "it went to the manager, not to the chef — its comment says what it did.";
@@ -1837,7 +1868,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     void nommerLaLivraison?.(checksDeLaBase);
     // Un ticket que la cuisine a mis en WAITING rentre seul sur le rail à sa relance (#3814) : ce tour le lit encore en
     // WAITING, le suivant le prend. Un geste qui échoue est dit ; le tour suivant réessaie.
-    await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));
+    // Sorti de WAITING parce que sa mise de côté est retirée (#4041), il se prend à ce tour, comme sans l'attente.
+    const leve = (numero: number) => fires.filter((ticket) => ticket.number === numero).forEach((ticket) => void (ticket.labels = ticket.labels.filter((label) => label !== LABEL_WAITING)));
+    await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir, leve }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));
     const { tickets: gueris } = await guerir(fires, new Set(enVol.keys()));
     // Ce que l'ancien chemin du conflit avec la base a laissé — un ticket ouvert
     // pour changer la branche d'un autre, une carte qui demande un geste git au
@@ -2992,10 +3025,29 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     return faits;
   };
+  // Les flux d'un run (`<run>.flux.jsonl`, ses relances, leur `.stderr`) : ceux du
+  // tour sous `options.flux`, ceux des garde-fous sous `<état>/runs`.
+  const fluxDuRun = (run: string): string[] =>
+    [options.flux, ...(options.repertoireEtat === undefined ? [] : [join(options.repertoireEtat, "runs")])].flatMap((dossier) => {
+      try {
+        return readdirSync(dossier).filter((nom) => nom.startsWith(`${run}.`) || nom.startsWith(`${run}-`)).map((nom) => join(dossier, nom));
+      } catch {
+        return [];
+      }
+    });
   const cuisiner: Cuisiner = async (ticket, calibrage) => {
+    const run = runDuTicket(ticket.number);
     try {
       return await cuisinerLeTicket(ticket, calibrage);
     } finally {
+      // Le cook est sorti : la station reprend ce qu'il a laissé sur le disque
+      // (#4104). Un échec ici ne remonte jamais jusqu'à la sortie du cook.
+      try {
+        const worktree = lieuxEnVol.get(ticket.number)?.worktree;
+        retirerLesRestesDuCook({ cook: run, sorti: true, chemins: [...(worktree === undefined ? [] : [worktree]), ...fluxDuRun(run), ...(options.repertoireEtat === undefined ? [] : [join(options.repertoireEtat, "tmp", run)])], avertir });
+      } catch (erreur) {
+        avertir(`brigade : #${ticket.number} sur ${nom} — the leftovers of its cook could not be removed: ${message(erreur)}`);
+      }
       lieuxEnVol.delete(ticket.number);
       sauves.delete(ticket.number);
     }
