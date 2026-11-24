@@ -93,10 +93,10 @@ its **space** opens, with the tabs **Rail** and **Cooks**.
 
 ### 3. Choose the station, and start the kitchen
 
-The project's page asks `Who cooks <owner/repo>?`. This computer comes first, named **this computer**
-and marked `recommended` when it can cook now; your other stations follow. Keep **this computer**,
-then click **Start the kitchen on this computer**. If the page offers no station, **choose its
-machine** first. If it warns that the machine has no sandbox, **continue without sandbox** is yours
+The project's page asks `Who cooks <owner/repo>?`. This computer comes first, named **this
+computer** and marked `recommended` when it can cook now; your other stations follow. Keep **this
+computer**, then click **Start the kitchen on this computer**. If the page offers no station,
+**choose its machine** first. If it warns that the machine has no sandbox, **continue without sandbox** is yours
 to decide for a first run on your own repository.
 
 ### 4. Wait for the project to be prepared
