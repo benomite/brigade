@@ -16,7 +16,7 @@ export function contexteDuBlocage(question: string, vue: VueDuProjet): string {
   for (const c of vue.rail) {
     lignes.push(`- Card #${c.number} ${c.title}: displayed as "${c.displayed}".`);
     if (c.real !== c.displayed) {
-      lignes.push(`  #${c.number} is shown as ready but the displayed state contradicts the real state: it cannot start.`);
+      lignes.push(`  #${c.number} is shown as "${c.displayed}" but the displayed state contradicts the real state: it cannot start.`);
       lignes.push(`  Real state: ${c.real}`);
     }
     lignes.push(`  It waits on: ${c.waitsOn}.`);
