@@ -25,7 +25,15 @@ function roster(cooks?: unknown[]) {
   const Component = new Function("DCLogic", "Date", `${SCRIPT}\nreturn Component;`)(DCLogic, Clock);
   const c = new Component();
   if (cooks !== undefined) c.props = { cooks };
-  return c.renderVals().cookRoster as { empty: boolean; emptyLine: string; groups: { state: string; heading: string; lines: Record<string, any>[] }[] };
+  return c.renderVals().cookRoster as { workingCount: number; empty: boolean; emptyLine: string; groups: { state: string; heading: string; lines: Record<string, any>[] }[] };
+}
+function cardIds(): string[] {
+  class DCLogic {
+    props: Record<string, unknown> = {};
+  }
+  const Component = new Function("DCLogic", `${SCRIPT}\nreturn Component;`)(DCLogic);
+  const cols = new Component().renderVals().columns as { cards: { id: string }[] }[];
+  return cols.flatMap((c) => c.cards.map((t) => t.id));
 }
 const cook = (num: string, minutesAgo: number, extra: object = {}) => ({ num, title: `T${num}`, stage: "Taken", model: "m", lastMoveAt: new Date(NOW - minutesAgo * MIN).toISOString(), ...extra });
 
@@ -45,6 +53,18 @@ test("roster: a moving cook, a stalled cook and a waiting cook sit in their grou
 test("roster: a line links to its own ticket's card", () => {
   const lines = roster([cook("#2894", 1), cook("#2873", 1)]).groups[0]!.lines;
   assert.deepEqual(lines.map((l) => l.href), ["#ticket-2894", "#ticket-2873"]);
+});
+
+test("roster: every line of the mock roster points at a card that exists on the page", () => {
+  const lines = roster().groups.flatMap((g) => g.lines);
+  assert.ok(lines.length > 0);
+  const ids = new Set(cardIds());
+  for (const l of lines) assert.ok(ids.has(String(l.href).slice(1)), `${l.href} has a card`);
+});
+
+test("roster: the header count of cooks running is the roster's working count", () => {
+  assert.match(HTML, /\{\{cookRoster\.workingCount\}\}<\/strong> running/);
+  assert.equal(roster([cook("#1", 1), cook("#2", 1, { waiting: "pass" })]).workingCount, 1);
 });
 
 test("roster: with no cook at work one line says so; the mock data shows cooks", () => {

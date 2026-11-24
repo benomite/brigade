@@ -31,7 +31,7 @@ a{color:#ece9e3}a:hover{color:#f2994a}
     <div style="display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 10px 24px; border-bottom: 1px solid #23272d; font-size: 13px; color: #c9c4bc">
       <span>Ticket time <strong style="color: #ece9e3">5.6 min</strong> median</span>
       <span>First try <strong style="color: #ece9e3">57%</strong> · goal 70%</span>
-      <span>Cooks <strong style="color: #ece9e3">2</strong> running on box/claude</span>
+      <span>Cooks <strong style="color: #ece9e3">{{cookRoster.workingCount}}</strong> running on box/claude</span>
       <span>Last merge <strong style="color: #ece9e3">4 min</strong> ago</span>
     </div>
 
@@ -64,7 +64,7 @@ a{color:#ece9e3}a:hover{color:#f2994a}
             </sc-if>
             <sc-for list="{{c.cards}}" as="t" hint-placeholder-count="2">
               <sc-if value="{{t.awaiting}}" hint-placeholder-val="{{ false }}">
-                <article style="background: #1f1b17; border: 1px solid #5c4630; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+                <article id="{{t.id}}" style="background: #1f1b17; border: 1px solid #5c4630; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
                   <a href="#" style="font: 600 13px 'JetBrains Mono', monospace; color: #ece9e3">{{t.num}}</a>
                   <div style="font-size: 13px; color: #c9c4bc">{{t.title}}</div>
                   <div style="font-size: 15px; font-weight: 600">{{t.question}}</div>
@@ -74,7 +74,7 @@ a{color:#ece9e3}a:hover{color:#f2994a}
                 </article>
               </sc-if>
               <sc-if value="{{t.voucher}}" hint-placeholder-val="{{ true }}">
-                <article style="background: #f3efe6; color: #1b1c1e; border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 8px #0006">
+                <article id="{{t.id}}" style="background: #f3efe6; color: #1b1c1e; border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 8px #0006">
                   <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px">
                     <a href="#" style="font: 600 13px 'JetBrains Mono', monospace; color: #1b1c1e">{{t.num}}</a>
                     <span style="font-size: 11px; color: #4a4640">{{t.meta}}</span>
@@ -142,10 +142,10 @@ class Component extends DCLogic {
       { state: 'working', heading: 'Working', lines: working },
       { state: 'waiting', heading: 'Waiting: on the pass or on a question', lines: waiting }
     ].filter((g) => g.lines.length > 0);
-    return { empty: groups.length === 0, emptyLine: 'No cook is at work right now.', groups };
+    return { workingCount: working.length, empty: groups.length === 0, emptyLine: 'No cook is at work right now.', groups };
   }
   renderVals() {
-    const v = (num, title, meta, prio) => ({ voucher: true, awaiting: false, num, title, meta, prio });
+    const v = (num, title, meta, prio) => ({ voucher: true, awaiting: false, id: 'ticket-' + num.replace('#', ''), num, title, meta, prio });
     return {
       cookRoster: this.cookRoster(),
       columns: [
@@ -158,7 +158,7 @@ class Component extends DCLogic {
         { title: 'Pass', count: 1, color: '#e9c46a', path: 'M5 0.5 L9.5 5 L5 9.5 L0.5 5 Z', empty: false, emptyLine: '', cards: [
           v('#2875', 'Demo video sources: real captures of each scene', 'review in progress', 'prio:1') ] },
         { title: 'Awaiting you', count: 1, color: '#ee6b5b', path: 'M1.5 1.5 H8.5 V8.5 H1.5 Z', empty: false, emptyLine: '', cards: [
-          { voucher: false, awaiting: true, num: '#2771', title: 'Marketing: write the positioning', question: 'Which angle leads the launch?', reco: 'You are no longer at your computer', other: 'An AI dev team on your GitHub' } ] },
+          { voucher: false, awaiting: true, id: 'ticket-2771', num: '#2771', title: 'Marketing: write the positioning', question: 'Which angle leads the launch?', reco: 'You are no longer at your computer', other: 'An AI dev team on your GitHub' } ] },
         { title: 'Waiting', count: 0, color: '#f2994a', path: 'M2 1.5 H4 V8.5 H2 Z M6 1.5 H8 V8.5 H6 Z', empty: true, emptyLine: 'No ticket waits for a third party yet.', cards: [] },
         { title: 'Served', count: 3, color: '#6cc28a', path: 'M5 1 A4 4 0 1 1 4.99 1 Z', empty: false, emptyLine: '', cards: [
           v('#2868', 'Quality tickets wait for 20 new merged tickets', 'merged 12 min ago', 'prio:0'),
