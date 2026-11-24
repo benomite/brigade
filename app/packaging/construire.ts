@@ -137,17 +137,23 @@ export function reecrirePlist(xml: string, courte: string): string {
 // Le `Info.plist` d'un auxiliaire d'Electron (« Electron Helper (GPU) »…), au nom de l'app : c'est
 // ce nom que macOS montre pour l'activité d'arrière-plan d'un processus auxiliaire. Son dossier,
 // son exécutable et ses fichiers gardent le nom d'Electron : Electron les cherche sous lui.
-export function reecrirePlistAuxiliaire(xml: string): string {
-  // CFBundleName est dans chaque auxiliaire ; CFBundleDisplayName, qu'Electron 44 n'y pose pas, ne se
-  // réécrit que s'il y est.
-  const nom = (texte: string, cle: string, requis: boolean) => {
-    const motif = new RegExp(`(<key>${cle}</key>\\s*<string>)Electron( Helper[^<]*</string>)`);
-    if (!motif.test(texte)) return requis ? echouer(`an Electron helper's Info.plist has no ${cle} starting with “Electron Helper”`) : texte;
-    return texte.replace(motif, `$1${NOM}$2`);
+export function reecrirePlistAuxiliaire(xml: string, dossier: string): string {
+  const suffixe = (valeur: string | undefined) => /^Electron( Helper.*)$/.exec(valeur ?? "")?.[1];
+  const lire = (cle: string) => new RegExp(`<key>${cle}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
+  // Le nom vient de CFBundleName ; s'il n'a pas la forme « Electron Helper… », du dossier de l'auxiliaire.
+  const fin = suffixe(lire("CFBundleName")) ?? suffixe(dossier.replace(/\.app$/, ""));
+  if (fin === undefined) return echouer(`an Electron helper's Info.plist has no CFBundleName starting with “Electron Helper”, nor has its folder “${dossier}”`);
+  const nom = `${NOM}${fin}`;
+  // CFBundleName et CFBundleDisplayName : réécrits s'ils y sont, posés sinon (Electron 44 n'a pas le second).
+  const poser = (texte: string, cle: string) => {
+    const motif = new RegExp(`(<key>${cle}</key>\\s*<string>)[^<]*(</string>)`);
+    if (motif.test(texte)) return texte.replace(motif, `$1${nom}$2`);
+    if (!/<dict>/.test(texte)) return echouer("an Electron helper's Info.plist has no <dict>");
+    return texte.replace("<dict>", `<dict>\n\t<key>${cle}</key>\n\t<string>${nom}</string>`);
   };
   const identifiant = /(<key>CFBundleIdentifier<\/key>\s*<string>)com\.github\.Electron(\.helper[^<]*<\/string>)/;
   if (!identifiant.test(xml)) echouer("an Electron helper's Info.plist has no CFBundleIdentifier starting with “com.github.Electron.helper”");
-  return nom(nom(xml, "CFBundleName", true), "CFBundleDisplayName", false).replace(identifiant, `$1${IDENTIFIANT}$2`);
+  return poser(poser(xml, "CFBundleName"), "CFBundleDisplayName").replace(identifiant, `$1${IDENTIFIANT}$2`);
 }
 
 // Le plist sans une clé de premier niveau ni sa valeur : un dictionnaire, jusqu'à son `</dict>`
@@ -250,7 +256,7 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
   for (const nom of existsSync(auxiliaires) ? readdirSync(auxiliaires) : [])
     if (/^Electron Helper.*\.app$/.test(nom)) {
       const plistAuxiliaire = join(auxiliaires, nom, "Contents", "Info.plist");
-      writeFileSync(plistAuxiliaire, reecrirePlistAuxiliaire(readFileSync(plistAuxiliaire, "utf8")));
+      writeFileSync(plistAuxiliaire, reecrirePlistAuxiliaire(readFileSync(plistAuxiliaire, "utf8"), nom));
     }
 
   // L'app : ses sources, son package.json — au nom de l'app, à la version construite — et ses
