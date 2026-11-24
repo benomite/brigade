@@ -40,6 +40,7 @@ const bandeau = (faits: Faits): string => {
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { alertesDuRail, type EntreeDesAlertes } from "../../src/attente-du-rail/alertes.ts";
+import { fileURLToPath } from "node:url";
 
 const entree = (surcharge: Partial<EntreeDesAlertes> = {}): EntreeDesAlertes => ({
   depot: DEPOT,
@@ -70,7 +71,7 @@ test("aucun texte de bandeau FAULT de la vue projet ne demande au chef de mettre
     for (const texte of [alerte.phrase, alerte.geste ?? "", alerte.geree ?? ""]) assert.doesNotMatch(texte, /\b(Put|Set|Place|Move)\b[^.]*\bin WAITING\b/, `${alerte.sorte} : ${texte}`);
   }
   // Et aucune phrase de ce genre n'est écrite dans les sources de l'app qui composent ces bandeaux.
-  for (const fichier of fichiers(new URL("../../src", import.meta.url).pathname)) {
+  for (const fichier of fichiers(fileURLToPath(new URL("../../src", import.meta.url)))) {
     assert.doesNotMatch(readFileSync(fichier, "utf8"), /["'`]Put [^"'`]*in WAITING/, fichier);
   }
 });

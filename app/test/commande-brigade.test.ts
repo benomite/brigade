@@ -6,12 +6,14 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { poserLaCommande } from "../src/commande-brigade.ts";
 type OptionsCommande = Parameters<typeof poserLaCommande>[0];
+// La commande `brigade` est un script shell de l'app Mac et Linux : sous Windows, rien ne l'écrit ni ne l'exécute ainsi.
+const SOUS_POSIX: string | false = process.platform === "win32" ? "writes and runs the POSIX shell `brigade` command of the Mac and Linux app, which Windows does not run" : false;
 
 const options = (maison: string, plus: Partial<OptionsCommande> = {}): OptionsCommande => ({
   plateforme: "darwin", facon: "installee", maison, version: "1.2.3", runtime: "/App/Resources/runtime", node: "/App/Resources/node/bin/node", racine: "/h/station", chemin: "/usr/bin:/bin", ...plus,
 });
 
-test("the installed Mac app writes an executable `brigade` that runs the station's gesture", () => {
+test("the installed Mac app writes an executable `brigade` that runs the station's gesture", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   const fichier = poserLaCommande(options(maison));
   assert.equal(fichier, join(maison, ".local", "bin", "brigade"));
@@ -22,7 +24,7 @@ test("the installed Mac app writes an executable `brigade` that runs the station
   assert.ok((statSync(fichier!).mode & 0o111) !== 0);
 });
 
-test("an update rewrites the command on the new version and the new runtime", () => {
+test("an update rewrites the command on the new version and the new runtime", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   poserLaCommande(options(maison));
   const fichier = poserLaCommande(options(maison, { version: "2.0.0", runtime: "/Nouveau/runtime" }));
@@ -32,14 +34,14 @@ test("an update rewrites the command on the new version and the new runtime", ()
   assert.doesNotMatch(texte, /1\.2\.3/);
 });
 
-test("nothing is written from the repository or on another platform", () => {
+test("nothing is written from the repository or on another platform", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   assert.equal(poserLaCommande(options(maison, { facon: "depot" })), undefined);
   assert.equal(poserLaCommande(options(maison, { plateforme: "linux" })), undefined);
   assert.throws(() => statSync(join(maison, ".local")));
 });
 
-test("a write that fails is told, and the app goes on", () => {
+test("a write that fails is told, and the app goes on", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   writeFileSync(join(maison, ".local"), "un fichier, pas un dossier");
   const dits: string[] = [];
@@ -48,7 +50,7 @@ test("a write that fails is told, and the app goes on", () => {
   assert.match(dits[0] ?? "", /n'a pas pu être écrite/);
 });
 
-test("the command stops with 70 and says so when the app's runtime is gone", () => {
+test("the command stops with 70 and says so when the app's runtime is gone", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   const fichier = poserLaCommande(options(maison, { runtime: join(maison, "absent") }));
   const r = spawnSync("/bin/sh", [fichier!], { encoding: "utf8" });
@@ -56,7 +58,7 @@ test("the command stops with 70 and says so when the app's runtime is gone", () 
   assert.match(r.stderr, /le runtime de l'app/);
 });
 
-test("a new terminal on a default PATH finds `brigade`, with no step from the chef", () => {
+test("a new terminal on a default PATH finds `brigade`, with no step from the chef", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   poserLaCommande(options(maison));
   poserLaCommande(options(maison));
@@ -66,7 +68,7 @@ test("a new terminal on a default PATH finds `brigade`, with no step from the ch
   assert.equal(r.stdout.trim(), join(maison, ".local", "bin", "brigade"));
 });
 
-test("the shell files of the chef keep their text, a missing bash profile is not created, and the station installer's line is not doubled", () => {
+test("the shell files of the chef keep their text, a missing bash profile is not created, and the station installer's line is not doubled", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   writeFileSync(join(maison, ".zprofile"), "export A=1");
   poserLaCommande(options(maison));
@@ -86,7 +88,7 @@ test("the shell files of the chef keep their text, a missing bash profile is not
   assert.throws(() => statSync(join(deja, ".zprofile")));
 });
 
-test("the command runs the gesture with the app's node, a clean environment and the arguments", () => {
+test("the command runs the gesture with the app's node, a clean environment and the arguments", { skip: SOUS_POSIX }, () => {
   const maison = mkdtempSync(join(tmpdir(), "brigade-cmd-"));
   const runtime = join(maison, "runtime");
   mkdirSync(join(runtime, "src", "station"), { recursive: true });
