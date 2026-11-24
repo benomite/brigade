@@ -9,6 +9,8 @@
 // fait ensuite de ses tickets est à lui.
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
+import { OUTCOME } from "./autonomie/agents/gestes.ts";
+import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { avecTaches, partDe, sortirDuRail } from "./besoin/besoin.ts";
 import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
@@ -18,6 +20,7 @@ import { avecDiagramme, diagrammeDEpique, entreeDuDiagramme, type RelationDiagra
 import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
+import { geste } from "./geste.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
@@ -52,6 +55,9 @@ export type Atelier = {
   signature: (run: string | null, verbe: string) => string;
   // Un ticket du découpage vient d'être lancé : la station le prend sans attendre son tour suivant (#2796).
   surLeRail?: () => void;
+  // La porte des gestes du runtime (#4039) : créer les tickets d'un découpage passe par le niveau `manager split-epic`,
+  // « propose » par défaut — il attend l'OK du chef. Sans elle, ils se créent sans porte ni journal des gestes.
+  porte?: PorteDesGestes | null;
 };
 
 // L'horloge de GitHub n'est pas celle du runtime : un ticket se cherche à
@@ -264,6 +270,16 @@ export function ouvrirDecoupage(atelier: Atelier) {
     return true;
   };
 
+  // Le découpage, geste du manager, passe par la porte de son niveau : attendu ou observé, il n'est pas fait.
+  const creerParLaPorte = async (epic: IssueOuverte, connu: Decoupage): Promise<boolean> => {
+    const { porte } = atelier;
+    if (porte === undefined || porte === null) return creer(epic, connu);
+    const dit = { line: `split the epic #${epic.number} into ${connu.tickets.length} tickets`, reason: connu.reason, outcome: OUTCOME.FIXED_BY_SELF };
+    const passage = await porte.passer({ agent: "manager", reglable: "manager split-epic" }, dit, () => creer(epic, connu), (fait) => (fait ? dit : null));
+    if (passage.etat === "held") avertir(`brigade : split of the epic #${epic.number} held for the chef's OK — \`${geste(`manager approve ${passage.id}`)}\` creates its tickets`);
+    return passage.etat === "done" && passage.valeur;
+  };
+
   return {
     // Mène le découpage d'une épique aussi loin qu'il peut aller : le jugement
     // s'il manque pour cet état, les tickets, puis ce qu'il y a à en dire.
@@ -310,7 +326,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           const fraiche = await github.issue(epic.number);
           if (arrete()) return false;
           if (fraiche?.state !== "open") return true;
-          if (!(await creer(epic, connu))) return false;
+          if (!(await creerParLaPorte(epic, connu))) return false;
           connu = decoupageDe(base, epic.number) ?? connu;
         }
         if (connu.commented) return true;

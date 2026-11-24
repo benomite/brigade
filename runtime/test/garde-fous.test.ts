@@ -724,3 +724,34 @@ test("la réconciliation du démarrage ne se rejoue pas : un second démarrage n
   assert.equal(runtime.journal.tout().filter((e) => e.type === "cook.reclassified").length, 3);
   assert.equal(runtime.journal.tout().filter((e) => e.type === "breaker.lifted").length, 1);
 });
+
+test("une station retenue pour sa machine ne lance ni ne relance aucun cook, et repart quand elle est relâchée (#4097)", async (t) => {
+  const { runtime, cook } = cuisine(t);
+  const ecrire = (type: "station.held" | "station.released", payload: Record<string, unknown>) =>
+    runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type, payload } as never);
+  const lancer = (ticket: number) =>
+    runtime.lancer({ ticket, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" }, contexte: { station: "parade-box/claude" } });
+  const lances = () => runtime.journal.tout().filter((e) => e.type === "cook.launched").length;
+
+  assert.equal((await lancer(4064).fin).outcome, "ok");
+  assert.equal(lances(), 1);
+
+  ecrire("station.held", { station: "parade-box/claude", reason: "machine" });
+  // Le relancement du ticket qui vient de finir, et un ticket neuf : aucun ne part.
+  for (const ticket of [4064, 4062]) {
+    assert.throws(() => lancer(ticket), (erreur: unknown) => erreur instanceof LancementRefuse && erreur.motif === "held");
+  }
+  assert.equal(lances(), 1);
+  // La relecture de la pass et le jugement du manager, eux, partent : seuls les cooks sont retenus.
+  const horsCook = (run: string, station: string) =>
+    runtime.lancer({ ticket: null, run, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" }, contexte: { station } });
+  assert.equal((await horsCook("review-pr-12-github-ab12", "parade-box/claude").fin).outcome, "ok");
+  assert.equal((await horsCook("manager-github-ab12", "manager").fin).outcome, "ok");
+  assert.equal(lances(), 3);
+  // Une autre station, elle, n'est pas retenue.
+  assert.equal((await cook(4070, "fini").fin).outcome, "ok");
+
+  ecrire("station.released", { station: "parade-box/claude" });
+  assert.equal((await lancer(4064).fin).outcome, "ok");
+  assert.equal(lances(), 5);
+});

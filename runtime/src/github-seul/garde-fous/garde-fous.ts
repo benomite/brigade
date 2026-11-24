@@ -28,11 +28,25 @@ import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
+import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
 import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
+
+// Le début de l'erreur d'un lancement refusé parce que la station est retenue : un arrêt subi, que le cook n'a pas causé.
+const LANCEMENT_RETENU = "launch refused (station held)";
+
+// Un arrêt que le cook n'a pas causé : le quota, la session Claude, une station
+// arrêtée ou un process tué (un signal sans erreur du lanceur). Un plafond (jetons, durée, inactivité) est le sien.
+export const arretSubi = (conclusion: string, fin: { code: number | null; signal: string | null; arret: { reason: string } | null; erreur: string | null }): boolean => {
+  if (conclusion === "86" || conclusion === "disconnected") return true;
+  if (fin.erreur?.startsWith(LANCEMENT_RETENU)) return true;
+  if (fin.arret !== null) return fin.arret.reason === "stop";
+  // SIGTERM : le signal, ou le code 143 quand un relais ou un shell l'a rendu en code de sortie (#3528).
+  return fin.erreur === null && (fin.signal !== null || fin.code === 143);
+};
 
 // Ce qui retient une prise sur ce chemin : le « stop » du chef, le
 // disjoncteur, le quota du compte épuisé, la machine à court, l'arbitre qui
@@ -72,6 +86,9 @@ export type OptionsDesGardes = {
   // La machine sous la station et ses seuils (`configMachine`). Absente : rien
   // ne se retient sur elle.
   machine?: { lire: () => Machine; seuils: Seuils };
+  // Un disque saturé que la cuisine ne peut plus libérer, sans cook en vol,
+  // est dit au chef par une carte de TODO (#4091). Absent : rien ne se dit.
+  disquePlein?: DisquePlein;
   maintenant?: () => Date;
   avertir?: (message: string) => void;
   // L'environnement de la station, où se lit son moteur de repli (#3745).
@@ -139,6 +156,10 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   let accordees: number[] = [];
   let machineIllisible = false;
   let saturee = false;
+  // Ce dont le disque manque, tel que la dernière lecture de la machine le dit.
+  let manqueDisque: Saturation | null = null;
+  // La carte du disque est posée : elle ne se repose pas tant qu'il reste plein.
+  let carteDuDisquePosee = false;
 
   const dire = (retenue: RetenueDuTour | null) => {
     if (retenue === tenue) return;
@@ -171,6 +192,18 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
   };
 
+  // Une ressource qui manque, avec son plus gros consommateur quand la machine
+  // lue le mesure (#4090) : un lecteur absent, qui échoue ou ne nomme rien la
+  // laisse telle quelle.
+  const nommer = (machine: Machine) => (manque: Saturation): Saturation => {
+    try {
+      const gros = machine.consommateur?.(manque.resource) ?? null;
+      return gros === null ? manque : { ...manque, consumer: `${gros.name} (${gros.amount})` };
+    } catch {
+      return manque;
+    }
+  };
+
   // Ce dont la machine manque, ses prises récentes comptées d'avance ; le
   // journal le dit quand les ressources en cause changent. Sans cook en vol,
   // elle ne retient rien : jamais moins d'un cook, comme le plafond des cœurs.
@@ -179,10 +212,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   const machineAcourt = (cooks: number): boolean => {
     if (options.machine === undefined) return false;
     let manques: Saturation[];
+    let lue: Machine;
     try {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
-      manques = saturations(reserver(options.machine.lire(), accordees.length), options.machine.seuils, saturees);
+      lue = options.machine.lire();
+      manques = saturations(reserver(lue, accordees.length), options.machine.seuils, saturees);
       machineIllisible = false;
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
@@ -191,19 +226,51 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
-      const [premier, ...autres] = manques;
+      const [premier] = manques;
       if (premier === undefined) {
         noter({ type: "station.relieved", payload: { station } });
         avertir(`brigade : the machine under GitHub-only station ${station} has room again`);
       } else {
-        noter({ type: "station.saturated", payload: { station, ...premier, ...(autres.length > 0 ? { also: autres } : {}) } });
-        const dit = direSaturationsEn(manques);
+        const nommes = manques.map(nommer(lue));
+        const [tete = premier, ...aussi] = nommes;
+        noter({ type: "station.saturated", payload: { station, ...tete, ...(aussi.length > 0 ? { also: aussi } : {}) } });
+        const dit = direSaturationsEn(nommes);
         avertir(`brigade : the machine under GitHub-only station ${station} runs short of ${dit.ressources} — ${dit.detail}`);
       }
       saturees = ressources;
     }
     saturee = manques.length > 0;
+    manqueDisque = manques.find(({ resource }) => resource === "disk") ?? null;
     return saturee && cooks > 0;
+  };
+
+  // Le disque est plein, aucun cook ne tourne : si ce que la cuisine tient ne
+  // suffirait pas à le vider assez, le chef en est averti — une seule carte
+  // tant que l'état dure. Un disque qui respire lève la carte. Une sonde ou une
+  // pose qui échoue se dit et se retente au tour suivant : rien ne se devine.
+  // Elle ne retient pas le tour : `du` peut durer. Une seule à la fois.
+  let disqueEnCours: Promise<void> | null = null;
+  const direLeDisque = async (cooks: number) => {
+    const { disquePlein } = options;
+    if (disquePlein === undefined) return;
+    try {
+      if (manqueDisque === null) {
+        if (carteDuDisquePosee) {
+          await disquePlein.lever();
+          carteDuDisquePosee = false;
+        }
+        return;
+      }
+      if (cooks > 0 || carteDuDisquePosee) return;
+      const { observed, limit } = manqueDisque;
+      const sonde = await disquePlein.sonder();
+      if (peutEncoreLiberer(observed * 1024 * 1024, sonde.propre, limit)) return;
+      await disquePlein.poser(carteDuDisque({ libreMo: observed, minMo: limit, propre: sonde.propre, consommateurs: sonde.consommateurs, station }));
+      carteDuDisquePosee = true;
+      avertir(`brigade : the disk under GitHub-only station ${station} is full of things the kitchen cannot free — a TODO card tells the chef`);
+    } catch (erreur) {
+      avertir(`brigade : the disk card of GitHub-only station ${station} could not be settled (${message(erreur)}) — tried again next round`);
+    }
   };
 
   const retenueLue = async (cooks: number): Promise<RetenueDuTour | null> => {
@@ -211,7 +278,11 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     if (etat.stoppedAt !== null) return "stopped";
     if (etat.breakerOpenedAt !== null) return "breaker";
     if (surQuelMoteur().blocked) return "quota";
-    if (machineAcourt(cooks)) return "machine";
+    const courte = machineAcourt(cooks);
+    disqueEnCours ??= direLeDisque(cooks).finally(() => {
+      disqueEnCours = null;
+    });
+    if (courte) return "machine";
     if (arbitre === null) return null;
     const reponse = await echanger(cooks, true);
     if (reponse === null) return cooks === 0 ? null : "unarbitrated";
@@ -270,7 +341,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       // Le « stop » ou le disjoncteur tombé entre la prise et le lancement :
       // rien n'est parti, et le cook le dit comme une fin sans livraison.
       if (!(erreur instanceof LancementRefuse)) throw erreur;
-      const fin: Fin = { code: null, signal: null, turns: 0, tokens: 0, durationMs: 0, arret: null, erreur: `launch refused: ${erreur.message}` };
+      const fin: Fin = { code: null, signal: null, turns: 0, tokens: 0, durationMs: 0, arret: null, erreur: `${erreur.motif === "held" ? LANCEMENT_RETENU : "launch refused"}: ${erreur.message}` };
       return { fin: Promise.resolve(fin), flux };
     }
   };
