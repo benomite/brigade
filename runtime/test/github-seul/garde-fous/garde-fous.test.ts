@@ -12,6 +12,7 @@ import { test, type TestContext } from "node:test";
 import type { Arbitrage } from "../../../src/arbitrage.ts";
 import { ATTENTE_DE_PLACE_MS, ouvrirArbitre, type Mot } from "../../../src/arbitre.ts";
 import { brancheDuTicket, brancherBrigadeGithub, stationDuDepot, stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../../src/brigade-github.ts";
+import { LABEL_REPARATION_SATURATION } from "../../../src/reparation.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
@@ -35,8 +36,8 @@ class FauxGitHub {
   commentaires: Array<{ issue: number; corps: string }> = [];
   prises: number[] = [];
 
-  feu(number: number): void {
-    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(CALIBRE), state: "open" });
+  feu(number: number, en_plus: string[] = []): void {
+    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set([...CALIBRE, ...en_plus]), state: "open" });
   }
 
   labels(number: number): string[] {
@@ -111,7 +112,7 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; places?: number } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
@@ -121,7 +122,7 @@ function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario
   const fins: string[] = [];
   const station = stationGitHub({
     nom: STATION,
-    places: 2,
+    places: options.places ?? 2,
     base: "main",
     github: faux.client(),
     prise: faux.prise(),
@@ -230,6 +231,35 @@ test("each claim granted counts on the machine before its load shows it: a full 
   const { gardes } = cuisine(t, { machine: () => BOX(11.5) });
   assert.equal(await gardes.retenue(1), null);
   assert.equal(await gardes.retenue(2), "machine");
+});
+
+test("a saturated machine lets the ticket that repairs the saturation through, one at a time, and holds every other (#4100)", async (t) => {
+  const { gardes, faux, station } = cuisine(t, { machine: () => BOX(16.2), scenario: () => "bavard", places: 4 });
+  // Un cook déjà en vol : la machine, saturée, ne retient plus que ce qui vient derrière lui.
+  faux.feu(1);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1]);
+  assert.equal(await gardes.retenue(1), "machine");
+  assert.equal(await gardes.retenue(1, true), null);
+
+  faux.feu(2);
+  faux.feu(3, [LABEL_REPARATION_SATURATION]);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 3]);
+
+  // Une seule réparation à la fois : la seconde attend que la première soit finie.
+  faux.feu(4, [LABEL_REPARATION_SATURATION]);
+  await station.tour();
+  assert.deepEqual(faux.prises, [1, 3]);
+});
+
+test("the arbiter is not told the machine is saturated when the ticket asking for a place repairs the saturation (#4100)", async (t) => {
+  const dits: boolean[] = [];
+  const arbitre: Arbitrage = { port: 0, echanger: async (_projet, mot) => (dits.push(mot.machine), { accorde: true, motif: null }), quitter: async () => {}, attendreUnePlace: async () => false, etat: async () => assert.fail("not read") };
+  const { gardes } = cuisine(t, { machine: () => BOX(16.2), arbitre });
+  assert.equal(await gardes.retenue(1, true), null);
+  assert.equal(await gardes.retenue(1, false), "machine");
+  assert.deepEqual(dits, [false]);
 });
 
 test("a machine that cannot be read holds nothing: the station's places still bound its cooks, and it is said once (#3560)", async (t) => {

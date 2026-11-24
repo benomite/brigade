@@ -46,7 +46,8 @@ export const REPLI_QUOTA_MS = 3_600_000;
 export type GardesDuTour = {
   // Ce qui retient la prise d'un ticket de plus, `cooks` cooks de tickets en
   // vol : null, la prise peut partir — et l'arbitre a compté sa place.
-  retenue(cooks: number): Promise<RetenueDuTour | null>;
+  // `reparation` : le ticket répare la saturation de la machine (#4100) — elle ne le retient pas.
+  retenue(cooks: number, reparation?: boolean): Promise<RetenueDuTour | null>;
   // La fin d'un tour : le projet redit son état à l'arbitre, qui l'apprend
   // même quand rien n'est demandé.
   redire(cooks: number): Promise<void>;
@@ -149,14 +150,14 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
 
   // `machine` : l'arbitre partage entre les projets ce que la machine porte quand elle sature —
   // lue par ce runtime, pas une saturation qu'un runtime d'avant a laissée au journal.
-  const mot = (cooks: number, demande: boolean) => ({ cooks, demande, machine: saturee, nonArbitres: degrade ? cooks : 0, consommation: consommationDesCooks(base, station, maintenant()) });
+  const mot = (cooks: number, demande: boolean, reparation: boolean) => ({ cooks, demande, machine: saturee && !reparation, nonArbitres: degrade ? cooks : 0, consommation: consommationDesCooks(base, station, maintenant()) });
 
   // Demande une place à l'arbitre ; null s'il ne répond pas. L'entrée en mode
   // dégradé et le retour se disent une fois chacun.
-  const echanger = async (cooks: number, veut: boolean): Promise<Reponse | null> => {
+  const echanger = async (cooks: number, veut: boolean, reparation = false): Promise<Reponse | null> => {
     if (arbitre === null) return null;
     try {
-      const reponse = await arbitre.echanger(projet, { ...mot(cooks, veut || enAttente), veut });
+      const reponse = await arbitre.echanger(projet, { ...mot(cooks, veut || enAttente, reparation), veut });
       if (degrade) {
         degrade = false;
         avertir(`brigade : the arbiter answers again — GitHub-only station ${station} is arbitrated`);
@@ -206,14 +207,15 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     return saturee && cooks > 0;
   };
 
-  const retenueLue = async (cooks: number): Promise<RetenueDuTour | null> => {
+  // Le ticket qui répare la saturation passe la machine à court — elle se lit et se dit quand même —, pas les autres bornes (#4100).
+  const retenueLue = async (cooks: number, reparation: boolean): Promise<RetenueDuTour | null> => {
     const etat = etatDesGardeFous(base);
     if (etat.stoppedAt !== null) return "stopped";
     if (etat.breakerOpenedAt !== null) return "breaker";
     if (surQuelMoteur().blocked) return "quota";
-    if (machineAcourt(cooks)) return "machine";
+    if (machineAcourt(cooks) && !reparation) return "machine";
     if (arbitre === null) return null;
-    const reponse = await echanger(cooks, true);
+    const reponse = await echanger(cooks, true, reparation);
     if (reponse === null) return cooks === 0 ? null : "unarbitrated";
     return reponse.accorde ? null : "arbiter";
   };
@@ -277,9 +279,9 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
 
   return {
     lancer,
-    retenue: async (cooks) => {
+    retenue: async (cooks, reparation = false) => {
       lueCeTour = true;
-      const retenue = await retenueLue(cooks);
+      const retenue = await retenueLue(cooks, reparation);
       if (retenue === null) accordees.push(maintenant().getTime());
       if (retenue === "arbiter" || retenue === "unarbitrated") enAttente = true;
       dire(retenue);
