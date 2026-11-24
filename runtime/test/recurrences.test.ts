@@ -134,7 +134,7 @@ test("project settings: `recurring` is read as written, written back, and refuse
 test("the calendar runs on the tick only, one pass at a time, and repeats no line", async () => {
   let reveil: (cause: string) => void = () => {};
   const runtime = { surReveil: (f: (cause: string) => void) => { reveil = f; } } as unknown as Parameters<typeof brancherCalendrier>[0];
-  const { issues, github } = faux();
+  const { issues, github, lectures } = faux();
   const dit: string[] = [];
   const entrees = () => [{ name: "Closer", frequency: "daily", priority: "prio:3" }, { name: "Sans prio", frequency: "daily" }];
   brancherCalendrier(runtime, { entrees, github, avertir: (l) => dit.push(l), maintenant: () => new Date("2026-11-24T08:00:00Z") });
@@ -145,7 +145,9 @@ test("the calendar runs on the tick only, one pass at a time, and repeats no lin
   reveil("tick");
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(issues.length, 1);
+  assert.equal(lectures.length, 1);
   reveil("tick");
   await new Promise((r) => setTimeout(r, 20));
+  assert.equal(lectures.length, 2);
   assert.equal(dit.filter((l) => l.includes("Sans prio")).length, 1);
 });
