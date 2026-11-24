@@ -212,6 +212,7 @@ try {
               flux: join(repertoireEtat, "github-seul"),
               observer: suiviDuTour.envelopper,
               sauter: suiviDuTour.sauter,
+              enPremier: suiviDuTour.enPremier,
               superviseur: (consulter) => (managerDuSuperviseur = consulter),
               // Le temps de chaque ticket mergé s'écrit dans le clone du projet (#2342).
               clone: station.clone,

@@ -66,6 +66,33 @@ test("the station names the fired tickets that wait for a claim at its last turn
   await a.calme();
 });
 
+test("places full, a place opens: the ticket the no-merge wake names is claimed before the others (#4102)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(10);
+  const cuits: number[] = [];
+  let ouvrir = () => {};
+  const a = faux.station("A", {
+    places: 1,
+    cuisiner: async (issue) => {
+      cuits.push(issue);
+      if (issue === 10) await new Promise<void>((fini) => (ouvrir = fini));
+      return { branche: `b${issue}` };
+    },
+    enPremier: () => [30],
+  });
+  await a.tour();
+  assert.deepEqual(cuits, [10], "the one place is taken");
+  faux.feu(20);
+  faux.feu(30);
+  await a.tour();
+  assert.deepEqual(cuits, [10], "places full: neither #20 nor #30 is claimed");
+  ouvrir();
+  await a.calme();
+  await a.tour();
+  assert.equal(cuits[1], 30, "the place that opens goes to #30, not to #20 which is older");
+  await a.calme();
+});
+
 test("a ticket whose dependency is open is held back, and claimed once the dependency closes", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, ["model:sonnet", "effort:medium"]);
