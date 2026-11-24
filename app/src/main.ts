@@ -74,6 +74,7 @@ import { changerLeJour, lireLeJour, lireLesResumes, publierLeResume, type Resume
 import { depotDeLOrigine, lireClone } from "./ajout.ts";
 import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
+import { poserLaCommande } from "./commande-brigade.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { apkLink, RELEASES_URL } from "./mise-a-jour/android.ts";
@@ -142,6 +143,8 @@ if (chemin !== undefined) process.env.PATH = chemin;
 const role = roleDe({ plateforme, runtime: emplacements.runtime, env: process.env });
 // Le répertoire de la station de cet ordinateur : `station/`, à côté du fichier des projets.
 const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
+// La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
+poserLaCommande({ plateforme, installee: emplacements.facon === "installee", maison: homedir(), version: app.getVersion(), runtime: emplacements.runtime, node: emplacements.node, racine: racineDeLaStation, chemin: process.env.PATH ?? "" });
 // L'icône de la barre des menus ne se pose qu'une fois l'app prête : avant, Electron n'en crée pas
 // (`poserLaBarreDeMenus`, plus bas). Déclaré ici : ce qui suit la redit dès qu'il change.
 let barrePrete = false;
