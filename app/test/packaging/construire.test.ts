@@ -20,6 +20,7 @@ import {
   estMachOArm64,
   metadonneesDeMiseAJour,
   reecrirePlist,
+  reecrirePlistAuxiliaire,
   versionCourte,
   versionDuCommit,
   type Executer,
@@ -331,4 +332,24 @@ test("la commande refuse une option inconnue — et, hors d'un Mac, de construir
 
 test("la commande se lance par `npm --prefix app run dist`", () => {
   assert.equal(JSON.parse(readFileSync(join(APP, "package.json"), "utf8")).scripts.dist, "node packaging/construire.ts");
+});
+
+// Le début de l'Info.plist d'un auxiliaire d'Electron 44, tel que son zip le livre : un CFBundleName, aucun CFBundleDisplayName.
+test("l'Info.plist d'un auxiliaire d'Electron 44, qui n'a pas de CFBundleDisplayName, passe au nom de l'app (#4152)", () => {
+  const xml = `<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>Electron Helper (GPU)</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.github.Electron.helper</string>
+	<key>CFBundleName</key>
+	<string>Electron Helper (GPU)</string>
+</dict>
+</plist>
+`;
+  const plist = reecrirePlistAuxiliaire(xml);
+  assert.match(plist, /<key>CFBundleName<\/key>\s*<string>Brigade Helper \(GPU\)<\/string>/);
+  assert.match(plist, /<key>CFBundleExecutable<\/key>\s*<string>Electron Helper \(GPU\)<\/string>/);
+  assert.doesNotMatch(plist, /CFBundleDisplayName/);
+  assert.throws(() => reecrirePlistAuxiliaire(xml.replace("CFBundleName", "CFBundleNom")), { code: 1, message: /has no CFBundleName/ });
 });

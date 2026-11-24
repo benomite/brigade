@@ -138,14 +138,16 @@ export function reecrirePlist(xml: string, courte: string): string {
 // ce nom que macOS montre pour l'activité d'arrière-plan d'un processus auxiliaire. Son dossier,
 // son exécutable et ses fichiers gardent le nom d'Electron : Electron les cherche sous lui.
 export function reecrirePlistAuxiliaire(xml: string): string {
-  const nom = (texte: string, cle: string) => {
+  // CFBundleName est dans chaque auxiliaire ; CFBundleDisplayName, qu'Electron 44 n'y pose pas, ne se
+  // réécrit que s'il y est.
+  const nom = (texte: string, cle: string, requis: boolean) => {
     const motif = new RegExp(`(<key>${cle}</key>\\s*<string>)Electron( Helper[^<]*</string>)`);
-    if (!motif.test(texte)) echouer(`an Electron helper's Info.plist has no ${cle} starting with “Electron Helper”`);
+    if (!motif.test(texte)) return requis ? echouer(`an Electron helper's Info.plist has no ${cle} starting with “Electron Helper”`) : texte;
     return texte.replace(motif, `$1${NOM}$2`);
   };
   const identifiant = /(<key>CFBundleIdentifier<\/key>\s*<string>)com\.github\.Electron(\.helper[^<]*<\/string>)/;
   if (!identifiant.test(xml)) echouer("an Electron helper's Info.plist has no CFBundleIdentifier starting with “com.github.Electron.helper”");
-  return nom(nom(xml, "CFBundleName"), "CFBundleDisplayName").replace(identifiant, `$1${IDENTIFIANT}$2`);
+  return nom(nom(xml, "CFBundleName", true), "CFBundleDisplayName", false).replace(identifiant, `$1${IDENTIFIANT}$2`);
 }
 
 // Le plist sans une clé de premier niveau ni sa valeur : un dictionnaire, jusqu'à son `</dict>`
