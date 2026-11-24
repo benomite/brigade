@@ -31,8 +31,11 @@ export async function lesFeux(depot: string, lire: Lire): Promise<Brut[]> {
   return issues;
 }
 
-// L'instant du dernier `fire` posé, d'après les événements de l'issue ; null s'ils ne le disent pas.
-export function feuPoseLe(evenements: readonly Brut[]): string | null {
-  const poses = evenements.filter((evenement) => evenement.event === "labeled" && objet(evenement.label)?.name === LABEL_FIRE).map((evenement) => texte(evenement.created_at));
+// L'instant du dernier `label` posé, d'après les événements de l'issue ; null s'ils ne le disent pas.
+export function labelPoseLe(evenements: readonly Brut[], label: string): string | null {
+  const poses = evenements.filter((evenement) => evenement.event === "labeled" && objet(evenement.label)?.name === label).map((evenement) => texte(evenement.created_at));
   return poses.filter((instant) => !Number.isNaN(Date.parse(instant))).at(-1) ?? null;
 }
+
+// L'instant du dernier `fire` posé, d'après les événements de l'issue ; null s'ils ne le disent pas.
+export const feuPoseLe = (evenements: readonly Brut[]): string | null => labelPoseLe(evenements, LABEL_FIRE);

@@ -17,6 +17,7 @@ import { LABELS_D_ECART, type StationsLues } from "./stations.ts";
 import { limiteDuCompteDeLaStation } from "../github-limite.ts";
 import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
 import { attenteDeLIssue } from "../attente-github/marque.ts";
+import { lireLOrdreDuRail } from "../ordre-de-merge/lecture.ts";
 import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail, type TicketEnWaiting } from "./raison.ts";
 
 const LABEL_DU_TABLEAU = "kitchen-board";
@@ -66,7 +67,18 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
       tickets.push({ ticket: issue.number, etat: "queued", entreLe: poses, depend: [...new Set(attentes.map(({ ticket }) => ticket))], attentes, commentairesLus });
     }
   }
-  return { tickets, waiting };
+  return { tickets: await avecLOrdreDeMerge(depot, lire, tickets), waiting };
+}
+
+// Chaque ticket du rail avec les tickets dont le merge passe avant le sien (#4044) : ses dépendances déclarées encore sur le
+// rail, et les tickets en pass dont la PR change un fichier qu'il change aussi. Un ordre qui ne se lit pas ne lie rien.
+async function avecLOrdreDeMerge(depot: string, lire: Lire, tickets: TicketDuRail[]): Promise<TicketDuRail[]> {
+  // Un ticket en WAITING attend un tiers, hors de la suite des merges : sa carte le dit déjà (#3761), elle ne se dit pas « after ».
+  const surLeRail = new Set(tickets.map(({ ticket }) => ticket));
+  const declarees = new Map(tickets.filter(({ etat }) => etat !== "taken").map((carte) => [carte.ticket, carte.depend.filter((n) => n !== carte.ticket && surLeRail.has(n))] as const));
+  const enPass = tickets.filter(({ etat }) => etat === "pass").map(({ ticket }) => ticket);
+  const ordre = await lireLOrdreDuRail({ depot, lire, declarees, enPass }).catch(() => new Map<number, number[]>());
+  return tickets.map((carte) => (ordre.has(carte.ticket) ? { ...carte, apres: ordre.get(carte.ticket) } : carte));
 }
 
 const TITRE = "queue wait";

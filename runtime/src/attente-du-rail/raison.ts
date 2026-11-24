@@ -31,7 +31,8 @@ export type Raison = "aucune-station" | "arretee" | "hors-ligne" | "quota-github
 // lue), la fiche, ou l'arrêt d'un cook —, sur un ticket ouvert, sur le rail ou non ; absente quand l'appelant ne les a pas
 // lues : la carte dit alors l'attente sans sa source, comme avant.
 // `commentairesLus` : faux quand les commentaires du ticket — sa fiche, les arrêts de ses cooks — ne se lisent pas.
-export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; entreLe: string | null; depend: readonly number[]; attentes?: readonly AttenteSourcee[]; commentairesLus?: boolean };
+// `apres` (#4044) : les tickets dont le merge passe avant le sien (`ordreDeMerge`) ; absent quand il n'en a aucun.
+export type TicketDuRail = { ticket: number; etat: "queued" | "taken" | "pass"; entreLe: string | null; depend: readonly number[]; attentes?: readonly AttenteSourcee[]; commentairesLus?: boolean; apres?: readonly number[] };
 
 // Un ticket `fire` en WAITING (#3761) : la cuisine ne le prend pas, il attend un tiers — `qui`, nul quand son attente ne
 // se lit pas. Il n'est pas sur le rail, mais un ticket en file qui l'attend le dit : le 2026-11-17, #3734 a attendu cinq
@@ -108,10 +109,13 @@ const COMMENTAIRES_ILLISIBLES = "its card and its cooks' stops could not be read
 // `attentes`, celles de `depend` sont celles du corps, sans leur phrase. Aucune ligne sans attente ouverte : c'est la
 // carte qui part ensuite, ou une carte libre.
 export function ligneDeLaCarte(carte: TicketDuRail, tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): string | null {
-  const dites = [...new Set(attentesDites(carte, tickets, waiting).map((attente) => direLAttenteParmi(attente, waiting)))];
+  const dites = [...direApres(carte), ...new Set(attentesDites(carte, tickets, waiting).map((attente) => direLAttenteParmi(attente, waiting)))];
   if (carte.etat === "queued" && carte.commentairesLus === false) dites.push(COMMENTAIRES_ILLISIBLES);
   return dites.length === 0 ? null : dites.join("; ");
 }
+
+// Le ticket que son merge retient derrière d'autres (#4044) : « after #3, #4 — waiting for their merge », sur une seule ligne.
+const direApres = ({ apres = [] }: TicketDuRail): string[] => (apres.length === 0 ? [] : [`after ${apres.map((n) => `#${n}`).join(", ")} — waiting for ${apres.length > 1 ? "their" : "its"} merge`]);
 
 // Les attentes que la ligne d'une carte en file dit : celles qui la retiennent.
 function attentesDites(carte: TicketDuRail, tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): AttenteSourcee[] {
@@ -136,7 +140,7 @@ export function lignesDesCartes(tickets: readonly TicketDuRail[], waiting: reado
 export function attendusDesCartes(tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): Record<number, number[]> {
   const attendus: Record<number, number[]> = {};
   for (const carte of tickets) {
-    const siens = [...new Set(attentesDites(carte, tickets, waiting).map(({ ticket }) => ticket))];
+    const siens = [...new Set([...(carte.apres ?? []), ...attentesDites(carte, tickets, waiting).map(({ ticket }) => ticket)])];
     if (siens.length > 0) attendus[carte.ticket] = siens;
   }
   return attendus;
