@@ -12,6 +12,7 @@ import { calageDuDisjoncteur, direLeCalage, estUnCalage, natureDuRun } from "./b
 import { arretsDeGardeDesTickets, gardeRepetee } from "./gardes-historique/historique.ts";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
 import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
+import { etatStation } from "./projections/stations.ts";
 import { cooksEnCours, echecsExternes, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
 import { veilleDuProcess } from "./reveil-machine/du-process.ts";
@@ -87,7 +88,7 @@ export type CookLance = {
 
 // `deploy` : n'est plus levé — une mise en service ne retient aucun cook ; le
 // motif reste pour que les journaux d'avant se lisent.
-export type RefusDeLancer = "breaker" | "stopped" | "deploy";
+export type RefusDeLancer = "breaker" | "stopped" | "deploy" | "held";
 
 export class LancementRefuse extends Error {
   readonly motif: RefusDeLancer;
@@ -334,6 +335,12 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
             ? `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant que le superviseur le referme`
             : `disjoncteur ouvert le ${etat.breakerOpenedAt} : un run cale encore après ses relances — ${direLeCalage(calage)} ; aucun cook n'est lancé avant que le superviseur le referme, ou qu'un run en cours finisse bien`,
         );
+      }
+      // Une station retenue pour saturation de sa machine ne lance ni ne relance aucun cook (#4097) : un cook
+      // pris avant la retenue, ou relancé après sa fin, attend qu'elle se lève.
+      const station = demande.contexte?.station ?? null;
+      if (station !== null && station !== STATION_DU_MANAGER && etatStation(base, station)?.heldReason === "machine") {
+        throw new LancementRefuse("held", `station ${station} retenue : sa machine est saturée, aucun cook n'est lancé avant qu'elle se libère`);
       }
       const lance = noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
       // Le même garde-fou a déjà tué ce ticket deux fois : la relance le dit au journal, avec la raison (#3650).
