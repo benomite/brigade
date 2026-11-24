@@ -53,22 +53,27 @@ export function carteDuDisque(figures: { libreMo: number; minMo: number; propre:
   };
 }
 
-type GitHubDuDisque = GitHubDesCartes & Pick<GitHub, "ouvertes" | "creerIssue">;
+type GitHubDuDisque = GitHubDesCartes & Pick<GitHub, "issuesDepuis" | "creerIssue">;
 
-async function issueDuDisque(github: GitHubDuDisque): Promise<number> {
-  const sondage = await github.ouvertes();
-  const existante = sondage.inchange ? undefined : sondage.issues.find((issue) => issue.body.includes(MARQUEUR_DISQUE) && DE_CONFIANCE.includes(issue.association));
-  if (existante !== undefined) return existante.number;
-  return github.creerIssue({ titre: TITRE_DISQUE, corps: `${MARQUEUR_DISQUE}\nThe disk of a station is full of things the kitchen cannot free. The card below tells the chef.`, labels: [] });
+// L'issue ouverte qui porte le marqueur, ou rien. Elle se lit par `issuesDepuis`
+// et non par `ouvertes` : celle-ci répond « inchangé » dès que le sondage du
+// tour a confirmé la liste, et rien ne se lirait alors — on créerait une seconde
+// issue.
+async function issueDuDisque(github: GitHubDuDisque): Promise<number | undefined> {
+  const toutes = await github.issuesDepuis(new Date(0).toISOString());
+  return toutes.find((issue) => issue.closedAt === undefined && issue.body.includes(MARQUEUR_DISQUE) && DE_CONFIANCE.includes(issue.association))?.number;
 }
 
 // La carte du disque sur son issue : une seule tant qu'elle attend le chef.
 async function poserLaCarteDuDisque(github: GitHubDuDisque, carte: Carte): Promise<void> {
-  await poserCarte(await issueDuDisque(github), carte, github);
+  const numero = (await issueDuDisque(github)) ?? (await github.creerIssue({ titre: TITRE_DISQUE, corps: `${MARQUEUR_DISQUE}\nThe disk of a station is full of things the kitchen cannot free. The card below tells the chef.`, labels: [] }));
+  await poserCarte(numero, carte, github);
 }
 
+// Lever ne crée jamais d'issue : sans issue du disque, il n'y a rien à lever.
 async function leverLaCarteDuDisque(github: GitHubDuDisque): Promise<void> {
-  await leverCarte(await issueDuDisque(github), github, "blocked");
+  const numero = await issueDuDisque(github);
+  if (numero !== undefined) await leverCarte(numero, github, "blocked");
 }
 
 const execFileP = promisify(execFile);

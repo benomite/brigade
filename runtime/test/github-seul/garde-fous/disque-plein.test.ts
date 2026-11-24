@@ -3,15 +3,17 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, normalize } from "node:path";
 import { test } from "node:test";
 import { CHEF_TODO } from "../../../src/github-seul/carte-todo/carte-todo.ts";
 import { carteDuDisque, disqueDuProjet, peutEncoreLiberer } from "../../../src/github-seul/garde-fous/disque-plein.ts";
 
 function githubFaux() {
-  const issues = new Map<number, { labels: Set<string>; body: string; comments: string[] }>();
+  const issues = new Map<number, { labels: Set<string>; body: string; comments: string[]; closed?: boolean }>();
   const github = {
-    ouvertes: async () => ({ inchange: false, issues: [...issues].map(([number, i]) => ({ number, body: i.body, association: "OWNER" })) }),
+    // Le sondage du tour a déjà confirmé la liste : `ouvertes` ne rend plus rien.
+    ouvertes: async () => ({ inchange: true }),
+    issuesDepuis: async () => [...issues].map(([number, i]) => ({ number, body: i.body, association: "OWNER", ...(i.closed ? { closedAt: "2026-11-24T00:00:00Z" } : {}) })),
     creerIssue: async ({ corps }: { corps: string }) => {
       issues.set(7, { labels: new Set(), body: corps, comments: [] });
       return 7;
@@ -54,5 +56,17 @@ test("the probe sizes the kitchen's own state with du (#4091)", async () => {
   const { github } = githubFaux();
   const { propre, consommateurs } = await disqueDuProjet(dossier, github, dossier).sonder();
   assert.equal(propre >= 256 * 1024, true);
-  assert.equal(consommateurs[0]?.chemin, join(dossier, "a"));
+  assert.equal(consommateurs[0]?.chemin === undefined ? undefined : normalize(consommateurs[0].chemin), join(dossier, "a"));
+});
+
+test("lifting the card finds no issue and creates none; a closed issue with the marker is not the card's (#4091)", async () => {
+  const { github, issues } = githubFaux();
+  const disque = disqueDuProjet("/nonexistent", github);
+  await disque.lever();
+  assert.equal(issues.size, 0);
+
+  issues.set(3, { labels: new Set(), body: "<!-- brigade:disk-full -->", comments: [], closed: true });
+  await disque.poser(carte);
+  assert.equal(issues.size, 2);
+  assert.equal(issues.get(3)?.comments.length, 0);
 });

@@ -519,52 +519,59 @@ test("replaying 2026-11-15: #3615 fails four times at launch (spawn E2BIG), the 
 // Le disque de #4091 : 2 Go libres, le seuil par défaut est de 5 Go.
 const DISQUE_PLEIN = (libre: number): Machine => ({ ...BOX(0), disqueLibre: libre });
 
-// La carte se règle hors du tour : on laisse à la sonde le temps de rendre.
-const regler = () => new Promise<void>((resoudre) => setTimeout(resoudre, 20));
-
 function disqueFaux(propre: number) {
   const poses: string[] = [];
   let levees = 0;
+  let sondes = 0;
   const disquePlein: DisquePlein = {
-    sonder: async () => ({ propre, consommateurs: [{ chemin: "/var/lib/docker", octets: 47 * GO }] }),
+    sonder: async () => ({ propre: (sondes++, propre), consommateurs: [{ chemin: "/var/lib/docker", octets: 47 * GO }] }),
     poser: async (carte) => void poses.push(carte.texte),
     lever: async () => void levees++,
   };
-  return { disquePlein, poses, levees: () => levees };
+  return { disquePlein, poses, levees: () => levees, sondes: () => sondes };
 }
+
+// Ce qui ne doit pas arriver ne s'attend pas sur une condition : on laisse la
+// sonde, déjà rendue, et la pose, qui n'a pas lieu, le temps de se montrer.
+const laisser = () => new Promise<void>((resoudre) => setTimeout(resoudre, 20));
 
 test("a full disk the kitchen cannot free, with no cook, raises one TODO card with the figures and the biggest consumers, and no duplicate (#4091)", async (t) => {
   const { disquePlein, poses } = disqueFaux(100 * 1024 * 1024);
   const { gardes } = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein });
   await gardes.retenue(0);
-  await regler();
   await jusqua(() => poses.length === 1);
+  await laisser();
   await gardes.retenue(0);
-  await regler();
+  await laisser();
   assert.equal(poses.length, 1);
   assert.match(String(poses[0]), /2,048 MB free, the kitchen needs at least 5,120 MB/);
   assert.match(String(poses[0]), /\/var\/lib\/docker: 48,128 MB/);
 });
 
-test("a disk the kitchen could still free enough, or a cook still in flight, raises no card (#4091)", async (t) => {
+test("a disk the kitchen could still free enough, or a cook still in flight, raises no card, where the same disk with nothing to reclaim does (#4091)", async (t) => {
   const reclamable = disqueFaux(4 * GO);
   const a = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein: reclamable.disquePlein });
   await a.gardes.retenue(0);
-  await regler();
+  await jusqua(() => reclamable.sondes() === 1);
+  await laisser();
   assert.deepEqual(reclamable.poses, []);
 
   const pleine = disqueFaux(0);
   const b = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein: pleine.disquePlein });
   await b.gardes.retenue(1);
-  await regler();
+  await laisser();
   assert.deepEqual(pleine.poses, []);
+  assert.equal(pleine.sondes(), 0);
+
+  await b.gardes.retenue(0);
+  await jusqua(() => pleine.poses.length === 1);
 });
 
 test("a disk that recovers raises no card, and lifts the one it had raised (#4091)", async (t) => {
   const sain = disqueFaux(0);
   const a = cuisine(t, { machine: () => BOX(0), disquePlein: sain.disquePlein });
   await a.gardes.retenue(0);
-  await regler();
+  await laisser();
   assert.deepEqual(sain.poses, []);
   assert.equal(sain.levees(), 0);
 
@@ -572,17 +579,17 @@ test("a disk that recovers raises no card, and lifts the one it had raised (#409
   const { disquePlein, poses, levees } = disqueFaux(0);
   const b = cuisine(t, { machine: () => DISQUE_PLEIN(libre), disquePlein });
   await b.gardes.retenue(0);
-  await regler();
+  await jusqua(() => poses.length === 1);
+  await laisser();
   libre = 100 * GO;
   await b.gardes.retenue(0);
-  await regler();
+  await jusqua(() => levees() === 1);
   assert.equal(poses.length, 1);
-  assert.equal(levees(), 1);
 });
 
 test("a disk probe that fails raises nothing, says so, and is tried again next round (#4091)", async (t) => {
   const avertis: string[] = [];
-  const { poses } = disqueFaux(0);
+  const poses: string[] = [];
   let essais = 0;
   const disquePlein: DisquePlein = {
     sonder: async () => {
@@ -594,11 +601,11 @@ test("a disk probe that fails raises nothing, says so, and is tried again next r
   };
   const { gardes } = cuisine(t, { machine: () => DISQUE_PLEIN(2 * GO), disquePlein, avertir: (texte) => avertis.push(texte) });
   await gardes.retenue(0);
-  await regler();
+  await jusqua(() => avertis.some((texte) => texte.includes("could not be settled")));
   assert.deepEqual(poses, []);
   assert.match(avertis.join("\n"), /could not be settled \(du timed out\)/);
+  await laisser();
   await gardes.retenue(0);
-  await regler();
-  assert.equal(poses.length, 1);
+  await jusqua(() => poses.length === 1);
   assert.match(String(poses[0]), /biggest consumers could not be read/);
 });
