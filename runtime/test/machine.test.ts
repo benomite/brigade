@@ -2,7 +2,7 @@
 // tient pour saturée. Aucun test ne dépend de la charge réelle du poste.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { configMachine, direSaturation, direSaturationEn, lireConsommateur, direSaturationsEn, lireMachine, memoireMinParDefaut, reserver, saturation, saturations, seuilMemoire, type Machine, type Seuils } from "../src/machine.ts";
+import { configMachine, direSaturation, direSaturationEn, direSaturationsEn, lireMachine, memoireMinParDefaut, reserver, saturation, saturations, seuilMemoire, type Machine, type Seuils } from "../src/machine.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -120,35 +120,10 @@ test("la machine se lit : des cœurs, une charge, de la mémoire et du disque", 
   assert.equal(machine.disqueLibre > 0, true);
 });
 
-test("the biggest directory is named from `du`, without the root itself (#4090)", () => {
-  const du = (sortie: string) => lireConsommateur("/s", { du: () => sortie, ps: () => "" })("disk");
-  assert.equal(du("100\t/s/brigade\n5000000\t/s/espace\n7\t/s/tmp\n5100107\t/s\n"), "espace/ (4883 MB)");
-  assert.equal(du("12\t/s\n"), null);
-  assert.equal(du(""), null);
-});
-
-test("the biggest process is the first line `ps` sorts (#4090)", () => {
-  const ps = (sortie: string) => lireConsommateur("/s", { du: () => "", ps: () => sortie })("cpu");
-  assert.equal(ps("  42 380.5 node\n   1  0.1 systemd\n"), "node (pid 42, 380.5% CPU)");
-  assert.equal(ps(""), null);
-});
-
-test("a failing measure names nothing (#4090)", () => {
-  assert.equal(lireConsommateur("/s", { du: () => { throw new Error("du: boom"); }, ps: () => "" })("disk"), null);
-});
-
 test("a saturation says its biggest consumer only when it has one (#4090)", () => {
   assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10 }), "5 MB of disk free for at least 10 MB");
-  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10, consumer: "espace/ (3 MB)" }), "5 MB of disk free for at least 10 MB — biggest: espace/ (3 MB)");
-  assert.equal(lireConsommateur("/nulle/part")("memory"), null);
-});
-
-test("a missing `ps` names no process (#4090)", () => {
-  assert.equal(lireConsommateur("/s", { du: () => "", ps: () => { throw new Error("ps: not found"); } })("cpu"), null);
-});
-
-test("each resource reads only its own measure: a failing `du` leaves the CPU named, a failing `ps` the disk (#4090)", () => {
-  const casse = () => { throw new Error("boom"); };
-  assert.equal(lireConsommateur("/s", { du: casse, ps: () => "  7 50 node\n" })("cpu"), "node (pid 7, 50% CPU)");
-  assert.equal(lireConsommateur("/s", { du: () => "9\t/s/espace\n9\t/s\n", ps: casse })("disk"), "espace/ (0 MB)");
+  assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10, consumer: "espace/ (3.2 GB)" }), "5 MB of disk free for at least 10 MB — biggest: espace/ (3.2 GB)");
+  assert.equal(direSaturationEn({ resource: "cpu", observed: 13, limit: 12, consumer: "node (pid 42) (380% CPU)" }), "load of 13 for at most 12 — biggest: node (pid 42) (380% CPU)");
+  assert.equal(direSaturation({ resource: "disk", observed: 5, limit: 10, consumer: "espace/ (3.2 GB)" }), "5 Mo de disque libre pour 10 au moins — plus gros : espace/ (3.2 GB)");
+  assert.equal(direSaturation({ resource: "cpu", observed: 13, limit: 12, consumer: "node (pid 42) (380% CPU)" }), "charge de 13 pour 12 au plus — plus gros : node (pid 42) (380% CPU)");
 });

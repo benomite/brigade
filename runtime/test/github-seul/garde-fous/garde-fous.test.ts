@@ -16,7 +16,7 @@ import { LABEL_IN_PASS, LABEL_TAKEN } from "../../../src/github-etat/etats.ts";
 import type { GitHub } from "../../../src/github.ts";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
 import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
-import { configMachine, type Consommateur, type Machine } from "../../../src/machine.ts";
+import { configMachine, type Machine } from "../../../src/machine.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { etatDesGardeFous } from "../../../src/projections/guardrails.ts";
 import { etatStation } from "../../../src/projections/stations.ts";
@@ -111,12 +111,12 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; consommateur?: Consommateur } = {}) {
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine } = {}) {
   const repertoire = repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const machine = options.machine;
-  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}), ...(options.consommateur === undefined ? {} : { consommateur: options.consommateur }) } }), avertir: options.avertir ?? (() => {}) });
+  const gardes = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: options.arbitre ?? null, ...(machine === undefined ? {} : { machine: { lire: machine, seuils: configMachine({}) } }), avertir: options.avertir ?? (() => {}) });
   const faux = new FauxGitHub();
   const fins: string[] = [];
   const station = stationGitHub({
@@ -223,28 +223,6 @@ test("a machine short of processor holds the GitHub-only claim beyond the first 
   assert.equal(faits("station.saturated").length, 1);
   assert.equal(faits("station.relieved").length, 1);
   assert.equal(etatStation(runtime.journal.base, STATION)?.saturatedResource, null);
-});
-
-test("a saturated machine names the biggest consumer of its CPU or disk, in the journal, the state and the warning (#4090)", async (t) => {
-  const avertis: string[] = [];
-  const consommateur: Consommateur = (resource) => (resource === "cpu" ? "node (pid 42, 380% CPU)" : resource === "disk" ? "espace/ (3200 MB)" : null);
-  const { runtime, faux, station, faits } = cuisine(t, { machine: () => ({ ...BOX(16.2), disqueLibre: 4 * GO }), consommateur, avertir: (texte) => avertis.push(texte) });
-  faux.feu(1);
-  await station.tour();
-  await station.calme();
-  assert.deepEqual(faits("station.saturated").map(({ payload }) => payload), [
-    { station: STATION, resource: "cpu", observed: 16.2, limit: 12, consumer: "node (pid 42, 380% CPU)", also: [{ resource: "disk", observed: 4096, limit: 5120, consumer: "espace/ (3200 MB)" }] },
-  ]);
-  assert.deepEqual(etatStation(runtime.journal.base, STATION)?.saturatedCauses.map(({ consumer }) => consumer), ["node (pid 42, 380% CPU)", "espace/ (3200 MB)"]);
-  assert.match(avertis.join("\n"), /biggest: node \(pid 42, 380% CPU\)/);
-});
-
-test("a consumer that cannot be named leaves the saturation as it was (#4090)", async (t) => {
-  const { faux, station, faits } = cuisine(t, { machine: () => BOX(16.2), consommateur: () => null });
-  faux.feu(1);
-  await station.tour();
-  await station.calme();
-  assert.deepEqual(faits("station.saturated").map(({ payload }) => payload), [{ station: STATION, resource: "cpu", observed: 16.2, limit: 12 }]);
 });
 
 test("each claim granted counts on the machine before its load shows it: a full rail does not leave in one block (#3560)", async (t) => {

@@ -2,7 +2,6 @@
 // de disque, et les seuils en deçà desquels la station cesse de prendre des
 // tickets. C'est le vrai plafond du parallélisme : celui des cooks peut être
 // très haut, ou absent.
-import { execFileSync } from "./sans-invite.ts";
 import { statfsSync } from "node:fs";
 import { availableParallelism, loadavg, totalmem } from "node:os";
 import type { Manque, OrigineDuSeuil, Ressource } from "./events/station.ts";
@@ -104,59 +103,6 @@ export function lireMachine(repertoire: string): Machine {
     memoireDisponible: process.availableMemory(),
     memoireTotale: lireMemoireTotale(),
     disqueLibre: disque.bavail * disque.bsize,
-  };
-}
-
-// Le plus gros consommateur d'une ressource, nommé : pour le disque, le plus
-// gros répertoire sous `repertoire` (la taille en Mo) ; pour le processeur, le
-// processus qui en prend le plus. Null quand rien ne peut être nommé — mesure
-// qui échoue, ressource qui n'a pas de consommateur (la mémoire).
-export type Consommateur = (resource: Ressource) => string | null;
-
-const PLUS_GROS_REPERTOIRE_MS = 5_000;
-
-// Dernière ligne de `du -k -d 1` mise de côté : c'est le total du répertoire.
-function plusGrosRepertoire(sortieDu: string, racine: string): string | null {
-  let gros: { chemin: string; ko: number } | null = null;
-  for (const ligne of sortieDu.split("\n")) {
-    const trouve = /^(\d+)\s+(.+)$/.exec(ligne);
-    if (trouve === null) continue;
-    const chemin = trouve[2] as string;
-    const ko = Number(trouve[1]);
-    if (chemin.replace(/\/+$/, "") === racine.replace(/\/+$/, "")) continue;
-    if (gros === null || ko > gros.ko) gros = { chemin, ko };
-  }
-  return gros === null ? null : `${gros.chemin.replace(/^.*\//, "")}/ (${Math.round(gros.ko / 1024)} MB)`;
-}
-
-// Le processus qui prend le plus de processeur : `ps` le trie, la première ligne le nomme.
-function plusGrosProcessus(sortiePs: string): string | null {
-  for (const ligne of sortiePs.split("\n")) {
-    const trouve = /^\s*(\d+)\s+(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/.exec(ligne);
-    if (trouve !== null) return `${trouve[3]} (pid ${trouve[1]}, ${trouve[2]}% CPU)`;
-  }
-  return null;
-}
-
-// Les deux mesures, injectables : les tests rendent la sortie de `du` et de `ps` sans les lancer.
-type Mesures = { du: (repertoire: string) => string; ps: () => string };
-
-const OPTIONS_MESURE: { encoding: "utf8"; timeout: number; stdio: ("ignore" | "pipe")[] } = { encoding: "utf8", timeout: PLUS_GROS_REPERTOIRE_MS, stdio: ["ignore", "pipe", "ignore"] };
-
-const MESURES: Mesures = {
-  du: (repertoire) => execFileSync("du", ["-k", "-d", "1", repertoire], OPTIONS_MESURE),
-  ps: () => execFileSync("ps", ["-eo", "pid=,pcpu=,comm=", "--sort=-pcpu"], OPTIONS_MESURE),
-};
-
-export function lireConsommateur(repertoire: string, mesures: Mesures = MESURES): Consommateur {
-  return (resource) => {
-    try {
-      if (resource === "disk") return plusGrosRepertoire(mesures.du(repertoire), repertoire);
-      if (resource === "cpu") return plusGrosProcessus(mesures.ps());
-    } catch {
-      // Une mesure qui échoue ne retient rien : la saturation se dit sans consommateur.
-    }
-    return null;
   };
 }
 
