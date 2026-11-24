@@ -45,3 +45,23 @@ test("a taken card with no running cook and no live wait says it on the rail", a
   const vue = await ouvrir([pris(14)], []);
   assert.ok(texte(vue, 14).includes(LABEL), texte(vue, 14));
 });
+
+// #3884, critère 2 : une carte `taken` dont un cook cuit ne dit pas ce mot ; sa voisine sans cook le dit.
+// Test d'acceptation gelé. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+test("a taken card with a running cook does not say it, while its cookless neighbour does", async () => {
+  const vue = await ouvrir([pris(14), pris(22)], [{ ticket: 14, titre: "Ticket 14", station: "parade-box" }]);
+  assert.equal(texte(vue, 14).includes(LABEL), false, texte(vue, 14));
+  assert.ok(texte(vue, 22).includes(LABEL), texte(vue, 22));
+});
+
+// #3884, critère 3 : une carte `taken` en attente chronométrée vivante ne dit pas ce mot et garde son attente ; sa voisine sans attente le dit.
+// Test d'acceptation gelé. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
+test("a taken card with a live timed wait does not say it and keeps its wait, while its neighbour does", async () => {
+  const attente = { raison: "attend : quota du compte épuisé", colonne: "pris", retour: "2026-11-19T13:30:00.000Z" };
+  const vue = await ouvrir([pris(14, { attente }), pris(22)], []);
+  assert.equal(texte(vue, 14).includes(LABEL), false, texte(vue, 14));
+  assert.ok(texte(vue, 14).includes("quota du compte épuisé"), texte(vue, 14));
+  assert.ok(texte(vue, 22).includes(LABEL), texte(vue, 22));
+});
