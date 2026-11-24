@@ -213,6 +213,11 @@ const pont = {
   surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
   // Une question cliquée dans le menu de la barre des menus (barre-de-menus.ts) : sa carte s'ouvre.
   surOuvrirCarte: (recevoir) => void ipcRenderer.on("ouvrirCarte", (_, projet, ticket) => recevoir(projet, ticket)),
+  // L'écran du premier lancement avant l'avis de macOS (ticket 4081, vue/premier-lancement/) : attendu dès l'ouverture de
+  // la vue, ou plus tard par `surAvisDeFond` ; son bouton rend la main à l'inscription de la station.
+  avisDeFond: () => ipcRenderer.invoke("avisDeFond"),
+  surAvisDeFond: (recevoir) => void ipcRenderer.on("avisDeFond", () => recevoir()),
+  continuerLePremierLancement: () => ipcRenderer.invoke("continuerLePremierLancement"),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
