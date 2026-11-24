@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { ProjetLu } from "../src/barre-de-menus.ts";
 import type { Faits } from "../src/faits.ts";
-import { commandesDuGeste, confirmationDeQuitter, etatDeLaStation, ligneDuFond, menuDuFond, questionsDuFond } from "../src/tray-fond/tray-fond.ts";
+import { commandesDuGeste, confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond } from "../src/tray-fond/tray-fond.ts";
+import { ligneDuFond } from "../src/tray/ligne.ts";
 
 type EtatDeLaStation = ReturnType<typeof etatDeLaStation>;
 
