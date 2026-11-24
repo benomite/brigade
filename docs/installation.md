@@ -113,9 +113,9 @@ page says:
 
 On GitHub, open a new issue in your repository, something small (title `Add a CONTRIBUTING.md`,
 body `Create a CONTRIBUTING.md with a three-line "how to propose a change" section.`), and put the
-label **`fire`** on it. The preparation usually creates that label; if you do not see it in the
-label list, create a label named `fire` yourself on GitHub, then put it on the issue. The button
-**post the first ticket** opens the new-issue page for you.
+label **`fire`** on it. If the label list does not offer `fire`, create a label named `fire`
+yourself on GitHub, then put it on the issue. The button **post the first ticket** opens the
+new-issue page for you.
 
 **You see**: within a minute or so, the ticket as a card in the **Rail** tab.
 
