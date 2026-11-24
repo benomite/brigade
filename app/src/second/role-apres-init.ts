@@ -24,6 +24,7 @@ import type { AppelGitHub } from "../tableau/client.ts";
 import type { Cible } from "./crochet-de-la-file.ts";
 import { appelParGh, contexteDeLaFile, DELAI_MS, lireLaFile, type Lecture } from "./file.ts";
 import { ROLE_DU_SECOND } from "./lancement.ts";
+import { blocage } from "./blocage-du-second.ts";
 
 export const SECTION = "## Équipe multi-agents";
 
@@ -37,7 +38,7 @@ export function sectionDesBindings(claudeMd: string): string | undefined {
 }
 
 // Ce que `claude` passe au crochet sur son entrée standard — seuls ces deux champs servent.
-export type Entree = { session_id?: string; cwd?: string };
+export type Entree = { session_id?: string; cwd?: string; prompt?: string };
 // Ce qu'une session a de noté : `sans`, née sans la section et pas encore redite ; `avec`, rien à redire.
 type Note = "avec" | "sans";
 
@@ -118,6 +119,10 @@ if (import.meta.main) {
     const entree = lireEntree();
     const cible: Cible = { nom: nom ?? "", ...(depot ? { depot } : {}), ...(base ? { base } : {}) };
     if (moment === "debut") debut(entree);
+    else if (moment === "vue") {
+      const sortie = blocage(entree, cible);
+      if (sortie !== "") process.stdout.write(`${sortie}\n`);
+    }
     else if (moment === "prompt") {
       const sortie = await prompt(entree, cible, appelParGh(gh || "gh", DELAI_MS));
       if (sortie !== "") process.stdout.write(`${sortie}\n`);
