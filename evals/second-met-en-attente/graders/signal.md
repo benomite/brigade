@@ -3,4 +3,4 @@ type: regex
 weight: 1
 ---
 
-waiting set 8 .*--remind 2026-10-21
+brigade:waiting \{.*2026-10-21
