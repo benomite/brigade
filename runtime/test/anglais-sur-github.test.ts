@@ -103,7 +103,7 @@ describe("in English on GitHub", { concurrency: 8 }, () => {
   });
 
   test("the manager: the body and the card of a ticket it splits, the epic's list, the git-gesture fix ticket, its answer to a cook's block", () => {
-    const prevu = { title: "The rail shows the count", context: "", criteria: ["`run rail` shows the count"], waitsFor: [1], zone: ["runtime/src/rail.ts"], requires: ["browser"], model: "sonnet", effort: "medium", calibration: "One module.", cook: "design" as const };
+    const prevu = { title: "The rail shows the count", context: "", criteria: ["`run rail` shows the count"], waitsFor: [1], zone: ["runtime/src/rail.ts"], requires: ["browser"], model: "sonnet", effort: "medium", calibration: "One module." };
     const reponse = { issue: "technique" as const, reponse: "Use scripts/capture-ecran/.", decision: "The cook uses it." };
     const fix = reparationDuGeste("merge", { enonce: "Merge PR #12?" }, 12);
     enAnglais([

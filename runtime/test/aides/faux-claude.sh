@@ -672,7 +672,7 @@ FIN
     decoupe-interface)
       assistant
       resultat <<'FIN'
-{"reponse":"tickets","motif":"La carte, son libellé, ce que le rail expose, et la doc.","ordre":"Le rail d'abord.","tickets":[{"titre":"Le rail expose le compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src/rail.ts"],"cook":"general","modele":"sonnet","effort":"medium","calibrage":"Un module."},{"titre":"La carte montre le compte","criteres":["La carte affiche le compte"],"attend":[],"zone":["app/src/vue/carte.js"],"modele":"opus","effort":"high","calibrage":"Un écran."},{"titre":"Le libellé du compte","criteres":["Le libellé se lit"],"attend":[],"zone":["app/src/libelles.ts"],"cook":"design","modele":"sonnet","effort":"low","calibrage":"Un libellé."},{"titre":"La doc dit le compte","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+{"reponse":"tickets","motif":"La carte, son libellé, ce que le rail expose, et la doc.","ordre":"Le rail d'abord.","tickets":[{"titre":"Le rail expose le compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src/rail.ts"],"modele":"sonnet","effort":"medium","calibrage":"Un module."},{"titre":"La carte montre le compte","criteres":["La carte affiche le compte"],"attend":[],"zone":["app/src/vue/carte.js"],"modele":"opus","effort":"high","calibrage":"Un écran."},{"titre":"Le libellé du compte","criteres":["Le libellé se lit"],"attend":[],"zone":["app/src/libelles.ts"],"modele":"sonnet","effort":"low","calibrage":"Un libellé."},{"titre":"La doc dit le compte","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
 FIN
       ;;
     decoupe-question)

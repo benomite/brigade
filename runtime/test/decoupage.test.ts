@@ -130,7 +130,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.match(c.gh.commentaires.find(([n]) => n === 501)?.[1] ?? "", /^- requires: navigateur-headless$/m);
   });
 
-  test("un ticket d'interface sort du découpage désigné pour le cook design — label, corps, commentaire — et les autres non, au même calibrage", async (t) => {
+  test("un ticket d'interface sort du découpage comme les autres — sans label ni mention d'un cook — au calibrage du jugement", async (t) => {
     const c = brigade(t, { decoupage: "decoupe-interface", issues: [issue(30, ["epic", "prio:1"])] });
     epique(c);
     await c.decoupee(30);
@@ -138,19 +138,18 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     // La vue : désignée par sa zone, sans que le jugement l'ait dit. Le
     // libellé : désigné par le jugement. Le runtime et la doc : non.
     assert.deepEqual(c.labels(501), ["model:sonnet", "effort:medium", "prio:1", "fire"]);
-    assert.deepEqual(c.labels(502), ["model:opus", "effort:high", "cook:design", "prio:1", "fire"]);
-    assert.deepEqual(c.labels(503), ["model:sonnet", "effort:low", "cook:design", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(502), ["model:opus", "effort:high", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(503), ["model:sonnet", "effort:low", "prio:1", "fire"]);
     assert.deepEqual(c.labels(504), ["model:haiku", "effort:low", "prio:1", "fire"]);
-    assert.match(c.gh.corpsDe(502), /## Design cook\n\nInterface ticket: .* read `agents\/cook-design\.md` and follow it/);
-    assert.match(c.gh.corpsDe(502), /Calibrated `opus` \/ `high`, for the design cook \(`cook:design`\) — Un écran\./);
-    for (const numero of [501, 504]) assert.doesNotMatch(c.gh.corpsDe(numero), /design cook/i);
+    assert.match(c.gh.corpsDe(502), /Calibrated `opus` \/ `high` — Un écran\./);
+    for (const numero of [501, 502, 503, 504]) assert.doesNotMatch(c.gh.corpsDe(numero), /design cook|cook:design/i);
     const dit = c.dits(30).find((texte) => /epic split into/.test(texte)) ?? "";
     assert.match(dit, /\| #501 \| Le rail expose le compte \| .* \| `sonnet` \/ `medium` \|$/m);
-    assert.match(dit, /\| #502 \| La carte montre le compte \| .* \| `opus` \/ `high` · design cook \|$/m);
+    assert.match(dit, /\| #502 \| La carte montre le compte \| .* \| `opus` \/ `high` \|$/m);
     assert.match(dit, /\| #504 \| La doc dit le compte \| .* \| `haiku` \/ `low` \|$/m);
-    // L'intention au journal porte la désignation.
+    // L'intention au journal ne porte aucun cook.
     const prevus = charge(c.tous("manager.split")[0])?.tickets as { cook?: string }[];
-    assert.deepEqual(prevus.map((prevu) => prevu.cook ?? null), [null, "design", "design", null]);
+    assert.deepEqual(prevus.map((prevu) => prevu.cook ?? null), [null, null, null, null]);
   });
 
   test("deux tickets du découpage sur le même fichier sont un seul ticket : le code les joint, la fiche porte les deux zones, l'épique le dit (#3130)", async (t) => {

@@ -7,14 +7,13 @@ import { adresseDeCapture, capturesLivrees, capturesManquantes, capturesVues, di
 const DEPOT = "acme/brigade";
 const SHA = "0123abcd";
 
-test("un ticket est d'interface quand sa zone touche la vue de l'app, ou que le manager l'a désigné pour le cook design", () => {
-  assert.equal(estDInterface({ zone: ["app/src/vue"], labels: null }), true);
-  assert.equal(estDInterface({ zone: ["app/src/vue/vue.js"], labels: [] }), true);
+test("un ticket est d'interface quand sa zone touche la vue de l'app", () => {
+  assert.equal(estDInterface({ zone: ["app/src/vue"] }), true);
+  assert.equal(estDInterface({ zone: ["app/src/vue/vue.js"] }), true);
   // Un dossier qui contient la vue la touche.
-  assert.equal(estDInterface({ zone: ["runtime/src", "app/src"], labels: [] }), true);
-  assert.equal(estDInterface({ zone: [], labels: ["fire", "cook:design"] }), true);
+  assert.equal(estDInterface({ zone: ["runtime/src", "app/src"] }), true);
   for (const zone of [[], ["runtime/src"], ["docs"], ["scripts/capture-ecran"], ["app/src/faits.ts"]]) {
-    assert.equal(estDInterface({ zone, labels: ["fire", "model:opus", "effort:high"] }), false, String(zone));
+    assert.equal(estDInterface({ zone }), false, String(zone));
   }
 });
 

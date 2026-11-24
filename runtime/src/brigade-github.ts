@@ -28,7 +28,7 @@ import { attendusDuBlocage, attendusDuCorps, corpsDeLAttente, direAttenteDeTicke
 import { consigneDeLAttenteLongue, lireRevue, origineDeLAttente, suiviDesAttentesLongues, type RevoirLAttente } from "./attente-longue/attente-longue.ts";
 import { leveesDesCommentaires } from "./boucle-attente/levee.ts";
 import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
-import { calibrage as calibrageDesLabels, complet, LABEL_COOK_DESIGN, type Calibrage } from "./calibrage.ts";
+import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
@@ -959,9 +959,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         await github.labelliser(numero, [`model:${reprise.calibrage.model}`, `effort:${reprise.calibrage.effort}`]);
       }
       if (reprise.choix === "decouper") {
-        // Nés sur le rail avec le calibrage, la priorité et le cook du ticket ;
+        // Nés sur le rail avec le calibrage, la priorité du ticket ;
         // lui devient leur épique : il ne se prend plus, et se ferme avec eux.
-        const labels = [LABEL, ...ticket.labels.filter((l) => /^(model|effort|prio):/.test(l) || l === LABEL_COOK_DESIGN)];
+        const labels = [LABEL, ...ticket.labels.filter((l) => /^(model|effort|prio):/.test(l))];
         const lignes = [];
         for (const sous of reprise.tickets) {
           const ne = await github.creerIssue({ titre: sous.titre, corps: corpsDuSousTicket(numero, sous, calibrage), labels });

@@ -22,7 +22,6 @@ import { join } from "node:path";
 import type { LeconRecue } from "../apprentissage/injection.ts";
 import type { Base } from "../base.ts";
 import { recouvrement } from "../zones.ts";
-import { profilDuCookDesign } from "./design.ts";
 import { fichierDuProfil, parseDefinition, PROFILS_DIR, type DefinitionDeProfil } from "./definition.ts";
 import type { CarnetDonne } from "./evenements.ts";
 
@@ -49,10 +48,7 @@ export function lireLesProfils(repoDir: string, avertir: (texte: string) => void
             return [];
           }
         });
-  // Le cook design est un profil comme les autres, bâti de son fichier ; une
-  // définition du même nom, écrite à la main dans le dossier, l'emporte.
-  const design = profilDuCookDesign(repoDir);
-  return design === null || definis.some((profil) => profil.name === design.name) ? definis : [...definis, design];
+  return definis;
 }
 
 // Les profils dont un cook tourne : lancé sous lui, et sans fin au journal.

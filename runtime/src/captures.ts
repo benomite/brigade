@@ -1,5 +1,5 @@
 // Les captures d'une livraison d'interface : l'écran avant et après le
-// changement, que le cook design prend avec l'outil de `scripts/capture-ecran/`
+// changement, que le cook prend avec l'outil de `scripts/capture-ecran/`
 // et commite sur sa branche. La station les lit dans les fichiers que la
 // livraison change, les montre dans le corps de la PR et sur le ticket, et les
 // range au journal (`cook.reported`) : la carte du ticket, dans l'app, les lit
@@ -23,7 +23,7 @@
 //   autre fichier y est ignoré.
 //
 // Sans E/S : la station donne les fichiers changés, le dépôt et le commit.
-import { LABEL_COOK_DESIGN, toucheLaVue } from "./calibrage.ts";
+import { toucheLaVue } from "./calibrage.ts";
 import type { Evenement } from "./evenements.ts";
 import { possede } from "./zones.ts";
 
@@ -44,9 +44,9 @@ export type CapturesDEcran = { screen: string; before: string | null; after: str
 export type Captures = { sha: string; screens: CapturesDEcran[] };
 
 // Un ticket d'interface touche la vue de l'app : sa zone, à la prise, la
-// touche, ou le manager l'a désigné pour le cook design (`cook:design`).
-export function estDInterface(ticket: { zone: string[]; labels: readonly string[] | null }): boolean {
-  return toucheLaVue(ticket.zone) || (ticket.labels?.includes(LABEL_COOK_DESIGN) ?? false);
+// touche.
+export function estDInterface(ticket: { zone: string[] }): boolean {
+  return toucheLaVue(ticket.zone);
 }
 
 // La zone que le ticket portait la dernière fois qu'il a été pris, lue dans son

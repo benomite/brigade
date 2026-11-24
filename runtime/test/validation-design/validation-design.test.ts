@@ -807,13 +807,12 @@ test("a delivery that is not design is merged as before, whatever the setting", 
   }
 });
 
-test("a design delivery is one that changes what the user sees: the app's view, the site, a mockup, captures, or a ticket for the design cook", () => {
-  assert.ok(estUneLivraisonDesign(1, ["app/src/vue/rail.js"], []));
-  assert.ok(estUneLivraisonDesign(1, ["site/index.html"], []));
-  assert.ok(estUneLivraisonDesign(1, ["docs/maquettes/app/rail.html"], []));
-  assert.ok(estUneLivraisonDesign(1, ["docs/captures/1/rail-apres.png"], []));
-  assert.ok(estUneLivraisonDesign(1, ["runtime/src/x.ts"], ["cook:design"]));
-  assert.ok(!estUneLivraisonDesign(1, ["runtime/src/x.ts", "app/src/tableau/todo.ts", "docs/captures/2/rail-apres.png"], ["fire"]));
+test("a design delivery is one that changes what the user sees: the app's view, the site, a mockup, or captures", () => {
+  assert.ok(estUneLivraisonDesign(1, ["app/src/vue/rail.js"]));
+  assert.ok(estUneLivraisonDesign(1, ["site/index.html"]));
+  assert.ok(estUneLivraisonDesign(1, ["docs/maquettes/app/rail.html"]));
+  assert.ok(estUneLivraisonDesign(1, ["docs/captures/1/rail-apres.png"]));
+  assert.ok(!estUneLivraisonDesign(1, ["runtime/src/x.ts", "app/src/tableau/todo.ts", "docs/captures/2/rail-apres.png"]));
 });
 
 test("the setting reads on for benomite/brigade, off for a project that does not set it, and only `true` or `false` is accepted", () => {

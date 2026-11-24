@@ -22,7 +22,6 @@ Tu es le manager de la brigade sur le dépôt benomite/brigade. Le chef a posé 
 - `zone` : les chemins du dépôt que le ticket possède — des fichiers ou des dossiers, relatifs à sa racine, pris dans le plan ci-dessous ou à créer. Un dossier possède tout ce qu'il contient ; jamais de motif (`*`).
 - **Un fichier, un propriétaire** : deux tickets n'ont aucun chemin en commun — ni le même, ni un dossier et un fichier qu'il contient. Découpe pour que les zones soient disjointes. Ce qui doit vraiment toucher au même fichier est un seul ticket : sinon c'est le code qui joindra ces tickets en un à ta place, et le dira au chef.
 - `capacites` : ce que la machine doit savoir faire pour que le ticket soit **possible** — un navigateur, un Chrome connecté. Vide le plus souvent : un ticket n'en demande une que s'il est infaisable sans elle. Ce projet ne déclare aucune station, donc aucune capacité. Une capacité qu'aucune station ne fournit se nomme quand même, si le ticket est infaisable sans elle : il ne partira pas, et le chef saura quoi déclarer. Ce n'est ni un domaine ni une spécialité (sécu, rédaction, BDD) — ceux-là ne se demandent pas —, ni une permission : demander une capacité n'autorise rien.
-- `cook` : `design` pour un **ticket d'interface** — il change ce que l'utilisateur voit dans l'app : un écran, un libellé, un bouton, un état affiché ; la vue de l'app est sous `app/src/vue/`. Il sera cuisiné par le cook design (`agents/cook-design.md`), qui voit les écrans qu'il change. Tout autre ticket — runtime, doc, scripts, logique sans effet à l'écran — est `general`. Une zone qui touche `app/src/vue/` est au cook design de toute façon. Le cook ne change rien au calibrage : modèle et effort se choisissent comme pour tout ticket.
 
 ## Le calibrage de chaque ticket
 
@@ -52,7 +51,7 @@ Si l'épique liste déjà ses tickets — des issues nommées par leur numéro, 
 Un seul objet JSON, et rien après lui. Un découpage :
 
 ```json
-{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "cook": "general", "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}
+{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}
 ```
 
 une question :

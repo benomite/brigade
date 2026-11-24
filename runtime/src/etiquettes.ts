@@ -35,7 +35,6 @@ export const ETIQUETTES: readonly Etiquette[] = [
   { name: "waiting", color: "C5DEF5", description: "Waits for another ticket to be served" },
   { name: "chef-todo", color: "B60205", description: "A card in the chef's to-do list waits on this ticket" },
   { name: "product-question", color: "FBCA04", description: "A question for the chef about the product" },
-  { name: "cook:design", color: "D93F0B", description: "Cooked by the design cook" },
   { name: "idea", color: "C2E0C6", description: "An idea in reserve, not a request: the manager never reads it" },
   { name: "horizon:1", color: "1D76DB", description: "Direction of the product: autonomy now" },
   { name: "horizon:2", color: "1D76DB", description: "Direction of the product: humans as stations" },

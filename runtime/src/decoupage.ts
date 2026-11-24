@@ -12,7 +12,6 @@ import { DE_CONFIANCE } from "./alimenter.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { avecTaches, partDe, sortirDuRail } from "./besoin/besoin.ts";
-import { LABEL_COOK_DESIGN } from "./calibrage.ts";
 import { brancheDuTicket } from "./brigade-github.ts";
 import { demanderAvecRelance } from "./manager/decoupage-illisible.ts";
 import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, joindre, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, type Decoupe } from "./decouper.ts";
@@ -100,7 +99,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
     const communs = communsDuRail(base);
     // Le plan lu est celui dont le découpage juge ce qui est d'interface ; un
     // plan illisible est vide, donc inconnu.
-    const lire = (message: string | null) => lireDecoupage(message, mission.fichiers.length === 0 ? null : mission.fichiers);
+    const lire = (message: string | null) => lireDecoupage(message);
     const reponse = await atelier.demander(sujet, consigneDeDecoupage(mission), lire);
     if (!reponse || "illisible" in reponse || reponse.valeur.quoi !== "tickets") return reponse;
     const defauts = defautsDeDecoupage(reponse.valeur.tickets, communs);
@@ -140,7 +139,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           "|---|---|---|---|---|",
           ...connu.tickets.map(
             (prevu, i) =>
-              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\`${prevu.cook === "design" ? " · design cook" : ""} |`,
+              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\` |`,
           ),
           ...(joints.length === 0
             ? []
@@ -246,7 +245,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
         } else noter(epic.number, { type: "manager.split-creating", payload: { index: rang } });
         const retrouve = numero !== undefined;
         if (numero === undefined) {
-          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...(prevu.cook === "design" ? [LABEL_COOK_DESIGN] : []), ...priorites(epic.labels)];
+          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...priorites(epic.labels)];
           numero = await github.creerIssue({ titre: prevu.title, corps: corpsDuTicket(epic.number, rang, prevu), labels });
           neuf = true;
           if (arrete()) return false;
