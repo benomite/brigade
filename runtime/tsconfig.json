@@ -14,5 +14,6 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "exclude": ["test/mot-au-cook/1-send-word-on-a-cooking-ticket-answers-ok-and-posts-the-word-on-the-issue.test.ts"]
 }

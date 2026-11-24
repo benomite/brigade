@@ -259,6 +259,15 @@ base, the stale-branch pruning).
   (`<!-- brigade:disk-full -->`): the figures and the biggest consumers on the volume, if `du` reads them. It is
   not raised while that reclaim could still be enough, nor twice for the same state, and it is lifted once the disk
   has room (#4091).
+- **A word to a cooking cook** (#4047, `runtime/src/mot-au-cook/`). `send-word <owner>/<repo>#<ticket> <word…>`
+  answers `{"ok":true}` or `{"ok":false,"reason":"…"}` on one line. It reads the issue: a ticket that is not `taken`
+  (in pass, closed, unknown, queued, waiting) is refused with the reason, and nothing is posted or queued. A `taken`
+  ticket gets the word as a comment (`<!-- brigade:mot-au-cook -->`), which stays for the pass and later cooks, and in
+  its queue under the state directory (`mots-au-cook/<ticket>.jsonl`). The station never cuts the cook's turn: when
+  the cook's `claude` ends without a stop, the station takes the queue, and if a word is there it resumes the cook's
+  session (`--resume`) for one more turn whose input carries it. A turn that did not finish, or a session that cannot
+  be read, leaves the word for the input of the ticket's next cook launch; a resumed turn that does not finish leaves
+  the delivery as the turn before it left it. A Codex cook gets no word.
 - **A cook that adds nothing.** A cook that resumes a ticket's branch and ends without moving its head delivered
   nothing: it counts as a cook without delivery (`ECHECS_MAX`), so a ticket cannot loop between the cook and a pass
   that already sent that head back (#2372) — unless its PR is open and conflicting with the base or red (#2454): the
