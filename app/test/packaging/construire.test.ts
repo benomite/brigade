@@ -98,6 +98,27 @@ function fauxElectron(racine: string): string {
   return electron;
 }
 
+// Les auxiliaires d'Electron 44 sous Contents/Frameworks, aux plists tels que les vrais bundles les livrent :
+// CFBundleName seul (name-only, sans CFBundleDisplayName), CFBundleDisplayName seul (display-name-only, sans CFBundleName),
+// les deux avec une valeur différente (mismatch), et aucune des deux clés (neither, no name key).
+const AUXILIAIRES_ELECTRON: Record<string, string[]> = {
+  "Electron Helper": [`<key>CFBundleName</key>\n\t<string>Electron Helper</string>`],
+  "Electron Helper (GPU)": [`<key>CFBundleDisplayName</key>\n\t<string>Electron Helper (GPU)</string>`],
+  "Electron Helper (Renderer)": [`<key>CFBundleName</key>\n\t<string>Electron Helper</string>`, `<key>CFBundleDisplayName</key>\n\t<string>Electron Helper (Renderer)</string>`],
+  "Electron Helper (Plugin)": [],
+  "Electron Helper (Alerts)": [`<key>CFBundleName</key>\n\t<string>Electron Helper (Alerts)</string>`],
+};
+
+function poserAuxiliaires(electron: string): void {
+  for (const [nom, noms] of Object.entries(AUXILIAIRES_ELECTRON)) {
+    const aide = join(electron, "Contents", "Frameworks", `${nom}.app`, "Contents");
+    mkdirSync(join(aide, "MacOS"), { recursive: true });
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n${[`<key>CFBundleExecutable</key>\n\t<string>${nom}</string>`, ...noms, `<key>CFBundleIdentifier</key>\n\t<string>com.github.Electron.helper</string>`].map((l) => `\t${l}\n`).join("")}</dict>\n</plist>\n`;
+    writeFileSync(join(aide, "Info.plist"), plist);
+    writeFileSync(join(aide, "MacOS", nom), MACH_O_ARM64);
+  }
+}
+
 function fauxNode(racine: string): string {
   const node = join(racine, "node");
   writeFileSync(node, MACH_O_ARM64);
@@ -331,6 +352,24 @@ test("un auxiliaire dont aucun nom n'est de la forme attendue : le nom vient de 
   const sansNoms = defautsAvecAide(t, plistAide(chaine("CFBundleExecutable", "Electron Helper")), "Electron Helper.app");
   assert.deepEqual(sansNoms.defauts, []);
   assert.equal(valeurDe(sansNoms.reecrit, "CFBundleName"), "Brigade Helper");
+});
+
+test("assembler sur les cinq auxiliaires d'Electron : ni dossier ni exécutable renommé, et verifier-plist ne trouve rien", (t) => {
+  const racine = dossier(t);
+  const electron = fauxElectron(racine);
+  poserAuxiliaires(electron);
+  const paquet = assembler({ version: "1.0.0", electron, node: fauxNode(racine) }, join(racine, "volume"));
+  const frameworks = join(paquet, "Contents", "Frameworks");
+  const attendus = Object.keys(AUXILIAIRES_ELECTRON).map((n) => `${n}.app`);
+  assert.deepEqual(readdirSync(frameworks).filter((n) => n.endsWith(".app")).sort(), attendus.sort());
+  for (const nom of Object.keys(AUXILIAIRES_ELECTRON)) {
+    assert.deepEqual(readdirSync(join(frameworks, `${nom}.app`, "Contents", "MacOS")), [nom]);
+    const plist = readFileSync(join(frameworks, `${nom}.app`, "Contents", "Info.plist"), "utf8");
+    assert.equal(valeurDe(plist, "CFBundleExecutable"), nom);
+    assert.match(valeurDe(plist, "CFBundleName") ?? "", /^Brigade Helper/);
+    assert.match(valeurDe(plist, "CFBundleDisplayName") ?? "", /^Brigade Helper/);
+  }
+  assert.deepEqual(defautsDeNom(paquet), []);
 });
 
 test("ce qui n'est pas un plist est refusé avec un message clair", () => {
