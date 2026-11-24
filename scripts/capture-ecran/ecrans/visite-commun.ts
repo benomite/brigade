@@ -2,7 +2,8 @@
 // autres captures figent pour « parade », rangée par les modules de l'app comme le process principal la range
 // (app/src/visite.ts) et rendue par le pont à `lireLaCuisineVisitee`. Les écrans `visite*` en sont tirés.
 import { mettreAPart } from "../../../app/src/attend.ts";
-import { tenirFaits, type Lecture, type Tableau } from "../../../app/src/faits.ts";
+import type { Lecture } from "../../../app/src/box.ts";
+import { tenirFaits, type Tableau } from "../../../app/src/faits.ts";
 import type { Ecran, Etape } from "./commun.ts";
 import { MAINTENANT } from "./commun.ts";
 import { RENDUS } from "./cuisine-figee.ts";
