@@ -55,7 +55,7 @@ test("le crochet lancé au moment `vue` écrit la vue du projet, et rien au mome
     mkdirSync(join(tmp, "brigade-second-vue"));
     writeFileSync(join(tmp, "brigade-second-vue", "espace.json"), JSON.stringify(VUE));
     const lance = (moment: string) =>
-      spawnSync(process.execPath, ["src/second/role-apres-init.ts", moment, "espace"], { input: JSON.stringify({ prompt: "pourquoi on est bloqués ?" }), env: { ...process.env, TMPDIR: tmp }, encoding: "utf8" }).stdout;
+      spawnSync(process.execPath, ["src/second/role-apres-init.ts", moment, "espace"], { input: JSON.stringify({ prompt: "pourquoi on est bloqués ?" }), env: { ...process.env, TMPDIR: tmp, TEMP: tmp, TMP: tmp }, encoding: "utf8" }).stdout;
     assert.match(lance("vue"), /FAULT #221/);
     assert.equal(lance("debut"), "");
   } finally {

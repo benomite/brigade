@@ -331,6 +331,7 @@ export type Pont = {
   lireLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").LectureDesExplications>;
   marquerUneExplication?(projet: string, mot: import("./explications/explications-box.ts").MotExplique): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   remontrerLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
+  envoyerUnMot?(projet: string, entree: { ticket: number; text: string }): Promise<import("./mot-au-cook/source.js").Reponse>; // le mot au cook (ticket 4048)
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : ce que sa cuisine a fait depuis que le chef a regardé, lu
   // là où elle tourne ; montré, son marqueur avance jusqu'à `until` ; la PR d'un ticket servi s'ouvre (recap/recap-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucun récapitulatif.
@@ -377,6 +378,9 @@ export type Pont = {
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
   // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.
   seConnecterAGitHub?(): Promise<DebutDeConnexion>;
+  // Le login de Claude Code sur cet ordinateur (ticket 4057, pannes/login.ts), quand l'ouverture d'un projet le demande :
+  // ce qu'il a fait, ou pourquoi rien. Sa fin arrive par `surLoginClaude`.
+  seConnecterAClaude?(): Promise<RenduDePanne>;
   // Les outils que l'app ne livre pas (ticket 4059, outils-requis.ts) : ceux de `outils` — les trois, sans liste — qui
   // manquent à cet ordinateur, chacun avec le chemin qui l'installe ; puis ce geste joué, ou pourquoi il n'a pas abouti.
   outilsManquants?(outils?: ("gh" | "git" | "claude")[]): Promise<import("../outils-requis.ts").OutilManquant[]>;
@@ -514,6 +518,8 @@ export type Pont = {
   surOuverture?(recevoir: (depot: string, etape: Progres) => void): void;
   // La connexion à GitHub finie : connecté, ou pourquoi pas.
   surConnexionGitHub?(recevoir: (fin: FinDeConnexion) => void): void;
+  // Le login de Claude Code fini, réussi ou non : l'ouverture qu'il retenait se retente.
+  surLoginClaude?(recevoir: () => void): void;
 };
 
 declare global {

@@ -141,10 +141,11 @@ import { choixDuDeplacement } from "./stations-tab/choix.js";
 import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET, QUI_D_AUTRE } from "./stations-tab/stations-tab.js";
 import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
-import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
+import { cookDuTicket, duree as dureeDuCook, geste as gesteDuCook, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserEssais } from "./cadence.js";
 import { poserRangDEssai } from "./carte/essai.js";
 import { poserGardeRepetee } from "./carte-ticket/carte-ticket.js";
+import { poserLeMotAuCook } from "./mot-au-cook/mot-au-cook.js";
 import { poserTestsDeFiche } from "./fiche-tests/fiche-tests.js";
 import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { poserLEssai } from "./essai/essai.js";
@@ -2976,9 +2977,15 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   // du bon ne le redit pas. Répondue — envoyée, ou jouée —, elle ne demande plus de répondre : la phrase se tait aussi.
   const vuDeTodo = attendu && carte.todo !== undefined ? vuDeLaCarte(carte.todo, etatDeLaCarte(projet, ticket, carte.todo)).vu : undefined;
   const todoRepondue = vuDeTodo === "attente" || vuDeTodo === "jouee";
-  if (carte.ligne !== undefined && carte.refus === undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
+  // Le rail d'un projet sur GitHub seul ne donne pas d'activité à la carte (ticket 4076) : tant que son cook travaille, la carte dit
+  // ce que sa fiche dit (« writing app/src/bon.ts · 2 min ago »), jamais « no activity yet ».
+  const publiees = activitesPubliees.get(projet.nom);
+  const cookAuTravail = carte.repere === true ? cookDuTicket(publiees, ticket) : undefined;
+  const enCours = cookAuTravail === undefined || cookAuTravail.finiLe !== null || cookAuTravail.maintenant === null || publiees === undefined || "sans" in publiees ? undefined : cookAuTravail.maintenant;
+  const ligneDeCarte = enCours === undefined || publiees === undefined || "sans" in publiees ? carte.ligne : `${gesteDuCook(enCours)} · ${dureeDuCook(Date.parse(publiees.lu) - Date.parse(enCours.depuis))} ago`;
+  if (ligneDeCarte !== undefined && carte.refus === undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
     const liens = carte.miseDeCote?.liens ?? carte.liens;
-    const phrase = liens === undefined ? bloc("p", carte.ligne) : ligneAvecSesNumeros(projet, carte.ligne, liens);
+    const phrase = liens === undefined ? bloc("p", ligneDeCarte) : ligneAvecSesNumeros(projet, ligneDeCarte, liens);
     phrase.className = "ligne-carte";
     bon.append(phrase);
   }
@@ -2999,6 +3006,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
     signal.className = "signal";
     bon.append(signal);
   }
+  // En cuisine : un mot au cook, d'une ligne, sans ouvrir sa session (ticket 4048, mot-au-cook/).
+  bon.append(...poserLeMotAuCook(document, projet.nom, carte));
   // Une carte de TODO entrée par la porte du runtime : sa question, ses captures, un bouton par choix et
   // un champ pour répondre dans tes mots — tranchée sur la carte même, sans ouvrir sa fiche.
   if (attendu && carte.todo !== undefined) {
@@ -5261,7 +5270,7 @@ function poserLeRail(projet) {
       // Pass et Waiting — WAITING — : l'explication de leur mot, sous leur titre (ticket 3308).
       const motDeLaColonne = MOT_DE_LA_COLONNE[nom];
       if (motDeLaColonne !== undefined && muet === undefined) colonne.append(...explicationDuRail(projet.nom, motDeLaColonne));
-      if (cartes.length > 0) colonne.append(bons(cartes, etatDuTon(ton), tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass")));
+      if (cartes.length > 0) colonne.append(bons(cartes, etatDuTon(ton), nom === "Taken" || nom === "Pass"));
       else colonne.append(bloc("p", nom === SUR_LE_RAIL && muet === undefined && tenu.tableau.rail.aucunTicket === true ? railVide(projet) : vide));
       return colonne;
     }),
@@ -8203,6 +8212,7 @@ function siClaudeManque(rendu) {
 const gestesDuPremier = {
   ouvrir: (station, projet, depot, base) => void ouvrirDUneStation(station, projet, depot, base),
   seConnecter: () => void seConnecterAGitHub(),
+  ...(brigade.seConnecterAClaude === undefined ? {} : { seConnecterAClaude: () => void seConnecterAClaude() }),
   changerDeCompte: () => void seConnecterAGitHub(),
   relireLeCompte: () => void compteDuParcours.lire(),
   relire: () => void relireLePremier(),
@@ -8706,7 +8716,8 @@ async function ouvrirDUneStation(station, projet, depot, base) {
     const detail = erreur instanceof Error ? erreur.message : String(erreur);
     issue = { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app failed while opening it.`, detail };
   }
-  if (issue.state === "failed") {
+  // Ratée, ou retenue tant que Claude Code n'est pas connecté sur cet ordinateur (ticket 4057) : rien n'a démarré.
+  if (issue.state !== "open") {
     premier.ouverture = { station, projet, depot, ...(base === undefined ? {} : { base }), echec: issue };
     return poserLePremier();
   }
@@ -8717,6 +8728,22 @@ async function ouvrirDUneStation(station, projet, depot, base) {
   const ouvert = projetDe(issue.project);
   if (ouvert !== undefined) return void ouvrir(ouvert);
   premierAOuvrir = issue.project;
+  poserLePremier();
+}
+
+// Le login de Claude Code qu'une ouverture retenue demande (ticket 4057) : celui de la panne « Max connection lost ». Ce qu'il
+// rend se dit sous le projet ; sa fin arrive par `surLoginClaude`, et l'ouverture repart.
+async function seConnecterAClaude() {
+  /** @type {import("../pannes/gestes.ts").RenduDePanne} */
+  let rendu;
+  try {
+    rendu = (await brigade.seConnecterAClaude?.()) ?? { refus: "the login was not launched: the app gave no answer" };
+  } catch (erreur) {
+    rendu = { refus: `the login was not launched: the app failed while launching it (${erreur instanceof Error ? erreur.message : String(erreur)})` };
+  }
+  siClaudeManque(rendu);
+  if (premier.ouverture?.echec?.state !== "login") return;
+  premier.ouverture.login = rendu;
   poserLePremier();
 }
 
@@ -8760,6 +8787,11 @@ brigade.surOuverture?.((depot, etape) => {
   if (ouverture === undefined || ouverture.depot !== depot || ouverture.echec !== undefined) return;
   ouverture.etape = etape;
   poserLePremier();
+});
+// Le login de Claude Code fini : l'ouverture qu'il retenait repart — connecté, la cuisine démarre ; sinon, « log in » revient.
+brigade.surLoginClaude?.(() => {
+  const retenue = premier.ouverture?.echec?.state === "login" ? premier.ouverture : undefined;
+  if (retenue !== undefined) void ouvrirDUneStation(retenue.station, retenue.projet, retenue.depot, retenue.base);
 });
 // Sur le téléphone, la connexion à GitHub est celle de son premier écran (connexion-github.js) : elle n'est pas d'ici.
 brigade.surConnexionGitHub?.((fin) => {
@@ -8907,6 +8939,8 @@ function choisirLeDepot(choisi) {
   // dit que le compte peut écrire dans son dépôt. Une ouverture ratée n'a rien à guider.
   aGuider.set(lu.nom, lu.depot);
   void ouvrirDUneStation("", lu.nom, lu.depot, choisi.base).then(() => {
+    // Retenue tant que Claude Code n'est pas connecté (ticket 4057) : elle repart à la fin du login, son projet reste à guider.
+    if (premier.ouverture?.echec?.state === "login") return;
     if (premier.ouverture?.echec !== undefined && premier.ouverture.projet === lu.nom) aGuider.delete(lu.nom);
     // Le projet était déjà lu — dans le fichier avant d'être choisi : sa lecture tenue décide sans attendre la suivante.
     else suivreLeParcours(lu.nom);
@@ -9067,6 +9101,8 @@ brigade.surEtat((terminal) => {
 brigade.surActivites((publiees) => {
   const avant = activitesPubliees.get(publiees.projet);
   activitesPubliees.set(publiees.projet, publiees);
+  // Les cartes de Taken et de Pass disent ce que fait leur cook quand le rail ne le dit pas (ticket 4076) : elles suivent sa lecture.
+  if (courant?.nom === publiees.projet && JSON.stringify(avant) !== JSON.stringify(publiees)) dessiner();
   if (ouverte === undefined || ouverte.projet.nom !== publiees.projet) return;
   const { ticket } = ouverte.carte;
   /** @param {import("./activite-du-cook.js").Publiees | undefined} lues */

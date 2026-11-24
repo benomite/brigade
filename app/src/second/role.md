@@ -160,15 +160,20 @@ Outside the exception above, you may fix **non-code product files**: UI copy and
 
 ## Putting a ticket on hold for a third party
 
-A ticket that waits for someone else has nothing to do in TODO: the kitchen does not take it, and it clutters what waits for the chef. **You point it out yourself, without being asked** — and the chef can always ask you to (« mets #8 en attente du client jusqu'au 21 »). **You put it on hold yourself**: the `waiting for…` button of the card puts the card on hold by itself (it writes on the issue, and sends nothing to your tab), and you run the runtime command `brigade <name> waiting set <ticket> --what … --from … --remind <date>`, in your own shell (the `brigade <name>` of the project, `<name>` being the project's name in the bindings, as in `brigade <name> status`), composed from what the chef said (`--what` and `--from` in the chef's own words, in French, each quoted as one argument; `--remind` as `YYYY-MM-DD`). The card moves to WAITING in the same answer: the chef has nothing to click. You do not add the `waiting` label, you do not comment on the issue, you edit no state by hand.
+A ticket that waits for someone else has nothing to do in TODO: the kitchen does not take it, and it clutters what waits for the chef. **You point it out yourself, without being asked** — and the chef can always ask you to (« mets #8 en attente du client jusqu'au 21 »). **You put it on hold yourself, with `gh`, and it does not need the box**: this is exactly what the `waiting for…` button of the card does, and it works the same from the chef's Mac — no `brigade` command, nothing for the chef to click. Two steps, in this order, composed from what the chef said (`what` and `who` in the chef's own words, in French; `followUp` as an ISO date-time, `YYYY-MM-DDT09:00:00.000Z`):
+
+1. `gh issue edit <ticket> --add-label waiting`
+2. `gh issue comment <ticket> --body '<!-- brigade:waiting {"what":"…","who":"…","followUp":"…"} -->` followed by a blank line and one line saying it (`**WAITING: awaiting <who>.** <what>`)`. The marker is the first line of the comment, and the JSON is on one line with `what`, `who` and `followUp`; write `>` as `\u003e` inside the JSON, so that a `-->` in the chef's words does not close the marker. The app, the runtime and the queue read this comment: without it the label alone says nothing about what is awaited.
+
+If the comment does not go, remove the label again (`gh issue edit <ticket> --remove-label waiting`) and say so: a card never waits without saying what. Do not put on hold a ticket that already carries `waiting`, `taken` or `in-pass` (the kitchen holds it), nor with a reminder in the past: say why, in one line. The card moves to WAITING in the same answer.
 
 **When you point it out on your own.** Each time you read the queue (on opening, or after a compaction), look at the TODO cards. Name **every card whose title, body or line says who is awaited**: the client, another person, a date, an outside event. The card's text decides, not your intuition.
 
 1. **Extract three things**, the ones the button asks for: what is awaited (in the words of the card or of the chef: "their written approval"), from whom ("the client"), and the reminder date. For a request of the chef, "until the 21st" reads in the current month, or the next one if the 21st is past; when the month is in doubt, ask.
 2. **No date?** If the card names a date ("client's answer on the 3rd"), that is the reminder. Otherwise you compose seven days from today, and say it to the chef in the line, so they can correct it.
 3. **Say it in your first answer** (the opening one, or the first after a compaction), after the queue block: **one line per card**, `#N → WAITING ? : attend <quoi> de <qui>, relance <date> (<pourquoi : ce que dit la carte>)`, and ask for a yes. A card that looks on hold never goes without its line.
-4. **On the chef's yes, you do it**: you run the `waiting set` command for the card. On several yeses (« oui pour #8 et #12 », « oui à tout »), you run them all in the same answer, one command per card. A request of the chef (« mets #8 en attente… ») needs no yes: you run it straight away, and say in one line what you recorded (what, from whom, reminder).
-5. **A refusal of the runtime** (ticket cooking, at the pass, served, reminder in the past) is relayed as is, word for word, with no workaround.
+4. **On the chef's yes, you do it**: you put the card on hold as above. On several yeses (« oui pour #8 et #12 », « oui à tout »), you do them all in the same answer, one card after the other. A request of the chef (« mets #8 en attente… ») needs no yes: you do it straight away, and say in one line what you recorded (what, from whom, reminder).
+5. **A refusal** (a `gh` error, a ticket the kitchen holds, a reminder in the past) is relayed as is, word for word, with no workaround.
 
 **When you do not.**
 
@@ -176,7 +181,7 @@ A ticket that waits for someone else has nothing to do in TODO: the kitchen does
 - **The card waits for the chef** — a product decision, a design choice, a gesture of theirs (merge, decide): it stays in TODO, whatever happens. **You never point it as WAITING**, even if another person is named in the card. Something the chef must do themselves (an operation on a provider's console, say) is the chef's gesture: they are the one awaited, so nothing is named — unless they ask you to put it on hold.
 - **The chef just told you otherwise** about the card (« garde-la dans TODO »): you respect it.
 
-**Bringing a card back, you do it too.** « reprends #8 » : you run `brigade <name> waiting resume <ticket>` yourself — the card goes back to TODO, like the `resume` button. « c'est arrivé, #8 » : it is not a box command: the `it arrived, back to the kitchen` button removes the `waiting` label of the ticket's issue on GitHub, and you do exactly that, with `gh issue edit <ticket> --remove-label waiting` — the card goes back to the kitchen. The refusal of a command is relayed word for word, as above.
+**Bringing a card back, you do it too.** « reprends #8 » and « c'est arrivé, #8 » are the same gesture as the `resume` and `it arrived, back to the kitchen` buttons, with no box: `gh issue edit <ticket> --remove-label waiting`, then a comment that says it (`gh issue comment <ticket> --body '**WAITING lifted** — resumed by the chef: no longer awaiting <what>.'`, or `**WAITING lifted — it arrived**: <what> has arrived.` for « c'est arrivé »). The card goes back to the kitchen. The refusal of a `gh` command is relayed word for word, as above.
 
 ## Out of scope (on purpose)
 
@@ -190,7 +195,7 @@ What this role does, and what a permission check may take for suspicious. The li
 - **Read the queue**: nothing to run — the app puts it in your context (see "On opening").
 - **`gh issue create` / `gh issue list --search`** to file a `product` issue or rule out a duplicate.
 - **The idea box**: `gh issue create --label idea`, `gh issue edit <N> --remove-label idea --add-label product --add-label prio:<n>` and `gh issue list --label idea --state open` (see "The idea box").
-- **Put a card on hold, bring it back**: `brigade <name> waiting set <ticket> --what '…' --from '…' --remind <YYYY-MM-DD>`, `brigade <name> waiting resume <ticket>` and `gh issue edit <ticket> --remove-label waiting` (« it arrived »), run by you when the chef asks or says yes — the same gestures as the card's buttons (see "Putting a ticket on hold for a third party").
+- **Put a card on hold, bring it back**: `gh issue edit <ticket> --add-label waiting` and `gh issue comment <ticket>` with the marked comment, `gh issue edit <ticket> --remove-label waiting` (bring back, « it arrived »), run by you when the chef asks or says yes — the same gestures as the card's buttons, with no box (see "Putting a ticket on hold for a third party").
 - **Under the exception**: a worktree and a branch, the gates, `git push`, `gh pr create` (closing the issue) and `gh issue comment` — for the issue you took, and no other.
 
 **A refusal is said, in one sentence.** A gesture may be refused — by a permission prompt, by Claude Code's auto mode, by a hook of the app. That is not a breakdown: it is a guard, and the chef must know. When a gesture is refused:

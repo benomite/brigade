@@ -124,6 +124,7 @@ const pont = {
   lireLesExplications: (projet) => ipcRenderer.invoke("lireLesExplications", projet),
   marquerUneExplication: (projet, mot) => ipcRenderer.invoke("marquerUneExplication", projet, mot),
   remontrerLesExplications: (projet) => ipcRenderer.invoke("remontrerLesExplications", projet),
+  envoyerUnMot: (projet, entree) => ipcRenderer.invoke("envoyerUnMot", projet, entree), // le mot au cook (ticket 4048, mot-au-cook/)
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : lu, dit montré, et la PR d'un ticket servi ouverte (recap/recap-box.ts).
   lireLeRecap: (projet) => ipcRenderer.invoke("lireLeRecap", projet),
   marquerLeRecap: (projet, until) => ipcRenderer.invoke("marquerLeRecap", projet, until),
@@ -156,6 +157,7 @@ const pont = {
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
   stationsDuChef: () => ipcRenderer.invoke("stationsDuChef"),
   ouvrirDUneStation: (nom, depot, base) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot, base),
+  seConnecterAClaude: () => ipcRenderer.invoke("seConnecterAClaude"),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   outilsManquants: (outils) => ipcRenderer.invoke("outilsManquants", outils),
   installerOutil: (outil) => ipcRenderer.invoke("installerOutil", outil),
@@ -224,6 +226,7 @@ const pont = {
   surAccueil: (recevoir) => void ipcRenderer.on("accueil", (_, vu) => recevoir(vu)),
   surOuverture: (recevoir) => void ipcRenderer.on("ouverture", (_, depot, etape) => recevoir(depot, etape)),
   surConnexionGitHub: (recevoir) => void ipcRenderer.on("connexionGitHub", (_, fin) => recevoir(fin)),
+  surLoginClaude: (recevoir) => void ipcRenderer.on("loginClaude", () => recevoir()),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
 contextBridge.exposeInMainWorld("brigade", pont);
