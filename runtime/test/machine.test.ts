@@ -124,6 +124,4 @@ test("a saturation says its biggest consumer only when it has one (#4090)", () =
   assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10 }), "5 MB of disk free for at least 10 MB");
   assert.equal(direSaturationEn({ resource: "disk", observed: 5, limit: 10, consumer: "espace/ (3.2 GB)" }), "5 MB of disk free for at least 10 MB — biggest: espace/ (3.2 GB)");
   assert.equal(direSaturationEn({ resource: "cpu", observed: 13, limit: 12, consumer: "node (pid 42) (380% CPU)" }), "load of 13 for at most 12 — biggest: node (pid 42) (380% CPU)");
-  assert.equal(direSaturation({ resource: "disk", observed: 5, limit: 10, consumer: "espace/ (3.2 GB)" }), "5 Mo de disque libre pour 10 au moins — plus gros : espace/ (3.2 GB)");
-  assert.equal(direSaturation({ resource: "cpu", observed: 13, limit: 12, consumer: "node (pid 42) (380% CPU)" }), "charge de 13 pour 12 au plus — plus gros : node (pid 42) (380% CPU)");
 });

@@ -169,15 +169,14 @@ export function direSaturationsEn(manques: readonly Saturation[]): { ressources:
 }
 
 // Une saturation telle que le chef la lit.
-export function direSaturation({ resource, observed, limit, limitFrom, consumer }: Saturation): string {
-  const gros = consumer === undefined ? "" : ` — plus gros : ${consumer}`;
+export function direSaturation({ resource, observed, limit, limitFrom }: Saturation): string {
   switch (resource) {
     case "cpu":
-      return `charge de ${nombre(observed)} pour ${nombre(limit)} au plus${gros}`;
+      return `charge de ${nombre(observed)} pour ${nombre(limit)} au plus`;
     case "memory":
       return `${nombre(observed)} Mo de mémoire disponible pour ${nombre(limit)} au moins${origineFr(limitFrom)}`;
     case "disk":
-      return `${nombre(observed)} Mo de disque libre pour ${nombre(limit)} au moins${gros}`;
+      return `${nombre(observed)} Mo de disque libre pour ${nombre(limit)} au moins`;
   }
 }
 
