@@ -47,15 +47,15 @@ export const TITRE_DE_LA_VISITE = "Tour of a real kitchen";
 /** @param {number} rang @param {number} total */
 export const RANG = (rang, total) => `${TITRE_DE_LA_VISITE} · ${rang} of ${total}`;
 export const SUIVANTE = "next";
-export const QUITTER = "leave the visit";
+const QUITTER = "leave the visit";
 export const QUITTER_SURVOL = "Back to the welcome screen. Nothing was added or cloned.";
 export const AJOUTER_LE_SIEN = AJOUTER_LE_MIEN;
 export const REJOUER = "Replay the visit";
 export const TITRE_DE_LA_CUISINE = "Brigade's own kitchen";
-export const LECTURE_SEULE = "Read-only: you watch the kitchen cook, nothing here acts on its tickets.";
-export const SECOND_DE_LA_VISITE = "Your second opens with your own project.";
-export const CUISINE_ILLISIBLE = "Brigade's kitchen cannot be read right now.";
-export const RELIRE = "read again";
+const LECTURE_SEULE = "Read-only: you watch the kitchen cook, nothing here acts on its tickets.";
+const SECOND_DE_LA_VISITE = "Your second opens with your own project.";
+const CUISINE_ILLISIBLE = "Brigade's kitchen cannot be read right now.";
+const RELIRE = "read again";
 export const LECTURE_DU_RAIL = LECTURE_DE("the rail");
 
 export const MOT_RAIL = "The rail";

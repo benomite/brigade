@@ -18,7 +18,6 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Ouverture, StationsDuChef } from "../../src/premier-lancement.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { mettreAPart } from "../../src/attend.ts";
-import { VISITER } from "../../src/vue/accueil/choix/choix.js";
 import {
   AJOUTER_LE_SIEN,
   COOK_EN_COURS,
@@ -37,15 +36,10 @@ import {
   PASS_EN_COURS,
   PASS_EXEMPLE,
   PASS_SANS_EXEMPLE,
-  CUISINE_ILLISIBLE,
-  LECTURE_SEULE,
   poserLaCuisineVisitee,
   poserVisite,
-  QUITTER,
   RANG,
   REJOUER,
-  RELIRE,
-  SECOND_DE_LA_VISITE,
   SERVI,
   SERVI_SANS_EXEMPLE,
   SUIVANTE,
@@ -59,6 +53,13 @@ import {
 } from "../../src/vue/visite/visite.js";
 import { Faux, FauxStockage, jouerLaVue, type Jouee, repos } from "../aides/fausse-vue.ts";
 
+// Les mots de l'écran de la visite et de l'écran d'accueil, tels que le nouveau venu les lit.
+const VISITER = "visit a real kitchen";
+const QUITTER = "leave the visit";
+const RELIRE = "read again";
+const LECTURE_SEULE = "Read-only: you watch the kitchen cook, nothing here acts on its tickets.";
+const SECOND_DE_LA_VISITE = "Your second opens with your own project.";
+const CUISINE_ILLISIBLE = "Brigade's kitchen cannot be read right now.";
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
 const carte = (ticket: number) => ({ ticket, ouvrable: true, attendu: false, attend: [], fiche: {} }) as unknown as ColonneLue["cartes"][number];

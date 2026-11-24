@@ -9,7 +9,7 @@ import { AJOUTER_UN_PROJET } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 
-export const VISITER = "visit a real kitchen";
+const VISITER = "visit a real kitchen";
 export const VISITER_SURVOL = "Watch Brigade's own kitchen, benomite/brigade, cook its tickets, with a guided tour. Read-only: nothing is cloned or added.";
 export const AJOUTER_LE_MIEN = "add my project";
 export const AJOUTER_LE_MIEN_SURVOL = `Opens ${AJOUTER_UN_PROJET}, to pick one of your GitHub repositories for the kitchen to cook.`;
