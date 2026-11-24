@@ -55,11 +55,11 @@ const TROIS_SOURCES: Rail = {
   commentaires: { 6: [fiche(4)], 7: [arret(4)], 9: null },
 };
 const CARTES: Record<number, string> = {
-  5: "waits for #4 — read from the body: 'Depends on #4'",
-  6: "waits for #4 — read from the card",
-  7: "waits for #4 — read from a cook's stop",
+  5: "after #4 — waiting for its merge; waits for #4 — read from the body: 'Depends on #4'",
+  6: "after #4 — waiting for its merge; waits for #4 — read from the card",
+  7: "after #4 — waiting for its merge; waits for #4 — read from a cook's stop",
   9: "its card and its cooks' stops could not be read on GitHub",
-  12: "waits for #10 — read from the body: 'Depends on #3'; waits for #11 — read from the body: 'Depends on #3'",
+  12: "after #10, #11 — waiting for their merge; waits for #10 — read from the body: 'Depends on #3'; waits for #11 — read from the body: 'Depends on #3'",
 };
 
 test("status : chaque ticket retenu dit son attente et d'où elle est lue ; un ticket libre n'a pas de ligne", async () => {
@@ -72,13 +72,13 @@ test("status : une file dont chaque ticket est retenu, par sa fiche ou l'arrêt 
   const retenue: Rail = { issues: [issue(5, ["fire"]), issue(6, ["fire"])], commentaires: { 5: [fiche(6)], 6: [arret(5)] } };
   assert.deepEqual(await status(retenue), [
     "queue wait Every queued ticket waits for another ticket: they start once it merges. It resolves by itself.",
-    "  #5  waits for #6 — read from the card",
+    "  #5  after #6 — waiting for its merge; waits for #6 — read from the card",
     "  #6  waits for #5 — read from a cook's stop",
   ]);
   const unLibre: Rail = { issues: [issue(5, ["fire"]), issue(6, ["fire"])], commentaires: { 5: [fiche(6)] } };
   const lignes = await status(unLibre);
   assert.match(lignes[0] ?? "", /^queue wait A cook takes the ticket within minutes/);
-  assert.deepEqual(lignes.slice(1), ["  #5  waits for #6 — read from the card"]);
+  assert.deepEqual(lignes.slice(1), ["  #5  after #6 — waiting for its merge; waits for #6 — read from the card"]);
 });
 
 // Le rail du journal : #5 retenu par sa fiche sur #4, tenu par un cook, le dit avec sa source ; #6, libre, et #4, pris,

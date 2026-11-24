@@ -42,11 +42,11 @@ const appeler: AppelGitHub = async (chemin) => {
   return { status: 404, data: {} };
 };
 const CARTES: Record<number, string> = {
-  5: "waits for #4 — read from the body: 'Depends on #4.'",
-  6: "waits for #4 — read from the card",
-  7: "waits for #4 — read from a cook's stop",
+  5: "after #4 — waiting for its merge; waits for #4 — read from the body: 'Depends on #4.'",
+  6: "after #4 — waiting for its merge; waits for #4 — read from the card",
+  7: "after #4 — waiting for its merge; waits for #4 — read from a cook's stop",
   9: "its card and its cooks' stops could not be read on GitHub",
-  12: "waits for #10 — read from the body: 'Depends on #3.'; waits for #11 — read from the body: 'Depends on #3.'",
+  12: "after #10, #11 — waiting for their merge; waits for #10 — read from the body: 'Depends on #3.'; waits for #11 — read from the body: 'Depends on #3.'",
 };
 
 test("le rail de l'app : chaque carte retenue dit son attente et sa source, aucune ligne sur une carte libre, et ses liens sont les tickets attendus", async () => {
@@ -69,7 +69,7 @@ test("la carte n'ouvre que le ticket attendu, pas ceux de la phrase citée", asy
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: sien, maintenant: () => new Date("2026-11-17T10:00:00Z") });
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
   const faits = comprendre(JSON.stringify(lu.faits)) as Faits;
-  assert.deepEqual(carte(faits, 5), { ligne: `waits for #4 — read from the body: '${phrase}'`, liens: [4] });
+  assert.deepEqual(carte(faits, 5), { ligne: `after #4 — waiting for its merge; waits for #4 — read from the body: '${phrase}'`, liens: [4] });
 });
 
 // Ce que la lecture du rail pose dans `facts` : derrière un cook qui tourne, la carte retenue par sa fiche, sa ligne et ses
@@ -102,11 +102,11 @@ test("le rail de l'app : chaque source dit son attente d'un ticket du rail, une 
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: sien, maintenant: () => new Date("2026-11-17T10:00:00Z") });
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
   const faits = comprendre(JSON.stringify(lu.faits)) as Faits;
-  assert.deepEqual(carte(faits, 5), { ligne: "waits for #4 — read from the body: 'Depends on #4.'", liens: [4] });
+  assert.deepEqual(carte(faits, 5), { ligne: "after #4 — waiting for its merge; waits for #4 — read from the body: 'Depends on #4.'", liens: [4] });
   assert.deepEqual(carte(faits, 6), { ligne: PRET });
   assert.deepEqual(carte(faits, 7), { ligne: PRET });
-  assert.deepEqual(carte(faits, 8), { ligne: "waits for #4 — read from a cook's stop", liens: [4] });
-  assert.match(carte(faits, 9).ligne ?? "", /^waits for #4 — read from the body: 'Depends on #4'$/);
+  assert.deepEqual(carte(faits, 8), { ligne: "after #4 — waiting for its merge; waits for #4 — read from a cook's stop", liens: [4] });
+  assert.match(carte(faits, 9).ligne ?? "", /^after #4 — waiting for its merge; waits for #4 — read from the body: 'Depends on #4'$/);
   assert.deepEqual(carte(faits, 9).liens, [4]);
   assert.deepEqual(lues, []);
 });

@@ -6,7 +6,7 @@ import { basename, dirname, join, sep } from "node:path";
 import { test, type TestContext } from "node:test";
 import { brancherGardeFous } from "../../../src/garde-fous.ts";
 import { gardesDuTour } from "../../../src/github-seul/garde-fous/garde-fous.ts";
-import type { Fichiers } from "../../../src/github-seul/garde-fous/recuperation.ts";
+import type { Fichiers, Processus } from "../../../src/github-seul/garde-fous/recuperation.ts";
 import { configMachine, type Machine } from "../../../src/machine.ts";
 import { demarrer } from "../../../src/runtime.ts";
 import { repertoireTemporaire } from "../../outils.ts";
@@ -44,7 +44,9 @@ function disqueFaux(repertoire: string, chemins: string[], options: { listeEchou
 // Un run au journal : lancé par une station, fini ou non, son worktree gardé ou non.
 type Run = { run: string; station: string; fini: boolean; garde?: boolean };
 
-function gardes(t: TestContext, chemins: string[], runs: Run[], options: { listeEchoue?: boolean } = {}) {
+type Vus = { pid: number; cwd: string | null }[];
+
+function gardes(t: TestContext, chemins: string[], runs: Run[], options: { listeEchoue?: boolean; processus?: (worktrees: string) => Vus } = {}) {
   const repertoire = repertoireTemporaire(t);
   const disque = disqueFaux(repertoire, chemins, options);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: "brigade", intervalleVeilleMs: 5 }));
@@ -57,9 +59,11 @@ function gardes(t: TestContext, chemins: string[], runs: Run[], options: { liste
     if (garde === true) noter(i + 1, { type: "worktree.kept", payload: { worktree: `worktrees/${run}`, branch: `cook/${run}`, reason: "unpushed", detail: "1 commit" } });
   });
   const avertis: string[] = [];
-  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: disque.machine, seuils: configMachine({}) }, fichiers: disque.fichiers, env: { BRIGADE_REPO_DIR: CLONE, npm_config_cache: join(repertoire, "cache-npm") }, avertir: (texte) => avertis.push(texte) });
+  const tues: number[] = [];
+  const processus: Processus = { lister: () => options.processus?.(join(repertoire, "worktrees")) ?? [], tuer: (pid) => void tues.push(pid) };
+  const du = gardesDuTour({ garde: runtime, station: STATION, repertoireEtat: repertoire, arbitre: null, machine: { lire: disque.machine, seuils: configMachine({}) }, fichiers: disque.fichiers, processus, env: { BRIGADE_REPO_DIR: CLONE, npm_config_cache: join(repertoire, ".npm") }, avertir: (texte) => avertis.push(texte) });
   const faits = (type: string) => runtime.journal.tout().filter((evenement) => evenement.type === type);
-  return { du, disque, avertis, faits };
+  return { du, disque, avertis, faits, tues };
 }
 
 test("a station saturated with no cook of its own gives back only the finished runs' worktrees and files, then takes tickets again (#4106)", async (t) => {
@@ -99,7 +103,7 @@ test("the reclaim runs once per gate turn, and again at the next one (#4106)", a
   // Rien n'est rendable : la machine reste saturée, sans cook.
   await du.retenue(0);
   const apres = disque.listes();
-  assert.ok(apres > 0);
+  assert.equal(apres, 4);
   await du.retenue(0);
   assert.equal(disque.listes(), apres);
   await du.redire(0);
@@ -115,10 +119,52 @@ test("a disk the reclaim cannot read does not fall the turn: the saturation stan
   assert.match(avertis.join("\n"), /could not reclaim/);
 });
 
+test("a saturated station stops the orphaned processes of exited cooks, and only theirs (#4108)", async (t) => {
+  const { du, tues, avertis } = gardes(
+    t,
+    ["worktrees/12-a", "worktrees/14-vivant"],
+    [
+      { run: "12-a", station: STATION, fini: true },
+      { run: "14-vivant", station: AUTRE, fini: false },
+    ],
+    {
+      processus: (worktrees) => [
+        { pid: 500, cwd: join(worktrees, "12-a") },
+        { pid: 501, cwd: join(worktrees, "12-a", "runtime") },
+        { pid: 502, cwd: join(worktrees, "14-vivant", "runtime") },
+        { pid: 503, cwd: join(worktrees, "12-ab") },
+        { pid: 504, cwd: "/home/chef" },
+        { pid: 505, cwd: null },
+      ],
+    },
+  );
+  await du.retenue(0);
+  assert.deepEqual(tues, [500, 501]);
+  assert.match(avertis.join("\n"), /stopped 2 orphaned/);
+});
+
+// brigade:guard — « nothing is killed with a live cook » : la récupération ne tourne pas tant qu'un cook est en vol.
+test("a station with a cook in flight stops no process (#4108)", async (t) => {
+  const { du, tues } = gardes(t, ["worktrees/12-a"], [{ run: "12-a", station: STATION, fini: true }], { processus: (worktrees) => [{ pid: 500, cwd: join(worktrees, "12-a") }] });
+  assert.equal(await du.retenue(1), "machine");
+  assert.deepEqual(tues, []);
+});
+
+test("a process that cannot be stopped or listed is said, and the rest is still given back (#4108)", async (t) => {
+  const { du, disque, avertis } = gardes(t, ["worktrees/12-a"], [{ run: "12-a", station: STATION, fini: true }], {
+    processus: () => {
+      throw new Error("ps down");
+    },
+  });
+  assert.equal(await du.retenue(0), null);
+  assert.equal(disque.retires.length, 1);
+  assert.match(avertis.join("\n"), /could not reclaim processes/);
+});
+
 test("a saturated station with no cook also gives back the tmp dirs of exited cooks and its npm cache, and nothing else (#4107)", async (t) => {
   const { du, disque, avertis } = gardes(
     t,
-    ["tmp/12-a", "tmp/13-b", "tmp/14-vivant", "tmp/inconnu", "autre/12-a", "cache-npm", "worktrees/14-vivant"],
+    ["tmp/12-a", "tmp/13-b", "tmp/14-vivant", "tmp/inconnu", "autre/12-a", ".npm", "worktrees/14-vivant"],
     [
       { run: "12-a", station: STATION, fini: true },
       { run: "13-b", station: AUTRE, fini: true },
@@ -127,13 +173,14 @@ test("a saturated station with no cook also gives back the tmp dirs of exited co
   );
   assert.equal(await du.retenue(0), null);
   assert.deepEqual(disque.retires.map((chemin) => chemin.split(sep).slice(-2).join("/")).filter((c) => c.startsWith("tmp/")).sort(), ["tmp/12-a", "tmp/13-b"]);
-  assert.equal(disque.retires.filter((chemin) => basename(chemin) === "cache-npm").length, 1);
+  assert.equal(disque.retires.filter((chemin) => basename(chemin) === ".npm").length, 1);
   assert.deepEqual(disque.restes(), ["autre/12-a", "tmp/14-vivant", "tmp/inconnu", "worktrees/14-vivant"]);
   assert.match(avertis.join("\n"), /gave back 3 leftover/);
 });
 
+// brigade:guard — « nothing is reclaimed with a live cook » : la récupération ne tourne pas tant qu'un cook est en vol.
 test("the npm cache stays when a cook is in flight (#4107)", async (t) => {
-  const { du, disque } = gardes(t, ["cache-npm", "tmp/12-a"], [{ run: "12-a", station: STATION, fini: true }]);
+  const { du, disque } = gardes(t, [".npm", "tmp/12-a"], [{ run: "12-a", station: STATION, fini: true }]);
   assert.equal(await du.retenue(1), "machine");
   assert.deepEqual(disque.retires, []);
 });

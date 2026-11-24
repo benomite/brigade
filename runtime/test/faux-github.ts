@@ -200,6 +200,8 @@ export class FauxGitHub {
         this.retraits.set(issue, [...(this.retraits.get(issue) ?? []), { label, createdAt: new Date(Date.UTC(2026, 10, 2) + this.horloge * 1000).toISOString() }]);
       },
       retraitsDeLabels: async (numero) => this.retraits.get(numero) ?? [],
+      // Le faux date l'entrée en pass par le rang du ticket dans le faux : le premier déposé est le premier arrivé.
+      entreeEnPass: async (numero) => new Date(Date.UTC(2026, 10, 2) + [...this.tickets.keys()].indexOf(numero) * 1000).toISOString(),
       relancerLesEchecs: async () => {
         await noter("relancerLesEchecs");
       },
