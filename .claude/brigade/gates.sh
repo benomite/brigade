@@ -577,9 +577,22 @@ types_partir() {
     printf -v "TYPES_$ZONE" '%s' injouable
   fi
 }
+# La part de la machine qui reste libre, en millièmes : 1000 tant que la charge
+# ne dépasse pas les cœurs, `cœurs / charge` au-delà. Une seconde de la garde
+# d'horloge ne compte que pour cette part (#4110). Illisible, la machine compte
+# pour libre : la garde redevient l'horloge. `BRIGADE_GATES_CHARGE` impose la
+# charge : l'accroche des tests de la garde, qui jouent une machine chargée.
+COEURS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+part_libre() {
+  local CHARGE_1
+  CHARGE_1="${BRIGADE_GATES_CHARGE:-}"
+  [ -n "$CHARGE_1" ] || CHARGE_1="$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg 2>/dev/null | tr -d '{}' | awk '{ print $1 }')"
+  LC_ALL=C awk -v c="${COEURS:-1}" -v l="${CHARGE_1:-0}" 'BEGIN { gsub(",", ".", l); if (l + 0 <= c + 0 || c + 0 <= 0) print 1000; else printf "%d\n", 1000 * c / l }'
+}
+
 suite() {
   local ZONE="$1" DE="$2" ABSENTE="$3" JOURNAL_DE="$4" REGLE="$5"
-  local TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS FICHIERS="" COMMANDE="" MOTIF
+  local TYPES JOURNAUX JOURNAL DELAI PLAFOND COUPURE ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS FICHIERS="" COMMANDE="" MOTIF
   if [ ! -f "$ZONE/package.json" ]; then
     ok "$ABSENTE : aucun test à jouer"
     return
@@ -630,13 +643,24 @@ suite() {
   JOURNAL="$JOURNAUX/tests-$JOURNAL_DE.$(date +%Y%m%d-%H%M%S).$$.log"
   # Garde d'horloge : un test figé dans du code synchrone (une boucle) n'est
   # arrêté par aucun minuteur de son lanceur, et sans elle ce script ne rendrait
-  # jamais la main. Le délai est large : un
-  # test qui *attend* est déjà mis en échec, et nommé, par le lanceur au bout de
-  # deux minutes ; la garde ne doit tomber qu'après lui.
+  # jamais la main. Un test qui *attend* est déjà mis en échec, et nommé, par le
+  # lanceur au bout de deux minutes ; la garde ne doit tomber qu'après lui.
+  # Elle compte l'horloge charge déduite (#4110) : sur une machine où la
+  # charge dépasse les cœurs, une seconde ne compte que pour la part libre
+  # (`part_libre`). Comptée à l'horloge brute, elle coupait du code sain sur une
+  # box à la charge 27, et chaque livraison retombait rouge. Un test figé reste
+  # coupé : à machine libre au bout du délai, sinon au plafond d'horloge
+  # (`BRIGADE_GATES_PLAFOND_TESTS`, six fois le délai).
   DELAI="${BRIGADE_GATES_DELAI_TESTS:-300}"
+  PLAFOND="${BRIGADE_GATES_PLAFOND_TESTS:-}"
+  case "$DELAI" in ""|*[!0-9]*) ;; *) [ -n "$PLAFOND" ] || PLAFOND=$(( DELAI * 6 )) ;; esac
   ARRETES=0
   case "$DELAI" in
     ""|*[!0-9]*) TESTS=illisible ;;
+    *) case "$PLAFOND" in ""|*[!0-9]*) TESTS=illisible ;; esac ;;
+  esac
+  case "${TESTS:-}" in
+    illisible) ;;
     *)
       # La suite part dans son propre groupe de process (`set -m`) : le lanceur
       # a un process par fichier de tests, et tuer le premier ne tue pas le
@@ -665,8 +689,20 @@ suite() {
           sleep 0.1 & dort=$!
           wait "$dort"
         done
-        sleep "$DELAI" & dort=$!
-        wait "$dort" && : >"$TIREE" && kill -KILL -- "-$PID_TESTS" ) >/dev/null 2>&1 9>&- &
+        ecoule=0
+        compte=0
+        while :; do
+          sleep 1 & dort=$!
+          wait "$dort" || exit 0
+          ecoule=$(( ecoule + 1 ))
+          compte=$(( compte + $(part_libre) ))
+          if [ "$compte" -ge $(( DELAI * 1000 )) ]; then raison="plus de $DELAI s sans rendre la main, charge de la machine déduite"
+          elif [ "$ecoule" -ge "$PLAFOND" ]; then raison="plus de $PLAFOND s d'horloge sans rendre la main"
+          else continue; fi
+          printf '%s' "$raison" >"$TIREE"
+          kill -KILL -- "-$PID_TESTS"
+          exit 0
+        done ) >/dev/null 2>&1 9>&- &
       PID_GARDE=$!
       # Interrompues, les gates n'abandonnent pas une suite qui n'est plus dans
       # leur groupe.
@@ -676,7 +712,7 @@ suite() {
       trap 'quitter; exit 143' TERM
       kill "$PID_GARDE" 2>/dev/null
       wait "$PID_GARDE" 2>/dev/null
-      if [ -e "$TIREE" ]; then rm -f "$TIREE"; ARRETES=1; fi
+      if [ -e "$TIREE" ]; then COUPURE="$(cat "$TIREE")"; rm -f "$TIREE"; ARRETES=1; fi
       ;;
   esac
   [ "$TESTS" = verts ] || SUITE_ROUGE=1
@@ -702,9 +738,9 @@ suite() {
     # plus tard au lieu d'y voir un rouge. Un test en échec — `✖` du lanceur,
     # `not ok` en TAP — garde la ligne d'un rouge.
     if grep -Eq '^[[:space:]]*(✖|not ok( |$))' "$JOURNAL"; then
-      fail "tests $DE arrêtés par la garde d'horloge : plus de $DELAI s sans rendre la main, et des tests en échec avant la coupure"
+      fail "tests $DE arrêtés par la garde d'horloge : $COUPURE, et des tests en échec avant la coupure"
     else
-      fail "tests $DE arrêtés par la garde d'horloge, aucun test en échec : plus de $DELAI s sans rendre la main"
+      fail "tests $DE arrêtés par la garde d'horloge, aucun test en échec : $COUPURE"
     fi
   else
     # Les tests en échec, par leur nom et leur erreur — sans les piles d'appels,
@@ -767,7 +803,7 @@ suite runtime "du runtime" "runtime absent" du-runtime "$SELECTION_runtime"
 suite app "de l'app" "app absente" de-l-app "$SELECTION_app"
 EXECUTION=$((SECONDS - DEBUT_EXECUTION))
 quitter
-ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution (la garde de ${BRIGADE_GATES_DELAI_TESTS:-300} s ne compte que l'exécution)"
+ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution (la garde de ${BRIGADE_GATES_DELAI_TESTS:-300} s ne compte que l'exécution, charge de la machine déduite)"
 # Une suite rouge n'a pas de relevé : la somme des autres passerait pour le
 # total, et le relevé montrerait une chute au lieu d'une absence.
 if [ "$SUITE_ROUGE" -eq 1 ]; then NB_TESTS=""; MS_TESTS=""; fi
