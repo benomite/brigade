@@ -45,7 +45,10 @@ export type BaseRougeLue = { depuis: string; check: string; ticket: number | nul
 // Un ticket et ses prises : combien de fois, depuis la première. `auMoins` : la lecture s'est arrêtée avant la dernière.
 // Un ticket mis de côté par ses échecs : depuis quand, et la raison que la station a écrite (nulle sans commentaire).
 type MisDeCoteLu = { ticket: number; depuis: string; raison: string | null };
-type RelanceLue = { ticket: number; fois: number; depuis: string; auMoins?: boolean };
+// `arret` : ce que le ticket dit déjà de sa boucle — en WAITING (la station l'y a mis ; `qui` : ce qu'il attend, nul s'il ne se lit
+// pas) ou avec une carte qui attend le chef (`besoin` : la question de la carte, nulle sans raison écrite).
+type ArretDeLaBoucle = { sorte: "waiting"; qui: string | null } | { sorte: "carte"; besoin: string | null };
+export type RelanceLue = { ticket: number; fois: number; depuis: string; auMoins?: boolean; arret?: ArretDeLaBoucle };
 
 export type EntreeDesAlertes = {
   depot: string;
@@ -134,19 +137,24 @@ function alerteDeLaBase(e: EntreeDesAlertes): AlerteDuRail | null {
   };
 }
 
-// Le ticket le plus relancé au-delà du seuil. Le geste est celui que le second a fait pour #3813 : le mettre en WAITING
-// (`waiting set`), qui le sort du rail.
+// Le ticket le plus relancé au-delà du seuil. Une station met elle-même en WAITING un ticket qui boucle : le chef n'a aucun
+// geste à faire (#4042). Quand la boucle est déjà arrêtée — le ticket est en WAITING, ou une carte attend le chef —, la phrase
+// le dit, avec la raison, et ne dit jamais comment l'arrêter.
 function alerteDesRelances(e: EntreeDesAlertes): AlerteDuRail | null {
   const relance = e.relances.filter(({ fois, depuis }) => fois >= SEUIL_DE_BOUCLE && !Number.isNaN(date(depuis))).sort((a, b) => b.fois - a.fois || a.ticket - b.ticket)[0];
   if (relance === undefined) return null;
-  const geste = `Put #${relance.ticket} in WAITING to stop the loop.`;
-  return {
-    sorte: "relance-en-boucle",
-    phrase: `#${relance.ticket} has been relaunched ${relance.auMoins === true ? "at least " : ""}${nombre(relance.fois)} times ${depuisQuand(relance.depuis, e.maintenant)}: the kitchen loops on it. ${geste}`,
-    fait: { depuis: relance.depuis, ticket: relance.ticket },
-    geste,
-    geree: null,
-  };
+  const fait = { depuis: relance.depuis, ticket: relance.ticket };
+  const fois = `${relance.auMoins === true ? "at least " : ""}${nombre(relance.fois)} times`;
+  const { arret } = relance;
+  if (arret?.sorte === "carte") {
+    const besoin = arret.besoin === null ? "" : `: ${arret.besoin.replace(/[.\s]+$/, "")}`;
+    return { sorte: "relance-en-boucle", phrase: `A card waits for the chef on #${relance.ticket}${besoin}. It was relaunched ${fois} ${depuisQuand(relance.depuis, e.maintenant)}.`, fait, geste: null, geree: "The kitchen does not take it while the card waits." };
+  }
+  if (arret?.sorte === "waiting") {
+    const qui = arret.qui === null ? "" : `, awaiting ${arret.qui}`;
+    return { sorte: "relance-en-boucle", phrase: `The system put #${relance.ticket} in WAITING${qui}: it was relaunched ${fois} ${depuisQuand(relance.depuis, e.maintenant)}.`, fait, geste: null, geree: "The kitchen does not take it while it is in WAITING." };
+  }
+  return { sorte: "relance-en-boucle", phrase: `#${relance.ticket} has been relaunched ${fois} ${depuisQuand(relance.depuis, e.maintenant)}: the kitchen loops on it.`, fait, geste: null, geree: `The kitchen puts #${relance.ticket} in WAITING by itself.` };
 }
 
 // Les seuls tickets du rail sont mis de côté par leurs échecs : aucune station ne les prend, et la file n'attend pas un tour.
@@ -171,7 +179,7 @@ const MOTIFS: Record<CauseConnue, (alerte: AlerteDuRail) => string> = {
   "aucune-station": () => "No station serves this project.",
   "aucun-cook": (alerte) => `${alerte.fait.check === undefined ? "Its stations" : `Its stations (${alerte.fait.check.replace(/^the signs of life of /, "")})`} do not run.`,
   "base-rouge": (alerte) => `The main branch is red${alerte.fait.check === undefined ? "" : ` (${alerte.fait.check})`}, so nothing merges.`,
-  "relance-en-boucle": (alerte) => `#${alerte.fait.ticket} is relaunched in a loop.`,
+  "relance-en-boucle": (alerte) => alerte.phrase,
 };
 
 function alerteDeLaCuisineMuette(e: EntreeDesAlertes, causes: readonly AlerteDuRail[]): AlerteDuRail | null {
