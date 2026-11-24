@@ -29,7 +29,7 @@ const demarrage = (projets: Projet[]) => ({
 });
 const AUCUNE: StationsDuChef = { state: "listed", unreadable: [], stations: [] };
 const OUVERT: Ouverture = { state: "open", project: "brigade", repository: "benomite/brigade", folder: "/home/chef/Brigade/brigade", cloned: true };
-const trouve = (vue: Jouee, motif: RegExp): Faux | undefined => vue.poses().find((p) => (p.balise === "button" || p.role === "button") && !p.hidden && motif.test(`${p.textContent} ${p.title} ${p.ariaLabel}`));
+const trouve = (vue: Jouee, motif: RegExp): Faux | undefined => vue.poses().find((p) => (p.balise === "button" || p.role === "button") && !p.hidden && motif.test(`${p.textContent} ${p.title} ${p.ariaLabel}`.trim()));
 
 const QUITTER = /leave the visit|leave|exit/i;
 const ETAPE = /Tour of a real kitchen · (\d+) of 6/;

@@ -46,7 +46,7 @@ const SERVED = "Served";
 export const TITRE_DE_LA_VISITE = "Tour of a real kitchen";
 /** @param {number} rang @param {number} total */
 export const RANG = (rang, total) => `${TITRE_DE_LA_VISITE} · ${rang} of ${total}`;
-export const SUIVANTE = "next";
+export const SUIVANTE = "Next";
 const QUITTER = "leave the visit";
 export const QUITTER_SURVOL = "Back to the welcome screen. Nothing was added or cloned.";
 export const AJOUTER_LE_SIEN = AJOUTER_LE_MIEN;
