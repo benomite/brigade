@@ -10,10 +10,10 @@
 //     marque disant que le ticket rentre seul sur le rail à sa relance (`backOnFollowUp`) ;
 //   - `ramenerALaRelance` : à chaque tour de station, un ticket que la cuisine a mis en WAITING et dont la relance est
 //     passée quitte `waiting` et repart sur le rail, sans geste du chef. Une attente posée par le chef n'en sort pas.
-import { attenteDeLIssue, corpsDeLAttente, direRelance, poserLAttente, type AttenteGitHub } from "../attente-github/attente-github.ts";
+import { attenteDeLIssue, corpsDeLAttente, direRelance, poserLAttente, type AttenteGitHub, type AttenteMarquee } from "../attente-github/attente-github.ts";
 import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { LABEL_WAITING } from "../github-etat/etats.ts";
-import { LABEL, type Commentaire, type GitHub } from "../github.ts";
+import { ECHECS_ATTEINTS, LABEL, type Commentaire, type GitHub } from "../github.ts";
 
 // Ce que dit un cook qui ne peut pas le faire avant une date.
 const PAS_AVANT = /\b(too early|not before|not until|no earlier than|cannot be (?:done|started|built|delivered|served) (?:before|until)|can(?:not|'t) start (?:before|until)|can only be (?:done|started|built|delivered) (?:from|on|after)|only (?:from|after|opens?|starts?|available)|not (?:available|open|possible) (?:before|until))\b/i;
@@ -69,7 +69,7 @@ export function lireAttenteDuCook(texte: string, maintenant: Date): AttenteGitHu
 }
 
 // Met le ticket en WAITING par la cuisine : le label, puis la marque qui dit quoi, de qui, la relance et les mots du cook.
-export async function mettreEnAttenteParLaCuisine(github: Pick<GitHub, "labelliser" | "delabelliser" | "commenter">, numero: number, attente: AttenteGitHub, par: { station: string; mots: string }): Promise<void> {
+export async function mettreEnAttenteParLaCuisine(github: Pick<GitHub, "labelliser" | "delabelliser" | "commenter">, numero: number, attente: AttenteMarquee, par: { station: string; mots: string }): Promise<void> {
   await poserLAttente(github, numero, corpsDeLAttente(attente, par), `#${numero}`, "the ticket is given back as it was");
 }
 
@@ -79,19 +79,29 @@ type TicketEnAttente = { number: number; labels: string[] };
 // Les tickets que la cuisine a mis en WAITING et dont la relance est passée rentrent sur le rail : `fire` posé s'il
 // manque, `waiting` retiré, un commentaire qui le dit. Rend les tickets rentrés. Des commentaires illisibles laissent le
 // ticket en WAITING, et le disent (`avertir`) : le tour suivant relit.
+// Celui dont la station a arrêté la boucle de relances (`whileSetAside`, #4041) en sort aussi dès que `set-aside:failures`
+// lui est retiré — le geste du chef ou du superviseur qui le relance : `leve` le dit, et le tour le prend aussitôt.
 export async function ramenerALaRelance(
   github: Pick<GitHub, "labelliser" | "delabelliser" | "commenter"> & { commentaires(numero: number): Promise<Pick<Commentaire, "body" | "association">[]> },
   tickets: readonly TicketEnAttente[],
-  { station, maintenant, avertir }: { station: string; maintenant: Date; avertir: (ligne: string) => void },
+  { station, maintenant, avertir, leve }: { station: string; maintenant: Date; avertir: (ligne: string) => void; leve?: (numero: number) => void },
 ): Promise<number[]> {
   const rentres: number[] = [];
   for (const { number: numero, labels } of tickets) {
     if (!labels.includes(LABEL_WAITING)) continue;
-    let attente: AttenteGitHub | null;
+    let attente: AttenteMarquee | null;
     try {
       attente = attenteDeLIssue(await github.commentaires(numero));
     } catch (erreur) {
       avertir(`brigade : #${numero} sur ${station} — in WAITING, its comments could not be read to check its follow-up date: it stays there, read again next turn — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      continue;
+    }
+    if (attente?.whileSetAside === true && !labels.includes(ECHECS_ATTEINTS)) {
+      await github.delabelliser(numero, LABEL_WAITING);
+      await github.commenter(numero, `**WAITING lifted — no longer set aside**: this ticket was awaiting ${attente.who} (“${attente.what}”) while set aside by its failure count. \`${ECHECS_ATTEINTS}\` is removed, so station \`${station}\` lifts its WAITING: a cook takes it in turn.`);
+      avertir(`brigade : #${numero} sur ${station} — \`${ECHECS_ATTEINTS}\` is removed: the WAITING of its stopped relaunch loop is lifted`);
+      leve?.(numero);
+      rentres.push(numero);
       continue;
     }
     if (attente?.backOnFollowUp !== true || Date.parse(attente.followUp) > maintenant.getTime()) continue;

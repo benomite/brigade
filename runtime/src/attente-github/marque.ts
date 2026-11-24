@@ -12,20 +12,24 @@ export const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 // la cuisine l'y a mis d'après les mots de son cook (attente/attente-par-le-cook.ts,
 // #3814), et il rentre seul sur le rail à sa relance ; posé par le chef, il y reste.
 export type AttenteGitHub = { what: string; who: string; followUp: string; backOnFollowUp?: true };
+// `whileSetAside` : la station l'y a mis en arrêtant sa boucle de relances (#4041) ;
+// il en sort aussi dès que `set-aside:failures` lui est retiré.
+export type AttenteMarquee = AttenteGitHub & { whileSetAside?: boolean };
 
 export const MARQUE = "<!-- brigade:waiting";
 const MARQUE_LUE = /^<!-- brigade:waiting (\{.*?\}) -->/;
 
 // Ce qu'attend l'issue, d'après le plus récent commentaire marqué d'un auteur
 // du dépôt ; null si aucun ne se lit.
-export function attenteDeLIssue(commentaires: readonly Pick<Commentaire, "body" | "association">[]): AttenteGitHub | null {
+export function attenteDeLIssue(commentaires: readonly Pick<Commentaire, "body" | "association">[]): AttenteMarquee | null {
   for (const { body, association } of [...commentaires].reverse()) {
     if (!DE_CONFIANCE.includes(association)) continue;
     const brut = MARQUE_LUE.exec(body)?.[1];
     if (brut === undefined) continue;
     try {
-      const { what, who, followUp, backOnFollowUp } = JSON.parse(brut) as Record<string, unknown>;
-      if (typeof what === "string" && typeof who === "string" && typeof followUp === "string" && !Number.isNaN(Date.parse(followUp))) return { what, who, followUp, ...(backOnFollowUp === true ? { backOnFollowUp } : {}) };
+      const { what, who, followUp, backOnFollowUp, whileSetAside } = JSON.parse(brut) as Record<string, unknown>;
+      if (typeof what === "string" && typeof who === "string" && typeof followUp === "string" && !Number.isNaN(Date.parse(followUp)))
+        return { what, who, followUp, ...(backOnFollowUp === true ? { backOnFollowUp } : {}), ...(whileSetAside === true ? { whileSetAside } : {}) };
     } catch {
       // Une marque illisible ne dit rien : la précédente, s'il y en a une.
     }
