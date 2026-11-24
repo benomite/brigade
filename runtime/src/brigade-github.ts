@@ -3350,9 +3350,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // Les outils que le ticket demande et que le projet déclare (#4162) ; un
     // outil demandé et non déclaré est dit, ici et au cook.
     const outils = outilsDuCook({ projet: options.projet?.(), corpsDuTicket });
-    if (outils.message !== undefined) avertir(`brigade : #${ticket.number} sur ${nom} — ${outils.message}`);
+    if (outils.message) avertir(`brigade : #${ticket.number} sur ${nom} — ${outils.message}`);
     const consigneOutils = consigneDesOutils(ticket.number, outils);
-    if (consigneOutils !== "") joint += `\n\n${consigneOutils}`;
+    if (consigneOutils) joint += `\n\n${consigneOutils}`;
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
     // dépendances, ses premières gates sortaient rouges — contrôle de types
     // injouable —, et il les rejouait après le setup. Le setup part sans le
