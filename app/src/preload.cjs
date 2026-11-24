@@ -158,6 +158,8 @@ const pont = {
   stationsDuChef: () => ipcRenderer.invoke("stationsDuChef"),
   ouvrirDUneStation: (nom, depot, base) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot, base),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
+  outilsManquants: (outils) => ipcRenderer.invoke("outilsManquants", outils),
+  installerOutil: (outil) => ipcRenderer.invoke("installerOutil", outil),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
   // Démarre la station de cet ordinateur, depuis l'alerte d'un projet dont elle est arrêtée (ticket 3637).

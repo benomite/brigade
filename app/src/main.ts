@@ -77,7 +77,7 @@ import { lireLeCompteGitHub, tenirConnexionGitHub } from "./connexion-github.ts"
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { chercherUneMiseAJour, posteDe, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
-import { apkLink } from "./mise-a-jour/android.ts";
+import { apkLink, RELEASES_URL } from "./mise-a-jour/android.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { voir as voirManager } from "./manager.ts";
@@ -85,6 +85,7 @@ import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandesDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
+import { tenirOutilsRequis } from "./outils-requis.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
@@ -1444,6 +1445,22 @@ ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
   void stations.relire();
   return rendu;
 });
+// Les outils que l'app ne livre pas (#4059, outils-requis.ts) : la connexion à GitHub, le clone et le login Max les
+// demandent d'abord ; un outil qui manque a son écran, qui l'installe par le chemin que le runtime choisit.
+const outilsRequis = tenirOutilsRequis({
+  charger: async () => {
+    const [requis, machine, outils] = await Promise.all([
+      duRuntime<typeof import("../../runtime/src/outils-requis/outils-requis.ts")>("outils-requis", "outils-requis.ts"),
+      duRuntime<typeof import("../../runtime/src/outils-requis/machine.ts")>("outils-requis", "machine.ts"),
+      duRuntime<typeof import("../../runtime/src/second/outils.ts")>("second", "outils.ts"),
+    ]);
+    return { ...requis, ...machine, programmesDe: outils.programmesDe };
+  },
+  env: process.env,
+  ouvrir: (url) => shell.openExternal(url),
+});
+ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
+ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
 // La page où taper le code se rouvre depuis l'écran.
 ipcMain.handle("seConnecterAGitHub", async () => {
   const debut = await connexionGitHub();
@@ -2058,7 +2075,9 @@ void app.whenReady().then(() => {
   preferences.demarrer();
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
 }).catch((erreur: unknown) => {
-  // Un démarrage qui échoue ne reste pas muet : le chef voit pourquoi aucune fenêtre ne s'ouvre.
-  dialog.showErrorBox("brigade could not start", erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur));
+  // Un démarrage qui échoue ne reste pas muet : le chef lit en une phrase que la fenêtre ne s'ouvre pas, et quoi faire (#4071).
+  // Le détail, qu'il ne saurait lire, va au journal.
+  console.error(`brigade: the window could not be shown — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+  dialog.showErrorBox("brigade could not start", `Brigade could not show its window, so quit it and open it again, and if it still does not show, download it again from ${RELEASES_URL} and reinstall it.`);
   app.quit();
 });

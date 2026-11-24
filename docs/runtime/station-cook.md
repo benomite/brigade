@@ -553,7 +553,8 @@ Events (* = no ticket):
   `station.unstartable`: a cook ended with 0 turns and 0 tokens (`run`, `reason`), the station takes
   no more tickets until it restarts or a cook launched since produces a turn.
 - `station.saturated`*, `station.relieved`*: the machine cannot cope (`resource`: `cpu`, `memory`,
-  `disk`; `observed`, `limit`; for memory `limitFrom`: `{ totalMb }` or `env`; `also`), then breathes.
+  `disk`; `observed`, `limit`; for memory `limitFrom`: `{ totalMb }` or `env`; for disk and CPU
+  `consumer`, the biggest one when it can be named (#4090); `also`), then breathes.
   `station.held`*, `station.released`*: a ticket could leave and is not taken (`reason`, "Several
   cooks at once"), then nothing holds. `station.unarbitrated`*, `station.arbitrated`*: the arbiter
   stops answering (one cook at a time, `cook.launched` carries `unarbitrated: true`), then answers.
