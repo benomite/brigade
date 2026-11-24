@@ -1,7 +1,7 @@
 // @ts-check
 // Le compte GitHub de cet ordinateur (ticket 2475), tel que son `gh` le tient (`compteGitHub`, connexion-github.ts) —
-// jamais tapé. Connecté, le premier lancement le dit, « Connected to GitHub as … », et offre d'en changer ; sans compte,
-// il n'y a qu'un bouton, « connect to GitHub » ; illisible, il dit pourquoi en une phrase, son détail au survol, avec la
+// jamais tapé. Connecté, le premier lancement le dit, « connected » et « Connected to GitHub as … » (le login en
+// évidence), et offre d'en changer en petit lien discret ; sans compte, il n'y a qu'un bouton, « connect to GitHub » ; illisible, il dit pourquoi en une phrase, son détail au survol, avec la
 // page qui le lève et « read again ». L'écran « Add a project » (ajout.js, ticket 3181) n'en pose que la connexion qui
 // manque, ou pourquoi il ne se lit pas : connecté, il ne dit pas le compte, qui se change dans les réglages.
 // Changer de compte, c'est se connecter d'un autre dans le navigateur, par le même geste que la connexion ; au bout, le
@@ -35,6 +35,7 @@ export const LECTURE_DU_COMPTE = LECTURE_DE(`the GitHub account of ${CET_ORDINAT
 export const SE_CONNECTER = "connect to GitHub";
 export const CHANGER_DE_COMPTE = "switch GitHub account";
 export const CHANGER_DE_COMPTE_SURVOL = "sign in with another GitHub account on the page that opens: brigade then reads it again";
+export const ETAT_CONNECTE = "connected";
 export const RELIRE_LE_COMPTE = "read again";
 export const SANS_REPONSE = "Your GitHub account could not be read: the app gave no answer.";
 /** @param {string} login */
@@ -57,15 +58,23 @@ export function poserLeCompte(doc, etat, geste) {
     return [dit];
   }
   if ("login" in compte) {
+    const etat = cree(doc, "span", ETAT_CONNECTE);
+    etat.className = "etat-connecte";
     const dit = cree(doc, "p");
     dit.className = "compte-connecte";
     const [avant = "", apres = ""] = connecteEnTantQue(compte.login).split(compte.login);
     const login = cree(doc, "strong", compte.login);
     login.className = "mono";
     dit.append(avant, login, apres);
-    const [changer, ...suite] = connexionDite(doc, connexion, CHANGER_DE_COMPTE, { seConnecter: geste.changerDeCompte, ouvrirLaPage: geste.ouvrirLaPage }, { recommande: false });
+    const [changer, ...suite] = connexionDite(doc, connexion, CHANGER_DE_COMPTE, { seConnecter: geste.changerDeCompte, ouvrirLaPage: geste.ouvrirLaPage }, { recommande: false, sorte: "discret" });
+    // Un petit lien sous le compte, pas un bouton : la suite du parcours est d'ajouter un projet.
+    changer.className = "gestes changer-de-compte";
+    changer.dataset.boutons = "lien";
     changer.children[0].children[0].title = CHANGER_DE_COMPTE_SURVOL;
-    return [dit, changer, ...suite];
+    const carte = cree(doc, "div");
+    carte.className = "compte-carte";
+    carte.append(etat, dit);
+    return [carte, changer, ...suite];
   }
   if ("nonConnecte" in compte) return connexionDite(doc, connexion, SE_CONNECTER, geste);
   const refus = ligneErreur(doc, phrase(doc, "span", compte.refus), compte.detail, { classe: "refus" });
