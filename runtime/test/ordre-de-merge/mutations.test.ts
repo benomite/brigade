@@ -1,7 +1,7 @@
 // #4044 : les lignes de la lecture de l'ordre que les autres tests laissaient passer — pagination, recouvrement, auto-dépendance, entrée en pass.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { brancheDuTicket, clientDuTour, type GitHub } from "../../src/brigade-github.ts";
+import { brancheDuTicket, clientDuTour } from "../../src/brigade-github.ts";
 import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
 import { lireLOrdreDuRail } from "../../src/ordre-de-merge/lecture.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
@@ -44,7 +44,7 @@ describe("lireLOrdreDuRail : ce qu'elle lit", () => {
 
 test("the pass entry of a ticket is the time its in-pass label was set, read through the client of the round", async () => {
   const evenements = async () => [null, "x", { event: "labeled", label: { name: LABEL_IN_PASS }, created_at: "2026-11-23T09:05:00Z" }];
-  const client = clientDuTour({ ...fauxClient(new FauxGitHub()), evenements } as GitHub, "main");
+  const client = clientDuTour({ ...fauxClient(new FauxGitHub()), evenements } as unknown as Parameters<typeof clientDuTour>[0], "main");
   assert.equal(await client.entreeEnPass?.(7), "2026-11-23T09:05:00Z");
 });
 
