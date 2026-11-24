@@ -45,9 +45,10 @@ test("sous Windows, il manque gh : la vérification le nomme, et dit en une phra
   const etat = verifierLesOutils({
     plateforme: "win32",
     // Un environnement de Windows copié dans un objet : son PATH s'écrit `Path`.
-    env: { Path: "C:\\Users\\chef\\AppData\\Roaming\\npm;C:\\Program Files\\Git\\cmd", PATHEXT: ".COM;.EXE;.BAT;.CMD", SystemRoot: "C:\\Windows", ProgramFiles: "C:\\Program Files" },
+    // winget, qui vient avec Windows, est là : c'est lui qui installe gh (outils-requis, #4059).
+    env: { Path: "C:\\Users\\chef\\AppData\\Roaming\\npm;C:\\Program Files\\Git\\cmd;C:\\Users\\chef\\AppData\\Local\\Microsoft\\WindowsApps", PATHEXT: ".COM;.EXE;.BAT;.CMD", SystemRoot: "C:\\Windows", ProgramFiles: "C:\\Program Files" },
     maison: "C:\\Users\\chef",
-    existe: fichiers("C:\\Users\\chef\\AppData\\Roaming\\npm\\claude.cmd", "C:\\Program Files\\Git\\cmd\\git.exe"),
+    existe: fichiers("C:\\Users\\chef\\AppData\\Roaming\\npm\\claude.cmd", "C:\\Program Files\\Git\\cmd\\git.exe", "C:\\Users\\chef\\AppData\\Local\\Microsoft\\WindowsApps\\winget.exe"),
   });
   assert.equal(etat.state, "missing");
   assert.ok(etat.state === "missing");
@@ -91,15 +92,16 @@ test("un `claude` installé hors du PATH manque, et la vérification dit où il 
   assert.deepEqual(etat.missing, ["claude"]);
   const claude = manquant(etat.tools, "claude");
   assert.equal(claude.found, "C:\\Users\\chef\\.local\\bin\\claude.exe");
-  assert.equal(claude.install, "Add C:\\Users\\chef\\.local\\bin to your PATH, then restart the app.");
+  assert.equal(claude.install, "Add C:\\Users\\chef\\.local\\bin to your PATH, then try again.");
   assert.match(claude.reason, /is installed on this PC, in C:\\Users\\chef\\\.local\\bin, but that folder is not on the PATH/);
   unePhrase(claude.reason);
 });
 
 test("rien d'installé : chaque plateforme dit, pour chacun des trois, une phrase qui l'obtient et la page qui l'explique", () => {
   const attendu: Record<string, RegExp[]> = {
-    win32: [/install\.ps1/, /winget install --id GitHub\.cli/, /winget install --id Git\.Git/],
-    darwin: [/install\.sh/, /brew install gh/, /xcode-select --install/],
+    // Ni winget ni Homebrew : chaque outil a son installeur (outils-requis, #4059).
+    win32: [/install\.ps1/, /windows_amd64\.msi/, /git-scm\.com/],
+    darwin: [/install\.sh/, /macOS_universal\.pkg/, /xcode-select --install/],
     linux: [/install\.sh/, /apt install gh/, /apt install git/],
   };
   for (const [plateforme, motifs] of Object.entries(attendu)) {
