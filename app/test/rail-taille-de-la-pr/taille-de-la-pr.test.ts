@@ -28,21 +28,20 @@ test("la PR d'un ticket du rail dit ses lignes ajoutées et retirées, et son ou
   assert.equal(rail[1]?.[1]?.deletions, 0, "zéro retrait lu : dit tel quel");
 });
 
-test("une PR qui ne se lit pas ou sans taille n'en dit aucune, et le rail se lit quand même", async () => {
-  const rail = await railDe(async (chemin) => (chemin.endsWith("/41") ? { status: 500, data: {} } : ok({ title: "sans taille" })));
-  for (const [, laPR] of rail) {
-    assert.ok(laPR !== undefined && !("additions" in laPR) && !("deletions" in laPR), "ni additions ni deletions inventées");
-    assert.equal(laPR.ouvertLe, "2026-11-24T11:15:00Z");
+test("une PR qui ne se lit pas, sans taille ou dont un côté seul se lit n'en dit aucune, et le rail se lit quand même", async () => {
+  const sansTaille = [
+    async (chemin: string): Promise<ReponseGitHub> => (chemin.endsWith("/41") ? { status: 500, data: {} } : ok({ title: "sans taille" })),
+    async () => ok({ additions: 135 }),
+    async () => ok({ deletions: 21 }),
+  ];
+  for (const pulls of sansTaille) {
+    const rail = await railDe(pulls);
+    assert.equal(rail.length, 2);
+    for (const [, laPR] of rail) {
+      assert.ok(laPR !== undefined && !("additions" in laPR) && !("deletions" in laPR), "ni additions ni deletions inventées");
+      assert.equal(laPR.ouvertLe, "2026-11-24T11:15:00Z", "son ouverture, elle, se dit");
+    }
   }
-});
-
-test("une PR dont seul un côté de la taille se lit n'en dit aucune, et le rail se lit quand même", async () => {
-  const rail = await railDe(async () => ok({ additions: 135 }));
-  for (const [, laPR] of rail) {
-    assert.ok(laPR !== undefined && !("additions" in laPR) && !("deletions" in laPR));
-    assert.equal(laPR.ouvertLe, "2026-11-24T11:15:00Z", "son ouverture, elle, se dit");
-  }
-  assert.equal(rail.length, 2);
 });
 
 test("la PR d'un ticket servi dit sa taille et son ouverture dans `livres`", async () => {

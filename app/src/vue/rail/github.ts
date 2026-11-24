@@ -222,7 +222,8 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     if (labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE) || porteListe(texte(issue.body))) return [];
     return [{ numero: issue.number, titre: texte(issue.title), url: texte(issue.html_url), creeLe: texte(issue.created_at), labels, corps: texte(issue.body), reparationDeMain: labels.includes(LABEL_REPARATION_DE_MAIN) }];
   });
-  // La liste des PR ne dit pas leur taille : la PR seule la dit (ticket 4051). Une PR qui ne se lit pas n'en montre aucune — jamais un zéro.
+  // La liste des PR ne dit pas leur taille : la PR seule la dit (ticket 4051). C'est une lecture de plus par ticket du rail, à chaque
+  // lecture, toutes ensemble : autant d'appels sur la limite de GitHub. Une PR qui ne se lit pas n'en montre aucune — jamais un zéro.
   await Promise.all(
     duRail.flatMap(({ numero }) => {
       const pr = livrees.get(numero);
