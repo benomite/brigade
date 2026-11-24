@@ -4,7 +4,7 @@
 // Rien n'est retiré tant que la sortie du cook n'est pas confirmée : `sorti`
 // vaut `true` ou le cook est laissé tel quel. Les volumes docker, containerd
 // et le cache npm partagé ne sont pas à lui : ils ne passent jamais ici.
-// Pas encore appelée : le branchement est un autre ticket (#4088).
+// Appelée à la sortie de chaque cook par `cuisiner` (`brigade-github.ts`, #4104).
 import { rmSync } from "node:fs";
 import { isAbsolute } from "node:path";
 
