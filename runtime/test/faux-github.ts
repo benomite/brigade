@@ -353,7 +353,11 @@ export function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     commenter: bas.commenter,
     mettreAJour: bas.mettreAJour,
     merger: bas.merger,
-    labelliser: bas.labelliser,
+    // Une station du dépôt (`stationDuDepot`) cuisine ce qu'elle prend : chaque prise compte une cuisson (#4041).
+    labelliser: async (numero, labels) => {
+      if (labels.includes(LABEL_TAKEN) && !faux.ticket(numero).labels.has(LABEL_TAKEN)) faux.cuissons.push({ station, issue: numero });
+      await bas.labelliser(numero, labels);
+    },
     delabelliser: bas.delabelliser,
     fermerIssue: async (numero) => {
       faux.ticket(numero).state = "closed";

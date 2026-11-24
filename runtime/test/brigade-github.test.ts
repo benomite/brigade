@@ -1796,7 +1796,8 @@ test("three one-minute stops caused by a Claude quota limit leave the ticket on 
     // Le tour suivant, tout de suite : le ticket attend le retour du quota.
     await station.tour();
     await station.calme();
-    assert.equal(faux.cuissons.length, 0);
+    // Une prise par retour du quota : le tour d'après ne le reprend pas.
+    assert.equal(faux.cuissons.length, i + 1);
     heure += 2 * 3_600_000 + 60_000;
   }
   const corps = (faux.commentaires.get(77) ?? []).map((c) => c.body);
