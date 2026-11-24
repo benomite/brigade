@@ -13,7 +13,6 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { StationsDuChef } from "../../src/premier-lancement.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { BIENVENUE } from "../../src/vue/premier-lancement.js";
-import { CLE_DE_LA_VISITE } from "../../src/vue/visite/visite.js";
 import { type Faux, FauxStockage, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 // A new computer: no project added, no station, the welcome screen is the first screen.
@@ -32,7 +31,6 @@ const demarrage = () => ({
 const AUCUNE: StationsDuChef = { state: "listed", unreadable: [], stations: [] };
 async function ordinateurNeuf() {
   const stockage = new FauxStockage();
-  stockage.setItem(CLE_DE_LA_VISITE, "passed");
   const vue = await jouerLaVue({ demarrage, stationsDuChef: () => AUCUNE, compteGitHub: () => ({ login: "chef" }), depotsDuChef: () => ({ depots: [] }), espace: () => [] }, { stockage });
   await repos();
   return vue;
