@@ -11,6 +11,7 @@
 // conflit avec la base revient au cook du ticket lui-même, jamais à un ticket
 // neuf ni au chef.
 import { lesMotsDuCook } from "../attente-ticket/attente-ticket.ts";
+import { besoinDeSecret } from "../besoin-de-secret.ts";
 
 // La marque du renvoi au cook du ticket, suivie des fichiers en conflit.
 export const MARQUE_DU_CONFLIT_MAIN = "<!-- brigade:conflit-main";
@@ -62,8 +63,10 @@ export function carteDeBacASable(tete: string): boolean {
   return demandeUnReglageDuBac(tete) || (/^\*\*Gesture for the chef\b/.test(tete) && refusDuBacSansGit(tete));
 }
 
+// Une carte qui demande un secret ou un compte sur la station n'en est jamais une,
+// même quand elle nomme la branche du cook (#4041).
 export function carteDeGesteGit(tete: string): boolean {
-  if (refusDuBacSansGit(tete)) return false;
+  if (refusDuBacSansGit(tete) || besoinDeSecret(tete)) return false;
   return (/^\*\*Gesture for the chef\b/.test(tete) && demandeUnGesteGit(tete)) || COMMANDE_GIT.test(tete) || /\bcook\/[1-9]\d*-/.test(tete);
 }
 
