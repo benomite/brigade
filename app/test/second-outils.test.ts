@@ -38,7 +38,7 @@ describe("l'onglet Second dit pourquoi le second ne part pas, et ce qui lui manq
 
     assert.equal(lances.length, 0);
     assert.equal(second.arrete, true);
-    assert.equal(second.note, "The second cannot start: `claude` is missing on this computer.");
+    assert.equal(second.note, "The second cannot start: Claude Code is missing on this computer.");
     assert.deepEqual(
       second.empeche?.tools.map(({ tool }) => tool),
       ["claude", "gh"],
@@ -73,7 +73,7 @@ describe("l'onglet Second dit pourquoi le second ne part pas, et ce qui lui manq
 
     assert.equal(lances.length, 1);
     assert.equal(second.empeche, undefined);
-    assert.match(second.manque?.reason ?? "", /^The second starts, but `gh` is missing on this computer/);
+    assert.match(second.manque?.reason ?? "", /^The second starts, but the GitHub CLI is missing on this computer/);
     assert.deepEqual(second.manque?.tools.map(({ tool }) => tool), ["gh"]);
   });
 
