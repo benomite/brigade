@@ -10,8 +10,8 @@ carries their update metadata: `latest-mac.yml` for the Mac, `latest.yml` for Wi
 While **none** of the six secrets is set, the workflow takes its unsigned path instead of failing: it
 builds and publishes `app-v<version>` with the ad hoc signed `.dmg` and its `latest-mac.yml` —
 installed Mac apps update themselves to it (#2431), once the workflow has checked that the app passes
-the installer's `codesign --verify --deep --strict` —, the unsigned Windows `.exe` without `latest.yml`
-(installed Windows apps do not update to it) and the Android `.apk`, and the run log says that the
+the installer's `codesign --verify --deep --strict` —, the unsigned Windows `.exe` with its `latest.yml`
+(installed Windows apps update to it, #4058) and the Android `.apk`, and the run log says that the
 builds are unsigned. With only some of the secrets set, the signed path runs and refuses, as below.
 
 The certificates and credentials are **repository secrets**. Add each one under the repository's
