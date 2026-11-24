@@ -1375,6 +1375,26 @@ main > header,
 .compte-du-premier p {
   margin: 0;
 }
+/* Connecté : le compte ressort, son état « connected » à côté ; changer de compte reste un petit lien dessous. */
+.compte-du-premier .compte-carte {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-3);
+}
+.compte-du-premier .etat-connecte {
+  padding: var(--pas-1) var(--pas-2);
+  border-radius: var(--rayon-bouton);
+  border: 1px solid currentColor;
+  font-size: var(--taille-meta);
+  color: var(--vert);
+}
+.compte-du-premier .compte-connecte {
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+}
+.compte-du-premier .compte-connecte strong {
+  font-weight: 700;
+}
 .compte-du-premier .dit {
   color: var(--texte-doux);
 }
