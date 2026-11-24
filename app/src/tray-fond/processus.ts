@@ -13,25 +13,42 @@ import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions }
 import { lancerIci, type Locale } from "../box.ts";
 import type { ProjetLu } from "../barre-de-menus.ts";
 import { cheminConfiguration, lireConfiguration } from "../config.ts";
+import { RELEASES_URL } from "../mise-a-jour/android.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "../emplacements.ts";
 import { estUnMac, shellDuPoste } from "../plateforme.ts";
 import { servisPar } from "../poste/cuisine-ici.ts";
 import { prendreLaPlace } from "./instance.ts";
 import { ICONE_DE_LA_BARRE, pastillee } from "./icone.ts";
 import { jouerLeGeste, lireLesProjets, type Lancer } from "./lecture.ts";
-import { executer, quitterLaStation } from "./systeme.ts";
-import { confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
+import { DOSSIER_DU_FOND, ecrireLaVersionDuFond, executer, quitterLaStation } from "./systeme.ts";
+import { clicSurLApp, confirmationDeQuitter, etatDeLaStation, menuDuFond, questionsDuFond, ligneDuFond, type EntreeDuFond, type Geste } from "./tray-fond.ts";
 import type { Veille } from "../vue/veille-machine/veille-machine.js";
 
 const INTERVALLE_MS = 15_000;
 const DELAI_MS = 30_000;
 
 // Ses propres données, à part de celles de l'app : les deux tournent en même temps. Un seul process d'icône par compte.
-app.setPath("userData", join(app.getPath("userData"), "tray-fond"));
+app.setPath("userData", join(app.getPath("userData"), DOSSIER_DU_FOND));
 // Pas le verrou d'Electron, réservé à l'app (entree.ts, #3864) : un fichier de pid dans ses données.
 if (prendreLaPlace(join(app.getPath("userData"), "tray.pid")) !== undefined) app.exit(0);
+else {
+  // La version de l'icône qui tient la place, que l'app relit pour relancer une icône restée sur le code d'avant une mise à
+  // jour (#4071). Non écrite, l'app la relance à chacune de ses ouvertures, sans plus.
+  try {
+    ecrireLaVersionDuFond(app.getPath("userData"), app.getVersion());
+  } catch (erreur) {
+    console.error(`brigade: the icon could not write its version — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  }
+}
 // Ni fenêtre, ni icône dans le Dock.
 app.on("window-all-closed", () => {});
+// Sur un Mac, l'icône est un process du paquet de l'app : un clic sur l'app (Dock, Finder, Launchpad) pendant qu'elle tourne
+// lui est adressé, et ne lançait rien — l'app quittée ne se rouvrait plus (#4071). Il ouvre l'app, sauf celui que le
+// lancement de l'icône émet lui-même (`clicSurLApp`).
+const demarrage = Date.now();
+app.on("activate", () => {
+  if (clicSurLApp(demarrage, Date.now())) ouvrirLApp();
+});
 
 const plateforme = process.platform;
 const src = join(import.meta.dirname, "..");
@@ -57,7 +74,11 @@ let enCours = false;
 function ouvrirLApp(): void {
   const args = emplacements.facon === "installee" ? [] : [app.getAppPath()];
   const enfant = spawn(process.execPath, args, { detached: true, stdio: "ignore", windowsHide: false });
-  enfant.once("error", (erreur) => void dialog.showMessageBox({ type: "error", message: "brigade could not be opened", detail: erreur.message }));
+  // Une app qui ne s'ouvre pas est dite en une phrase, avec quoi faire (#4071) ; la raison du système va au journal.
+  enfant.once("error", (erreur) => {
+    console.error(`brigade: the app could not be opened — ${erreur.message}`);
+    void dialog.showMessageBox({ type: "error", message: "brigade could not be opened", detail: `Brigade could not open its window, so try again from this icon, and if it still does not open, download it again from ${RELEASES_URL} and reinstall it.` });
+  });
   enfant.unref();
 }
 
