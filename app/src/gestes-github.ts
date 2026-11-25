@@ -46,13 +46,19 @@ export async function retirerLeLabel(lu: TableauLu | undefined, id: GesteSurGith
   if (!numero(ticket)) return { refus: "nothing was written: the action names no ticket", detail: "" };
   if (lu === undefined) return { refus: PAS_LU, detail: "" };
   if (!ticketsLus(lu).has(ticket)) return { refus: `nothing was written: #${ticket} is not on the latest rail read — read it again`, detail: "" };
-  return id === "cuisine" ? deparquer(lu.depot, ticket, client) : retirerDeLIssue(lu.depot, ticket, id, client);
+  return RETRAITS[id](lu.depot, ticket, client);
 }
 
 // Déparquer un ticket (#4262) : le label `waiting` retiré de son issue, sur tout dépôt, sans box. C'est le seul chemin
 // qui le sort de son attente, que l'app le joue (« resume », « it arrived, back to the kitchen », « back to the kitchen »
 // de la fiche) ou le second (second/parking.ts).
 export const deparquer = (depot: string, ticket: number, client: ClientDeLaPriorite): Promise<Ecrit> => retirerDeLIssue(depot, ticket, "cuisine", client);
+
+// Ce que chaque geste joue : « remove from the rail » retire `fire` ; rendre le ticket à la cuisine, c'est le déparquer.
+const RETRAITS: Record<GesteSurGithub, (depot: string, ticket: number, client: ClientDeLaPriorite) => Promise<Ecrit>> = {
+  retirer: (depot, ticket, client) => retirerDeLIssue(depot, ticket, "retirer", client),
+  cuisine: (depot, ticket, client) => deparquer(depot, ticket, client),
+};
 
 // Le label du geste retiré de l'issue. Une issue qui ne le porte déjà plus : c'est fait.
 async function retirerDeLIssue(depot: string, ticket: number, id: GesteSurGithub, client: ClientDeLaPriorite): Promise<Ecrit> {
