@@ -10,7 +10,7 @@ import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-gi
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "../src/constat-seul.ts";
 import { attenteDeLIssue } from "../src/attente-github/attente-github.ts";
 import { LABEL_PARKED } from "../src/github-etat/etats.ts";
-import { ECHECS_ATTEINTS, HORS_CUISINE } from "../src/github.ts";
+import { HORS_CUISINE } from "../src/github.ts";
 import { MARQUE_D_ECHEC } from "../src/qualite-github.ts";
 import { FauxGitHub, fauxClient } from "./faux-github.ts";
 
@@ -101,12 +101,11 @@ test("a delivery-expecting ticket whose cook commits nothing still records an ec
   assert.equal(faux.ticket(TICKET).state, "open");
 });
 
-// Parqué par ses échecs (#4129) : le label `parked`, plus `set-aside:failures`, et sa marque dit qu'il attend le
-// superviseur, pour ses échecs.
+// Parqué par ses échecs (#4129, #4260) : le label `parked`, et sa marque dit qu'il attend le superviseur, pour ses échecs.
 function parqueParSesEchecs(faux: FauxGitHub): boolean {
   const attente = attenteDeLIssue((faux.commentaires.get(TICKET) ?? []).map((c) => ({ body: c.body, association: c.association })));
   const labels = faux.ticket(TICKET).labels;
-  return labels.has(LABEL_PARKED) && !labels.has(ECHECS_ATTEINTS) && attente?.failures === true && attente.who === "the supervisor";
+  return labels.has(LABEL_PARKED) && attente?.failures === true && attente.who === "the supervisor";
 }
 
 test("a diagnosis-only ticket whose cook commits nothing and delimits no deliverable records an echec, and is set aside (#2854, #3651)", async (t) => {

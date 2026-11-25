@@ -28,7 +28,8 @@ const lignesDuRail = async (minutes: number) => {
 test("the only ticket of the rail unable to leave for more than an hour: one line says why and names the ticket it waits for", async () => {
   const lignes = await lignesDuRail(61);
   assert.equal(lignes.filter((ligne) => ligne.includes("#1912")).length, 1, `one line naming #1912 in:\n${lignes.join("\n")}`);
-  assert.match(lignes.find((ligne) => ligne.includes("#1912")) ?? "", /WAITING/);
+  // #4260 : WAITING s'appelle désormais « parked ».
+  assert.match(lignes.find((ligne) => ligne.includes("#1912")) ?? "", /parked, waiting for a collaborator/);
 });
 
 // brigade:guard

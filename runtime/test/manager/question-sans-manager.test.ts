@@ -14,9 +14,9 @@ import { ATTENTE_MS, ECHECS_MAX, stationDuDepot, type Lancer } from "../../src/b
 import { suiteDuConflitBloque } from "../../src/conflit-main/conflit-main.ts";
 import { MARQUE_DU_CONFLIT_MAIN } from "../../src/conflit-main/renvoi.ts";
 import { attenteDeLIssue } from "../../src/attente-github/attente-github.ts";
-import { LABEL_PARKED, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
+import { LABEL_PARKED, LABEL_TAKEN, LABELS_D_AVANT_PARKED } from "../../src/github-etat/etats.ts";
 import { corpsDePriseDuManager } from "../../src/github-etat/prise-du-manager.ts";
-import { ECHECS_ATTEINTS, HORS_CUISINE, type GitHub } from "../../src/github.ts";
+import { HORS_CUISINE, type GitHub } from "../../src/github.ts";
 import { corpsDeLaQuestion, corpsDeLaReprise, questionEnSuspens } from "../../src/manager/question-sans-manager.ts";
 import { corpsDeLIncapacite } from "../../src/routage-station/routage-station.ts";
 import { MARQUE_D_ATTENTE, MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
@@ -141,7 +141,7 @@ test("when no station of the project runs a manager, the ticket is given back to
   const ticket = faux.ticket(N);
   assert.equal(ticket.labels.has("fire"), true, "on the rail");
   assert.equal(ticket.labels.has(LABEL_TAKEN), false);
-  assert.equal(ticket.labels.has(ECHECS_ATTEINTS) || ticket.labels.has(HORS_CUISINE) || ticket.labels.has(LABEL_PARKED), false);
+  assert.equal([LABEL_PARKED, HORS_CUISINE, ...LABELS_D_AVANT_PARKED].some((label) => ticket.labels.has(label)), false);
   const [attente] = du(faux, MARQUE_D_ATTENTE);
   assert.match(attente ?? "", /^<!-- brigade:attente until=\d+ -->\nStation `macbook-air-de-benoit\/claude`: the ticket is given back to the rail/);
   assert.equal(Number(/until=(\d+)/.exec(attente ?? "")?.[1]), DEBUT + ATTENTE_MS);
@@ -160,7 +160,7 @@ test("a ticket given back because no station runs a manager is never set aside, 
     horloge.a += ATTENTE_MS + 60_000;
   }
   const ticket = faux.ticket(N);
-  assert.equal(ticket.labels.has(ECHECS_ATTEINTS), false);
+  assert.equal(LABELS_D_AVANT_PARKED.some((label) => ticket.labels.has(label)), false);
   assert.equal(ticket.labels.has(LABEL_PARKED), false);
   assert.equal(ticket.labels.has(HORS_CUISINE), false);
   assert.equal(ticket.labels.has("fire"), true);
@@ -193,7 +193,8 @@ test("a real cook failure on a station with no manager still counts, and still p
   }
   // Parqué par ses échecs (#4129) : `parked`, et sa marque dit qu'il attend le superviseur, pour ses échecs.
   assert.equal(faux.ticket(N).labels.has(LABEL_PARKED), true);
-  assert.equal(faux.ticket(N).labels.has(ECHECS_ATTEINTS), false);
+  // Plus jamais l'ancien `set-aside:failures`, ni aucun label d'avant `parked`.
+  assert.equal(LABELS_D_AVANT_PARKED.some((label) => faux.ticket(N).labels.has(label)), false);
   const attente = attenteDeLIssue((faux.commentaires.get(N) ?? []).map((c) => ({ body: c.body, association: c.association })));
   assert.equal(attente?.who, "the supervisor");
   assert.equal(attente?.failures, true);

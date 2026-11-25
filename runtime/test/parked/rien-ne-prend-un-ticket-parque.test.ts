@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reprendALaDate } from "../../src/attente-github/marque.ts";
+import { LABELS_D_AVANT_PARKED } from "../../src/github-etat/etats.ts";
 import { exigerNonParque, GesteRefuse } from "../../src/rail.ts";
 import type { Reveil } from "../../src/superviseur/declencheur.ts";
 import { jouerLeRun } from "../../src/superviseur/gestes.ts";
@@ -26,10 +27,11 @@ test("`back-on-rail` refuse un ticket parqué, pour un tiers comme pour le chef 
   }
 });
 
-test("`exigerNonParque` : refuse `parked` et `chef-todo`, laisse tout autre ticket", () => {
+test("`exigerNonParque` : refuse `parked`, `chef-todo` et un label d'attente d'avant parked, laisse tout autre ticket", () => {
   assert.throws(() => exigerNonParque(["parked"], 7), GesteRefuse);
   assert.throws(() => exigerNonParque(["chef-todo"], 7), GesteRefuse);
-  assert.doesNotThrow(() => exigerNonParque(["fire", "taken", "in-pass", "blocked-on-human", "served-elsewhere"], 7));
+  for (const label of LABELS_D_AVANT_PARKED) assert.throws(() => exigerNonParque(["fire", label], 7), GesteRefuse, label);
+  assert.doesNotThrow(() => exigerNonParque(["fire", "taken", "in-pass", "served-elsewhere"], 7));
 });
 
 test("parqué jusqu'à une date, il reprend à cette date et pas avant ; parqué jusqu'à un fait, aucune date ne le reprend", () => {

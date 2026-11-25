@@ -6,7 +6,6 @@ import { test } from "node:test";
 import { attenteDeLIssue, corpsDuParking } from "../../src/attente-github/attente-github.ts";
 import { reprendALaDate } from "../../src/attente-github/marque.ts";
 import { LABEL_PARKED } from "../../src/github-etat/etats.ts";
-import { ECHECS_ATTEINTS } from "../../src/github.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 const MAINTENANT = new Date("2026-11-23T10:00:00Z");
@@ -27,7 +26,7 @@ test("a ticket whose tries are spent waits on the supervisor, its reason written
   const ticket = faux.ticket(894);
   // Parqué par ses échecs (#4129) : `parked`, plus `set-aside:failures` ; sa marque dit qu'il attend le superviseur.
   assert.ok(ticket.labels.has(LABEL_PARKED), "the supervisor gets its dossier");
-  assert.equal(ticket.labels.has(ECHECS_ATTEINTS), false, [...ticket.labels].join(", "));
+  assert.equal(ticket.labels.has("set-aside:failures"), false, [...ticket.labels].join(", "));
   const attente = attenteDeLIssue((faux.commentaires.get(894) ?? []).map(({ body, association }) => ({ body, association })));
   assert.ok(attente !== null, "the parked mark is on the ticket");
   assert.equal(attente.who, "the supervisor");

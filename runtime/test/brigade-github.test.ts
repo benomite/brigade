@@ -759,7 +759,7 @@ test("a station whose second judge's brief cannot be read says so once per head 
   assert.match(dits[0]?.body ?? "", /\/usr\/lib\/brigade-station\/agents\/second-juge\.md/);
 });
 
-test("the card a station posted before #2555 on a delivery that changes what judges it is lifted, and the second judge decides (#2555)", async () => {
+test("the card a station posted before #2555 on a delivery that changes what judges it keeps it parked until the chef lifts it, then the second judge decides (#2555, #4260)", async () => {
   const faux = new FauxGitHub();
   faux.feu(41);
   const a = faux.station("A");
@@ -769,8 +769,13 @@ test("the card a station posted before #2555 on a delivery that changes what jud
   assert.ok(pr);
   pr.fichiers = [".github/workflows/tests.yml"];
   faux.ticket(41).labels.add("blocked-on-human");
+  // #4260 : l'ancien `blocked-on-human` se lit parqué pour le chef — la station ne lève plus sa carte, ni ne relit ni ne merge.
+  for (let i = 0; i < 5; i += 1) await a.tour();
+  assert.ok(faux.ticket(41).labels.has("blocked-on-human"));
+  assert.equal(faux.mergee(41), undefined);
+  // La carte levée par le chef, le second juge décide.
+  await faux.pour("chef").delabelliser(41, "blocked-on-human");
   for (let i = 0; i < 5 && faux.mergee(41) === undefined; i += 1) await a.tour();
-  assert.ok(!faux.ticket(41).labels.has("blocked-on-human"));
   assert.equal(faux.mergee(41)?.mergeePar, "A");
 });
 

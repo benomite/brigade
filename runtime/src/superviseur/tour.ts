@@ -26,7 +26,7 @@ import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import type { CheckVu } from "../carte-ci-windows.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "../github-etat/etats.ts";
 import { estMisDeCote, MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
@@ -116,7 +116,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       fires: async () => {
         const tickets = await github.fires();
         noterTickets(tickets);
-        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && (estMisDeCote(labels) || labels.includes(LABEL_PARKED)));
+        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && (estMisDeCote(labels) || estParque(labels)));
         return tickets;
       },
       commenter: async (numero, corps) => {

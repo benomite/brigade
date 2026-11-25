@@ -2,7 +2,7 @@
 // il est parqué, ou il est mis de côté avec sa raison en une ligne.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ECHECS_ATTEINTS, MIS_DE_COTE } from "../../src/github.ts";
+import { MIS_DE_COTE } from "../../src/github.ts";
 import { LABEL_PARKED } from "../../src/github-etat/etats.ts";
 import { FauxGitHub } from "../faux-github.ts";
 
@@ -19,7 +19,7 @@ test("a ticket handed back twice with the same result is not relaunched a third 
   const cuissons = faux.cuissons.filter(({ issue }) => issue === 7).length;
   assert.ok(cuissons <= 2, `the cook ran ${cuissons} times for the same result`);
   const labels = [...faux.ticket(7).labels];
-  const ecarte = labels.some((label) => (MIS_DE_COTE as readonly string[]).includes(label) || label === ECHECS_ATTEINTS);
+  const ecarte = labels.some((label) => (MIS_DE_COTE as readonly string[]).includes(label) || label === LABEL_PARKED);
   const enAttente = labels.includes(LABEL_PARKED);
   assert.ok(ecarte || enAttente, `the ticket is parked or set aside, not left on the rail: ${labels.join(", ")}`);
   if (ecarte && !enAttente) {

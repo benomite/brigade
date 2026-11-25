@@ -22,7 +22,8 @@ test("a ticket whose awaited ticket is WAITING on a collaborator is shown as WAI
   };
   const lignes = await lignesDeLAttente({ depot: DEPOT, lire, stations: async () => enLigne, maintenant: MAINTENANT });
   const carte = lignes.find((ligne) => ligne.trimStart().startsWith("#3734")) ?? assert.fail(`no line for #3734 in:\n${lignes.join("\n")}`);
-  assert.match(carte, /waits for `#1912`, WAITING on a collaborator/);
+  // #4260 : WAITING s'appelle désormais « parked » ; la ligne dit pour qui il attend.
+  assert.match(carte, /waits for `#1912`, parked, waiting for a collaborator/);
   assert.match(carte, /#3734/);
   assert.doesNotMatch(lignes.join("\n"), /Normal wait|takes the ticket within minutes/, "never an idle queued ticket");
 });

@@ -11,7 +11,7 @@ import { corpsDeCarte, carteQuestionProduit } from "../../src/github-seul/carte-
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 // Les gestes de l'étape 4 de la spec que ce ticket sait appliquer, et le rythme du superviseur : 10 minutes, trois essais.
-const GESTES = ["rail", "waiting", "close", "todo"];
+const GESTES = ["rail", "park", "close", "todo"];
 const CONTROLE_TOUS_LES_MS = 10 * 60_000;
 const DOSSIER_TOUS_LES_MS = 10 * 60_000;
 const DOSSIER_ESSAIS_MAX = 3;
@@ -194,12 +194,12 @@ test("a ticket parked for its failures is handed to the supervisor with its doss
 
 const AVEC_NOTE = { note: "the PR conflicts with the base" };
 const TRACE = `comment #77: ${MARQUE_DU_SUPERVISEUR}`;
-// « waiting » : parqué de nouveau, pour le tiers, sept jours après la réponse — plus pour ses échecs.
+// « park » : parqué de nouveau, pour le tiers, sept jours après la réponse — plus pour ses échecs.
 const POUR_LE_TIERS = { what: "the PR conflicts with the base", who: "the design team", followUp: "2026-11-27T10:00:00.000Z" };
 // Chaque geste, la trace qu'il laisse, et toutes ses écritures sur GitHub, dans l'ordre (la première ligne de chaque commentaire).
 const CAS: Array<[string, Record<string, unknown>, RegExp[], string[]]> = [
   ["rail", { gesture: "rail", ...AVEC_NOTE }, [/\*\*Did:\*\* unparked it onto the rail\./], [TRACE, "label #77 -parked"]],
-  ["waiting", { gesture: "waiting", ...AVEC_NOTE, third_party: "the design team" }, [/\*\*Did:\*\* kept it parked, waiting for the design team\./, /^comment #77: <!-- brigade:parked /], [`comment #77: <!-- brigade:parked ${JSON.stringify(POUR_LE_TIERS)} -->`]],
+  ["park", { gesture: "park", ...AVEC_NOTE, third_party: "the design team" }, [/\*\*Did:\*\* kept it parked, waiting for the design team\./, /^comment #77: <!-- brigade:parked /], [`comment #77: <!-- brigade:parked ${JSON.stringify(POUR_LE_TIERS)} -->`]],
   ["close", { gesture: "close", ...AVEC_NOTE }, [/\*\*Did:\*\* closed it, a duplicate or a stale alert\./], [TRACE, "close #77", "label #77 -parked"]],
   ["todo", { gesture: "todo", ...AVEC_NOTE, question: "Which screen keeps the laps?" }, [/\*\*Did:\*\* parked it for the chef: a product or design question, a card in the chef's TODO\./], [TRACE, "label #77 +chef-todo", "comment #77: <!-- brigade:todo kind=product-question -->", "label #77 -parked"]],
 ];
@@ -222,8 +222,8 @@ for (const [nom, reponse, attendus, ecritures] of CAS) {
   });
 }
 
-test("« waiting » parks it for the third party: its latest marker says who, for what, until a date seven days on", async (t) => {
-  const s = superviseur(t, { reponses: [decision({ gesture: "waiting", ...AVEC_NOTE, third_party: "the design team" })] });
+test("« park » parks it for the third party: its latest marker says who, for what, until a date seven days on", async (t) => {
+  const s = superviseur(t, { reponses: [decision({ gesture: "park", ...AVEC_NOTE, third_party: "the design team" })] });
   await s.supervision.passer();
   const [commentaire = ""] = s.ecritures;
   assert.deepEqual(attenteDeLIssue([{ body: commentaire.slice("comment #77: ".length), association: "OWNER" }]), POUR_LE_TIERS);
@@ -253,7 +253,7 @@ const HORS_LISTE: Array<[string, Record<string, unknown>]> = [
   ["a gesture outside the list", { gesture: "merge", note: "merge it" }],
   ["a rerun of the CI, which this ticket does not apply", { gesture: "rerun", note: "rerun" }],
   ["no note", { gesture: "rail", note: "  " }],
-  ["a wait that names nobody", { gesture: "waiting", note: "x" }],
+  ["a wait that names nobody", { gesture: "park", note: "x" }],
   ["a TODO card with no question", { gesture: "todo", note: "x" }],
 ];
 for (const [nom, reponse] of HORS_LISTE) {

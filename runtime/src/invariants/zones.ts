@@ -3,7 +3,7 @@
 // sinon des tickets en file se retiennent en cycle (#3979), ou la livraison
 // d'une épique retient ses propres tickets découpés (#3932).
 import { secoupent, type TicketLu } from "../brigade-github.ts";
-import { CHEF_TODO, estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
+import { CHEF_TODO, estParque, LABEL_IN_PASS, LABEL_TAKEN, LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../github-etat/etats.ts";
 import { tenant } from "../github-etat/prise.ts";
 import { estMisDeCote } from "../github.ts";
 import type { Invariant } from "./invariants.ts";
@@ -19,13 +19,13 @@ const ticketDeLaBranche = (branche: string): number | null => {
 // son ticket, lu au tour, n'a de cook nulle part et n'est pas en pass : mis de
 // côté ou parqué (#3798, #3814, #4260), libre, ou `taken` sans prise lisible
 // (#3966). Une livraison qui attend le chef la tient tant qu'il ne l'a pas vue
-// (#2977). Un ticket que le tour n'a pas lu, ou dont la prise ne se lit pas, la
+// (#2977), parquée pour lui (`chef-todo`, ou un label d'attente du chef d'avant parked). Un ticket que le tour n'a pas lu, ou dont la prise ne se lit pas, la
 // tient encore : dans le doute, la zone reste tenue.
 export async function tientSaZone(branche: string, { tickets, enCuisine, commentaires }: LectureDeLaPrise): Promise<boolean> {
   const numero = ticketDeLaBranche(branche);
   const lu = numero === null ? undefined : tickets.find((ticket) => ticket.number === numero);
   if (lu === undefined || enCuisine(lu.number) || lu.labels.includes(LABEL_IN_PASS)) return true;
-  if (lu.labels.includes(CHEF_TODO)) return true;
+  if ([CHEF_TODO, ...LABELS_D_AVANT_PARKED_POUR_LE_CHEF].some((label) => lu.labels.includes(label))) return true;
   if (estMisDeCote(lu.labels) || estParque(lu.labels)) return false;
   if (!lu.labels.includes(LABEL_TAKEN)) return false;
   return commentaires(lu.number).then((lus) => tenant(lus, []) !== null).catch(() => true);

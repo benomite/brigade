@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { abandonsAuChef } from "./abandon-au-chef.ts";
 import { DE_CONFIANCE, priorite } from "./alimenter.ts";
+import { carteBacklogVideDuJournal } from "./carte-backlog-vide/carte-du-journal.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
@@ -1027,6 +1028,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // elle attend son jugement, et `fire` avec lui.
   const neuve = (issue: IssueOuverte) => issueDuManager(base, issue.number) === null && trier(issue, null).quoi === "juger";
 
+  // La carte du backlog vide, relue du journal au démarrage (#4225).
+  const backlogVide = carteBacklogVideDuJournal(journal, projet);
+
   // Un tour : chaque issue ouverte est triée par le code, et seules celles
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   //
@@ -1115,6 +1119,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
     constater(presentes);
+    // Plus rien à cuire — toutes ses issues sont des idées, parquées ou mises à l'écart par
+    // le tri, ou aucune n'est ouverte : le chef le lit sur une seule carte (#4225).
+    backlogVide.boucle(issues.filter(lisible).filter((issue) => trier(issue, issueDuManager(base, issue.number)).quoi !== "ecart"));
 
     // Les remises que ce tour verra toutes : celle que le chef écrit pendant
     // qu'il tourne est au suivant.

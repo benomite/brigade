@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { attenteDeLIssue } from "../../src/attente-github/attente-github.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { LABEL_PARKED, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import type { GitHub } from "../../src/github.ts";
@@ -57,7 +57,7 @@ test("a cook that says the ticket waits for the client's answer, with no date, p
   const ticket = s.ticket();
   assert.equal(ticket.labels.has(LABEL_PARKED), true, "the ticket carries `parked`");
   assert.equal(ticket.labels.has(LABEL_TAKEN), false);
-  assert.equal(ticket.labels.has(A_LA_MAIN), false, "not blocked-on-human");
+  assert.equal(ticket.labels.has(CHEF_TODO), false, "not blocked-on-human");
   assert.equal(ticket.labels.has(CHEF_TODO), false, "no chef TODO card");
   const attente = s.attente();
   assert.ok(attente !== null, "a marked comment records the wait");

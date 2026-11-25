@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { attenteDeLIssue } from "../../src/attente-github/attente-github.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { LABEL_PARKED, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import type { GitHub } from "../../src/github.ts";
@@ -64,7 +64,7 @@ test("on its date a parked ticket loses `parked` and a cook takes it again — b
   await s.tour();
   assert.equal(s.ticket().labels.has(LABEL_PARKED), false, "resumed by itself");
   assert.equal(s.ticket().labels.has("fire"), true);
-  assert.equal(s.ticket().labels.has(A_LA_MAIN), false);
+  assert.equal(s.ticket().labels.has(CHEF_TODO), false);
   assert.equal(s.ticket().labels.has(CHEF_TODO), false);
   assert.equal(s.cooks(), 2, "a cook takes it again");
 });

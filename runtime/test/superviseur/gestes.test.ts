@@ -16,8 +16,8 @@ const jouer = (depot: FauxDepot, reveil: Reveil, gesture: unknown, saw = "the do
 test("chaque geste fait, un seul commentaire sur le ticket où le run a agi, qui dit ce qu'il a vu et ce qu'il a fait — le parking et la carte TODO compris", async () => {
   const cas: Array<{ nom: string; gesture: unknown; ticket: number; tete?: RegExp; prepare?: (depot: FauxDepot) => void }> = [
     { nom: "rerun", gesture: { gesture: "rerun", ticket: 40 }, ticket: 40, prepare: (depot) => depot.checkRouge("tests (linux)", 7) },
-    { nom: "back-on-rail", gesture: { gesture: "back-on-rail", ticket: 40, note: "its zone is free again" }, ticket: 40, prepare: (depot) => depot.issue(40, ["fire", "set-aside:failures"]) },
-    { nom: "waiting", gesture: { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" }, ticket: 40, tete: /^<!-- brigade:parked \{/ },
+    { nom: "back-on-rail", gesture: { gesture: "back-on-rail", ticket: 40, note: "its zone is free again" }, ticket: 40, prepare: (depot) => depot.issue(40, ["fire", "served-elsewhere"]) },
+    { nom: "park", gesture: { gesture: "park", ticket: 40, what: "the API key", who: "the client" }, ticket: 40, tete: /^<!-- brigade:parked \{/ },
     { nom: "close-duplicate", gesture: { gesture: "close-duplicate", ticket: 40, of: 12 }, ticket: 40 },
     { nom: "fix", gesture: { gesture: "fix", cause: "the journal is read twice", title: "Read the journal once per tick", body: "The tick reads the journal twice." }, ticket: 500 },
     { nom: "todo", gesture: { gesture: "todo", ticket: 40, kind: "product", question: "Should the phone show the served tickets?" }, ticket: 40, tete: /^<!-- brigade:todo kind=product-question -->/ },
@@ -50,7 +50,7 @@ test("un geste refusé : rien n'est fait, et le run le dit en un seul commentair
 });
 
 test("toute autre action est refusée : rien n'est écrit sur GitHub que le commentaire du run", async () => {
-  for (const gesture of [{ gesture: "merge", ticket: 40 }, { gesture: "comment", ticket: 40 }, "rebase", null, { gesture: "waiting", ticket: 40, what: "the key" }]) {
+  for (const gesture of [{ gesture: "merge", ticket: 40 }, { gesture: "comment", ticket: 40 }, "rebase", null, { gesture: "park", ticket: 40, what: "the key" }]) {
     const depot = new FauxDepot();
     depot.issue(40, ["fire"]);
     const trace = await jouer(depot, PRISES, gesture);
@@ -64,7 +64,7 @@ test("toute autre action est refusée : rien n'est écrit sur GitHub que le comm
   }
   const depot = new FauxDepot();
   depot.issue(40, ["fire"]);
-  assert.match((await jouer(depot, PRISES, { gesture: "merge" })).comment ?? "", /“merge” is not one of the supervisor's six gestures \(rerun, back-on-rail, waiting, close-duplicate, fix, todo\)/);
+  assert.match((await jouer(depot, PRISES, { gesture: "merge" })).comment ?? "", /“merge” is not one of the supervisor's six gestures \(rerun, back-on-rail, park, close-duplicate, fix, todo\)/);
 });
 
 test("main rouge : le fix d'un check jamais relancé relance ses jobs en échec d'abord, et n'ouvre aucun ticket", async () => {
@@ -134,12 +134,12 @@ test("aucun ticket créé hors du geste fix, et jamais un ticket sur un ticket",
   for (const gesture of [
     { gesture: "rerun", ticket: 40 },
     { gesture: "back-on-rail", ticket: 40, note: "go" },
-    { gesture: "waiting", ticket: 40, what: "the key", who: "the client" },
+    { gesture: "park", ticket: 40, what: "the key", who: "the client" },
     { gesture: "close-duplicate", ticket: 40, of: 12 },
     { gesture: "todo", ticket: 40, kind: "design", question: "Which of the two home layouts do we keep?" },
   ]) {
     const depot = new FauxDepot();
-    depot.issue(40, ["blocked-on-human"]);
+    depot.issue(40, ["served-elsewhere"]);
     depot.issue(12, ["fire"]);
     depot.checkRouge("tests (linux)", 7);
     assert.equal((await jouer(depot, PRISES, gesture)).outcome, "done", gesture.gesture);
@@ -186,10 +186,10 @@ test("la carte TODO de design pose la question de design ; une carte qui attend 
 
 test("remettre sur le rail : `fire` posé, ce qui le retenait retiré ; déjà sur le rail, refusé", async () => {
   const depot = new FauxDepot();
-  depot.issue(40, ["blocked-on-human", "served-elsewhere", "set-aside:failures", "prio:1"]);
+  depot.issue(40, ["served-elsewhere", "prio:1"]);
   const trace = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "the client answered" });
   assert.deepEqual(depot.labelsDe(40), ["prio:1", "fire"]);
-  assert.match(trace.comment ?? "", /put #40 back on the rail \(`fire` added, `blocked-on-human` removed, `served-elsewhere` removed, `set-aside:failures` removed\)\. Note: the client answered/);
+  assert.match(trace.comment ?? "", /put #40 back on the rail \(`fire` added, `served-elsewhere` removed\)\. Note: the client answered/);
   const deja = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "again" });
   assert.equal(deja.outcome, "refused");
   const fermee = new FauxDepot();
@@ -200,7 +200,8 @@ test("remettre sur le rail : `fire` posé, ce qui le retenait retiré ; déjà s
 });
 
 test("remettre sur le rail un ticket parqué (`parked` ou `chef-todo`) : refusé, rien n'est retiré (#4129)", async () => {
-  for (const labels of [["parked", "set-aside:failures", "prio:1"], ["chef-todo", "blocked-on-human", "prio:1"], ["fire", "parked", "chef-todo"]]) {
+  // Un label d'attente d'avant parked (#4260) parque aussi : il ne se retire pas en remettant sur le rail.
+  for (const labels of [["parked", "set-aside:failures", "prio:1"], ["chef-todo", "blocked-on-human", "prio:1"], ["fire", "parked", "chef-todo"], ["blocked-on-human", "served-elsewhere", "set-aside:failures", "prio:1"]]) {
     const depot = new FauxDepot();
     depot.issue(40, labels);
     const trace = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "the client answered" });
@@ -214,14 +215,14 @@ test("remettre sur le rail un ticket parqué (`parked` ou `chef-todo`) : refusé
 test("parked : le label et la marque du tiers dans le seul commentaire ; un commentaire qui ne part pas retire le label", async () => {
   const depot = new FauxDepot();
   depot.issue(40, ["fire"]);
-  const trace = await jouer(depot, PRISES, { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" });
+  const trace = await jouer(depot, PRISES, { gesture: "park", ticket: 40, what: "the API key", who: "the client" });
   assert.deepEqual(depot.labelsDe(40), ["fire", "parked"]);
   assert.match(trace.comment ?? "", /^<!-- brigade:parked \{"what":"the API key","who":"the client","followUp":"2026-11-27T10:00:00.000Z"\} -->/);
   assert.match(trace.comment ?? "", /- \*\*did\*\*: parked #40, waiting for the client: the API key/);
   const casse = new FauxDepot();
   casse.issue(40, ["fire"]);
   casse.commentaireEnEchec = true;
-  await assert.rejects(jouer(casse, PRISES, { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" }), /HTTP 502/);
+  await assert.rejects(jouer(casse, PRISES, { gesture: "park", ticket: 40, what: "the API key", who: "the client" }), /HTTP 502/);
   assert.deepEqual(casse.labelsDe(40), ["fire"]);
 });
 
@@ -263,7 +264,7 @@ test("parked sur un ticket déjà parqué : refusé, rien n'est posé de plus", 
   for (const labels of [["fire", "parked"], ["fire", "chef-todo"]]) {
     const depot = new FauxDepot();
     depot.issue(40, labels);
-    const trace = await jouer(depot, PRISES, { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" });
+    const trace = await jouer(depot, PRISES, { gesture: "park", ticket: 40, what: "the API key", who: "the client" });
     assert.equal(trace.outcome, "refused", labels.join(","));
     assert.match(trace.comment ?? "", /#40 is parked \(`parked`\): it waits for someone, and nothing takes it before/);
     assert.doesNotMatch(trace.comment ?? "", /brigade:parked/);

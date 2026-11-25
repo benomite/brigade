@@ -133,9 +133,10 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("une issue écartée ne presse pas la station : rien n'y est prenable (#2796)", async (t) => {
     let pressions = 0;
-    const { dits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire", "question"])], manager: { surLeRail: () => void pressions++ } });
+    const { faits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire", "question"])], manager: { surLeRail: () => void pressions++ } });
 
-    await jusqua(() => dits(30).length === 1);
+    // `question` se lit parqué (#4260) : écartée sans un mot, sa marque de parking le dit.
+    await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
     await laisserTourner();
 
     assert.equal(pressions, 0);
@@ -477,18 +478,18 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("ce que le code sait écarter ne coûte aucun jugement : roadmap, question, décision, issue retenue", async (t) => {
     const { jugements, dits, journal, labels, laisserTourner } = brigade(t, {
-      manager: { roadmap: 1, jugement: "requalifie-enoncee" },
+      manager: { roadmap: 1 },
       issues: [issue(1, ["tech"]), issue(3, ["question"]), issue(4, ["decision"]), issue(5, ["blocked-on-human", "feature"])],
     });
 
     await laisserTourner();
 
-    // Seule l'issue retenue est relue, pour la décision qu'elle attend (#1102) : jamais jugée.
-    assert.deepEqual(jugements().map((l) => /^Tu es le manager.*Le chef a posé `blocked-on-human`/.test(l.args[1] ?? "")), [true]);
+    // #4260 : l'issue retenue n'est plus relue pour la décision qu'elle attend — parquée, elle n'est ni jugée ni requalifiée.
+    assert.deepEqual(jugements(), []);
     assert.equal(journal.duTicket(5).filter((e) => e.type === "manager.judged").length, 0);
     const ecarts = [1, 3, 4, 5].map((numero) => {
       // La roadmap est aussi lue pour le travail séparé qu'elle porte (#3436) : ses tests sont plus bas.
-      const ecart = journal.duTicket(numero).filter((e) => e.type.startsWith("manager.") && e.type !== "manager.requalified" && !e.type.startsWith("manager.roadmap-"));
+      const ecart = journal.duTicket(numero).filter((e) => e.type.startsWith("manager.") && !e.type.startsWith("manager.roadmap-"));
       assert.equal(ecart.length, 1, `#${numero} : un seul fait`);
       assert.deepEqual(dits(numero), []);
       assert.ok(!labels(numero).includes("fire"));
@@ -496,9 +497,10 @@ describe("le manager", { concurrency: 8 }, () => {
     });
     assert.deepEqual(ecarts, [
       ["manager.set-aside", "roadmap"],
-      ["manager.set-aside", "question"],
-      ["manager.set-aside", "decision"],
-      ["manager.set-aside", "blocked-on-human"],
+      // Les labels d'avant `parked` se lisent parqués (#4260) : l'écart est le même pour les trois.
+      ["manager.set-aside", "parked"],
+      ["manager.set-aside", "parked"],
+      ["manager.set-aside", "parked"],
     ]);
   });
 
@@ -530,7 +532,8 @@ describe("le manager", { concurrency: 8 }, () => {
     ]);
     assert.deepEqual(labels(1), []);
     assert.deepEqual(gh.labellisations, []);
-    assert.deepEqual(cartesEnTodo(journal.base), []);
+    // La roadmap seule ouverte, le backlog n'a rien à cuire : sa carte (#4225) n'est pas celle de la roadmap.
+    assert.deepEqual(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1), []);
     // Rien n'est dit sur la roadmap : aucun commentaire, donc aucune mention du chef.
     assert.deepEqual(gh.commentaires.filter(([numero]) => numero === 1), []);
     assert.deepEqual(gh.creations, []);
@@ -541,14 +544,14 @@ describe("le manager", { concurrency: 8 }, () => {
     gh.decrire(1, { body: ROADMAP });
     // L'état d'espace#1 : jugée `decision`, sa question posée au chef, une carte de TODO.
     journal.ajouter({ project: "brigade", ticket: 1, author: "manager", type: "todo.entered", payload: { kind: "product", summary: "The roadmap.", statement: "Is the roadmap still a tracking document?", choices: [{ text: "Yes", then: "resume" }], captures: null } });
-    assert.equal(cartesEnTodo(journal.base).length, 1);
+    assert.equal(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1).length, 1);
 
     await jusqua(() => faits(1).some((e) => e.type === "manager.roadmap-cleared"));
     await laisserTourner();
 
     assert.deepEqual(labels(1), []);
     assert.deepEqual(gh.delabellisations, [[1, "decision"]]);
-    assert.deepEqual(cartesEnTodo(journal.base), []);
+    assert.deepEqual(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1), []);
     assert.deepEqual(charge(faits(1).find((e) => e.type === "manager.roadmap-cleared")), { labels: ["decision"], card: true });
     // Aucun geste du chef n'y a pris part : tout est du manager.
     assert.deepEqual(journal.duTicket(1).filter((e) => e.author === "chef"), []);
@@ -633,10 +636,10 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("une issue retenue par le chef est jugée dès qu'il la libère", async (t) => {
-    const { gh, jugements, labels, laisserTourner } = brigade(t, { manager: { suite: ["requalifie-enoncee", "juge-ticket"] }, issues: [issue(30, ["blocked-on-human"])] });
+    const { gh, jugements, labels, laisserTourner } = brigade(t, { manager: { suite: ["juge-ticket"] }, issues: [issue(30, ["blocked-on-human"])] });
     await laisserTourner();
-    // Un seul passage : la requalification, qui garde l'issue retenue.
-    assert.equal(jugements().length, 1);
+    // Parquée (#4260) : aucun passage — la requalification n'est plus —, l'issue reste retenue.
+    assert.equal(jugements().length, 0);
     assert.deepEqual(labels(30), ["blocked-on-human"]);
 
     gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));
@@ -716,17 +719,20 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("le chef pose `fire` sur ce que le code écarte : le manager ne le retire pas, ne calibre pas, et le dit une fois", async (t) => {
-    const { gh, labels, dits, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire", "question"])] });
+    // Une épique découpée à la main — sa liste est dans son corps. Une issue parquée (`question`), elle, est écartée
+    // sans un mot (#4260) : sa marque de parking le dit.
+    const { gh, labels, dits, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, ["fire"])] });
+    gh.decrire(30, { body: ["Epic 30.", "", DEBUT, "## Tickets de l'épique", "", "| # | Ticket | État |", "|---|---|---|", "| #31 | Ticket 31 | pas sur le rail |", "", FIN].join("\n") });
     await jusqua(() => dits(30).length === 1);
     await laisserTourner();
 
-    assert.deepEqual(labels(30), ["fire", "question"]);
+    assert.deepEqual(labels(30), ["fire"]);
     assert.deepEqual(gh.labellisations, []);
     assert.equal(jugements().length, 0);
     assert.equal(dits(30).length, 1);
     assert.match(dits(30)[0] ?? "", /`fire` left/);
     assert.match(dits(30)[0] ?? "", /no cook starts/);
-    assert.deepEqual(charge(faits(30)[0]), { reason: "question", fired: true });
+    assert.deepEqual(charge(faits(30)[0]), { reason: "already-split", fired: true });
   });
 
   test("le chef pose `fire` sans calibrer : le manager juge, et ne pose que le calibrage", async (t) => {
@@ -910,9 +916,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("ranger son backlog n'écarte rien : `prio:`, `question` et `blocked-on-human`, posés ou retirés, ne font jamais un `chef-changed`", async (t) => {
-    const { gh, labels, jugements, faits: tous, laisserTourner } = brigade(t, { issues: [issue(30, []), issue(31, ["blocked-on-human", "prio:2"])] });
-    // La relecture de l'issue retenue (`manager.requalified`) n'est pas une décision d'écart.
-    const faits = (numero: number) => tous(numero).filter((e) => e.type !== "manager.requalified");
+    const { gh, labels, jugements, faits, laisserTourner } = brigade(t, { issues: [issue(30, []), issue(31, ["blocked-on-human", "prio:2"])] });
     await jusqua(() => labels(30).includes("fire") && faits(31).length === 1);
 
     // Sur un ticket que le manager a lancé : le second corrige une priorité, pose une question, la retire.
@@ -927,8 +931,9 @@ describe("le manager", { concurrency: 8 }, () => {
     await laisserTourner();
 
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.labeled", "manager.commented"]);
-    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason ?? null]).slice(0, 2), [["manager.set-aside", "blocked-on-human"], ["manager.judged", "One deliverable, checked by a test."]]);
-    assert.equal(jugements().length, 3);
+    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason ?? null]).slice(0, 2), [["manager.set-aside", "parked"], ["manager.judged", "One deliverable, checked by a test."]]);
+    // Un jugement par issue : retenue, #31 n'est plus relue pour sa décision (#4260).
+    assert.equal(jugements().length, 2);
   });
 
   test("le chef corrige un calibrage posé par le manager : rien n'est réécrit", async (t) => {
@@ -1110,8 +1115,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.deepEqual(gh.labellisations, []);
     assert.deepEqual(labels(30), ["blocked-on-human"]);
-    // La relecture de l'issue retenue (`manager.requalified`), au tour qui suit, n'est pas une décision.
-    assert.deepEqual(faits(30).filter((e) => e.type !== "manager.requalified").map((e) => [e.type, charge(e)?.reason]).at(-1), ["manager.set-aside", "blocked-on-human"]);
+    // `blocked-on-human` se lit parqué (#4260) : écartée, sans relecture ni requalification.
+    assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]).at(-1), ["manager.set-aside", "parked"]);
     assert.deepEqual(dits(30), []);
   });
 
@@ -1236,6 +1241,8 @@ describe("le manager", { concurrency: 8 }, () => {
   test("une issue jugée puis fermée : sa question au chef l'a parquée pour lui (#4129), le journal note sa fermeture", async (t) => {
     const { gh, faits, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 2);
+    // Parquée pour le chef au tour qui suit sa question (#4129) : l'écart est noté avant que le chef la ferme.
+    await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
 
     gh.poser(issue(30, [], { state: "closed" }));
     await laisserTourner();

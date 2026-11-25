@@ -43,7 +43,7 @@ const DU_GLOSSAIRE: Record<MotExplique, string> = {
   cook: premierePhrase(entree("1.", "`cuisiner` / `cuisiné par`")),
   second: entree("2.", "`second`"),
   TODO: premierePhrase(entree("2.", "`attend` (bloc, ligne, pilule)")),
-  WAITING: premierePhrase(entree("2.", "`parqué`")),
+  WAITING: entree("2.", "`WAITING`"),
 };
 
 describe("les textes : la ligne du glossaire, mot pour mot", () => {

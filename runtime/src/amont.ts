@@ -133,7 +133,7 @@ function avantDe(base: Base, issue: Issue, amont: IssueAmont): { etat: EtatAvant
   const { dit } = amont;
   if (amont.etat === "servie" || amont.etat === "decoupee") return null;
   if (amont.etat === "en-route" && labels.includes(LABEL)) return null;
-  if (labels.includes(LABEL_PARKED)) return { etat: "mise-de-cote", dit: `parked (\`${LABEL_PARKED}\`): it waits for someone — who, for what and until when are on the issue; nothing takes it before` };
+  if (estParque(labels)) return { etat: "mise-de-cote", dit: `parked (\`${LABEL_PARKED}\`): it waits for someone — who, for what and until when are on the issue; nothing takes it before` };
   if (labels.includes(HORS_CUISINE)) return { etat: "mise-de-cote", dit: `it carries \`${HORS_CUISINE}\`: this kitchen does not serve it` };
   const decision = issueDuManager(base, ticket);
   const decoupage = decoupageDe(base, ticket);

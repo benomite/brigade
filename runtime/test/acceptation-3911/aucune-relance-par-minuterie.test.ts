@@ -9,8 +9,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
 import { corpsDuParking } from "../../src/attente-github/marque.ts";
-import { ECHECS_ATTEINTS, estMisDeCote } from "../../src/github.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
+import { estParque, LABEL_PARKED } from "../../src/github-etat/etats.ts";
 
 const JOUR_MS = 24 * 60 * 60_000;
 const TICKET = 10;
@@ -44,9 +44,11 @@ function station() {
   return { faux, passer, avancer: (ms: number) => (instant += ms) };
 }
 
+// Since #4260 nothing sets `set-aside:failures` any more; a ticket that still carries it from before is parked (a
+// waiting label of before parked): it stays off the rail the same way.
 test("a ticket set aside for its failures, whose PR conflicts with the base, stays off the rail after the relaunch delay has elapsed", async () => {
   const { faux, passer, avancer } = station();
-  faux.feu(TICKET, [...CALIBRE, ECHECS_ATTEINTS]);
+  faux.feu(TICKET, [...CALIBRE, "set-aside:failures"]);
   faux.prs.push({ number: 100 + TICKET, issue: TICKET, branche: brancheDuTicket(TICKET), sha: faux.sha(), state: "open", merged: false, enRetard: false, enConflit: true, conflitDeContenu: true, mergeePar: null, fichiers: [] });
   await passer();
   avancer(JOUR_MS);
@@ -54,14 +56,15 @@ test("a ticket set aside for its failures, whose PR conflicts with the base, sta
   avancer(JOUR_MS);
   await passer();
   assert.deepEqual(faux.cuissons, []);
-  assert.ok(estMisDeCote([...faux.ticket(TICKET).labels]), "still set aside");
+  assert.ok(estParque([...faux.ticket(TICKET).labels]), "still parked by its label of before");
+  assert.ok(faux.ticket(TICKET).labels.has("set-aside:failures"), "still set aside");
   const relances = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.includes("brigade:relance"));
   assert.deepEqual(relances, []);
 });
 
 test("a ticket parked for its failures, whose PR conflicts with the base, stays parked after the former relaunch delay has elapsed", async () => {
   const { faux, passer, avancer } = station();
-  faux.feu(TICKET, [...CALIBRE, "parked"]);
+  faux.feu(TICKET, [...CALIBRE, LABEL_PARKED]);
   // La marque que la station pose en le parquant par ses échecs (`parquerSesEchecs`) : sept jours plus loin.
   faux.poster(TICKET, "box/claude", corpsDuParking({ what: "its cooks failed too many times, the station stopped relaunching it. The reason: conflict", who: "the supervisor", followUp: "2026-11-27T10:00:00.000Z", failures: true }));
   faux.prs.push({ number: 100 + TICKET, issue: TICKET, branche: brancheDuTicket(TICKET), sha: faux.sha(), state: "open", merged: false, enRetard: false, enConflit: true, conflitDeContenu: true, mergeePar: null, fichiers: [] });
@@ -71,7 +74,7 @@ test("a ticket parked for its failures, whose PR conflicts with the base, stays 
   avancer(JOUR_MS);
   await passer();
   assert.deepEqual(faux.cuissons, []);
-  assert.ok(faux.ticket(TICKET).labels.has("parked"), "still parked");
+  assert.ok(faux.ticket(TICKET).labels.has(LABEL_PARKED), "still parked");
   const relances = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.includes("brigade:relance") || c.body.includes("Unparked"));
   assert.deepEqual(relances, []);
 });

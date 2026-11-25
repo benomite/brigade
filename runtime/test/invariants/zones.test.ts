@@ -77,17 +77,20 @@ test("an unclaimed PR that changes only its own ticket's zone and the zone of a 
 });
 
 test("a delivery that awaits the chef keeps its zone: the waiting ticket does not start, and only the break next to it is said", async () => {
-  const faux = new FauxGitHub();
-  avecUneCasse(faux);
-  faux.feu(1, [...CALIBRE, "blocked-on-human"]);
-  faux.feu(2, CALIBRE);
-  faux.poster(2, "manager", fiche("runtime/src/b.ts"));
-  faux.prOuverte(["runtime/src/b.ts"], "cook/1-abcdef01");
-  const a = faux.station("A", sansCook);
-  await a.tour();
-  await a.calme();
-  assert.ok(!faux.cuissons.some(({ issue }) => issue === 2), "#2 waits for the zone #1 holds");
-  seuleLaCasse(faux);
+  // Parquée pour le chef : `chef-todo`, ou un label d'attente du chef d'avant parked (#4260).
+  for (const pourLeChef of ["chef-todo", "blocked-on-human"]) {
+    const faux = new FauxGitHub();
+    avecUneCasse(faux);
+    faux.feu(1, [...CALIBRE, pourLeChef]);
+    faux.feu(2, CALIBRE);
+    faux.poster(2, "manager", fiche("runtime/src/b.ts"));
+    faux.prOuverte(["runtime/src/b.ts"], "cook/1-abcdef01");
+    const a = faux.station("A", sansCook);
+    await a.tour();
+    await a.calme();
+    assert.ok(!faux.cuissons.some(({ issue }) => issue === 2), `#2 waits for the zone #1 holds (${pourLeChef})`);
+    seuleLaCasse(faux);
+  }
 });
 
 test("a taken ticket whose claim cannot be read keeps the zone of its open PR: in doubt, the zone stays held", async () => {

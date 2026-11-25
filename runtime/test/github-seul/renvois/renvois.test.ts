@@ -4,7 +4,7 @@ import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_STATION } from "../../../src/brigade-g
 import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_PASS } from "../../../src/events/pass.ts";
 import { etatDuTicket, LABEL_IN_PASS, LABEL_PARKED } from "../../../src/github-etat/etats.ts";
 import { corpsDeVerdict } from "../../../src/github-etat/fusion.ts";
-import { ECHECS_ATTEINTS, HORS_CUISINE } from "../../../src/github.ts";
+import { HORS_CUISINE } from "../../../src/github.ts";
 import {
   calibrageAuDessus,
   marqueDeFix,
@@ -214,8 +214,8 @@ test("au plafond, rien ne monte : le ticket sort de la cuisine, un humain décid
   assert.equal(coup.coup, "set-aside");
   assert.deepEqual(gh.creees, []);
   // #4129 : parqué pour le superviseur, jamais `set-aside:failures`.
-  assert.ok(gh.labels().includes("parked"));
-  assert.ok(!gh.labels().includes(ECHECS_ATTEINTS));
+  assert.ok(gh.labels().includes(LABEL_PARKED));
+  assert.ok(!gh.labels().includes("set-aside:failures"));
   assert.ok(gh.commentaires().some(({ body }) => body.startsWith('<!-- brigade:parked {"what":"its delivery is still not mergeable after')), JSON.stringify(gh.commentaires()));
   assert.ok(!gh.labels().includes(HORS_CUISINE));
   assert.match(gh.commentaires().at(-1)?.body ?? "", /already the highest the kitchen sets/);

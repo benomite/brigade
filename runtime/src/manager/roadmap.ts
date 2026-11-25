@@ -18,6 +18,7 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import { cartesEnTodo, sortirDeTodo } from "../carte-todo.ts";
 import type { IssueOuverte } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
+import { LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../github-etat/etats.ts";
 import { empreinte, issueEnDonnee, objet, phrase } from "../juger.ts";
 import type { AtelierDuManager } from "./atelier.ts";
 
@@ -25,9 +26,9 @@ import type { AtelierDuManager } from "./atelier.ts";
 // d'un jugement, pour qui lit les lancements.
 export const MARQUE_DE_LA_ROADMAP = "<!-- brigade:roadmap-consigne -->";
 
-// Ce qui, sur une issue, pose une question au chef : les labels dont l'app fait
-// une carte de TODO (`carteDeLEcart`, #3370 ; `chef-todo`, #2217).
-export const LABELS_AU_CHEF: readonly string[] = ["question", "decision", CHEF_TODO];
+// Ce qui, sur une issue, pose une question au chef : `chef-todo` (#2217), et les
+// labels d'attente du chef d'avant parked (#4260, github-etat/etats.ts).
+export const LABELS_AU_CHEF: readonly string[] = [CHEF_TODO, ...LABELS_D_AVANT_PARKED_POUR_LE_CHEF];
 
 export type Travail = { title: string; body: string };
 

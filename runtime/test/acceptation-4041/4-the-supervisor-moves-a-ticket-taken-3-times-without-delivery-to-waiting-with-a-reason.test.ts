@@ -2,8 +2,7 @@
 // sans geste du chef.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { A_LA_MAIN } from "../../src/brigade-github.ts";
-import { LABEL_PARKED } from "../../src/github-etat/etats.ts";
+import { CHEF_TODO, LABEL_PARKED } from "../../src/github-etat/etats.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 test("a ticket taken 3 times without delivery is parked with a written reason, the chef does nothing", async () => {
@@ -16,7 +15,7 @@ test("a ticket taken 3 times without delivery is parked with a written reason, t
   }
   const ticket = faux.ticket(894);
   assert.ok(ticket.labels.has(LABEL_PARKED), `the ticket is parked, labels: ${[...ticket.labels].join(",")}`);
-  assert.equal(ticket.labels.has(A_LA_MAIN), false, "no card for the chef");
+  assert.equal(ticket.labels.has(CHEF_TODO), false, "no card for the chef");
   const dits = (faux.commentaires.get(894) ?? []).map((c) => c.body);
   assert.ok(dits.some((c) => /\bparked\b/i.test(c) && /\bbecause\b|\breason\b/i.test(c)), `a written reason on the ticket:\n${dits.join("\n---\n")}`);
   const prises = faux.cuissons.filter(({ issue }) => issue === 894).length;

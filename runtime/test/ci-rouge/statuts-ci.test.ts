@@ -6,7 +6,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cartesEnTodo, cartesRetenues, brancherLeTriage } from "../../src/carte-todo.ts";
-import { ECHECS_ATTEINTS } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ticketDuCheck } from "../../src/carte-ci-windows.ts";
 import { deciderDuPush, evaluerMain, statutsDesChecks, statutsDesRuns } from "../../src/statuts-ci/regles.ts";
@@ -55,7 +54,7 @@ test("the comment names the check, the three runs and the `parked` label — the
   assert.match(corps, /red on `unit` for the third time in a row \(run 303, an unnamed run, run 301\)/);
   assert.match(corps, /no fourth run/);
   assert.ok(corps.includes("the ticket is parked (`parked`), waiting for the supervisor. Removing `parked` tries again"), corps);
-  assert.ok(!corps.includes(`\`${ECHECS_ATTEINTS}\``), corps);
+  assert.ok(!corps.includes("`set-aside:failures`"), corps);
 });
 
 test("statuses that cannot be read let the push go ahead and say why; a comment that cannot be written still refuses the push", async () => {

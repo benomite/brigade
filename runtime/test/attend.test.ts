@@ -388,7 +388,7 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
   noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
   a(`${JOUR_HORLOGE}T09:40:00.000Z`);
   noter({ type: "manager.set-aside", payload: { reason: "decision", fired: false } }, 33, "manager");
-  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 34, "manager");
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 34, "manager");
   noter({ type: "manager.split-failed", payload: { run: "decoupe-35", fingerprint: "e35", reason: "aucun objet JSON" } }, 35, "manager");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
@@ -398,7 +398,7 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
     `  #17  for 40 min  green delivery, merge refused by GitHub (?) — merge by hand, once what it refuses is lifted: ${pr(17)}  Ticket 17`,
     "  #32  for 30 min  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
     "  #33  for 20 min  parked for you by the manager, for your decision (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
-    "  #34  for 20 min  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
+    "  #34  for 20 min  parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
     "  #35  for 20 min  manager's split unreadable — to redo: edit the epic, the manager splits it again; or close the issue",
   ]);
 });
@@ -456,11 +456,11 @@ test("une issue écartée que le chef a lancée lui-même est sur le rail : c'es
 test("une épique retenue par le chef après la question du manager n'attend qu'une fois, pour sa retenue", (t) => {
   const { noter, bloc } = cuisine(t);
   noter({ type: "manager.split-asked", payload: { run: "decoupe-32", fingerprint: "e32", question: "Quel périmètre ?" } }, 32, "manager");
-  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 32, "manager");
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 32, "manager");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:05:00.000Z`), [
     "awaiting   1 decision awaits the chef — for 5 min",
-    "  #32  for 5 min  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
+    "  #32  for 5 min  parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
   ]);
 });
 

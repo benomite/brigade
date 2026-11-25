@@ -40,7 +40,7 @@ describe("un ticket en file que retient un ticket en WAITING", () => {
   test("sa carte est dans Waiting et dit les deux tickets, sans geste de WAITING ; il n'est pas dans On the rail", async () => {
     const faits = faitsDe(await lire(github(30)));
     const carte = colonne(faits, "Waiting").find(({ ticket }) => ticket === 3734) ?? assert.fail("#3734 is not in Waiting");
-    assert.match(carte.ligne ?? "", /^waits for `#1912`, WAITING on a collaborator/);
+    assert.match(carte.ligne ?? "", /^waits for `#1912`, parked, waiting for a collaborator/);
     assert.deepEqual(carte.liens, [1912]);
     assert.equal(carte.titre, "Ticket 3734");
     assert.equal(carte.gestes, undefined);
@@ -51,7 +51,7 @@ describe("un ticket en file que retient un ticket en WAITING", () => {
   test("la file du second le dit en WAITING : jamais en file au repos, ni compté en file", async () => {
     const lu = await lire(github(30));
     const status = statusDuTableau(lu);
-    assert.match(status, /^ {2}#3734 {2}waits for `#1912`, WAITING on a collaborator/m);
+    assert.match(status, /^ {2}#3734 {2}waits for `#1912`, parked, waiting for a collaborator/m);
     assert.doesNotMatch(status, /#3734 {2}queued|Normal wait|takes the ticket within minutes/);
     assert.match(status, /^rail {7}2 WAITING$/m);
   });
@@ -67,7 +67,7 @@ describe("un ticket en file que retient un ticket en WAITING", () => {
 
   test("les commentaires du ticket en WAITING ne se lisent pas : qui n'est pas dit, et le rail reste lu", async () => {
     const carte = colonne(faitsDe(await lire(github(30, { marque: false }))), "Waiting").find(({ ticket }) => ticket === 3734);
-    assert.match(carte?.ligne ?? "", /^waits for `#1912`, WAITING on a third party/);
+    assert.match(carte?.ligne ?? "", /^waits for `#1912`, parked, waiting for someone/);
   });
 });
 
@@ -75,7 +75,7 @@ describe("la ligne en tête du rail", () => {
   test("le seul ticket du rail retenu depuis plus d'une heure : elle le nomme, et le ticket qu'il attend", async () => {
     const attente = faitsDe(await lire(github(61))).attenteDuRail;
     assert.equal(attente?.raison, "waiting");
-    assert.match(attente?.phrase ?? "", /^#3734 has not been able to leave for 1 h: it waits for `#1912`, WAITING on a collaborator/);
+    assert.match(attente?.phrase ?? "", /^#3734 has not been able to leave for 1 h: it waits for `#1912`, parked, waiting for a collaborator/);
   });
 
   test("sous l'heure, elle ne nomme ni l'un ni l'autre", async () => {
