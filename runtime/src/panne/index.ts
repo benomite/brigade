@@ -15,7 +15,7 @@ export type StationDeLaPanne = { nom: string; enMarche: boolean };
 // `ticketEnBoucle` : le ticket que la cuisine a sorti de sa boucle.
 export type RailDeLaPanne = { mainRouge: boolean | null; boucleDeRelance: boolean | null; reparationDeMain?: number; ticketEnBoucle?: number };
 // `stations` : celles qui servent le projet ; null quand elles ne se lisent pas.
-export type EntreeDeLaPanne = { rail: RailDeLaPanne; stations: readonly StationDeLaPanne[] | null; tickets: readonly TicketDeLaPanne[] };
+type EntreeDeLaPanne = { rail: RailDeLaPanne; stations: readonly StationDeLaPanne[] | null; tickets: readonly TicketDeLaPanne[] };
 
 export type Reparation = Geste | "reparer-main";
 export type ActionDeLaPanne = { kind: "done"; text: string } | { kind: "button"; label: string; id: Reparation } | null;

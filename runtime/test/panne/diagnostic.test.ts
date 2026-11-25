@@ -1,7 +1,9 @@
 // #4214 : chaque branche de la panne — le rail, les labels, les retenues, les stations — et les lignes que `status` en écrit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { diagnostiquer, lignesDeLaPanne, type EntreeDeLaPanne, type TicketDeLaPanne } from "../../src/panne/index.ts";
+import { diagnostiquer, lignesDeLaPanne, type TicketDeLaPanne } from "../../src/panne/index.ts";
+
+type EntreeDeLaPanne = Parameters<typeof diagnostiquer>[0];
 
 const feu = (numero: number, autres: string[] = [], plus: Partial<TicketDeLaPanne> = {}): TicketDeLaPanne => ({ numero, labels: ["fire", ...autres], decisionOuverte: false, enAttente: false, ...plus });
 const calme = { mainRouge: false, boucleDeRelance: false };

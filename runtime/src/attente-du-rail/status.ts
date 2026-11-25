@@ -108,7 +108,7 @@ export async function lignesDeLAttente(options: { depot: string; lire: Lire; sta
 // journal local n'en sait rien sur une station GitHub seul, et dit `empty`. `cuisine` (#4214) : pourquoi la cuisine ne cuit
 // pas — au repos ou en panne, sa cause et son action —, vide quand elle peut cuire.
 export type AttenteLue = { lignes: string[]; enFile: number[]; cuisine: string[] };
-export async function lireLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<AttenteLue> {
+async function lireLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<AttenteLue> {
   const { depot, lire, maintenant, plafondAtteint = false, limite = null } = options;
   let tickets: TicketDuRail[];
   let waiting: TicketEnWaiting[];
