@@ -42,6 +42,7 @@ test("the skip line names the PR, its ticket when it has one, and the reason", (
   assert.equal(direZoneTenue({ number: 4077, branche: "second/readme" }, "at the pass"), "zone held by open PR #4077 (at the pass)");
   assert.equal(direZoneTenue({ number: 2000, branche: "cook/70-abc" }, "in cook"), "zone held by #70 through its open PR #2000 (in cook)");
   assert.equal(direZoneTenue({ branche: "second/readme" }, "in cook"), "zone held by the open PR on `second/readme` (in cook)");
+  assert.equal(direZoneTenue({ branche: "cook/70-abc" }, "in cook"), "zone held by #70 through its open PR on `cook/70-abc` (in cook)");
 });
 
 test("the base has the PR's changes when each of its files has the same blob on the base as on its head, read once", async () => {
@@ -172,4 +173,20 @@ test("the PR of a ticket that cannot be read keeps its zone, however old", async
   const { sauts, cuit } = await porte(faux);
   assert.ok(!cuit);
   assert.ok(sauts.some((ligne) => ligne.startsWith("#61 ") && ligne.includes("(#80 could not be read)")), sauts.join("\n"));
+});
+
+test("a PR whose number the client does not give: the skip line names its branch, and the skip carries no code", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(60, CALIBRE, corps);
+  faux.feu(61, CALIBRE, corps);
+  avecUnePRDe(faux, 60, 3 * STALE_DELAY_MS);
+  const origine = faux.pour.bind(faux);
+  faux.pour = (station: string) => {
+    const github = origine(station);
+    return { ...github, prsOuvertes: async () => (await github.prsOuvertes()).map(({ number: _number, ...ouverte }) => ouverte) } as ReturnType<FauxGitHub["pour"]>;
+  };
+  const { sauts, raisons, cuit } = await porte(faux);
+  assert.ok(!cuit);
+  assert.ok(sauts.some((ligne) => ligne.startsWith("#61 ") && ligne.endsWith("zone held by #60 through its open PR on `cook/60-abcdef01` (in cook)")), sauts.join("\n"));
+  assert.deepEqual(raisons.filter(Boolean), []);
 });

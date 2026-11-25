@@ -15,9 +15,9 @@ const STALE_DELAY_MS = 12 * 60 * 60 * 1000;
 // Le label que le superviseur pose sur une PR qui ne doit plus tenir sa zone.
 const LABEL_ZONE_RELEASED = "zone-released";
 
-// Le code d'un saut de la porte de prise sur une zone tenue par une PR : le statut le lit.
+// Le code d'un saut de la porte de prise sur une zone tenue par une PR, et son numéro : le statut le lit.
 export const ZONE_HELD = "zone-held";
-export type RaisonDuSaut = { code: typeof ZONE_HELD; pr: number | null };
+export type RaisonDuSaut = { code: typeof ZONE_HELD; pr: number };
 
 // Une PR ouverte telle que la porte la lit. `surLaBase` : ses changements sont
 // déjà sur la base — lu à la demande, la lecture coûtant un appel à GitHub.
@@ -53,8 +53,9 @@ async function dejaSurLaBase({ surLaBase }: PRDeLaPorte): Promise<boolean> {
 // La ligne du saut : le numéro de la PR, et pourquoi elle tient la zone.
 export function direZoneTenue(pr: PRDeLaPorte, pourquoi: string): string {
   const ticket = /^cook\/(\d+)-/.exec(pr.branche)?.[1];
-  const nommee = pr.number === undefined ? `the open PR on \`${pr.branche}\`` : `open PR #${pr.number}`;
-  return ticket === undefined ? `zone held by ${nommee} (${pourquoi})` : `zone held by #${ticket} through its ${nommee} (${pourquoi})`;
+  const nommee = pr.number === undefined ? `open PR on \`${pr.branche}\`` : `open PR #${pr.number}`;
+  if (ticket !== undefined) return `zone held by #${ticket} through its ${nommee} (${pourquoi})`;
+  return `zone held by ${pr.number === undefined ? "the " : ""}${nommee} (${pourquoi})`;
 }
 
 // Les changements de la PR sont-ils déjà sur la base ? Oui quand chacun de ses

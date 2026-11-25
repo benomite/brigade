@@ -2510,9 +2510,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Sa zone est tenue par une PR ouverte, ou par un ticket en vol : il attend qu'ils soient mergés.
       const tenuePar = await tenue(ticket);
       if (tenuePar !== null) {
-        // Tenue par une PR : la ligne la nomme, avec ce qui la garde vivante, et le saut porte `zone-held` (#4242).
-        if (tenuePar.tenante) sauter(ticket.number, direSaut(ticket.number, direZoneTenue(tenuePar.tenante.pr, tenuePar.tenante.pourquoi)), undefined, { code: ZONE_HELD, pr: tenuePar.tenante.pr.number ?? null });
-        else sauter(ticket.number, direSaut(ticket.number, direAttenteDeZone(tenuePar.attente)));
+        // Tenue par une PR : la ligne la nomme, avec ce qui la garde vivante, et le saut porte `zone-held` et son numéro (#4242).
+        // Un client qui ne dit pas ce numéro : la ligne nomme sa branche, le saut ne porte pas de code.
+        if (tenuePar.tenante) {
+          const { pr, pourquoi } = tenuePar.tenante;
+          sauter(ticket.number, direSaut(ticket.number, direZoneTenue(pr, pourquoi)), undefined, pr.number === undefined ? undefined : { code: ZONE_HELD, pr: pr.number });
+        } else sauter(ticket.number, direSaut(ticket.number, direAttenteDeZone(tenuePar.attente)));
         await ecrireEnAttendant(ticket);
         continue;
       }
