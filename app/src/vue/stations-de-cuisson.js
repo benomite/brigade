@@ -35,10 +35,8 @@ export const ROLES_EN_COURS = {
   closer: "the closer cleans the project up when you ask it to, and delivers what it removes as a PR",
 };
 export const OUVRIR_COOKS = "open Cooks";
-// Le plafond de cooks du projet sur une station (ticket 1292) : le nom de sa rangée ; et ce que baisser le plafond change —
-// et ne change pas —, dit à une station saturée.
+// Le plafond de cooks du projet sur une station (ticket 1292) : le nom de sa rangée.
 export const PLAFOND = "Cooks at once";
-export const BAISSER_LE_PLAFOND = "Lowering the cap makes this project run fewer cooks at once; the machine's load does not drop right away.";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
@@ -102,15 +100,10 @@ export function lignesDeCooks(doc, siens, agents, cuit = false) {
 
 // Le plafond du projet sur une station, comme sa box le dit (`3 at most — 8 cores`) : une rangée qui se lit — le champ qui le
 // change est celui de sa déclaration (projet/stations/ReglagesStation.js), qui la remplace quand le projet la déclare
-// (`declaree`) —, et, saturée, en une phrase ce qui la sature.
+// (`declaree`).
 /** @param {Fabrique} doc @param {Plafonds} cap @param {{ declaree: boolean }} options */
 export function plafondLu(doc, cap, { declaree }) {
   const lignes = declaree ? [] : [rangeeDeReglage(doc, { nom: PLAFOND, cle: "cooks", niveau: niveauDe(doc, "cooks"), valeur: [cree(doc, "strong", cap.plafond.dit)], controle: [], dessous: [] })];
-  if (cap.retenue !== undefined) {
-    const sature = cree(doc, "p", `Saturated on ${cap.retenue.ressources} — ${cap.retenue.detail}. ${BAISSER_LE_PLAFOND}`);
-    sature.className = "retenue-de-station";
-    lignes.push(sature);
-  }
   return lignes;
 }
 
@@ -118,19 +111,18 @@ export function plafondLu(doc, cap, { declaree }) {
 const DETAIL_DE_GIT = /\s*\(git: ([^)]*)\)\.?$/;
 
 // La ligne d'alerte de l'onglet Rail, ou null : rien, du côté des cooks, ne demande un geste au chef.
-// `alerte` : ce que les stations en disent (cuisson.ts) ; `refusee` : l'une d'elles y dit déjà un refus ;
+// `refusee` : l'une d'elles y dit déjà un refus ;
 // `acces`, `refus` : ce que la station du projet publie de l'accès au dépôt et de son refus (projets/demande.ts).
 // Plusieurs causes tiennent sur la même ligne, la plus urgente d'abord : l'accès, que seul le chef lève.
 // `clone` : le clone du dépôt en échec (ticket 1390) — sa cause dit plus que le refus qui l'accompagne, et le remplace.
 /**
  * @param {Fabrique} doc
- * @param {{ alerte: string | null, refusee: boolean, acces: Acces | null, clone?: Clone | null, refus: Refus | null, ouvrir: () => void }} options
+ * @param {{ refusee: boolean, acces: Acces | null, clone?: Clone | null, refus: Refus | null, ouvrir: () => void }} options
  */
-export function ligneDAlerte(doc, { alerte, refusee, acces, clone = null, refus, ouvrir }) {
+export function ligneDAlerte(doc, { refusee, acces, clone = null, refus, ouvrir }) {
   const causes = [
     ...(acces === null ? [] : [acces.raison.replace(DETAIL_DE_GIT, "").replace(/\.$/, "")]),
     ...(acces !== null || clone === null ? [] : [clone.raison.replace(/\.$/, "")]),
-    ...(alerte === null ? [] : [alerte]),
     ...(refus === null || refusee || clone !== null ? [] : [refus.message.replace(/\.$/, "")]),
   ];
   if (causes.length === 0) return null;
