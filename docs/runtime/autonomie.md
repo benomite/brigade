@@ -55,7 +55,9 @@ manager gets. The other agents log theirs through the gate (below).
 
 Each agent has an autonomy level per project: `observe` (it says what it would do), `propose` (it waits for the chef's
 OK), `act` (it does it, then says so). The manager's splitting of an epic has its own level. A level never set
-is its default, the chef's choice of 2026-11-23:
+is its default, the chef's choice of 2026-11-23 — and of 2026-11-25 for splitting an epic (#4247): it is neither a
+product decision nor one that needs a human, so the manager splits on its own. The chef puts the split back on hold
+by setting `manager split-epic` to `propose`, as any level is set:
 
 | Agent | Default |
 |---|---|
@@ -63,7 +65,7 @@ is its default, the chef's choice of 2026-11-23:
 | `pass` | `act` |
 | `closer` | `propose` |
 | `manager` | `act` |
-| `manager split-epic` | `propose` |
+| `manager split-epic` | `act` — `propose` until 2026-11-25 |
 | `cook` | `act` — not in the chef's answer: a cook already does its ticket and says so |
 
 The levels set are kept in `autonomy-levels.json` of the state directory, per project. A missing file gives the
@@ -93,12 +95,15 @@ The gestures that go through it:
 | pass | merging a green delivery (`brigade-github.ts`) | `pass` | `merged PR #P of #N` |
 | cook | taking a ticket and cooking it (`brigade-github.ts`) | `cook` | `took #N and cooks it`, in the log of `cook #N` |
 
-The manager's other gestures do not go through it yet: only splitting an epic is held by default.
+The manager's other gestures do not go through it yet. Splitting an epic is no longer held by default (#4247): on
+`act`, its tickets are created at the same pass.
 
 A held gesture is kept in `autonomy-pending.json` of the state directory (`id`, `agent`, `line`, `reason`, `at`,
 `approved`), and its function in the runtime's memory. `npm --prefix runtime run manager` lists them under `held
 gestures`; `npm --prefix runtime run manager -- approve <id>` marks one approved, and the running runtime does it at its
-next tick, once. Proposed again — the same agent, the same line —, a gesture keeps its id, and its approval if the chef
+next tick, once. A gesture done on `act` — its level was `propose` when it was held, and is `act` now — is no longer
+pending: it leaves the file, and an approval finds nothing (#4247); a pending file that cannot be read is said, and
+left as it is. Proposed again — the same agent, the same line —, a gesture keeps its id, and its approval if the chef
 gave it meanwhile: this is how a gesture held before a restart is done after it. Until the closer, the manager, the pass
 or a cook proposes it again, an approved gesture waits.
 
