@@ -4128,10 +4128,10 @@ section. With the section laid, `right now` is not repeated under it.
   - **Next**: the open needs and tickets, in the order the kitchen will serve them — `prio:1`, `prio:2`, `prio:3`, then
     no priority, the oldest first —, each with its priority, its title and, split, its progress (`2/6 served`);
   - **Ideas in reserve**: the open `idea` issues, each with its title and a one-line summary (its context, cut at the
-    edge, whole on hover), and two buttons: **Put on the rail** removes `idea` and sets `fire` (the manager reads it at
-    its next wake-up), **Drop** closes the issue as not planned — one click each, played on GitHub by the app's access
-    (`app/src/gestes-idee.ts`). While it goes, both buttons wait; refused, the line says why. Nothing is sent for an
-    issue the latest reading does not show as an idea.
+    edge, whole on hover), and one button: **Drop** closes the issue as not planned — one click, played on GitHub by the
+    app's access (`app/src/gestes-idee.ts`). While it goes, the button waits; refused, the line says why. Nothing is sent
+    for an issue the latest reading does not show as an idea. No button puts an idea in the queue (#4223): the rail is
+    the top of the backlog, and an issue comes onto it by being calibrated and ready.
 
   Then **Directions** (#3590): the open needs under the three horizons of the vision, by their `horizon:N` label, then
   `No direction yet` — each line with its number, its title, and its progress or `idea`, nothing else; neither what
@@ -4183,8 +4183,12 @@ The band at the top of the Rail tab is an order book above the rail: **one tag p
 - **Red tags come first**: a tag that awaits the chef is red and stands before the others.
 - **`+N` overflow**: a `+N` tag stands for the needs the line does not show; on a phone-width window the line scrolls sideways instead.
 - **Click on a tag**: unfolds the band with that need's detail and highlights its tickets in the rail.
-- **Click on the title, "Backlog"**: unfolds the backlog for the chef (#3589) — **Next**, in the order the kitchen will serve it, then **Ideas in reserve**, each with **Put on the rail** and **Drop**, and what was served folded at the bottom; no technical wording on the lines, and a click on a line opens its issue. What awaits the chef stays in Todo, and the roadmap is never a line. A second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
+- **Click on the title, "Backlog"**: unfolds the backlog for the chef (#3589) — **Next**, in the order the kitchen will serve it, then **Ideas in reserve**, each with **Drop**, and what was served folded at the bottom; no technical wording on the lines, and a click on a line opens its issue. What awaits the chef stays in Todo, and the roadmap is never a line. A second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
 - **Served needs stay 24 hours**: a served need stays in the band for 24 hours, then leaves it.
+
+### The rail, top of the backlog (#4223)
+
+Under the Backlog band, above the columns, one line: **On the rail — the top of the backlog (N)**, then the issues a cook takes next, numbered in the order priority then age — each with its number, its `prio`, and its title. They are the open `fire` issues that are calibrated (a valid `model:` and `effort:`) and ready (no `idea`, nothing parked or set aside, not taken by a station), the first ten (`runtime/src/rail-backlog/rail-backlog.ts`). The line has no button and no action: no gesture of the chef puts an issue there; an issue arrives on its own once it is calibrated and ready, and a priority changed on GitHub reorders the line at the next read. With none, it says `Nothing calibrated and ready in the backlog.` The read from GitHub puts its issues in the facts (`app/src/vue/rail/github.ts`); reading the facts composes the line from them, titles escaped (`app/src/vue/rail/rail.ts`), never from markup the facts carry; the page draws it as it is (`app/src/vue/rail/haut-du-backlog.js`).
 
 ### Above the rail: at most two lines (#3523)
 

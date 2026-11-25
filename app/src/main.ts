@@ -1007,8 +1007,8 @@ ipcMain.handle("refus", async (_, nom: unknown, id: unknown, ticket: unknown) =>
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
-// Un geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Put on the rail » retire `idea` et pose `fire`,
-// « Drop » ferme l'issue comme non prévue — par l'accès GitHub de l'app (gestes-idee.ts).
+// Le geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Drop » ferme l'issue comme non prévue — par
+// l'accès GitHub de l'app (gestes-idee.ts). Aucun ne la met sur le rail (#4223) : le rail est le haut du backlog.
 ipcMain.handle("idee", async (_, nom: unknown, id: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
