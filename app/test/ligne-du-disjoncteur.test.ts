@@ -1,5 +1,5 @@
-// La ligne du disjoncteur, ligne d'état du rail (#2140, #3523) : une information, sans bouton — le chef ne referme plus le
-// disjoncteur, la station le referme d'elle-même (#3911). Elle vient de la ligne `kitchen` de `status`, telle que le runtime
+// La ligne du disjoncteur (#2140, #3523) : une information, sans bouton — le chef ne referme plus le disjoncteur, la station
+// le referme d'elle-même (#3911) ; sans geste, elle n'est pas posée sur le rail (#4238). Elle vient de la ligne `kitchen` de `status`, telle que le runtime
 // l'écrit ; la vue est jouée devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -73,37 +73,32 @@ async function ouvrir(status = OUVERT, etat: Faits["etat"] = "retenue", lectureS
 }
 
 
-// La ligne du disjoncteur est la ligne d'état du rail (#3523) : au-dessus des colonnes, seule avec le bandeau Backlog.
+// La ligne du disjoncteur n'offre aucun geste : elle n'est plus posée sur le rail, dont aucun message n'est sans geste (#4238).
+// La bande de l'espace la dit, comme sur Stations.
 const ligneDe = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("div").find(({ className }) => className === "ligne-disjoncteur");
-const ligne = (vue: Jouee): Faux => ligneDe(vue) ?? assert.fail("pas de ligne du disjoncteur sur le rail");
 const boutons = (ou: Faux) => ou.dessous("button").filter(({ className }) => className !== "aide" && className !== "detail");
+const dansLaBande = (vue: Jouee): Faux | undefined => vue.element("alertes").children.find((pose) => pose.textContent.includes("breaker open"));
 
-describe("la ligne du disjoncteur, ligne d'état du rail, au-dessus des colonnes (#3523)", () => {
-  test("le disjoncteur ouvert : sa ligne d'état, sans aucun bouton — et la bande ne la redit pas", async () => {
+describe("la ligne du disjoncteur, hors du rail : elle n'offre aucun geste (#3523, #4238)", () => {
+  test("le disjoncteur ouvert : aucune ligne sur le rail — la bande de l'espace le dit, sans bouton", async () => {
     const vue = await ouvrir();
-    const posee = ligne(vue);
-    const enfants = vue.element("rail").children;
-    assert.ok(enfants.indexOf(posee) >= 0 && enfants.indexOf(posee) < enfants.findIndex(({ className }) => className === "colonnes"), "la ligne n'est pas au-dessus des colonnes");
-    assert.ok(!vue.element("rail").dessous("section").some((colonne) => colonne.dessous("div").some(({ className }) => className === "ligne-disjoncteur")), "la ligne est dans une colonne");
-    assert.match(posee.textContent, /held: breaker open — 3 launches failed in a row/);
-    assert.doesNotMatch(posee.textContent, /takes nothing|no manager|resume/i);
-    assert.deepEqual(boutons(posee), []);
-    assert.equal(posee.dessous("pre").length, 0);
-    // Ce que la station en écrit, au survol de la ligne.
-    const survols = posee.dessous("button").filter(({ className }) => className === "aide").map(({ ariaLabel }) => ariaLabel);
-    assert.deepEqual(survols, ["breaker OPEN for 1 h 00 (3 failures in a row)"]);
-    assert.ok(!vue.element("alertes").textContent.includes("breaker open"), "la bande redit la ligne du disjoncteur");
+    assert.equal(ligneDe(vue), undefined);
+    assert.doesNotMatch(vue.element("rail").textContent, /breaker open/);
+    const bande = dansLaBande(vue) ?? assert.fail("la bande ne dit pas le disjoncteur");
+    assert.match(bande.textContent, /breaker open: 3 launches failed in a row/);
+    assert.deepEqual(boutons(bande), []);
   });
 
-  test("le disjoncteur refermé : la ligne d'état s'en va ; rouvert, elle revient, toujours sans bouton", async () => {
+  test("le disjoncteur refermé : la bande ne le dit plus ; rouvert, elle le redit — jamais sur le rail", async () => {
     const vue = await ouvrir();
-    assert.ok(vue.element("rail").children.includes(ligne(vue)), "la ligne n'est pas posée sur le rail, au-dessus des colonnes");
+    assert.ok(dansLaBande(vue) !== undefined, "la bande ne dit pas le disjoncteur");
     vue.dire("surAlertes", bandeLue(REFERME, "ouverte"));
     await repos();
-    assert.equal(ligneDe(vue), undefined);
+    assert.equal(dansLaBande(vue), undefined);
     vue.dire("surAlertes", bandeLue(OUVERT));
     await repos();
-    assert.deepEqual(boutons(ligne(vue)), []);
+    assert.ok(dansLaBande(vue) !== undefined, "la bande ne redit pas le disjoncteur");
+    assert.equal(ligneDe(vue), undefined);
   });
 
   test("sur Stations, sans TODO : la bande porte la ligne, elle aussi sans bouton", async () => {

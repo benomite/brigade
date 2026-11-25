@@ -5,6 +5,10 @@
 // rouge, ou une cause inconnue, dite telle quelle — jamais un rail muet. Monté une fois sur son hôte, il suit chaque
 // lecture du rail (`maj`) : il part dès qu'une carte est prise ou en pass, ou que la file est vide, sans rechargement.
 // Ce module ne touche pas `document` : il reçoit une fabrique et l'hôte où se poser.
+// Sur le rail, il offre toujours un geste au chef (ticket 4238) : ouvrir le ticket gelé, les checks de main rouge, ou relire
+// l'état quand la cause est inconnue.
+
+import { bouton } from "../composants/bouton/bouton.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../../runtime/src/arret-cuisine/arret-cuisine.ts").ArretDeLaCuisine} ArretDeLaCuisine */
@@ -28,8 +32,18 @@ function phraseDeLArret(arret) {
   return `The kitchen is stopped${heure === null ? "" : ` since ${heure}`}: ${causeDite(arret.cause)}.`;
 }
 
-/** @param {Fabrique} doc @param {{ replaceChildren(...noeuds: any[]): void }} hote @returns {{ maj(arret: ArretDeLaCuisine | null | undefined): void }} */
-export function monterLeBandeau(doc, hote) {
+/** @typedef {{ ouvrirTicket(ticket: number): void, ouvrirLesChecks(): void, relire(): void }} GestesDeLArret */
+
+// Le geste de l'arrêt, selon sa cause.
+/** @param {Fabrique} doc @param {ArretDeLaCuisine["cause"]} cause @param {GestesDeLArret} gestes */
+function gesteDeLArret(doc, cause, gestes) {
+  if (cause.kind === "frozen-zone") return bouton(doc, `open #${cause.ticket}`, () => gestes.ouvrirTicket(cause.ticket), { sorte: "recommande" });
+  if (cause.kind === "main-red") return bouton(doc, "open the checks", () => gestes.ouvrirLesChecks(), { sorte: "recommande" });
+  return bouton(doc, "read again", () => gestes.relire(), { sorte: "recommande" });
+}
+
+/** @param {Fabrique} doc @param {{ replaceChildren(...noeuds: any[]): void }} hote @param {GestesDeLArret} [gestes] @returns {{ maj(arret: ArretDeLaCuisine | null | undefined): void }} */
+export function monterLeBandeau(doc, hote, gestes) {
   return {
     maj(arret) {
       if (arret === null || arret === undefined) return hote.replaceChildren();
@@ -43,7 +57,7 @@ export function monterLeBandeau(doc, hote) {
       marque.textContent = MARQUE_ARRET;
       const phrase = doc.createElement("strong");
       phrase.textContent = phraseDeLArret(arret);
-      ligne.append(marque, phrase);
+      ligne.append(marque, phrase, ...(gestes === undefined ? [] : [gesteDeLArret(doc, arret.cause, gestes)]));
       hote.replaceChildren(ligne);
     },
   };

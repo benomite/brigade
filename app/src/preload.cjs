@@ -192,6 +192,7 @@ const pont = {
   onglet: (projet, id, demande) => ipcRenderer.send("onglet", projet, id, demande),
   faits: (demande) => ipcRenderer.send("faits", demande),
   ouvrirIssue: (projet, ticket) => ipcRenderer.invoke("ouvrirIssue", projet, ticket),
+  ouvrirLesChecks: (projet) => ipcRenderer.invoke("ouvrirLesChecks", projet),
   ouvrirPr: (projet, ticket) => ipcRenderer.invoke("ouvrirPr", projet, ticket),
   ouvrirPrDuCook: (projet, ticket) => ipcRenderer.invoke("ouvrirPrDuCook", projet, ticket),
   ecrire: (id, donnees) => ipcRenderer.send("ecrire", id, donnees),
