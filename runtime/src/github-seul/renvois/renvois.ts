@@ -225,7 +225,7 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   if (raison === null) return { coup: "rien", raison: refus.genre === "ci-rouge" ? "no check is red on this head" : "the review did not request changes on this head" };
 
   const n = renvois.length + 1;
-  const motif = ligneDuMotif(refus.genre === "ci-rouge" ? "red CI" : "review", raison) ?? "";
+  const motif = ligneDuMotif(refus.genre === "ci-rouge" ? "red CI" : "review", raison);
   if (renvois.length < RENVOIS_MAX) {
     await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: sent back to a cook (${n}/${RENVOIS_MAX}) — ${raison}\n\n${motif}\n\nThe next cook takes up the branch of PR #${refus.pr}, fixes what is said above, and delivers again.`);
     await libere();

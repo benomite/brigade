@@ -255,7 +255,7 @@ test("a review send-back states the reason its blocking remarks carry, and not o
   assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
 });
 
-test("two review send-backs with the same remark are the same result despite the reason line, and a conflict send-back states no reason (#4302)", async () => {
+test("two review send-backs with the same remark are the same result despite the reason line, and a conflict send-back states its own (#4302)", async () => {
   const faux = new FauxGitHub();
   faux.feu(7);
   const motif = "The settings page still shows the old menu: remove it.";
@@ -282,7 +282,7 @@ test("two review send-backs with the same remark are the same result despite the
   }
   const corps = (conflit.commentaires.get(36) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
   assert.match(corps, /sent back to a cook \(1, conflicts\)/);
-  assert.doesNotMatch(corps, /Send-back reason/);
+  assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
 });
 
 test("the send-back that spends the tries counts itself and states its reason, the chef's card (#4302)", async () => {
