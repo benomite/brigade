@@ -331,7 +331,7 @@ export const secoupent = (a: string, b: string): boolean => {
 // la décision ou la condition qui lui manque : rien ne part en relecture (#2805).
 // `miseAJour` : il lui manquait des commits de la base, et la station a tenté
 // de la fusionner dans sa branche (#3001).
-export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true; detail?: string } | { arrete: string } | { baseAbsente: string } | { reste: string; rouges?: string[] } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean; charge?: true }) & { testsMs?: number }>;
+export type Cuisiner = (ticket: TicketLu, calibrage: Calibrage) => Promise<({ branche: string; aLEcran?: string[]; changements?: string[] } | { echec: string; fini?: true; detail?: string } | { arrete: string } | { baseAbsente: string } | { reste: string; rouges?: string[] } | { bloque: string; miseAJour?: MiseAJourDeLaBranche; conflit?: string[] } | { constat: string } | { dejaServi: DejaServi; affirmation: string } | { subi: string; retour?: Date | null; court?: boolean }) & { testsMs?: number }>;
 // La relecture de la PR d'un ticket, par la station qui passe.
 export type Juger = (ticket: TicketLu, pr: PRAFusionner) => Promise<Jugement>;
 // Le second juge d'une livraison qui touche à ce qui la juge (#2555), une fois
@@ -390,8 +390,6 @@ export type OptionsDeStation = {
   repertoireEtat?: string;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
-  // La charge de la machine, relue pour reprendre un ticket rendu pour elle (#4211). Par défaut, celle du système.
-  lireCharge?: () => number;
   // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
   // (#2456) ? Absent, oui : la CI de la PR est attendue, comme avant.
   ciDesPR?: (fichiers: string[]) => boolean;
@@ -469,6 +467,9 @@ export type StationGitHub = {
   // La porte des gestes du runtime (#4039), relue à chaque prise et à chaque merge : la station la reçoit après sa
   // construction (`stationDuDepot`).
   porte?: PorteDesGestes | null;
+  // La charge de la machine, relue pour reprendre un ticket rendu pour elle (#4211) : la station la reçoit après sa
+  // construction (`stationDuDepot`). Absente, celle du système.
+  lireCharge?: () => number;
   // Un tour : relit et merge ce qui est en pass, puis prend ce que ses places
   // libres permettent et lance leurs cooks, sans les attendre.
   tour(): Promise<void>;
@@ -1475,7 +1476,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           const demain = instant() + ATTENTE_MAX_MS;
           const reprise = Math.min(demain, Math.max(instant() + ATTENTE_MS, fait.retour?.getTime() ?? 0));
           avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery, through no fault of its own: ${fait.subi}`);
-          if (fait.charge === true) railDeLaCharge.remettre(issue);
+          // Rendu pour la charge (`charge`, posé par les gates de `stationDuDepot`) : son attente se lève dès qu'elle tombe.
+          if ((fait as { charge?: boolean }).charge === true) railDeLaCharge.remettre(issue);
           await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise}${fait.court === true ? " court " : " "}-->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.subi}\n\nThis stop is not the cook's doing: it is not counted among the ticket's ${ECHECS_MAX} tries. The ticket waits until ${new Date(reprise).toISOString()}, then is retried.`);
         } else {
           await github.commenter(issue, `Station \`${nom}\`: the cook added nothing, and the delivery still has work left — ${fait.reste}. The ticket is given back; this is not counted as a failed cook.`);
@@ -2476,7 +2478,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (termeDeLAttente !== null && remisPourLaCharge.has(ticket.number)) {
         await rejouerQuandCalme({
           tickets: [ticket.number],
-          lireCharge: options.lireCharge ?? lireLaCharge,
+          lireCharge: station.lireCharge ?? lireLaCharge,
           rail: railDeLaCharge,
           rejouer: (numero) => {
             remisPourLaCharge.delete(numero);
@@ -3160,7 +3162,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // verdict —, ce qui coûtait une suite entière de plus. Un arbre qui ne se lit
   // pas les rejoue.
   const arbresRouges = new Map<number, { arbre: string; echec: string; detail: string }>();
-  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string; detail?: string } | { subi: string; charge?: true } | null> => {
+  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string; detail?: string } | { subi: string; charge?: boolean } | null> => {
     if (!aDesGates(worktree) || (await gatesQuiNeJugentPas(worktree, ticket, lireFondations)) !== null) return null;
     const lu = await depot.lancerGit?.(["rev-parse", "HEAD^{tree}"], worktree);
     const arbre = lu?.code === 0 ? lu.stdout.trim() : null;
@@ -3195,7 +3197,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // sauvée, voit ses gates rejouées à sa reprise, sans cook, quand la machine est calme. Rouges pour le code, comme avant.
     // Ce qu'elles ont dit — les tests rouges par leur nom, la fin de leur sortie —, et pas seulement leur première ligne :
     // sans eux, ni le cook suivant ni le manager ne savent quoi corriger (#4113).
-    let retenue: { echec: string; detail: string } | { subi: string; charge: true } = { echec, detail };
+    let retenue: { echec: string; detail: string } | { subi: string; charge: boolean } = { echec, detail };
     let ligne = "";
     await enregistrerGatesRouges({
       ticket: ticket.number,
@@ -4102,9 +4104,10 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     await depot.elaguer?.(branche);
     return true;
   };
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, lireCharge, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   station.porte = options.porte ?? null;
+  station.lireCharge = lireCharge;
   station.lacune = options.lacune;
   const quitter = station.quitter;
   station.quitter = async () => {
