@@ -3,10 +3,22 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
 import { alertesDuRailLues } from "../../src/vue/attente-du-rail/attente-du-rail.ts";
-import { lireLeRailSurGithub } from "../../src/vue/rail/github.ts";
+import type { TableauLu } from "../../src/tableau/lecture.ts";
+import { avecLeRail, lireLeRailSurGithub } from "../../src/vue/rail/github.ts";
 import { corpsDuParking } from "../../../runtime/src/attente-github/marque.ts";
 
 const LU = "2026-11-19T12:00:00.000Z";
+const VIDE: TableauLu = {
+  lu: true,
+  depot: "a/b",
+  luLe: LU,
+  cuisine: { rubriques: [] },
+  faits: { etat: "ouverte", lu: LU, dernierTick: null, dernierEvenement: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: [] },
+  file: [],
+  bilans: [],
+  lignesDuRail: [],
+  activites: [],
+};
 
 test("une alerte tout-mis-de-cote est lue sans cause ; la cause connue d'une autre alerte est gardée", () => {
   const brute = { sorte: "tout-mis-de-cote", phrase: "Nothing is served.", fait: { depuis: LU, ticket: 3 }, geste: "Remove the label.", geree: null };
@@ -39,4 +51,12 @@ test("le ticket que la station a parqué par ses échecs porte la date et la rai
   const cuisine = await lu("out-of-kitchen", "Station `parade-box/claude`: the guard refuses (out-of-kitchen).");
   assert.equal(cuisine?.parqueParEchecs, undefined);
   assert.equal(cuisine?.etat, "86");
+});
+
+test("parqué par ses échecs, seul ticket `fire` : l'alerte du rail le nomme, depuis son parking et avec sa raison ; parqué pour un autre, aucune", async () => {
+  const alertes = async (corps: string) => (avecLeRail(VIDE, await lireLeRailSurGithub({ depot: "a/b", appeler: github("parked", corps), maintenant: () => new Date(LU) }), { lus: [] }).faits as { alertesDuRail?: { sorte: string; phrase: string; fait: { ticket?: number; depuis: string } }[] }).alertesDuRail ?? [];
+  const [alerte] = (await alertes(PARKING(true))).filter(({ sorte }) => sorte === "tout-mis-de-cote");
+  assert.deepEqual(alerte?.fait, { depuis: "2026-11-16T11:17:00Z", ticket: 9 });
+  assert.match(alerte?.phrase ?? "", /^Nothing is served: #9 is parked by its failures .*: its cooks failed too many times, the station stopped relaunching it\. The reason: the guard refuses\. /);
+  assert.deepEqual((await alertes(PARKING(false))).filter(({ sorte }) => sorte === "tout-mis-de-cote"), []);
 });

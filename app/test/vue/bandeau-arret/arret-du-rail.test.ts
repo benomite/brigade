@@ -147,3 +147,11 @@ test("`arretCuisine` read back from `facts`: nothing malformed sets it, and an u
   assert.deepEqual(arretCuisineLu({ cause: { kind: "main-red" }, since }), { arretCuisine: { cause: { kind: "main-red" }, since } });
   assert.deepEqual(arretCuisineLu({ cause: { kind: "out-of-gas" }, since }), { arretCuisine: { cause: { kind: "unknown" }, since } });
 });
+
+test("a ticket parked by its failures (ticket 4260) whose open PR holds its zone freezes the kitchen like a set-aside one; without a held zone, it does not", () => {
+  const file = [{ ticket: 21, etat: "queued" as const, entreLe: "2026-11-20T09:00:00Z", depend: [] }];
+  const enFile = { ticket: 21, creeLe: "2026-11-20T06:00:00Z", entreLe: "2026-11-20T09:00:00Z" };
+  const zoneTenue = { zone: ["app/src/vue", "app/src/faits.ts"], depuis: "2026-11-20T08:30:00Z" };
+  assert.deepEqual(arretDuRail(file, [enFile, { ticket: 30, creeLe: "2026-11-20T06:00:00Z", parqueParEchecs: { zoneTenue } }], [], null).arretCuisine, { cause: { kind: "frozen-zone", ticket: 30, zone: "app/src/vue, app/src/faits.ts" }, since: "2026-11-20T08:30:00Z" });
+  assert.deepEqual(arretDuRail(file, [enFile, { ticket: 30, creeLe: "2026-11-20T06:00:00Z", parqueParEchecs: {} }], [], null).arretCuisine, { cause: { kind: "unknown" }, since: "2026-11-20T09:00:00Z" });
+});

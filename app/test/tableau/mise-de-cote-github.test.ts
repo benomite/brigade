@@ -69,6 +69,11 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
     assert.equal(labelDeMiseDeCote(["fire", "taken"]), null);
     // Un label d'attente d'avant parked parque le ticket : jamais une mise de côté (runtime/src/github-etat/etats.ts).
     for (const ancien of LABELS_D_AVANT_PARKED) assert.equal(labelDeMiseDeCote(["fire", ancien]), null, ancien);
+    // Mis de côté, il ne va au chef que pour une question de produit marquée : `out-of-kitchen` dit sa raison, et rien ne
+    // lui est demandé ; plus de carte « lift the hold » ni de merge à la main.
+    assert.deepEqual(miseDeCoteDe(DEPOT, "out-of-kitchen", [commentaire("Station `box/claude`: out-of-kitchen — no station here has a GPU.")], 8), { label: "out-of-kitchen", raison: "out-of-kitchen — no station here has a GPU.", liens: [], auChef: false });
+    const question = commentaire("<!-- brigade:todo kind=product-question -->\nKeep the old column order?\n- [resume] Yes\n- [close] No");
+    assert.deepEqual(miseDeCoteDe(DEPOT, "served-elsewhere", [question], 8).chef, { sorte: "product-question", texte: "Keep the old column order?\n- [resume] Yes\n- [close] No" });
   });
 
   test("une question de produit que suit une réponse du chef (#2434) n'attend plus rien de lui : le ticket ne va plus au chef", () => {

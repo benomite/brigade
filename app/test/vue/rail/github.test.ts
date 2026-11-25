@@ -3,6 +3,7 @@
 // l'onglet Cooks montre les stations d'après leurs commentaires de prise et leurs signes de vie (#2358). Joué sur un faux
 // GitHub, puis rendu par le rail de l'app. Son TODO est ce qui attend le chef lu de GitHub, la lecture même que le
 // second relaie (#2460).
+import { LABELS_D_AVANT_PARKED_SANS_CARTE } from "../../../../runtime/src/github-etat/etats.ts";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { porter } from "../../../src/bon.ts";
@@ -256,6 +257,14 @@ describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, 
     // Le message de la station reste derrière « details », en entier.
     assert.match(rail.find(({ ticket }) => ticket === 7)?.refus?.brut ?? "", /^still not mergeable after 2 sends back — /);
     assert.equal(SANS_RAISON, "set aside by hand — no reason on the issue");
+  });
+
+  // Ticket 4260 : un label d'attente d'avant parked pour le chef parque le ticket pour lui, comme `chef-todo` : il garde
+  // l'étape où il est — en file, en pass —, jamais mis de côté ni parqué pour un autre.
+  test("un ticket parqué pour le chef par un label d'avant parked garde l'étape où il est : en file, en pass", async () => {
+    const [ancien] = LABELS_D_AVANT_PARKED_SANS_CARTE;
+    const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler: github({ issues: () => [issue(8, ["fire", ancien as string]), issue(3, ["fire", "in-pass", ancien as string])] }), maintenant: () => LU });
+    assert.deepEqual(rail.tickets.map(({ ticket, etat, miseDeCote }) => [ticket, etat, miseDeCote]), [[8, "en attente", undefined], [3, "en pass", undefined]]);
   });
 
   test("ni prise ni cook pour un ticket mis de côté, et la ligne `rail` de `status` le compte à part", async () => {

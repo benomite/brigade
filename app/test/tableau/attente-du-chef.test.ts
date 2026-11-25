@@ -123,6 +123,16 @@ describe("ce qui attend le chef, lu de GitHub", () => {
     assert.ok(!bloc.some((ligne) => ligne.startsWith("  #5  for")));
   });
 
+  // Ticket 4260 : un label d'attente d'avant parked pour le chef parque le ticket pour lui — une entrée, sa carte ; une mise
+  // de côté n'en est une que par la question de produit qu'elle pose.
+  test("un ticket du rail parqué pour le chef par un label d'avant parked est une entrée ; un `served-elsewhere` ne l'est que par sa question", async () => {
+    const monde = { 7: MONDE[7] as Issue, 9: { labels: ["fire", "in-pass", "blocked-on-human"], created_at: "2026-11-05T07:00:00Z" }, 12: MONDE[12] as Issue };
+    assert.deepEqual((await lue(github(monde))).attentes.map(({ ticket, quoi, chef }) => [ticket, quoi, chef?.sorte]), [
+      [9, "ecart", "manager-parked"],
+      [12, "mise-de-cote", "product-question"],
+    ]);
+  });
+
   test("le tableau de la cuisine n'est jamais lu, ni une entrée", async () => {
     const appels: string[] = [];
     const { attentes } = await lue(github(MONDE, appels));
