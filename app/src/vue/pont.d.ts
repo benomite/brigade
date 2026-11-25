@@ -452,6 +452,8 @@ export type Pont = {
   // a rendue pour lui n'est pas en https, il n'est plus dans les derniers faits lus, ou le
   // poste n'a pas pu l'ouvrir.
   ouvrirIssue(projet: string, ticket: number): Promise<boolean>;
+  // Les checks du dépôt du projet (GitHub Actions), d'une alerte du rail qui en nomme un (ticket 4238). Rend s'ils ont été ouverts.
+  ouvrirLesChecks(projet: string): Promise<boolean>;
   // Un ticket de Livré, ouvert sur sa PR mergée dans le navigateur. Faux : l'adresse que la box
   // a rendue pour elle n'est pas en https, il n'est plus dans les derniers faits lus, ou le poste
   // n'a pas pu l'ouvrir.
