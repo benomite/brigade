@@ -141,8 +141,8 @@ describe("les commandes du runtime", { concurrency: 4 }, () => {
     for (const ancien of anciens) assert.equal(scripts[ancien], SCRIPT_D_ANCIEN_NOM, ancien);
     // Un nom anglais n'est jamais aussi un ancien nom, ni deux fois dans la table.
     assert.equal(new Set([...anglais, ...anciens]).size, anglais.length + anciens.length);
-    // Les anciens mots, dont chacun a son essai plus bas.
-    assert.ok(ESSAIS.length >= 20);
+    // Les anciens mots, dont chacun a son essai plus bas — ceux de `waiting` sont partis avec elle (#4262).
+    assert.ok(ESSAIS.length >= 15);
     // L'ancien nom que `npm` lance lui-même, plus bas, en est un.
     assert.equal(scripts[PAR_NPM], SCRIPT_D_ANCIEN_NOM);
   });
@@ -201,20 +201,17 @@ describe("les commandes du runtime", { concurrency: 4 }, () => {
 
   test("les anciens mots sont remplacés un à un, dits une fois chacun ; les nouveaux, et tout le reste, passent tels quels et en silence", () => {
     const dits: string[] = [];
-    assert.deepEqual(enAnglais("waiting", ["poser", "17", "--quoi", "un avis", "--de=Marie", "--quoi", "poser"], (ligne) => dits.push(ligne)), [
-      "set",
-      "17",
-      "--what",
-      "un avis",
-      "--from=Marie",
-      "--what",
+    assert.deepEqual(enAnglais("installation", ["desinstaller", "--confirmer=oui", "--confirmer", "desinstaller"], (ligne) => dits.push(ligne)), [
+      "uninstall",
+      "--confirm=oui",
+      "--confirm",
       // Ce n'est pas le rang d'une sous-commande : une valeur, laissée telle quelle.
-      "poser",
+      "desinstaller",
     ]);
-    assert.deepEqual(dits, [direAncien("poser", "set"), direAncien("--quoi", "--what"), direAncien("--de", "--from")]);
+    assert.deepEqual(dits, [direAncien("desinstaller", "uninstall"), direAncien("--confirmer", "--confirm")]);
 
     const silence: string[] = [];
-    assert.deepEqual(enAnglais("waiting", ["set", "17", "--what", "x"], (ligne) => silence.push(ligne)), ["set", "17", "--what", "x"]);
+    assert.deepEqual(enAnglais("installation", ["uninstall", "--confirm"], (ligne) => silence.push(ligne)), ["uninstall", "--confirm"]);
     assert.deepEqual(enAnglais("rail", ["voir"], (ligne) => silence.push(ligne)), ["voir"]);
     assert.deepEqual(silence, []);
   });

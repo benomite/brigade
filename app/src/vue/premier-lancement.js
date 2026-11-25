@@ -61,7 +61,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnProjet: () => void,
  *   visiter?: () => void,
- *   outils?: { installer: () => void, verifier: () => void },
+ *   outils?: { ouvrir: (url: string) => void, verifier: () => void },
  * } & GestesDuCompte} GestesDuPremier
  */
 
