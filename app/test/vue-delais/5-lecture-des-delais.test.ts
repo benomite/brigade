@@ -3,13 +3,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lireSuivi } from "../../src/projets/demande.ts";
-import { lireLesDelais, tenirLesDelais } from "../../src/vue-delais/delais.js";
+import { tenirLesDelais } from "../../src/vue-delais/delais.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const PARTS = { cook: 1, gates: 2, review: 3, renvois: 4, attentes: 5 };
 const pire = (ticket: number, attendu_min: number, reel_min: number, repartition_min: object = PARTS) => ({ ticket, titre: `T${ticket}`, attendu_min, reel_min, modele: "opus", effort: "medium", repartition_min });
 const DELAIS = { fenetre_heures: 24, fusionnes: 9, dans_les_temps: 6, part_dans_les_temps: 6 / 9, sans_temps_attendu: 2, pires_depassements: [pire(1, 30, 40), pire(2, 10, 60), pire(3, 5, 30)] };
+const texte = (lu: unknown) => tenirLesDelais(doc).poser("parade", lu).textContent;
+const SANS = /^Last 24 hoursNo ticket merged with an expected time in the last 24 hours\.$/;
 const suivi = (plus: object) => JSON.stringify({ brigade: "projets-suivi", projets: [{ nom: "parade", etat: "servi", ...plus }] });
 
 test("the station's published follow-up relays `delais` as is, and says nothing of it when absent", () => {
@@ -18,17 +20,17 @@ test("the station's published follow-up relays `delais` as is, and says nothing 
 });
 
 test("the overruns come worst first, by minutes over the expected time; an unreadable one is left out", () => {
-  const lus = lireLesDelais({ ...DELAIS, pires_depassements: [...DELAIS.pires_depassements, { ticket: 4, titre: "no times" }, pire(5, -1, 9), null] });
-  assert.deepEqual(lus?.pires.map(({ ticket }) => ticket), [2, 3, 1]);
-  assert.equal(lireLesDelais({ ...DELAIS, pires_depassements: [pire(6, 0, 0)] })?.pires.length, 1, "zero minutes is a reading");
+  const lu = texte({ ...DELAIS, pires_depassements: [...DELAIS.pires_depassements, { ticket: 4, titre: "no times" }, pire(5, -1, 9), null] });
+  assert.deepEqual([...lu.matchAll(/#(\d+) T/g)].map(([, n]) => Number(n)), [2, 3, 1]);
+  assert.match(texte({ ...DELAIS, pires_depassements: [pire(6, 0, 0)] }), /#6 T6 — expected 0 min, took 0 min/, "zero minutes is a reading");
 });
 
-test("no readable share, no figure: a missing count or a share that is not a number gives nothing", () => {
+test("no readable share, no figure: a missing count or a share that is not a number gives the empty line", () => {
   for (const faux of [{ part_dans_les_temps: "0.8" }, { part_dans_les_temps: Number.NaN }, { part_dans_les_temps: -0.1 }, { fusionnes: null }, { dans_les_temps: undefined }]) {
-    assert.equal(lireLesDelais({ ...DELAIS, ...faux }), null, JSON.stringify(faux));
+    assert.match(texte({ ...DELAIS, ...faux }), SANS, JSON.stringify(faux));
   }
-  assert.equal(lireLesDelais(undefined), null);
-  assert.equal(lireLesDelais({ ...DELAIS, part_dans_les_temps: 0 })?.part, 0, "no ticket on time is a share");
+  assert.match(texte(undefined), SANS);
+  assert.match(texte({ ...DELAIS, part_dans_les_temps: 0 }), /0 % merged within their expected time \(6\/9\)/, "no ticket on time is a share");
 });
 
 test("the block says the share, how many have no expected time, and the window it covers", () => {

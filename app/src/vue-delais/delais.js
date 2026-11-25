@@ -42,7 +42,7 @@ function lireUnDepassement(lu) {
 // L'objet publié, relu : sans part lisible, rien — la vue dit alors qu'il n'y a rien à montrer. Les dépassements
 // illisibles sont écartés ; les autres, le pire d'abord (le plus de minutes au-delà de l'attendu).
 /** @param {unknown} lu @returns {Delais | null} */
-export function lireLesDelais(lu) {
+function lireLesDelais(lu) {
   const { fenetre_heures, fusionnes, dans_les_temps, part_dans_les_temps, sans_temps_attendu, pires_depassements } = /** @type {Record<string, unknown>} */ (lu ?? {});
   if (!nombre(part_dans_les_temps) || !nombre(fusionnes) || !nombre(dans_les_temps)) return null;
   const pires = (Array.isArray(pires_depassements) ? pires_depassements : []).flatMap(lireUnDepassement);
