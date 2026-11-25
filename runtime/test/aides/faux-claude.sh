@@ -650,21 +650,21 @@ FIN
       resultat <<'FIN'
 Voici le découpage.
 
-{"reponse":"tickets","motif":"Un livrable par module touché.","ordre":"Le rail d'abord : la pass et la doc lisent ce qu'il expose.","tickets":[{"titre":"Le rail compte ses tickets","contexte":"Le compte n'existe nulle part.","criteres":["`run rail` affiche le nombre de tickets en attente"],"attend":[],"zone":["runtime/src/rail.ts"],"modele":"sonnet","effort":"low","calibrage":"Un module, un test."},{"titre":"La pass lit le compte","criteres":["`run pass` affiche le compte","Un test le couvre"],"attend":[],"zone":["runtime/src/pass.ts"],"modele":"sonnet","effort":"medium","calibrage":"Critères précis."},{"titre":"La doc dit le compte","contexte":"Doc vivante.","criteres":["`docs/runtime.md` décrit le compte"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+{"reponse":"tickets","motif":"Un livrable par module touché.","ordre":"Le rail d'abord : la pass et la doc lisent ce qu'il expose.","tickets":[{"titre":"Le rail compte ses tickets","contexte":"Le compte n'existe nulle part.","criteres":["`run rail` affiche le nombre de tickets en attente"],"attend":[],"zone":["runtime/src/rail.ts"],"modele":"sonnet","effort":"low","temps_attendu":5,"calibrage":"Un module, un test."},{"titre":"La pass lit le compte","criteres":["`run pass` affiche le compte","Un test le couvre"],"attend":[],"zone":["runtime/src/pass.ts"],"modele":"sonnet","effort":"medium","temps_attendu":5,"calibrage":"Critères précis."},{"titre":"La doc dit le compte","contexte":"Doc vivante.","criteres":["`docs/runtime.md` décrit le compte"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","temps_attendu":5,"calibrage":"De la doc."}]}
 FIN
       ;;
     # Deux tickets qui ne s'attendent pas possèdent le même fichier : le code les joint (#3130).
     decoupe-recouvre)
       assistant
       resultat <<'FIN'
-{"reponse":"tickets","motif":"Un livrable par écran.","ordre":"Indifférent.","tickets":[{"titre":"Le rail compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src","docs/runtime.md"],"modele":"sonnet","effort":"low","calibrage":"Un module."},{"titre":"Le rail trie","criteres":["`run rail` trie"],"attend":[],"zone":["runtime/src/rail.ts","docs/runtime.md"],"modele":"sonnet","effort":"low","calibrage":"Un module."},{"titre":"La doc suit","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+{"reponse":"tickets","motif":"Un livrable par écran.","ordre":"Indifférent.","tickets":[{"titre":"Le rail compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src","docs/runtime.md"],"modele":"sonnet","effort":"low","temps_attendu":5,"calibrage":"Un module."},{"titre":"Le rail trie","criteres":["`run rail` trie"],"attend":[],"zone":["runtime/src/rail.ts","docs/runtime.md"],"modele":"sonnet","effort":"low","temps_attendu":5,"calibrage":"Un module."},{"titre":"La doc suit","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","temps_attendu":5,"calibrage":"De la doc."}]}
 FIN
       ;;
     # Deux tickets qui demandent chacun une capacité à leur station.
     decoupe-capacites)
       assistant
       resultat <<'FIN'
-{"reponse":"tickets","motif":"Un livrable par parcours.","ordre":"Indifférent.","tickets":[{"titre":"Le parcours se joue dans un navigateur","criteres":["Le parcours passe"],"attend":[],"zone":["e2e/parcours.ts"],"capacites":["navigateur-headless"],"modele":"sonnet","effort":"low","calibrage":"Un parcours."},{"titre":"Le compte connecté se vérifie","criteres":["Le compte se lit"],"attend":[],"zone":["e2e/compte.ts"],"capacites":["chrome-connecté"],"modele":"sonnet","effort":"low","calibrage":"Un parcours."},{"titre":"La doc suit","criteres":["La doc le dit"],"attend":[],"zone":["docs/e2e.md"],"capacites":[],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+{"reponse":"tickets","motif":"Un livrable par parcours.","ordre":"Indifférent.","tickets":[{"titre":"Le parcours se joue dans un navigateur","criteres":["Le parcours passe"],"attend":[],"zone":["e2e/parcours.ts"],"capacites":["navigateur-headless"],"modele":"sonnet","effort":"low","temps_attendu":5,"calibrage":"Un parcours."},{"titre":"Le compte connecté se vérifie","criteres":["Le compte se lit"],"attend":[],"zone":["e2e/compte.ts"],"capacites":["chrome-connecté"],"modele":"sonnet","effort":"low","temps_attendu":5,"calibrage":"Un parcours."},{"titre":"La doc suit","criteres":["La doc le dit"],"attend":[],"zone":["docs/e2e.md"],"capacites":[],"modele":"haiku","effort":"low","temps_attendu":5,"calibrage":"De la doc."}]}
 FIN
       ;;
     # Un ticket d'interface, que le jugement ne désigne pas, un autre qu'il
@@ -672,7 +672,7 @@ FIN
     decoupe-interface)
       assistant
       resultat <<'FIN'
-{"reponse":"tickets","motif":"La carte, son libellé, ce que le rail expose, et la doc.","ordre":"Le rail d'abord.","tickets":[{"titre":"Le rail expose le compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src/rail.ts"],"modele":"sonnet","effort":"medium","calibrage":"Un module."},{"titre":"La carte montre le compte","criteres":["La carte affiche le compte"],"attend":[],"zone":["app/src/vue/carte.js"],"modele":"opus","effort":"high","calibrage":"Un écran."},{"titre":"Le libellé du compte","criteres":["Le libellé se lit"],"attend":[],"zone":["app/src/libelles.ts"],"modele":"sonnet","effort":"low","calibrage":"Un libellé."},{"titre":"La doc dit le compte","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","calibrage":"De la doc."}]}
+{"reponse":"tickets","motif":"La carte, son libellé, ce que le rail expose, et la doc.","ordre":"Le rail d'abord.","tickets":[{"titre":"Le rail expose le compte","criteres":["`run rail` affiche le compte"],"attend":[],"zone":["runtime/src/rail.ts"],"modele":"sonnet","effort":"medium","temps_attendu":5,"calibrage":"Un module."},{"titre":"La carte montre le compte","criteres":["La carte affiche le compte"],"attend":[],"zone":["app/src/vue/carte.js"],"modele":"opus","effort":"high","temps_attendu":5,"calibrage":"Un écran."},{"titre":"Le libellé du compte","criteres":["Le libellé se lit"],"attend":[],"zone":["app/src/libelles.ts"],"modele":"sonnet","effort":"low","temps_attendu":5,"calibrage":"Un libellé."},{"titre":"La doc dit le compte","criteres":["La doc le dit"],"attend":[],"zone":["docs/runtime.md"],"modele":"haiku","effort":"low","temps_attendu":5,"calibrage":"De la doc."}]}
 FIN
       ;;
     decoupe-question)
@@ -690,7 +690,7 @@ FIN
     decoupe-illisible)
       assistant
       resultat <<'FIN'
-{"reponse":"tickets","motif":"Un livrable.","ordre":"Un seul.","tickets":[{"titre":"Sans critère","attend":[],"zone":["docs/"],"modele":"haiku","effort":"low","calibrage":"Doc."}]}
+{"reponse":"tickets","motif":"Un livrable.","ordre":"Un seul.","tickets":[{"titre":"Sans critère","attend":[],"zone":["docs/"],"modele":"haiku","effort":"low","temps_attendu":5,"calibrage":"Doc."}]}
 FIN
       ;;
     # Les réactions du manager à un ticket resté rouge : monter le calibrage, le
