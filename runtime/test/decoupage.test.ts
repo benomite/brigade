@@ -65,13 +65,13 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
     assert.deepEqual([501, 502, 503].map((numero) => c.gh.lire(numero)?.title), ["Le rail compte ses tickets", "La pass lit le compte", "La doc dit le compte"]);
     // Le calibrage et la priorité de l'épique à la naissance, `fire` en dernier.
-    assert.deepEqual(c.labels(501), ["model:sonnet", "effort:low", "prio:2", "fire"]);
-    assert.deepEqual(c.labels(502), ["model:sonnet", "effort:medium", "prio:2", "fire"]);
+    assert.deepEqual(c.labels(501), ["model:sonnet", "effort:low", "attendu:5", "prio:2", "fire"]);
+    assert.deepEqual(c.labels(502), ["model:sonnet", "effort:medium", "attendu:5", "prio:2", "fire"]);
     assert.deepEqual(c.gh.labellisations, [[501, ["fire"]], [502, ["fire"]], [503, ["fire"]]]);
     const corps = c.gh.corpsDe(502);
     assert.ok(corps.startsWith(`Epic: #30\n${marque(30, 2)}`));
     assert.match(corps, /- `run pass` affiche le compte\n- Un test le couvre/);
-    assert.match(corps, /Calibrated `sonnet` \/ `medium` — Critères précis\./);
+    assert.match(corps, /Calibrated `sonnet` \/ `medium` \/ `5 min` — Critères précis\./);
     // Chaque fiche porte la zone de son ticket ; aucun n'en attend un autre (#3130).
     const fiches = [501, 502, 503].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
     assert.deepEqual(fiches, [
@@ -137,11 +137,11 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
 
     // La vue : désignée par sa zone, sans que le jugement l'ait dit. Le
     // libellé : désigné par le jugement. Le runtime et la doc : non.
-    assert.deepEqual(c.labels(501), ["model:sonnet", "effort:medium", "prio:1", "fire"]);
-    assert.deepEqual(c.labels(502), ["model:opus", "effort:high", "prio:1", "fire"]);
-    assert.deepEqual(c.labels(503), ["model:sonnet", "effort:low", "prio:1", "fire"]);
-    assert.deepEqual(c.labels(504), ["model:haiku", "effort:low", "prio:1", "fire"]);
-    assert.match(c.gh.corpsDe(502), /Calibrated `opus` \/ `high` — Un écran\./);
+    assert.deepEqual(c.labels(501), ["model:sonnet", "effort:medium", "attendu:5", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(502), ["model:opus", "effort:high", "attendu:5", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(503), ["model:sonnet", "effort:low", "attendu:5", "prio:1", "fire"]);
+    assert.deepEqual(c.labels(504), ["model:haiku", "effort:low", "attendu:5", "prio:1", "fire"]);
+    assert.match(c.gh.corpsDe(502), /Calibrated `opus` \/ `high` \/ `5 min` — Un écran\./);
     for (const numero of [501, 502, 503, 504]) assert.doesNotMatch(c.gh.corpsDe(numero), /design cook|cook:design/i);
     const dit = c.dits(30).find((texte) => /epic split into/.test(texte)) ?? "";
     assert.match(dit, /\| #501 \| Le rail expose le compte \| .* \| `sonnet` \/ `medium` \|$/m);
@@ -497,7 +497,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.deepEqual(c.tous("manager.split-created").map((e) => [e.ticket, charge(e)?.reconciled]), [[501, true], [502, false], [503, false]]);
     // Retrouvée, elle reçoit sa fiche et `fire` comme les autres — une fois.
     assert.equal(c.gh.commentaires.filter(([numero]) => numero === 501).length, 1);
-    assert.deepEqual(c.labels(501), ["model:sonnet", "effort:low", "fire"]);
+    assert.deepEqual(c.labels(501), ["model:sonnet", "effort:low", "attendu:5", "fire"]);
   });
 
   test("la marque d'un ticket ne vaut que sur une issue de confiance : celle d'un inconnu n'est ni reprise, ni fichée, ni lancée", async (t) => {

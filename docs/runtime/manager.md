@@ -273,13 +273,19 @@ not proven (a cook cannot read that journal), only that a new issue no longer wa
 **The tickets of a split never await each other** (#3130): two tickets whose zones overlap (the project's
 common paths aside), or one the answer makes await another, are **joined into one ticket** by the code —
 its title the titles joined by `; `, all their criteria, zones and capabilities, the highest model and effort
-of theirs, the interface label if one had it —, and the split comment names each one joined, with the path they
+of theirs, the sum of their expected times (120 at most), the interface label if one had it —, and the split comment names each one joined, with the path they
 shared, under "Tickets joined". Before, the second awaited the first, and lost its whole cooking, pass, CI
 and merge waiting for its claim. The instruction asks for disjoint zones and an empty `attend`; an `attend`
 between disjoint zones is refused, and the split redone once.
 
+**Each ticket of a split has an expected time** (#4307): `temps_attendu`, the minutes it should be merged
+in — about 2 for a wording or title fix, about 10 for a contained feature, up to about 60 for a rework of a
+central system; most tickets 10 or less. An answer whose ticket has none, or one that is not a whole number
+from 1 to 120, is refused; so is one above 10 whose `calibrage` gives no reason (no "because", "since", "so"…).
+
 **A ticket born from a split** carries a body starting with `Epic: #N`, then context, criteria and
-**why this calibration**; `model:`, `effort:` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
+**why this calibration**, shown as model, effort and expected time (`sonnet` / `medium` / `10 min`);
+`model:`, `effort:`, `attendu:<minutes>` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
 `requires`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends
 on (see "A ticket's card", in `station.md`).
 
