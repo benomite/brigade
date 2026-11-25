@@ -1527,6 +1527,47 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
   assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Advice \(`a\.ts`\): a nit/);
 });
 
+test("the station of this runtime: a review whose only blocking finding is a criterion not met sends the delivery back with that reason, and merges nothing (#4302)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(11, ["fire", "model:opus", "effort:high"]);
+  const lancer: Lancer = ({ args, flux }) => {
+    const reviewer = args.includes("--tools");
+    writeFileSync(flux, fluxQuiConclut(reviewer ? JSON.stringify({ verdict: "rouge", resume: "Not wired.", constats: [{ gravite: "bloquant", categorie: "critere-non-tenu", fichier: "a.ts", constat: "the rule is never called" }, { gravite: "remarque", fichier: "a.ts", constat: "rename the test" }] }) : "done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => ["a.ts"],
+      diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+    },
+    ...reglagesDuFauxClaude(repertoire, lancer),
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  for (let tour = 0; tour < 4 && !(faux.commentaires.get(11) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
+  assert.equal(faux.mergee(11), undefined);
+  const corps = (faux.commentaires.get(11) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
+});
+
 test("the station of this runtime: a cook that exits loses its worktree, build output, run streams and tmp dir; a live cook keeps its own, process included (#4104)", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
