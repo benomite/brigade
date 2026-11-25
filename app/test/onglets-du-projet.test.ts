@@ -1,7 +1,8 @@
 // La page d'un projet en deux onglets (#1184, #2921) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris,
 // sous le bandeau de santé — et Stations. Un seul est montré au centre ; le second reste à droite,
 // le même, quel que soit l'onglet. L'app rouvre un projet sur le dernier onglet que le chef y a ouvert.
-// Le menu de la page (#2485) n'a que Rail · Stations · Settings (#2921 : Kitchen et ses sous-onglets ont disparu), et un bloc monté par onglet.
+// Le menu de la page (#2485) n'a que Rail · Stations · Know-how · Settings (#2921 : Kitchen et ses sous-onglets ont disparu ; #4241 :
+// Know-how), et un bloc monté par onglet.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -113,7 +114,7 @@ describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
     const vue = await ouvrir();
 
     assert.equal(vue.element("onglets-du-projet").hidden, false);
-    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Stations", "tab"], ["Settings", "tab"]]);
+    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Stations", "tab"], ["Know-how", "tab"], ["Settings", "tab"]]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.equal(centre(vue).dataset.onglet, "rail");
 
@@ -253,10 +254,10 @@ describe("l'app rouvre un projet sur le dernier onglet que le chef y a ouvert", 
 });
 
 describe("le menu de la page d'un projet (#2485, #2921)", () => {
-  test("exactement trois entrées, Rail · Stations · Settings ; Rail est ouvert par défaut, sans Kitchen ni sous-onglets", async () => {
+  test("exactement quatre entrées, Rail · Stations · Know-how · Settings ; Rail est ouvert par défaut, sans Kitchen ni sous-onglets", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(onglets(vue).map((onglet) => onglet.textContent), ["Rail", "Stations", "Settings"]);
+    assert.deepEqual(onglets(vue).map((onglet) => onglet.textContent), ["Rail", "Stations", "Know-how", "Settings"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.equal(vue.element("rail").dataset.onglet, "rail");
     // Plus de Kitchen, donc plus de sous-onglets Health et Cooks.

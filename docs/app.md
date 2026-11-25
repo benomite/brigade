@@ -3,7 +3,7 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**The project's menu is three entries, Rail · Stations · Settings** (#2485, #2921), next to the project name; **Rail is the
+**The project's menu is four entries, Rail · Stations · Know-how · Settings** (#2485, #2921, #4241), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
 the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **What the folded
 line `Caps, closer and all projects` held** (#2921, `app/src/vue/projet/bandeau-sante/`) — the duration caps (#2490), the
@@ -677,6 +677,21 @@ tickets in other steps (in pass, served…) have no field. An app whose bridge d
 
 *Code: `app/src/vue/mot-au-cook/` — `mot-au-cook.js` (the field), `source.js` (the call), `mot-au-cook-box.ts` (the command,
 main process).*
+
+### The Know-how tab: what the project's cooks learned (#4241, epic #4140)
+
+**Know-how**, between Stations and Settings in the project's menu, lists the project's know-how: the lessons its cooks
+receive when they start (the latest ones, up to the project's cap), each with the ticket it came from (`from #4002`). Each
+opening of the tab reads them again, with the runtime command `know-how` where the project's kitchen runs. **edit** opens
+an entry's text in a field, in place; **save** writes it (on one line), **Cancel** leaves it as it was. **remove** asks
+"Remove this entry? No cook will receive it any more.", and **Yes, remove** removes it. Each change is a fact of the
+project's log (`know-how.edited`, `know-how.removed`): the next cooks receive the new text, or no longer the removed entry.
+With no entry, the tab says "No know-how yet. The project has no entry." A reading or a gesture that fails is said on
+one line, the detail on hover; the typed text stays in its field. A bridge that does not carry these gestures (the phone)
+says so on the tab.
+
+*Code: `app/src/vue/savoir-faire/` — `savoir-faire.js` (the tab), `source.js` (the calls), `savoir-faire-box.ts` (the
+command, main process); runtime: `runtime/src/savoir-faire/`.*
 
 ### The line of figures is gone (#2486, #3013, #3523)
 
