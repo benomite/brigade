@@ -19,6 +19,7 @@ import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { corpsDePrise, corpsDeLacher } from "../../src/github-etat/prise.ts";
 import type { Commentaire, GitHub } from "../../src/github.ts";
 import { configIdentites, ouvrirGitHubs, ouvrirIdentites, VARIABLES_GITHUB } from "../../src/identites.ts";
+import { LimiteGitHubAtteinte } from "../../src/limite-github.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { DEPOT, fauxGh, issueGitHub } from "../outils.ts";
 
@@ -214,6 +215,21 @@ test("a ticket GitHub will not give launches no cook: the station says why on th
 
   assert.equal(lances.length, 0);
   assert.ok(fait.some((ligne) => ligne.startsWith(`commenter #${NUMERO} `) && ligne.includes("Station `macbook/claude`: the cook stopped without a delivery — its ticket could not be read on GitHub: HTTP 502")), fait.join("\n"));
+});
+
+test("GitHub's call limit, met while reading the ticket, is said in English on the issue (#4056)", async (t) => {
+  const reset = Date.UTC(2026, 10, 25, 11, 0);
+  const { servir, lances, fait } = cuisine(t, {
+    commentaires: async () => {
+      throw new LimiteGitHubAtteinte(reset, 60_000);
+    },
+  });
+  await servir();
+
+  assert.equal(lances.length, 0);
+  const dit = fait.find((ligne) => ligne.startsWith(`commenter #${NUMERO} `) && ligne.includes("its ticket could not be read on GitHub")) ?? "";
+  assert.match(dit, /its ticket could not be read on GitHub: the kitchen's GitHub calls are held back until 2026-11-25T11:00:00\.000Z/, fait.join("\n"));
+  assert.doesNotMatch(dit, /limite d'appels/);
 });
 
 test("the ticket handed in the prompt is bounded: a long body and long comments are cut, and say so", () => {
