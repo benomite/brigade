@@ -43,7 +43,7 @@ export function commentaireDeRenvoi({ motif, detail }: { motif: string; detail: 
 
 // Le texte d'une relecture qui demande des changements, en remarques : chaque puce « - **Blocking** » est de fond, avec la
 // nature que ses mots disent ; toute autre puce (« - Advice ») est de forme. Un texte sans puce est une seule remarque de fond.
-export function remarquesDeLaRelecture(texte: string): Remarque[] {
+function remarquesDeLaRelecture(texte: string): Remarque[] {
   const puces = texte.split(/(?:^(?=- )|(?<=\s)(?=- (?:\*\*Blocking\*\*|Advice)))/m).filter((p) => p.startsWith("- "));
   if (puces.length === 0) return [{ nature: "behaviour", texte }];
   return puces.map((puce) => {
@@ -59,12 +59,6 @@ export function remarquesDeLaRelecture(texte: string): Remarque[] {
 export function motifsDeLaRelecture(texte: string): MotifDeRenvoi[] {
   const { motifs } = jugerLaPR({ remarques: remarquesDeLaRelecture(texte), ci: "green" });
   return motifs.length > 0 ? motifs : ["wrong behaviour"];
-}
-
-// La ligne qui énonce les motifs d'un renvoi, chacun vérifié contre la liste.
-export function motifsEnonces(motifs: readonly string[]): string {
-  for (const motif of motifs) verifierMotifDeRenvoi(motif);
-  return `Send-back reason: ${motifs.join(", ")}`;
 }
 
 // Le verdict d'une relecture, jugé sur ses constats : une relecture rouge dont aucun constat ne bloque n'a que des remarques

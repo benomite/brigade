@@ -97,7 +97,7 @@ import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
-import { jugerLaPR, motifsDeLaRelecture, motifsEnonces, verdictDeLaRelecture } from "./renvoi-sur-le-fond/regle.ts";
+import { jugerLaPR, MOTIFS_DE_RENVOI, motifsDeLaRelecture, verdictDeLaRelecture, verifierMotifDeRenvoi } from "./renvoi-sur-le-fond/regle.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -637,8 +637,12 @@ const ISSUES_LUES_AU_PLUS = 40;
 
 // Le motif d'un renvoi, dit sur son commentaire (#4302) : une CI rouge sans remarque de fond est un test qui échoue ; une
 // relecture dit le sien par la nature de ses remarques. Un renvoi pour conflit n'a aucun des trois motifs : il n'en dit pas.
-const motifDitDuRenvoi = (genre: "conflict" | "red CI" | "review", raison: string): string | null =>
-  genre === "conflict" ? null : motifsEnonces(genre === "red CI" ? jugerLaPR({ remarques: [], ci: "red" }).motifs : motifsDeLaRelecture(raison));
+const motifDitDuRenvoi = (genre: "conflict" | "red CI" | "review", raison: string): string | null => {
+  if (genre === "conflict") return null;
+  const motifs = genre === "red CI" ? jugerLaPR({ remarques: [], ci: "red" }).motifs : motifsDeLaRelecture(raison);
+  motifs.forEach(verifierMotifDeRenvoi);
+  return `Send-back reason: ${MOTIFS_DE_RENVOI.filter((m) => motifs.includes(m)).join(", ")}`;
+};
 
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;

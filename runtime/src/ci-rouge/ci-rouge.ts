@@ -33,7 +33,7 @@ import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MIS_DE_COTE } from "../github.ts";
 import { MARQUE_DE_RENVOI, RAISONS_DE_RENVOI } from "../qualite-github.ts";
-import { jugerLaPR, motifsEnonces } from "../renvoi-sur-le-fond/regle.ts";
+import { commentaireDeRenvoi } from "../renvoi-sur-le-fond/regle.ts";
 
 // La branche d'un cook de la station : `cook/<n>-github` (`brancheDuTicket`).
 const BRANCHE_DE_COOK = /^cook\/(\d+)-github$/;
@@ -120,7 +120,7 @@ export async function renvoyerLesCiRouges({ github, station, prs, tickets, enCui
       const tenu = ` It was held for the chef (${leves.map((l) => `\`${l}\``).join(", ")}): a red CI is fixed by a cook, never merged by the chef, so the hold is lifted. If a product or design decision is still missing once the CI is green, say so again.`;
       await github.commenter(
         numero,
-        `${MARQUE_DE_RENVOI} n=${siens.length + 1}${marque(sha)}-->\nStation \`${station}\`: sent back to a cook — ${RAISONS_DE_RENVOI.ci} \`${sha.slice(0, 7)}\`: ${rouges.map((c) => c.name).join(", ")}\n\n${motifsEnonces(jugerLaPR({ remarques: [], ci: "red" }).motifs)}\n\nNo cook was working on PR #${pr.number}.${tenu} Fix the red checks on the branch, run the gates, and commit.`,
+        `${MARQUE_DE_RENVOI} n=${siens.length + 1}${marque(sha)}-->\nStation \`${station}\`: sent back to a cook — ${RAISONS_DE_RENVOI.ci} \`${sha.slice(0, 7)}\`: ${rouges.map((c) => c.name).join(", ")}\n\n${commentaireDeRenvoi({ motif: "failing test", detail: `No cook was working on PR #${pr.number}.${tenu} Fix the red checks on the branch, run the gates, and commit.` })}`,
       );
       bilan.renvoyes.push({ ticket: numero, pr: pr.number, leves });
     } catch (erreur) {
