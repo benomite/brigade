@@ -9,9 +9,9 @@ const ok = (data: unknown) => ({ status: 200, data });
 const issue = (number: number, labels: string[]) => ({ number, title: `Ticket ${number}`, html_url: `https://github.com/${DEPOT}/issues/${number}`, created_at: "2026-11-10T09:00:00Z", labels: labels.map((name) => ({ name })) });
 
 const github: AppelGitHub = async (chemin) => {
-  if (chemin.includes("/issues?")) return ok([issue(1, ["fire"]), issue(2, ["fire", "set-aside:failures"]), issue(3, ["fire", "tests-written"])]);
+  if (chemin.includes("/issues?")) return ok([issue(1, ["fire"]), issue(2, ["fire", "out-of-kitchen"]), issue(3, ["fire", "tests-written"])]);
   if (chemin.includes("/pulls?")) return ok([]);
-  if (chemin.includes("/issues/2/comments")) return ok([{ id: 1, body: "Station `box/claude`: the guard stopped it. Set aside by its failures (set-aside:failures).", author_association: "OWNER", created_at: "2026-11-16T11:17:00Z" }]);
+  if (chemin.includes("/issues/2/comments")) return ok([{ id: 1, body: "Station `box/claude`: the guard stopped it. Set aside by its failures (out-of-kitchen).", author_association: "OWNER", created_at: "2026-11-16T11:17:00Z" }]);
   if (/\/issues\/\d+\/(comments|events)/.test(chemin)) return ok([]);
   return { status: 404, data: {} };
 };
