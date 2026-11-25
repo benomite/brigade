@@ -129,6 +129,18 @@ test("a cook resuming a branch cut from an older base starts with the current or
   git(s.clone, "merge-base", "--is-ancestor", tete, BRANCHE);
 });
 
+test("the merge the station commits on the cook's branch, which goes into its PR, is in English (#4056)", async () => {
+  const appels: string[][] = [];
+  const git = async (args: string[]): Promise<SortieGit> => {
+    appels.push(args);
+    // La tête de la base n'est pas dans la branche : la station fusionne.
+    return { code: args[0] === "merge-base" ? 1 : 0, stdout: "", stderr: "" };
+  };
+  assert.deepEqual(await mettreAJourLaBranche(git, "/nulle-part", "main"), { etat: "fusionnee" });
+  const fusion = appels.find((args) => args[0] === "merge") ?? [];
+  assert.equal(fusion[fusion.indexOf("-m") + 1], "brigade: branch updated from origin/main");
+});
+
 test("a cook that stops because it needs commits on the base: the station merges origin into its branch and a cook resumes it, with no TODO card", async (t) => {
   let tete = "";
   const vus: boolean[] = [];
