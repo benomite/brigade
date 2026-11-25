@@ -155,3 +155,21 @@ test("an issue judged again during the round is taken at its end, in the room th
   await jusqua(() => deux.labels(30).includes("fire") && deux.labels(31).includes("fire"));
   assert.deepEqual(deux.feux, [[31, 1], [30, 1]]);
 });
+
+// La prise dite sur l'issue : un commentaire qui échoue après `fire` se redit au tour suivant — l'issue lancée et
+// calibrée n'attend plus sa prise, mais son tri la sert encore jusqu'à ce que le manager l'ait dit.
+test("a take whose comment fails after `fire` is said on the issue at a next round, once", async (t) => {
+  const { gh, labels, dits, avertissements, laisserReveiller } = brigade(t, { issues: [issue(30, ["prio:1"])], manager: { freeRoom: () => 1 } });
+  gh.pannes.commentaire = true;
+  await jusqua(() => labels(30).includes("fire") && avertissements.some((m) => /décision du manager non commentée sur l'issue #30/.test(m)));
+  assert.deepEqual(dits(30), []);
+  gh.pannes.commentaire = false;
+  await jusqua(async () => (await laisserReveiller(1), dits(30).length === 1));
+  await laisserReveiller(2);
+  assert.equal(dits(30).length, 1);
+  assert.match(dits(30)[0] ?? "", /ticket put on the rail\.\*\* Set: `fire`, `model:haiku`, `effort:low`\./);
+  assert.deepEqual(gh.labellisations, [
+    [30, ["model:haiku", "effort:low"]],
+    [30, ["fire"]],
+  ]);
+});
