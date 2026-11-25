@@ -37,7 +37,7 @@ import { brancherCalendrier } from "../recurrences/calendrier.ts";
 import { brancherRecurrents } from "../recurrents/planificateur.ts";
 import { brancherTicketDEssai } from "../essai-projet/ticket.ts";
 import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
-import { brancherLeDigest } from "../journal-du-jour/publication.ts";
+import { brancherLeDigest } from "../journal-du-jour/matin.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";

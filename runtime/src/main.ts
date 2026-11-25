@@ -29,7 +29,7 @@ import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherLeChef } from "./chef/chef.ts";
-import { brancherLeDigest } from "./journal-du-jour/publication.ts";
+import { brancherLeDigest } from "./journal-du-jour/matin.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";

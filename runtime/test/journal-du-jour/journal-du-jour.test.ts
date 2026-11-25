@@ -10,7 +10,8 @@ import { porteDuRuntime } from "../../src/autonomie/agents/porte.ts";
 import { faits, lireEtat } from "../../src/etat.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { digestDeLaVeille } from "../../src/journal-du-jour/digest.ts";
-import { brancherLeDigest, passerLeDigest, publierLeDigest } from "../../src/journal-du-jour/publication.ts";
+import { brancherLeDigest } from "../../src/journal-du-jour/matin.ts";
+import { publierLeDigest } from "../../src/journal-du-jour/publication.ts";
 import { terminerLaPanne } from "../../src/post-mortems/post-mortems.ts";
 import type { CauseReveil } from "../../src/runtime.ts";
 import { aArreter, horloge, repertoireTemporaire } from "../outils.ts";
@@ -52,49 +53,58 @@ test("a quiet day with outages seen first by the system says how many, on its on
   assert.equal(digestDeLaVeille({ postMortems: [{ vuEnPremier: "system", fin: "2026-11-24T00:00:00.000Z" }, { vuEnPremier: "system", fin: "2026-11-24T05:00:00.000Z" }], fils: {} }, MATIN), "0 outages seen first by the chef yesterday, 2 first by the system — nothing else to report.");
 });
 
-test("each morning, once, the digest of yesterday is read from the threads and the post-mortems and kept for the project view", (t) => {
+// The digest's morning, driven by the runtime's ticks on a clock the test moves.
+function matin(t: Parameters<typeof repertoireTemporaire>[0], depart: string) {
   const { repertoire, journal } = ouvrir(t);
+  const avertis: string[] = [];
+  const ecouteurs: ((cause: CauseReveil) => void)[] = [];
+  const horloge = { maintenant: new Date(depart) };
+  brancherLeDigest({ journal, projet: PROJET, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}) }, { repertoireEtat: repertoire, avertir: (ligne) => void avertis.push(ligne), maintenant: () => horloge.maintenant });
+  const tick = (cause: CauseReveil = "tick") => ecouteurs.forEach((ecouter) => ecouter(cause));
+  return { repertoire, journal, avertis, horloge, tick };
+}
+
+test("each morning, once, the digest of yesterday is read from the threads and the post-mortems and kept for the project view", (t) => {
+  const { repertoire, journal, avertis, horloge, tick } = matin(t, "2026-11-25T05:59:59.000Z");
   consignerGeste(repertoire, "supervisor", { line: "reran main", reason: "red", outcome: OUTCOME.FIXED_BY_SELF }, a("2026-11-24T09:00:00.000Z"));
   consignerGeste(repertoire, "closer", { line: "closed #12, a duplicate", reason: "same as #11", outcome: OUTCOME.HANDED_TO_CHEF }, a("2026-11-24T10:00:00.000Z"));
   terminerLaPanne(repertoire, PROJET, { id: "o1", debut: "2026-11-24T08:00:00.000Z", fin: "2026-11-24T09:00:00.000Z", cause: "main was red", detecteeParLeSysteme: "2026-11-24T08:30:00.000Z", signaleeParLeChef: "2026-11-24T08:10:00.000Z", corrigePar: null, ticketDuCorrectif: null });
-  const avertis: string[] = [];
-  const avertir = (ligne: string) => void avertis.push(ligne);
 
-  assert.equal(passerLeDigest(journal, PROJET, repertoire, new Date("2026-11-25T05:59:59.000Z"), avertir), "pas-encore");
-  assert.equal(vue(journal).digest, null);
+  tick();
+  assert.equal(vue(journal).digest, null, "not before the morning hour");
 
-  assert.equal(passerLeDigest(journal, PROJET, repertoire, new Date("2026-11-25T06:00:00.000Z"), avertir), "publie");
-  assert.deepEqual(vue(journal).digest && { day: vue(journal).digest?.day, text: vue(journal).digest?.text }, {
+  horloge.maintenant = new Date("2026-11-25T06:00:00.000Z");
+  tick();
+  const digest = vue(journal).digest;
+  assert.deepEqual(digest && { day: digest.day, text: digest.text }, {
     day: "2026-11-24",
     text: "1 outage seen first by the chef yesterday.\nFixed by itself: reran main.\nCould not fix, handed to the chef: closed #12, a duplicate.",
   });
-  assert.equal(passerLeDigest(journal, PROJET, repertoire, new Date("2026-11-25T09:00:00.000Z"), avertir), "deja-publie");
-  assert.equal(journal.duType("digest.published", 10).length, 1);
+  horloge.maintenant = new Date("2026-11-25T09:00:00.000Z");
+  tick();
+  assert.equal(journal.duType("digest.published", 10).length, 1, "once a day");
   assert.equal(journal.duType("chef.notified", 10).length, 0, "building the digest notifies nobody");
   assert.deepEqual(avertis, []);
 
-  assert.equal(passerLeDigest(journal, PROJET, repertoire, new Date("2026-11-26T06:00:00.000Z"), avertir), "publie");
+  horloge.maintenant = new Date("2026-11-26T06:00:00.000Z");
+  tick();
   assert.equal(vue(journal).digest?.day, "2026-11-25");
+  assert.equal(journal.duType("digest.published", 10).length, 2);
 });
 
 test("threads that cannot be read publish nothing, say why, and the tick tries again ten minutes later", (t) => {
-  const { repertoire, journal } = ouvrir(t);
+  const { repertoire, journal, avertis, horloge, tick } = matin(t, "2026-11-25T07:00:00.000Z");
   writeFileSync(join(repertoire, "autonomy-gestures.json"), "{not json");
-  const avertis: string[] = [];
-  const ecouteurs: ((cause: CauseReveil) => void)[] = [];
-  let maintenant = new Date("2026-11-25T07:00:00.000Z");
-  brancherLeDigest({ journal, projet: PROJET, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}) }, { repertoireEtat: repertoire, avertir: (ligne) => void avertis.push(ligne), maintenant: () => maintenant });
-  const tick = (cause: CauseReveil = "tick") => ecouteurs.forEach((ecouter) => ecouter(cause));
 
   tick();
   assert.equal(avertis.length, 1);
   assert.match(avertis[0]!, /digest of 2026-11-24 — not published, the agents' threads do not read/);
-  maintenant = new Date("2026-11-25T07:09:59.000Z");
+  horloge.maintenant = new Date("2026-11-25T07:09:59.000Z");
   tick();
   assert.equal(avertis.length, 1, "not before ten minutes");
 
   writeFileSync(join(repertoire, "autonomy-gestures.json"), "{}");
-  maintenant = new Date("2026-11-25T07:10:00.000Z");
+  horloge.maintenant = new Date("2026-11-25T07:10:00.000Z");
   tick("log");
   assert.equal(vue(journal).digest, null, "only the tick builds it");
   tick();
@@ -102,11 +112,10 @@ test("threads that cannot be read publish nothing, say why, and the tick tries a
 });
 
 test("post-mortems that cannot be read publish nothing and say so", (t) => {
-  const { repertoire, journal } = ouvrir(t);
+  const { repertoire, journal, avertis, tick } = matin(t, "2026-11-25T07:00:00.000Z");
   terminerLaPanne(repertoire, PROJET, { id: "o1", debut: "2026-11-24T08:00:00.000Z", fin: "2026-11-24T09:00:00.000Z", cause: "c", detecteeParLeSysteme: "2026-11-24T08:30:00.000Z", signaleeParLeChef: null, corrigePar: null, ticketDuCorrectif: null });
   writeFileSync(join(repertoire, "post-mortems", `${PROJET}.json`), "{not json");
-  const avertis: string[] = [];
-  assert.equal(passerLeDigest(journal, PROJET, repertoire, MATIN, (ligne) => void avertis.push(ligne)), "echec");
+  tick();
   assert.match(avertis[0]!, /the post-mortems do not read/);
   assert.equal(vue(journal).digest, null);
 });
