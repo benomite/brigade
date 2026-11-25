@@ -30,9 +30,9 @@ test("the added / removed ratio page is gone: `ratios` reads no box and launches
   assert.deepEqual(projetsLus(COUTS, undefined, projets).map(({ nom }) => nom), ["parade", "ici"]);
 });
 
-test("a window reloaded on the ratio page opens on the home, and reads no ratio", async () => {
+const rechargeeSur = async (page: string) => {
   const session = new FauxStockage();
-  session.setItem("brigade.ecran", JSON.stringify({ page: "ratios" }));
+  session.setItem("brigade.ecran", JSON.stringify({ page }));
   const demarrage = () => ({
     configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
     palette: PALETTE,
@@ -46,5 +46,10 @@ test("a window reloaded on the ratio page opens on the home, and reads no ratio"
   });
   const vue = await jouerLaVue({ demarrage, espace: () => [] } as never, { session });
   await repos();
-  assert.deepEqual(vue.appels.filter(({ geste, args }) => geste === "onglet" && args[1] === "ratios"), [], "aucune lecture de la page des ratios");
+  return vue.appels.filter(({ geste, args }) => geste === "onglet" && args[1] === page);
+};
+
+test("a window reloaded on the ratio page opens on the home, and reads no ratio; reloaded on the cost page, it still reopens it", async () => {
+  assert.deepEqual(await rechargeeSur("ratios"), [], "aucune lecture de la page des ratios");
+  assert.notEqual((await rechargeeSur(COUTS)).length, 0, "la page des coûts, elle, se rouvre et se lit");
 });

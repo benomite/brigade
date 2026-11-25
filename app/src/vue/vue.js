@@ -7968,7 +7968,7 @@ function reprendreLEcran() {
   if (projet !== undefined) courant = projet;
   else if (lu.ajout === true) ajoute = true;
   else if (typeof lu.station === "string") stationOuverte = lu.station;
-  else if ([COUTS, RESUMES].includes(lu.page)) pageDeLApp = lu.page;
+  else if (lu.page === COUTS || lu.page === RESUMES) pageDeLApp = lu.page;
 }
 
 // La fenêtre s'est rechargée (ticket 3159) : les terminaux ouverts avant sont restés au process principal, chacun dans son
