@@ -27,11 +27,11 @@ async function jusqua(fait: () => boolean, garde = 60_000) {
 }
 
 // `interactif` : il attend Entrée pour ouvrir la page lui-même, et note ce qu'il a lu ; sinon, il donne l'adresse.
-function unFauxGh(t: TestContext, { interactif, code = 0, sansCode = false }: { interactif: boolean; code?: number; sansCode?: boolean }) {
+function unFauxGh(t: TestContext, { interactif, code = 0, sansCode = false, parole = "First copy your one-time code: A1B2-C3D4" }: { interactif: boolean; code?: number; sansCode?: boolean; parole?: string }) {
   const dossier = repertoire(t);
   const gh = join(dossier, "gh");
   const page = interactif ? 'printf "Press Enter to open https://github.com/login/device in your browser... " >&2\nread ligne\necho "entree" >> "$D/lu"' : 'echo "Open this URL to continue in your web browser: https://github.com/login/device" >&2';
-  const donne = sansCode ? 'echo "error connecting to api.github.com" >&2\nexit 1' : `printf '\\033[0;33m!\\033[0m First copy your one-time code: \\033[1mA1B2-C3D4\\033[0m\\n' >&2\n${page}`;
+  const donne = sansCode ? 'echo "error connecting to api.github.com" >&2\nexit 1' : `printf '\\033[0;33m!\\033[0m \\033[1m${parole}\\033[0m\\n' >&2\n${page}`;
   writeFileSync(gh, `#!/bin/sh\nD="${dossier}"\necho "$@" >> "$D/appels"\n${donne}\nwhile [ ! -f "$D/fin" ]; do sleep 0.05; done\necho "✓ Logged in as chef" >&2\nexit ${code}\n`);
   chmodSync(gh, 0o755);
   const lignes = (fichier: string) => (existsSync(join(dossier, fichier)) ? readFileSync(join(dossier, fichier), "utf8").trim().split("\n") : []);
@@ -44,6 +44,14 @@ function uneConnexion(gh: string) {
   const connecter = tenirConnexionGitHub({ commande: async () => connexionGitHub(gh).command, env: process.env, ouvrir: (adresse) => ouvertes.push(adresse), apres: (fin) => fins.push(fin) });
   return { connecter, ouvertes, fins };
 }
+
+test("le libellé récent de `gh` (« One-time code (ABCD-1234) copied to clipboard ») est lu, la page ouverte par l'app", { skip: SANS_POSIX }, async (t) => {
+  const faux = unFauxGh(t, { interactif: false, parole: "One-time code (67C7-98FD) copied to clipboard" });
+  const { connecter, ouvertes } = uneConnexion(faux.gh);
+  assert.deepEqual(await connecter(), { code: "67C7-98FD", page: "https://github.com/login/device" });
+  assert.deepEqual(ouvertes, ["https://github.com/login/device"]);
+  faux.finir();
+});
 
 test("`gh` attend Entrée : l'app la lui donne — il ouvre la page —, le code revient sans ses couleurs ; fini, c'est dit", { skip: SANS_POSIX }, async (t) => {
   const faux = unFauxGh(t, { interactif: true });
