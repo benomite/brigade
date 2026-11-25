@@ -2,7 +2,10 @@
 // issues sans priorité ou sans date lisible, le calibrage du chef qui l'emporte, et chaque étape qui échoue.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { choisirSuivante, prendreSuivante, type IssueDuBacklog } from "../../src/prise-backlog/prise-backlog.ts";
+import { choisirSuivante, prendreSuivante } from "../../src/prise-backlog/prise-backlog.ts";
+
+// Une issue ouverte du backlog, telle que GitHub la rend.
+type IssueDuBacklog = { number: number; labels: string[]; createdAt: string };
 
 const issue = (number: number, labels: string[], createdAt = "2026-01-01T00:00:00Z"): IssueDuBacklog => ({ number, labels, createdAt });
 

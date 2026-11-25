@@ -17,7 +17,7 @@ import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage, 
 import { LABEL, MIS_DE_COTE } from "../github.ts";
 
 // Une issue ouverte du backlog, telle que GitHub la rend.
-export type IssueDuBacklog = { number: number; labels: string[]; createdAt: string };
+type IssueDuBacklog = { number: number; labels: string[]; createdAt: string };
 
 // Le label d'une issue parked (règle 13), et ceux qu'il remplace : elle attend
 // quelqu'un — le chef, un tiers, un autre ticket — ou elle est mise de côté.
