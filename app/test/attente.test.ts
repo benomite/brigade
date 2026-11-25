@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { GESTES_D_ATTENTE, jourDe, relanceProposee } from "../src/attente.ts";
+import type { ClientDeLaPriorite } from "../src/priorite.ts";
+import { attenteSurGithub } from "../src/vue/attente/attente-github.ts";
 import { saisieLue } from "../src/vue/attente/saisie.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
@@ -50,7 +52,7 @@ describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
     ]);
   });
 
-  test("rien n'est écrit sans ce que le geste demande : quoi, de qui, une relance à venir — et ce qui est rempli se lit sans ses blancs", () => {
+  test("rien n'est écrit sans ce que la commande demande : quoi, de qui, une relance à venir, un ticket", async () => {
     const plein = { quoi: "sa réponse", qui: "le client", relance: "2026-10-22" };
     assert.deepEqual(saisieLue({ ...plein, quoi: "  sa validation écrite du devis  " }, AUJOURDHUI), { ...plein, quoi: "sa validation écrite du devis" });
     assert.match(refus({ ...plein, quoi: "   " }), /say what it waits for/);
@@ -59,6 +61,10 @@ describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
     for (const relance of ["", "22/10/2026", "2026-02-30", "2026-10-22T09:00", "7j"]) assert.match(refus({ ...plein, relance }), /is not a day of the calendar/, relance);
     for (const relance of ["2026-10-15", "2026-10-01"]) assert.match(refus({ ...plein, relance }), /is not after today/, relance);
     assert.match(refus({ ...plein, quoi: "une ligne\npuis une autre" }), /control character/);
+    for (const ticket of [0, -3, 1.5, "8", null, undefined]) {
+      const dit = await attenteSurGithub({ id: "attente-reprendre", ticket, saisie: undefined, aujourdhui: AUJOURDHUI, lu: undefined, client: {} as ClientDeLaPriorite });
+      assert.match("refus" in dit ? dit.refus : "", /names no ticket/, String(ticket));
+    }
   });
 });
 

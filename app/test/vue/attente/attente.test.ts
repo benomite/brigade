@@ -101,6 +101,9 @@ const colonneDe = (lu: TableauLu, nom: string) => tableau(faitsDe(lu)).rail.colo
 describe("la marque d'attente : ce que le runtime écrit sur l'issue, l'app le lit", () => {
   test("le commentaire du runtime (direMarque) se lit : quoi, de qui, depuis, la relance, ce que fera l'arrivée", () => {
     assert.deepEqual(tiersDeLaMarque(MARQUE_40, "2026-11-02T09:31:00Z"), { quoi: "the signed quote", qui: "the client", depuis: "2026-11-02T09:30:00.000Z", relance: "2026-11-16T00:00:00.000Z", aLArrivee: A_L_ARRIVEE });
+    // Sous la marque que la station relit, en tête — le commentaire que l'app et le second écrivent (#4262) : le même.
+    const marque = `<!-- brigade:waiting {"what":"the signed quote","who":"the client","followUp":"2026-11-16T00:00:00.000Z"} -->`;
+    assert.deepEqual(tiersDeLaMarque(`${marque}\n${MARQUE_40}`, "2026-11-02T09:31:00Z"), tiersDeLaMarque(MARQUE_40, "2026-11-02T09:31:00Z"));
     // Mise à jour, et à cheval sur deux années : la relance sans année est celle qui suit la mise en attente.
     const maj = direMarque(40, { what: "the PO", who: "Acme", since: "2026-12-30T08:00:00.000Z", followUp: "2027-01-06T00:00:00.000Z", onArrival: A_L_ARRIVEE }, true);
     assert.deepEqual(tiersDeLaMarque(maj, "2026-12-30T08:01:00Z"), { quoi: "the PO", qui: "Acme", depuis: "2026-12-30T08:00:00.000Z", relance: "2027-01-06T00:00:00.000Z", aLArrivee: A_L_ARRIVEE });
@@ -180,6 +183,8 @@ describe("les gestes : toujours écrits sur l'issue", () => {
     const jouer = (id: string, ticket: number, saisie?: unknown) => jouerLAttente({ id, ticket, saisie, aujourdhui: new Date(), lu: () => lu, client: monde.client });
     assert.ok("fait" in (await jouer("attente-poser", 20, { quoi: "x", qui: "y", relance: dansDixJours() })));
     assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
+    // Le commentaire porte en tête la marque que la station relit : le même que la commande de parking du second écrit.
+    assert.match(monde.issues.get(20)?.commentaires.at(-1)?.body ?? "", /^<!-- brigade:waiting \{"what":"x","who":"y","followUp":"[^"]+"\} -->\n\*\*WAITING: awaiting y\.\*\* x\n/);
     assert.ok("fait" in (await jouer("attente-reprendre", 40)));
     assert.equal(monde.ecrites.at(-1), `DELETE /repos/${DEPOT}/issues/40/labels/waiting`);
     assert.ok("fait" in (await jouer("attente-arrivee", 40)));
@@ -192,6 +197,7 @@ describe("les gestes : toujours écrits sur l'issue", () => {
     const dit = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: " the legal review ", qui: "legal", relance }, aujourdhui: new Date(), lu: () => lu, client: monde.client });
     assert.deepEqual(dit, { fait: `in WAITING on GitHub: #20 awaits legal, follow-up on ${relance}`, detail: `${issue(20)}#issuecomment-9` });
     assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
+    assert.ok(monde.issues.get(20)?.commentaires.at(-1)?.body.startsWith("<!-- brigade:waiting {\"what\":\"the legal review\",\"who\":\"legal\""), "la marque de la station n'est pas en tête du commentaire");
     const relu = await lueParLApp(monde);
     assert.deepEqual(colonneDe(relu, "Awaiting you"), []);
     const vingt = colonneDe(relu, "Waiting").find(({ ticket }) => ticket === 20) ?? assert.fail("#20 n'est pas dans WAITING");

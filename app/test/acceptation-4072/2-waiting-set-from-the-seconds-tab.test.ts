@@ -12,7 +12,7 @@ const lire = (f: string) => readFileSync(f, "utf8");
 const poseurs = () =>
   sources(SRC).filter((f) => !f.endsWith("emplacements.ts") && /(writeFileSync|symlinkSync|copyFileSync|linkSync)/.test(lire(f)) && /(["'`]bin["'`]\s*,\s*["'`]brigade["'`]|\/bin\/brigade)/.test(lire(f)));
 
-test("the `brigade` the app writes runs the station's gesture", () => {
+test("the `brigade` the app writes runs the station's gesture, which carries `waiting set` to the card", () => {
   const trouves = poseurs();
   assert.ok(trouves.length > 0, "the app writes no `brigade` command");
   const texte = trouves.map(lire).join("\n");
