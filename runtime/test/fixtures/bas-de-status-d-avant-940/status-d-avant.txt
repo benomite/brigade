@@ -39,7 +39,6 @@ rail       3 pris · 2 en pass · 6 en attente · 2 BLOQUÉ · 4 86 · 1 WAITING
   #41  servi  -  depuis 2 min, cuisiné par box/claude  Served
 
 cooks      3 en cours — box/claude : 2 au plus — 1 COINCE : #23
-           MACHINE SATURÉE depuis 2 min — charge de 16,2 pour 15 au plus : box/claude ne prend plus de ticket tant que ça dure
            box/claude SE RETIENT depuis 2 min — montée progressive, les cooks tout juste partis pèsent d'avance : les tickets servables attendent
            ARBITRE INJOIGNABLE depuis 2 min — connection refused : box/claude ne lance plus qu'un cook à la fois, sans arbitrage, jusqu'à son retour
   #23  COINCE  23-bb  sonnet / medium  2 min sur 1 h 00 · tours et tokens : pas encore de relevé · sans progrès depuis 5 min
