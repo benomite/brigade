@@ -20,6 +20,7 @@ import { enAnglais } from "./commandes.ts";
 import { decrire, decrireEcart, ecart } from "./dire-manager.ts";
 import type { Ecart } from "./events/manager.ts";
 import { type IssueOuverte } from "./github.ts";
+import { estParque } from "./github-etat/etats.ts";
 import { ouvrirGitHubDuGeste } from "./gestes/github-du-geste.ts";
 import { approuverGeste, gestesEnAttente } from "./autonomie/agents/porte.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -188,12 +189,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   }
 
   // Ce qu'allumer engage, compté là où le manager le lira : les issues ouvertes,
-  // et celles qui portent `blocked-on-human`, jamais jugées. Les nombres
+  // et celles qui sont parquées, jamais jugées avant de reprendre (#4260). Les nombres
   // s'écrivent en chiffres nus, en tête de leur mot : un programme les lit.
   async function compter(): Promise<void> {
     const { depot, issues } = await lireOuvertes((depot) => `the backlog of ${depot}`);
-    const retenues = issues.filter((issue) => issue.labels.includes("blocked-on-human" satisfies Ecart)).length;
-    ligne("backlog", `${issues.length} open issue${issues.length === 1 ? "" : "s"}, of which ${retenues} ${retenues === 1 ? "carries" : "carry"} \`blocked-on-human\` — read just now on GitHub (${depot})`);
+    const retenues = issues.filter((issue) => estParque(issue.labels)).length;
+    ligne("backlog", `${issues.length} open issue${issues.length === 1 ? "" : "s"}, of which ${retenues} ${retenues === 1 ? "is" : "are"} parked — read just now on GitHub (${depot})`);
   }
 
   // Ce qui n'est pas encore sur le rail (amont.ts) : les issues ouvertes que le

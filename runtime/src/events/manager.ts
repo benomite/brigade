@@ -39,7 +39,7 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // code: never judged, never handed to a cook (#3620).
 // `parked` (#4129) : le ticket attend quelqu'un — `parked`, ou `chef-todo` pour le chef ; le manager ne le juge pas avant
 // qu'il reprenne.
-export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "set-aside:failures" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert" | "parked";
+export type Ecart = "roadmap" | "epic" | "question" | "decision" | "served-elsewhere" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert" | "parked";
 
 // The command by which the chef hands a `chef-changed` issue back to the
 // manager, as it is told on the issue and in the report.

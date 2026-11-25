@@ -9,7 +9,7 @@ import type { Base } from "../base.ts";
 import { cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees } from "../projections/stations.ts";
 import { porteListe, ticketsDeLaListe } from "../epique.ts";
 import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-compte.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { lireGitHubSeul } from "../github-seul-etat.ts";
 import { clientGh } from "../proteger-branche.ts";
 import { feuPoseLe, lesFeux, type Lire } from "./lecture.ts";
@@ -56,7 +56,7 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
     const depend = [...new Set(duCorps.map(({ ticket }) => ticket))];
     if (labels.includes(LABEL_TAKEN)) tickets.push({ ticket: issue.number, etat: "taken", entreLe: null, depend });
     else if (labels.includes(LABEL_IN_PASS)) tickets.push({ ticket: issue.number, etat: "pass", entreLe: null, depend });
-    else if (!labels.some((label) => LABELS_D_ECART.includes(label))) {
+    else if (!estParque(labels) && !labels.some((label) => LABELS_D_ECART.includes(label))) {
       const evenements = await lire(`/repos/${depot}/issues/${issue.number}/events?per_page=${PAR_PAGE}`).catch(() => null);
       const poses = Array.isArray(evenements) ? feuPoseLe(evenements.flatMap((un: unknown) => { const o = objet(un); return o === null ? [] : [o]; })) : null;
       // Sa fiche et les arrêts de ses cooks (#3763) : des commentaires qui ne se lisent pas ne le disent pas libre, sa carte

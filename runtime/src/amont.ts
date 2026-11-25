@@ -10,7 +10,8 @@ import { priorite } from "./alimenter.ts";
 import { bilanDEpique } from "./bilan-epique.ts";
 import { decrire, decrireEcart } from "./dire-manager.ts";
 import type { Nature } from "./events/manager.ts";
-import { ECHECS_ATTEINTS, estMisDeCote, HORS_CUISINE, LABEL, type Issue } from "./github.ts";
+import { estMisDeCote, HORS_CUISINE, LABEL, type Issue } from "./github.ts";
+import { estParque, LABEL_PARKED } from "./github-etat/etats.ts";
 import type { Base } from "./base.ts";
 import { decoupageDe, ticketDEpique, ticketsDEpique } from "./projections/splits.ts";
 import { issueDuManager, remiseDe, seqDeDecision } from "./projections/manager.ts";
@@ -50,7 +51,7 @@ function etatDe(base: Base, issue: Issue, attentes: Map<number, string>): { etat
   const sort = sortDuTicket(base, ticket);
   // Ce que le rail en a fait ne vaut que s'il est plus récent que ce que le manager en a décidé.
   const sortRecent = sort !== null && (decidee === null || sort.seq > decidee) ? sort : null;
-  const horsCuisine = estMisDeCote(labels);
+  const horsCuisine = estMisDeCote(labels) || estParque(labels);
 
   if (!horsCuisine && labels.includes(LABEL)) return { etat: "en-route", dit: "it carries `fire`: the rail takes it on its next poll" };
   if (!horsCuisine && decision?.decision === "fire" && sortRecent === null) return { etat: "en-route", dit: `put on the rail by the manager, ${decision.model} / ${decision.effort} — \`fire\` is not set on it yet` };
@@ -114,8 +115,8 @@ export function enAmont(base: Base, ouvertes: readonly Issue[]): IssueAmont[] {
 //   `incomplete`   le manager l'a refusée : un ticket incomplet, que le second doit réécrire
 //   `epique`       une épique pas encore découpée — `epic` posé, jugée telle, ou son découpage en cours
 //   `prete`        calibrée (`model:` et `effort:`, ou mise sur le rail par le manager), sans `fire`
-//   `mise-de-cote` hors de la cuisine : `served-elsewhere` posé, ou retenue par le manager pour le chef
-//                  (une question, une issue de décision, `blocked-on-human`, la roadmap…)
+//   `mise-de-cote` hors de la cuisine : `served-elsewhere` posé, parquée, ou retenue par le manager pour le
+//                  chef (une question, une issue de décision, la roadmap…)
 // `served-elsewhere` l'emporte sur tout le reste, comme pour le manager : le chef a
 // dit que la cuisine ne la sert pas. Puis l'épique, le refus, le calibrage, la
 // mise de côté par le manager ; sans rien de cela, elle n'est pas lue.
@@ -132,7 +133,7 @@ function avantDe(base: Base, issue: Issue, amont: IssueAmont): { etat: EtatAvant
   const { dit } = amont;
   if (amont.etat === "servie" || amont.etat === "decoupee") return null;
   if (amont.etat === "en-route" && labels.includes(LABEL)) return null;
-  if (labels.includes(ECHECS_ATTEINTS)) return { etat: "mise-de-cote", dit: `set aside by its failure count: its cooks stopped without a delivery too many times in a row (\`${ECHECS_ATTEINTS}\`) — the station's last comment on the issue says why; the supervisor has the ticket, nothing puts it back on the rail by itself` };
+  if (labels.includes(LABEL_PARKED)) return { etat: "mise-de-cote", dit: `parked (\`${LABEL_PARKED}\`): it waits for someone — who, for what and until when are on the issue; nothing takes it before` };
   if (labels.includes(HORS_CUISINE)) return { etat: "mise-de-cote", dit: `it carries \`${HORS_CUISINE}\`: this kitchen does not serve it` };
   const decision = issueDuManager(base, ticket);
   const decoupage = decoupageDe(base, ticket);

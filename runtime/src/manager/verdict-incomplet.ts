@@ -21,7 +21,7 @@ import type { IssueOuverte } from "../github.ts";
 import { EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, issueEnDonnee, MARQUEUR_MANAGER, objet, parmi, phrase } from "../juger.ts";
 import { MODELES } from "../calibrage.ts";
 import type { IssueDuManager } from "../projections/manager.ts";
-import type { AtelierDuManager } from "../requalifier.ts";
+import type { AtelierDuManager } from "./atelier.ts";
 
 // La sorte de la carte qui pose la question au chef.
 export const QUESTION_PRODUIT = "product-question";

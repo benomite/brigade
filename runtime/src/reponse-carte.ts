@@ -38,7 +38,7 @@ import { LABEL, type GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { passDuTicket } from "./projections/pass.ts";
 import { ticketDuRail } from "./projections/rail.ts";
-import { RETENUE } from "./requalifier.ts";
+import { estParque } from "./github-etat/etats.ts";
 
 const AUTEUR = "chef";
 
@@ -161,11 +161,10 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
   })();
   if ("refus" in avancee) return refuse(avancee.refus);
 
-  // Hors du rail, seule une issue retenue avance : par `blocked-on-human`, ou
-  // écartée par le manager sous le label de sa question — le label s'en va, le
-  // manager la rejuge.
-  const aLever = avancee.comment !== "label" ? null : attente.quoi === "ecartee" && attente.reason !== "blocked-on-human" ? attente.reason : RETENUE;
-  const leve = aLever === null ? null : ((await github.issue(ticket))?.labels.includes(aLever) ?? false) ? aLever : null;
+  // Hors du rail, seule une issue parquée avance (#4260) : la réponse la fait reprendre — ce qui la parque s'en va
+  // (`chef-todo`, `parked`), et le manager la rejuge.
+  const leves = avancee.comment !== "label" ? [] : ((await github.issue(ticket))?.labels ?? []).filter((label) => estParque([label]));
+  const leve = leves.length === 0 ? null : leves.map((label) => `\`${label}\``).join(", ");
 
   // Une racine fermée ne revient pas sur le rail : rien n'y ramènerait ce ticket.
   if (avancee.comment === "feu" && avancee.sur !== ticket && (await github.issue(avancee.sur))?.state !== "open") {
@@ -200,7 +199,7 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
     if (avancee.comment === "renvoi" || avancee.comment === "rail") journal.ajouter({ ...commun, type: "ticket.released", payload: { reason: REPONSE_DU_CHEF, station: ticketDuRail(base, ticket)?.station ?? null } });
   });
 
-  if (leve !== null) await github.delabelliser(ticket, leve);
+  for (const label of leves) await github.delabelliser(ticket, label);
 
   const ecrite = "your answer is written on the issue";
   switch (avancee.comment) {
@@ -212,7 +211,7 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
       return { done: true, price: `${ecrite}; the ticket goes back to the rail, queued: a cook takes it up on the project's quota and reads your answer on the issue` };
     case "label":
       return leve !== null
-        ? { done: true, price: `${ecrite}, and \`${leve}\` is removed: the manager judges the issue again with your answer, on the project's quota` }
+        ? { done: true, price: `${ecrite}, and ${leve} ${leves.length === 1 ? "is" : "are"} removed: the manager judges the issue again with your answer, on the project's quota` }
         : { done: true, price: `${ecrite}; the issue is not on the rail, and nothing else moves` };
     case "rien":
       return { done: true, price: `${ecrite}; the ticket is queued on the rail, and its cook reads your answer on the issue` };

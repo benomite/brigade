@@ -17,7 +17,7 @@
 import { poserALaMain } from "../blocages-sans-question.ts";
 import type { Avis, ReponseDuManager } from "../blocage-au-manager.ts";
 import { CHEF_TODO } from "../github-etat/etats.ts";
-import { A_LA_MAIN, brancheDuTicket, ECHECS_MAX, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
+import { brancheDuTicket, ECHECS_MAX, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
 import type { LanceurGit } from "../integration-base.ts";
 import { mettreAJourLaBranche, type MiseAJourDeLaBranche } from "../mise-a-jour-branche/mise-a-jour-branche.ts";
 import { consigneDeLIntegration, integrerAvantLeCook } from "../renvoi-conflit.ts";
@@ -105,14 +105,14 @@ export type GitHubDuDegel = Pick<GitHubDuTour, "commentaires" | "commenter" | "c
 // - un ticket dont le travail est de changer la branche d'un autre ticket est
 //   fermé, et replié dans le renvoi de ce ticket à son propre cook, avec les
 //   fichiers en conflit qu'il nommait ;
-// - une carte du chef (`chef-todo` ; `blocked-on-human` avant #4129) qui lui demande un geste git est
+// - une carte du chef (`chef-todo`) qui lui demande un geste git est
 //   retirée, et le ticket dont elle nomme la branche revient à son cook.
 // `enVol` : les tickets qu'un cook de cette station tient, laissés au tour
 // suivant. `examinees` : les cartes déjà relues par ce processus, qui ne se
 // relisent pas à chaque tour. Un ticket qui échoue est dit, et ne retient pas
 // les autres. Rend les tickets fermés, et ceux dont la carte est retirée.
-// Ce qui tient le ticket pour le chef : sa carte (`chef-todo`), ou le label d'avant #4129.
-const tenues = (ticket: TicketLu): string[] => [CHEF_TODO, A_LA_MAIN].filter((label) => ticket.labels.includes(label));
+// Ce qui tient le ticket pour le chef : sa carte (`chef-todo`).
+const tenues = (ticket: TicketLu): string[] => [CHEF_TODO].filter((label) => ticket.labels.includes(label));
 
 export async function degelerLesConflits(
   github: GitHubDuDegel,

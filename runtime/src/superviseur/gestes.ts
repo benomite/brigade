@@ -24,7 +24,6 @@
 // aucune carte de TODO pour eux.
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { mettreEnAttenteGitHub } from "../attente-github/attente-github.ts";
-import { A_LA_MAIN } from "../brigade-github.ts";
 import { gesteGit, LABELS_DE_REPARATION } from "../garde-todo/geste-git.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { carteQuestionProduit, poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
@@ -175,7 +174,7 @@ export async function remettreSurLeRail({ github }: { github: Pick<GitHubDesGest
   const tenu = [LABEL_TAKEN, LABEL_IN_PASS].find((label) => issue.labels.includes(label));
   if (tenu !== undefined) throw new Refus(`#${ticket} carries \`${tenu}\`: the kitchen holds it`);
   exigerNonParque(issue.labels, ticket);
-  const retenus = [A_LA_MAIN, ...MIS_DE_COTE].filter((label) => issue.labels.includes(label));
+  const retenus = MIS_DE_COTE.filter((label) => issue.labels.includes(label));
   const sansFeu = !issue.labels.includes(LABEL);
   if (retenus.length === 0 && !sansFeu) throw new Refus(`#${ticket} is already on the rail: nothing holds it`);
   if (sansFeu) await github.labelliser(ticket, [LABEL]);

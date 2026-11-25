@@ -22,11 +22,11 @@
 // Rien n'est tenu d'un process à l'autre : à l'ouverture, les comptes repartent.
 //
 // Le même client porte ce que lit le réveil sans progrès (`inactivite/observer.ts`, #4027).
-import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
+import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import type { CheckVu } from "../carte-ci-windows.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "../github-etat/etats.ts";
 import { estMisDeCote, MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
@@ -35,7 +35,7 @@ import { suivreLesProgres, type SuiviDesProgres } from "../inactivite/observer.t
 import { reveil, type FaitsDuProjet } from "./declencheur.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
-const AILLEURS: readonly string[] = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_PARKED, LABEL_TAKEN, LABEL_IN_PASS];
+const AILLEURS: readonly string[] = [...MIS_DE_COTE, CHEF_TODO, LABEL_PARKED, ...LABELS_D_AVANT_PARKED, LABEL_TAKEN, LABEL_IN_PASS];
 
 const PRISES = new RegExp(`^${MARQUE_D_ECHEC} n=(\\d+)`);
 const A_VIDE = /the cook added nothing, and the delivery still has work left — /; // `brigade-github.ts`

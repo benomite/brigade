@@ -33,7 +33,7 @@ import { NOMS_DE_NATURE_EN, type Ecart, type FaitManager, type Nature } from "./
 import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { LancementRefuse, STATION_DU_MANAGER, type GardeFous, type Verdict } from "./garde-fous.ts";
-import { ECHECS_ATTEINTS, HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
+import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
@@ -49,7 +49,6 @@ import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAtte
 import { labelsMontes } from "./projections/reactions.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
-import { ouvrirRequalification } from "./requalifier.ts";
 import { ouvrirRoadmap } from "./manager/roadmap.ts";
 import { ouvrirVerdictIncomplet } from "./manager/verdict-incomplet.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
@@ -63,11 +62,6 @@ import type { Fin } from "./superviseur.ts";
 export const MANAGER = STATION_DU_MANAGER;
 const AUTEUR = "manager";
 
-// Les labels par lesquels le chef disait, avant #4129, qu'une issue n'est pas une
-// unité de travail. Reconnus s'ils sont là, jamais exigés ni posés : une issue qui
-// attend le chef est parquée pour lui (`chef-todo`).
-const RETENUE = "blocked-on-human";
-const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
 // Celui par lequel il dit qu'elle est à découper. Jamais exigé non plus : le
 // jugement reconnaît une épique sans lui.
 const LABEL_EPIQUE = "epic";
@@ -76,7 +70,7 @@ const LABEL_EPIQUE = "epic";
 const MARQUE_STATION_HORS_CUISINE = "Taken off the kitchen (`served-elsewhere`)";
 // Le label par lequel il dit qu'elle est une idée en réserve, pas une demande (#3536).
 const LABEL_IDEE = "idea";
-const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", "set-aside:failures", "idea", ...LABELS_ECARTES];
+const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", "idea"];
 // La réponse recommandée qui dit de ne rien faire (« Keep it parked ») : le chef n'a pas à la trancher.
 const NE_RIEN_FAIRE = /\b(?:keep|leave|let)\b[^.]*\b(?:parked|in reserve|as (?:it )?is|alone)\b|\bdo nothing\b|\bno action\b|\bnothing to do\b/i;
 const sansForme = (texte: string) => texte.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -169,12 +163,8 @@ export type OptionsManager = ConfigManager & {
 const RAISONS: Partial<Record<Ecart, string>> = {
   roadmap: "it is the project's roadmap",
   epic: "it has the `epic` label",
-  question: "it has the `question` label",
-  decision: "it has the `decision` label",
-  "blocked-on-human": "it has the `blocked-on-human` label",
   "served-elsewhere": "it has the `served-elsewhere` label: it is not served on this box",
   idea: "it has the `idea` label: an idea in reserve is not a request",
-  "set-aside:failures": "it has the `set-aside:failures` label: its failure count set it aside",
   "already-split": "it is an epic whose body already lists its tickets",
   vision: "it is a product vision or a reference document, not a deliverable",
   "kitchen-alert": "it is an alert the station opened about the kitchen itself, not a ticket about this project's code",
@@ -284,8 +274,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // La roadmap est un document de suivi, jamais un ticket : reconnue avant
     // tout le reste, elle n'est ni jugée, ni lancée, ni au chef (#3436).
     if (estLaRoadmap(issue.number)) return { quoi: "ecart", raison: "roadmap", fired };
-    // Mis de côté par son compte d'échecs : aucune station ne le sert, et il ne repart pas sans que son label tombe.
-    if (issue.labels.includes(ECHECS_ATTEINTS)) return { quoi: "ecart", raison: ECHECS_ATTEINTS, fired };
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
     // `fire` posé, calibrage complet compris.
     if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "served-elsewhere", fired };
@@ -294,8 +282,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const decoupee = decoupageDe(base, issue.number);
     if (decoupee?.state === "split") {
       if (decoupee.done && decoupee.commented) return { quoi: "fini" };
-      // Retenue par le chef au milieu des créations : elles attendent.
-      return issue.labels.includes(RETENUE) ? { quoi: "ecart", raison: RETENUE, fired } : { quoi: "decouper" };
+      // Parquée au milieu des créations : elles attendent qu'elle reprenne.
+      return estParque(issue.labels) ? { quoi: "ecart", raison: "parked", fired } : { quoi: "decouper" };
     }
     // Un ticket né d'un découpage est déjà jugé et calibré.
     if (ticketDEpique(base, issue.number)?.index != null || neDUnDecoupage(issue.body)) return { quoi: "fini" };
@@ -314,9 +302,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // reprendre. Parquée par sa question au chef, l'écart garde la nature de cette question.
     const nature = (NATURES_AU_CHEF as readonly string[]).includes(connue?.reason ?? "") ? (connue?.reason as Ecart) : "parked";
     if (estParque(issue.labels)) return { quoi: "ecart", raison: nature, fired };
-    // Ceux que le chef posait avant #4129 : lus encore sur les issues qui les portent.
-    const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
-    if (label) return { quoi: "ecart", raison: label, fired };
     // La liste de ses tickets est déjà dans son corps, et le journal ne sait
     // rien d'un découpage : il a été fait à la main.
     if (porteListe(issue.body)) return { quoi: "ecart", raison: "already-split", fired };
@@ -347,7 +332,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const commentaires = async (issue: IssueOuverte): Promise<string[]> => (await lire(issue)).corps;
 
   // Plusieurs stations servent le projet, chacune avec son manager (#2568) :
-  // avant de juger, découper, requalifier une issue ou d'y dire un écart, la
+  // avant de juger, découper une issue ou d'y dire un écart, la
   // station en prend le travail sur GitHub, pour l'état où elle la lit. La
   // première prise l'emporte ; les autres la laissent tranquille jusqu'à ce
   // que le travail soit dit fait, ou que la prise périme.
@@ -560,13 +545,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           `**Manager — \`idea\`: this issue is an idea in reserve, not a request.** \`fire\` is set on it, and \`idea\` wins: the manager does not qualify it, sets no calibration, and will not say this again.`,
           "",
           "Remove `idea` if it must be qualified.",
-        ].join("\n")
-      : connue.reason === ECHECS_ATTEINTS
-      ? [
-          MARQUEUR_MANAGER,
-          `**Manager — set aside by its failure count (\`${ECHECS_ATTEINTS}\`).**${connue.fired ? " `fire` is set on it, and the label wins: the ticket does not enter the rail, no cook starts." : " It does not enter the rail."} Its cooks stopped without a delivery too many times in a row; no other box serves it.`,
-          "",
-          `The reason is in the station's last comment. The supervisor takes the ticket and acts with its own gestures; no timer puts it back on the rail, and the chef does not need to act.`,
         ].join("\n")
       : connue.reason === ("served-elsewhere" satisfies Ecart)
       ? parLaStation
@@ -884,19 +862,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Les issues ouvertes du tour en cours, parmi lesquelles le tri cherche un doublon.
   let ouvertesDuTour: IssueOuverte[] = [];
 
-  const requalification = ouvrirRequalification({
-    journal,
-    projet,
-    github,
-    depotGitHub: options.depotGitHub,
-    noter,
-    demander,
-    peutJuger,
-    arrete: () => arrete,
-    avertir,
-    signature,
-  });
-
   // La roadmap écartée : ce qui y questionne le chef s'en retire, et le travail
   // séparé qu'elle porte s'ouvre en issues (#3436).
   const roadmap = ouvrirRoadmap({
@@ -990,18 +955,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
     const connue = issueDuManager(base, issue.number);
     await garantir(issue);
-    let tri = trier(issue, connue);
-    // Un ticket retenu sans dire ce qu'il attend : une carte, ou la cuisine le
-    // reprend. Une épique retenue est au chef, pas requalifiée.
-    if (tri.quoi === "ecart" && tri.raison === RETENUE && !issue.labels.includes(LABEL_EPIQUE) && decoupageDe(base, issue.number)?.state !== "split") {
-      const { corps } = await lire(issue);
-      const suite = await requalification.traiter(issue, corps);
-      if (suite === "attente") return "reste";
-      if (suite === "reprise") {
-        issue = { ...issue, labels: issue.labels.filter((label) => label !== RETENUE) };
-        tri = trier(issue, connue);
-      }
-    }
+    const tri = trier(issue, connue);
     // La roadmap des bindings ne s'est jamais lue : cette issue l'est peut-être.
     if ((tri.quoi === "juger" || tri.quoi === "decouper") && roadmapDesBindings === undefined) return "reste";
     let epique = tri.quoi === "decouper";
@@ -1158,7 +1112,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const issues = (sondage.inchange ? (confirmees ?? []) : sondage.issues).filter((issue) => !terminees.has(issue.number));
     const presentes = new Set(issues.map((issue) => issue.number));
     ouvertesDuTour = issues.filter(lisible);
-    requalification.suivre(issues);
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
     constater(presentes);

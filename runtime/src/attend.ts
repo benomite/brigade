@@ -235,7 +235,7 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
   merge: { sorte: "chef-gesture", pourquoi: "a green delivery the pass may not merge: reviewing what touches the judges or the declarations, or lifting what GitHub refuses is the chef's" },
   remontee: { sorte: "chef-gesture", pourquoi: "only the causes `CAUSES_DU_CHEF` names: secrets only the chef sets, or the manager's product question — every other escalation goes to the kitchen" },
   fermee: { sorte: "chef-gesture", pourquoi: "its PR was closed without merge — the chef's refusal; taking the ticket off the rail is the chef's too" },
-  ecartee: { sorte: "chef-gesture", pourquoi: "it carries the chef's own label (`question`, `decision`, `blocked-on-human`)" },
+  ecartee: { sorte: "chef-gesture", pourquoi: "the manager parked it for the chef (`chef-todo`), with its question or the decision it awaits" },
   illisible: { sorte: "chef-gesture", pourquoi: "the manager cannot judge the issue as written: rewording it is the chef's, the manager judges it again when it changes" },
   question: { sorte: "product", pourquoi: "the manager's question on an epic, before cutting it up" },
   carte: { sorte: "product", pourquoi: "a typed card that passed the TODO gate: a product choice or a design validation" },
@@ -268,7 +268,6 @@ const SANS_BOUTON = "no app button for it yet";
 const GESTES_D_ECART_EN = {
   question: "parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
   decision: "parked for you by the manager, for your decision (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
-  "blocked-on-human": "held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
 } as const satisfies Partial<Record<Ecart, string>>;
 type EcartQuiAttend = keyof typeof GESTES_D_ECART_EN;
 const ecartQuiAttend = (motif: string): motif is EcartQuiAttend => Object.hasOwn(GESTES_D_ECART_EN, motif);
@@ -768,7 +767,6 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
 const GESTES_D_ECART = {
   question: "parquée pour le chef par le manager, avec sa question (`chef-todo`) — à trancher : répondre à sa carte, il la rejuge ; ou fermer l'issue",
   decision: "parquée pour le chef par le manager, pour sa décision (`chef-todo`) — à trancher : répondre à sa carte, il la rejuge ; ou fermer l'issue",
-  "blocked-on-human": "retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
 } as const satisfies Partial<Record<Ecart, string>>;
 
 // Ce qu'est devenue la réparation, sur la ligne de la base rouge.

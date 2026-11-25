@@ -27,7 +27,7 @@
 // qu'elle ne sait pas lire, n'ouvre rien et ne va pas au chef : le ticket dit
 // pourquoi en une ligne, sur le chemin d'échec.
 import type { Avis } from "../blocage-au-manager.ts";
-import { A_LA_MAIN, type GitHubDuTour } from "../brigade-github.ts";
+import type { GitHubDuTour } from "../brigade-github.ts";
 
 export type GesteGitHub =
   | { sorte: "issue"; titre: string; corps: string; labels: string[]; suit?: string }
@@ -246,8 +246,8 @@ const nommer = (geste: GesteGitHub): string =>
 export type IssueDuGeste = { fait: string[] } | { echec: string };
 
 // Fait les gestes GitHub que le cook du `ticket` a demandés, poste leur
-// résultat sur le ticket, où le cook le lit en reprenant, et retire
-// `blocked-on-human` du ticket : il retourne à la cuisine. Rend ce qui a été
+// résultat sur le ticket, où le cook le lit en reprenant : il retourne à la
+// cuisine. Rend ce qui a été
 // fait, ou l'échec avec l'erreur de GitHub — ce qui a été fait avant lui y est
 // dit, pour que rien ne soit refait à l'aveugle.
 export async function faireLesGestesGitHub(github: GitHubDuGeste, { station, ticket, gestes }: { station: string; ticket: number; gestes: GesteGitHub[] }): Promise<IssueDuGeste> {
@@ -262,7 +262,6 @@ export async function faireLesGestesGitHub(github: GitHubDuGeste, { station, tic
   }
   try {
     await github.commenter(ticket, corpsDuGeste(station, faits));
-    await github.delabelliser(ticket, A_LA_MAIN);
   } catch (erreur) {
     return { echec: `the station made the GitHub gesture the cook asked for (${faits.join(" ")}), but could not report it on the ticket: ${message(erreur)}` };
   }

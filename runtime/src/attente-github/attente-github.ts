@@ -17,8 +17,7 @@
 // tout le monde peut commenter une issue publique. Une issue au label `parked` sans ce commentaire est parquée sans rien
 // inventer : la ligne dit que l'issue ne le dit pas.
 import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
-import { A_LA_MAIN } from "../brigade-github.ts";
-import { CHEF_TODO, estParque, LABEL_PARKED } from "../github-etat/etats.ts";
+import { CHEF_TODO, estParque, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "../github-etat/etats.ts";
 import type { Commentaire, GitHub, IssueOuverte } from "../github.ts";
 import { carteEnCours, corpsDeCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
 import { GesteRefuse } from "../rail.ts";
@@ -171,8 +170,7 @@ export async function lireCartesGitHub(github: GitHubDeLAttente): Promise<Cartes
 // tour de la station vient de lire (guerison/index.ts).
 export async function cartesDesIssues(github: { commentaires(numero: number): Promise<Pick<Commentaire, "body" | "association">[]> }, issues: readonly Pick<IssueOuverte, "number" | "title" | "labels">[]): Promise<CartesGitHub> {
   const cartes: CartesGitHub = { todo: [], parked: [] };
-  // `blocked-on-human` attend encore le chef sans être parqué : un état d'attente que #4129 n'a pas encore replié.
-  const lues = await Promise.all(issues.filter(({ labels }) => estParque(labels) || labels.includes(A_LA_MAIN)).map(async (issue) => ({ issue, commentaires: await github.commentaires(issue.number) })));
+  const lues = await Promise.all(issues.filter(({ labels }) => estParque(labels)).map(async (issue) => ({ issue, commentaires: await github.commentaires(issue.number) })));
   for (const { issue, commentaires } of lues.sort((a, b) => a.issue.number - b.issue.number)) {
     const { number: numero, title: titre, labels } = issue;
     // `parked` : il attend quelqu'un d'autre que le chef — une carte du chef parquée pour un autre comprise.
@@ -188,7 +186,7 @@ export async function cartesDesIssues(github: { commentaires(numero: number): Pr
       carte !== null
         ? (carte.texte.split("\n")[0] ?? "")
         : !labels.includes(CHEF_TODO)
-          ? `held back, it carries \`${A_LA_MAIN}\``
+          ? `parked by a waiting label of before parked: ${LABELS_D_AVANT_PARKED.filter((label) => labels.includes(label)).map((label) => `\`${label}\``).join(", ")}`
           : marque !== null
             ? `waits for ${LE_CHEF}: “${marque.what}”`
             : `carries \`${CHEF_TODO}\`, but no marked comment says what it asks`;

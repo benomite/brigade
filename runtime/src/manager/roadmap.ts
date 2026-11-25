@@ -19,7 +19,7 @@ import { cartesEnTodo, sortirDeTodo } from "../carte-todo.ts";
 import type { IssueOuverte } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { empreinte, issueEnDonnee, objet, phrase } from "../juger.ts";
-import type { AtelierDuManager } from "../requalifier.ts";
+import type { AtelierDuManager } from "./atelier.ts";
 
 // La première ligne de la consigne : ce qui distingue une lecture de la roadmap
 // d'un jugement, pour qui lit les lancements.
