@@ -81,7 +81,6 @@ Related terms built on « cuisine »:
 | `porte` | `door` | The runtime's entry for a remote station |
 | `station distante` | `remote station` | A station elsewhere than the box |
 | `se retient` (une station) / `SE RETIENT` | `withholding` / `WITHHOLDING` | A station refuses new tickets, with its reason |
-| `MACHINE SATURÉE` | `MACHINE SATURATED` | The machine is out of memory or time |
 | `ARBITRE INJOIGNABLE` | `ARBITER UNREACHABLE` | The arbiter does not answer |
 | `connexion` (Max) | `connection` | The Max subscription's login; `ABSENTE` → `MISSING`, `EXPIRÉE` → `EXPIRED` |
 

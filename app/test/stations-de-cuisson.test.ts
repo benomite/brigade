@@ -2,7 +2,7 @@
 // station — son état, ses cooks en cours, pour la box comme pour le Mac ou un autre ordinateur —, et la carte mise à jour
 // par la lecture qui suit, sans recharger la page. Ses cooks en cours y sont une ligne chacun, et seulement les siens
 // (#1270) ; une station qui refuse le projet n'en a pas : la ligne d'alerte de Rail dit pourquoi. Sur l'onglet Rail,
-// une seule ligne dit ce qui, du côté des cooks, demande un geste — une station saturée, un projet refusé, l'accès
+// une seule ligne dit ce qui, du côté des cooks, demande un geste — un projet refusé, l'accès
 // au dépôt bloqué —, avec de quoi ouvrir Stations ; aucune quand rien ne le demande.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -18,7 +18,7 @@ import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { BAISSER_LE_PLAFOND, OUVRIR_COOKS, PLAFOND } from "../src/vue/stations-de-cuisson.js";
+import { OUVRIR_COOKS, PLAFOND } from "../src/vue/stations-de-cuisson.js";
 import { AU_REPOS } from "../src/vue/stations-tab/stations-tab.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
@@ -162,13 +162,13 @@ describe("l'onglet Stations : une carte par station qui sert le projet", () => {
     assert.deepEqual(lignes(vue), []);
   });
 
-  test("une station saturée comme une qui refuse le projet : aucune n'a de bouton, la seconde dit pourquoi", async () => {
+  // brigade:guard
+  test("une station qui refuse le projet : aucune n'a de bouton, la seconde dit pourquoi", async () => {
     const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
-    const { vue } = await ouvrir([station("box/claude", { cuisson: "saturated", cooks: [COOK_14] }), station("atelier/claude", { cuisson: "refused", refus })]);
+    const { vue } = await ouvrir([station("box/claude", { cooks: [COOK_14] }), station("atelier/claude", { cuisson: "refused", refus })]);
     await ouvrirOnglet(vue, "Stations");
-    // Saturée, elle est en ligne et dit que sa machine n'a plus de place ; refusant le projet, l'atelier le dit, et pourquoi
-    // (#3195).
-    assert.deepEqual([etatDe(ligne(vue, "box/claude")), noteDe(ligne(vue, "box/claude"))], ["online", "its machine has no room"]);
+    // Refusant le projet, l'atelier le dit, et pourquoi (#3195).
+    assert.deepEqual([etatDe(ligne(vue, "box/claude")), noteDe(ligne(vue, "box/claude"))], ["online", undefined]);
     assert.deepEqual([etatDe(ligne(vue, "atelier/claude")), noteDe(ligne(vue, "atelier/claude"))], ["refusing it", "This computer cannot run the project's cooks in Claude Code's sandbox."]);
     assert.deepEqual(lignes(vue).map((li) => boutonDe(li)), [undefined, undefined]);
   });
@@ -177,12 +177,12 @@ describe("l'onglet Stations : une carte par station qui sert le projet", () => {
 describe("l'onglet Stations : un bloc par station, et ses tickets en cours (#1270)", () => {
   const COOK_16 = { ticket: 16, titre: "Le menu du soir", station: "atelier/claude" };
   const REFUS = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
-  // Une station dans chacun des quatre états : la box cuit #14, le Mac arrêté par le chef y finit #15, l'atelier saturé
+  // Une station dans chacun des quatre états : la box cuit #14, le Mac arrêté par le chef y finit #15, l'atelier
   // cuit encore #16 — que le rail lu ne porte pas —, le PC refuse le projet. #21 attend sur le rail, aucune station ne l'a.
   const QUATRE: DuRuntime[] = [
     station("box/claude", { cooks: [COOK_14] }),
     station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: ARRETEE, cooks: [COOK_15] }),
-    station("atelier/claude", { cuisson: "saturated", cooks: [COOK_16] }),
+    station("atelier/claude", { cooks: [COOK_16] }),
     station("pc/claude", { distante: true, cuisson: "refused", refus: REFUS }),
   ];
   const FAITS_QUATRE: Faits = { ...FAITS, compteurs: { ...FAITS.compteurs, auTravail: 3 }, cooks: [COOK_14, COOK_15, COOK_16] };
@@ -261,12 +261,15 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     assert.deepEqual(alertes(vue), []);
   });
 
-  test("une station saturée : une seule ligne la dit, et « open Cooks » ouvre l'onglet Stations", async () => {
-    const { vue } = await ouvrir([station("box/claude", { cuisson: "saturated" }), station("mac/claude", { distante: true })]);
+  // brigade:guard
+  test("l'accès au dépôt bloqué : une seule ligne la dit, et « open Cooks » ouvre l'onglet Stations", async () => {
+    const { vue } = await ouvrir([station("box/claude"), station("mac/claude", { distante: true })]);
     await ouvrirOnglet(vue, "Rail");
+    vue.dire("surProjetsDesStations", vus(ACCES));
+    await repos();
     const [alerte, ...autres] = alertes(vue);
     assert.deepEqual(autres, []);
-    assert.equal(alerte?.children[0]?.textContent, "box/claude is saturated: it takes no ticket until its machine has room.");
+    assert.equal(alerte?.children[0]?.textContent, "parade-box cannot fetch from benomite/parade: github.com asks for a username.");
     // Elle est en tête de l'onglet.
     assert.equal(vue.element("rail").children[0]?.children[0], alerte);
     const lien = alerte?.dessous("button").find((bouton) => bouton.textContent === OUVRIR_COOKS) ?? assert.fail("pas de lien vers les stations");
@@ -274,7 +277,6 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     await repos();
     assert.deepEqual(vue.element("onglets-du-projet").children.filter((onglet) => onglet.ariaSelected === "true").map((onglet) => onglet.textContent), ["Stations"]);
     assert.deepEqual(alertes(vue), []);
-    assert.deepEqual([etatDe(ligne(vue, "box/claude")), noteDe(ligne(vue, "box/claude"))], ["online", "its machine has no room"]);
   });
 
   test("une station qui refuse le projet : aucune ligne d'alerte, son refus a la sienne (vue/projet/refus-de-station.test.ts)", async () => {
@@ -284,7 +286,8 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     assert.deepEqual(alertes(vue), []);
   });
 
-  test("l'accès au dépôt bloqué : une seule ligne, le détail de git en moins ; avec une station saturée, toujours une seule — et la ligne part quand c'est levé", async () => {
+  // brigade:guard
+  test("l'accès au dépôt bloqué : une seule ligne, le détail de git en moins ; avec une station arrêtée, toujours une seule — et la ligne part quand c'est levé", async () => {
     const { vue } = await ouvrir([station("box/claude")]);
     await ouvrirOnglet(vue, "Rail");
     vue.dire("surProjetsDesStations", vus(ACCES));
@@ -292,12 +295,12 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     assert.deepEqual(alertes(vue).map((p) => p.children[0]?.textContent), ["parade-box cannot fetch from benomite/parade: github.com asks for a username."]);
     // Le bloc des stations, qui détaille l'accès et son geste, reste sur Stations : sur Rail, la ligne seule le dit.
     assert.equal(vue.element("stations-du-projet").hidden, true);
-    recevoir(vue, FAITS, [station("box/claude", { cuisson: "saturated" })]);
+    recevoir(vue, FAITS, [station("box/claude", { cuisson: "stopped", arreteeDepuis: ARRETEE })]);
     await repos();
     const [seule, ...autres] = alertes(vue);
     assert.deepEqual(autres, []);
-    assert.equal(seule?.children[0]?.textContent, "parade-box cannot fetch from benomite/parade: github.com asks for a username · box/claude is saturated: it takes no ticket until its machine has room.");
-    // Levé, puis la station a de la place : plus de ligne.
+    assert.equal(seule?.children[0]?.textContent, "parade-box cannot fetch from benomite/parade: github.com asks for a username.");
+    // Levé : plus de ligne.
     vue.dire("surProjetsDesStations", vus(null));
     recevoir(vue, FAITS, [station("box/claude")]);
     await repos();
@@ -307,13 +310,14 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
 
 // Sa rangée est la rangée de réglage de l'app (#2920) ; sans déclaration lue de la station, rien ne la règle.
 describe("« Details » de la carte d'une station dit le plafond du projet, sans le régler (ticket 1292)", () => {
-  const accueil = (plafond: { dit: string; nombre: number | null; parLeChef: boolean }, retenue?: { depuis: string; ressources: string; detail: string }) => ({
+  const accueil = (plafond: { dit: string; nombre: number | null; parLeChef: boolean }) => ({
     projets: [],
     sante: { ton: "vert" as const, dit: "", survol: "" },
-    plafonds: { [PARADE]: { "box/claude": { plafond, ...(retenue === undefined ? {} : { retenue }) } } },
+    plafonds: { [PARADE]: { "box/claude": { plafond } } },
   });
 
-  test("le plafond et ce qui sature, puis le plafond neuf à la lecture suivante ; ni champ ni bouton pour le régler", async () => {
+  // brigade:guard
+  test("le plafond, puis le plafond neuf à la lecture suivante ; ni champ ni bouton pour le régler", async () => {
     const vue = await jouerLaVue({
       demarrage,
       espace: () => [SECOND],
@@ -321,22 +325,19 @@ describe("« Details » de la carte d'une station dit le plafond du projet, sans
     });
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
     await repos();
-    recevoir(vue, FAITS, [station("box/claude", { cuisson: "saturated", cooks: [COOK_14] })]);
-    vue.dire("surAccueil", accueil({ dit: "3 at most — 8 cores", nombre: 3, parLeChef: false }, { depuis: "3 min", ressources: "CPU", detail: "load of 19.4 for at most 12" }));
+    recevoir(vue, FAITS, [station("box/claude", { cooks: [COOK_14] })]);
+    vue.dire("surAccueil", accueil({ dit: "3 at most — 8 cores", nombre: 3, parLeChef: false }));
     await repos();
     await ouvrirOnglet(vue, "Stations");
     const pose = ligne(vue, "box/claude");
     const rangee = () => ligne(vue, "box/claude").dessous("div").find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks") ?? assert.fail("pas de rangée du plafond");
     assert.equal(rangee().children[0]?.children.at(-1)?.className.includes("niveau"), true);
     assert.deepEqual([rangee().children[0]?.textContent.startsWith(PLAFOND), rangee().children[1]?.textContent], [true, "3 at most — 8 cores"]);
-    assert.match(pose.textContent, /Saturated on CPU — load of 19\.4 for at most 12\. /);
-    assert.ok(pose.textContent.includes(BAISSER_LE_PLAFOND));
     assert.equal(pose.dessous("input").length, 0);
     assert.deepEqual(rangee().children[2]?.children, []);
     vue.dire("surAccueil", accueil({ dit: "1 at most — set by you, replaces 3 (8 cores)", nombre: 1, parLeChef: true }));
     await repos();
     assert.match(rangee().textContent, /1 at most — set by you, replaces 3/);
-    assert.doesNotMatch(ligne(vue, "box/claude").textContent, /Saturated on/);
   });
 });
 

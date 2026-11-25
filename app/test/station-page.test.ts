@@ -119,7 +119,7 @@ const demarrage = () => ({
   code: undefined,
   stations: { a: A, stations: [MAC, PC] },
   projetsDesStations: { a: A, projets: [], locale: "gist-mac", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrageRecommande([]) },
-  accueil: { projets: [], stations: [ligneDeStation(MAC, 0, false), ligneDeStation(PC, 0, false)], sante: { ton: "vert" as const, dit: "Max ✓  ·  GitHub ✓", survol: "" } },
+  accueil: { projets: [], stations: [ligneDeStation(MAC, 0), ligneDeStation(PC, 0)], sante: { ton: "vert" as const, dit: "Max ✓  ·  GitHub ✓", survol: "" } },
 });
 
 async function ouvrirLaStation(nom: string) {
