@@ -70,8 +70,10 @@ const detailDe = (erreur) => (erreur instanceof Error ? erreur.message : String(
 
 // L'équipe posée dans `cadre`, la section en tête de la vue du projet. `lire(projet)` la relit — à l'ouverture du
 // projet, à chaque lecture de son rail ; `montrer(projet)` la montre pour le projet affiché, et la cache pour tout autre.
-/** @param {Fabrique} doc @param {any} cadre */
-export function tenirLEquipe(doc, cadre) {
+// La bande du haut de la vue (cuisine/, ticket 4238) lit un agent de l'équipe lue (`agent`) et ouvre son fil (`ouvrirLeFil`) ;
+// `apresLecture(projet)` est appelé quand une lecture change ce que l'équipe dit.
+/** @param {Fabrique} doc @param {any} cadre @param {(projet: string) => void} [apresLecture] */
+export function tenirLEquipe(doc, cadre, apresLecture) {
   const element = doc.createElement("div");
   element.className = "equipe";
   element.ariaLabel = TITRE;
@@ -109,10 +111,12 @@ export function tenirLEquipe(doc, cadre) {
       .then(
         (lus) => {
           if (la !== demande) return;
+          const avant = JSON.stringify(agents);
           if (lus === null) [agents, echec] = [null, null];
           else if (seLit(lus)) [agents, echec] = [lus, null];
           else [agents, echec] = [null, { ligne: ILLISIBLE, detail: JSON.stringify(lus).slice(0, 400) }];
           rendre();
+          if (JSON.stringify(agents) !== avant) apresLecture?.(nom);
         },
         (/** @type {unknown} */ erreur) => {
           if (la !== demande) return;
@@ -273,5 +277,14 @@ export function tenirLEquipe(doc, cadre) {
     return pose;
   };
 
-  return { element, lire, montrer };
+  // L'agent `nom` de l'équipe lue du projet `nom de projet`, ou rien : une autre équipe, ou pas encore lue, ne répond pas.
+  /** @param {string} deProjet @param {string} nom @returns {Agent | undefined} */
+  const agent = (deProjet, nom) => (deProjet === projet ? agents?.find((un) => un.agent === nom) : undefined);
+  /** @param {string} nom */
+  const ouvrirLeFil = (nom) => {
+    ouvert = nom;
+    rendre();
+  };
+
+  return { element, lire, montrer, agent, ouvrirLeFil };
 }
