@@ -276,6 +276,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 avertir: dire,
                 observer: suiviDuTour.envelopper,
                 sauter: suiviDuTour.sauter,
+                // Les PR périmées que la porte ne compte plus : le superviseur les marque `zone-released` (#4243).
+                perimee: suiviDuTour.perimee,
                 superviseur: (consulter) => (managerDuSuperviseur = consulter),
                 // Un ticket dont les gates ne se jouent pas ici va à une autre station du projet (#3057).
                 stationsDuProjet: () => stations.map((declaree) => declaree.nom),

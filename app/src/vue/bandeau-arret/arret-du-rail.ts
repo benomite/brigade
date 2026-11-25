@@ -5,7 +5,7 @@
 //   - main rouge : la réparation `repair-main` sur le rail, que la lecture dit déjà aux alertes (`baseRougeDuRail`) ;
 //   - un ticket gelé qui tient une zone de fichiers : un ticket mis de côté dont la PR est ouverte — une PR ouverte tient sa
 //     zone (runtime/src/brigade-github.ts, la porte de prise) —, et la zone que sa fiche déclare ;
-//   - une zone tenue par une PR (#4244) : les tickets en file sautés pour `zone-held`, avec le numéro de la PR du ticket gelé ;
+//   - une zone tenue par une PR (ticket 4244) : les tickets en file sautés pour `zone-held`, avec le numéro de la PR du ticket gelé ;
 //   - sinon, la cause est inconnue, et l'arrêt se dit quand même.
 import { arretDeLaCuisine, statutDeLaCuisine, statutDeLArret, type ArretDeLaCuisine, type EntreeDeLArret } from "../../../../runtime/src/arret-cuisine/arret-cuisine.ts";
 import type { BaseRougeLue } from "../../attente-du-rail/alertes.ts";
@@ -44,7 +44,7 @@ export function arretDuRail(file: readonly TicketDuRail[], tickets: readonly Tic
   const entrees = tickets.filter(({ ticket }) => enFile.some((enAttente) => enAttente.ticket === ticket)).map(({ entreLe, creeLe }) => entreLe ?? creeLe).filter(instant);
   const plusAncienne = entrees.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
   const gele = tickets.find(({ miseDeCote }) => miseDeCote?.zoneTenue);
-  // Les sauts que la porte de prise ferait (#4244), lus de ce que le rail sait : un ticket en file dont la zone de fiche chevauche celle
+  // Les sauts que la porte de prise ferait (ticket 4244), lus de ce que le rail sait : un ticket en file dont la zone de fiche chevauche celle
   // d'un ticket gelé dont la PR ouverte la tient est sauté pour `zone-held`, une fois par PR qui le tient ; un ticket que rien ne
   // tient, ou dont la zone n'est pas lue, est sauté sans ce code — la cause reste alors celle d'avant.
   const tenues = tickets.flatMap(({ miseDeCote }) => (miseDeCote?.zoneTenue?.pr === undefined ? [] : [{ pr: miseDeCote.zoneTenue.pr, zone: miseDeCote.zoneTenue.zone }]));

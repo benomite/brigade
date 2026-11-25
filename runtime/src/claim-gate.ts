@@ -10,10 +10,10 @@
 // lit pas, ou une base qui ne se compare pas : dans le doute, la zone reste tenue.
 
 // Le délai sans activité au-delà duquel une PR ouverte ne tient plus sa zone.
-const STALE_DELAY_MS = 12 * 60 * 60 * 1000;
+export const STALE_DELAY_MS = 12 * 60 * 60 * 1000;
 
 // Le label que le superviseur pose sur une PR qui ne doit plus tenir sa zone.
-const LABEL_ZONE_RELEASED = "zone-released";
+export const LABEL_ZONE_RELEASED = "zone-released";
 
 // Le code d'un saut de la porte de prise sur une zone tenue par une PR, et son numéro : le statut le lit.
 export const ZONE_HELD = "zone-held";
