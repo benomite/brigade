@@ -19,7 +19,7 @@ import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts"
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
 import type { AlerteDuRail } from "./attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
-import { hautDuBacklogLu, type HautDuBacklog } from "./vue/rail/rail.ts";
+import { hautDuBacklogLu, htmlDuRail, type HautDuBacklog } from "./vue/rail/rail.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { LE_CHEF, lieuDe, lignesDuRail, motDEtat, parqueDe, porter, priorite, type Porte } from "./bon.ts";
@@ -917,7 +917,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...alertesDuRailLues(racine.alertesDuRail),
       ...arretCuisineLu(racine.arretCuisine),
       ...pauseQuotaLue(racine.pauseQuota),
-      ...hautDuBacklogLu(racine.hautDuBacklog),
+      ...hautDuBacklogLu(racine.hautDuBacklog, htmlDuRail),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),

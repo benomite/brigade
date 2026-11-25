@@ -31,9 +31,9 @@ export type HautDuBacklogDesFaits = { issues: (IssueDuBacklog & { url: string })
 export type HautDuBacklog = { issues: { number: number; title: string; url: string }[]; html: string };
 
 // `hautDuBacklog`, de la racine de `facts` (faits.ts, `comprendre`) : rien de mal formé ne le pose — la vue ne montre
-// alors pas le rail du backlog, plutôt qu'un rail inventé. L'écran se compose ici, des issues lues : un `html` que les
-// faits porteraient n'est jamais lu, et un titre n'y entre qu'échappé.
-export function hautDuBacklogLu(valeur: unknown): { hautDuBacklog?: HautDuBacklog } {
+// alors pas le rail du backlog, plutôt qu'un rail inventé. L'écran se compose ici, des issues lues, par `ecran` — faits.ts
+// lui donne `htmlDuRail` : un `html` que les faits porteraient n'est jamais lu, et un titre n'y entre qu'échappé.
+export function hautDuBacklogLu(valeur: unknown, ecran: (issues: readonly IssueDuBacklog[]) => string): { hautDuBacklog?: HautDuBacklog } {
   if (typeof valeur !== "object" || valeur === null) return {};
   const { issues } = valeur as { issues?: unknown };
   if (!Array.isArray(issues)) return {};
@@ -43,5 +43,5 @@ export function hautDuBacklogLu(valeur: unknown): { hautDuBacklog?: HautDuBacklo
     return ok ? [{ number, title, url, labels: labels as string[], createdAt }] : [];
   });
   if (lues.length !== issues.length) return {};
-  return { hautDuBacklog: { issues: topDuBacklog(lues).map(({ number, title, url }) => ({ number, title, url })), html: htmlDuRail(lues) } };
+  return { hautDuBacklog: { issues: topDuBacklog(lues).map(({ number, title, url }) => ({ number, title, url })), html: ecran(lues) } };
 }

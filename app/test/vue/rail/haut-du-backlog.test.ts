@@ -15,7 +15,7 @@ import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import type { AppelGitHub } from "../../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../../src/tableau/lecture.ts";
-import { hautDuBacklogLu } from "../../../src/vue/rail/rail.ts";
+import { hautDuBacklogLu, htmlDuRail } from "../../../src/vue/rail/rail.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
@@ -67,7 +67,7 @@ const bloc = (vue: Jouee): Faux | undefined => enfants(vue).find(({ className })
 
 test("the project page shows the rail as the top of the backlog: the issues of the read, in its order, above the columns, with no gesture (#4223)", async () => {
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: github, maintenant: () => new Date(A) });
-  const haut = hautDuBacklogLu((lu.faits as { hautDuBacklog?: unknown }).hautDuBacklog).hautDuBacklog ?? assert.fail("pas de haut du backlog");
+  const haut = hautDuBacklogLu((lu.faits as { hautDuBacklog?: unknown }).hautDuBacklog, htmlDuRail).hautDuBacklog ?? assert.fail("pas de haut du backlog");
   assert.deepEqual(haut.issues.map(({ number }) => number), [3, 2, 1]);
   const vue = await ouvrir();
   recevoirFaits(vue, lu.faits);

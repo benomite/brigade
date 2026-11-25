@@ -39,7 +39,7 @@ test("the rail read from GitHub carries the top of the backlog: queued, calibrat
   assert.deepEqual(porte.issues[1]?.labels, [...PRET, "prio:2"]);
   // Pas d'écran dans les faits : leur lecture le compose.
   assert.equal(porte.html, undefined);
-  const haut = hautDuBacklogLu(porte).hautDuBacklog ?? assert.fail("haut du backlog illisible");
+  const haut = hautDuBacklogLu(porte, htmlDuRail).hautDuBacklog ?? assert.fail("haut du backlog illisible");
   assert.deepEqual(haut.issues, [3, 2, 1].map((n) => ({ number: n, title: `Ticket ${n}`, url: `https://github.com/${DEPOT}/issues/${n}` })));
   assert.deepEqual([...haut.html.matchAll(/Ticket \d+/g)].map((m) => m[0]), ["Ticket 3", "Ticket 2", "Ticket 1"]);
 });
