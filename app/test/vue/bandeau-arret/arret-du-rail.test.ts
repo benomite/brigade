@@ -189,6 +189,7 @@ test("an unknown kind never keeps a text the facts carry: the status is the runt
   assert.equal(arretCuisineLu({ cause: { kind: "out-of-gas" }, since, statut: "zone held by PR 1" }).arretCuisine?.statut, "cause unknown");
 });
 
+// brigade:guard
 test("a banner without a status says each cause in its own words (#4244)", () => {
   const since = "2026-11-20T08:30:00Z";
   const dit = (cause: unknown) => {
