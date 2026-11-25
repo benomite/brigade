@@ -1,11 +1,11 @@
 // Un cook qui s'arrête sur le refus d'une permission pour une commande git que
 // le protocole lui impose (`git fetch`, `git merge`, `git rebase`) n'attend
 // aucune décision de produit ni de design : c'est un blocage technique, jamais
-// un `blocked-on-human` (CLAUDE.md, « Brigade's goal: autonomy » ; #2921).
+// un ticket parqué pour le chef (CLAUDE.md, « Brigade's goal: autonomy » ; #2921).
 //
 // Ce module est autonome : il classe un arrêt et dit les labels à poser. Aucun
 // appelant ne le branche encore ; un autre ticket de l'épique #2949 le fait.
-import { A_LA_MAIN } from "./brigade-github.ts";
+import { CHEF_TODO } from "./github-etat/etats.ts";
 
 export type CommandeGit = "fetch" | "merge" | "rebase";
 
@@ -25,8 +25,8 @@ export function classerArret(texte: string): ArretDuCook {
   return { genre: "question" };
 }
 
-// Les labels à poser sur le ticket pour cet arrêt : jamais `blocked-on-human`
-// pour un blocage technique.
+// Les labels à poser sur le ticket pour cet arrêt : jamais une carte du chef
+// (`chef-todo`, #4129) pour un blocage technique.
 export function labelsDeLArret(arret: ArretDuCook): string[] {
-  return arret.genre === "technique" ? [] : [A_LA_MAIN];
+  return arret.genre === "technique" ? [] : [CHEF_TODO];
 }

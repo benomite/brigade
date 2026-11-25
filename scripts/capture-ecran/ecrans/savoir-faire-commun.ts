@@ -14,7 +14,7 @@ export const ENTREES: Entree[] = [
   { id: "L4", text: "A test that waits for the clock is flaky on a loaded station: wait for a fact instead.", ticket: 4027 },
 ];
 
-export const OUVRIR_LE_SAVOIR_FAIRE = [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet > :nth-child(3)" }];
+export const OUVRIR_LE_SAVOIR_FAIRE = [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet > :nth-child(4)" }];
 
 export const savoirFaire = (entrees: Entree[]): Ecran["donnees"] => () => ({
   maintenant: MAINTENANT,

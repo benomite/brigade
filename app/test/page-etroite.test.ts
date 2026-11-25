@@ -133,7 +133,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("Rail, Stations et Second, et chacun se montre d'un tap : le second à la place du centre, jamais à côté", async () => {
     const { vue, ecran } = await ouvrir();
     assert.ok(ecran.requetes.length > 0, "la vue demande la largeur de l'écran");
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Know-how", "Settings", "Second"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
 
@@ -203,7 +203,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
     assert.deepEqual(vu(rouverte), { centre: false, second: true });
     // Sur un écran large, la conversation n'est pas un onglet : le même projet s'y rouvre sur Rail, le second à droite.
     const { vue: large } = await ouvrir({ stockage, etroit: false });
-    assert.deepEqual(titres(large), ["Rail", "Stations", "Know-how", "Settings"]);
+    assert.deepEqual(titres(large), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(montre(large), ["Rail"]);
     assert.deepEqual(vu(large), { centre: true, second: true });
   });
@@ -256,7 +256,7 @@ describe("l'onglet Stations d'un écran étroit, en lecture seule", () => {
 describe("sur un écran large, rien ne change", () => {
   test("deux onglets, et le second à droite quel que soit l'onglet ; Stations porte ses stations", async () => {
     const { vue } = await ouvrir({ etroit: false });
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Know-how", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
     await taper(vue, "Stations");
     assert.deepEqual(vu(vue), { centre: true, second: true });
@@ -271,12 +271,12 @@ describe("sur un écran large, rien ne change", () => {
     const { vue, ecran } = await ouvrir({ etroit: false });
     ecran.changer(true);
     await repos();
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Know-how", "Settings", "Second"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
     await taper(vue, "Second");
     ecran.changer(false);
     await repos();
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Know-how", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
   });

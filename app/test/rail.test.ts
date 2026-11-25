@@ -628,31 +628,6 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
     assert.equal(demandes(vue).length, 1);
   });
 
-  test("une carte retenue par `blocked-on-human` porte son titre et la question, en deux lignes, avec qui l'a posée — et la fiche lève la retenue d'un clic (#747)", async () => {
-    const retenue = "  #50  depuis 52 min  retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue";
-    const faits = { ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 50, titre: "", url: "https://github.com/benomite/brigade/issues/50" }] };
-    const vue = await ouvrir({
-      lireTitre: () => ({ titre: "Choisir le moteur de rendu" }),
-      lireQuestion: () => ({ ...QUESTION, question: { ...(QUESTION as { question: object }).question, auteur: "brigade-manager", resume: "Quel moteur de rendu garde-t-on ?" } }) as never,
-      leverRetenue: () => ({ fait: true, dit: "`blocked-on-human` removed" }),
-    });
-    recevoir(vue, dessinable(faits, STATUS.replace("fin attend", `${retenue}\nfin attend`)));
-    await repos();
-
-    const bon = bonDe(vue, 50);
-    assert.ok(bon.textContent.includes("Choisir le moteur de rendu"), bon.textContent);
-    assert.ok(bon.textContent.includes("Quel moteur de rendu garde-t-on ?"), bon.textContent);
-    assert.ok(bon.textContent.includes("asked by brigade-manager"), bon.textContent);
-    assert.doesNotMatch(bon.textContent, /à lever|not given by/);
-    bon.click();
-    await repos();
-    const retirer = fiche(vue).dessous("button").find((pose) => pose.textContent === "remove the label") ?? assert.fail("pas de bouton « remove the label »");
-    retirer.click();
-    await repos();
-    assert.deepEqual(vue.dernier("leverRetenue"), [PARADE, 50, "label"]);
-    assert.match(fiche(vue).textContent, /`blocked-on-human` removed/);
-  });
-
   test("tant que l'issue n'est pas lue, la fiche le dit ; une carte qui ne t'attend pas ne lit rien", async () => {
     let lire: (lue: Lue) => void = () => {};
     const vue = await ouvrirLaFiche({ lireQuestion: () => new Promise<Lue>((resoudre) => (lire = resoudre)) as never });

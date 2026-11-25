@@ -5,8 +5,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 
 const A = 10;
 const B = 20;
@@ -52,5 +53,5 @@ test("the manager keeps the wait: the issue gets a comment saying why, and the t
   assert.ok(s.commentaires().some((corps) => corps.includes(pourquoi)), s.commentaires().join("\n---\n"));
   assert.equal(s.cooks(), 0, "the ticket stays held");
   assert.equal(s.faux.ticket(B).labels.has("fire"), true, "and on the rail");
-  assert.equal(s.faux.ticket(B).labels.has(A_LA_MAIN), false);
+  assert.equal(s.faux.ticket(B).labels.has(CHEF_TODO), false);
 });

@@ -41,7 +41,6 @@ const EXEMPLES = {
   ecartee: [
     { ...ticket(21), quoi: "ecartee", reason: "question" },
     { ...ticket(22), quoi: "ecartee", reason: "decision" },
-    { ...ticket(23), quoi: "ecartee", reason: "blocked-on-human" },
   ],
   illisible: [
     { ...ticket(24), quoi: "illisible", epique: true },

@@ -547,13 +547,6 @@ export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
   return vue.element("cout");
 }
 
-// Ouvre la page des ratios de tous les projets (#1682) de même, par sa ligne « Closer ». Rend la page.
-export async function ouvrirLesRatios(vue: Jouee): Promise<Faux> {
-  (await ligneDeTousLesProjets(vue, "the added / removed ratio of all projects")).click();
-  await repos();
-  return vue.element("ratios");
-}
-
 // Toutes les stations et « + station », un bloc de l'accueil (#3195) : l'entrée « Tous les projets » de la barre l'ouvre.
 // Rend leur bloc.
 export async function ouvrirToutesLesStations(vue: Jouee): Promise<Faux> {

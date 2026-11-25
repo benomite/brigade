@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { GESTE, ouvrirVeille, type Cuisine, type Lecture } from "../src/box.ts";
-import { COMMANDE_DES_COUTS, COMMANDE_DES_RATIOS, COUTS, commandeDe, commandesDe, EVENEMENTS_DU_LOG, ONGLETS, projetsLus, RATIOS, RUBRIQUES } from "../src/onglets.ts";
+import { COMMANDE_DES_COUTS, COUTS, commandeDe, commandesDe, EVENEMENTS_DU_LOG, ONGLETS, projetsLus, RUBRIQUES } from "../src/onglets.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 // Un poste d'essai : un faux `node` qui note les mots qu'il reçoit et répond « sortie de … ».
@@ -31,8 +31,8 @@ describe("les onglets de contenu d'un espace", () => {
 
     assert.deepEqual(ONGLETS.map(({ commande }) => commande), [`log --last ${EVENEMENTS_DU_LOG}`]);
     for (const { commande } of ONGLETS) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
-    // Et ce que lisent les pages de l'app : coûts (`station`) et ratios (`closing --json`).
-    for (const commande of [COMMANDE_DES_COUTS, COMMANDE_DES_RATIOS]) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
+    // Et ce que lit la page des coûts de l'app (`station`).
+    for (const commande of [COMMANDE_DES_COUTS]) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
   });
 
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
@@ -58,19 +58,6 @@ describe("les onglets de contenu d'un espace", () => {
     assert.equal(COMMANDE_DES_COUTS, "station");
     assert.equal(commandeDe(COUTS), undefined);
     assert.ok(!RUBRIQUES.some(({ titre, lectures }) => titre === "Cost" || lectures.includes(COUTS)));
-  });
-
-  test("la page des ratios de l'app lit `closing --json` sur les mêmes projets que celle des coûts (#1682)", () => {
-    const projets = [
-      { nom: "parade", ici: true },
-      { nom: "ici", ici: true },
-      { nom: "local" },
-    ];
-    assert.deepEqual(projetsLus(RATIOS, undefined, projets), projetsLus(COUTS, undefined, projets));
-    assert.deepEqual(projetsLus(RATIOS, undefined, projets).map(({ nom }) => nom), ["parade", "ici"]);
-    assert.equal(COMMANDE_DES_RATIOS, "closing --json");
-    assert.equal(commandeDe(RATIOS), undefined);
-    assert.deepEqual(commandesDe(RATIOS), [COMMANDE_DES_RATIOS]);
   });
 
   test("seul l'onglet affiché est lu : une commande du geste, pour cet onglet — pas une par onglet", { skip: SANS_POSIX }, async (t) => {

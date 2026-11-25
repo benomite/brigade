@@ -3,13 +3,15 @@
 // écrit, par l'accès GitHub de l'app — le jeton du `gh` de ce poste, celui du chef :
 //   - « remove from the rail » (`retirer`, sur la fiche) : le label `fire` retiré de l'issue — plus aucune station ne
 //     prend le ticket ;
-//   - « back to the kitchen » (`cuisine`, sur la fiche) et « it arrived » (sur une carte de WAITING) : le label `waiting`
-//     retiré — le ticket revient en attente sur le rail ;
+//   - « back to the kitchen » (`cuisine`, sur la fiche) et « it arrived » (sur une carte de WAITING) : le label `parked`
+//     retiré, et tout label d'attente d'avant parked — le ticket reprend où il était (#4129) ;
 //   - le commentaire du chef, sur la fiche : posté sur l'issue du ticket, à son nom — le cook qui le prend le lit.
 // Le reste n'a aucun fait sur GitHub qu'une station lise : rien ne part, et la phrase dit où le faire (`SANS_FAIT`).
 //
 // Rien ne part pour un ticket que la dernière lecture du rail ne porte pas — ni sur son rail, ni dans TODO —, ni sans
 // lecture : chaque fois une phrase, et rien n'est écrit.
+import { LABEL_PARKED } from "../../runtime/src/attente-github/marque.ts";
+import { LABELS_D_AVANT_PARKED } from "../../runtime/src/github-etat/etats.ts";
 import { refusDe } from "./tableau/client.ts";
 import type { TableauLu } from "./tableau/lecture.ts";
 import type { ClientDeLaPriorite } from "./priorite.ts";
@@ -19,7 +21,8 @@ import type { ClientDeLaPriorite } from "./priorite.ts";
 export type Ecrit = { fait: string; detail: string } | { refus: string; detail: string };
 
 // Les gestes de la fiche qui s'écrivent sur GitHub, et le label que chacun retire de l'issue.
-export const LABELS_DES_GESTES = { retirer: "fire", cuisine: "waiting" } as const;
+// `cuisine` : le ticket parqué reprend où il était (#4129, d'abord `waiting`).
+export const LABELS_DES_GESTES = { retirer: "fire", cuisine: LABEL_PARKED } as const;
 export type GesteSurGithub = keyof typeof LABELS_DES_GESTES;
 export const surGithub = (id: unknown): id is GesteSurGithub => typeof id === "string" && Object.hasOwn(LABELS_DES_GESTES, id);
 
@@ -40,7 +43,7 @@ export function ticketsLus(lu: Pick<TableauLu, "faits">): Set<number> {
 const numero = (ticket: unknown): ticket is number => typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket >= 1;
 const raison = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `waiting` pour le rendre à la cuisine
+// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `parked` pour le déparquer
 // (`deparquer`). Rien ne part pour un ticket que la dernière lecture du rail ne porte pas.
 export async function retirerLeLabel(lu: TableauLu | undefined, id: GesteSurGithub, ticket: unknown, client: ClientDeLaPriorite): Promise<Ecrit> {
   if (!numero(ticket)) return { refus: "nothing was written: the action names no ticket", detail: "" };
@@ -49,9 +52,10 @@ export async function retirerLeLabel(lu: TableauLu | undefined, id: GesteSurGith
   return RETRAITS[id](lu.depot, ticket, client);
 }
 
-// Déparquer un ticket (#4262) : le label `waiting` retiré de son issue, sur tout dépôt, sans box. C'est le seul chemin
-// qui le sort de son attente, que l'app le joue (« resume », « it arrived, back to the kitchen », « back to the kitchen »
-// de la fiche) ou le second (second/parking.ts).
+// Déparquer un ticket (#4262) : le label `parked` retiré de son issue — et chaque label d'attente d'avant parked
+// (runtime/src/github-etat/etats.ts) : un ticket que l'un d'eux parque reprend aussi —, sur tout dépôt, sans box. C'est
+// le seul chemin qui le sort de son attente, que l'app le joue (« resume », « it arrived, back to the kitchen », « back to
+// the kitchen » de la fiche) ou le second (second/parking.ts) : il reprend exactement où il était.
 export const deparquer = (depot: string, ticket: number, client: ClientDeLaPriorite): Promise<Ecrit> => retirerDeLIssue(depot, ticket, "cuisine", client);
 
 // Ce que chaque geste joue : « remove from the rail » retire `fire` ; rendre le ticket à la cuisine, c'est le déparquer.
@@ -60,17 +64,22 @@ const RETRAITS: Record<GesteSurGithub, (depot: string, ticket: number, client: C
   cuisine: (depot, ticket, client) => deparquer(depot, ticket, client),
 };
 
-// Le label du geste retiré de l'issue. Une issue qui ne le porte déjà plus : c'est fait.
+// Le label du geste retiré de l'issue — et, pour déparquer, les labels d'attente d'avant parked. Une issue qui ne le
+// porte déjà plus : c'est fait.
 async function retirerDeLIssue(depot: string, ticket: number, id: GesteSurGithub, client: ClientDeLaPriorite): Promise<Ecrit> {
   const label = LABELS_DES_GESTES[id];
   const issue = `https://github.com/${depot}/issues/${ticket}`;
-  try {
-    const reponse = await client.ecrire("DELETE", `/repos/${depot}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
-    if (reponse.status !== 200 && reponse.status !== 404) throw refusDe(`the removal of \`${label}\``, reponse);
-  } catch (erreur) {
-    return { refus: `nothing was changed: GitHub did not remove \`${label}\` from #${ticket}`, detail: raison(erreur) };
+  for (const retire of id === "cuisine" ? [label, ...LABELS_D_AVANT_PARKED] : [label]) {
+    try {
+      const reponse = await client.ecrire("DELETE", `/repos/${depot}/issues/${ticket}/labels/${encodeURIComponent(retire)}`);
+      if (reponse.status !== 200 && reponse.status !== 404) throw refusDe(`the removal of \`${retire}\``, reponse);
+    } catch (erreur) {
+      // Un label d'avant que GitHub ne retire pas : `parked` l'est déjà, le ticket reste parqué par celui-là.
+      const deja = retire === label ? "nothing was changed:" : `\`${label}\` is removed, but`;
+      return { refus: `${deja} GitHub did not remove \`${retire}\` from #${ticket}`, detail: raison(erreur) };
+    }
   }
-  const fait = id === "retirer" ? `taken off the rail on GitHub: #${ticket} no longer carries \`fire\` — no station takes it` : `back to the kitchen on GitHub: #${ticket} no longer carries \`waiting\` — it is queued on the rail again`;
+  const fait = id === "retirer" ? `taken off the rail on GitHub: #${ticket} no longer carries \`fire\` — no station takes it` : `back to the kitchen on GitHub: #${ticket} no longer carries \`${label}\` — it resumes exactly where it was`;
   return { fait, detail: issue };
 }
 

@@ -61,7 +61,6 @@ const pont = {
   ouvrirLien: (projet, ticket, url) => ipcRenderer.invoke("ouvrirLien", projet, ticket, url),
   lireTitre: (projet, ticket) => ipcRenderer.invoke("lireTitre", projet, ticket),
   lireCapture: (projet, ticket, ecran, moment) => ipcRenderer.invoke("lireCapture", projet, ticket, ecran, moment),
-  leverRetenue: (projet, ticket, geste) => ipcRenderer.invoke("leverRetenue", projet, ticket, geste),
   lireFeu: (projet) => ipcRenderer.invoke("lireFeu", projet),
   relireBox: (demande) => ipcRenderer.send("relireBox", demande),
   repondreQuestion: (projet, ticket, reponse) => ipcRenderer.invoke("repondreQuestion", projet, ticket, reponse),

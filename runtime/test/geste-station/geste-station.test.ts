@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
-import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { CHEF_TODO, LABEL_PARKED, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import type { GitHub } from "../../src/github.ts";
 import { lireLesGestesDuManager, lireLesGestesGitHub } from "../../src/geste-station/geste-station.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
@@ -89,20 +89,22 @@ async function demande(t: TestContext, { question, geste, issues, tours = 2, ech
   return { faux, cooks, appels, relances, avertissements, ticket: faux.ticket(TICKET), commentaires, consigneDuCook: (n: number) => cooks[n] ?? "" };
 }
 
-// Aucune carte du chef : ni `blocked-on-human` posé, ni commentaire de carte.
+// Aucune carte du chef : ni `chef-todo` posé, ni commentaire de carte.
 function sansCarte({ appels, ticket, commentaires }: Awaited<ReturnType<typeof demande>>) {
-  assert.equal(ticket.labels.has(A_LA_MAIN), false, "the ticket is not held for the chef");
-  assert.equal(appels.some((appel) => appel.startsWith(`labelliser #${TICKET}`) && appel.includes(A_LA_MAIN)), false, "blocked-on-human is never set");
+  assert.equal(ticket.labels.has(CHEF_TODO), false, "the ticket is not held for the chef");
+  assert.equal(appels.some((appel) => appel.startsWith(`labelliser #${TICKET}`) && appel.includes(CHEF_TODO)), false, "chef-todo is never set");
   assert.equal(commentaires(TICKET).some((corps) => corps.startsWith("**Gesture for the chef") || corps.startsWith("**Question for the chef")), false, "no TODO card for the chef");
 }
 
-// Le geste fait : son résultat sur le ticket, le label retiré, le ticket rendu
-// à la cuisine, et le cook qui le reprend lit le résultat.
+// Le geste fait : son résultat sur le ticket, le ticket rendu à la cuisine —
+// jamais parqué, il n'a aucun label d'attente à retirer (#4260) —, et le cook
+// qui le reprend lit le résultat.
 function repris(lu: Awaited<ReturnType<typeof demande>>, resultat: string) {
   const { ticket, cooks, appels, commentaires, consigneDuCook } = lu;
   const poste = commentaires(TICKET).find((corps) => corps.startsWith(TITRE_DU_GESTE));
   assert.ok(poste?.includes(`- ${resultat}`), poste ?? "no result posted");
-  assert.ok(appels.includes(`delabelliser #${TICKET} ${A_LA_MAIN}`), "the blocking label is removed");
+  assert.equal(ticket.labels.has(LABEL_PARKED), false, "the ticket is not parked: nothing holds it");
+  assert.equal(appels.some((appel) => appel.startsWith(`labelliser #${TICKET}`) && appel.includes(LABEL_PARKED)), false, "parked is never set");
   assert.equal(ticket.labels.has(LABEL_TAKEN), false);
   assert.equal(ticket.labels.has("fire"), true, "the ticket stays on the rail");
   assert.equal(cooks.length, 2, "a cook resumed the ticket at the next turn");
@@ -111,7 +113,7 @@ function repris(lu: Awaited<ReturnType<typeof demande>>, resultat: string) {
   sansCarte(lu);
 }
 
-test("the 2026-11-10 case: the cook asks for an issue opened and its number recorded — the station opens it, posts its number on the ticket, removes the blocking label and the cook resumes, with no card for the chef", async (t) => {
+test("the 2026-11-10 case: the cook asks for an issue opened and its number recorded — the station opens it, posts its number on the ticket and the cook resumes, with no card for the chef", async (t) => {
   const lu = await demande(t, {
     question: "I found that the closing pass drops the last comment. Open an issue for this finding and give me its number, so I record it in my report.",
     geste: 'Run `gh issue create --repo faux/depot --title "Closing pass drops the last comment" --body "Found by the cook of #75." --label bug,triage`, then post the new issue number on #75 and remove `blocked-on-human`',
