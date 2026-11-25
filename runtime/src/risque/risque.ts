@@ -10,13 +10,13 @@
 // changes applies from the next ticket, with no restart. Its ranks decide on top of the observe / propose / act levels
 // (`autonomie/agents/porte.ts`): `chef` parks the merge for the chef even on `act`; `safe` leaves the level alone.
 
-export const RANGS = ["chef", "safe"] as const;
+const RANGS = ["chef", "safe"] as const;
 export type Rang = (typeof RANGS)[number];
 // The ranks the project sheet sets, by kind of action.
 export type ClassementDesRisques = Record<string, Rang>;
 
 // The kinds of action the kitchen knows, and their default rank: every outward-facing kind is `chef`.
-export const RANGS_PAR_DEFAUT: Readonly<ClassementDesRisques> = {
+const RANGS_PAR_DEFAUT: Readonly<ClassementDesRisques> = {
   publish: "chef",
   pay: "chef",
   "write-to-client": "chef",
@@ -26,7 +26,7 @@ export const RANGS_PAR_DEFAUT: Readonly<ClassementDesRisques> = {
 // What each known kind will do, said plainly to the chef. Another kind is said by its name, dashes as spaces.
 const DITS: Readonly<Record<string, string>> = { "write-to-client": "write to a client", "fix-typo": "fix a typo" };
 
-export const PREFIXE_SORTE = "kind:";
+const PREFIXE_SORTE = "kind:";
 const SORTE = /^[a-z][a-z0-9-]*$/;
 
 export class ClassementInvalide extends Error {
@@ -50,14 +50,14 @@ export function classementDe(valeur: unknown): ClassementDesRisques {
 }
 
 // The rank of a kind of action: the sheet's, else its default, else `chef`.
-export function rangDe(sorte: string, classement: ClassementDesRisques | null): Rang {
+function rangDe(sorte: string, classement: ClassementDesRisques | null): Rang {
   return classement?.[sorte] ?? RANGS_PAR_DEFAUT[sorte] ?? "chef";
 }
 
 // The kinds of action a ticket's labels say.
-export const sortesDuTicket = (labels: readonly string[]): string[] => labels.filter((label) => label.startsWith(PREFIXE_SORTE)).map((label) => label.slice(PREFIXE_SORTE.length));
+const sortesDuTicket =(labels: readonly string[]): string[] => labels.filter((label) => label.startsWith(PREFIXE_SORTE)).map((label) => label.slice(PREFIXE_SORTE.length));
 
-export const ditDeLaSorte = (sorte: string): string => DITS[sorte] ?? sorte.replaceAll("-", " ");
+const ditDeLaSorte =(sorte: string): string => DITS[sorte] ?? sorte.replaceAll("-", " ");
 
 // What the risk ranking says of a ticket at the pass: null when its labels say no kind of action. `chef` when one of
 // its kinds is ranked `chef` — or when the sheet cannot be read: the chef then answers, nothing is guessed in its place.

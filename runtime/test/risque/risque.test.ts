@@ -1,36 +1,38 @@
-// #4230: the kinds of action, their default ranks, and the decision function; the `risks` field of the project sheet.
+// #4230: the kinds of action, their default ranks, and the decision the pass reads; the `risks` field of the project
+// sheet.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reglagesDuTexte, ReglageRefuse, texteDuFichier, validerReglagesProjet } from "../../src/reglages-projet/reglages.ts";
-import { classementDe, ditDeLaSorte, rangDe, RANGS_PAR_DEFAUT, risqueDuTicket, sortesDuTicket } from "../../src/risque/risque.ts";
+import { classementDe, risqueDuTicket, type ClassementDesRisques } from "../../src/risque/risque.ts";
+
+// The rank of one kind, under the ranking given.
+const rang = (sorte: string, classement: ClassementDesRisques | null = null) => risqueDuTicket([`kind:${sorte}`], () => classement)?.rang;
 
 test("a project sheet with no ranking gives 'chef' for publish, pay and write to a client, and 'safe' for fixing a typo", () => {
-  for (const sorte of ["publish", "pay", "write-to-client"]) assert.equal(rangDe(sorte, null), "chef", sorte);
-  assert.equal(rangDe("fix-typo", null), "safe");
-  assert.deepEqual(Object.keys(RANGS_PAR_DEFAUT).sort(), ["fix-typo", "pay", "publish", "write-to-client"]);
+  for (const sorte of ["publish", "pay", "write-to-client"]) assert.equal(rang(sorte), "chef", sorte);
+  assert.equal(rang("fix-typo"), "safe");
 });
 
 test("a kind that is not in the ranking gives 'chef', with or without a sheet's ranking", () => {
-  assert.equal(rangDe("delete-production-data", null), "chef");
-  assert.equal(rangDe("delete-production-data", { "fix-typo": "safe", publish: "safe" }), "chef");
+  assert.equal(rang("delete-production-data"), "chef");
+  assert.equal(rang("delete-production-data", { "fix-typo": "safe", publish: "safe" }), "chef");
 });
 
 test("the sheet's rank wins over the default, either way", () => {
-  assert.equal(rangDe("publish", { publish: "safe" }), "safe");
-  assert.equal(rangDe("fix-typo", { "fix-typo": "chef" }), "chef");
-  assert.equal(rangDe("rename-a-file", { "rename-a-file": "safe" }), "safe");
+  assert.equal(rang("publish", { publish: "safe" }), "safe");
+  assert.equal(rang("fix-typo", { "fix-typo": "chef" }), "chef");
+  assert.equal(rang("rename-a-file", { "rename-a-file": "safe" }), "safe");
 });
 
-test("a ticket's kinds come from its `kind:` labels; one kind ranked 'chef' is enough to park it", () => {
-  assert.deepEqual(sortesDuTicket(["fire", "kind:publish", "model:sonnet", "kind:fix-typo"]), ["publish", "fix-typo"]);
+test("a ticket's kinds come from its `kind:` labels, said plainly; one kind ranked 'chef' is enough to park it", () => {
   assert.equal(risqueDuTicket(["fire", "model:sonnet"], () => null), null);
-  assert.deepEqual(risqueDuTicket(["kind:fix-typo"], () => null), { rang: "safe", ceQuIlFera: "fix a typo", pourquoi: "its kinds of action are ranked 'safe': fix-typo" });
+  assert.deepEqual(risqueDuTicket(["fire", "kind:fix-typo", "model:sonnet"], () => null), { rang: "safe", ceQuIlFera: "fix a typo", pourquoi: "its kinds of action are ranked 'safe': fix-typo" });
   assert.deepEqual(risqueDuTicket(["kind:fix-typo", "kind:write-to-client"], () => null), {
     rang: "chef",
     ceQuIlFera: "fix a typo and write to a client",
     pourquoi: "its kind of action is ranked 'chef' in the project's risk ranking: write-to-client",
   });
-  assert.equal(ditDeLaSorte("go-live"), "go live");
+  assert.equal(risqueDuTicket(["kind:go-live"], () => null)?.ceQuIlFera, "go live");
 });
 
 test("a sheet that cannot be read parks the action for the chef, and says why — nothing is guessed in its place", () => {
