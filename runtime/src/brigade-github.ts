@@ -96,6 +96,7 @@ import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
+import { commentaireDeRenvoi } from "./renvoi-sur-le-fond/regle.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -1597,7 +1598,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nIts tries are spent${memeResultat ? " (handed back twice in a row with the same result: not relaunched a third time as it stands)" : ""}: the ticket went to the manager, not to the chef — its comment below says what it did.`);
       await direLaReprise(ticket.number, suite);
     } else {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}${genre === "red CI" ? `\n\n${commentaireDeRenvoi({ motif: "failing test", detail: "a check of the PR is red" })}` : ""}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
