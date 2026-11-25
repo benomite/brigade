@@ -2,7 +2,7 @@
 // le projet qu'on lui donne ; ce que le pont rend — rien, un refus, un fait, un terminal, une erreur — est dit.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NO_KITCHEN, parkGesture, SENT_TO_SECOND } from "../../../src/vue/parked/park-gesture.js";
+import { parkGesture } from "../../../src/vue/parked/park-gesture.js";
 
 const viaUnPont = (rendu: unknown) => {
   const calls: unknown[][] = [];
@@ -17,6 +17,8 @@ const viaUnPont = (rendu: unknown) => {
   );
   return { geste, calls, suites };
 };
+const NO_KITCHEN = "nothing sent: this app does not play the kitchen's gestures for this project";
+const SENT_TO_SECOND = "sent: its command runs in the second";
 const cible = (project: string) => ({ project, ticket: 7, step: "Cooks" });
 
 test("park sets the wait from the form, unpark sends the ticket back to the kitchen, for any project", async () => {

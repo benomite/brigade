@@ -16,14 +16,14 @@ import { bouton } from "../composants/bouton/bouton.js";
 /** @typedef {{ who?: string, what?: string, until?: string }} Form */
 
 // Les trois champs, dans l'ordre du formulaire : leur libellé, ce qu'ils attendent, et ce qui est dit quand il manque.
-export const FIELDS = /** @type {const} */ ([
+const FIELDS = /** @type {const} */ ([
   { field: "who", label: "who", placeholder: "a person, or the chef", missing: "nothing parked: say who it waits for — a person, or the chef" },
   { field: "what", label: "for what", placeholder: "what it waits for", missing: "nothing parked: say for what it waits" },
   { field: "until", label: "until", placeholder: "a date (YYYY-MM-DD) or a fact", missing: "nothing parked: say until when — a date or a fact" },
 ]);
-export const PARK = "park";
-export const UNPARK = "unpark";
-export const SENDING = "sending…";
+const PARK = "park";
+const UNPARK = "unpark";
+const SENDING = "sending…";
 
 /** @param {Fabrique} doc @param {{ project: string, ticket: number, step: string | null, gesture: Gesture, form?: Form }} options */
 export function parkControl(doc, { project, ticket, step, gesture, form = {} }) {

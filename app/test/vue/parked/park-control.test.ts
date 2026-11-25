@@ -2,10 +2,16 @@
 // manque, ce que le geste partagé rend se dit à l'écran, un geste en route ne repart pas, et ce qui est tapé se garde.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FIELDS, parkControl, SENDING } from "../../../src/vue/parked/park-control.js";
+import { parkControl } from "../../../src/vue/parked/park-control.js";
 import { Faux, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
+const SENDING = "sending…";
+const FIELDS = [
+  { field: "who", missing: "nothing parked: say who it waits for — a person, or the chef" },
+  { field: "what", missing: "nothing parked: say for what it waits" },
+  { field: "until", missing: "nothing parked: say until when — a date or a fact" },
+];
 type Gesture = Parameters<typeof parkControl>[1]["gesture"];
 const poser = (gesture: Gesture, form = {}) => parkControl(doc, { project: "parade", ticket: 41, step: "Cooks", gesture, form }) as unknown as Faux;
 const champ = (c: Faux, nom: string) => c.dessous("input").find(({ dataset }) => dataset.field === nom)!;

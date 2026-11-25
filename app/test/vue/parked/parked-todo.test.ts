@@ -3,11 +3,13 @@
 // la carte, et le contrôle de park qui s'ouvre sous l'item et le reste d'un rendu à l'autre.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { headOf, NO_UNTIL, NO_WHAT, OPEN_PARK, parkedTodo } from "../../../src/vue/parked/parked-todo.js";
+import { parkedTodo } from "../../../src/vue/parked/parked-todo.js";
 import { Faux } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const rec = (ticket: number, plus: object = {}) => ({ ticket, who: "chef", what: `thing ${ticket}`, until: "2026-12-01", step: "Cooks", ...plus });
+const headOf = (n: number) => `TODO (${n})`;
+const [NO_WHAT, NO_UNTIL, OPEN_PARK] = ["for what: not given", "no date set", "park or unpark…"];
 const items = (todo: Faux) => todo.dessous("li").filter(({ dataset }) => dataset.ticket !== undefined);
 const tete = (todo: Faux) => todo.dessous("p").find(({ className }) => className === "tete-du-todo")?.textContent;
 const ligne = (item: Faux) => item.dessous("span").find(({ className }) => className === "qui-jusqua")?.textContent;

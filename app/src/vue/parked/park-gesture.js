@@ -10,8 +10,8 @@
 /** @typedef {import("./park-control.js").Ask} Ask */
 /** @typedef {(projet: string, id: string, ticket: number, saisie?: { quoi: string, qui: string, relance: string }) => Promise<unknown>} Attente */
 
-export const NO_KITCHEN = "nothing sent: this app does not play the kitchen's gestures for this project";
-export const SENT_TO_SECOND = "sent: its command runs in the second";
+const NO_KITCHEN = "nothing sent: this app does not play the kitchen's gestures for this project";
+const SENT_TO_SECOND = "sent: its command runs in the second";
 
 /** @param {Attente} attente @param {{ lire: () => void, garder: (projet: string, terminal: any) => void }} suites */
 export function parkGesture(attente, { lire, garder }) {

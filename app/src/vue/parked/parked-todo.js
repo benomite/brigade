@@ -22,11 +22,11 @@ import { waitingFor } from "./records.js";
  *   openTitle?: (ticket: number) => string, control?: (record: ParkedRecord) => any, opened?: Set<number> }} Options
  */
 
-export const OPEN_PARK = "park or unpark…";
-export const NO_WHAT = "for what: not given";
-export const NO_UNTIL = "no date set";
+const OPEN_PARK = "park or unpark…";
+const NO_WHAT = "for what: not given";
+const NO_UNTIL = "no date set";
 /** @param {number} n */
-export const headOf = (n) => `TODO (${n})`;
+const headOf = (n) => `TODO (${n})`;
 
 // Qui il attend et jusqu'à quand, sur une ligne ; et pour quoi, quand rien ne le dit au-dessus.
 /** @param {Fabrique} doc @param {ParkedRecord} record */
