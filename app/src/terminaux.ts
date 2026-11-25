@@ -15,6 +15,7 @@ import { detruire as detruireSession, nomDeSession, rattachement, type Cible, ty
 import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 import { crochetsDeLaFile } from "./second/crochet-de-la-file.ts";
 import { crochetsDuRole } from "./second/crochet-du-role.ts";
+import { crochetsDuParking } from "./second/crochet-du-parking.ts";
 import { crochetsDuRefus } from "./second/refus.ts";
 import { argumentsDuSecond, reglagesDuSecond, type Crochets } from "./second/lancement.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
@@ -281,6 +282,10 @@ export function ouvrirTerminaux(options: {
   // (second/role-apres-init.ts, déclaré par second/crochet-du-role.ts).
   const leRole = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDuRole({ node: options.node, gh: options.gh ?? "gh", cible: tenu.cible }));
 
+  // La commande qui parque et déparque un ticket comme les boutons de l'app, donnée à chaque début de session
+  // (second/parking.ts, déclarée par second/crochet-du-parking.ts, #4262).
+  const leParking = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDuParking({ node: options.node, cible: tenu.cible }));
+
   // Ce que le second ne fait jamais — merger, lire les secrets du chef — refusé avant l'appel (second/refus.ts).
   const lesRefus = (): Crochets => (options.node === undefined ? {} : crochetsDuRefus({ node: options.node }));
 
@@ -288,7 +293,7 @@ export function ouvrirTerminaux(options: {
     tenu.titre = TITRE_SECOND;
     if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
     else tenu.note = `new session: \`claude\`, ${ROLE}`;
-    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu), lesRefus(), leRole(tenu)) }), (code) => {
+    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu), lesRefus(), leRole(tenu), leParking(tenu)) }), (code) => {
       if (reprise && code !== 0) {
         lancerSecond(tenu, false);
         if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude\`, ${ROLE}`;
