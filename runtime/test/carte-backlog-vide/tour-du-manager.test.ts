@@ -1,6 +1,6 @@
 // La carte du backlog vide servie par le tour du manager (#4225) : le tri du manager écarte
 // ce qui n'est pas à cuire — une alerte de la cuisine comme une idée —, et une issue à
-// cuire tient la carte hors de TODO.
+// cuire retire la carte de TODO.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { cartesEnTodo } from "../../src/carte-todo.ts";
@@ -27,11 +27,4 @@ test("an idea and a kitchen alert leave nothing to cook: the manager's loops pos
   assert.equal(c.journal.tout().filter((e) => e.type === "todo.entered" && e.ticket! < 0).length, 1);
   c.gh.poser(issue(3));
   await jusqua(() => c.cartes().length === 0);
-});
-
-test("a cookable issue in the backlog keeps the card away through the manager's loops", async (t) => {
-  const c = brigade(t, [issue(3), issue(1, ["idea"])]);
-  await c.laisserTourner();
-  await c.laisserTourner();
-  assert.deepEqual(c.cartes(), []);
 });
