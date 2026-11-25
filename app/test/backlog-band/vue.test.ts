@@ -113,7 +113,7 @@ const colonne = (vue: Jouee, nom: string): Faux => grille(vue).children.find((po
 const SURVOL = "8 issues before the rail — 3 not read yet · 1 epic, not split yet · 1 ready, not fired · 2 set aside · 1 split into tickets";
 
 describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
-  test("une seule ligne juste au-dessus des colonnes ; ni chiffre Backlog dans la bande, ni colonne Backlog — chaque compte se lit au survol de son titre", async () => {
+  test("une seule ligne juste au-dessus des colonnes ; ni chiffre Backlog dans la bande, ni bande dans les colonnes — chaque compte se lit au survol de son titre", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     // Avant la première lecture : pas de bandeau.
@@ -125,7 +125,8 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     // Plus de bande de chiffres au-dessus (#3523) : seule une ligne d'état peut précéder le bandeau.
     assert.equal(poses.includes("bande-rail"), false);
     assert.equal(grille(vue).children.some(({ className }) => className.includes("backlog")), false);
-    assert.deepEqual(grille(vue).children.map((pose) => pose.dessous("h4")[0]?.children[0]?.textContent), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
+    // Le plan de la cuisine (#4238) : la colonne Backlog porte le rail ; ce qui est avant lui reste dans le bandeau.
+    assert.deepEqual(grille(vue).children.map((pose) => pose.dessous("h4")[0]?.children[0]?.textContent), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
 
     // Replié : sa ligne seule — ni détail, ni liste.
     assert.equal("deplie" in leBandeau(vue).dataset, false);
@@ -150,7 +151,7 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     assert.match(choisi.textContent, /^#16Une épiqueprio:1open issue #16Groups book in one gesture\./);
     assert.deepEqual(choisi.dessous("li").map(({ textContent }) => textContent), ["on the rail1", "taken0", "pass0", "awaiting you0", "WAITING0", "served1"]);
     assert.equal(grille(vue).dataset.besoin, "16");
-    assert.deepEqual(bonsDuRail(vue).map(({ dataset }) => [Number(dataset.ticket), dataset.besoin]), [[17, "autre"], [10, "sien"], [22, "autre"]]);
+    assert.deepEqual(bonsDuRail(vue).map(({ dataset }) => [Number(dataset.ticket), dataset.besoin]), [[10, "sien"], [22, "autre"], [17, "autre"]]);
     // Le lien de son issue l'ouvre, par son projet et son numéro.
     (choisi.dessous("button").find(({ className }) => className === "backlog-band-issue") ?? assert.fail("pas de lien")).click();
     await repos();
@@ -252,10 +253,10 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     assert.equal(ligne(24).dessous("p").length, 0);
   });
 
-  test("rail vide : sa colonne On the rail le dit, et dit ce qui est avant lui — ou qu'il n'y a rien, ni sur le rail ni avant lui", async () => {
+  test("rail vide : le rail, en tête du backlog, le dit, et dit ce qui est avant lui — ou qu'il n'y a rien, ni sur le rail ni avant lui", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, RAIL_VIDE);
-    const phrase = () => colonne(vue, "On the rail").children.find((pose) => pose.balise === "p")?.textContent;
+    const phrase = () => colonne(vue, "Backlog").dessous("div").find(({ className }) => className === "du-rail")?.children.find((pose) => pose.balise === "p")?.textContent;
     assert.equal(phrase(), "No ticket on the rail yet. What is before it is being read…");
 
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));

@@ -118,15 +118,15 @@ const stations = (vue: Jouee) =>
     .map((carte: Faux) => ({ station: carte.dataset.station, etat: carte.dessous("span").find((span) => span.className === "pilule etat")?.textContent, cooks: cooksDe(carte) }));
 
 describe("la file d'un projet sur le téléphone", () => {
-  test("Rail : le rail, ce qui attend un tiers et ce qui est servi — pas de colonne TODO : ce qui attend le chef est rouge dans son étape, et le compte de l'accueil le dit (#3458)", async () => {
+  test("Rail : le plan de la cuisine, du backlog à ce qui est servi — pas de colonne TODO : ce qui attend le chef est rouge dans son étape, et le compte de l'accueil le dit (#3458, #4238)", async () => {
     const vue = await ouvrir({ etroit: true });
     assert.deepEqual(
       colonnes(vue).map(({ nom, compte }) => [nom, compte]),
       [
-        ["On the rail", "2"],
-        ["Taken", "2"],
+        ["Backlog", "2"],
+        ["Manager", "0"],
+        ["Cooks", "2"],
         ["Pass", "1"],
-        ["Waiting", "0"],
         ["Served", "1"],
       ],
     );
