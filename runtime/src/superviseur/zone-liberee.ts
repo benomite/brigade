@@ -13,7 +13,7 @@ export const DELAI_PERIME_MS = 24 * 3_600_000;
 // La PR qui tient la zone d'un ticket sauté. `auteur` : « brigade » pour une branche d'un cook (`cook/<n>-…`) ou du
 // second (`<type>/<n>-…`), « human » sinon. `miseAJour` : sa dernière activité, telle que GitHub la date.
 // `liberee` : elle porte déjà `zone-released`.
-export type PRQuiTient = { number: number; auteur: string; miseAJour: string; enCook: boolean; auPass: boolean; surLaBase: boolean; liberee?: boolean };
+type PRQuiTient = { number: number; auteur: string; miseAJour: string; enCook: boolean; auPass: boolean; surLaBase: boolean; liberee?: boolean };
 export type Bloque = { ticket: number; pr: PRQuiTient };
 
 // Ce que les zones lisent et écrivent de GitHub. `ouvertes` : les issues où chercher la carte d'une PR, avec leur corps —
@@ -29,7 +29,7 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 const marqueDeLaCarte = (pr: number) => `<!-- brigade:zone-released pr=${pr} -->`;
 
 // Pourquoi la PR est périmée, ou null quand elle vit. Une date qui ne se lit pas ne la dit pas périmée.
-export function peremption(pr: PRQuiTient, maintenant: Date): string | null {
+function peremption(pr: PRQuiTient, maintenant: Date): string | null {
   if (pr.enCook || pr.auPass) return null;
   if (pr.surLaBase) return "its changes are already on the base";
   const depuis = Date.parse(pr.miseAJour);

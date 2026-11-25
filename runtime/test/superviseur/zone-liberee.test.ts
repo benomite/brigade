@@ -12,13 +12,14 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { brancherSuperviseur } from "../../src/superviseur/brancher.ts";
 import { suivreLeTour } from "../../src/superviseur/tour.ts";
-import { DELAI_PERIME_MS, lireLesBloques, ouvrirLesZones, peremption, type PRQuiTient } from "../../src/superviseur/zone-liberee.ts";
+import { DELAI_PERIME_MS, lireLesBloques, ouvrirLesZones } from "../../src/superviseur/zone-liberee.ts";
 import { FauxGitHub } from "../faux-github.ts";
 import { DEPOT, fauxGh, jusqua, repertoireTemporaire } from "../outils.ts";
 
 const MAINTENANT = new Date("2026-11-25T12:00:00.000Z");
 const ancien = new Date(MAINTENANT.getTime() - DELAI_PERIME_MS - 60_000).toISOString();
 const recent = new Date(MAINTENANT.getTime() - 60_000).toISOString();
+type PRQuiTient = Awaited<ReturnType<typeof lireLesBloques>>[number]["pr"];
 const pr = (number: number, autres: Partial<PRQuiTient> = {}): PRQuiTient => ({ number, auteur: "human", miseAJour: ancien, enCook: false, auPass: false, surLaBase: false, ...autres });
 
 // Un client des zones dont chaque écriture ou lecture peut échouer, à la demande du test.
@@ -36,14 +37,19 @@ function client() {
   return { f, github };
 }
 
-test("a PR is stale past the delay, or with its changes on the base; never while cooked or in pass, nor on an unreadable date", () => {
-  assert.equal(peremption(pr(1, { miseAJour: recent }), MAINTENANT), null);
-  assert.match(peremption(pr(1), MAINTENANT) ?? "", /no activity since/);
-  assert.equal(peremption(pr(1, { miseAJour: new Date(MAINTENANT.getTime() - DELAI_PERIME_MS).toISOString() }), MAINTENANT), null, "exactly the delay is not past it");
-  assert.match(peremption(pr(1, { miseAJour: recent, surLaBase: true }), MAINTENANT) ?? "", /already on the base/);
-  assert.equal(peremption(pr(1, { surLaBase: true, enCook: true }), MAINTENANT), null);
-  assert.equal(peremption(pr(1, { surLaBase: true, auPass: true }), MAINTENANT), null);
-  assert.equal(peremption(pr(1, { miseAJour: "" }), MAINTENANT), null);
+test("a PR is stale past the delay, or with its changes on the base; never while cooked or in pass, nor on an unreadable date", async () => {
+  const libere = async (lue: PRQuiTient) => {
+    const { f, github } = client();
+    const lignes = await ouvrirLesZones({ github, maintenant: () => MAINTENANT }).cycle([{ ticket: 10, pr: { ...lue, auteur: "brigade" } }]);
+    return f.labels.length === 0 ? null : (lignes[0] ?? "");
+  };
+  assert.equal(await libere(pr(1, { miseAJour: recent })), null);
+  assert.match((await libere(pr(1))) ?? "", /no activity since/);
+  assert.equal(await libere(pr(1, { miseAJour: new Date(MAINTENANT.getTime() - DELAI_PERIME_MS).toISOString() })), null, "exactly the delay is not past it");
+  assert.match((await libere(pr(1, { miseAJour: recent, surLaBase: true }))) ?? "", /already on the base/);
+  assert.equal(await libere(pr(1, { surLaBase: true, enCook: true })), null);
+  assert.equal(await libere(pr(1, { surLaBase: true, auPass: true })), null);
+  assert.equal(await libere(pr(1, { miseAJour: "" })), null);
 });
 
 test("a label that cannot be posted writes no line on the ticket and opens no card; the next cycle tries again", async () => {
@@ -80,7 +86,7 @@ test("a card that cannot be looked for, or opened, is said, and opened at a next
   const zones = ouvrirLesZones({ github, maintenant: () => MAINTENANT, consigner: (ligne, auChef) => void consignes.push([ligne, auChef]) });
   f.pannes.add("ouvertes");
   assert.match((await zones.cycle([{ ticket: 10, pr: pr(90) }])).join("\n"), /no card asks the chef about the stale PR #90 yet: .*ouvertes is down/);
-  assert.deepEqual(f.creees, []);
+  assert.equal(f.creees.length, 0);
   f.pannes = new Set(["creerIssue"]);
   assert.match((await zones.cycle([{ ticket: 10, pr: pr(90) }])).join("\n"), /could not be opened: creerIssue is down/);
   f.pannes.clear();
