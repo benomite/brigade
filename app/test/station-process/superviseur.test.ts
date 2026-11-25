@@ -252,7 +252,9 @@ test("#3709 : la version X ne sert plus un projet que rien ne met de côté : la
   ordi.telecharger("1.0.1", qui(["shop"]));
   mkdirSync(ordi.racine, { recursive: true });
   writeFileSync(join(ordi.racine, "projets"), "other acme/other main\nshop acme/shop main\n");
-  const { station } = tenir(t, ordi, { demarrageMs: 300 });
+  // Long enough for 1.0.1 to say it is in service on a loaded station: under 0.3 s it could
+  // not even start, and the case read « did not say it was in service » instead (#4237's gates).
+  const { station } = tenir(t, ordi, { demarrageMs: 3000 });
   await jusqua(() => enService(ordi.racine)?.version === "1.0.0");
 
   const issue = await station.redemarrer("1.0.1");
