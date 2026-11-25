@@ -13,7 +13,7 @@
 #rail .park-control label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--pas-1);
 }
 #rail .park-control label > span {
   color: var(--discret);
