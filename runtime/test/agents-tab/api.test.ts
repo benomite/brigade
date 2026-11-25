@@ -4,12 +4,16 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { repondre, type Chiffre, type EntreeDAgent, type GesteDuFil, type Sources } from "../../src/agents-tab/api.ts";
+import { repondre, type Sources } from "../../src/agents-tab/api.ts";
 import { consignerGeste, OUTCOME, type Outcome } from "../../src/autonomie/agents/gestes.ts";
 import { HoraireIllisible } from "../../src/autonomie/agents/prochain-passage.ts";
 import { REGISTRE } from "../../src/agents-tab/registre.ts";
 import { ROLES } from "../../src/roles-cuisine/roles.ts";
 import { repertoireTemporaire } from "../outils.ts";
+
+type Chiffre = { label: string; value: number | string; meaning: string };
+type EntreeDAgent = { id: string; state: string; workingOn: number | null; nextRun: string | null; figures: Chiffre[] };
+type GesteDuFil = { at: string; summary: string; reason: string; issue: number | null };
 
 const MAINTENANT = new Date("2026-11-25T12:00:00.000Z");
 const ilYA = (jours: number) => () => new Date(MAINTENANT.getTime() - jours * 24 * 3_600_000);
@@ -97,7 +101,7 @@ test("only GET is served; a path the tab does not read answers 404, and a query 
 });
 
 test("a role of the kitchen keeps its own sentence in the registry", () => {
-  for (const [id, role] of [["manager", "manager"], ["triage", "triage"], ["reviewer", "reviewer"], ["second-judge", "second judge"], ["closer", "closer"]]) {
+  for (const [id, role] of [["manager", "manager"], ["triage", "triage"], ["reviewer", "reviewer"], ["second-judge", "second judge"], ["closer", "closer"]] as const) {
     assert.equal(REGISTRE.find((agent) => agent.id === id)?.role, ROLES.find((une) => une.role === role)?.does, id);
   }
 });

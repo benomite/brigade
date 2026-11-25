@@ -10,7 +10,7 @@ import { ouvrirJournal } from "../journal.ts";
 import type { Sources } from "./api.ts";
 
 // A run of the log: `ending` is null while it goes on.
-export type RunDuJournal = { run: string; ticket: number | null; station: string | null; ending: string | null };
+type RunDuJournal = { run: string; ticket: number | null; station: string | null; ending: string | null };
 
 // The endings of a run that failed (events/guardrails.ts, `Issue`): it died, a guardrail stopped it, or it stalled.
 // A launch the station refused, or one the chef stopped, is no failure of the agent.
@@ -26,14 +26,14 @@ const agentDuRun = ({ run, station }: RunDuJournal): string =>
   station === "manager" ? (run.startsWith("trie-") ? "triage" : "manager") : SOUS_SON_NOM.includes(station ?? "") ? (station as string) : "cook";
 
 // The agents whose last run failed, the runs the oldest first: a run launched after it — a retry — clears it.
-export function enEchec(runs: readonly RunDuJournal[]): string[] {
+function enEchec(runs: readonly RunDuJournal[]): string[] {
   const dernieres = new Map<string, string | null>();
   for (const run of runs) dernieres.set(agentDuRun(run), run.ending);
   return [...dernieres].flatMap(([id, ending]) => (ECHECS.has(ending ?? "") ? [id] : []));
 }
 
 // The runs going on, by agent: `agents` as `facts` gives them, then the cooks' and the reviewer's runs of the log.
-export function enCours(agents: ReadonlyArray<Pick<AgentEnCours, "role" | "ticket">>, runs: readonly RunDuJournal[]): Array<{ id: string; ticket: number | null }> {
+function enCours(agents: ReadonlyArray<Pick<AgentEnCours, "role" | "ticket">>, runs: readonly RunDuJournal[]): Array<{ id: string; ticket: number | null }> {
   const duJournal = runs.flatMap((run) => (run.ending === null && !HORS_TICKET.has(agentDuRun(run)) ? [{ id: agentDuRun(run), ticket: run.ticket }] : []));
   return [...agents.map(({ role, ticket }) => ({ id: role, ticket })), ...duJournal];
 }

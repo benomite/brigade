@@ -26,12 +26,12 @@ export type Sources = {
   // Each agent's schedule as the runtime noted it (autonomie/agents/horaires.ts).
   horaires?: (id: string) => Horaire | undefined;
 };
-export type Demande = { method: string; url: string };
-export type Reponse = { statut: number; corps: unknown };
+type Demande = { method: string; url: string };
+type Reponse = { statut: number; corps: unknown };
 
-export type Chiffre = { label: string; value: number | string; meaning: string };
-export type EntreeDAgent = AgentDuRegistre & { state: "idle" | "working" | "broken"; workingOn: number | null; nextRun: string | null; figures: Chiffre[]; settings: null };
-export type GesteDuFil = { at: string; summary: string; reason: string; issue: number | null };
+type Chiffre = { label: string; value: number | string; meaning: string };
+type EntreeDAgent = AgentDuRegistre & { state: "idle" | "working" | "broken"; workingOn: number | null; nextRun: string | null; figures: Chiffre[]; settings: null };
+type GesteDuFil = { at: string; summary: string; reason: string; issue: number | null };
 
 const RACINE = "/api/agents";
 const GESTES = /^\/api\/agents\/([^/]+)\/gestures$/;
