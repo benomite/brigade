@@ -295,11 +295,12 @@ describe("sur l'écran d'un projet GitHub", () => {
   for (const etroit of [false, true]) {
     test(`${etroit ? "écran d'un téléphone" : "écran large"} : la carte de TODO porte « waiting for… », celle de WAITING « resume » et « it arrived, back to the kitchen »`, async () => {
       const { vue } = await ouvrir(github(), etroit);
-      // TODO n'est pas une colonne (#3458) : la carte qui attend le chef est rouge, sur le rail.
-      assert.ok(colonne(vue, "On the rail").contains(bonDe(vue, 20)));
+      // TODO n'est pas une colonne (#3458) : la carte qui attend le chef est rouge, dans le backlog (#4238).
+      assert.ok(colonne(vue, "Backlog").contains(bonDe(vue, 20)));
       assert.equal(bonDe(vue, 20).dataset.carte, "attente");
       assert.equal(boutonDe(bonDe(vue, 20), "waiting for…").dataset.attente, "attente-poser");
-      assert.ok(colonne(vue, "Waiting").contains(bonDe(vue, 40)));
+      // Parked, elle reste dans la colonne où elle attend : aucune colonne Waiting (#4238).
+      assert.ok(colonne(vue, "Backlog").contains(bonDe(vue, 40)));
       assert.deepEqual(bonDe(vue, 40).dessous("button").filter(({ dataset }) => "attente" in dataset).map(({ textContent }) => textContent), ["resume", "it arrived, back to the kitchen"]);
       assert.equal(bonDe(vue, 40).dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, `waiting for the signed quote · from the client · follow-up ${jourDe(new Date("2026-11-16T00:00:00.000Z"))}`);
       // Plus rien ne dit que WAITING est une commande de la station.
@@ -342,8 +343,8 @@ describe("sur l'écran d'un projet GitHub", () => {
     assert.deepEqual({ ...(saisie as object), relance: undefined }, { quoi: "the legal review", qui: "legal", relance: undefined });
     assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
     await relire();
-    assert.ok(colonne(vue, "Waiting").contains(bonDe(vue, 20)));
-    // Elle n'attend plus le chef : plus rouge, une seule carte, dans WAITING.
+    assert.ok(colonne(vue, "Backlog").contains(bonDe(vue, 20)));
+    // Elle n'attend plus le chef : plus rouge, une seule carte, parked dans le backlog (#4238).
     assert.notEqual(bonDe(vue, 20).dataset.carte, "attente");
     assert.equal(vue.element("rail").dessous("li").filter((bon) => bon.className.split(" ").includes("bon") && bon.children[0]?.children[0]?.textContent === "#20").length, 1);
     // La carte dit les trois : quoi, de qui, et le jour de la relance choisi.

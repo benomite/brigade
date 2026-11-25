@@ -18,7 +18,10 @@ export type Fait = { libelle: string; valeur: string; exact?: true };
 // les cinq choses qu'un bon porte, et pourquoi — absent quand elle les dit toutes.
 // `relais` : ce que `status` écrit du ticket sous sa ligne `rail`, mot pour mot,
 // quand l'app n'a pas su le découper.
-export type Porte = { dit: Fait[]; sans?: string; relais?: string };
+export type Porte = { dit: Fait[]; sans?: string; relais?: string; parque?: Parque };
+// Une carte parked (#4238, spec 2026-11-24-simplified-process, règle 13) : qui elle attend — un tiers, ou ce qui la retient
+// —, jusqu'à quand (nul : aucune date), et `chef` quand c'est le chef qu'elle attend : elle est aussi dans son TODO.
+export type Parque = { qui: string; jusqua: string | null; chef?: boolean };
 
 // Ce dont un bon se compose, pour un ticket.
 // `lignes` : les siennes sous la ligne `rail` de `status` — absentes, cette ligne

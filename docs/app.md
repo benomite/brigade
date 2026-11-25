@@ -24,7 +24,7 @@ them as living "on Cooks" is history, not behaviour. A stored "cooks" or "health
 
 What follows about the tabs (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
-whole kanban in its order — On the rail, Taken, Pass, Waiting and Served (#2093, titled so since #2922; no TODO column since #3458) — with nothing about
+whole plan of the kitchen in its order — Backlog (the rail at its top), Manager, Cooks, Pass and Served (#4238; no TODO column since #3458, no Waiting column since #4238) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
 gates, and, folded, its calibration ceiling, its roles, what
 its cooks learned and the raw reading of `station` (the machine and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
@@ -401,8 +401,8 @@ steps, bubble), `app/src/visite.ts` (the read-only read of `benomite/brigade`, i
 ### The kitchen's words, explained the first time you meet them (#3308, epic #3304)
 
 The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
-its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Pass** and **Waiting** (WAITING) under their column's
-title; **Second** under the second's tab. The Rail, Cooks and TODO lines no longer stand above the columns (#3523). The lines are those of the glossary's entry —
+its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Pass** under its column's
+title; WAITING, shown as **Parked**, under the title of the first column where a card is parked (#4238); **Second** under the second's tab. The Rail, Cooks and TODO lines no longer stand above the columns (#3523). The lines are those of the glossary's entry —
 `The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
 third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
 station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
@@ -915,7 +915,7 @@ A project opened from that screen has neither a box nor a station on this comput
 still show something, always:
 
 - **Rail** shows the project's one rail view (#2076): its rail read from its GitHub repository, like
-  that of any project, whichever station serves it — On the rail, Taken, Pass, Waiting and Served, each card that awaits
+  that of any project, whichever station serves it — Backlog, Manager, Cooks, Pass and Served (#4238), each card that awaits
   you red with its gestures in the column of its step, counted on the home (#3458). The app reads the repository of
   every project in the projects file, not only of those it knows a station serves: a project whose
   kitchen runs on another station has the same view as one served by this computer. The rail its
@@ -2118,8 +2118,8 @@ build lays the module next to the view (`www/src/gestes-github-telephone.js`). I
 desktop's chain and by the phone on two copies of a mocked GitHub, comparing every request, then through the laid
 bridge with no station reachable — are `app/test/gestes-github-telephone.test.ts`.
 
-**Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
-first, then On the rail, WAITING and Served, stacked — and Stations — each station, its state and its running cooks.
+**Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — the
+desktop's plan of the kitchen (#4238), the TODO above its columns — and Stations — each station, its state and its running cooks.
 It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
 and nothing on it scrolls sideways at phone width. Screen: `telephone-file` of
 `scripts/capture-ecran` (`docs/captures/1163/`; its Cooks screen went with the Cooks tab, #2921).
@@ -3281,8 +3281,8 @@ meet it, on this device and on your other ones (`each explanation shows again th
 your devices` under the row). A record that cannot be read says why in one line, the button off; a seen explanation the
 runtime did not keep is said under the row. See "The kitchen's words, explained the first time you meet them".
 
-**The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
-Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
+**The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): Backlog, Manager,
+Cooks, Pass and Served (#4238), all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
 it stays laid underneath, and re-read, but nothing of it can be clicked through, and nothing of it — not even its sticky
 column heads — shows through. Clicking the tab again closes the page, and **the rail comes back as you left it**,
@@ -3554,6 +3554,27 @@ Ages are counted between two times **of the box**: your workstation's clock does
 from the rail.
 ### The rail
 
+**The view draws the plan of the kitchen (#4238,
+[`2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md)).** Left to right: **Backlog** —
+its top is the rail, `Rail — ready to cook`, the queued tickets set apart; under it, `Not ready yet`, what is in the
+backlog without being ready (awaiting you, parked, blocked) —, then **Manager** (its question before splitting an epic,
+asked or answered), **Cooks**, **Pass** and **Served**. Each card sits in the column of the step it is at
+(`app/src/vue/cuisine/cuisine.js`, `planDeLaCuisine`). **A parked card stays in the column where it waits** — a ticket
+that waits for a third party, or that the runtime set aside —, and says who it waits for and until when: `parked — waits
+for <who>, until <day, hour UTC>` (`no date set` without one). **There is no Waiting column.** A parked ticket that waits
+for the chef (`attend` names it) is red, and is also in the chef's TODO. **The TODO stands above the columns**, one
+glance away: `TODO (N)`, then one entry per ticket that waits for the chef — exactly the red cards, parked ones
+included —, each opening its card in one click; the repository not set up for Brigade joins it. An answer kept from a
+card that left and **Awaiting others** are next to it, under the columns: they do not wait for the chef. **The top band
+replaces the fault banners**: the supervisor's line — what it watches, its last action, what it parked for you (`its
+thread`, when the team is read) — and the closer's line — its last tidy, its next one —, then at most one message, the
+first cause that offers the chef an action: a message with none is not shown (an alert the kitchen handles itself, the
+breaker line); a rail alert with no button of the runtime opens its ticket, or the repository's checks; the stopped
+kitchen opens its frozen ticket, the checks of a red main, or reads again; a stale reading, the queue's wait and the
+quota pause read again; the line of an issue the kitchen opened on itself opens that issue. Where the paragraphs below
+speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures:
+`docs/captures/4238/`.
+
 **TODO is not a column (#3458).** Tickets move left to right, from On the rail to Served; what awaits the chef is a
 property of a ticket, not a place on the rail. **A card that awaits you stays in the column of its stage** — On the rail
 before it is taken, Taken, Pass, Waiting — **with the black-and-red look of the awaiting card**, its `awaiting you` pill,
@@ -3574,16 +3595,16 @@ column, the red cards in their stage. Captures: `docs/captures/3458/`. Where the
 you (Todo) column, read: the red cards, in the column of their stage.
 
 **It is the main view of the space: in the middle of the screen, under the project name, whatever
-tab is shown below it** — the second, a shell, the output of a command. **Five columns**, one
-ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what waits for a third party
-(Waiting), what is done (Served) — and, red in its column, what you have to do. **The columns are shared between the project's two tabs**
+tab is shown below it** — the second, a shell, the output of a command. **Five columns** (#4238), one
+ticket per card: what is going to happen (Backlog), what the manager holds (Manager), what is happening (Cooks, Pass),
+what is done (Served) — and, red in its column, what you have to do. **The columns are shared between the project's two tabs**
 (#1184, then #1269): the kanban stays whole on Rail, Taken and Pass included, and Cooks shows no column. No card
 opens a served worktree page (#1846). The spec is
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
 of `docs/maquettes/app/Brigade.dc.html`.
 
-**The order** (#2093): the row reads On the rail, Taken, Pass, Waiting, Served — the rail in the order of service, then
-what waits for a third party, and what is done. Until #3458 a fourth column, Awaiting you, came after Pass. The fourth column was titled Todo
+**The order** (#2093, then #4238): the row reads Backlog, Manager, Cooks, Pass, Served — the order of service; until
+#4238 it read On the rail, Taken, Pass, Waiting, Served. Until #3458 a fourth column, Awaiting you, came after Pass. The fourth column was titled Todo
 until #2922, which gave it the mockup's title (`Project.dc.html`, epic #2897); "Todo" in this document names the same
 column. Titles are cased alike (Awaiting you and Waiting, not TODO and WAITING; the card badges keep their words), and
 each column has its own mark: a ring for On the rail, a triangle for Taken, a diamond for Pass, a square for Awaiting you, an orange **pause** (two bars: held, waiting for

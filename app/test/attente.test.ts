@@ -235,17 +235,17 @@ const taper = (entree: Faux, texte: string) => {
 };
 
 describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
-  test("WAITING a sa colonne, TODO n'en a pas (#3458), et la carte de WAITING se lit sans clic", async () => {
+  test("ni WAITING ni TODO n'ont de colonne (#3458, #4238) : la carte parked reste dans le backlog, et se lit sans clic", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const noms = vue
       .element("rail")
       .dessous("section")
       .map((pose) => pose.children[0]?.children[0]?.textContent);
-    // Le kanban est entier sur Rail, Taken et Pass compris.
-    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
+    // Le plan de la cuisine est entier sur Rail (#4238).
+    assert.deepEqual(noms, ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
     const bon = bonDe(vue, 8);
-    assert.ok(colonne(vue, "Waiting").contains(bon));
+    assert.ok(colonne(vue, "Backlog").contains(bon));
     // Elle attend un tiers, pas le chef : elle n'est pas rouge.
     assert.notEqual(bon.dataset.carte, "attente");
     // La carte dit l'essentiel en une ligne ; le détail est dans sa fiche.
@@ -262,12 +262,12 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     ]);
   });
 
-  test("sa relance passée, la carte revient au chef : rouge, en tête de WAITING, comptée dans « TODO (N) » (#3458)", async () => {
+  test("sa relance passée, la carte revient au chef : rouge, en tête de sa colonne, comptée dans « TODO (N) » (#3458, #4238)", async () => {
     const vue = await ouvrir();
     const tiers9 = { ...TIERS, relance: "2026-10-30T00:00:00.000Z" };
     recevoir(vue, dessinable({ ...FAITS, lu: "2026-10-23T00:00:00.000Z", rail: [...FAITS.rail, { ...ticket(9, "WAITING"), tiers: tiers9 }] }));
-    const waiting = colonne(vue, "Waiting");
-    const enOrdre = waiting.dessous("li").filter(({ className }) => className === "bon").map(({ dataset }) => [dataset.ticket, dataset.carte]);
+    const backlog = colonne(vue, "Backlog");
+    const enOrdre = backlog.dessous("li").filter(({ className, dataset }) => className === "bon" && ["8", "9"].includes(dataset.ticket ?? "")).map(({ dataset }) => [dataset.ticket, dataset.carte]);
     assert.deepEqual(enOrdre, [["8", "attente"], ["9", undefined]]);
     // Ses deux gestes restent : ce sont eux qui y répondent.
     boutonDe(bonDe(vue, 8), "resume");
@@ -329,7 +329,7 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     assert.ok(bonDe(vue, 30).dessous("button").some(({ textContent }) => textContent === "waiting for…"));
   });
 
-  test("refusé, le formulaire reste, et dit pourquoi ; « cancel » le referme sans rien envoyer ; et le ticket passé dans WAITING le referme", async () => {
+  test("refusé, le formulaire reste, et dit pourquoi ; « cancel » le referme sans rien envoyer ; et le ticket parked le referme", async () => {
     let reponse: Terminal | { refus: string } = { refus: "nothing is written: say whom it waits for — the client, a team, a person" };
     const vue = await ouvrir({ attente: () => reponse });
     recevoir(vue);
@@ -353,7 +353,7 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     boutonDe(bonDe(vue, 31), "waiting for…").click();
     await repos();
     recevoir(vue, dessinable({ ...FAITS, rail: FAITS.rail.map((pose) => (pose.ticket === 31 ? { ...pose, etat: "WAITING", tiers: TIERS } : pose)) }));
-    assert.ok(colonne(vue, "Waiting").contains(bonDe(vue, 31)));
+    assert.ok(colonne(vue, "Backlog").contains(bonDe(vue, 31)));
     assert.equal(bonDe(vue, 31).dessous("form").length, 0);
     recevoir(vue);
     assert.equal(bonDe(vue, 31).dessous("form").length, 0, "le formulaire refermé ne revient pas");
