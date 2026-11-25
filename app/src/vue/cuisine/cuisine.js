@@ -3,8 +3,9 @@
 // de gauche à droite, le backlog — le rail en tête, les tickets prêts à part —, le manager, les cooks, la pass, servi. Une
 // carte est dans la colonne de son étape. Une carte parked reste dans la colonne où elle attend, dessinée parked : qui elle
 // attend, jusqu'à quand. Il n'y a pas de colonne Waiting. Ce qui est parked pour le chef est aussi dans son TODO, à côté
-// des colonnes, et rien d'autre (ticket 4261) : chaque entrée dit ce qui lui est demandé, avec ses boutons. Au-dessus, la bande du haut : la ligne du supervisor, celle du closer, et au plus un message
-// — jamais sans un geste que le chef peut faire.
+// des colonnes, et rien d'autre (ticket 4261) : chaque entrée dit ce qui lui est demandé, avec ses boutons. Au-dessus, la
+// bande du haut : la ligne du supervisor, celle du closer, et au plus un message — jamais sans un geste que le chef peut
+// faire.
 // Le process principal range le rail en colonnes (faits.ts) : On the rail, Taken, Pass, Waiting, Served, et la liste de ce
 // qui attend le chef, que todo.js pose déjà dans la colonne de son étape. Ce module en tire le plan, sans rien relire.
 // Il ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
@@ -146,8 +147,9 @@ const TRANCHENT = ["attente-reprendre", "attente-arrivee"];
 export function gestesDuTodo(carte, gestes) {
   const { todo } = carte;
   if (todo === undefined) return gestes.attente.filter(({ id }) => TRANCHENT.includes(id) && carte.gestes?.includes(/** @type {never} */ (id))).map(({ id, libelle }) => ({ texte: libelle, recommande: false, sorte: /** @type {SorteDeGeste} */ (id) }));
-  if (estUneValidation(todo)) return [{ texte: VALIDER, recommande: true, sorte: "valider" }];
-  if (estUneRevue(todo)) return [{ texte: MERGER, recommande: true, sorte: "merger" }];
+  // Un écran à valider, une revue : leur bouton, quand leur carte dit la PR qu'ils tranchent — sinon aucun, comme sur leur carte.
+  if (estUneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDER, recommande: true, sorte: "valider" }] : [];
+  if (estUneRevue(todo)) return "pr" in (todo.revue ?? {}) ? [{ texte: MERGER, recommande: true, sorte: "merger" }] : [];
   if (!["repos", "refus"].includes(vuDeLaCarte(todo, gestes.etat(carte.ticket, todo)).vu)) return [];
   const recommandee = recommandationDe(todo)?.rang;
   return todo.choix.map(({ texte }, rang) => ({ texte, recommande: rang + 1 === recommandee, sorte: "repondre", reponse: { question: todo.question, choix: rang + 1 } }));

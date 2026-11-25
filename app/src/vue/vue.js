@@ -5119,8 +5119,8 @@ function lignesDeCetOrdinateur(projet) {
 }
 
 // Le plan de la cuisine en cinq colonnes — Backlog, le rail en tête, Manager, Cooks, Pass, Served (ticket 4238, cuisine/) —, ce
-// qui est parked pour le chef rouge dans la colonne de son étape et dans son TODO (tickets 3458, 4238, 4261), une carte parked dans la colonne
-// où elle attend, tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
+// qui est parked pour le chef rouge dans la colonne de son étape et dans son TODO (tickets 3458, 4238, 4261), une carte
+// parked dans la colonne où elle attend, tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
 // — la file, ce qui est en amont —, puis toutes les colonnes, Cooks et Pass compris, sans rien
 // d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, et la lecture de `station`. Un projet sans box n'en a

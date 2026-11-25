@@ -119,6 +119,9 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
     boutons(premiere as Faux)[0]?.click();
     boutons(seconde as Faux)[0]?.click();
     assert.deepEqual(joues, [[60, "valider", undefined], [62, "merger", undefined]]);
+    // Une carte qui ne dit pas sa PR n'a pas de bouton, comme sur la carte : elle se tranche sur GitHub.
+    assert.deepEqual(gestesDuTodo(carte(63, { todo: todo({ sorte: "design-validation", choix: [], validation: { illisible: "no PR named" } }) }), siens as never), []);
+    assert.deepEqual(gestesDuTodo(carte(64, { todo: todo({ sorte: "sensitive-review", choix: [], revue: { illisible: "no PR named" } }) }), siens as never), []);
   });
 
   test("une carte de WAITING parked pour le chef : « resume » et « it arrived » ; « waiting for… » n'y répond pas", () => {
