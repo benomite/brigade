@@ -182,6 +182,16 @@ describe("la fiche du projet : écrite", () => {
     });
   }
 
+  test("Stages vidé — sa liste sans une entrée — : refusé en le nommant, rien d'écrit", async () => {
+    const p = fiche();
+    const ecran = await p.ouvrir();
+    champ(ecran, "stages").value = "\n\n";
+    await sauver(ecran);
+    assert.deepEqual(p.ecritures, []);
+    assert.equal(dit(ecran), "Stages cannot be empty: nothing was saved.");
+    assert.equal(champ(ecran, "stages").ariaInvalid, "true");
+  });
+
   test("deux articles requis vides : une ligne pour chacun ; corrigés, la fiche s'écrit et plus rien n'est signalé", async () => {
     const p = fiche();
     const ecran = await p.ouvrir();
