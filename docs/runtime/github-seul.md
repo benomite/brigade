@@ -264,14 +264,9 @@ base, the stale-branch pruning).
   says the ticket was taken with no cook on any station and no wait, and that it returns to the rail. From that turn
   it no longer holds its zone. On 2026-11-19, #3764 kept `taken` on a timed wait for over two hours across two
   restarts of its station, and the claim gate skipped #3761 and #3786 as "zone held by #3764".
-- **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
-  disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). Before each cook, the first
-  included, the admission defers it while the load is over its limit or the cores cap already runs (#4210). With the machine as the bound,
-  the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
-  The one exception is a ticket labelled `saturation-repair`, the repair of the saturation itself: the machine does not
-  hold it (nor does the arbiter read the project as saturated for it), while the stop, the breaker, the quota, the
-  places and the zone holds still apply, and a station takes one such ticket at a time (#4100). Every other ticket is
-  skipped for saturation, and the scan goes on past it to a repair further down the rail.
+- **The machine.** It holds no take and no launch: a saturated machine is only said (`station.saturated`, thresholds
+  in [station.md](station.md)), and the places of the station, the cores' default of one cook per core past the two
+  kept (#3560), bound its cooks (#4285).
   When the disk is the lack, no cook runs, and what the kitchen holds itself (the size of its state directory) could
   not bring the free space back to the floor, the chef gets one TODO card on an issue of its own
   (`<!-- brigade:disk-full -->`): the figures and the biggest consumers on the volume, if `du` reads them. It is
