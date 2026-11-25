@@ -81,7 +81,7 @@ import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SET
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
-import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type PR } from "./github.ts";
+import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type Merge, type PR } from "./github.ts";
 import { avecListe, porteDesTachesDeTickets, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
@@ -92,6 +92,7 @@ import { ouvrirGuerison } from "./guerison/index.ts";
 import type { ManagerDuSuperviseur } from "./superviseur/brancher.ts";
 import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
+import { genreDuTicket, ouvrirLePass } from "./risque/risque.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
@@ -764,6 +765,19 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Une cause qui vit dans la station se dépose sur la brigade (#3098), comme le temps perdu.
   const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
   const { clone } = options;
+  // Le classement du risque de la fiche du projet, relu à chaque action (#4230) : une action rangée \`chef\` attend
+  // l'OK du chef à la porte des gestes, quel que soit le niveau de la pass ; sans clone, aucune fiche à lire.
+  const passDuRisque =
+    clone === undefined
+      ? null
+      : ouvrirLePass({
+          dossier: clone,
+          parquer: async (item) => {
+            const porte = station.porte ?? null;
+            if (porte === null) return avertir(`brigade : #${item.ticket} on ${nom} — parked for the chef, who cannot answer: this runtime has no gesture gate (${item.texte})`);
+            await porte.passer({ agent: "pass", reglable: "pass", auChef: true }, { line: item.texte, reason: `the project sheet ranks \`${item.genre}\` 'chef'`, outcome: OUTCOME.HANDED_TO_CHEF }, () => passDuRisque?.repondre(item.id));
+          },
+        });
   // Une PR ouverte dont le ticket est fermé, reste du circuit d'avant, ne sera
   // plus servie par personne : la station la ferme, d'un commentaire, et garde
   // sa branche (#3097). Le commentaire se lit avant d'être posé, pour qu'une
@@ -2091,14 +2105,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     }
                     chrono.marquer(ticket.number, "merge");
                     // Le merge est le geste de la pass : il passe par la porte de son niveau (#4039).
-                    const porte = station.porte ?? null;
-                    if (porte === null) return github.merger(numero, sha);
-                    const dit = { line: `merge PR #${numero} of #${ticket.number}`, reason: `its delivery is green on \`${sha.slice(0, 7)}\``, outcome: OUTCOME.FIXED_BY_SELF };
-                    const passage = await porte.passer({ agent: "pass", reglable: "pass" }, dit, () => github.merger(numero, sha), (merge) => (merge.fait ? { ...dit, line: `merged PR #${numero} of #${ticket.number}` } : null));
-                    if (passage.etat === "done") return passage.valeur;
-                    // Attendu ou observé, il est retenu comme une livraison que le chef valide : il ne se retente pas sur la même tête.
-                    retenue = true;
-                    return { fait: false, motif: "held by the pass's autonomy level" };
+                    const mergerParLaPorte = async (): Promise<Merge> => {
+                      const porte = station.porte ?? null;
+                      if (porte === null) return github.merger(numero, sha);
+                      const dit = { line: `merge PR #${numero} of #${ticket.number}`, reason: `its delivery is green on \`${sha.slice(0, 7)}\``, outcome: OUTCOME.FIXED_BY_SELF };
+                      const passage = await porte.passer({ agent: "pass", reglable: "pass" }, dit, () => github.merger(numero, sha), (merge) => (merge.fait ? { ...dit, line: `merged PR #${numero} of #${ticket.number}` } : null));
+                      if (passage.etat === "done") return passage.valeur;
+                      // Attendu ou observé, il est retenu comme une livraison que le chef valide : il ne se retente pas sur la même tête.
+                      retenue = true;
+                      return { fait: false, motif: "held by the pass's autonomy level" };
+                    };
+                    // Un ticket qui dit le genre de son action (\`action:<genre>\`) passe par le classement du risque de la fiche du projet (#4230).
+                    const genre = genreDuTicket(ticket.labels);
+                    if (genre === null || passDuRisque === null) return mergerParLaPorte();
+                    let fusion: Merge = { fait: false, motif: "parked for the chef: its kind of action is ranked 'chef' in the project sheet" };
+                    const issue = await passDuRisque.soumettre({ ticket: ticket.number, genre, description: `${genre} by merging PR #${numero} (\`${sha.slice(0, 7)}\`)`, executer: async () => void (fusion = await mergerParLaPorte()) });
+                    if (issue === "parquee") retenue = true;
+                    return fusion;
                   },
                 },
                 { ciDesPR: ciDesPR(sienne) },

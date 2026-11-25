@@ -83,6 +83,9 @@ through one gate, which reads the agent's level and takes the gesture as a funct
 - `observe`: the gesture is logged with the outcome `not done`, and never done. The same gesture seen again in a row is
   not logged twice.
 
+A gesture said for the chef (`auChef`) is held as on `propose` whatever its level but `observe`: the pass's merge of an
+action whose kind the project sheet ranks `chef` ([risk-levels.md](risk-levels.md), #4230).
+
 The gestures that go through it:
 
 | Agent | Gesture | Level read | Logged line |

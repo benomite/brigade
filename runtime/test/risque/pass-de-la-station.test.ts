@@ -1,0 +1,104 @@
+// #4230: the pass of a station submits the merge of a ticket that says its kind of action (`action:<kind>`) to the
+// risk ranking of the project sheet, read in the station's clone. Ranked `chef`, the merge is parked for the chef at
+// the gesture gate, whatever the pass's level, and done once the chef approves it; ranked `safe`, it is merged with
+// nothing held. The cook and the review are fakes; the clock is given; no `claude` is launched.
+import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test, type TestContext } from "node:test";
+import { gestesDe, OUTCOME } from "../../src/autonomie/agents/gestes.ts";
+import { magasinDeNiveaux, type Niveau } from "../../src/autonomie/agents/niveaux.ts";
+import { gestesEnAttente, porteDesGestes } from "../../src/autonomie/agents/porte.ts";
+import { CALIBRE, FauxGitHub } from "../faux-github.ts";
+import { repertoireTemporaire } from "../outils.ts";
+
+const PROJET = "risque-station";
+const A9 = () => new Date("2026-11-23T09:00:00.000Z");
+
+// A station of a fake GitHub with ticket #1 on the rail, labelled with its kind of action, and a clone whose project
+// sheet holds `fiche` (a string: written as is).
+function station(t: TestContext, genre: string, fiche: unknown, pass?: Niveau) {
+  const repertoire = repertoireTemporaire(t);
+  if (pass !== undefined) magasinDeNiveaux(repertoire).poser(PROJET, "pass", pass);
+  const clone = repertoireTemporaire(t);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude", "brigade", "projet.json"), typeof fiche === "string" ? fiche : JSON.stringify(fiche));
+  const porte = porteDesGestes({ repertoire, projet: PROJET, horloge: A9 });
+  const faux = new FauxGitHub();
+  faux.feu(1, [...CALIBRE, `action:${genre}`]);
+  faux.nonFermees.add(1);
+  const avertissements: string[] = [];
+  const box = faux.station("A", { porte, clone, avertir: (texte) => void avertissements.push(texte) });
+  const tours = async (n: number) => {
+    for (let i = 0; i < n; i++) {
+      await box.tour();
+      await box.calme();
+    }
+  };
+  return { repertoire, porte, faux, clone, avertissements, tours };
+}
+
+test("a merge whose kind the sheet does not rank as safe is parked for the chef with what it will do, and merged once the chef approves it", async (t) => {
+  const { repertoire, porte, faux, avertissements, tours } = station(t, "publish", { version: 1 });
+  await tours(3);
+  assert.equal(faux.mergee(1), undefined, "the merge did not run");
+  // Held as a delivery the chef answers: never said refused by GitHub.
+  assert.deepEqual(avertissements.filter((texte) => /refused by GitHub/.test(texte)), []);
+  const [attente] = gestesEnAttente(repertoire);
+  assert.equal(attente?.agent, "pass");
+  assert.match(attente?.line ?? "", /^#1 will publish by merging PR #\d+ \(`[0-9a-f]{7}`\) — its kind `publish` is ranked 'chef' in the project sheet/);
+
+  await porte.approuver(attente?.id ?? 0);
+  assert.notEqual(faux.mergee(1), undefined, "the merge ran after the chef's answer");
+  assert.deepEqual(gestesEnAttente(repertoire), []);
+  assert.deepEqual(gestesDe(repertoire, "pass").map(({ outcome }) => outcome), [OUTCOME.FIXED_BY_SELF, OUTCOME.HANDED_TO_CHEF]);
+});
+
+test("a rank changed in the sheet applies to the next ticket: ranked 'safe', its merge goes through with nothing parked", async (t) => {
+  const { repertoire, faux, clone, tours } = station(t, "publish", {});
+  await tours(3);
+  assert.equal(faux.mergee(1), undefined);
+  writeFileSync(join(clone, ".claude", "brigade", "projet.json"), JSON.stringify({ risk: { publish: "safe" } }));
+  faux.feu(2, [...CALIBRE, "action:publish"]);
+  faux.nonFermees.add(2);
+  await tours(3);
+  assert.notEqual(faux.mergee(2), undefined);
+  // Merged through the gate, the delivery is served: its ticket closed.
+  assert.equal(faux.ticket(2).state, "closed");
+  assert.equal(faux.mergee(1), undefined);
+  assert.deepEqual(gestesEnAttente(repertoire).map(({ line }) => line.slice(0, 3)), ["#1 "], "only the first ticket's merge is parked");
+});
+
+test("a sheet that cannot be read parks the merge for the chef and says why", async (t) => {
+  const { repertoire, faux, tours } = station(t, "fix-typo", "{not json");
+  await tours(3);
+  assert.equal(faux.mergee(1), undefined);
+  assert.match(gestesEnAttente(repertoire)[0]?.line ?? "", /the project sheet cannot be read, so its kind `fix-typo` is taken as ranked 'chef'/);
+});
+
+// brigade:guard
+test("a kind ranked 'safe' still goes through the pass's level, as before: on propose, the merge waits for the chef's OK", async (t) => {
+  const { repertoire, porte, faux, avertissements, tours } = station(t, "fix-typo", {}, "propose");
+  await tours(3);
+  assert.equal(faux.mergee(1), undefined);
+  assert.deepEqual(avertissements.filter((texte) => /refused by GitHub/.test(texte)), []);
+  const [attente] = gestesEnAttente(repertoire);
+  assert.match(attente?.line ?? "", /^merge PR #\d+ of #1$/);
+  await porte.approuver(attente?.id ?? 0);
+  assert.notEqual(faux.mergee(1), undefined);
+});
+
+test("the gate holds a gesture said for the chef whatever its level but observe, and does the others as before", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const porte = porteDesGestes({ repertoire, projet: PROJET, horloge: A9 });
+  const dit = { line: "pay the invoice", reason: "ranked chef", outcome: OUTCOME.HANDED_TO_CHEF };
+  let faits = 0;
+  const faire = () => void (faits += 1);
+  assert.equal((await porte.passer({ agent: "pass", reglable: "pass", auChef: true }, dit, faire)).etat, "held");
+  assert.equal(faits, 0);
+  assert.equal((await porte.passer({ agent: "pass", reglable: "pass" }, { ...dit, line: "merge" }, faire)).etat, "done");
+  assert.equal(faits, 1);
+  magasinDeNiveaux(repertoire).poser(PROJET, "pass", "observe");
+  assert.equal((await porte.passer({ agent: "pass", reglable: "pass", auChef: true }, { ...dit, line: "publish" }, faire)).etat, "observed");
+  assert.equal(faits, 1);
+});
