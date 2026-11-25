@@ -5,7 +5,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Lu, Rendu } from "../../src/box.ts";
-import { brancherLesAgents, changementsLus, interrupteurLu } from "../../src/vue/agents/agents-box.ts";
+import { brancherLesAgents } from "../../src/vue/agents/agents-box.ts";
+import { changementsLus, interrupteurLu } from "../../src/vue/agents/lectures.ts";
 import type { Fiche } from "../../src/vue/agents/fiches.ts";
 import { FAITS, FERMETURE, JOURNAL, SETTING, SWITCH } from "./faits-fixture.ts";
 

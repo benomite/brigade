@@ -9,7 +9,8 @@
 // aucun agent n'est connu, et la vue reçoit `{sans, detail}`. Un changement rend toujours `{ok: true}` ou `{ok: false, reason}`.
 import type { Lu, Rendu } from "../../box.ts";
 import { detailDe, reglagesVus, sansLaCommande } from "../../reglages-du-projet.ts";
-import { fichesDesAgents, valeurDe, type Changements, type Fiche, type Interrupteur, type Manque } from "./fiches.ts";
+import { fichesDesAgents, valeurDe, type Fiche, type Manque } from "./fiches.ts";
+import { changementsLus, interrupteurLu } from "./lectures.ts";
 import { commandeDe, reglableDe } from "./reglables.ts";
 
 type Lancer = (lu: Lu, commande: string) => Promise<Rendu>;
@@ -42,36 +43,6 @@ function jsonDe(sortie: string): unknown {
     }
   }
   return null;
-}
-
-// `switch` : « switch     OFF since 2026-… (by chef) — … » — ou « NOT SET », que rien n'allume ni n'éteint.
-export function interrupteurLu(sortie: string): Interrupteur | Manque {
-  const lu = /^switch\s+(ON|OFF)\s+since\s+(\S+)\s+\(by ([^,)]+)/m.exec(sortie);
-  return lu === null ? { sans: "the project switch is not set, or its answer cannot be read", detail: sortie.trim() } : { on: lu[1] === "ON", since: lu[2] as string, by: (lu[3] as string).trim() };
-}
-
-// `log` : « <seq>  <heure>  <projet>  <ticket>  <type>  <auteur>  <charge> » — la dernière décision posée de chaque réglage, et
-// le dernier plafond de cooks. Une décision retirée n'est plus posée.
-export function changementsLus(sortie: string): Changements {
-  const changements: Changements = new Map();
-  for (const ligne of sortie.split("\n")) {
-    const lu = /^\d+  (\S+)  \S+  \S+  (decision\.set|decision\.withdrawn|station\.capped)  (\S+)  (.*)$/.exec(ligne);
-    if (lu === null) continue;
-    const [, at, type, by, charge] = lu as unknown as [string, string, string, string, string];
-    let payload: unknown = null;
-    try {
-      payload = JSON.parse(charge);
-    } catch {
-      continue;
-    }
-    if (!estObjet(payload)) continue;
-    if (type === "station.capped") changements.set("cooks", { at, by });
-    else if (typeof payload.name === "string") {
-      if (type === "decision.set") changements.set(payload.name, { at, by });
-      else changements.delete(payload.name);
-    }
-  }
-  return changements;
 }
 
 // Les agents du projet : `{sans, detail}` quand rien ne se lit — pas de station, ou pas de faits.

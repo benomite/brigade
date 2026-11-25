@@ -16,7 +16,7 @@ export type Interrupteur = { on: boolean; since: string; by: string };
 // Ce qu'une décision du chef a changé en dernier : quand, et par qui le journal l'écrit.
 export type Changement = { at: string; by: string };
 export type Changements = Map<string, Changement>;
-export type Lectures = {
+type Lectures = {
   maintenant: Date;
   faits: Record<string, unknown>;
   reglages: ReglagesVus | Manque;

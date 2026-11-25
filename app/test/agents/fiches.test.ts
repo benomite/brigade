@@ -4,10 +4,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { reglagesVus } from "../../src/reglages-du-projet.ts";
-import { fichesDesAgents, type Fiche, type Lectures } from "../../src/vue/agents/fiches.ts";
-import { changementsLus, interrupteurLu } from "../../src/vue/agents/agents-box.ts";
+import { fichesDesAgents, type Fiche } from "../../src/vue/agents/fiches.ts";
+import { changementsLus, interrupteurLu } from "../../src/vue/agents/lectures.ts";
 import { FAITS, FERMETURE, JOURNAL, MAINTENANT, SETTING, SWITCH, SWITCH_ETEINT } from "./faits-fixture.ts";
 
+type Lectures = Parameters<typeof fichesDesAgents>[0];
 const lectures = (plus: Partial<Lectures> = {}): Lectures => ({
   maintenant: MAINTENANT,
   faits: FAITS,

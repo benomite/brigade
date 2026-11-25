@@ -2,7 +2,7 @@
 // second juge, le triage, le closer, le superviseur —, ce qu'il fait, son état, ses chiffres des sept derniers jours avec leur sens,
 // ses réglages et, pour le closer, ce qu'il voit sur la base en mots simples. Les fiches sont composées, comme le process
 // principal les compose, de ce que les commandes du runtime rendent dans la fixture du test (app/test/agents/faits-fixture.ts).
-import { changementsLus, interrupteurLu } from "../../../app/src/vue/agents/agents-box.ts";
+import { changementsLus, interrupteurLu } from "../../../app/src/vue/agents/lectures.ts";
 import { fichesDesAgents } from "../../../app/src/vue/agents/fiches.ts";
 import { reglagesVus } from "../../../app/src/reglages-du-projet.ts";
 import { FAITS, FERMETURE, JOURNAL, SETTING, SWITCH } from "../../../app/test/agents/faits-fixture.ts";

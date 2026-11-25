@@ -13,7 +13,7 @@ import { BANNIERE, tenirFaits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { tenirLesAgents, momentUtc } from "../../src/vue/agents/agents.js";
+import { tenirLesAgents } from "../../src/vue/agents/agents.js";
 import { source, type Agent } from "../../src/vue/agents/source.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
@@ -182,13 +182,13 @@ test("figures that the agent keeps are shown with their meaning, and an agent wi
   assert.equal((cadre.textContent.match(/Last 7 days/g) ?? []).length, 2);
 });
 
-test("a broken agent is marked, and an instant is told in UTC to the minute", async () => {
-  faux(async () => [agent("supervisor", { state: "broken: its log cannot be read" }), agent("closer")]);
+test("a broken agent is marked, and an instant is told in UTC to the minute — one that is not a date as it was written", async () => {
+  faux(async () => [agent("supervisor", { state: "broken: its log cannot be read" }), agent("closer", { settings: [{ key: "a", label: "Cap", value: "1", editable: false, changedAt: "2026-11-25T12:10:33.000Z" }, { key: "b", label: "Cut", value: "2", editable: false, changedAt: "yesterday", changedBy: "the second" }] })]);
   const { cadre } = await bloc();
   const marques = cadre.dessous("section").filter((un) => un.dataset.etat === "casse").map((un) => un.dataset.agent);
   assert.deepEqual(marques, ["supervisor"]);
-  assert.equal(momentUtc("2026-11-25T12:10:33.000Z"), "2026-11-25 12:10 UTC");
-  assert.equal(momentUtc("yesterday"), "yesterday");
+  assert.match(cadre.textContent, /changed 2026-11-25 12:10 UTC(?!by)/);
+  assert.match(cadre.textContent, /changed yesterday by the second/);
 });
 
 test("a badge of the team opens the Agents tab on its agent, its thread open, and keeps opening its own thread; a cook opens the cooks", async () => {

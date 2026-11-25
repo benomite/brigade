@@ -55,7 +55,7 @@ const seLit = (lus) => Array.isArray(lus) && lus.every((un) => FORME.every((port
 
 // Un instant, à la minute, en UTC comme le reste de l'app : `2026-11-25 12:10 UTC`.
 /** @param {string} iso */
-export const momentUtc = (iso) => (Number.isNaN(Date.parse(iso)) ? iso : `${new Date(iso).toISOString().slice(0, 10)} ${heureUtc(iso)}`);
+const momentUtc = (iso) => (Number.isNaN(Date.parse(iso)) ? iso : `${new Date(iso).toISOString().slice(0, 10)} ${heureUtc(iso)}`);
 
 /** @param {Error | unknown} erreur */
 const detailDe = (erreur) => {
