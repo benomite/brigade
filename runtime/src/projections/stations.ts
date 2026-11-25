@@ -634,7 +634,8 @@ export function etatStation(base: Base, station: string): EtatStation | null {
 // its tickets waited for a place, while its 15-minute load average, read as
 // it served, stood near 2.3 of its 8 cores (#3560). The machine itself is
 // the bound past the first cook: no take while it runs short of processor,
-// memory or disk (`machine.ts`, read by the turn's guards).
+// memory or disk (`machine.ts`, read by the turn's guards) — and the first
+// cook waits while the load is over its limit (`admission-charge`, #4210).
 export const plafondDesCoeurs = (coeurs: number): number => Math.max(1, coeurs - 2);
 
 type ReglesDuPlafond = Pick<EtatStation, "maxCooks" | "cores" | "cap">;
