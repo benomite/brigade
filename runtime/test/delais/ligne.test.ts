@@ -21,9 +21,9 @@ function clone(t: TestContext, contenu?: string): string {
 }
 
 test("the line says the share, how many, and the median, rounded to the tenth", () => {
-  assert.equal(direLeDelai({ nombre: 2, part: 0.5, medianeMin: 16.5 }), "taken→merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min");
-  assert.equal(direLeDelai({ nombre: 3, part: 2 / 3, medianeMin: 7.04 }), "taken→merged 24 h: 67% in 10 min or less (2 of 3), median 7 min");
-  assert.equal(direLeDelai({ nombre: 0, part: null, medianeMin: null }), "taken→merged 24 h: no merged ticket in the last 24 h");
+  assert.equal(direLeDelai({ nombre: 2, part: 0.5, medianeMin: 16.5 }), "taken-to-merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min");
+  assert.equal(direLeDelai({ nombre: 3, part: 2 / 3, medianeMin: 7.04 }), "taken-to-merged 24 h: 67% in 10 min or less (2 of 3), median 7 min");
+  assert.equal(direLeDelai({ nombre: 0, part: null, medianeMin: null }), "taken-to-merged 24 h: no merged ticket in the last 24 h");
 });
 
 test("`status` prints the line from the ticket times of the clone", (ctx) => {
@@ -32,14 +32,14 @@ test("`status` prints the line from the ticket times of the clone", (ctx) => {
   journal.ajouter({ project: "parade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   journal.fermer();
   const depot = clone(ctx, JSON.stringify({ tickets: ENREGISTREMENTS }));
-  const lignes = photoDuProjet({ BRIGADE_STATE_DIR: etat, BRIGADE_REPO_DIR: depot }, { maintenant: A }).filter((l) => l.startsWith("taken→merged"));
+  const lignes = photoDuProjet({ BRIGADE_STATE_DIR: etat, BRIGADE_REPO_DIR: depot }, { maintenant: A }).filter((l) => l.startsWith("taken-to-merged"));
   ctx.diagnostic(lignes.join(" | "));
-  assert.deepEqual(lignes, ["taken→merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min"]);
+  assert.deepEqual(lignes, ["taken-to-merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min"]);
 });
 
 test("no file of times: no merged ticket; an unreadable file or no clone: not known, never a made-up figure", (ctx) => {
-  assert.equal(ligneDuDelaiDePrise(clone(ctx), A), "taken→merged 24 h: no merged ticket in the last 24 h");
-  assert.equal(ligneDuDelaiDePrise(clone(ctx, "{ not json"), A), "taken→merged 24 h: not known — the ticket times of the clone cannot be read");
-  assert.equal(ligneDuDelaiDePrise(clone(ctx, '{ "autre": 1 }'), A), "taken→merged 24 h: not known — the ticket times of the clone cannot be read");
-  assert.equal(ligneDuDelaiDePrise(undefined, A), "taken→merged 24 h: not known — the ticket times of the clone cannot be read");
+  assert.equal(ligneDuDelaiDePrise(clone(ctx), A), "taken-to-merged 24 h: no merged ticket in the last 24 h");
+  assert.equal(ligneDuDelaiDePrise(clone(ctx, "{ not json"), A), "taken-to-merged 24 h: not known — the ticket times of the clone cannot be read");
+  assert.equal(ligneDuDelaiDePrise(clone(ctx, '{ "autre": 1 }'), A), "taken-to-merged 24 h: not known — the ticket times of the clone cannot be read");
+  assert.equal(ligneDuDelaiDePrise(undefined, A), "taken-to-merged 24 h: not known — the ticket times of the clone cannot be read");
 });

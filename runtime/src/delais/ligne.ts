@@ -3,7 +3,7 @@
 import { lireLesEvenements } from "./evenements.ts";
 import { type MesureDesDelais, mesurerLesDelais, SEUIL_MIN } from "./mesure.ts";
 
-const ETIQUETTE = "taken→merged 24 h:";
+const ETIQUETTE = "taken-to-merged 24 h:";
 
 const dixieme = (v: number) => Math.round(v * 10) / 10;
 

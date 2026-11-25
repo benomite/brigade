@@ -397,8 +397,8 @@ rewritten as the object at the next merge. Records of before #2662 have no `depu
 **Taken to merged, over 24 hours** (#4299, epic #4298; `runtime/src/delais/`). From the same records, each merged
 ticket's time runs from its claim — the first "Taken by station" its issue carries (`priseAt`), else the first phase
 the station saw (`claimedAt`) — to its merge (`mergedAt`). `brigade <project> status` prints one line on the tickets
-merged in the last 24 hours: `taken→merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min`, or
-`taken→merged 24 h: no merged ticket in the last 24 h`; a times file that cannot be read says `not known`. The app's
+merged in the last 24 hours: `taken-to-merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min`, or
+`taken-to-merged 24 h: no merged ticket in the last 24 h`; a times file that cannot be read says `not known`. The app's
 kitchen view shows the same line, computed by the same code on the times the stations publish. After each merge, the
 station posts on the issue of each ticket merged in the last 24 hours more than 10 minutes after its claim one comment
 (marked `<!-- brigade:delai-de-prise -->`) with that time split into cook, gates, review, send-backs and waits, in

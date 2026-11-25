@@ -21,13 +21,13 @@ import type { Terminal } from "../../src/terminaux.ts";
 import { type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const MAINTENANT = Date.parse("2026-11-25T12:00:00.000Z");
-const LIGNE = "taken→merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min";
+const LIGNE = "taken-to-merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min";
 const BOX: StationVue = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
 const PARADE: ProjetDemande = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: null };
 
 test("the published ticket times give the same line as `status`", () => {
   assert.equal(delaiDuProjet({ enregistrements: ENREGISTREMENTS }, new Date(MAINTENANT)), LIGNE);
-  assert.equal(delaiDuProjet({ enregistrements: [] }, new Date(MAINTENANT)), "taken→merged 24 h: no merged ticket in the last 24 h");
+  assert.equal(delaiDuProjet({ enregistrements: [] }, new Date(MAINTENANT)), "taken-to-merged 24 h: no merged ticket in the last 24 h");
 });
 
 async function lire(temps: object | undefined): Promise<ProjetVu | undefined> {
