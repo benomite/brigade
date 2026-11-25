@@ -111,7 +111,7 @@ export function ouvrirLesZones({ github, maintenant = () => new Date(), consigne
         if (pourquoi === null) continue;
         const { number, auteur, liberee = false } = bloque.pr;
         if (!liberee && !liberees.has(number)) lignes.push(...(await liberer(bloque, pourquoi)));
-        if (auteur === "human" && (liberee || liberees.has(number)) && !cartes.has(number)) lignes.push(...(await demanderAuChef(bloque)));
+        if (auteur !== "human" && (liberee || liberees.has(number)) && !cartes.has(number)) lignes.push(...(await demanderAuChef(bloque)));
       }
       return lignes;
     },
