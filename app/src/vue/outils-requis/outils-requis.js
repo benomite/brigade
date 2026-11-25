@@ -4,7 +4,7 @@
 // second et le login Max. Un pas qui en demande un le vérifie d'abord (`outilsManquants`, outils-requis.ts) ; s'il
 // manque, ce pas cède la place à cet écran, au même endroit : le produit nommé — le binaire au détail —, pourquoi
 // l'app en a besoin en une phrase, un lien vers sa page d'installation officielle, et « I installed it », qui relit.
-// L'app n'installe rien (#4266) : installer est l'affaire du chef. L'outil trouvé, le pas revient tel qu'il était —
+// L'app n'installe rien (ticket 4266) : installer est l'affaire du chef. L'outil trouvé, le pas revient tel qu'il était —
 // rien n'est relancé à la place du chef. Un outil toujours absent se dit en une ligne, et l'offre reste.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
