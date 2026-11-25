@@ -132,6 +132,7 @@ import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
 import { monterLesRecurrents, serviceDesRecurrents } from "./recurrents/recurrents.js";
+import { monterLaFicheProjet } from "./fiche-projet/fiche-projet.js";
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
@@ -9093,6 +9094,7 @@ async function ouvrir(projet) {
   void lireLesReglages(projet);
   void monterLesHumains(document, element("humains-du-projet"), { projet: projet.nom, service: serviceDuPont(brigade, projet.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
   void monterLesRecurrents(document, element("recurrents-du-projet"), { projet: projet.nom, service: serviceDesRecurrents(brigade, projet.nom) });
+  void monterLaFicheProjet(document, element("fiche-du-projet"), { projet: projet.nom, pont: brigade });
   poserLesExplicationsDuChef(projet.nom);
   void explications.lire(projet.nom);
   void monterLesStations(document, element("stations-contributrices"), { projet: projet.nom, service: serviceDesStations(brigade, projet.nom) });
