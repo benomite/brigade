@@ -51,8 +51,8 @@ Related terms built on « cuisine »:
 | `servi` / `Livré` | `served` / `Served` | The ticket is merged and served |
 | `livrés 24 h` | `served 24 h` | Counter of the project card |
 | `BLOQUÉ` | `BLOCKED` | What the ticket waited for was dropped |
-| `WAITING` | `WAITING` | Parked for a third party, not for you; the kitchen does not take it. A passed follow-up date does not bring it to your TODO (#4261) |
-| — | `parked` | One state for everything that waits: who, for what, until when ([simplified process](superpowers/specs/2026-11-24-simplified-process.md), rule 13). A parked card stays in the column where it waits and says who it waits for and until when; no Waiting column (#4238). A ticket that waits for the chef is parked for the chef — for its question, with no date — and the chef's TODO is those tickets, and nothing else (#4261) |
+| `WAITING` | `WAITING` | Waiting for a third party, not for you; the kitchen does not take it |
+| — | `parked` | One state for everything that waits: who, for what, until when ([simplified process](superpowers/specs/2026-11-24-simplified-process.md), rule 13). A parked card stays in the column where it waits and says who it waits for and until when; no Waiting column (#4238). A ticket that waits for the chef is parked for the chef — for its question, with no date — and the chef's TODO is those tickets, and nothing else: a ticket in WAITING is parked for a third party, and a passed follow-up date does not bring it to the TODO (#4261) |
 | `second` | `second` | Your product assistant, who helps you write the tickets |
 | `abandonné` | `dropped` | A ticket left the rail without being served |
 | `pas sur le rail` | `off the rail` | Ticket the manager does not serve |
