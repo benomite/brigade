@@ -31,7 +31,7 @@ export type OptionsPlafondEssais = {
   chef?: { demanderAttente: () => void; creerCarteTodo: () => void };
 };
 
-export function corpsDuPlafond(plafond: number, total: number, echec: string): string {
+function corpsDuPlafond(plafond: number, total: number, echec: string): string {
   return `Station: this ticket reached its hard cap of ${plafond} tries, rewrites included (${total} tries so far). The system stopped it: it is not launched again, and nothing is asked of the chef.\n\nLast failure: ${echec}`;
 }
 

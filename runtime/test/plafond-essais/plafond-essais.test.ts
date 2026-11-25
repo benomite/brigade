@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PLAFOND_ESSAIS, corpsDuPlafond, creerPlafondEssais } from "../../src/plafond-essais/index.ts";
+import { PLAFOND_ESSAIS, creerPlafondEssais } from "../../src/plafond-essais/index.ts";
 
 const monter = (plafond: number) => {
   const arrets: number[] = [];
@@ -47,8 +47,11 @@ test("a try past the cap still stops the ticket", async () => {
   assert.equal(p.peutLancer(2), false);
 });
 
-test("the comment says the cap, the count and the last failure, in English", () => {
-  const corps = corpsDuPlafond(12, 12, "red CI");
+test("the comment says the cap, the count and the last failure, in English", async () => {
+  const { p, commentaires } = monter(12);
+  p.amorcer(1, 11);
+  await p.enregistrerEssai(1, { echec: "red CI" });
+  const corps = commentaires[0];
   assert.match(corps, /hard cap of 12 tries/);
   assert.match(corps, /\(12 tries so far\)/);
   assert.match(corps, /Last failure: red CI$/);
