@@ -42,10 +42,10 @@ function faux({
 }: { lire?: () => Promise<unknown>; reglages?: (id: string) => Promise<unknown>; changer?: (id: string, key: string, value: unknown) => Promise<unknown>; gestes?: (id: string) => Promise<unknown> } = {}) {
   const appels: unknown[][] = [];
   Object.assign(source, {
-    lire: () => (appels.push(["lire"]), lire()),
-    reglages: (id: string) => (appels.push(["reglages", id]), reglages(id)),
-    changer: (id: string, key: string, value: unknown) => (appels.push(["changer", id, key, value]), changer(id, key, value)),
-    gestes: (id: string) => (appels.push(["gestes", id]), gestes(id)),
+    lire: (projet: string) => (appels.push(["lire", projet]), lire()),
+    reglages: (projet: string, id: string) => (appels.push(["reglages", projet, id]), reglages(id)),
+    changer: (projet: string, id: string, key: string, value: unknown) => (appels.push(["changer", projet, id, key, value]), changer(id, key, value)),
+    gestes: (projet: string, id: string) => (appels.push(["gestes", projet, id]), gestes(id)),
   });
   return appels;
 }
@@ -73,7 +73,7 @@ test("a reading that is not a list, or an agent whose figure has no meaning, say
     const { element } = await bloc();
     assert.match(element.textContent, /^The agents' reading is not readable/, JSON.stringify(lu));
     assert.deepEqual(element.dessous("article"), []);
-    assert.deepEqual(appels, [["lire"]], "aucun réglage n'est lu pour une lecture illisible");
+    assert.deepEqual(appels, [["lire", "parade"]], "aucun réglage n'est lu pour une lecture illisible");
   }
 });
 
@@ -134,9 +134,9 @@ test("a change sends the value in its kind — a number for a limit, the text fo
   assert.deepEqual(
     appels.filter(([quoi]) => quoi === "changer"),
     [
-      ["changer", "a1", "maxTurns", 25],
-      ["changer", "a1", "note", "bye"],
-      ["changer", "a1", "paused", true],
+      ["changer", "parade", "a1", "maxTurns", 25],
+      ["changer", "parade", "a1", "note", "bye"],
+      ["changer", "parade", "a1", "paused", true],
     ],
   );
   for (const saisie of ["", "twelve"]) {
@@ -245,6 +245,6 @@ test("the project remembers the Agents tab: reopened, it opens on it and reads i
   stockage.setItem("brigade.onglets-des-projets", JSON.stringify({ parade: "agents" }));
   const vue = await ouvrir(stockage);
   assert.equal(vue.element("rail").dataset.onglet, "agents");
-  assert.deepEqual(appels.slice(0, 1), [["lire"]]);
+  assert.deepEqual(appels.slice(0, 1), [["lire", "parade"]]);
   assert.equal(vue.element("onglets-du-projet").children.find(({ textContent }) => textContent === "Agents")?.ariaSelected, "true");
 });

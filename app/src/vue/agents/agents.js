@@ -84,6 +84,7 @@ export function tenirLesAgents(doc, { valeurs = () => ({ modeles: [], efforts: [
   const element = doc.createElement("section");
   element.className = "agents";
   element.ariaLabel = TITRE;
+  // Le projet dont l'onglet montre les agents : sa box répond (source.js).
   /** @type {string | undefined} */
   let projet;
   /** @type {Agent[] | null} */
@@ -113,7 +114,7 @@ export function tenirLesAgents(doc, { valeurs = () => ({ modeles: [], efforts: [
     gestes = null;
     const la = ++demande;
     void Promise.resolve()
-      .then(() => source.lire())
+      .then(() => source.lire(nom))
       .then(
         (lus) => {
           if (la !== demande) return;
@@ -135,7 +136,7 @@ export function tenirLesAgents(doc, { valeurs = () => ({ modeles: [], efforts: [
   /** @param {string} id @param {number} la */
   const lireLesReglages = (id, la) => {
     void Promise.resolve()
-      .then(() => source.reglages(id))
+      .then(() => source.reglages(String(projet), id))
       .then(
         (lus) => {
           const champs = /** @type {{ fields?: unknown } | null | undefined} */ (lus)?.fields;
@@ -255,7 +256,7 @@ export function tenirLesAgents(doc, { valeurs = () => ({ modeles: [], efforts: [
     envoyees.set(cle, valeur);
     rendre();
     void Promise.resolve()
-      .then(() => source.changer(agent.id, champ.key, valeur))
+      .then(() => source.changer(String(projet), agent.id, champ.key, valeur))
       .then(
         (rendu) => {
           dits.delete(cle);
@@ -277,7 +278,7 @@ export function tenirLesAgents(doc, { valeurs = () => ({ modeles: [], efforts: [
     rendre();
     if (ouvert === null) return;
     void Promise.resolve()
-      .then(() => source.gestes(id))
+      .then(() => source.gestes(String(projet), id))
       .then(
         (lus) => void (gestes = listeDe(lus, GESTE) ? /** @type {Geste[]} */ (lus) : { ligne: ILLISIBLE("Its gestures' reading"), detail: JSON.stringify(lus ?? null).slice(0, 400) }),
         (/** @type {unknown} */ erreur) => void (gestes = { ligne: NON_ATTEINT("its gestures"), detail: detailDe(erreur) }),

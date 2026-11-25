@@ -1002,8 +1002,13 @@ Stations. It shows **one card per agent** that the runtime returns, read when th
 - **A click on the agent's name opens its last gestures** (`GET /api/agents/:id/gestures`), newest first, one line
   each with its reason, its time and its issue; an agent with none says `No gesture yet.` A second click closes them.
 
-The view reads the runtime through one module, `app/src/vue/agents/source.js`, by these paths, on the address the
-view is served from; two other tickets of the epic build them. A reading that fails says it in one line (`The agents
+The view reads the runtime through one module, `app/src/vue/agents/source.js`, by these paths. The window is a
+`file://` page, so it asks them on the `brigade-agents:` scheme, with the project shown in `?project=`; the main
+process serves that scheme (`app/src/agents-de-la-box.ts`) by running the runtime's commands where the project's
+kitchen runs, through its passage like the other readings: `agents` for `/api/agents` and `agents
+/api/agents/<id>/gestures`, `agent-settings <id>` for the settings, and `agent-settings <id> set <key> <value> --by
+chef` for a change. A refusal keeps the runtime's reason and status (400 for a refused value); a project that does not
+cook on this computer answers 503 and says so; an answer that cannot be read is 502, never an empty list. A reading that fails says it in one line (`The agents
 not reached.`, `Its settings not reached.`), and a reading missing a field says it is not readable: no value is made
 up. This tab replaces **the closer's figures** that the project view used to show: the lines a closing pass removed
 and added, in Settings, and the `Closer` row of All projects with the page of the added / removed ratio of all projects
