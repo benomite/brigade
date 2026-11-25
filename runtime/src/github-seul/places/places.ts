@@ -11,8 +11,9 @@
 // plafond du chef s'il en a réglé un (0 : sans limite), sinon son défaut — le même qu'avant. Un journal qui ne se lit pas
 // garde le défaut, et le dit une fois.
 import { availableParallelism } from "node:os";
+import { plafondAdmis } from "../../admission-charge/admission-charge.ts";
 import type { Journal } from "../../journal.ts";
-import { etatStation, plafondDesCoeurs } from "../../projections/stations.ts";
+import { etatStation } from "../../projections/stations.ts";
 import type { StationDeclaree } from "../../stations-declarees.ts";
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -28,7 +29,8 @@ export function placesDeLaStation(journal: Pick<Journal, "ajouter" | "base">, pr
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const coeurs = options.coeurs ?? availableParallelism();
   // Pas plus de cooks que la machine n'en porte, tant que le chef n'a rien réglé : une station déclarée à 30 en tiendrait 30.
-  const defaut = Math.min(station.cooks, plafondDesCoeurs(coeurs));
+  // C'est le plafond que l'admission à la charge tient aussi (#4210).
+  const defaut = Math.min(station.cooks, plafondAdmis(coeurs));
   try {
     journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "station.announced", payload: { station: station.nom, engine: station.moteur, provides: station.fournit, maxCooks: station.cooks, cores: coeurs } });
   } catch (erreur) {
