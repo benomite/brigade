@@ -128,3 +128,30 @@ test("a take that fails is said, and the turn goes on: nothing else fails with i
   await laisserReveiller(3);
   assert.deepEqual(avertissements.filter((m) => !/#30 not taken from the backlog — gh api : HTTP 502/.test(m)), []);
 });
+
+// Une issue rejugée pendant le tour — son corps a changé depuis son refus — se prend à la fin de ce même tour, dans la
+// place que la prise du début du tour a laissée : celle qu'elle a prise n'a pas encore `fire` dans le sondage.
+test("an issue judged again during the round is taken at its end, in the room the round's first take left", async (t) => {
+  const rejugee = (places: number) => {
+    const c = brigade(t, { issues: [issue(30, []), issue(31, [])], refusees: [30], manager: { freeRoom: (ouvertes) => placeLibre({ places, enCuisine: 0, ouvertes }) } });
+    c.gh.decrire(30, { body: "The breaker opens too late." });
+    // Le sondage pendant lequel chaque `fire` est posé.
+    const feux: Array<[number, number]> = [];
+    const labelliser = c.gh.github.labelliser.bind(c.gh.github);
+    c.gh.github.labelliser = async (numero, labels) => {
+      if (labels.includes("fire")) feux.push([numero, c.gh.sondages.ouvertes]);
+      await labelliser(numero, labels);
+    };
+    return { ...c, feux };
+  };
+
+  const une = rejugee(1);
+  await jusqua(() => une.faits(30).filter((type) => type === "manager.judged").length === 2 && une.labels(31).includes("fire"));
+  await une.laisserReveiller(3);
+  assert.deepEqual(une.feux, [[31, 1]]);
+  assert.ok(!une.labels(30).includes("fire"));
+
+  const deux = rejugee(2);
+  await jusqua(() => deux.labels(30).includes("fire") && deux.labels(31).includes("fire"));
+  assert.deepEqual(deux.feux, [[31, 1], [30, 1]]);
+});

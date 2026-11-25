@@ -1068,16 +1068,15 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // puis la plus ancienne (`prise-backlog/prise-backlog.ts`), la calibre de son jugement, y pose `fire`, et presse la
   // station. Avant, il posait `fire` et le calibrage sur chaque issue dès son jugement, place ou non. Les labels du
   // sondage peuvent dater d'un jugement : l'issue choisie se relit avant d'écrire, et le choix repasse sur ce qu'elle
-  // porte. Ce qui échoue est dit, et repris au tour suivant. Rend les issues prises : le sondage ne dit pas ce qui y
-  // est posé.
-  const prendreDuBacklog = async (ouvertes: readonly IssueOuverte[]): Promise<Set<number>> => {
-    const prises = new Set<number>();
+  // porte. Ce qui échoue est dit, et repris au tour suivant. `prises` : celles que ce tour a déjà prises — le sondage
+  // ne dit pas ce qui y est posé, et chacune tient déjà une place.
+  const prendreDuBacklog = async (ouvertes: readonly IssueOuverte[], prises: Set<number>): Promise<void> => {
     let place: number;
     try {
-      place = options.freeRoom === undefined ? Number.POSITIVE_INFINITY : options.freeRoom(ouvertes);
+      place = (options.freeRoom === undefined ? Number.POSITIVE_INFINITY : options.freeRoom(ouvertes)) - prises.size;
     } catch (erreur) {
       if (!arrete) avertir(`brigade : le manager ne prend rien du backlog à ce tour — la place de la cuisine ne se lit pas — ${message(erreur)}`);
-      return prises;
+      return;
     }
     const relues = new Map<number, IssueOuverte | null>();
     const attendLaPrise = (issue: IssueOuverte) => {
@@ -1093,14 +1092,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const posees = new Map<number, string[]>();
     while (!arrete) {
       const choisie = choisirSuivante({ backlog: backlog(), freeRoom: place });
-      if (choisie === null) return prises;
+      if (choisie === null) return;
       if (!relues.has(choisie.number)) {
         try {
           const fraiche = await github.issue(choisie.number);
           relues.set(choisie.number, fraiche?.state === "open" ? { ...choisie, labels: fraiche.labels } : null);
         } catch (erreur) {
           if (!arrete) avertir(`brigade : #${choisie.number} not taken from the backlog — its labels could not be read again — ${message(erreur)}`);
-          return prises;
+          return;
         }
         continue;
       }
@@ -1127,14 +1126,13 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         startCook: async () => options.surLeRail?.(),
         avertir: (texte) => void (arrete || avertir(texte)),
       });
-      if (prise === null) return prises;
+      if (prise === null) return;
       prises.add(prise.number);
       place--;
       // Prise : le manager dit sur l'issue ce qu'il y a posé, et pourquoi ce calibrage. Raté, le tour suivant le redit.
       const labels = issueDuManager(base, prise.number)?.labels ?? [];
       await appliquer({ ...prise, labels: [...prise.labels, ...labels] });
     }
-    return prises;
   };
 
   // Une issue que le manager n'a jamais vue, et que le code laisse à juger :
@@ -1221,9 +1219,15 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // les issues déjà vues : une épique dont tous les tickets sont fermés se
     // ferme, et ce tour ne la sert plus (#2618).
     const vues = sondage.inchange ? confirmees : sondage.issues;
-    // Les neuves jugées, le manager prend du backlog ce que la cuisine a de place pour (#4221).
-    // Une issue prise, ce tour ne la sert plus : ses labels du sondage n'ont ni `fire` ni son calibrage.
-    if (vues !== null) for (const prise of await prendreDuBacklog(vues.filter(lisible))) faites.add(prise);
+    // Les neuves jugées, le manager prend du backlog ce que la cuisine a de place pour (#4221), puis encore à la fin
+    // du tour, pour celles que le tour a complétées ou rejugées. Une issue prise, ce tour ne la sert plus : ses labels
+    // du sondage n'ont ni `fire` ni son calibrage.
+    const prisesDuTour = new Set<number>();
+    const prendre = async (liste: readonly IssueOuverte[]) => {
+      await prendreDuBacklog(liste.filter(lisible), prisesDuTour);
+      for (const prise of prisesDuTour) faites.add(prise);
+    };
+    if (vues !== null) await prendre(vues);
     if (arrete) return;
     const terminees = vues === null ? new Set<number>() : await decoupage.suivre(vues.filter(lisible));
     if (arrete) return;
@@ -1250,6 +1254,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       if (!(await servirLesNeuves(await resonder()))) return;
       if (!(await servirLa(sondee))) return;
     }
+    await prendre(issues);
     if (arrete || !complet) return;
     // Ce qu'un tour complet laisse en attente n'a plus rien à attendre du
     // manager : l'issue est fermée, ou le chef l'a relancée lui-même.

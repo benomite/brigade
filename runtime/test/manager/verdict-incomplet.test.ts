@@ -48,11 +48,12 @@ describe("un verdict incomplet", { concurrency: 8 }, () => {
     chef(c.repertoire, "manager.enabled");
     await jusqua(() => numeros.every((numero) => gh.lire(numero)?.labels.includes("fire")));
 
-    // Un seul tour : le premier sondage, et rien n'est rejugé.
-    assert.deepEqual(poses, [[2672, 1], [2689, 1]]);
+    // Un seul tour : le premier sondage, et rien n'est rejugé. Complétée, chacune est prise du backlog au même tour
+    // (#4221) : son calibrage, puis `fire`.
+    assert.deepEqual(poses, [[2672, 1], [2672, 1], [2689, 1], [2689, 1]]);
     assert.equal(c.lancements().length, 2);
     for (const numero of numeros) {
-      assert.deepEqual(gh.lire(numero)?.labels, ["fire", "model:sonnet", "effort:medium"]);
+      assert.deepEqual(gh.lire(numero)?.labels, ["model:sonnet", "effort:medium", "fire"]);
       assert.equal(issueDuManager(c.journal.base, numero)?.decision, "fire");
       assert.equal((c.dernier("manager.completed", numero) as { outcome: string }).outcome, "completed");
       // Les critères sont réécrits, le contexte et les notes de l'auteur gardés.
