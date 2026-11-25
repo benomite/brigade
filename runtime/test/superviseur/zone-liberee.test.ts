@@ -265,3 +265,14 @@ test("a stopped kitchen releases nothing", async (t) => {
   await new Promise((resoudre) => setTimeout(resoudre, 50));
   assert.deepEqual([p.ecrit.labels, p.ecrit.creees], [[], []]);
 });
+
+test("a release that cannot even read the held zones is said, and the rest of the wake goes on", async (t) => {
+  const p = branche(t);
+  await p.lire();
+  p.tour.zonesTenues = () => {
+    throw new Error("tour gone");
+  };
+  p.reveiller();
+  await jusqua(() => p.dits.length > 0);
+  assert.deepEqual(p.dits, ["supervisor on shop: the zones held by stale PRs were not read — tour gone"]);
+});
