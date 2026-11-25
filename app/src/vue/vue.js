@@ -186,6 +186,7 @@ import { poserAjout, poserBlocDesProjets } from "./accueil/projets/BlocDesProjet
 import { poserBlocDeLaPromesse } from "./accueil/promesse/BlocDeLaPromesse.js";
 import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js";
+import { tenirLeSavoir } from "./know-how/know-how.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserBlocTempsDeLaPasse } from "./projet/bandeau-sante/TempsDeLaPasse.js";
 import { poserBlocPostMortems } from "./projet/bandeau-sante/PostMortems.js";
@@ -7154,6 +7155,15 @@ const candidatsOuverts = new Set();
 // Les chiffres d'autonomie de chaque projet (autonomie/chiffres.js, ticket 3222), dans sa section, lus de GitHub.
 /** @type {Map<string, ReturnType<typeof tenirLesChiffresDAutonomie>>} */
 const autonomieDesProjets = new Map();
+// Le savoir-faire du projet (know-how/, ticket 4239), dans la même section : lu sur GitHub par le process principal.
+/** @type {Map<string, ReturnType<typeof tenirLeSavoir>>} */
+const savoirDesProjets = new Map();
+/** @param {Projet} projet */
+function savoirDuProjet(projet) {
+  const tenu = savoirDesProjets.get(projet.nom) ?? tenirLeSavoir(document, { lire: () => brigade.savoirDuProjet(projet.nom), changer: (changement) => brigade.changerLeSavoir(projet.nom, changement), ouvrir: (url) => void brigade.ouvrirLaProposition(url), reposer: (garder) => reposerLaSante(projet, garder) });
+  savoirDesProjets.set(projet.nom, tenu);
+  return tenu;
+}
 /** @param {Projet} projet */
 function autonomieDuProjet(projet) {
   const tenue = autonomieDesProjets.get(projet.nom) ?? tenirLesChiffresDAutonomie(document, { lire: (jours) => brigade.lireAutonomie([projet.nom], jours), ouvrir: ouvrirTicketDAutonomie });
@@ -7170,7 +7180,7 @@ function postMortemsDe(projet) {
 /** @param {Projet} projet @param {boolean} [garder] */
 function poserLeBandeauDeSante(projet, garder = true) {
   const tape = /** @type {HTMLElement | null} */ (document.activeElement);
-  if (garder && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"]') && bandeauSante.contains(tape)) return;
+  if (garder && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"], [data-bloc="know-how"]') && bandeauSante.contains(tape)) return;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
   etatsDesPlafonds.set(projet.nom, etats);
@@ -7189,6 +7199,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
       ouvrir: (url) => void brigade.ouvrirLaProposition(url),
     }),
     poserLeCloserDeSante(projet),
+    savoirDuProjet(projet).poser(),
     poserBlocTempsDeLaPasse(document, vu?.temps),
     autonomieDuProjet(projet).poser(),
     poserBlocPostMortems(document, postMortemsDe(projet)),

@@ -1,0 +1,68 @@
+/* The project know-how, a section of Settings (#4239, know-how.js): one part per section of the file, its title and its
+   count, then one row per entry — its text, its source ticket, Edit and Remove; under a row, what its last change returned. */
+[data-bloc="know-how"] .section-du-savoir {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  padding-top: var(--pas-3);
+}
+[data-bloc="know-how"] .section-du-savoir > h4,
+#rail [data-bloc="know-how"] .section-du-savoir > h4 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  font-size: var(--taille-corps);
+  font-weight: 600;
+  color: var(--discret);
+}
+[data-bloc="know-how"] .section-du-savoir > h4 > .compte {
+  font-weight: 400;
+  color: var(--texte-doux);
+}
+[data-bloc="know-how"] ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-bloc="know-how"] li.entree-du-savoir {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16ch auto;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-1) 0;
+  color: var(--texte);
+  border-top: 1px solid var(--trait-doux);
+  overflow-wrap: anywhere;
+}
+[data-bloc="know-how"] li.entree-du-savoir > .ticket {
+  color: var(--texte-doux);
+}
+[data-bloc="know-how"] li.entree-du-savoir > .ticket.sans {
+  font-style: italic;
+  color: var(--discret);
+}
+[data-bloc="know-how"] li.entree-du-savoir > .gestes {
+  display: flex;
+  gap: var(--pas-1);
+  white-space: nowrap;
+}
+[data-bloc="know-how"] li.entree-du-savoir > input[type="text"] {
+  padding: var(--pas-1) var(--pas-2);
+  font: inherit;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+[data-bloc="know-how"] li.entree-du-savoir > .sous {
+  grid-column: 1 / -1;
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+[data-bloc="know-how"] .savoir-vide {
+  color: var(--texte-doux);
+}
