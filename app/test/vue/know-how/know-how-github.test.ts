@@ -201,6 +201,24 @@ describe("changing an entry by a pull request", () => {
     });
   }
 
+  test("the text the screen showed guards the change: a stale one is refused, the shown one is proposed", async () => {
+    const perime = github();
+    await assert.rejects(proposerLeChangement(perime.client, DEPOT, "main", { kind: "remove", line: 4, avant: "Tests live next to the code" }), /changed since it was read/);
+    assert.equal(perime.prs.length, 0);
+    const vu = github();
+    await proposerLeChangement(vu.client, DEPOT, "main", { kind: "remove", line: 4, avant: "Identifiers are in French" });
+    assert.equal(vu.prs.length, 1);
+  });
+
+  test("an edit to the text the entry already has is refused; a removal of that entry is proposed", async () => {
+    const meme = github();
+    await assert.rejects(proposerLeChangement(meme.client, DEPOT, "main", { kind: "edit", line: 4, text: "Identifiers are in French" }), /already says so/);
+    assert.equal(meme.prs.length, 0);
+    const retrait = github();
+    await proposerLeChangement(retrait.client, DEPOT, "main", { kind: "remove", line: 4, avant: "Identifiers are in French" });
+    assert.equal(retrait.prs[0]?.title, "brigade: remove a know-how entry (#102)");
+  });
+
   test("a file gone since the reading is refused", async () => {
     const { client, demandes } = github(null);
     await assert.rejects(proposerLeChangement(client, DEPOT, "main", { kind: "remove", line: 3 }), /chef\/parade has no \.brigade\/know-how\.md any more/);
