@@ -130,11 +130,13 @@ async function exigerParquee(github: GitHubDeLAttente, cible: Cible) {
 const ceQuIlAttendait = (attente: AttenteGitHub | null) => (attente === null ? "" : ` ${attente.who} (“${attente.what}”)`);
 
 // Sortir du parking : `parked` retiré s'il attendait quelqu'un d'autre — une carte du chef parquée pour un autre garde
-// `chef-todo`, et revient dans TODO —, sinon `chef-todo`, s'il attendait le chef. Rien d'autre : ses labels d'étape
-// restent, il reprend exactement où il était. Un commentaire le dit. Rend les labels retirés.
+// `chef-todo`, et revient dans TODO —, sinon `chef-todo`, s'il attendait le chef ; et chaque label d'attente d'avant parked
+// qu'il porte : il le parquait aussi. Rien d'autre : ses labels d'étape restent, il reprend exactement où il était. Un
+// commentaire le dit. Rend les labels retirés.
 async function deparquer(github: GitHubDeLAttente, cible: Cible, dire: (attente: AttenteGitHub | null) => string): Promise<string[]> {
   const { issue, attente } = await exigerParquee(github, cible);
-  const retires = [issue.labels.includes(LABEL_PARKED) ? LABEL_PARKED : CHEF_TODO];
+  const parqueur = issue.labels.includes(LABEL_PARKED) ? [LABEL_PARKED] : issue.labels.includes(CHEF_TODO) ? [CHEF_TODO] : [];
+  const retires = [...parqueur, ...LABELS_D_AVANT_PARKED.filter((label) => issue.labels.includes(label))];
   for (const label of retires) await github.delabelliser(cible.numero, label);
   await github.commenter(cible.numero, dire(attente));
   return retires;
@@ -142,7 +144,7 @@ async function deparquer(github: GitHubDeLAttente, cible: Cible, dire: (attente:
 
 // « Reprendre » : la personne attendue a répondu.
 export async function reprendreGitHub(github: GitHubDeLAttente, cible: Cible): Promise<string[]> {
-  return deparquer(github, cible, (attente) => `**Unparked** — answered: no longer waiting for${ceQuIlAttendait(attente)}. It resumes exactly where it was.`);
+  return deparquer(github, cible, (attente) => `**Unparked** — answered: no longer waiting${attente === null ? "" : ` for${ceQuIlAttendait(attente)}`}. It resumes exactly where it was.`);
 }
 
 // « C'est arrivé » : le fait, ou la chose, qu'il attendait est arrivé.

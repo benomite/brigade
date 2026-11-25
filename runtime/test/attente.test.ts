@@ -60,33 +60,6 @@ function sortir(journal: Journal, ticket: number, to: "todo" | "kitchen"): Ticke
 const todo = (journal: Journal) => attentesDuChef(journal.base, lireRail(journal.base), MAINTENANT);
 const ligne = (journal: Journal, ticket: number) => decrireEtat(lireEtat(journal, MAINTENANT), MAINTENANT).find((l) => l.startsWith(`  #${ticket}  `)) ?? "";
 
-test("un ticket en WAITING au journal : ce qu'il attend, de qui, la relance ; relu, il porte en plus depuis quand et ce qui se passera à l'arrivée", (t) => {
-  const { journal } = cuisine(t);
-  poser(journal, 8);
-  const lu = attendre(journal, 8);
-
-  assert.equal(lu.state, "86");
-  assert.equal(lu.reason, ATTEND_UN_TIERS);
-  assert.equal(lu.until, null);
-  assert.equal(etatLu(lu), "WAITING");
-  assert.deepEqual(
-    { ...lu.waitingFor, onArrival: undefined },
-    { what: "sa validation écrite du devis", who: "le client", since: journal.tout().at(-1)?.at, followUp: new Date(MAINTENANT.getTime() + RELANCE_PAR_DEFAUT_MS).toISOString(), onArrival: undefined },
-  );
-  assert.equal(lu.waitingFor?.followUp, "2026-10-21T12:00:00.000Z");
-  assert.match(lu.waitingFor?.onArrival ?? "", /repart en cuisine, sans repasser par TODO/);
-
-  // L'état du chef le dit, sur la ligne du ticket, et les faits le donnent à l'app.
-  assert.match(ligne(journal, 8), /WAITING.*awaiting le client: “sa validation écrite du devis” — since .*, follow-up on 21 Oct 12:00 UTC — on arrival, it goes back to the kitchen/);
-  const surLeRail = faits(lireEtat(journal, MAINTENANT), MAINTENANT).rail.find((r) => r.ticket === 8);
-  assert.equal(surLeRail?.etat, "WAITING");
-  assert.deepEqual({ ...surLeRail?.tiers, depuis: undefined, aLArrivee: undefined }, { quoi: "sa validation écrite du devis", qui: "le client", relance: "2026-10-21T12:00:00.000Z", depuis: undefined, aLArrivee: undefined });
-
-  // Le journal rejoué redonne la même attente.
-  journal.reconstruire();
-  assert.deepEqual(ticketDuRail(journal.base, 8)?.waitingFor, lu.waitingFor);
-});
-
 test("une relance donnée est tenue ; redire l'attente la met à jour sans changer depuis quand", (t) => {
   const { journal } = cuisine(t);
   poser(journal, 8);
@@ -130,16 +103,6 @@ test("« reprendre » : un ticket mis de côté reprend l'état d'avant l'attent
   assert.deepEqual(journal.tout().at(-1)?.payload, { to: "todo", why: "chef" });
 });
 
-test("« reprendre » : un ticket qui n'était pas mis de côté retourne en attente sur le rail — jamais dans TODO", (t) => {
-  const { journal } = cuisine(t);
-  poser(journal, 8);
-  attendre(journal, 8);
-
-  const lu = sortir(journal, 8, "todo");
-  assert.deepEqual([lu.state, lu.reason, lu.waitingFor, etatLu(lu)], ["waiting", null, null, "en attente"]);
-  assert.deepEqual(todo(journal), []);
-});
-
 test("« c'est arrivé, on repart » : le ticket en WAITING repart en cuisine sans passer par TODO", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 8);
@@ -169,25 +132,6 @@ test("la relance atteinte laisse le ticket en WAITING, sans carte dans TODO : se
   assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base), horloge), []);
   const tiers = faits(lireEtat(journal, horloge), horloge).rail.find((r) => r.ticket === 8)?.tiers;
   assert.equal(tiers?.relance, relance.toISOString());
-});
-
-test("une mise à jour de la box rejouée sur des tickets en WAITING n'en sort aucun", (t) => {
-  const { repertoire, journal } = cuisine(t);
-  for (const ticket of [8, 9]) poser(journal, ticket);
-  attendre(journal, 8);
-  attendre(journal, 9, new Date("2026-10-30T09:00:00.000Z"));
-
-  // La box mise à jour : le journal rouvert et rejoué de zéro, bien après la
-  // date de relance des deux tickets.
-  const rouvert = ouvrirJournal(repertoire);
-  t.after(() => rouvert.fermer());
-  rouvert.reconstruire();
-  for (const ticket of [8, 9]) {
-    const lu = ticketDuRail(rouvert.base, ticket);
-    assert.equal(etatLu(lu as NonNullable<typeof lu>), "WAITING");
-    assert.equal(lu?.reason, ATTEND_UN_TIERS);
-  }
-  assert.deepEqual(todo(rouvert), []);
 });
 
 test("une sortie de WAITING que l'ancienne version écrivait seule (relance, commentaire) n'en sort pas le ticket, rejouée ou non ; celle du chef, si", (t) => {

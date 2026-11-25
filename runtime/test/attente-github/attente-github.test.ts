@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { principal } from "../../src/attente-cli.ts";
 import { attenteDeLIssue, corpsDuParking, direRelance, lireCartesGitHub, lireCible } from "../../src/attente-github/attente-github.ts";
 import { corpsDeCarte, carteBloque } from "../../src/github-seul/carte-todo/carte-todo.ts";
+import { LABELS_D_AVANT_PARKED } from "../../src/github-etat/etats.ts";
 import { fauxGitHub, issue } from "../aides/cuisine.ts";
 
 const MAINTENANT = new Date("2026-11-09T15:05:00.000Z");
@@ -201,6 +202,19 @@ test("`parked arrived` : `chef-todo` retiré, un commentaire dit que c'est arriv
   // Sur le rail : `fire`, calibré, ni pris, ni en pass, ni tenu hors de la cuisine — une station le prend.
   const { issues } = (await faux.github.tickets()) as { issues: { number: number }[] };
   assert.ok(issues.some(({ number }) => number === TICKET));
+});
+
+// #4260 : un ticket qu'un label d'attente d'avant parked parque (`estParque`) reprend par le même geste — ce label tombe aussi,
+// sans quoi rien ne le prendrait plus jamais.
+test("`parked resume` d'un ticket parqué par un label d'avant parked : ce label retiré, seul — le ticket reprend où il était", async () => {
+  const { faux, lancer, labels, commentes } = projet();
+  const [ancien] = LABELS_D_AVANT_PARKED.filter((label) => label !== "waiting");
+  await faux.github.labelliser(TICKET, [ancien as string, "in-pass"]);
+  const reprise = await lancer("resume", "BOBL-tech/mirrorlab#615");
+  assert.equal(reprise.code, 0, reprise.erreur);
+  assert.equal(reprise.sortie, `BOBL-tech/mirrorlab#615 unparked: \`${ancien}\` removed — it resumes exactly where it was`);
+  assert.deepEqual(labels().sort(), ["effort:medium", "fire", "in-pass", "model:opus"]);
+  assert.equal(commentes().at(-1), "**Unparked** — answered: no longer waiting. It resumes exactly where it was.");
 });
 
 test("ce que la commande refuse sur un ticket GitHub seul, sans rien écrire", async () => {
