@@ -3615,7 +3615,9 @@ for the chef — its number and title, which open its card in one click; what is
 answer it as the card does ([todo-cards.md](todo-cards.md)). The repository not set up for Brigade, which is not a
 ticket, an answer kept from a card that left and **Awaiting others** are next to it, under the columns. **The top band
 replaces the fault banners**: the supervisor's line — what it watches, its last action, what it parked for you (`its
-thread`, when the team is read) — and the closer's line — its last tidy, its next one —, then at most one message, the
+thread`, when the team is read) — and the closer's line — its last tidy, its next one —, then, when a station publishes
+its ticket times, the taken-to-merged line of `brigade <project> status` (#4299): over the last 24 hours, the share of
+tickets merged within 10 minutes of their claim, and their median; then at most one message, the
 first cause that offers the chef an action: a message with none is not shown (an alert the kitchen handles itself, the
 breaker line); a rail alert with no button of the runtime opens its ticket, or the repository's checks; the stopped
 kitchen opens its frozen ticket, the checks of a red main, or reads again; a stale reading, the queue's wait and the

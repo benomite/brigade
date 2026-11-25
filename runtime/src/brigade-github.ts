@@ -128,6 +128,7 @@ import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { checksRepares, estUneReparation, PRIO_REPARATION } from "./reparation.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
+import { brancherLesDelais } from "./delais/commenter.ts";
 import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
@@ -659,6 +660,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // (#2342), mesuré depuis son dépôt ou `fire`, que GitHub dit au merge (#2662).
   // Illisible, le temps part de la prise, et la station le dit.
   const chrono = chronometre(options.maintenant);
+  const commenterLesDelais = brancherLesDelais({ github, avertir, maintenant: options.maintenant });
   // Le rapport de sa cuisson à son label `time:` s'écrit à côté (#2675).
   const servir = async (issue: number, labels: readonly string[]) => {
     if (options.clone === undefined) {
@@ -692,6 +694,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     await rattraperLesQualites(options.clone);
     await rattraperLesPrises(options.clone);
+    // Un ticket mergé plus de 10 min après sa prise : son temps partagé, en commentaire sur son issue (#4299).
+    await commenterLesDelais(options.clone);
   };
   const ciDesPasses = async (issue: number, temps: EnregistrementTemps): Promise<EnregistrementTemps> => {
     const { passes } = temps;
