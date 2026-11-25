@@ -58,7 +58,9 @@ When the pass merges the green delivery of a ticket that has a kind:
 
 The parked merge is a held gesture of the `pass` at the gate of the agents' gestures: `npm --prefix runtime run manager`
 lists it under `held gestures`, and the chef answers with `npm --prefix runtime run manager -- approve <id>`. The
-running runtime then merges it at its next tick.
+running runtime then merges it at its next tick. That answer is the only one the merge needs: it does not go through
+the pass's level again, so on `propose` too the chef answers once. A merge that GitHub refuses after the chef's answer
+(a conflict, a moved head) is said on the station's log.
 
 The observe / propose / act levels keep working: with the pass on `observe`, a merge ranked `chef` is only logged, as
 `not done`, and never parked nor merged.
