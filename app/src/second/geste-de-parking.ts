@@ -14,7 +14,7 @@ import { parquer } from "../vue/attente/attente-github.ts";
 import { saisieLue } from "../vue/attente/saisie.ts";
 import { cite1 } from "./crochet-de-la-file.ts";
 
-export const USAGE = [
+const USAGE = [
   "usage: parking.ts park <owner>/<repo>#<issue> --who <who it waits for> --what <what it waits for> --until <YYYY-MM-DD>",
   "       parking.ts unpark <owner>/<repo>#<issue>",
 ].join("\n");

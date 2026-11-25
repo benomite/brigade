@@ -9,7 +9,7 @@ import { describe, test } from "node:test";
 import { attenteDeLIssue } from "../../../runtime/src/attente-github/marque.ts";
 import type { ClientDeLaPriorite } from "../../src/priorite.ts";
 import { crochetsDuParking } from "../../src/second/crochet-du-parking.ts";
-import { contexte, principal, USAGE } from "../../src/second/geste-de-parking.ts";
+import { contexte, principal } from "../../src/second/geste-de-parking.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
 import { jouerLAttente, tiersDesCommentaires } from "../../src/vue/attente/attente-github.ts";
@@ -64,6 +64,8 @@ async function parLeSecond(client: ClientDeLaPriorite, ...args: string[]) {
   const code = await principal(args, { client, aujourdhui: AUJOURDHUI, dire: (ligne) => void dit.push(ligne), redire: (ligne) => void redit.push(ligne) });
   return { code, dit: dit.join("\n"), redit: redit.join("\n") };
 }
+// Ce que la commande dit d'une forme qui n'en est pas une.
+const USAGE = "usage: parking.ts park <owner>/<repo>#<issue> --who <who it waits for> --what <what it waits for> --until <YYYY-MM-DD>\n       parking.ts unpark <owner>/<repo>#<issue>";
 const PARQUER = ["park", `${DEPOT}#${TICKET}`, "--who", "the client", "--what", "the signed quote", "--until", JOUR];
 
 describe("le second et l'app parquent et déparquent un ticket dans le même état, sur un projet qui n'est pas brigade", () => {
