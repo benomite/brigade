@@ -19,7 +19,7 @@ const POURQUOI_REARMEE = "an issue in the backlog is cookable again";
 function carteDejaPosee(journal: Journal): boolean {
   const marques = journal.duTicket(TICKET_BACKLOG_VIDE).filter((e) => e.type === "todo.entered" || e.type === "todo.held" || e.type === "todo.answered" || e.type === "todo.left");
   const derniere = marques.at(-1);
-  if (derniere !== undefined) return false;
+  if (derniere === undefined) return false;
   return !(derniere.type === "todo.left" && derniere.payload.why === POURQUOI_REARMEE);
 }
 
