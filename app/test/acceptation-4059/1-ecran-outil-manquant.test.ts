@@ -1,6 +1,6 @@
 // Test d'acceptation gelé (#4059), critère 1.
 // Le contrat que ce test fixe, parce que le ticket le laisse ouvert : l'écran de connexion (`tenirConnexionGitHub`, app/src/vue/connexion-github.js)
-// reçoit dans son pont `outilsManquants()` — les outils absents, `[{ outil: "gh" | "git" | "claude" }]` — (#4266 : l'app n'installe plus, `installerOutil` n'existe plus). À son ouverture il demande les outils ; s'il en manque un, il montre l'écran de l'outil manquant à la place
+// reçoit dans son pont `outilsManquants()` — les outils absents, `[{ outil: "gh" | "git" | "claude" }]` —. À son ouverture il demande les outils ; s'il en manque un, il montre l'écran de l'outil manquant à la place
 // du bouton de connexion : le nom de l'outil, une phrase qui dit pourquoi l'app en a besoin, un lien « how to install … » vers la page d'installation, un bouton
 // « I installed it » qui redemande les outils. Les vues sont jouées devant un faux document.
 import assert from "node:assert/strict";
