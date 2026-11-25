@@ -102,16 +102,16 @@ export function createAgentSettings({ stateDir, env, project = env.BRIGADE_PROJE
 
   function field(agent: Agent, definition: Definition, all: Stored): Field {
     const { key, label, kind } = definition;
-    if (definition.livesIn !== undefined) return { key, label, kind, value: null, source: "default", editable: false, livesIn: definition.livesIn, changedAt: null, changedBy: null };
+    if (definition.livesIn) return { key, label, kind, value: null, source: "default", editable: false, livesIn: definition.livesIn, changedAt: null, changedBy: null };
     const entry = all[agent]?.[key];
     const audit = { changedAt: entry?.changedAt ?? null, changedBy: entry?.changedBy ?? null };
-    if (definition.niveau !== undefined) {
+    if (definition.niveau) {
       return { key, label, kind, value: levels.lire(project)[definition.niveau], source: entry === undefined ? "default" : "app", editable: true, ...audit };
     }
-    if (entry !== undefined) return { key, label, kind, value: entry.value, source: "app", editable: true, ...audit };
+    if (entry) return { key, label, kind, value: entry.value, source: "app", editable: true, ...audit };
     const environment = fromEnv(definition.env, kind);
-    if (environment !== undefined) return { key, label, kind, value: environment, source: "env", editable: true, ...audit };
-    return { key, label, kind, value: definition.default ?? null, source: "default", editable: true, ...audit };
+    if (environment === undefined) return { key, label, kind, value: definition.default ?? null, source: "default", editable: true, ...audit };
+    return { key, label, kind, value: environment, source: "env", editable: true, ...audit };
   }
 
   const fields = (agent: Agent) => {
@@ -120,16 +120,16 @@ export function createAgentSettings({ stateDir, env, project = env.BRIGADE_PROJE
   };
 
   function put(agent: Agent, body: unknown, author: string | undefined): Response {
-    if (!isObject(body) || typeof body.key !== "string" || !("value" in body)) return reason(400, "the request body must be {key, value}");
+    if (!(isObject(body) && typeof body.key === "string" && "value" in body)) return reason(400, "the request body must be {key, value}");
     const definition = DEFINITIONS[agent].find((d) => d.key === body.key);
     if (definition === undefined) return reason(400, `${agent} has no setting ${JSON.stringify(body.key)}: ${DEFINITIONS[agent].map((d) => d.key).join(", ")}`);
     const refused = refusal(definition, body.value);
-    if (refused !== null) return reason(400, refused);
-    if (definition.livesIn !== undefined) return reason(400, `${agent}'s ${definition.key} is not editable from the app: it lives in ${definition.livesIn}`);
+    if (refused) return reason(400, refused);
+    if (definition.livesIn) return reason(400, `${agent}'s ${definition.key} is not editable from the app: it lives in ${definition.livesIn}`);
     if (typeof author !== "string" || author.trim() === "") return reason(400, "the request names no author: a change records who made it");
     const all = stored();
     const value = body.value as Value;
-    if (definition.niveau !== undefined) levels.poser(project, definition.niveau, value as Niveau);
+    if (definition.niveau) levels.poser(project, definition.niveau, value as Niveau);
     all[agent] = { ...all[agent], [definition.key]: { value, changedAt: now().toISOString(), changedBy: author } };
     ecrireAtomique(file, `${JSON.stringify(all, null, 2)}\n`);
     return { status: 200, body: field(agent, definition, all) };
@@ -160,7 +160,7 @@ export function createAgentSettings({ stateDir, env, project = env.BRIGADE_PROJE
       for (const agent of Object.keys(DEFINITIONS) as Agent[]) {
         for (const definition of DEFINITIONS[agent]) {
           const entry = all[agent]?.[definition.key];
-          if (definition.env !== undefined && entry !== undefined) variables[definition.env] = String(entry.value);
+          if (definition.env && entry) variables[definition.env] = String(entry.value);
         }
       }
       return variables;

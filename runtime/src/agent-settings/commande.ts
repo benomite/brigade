@@ -38,5 +38,6 @@ export async function principal({ args, env, dire, redire }: Appel): Promise<voi
   const path = `/api/agents/${encodeURIComponent(agent)}/settings`;
   const response = verb === undefined ? await settings.handle({ method: "GET", path }) : await settings.handle({ method: "PUT", path, body: { key, value: valueOf(value ?? "") }, ...(author === undefined ? {} : { author }) });
   dire(JSON.stringify(response.body));
-  if (response.status !== 200) throw new Sortie(1);
+  if (response.status === 200) return;
+  throw new Sortie(1);
 }
