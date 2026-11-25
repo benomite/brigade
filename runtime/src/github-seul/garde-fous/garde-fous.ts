@@ -32,6 +32,7 @@ import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type 
 import { worktreesDuProjet } from "../../depot.ts";
 import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
 import { recuperer, type Fichiers, type Processus } from "./recuperation.ts";
+import { noterPanneMachine } from "../../veille-blocage/veille.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation, runsRendables } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
@@ -311,8 +312,10 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       const { observed, limit } = manqueDisque;
       const sonde = await disquePlein.sonder();
       if (peutEncoreLiberer(observed * 1024 * 1024, sonde.propre, limit)) return;
-      await disquePlein.poser(carteDuDisque({ libreMo: observed, minMo: limit, propre: sonde.propre, consommateurs: sonde.consommateurs, station }));
+      const pose = await disquePlein.poser(carteDuDisque({ libreMo: observed, minMo: limit, propre: sonde.propre, consommateurs: sonde.consommateurs, station }));
       carteDuDisquePosee = true;
+      // Une panne de la machine arrivée au chef, datée : la veille du blocage en lit le compte des sept jours (#4213).
+      if (pose === "posee") noterPanneMachine(repertoireEtat, "disk", maintenant().getTime());
       avertir(`brigade : the disk under GitHub-only station ${station} is full of things the kitchen cannot free — a TODO card tells the chef`);
     } catch (erreur) {
       avertir(`brigade : the disk card of GitHub-only station ${station} could not be settled (${message(erreur)}) — tried again next round`);
