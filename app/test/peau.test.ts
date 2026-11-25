@@ -515,7 +515,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
 // libellé de chaque état reste dans le DOM. Rien n'est demandé au runtime : tout vient de ce que
 // la box dit déjà (faits). La vue est jouée devant un faux document.
 const PASTILLE = sansCommentaires(lire("composants/pastille/pastille.css"));
-const faits = (etat: string, ton: string | undefined, arretee = false, stations: { lignes: []; alerte: null } | null = { lignes: [], alerte: null }): Dessinable => ({
+const faits = (etat: string, ton: string | undefined, arretee = false, stations: { lignes: [] } | null = { lignes: [] }): Dessinable => ({
   projet: PARADE,
   demande: 0,
   a: A,
@@ -531,7 +531,7 @@ const faits = (etat: string, ton: string | undefined, arretee = false, stations:
     evenement: "rien",
     rail: {
       colonnes: [
-        { nom: "Awaiting you", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [] }], vide: "aucun ticket" },
+        { nom: "Awaiting you", ton: "rouge", compte: "1", cartes: [{ ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: entete({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [], parque: { qui: "the chef", jusqua: null, chef: true } }], vide: "aucun ticket" },
       ],
       hors: [],
       attendLu: A,

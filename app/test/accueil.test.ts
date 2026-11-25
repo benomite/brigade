@@ -9,7 +9,7 @@ import { describe, test } from "node:test";
 import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import type { EtatStation } from "../../runtime/src/projections/stations.ts";
-import { ligneDeProjet, ligneDeStation, sante, saturees, tenirAccueil, type FaitsLus, type ProjetDeLAccueil } from "../src/accueil.ts";
+import { ligneDeProjet, ligneDeStation, sante, tenirAccueil, type FaitsLus, type ProjetDeLAccueil } from "../src/accueil.ts";
 import type { Faits } from "../src/faits.ts";
 import { heureCourte } from "../src/format.ts";
 import type { Panne } from "../src/pannes/pannes.ts";
@@ -129,10 +129,10 @@ const MAX_PERDUE: Panne = { cle: "connexion-max:x", sujet: "connexion-max", lign
 
 describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — sa machine et sa version au survol seulement", () => {
   test("en ligne, ses cooks et ses projets", () => {
-    const ligne = ligneDeStation(station(), 2, false);
+    const ligne = ligneDeStation(station(), 2);
     assert.deepEqual(ligne, { id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", phrase: "online · 2 cooks running", survol: "Linux 6.1.0-47-amd64 · version code 0123456789ab" });
     assert.doesNotMatch(ligne.dit, /Linux|6\.1\.0|code /);
-    assert.equal(ligneDeStation(station({ projets: [] }), 0, false).dit, "online · idle · runs no kitchen");
+    assert.equal(ligneDeStation(station({ projets: [] }), 0).dit, "online · idle · runs no kitchen");
   });
 
   test("aucune pastille grise sans sa phrase : chaque état d'une station qui ne cuit pas dit pourquoi, et le geste (#1758)", () => {
@@ -145,96 +145,67 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
       station(),
     ];
     for (const etat of etats) {
-      for (const saturee of [false, true]) {
-        const ligne = ligneDeStation(etat, 0, saturee);
-        if (ligne.ton === "gris") assert.ok(ligne.raison !== undefined && ligne.raison.phrase !== "" && ligne.raison.bouton.libelle !== "", JSON.stringify(ligne));
-      }
+      const ligne = ligneDeStation(etat, 0);
+      if (ligne.ton === "gris") assert.ok(ligne.raison !== undefined && ligne.raison.phrase !== "" && ligne.raison.bouton.libelle !== "", JSON.stringify(ligne));
     }
-    const hors = ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 4 min" }), 0, false).raison;
+    const hors = ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 4 min" }), 0).raison;
     assert.deepEqual([hors?.cle, hors?.phrase, hors?.bouton], ["hors-ligne", "not reached", { libelle: "check again", geste: "relire" }]);
     assert.match(hors?.survol ?? "", /^start Brigade on parade-box's computer/);
-    assert.deepEqual(ligneDeStation(station({ etat: "illisible", dit: "unreadable" }), 0, false).raison?.bouton, { libelle: "open its page", geste: "ouvrir-la-page" });
-    const sans = ligneDeStation(station({ projets: [] }), 0, false).raison;
+    assert.deepEqual(ligneDeStation(station({ etat: "illisible", dit: "unreadable" }), 0).raison?.bouton, { libelle: "open its page", geste: "ouvrir-la-page" });
+    const sans = ligneDeStation(station({ projets: [] }), 0).raison;
     assert.deepEqual([sans?.phrase, sans?.bouton], ["not added to any project", { libelle: "add a project", geste: "ajouter-un-projet" }]);
     // Une phrase tient sur une ligne : quelques mots, le reste au survol.
     for (const raison of [hors, sans]) assert.ok((raison?.phrase.length ?? 99) <= 30);
-    assert.equal(ligneDeStation(station(), 0, false).raison, undefined);
-    assert.equal(ligneDeStation(station({ projets: [] }), 0, false, [{ projet: "a", station: "box" }]).raison, undefined);
+    assert.equal(ligneDeStation(station(), 0).raison, undefined);
+    assert.equal(ligneDeStation(station({ projets: [] }), 0, [{ projet: "a", station: "box" }]).raison, undefined);
   });
 
   test("en ligne sans cuisine : elle le dit, nomme la station qui porte les cuisines de l'ordinateur, et sa page dit si c'est normal", () => {
     const ailleurs = [{ projet: "a", station: "parade-box" }, { projet: "b", station: "parade-box" }, { projet: "c", station: "parade-box" }];
-    const ligne = ligneDeStation(station({ projets: [] }), 0, false, ailleurs);
+    const ligne = ligneDeStation(station({ projets: [] }), 0, ailleurs);
     assert.equal(ligne.dit, "online · idle · runs no kitchen");
     assert.match(ligne.survol, /your 3 projects cook on parade-box$/);
     assert.match(ligne.note ?? "", /^Normal: .*parade-box.*nothing requires it\.$/);
-    assert.match(ligneDeStation(station({ projets: [] }), 0, false).note ?? "", /^Normal: a station that runs no kitchen/);
-    assert.equal(ligneDeStation(station(), 0, false, ailleurs).note, undefined);
-    assert.doesNotMatch(ligneDeStation(station(), 0, false, ailleurs).survol, /cook on/);
+    assert.match(ligneDeStation(station({ projets: [] }), 0).note ?? "", /^Normal: a station that runs no kitchen/);
+    assert.equal(ligneDeStation(station(), 0, ailleurs).note, undefined);
+    assert.doesNotMatch(ligneDeStation(station(), 0, ailleurs).survol, /cook on/);
   });
 
   test("un téléphone : « does not cook », sans cooks ni projets, et sa page dit qu'il n'est jamais proposé pour cuire ; hors ligne, la mention reste", () => {
-    const ligne = ligneDeStation(station({ projets: [], cuisine: false }), 0, false, [{ projet: "a", station: "parade-box" }]);
+    const ligne = ligneDeStation(station({ projets: [], cuisine: false }), 0, [{ projet: "a", station: "parade-box" }]);
     assert.equal(ligne.dit, "online · does not cook");
     assert.equal(ligne.phrase, "online · does not cook");
     assert.equal(ligne.ton, "vert");
     assert.doesNotMatch(ligne.survol, /cook on/);
     assert.match(ligne.note ?? "", /^A phone: it runs no cook/);
-    assert.equal(ligneDeStation(station({ projets: [], cuisine: false, etat: "hors-ligne", dit: "offline for 12 min" }), 0, false).dit, "offline for 12 min · does not cook");
-    assert.equal(ligneDeStation(station({ projets: [] }), 0, false).dit, "online · idle · runs no kitchen");
+    assert.equal(ligneDeStation(station({ projets: [], cuisine: false, etat: "hors-ligne", dit: "offline for 12 min" }), 0).dit, "offline for 12 min · does not cook");
+    assert.equal(ligneDeStation(station({ projets: [] }), 0).dit, "online · idle · runs no kitchen");
   });
 
-  test("hors ligne : depuis quand, en gris ; saturée ou une mise à jour ratée, jaune ; sa connexion Max perdue, rouge", () => {
+  // brigade:guard
+  test("hors ligne : depuis quand, en gris ; une mise à jour ratée, jaune ; sa connexion Max perdue, rouge", () => {
     assert.deepEqual(
-      [ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 12 min", projets: [], max: null }), 0, false)].map(({ ton, dit }) => ({ ton, dit })),
+      [ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 12 min", projets: [], max: null }), 0)].map(({ ton, dit }) => ({ ton, dit })),
       [{ ton: "gris", dit: "offline for 12 min · no project" }],
     );
-    assert.deepEqual([ligneDeStation(station(), 1, true)].map(({ ton, dit }) => [ton, dit]), [["jaune", "online · saturated · 1 cook · brigade, espace, calculus"]]);
-    assert.deepEqual([ligneDeStation(station({ pannes: [MISE_A_JOUR] }), 0, false)].map(({ ton, dit }) => [ton, dit]), [["jaune", "online · update failed · brigade, espace, calculus"]]);
-    assert.deepEqual([ligneDeStation(station({ pannes: [MAX_PERDUE], max: "perdue" }), 0, false)].map(({ ton, dit }) => [ton, dit]), [["rouge", "online · Max connection lost · brigade, espace, calculus"]]);
+    assert.deepEqual([ligneDeStation(station({ pannes: [MISE_A_JOUR] }), 0)].map(({ ton, dit }) => [ton, dit]), [["jaune", "online · update failed · brigade, espace, calculus"]]);
+    assert.deepEqual([ligneDeStation(station({ pannes: [MAX_PERDUE], max: "perdue" }), 0)].map(({ ton, dit }) => [ton, dit]), [["rouge", "online · Max connection lost · brigade, espace, calculus"]]);
   });
 
-  test("l'état en une phrase, en tête de sa page : en ligne et ses cooks, hors ligne depuis quand, saturée — ni machine, ni version, ni projets", () => {
+  // brigade:guard
+  test("l'état en une phrase, en tête de sa page : en ligne et ses cooks, hors ligne depuis quand — ni machine, ni version, ni projets", () => {
     assert.deepEqual(
       [
-        ligneDeStation(station(), 2, false),
-        ligneDeStation(station(), 1, false),
-        ligneDeStation(station(), 0, false),
-        ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 12 min", max: null }), 0, false),
-        ligneDeStation(station(), 3, true),
-        ligneDeStation(station({ etat: "illisible", dit: "unreadable", machine: "", version: "", projets: [] }), 0, false),
+        ligneDeStation(station(), 2),
+        ligneDeStation(station(), 1),
+        ligneDeStation(station(), 0),
+        ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 12 min", max: null }), 0),
+        ligneDeStation(station(), 3),
+        ligneDeStation(station({ etat: "illisible", dit: "unreadable", machine: "", version: "", projets: [] }), 0),
       ].map(({ phrase }) => phrase),
-      ["online · 2 cooks running", "online · 1 cook running", "online · no cook running", "offline for 12 min", "saturated", "unreadable"],
+      ["online · 2 cooks running", "online · 1 cook running", "online · no cook running", "offline for 12 min", "online · 3 cooks running", "unreadable"],
     );
-    for (const cooks of [0, 2]) assert.doesNotMatch(ligneDeStation(station(), cooks, false).phrase, /Linux|version|brigade|espace/);
-  });
-
-  test("une station saturée se lit dans le `status` d'un projet qu'elle sert", () => {
-    assert.deepEqual(saturees("           MACHINE SATURÉE depuis 4 min — 812 Mo de mémoire disponible pour 1 024 au moins : parade-box ne prend plus de ticket tant que ça dure"), ["parade-box"]);
-    assert.deepEqual(saturees("cuisine    ouverte"), []);
-  });
-
-  test("…telle que le runtime l'écrit, en anglais depuis #940 : `MACHINE SATURATED … : <station> takes no more tickets`", () => {
-    const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-accueil-"));
-    const journal = ouvrirJournal(repertoire);
-    try {
-      const maintenant = new Date(A);
-      const etat = lireEtat(journal, maintenant);
-      const saturee = (nom: string, saturatedAt: string | null): EtatStation => ({
-        station: nom, engine: "claude", provides: ["code"], maxCooks: 2, cores: null, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
-        quotaUntil: null, quotaReason: null, fallbackEngine: null, fallbackQuotaUntil: null, disconnectedAt: null, disconnectedReason: null,
-        saturatedAt, saturatedResource: saturatedAt === null ? null : "memory", saturatedObserved: saturatedAt === null ? null : 812, saturatedLimit: saturatedAt === null ? null : 1024,
-        saturatedCauses: saturatedAt === null ? [] : [{ resource: "memory", observed: 812, limit: 1024 }],
-        heldAt: null, heldReason: null, unarbitratedAt: null, unarbitratedReason: null,
-        remote: false, seenAt: null, presentSince: null, ordinary: false, sandbox: null,
-      });
-      const status = decrireEtat({ ...etat, stations: [saturee("parade-box", "2026-10-16T11:56:00.000Z"), saturee("mac/claude", null)] }, maintenant).join("\n");
-      assert.match(status, /MACHINE SATURATED/, "le runtime ne dit plus la saturation dans ces mots");
-      assert.deepEqual(saturees(status), ["parade-box"]);
-    } finally {
-      journal.fermer();
-      rmSync(repertoire, { recursive: true, force: true });
-    }
+    for (const cooks of [0, 2]) assert.doesNotMatch(ligneDeStation(station(), cooks).phrase, /Linux|version|brigade|espace/);
   });
 });
 

@@ -90,9 +90,9 @@ test("a station saturated with no cook of its own gives back only the finished r
 });
 
 // brigade:guard — « a live cook's worktree is never touched » : ce que la station faisait déjà avec un cook en vol.
-test("a station with a cook in flight leaves every worktree alone, and stays held (#4106)", async (t) => {
+test("a station with a cook in flight leaves every worktree alone (#4106)", async (t) => {
   const { du, disque, faits } = gardes(t, ["worktrees/12-a"], [{ run: "12-a", station: STATION, fini: true }]);
-  assert.equal(await du.retenue(1), "machine");
+  assert.equal(await du.retenue(1), null);
   assert.deepEqual(disque.retires, []);
   assert.equal(disque.listes(), 0);
   assert.equal(faits("station.saturated").length, 1);
@@ -146,7 +146,7 @@ test("a saturated station stops the orphaned processes of exited cooks, and only
 // brigade:guard — « nothing is killed with a live cook » : la récupération ne tourne pas tant qu'un cook est en vol.
 test("a station with a cook in flight stops no process (#4108)", async (t) => {
   const { du, tues } = gardes(t, ["worktrees/12-a"], [{ run: "12-a", station: STATION, fini: true }], { processus: (worktrees) => [{ pid: 500, cwd: join(worktrees, "12-a") }] });
-  assert.equal(await du.retenue(1), "machine");
+  assert.equal(await du.retenue(1), null);
   assert.deepEqual(tues, []);
 });
 
@@ -181,6 +181,6 @@ test("a saturated station with no cook also gives back the tmp dirs of exited co
 // brigade:guard — « nothing is reclaimed with a live cook » : la récupération ne tourne pas tant qu'un cook est en vol.
 test("the npm cache stays when a cook is in flight (#4107)", async (t) => {
   const { du, disque } = gardes(t, [".npm", "tmp/12-a"], [{ run: "12-a", station: STATION, fini: true }]);
-  assert.equal(await du.retenue(1), "machine");
+  assert.equal(await du.retenue(1), null);
   assert.deepEqual(disque.retires, []);
 });
