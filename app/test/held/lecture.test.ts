@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { ExecFileException } from "node:child_process";
 import type { Lu, Rendu } from "../../src/box.ts";
-import { approuverLeGeste, lireLesRetenus, retenusDe } from "../../src/held/lecture.ts";
+import { approuverLeGeste, lireLesRetenus } from "../../src/held/lecture.ts";
 
 // La ligne de titre de `manager` : `ligne(titre, valeur)`, le titre sur 22 colonnes.
 const titre = (valeur: string) => `${"held gestures".padEnd(22)}${valeur}`;
@@ -20,25 +20,30 @@ const SORTIE = [
 ].join("\n");
 const LU: Lu = { nom: "parade", cuisine: { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } } };
 const rendu = (sortie: string, erreur: Partial<ExecFileException> | null = null, erreurs = ""): Rendu => ({ lance: "$ node geste.ts parade manager", erreur: erreur as ExecFileException | null, sortie, erreurs });
+// Ce que la vue reçoit d'une sortie de `manager` rendue par la station : les gestes, ou pourquoi ils ne se lisent pas.
+async function retenusDe(sortie: string) {
+  const lus = await lireLesRetenus(LU, async () => rendu(sortie));
+  return lus === undefined || "gestes" in lus ? lus?.gestes : { sans: lus.sans };
+}
 
 describe("les gestes retenus lus dans `manager` (#4273)", () => {
-  test("une ligne par geste, dans la forme du contrat ; un geste déjà approuvé n'attend plus l'OK du chef", () => {
-    assert.deepEqual(retenusDe(SORTIE), [
+  test("une ligne par geste, dans la forme du contrat ; un geste déjà approuvé n'attend plus l'OK du chef", async () => {
+    assert.deepEqual(await retenusDe(SORTIE), [
       { id: "3", kind: "manager", summary: "split #4129 into 3 tickets", reason: "an epic split is held for the chef", approveCommand: "brigade parade manager approve 3", heldAt: "2026-11-25T08:00:00.000Z" },
       { id: "4", kind: "supervisor", summary: "reran `tests` on 0de1ff5", reason: "red for 10 min", approveCommand: "brigade parade manager approve 4", heldAt: "2026-11-25T08:05:00.000Z" },
     ]);
   });
 
-  test("la section s'arrête au titre suivant", () => {
+  test("la section s'arrête au titre suivant", async () => {
     const suivie = [titre(""), "  2026-11-25T08:00:00.000Z  3  manager: split #1 into 2 tickets — held — `brigade parade manager approve 3`", `${"reactions".padEnd(22)}none`, "  not a gesture"].join("\n");
-    assert.deepEqual(retenusDe(suivie), [{ id: "3", kind: "manager", summary: "split #1 into 2 tickets", reason: "held", approveCommand: "brigade parade manager approve 3", heldAt: "2026-11-25T08:00:00.000Z" }]);
+    assert.deepEqual(await retenusDe(suivie), [{ id: "3", kind: "manager", summary: "split #1 into 2 tickets", reason: "held", approveCommand: "brigade parade manager approve 3", heldAt: "2026-11-25T08:00:00.000Z" }]);
   });
 
-  test("« none » : aucun ; « not read », une section absente ou une ligne sans la forme : jamais aucun", () => {
-    assert.deepEqual(retenusDe(titre("none")), []);
-    assert.deepEqual(retenusDe(titre("not read — autonomy-pending.json cannot be read")), { sans: "held gestures not read — autonomy-pending.json cannot be read" });
-    assert.match((retenusDe(`${"manager".padEnd(22)}ON`) as { sans: string }).sans, /does not list them yet/);
-    assert.match((retenusDe([titre(""), "  2026-11-25 3 split"].join("\n")) as { sans: string }).sans, /does not have the expected form: “2026-11-25 3 split”/);
+  test("« none » : aucun ; « not read », une section absente ou une ligne sans la forme : jamais aucun", async () => {
+    assert.deepEqual(await retenusDe(titre("none")), []);
+    assert.deepEqual(await retenusDe(titre("not read — autonomy-pending.json cannot be read")), { sans: "held gestures not read — autonomy-pending.json cannot be read" });
+    assert.match((await retenusDe(`${"manager".padEnd(22)}ON`) as { sans: string }).sans, /does not list them yet/);
+    assert.match((await retenusDe([titre(""), "  2026-11-25 3 split"].join("\n")) as { sans: string }).sans, /does not have the expected form: “2026-11-25 3 split”/);
   });
 
   test("lus par `manager` sur la station de cet ordinateur ; rien pour un projet qui n'y cuit pas ; un échec se dit", async () => {

@@ -8,7 +8,7 @@ import type { Lu, Rendu } from "../box.ts";
 import { detailDe, sansLaCommande } from "../reglages-du-projet.ts";
 import type { Approbation, GesteRetenu, LectureDesRetenus } from "./contrat.ts";
 
-export const COMMANDE = "manager";
+const COMMANDE = "manager";
 const TITRE = "held gestures";
 const LIGNE = /^ {2}(\S+) {2}(\S+) {2}([^:]+): (.+?) — (.+) — `([^`]+)`$/;
 const APPROUVE = " (approved: done at the runtime's next tick)";
@@ -16,7 +16,7 @@ const APPROUVE = " (approved: done at the runtime's next tick)";
 const ID = /^[1-9][0-9]*$/;
 
 // Les gestes retenus que cette sortie de `manager` montre, ou en quoi elle n'en a pas la forme.
-export function retenusDe(sortie: string): GesteRetenu[] | { sans: string } {
+function retenusDe(sortie: string): GesteRetenu[] | { sans: string } {
   const lignes = sortie.split("\n");
   const debut = lignes.findIndex((ligne) => ligne.startsWith(TITRE));
   if (debut < 0) return { sans: "held gestures unavailable: this station's runtime does not list them yet — update it" };

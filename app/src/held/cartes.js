@@ -13,9 +13,9 @@ import { ligneErreur } from "../vue/composants/ligne-erreur/ligne-erreur.js";
 /** @typedef {import("./contrat.ts").Approuver} Approuver */
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
-export const APPROUVER = "Approve";
+const APPROUVER = "Approve";
 // L'en-tête des cartes, dans le TODO du projet.
-export const TETE = "Held for your OK";
+const TETE = "Held for your OK";
 // La classe de la ligne d'erreur d'une carte, par laquelle elle se retrouve — et se remplace — au refus suivant.
 const ERREUR = "erreur-du-geste-retenu";
 
