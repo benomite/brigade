@@ -26,13 +26,9 @@ export const LABEL = "fire";
 // Le label par lequel un ticket dit qu'il ne se sert pas sur cette box — sa base
 // n'est pas celle du projet, par exemple. Il l'emporte sur `fire`.
 export const HORS_CUISINE = "served-elsewhere";
-// Le label par lequel la station met de côté un ticket dont les cooks ont raté trop de fois
-// (ou dont la livraison a été renvoyée trop de fois). Aucune autre station ne le sert : il ne
-// prend jamais `served-elsewhere`, qui ne se pose que de la main de quelqu'un qui sait
-// qu'une autre box le sert (#3528). Il l'emporte sur `fire` comme lui.
-export const ECHECS_ATTEINTS = "set-aside:failures";
-// Les labels qui tiennent un ticket hors de la cuisine par la station ou de la main du chef.
-export const MIS_DE_COTE = [HORS_CUISINE, ECHECS_ATTEINTS] as const;
+// Les labels qui tiennent un ticket hors de la cuisine de cette box. Un ticket dont les cooks ont raté trop de fois
+// n'est pas mis de côté : il est parqué (`parked`, github-etat/etats.ts, #4260).
+export const MIS_DE_COTE = [HORS_CUISINE] as const;
 export const estMisDeCote = (labels: readonly string[]): boolean => MIS_DE_COTE.some((label) => labels.includes(label));
 
 export type Issue = {
@@ -183,7 +179,8 @@ export type GitHub = {
   // qu'elle change. Facultatif : seul le client réel le porte
   // (`brigade-github.ts`, la zone tenue d'un ticket).
   // `externe` : sa tête vient d'un autre dépôt — un fork (#2933).
-  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[]; sha?: string; externe?: boolean }[]>;
+  // `misAJourLe` et `labels` : sa dernière activité et ses labels, que lit la porte de prise (#4242).
+  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[]; sha?: string; externe?: boolean; misAJourLe?: string; labels?: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
   // Tous les statuts du commit sous ce contexte, chacun tel qu'il a été posé,
@@ -881,12 +878,12 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     },
     async prsOuvertes() {
       const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
-      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string; repo?: { full_name?: string } | null }; base?: { repo?: { full_name?: string } | null } }>);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string; repo?: { full_name?: string } | null }; base?: { repo?: { full_name?: string } | null }; updated_at?: string; labels?: Array<{ name: string }> }>);
       return Promise.all(
-        ouvertes.map(async ({ number, head, base: cible }) => {
+        ouvertes.map(async ({ number, head, base: cible, updated_at, labels }) => {
           // Un fork supprimé n'a plus de dépôt de tête : elle reste externe (#2933).
           const externe = (head.repo?.full_name ?? "").toLowerCase() !== (cible?.repo?.full_name ?? depot).toLowerCase();
-          const tete = { ...(head.sha === undefined ? {} : { sha: head.sha }), externe };
+          const tete = { ...(head.sha === undefined ? {} : { sha: head.sha }), externe, ...(updated_at === undefined ? {} : { misAJourLe: updated_at }), ...(labels === undefined ? {} : { labels: labels.map(({ name }) => name) }) };
           // Les fichiers d'une PR ne changent qu'avec sa tête (#2298).
           const cle = head.sha === undefined ? null : `${number}@${head.sha}`;
           const gardes = cle === null ? undefined : fichiersParTete.get(cle);

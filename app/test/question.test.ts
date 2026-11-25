@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { choixDe, type Commentaire, lever, lireQuestion, MARQUEUR_MANAGER, MARQUEUR_QUESTION, questionDe, repondre, resumeDe, titreDe } from "../src/question.ts";
+import { choixDe, type Commentaire, lireQuestion, MARQUEUR_MANAGER, MARQUEUR_QUESTION, questionDe, repondre, resumeDe, titreDe } from "../src/question.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const ISSUE = "https://github.com/benomite/brigade/issues/676";
@@ -245,20 +245,12 @@ describe("ce que la carte dit de la question", () => {
   });
 });
 
-describe("le titre et la retenue, par le `gh` du poste", () => {
+describe("le titre, par le `gh` du poste", () => {
   test("`gh issue view <adresse> --json title` rend le titre ; une issue sans titre n'en invente pas", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = essai(t, { vue: JSON.stringify({ title: " Un ticket " }) });
     assert.deepEqual(await titreDe(reglages, ISSUE), { titre: "Un ticket" });
     assert.deepEqual(appels(), [`issue view ${ISSUE} --json title`]);
     const vide = essai(t, { vue: JSON.stringify({ title: "" }) });
     assert.ok("sans" in (await titreDe(vide.reglages, ISSUE)));
-  });
-
-  test("retirer le label ou fermer : un seul `gh`, et rien d'autre qu'un de ces deux gestes", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, appels } = essai(t, { vue: "" });
-    assert.deepEqual(await lever(reglages, ISSUE, "label"), { fait: true, dit: "`blocked-on-human` removed: the manager judges the issue again at its next tick" });
-    assert.deepEqual(await lever(reglages, ISSUE, "fermer"), { fait: true, dit: "issue closed" });
-    assert.equal((await lever(reglages, ISSUE, "supprimer")).fait, false);
-    assert.deepEqual(appels(), [`issue edit ${ISSUE} --remove-label blocked-on-human`, `issue close ${ISSUE}`]);
   });
 });

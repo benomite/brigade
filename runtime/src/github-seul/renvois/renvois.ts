@@ -20,8 +20,10 @@
 import { DE_CONFIANCE } from "../../alimenter.ts";
 import { calibrage as calibrageDesLabels, EFFORTS, type Calibrage } from "../../calibrage.ts";
 import { dernierVerdict } from "../../github-etat/fusion.ts";
-import { LABEL_IN_PASS, LABEL_WAITING } from "../../github-etat/etats.ts";
-import { ECHECS_ATTEINTS, LABEL } from "../../github.ts";
+import { LABEL_IN_PASS, LABEL_PARKED } from "../../github-etat/etats.ts";
+import { corpsDuParking } from "../../attente-github/marque.ts";
+import { RELANCE_PAR_DEFAUT_MS } from "../../attente.ts";
+import { LABEL } from "../../github.ts";
 import { monter, PLAFOND_PAR_DEFAUT, type Plafond } from "../../reagir.ts";
 
 // Combien de fois une livraison repart au cook avant d'être remise au
@@ -164,7 +166,7 @@ function corpsDuFix(ticket: TicketRenvoye, n: number, de: Calibrage, vers: Calib
     "",
     "## Context",
     "",
-    `The delivery of #${ticket.number} (${ticket.title}) is still not mergeable after ${n - 1} sends back to a cook, calibrated ${dit(de)}. No cook takes #${ticket.number} again: it waits (\`${LABEL_WAITING}\`) for this ticket, calibrated one step above, ${dit(vers)}.`,
+    `The delivery of #${ticket.number} (${ticket.title}) is still not mergeable after ${n - 1} sends back to a cook, calibrated ${dit(de)}. No cook takes #${ticket.number} again: it waits (\`${LABEL_PARKED}\`) for this ticket, calibrated one step above, ${dit(vers)}.`,
     "",
     "## What the kitchen saw",
     "",
@@ -209,7 +211,7 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   const dejaRenvoyee = renvois.find(({ sha }) => sha === refus.sha);
   const dejaRemise = remises.find(({ sha }) => sha === refus.sha);
   if (dejaRemise !== undefined) {
-    if (!ticket.labels.includes(LABEL_WAITING)) await github.labelliser(issue, [LABEL_WAITING]);
+    if (!ticket.labels.includes(LABEL_PARKED)) await github.labelliser(issue, [LABEL_PARKED]);
     await libere();
     return { coup: "rien", raison: `this delivery was already handed to the manager (fix ticket #${dejaRemise.fix})` };
   }
@@ -235,14 +237,16 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   const vers = pose === null || estUnFix || remises.length > 0 ? null : calibrageAuDessus(pose, plafond);
   if (pose === null || vers === null) {
     const pourquoi = raisonDeSortie(pose, estUnFix, remises[0], plafond);
-    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`): ${pourquoi}. Not served elsewhere: the supervisor takes it and decides what happens to it.`);
-    await github.labelliser(issue, [ECHECS_ATTEINTS]);
+    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nParked for the supervisor by its failure count (\`${LABEL_PARKED}\`, #4129): ${pourquoi}. Not served elsewhere: the supervisor takes it and decides what happens to it.`);
+    // Parqué pour le superviseur jusqu'à sa réponse, comme la station parque une boucle de relances (`parquerSesEchecs`).
+    await github.labelliser(issue, [LABEL_PARKED]);
+    await github.commenter(issue, corpsDuParking({ what: `its delivery is still not mergeable after ${n - 1} sends back: ${pourquoi}`, who: "the supervisor", followUp: new Date(Date.now() + RELANCE_PAR_DEFAUT_MS).toISOString(), fact: "the supervisor answers", failures: true }));
     await libere();
     return { coup: "set-aside", n, raison: pourquoi };
   }
   // `waiting` d'abord : entre la création du `fix` et son commentaire, aucune
   // station ne relit le ticket en pass ni ne le reprend.
-  await github.labelliser(issue, [LABEL_WAITING]);
+  await github.labelliser(issue, [LABEL_PARKED]);
   const fix = await manager.creerIssue({
     titre: `Find why the delivery of #${issue} stays not mergeable after ${RENVOIS_MAX} sends back`,
     corps: corpsDuFix(ticket, n, pose, vers, [...raisonsPrecedentes(commentaires), raison]),
@@ -250,7 +254,7 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   });
   await github.commenter(
     issue,
-    `<!-- brigade:au-manager fix=${fix} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${RENVOIS_MAX} sends back — ${raison}\n\nNo cook takes it again: handed to the manager, who opened the fix ticket #${fix}, calibrated ${dit(vers)}, one step above ${dit(pose)}. This ticket waits for it (\`${LABEL_WAITING}\`).`,
+    `<!-- brigade:au-manager fix=${fix} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${RENVOIS_MAX} sends back — ${raison}\n\nNo cook takes it again: handed to the manager, who opened the fix ticket #${fix}, calibrated ${dit(vers)}, one step above ${dit(pose)}. This ticket waits for it (\`${LABEL_PARKED}\`).`,
   );
   await libere();
   return { coup: "au-manager", n, raison, fix, de: pose, vers };

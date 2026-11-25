@@ -256,7 +256,7 @@ describe("le titre déplie tout le backlog", () => {
     assert.equal(lignes(sections(pose)[0])[0]?.dessous("button")[0]?.disabled, true);
   });
 
-  test("Ideas in reserve : chacune son titre et son résumé en une ligne, « Put on the rail » et « Drop » d'un geste", () => {
+  test("Ideas in reserve : chacune son titre et son résumé en une ligne, et « Drop » d'un geste — aucun geste ne la met sur le rail (ticket 4223)", () => {
     const joues: [number, string][] = [];
     const reserve = lignes(sections(deplie({}, { idee: (t, id) => void joues.push([t, id]) }))[1]);
     assert.deepEqual(reserve.map(textes), [
@@ -264,26 +264,19 @@ describe("le titre déplie tout le backlog", () => {
       ["La commande par QR code", ""],
     ]);
     const gestesDe = (ligne: Faux | undefined) => (ligne ?? assert.fail("pas de ligne")).dessous("button").filter(({ className }) => className === "backlog-band-idee-geste");
-    assert.deepEqual(gestesDe(reserve[0]).map(({ textContent }) => textContent), ["Put on the rail", "Drop"]);
-    gestesDe(reserve[0])[0]?.click();
-    gestesDe(reserve[1])[1]?.click();
-    assert.deepEqual(joues, [
-      [30, "rail"],
-      [31, "abandonner"],
-    ]);
+    assert.deepEqual(gestesDe(reserve[0]).map(({ textContent, dataset }) => [textContent, dataset.geste]), [["Drop", "abandonner"]]);
+    gestesDe(reserve[1])[0]?.click();
+    assert.deepEqual(joues, [[31, "abandonner"]]);
   });
 
-  test("une idée dont le geste part : ses deux boutons attendent ; refusé, sa ligne dit pourquoi", () => {
+  test("une idée dont le geste part : son bouton attend ; refusé, sa ligne dit pourquoi", () => {
     const idees = new Map([
-      [30, { envoi: "rail" as const }],
+      [30, { envoi: "abandonner" as const }],
       [31, { refus: "nothing was changed: GitHub did not close #31" }],
     ]);
     const reserve = lignes(sections(deplie({ idees }))[1]);
     const boutons = (reserve[0] ?? assert.fail("pas de ligne")).dessous("button").filter(({ className }) => className === "backlog-band-idee-geste");
-    assert.deepEqual(boutons.map(({ textContent, disabled }) => [textContent, disabled]), [
-      ["putting on the rail…", true],
-      ["Drop", true],
-    ]);
+    assert.deepEqual(boutons.map(({ textContent, disabled }) => [textContent, disabled]), [["dropping…", true]]);
     assert.equal(reserve[1]?.dessous("p").find(({ className }) => className === "backlog-band-idee-refus")?.textContent, "nothing was changed: GitHub did not close #31");
   });
 

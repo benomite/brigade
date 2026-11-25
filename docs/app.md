@@ -3,11 +3,11 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**The project's menu is three entries, Rail · Stations · Settings** (#2485, #2921), next to the project name; **Rail is the
+**The project's menu is four entries, Rail · Stations · Agents · Settings** (#2485, #2921, #4224), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
 the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **What the folded
 line `Caps, closer and all projects` held** (#2921, `app/src/vue/projet/bandeau-sante/`) — the duration caps (#2490), the
-closer (#2491), then the Cost and Closer rows of all projects — has left the Rail tab (#3013) and the Stations tab: it is
+closer (#2491), then the Cost row of all projects — has left the Rail tab (#3013) and the Stations tab: it is
 **a section of its own in Settings**, under the Kitchen group, titled `Caps, closer and all projects` and shown unfolded
 (#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `bandeau-sante/`). **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
@@ -322,16 +322,12 @@ Open one of your projects on this PC: one click, no folder to choose.
 - **A tool the app does not ship is checked first** (#4059): the screen, the `connect to GitHub` button and
   `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
   (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
-  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence, the install step
-  for this machine — the command, or the installer to download —, `install the GitHub CLI` (recommended) and
-  `I installed it`. The button never spins on a sign-in that cannot start. The install path never needs a tool the
-  computer lacks: no Homebrew; on macOS, Git comes from Apple's command line developer tools (`xcode-select
-  --install`), the GitHub CLI from its `.pkg` installer, Claude Code from its official script; on Windows, `winget`
-  when it is there, the installers otherwise, and Claude Code from its PowerShell script. A command the app runs
-  itself; an installer opens its download page. Installed, the app checks again (by itself after a command, or on
-  `I installed it`), adds to its PATH a tool its installer put outside it, and the step comes back where it was —
-  the button, or the project that was opening, which starts again by itself. A failed install, or a tool still
-  missing, says so in one line, and the offer stays. The same screen opens in the notice when **log in** on a lost
+  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence,
+  one link to the tool's official install page, and `I installed it`. The app installs nothing itself (#4266): the
+  tool is the user's to install. The button never spins on a sign-in that cannot start. On `I installed it` the app
+  checks again, adds to its PATH a tool its installer put outside it, and the step comes back where it was — the
+  button, or the project that was opening, which starts again by itself. A tool still missing says so in one line,
+  and the link stays. The same screen opens in the notice when **log in** on a lost
   Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
 - **Claude Code is asked before the kitchen starts** (#4057): opening a project first asks `claude auth status`
   whether Claude Code is logged in on this computer — no call to the model. Logged in, the project opens as before,
@@ -403,9 +399,10 @@ steps, bubble), `app/src/visite.ts` (the read-only read of `benomite/brigade`, i
 The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
 its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Pass** under its column's
 title; WAITING, shown as **Parked**, under the title of the first column where a card is parked (#4238); **Second** under the second's tab. The Rail, Cooks and TODO lines no longer stand above the columns (#3523). The lines are those of the glossary's entry —
-`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
-third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
-station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
+`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets` — or the first
+sentence of an entry that has several (cook: `A station takes a ticket and runs a cook on it.`; TODO: `What waits for the
+chef's decision.`; parked, #4129: `A ticket that waits for someone: who it waits for, for what, and until when — a date
+or a fact; nothing takes it before, and it resumes exactly where it was.`).
 
 - **Shown once.** An explanation shown is seen: it is written in your record at once, and stays on screen until `got it`
   or until the app reloads. Reloaded, or opened on another device, the app does not show it again; a word you have not
@@ -977,7 +974,8 @@ the agent's thread under the badges: its last gestures, one line each with its r
 `fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
 pressed, its meaning on hover — and each gesture that awaits your OK with one `OK` button. A level click sets the level
 once; an `OK` approves the gesture once and removes it. A gesture that fails changes nothing and says it in one line,
-its detail on hover. A second click on the badge closes the thread.
+its detail on hover. A second click on the badge closes the thread. A click on a badge also opens the project's
+**Agents** tab (#4224, below).
 
 The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which
 calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The runtime side is another ticket of the
@@ -986,6 +984,57 @@ fails says `The agents not reached.`, and a record missing a field says the read
 up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
+
+### The Agents tab (#4224, epic #4117)
+
+The project's menu has an **Agents** tab, between Stations and Settings; the project remembers it like Rail and
+Stations. It shows **one card per agent** that the runtime returns, read when the tab opens (`GET /api/agents`):
+
+- **its name**, **its role** in one sentence, **its state now** — `idle`, `working on #N` with its issue, or `broken`,
+  in red, the card's left edge red too — and **its next run**, as the runtime words it;
+- **its figures for the last 7 days**, two or three, each with its value, its label and, next to it, **what it means**;
+- **its settings**, one settings row each (`app/src/vue/composants/reglage/`), read per agent
+  (`GET /api/agents/:id/settings`). An editable setting has its control — a list for the model, the effort and the
+  autonomy level (`observe`, `propose`, `act`), a switch for a yes / no setting (the pause), a number field for a limit,
+  a text field otherwise — which applies as soon as it changes, with no save (`PUT /api/agents/:id/settings`,
+  `{ key, value }`). `Saving…` shows while the change is on its way; once done, the row shows the new value and
+  `changed <day>, <time> UTC by <who>`. A refused change (400) shows the runtime's reason under the row and keeps the
+  value in force. A setting that is not editable has no control: the row says where it lives instead (`livesIn`).
+- **A click on the agent's name opens its last gestures** (`GET /api/agents/:id/gestures`), newest first, one line
+  each with its reason, its time and its issue; an agent with none says `No gesture yet.` A second click closes them.
+
+The view reads the runtime through one module, `app/src/vue/agents/source.js`, by these paths. The window is a
+`file://` page, so it asks them on the `brigade-agents:` scheme, with the project shown in `?project=`; the main
+process serves that scheme (`app/src/agents-de-la-box.ts`) by running the runtime's commands where the project's
+kitchen runs, through its passage like the other readings: `agents` for `/api/agents` and `agents
+/api/agents/<id>/gestures`, `agent-settings <id>` for the settings, and `agent-settings <id> set <key> <value> --by
+chef` for a change. A refusal keeps the runtime's reason and status (400 for a refused value); a project that does not
+cook on this computer answers 503 and says so; an answer that cannot be read is 502, never an empty list. A reading that fails says it in one line (`The agents
+not reached.`, `Its settings not reached.`), and a reading missing a field says it is not readable: no value is made
+up. This tab replaces **the closer's figures** that the project view used to show: the lines a closing pass removed
+and added, in Settings, and the `Closer` row of All projects with the page of the added / removed ratio of all projects
+(#1682), both removed. Captures: `docs/captures/4224/`.
+
+### The logbook of the day and the morning digest card (#4274, epic #4025)
+
+Above the columns of the rail, **Today's logbook** reads the day (the UTC day of the last `facts` reading) from the
+agents' threads (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, T1): four groups, always all
+four — **Delivered**, **Broke**, **Fixed by the system**, **Not fixed**, with **The system's own mistakes** under Not
+fixed. Each entry is one gesture of a thread: its time, the agent, its line and its outcome, its reason on hover; an
+empty group says `nothing`. At the first opening of a project in a day (the day of the computer's clock), a card with
+**yesterday**'s digest sits at the top of the view, the number of outages seen first by the chef as its first line; it
+stays while the app stays open that day, and another opening that day does not show it. Both are readings: neither
+asks for a notification.
+
+Both come from `facts`, like the rest of the view: `fils` (one list of gestures per agent, each `at`, `line`,
+`reason`, `outcome`, `kind` — `delivered`, `broke`, `fixed`, `unfixed` or `mistake`) and `digest` (a text, one line
+per thing said), read by `app/src/journal/fils.ts` and sorted by `app/src/projets/journal-du-jour.ts`. A runtime that
+does not give them shows neither. `fils` of another shape says `the agents' threads are not readable`; a gesture of
+another shape, or of an unknown kind, is counted in one line, never sorted; a `digest` that is not a text says
+`yesterday's digest is not readable`. The line about outages is the one that holds the words `seen first by the
+chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/journal/fils.ts`, the words the runtime's digest must write); a
+digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
+the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
@@ -1122,7 +1171,7 @@ question. On the repository's open issues, read with the token of this computer'
 | `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge the PR of #<ticket> by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #<ticket>” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
-| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
+| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail — set before #4129: the manager now parks for the chef with a `chef-todo` card) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
 
 A `fire` + `blocked-on-human` ticket without a PR reads `Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3369). An issue
 carrying `waiting` waits for a third party, not the chef; an issue carrying `kitchen-board` (left from the old path) is
@@ -1322,6 +1371,16 @@ carrying `kitchen-board` is never a card (the rule, with its reading, is in the 
 `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
 `todo-github-seul-apres.png`.
 
+**Held gestures (#4273, epic #4209).** A gesture an agent holds for the chef's OK is not a ticket: it sits under the
+columns, next to Todo, in a section **Held for your OK (N)** — one card per gesture, with its summary, its reason (the
+`<summary> — <reason>` line that `manager` lists under `held gestures`) and one **Approve** button. Approve runs
+`manager approve <id>` on this computer's station: no ssh, no typed command. Done, the card leaves the list; refused, it
+stays and says why on one line. When the rail is empty and gestures are held, the rail says `N splits wait for your OK`
+instead of what is before it. The gestures are read by `manager` at each reading of the displayed project's rail, only for
+a project that cooks on this computer; a reading that fails is said on one error line, never as "none". *Code:
+`app/src/held/` (`lecture.ts` reads and approves, `cartes.js` draws), wired in `app/src/vue/vue.js`. Tests:
+`app/test/held/`. Captures: `docs/captures/4273/`.*
+
 ### Changing a ticket's priority (#1739)
 
 A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`
@@ -1348,17 +1407,17 @@ The box has no command for it: the label is read like any other (`docs/runtime/j
 ### Sending a ticket back to the kitchen after WAITING (#1740)
 
 `it arrived, back to the kitchen`, on a WAITING card, and `back to the kitchen`, on the sheet of a ticket back from
-WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `waiting` label
+WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `parked` label (`waiting` before #4129)
 from the ticket's issue itself (`app/src/gestes-github.ts`, #2061), with the token of this computer's `gh`. No second, no
 command: the gesture works with the kitchen unreachable — the ticket leaves WAITING (or TODO) and goes back on the rail,
 queued, without going through TODO.
 
-- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `waiting` — it is queued on the rail
-  again`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
+- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `parked` — it resumes exactly where
+  it was`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
   is on its way, the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are
-  inactive. An issue that no longer carries `waiting` counts as done.
+  inactive. An issue that no longer carries `parked` counts as done.
 - **Not done**: nothing changes and the card says why in one line, in red — the rail not read yet, a ticket the
-  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `waiting` from #<n>``,
+  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `parked` from #<n>``,
   GitHub's answer on hover). One click tries again.
 
 Captures: `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
@@ -1366,32 +1425,39 @@ through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the car
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
-### WAITING on a GitHub project (#3075)
+### Parking a ticket, on any project (#4129; before, WAITING on a GitHub project, #3075)
 
-On a GitHub project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a
-phone's. It opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and
-*follow-up on*, proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without
-whom, or with a follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves.
-**Cancel** closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
+The app parks and unparks a ticket the same way as the second, on any project, with no box command: each gesture is
+written on the issue (`app/src/vue/attente/attente-github.ts`). On a GitHub
+project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a phone's. It
+opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and *follow-up on*,
+proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without whom, or with a
+follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves. **Cancel**
+closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
 `app/src/vue/attente/saisie.ts`, the same reading for every path.
 
-- **Where it goes.** When the project's kitchen runs on this computer, *waiting for…* and *resume* go through the
-  runtime's `waiting set` / `waiting resume` command, typed in the project's second (`app/src/attente.ts`). Otherwise —
-  the project served elsewhere, or the phone — they are written on the issue as the runtime writes them there
-  (`app/src/vue/attente/attente-github.ts`): *waiting for…* posts the WAITING comment (`**WAITING: awaiting <who>.**
-  <what>`, then *from whom*, *since*, *follow-up*, *on arrival*, the shape of `direMarque` in `runtime/src/attente.ts`,
-  its dates with their year), then sets the `waiting` label; *resume* removes the label, and the ticket goes back to
-  what its other labels make it — a TODO card back in TODO. *it arrived, back to the kitchen* removes the label, as
-  before (#1740). A comment GitHub posted but whose label it refused is said: the ticket is not in WAITING.
-- **What is read.** An issue carrying `waiting` is never a TODO entry, whatever else it carries. Among the issues the
-  app already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one carrying `waiting` has
-  its last WAITING comment read (`app/src/tableau/attente-du-chef.ts`), and no other list is asked of GitHub (the
-  budget of #3007): its card in WAITING says
-  `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what arrival does, and it carries
-  *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo` card) is
-  placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading of these
-  issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications do not pay
-  for this reading.
+- **Where it goes.** Always on the issue, on any project, never through a box command (#4262) — from the desktop as
+  from the phone, and from the second, which plays the same two functions with the parking command the app gives it at
+  each session start (`app/src/second/parking.ts`, `park` / `unpark`).
+- **Park.** *waiting for…* parks the ticket (`parquer`, `app/src/vue/attente/attente-github.ts`): it posts the parking
+  comment — the marker `<!-- brigade:parked {…} -->` with who, for what and until when, then
+  `**PARKED: waits for <who>.** <what>`: the very text of `corpsDuParking` (`runtime/src/attente-github/marque.ts`),
+  which the station writes too —, then sets the `parked` label. A comment GitHub posted but whose label it refused is
+  said: the ticket is not parked.
+- **Unpark.** *resume* (the person answered) and *it arrived, back to the kitchen* (the fact happened) unpark it
+  (`deparquer`, `app/src/gestes-github.ts`): `parked` is removed, with any waiting label of before parked, and the
+  ticket resumes exactly where it was.
+- **What is read.** An issue carrying `parked` waits for someone else: it is never a TODO entry, whatever else it
+  carries — a chef's card parked for someone else leaves TODO until it resumes. Parked for the chef, an issue carries
+  `chef-todo` alone: it is a TODO card. Among the issues the app
+  already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one parked for someone else
+  has its last parking comment read (`app/src/tableau/attente-du-chef.ts`; the `**WAITING: awaiting …**` comments the
+  app wrote before #4129 still read), and no other list is asked of GitHub (the budget of #3007): its card in WAITING
+  says `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what unparking does, and it
+  carries *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo`
+  card) is placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading
+  of these issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications
+  do not pay for this reading.
 
 Captures: `docs/captures/3075/` — `attente-github-avant.png` / `attente-github-apres.png` (the rail: the button on each
 TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-github-dialogue-apres.png` (the form opened on
@@ -1401,7 +1467,7 @@ width).
 
 ### The `brigade` command on the chef's Mac (#4072)
 
-The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `waiting set` and `waiting resume`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
+The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `status` and `rail`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
 
 ### The second's choices, as buttons under its terminal (#1520)
 
@@ -1643,8 +1709,8 @@ are each their own component: `app/src/vue/accueil/projets/BlocDesProjets.js` an
 
 What the home used to show besides went elsewhere, or was removed:
 
-- The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
-  block, **All projects**, of **a project's health strip**, its `Caps, closer and all projects` section of Settings (#3014). Their pages are unchanged.
+- The **Cost** row, which opens the cost of all projects, is the last
+  block, **All projects**, of **a project's health strip**, its `Caps, closer and all projects` section of Settings (#3014). Its page is unchanged; the Closer row and its page were removed with #4224.
 - The **App** section (the running version, **Update now** / **Later**) is removed: a higher version is said, with
   **Update now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
   shown.
@@ -1702,8 +1768,6 @@ THIS COMPUTER'S STATION
 - **A "Cost" row**, in the All projects block of a project's health strip (#2638), opens **the cost of all
   projects** (#1022), in place of the home (see "The cost of all projects"). It shows no figure: the cost reading only
   starts when its page is open.
-- **A "Closer" row**, under it, opens **the added / removed ratio of all projects** (#1682) the same way (see "The
-  added / removed ratio of all projects").
 - **"+ station"**, under All stations, opens the pairing code field — nowhere
   else. Once paired, the station appears in the list and the field closes, with no
   message left on display; "cancel" closes it, empty.
@@ -1850,41 +1914,6 @@ the rows, and the tokens stay.
 project's threshold, or a project's lost tokens exceed theirs, the block turns red and **a single line carries the action, as a button** ("open the card of #7", "open the list");
 under the threshold, nothing more is shown. A threshold "not set" is not invented: the block says "ceiling: not communicated"
 in place of the alert. The same thresholds judge, the same way, a project's cost on its page.
-
-### The added / removed ratio of all projects
-
-*Ticket: #1682 (epic #1663).* **In a project's health strip, under "Cost", a "Closer" row opens the page of the
-added / removed ratio of every project**, in place of the home, like the cost page — "‹ All projects" brings you back. It reads
-`closing --json` **on the box of each project** the cost page reads (`RATIOS`, `app/src/onglets.ts`), every thirty
-seconds while it is displayed, and only then. Nothing is added to the runtime: the page reads the object that
-`closing --json` writes today.
-
-```
-added / removed, per project
-● brigade   15.5:1  +24,800 / −1,600 · last 100 merges   going down ?
-                                                         51–100 merges ago: 20:1 · 21–50 merges ago: 16:1 · last 20 merges: 8:1
-● parade    4:1     +18,200 / −4,500 · last 100 merges   flat ?
-● cantine   2.8:1   +17,000 / −6,000 · last 100 merges   going up ?
-● atelier   7:1     +2,100 / −300 · last 14 merges       not enough data ?
-```
-
-- **One row per project with a closer set**, in the file's order; **a project with no closer set has no row**. A
-  click on its name opens its space.
-- **Its current ratio** is the one of its closer section on Cooks (removed with the Cooks tab, #2921): the longest window, in the words
-  of `closing` (`15.5:1`, `nothing removed`), with what it counts below.
-- **Its trend — going down, flat or going up — is read from successive values of the ratio.** The runtime keeps no
-  history of the ratio: `closing --json` gives it over the last 20, 50 and 100 merges, each window taken from the same
-  list of merges. Their differences are three spans that follow each other — merges 51 to 100 back, 21 to 50, the last
-  20 —, shown oldest first under the trend. The most recent span is compared with the oldest: more than 10% lower is
-  **going down** (green), more than 10% higher **going up** (yellow), **flat** otherwise; the rule is on hover. A span
-  that removed nothing counts as the highest of ratios.
-- **Too little data says so**: a span counts only with 10 merges or more that changed a line, and a trend needs two.
-  A younger branch shows **"not enough data"** — and why, on hover — instead of a trend; its current ratio stays.
-- An unreadable integration branch, or a reading that failed, fits in one line (`the integration branch could not be
-  read`, `the closer could not be read`), the detail on hover. As long as a box is not read: `reading…`. All read and no
-  closer set anywhere: `No project has a closer set.`
-
-The code lives in `app/src/vue/closer/tendance/tendance.js`. Capture: `docs/captures/1682/`.
 
 ### The weekly summary of each kitchen (#3263)
 
@@ -2307,8 +2336,6 @@ sign of life) is stated only once: the page header does not repeat the state whe
 - **Update failed and rolled back**: the target version did not start, the station
   stayed on its own; the next one will be tried alone. "dismiss" clears the line, as long as
   the app is open. The reason for the failure is not stated here: it is in the projects' queue.
-  A target version that stops serving a project the app held back for another station
-  (`# held-back (served by …)`) has not failed: it is kept (#3709).
 - **Max connection lost**: nothing cooks on the station any more. "log in" runs `claude auth login`,
   which opens the login page in your browser; the station sees the connection restored within
   the minute, and the kitchen resumes on its own. **Only the station of this computer** reconnects
@@ -2461,12 +2488,10 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   after an app restart. A second background station started anyway says the first runs and leaves, and the station
   itself refuses to start (code 2) on a directory another station process holds
   (`runtime/src/station-fond/seule.ts`).
-- **One kitchen per project (#2110).** Before each launch, the app reads the account's stations: a
-  project of this computer's configuration that another station already serves (and that cooks) is not
-  read by the station — its line stays in `projets` as a `# held-back (served by <station>): …`
-  comment, no kitchen opens and no board is published here — and the app logs which station serves
-  it. The line comes back as soon as no other station serves the repository. A reading that fails
-  changes nothing (`app/src/station-embarquee-cuisine-unique.ts`).
+- **Every project is served here (#4286).** The app sets no project aside for another station: tickets are
+  claimed on GitHub, so two stations serving one project never cook the same ticket. A line an older version
+  had turned into a `# held-back (served by <station>): …` comment is put back as it was at the next launch
+  (`app/src/station-projets-remis.ts`).
 - What the station says is written to its log, `station/fond.log`, like its service log
   on a server. It is run by the `node` of `npm start` (`BRIGADE_NODE_BIN` to give
   another): Electron is not one. **The installed app** (the `.dmg`) runs the runtime and the
@@ -2671,8 +2696,8 @@ opens, then at most once a minute while it stays open; each part that fails to r
 does not take the others along.
 **What it did**: its last 5 passes, newest first. A pass is a closing issue the runtime opened (`fire`, titled `Closing
 pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/fermeture.md`,
-"On GitHub, the only path"); what it removed is the PR of its cook's branch (`cook/<n>-github`), merged: `−1,234 lines`,
-`+56 added`. Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
+"On GitHub, the only path"); its PR merged — the PR of its cook's branch (`cook/<n>-github`) —, it says `its PR merged`:
+the lines it removed are no longer shown, the Agents tab carries the closer's figures (#4224). Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
 the pass`, `nothing removed` (closed with no PR, or its PR closed without a merge). The issue number and the PR open in the
 browser. No pass yet: `No closing pass yet on this project`, when one is opened on hover.
 **What it checks first**: what the latest pass handed it, on this project — the dead code (`3 exports referenced nowhere,
@@ -2903,6 +2928,15 @@ second sees the queue after a start, a resume or a compaction without thinking o
 reached or refusing, or the whole reading — lists, then comments, then label events — not done within 30 s, under the
 hook's 45 s, so that `claude` never kills it silent) is said in that context, in one line starting `file non lue :`, and
 the hook still exits 0: it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
+
+**The parking command is given to the second, at each start (#4262).** The launch settings carry a second
+`SessionStart` hook (`startup`, `resume`, `compact`, `app/src/second/crochet-du-parking.ts`): it runs
+`app/src/second/parking.ts context <owner>/<repo>`, which returns, as additional context, the exact command — this
+computer's `node` and the path of `parking.ts`, quoted for the shell — to park a ticket
+(`park <owner>/<repo>#<n> --who <who> --what <what> --until <YYYY-MM-DD>`) or unpark it (`unpark <owner>/<repo>#<n>`).
+The command plays the same two functions as the app's buttons (`parquer`, `deparquer`), on the issue, with this
+computer's `gh` token: no box, on any project. It says in one line what was written, or why nothing was, and exits 0
+(done), 1 (refused by the form or by GitHub) or 2 (a malformed command). The hook always exits 0.
 
 **The role is given again once `/brigade:init` is merged (#2689).** A second opened on a project not set up yet has no
 bindings in its context: it starts the setup, which ends with a PR to merge (#3167, below). So the launch settings also carry
@@ -3272,7 +3306,21 @@ pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vu
 with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
 phone) does not show the section.
 
-Under the recurring tickets, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
+Under the recurring tickets, the **project sheet** section (#4240, epic #4136) shows the eight items of the open project's
+`.brigade/fiche-projet.json` (see "The project sheet" in `docs/superpowers/specs/2026-11-24-simplified-process.md`), one
+row each with the spec's words: `The cook's work`, `Stages`, `Tools`, `House rules`, `Risks`, `Served`, `Recurring`,
+`Humans in the kitchen`. An item written as a text is one line; an item written as a list is one entry per line (`one per
+line` under it), and keeps its shape when saved. `Save` writes the whole file, keys the screen does not show included, and
+says `Saved.`. `The cook's work`, `Stages` and `Served` cannot be left empty: `Save` refuses, says `<item> cannot be empty:
+nothing was saved.` for each one, marks its field, and writes nothing. A project with no sheet says `No project sheet yet.`, why on hover, and creates
+nothing — the runtime writes the defaults. A sheet that cannot
+be read (not JSON, not an object, an item that is neither a text nor a list of texts) says `Project sheet not reached.`,
+the detail on hover, and shows no field, so nothing overwrites it. The section is `app/src/vue/fiche-projet/fiche-projet.js`,
+mounted by `monter-fiche-projet.js`; it calls two bridge methods, `lireUnFichierDuProjet(project, path)` and `ecrireUnFichierDuProjet(project, path, text)`,
+which the desktop app serves from the project's folder on this computer, for that one path only
+(`app/src/vue/fiche-projet/fiche-projet-dossier.ts`). A bridge without them (the phone) does not show the section.
+
+Under the project sheet, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
 words — rail, pass, cook, second, TODO, WAITING — you have seen explained (`3 of 6 seen`, what it means on hover), with
 one button, `show all the explanations again`: it clears your record, and each word is explained again the next time you
 meet it, on this device and on your other ones (`each explanation shows again the next time you meet its word, on all
@@ -4019,7 +4067,7 @@ section. With the section laid, `right now` is not repeated under it.
 - **A stopped kitchen is always said** (#3924, `runtime/src/arret-cuisine/arret-cuisine.ts`, the notice in
   `app/src/vue/bandeau-arret/`). When at least one ticket is queued and no card is taken or in pass, the head of the
   rail opens with a red `STOPPED` line, above the status line, whatever that line shows: `The kitchen is stopped since
-  08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.`, or `…: main is red.`, or `…: the cause is unknown.`.
+  08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.`, or `…: zone held by PR 4077.`, or `…: main is red.`, or `…: cause unknown.`.
   The GitHub reading of the rail names main red from its live `repair-main` ticket, since the issue opened, and a frozen
   ticket from a set-aside ticket whose PR is open and whose fiche declares a zone, since it was set aside (or else since
   its PR opened). With no known
@@ -4087,10 +4135,10 @@ section. With the section laid, `right now` is not repeated under it.
   - **Next**: the open needs and tickets, in the order the kitchen will serve them — `prio:1`, `prio:2`, `prio:3`, then
     no priority, the oldest first —, each with its priority, its title and, split, its progress (`2/6 served`);
   - **Ideas in reserve**: the open `idea` issues, each with its title and a one-line summary (its context, cut at the
-    edge, whole on hover), and two buttons: **Put on the rail** removes `idea` and sets `fire` (the manager reads it at
-    its next wake-up), **Drop** closes the issue as not planned — one click each, played on GitHub by the app's access
-    (`app/src/gestes-idee.ts`). While it goes, both buttons wait; refused, the line says why. Nothing is sent for an
-    issue the latest reading does not show as an idea.
+    edge, whole on hover), and one button: **Drop** closes the issue as not planned — one click, played on GitHub by the
+    app's access (`app/src/gestes-idee.ts`). While it goes, the button waits; refused, the line says why. Nothing is sent
+    for an issue the latest reading does not show as an idea. No button puts an idea in the queue (#4223): the rail is
+    the top of the backlog, and an issue comes onto it by being calibrated and ready.
 
   Then **Directions** (#3590): the open needs under the three horizons of the vision, by their `horizon:N` label, then
   `No direction yet` — each line with its number, its title, and its progress or `idea`, nothing else; neither what
@@ -4142,8 +4190,12 @@ The band at the top of the Rail tab is an order book above the rail: **one tag p
 - **Red tags come first**: a tag that awaits the chef is red and stands before the others.
 - **`+N` overflow**: a `+N` tag stands for the needs the line does not show; on a phone-width window the line scrolls sideways instead.
 - **Click on a tag**: unfolds the band with that need's detail and highlights its tickets in the rail.
-- **Click on the title, "Backlog"**: unfolds the backlog for the chef (#3589) — **Next**, in the order the kitchen will serve it, then **Ideas in reserve**, each with **Put on the rail** and **Drop**, and what was served folded at the bottom; no technical wording on the lines, and a click on a line opens its issue. What awaits the chef stays in Todo, and the roadmap is never a line. A second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
+- **Click on the title, "Backlog"**: unfolds the backlog for the chef (#3589) — **Next**, in the order the kitchen will serve it, then **Ideas in reserve**, each with **Drop**, and what was served folded at the bottom; no technical wording on the lines, and a click on a line opens its issue. What awaits the chef stays in Todo, and the roadmap is never a line. A second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
 - **Served needs stay 24 hours**: a served need stays in the band for 24 hours, then leaves it.
+
+### The rail, top of the backlog (#4223)
+
+Under the Backlog band, above the columns, one line: **On the rail — the top of the backlog (N)**, then the issues a cook takes next, numbered in the order priority then age — each with its number, its `prio`, and its title. They are the open `fire` issues that are calibrated (a valid `model:` and `effort:`) and ready (no `idea`, nothing parked or set aside, not taken by a station), the first ten (`runtime/src/rail-backlog/rail-backlog.ts`). The line has no button and no action: no gesture of the chef puts an issue there; an issue arrives on its own once it is calibrated and ready, and a priority changed on GitHub reorders the line at the next read. With none, it says `Nothing calibrated and ready in the backlog.` The read from GitHub puts its issues in the facts (`app/src/vue/rail/github.ts`); reading the facts composes the line from them, titles escaped (`app/src/vue/rail/rail.ts`), never from markup the facts carry; the page draws it as it is (`app/src/vue/rail/haut-du-backlog.js`).
 
 ### Above the rail: at most two lines (#3523)
 

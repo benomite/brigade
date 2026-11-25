@@ -1,10 +1,11 @@
 // #4041, critère 3 : tant que la carte attend, le ticket n'est pas relancé — le compte des prises ne bouge pas sur plusieurs tours.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { basename, join } from "node:path";
 import { writeFileSync } from "node:fs";
 import { test, type TestContext } from "node:test";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import type { GitHub } from "../../src/github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
@@ -54,7 +55,7 @@ function station(t: TestContext, { besoin, geste }: { besoin: string; geste: str
 }
 
 // Les cartes du chef posées sur l'issue.
-const cartes = (commentaires: string[]) => commentaires.filter((c) => /^\*\*(?:Gesture|Question) for the chef\b/.test(c.trimStart()));
+const cartes = (commentaires: string[]) => commentaires.filter((c) => /^(?:<!-- brigade:todo kind=blocked -->\n)?\*\*(?:Gesture|Question) for the chef\b/.test(c.trimStart()));
 const BESOIN = "I need an OpenRouter API key and the preprod database URL in the station's local environment file; only the chef can add them.";
 const GESTE_SECRET = "add the OpenRouter API key and the preprod database URL to the station's local environment file";
 
@@ -62,7 +63,7 @@ test("the take count stays the same across several station cycles while the secr
   const s = station(t, { besoin: `${BESOIN} Then rebase cook/${TICKET}-github.`, geste: `${GESTE_SECRET}, then rebase cook/${TICKET}-github` });
   await s.tour();
   const prises = s.cooks();
-  assert.ok(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), "the card waits");
+  assert.ok(s.faux.ticket(TICKET).labels.has(CHEF_TODO), "the card waits");
   for (let i = 0; i < 5; i++) await s.tour();
   assert.equal(s.cooks(), prises, "no new take while the card waits");
   assert.equal(s.faux.cuissons.filter(({ issue }) => issue === TICKET).length, prises);

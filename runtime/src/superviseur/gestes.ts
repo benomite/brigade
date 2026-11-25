@@ -3,7 +3,7 @@
 // d'autre. Six gestes, un jeu fermé :
 //   1. `rerun` — relancer les jobs en échec des checks rouges de la base ;
 //   2. `back-on-rail` — remettre un ticket sur le rail, avec une note ;
-//   3. `waiting` — mettre un ticket de côté en WAITING pour un tiers nommé ;
+//   3. `park` — parquer un ticket pour un tiers nommé (#4260) ;
 //   4. `close-duplicate` — fermer un doublon ;
 //   5. `fix` — ouvrir UN ticket `fix` pour une cause neuve, sans doublon ouvert ;
 //   6. `todo` — poser une carte TODO, seulement pour une question de produit ou
@@ -13,7 +13,7 @@
 // Chaque run écrit UN commentaire sur le ticket où il a agi : ce qu'il a vu et
 // ce qu'il a fait. Un geste n'écrit pas le sien par-dessus : il joue sur un
 // GitHub dont `commenter` ne part pas, et ce qu'il y aurait écrit — la marque
-// de WAITING (attente-github/attente-github.ts), la carte de TODO
+// du parking (attente-github/marque.ts), la carte de TODO
 // (github-seul/carte-todo/carte-todo.ts), que leurs lecteurs relisent en tête
 // d'un commentaire — ouvre le seul commentaire du run.
 //
@@ -24,18 +24,17 @@
 // aucune carte de TODO pour eux.
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { mettreEnAttenteGitHub } from "../attente-github/attente-github.ts";
-import { A_LA_MAIN } from "../brigade-github.ts";
 import { gesteGit, LABELS_DE_REPARATION } from "../garde-todo/geste-git.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
-import { CHEF_TODO, carteQuestionProduit, poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
+import { carteQuestionProduit, poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { Check } from "../events/pass.ts";
 import { jobDuCheck, LABEL, MIS_DE_COTE, type GitHub } from "../github.ts";
-import { GesteRefuse } from "../rail.ts";
+import { exigerNonParque, GesteRefuse } from "../rail.ts";
 import { causeDuCheck, LABELS_REPARATION, marqueDeCause } from "../reparation.ts";
 import { OUTCOME, type Geste as GesteDuJournal } from "../autonomie/agents/gestes.ts";
 import type { Reveil } from "./declencheur.ts";
 
-const GESTES = ["rerun", "back-on-rail", "waiting", "close-duplicate", "fix", "todo"] as const;
+const GESTES = ["rerun", "back-on-rail", "park", "close-duplicate", "fix", "todo"] as const;
 
 // Un geste lu de la réponse du manager. `rerun.ticket` : le ticket pour lequel
 // il relance, nul quand c'est la base seule. `fix.check` : le check rouge de la
@@ -43,7 +42,7 @@ const GESTES = ["rerun", "back-on-rail", "waiting", "close-duplicate", "fix", "t
 export type Geste =
   | { gesture: "rerun"; ticket: number | null }
   | { gesture: "back-on-rail"; ticket: number; note: string }
-  | { gesture: "waiting"; ticket: number; what: string; who: string }
+  | { gesture: "park"; ticket: number; what: string; who: string }
   | { gesture: "close-duplicate"; ticket: number; of: number }
   | { gesture: "fix"; cause: string; title: string; body: string; check: string | null }
   | { gesture: "todo"; ticket: number; kind: "product" | "design"; question: string };
@@ -101,11 +100,11 @@ function lireGeste(brut: unknown): Geste | { refus: string } {
       if (ticket === null || note === null) return manque("its ticket and a note");
       return { gesture: "back-on-rail", ticket, note };
     }
-    case "waiting": {
+    case "park": {
       const what = texte(lu.what);
       const who = texte(lu.who);
       if (ticket === null || what === null || who === null) return manque("its ticket, what it waits for, and the third party it waits for");
-      return { gesture: "waiting", ticket, what, who };
+      return { gesture: "park", ticket, what, who };
     }
     case "close-duplicate": {
       const of = numero(lu.of);
@@ -174,7 +173,8 @@ export async function remettreSurLeRail({ github }: { github: Pick<GitHubDesGest
   const issue = await issueOuverte(github, ticket);
   const tenu = [LABEL_TAKEN, LABEL_IN_PASS].find((label) => issue.labels.includes(label));
   if (tenu !== undefined) throw new Refus(`#${ticket} carries \`${tenu}\`: the kitchen holds it`);
-  const retenus = [LABEL_WAITING, A_LA_MAIN, CHEF_TODO, ...MIS_DE_COTE].filter((label) => issue.labels.includes(label));
+  exigerNonParque(issue.labels, ticket);
+  const retenus = MIS_DE_COTE.filter((label) => issue.labels.includes(label));
   const sansFeu = !issue.labels.includes(LABEL);
   if (retenus.length === 0 && !sansFeu) throw new Refus(`#${ticket} is already on the rail: nothing holds it`);
   if (sansFeu) await github.labelliser(ticket, [LABEL]);
@@ -183,9 +183,11 @@ export async function remettreSurLeRail({ github }: { github: Pick<GitHubDesGest
   return { ticket, fait: `put #${ticket} back on the rail (${faits.join(", ")}). Note: ${note}` };
 }
 
-async function mettreDeCote(ctx: ContexteDesGestes, gh: GitHubDesGestes, ticket: number, what: string, who: string): Promise<Effet> {
+async function parquer(ctx: ContexteDesGestes, gh: GitHubDesGestes, ticket: number, what: string, who: string): Promise<Effet> {
+  // Parqué, pour le chef comme pour un autre, il attend déjà quelqu'un : le superviseur ne le prend pas (#4129).
+  exigerNonParque((await issueOuverte(gh, ticket)).labels, ticket);
   await mettreEnAttenteGitHub(gh, { depot: ctx.depot, numero: ticket }, { quoi: what, qui: who }, ctx.maintenant);
-  return { ticket, fait: `set #${ticket} aside in WAITING for ${who}: ${what}`, defaire: () => ctx.github.delabelliser(ticket, LABEL_WAITING) };
+  return { ticket, fait: `parked #${ticket}, waiting for ${who}: ${what}`, defaire: () => ctx.github.delabelliser(ticket, LABEL_PARKED) };
 }
 
 async function fermerLeDoublon({ github }: ContexteDesGestes, ticket: number, of: number): Promise<Effet> {
@@ -275,8 +277,8 @@ export async function jouerLeRun(ctx: ContexteDesGestes, reveil: Reveil, decisio
           ? await relancer(ctx, cible)
           : geste.gesture === "back-on-rail"
             ? await remettreSurLeRail(ctx, geste.ticket, geste.note)
-            : geste.gesture === "waiting"
-              ? await mettreDeCote(ctx, gh, geste.ticket, geste.what, geste.who)
+            : geste.gesture === "park"
+              ? await parquer(ctx, gh, geste.ticket, geste.what, geste.who)
               : geste.gesture === "close-duplicate"
                 ? await fermerLeDoublon(ctx, geste.ticket, geste.of)
                 : geste.gesture === "fix"

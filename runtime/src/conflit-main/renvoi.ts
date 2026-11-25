@@ -94,7 +94,7 @@ export function carteDuChoixDeProduit({ station, base, fichiers, question, sorte
   return [
     `**Question for the chef (${sorte === "produit" ? "product" : "design"}):** ${question.trim()}`,
     "",
-    `Station \`${station}\`: this ticket's work and what \`${base}\` brought since change the same places (${liste(fichiers)}), and the two do not say the same thing. Only the chef chooses which one the product keeps. Answer on this issue, then remove \`blocked-on-human\`: the ticket's own cook carries your answer into its work.`,
+    `Station \`${station}\`: this ticket's work and what \`${base}\` brought since change the same places (${liste(fichiers)}), and the two do not say the same thing. Only the chef chooses which one the product keeps. Answer this card: the ticket resumes where it was, and its own cook carries your answer into its work.`,
   ].join("\n");
 }
 
@@ -135,6 +135,7 @@ export function fichiersNommes(texte: string): string[] {
 // La carte du chef qu'une station a posée sur l'issue (`corpsDeLaCarte`,
 // blocage-au-manager.ts) : sa première ligne.
 export function teteDeCarte(corps: string): string | null {
-  const tete = corps.trimStart().split("\n", 1)[0] ?? "";
+  // La carte d'un ticket parqué pour le chef (#4129) s'ouvre sur sa marque : la tête est la ligne qui la suit.
+  const tete = corps.trimStart().replace(/^<!-- brigade:todo kind=blocked -->\s*/, "").split("\n", 1)[0] ?? "";
   return /^\*\*(?:Gesture|Question) for the chef\b/.test(tete) ? tete : null;
 }
