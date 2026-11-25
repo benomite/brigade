@@ -21,17 +21,9 @@ const utiles = (lignes: string[]) => lignes.map((ligne) => ligne.trim()).filter(
 // Les lignes du bloc.
 export const lignesDuBloc = (texte: string): string[] => utiles(couper(texte).dedans);
 
-// Les lignes de commentaire du bloc : celles que l'app y écrit (`# held-back …`,
-// un projet mis de côté parce qu'une autre station le sert) et celles du chef.
+// Les lignes de commentaire du bloc : celles du chef.
 // La réécriture les garde, telles quelles.
 export const commentairesDuBloc = (texte: string): string[] => couper(texte).dedans.filter((ligne) => ligne.trim().startsWith("#"));
-
-// Les noms des projets que l'app a mis de côté (`# held-back (served by X): nom …`), dans le bloc comme hors du bloc.
-export const nomsMisDeCote = (texte: string): string[] =>
-  texte.split("\n").flatMap((ligne) => {
-    const nom = /^# held-back \(served by .+?\): (\S+)/.exec(ligne.trim())?.[1];
-    return nom === undefined ? [] : [nom];
-  });
 
 // Les noms de projet que le chef a écrits hors du bloc.
 export const nomsHorsDuBloc = (texte: string): string[] => {
