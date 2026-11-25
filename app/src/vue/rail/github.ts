@@ -37,7 +37,7 @@ import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pau
 import { fiche } from "../../../../runtime/src/fiche.ts";
 import { arretDuRail, zoneTenueDe } from "../bandeau-arret/arret-du-rail.ts";
 import { railDuBacklog } from "../../../../runtime/src/rail-backlog/rail-backlog.ts";
-import { htmlDuRail, type HautDuBacklog } from "./rail.ts";
+import type { HautDuBacklogDesFaits } from "./rail.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
@@ -415,13 +415,12 @@ function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: r
   return alertes.length === 0 ? {} : { alertesDuRail: alertes };
 }
 
-// Le haut du backlog que la lecture porte, et l'écran qui le montre (rail.ts). Ses labels seuls disent si une issue est
+// Le haut du backlog que la lecture porte ; faits.ts en compose l'écran (rail.ts). Ses labels seuls disent si une issue est
 // calibrée et prête (rail-backlog.ts, une seule règle) ; son état dit seulement si une station la tient déjà — prise, en
 // pass, ou qui attend un autre ticket —, ce qu'aucun label ne dit : celle-là a quitté la file.
-function hautDuBacklogDe(montres: readonly TicketSurGithub[], labelsLus: Readonly<Record<number, string[]>>): HautDuBacklog {
+function hautDuBacklogDe(montres: readonly TicketSurGithub[], labelsLus: Readonly<Record<number, string[]>>): HautDuBacklogDesFaits {
   const enFile = montres.flatMap(({ ticket, titre, url, etat, creeLe }) => (EN_FILE.has(etat) ? [{ number: ticket, title: titre, url, labels: labelsLus[ticket] ?? [], createdAt: creeLe }] : []));
-  const haut = railDuBacklog(() => enFile).rafraichir();
-  return { issues: haut.map(({ number, title, url }) => ({ number, title, url })), html: htmlDuRail(haut) };
+  return { issues: railDuBacklog(() => enFile).rafraichir() };
 }
 
 // La lecture, dont le rail et les cooks sont ceux de GitHub : ses tickets dans l'ordre du service — la priorité, puis

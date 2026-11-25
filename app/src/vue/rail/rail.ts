@@ -3,8 +3,8 @@
 // il ne le montre pas. Le rail se lit, il ne se remplit pas : une issue y vient d'être calibrée et prête, sans geste du chef,
 // et l'écran n'en a donc aucun.
 //
-// La lecture du rail (github.ts, `avecLeRail`) le compose dans le process principal et le pose dans les faits sous
-// `hautDuBacklog` ; faits.ts le relit (`hautDuBacklogLu`) et la vue le pose au-dessus des colonnes (haut-du-backlog.js).
+// La lecture du rail (github.ts, `avecLeRail`) pose ses issues dans les faits sous `hautDuBacklog` ; faits.ts les relit
+// (`hautDuBacklogLu`), en compose l'écran, et la vue le pose au-dessus des colonnes (haut-du-backlog.js).
 import { prioriteDe, topDuBacklog, type IssueDuBacklog } from "../../../../runtime/src/rail-backlog/rail-backlog.ts";
 
 const RIEN = "Nothing calibrated and ready in the backlog.";
@@ -24,19 +24,24 @@ export function htmlDuRail(issues: readonly IssueDuBacklog[]): string {
   return `<ol class="rail-backlog">${haut.map(ligne).join("")}</ol>`;
 }
 
-// Le haut du backlog tel que les faits le portent : ses issues, dans l'ordre du rail, et leur écran (`htmlDuRail`).
+// Le haut du backlog tel que la lecture du rail le pose dans les faits : ses issues, dans l'ordre du rail, avec ce qui
+// les range — pas d'écran : la lecture des faits le compose elle-même (`hautDuBacklogLu`), et n'affiche rien qu'elle n'ait échappé.
+export type HautDuBacklogDesFaits = { issues: (IssueDuBacklog & { url: string })[] };
+// Le haut du backlog tel que la vue le reçoit : ses issues, dans l'ordre du rail, et leur écran (`htmlDuRail`).
 export type HautDuBacklog = { issues: { number: number; title: string; url: string }[]; html: string };
 
 // `hautDuBacklog`, de la racine de `facts` (faits.ts, `comprendre`) : rien de mal formé ne le pose — la vue ne montre
-// alors pas le rail du backlog, plutôt qu'un rail inventé.
+// alors pas le rail du backlog, plutôt qu'un rail inventé. L'écran se compose ici, des issues lues : un `html` que les
+// faits porteraient n'est jamais lu, et un titre n'y entre qu'échappé.
 export function hautDuBacklogLu(valeur: unknown): { hautDuBacklog?: HautDuBacklog } {
   if (typeof valeur !== "object" || valeur === null) return {};
-  const { issues, html } = valeur as { issues?: unknown; html?: unknown };
-  if (typeof html !== "string" || !Array.isArray(issues)) return {};
+  const { issues } = valeur as { issues?: unknown };
+  if (!Array.isArray(issues)) return {};
   const lues = issues.flatMap((issue: unknown) => {
-    const { number, title, url } = (typeof issue === "object" && issue !== null ? issue : {}) as { number?: unknown; title?: unknown; url?: unknown };
-    return typeof number === "number" && typeof title === "string" && typeof url === "string" ? [{ number, title, url }] : [];
+    const { number, title, url, labels, createdAt } = (typeof issue === "object" && issue !== null ? issue : {}) as Record<string, unknown>;
+    const ok = typeof number === "number" && typeof title === "string" && typeof url === "string" && typeof createdAt === "string" && Array.isArray(labels) && labels.every((label) => typeof label === "string");
+    return ok ? [{ number, title, url, labels: labels as string[], createdAt }] : [];
   });
   if (lues.length !== issues.length) return {};
-  return { hautDuBacklog: { issues: lues, html } };
+  return { hautDuBacklog: { issues: topDuBacklog(lues).map(({ number, title, url }) => ({ number, title, url })), html: htmlDuRail(lues) } };
 }

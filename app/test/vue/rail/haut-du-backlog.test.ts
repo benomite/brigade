@@ -15,6 +15,7 @@ import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import type { AppelGitHub } from "../../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../../src/tableau/lecture.ts";
+import { hautDuBacklogLu } from "../../../src/vue/rail/rail.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
@@ -66,7 +67,7 @@ const bloc = (vue: Jouee): Faux | undefined => enfants(vue).find(({ className })
 
 test("the project page shows the rail as the top of the backlog: the issues of the read, in its order, above the columns, with no gesture (#4223)", async () => {
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: github, maintenant: () => new Date(A) });
-  const haut = (lu.faits as { hautDuBacklog?: { issues: { number: number }[]; html: string } }).hautDuBacklog ?? assert.fail("pas de haut du backlog");
+  const haut = hautDuBacklogLu((lu.faits as { hautDuBacklog?: unknown }).hautDuBacklog).hautDuBacklog ?? assert.fail("pas de haut du backlog");
   assert.deepEqual(haut.issues.map(({ number }) => number), [3, 2, 1]);
   const vue = await ouvrir();
   recevoirFaits(vue, lu.faits);
@@ -76,7 +77,7 @@ test("the project page shows the rail as the top of the backlog: the issues of t
   assert.ok(ordre.indexOf("rail-du-backlog") < ordre.indexOf("colonnes"), JSON.stringify(ordre));
   const [titre, liste] = pose.children;
   assert.equal(titre?.textContent, "On the rail — the top of the backlog (3)");
-  // L'écran que la lecture a composé, tel quel : les mêmes issues, dans le même ordre.
+  // L'écran que la lecture des faits a composé, tel quel : les mêmes issues, dans le même ordre.
   const html = (liste as unknown as { innerHTML: string }).innerHTML;
   assert.equal(html, haut.html);
   assert.deepEqual([...html.matchAll(/#(\d+)<\/span>/g)].map((m) => Number(m[1])), [3, 2, 1]);
@@ -95,6 +96,8 @@ test("a read that no longer carries the top of the backlog, or carries it malfor
   assert.equal(bloc(vue), undefined);
   recevoirFaits(vue, { ...sans, hautDuBacklog: { issues: [{ number: "3" }], html: "<ol></ol>" } });
   assert.equal(bloc(vue), undefined);
+  recevoirFaits(vue, { ...sans, hautDuBacklog: { issues: [{ number: 3, title: "t", url: "u", labels: [1], createdAt: "" }] } });
+  assert.equal(bloc(vue), undefined);
 });
 
 test("the Backlog column's rail is the top of the backlog: the same tickets, in the same order; a queued ticket not calibrated sits below (#4223)", async () => {
@@ -105,4 +108,16 @@ test("the Backlog column's rail is the top of the backlog: the same tickets, in 
   const tickets = (classe: string) => section(classe).dessous("li").filter(({ className }) => className === "bon").map((li) => li.children[0]?.children[0]?.textContent);
   assert.deepEqual(tickets("du-rail"), ["#3", "#2", "#1"]);
   assert.ok(tickets("pas-prets").includes("#5"), JSON.stringify(tickets("pas-prets")));
+});
+
+test("the rail block never draws markup the facts carry: it draws the issues' text, escaped, whatever html they bring (#4223)", async () => {
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: github, maintenant: () => new Date(A) });
+  const { hautDuBacklog: _, ...sans } = lu.faits as Faits & { hautDuBacklog?: unknown };
+  const vue = await ouvrir();
+  const piegee = { number: 3, title: "<img src=x onerror=alert(1)>", url: "u", labels: PRET, createdAt: "2026-10-01T00:00:00Z" };
+  recevoirFaits(vue, { ...sans, hautDuBacklog: { issues: [piegee], html: "<button>Put on the rail</button>" } });
+  const [, liste] = (bloc(vue) ?? assert.fail("pas de rail du backlog")).children;
+  const html = (liste as unknown as { innerHTML: string }).innerHTML;
+  assert.doesNotMatch(html, /<button|<img/);
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
 });

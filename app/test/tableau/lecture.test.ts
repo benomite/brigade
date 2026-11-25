@@ -277,8 +277,6 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // Le rail bloqué : les tickets qu'aucun manager n'a pris, et le diagnostic, sans E/S (ticket 3358).
     "app/src/vue/rail-bloque/rail-bloque.ts",
     "app/src/vue/rail/github.ts",
-    // Le rail, haut du backlog, et son écran, sans E/S (ticket 4223).
-    "app/src/vue/rail/rail.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
     "runtime/src/arret-cuisine/arret-cuisine.ts",

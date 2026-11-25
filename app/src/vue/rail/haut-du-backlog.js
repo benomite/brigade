@@ -1,7 +1,7 @@
 // @ts-check
 // Le rail, haut du backlog (ticket 4223, épique 4131), sur la page du projet : au-dessus des colonnes, sous le bandeau Backlog,
 // les issues calibrées et prêtes que la cuisine servira d'abord, dans l'ordre priorité puis âge — l'écran que rail.ts
-// (`htmlDuRail`) compose dans le process principal, tel quel : il montre les issues des faits, ni plus ni dans un autre ordre.
+// (`htmlDuRail`) compose dans le process principal, à la lecture des faits, tel quel : il montre les issues des faits, ni plus ni dans un autre ordre.
 // Il se lit seulement : une issue y vient d'être calibrée et prête, sans geste du chef, et ce bloc n'en offre aucun.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, et rend un élément.
 
@@ -26,7 +26,7 @@ export function poserLeHautDuBacklog(doc, haut) {
   titre.title = AIDE;
   const liste = doc.createElement("div");
   liste.className = "rail-du-backlog-liste";
-  // Échappé par rail.ts : seul le texte des issues y est, en spans et en lignes.
+  // Composé par rail.ts à la lecture des faits, des issues lues : seul leur texte échappé y est, en spans et en lignes.
   liste.innerHTML = haut.html;
   bloc.append(titre, liste);
   return bloc;

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AppelGitHub, ReponseGitHub } from "../../../src/tableau/client.ts";
 import { lireLeTableauDuDepot } from "../../../src/tableau/lecture.ts";
-import { htmlDuRail } from "../../../src/vue/rail/rail.ts";
+import { hautDuBacklogLu, htmlDuRail } from "../../../src/vue/rail/rail.ts";
 
 const DEPOT = "acme/kitchen";
 const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
@@ -34,7 +34,12 @@ const github: AppelGitHub = async (chemin) => {
 test("the rail read from GitHub carries the top of the backlog: queued, calibrated and ready, by priority then age (#4223)", async () => {
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: github, maintenant: () => new Date("2026-11-04T03:02:03.076Z") });
   assert.ok(lu.lu);
-  const haut = lu.faits.hautDuBacklog as { issues: { number: number; title: string; url: string }[]; html: string };
+  const porte = lu.faits.hautDuBacklog as { issues: { number: number; labels: string[]; createdAt: string }[]; html?: string };
+  assert.deepEqual(porte.issues.map(({ number, createdAt }) => [number, createdAt]), [[3, "2026-10-30T10:00:00Z"], [2, "2026-11-02T10:00:00Z"], [1, "2026-10-01T10:00:00Z"]]);
+  assert.deepEqual(porte.issues[1]?.labels, [...PRET, "prio:2"]);
+  // Pas d'écran dans les faits : leur lecture le compose.
+  assert.equal(porte.html, undefined);
+  const haut = hautDuBacklogLu(porte).hautDuBacklog ?? assert.fail("haut du backlog illisible");
   assert.deepEqual(haut.issues, [3, 2, 1].map((n) => ({ number: n, title: `Ticket ${n}`, url: `https://github.com/${DEPOT}/issues/${n}` })));
   assert.deepEqual([...haut.html.matchAll(/Ticket \d+/g)].map((m) => m[0]), ["Ticket 3", "Ticket 2", "Ticket 1"]);
 });
