@@ -1910,8 +1910,7 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 // La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
-// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js). Celle des ratios
-// (#1682) lit de même `closing --json` sur la box de chacun (vue/closer/tendance/tendance.js).
+// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commandes = commandesDe(id);
   ongletLu = { id, demande };

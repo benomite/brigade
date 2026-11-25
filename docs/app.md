@@ -3,11 +3,11 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**The project's menu is three entries, Rail · Stations · Settings** (#2485, #2921), next to the project name; **Rail is the
+**The project's menu is four entries, Rail · Stations · Agents · Settings** (#2485, #2921, #4224), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
 the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **What the folded
 line `Caps, closer and all projects` held** (#2921, `app/src/vue/projet/bandeau-sante/`) — the duration caps (#2490), the
-closer (#2491), then the Cost and Closer rows of all projects — has left the Rail tab (#3013) and the Stations tab: it is
+closer (#2491), then the Cost row of all projects — has left the Rail tab (#3013) and the Stations tab: it is
 **a section of its own in Settings**, under the Kitchen group, titled `Caps, closer and all projects` and shown unfolded
 (#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/projet/`
 (`stations/`, `bandeau-sante/`). **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
@@ -977,7 +977,8 @@ the agent's thread under the badges: its last gestures, one line each with its r
 `fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
 pressed, its meaning on hover — and each gesture that awaits your OK with one `OK` button. A level click sets the level
 once; an `OK` approves the gesture once and removes it. A gesture that fails changes nothing and says it in one line,
-its detail on hover. A second click on the badge closes the thread.
+its detail on hover. A second click on the badge closes the thread. A click on a badge also opens the project's
+**Agents** tab (#4224, below).
 
 The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which
 calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The runtime side is another ticket of the
@@ -986,6 +987,31 @@ fails says `The agents not reached.`, and a record missing a field says the read
 up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
+
+### The Agents tab (#4224, epic #4117)
+
+The project's menu has an **Agents** tab, between Stations and Settings; the project remembers it like Rail and
+Stations. It shows **one card per agent** that the runtime returns, read when the tab opens (`GET /api/agents`):
+
+- **its name**, **its role** in one sentence, **its state now** — `idle`, `working on #N` with its issue, or `broken`,
+  in red, the card's left edge red too — and **its next run**, as the runtime words it;
+- **its figures for the last 7 days**, two or three, each with its value, its label and, next to it, **what it means**;
+- **its settings**, one settings row each (`app/src/vue/composants/reglage/`), read per agent
+  (`GET /api/agents/:id/settings`). An editable setting has its control — a list for the model, the effort and the
+  autonomy level (`observe`, `propose`, `act`), a switch for a yes / no setting (the pause), a number field for a limit,
+  a text field otherwise — which applies as soon as it changes, with no save (`PUT /api/agents/:id/settings`,
+  `{ key, value }`). `Saving…` shows while the change is on its way; once done, the row shows the new value and
+  `changed <day>, <time> UTC by <who>`. A refused change (400) shows the runtime's reason under the row and keeps the
+  value in force. A setting that is not editable has no control: the row says where it lives instead (`livesIn`).
+- **A click on the agent's name opens its last gestures** (`GET /api/agents/:id/gestures`), newest first, one line
+  each with its reason, its time and its issue; an agent with none says `No gesture yet.` A second click closes them.
+
+The view reads the runtime through one module, `app/src/vue/agents/source.js`, by these paths, on the address the
+view is served from; two other tickets of the epic build them. A reading that fails says it in one line (`The agents
+not reached.`, `Its settings not reached.`), and a reading missing a field says it is not readable: no value is made
+up. This tab replaces **the closer's figures** that the project view used to show: the lines a closing pass removed
+and added, in Settings, and the `Closer` row of All projects with the page of the added / removed ratio of all projects
+(#1682), both removed. Captures: `docs/captures/4224/`.
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
@@ -1643,8 +1669,8 @@ are each their own component: `app/src/vue/accueil/projets/BlocDesProjets.js` an
 
 What the home used to show besides went elsewhere, or was removed:
 
-- The **Cost** and **Closer** rows, which open the cost and the added / removed ratio of all projects, are the last
-  block, **All projects**, of **a project's health strip**, its `Caps, closer and all projects` section of Settings (#3014). Their pages are unchanged.
+- The **Cost** row, which opens the cost of all projects, is the last
+  block, **All projects**, of **a project's health strip**, its `Caps, closer and all projects` section of Settings (#3014). Its page is unchanged; the Closer row and its page were removed with #4224.
 - The **App** section (the running version, **Update now** / **Later**) is removed: a higher version is said, with
   **Update now**, by the new-version line at the top of the app. The running version, when up to date, is no longer
   shown.
@@ -1702,8 +1728,6 @@ THIS COMPUTER'S STATION
 - **A "Cost" row**, in the All projects block of a project's health strip (#2638), opens **the cost of all
   projects** (#1022), in place of the home (see "The cost of all projects"). It shows no figure: the cost reading only
   starts when its page is open.
-- **A "Closer" row**, under it, opens **the added / removed ratio of all projects** (#1682) the same way (see "The
-  added / removed ratio of all projects").
 - **"+ station"**, under All stations, opens the pairing code field — nowhere
   else. Once paired, the station appears in the list and the field closes, with no
   message left on display; "cancel" closes it, empty.
@@ -1850,41 +1874,6 @@ the rows, and the tokens stay.
 project's threshold, or a project's lost tokens exceed theirs, the block turns red and **a single line carries the action, as a button** ("open the card of #7", "open the list");
 under the threshold, nothing more is shown. A threshold "not set" is not invented: the block says "ceiling: not communicated"
 in place of the alert. The same thresholds judge, the same way, a project's cost on its page.
-
-### The added / removed ratio of all projects
-
-*Ticket: #1682 (epic #1663).* **In a project's health strip, under "Cost", a "Closer" row opens the page of the
-added / removed ratio of every project**, in place of the home, like the cost page — "‹ All projects" brings you back. It reads
-`closing --json` **on the box of each project** the cost page reads (`RATIOS`, `app/src/onglets.ts`), every thirty
-seconds while it is displayed, and only then. Nothing is added to the runtime: the page reads the object that
-`closing --json` writes today.
-
-```
-added / removed, per project
-● brigade   15.5:1  +24,800 / −1,600 · last 100 merges   going down ?
-                                                         51–100 merges ago: 20:1 · 21–50 merges ago: 16:1 · last 20 merges: 8:1
-● parade    4:1     +18,200 / −4,500 · last 100 merges   flat ?
-● cantine   2.8:1   +17,000 / −6,000 · last 100 merges   going up ?
-● atelier   7:1     +2,100 / −300 · last 14 merges       not enough data ?
-```
-
-- **One row per project with a closer set**, in the file's order; **a project with no closer set has no row**. A
-  click on its name opens its space.
-- **Its current ratio** is the one of its closer section on Cooks (removed with the Cooks tab, #2921): the longest window, in the words
-  of `closing` (`15.5:1`, `nothing removed`), with what it counts below.
-- **Its trend — going down, flat or going up — is read from successive values of the ratio.** The runtime keeps no
-  history of the ratio: `closing --json` gives it over the last 20, 50 and 100 merges, each window taken from the same
-  list of merges. Their differences are three spans that follow each other — merges 51 to 100 back, 21 to 50, the last
-  20 —, shown oldest first under the trend. The most recent span is compared with the oldest: more than 10% lower is
-  **going down** (green), more than 10% higher **going up** (yellow), **flat** otherwise; the rule is on hover. A span
-  that removed nothing counts as the highest of ratios.
-- **Too little data says so**: a span counts only with 10 merges or more that changed a line, and a trend needs two.
-  A younger branch shows **"not enough data"** — and why, on hover — instead of a trend; its current ratio stays.
-- An unreadable integration branch, or a reading that failed, fits in one line (`the integration branch could not be
-  read`, `the closer could not be read`), the detail on hover. As long as a box is not read: `reading…`. All read and no
-  closer set anywhere: `No project has a closer set.`
-
-The code lives in `app/src/vue/closer/tendance/tendance.js`. Capture: `docs/captures/1682/`.
 
 ### The weekly summary of each kitchen (#3263)
 
@@ -2671,8 +2660,8 @@ opens, then at most once a minute while it stays open; each part that fails to r
 does not take the others along.
 **What it did**: its last 5 passes, newest first. A pass is a closing issue the runtime opened (`fire`, titled `Closing
 pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/fermeture.md`,
-"On GitHub, the only path"); what it removed is the PR of its cook's branch (`cook/<n>-github`), merged: `−1,234 lines`,
-`+56 added`. Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
+"On GitHub, the only path"); its PR merged — the PR of its cook's branch (`cook/<n>-github`) —, it says `its PR merged`:
+the lines it removed are no longer shown, the Agents tab carries the closer's figures (#4224). Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
 the pass`, `nothing removed` (closed with no PR, or its PR closed without a merge). The issue number and the PR open in the
 browser. No pass yet: `No closing pass yet on this project`, when one is opened on hover.
 **What it checks first**: what the latest pass handed it, on this project — the dead code (`3 exports referenced nowhere,
