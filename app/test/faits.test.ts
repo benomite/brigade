@@ -88,6 +88,8 @@ const fiche = (titre: string | undefined, autre: Partial<Entete> = {}): { fiche:
 // Une carte qui t'attend porte, en tête de sa fiche, ce qu'on attend de toi (decision.ts) : sans
 // décision donnée par `faits` — une box d'avant ce champ, comme ici —, « no question found on #N ».
 const attendu = (ticket: number) => ({ attendu: sansQuestion(ticket) }) as const;
+// Ce qui attend le chef est parked pour lui, pour ce que sa carte attend, sans date (#4261).
+const auChef = (ticket: number) => ({ parque: { qui: "the chef", quoi: sansQuestion(ticket), jusqua: null, chef: true } }) as const;
 
 const lue = (texte: string): Lecture => ({ projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", sorties: [{ commande: "facts", texte }] });
 
@@ -283,7 +285,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ligne: sansQuestion(21), dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", attendu(21)), gestes: ["attente-poser"] }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ligne: sansQuestion(21), dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", attendu(21)), gestes: ["attente-poser"], ...auChef(21) }],
               vide: "no ticket in `attend`, according to `facts`",
             },
             { nom: "Waiting", ton: "orange", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
@@ -548,7 +550,7 @@ describe("le rail en six colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ...NUE, ligne: sansQuestion(21), ...fiche("Ticket 21", attendu(21)), gestes: ["attente-poser"] });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ...NUE, ligne: sansQuestion(21), ...fiche("Ticket 21", attendu(21)), gestes: ["attente-poser"], ...auChef(21) });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "Awaiting you", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
@@ -580,6 +582,7 @@ describe("le rail en six colonnes", () => {
         // En pass, ce que la pass en fait : un runtime d'avant ce champ ne le dit pas, et la carte l'écrit.
         dit: [{ libelle: "right now", valeur: "activity not given — this station's runtime does not give it in `facts`" }],
         ...fiche("Ticket 12", attendu(12)),
+        ...auChef(12),
       });
     }
   });
@@ -602,6 +605,7 @@ describe("le rail en six colonnes", () => {
       question: true,
       ...attendue(30),
       ...fiche(undefined, { issue: { sans: "not given — the station returns no address for this issue" }, ...attendu(30) }),
+      ...auChef(30),
     });
   });
 
@@ -638,6 +642,7 @@ describe("le rail en six colonnes", () => {
       question: true,
       ...attendue(30),
       ...fiche(undefined, attendu(30)),
+      ...auChef(30),
     });
     const titre = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
     assert.deepEqual([titre?.titre, titre?.ouvrable], ["Un titre", true]);

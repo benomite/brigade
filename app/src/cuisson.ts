@@ -15,7 +15,6 @@ const TONS = new Map([
   ["idle", "gris"],
   ["silent", "gris"],
   ["stopped", "gris"],
-  ["saturated", "jaune"],
   ["refused", "rouge"],
 ]);
 
@@ -30,10 +29,9 @@ export type AgentDeStation = { role: string; ticket: number | null; titre: strin
 // qu'elle fait tourner à côté de ses cooks (#1971) — vide quand rien ne tourne.
 // `ordinaires` : la station prend aussi les tickets ordinaires, comme `facts` le dit (l'onglet Stations le montre, #2488).
 export type LigneDeStation = { station: string; distante: boolean; ordinaires?: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; agents: AgentDeStation[]; fournit?: string[]; presente?: boolean; vueLe?: string | null; lacks?: string; retenue?: string; engine?: unknown };
-// `alerte` : ce qui demande un geste au chef du côté des cooks, en une ligne — nulle quand rien ne le demande.
 // `surGithub` : un projet sur GitHub seul, dont les stations se disent de GitHub (vue/onglet-stations/stations-github.js, #2358) —
 // `illisible`, pourquoi leurs signes de vie ne se lisent pas.
-export type CuissonDuProjet = { lignes: LigneDeStation[]; alerte: string | null; surGithub?: { illisible: string | null } };
+export type CuissonDuProjet = { lignes: LigneDeStation[]; surGithub?: { illisible: string | null } };
 
 const PAS_DIT = "not given";
 const PAS_DIT_SURVOL = "this station's runtime does not say yet what it does with the project: update it to start and stop it from here";
@@ -66,7 +64,6 @@ function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string, a
   if (etat === "cooking") return { ...base, etat, ...colore, dit: "", survol: "it takes the project's tickets" };
   if (etat === "idle") return { ...base, etat, ...colore, dit: "", survol: "it holds no ticket of the project: it takes the next one it can cook" };
   if (etat === "silent") return { ...base, etat, ...colore, dit: "", survol: "it has not signed on GitHub for a while: it takes no ticket until it is back" };
-  if (etat === "saturated") return { ...base, etat, ...colore, dit: "its machine has no room", survol: "its machine has no room left: it takes no ticket until it has, its running cooks go on" };
   if (etat === "refused") {
     const refus = station.refus ?? null;
     return { ...base, etat, ...colore, dit: refus?.message ?? "the station refuses the project", survol: refus?.action ?? "the station does not say why" };
@@ -79,13 +76,6 @@ function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string, a
     return { ...base, etat, ...colore, dit: `by you, for ${duree(Date.parse(lu) - Date.parse(depuis))}${finissent}`, survol: "it takes no more tickets of this project; its running cooks finish — delivered, or their ticket goes back to the rail" };
   }
   return { ...base, etat, dit: "", survol: `“${etat}”: a word this app does not know yet` };
-}
-
-// Ce qu'une station qui demande un geste au chef dit de son état, dans la ligne d'alerte. Son refus n'y est pas : il a sa
-// propre ligne, avec sa raison et son geste (vue/projet/rail/refus-de-station.js).
-function aRegler(ligne: LigneDeStation): string | undefined {
-  if (ligne.etat === "saturated") return `${ligne.station} is saturated: it takes no ticket until its machine has room`;
-  return undefined;
 }
 
 // Ce que la pass fait elle-même d'une livraison, comme la carte du ticket en pass le dit : ses phases de travail. Une
@@ -104,7 +94,7 @@ export function agentsDe(agents: readonly AgentLu[] | undefined, rail: Faits["ra
   );
 }
 
-// Les lignes des stations d'un projet, dans l'ordre de `facts`, et sa ligne d'alerte. `cooks` : les cooks en cours
+// Les lignes des stations d'un projet, dans l'ordre de `facts`. `cooks` : les cooks en cours
 // de `facts`, d'où se tirent ceux d'une station quand son runtime ne les lui donne pas. `lu` : l'heure de la
 // lecture, à l'horloge de la box. `agents`, `rail` : ce qui tourne hors des cooks de ticket (#1971) — chacun sur la
 // station qui le fait tourner ; sans elle, ou quand elle n'est pas du projet, sur sa première station d'ici, celle qui
@@ -117,8 +107,5 @@ export function cuissonDe(stations: readonly StationDesFaits[], cooks: readonly 
     agent: { role: agent.role, ticket: agent.ticket, titre: agent.ticket === null ? "" : (titres.get(agent.ticket) ?? ""), fait: agent.fait, depuis: agent.depuis, pour: duree(Date.parse(lu) - Date.parse(agent.depuis)) },
   }));
   const lignes = stations.map((station) => ligneDe(station, cooks ?? [], lu, tournent.flatMap(({ ou, agent }) => (ou === station.station ? [agent] : []))));
-  const dites = lignes.flatMap((ligne) => aRegler(ligne) ?? []);
-  const [premiere] = dites;
-  const autres = dites.length - 1;
-  return { lignes, alerte: premiere === undefined ? null : autres === 0 ? premiere : `${premiere} — and ${autres} more station${autres > 1 ? "s" : ""}` };
+  return { lignes };
 }

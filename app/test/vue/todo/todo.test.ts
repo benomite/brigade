@@ -25,6 +25,7 @@ const TIERS = { quoi: "the signed quote", qui: "the client", depuis: "2026-11-01
 
 // Un ticket qui attend le chef à chaque étape : #20 sur le rail, #14 pris, #30 en pass, #40 mis de côté là où le runtime dit
 // qu'il attend (Pass), #60 pas encore sur le rail ; #8 en WAITING, sa relance passée ; #9 en WAITING, sa relance à venir.
+// #8 et #9 sont parked pour le client : une relance passée ne les rend pas au chef (#4261).
 const FAITS: Faits = {
   etat: "ouverte",
   lu: "2026-11-13T10:04:11.000Z",
@@ -67,7 +68,7 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
     assert.equal(lu.colonnes.find(({ nom }) => nom === "On the rail")?.cartes[0]?.etape, undefined);
   });
 
-  test("aucune colonne TODO ; les rouges en tête de leur colonne, avant les autres ; N les compte toutes, WAITING compris", () => {
+  test("aucune colonne TODO ; les rouges en tête de leur colonne, avant les autres ; N les compte toutes, une relance passée non (#4261)", () => {
     const range = rangerLeRail(rail(FAITS).colonnes);
     assert.deepEqual(cartes(range.colonnes), [
       ["On the rail", "3", [20, 60, 21]],
@@ -76,7 +77,7 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
       ["Waiting", "2", [8, 9]],
       ["Served", "0", []],
     ]);
-    assert.equal(range.compte, "6");
+    assert.equal(range.compte, "5");
     for (const colonne of range.colonnes) {
       const rouges = colonne.cartes.map(estRouge);
       assert.deepEqual(rouges, rouges.toSorted((a, b) => Number(b) - Number(a)), `${colonne.nom} : une rouge après une autre`);
@@ -112,7 +113,7 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
     const range = rangerLeRail(rail({ ...FAITS, attendAutres: [{ ticket: 70, titre: "Ticket 70", url: issue(70), qui: ["bob"] }] }).colonnes);
     assert.deepEqual(range.autres?.map(({ ticket: numero }) => numero), [70]);
     assert.ok(!range.colonnes.some(({ cartes: siennes }) => siennes.some(({ ticket: numero }) => numero === 70)));
-    assert.equal(range.compte, "6");
+    assert.equal(range.compte, "5");
   });
 });
 
@@ -145,25 +146,25 @@ const bonsDe = (colonne: Faux) => colonne.dessous("li").filter(({ className }) =
 
 describe("la vue du projet, sur un écran large et sur un téléphone", () => {
   for (const etroit of [false, true]) {
-    test(`${etroit ? "téléphone" : "écran large"} : aucune colonne TODO, ni entrée ni filtre ; les rouges en tête de leur étape, au nombre de 6`, async () => {
+    test(`${etroit ? "téléphone" : "écran large"} : aucune colonne TODO, ni entrée ni filtre ; les rouges en tête de leur étape, au nombre de 5`, async () => {
       const vue = await ouvrir(etroit);
       // Le plan de la cuisine (#4238) : WAITING n'a plus de colonne, #8 et #9 sont parked dans le backlog — le rail en tête, les
       // prêts à part : #21 ; dessous, ce qui ne l'est pas, les rouges d'abord.
       assert.deepEqual(lesColonnes(vue).map(({ dataset }) => dataset.colonne), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
       assert.deepEqual(lesColonnes(vue).map(bonsDe), [
-        [[21, false], [20, true], [60, true], [8, true], [9, false]],
+        [[21, false], [20, true], [60, true], [8, false], [9, false]],
         [],
         [[14, true], [15, false]],
         [[30, true], [40, true], [31, false]],
         [],
       ]);
-      assert.equal(rouges(vue.element("rail")).length, 6);
+      assert.equal(rouges(vue.element("rail")).length, 5);
       assert.equal(entree(vue), undefined);
       // La colonne où une carte rouge attend le chef est en vue à l'ouverture.
       assert.ok(lesColonnes(vue).filter(({ dataset }) => "attend" in dataset).every(({ dataset }) => "actif" in dataset));
       // Une lecture suivante ne change rien : il n'y a pas de filtre à garder.
       recevoir(vue, FAITS);
-      assert.equal(rouges(vue.element("rail")).length, 6);
+      assert.equal(rouges(vue.element("rail")).length, 5);
     });
   }
 
@@ -187,8 +188,9 @@ describe("l'accueil dit le compte des cartes rouges du rail", () => {
     (vue.element("projets").children.at(0) ?? assert.fail("pas de « Tous les projets »")).click();
     await repos();
     const compte = () => vue.element("accueil-projets").dessous("span").find(({ className }) => className === "attend")?.textContent;
-    assert.match(compte() ?? "", /^6 /);
-    recevoir(vue, { ...FAITS, attend: [] });
+    assert.match(compte() ?? "", /^5 /);
+    // Une seule carte attend encore le chef : #8, parked pour le client, n'est pas comptée (#4261).
+    recevoir(vue, { ...FAITS, attend: FAITS.attend?.slice(0, 1) });
     await repos();
     assert.match(compte() ?? "", /^1 /);
   });
