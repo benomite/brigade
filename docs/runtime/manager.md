@@ -21,7 +21,8 @@ npm --prefix runtime run manager -- approve 3   # your OK to a gesture an agent 
 ```
 
 `manager` alone also lists the gestures the agents hold for your OK, with their number: the closer's passes and the
-splits of an epic, on `propose` by default. The gate is described in [`autonomie.md`](autonomie.md).
+splits of an epic when you set `manager split-epic` to `propose` — it is `act` by default since 2026-11-25 (#4247):
+the tickets are created at the same pass. The gate is described in [`autonomie.md`](autonomie.md).
 
 ⚠️ **Once on, it judges the whole open backlog**, and whatever it judges executable goes straight to the
 kitchen and is merged when green. Before switching on, set `blocked-on-human` on whatever must not go:
@@ -228,12 +229,17 @@ from which it draws each zone; the project's common paths enter none. Three answ
 
 | Answer | What the manager does | In the log |
 |---|---|---|
-| a split, twelve tickets at most | Creates and launches the tickets, says so on the epic | `manager.split`, then a fact per step |
+| a split, twelve tickets at most | Creates and launches the tickets at the same pass, says so on the epic | `manager.split`, then a fact per step |
 | **a question**: the epic is ambiguous on a product choice | Sets it in a comment, creates nothing | `manager.split-asked` |
 | "already split": the epic names its tickets | Creates nothing, says so once | `manager.split-skipped` |
 
 The question is for a **product choice**; a technical ambiguity the manager decides, writing what and
-why (the `motif`). An answer the code cannot read (a ticket with no criterion or zone, one waiting for a
+why (the `motif`). **Whether to split is never a question** (#4247, the chef's decision of 2026-11-25): one
+ticket or several is the manager's to decide — an epic that fits one PR is a split into one ticket. A
+question that asks the chef whether to split (it speaks of splitting into tickets, or of one ticket or
+several) is read as an unreadable answer: asked again once, then the epic is judged as a single ticket,
+and no TODO card asks it. A question asked before this rule, on an epic that has not changed since, is
+read again once at the next pass, with no gesture from you. An answer the code cannot read (a ticket with no criterion or zone, one waiting for a
 ticket placed after it, a calibration outside the table, more than twelve tickets) creates **no** ticket
 (`manager.split-failed`). **The question holds nothing back**: the rail moves on. It is read in `run
 manager` (`QUESTION ASKED`); answer in a comment or edit the epic, and it is read again **with the
