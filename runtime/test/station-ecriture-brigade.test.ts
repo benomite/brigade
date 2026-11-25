@@ -61,7 +61,7 @@ test("un ticket de setup pris par la station : son cook écrit et édite reseau,
   // Le répertoire temporaire des jugements du manager, hors du compte.
   const jugements = repertoireTemporaire(t);
   // `ENV_GIT` : le faux cook commite, et le CI ne donne aucune identité à git.
-  const env = { ...ENV_GIT, HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_COOK, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement"), BRIGADE_GH_BIN: gh.bin, FAUX_COOK: "setup-brigade", FAUX_COOK_TEMOIN: temoin, FAUX_COOK_DEHORS: dehors };
+  const env = { ...ENV_GIT, HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_COOK, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement"), BRIGADE_GH_BIN: gh.bin, FAUX_COOK: "setup-brigade", FAUX_COOK_TEMOIN: temoin, FAUX_COOK_DEHORS: dehors, BRIGADE_MAX_LOAD_PER_CORE: "1000000" };
   const etat = environnementDuProjet(racine, projet, env).BRIGADE_STATE_DIR ?? "";
   mkdirSync(etat, { recursive: true });
   const journal = ouvrirJournal(etat);
