@@ -1,5 +1,5 @@
 // La page d'une station dont la connexion Max est perdue, « log in » cliqué sur un Mac sans Claude Code (#4059) : le
-// login ne part pas, et l'écran de l'outil manquant le dit dans l'avis — Claude Code nommé, pourquoi, son installeur.
+// login ne part pas, et l'écran de l'outil manquant le dit dans l'avis — Claude Code nommé, pourquoi, le lien de sa page d'installation.
 import { outilsManquants } from "../../../runtime/src/outils-requis/machine.ts";
 import type { Ecran } from "./commun.ts";
 import { pageDeStation } from "./station-pannes.ts";
