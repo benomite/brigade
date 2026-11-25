@@ -45,6 +45,7 @@ test("a merge whose kind the sheet does not rank as safe is parked for the chef 
   await tours(3);
   assert.equal(faux.mergee(1), undefined, "the merge did not run");
   assert.deepEqual(faux.prs.filter((pr) => pr.issue === 1).map(({ state }) => state), ["open"], "not taken as merged");
+  assert.equal(faux.ticket(1).state, "open", "parked, the ticket is not served");
   // Held as a delivery the chef answers: never said refused by GitHub.
   assert.deepEqual(avertissements.filter((texte) => /refused by GitHub/.test(texte)), []);
   const [attente] = gestesEnAttente(repertoire);
@@ -134,6 +135,7 @@ test("a kind ranked 'safe' still goes through the pass's level, as before: on pr
   assert.equal(faux.mergee(1), undefined);
   assert.deepEqual(avertissements.filter((texte) => /refused by GitHub/.test(texte)), []);
   assert.deepEqual(faux.prs.filter((pr) => pr.issue === 1).map(({ state }) => state), ["open"], "not taken as merged");
+  assert.equal(faux.ticket(1).state, "open", "held by the level, the ticket is not served");
   const [attente] = gestesEnAttente(repertoire);
   assert.match(attente?.line ?? "", /^merge PR #\d+ of #1$/);
   await porte.approuver(attente?.id ?? 0);

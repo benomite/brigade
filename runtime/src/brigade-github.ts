@@ -2130,7 +2130,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     const genre = genreDuTicket(ticket.labels);
                     if (genre === null || (station.ficheDuProjet ?? null) === null) return mergerParLaPorte();
                     // Rangé `safe`, le merge passe par le niveau de la pass, comme avant. Parqué, c'est la réponse du chef qui le
-                    // lance : il ne lui redemande pas son OK, et un merge qui échoue alors se dit.
+                    // lance : il ne lui redemande pas son OK, et un merge qui échoue alors se dit. Ce merge direct tient à
+                    // `lance.fusion`, posé après le retour de `soumettre` : la réponse du chef le trouve posé. Sans porte, l'item
+                    // parqué reste en mémoire, que personne ne répondra : le `parquer` du pass le dit.
                     const lance: { fusion: Merge | null } = { fusion: null };
                     const issue = await passDuRisque.soumettre({
                       ticket: ticket.number,
