@@ -636,7 +636,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/reglages-projet/en-vigueur.test.ts", test: "a fresh clone and a station line that names no branch: the project's branch, calibrations and ceiling, nothing entered on the box" },
   { file: "test/reglages-projet/en-vigueur.test.ts", test: "without the box's calibrations nor the repository's, the runtime refuses to start, naming both places" },
   { file: "test/reglages-projet/en-vigueur.test.ts", test: "a file on the integration branch that is not the project's settings: the kitchen refuses to open rather than fall back on the box" },
-  { file: "test/reglages-projet/en-vigueur.test.ts", test: "the file on the branch the line names comes first, then the file of the clone's working tree, then the line, then the CLAUDE.md line" },
+  { file: "test/reglages-projet/en-vigueur.test.ts", test: "the file on the repository's default branch comes first, then the file of the clone's working tree, then the CLAUDE.md line, then the default branch — never the line" },
   { file: "test/reglages-projet/reglages.test.ts", test: "an absolute machine path is refused, and the file is left untouched" },
   { file: "test/reglages-projet/reglages.test.ts", test: "what is not a project setting, or not a valid one, is refused and named" },
   { file: "test/reglages-projet/seuils.test.ts", test: "a station applies projet.json's drift thresholds at its next fetch over its box's decisions, and its gestures keep working without the file" },

@@ -14,6 +14,7 @@
 //
 // La branche se résout avant de savoir où lire, une fois, à l'ouverture de la
 // cuisine : c'est d'elle que partent les worktrees.
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Calibrage } from "../calibrage.ts";
@@ -41,12 +42,13 @@ export function roadmapALaBase(lieu: { clone: string; base: string }, env?: Node
   return texte === null ? null : roadmapDuClaudeMd(texte);
 }
 
-// D'où vient la branche d'intégration : le fichier du dépôt, la ligne de la
-// station, ou la ligne « Branche d'intégration » du `CLAUDE.md` du clone.
-export type ProvenanceDeLaBranche = "projet.json" | "configuration" | "CLAUDE.md";
+// D'où vient la branche d'intégration : le fichier du dépôt, le `CLAUDE.md`
+// du clone, la branche par défaut du dépôt, ou — faute de tout cela — la ligne
+// de la station.
+export type ProvenanceDeLaBranche = "projet.json" | "CLAUDE.md" | "default" | "configuration";
 
 export type BrancheDuProjet = {
-  // Null : ni le dépôt ni la ligne ne la disent.
+  // Null : ni le dépôt ni son clone ne la disent.
   branche: string | null;
   provenance: ProvenanceDeLaBranche | null;
   // Ce qui n'a pas pu se lire en chemin, dit au chef : rien n'en est deviné.
@@ -55,13 +57,29 @@ export type BrancheDuProjet = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// La branche d'intégration du projet. Dans l'ordre :
-//   1. celle que le fichier porte sur la branche que la ligne nomme — la
-//      ligne n'est alors qu'un point de départ ;
-//   2. celle que le fichier porte dans l'arbre du clone — un clone frais, sur
-//      la branche par défaut de son dépôt, qu'aucune ligne ne nomme ;
-//   3. celle de la ligne, pour un dépôt sans le fichier ;
-//   4. celle que le `CLAUDE.md` du clone déclare.
+// La branche par défaut du dépôt, telle que le clone l'a reçue : `origin/HEAD`,
+// ou la branche que le clone a extraite. Null si le clone n'en dit aucune.
+function brancheParDefaut(clone: string, env?: NodeJS.ProcessEnv): string | null {
+  const lire = (...args: string[]) => {
+    try {
+      return execFileSync("git", args, { cwd: clone, env, timeout: 30_000, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    } catch {
+      return "";
+    }
+  };
+  const origine = lire("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
+  return origine !== "" ? origine : lire("symbolic-ref", "--short", "HEAD") || null;
+}
+
+// La branche d'intégration du projet, toujours tirée du projet et jamais d'une
+// ligne de configuration : une branche gardée sur une vieille ligne (`v2`,
+// disparue) ne passe jamais devant ce que le projet dit. Dans l'ordre :
+//   1. celle que le fichier porte sur la branche par défaut du dépôt ;
+//   2. celle que le fichier porte dans l'arbre du clone ;
+//   3. celle que le `CLAUDE.md` du clone déclare ;
+//   4. la branche par défaut du dépôt ;
+//   5. la ligne de la station, seulement quand le clone n'en dit aucune — un
+//      clone sans git, jamais celui d'un dépôt cloné.
 // Ne lève jamais : un fichier illisible est dit dans `problemes`, et c'est la
 // lecture des réglages à la base qui le refuse.
 export function brancheDuProjet(clone: string, ligne: string | null, env?: NodeJS.ProcessEnv): BrancheDuProjet {
@@ -75,8 +93,9 @@ export function brancheDuProjet(clone: string, ligne: string | null, env?: NodeJ
     }
   };
   const duFichier = (reglages: ReglagesProjet | null): BrancheDuProjet | null => (reglages === null ? null : { branche: reglages.integrationBranch, provenance: "projet.json", problemes });
-  if (ligne !== null) {
-    const lu = duFichier(essayer(`origin/${ligne}`, () => reglagesALaBase({ clone, base: ligne }, env)));
+  const parDefaut = brancheParDefaut(clone, env);
+  if (parDefaut !== null) {
+    const lu = duFichier(essayer(`origin/${parDefaut}`, () => reglagesALaBase({ clone, base: parDefaut }, env)));
     if (lu !== null) return lu;
   }
   const arbre = join(clone, FICHIER);
@@ -84,10 +103,11 @@ export function brancheDuProjet(clone: string, ligne: string | null, env?: NodeJ
     const lu = duFichier(essayer("the clone's working tree", () => reglagesDuTexte(readFileSync(arbre, "utf8"))));
     if (lu !== null) return lu;
   }
-  if (ligne !== null) return { branche: ligne, provenance: "configuration", problemes };
   const claudeMd = join(clone, "CLAUDE.md");
   const declaree = existsSync(claudeMd) ? essayer("the clone's CLAUDE.md", () => brancheDuClaudeMd(readFileSync(claudeMd, "utf8"))) : null;
-  return declaree === null ? { branche: null, provenance: null, problemes } : { branche: declaree, provenance: "CLAUDE.md", problemes };
+  if (declaree !== null) return { branche: declaree, provenance: "CLAUDE.md", problemes };
+  if (parDefaut !== null) return { branche: parDefaut, provenance: "default", problemes };
+  return ligne === null ? { branche: null, provenance: null, problemes } : { branche: ligne, provenance: "configuration", problemes };
 }
 
 // Ce que le runtime lit des réglages du dépôt à l'ouverture de la cuisine. Un
@@ -154,7 +174,7 @@ export function variablesDuDepot(reglages: ReglagesProjet | null): Record<string
 // station : ce que le dépôt fixe, et ce qu'il laisse à la box.
 export function direReglagesDuDepot(branche: BrancheDuProjet, reglages: ReglagesProjet | null, base: string): string {
   const d = (calibrage: Calibrage | undefined) => (calibrage === undefined ? "box" : `${calibrage.model}/${calibrage.effort}`);
-  const depuis = { "projet.json": `${FICHIER}`, configuration: "the station's configuration line", "CLAUDE.md": "the clone's CLAUDE.md" };
+  const depuis = { "projet.json": `${FICHIER}`, configuration: "the station's configuration line", "CLAUDE.md": "the clone's CLAUDE.md", default: "the repository's default branch" };
   const brancheDite = `branch ${branche.branche ?? "?"} (from ${branche.provenance === null ? "nowhere" : depuis[branche.provenance]})`;
   if (reglages === null) return `project settings — ${brancheDite}; origin/${base} has no ${FICHIER}: calibrations, ceiling and closer are the box's`;
   const { manager, reviewer } = reglages.defaultCalibrations ?? {};

@@ -245,8 +245,8 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const besoins = suivreLesBesoins({ station, sonde: options.sonde, avertir: dire });
   const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null, ...(cause === undefined ? {} : { refus: refusDe(cause, remedes) }) });
 
-  // Le projet, sa branche d'intégration résolue par son clone ; null si ni son
-  // dépôt ni l'app ne la nomment.
+  // Le projet, sa branche d'intégration résolue par son clone ; null si ni son clone
+  // ni l'app n'en nomment.
   const avecSaBranche = (projet: ProjetDemande): ProjetResolu | null => {
     const { branche } = brancheDuProjet(cloneDe(projet.nom), projet.base);
     return branche === null ? null : { ...projet, base: branche };
