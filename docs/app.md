@@ -973,7 +973,8 @@ the agent's thread under the badges: its last gestures, one line each with its r
 `fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
 pressed, its meaning on hover — and each gesture that awaits your OK with one `OK` button. A level click sets the level
 once; an `OK` approves the gesture once and removes it. A gesture that fails changes nothing and says it in one line,
-its detail on hover. A second click on the badge closes the thread.
+its detail on hover. A second click on the badge closes the thread. Since #4224, a click that opens a badge also opens
+the project's **Agents** tab, on that agent's last gestures (below).
 
 The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which
 calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The runtime side is another ticket of the
@@ -982,6 +983,30 @@ fails says `The agents not reached.`, and a record missing a field says the read
 up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
+
+### The Agents tab (#4224, epic #4117)
+
+The project's menu reads **Rail · Stations · Agents · Settings** (screen `Project.dc.html`). The Agents tab shows one
+card per agent that `GET /api/agents` returns, in its order: the agent's name, its role in one sentence, its state now —
+`idle`, `working on #N` (`working` alone for a run on no ticket) or `broken`, a broken agent's card and mark red where an
+idle one is grey —, its next run (`next run: Nov 25, 16:30 UTC`, or `not known`), and its figures of the last 7 days,
+each its value, its label and its meaning written next to it, as the runtime gives them. Its settings are on the same
+card, one settings row each (`composants/reglage`): an editable one has its control — a list for a model, an effort or
+an autonomy level (`observe`, `propose`, `act`), a switch for a pause, a number field for a limit —, which applies on
+`change` with `PUT /api/agents/:id/settings` `{key, value}`; the row says `changing…` while it goes, then the new value
+with `changed <when> by <who>` (`changedAt`, `changedBy`). A refusal (400) says `not changed: <reason>` under the row,
+and the old value stays. A setting not editable from the app shows `lives in <livesIn>` and has no control. A click on
+the agent's name opens its last gestures (`GET /api/agents/:id/gestures`, newest first), one line each with its time,
+what it did and its issue, its reason under it; an agent without gestures says `No gesture yet.`; another click closes
+them.
+
+The view reaches the API through one module, `app/src/vue/agents/source.js` (`demander`), which calls the bridge
+`apiDesAgents(demande, projet, corps)` with the route as it is written (`GET /api/agents`). The runtime serves the routes
+(#4220, #4222: `npm --prefix runtime run agents`, `agent-settings`); the main process does not relay them to the bridge
+yet, and until it does the tab says `The agents not reached.` A reading that fails says so in one line, its detail on
+hover; a list, a setting or a gesture that is not of the contract's shape says it is not readable: no value is made up.
+Its screens in `scripts/capture-ecran/`: `onglet-agents`, `onglet-agents-gestes`, `onglet-agents-refus`,
+`onglet-agents-reglage`, `onglet-agents-reglage-fait`; their captures go in `docs/captures/4224/`.
 
 ### The logbook of the day and the morning digest card (#4274, epic #4025)
 
@@ -2689,16 +2714,13 @@ block writes, and the station reads it from its clone's working tree — its row
 are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
 `app/src/vue/projet/bandeau-sante/PlafondsDuree.js`.
 
-**Health strip: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
+**Health strip: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in three parts, all
 read on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/closer-sante.ts`) — when Health
 opens, then at most once a minute while it stays open; each part that fails to read is one line, its detail on hover, and
-does not take the others along.
-**What it did**: its last 5 passes, newest first. A pass is a closing issue the runtime opened (`fire`, titled `Closing
-pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/fermeture.md`,
-"On GitHub, the only path"); what it removed is the PR of its cook's branch (`cook/<n>-github`), merged: `−1,234 lines`,
-`+56 added`. Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
-the pass`, `nothing removed` (closed with no PR, or its PR closed without a merge). The issue number and the PR open in the
-browser. No pass yet: `No closing pass yet on this project`, when one is opened on hover.
+does not take the others along. A pass is a closing issue the runtime opened (`fire`, titled `Closing pass on …`, its body
+marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/fermeture.md`, "On GitHub, the only
+path"). Its former first part, **What it did** — each pass and the lines it removed —, is gone since #4224: the closer's
+figures of the last 7 days are on its card of the **Agents** tab.
 **What it checks first**: what the latest pass handed it, on this project — the dead code (`3 exports referenced nowhere,
 or by tests only`), the duplicates, the drift of the latest merges (its longest window; the others on hover) and the
 ticket times (`stable since the previous pass`, or the drift found and its correction ticket) — then, folded behind one

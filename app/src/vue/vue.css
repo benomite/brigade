@@ -3818,9 +3818,9 @@ main > header {
 :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary .resume {
   color: var(--texte-doux);
 }
-/* Le closer, sur Kitchen > Health (ticket 2491) : quatre parties sous son titre — ce qu'il a fait, ce qu'il vérifie en
-   premier, ce qu'il vérifie en plus, ses réglages. Une passe est une ligne : son issue et sa date, ce qu'elle a retiré, sa
-   PR ; un réglage chiffré est la ligne d'un plafond de durée, le calibrage ses deux listes. */
+/* Le closer, sur Kitchen > Health (ticket 2491) : trois parties sous son titre — ce qu'il vérifie en premier, ce qu'il
+   vérifie en plus, ses réglages (ce qu'il a fait est sur sa carte de l'onglet Agents, ticket 4224). Un réglage chiffré est
+   la ligne d'un plafond de durée, le calibrage ses deux listes. */
 .closer-partie {
   display: flex;
   flex-direction: column;
@@ -3851,24 +3851,6 @@ main > header {
 }
 [data-bloc="closer"] small {
   font-size: var(--taille-corps);
-}
-[data-bloc="closer"] .passe {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-[data-bloc="closer"] .passe > p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-1) var(--pas-3);
-}
-[data-bloc="closer"] .passe > .retire strong {
-  font-weight: 600;
-  color: var(--texte);
 }
 [data-bloc="closer"] p.verification {
   display: grid;

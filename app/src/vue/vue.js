@@ -175,7 +175,8 @@ import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.
 import { AUCUNE_STATION } from "./cooks/sans-station.js";
 import { marqueApres } from "./carte-attente/carte-attente.js";
 import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
-import { MENU, STATIONS } from "./projet/menu/menu.js";
+import { AGENTS, MENU, STATIONS } from "./projet/menu/menu.js";
+import { tenirLOngletAgents } from "./agents/agents.js";
 import { interrupteur as interrupteurDeLApp } from "./composants/interrupteur/interrupteur.js";
 import { FAIT_DIT, stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
 import { arreter, gesteDArret, SANS_GESTE } from "./projet/stations/ArretStation.js";
@@ -710,9 +711,21 @@ const delaiDuProjet = element("delai-du-projet");
 // L'équipe du projet affiché (ticket 4029, autonomie/equipe.js), en tête de sa vue : relue à son ouverture et à chaque
 // lecture de son rail, montrée pour lui seul.
 // La bande du haut du rail lit son supervisor et son closer : une lecture qui les change la repose (ticket 4238).
-const equipeDuProjet = tenirLEquipe(document, element("equipe-du-projet"), (nom) => {
-  if (courant?.nom === nom) poserRail(courant);
-});
+// Un badge ouvert ouvre l'onglet Agents (ticket 4224) sur les gestes de son agent.
+const equipeDuProjet = tenirLEquipe(
+  document,
+  element("equipe-du-projet"),
+  (nom) => {
+    if (courant?.nom === nom) poserRail(courant);
+  },
+  (agent) => {
+    if (courant === undefined) return;
+    ongletDesAgents.ouvrir(courant.nom, agent);
+    choisirOnglet(AGENTS);
+  },
+);
+// L'onglet Agents d'un projet (ticket 4224, agents/agents.js) : une carte par agent, ses réglages, ses gestes.
+const ongletDesAgents = tenirLOngletAgents(document, { valeurs: () => CALIBRAGE_DU_PROJET });
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
@@ -858,7 +871,7 @@ function retenus() {
   ongletsRetenus = new Map();
   try {
     const lus = JSON.parse(window.localStorage?.getItem(CLE_DES_ONGLETS) ?? "{}");
-    for (const [nom, id] of Object.entries(lus ?? {})) if (id === RAIL || id === STATIONS || id === CONVERSATION) ongletsRetenus.set(nom, id);
+    for (const [nom, id] of Object.entries(lus ?? {})) if (id === RAIL || id === STATIONS || id === AGENTS || id === CONVERSATION) ongletsRetenus.set(nom, id);
   } catch {
     // Illisible : chaque projet s'ouvre sur Rail, et le prochain choix le réécrit.
   }
@@ -5182,11 +5195,18 @@ function poserLeRail(projet) {
   const tenu = tenus.get(projet.nom);
   rail.hidden = false;
   const onglet = ongletDe(projet);
-  rail.dataset.onglet = onglet === STATIONS ? onglet : RAIL;
-  rail.ariaLabel = onglet === STATIONS ? "The stations" : "The rail";
+  rail.dataset.onglet = onglet === STATIONS || onglet === AGENTS ? onglet : RAIL;
+  rail.ariaLabel = onglet === STATIONS ? "The stations" : onglet === AGENTS ? "The agents" : "The rail";
   // Settings ouvert par-dessus : sa section des plafonds et du closer suit la lecture, comme elle le faisait sur l'onglet
   // (ticket 3014) ; un champ en cours de frappe n'est pas reposé.
   reposerLaSante(projet, true);
+  // Agents (ticket 4224) : la section de l'onglet, qui se repose seule ; posée une fois, elle n'est pas reprise sous un
+  // champ en cours de frappe.
+  if (onglet === AGENTS) {
+    const section = ongletDesAgents.poser(projet.nom);
+    if (section.parentElement !== rail) rail.replaceChildren(section);
+    return;
+  }
   // Stations : la liste de ses stations (ticket 2487), et « Add a station » ; les réglages de
   // chacune (ticket 2488) ; la station de cet ordinateur (ticket 2489).
   if (onglet === STATIONS) {

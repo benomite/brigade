@@ -1,7 +1,7 @@
 // La page de « parade », le bandeau de santé dans Settings (#2491, épique #2484, #3014), haute assez pour montrer le
-// closer sous les plafonds : ses trois dernières passes — une en cours, sa PR à la pass ; une mergée, ses lignes retirées ; une fermée
-// sans merge —, ce que la dernière lui a remis, les deux vérifications que le chef lui a demandées en plus, et ses
-// réglages, dont le calibrage et le plafond de tokens posés dans le dépôt.
+// closer sous les plafonds : ce que sa dernière passe lui a remis, les deux vérifications que le chef lui a demandées en
+// plus, et ses réglages, dont le calibrage et le plafond de tokens posés dans le dépôt. Ses passes et leurs lignes retirées
+// ne s'y montrent plus (#4224) : ses chiffres sont sur sa carte de l'onglet Agents.
 import type { LectureDuCloser } from "../../../app/src/closer-sante.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
@@ -68,7 +68,7 @@ export const CLOSER_LU: LectureDuCloser = {
 };
 
 export const ecran: Ecran = {
-  dit: "L'espace de « parade », le bandeau de santé de Settings : le closer — ses passes, ce qu'il vérifie en premier et en plus, ses réglages (#2491)",
+  dit: "L'espace de « parade », le bandeau de santé de Settings : le closer — ce qu'il vérifie en premier et en plus, ses réglages (#2491, #4224)",
   largeur: 1440,
   hauteur: 1700,
   etapes: [OUVRIR, SETTINGS, SECTION],

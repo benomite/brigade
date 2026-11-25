@@ -411,6 +411,9 @@ export type Pont = {
   lireLesAgents?(projet: string): Promise<unknown[] | undefined>;
   reglerLAutonomie?(projet: string, agent: string, niveau: import("./autonomie/source.js").Niveau): Promise<void>;
   approuverLeGeste?(projet: string, agent: string, id: string): Promise<void>;
+  // L'API des agents d'un projet, pour l'onglet Agents (ticket 4224, agents/source.js) : « GET /api/agents »,
+  // « GET|PUT /api/agents/<id>/settings », « GET /api/agents/<id>/gestures », et le corps d'un PUT ; la réponse du runtime.
+  apiDesAgents?(demande: string, projet: string, corps?: { key: string; value: unknown }): Promise<{ statut: number; corps: unknown }>;
   // La cuisine que la visite montre (ticket 4087, visite.ts) : son rail, lu sur GitHub en lectures seules — rien n'est
   // cloné ni ajouté —, ou pourquoi il ne se lit pas. Seule benomite/brigade se visite.
   lireLaCuisineVisitee?(depot: string): Promise<import("../visite.ts").CuisineVisitee>;

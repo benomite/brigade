@@ -1,8 +1,8 @@
 // @ts-check
-// Le closer, sur Kitchen > Health (ticket 2491, épique 2484) : ce qu'il a fait — ses passes, et ce que chacune a retiré —,
-// ce qu'il vérifie en premier sur ce projet, ce que le chef lui demande de vérifier en plus, et ses réglages — son
-// calibrage, sa condition de départ, ses plafonds. Tout vient du dépôt du projet, sur GitHub (closer-sante.ts) : une
-// passe est une issue de fermeture, ce qu'elle a retiré est sa PR mergée ; ce qu'il vérifie en premier, ce que la
+// Le closer, sur Kitchen > Health (ticket 2491, épique 2484) : ce qu'il vérifie en premier sur ce projet, ce que le chef
+// lui demande de vérifier en plus, et ses réglages — son calibrage, sa condition de départ, ses plafonds. Ce qu'il a fait,
+// ses chiffres, est sur sa carte de l'onglet Agents (ticket 4224). Tout vient du dépôt du projet, sur GitHub
+// (closer-sante.ts) : une passe est une issue de fermeture ; ce qu'il vérifie en premier, ce que la
 // dernière passe lui a remis ; ses vérifications en plus, `.claude/brigade/closer-checks.md` ; ses réglages, `closer.*`
 // de `.claude/brigade/projet.json`. Chaque réglage est une rangée de réglage (composants/reglage, ticket 2920) — un
 // réglage chiffré, celle d'un plafond de durée (PlafondsDuree.js) : son nom, sa valeur en vigueur et d'où elle vient, un
@@ -13,10 +13,8 @@ import { boutonAction, replie, survol } from "../../briques.js";
 import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
 import { ditDuPlafond, EN_COURS, poserUnPlafond } from "./PlafondsDuree.js";
 import { ditDuReglage, PAR_PR, rangeeDeReglage } from "../../composants/reglage/reglage.js";
-import { bouton as boutonDeLaFamille } from "../../composants/bouton/bouton.js";
 import { ligneVide } from "../../composants/ligne-vide/ligne-vide.js";
-import { PR_DU_TICKET } from "../../pr-du-ticket.js";
-import { PAS_ENCORE, PASSE_DE_FERMETURE, LECTURE_DE, LECTURE } from "../../lexique.js";
+import { PAS_ENCORE, LECTURE_DE, LECTURE } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../closer-sante.ts").LectureDuCloser} Lecture */
@@ -32,14 +30,11 @@ import { PAS_ENCORE, PASSE_DE_FERMETURE, LECTURE_DE, LECTURE } from "../../lexiq
 export const TITRE = "Closer";
 export const AIDE =
   "The closer prunes what the project no longer needs — dead code, duplicates. After 20 merges since its last pass, at most once a day, a station opens a closing issue; a cook cooks it and the pass merges its PR.";
-export const FAIT = "What it did";
 export const EN_PREMIER = "What it checks first";
 export const EN_PLUS = "Extra checks";
 export const REGLAGES = "Settings";
 export const REGLAGES_AIDE =
   "Kept in the project's repository (.claude/brigade/projet.json): a change here opens a pull request on its integration branch, and the station applies it once merged, at its next fetch. Empty, the setting's removal is proposed.";
-export const SANS_PASSE = PAS_ENCORE(PASSE_DE_FERMETURE);
-export const SANS_PASSE_POURQUOI = "A station opens one once the closer is calibrated and 20 merges reached the integration branch since the last pass.";
 export const SES_VERIFICATIONS = "At each pass: the dead code and the duplicates of the base, the drift of the latest merges, and the ticket times.";
 export const EN_PLUS_AIDE =
   "Kept in the project's repository (.claude/brigade/closer-checks.md): adding or removing one here opens a pull request on its integration branch, and the list changes once merged. The runtime does not copy them into a pass's issue yet: they wait in the repository until it does.";
@@ -59,22 +54,6 @@ function cree(doc, balise, texte) {
 }
 const nombre = (/** @type {number} */ n) => n.toLocaleString("en-US");
 const s = (/** @type {number} */ n) => (n > 1 ? "s" : "");
-/** @param {string} iso */
-const jour = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-
-// Un lien vers GitHub : un bouton qui l'ouvre dans le navigateur du poste, l'adresse au survol.
-/** @param {Fabrique} doc @param {string} texte @param {string} url @param {(url: string) => void} ouvrir */
-function lien(doc, texte, url, ouvrir) {
-  if (!/^https:\/\//.test(url)) {
-    const sans = cree(doc, "span", texte);
-    sans.className = "mono";
-    return sans;
-  }
-  const bouton = boutonDeLaFamille(doc, texte, () => ouvrir(url), { sorte: "discret" });
-  bouton.className = "lien mono";
-  bouton.title = `open ${url} in your browser`;
-  return bouton;
-}
 
 /** @param {Fabrique} doc @param {string} titre @param {string} [aide] */
 function partie(doc, titre, aide) {
@@ -86,54 +65,8 @@ function partie(doc, titre, aide) {
   return pose;
 }
 
-// --- Ce qu'il a fait -----------------------------------------------------------------
-
-// Ce qu'une passe a retiré, en une ligne : les lignes de sa PR mergée ; rien, sinon — et pourquoi, en mots.
-/** @param {Passe} passe */
-export function ceQuElleARetire(passe) {
-  const { pr } = passe;
-  if (pr?.mergee === true) return { retire: true, dit: `−${nombre(pr.retirees)} line${s(pr.retirees)}`, precise: `+${nombre(pr.ajoutees)} added` };
-  if (passe.ouverte) return { retire: false, dit: pr === null ? "in progress — not cooked yet" : "in progress — its PR is in the pass", precise: "" };
-  return { retire: false, dit: "nothing removed", precise: pr === null ? "closed with no PR" : "its PR was closed without a merge" };
-}
-
-/** @param {Fabrique} doc @param {Passe} passe @param {(url: string) => void} ouvrir */
-function ligneDePasse(doc, passe, ouvrir) {
-  const rangee = cree(doc, "div");
-  rangee.className = "passe";
-  rangee.dataset.passe = String(passe.numero);
-  const qui = cree(doc, "p");
-  qui.className = "qui";
-  qui.append(lien(doc, `#${passe.numero}`, passe.url, ouvrir), cree(doc, "small", jour(passe.ouverteLe)));
-  const retire = ceQuElleARetire(passe);
-  const quoi = retire.retire ? cree(doc, "p") : ligneVide(doc, "", { classe: "retire sans" });
-  if (retire.retire) quoi.className = "retire";
-  const dit = cree(doc, "strong", retire.dit);
-  if (retire.retire) dit.className = "mono";
-  quoi.append(dit);
-  if (retire.precise !== "") quoi.append(cree(doc, "small", retire.precise));
-  const sur = cree(doc, "p");
-  sur.className = "sur";
-  const total = passe.candidats.length + passe.restants;
-  sur.append(cree(doc, "small", total === 0 ? "no candidate" : `${total} candidate${s(total)}`));
-  if (passe.pr !== null) sur.append(lien(doc, PR_DU_TICKET(passe.numero), passe.pr.url, ouvrir));
-  rangee.append(qui, quoi, sur);
-  return rangee;
-}
-
-/** @param {Fabrique} doc @param {Lecture["passes"] | undefined} passes @param {(url: string) => void} ouvrir */
-function ceQuIlAFait(doc, passes, ouvrir) {
-  const pose = partie(doc, FAIT);
-  pose.dataset.partie = "passes";
-  if (passes === undefined) pose.append(cree(doc, "p", LECTURE_DE("the closer's passes")));
-  else if ("sans" in passes) pose.append(ligneErreur(doc, passes.sans, passes.detail ?? ""));
-  else if (passes.liste.length === 0) {
-    const vide = ligneVide(doc, SANS_PASSE, { classe: "sans" });
-    vide.append(survol(doc, SANS_PASSE_POURQUOI));
-    pose.append(vide);
-  } else pose.append(...passes.liste.map((passe) => ligneDePasse(doc, passe, ouvrir)));
-  return pose;
-}
+// Ce qu'il a fait — ses passes et les lignes que chacune a retirées — n'est plus ici : l'onglet Agents (ticket 4224) dit
+// ses chiffres des 7 derniers jours, sur sa carte.
 
 // --- Ce qu'il vérifie en premier -----------------------------------------------------
 
@@ -390,8 +323,8 @@ function sesReglages(doc, reglages, { etats, valeurs, choisir, changer, ouvrir }
 
 // --- Le bloc -----------------------------------------------------------------------------
 
-// Le bloc entier. `lecture` indéfinie : la première lecture est en route ; chaque partie dit la sienne. `ouvrir` ouvre
-// une passe ou sa PR ; `ouvrirLaPr`, la PR qu'un réglage changé a ouverte.
+// Le bloc entier. `lecture` indéfinie : la première lecture est en route ; chaque partie dit la sienne. `ouvrirLaPr`
+// (ou, à défaut, `ouvrir`) ouvre la PR qu'un réglage changé a ouverte.
 /**
  * @param {Fabrique} doc
  * @param {{ lecture?: Lecture, etats?: ReadonlyMap<string, Etat>, verifications?: EtatDesVerifications, valeurs?: { modeles: readonly string[], efforts: readonly string[] }, candidatsOuverts?: boolean, basculerCandidats?: (ouvert: boolean) => void, ouvrir?: (url: string) => void, ouvrirLaPr?: (url: string) => void, choisir?: (cle: string, choisi: string) => void, changer?: (cle: string, saisie: string | Calibrage) => void, taper?: (saisie: string) => void, changerVerification?: (geste: "ajouter" | "retirer", saisie: string) => void }} [options]
@@ -406,7 +339,6 @@ export function poserBlocCloser(doc, { lecture, etats = new Map(), verifications
   titre.append(survol(doc, AIDE));
   bloc.append(
     titre,
-    ceQuIlAFait(doc, lecture?.passes, ouvrir),
     ceQuIlVerifie(doc, lecture?.passes, { ouverts: candidatsOuverts, ...(basculerCandidats === undefined ? {} : { basculer: basculerCandidats }) }),
     ceQuIlVerifieEnPlus(doc, lecture?.verifications, verifications, { taper, changer: changerVerification, ouvrir: ouvrirLaPr }),
     sesReglages(doc, lecture?.reglages, { etats, valeurs, choisir, changer, ouvrir: ouvrirLaPr }),

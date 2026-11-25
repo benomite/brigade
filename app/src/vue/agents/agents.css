@@ -1,0 +1,127 @@
+/* L'onglet Agents d'un projet (ticket 4224, agents/) : une carte par agent, son état, ses chiffres, ses réglages et ses
+   gestes. Les jetons de l'app seulement ; la marque, le bouton, la rangée de réglage, l'interrupteur, la ligne vide et la
+   ligne d'erreur sont ceux de leurs composants. Un agent cassé porte le rouge, jamais le gris d'un agent au repos. */
+#rail .onglet-des-agents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  padding: var(--pas-4);
+}
+#rail .onglet-des-agents p {
+  margin: 0;
+}
+.cartes-des-agents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  gap: var(--pas-3);
+  align-items: start;
+}
+.carte-d-agent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-left: 3px solid var(--gris);
+  border-radius: var(--rayon-carte);
+}
+.carte-d-agent[data-etat="working"] {
+  border-left-color: var(--vert);
+}
+.carte-d-agent[data-etat="broken"] {
+  border-color: var(--rouge);
+  border-left-color: var(--rouge);
+  background: var(--rouge-clair);
+}
+.carte-d-agent > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pas-2);
+}
+.carte-d-agent .nom-de-l-agent {
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+}
+.carte-d-agent .etat-de-l-agent {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-1);
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
+.carte-d-agent .etat-de-l-agent[data-etat="broken"] {
+  color: var(--rouge);
+}
+.carte-d-agent .role {
+  color: var(--texte);
+}
+.carte-d-agent .prochaine,
+.carte-d-agent .provenance,
+.carte-d-agent .vit-dans {
+  font-size: var(--taille-meta);
+  color: var(--discret);
+}
+
+/* Les chiffres des 7 derniers jours : la valeur en grand, son libellé, son sens écrit à côté. */
+.chiffres-de-l-agent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  margin: 0;
+}
+.chiffres-de-l-agent .chiffre {
+  display: grid;
+  grid-template-columns: 4rem 1fr;
+  column-gap: var(--pas-2);
+}
+.chiffres-de-l-agent dd,
+.chiffres-de-l-agent dt {
+  margin: 0;
+}
+.chiffres-de-l-agent .valeur {
+  grid-row: span 2;
+  font-family: var(--police-mono);
+  font-size: var(--taille-chiffre);
+  color: var(--texte);
+}
+.chiffres-de-l-agent .libelle {
+  color: var(--texte);
+}
+.chiffres-de-l-agent .sens {
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
+
+.reglages-de-l-agent,
+.gestes-de-l-agent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  padding-top: var(--pas-2);
+  border-top: 1px solid var(--trait-doux);
+}
+.reglages-de-l-agent h4,
+.gestes-de-l-agent h4 {
+  margin: 0;
+  font-size: var(--taille-meta);
+  color: var(--discret);
+}
+
+/* Les derniers gestes : une ligne chacun, sa raison dessous. */
+.gestes-de-l-agent ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gestes-de-l-agent .geste {
+  color: var(--texte);
+}
+.gestes-de-l-agent .raison {
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}

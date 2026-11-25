@@ -6,10 +6,13 @@
 
 export const RAIL = "rail";
 export const STATIONS = "stations";
+// L'onglet Agents (ticket 4224, agents/agents.js) : une carte par agent, ses réglages et ses gestes.
+export const AGENTS = "agents";
 
 // Les entrées du menu qui sont des onglets, dans l'ordre ; Settings vient après, de la vue.
 export const MENU = [
   { id: RAIL, titre: "Rail" },
   { id: STATIONS, titre: "Stations" },
+  { id: AGENTS, titre: "Agents" },
 ];
 export const TITRE_DE_SETTINGS = "Settings";

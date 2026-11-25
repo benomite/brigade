@@ -175,21 +175,6 @@ const partieDe = (racine: Faux, partie: string) => [...racine.descendants()].fin
 const boutonNomme = (racine: Faux, libelle: string) => racine.dessous("button").find((bouton) => bouton.textContent === libelle) ?? assert.fail(`pas de bouton ${libelle}`);
 
 describe("le closer, sur Health", () => {
-  test("ses passes, chacune avec ce qu'elle a retiré — ou pourquoi rien —, et sa PR", () => {
-    const ouverts: string[] = [];
-    const bloc = poserBlocCloser(doc, { lecture: CLOSER, ouvrir: (url) => ouverts.push(url) });
-    assert.equal(bloc.dataset.bloc, "closer");
-    const passes = partieDe(bloc, "passes").children.filter(({ className }) => className === "passe");
-    assert.deepEqual(passes.map(texte), [
-      "#2531Oct 10in progress — its PR is in the pass3 candidatesPR of #2531",
-      "#2477Oct 8−1,234 lines+56 added1 candidatePR of #2477",
-      "#2410Oct 6nothing removedits PR was closed without a mergeno candidatePR of #2410",
-    ]);
-    boutonNomme(bloc, "PR of #2477").click();
-    boutonNomme(bloc, "#2531").click();
-    assert.deepEqual(ouverts, ["https://github.com/chef/parade/pull/2480", "https://github.com/chef/parade/issues/2531"]);
-  });
-
   test("ce qu'il vérifie en premier : ce que la dernière passe lui a remis sur ce projet, ses candidats repliés", () => {
     const en = partieDe(poserBlocCloser(doc, { lecture: CLOSER }), "en-premier");
     assert.deepEqual(en.children.filter(({ className }) => className === "verification").map(texte), [
@@ -203,7 +188,6 @@ describe("le closer, sur Health", () => {
     assert.match(texte(replie), /M1export vieux of c\.ts:12 — referenced nowhere/);
     // Sans passe, il dit ce qu'il vérifiera.
     const sans = poserBlocCloser(doc, { lecture: { ...CLOSER, passes: { liste: [] } } });
-    assert.match(texte(partieDe(sans, "passes")), /No closing pass yet\./);
     assert.match(texte(partieDe(sans, "en-premier")), /its own checks — dead code, duplicates, drift, ticket times — once a pass is opened/);
   });
 
@@ -297,12 +281,12 @@ describe("le closer, sur Health", () => {
   });
 
   test("tant que rien n'est lu, chaque partie le dit ; une lecture ratée tient en une ligne, le détail au survol", () => {
-    assert.match(texte(poserBlocCloser(doc)), /Reading the closer's passes…/);
+    assert.match(texte(poserBlocCloser(doc)), /Reading the closer's settings…/);
     const sans = { sans: "the closer's settings unavailable", detail: "GitHub refused (HTTP 401)" };
     const rate = poserBlocCloser(doc, { lecture: { ...CLOSER, reglages: sans } });
     assert.match(texte(partieDe(rate, "reglages")), /the closer's settings unavailable/);
     assert.doesNotMatch(texte(rate), /HTTP 401/);
-    assert.match(texte(partieDe(rate, "passes")), /#2531/, "les autres parties restent");
+    assert.match(texte(partieDe(rate, "en-premier")), /Dead code/, "les autres parties restent");
   });
 });
 
@@ -373,7 +357,7 @@ describe("le bandeau de santé, dans la vue", () => {
     await repos();
     for (const { cle } of PLAFONDS) assert.ok(ligneDe(bloc(vue), cle), cle);
     const duCloser = vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "closer") ?? assert.fail("pas de closer");
-    assert.match(texte(partieDe(duCloser, "passes")), /−1,234 lines/);
+    assert.match(texte(partieDe(duCloser, "en-premier")), /Dead code/);
     assert.ok(partieDe(duCloser, "en-plus"));
     assert.ok(ligneDe(duCloser, "maxRemovedLines"));
     assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the cost of all projects", "the added / removed ratio of all projects", "the weekly summaries of all projects"]);
@@ -419,7 +403,7 @@ describe("le bandeau de santé, dans la vue", () => {
     await repos();
     assert.deepEqual(vue.dernier("closerDeSante"), ["parade"]);
     const duCloser = () => vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "closer") ?? assert.fail("pas de closer");
-    assert.match(texte(partieDe(duCloser(), "passes")), /−1,234 lines/);
+    assert.match(texte(partieDe(duCloser(), "en-premier")), /Dead code/);
 
     const champ = partieDe(duCloser(), "en-plus").dessous("input")[0] ?? assert.fail("pas de champ");
     champ.value = "Doc sentences naming removed code";

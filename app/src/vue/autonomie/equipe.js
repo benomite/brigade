@@ -71,9 +71,10 @@ const detailDe = (erreur) => (erreur instanceof Error ? erreur.message : String(
 // L'équipe posée dans `cadre`, la section en tête de la vue du projet. `lire(projet)` la relit — à l'ouverture du
 // projet, à chaque lecture de son rail ; `montrer(projet)` la montre pour le projet affiché, et la cache pour tout autre.
 // La bande du haut de la vue (cuisine/, ticket 4238) lit un agent de l'équipe lue (`agent`) et ouvre son fil (`ouvrirLeFil`) ;
-// `apresLecture(projet)` est appelé quand une lecture change ce que l'équipe dit.
-/** @param {Fabrique} doc @param {any} cadre @param {(projet: string) => void} [apresLecture] */
-export function tenirLEquipe(doc, cadre, apresLecture) {
+// `apresLecture(projet)` est appelé quand une lecture change ce que l'équipe dit. Un badge ouvert ouvre aussi l'onglet
+// Agents (ticket 4224) sur cet agent : `ouvrirLOnglet(agent)`.
+/** @param {Fabrique} doc @param {any} cadre @param {(projet: string) => void} [apresLecture] @param {(agent: string) => void} [ouvrirLOnglet] */
+export function tenirLEquipe(doc, cadre, apresLecture, ouvrirLOnglet) {
   const element = doc.createElement("div");
   element.className = "equipe";
   element.ariaLabel = TITRE;
@@ -164,6 +165,7 @@ export function tenirLEquipe(doc, cadre, apresLecture) {
     cree.addEventListener("click", () => {
       ouvert = ouvert === agent.agent ? null : agent.agent;
       rendre();
+      if (ouvert !== null) ouvrirLOnglet?.(agent.agent);
     });
     return cree;
   };
