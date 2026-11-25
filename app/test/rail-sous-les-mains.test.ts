@@ -196,20 +196,21 @@ describe("la carte où le chef répond ne bouge pas sous ses mains (#2151)", () 
     recevoir(vue, lu(TRANCHE, 1));
     assert.equal(carteDuTicket(vue, 21), bon);
     assert.equal(saisie.value, "One per project");
-    assert.equal(resolue(bon), "resolved meanwhile: #21 is now in Taken — your text is kept here, nothing was sent");
+    assert.equal(resolue(bon), "resolved meanwhile: #21 is now in Cooks — your text is kept here, nothing was sent");
 
     carteTodo(bon).declencher("focusout", { relatedTarget: null });
-    const taken = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Taken") ?? assert.fail("pas de colonne Taken");
-    const todo = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+    const taken = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Cooks") ?? assert.fail("pas de colonne Cooks");
+    // La réponse gardée n'attend pas le chef : elle est à côté de son TODO, pas dedans (#4238).
+    const todo = vue.element("rail").dessous("div").find(({ className }) => className === "a-cote-du-todo") ?? assert.fail("pas de bloc à côté du TODO");
     assert.ok(taken?.dessous("li").some((li) => li.children[0]?.children[0]?.textContent === "#21"));
     const gardee = todo?.dessous("li").find((li) => li.children[0]?.children[0]?.textContent === "#21") ?? assert.fail("la réponse du chef n'est plus dans TODO");
     assert.equal(champ(gardee).value, "One per project");
-    assert.equal(resolue(gardee), "resolved meanwhile: #21 is now in Taken — your text is kept here, nothing was sent");
+    assert.equal(resolue(gardee), "resolved meanwhile: #21 is now in Cooks — your text is kept here, nothing was sent");
     assert.match(gardee.textContent, /One journal export per project, or a single one\?/);
 
     // Une lecture de plus ne l'emporte pas.
     recevoir(vue, lu(TRANCHE, 2));
-    const relu = vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+    const relu = vue.element("rail").dessous("div").find(({ className }) => className === "a-cote-du-todo") ?? assert.fail("pas de bloc à côté du TODO");
     assert.ok(relu.dessous("textarea").some(({ value }) => value === "One per project"));
 
     (gardee.dessous("button").find(({ textContent }) => textContent === "dismiss") ?? assert.fail("pas de « dismiss »")).click();
