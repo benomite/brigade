@@ -432,7 +432,7 @@ describe("le monospace est une information, pas un style", () => {
   test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
     const poses = [...(await toutPose("Settings")), ...(await toutPose("Rail"))];
 
-    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "Sur le rail", "T'attend", "Rail", "Settings", "second · claude"]) {
+    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "Backlog", "Manager", "Rail", "Settings", "second · claude"]) {
       const trouves = portant(poses, lu);
       assert.ok(trouves.length > 0, `« ${lu} » n'est posé nulle part`);
       for (const pose of trouves) assert.ok(!mono(pose) && pose.balise !== "pre" && pose.balise !== "code", `« ${lu} » est en monospace`);
@@ -567,16 +567,18 @@ describe("un ticket qui t'attend", () => {
     // Le rail est au centre de l'espace : aucun onglet n'est à ouvrir pour le lire.
     vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: vue.dernier("faits")[0] as number });
 
-    const pilules = vue.element("rail").dessous("span").filter((s) => s.dataset.pastille !== undefined);
+    // La carte de #12 : son bon, pas son entrée du TODO (#4238).
+    const bon = vue.element("rail").dessous("li").find((li) => li.className.split(" ").includes("bon") && li.dataset.ticket === "12") ?? assert.fail("pas de carte #12");
+    const pilules = bon.dessous("span").filter((s) => s.dataset.pastille !== undefined);
     const marque = (s: Faux) => s.children[0]?.dataset;
     // L'état du ticket (servi) et la pilule « t'attend » : chacun sa pastille, de la famille.
     assert.deepEqual(
       pilules.slice(-2).map((s) => [s.children[1]?.textContent, s.dataset.pastille, marque(s)?.ton, marque(s)?.forme]),
       [["servi", "served", "vert", "disque"], ["awaiting you", "awaiting", "rouge", "carre"]],
     );
-    // TODO n'est pas une colonne (#3458) : la carte est sur le rail, et sa colonne porte le rouge de ce qui t'attend.
+    // TODO n'est pas une colonne (#3458) : la carte est dans le backlog (#4238), et sa colonne porte le rouge de ce qui t'attend.
     const [colonne] = vue.element("rail").dessous("section");
-    assert.equal(colonne?.dataset.colonne, "On the rail");
+    assert.equal(colonne?.dataset.colonne, "Backlog");
     assert.deepEqual(rouges(vue.element("rail")).length, 1);
   });
 });

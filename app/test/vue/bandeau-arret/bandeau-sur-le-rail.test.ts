@@ -59,7 +59,8 @@ test("the kitchen stopped: the rail opens with the STOPPED notice, above the sta
   const rail = vue.element("rail");
   const tete = rail.children[0] ?? assert.fail("nothing at the head of the rail");
   assert.equal(tete.className, "hote-bandeau-arret");
-  assert.equal(tete.textContent, "STOPPEDThe kitchen is stopped since 08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.");
+  // Son geste, sur le rail (#4238) : ouvrir le ticket gelé.
+  assert.equal(tete.textContent, "STOPPEDThe kitchen is stopped since 08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.open #30");
   recevoir(vue, REPARTIE);
   assert.equal(rail.dessous("p").filter(({ className }) => className.split(" ").includes("bandeau-arret")).length, 0);
   assert.equal(rail.textContent.includes("kitchen is stopped"), false);

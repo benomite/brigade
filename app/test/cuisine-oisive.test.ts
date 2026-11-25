@@ -154,7 +154,8 @@ describe("la panne en tête du rail", () => {
     const [panne, ...autres] = pannesDe(rail);
     assert.ok(panne !== undefined, "aucune panne en tête du rail");
     assert.equal(autres.length, 0);
-    assert.equal(rail.children.indexOf(panne), rail.children.findIndex(({ className }) => className !== "fraicheur"));
+    // Sous la bande du haut, la ligne du supervisor et celle du closer (#4238).
+    assert.equal(rail.children.indexOf(panne), rail.children.findIndex(({ className }) => className !== "fraicheur" && className !== "bande-du-haut"));
     assert.equal(panne.balise, "p");
     assert.equal(panne.role, "alert");
     assert.deepEqual(panne.children.map(({ balise, className, textContent }) => ({ balise, className, textContent })), [
