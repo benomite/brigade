@@ -1,52 +1,44 @@
 # The newcomer path, step by step (#1912)
 
-Status: **the walk itself is not done, and is tracked in #4205.** It needs a machine that has never seen Brigade and a GitHub
-account and a Claude account that are not the chef's. A station has neither, so no capture is taken
-here, and none is claimed. This page holds what a station could do: the steps to walk, with the
-capture each one owes, and the places where the README or the app still ask for ssh, a host, a path
-or a config file.
+Status: **the walk itself is not done, and is tracked in #4205.** It needs a machine that has never
+seen Brigade and a GitHub account and a Claude account that are not the chef's. A station has
+neither, so no capture is taken here, and none is claimed. Whether any step needs ssh, a host, a path
+or a hand-edited config file is neither confirmed nor ruled out until that walk.
 
-## Steps to walk (source: README, "Try it")
+This page holds what a station could do: the steps to walk with the capture each one owes, and the
+places where the README or the app may ask for more than the app and the README.
+
+## Steps to walk (source: README.md, "Try it")
 
 For each step, take `docs/captures/1912/<step>-avant.png` and `<step>-apres.png`. No capture may show
 parade-box, the chef's Mac, a host, the V1 plugin or a chef project (espace, calculus, mirror*).
+Once the walk is done, drop this table and keep the captures and findings.
 
 | # | Step | Capture owed | Done |
 |---|---|---|---|
-| 1 | Download the app from the releases page, open it past the unsigned-app warning | `telechargement`, `ouverture` | no |
-| 2 | Sign in with GitHub (code shown in the app, typed on GitHub) | `connexion-github` | no |
+| 1 | Download the app, open it past the unsigned-app warning | `telechargement`, `ouverture` | no |
+| 2 | Sign in with GitHub | `connexion-github` | no |
 | 3 | Sign in with Claude | `connexion-claude` | no |
-| 4 | Pick the stranger's own repository (`owner/repo`, "open this project") | `choix-depot` | no |
-| 5 | "Who cooks <owner/repo>?": this computer, "Start the kitchen" (README) / "Start the kitchen on this computer" (installation.md): the button label differs between the two | `choix-station` | no |
+| 4 | Pick the stranger's own repository | `choix-depot` | no |
+| 5 | Choose who cooks it: this computer, start the kitchen (the button label differs between README.md and docs/installation.md) | `choix-station` | no |
 | 6 | Wait for the setup pull request | `pr-de-mise-en-place` | no |
-| 7 | Cook a first ticket with the second; link its PR on the stranger's repository | `premier-ticket`, `pr-livree` | no |
+| 7 | Cook a first ticket; link its PR on the stranger's repository | `premier-ticket`, `pr-livree` | no |
 
-## Where the README and the app still ask for something else than the app and the README
+## Places that may ask for ssh, a host, a path or a config file
 
 Found by reading `README.md`, `docs/installation.md` and the user-facing strings of `app/src/vue/`.
+Each is a blocker candidate: to be confirmed or ruled out on the walk, with a capture.
 
-1. **README step 1, Mac "damaged" case**: asks to open Terminal and run
-   `xattr -dr com.apple.quarantine /Applications/Brigade.app`. A command and a path, only in the
-   fallback case. Blocker to confirm on a real Mac.
-2. **README step 4**: the person types `owner/repo`. Said openly in the README; not a path, host or ssh.
-3. **App, "station refused the project" message** (`app/src/vue/vue.js`, `GESTE`): prints
-   `sudo git -C <brigade clone> pull` and `sudo systemctl restart brigade@<project>`. It shows when
-   a joined box does not answer as expected, so a newcomer on "this computer" should not meet it.
-   To confirm on the walk.
-4. **App, projects-file messages** (`app/src/vue/vue.js`, `inconnu`, "does not say where its station
-   is", "could not be re-read", "could not read your projects file"): each prints the path of the
-   projects file (`configuration.chemin`), and the last one shows its shape to copy. They only appear
-   when that file is wrong or changed by hand, so a newcomer who edits nothing should not meet them.
-   To confirm on the walk.
-5. **`docs/installation.md`**: its own status note says the path "has not been replayed end to end on
-   a clean machine by a person". That is this ticket. It also says the app finds `git`, `gh` and
-   `claude` through the shell's `PATH`; the README says the app guides an install when one is missing.
+1. **README.md, step 1, Mac "damaged" case**: asks for a Terminal command that removes the
+   quarantine flag on the installed app. Only in the fallback case.
+2. **`app/src/vue/vue.js`, `GESTE`, "station refused the project"**: prints `sudo` commands to update
+   the clone and restart the station service. It shows only when a joined box does not answer as
+   expected; a newcomer on "this computer" should not meet it.
+3. **`app/src/vue/vue.js`, projects-file messages** (`inconnu` and the "could not read / re-read"
+   messages): print the path of the projects file and its shape. They show only when that file is wrong
+   or changed by hand.
+4. **`docs/installation.md`**: its own status note says the path has not been replayed end to end on a
+   clean machine by a person. That is this ticket. It also says the app finds `git`, `gh` and `claude`
+   through the shell's `PATH`, where the README says the app guides an install when one is missing.
 
-Re-read on 2026-11-25 against the current README, `docs/installation.md` and `app/src/vue/vue.js`: the quoted commands and messages still match. No ssh, host, path or config-file need is confirmed or ruled out until the walk.
-
-## What remains
-
-- Walk the seven steps on a clean machine with third-party accounts, take the captures, link the
-  first ticket's PR. This is human work; it should be its own ticket with an empty `capacites` list.
-- During that walk, check items 1, 3 and 4 above: each is either never met (no blocker) or a blocker
-  to list with its capture.
+(The README's `owner/repo` entry in step 4 is a repository name, not a path, host or ssh.)
