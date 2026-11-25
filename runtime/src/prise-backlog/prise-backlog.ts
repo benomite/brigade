@@ -12,24 +12,24 @@
 //   placeLibre        la place de la cuisine : ses places, moins ses cooks en
 //                     cuisine et les tickets lancés qui attendent le leur.
 import { priorite } from "../alimenter.ts";
-import { LABEL_WAITING } from "../attente.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage, type CalibragePose } from "../calibrage.ts";
-import { LABEL, MIS_DE_COTE } from "../github.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
+import { estMisDeCote, LABEL } from "../github.ts";
 
 // Une issue ouverte du backlog, telle que GitHub la rend.
 type IssueDuBacklog = { number: number; labels: string[]; createdAt: string };
 
-// Le label d'une issue parked (règle 13), et ceux qu'il remplace : elle attend
-// quelqu'un — le chef, un tiers, un autre ticket — ou elle est mise de côté.
-const PARKED = ["parked", LABEL_WAITING, "blocked-on-human", "decision", "question", "product-question", "chef-todo", ...MIS_DE_COTE];
+// Une issue parked (règle 13, lue par github-etat/etats.ts : `parked`, `chef-todo` ou un label d'avant) attend
+// quelqu'un — le chef, un tiers, un autre ticket — ; une issue mise de côté n'est pas à prendre non plus.
+const parqueeOuDeCote = (labels: readonly string[]) => estParque(labels) || estMisDeCote(labels);
 // Ce qui n'est pas un ticket à prendre : une idée en réserve, une épique (elle
 // se découpe), l'ancienne issue du tableau de la cuisine.
 const PAS_UN_TICKET = ["idea", "epic", "kitchen-board"];
 // Ce qui est déjà sur le rail : lancé, tenu par un cook, ou en pass.
-const DEJA_PRIS = [LABEL, "taken", "in-pass"];
-const HORS_DU_CHOIX = [...PARKED, ...PAS_UN_TICKET, ...DEJA_PRIS];
+const DEJA_PRIS = [LABEL, LABEL_TAKEN, LABEL_IN_PASS];
+const HORS_DU_CHOIX = [...PAS_UN_TICKET, ...DEJA_PRIS];
 
-const prenable = (issue: IssueDuBacklog) => !issue.labels.some((label) => HORS_DU_CHOIX.includes(label));
+const prenable = (issue: IssueDuBacklog) => !parqueeOuDeCote(issue.labels) && !issue.labels.some((label) => HORS_DU_CHOIX.includes(label));
 // Sans label de priorité, une issue passe après les autres ; sans date lisible, après celles de sa priorité.
 const rang = (issue: IssueDuBacklog) => priorite(issue.labels) ?? Infinity;
 const age = (issue: IssueDuBacklog) => {
@@ -42,7 +42,7 @@ const avant = (a: IssueDuBacklog, b: IssueDuBacklog) => rang(a) - rang(b) || age
 // ne tient encore : chacune prendra une place au tour suivant de la station. Une issue lancée mais parked, ou mise de
 // côté, n'en prendra pas.
 export function placeLibre({ places, enCuisine, ouvertes }: { places: number | (() => number); enCuisine: number; ouvertes: readonly IssueDuBacklog[] }): number {
-  const enFile = ouvertes.filter((issue) => issue.labels.includes(LABEL) && !issue.labels.some((label) => [...PARKED, "taken", "in-pass"].includes(label))).length;
+  const enFile = ouvertes.filter((issue) => issue.labels.includes(LABEL) && !parqueeOuDeCote(issue.labels) && !issue.labels.some((label) => [LABEL_TAKEN, LABEL_IN_PASS].includes(label))).length;
   return (typeof places === "number" ? places : places()) - enCuisine - enFile;
 }
 
