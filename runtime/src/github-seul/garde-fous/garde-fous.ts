@@ -28,6 +28,7 @@ import type { Lancer } from "../../brigade-github.ts";
 import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
 import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
+import { admettre } from "../../admission-charge/admission-charge.ts";
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
 import { worktreesDuProjet } from "../../depot.ts";
 import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
@@ -169,6 +170,8 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // rail plein ne parte pas d'un bloc.
   let accordees: number[] = [];
   let machineIllisible = false;
+  // La machine telle que ce tour l'a lue ; null : elle ne s'est pas lue.
+  let machineDuTour: Machine | null = null;
   // Les restes des cooks partis ont été rendus ce tour-ci : une seule fois par tour.
   let recupereCeTour = false;
   // Les lectures de suite où le processeur dépasse à peine son seuil (#4142).
@@ -228,11 +231,13 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
 
   // Ce dont la machine manque, ses prises récentes comptées d'avance ; le
   // journal le dit quand les ressources en cause changent. Sans cook en vol,
-  // elle ne retient rien : jamais moins d'un cook, comme le plafond des cœurs.
+  // elle ne retient rien : jamais moins d'un cook, comme le plafond des cœurs —
+  // l'admission à la charge, après elle, diffère même le premier (#4210).
   // Une machine qui ne se lit pas ne retient rien — les places de la station
   // bornent toujours ses cooks — et le dit une fois.
   const machineAcourt = (cooks: number): boolean => {
     const { machine } = options;
+    machineDuTour = null;
     if (machine === undefined) return false;
     const mesurer = () => {
       const instant = maintenant().getTime();
@@ -270,6 +275,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       return false;
     }
     const { lue, manques } = mesure;
+    machineDuTour = lue;
     const ressources = manques.map(({ resource }) => resource);
     if (ressources.join() !== saturees.join()) {
       const [premier] = manques;
@@ -331,6 +337,13 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       disqueEnCours = null;
     });
     if (machineRetient && !reparation) return "machine";
+    // Pas même le premier cook sur une machine chargée (#4210) ; un pic du processeur passe, comme ci-dessus (#4142).
+    // La machine qui ne s'est pas lue ne retient rien, comme ci-dessus : les places de la station bornent ses cooks.
+    const lue = machineDuTour;
+    if (!reparation && lue !== null && options.machine !== undefined) {
+      const admission = admettre({ genre: "cook", enCours: cooks, lireMachine: () => lue, chargeParCoeur: options.machine.seuils.chargeParCoeur * (1 + MARGE_DU_PIC), avertir: (ligne) => avertir(`${ligne} (GitHub-only station ${station})`) });
+      if (!admission.admis) return "machine";
+    }
     if (arbitre === null) return null;
     const reponse = await echanger(cooks, true, reparation);
     if (reponse === null) return cooks === 0 ? null : "unarbitrated";
