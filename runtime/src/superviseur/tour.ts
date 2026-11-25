@@ -116,7 +116,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       fires: async () => {
         const tickets = await github.fires();
         noterTickets(tickets);
-        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && estMisDeCote(labels));
+        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && (estMisDeCote(labels) || labels.includes(LABEL_PARKED)));
         return tickets;
       },
       commenter: async (numero, corps) => {

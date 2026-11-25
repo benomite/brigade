@@ -1,5 +1,5 @@
-// Un cook qui dit que le ticket ne se fait pas avant une date le met en WAITING sans geste du chef (#3814) :
-// ce qu'il attend, de qui, et la relance prise de ses mots.
+// Un cook qui dit que le ticket ne se fait pas avant une date le parque sans geste du chef (#3814, #4129) :
+// ce qu'il attend, de qui, et la date prise de ses mots.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { attenteDeLIssue } from "../../src/attente-github/attente-github.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
-import { LABEL_TAKEN, LABEL_WAITING } from "../../src/github-etat/etats.ts";
+import { LABEL_PARKED, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import type { GitHub } from "../../src/github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
@@ -51,11 +51,11 @@ function station(t: TestContext, bloque: string) {
   return { faux, tour, cooks: () => cooks, attente, ticket: () => faux.ticket(B), avancer: (iso: string) => void (instant = new Date(iso)) };
 }
 
-test("a cook that says the ticket cannot be done before 2026-11-25 puts it in WAITING: what, from whom, and that date as the follow-up — no chef gesture", async (t) => {
+test("a cook that says the ticket cannot be done before 2026-11-25 parks it: what, from whom, and that date as the follow-up — no chef gesture", async (t) => {
   const s = station(t, "Too early: this ticket cannot be done before 2026-11-25, the client's new API only opens that day. Waiting for the client's API team.");
   await s.tour();
   const ticket = s.ticket();
-  assert.equal(ticket.labels.has(LABEL_WAITING), true, "the ticket carries `waiting`");
+  assert.equal(ticket.labels.has(LABEL_PARKED), true, "the ticket carries `parked`");
   assert.equal(ticket.labels.has(LABEL_TAKEN), false, "given back by the cook");
   assert.equal(ticket.labels.has(A_LA_MAIN), false, "not blocked-on-human");
   assert.equal(ticket.labels.has(CHEF_TODO), false, "no chef TODO card");

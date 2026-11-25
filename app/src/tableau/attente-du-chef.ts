@@ -44,10 +44,13 @@ import { revueDuCorps, SORTE_SENSIBLE } from "../vue/carte-sensible/carte-sensib
 import { SORTE_DE_VALIDATION, validationDuCorps } from "../vue/validation-design/validation-design-github.ts";
 
 const LABEL_FIRE = "fire";
-const LABEL_WAITING = "waiting";
+// Parqué (#4129, d'abord `waiting`) : il attend quelqu'un d'autre que le chef — jamais une entrée, une carte du chef
+// parquée pour un autre comprise. Parqué pour le chef, il ne porte que `chef-todo` : une entrée.
+const LABEL_WAITING = "parked";
+const attendUnAutre = (labels: readonly string[]) => labels.includes(LABEL_WAITING);
 // Les auteurs dont le runtime croit une marque (runtime/src/alimenter.ts, `DE_CONFIANCE`).
 const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
-const MARQUE_WAITING = /^<!-- brigade:waiting (\{.*?\}) -->/;
+const MARQUE_WAITING = /^<!-- brigade:(?:parked|waiting) (\{.*?\}) -->/;
 const PAR_PAGE = 100;
 const PAGES_AU_PLUS = 10;
 // Ce que le manager attend du chef quand il écarte une issue qui porte son label, mot pour mot comme la box l'écrit
@@ -89,16 +92,18 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 const date = (valeur: unknown): string | null => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
 const labelsDe = (issue: Brut): string[] => liste(issue.labels).flatMap(({ name }) => (typeof name === "string" ? [name] : []));
 
-// Ce qu'une issue en WAITING attend, d'après son dernier commentaire d'entrée en WAITING : la marque de la station ou de
-// `waiting set`, d'un auteur du dépôt, ou le commentaire de l'app. `rentre` : la cuisine l'y a mise, elle rentre seule sur
-// le rail à sa relance. Null sans aucun qui se lise : rien n'est inventé.
+// Ce qu'une issue parquée attend, d'après son dernier commentaire de parking : la marque `<!-- brigade:parked … -->` (ou
+// `waiting`, d'avant #4129) que la station, `parked set`, le second et l'app posent, d'un auteur du dépôt, ou le
+// commentaire de l'app d'avant. `rentre` : parquée jusqu'à une date, elle reprend seule où elle était à cette date.
+// Null sans aucun qui se lise : rien n'est inventé.
 function attenteDeLIssue(commentaires: readonly Brut[]): { quoi: string; qui: string; relance: string | null; rentre: boolean } | null {
   for (const commentaire of [...commentaires].reverse()) {
     const brut = DE_CONFIANCE.includes(texte(commentaire.author_association)) ? MARQUE_WAITING.exec(texte(commentaire.body))?.[1] : undefined;
     if (brut !== undefined) {
       try {
-        const { what, who, followUp, backOnFollowUp } = objet(JSON.parse(brut)) ?? {};
-        if (typeof what === "string" && typeof who === "string" && date(followUp) !== null) return { quoi: what, qui: who, relance: followUp as string, rentre: backOnFollowUp === true };
+        const { what, who, followUp, fact } = objet(JSON.parse(brut)) ?? {};
+        // Parqué jusqu'à une date, il reprend seul à cette date (#4129) ; jusqu'à un fait, il attend qu'on le dise arrivé.
+        if (typeof what === "string" && typeof who === "string" && date(followUp) !== null) return { quoi: what, qui: who, relance: followUp as string, rentre: typeof fact !== "string" };
       } catch {
         // Une marque illisible ne dit rien : la précédente, s'il y en a une.
       }
@@ -114,7 +119,7 @@ function attenteDeLIssue(commentaires: readonly Brut[]): { quoi: string; qui: st
 const relanceDite = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 // Une issue en WAITING dont aucun commentaire ne dit l'attente n'a pas de ligne : rien à montrer, comme avant.
 function ligneEnWaiting(ticket: number, titre: string, attente: NonNullable<ReturnType<typeof attenteDeLIssue>>): string {
-  const relance = attente.relance === null ? "" : ` — ${attente.rentre ? "back on the rail on its own on" : "follow-up on"} ${relanceDite(new Date(attente.relance).toISOString())}`;
+  const relance = attente.relance === null ? "" : ` — ${attente.rentre ? "resumes where it was on its own on" : "follow-up on"} ${relanceDite(new Date(attente.relance).toISOString())}`;
   return `#${ticket}  WAITING  awaiting ${attente.qui}: “${attente.quoi}”${relance} — it does not await you${titre === "" ? "" : `  ${titre}`}`;
 }
 
@@ -173,7 +178,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       const labels = labelsDe(issue);
       return (issue.pull_request === undefined || label === LABEL_DU_CHEF) && typeof issue.number === "number" && labels.includes(label) && !labels.includes(LABEL_DU_TABLEAU_DE_LA_CUISINE);
     });
-  const enAttente = (issue: Brut) => labelsDe(issue).includes(LABEL_WAITING);
+  const enAttente = (issue: Brut) => attendUnAutre(labelsDe(issue));
   const commentaires = (numero: number) => pages(`/repos/${depot}/issues/${numero}/comments`);
   const entree = (issue: Brut) => {
     const assignes = liste(issue.assignees).flatMap(({ login }) => (typeof login === "string" ? [login] : []));
@@ -258,7 +263,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     const poses = await Promise.all(
       labelsDEcart.flatMap((label, rang) =>
         (ecartees[rang] ?? [])
-          .filter((issue) => !dits.has(issue.number as number) && !labelsDe(issue).includes(LABEL_WAITING))
+          .filter((issue) => !dits.has(issue.number as number) && !attendUnAutre(labelsDe(issue)))
           .map((issue) => Promise.all([pages(`/repos/${depot}/issues/${issue.number}/events`), commentaires(issue.number as number)]).then(([evenements, lus]) => ({ issue, label: label as keyof typeof ECARTS, evenements, lus }))),
       ),
     );

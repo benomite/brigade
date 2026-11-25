@@ -22,7 +22,7 @@ const dit = (body: string, created_at: string): Commentaire => ({ body, created_
 
 // Le projet du 2026-11-05 : #8 en pass, sa livraison touche à ce qui la juge (PR #2326) ; #12, `served-elsewhere`, pose une question
 // de produit avec ses choix ; #7, `served-elsewhere` après ses renvois, ne demande rien au chef ; #20, une carte `chef-todo` ;
-// #30, écarté par le manager avec `question` ; #31, `decision`, mais en WAITING ; #1683, l'issue du tableau de la cuisine.
+// #30, écarté par le manager avec `question` ; #31, `decision`, mais parqué pour un autre que le chef (`parked`, WAITING) ; #1683, l'issue du tableau de la cuisine.
 // #1, sur le rail, calibré par le manager : rien ne le bloque (le rail bloqué, #3358 : test/rail-bloque/).
 const MONDE: Record<number, Issue> = {
   1: { labels: ["fire", "model:sonnet", "effort:medium"] },
@@ -34,7 +34,7 @@ const MONDE: Record<number, Issue> = {
   },
   20: { labels: ["chef-todo"], commentaires: [dit("chatter", "2026-11-05T02:00:00Z"), dit("<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", "2026-11-05T10:00:00Z")] },
   30: { labels: ["question"], evenements: [{ event: "labeled", label: { name: "prio:2" }, created_at: "2026-11-04T08:00:00Z" }, { event: "labeled", label: { name: "question" }, created_at: "2026-11-05T06:00:00Z" }] },
-  31: { labels: ["decision", "waiting"] },
+  31: { labels: ["decision", "parked"] },
   1683: { labels: ["fire", "served-elsewhere", "kitchen-board"] },
 };
 

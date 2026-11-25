@@ -8,7 +8,7 @@
 // runtime le prend à la fin du tour du cook (`lanceur.ts`).
 import { Sortie, type Appel } from "../appel.ts";
 import { lireCible } from "../attente-github/attente-github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
 import { ouvrirGitHubDuGeste } from "../gestes/github-du-geste.ts";
 import type { Issue } from "../github.ts";
 import { fileSurDisque } from "./file.ts";
@@ -24,7 +24,7 @@ function etatDeLIssue(issue: Pick<Issue, "state" | "labels"> | null): EtatDuTick
   if (issue === null) return undefined;
   if (issue.state !== "open") return "served";
   const labels = new Set(issue.labels);
-  if (labels.has(LABEL_PARKED)) return "waiting";
+  if (estParque(issue.labels)) return "parked";
   if (labels.has(LABEL_IN_PASS)) return "in pass";
   if (labels.has(LABEL_TAKEN)) return "taken";
   return "queued";

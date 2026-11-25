@@ -1348,17 +1348,17 @@ The box has no command for it: the label is read like any other (`docs/runtime/j
 ### Sending a ticket back to the kitchen after WAITING (#1740)
 
 `it arrived, back to the kitchen`, on a WAITING card, and `back to the kitchen`, on the sheet of a ticket back from
-WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `waiting` label
+WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `parked` label (`waiting` before #4129)
 from the ticket's issue itself (`app/src/gestes-github.ts`, #2061), with the token of this computer's `gh`. No second, no
 command: the gesture works with the kitchen unreachable — the ticket leaves WAITING (or TODO) and goes back on the rail,
 queued, without going through TODO.
 
-- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `waiting` — it is queued on the rail
-  again`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
+- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `parked` — it resumes exactly where
+  it was`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
   is on its way, the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are
-  inactive. An issue that no longer carries `waiting` counts as done.
+  inactive. An issue that no longer carries `parked` counts as done.
 - **Not done**: nothing changes and the card says why in one line, in red — the rail not read yet, a ticket the
-  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `waiting` from #<n>``,
+  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `parked` from #<n>``,
   GitHub's answer on hover). One click tries again.
 
 Captures: `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
@@ -1366,32 +1366,34 @@ through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the car
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
-### WAITING on a GitHub project (#3075)
+### Parking a ticket, on any project (#4129; before, WAITING on a GitHub project, #3075)
 
-On a GitHub project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a
-phone's. It opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and
-*follow-up on*, proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without
-whom, or with a follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves.
-**Cancel** closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
+The app parks and unparks a ticket the same way as the second and as the runtime's `parked` command, on any project,
+with no box command: each gesture is written on the issue (`app/src/vue/attente/attente-github.ts`). On a GitHub
+project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a phone's. It
+opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and *follow-up on*,
+proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without whom, or with a
+follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves. **Cancel**
+closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
 `app/src/vue/attente/saisie.ts`, the same reading for every path.
 
-- **Where it goes.** When the project's kitchen runs on this computer, *waiting for…* and *resume* go through the
-  runtime's `waiting set` / `waiting resume` command, typed in the project's second (`app/src/attente.ts`). Otherwise —
-  the project served elsewhere, or the phone — they are written on the issue as the runtime writes them there
-  (`app/src/vue/attente/attente-github.ts`): *waiting for…* posts the WAITING comment (`**WAITING: awaiting <who>.**
-  <what>`, then *from whom*, *since*, *follow-up*, *on arrival*, the shape of `direMarque` in `runtime/src/attente.ts`,
-  its dates with their year), then sets the `waiting` label; *resume* removes the label, and the ticket goes back to
-  what its other labels make it — a TODO card back in TODO. *it arrived, back to the kitchen* removes the label, as
-  before (#1740). A comment GitHub posted but whose label it refused is said: the ticket is not in WAITING.
-- **What is read.** An issue carrying `waiting` is never a TODO entry, whatever else it carries. Among the issues the
-  app already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one carrying `waiting` has
-  its last WAITING comment read (`app/src/tableau/attente-du-chef.ts`), and no other list is asked of GitHub (the
-  budget of #3007): its card in WAITING says
-  `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what arrival does, and it carries
-  *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo` card) is
-  placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading of these
-  issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications do not pay
-  for this reading.
+- **Park.** *waiting for…* posts the parking comment — the marker `<!-- brigade:parked {…} -->` with who, for what and
+  until when, then `**PARKED: waits for <who>.** <what>`: the very text of `corpsDuParking`
+  (`runtime/src/attente-github/marque.ts`), which `parked set` and the second write too —, then sets the `parked`
+  label. A comment GitHub posted but whose label it refused is said: the ticket is not parked.
+- **Unpark.** *resume* (the person answered) and *it arrived, back to the kitchen* (the fact happened) remove `parked`:
+  the ticket resumes exactly where it was. Neither goes through the runtime or the box any more.
+- **What is read.** An issue carrying `parked` waits for someone else: it is never a TODO entry, whatever else it
+  carries — a chef's card parked for someone else leaves TODO until it resumes. Parked for the chef, an issue carries
+  `chef-todo` alone: it is a TODO card. Among the issues the app
+  already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one parked for someone else
+  has its last parking comment read (`app/src/tableau/attente-du-chef.ts`; the `**WAITING: awaiting …**` comments the
+  app wrote before #4129 still read), and no other list is asked of GitHub (the budget of #3007): its card in WAITING
+  says `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what unparking does, and it
+  carries *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo`
+  card) is placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading
+  of these issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications
+  do not pay for this reading.
 
 Captures: `docs/captures/3075/` — `attente-github-avant.png` / `attente-github-apres.png` (the rail: the button on each
 TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-github-dialogue-apres.png` (the form opened on
@@ -1401,7 +1403,7 @@ width).
 
 ### The `brigade` command on the chef's Mac (#4072)
 
-The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `waiting set` and `waiting resume`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
+The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
 
 ### The second's choices, as buttons under its terminal (#1520)
 

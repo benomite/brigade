@@ -277,7 +277,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     const { attentes, commentairesLus } = attentesDuTicket({ ticket: numero, corps, commentaires, decoupage });
     // En WAITING, qui il attend (ticket 3761), relu de sa marque : un ticket en file qui l'attend le nomme. Des commentaires
     // illisibles taisent qui, le rail reste lu.
-    const qui = etat === MOT_DE_L_ETAT.waiting ? await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`).then((brut) => attenteDeLIssue(liste(brut).map(({ body, author_association: association }) => ({ body: texte(body), association: texte(association) })))?.who ?? null, () => null) : undefined;
+    const qui = etat === MOT_DE_L_ETAT.parked ? await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`).then((brut) => attenteDeLIssue(liste(brut).map(({ body, author_association: association }) => ({ body: texte(body), association: texte(association) })))?.who ?? null, () => null) : undefined;
     const depend = [...new Set(attentes.map(({ ticket }) => ticket))];
     const sourcees = { ...(!EN_FILE.has(etat) ? {} : { attentes, commentairesLus }), ...(qui === undefined ? {} : { qui }) };
     tickets.push({ ticket: numero, titre, url, etat, priorite: prioriteDe(labels), creeLe, pr, prise, ...(depend.length === 0 ? {} : { depend }), ...sourcees, ...(entreLe === undefined ? {} : { entreLe }), ...(miseDeCote === undefined ? {} : { miseDeCote }), ...(misDeCoteLe === null || label !== SET_ASIDE_FAILURES ? {} : { miseDeCoteLe: misDeCoteLe }), ...(estSensible(labels) ? { sensible: true as const } : {}), ...(renvoi === null ? {} : { renvoi }), ...(reparationDeMain ? { reparationDeMain: true as const } : {}), ...(prises[0] === undefined ? {} : { prises: { fois: prises.length, depuis: prises[0], ...((deLaPrise?.length ?? 0) >= PAR_PAGE ? { auMoins: true as const } : {}) } }) });
@@ -361,7 +361,7 @@ const ETATS_DE_LA_FILE: Record<string, TicketDuRail["etat"]> = { [MOT_EN_FILE]: 
 export const ticketsDeLAttente = (tickets: readonly TicketSurGithub[]): TicketDuRail[] =>
   tickets.flatMap(({ ticket, etat, entreLe, depend, attentes, commentairesLus, apres }) => (ETATS_DE_LA_FILE[etat] === undefined ? [] : [{ ticket, etat: ETATS_DE_LA_FILE[etat], entreLe: entreLe ?? null, depend: depend ?? [], ...(attentes === undefined ? {} : { attentes }), ...(commentairesLus === undefined ? {} : { commentairesLus }), ...(apres === undefined ? {} : { apres }) }]));
 // Les tickets en WAITING, et qui chacun attend (ticket 3761).
-const ticketsEnWaiting = (tickets: readonly TicketSurGithub[]): TicketEnWaiting[] => tickets.flatMap(({ ticket, etat, qui }) => (etat === MOT_DE_L_ETAT.waiting ? [{ ticket, qui: qui ?? null }] : []));
+const ticketsEnWaiting = (tickets: readonly TicketSurGithub[]): TicketEnWaiting[] => tickets.flatMap(({ ticket, etat, qui }) => (etat === MOT_DE_L_ETAT.parked ? [{ ticket, qui: qui ?? null }] : []));
 
 // Le label et le début du titre de la réparation de main (ticket 3815), que le runtime n'ouvre plus (ticket 3945).
 const LABEL_REPARATION_DE_MAIN = "repair-main";
@@ -384,7 +384,7 @@ function baseRougeDuRail(tickets: readonly TicketSurGithub[]): BaseRougeLue | nu
 // Ce que le ticket dit déjà de sa boucle : en WAITING, ou une carte qui attend le chef (ticket 4042).
 function arretDeLaBoucle(etat: string, qui: string | null | undefined, miseDeCote: MiseDeCote | undefined): { arret?: NonNullable<RelanceLue["arret"]> } {
   if (miseDeCote?.auChef === true) return { arret: { sorte: "carte", besoin: miseDeCote.raison } };
-  return etat === MOT_DE_L_ETAT.waiting ? { arret: { sorte: "waiting", qui: qui ?? null } } : {};
+  return etat === MOT_DE_L_ETAT.parked ? { arret: { sorte: "waiting", qui: qui ?? null } } : {};
 }
 
 function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: readonly ServiSurGithub[], cuisinent: readonly string[], stations: StationsLues, maintenant: number): { alertesDuRail?: AlerteDuRail[] } {
@@ -427,7 +427,7 @@ export function avecLeRail(lu: TableauLu, { lu: luLe, tickets, servis = [], nonP
   const attente = attenteDuRailDe(lu.depot, ticketsDeLAttente(ranges), stations, Date.parse(luLe), waiting);
   const enWaiting = new Set(waiting.map(({ ticket }) => ticket));
   const tenus = new Set(Object.entries(attente.attendusDesCartes ?? {}).flatMap(([ticket, siens]) => (siens.some((n) => enWaiting.has(n)) ? [Number(ticket)] : [])));
-  const montres = ranges.map((ticket) => (tenus.has(ticket.ticket) ? { ...ticket, etat: MOT_DE_L_ETAT.waiting } : ticket));
+  const montres = ranges.map((ticket) => (tenus.has(ticket.ticket) ? { ...ticket, etat: MOT_DE_L_ETAT.parked } : ticket));
   const nombre = (...mots: string[]) => montres.filter(({ etat }) => mots.includes(etat)).length;
   const dits = COMPTES.flatMap(([mot, dit]) => (nombre(mot) === 0 ? [] : [`${nombre(mot)} ${dit}`]));
   return {

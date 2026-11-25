@@ -7,9 +7,9 @@ Le second met la carte en attente par `gh` seul et ne renvoie jamais le chef à
 un bouton.
 
 Réussite si toutes ces conditions tiennent :
-- la réponse écrit `gh issue edit 614 --add-label waiting`, puis un
+- la réponse écrit `gh issue edit 614 --add-label parked`, puis un
   `gh issue comment 614` dont le corps commence par le marqueur
-  `<!-- brigade:waiting {...} -->` ;
+  `<!-- brigade:parked {...} -->` ;
 - les champs sont corrects : de qui (`le client`), ce qu'on attend (dit dans les
   mots du chef ou laissé générique, sans le demander), et la relance au
   15 novembre 2026 (`2026-11-15`) ;

@@ -1,5 +1,6 @@
 // Le réveil sans progrès branché sur le superviseur (#4027, `superviseur/brancher.ts`) :
-// un ticket que le tour lit parqué, sans progrès depuis 30 minutes, réveille le
+// un ticket que le tour lit retenu pour un humain (`blocked-on-human`), sans progrès
+// depuis 30 minutes, réveille le
 // superviseur — le manager reçoit la cause `no-progress` —, et sa raison s'écrit sur
 // le ticket. Le label que retire son geste, un agent, est un progrès : 30 minutes
 // plus tard, il se réveille encore. Un run qui tient déjà le projet retarde le réveil.
@@ -15,7 +16,7 @@ import { FauxDepot } from "../superviseur/faux-depot.ts";
 
 const MARQUE_D_INACTIVITE = "<!-- brigade:no-progress";
 const A = (hhmm: string) => `2026-11-23T${hhmm}:00.000Z`;
-const BACK = (ticket: number) => JSON.stringify({ saw: `#${ticket} is parked with no progress`, gesture: { gesture: "back-on-rail", ticket, note: "nothing holds it" } });
+const BACK = (ticket: number) => JSON.stringify({ saw: `#${ticket} is blocked on a human with no progress`, gesture: { gesture: "back-on-rail", ticket, note: "nothing holds it" } });
 
 function projet(t: TestContext, manager: ManagerDuSuperviseur) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
@@ -42,7 +43,7 @@ function projet(t: TestContext, manager: ManagerDuSuperviseur) {
   return { depot, dits, raisons, a: (hhmm: string) => void (instant = A(hhmm)), lire: () => client.fires(), reveiller: () => ecouter?.() };
 }
 
-test("a parked ticket with no progress for 30 minutes wakes the supervisor; its gesture's label change, by an agent, starts a new silent period", async (t) => {
+test("a ticket blocked on a human with no progress for 30 minutes wakes the supervisor; its gesture's label change, by an agent, starts a new silent period", async (t) => {
   const consignes: string[] = [];
   let liberer: (() => void) | null = null;
   const p = projet(t, async (consigne) => {
@@ -62,15 +63,15 @@ test("a parked ticket with no progress for 30 minutes wakes the supervisor; its 
   p.reveiller();
   await jusqua(() => consignes.length === 1 && p.raisons(41).length === 1);
   assert.match(consignes[0] ?? "", /"cause": "no-progress"/);
-  assert.match(consignes[0] ?? "", /"state": "parked"/);
+  assert.match(consignes[0] ?? "", /"state": "blocked on a human"/);
   assert.match(consignes[0] ?? "", new RegExp(`"since": "${A("10:00")}"`));
-  assert.match(p.raisons(41)[0] ?? "", new RegExp(`#41 \\(parked\\) has made no progress for 30 minutes.*${A("10:00")}`, "s"));
+  assert.match(p.raisons(41)[0] ?? "", new RegExp(`#41 \\(blocked on a human\\) has made no progress for 30 minutes.*${A("10:00")}`, "s"));
   // #42 is just as silent, but the run on #41 holds the project: its wake waits, nothing is written on it.
   assert.deepEqual(p.raisons(42), []);
   (liberer as (() => void) | null)?.();
   // The run's trace names the cause it woke on.
   await jusqua(() => (p.depot.commentaires.get(41) ?? []).some((corps) => corps.startsWith("<!-- brigade:supervisor -->")));
-  assert.match((p.depot.commentaires.get(41) ?? []).find((corps) => corps.startsWith("<!-- brigade:supervisor -->")) ?? "", /woke because #41 \(parked\) has made no progress since 2026-11-23T10:00:00.000Z\./);
+  assert.match((p.depot.commentaires.get(41) ?? []).find((corps) => corps.startsWith("<!-- brigade:supervisor -->")) ?? "", /woke because #41 \(blocked on a human\) has made no progress since 2026-11-23T10:00:00.000Z\./);
   assert.deepEqual(p.depot.labelsDe(41), ["fire"]);
   p.a("10:31");
   p.reveiller();

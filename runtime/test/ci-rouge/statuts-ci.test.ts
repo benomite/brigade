@@ -44,7 +44,7 @@ test("the results of one head are one run: three heads red on unit stop the push
   assert.equal(await arret([rouge("unit", 3, "c"), rouge("lint", 2, "b"), rouge("types", 1, "a")]), null);
 });
 
-test("the comment names the check, the three runs and the set-aside label; an unnamed run is said so", async () => {
+test("the comment names the check, the three runs and the `parked` label — the ticket waits for the supervisor (#4129); an unnamed run is said so", async () => {
   const ecrits: Array<[number, string]> = [];
   const resultats: ResultatDeCheck[] = [{ check: "unit", outcome: "red", run: 303 }, { check: "unit", outcome: "red", run: null, tete: "b" }, { check: "unit", outcome: "red", run: 301 }];
   await deciderDuPush({ statuts: { resultats: async () => resultats }, ticket: 8, commenter: async (issue, corps) => void ecrits.push([issue, corps]) });
@@ -54,7 +54,8 @@ test("the comment names the check, the three runs and the set-aside label; an un
   assert.ok(corps.startsWith("<!-- brigade:rouges-de-suite check=unit -->"));
   assert.match(corps, /red on `unit` for the third time in a row \(run 303, an unnamed run, run 301\)/);
   assert.match(corps, /no fourth run/);
-  assert.ok(corps.includes(`\`${ECHECS_ATTEINTS}\``));
+  assert.ok(corps.includes("the ticket is parked (`parked`), waiting for the supervisor. Removing `parked` tries again"), corps);
+  assert.ok(!corps.includes(`\`${ECHECS_ATTEINTS}\``), corps);
 });
 
 test("statuses that cannot be read let the push go ahead and say why; a comment that cannot be written still refuses the push", async () => {

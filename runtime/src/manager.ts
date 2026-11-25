@@ -506,7 +506,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
             ? [
                 awaits === null
                   ? `**Yours to settle.** The manager sets \`${connue.kind}\` on this issue: it is a card in your TODO. Answer it there — one of its answers or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`
-                  : `**Not yours to answer: it waits on ${awaits}.** The manager sets \`${connue.kind}\` on this issue: its card in your TODO proposes to put it in WAITING, awaiting ${awaits}. If you already have the answer, give it there instead — one of its answers or your own words — and the manager judges the issue again with it; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
+                  : `**Not yours to answer: it waits on ${awaits}.** The manager sets \`${connue.kind}\` on this issue: its card in your TODO proposes to park it, waiting for ${awaits}. If you already have the answer, give it there instead — one of its answers or your own words — and the manager judges the issue again with it; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
                 ...(question === null ? [] : ["", question, ...lignesDeLaCarte(issue.number)]),
               ]
             : [`The issue will be judged again as soon as it changes — body edited, or an answer in a comment.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`]),

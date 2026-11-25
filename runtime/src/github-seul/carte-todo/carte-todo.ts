@@ -2,12 +2,13 @@
 // (épique #2209, ticket #2217). L'ancien chemin les tenait dans `carte-todo/`
 // (ticket bloqué, merge à la main, question produit, ticket abandonné #2118) ;
 // ici, chaque carte est un fait de GitHub sur l'issue du ticket :
-// - les labels `parked` et `chef-todo`, que l'issue porte tant que la carte attend le chef : le ticket est
-//   parqué pour le chef (#4129), et le TODO du chef est exactement ces tickets-là ;
+// - le label `chef-todo`, que l'issue porte tant que la carte attend le chef : le ticket est parqué pour le
+//   chef (#4129), et le TODO du chef est exactement ces tickets-là. Parquée ensuite pour quelqu'un d'autre
+//   (`parked` en plus), la carte attend cette personne, plus le chef ;
 // - un commentaire qui commence par `<!-- brigade:todo kind=<sorte> -->`, puis
 //   le texte de la carte, à lire par un humain.
 // La carte d'une issue est son plus récent commentaire de carte, tant qu'elle
-// porte le label. Lever la carte, c'est retirer les deux labels : le commentaire reste,
+// porte le label. Lever la carte, c'est retirer `chef-todo` (et `parked`, s'il y est) : le commentaire reste,
 // comme trace, et le ticket reprend exactement où il était. L'app lit cette convention (#2221) : elle ne change pas.
 //
 // Poser une carte n'en double aucune : la même situation vue deux fois — de
@@ -94,9 +95,7 @@ export async function poserCarte(numero: number, carte: Carte, github: GitHubDes
   const issue = await github.issue(numero);
   if (issue === null) return "absente";
   const deja = issue.labels.includes(CHEF_TODO) && carteEnCours(issue.labels, await github.commentaires(numero))?.sorte === carte.sorte;
-  // Une carte d'avant #4129 n'a que `chef-todo` : elle prend `parked`, sans se redire.
-  const manquent = [CHEF_TODO, LABEL_PARKED].filter((label) => !issue.labels.includes(label));
-  if (manquent.length > 0) await github.labelliser(numero, manquent);
+  if (!issue.labels.includes(CHEF_TODO)) await github.labelliser(numero, [CHEF_TODO]);
   if (deja) return "deja";
   await github.commenter(numero, corpsDeCarte({ sorte: carte.sorte, texte }));
   return "posee";

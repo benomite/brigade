@@ -290,7 +290,7 @@ describe("le manager", { concurrency: 8 }, () => {
     await laisserTourner();
 
     const [dit = ""] = dits(30);
-    assert.match(dit, /\*\*Not yours to answer: it waits on AF, the client\.\*\* The manager sets `decision` on this issue: its card in your TODO proposes to put it in WAITING, awaiting AF, the client\./);
+    assert.match(dit, /\*\*Not yours to answer: it waits on AF, the client\.\*\* The manager sets `decision` on this issue: its card in your TODO proposes to park it, waiting for AF, the client\./);
     assert.doesNotMatch(dit, /Yours to settle/);
     assert.match(
       dit,
@@ -388,7 +388,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("une issue refusée au chef avant #3429, sans label ni question, est rejugée une fois et entre dans TODO", async (t) => {
-    const { gh, journal, repertoire, labels, dits, jugements, laisserTourner } = brigade(t, { eteint: true, manager: { jugement: "juge-decision" }, issues: [issue(30, []), issue(31, ["waiting"])] });
+    const { gh, journal, repertoire, labels, dits, jugements, laisserTourner } = brigade(t, { eteint: true, manager: { jugement: "juge-decision" }, issues: [issue(30, []), issue(31, ["parked"])] });
     for (const ticket of [30, 31]) {
       const noter = (fait: Fait) => journal.ajouter({ project: "brigade", ticket, author: "manager", ...fait });
       noter({ type: "manager.judged", payload: { run: `juge-${ticket}-a`, fingerprint: empreinte({ ...issue(ticket, []), body: "" }, []), verdict: "refused", kind: "decision", reason: "A decision issue.", missing: null, model: null, effort: null, calibration: null } });
@@ -399,25 +399,25 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => labels(30).includes("decision"));
     await laisserTourner();
 
-    // Rejugée une fois, pour la question que l'ancien jugement ne posait pas ; celle que le chef a mise en WAITING ne l'est pas.
+    // Rejugée une fois, pour la question que l'ancien jugement ne posait pas ; celle que le chef a parquée (#4129) ne l'est pas.
     assert.deepEqual(jugements().map((jugement) => /Issue #(\d+)/.exec(jugement.args[1] ?? "")?.[1]), ["30"]);
     assert.match(dits(30)[0] ?? "", /\nDo you grant the deploy role write access to the backup bucket\?\n/);
-    assert.deepEqual(labels(31), ["waiting"]);
+    assert.deepEqual(labels(31), ["parked"]);
     assert.deepEqual(gh.labellisations, [[30, ["decision"]]]);
   });
 
-  test("une issue jugée `decision` que le chef a mise en WAITING entre-temps ne reçoit pas le label (#3429)", async (t) => {
+  test("une issue jugée `decision` que le chef a parquée entre-temps ne reçoit pas le label (#3429, #4129)", async (t) => {
     const { gh, labels, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision" }, issues: [issue(30, [])] });
-    // Le chef la met en WAITING pendant le jugement : la relecture d'avant le label le voit.
+    // Le chef la parque pendant le jugement : la relecture d'avant le label le voit.
     const commenter = gh.github.commenter;
     gh.github.commenter = async (numero, corps) => {
-      gh.poser(issue(30, ["waiting"], { updatedAt: "2026-10-08T11:00:00Z" }));
+      gh.poser(issue(30, ["parked"], { updatedAt: "2026-10-08T11:00:00Z" }));
       return commenter(numero, corps);
     };
     await jusqua(() => dits(30).length === 1);
     await laisserTourner();
 
-    assert.deepEqual(labels(30), ["waiting"]);
+    assert.deepEqual(labels(30), ["parked"]);
     assert.deepEqual(gh.labellisations, []);
   });
 

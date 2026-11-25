@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_STATION } from "../../../src/brigade-github.ts";
 import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_PASS } from "../../../src/events/pass.ts";
-import { etatDuTicket, LABEL_IN_PASS, LABEL_WAITING } from "../../../src/github-etat/etats.ts";
+import { etatDuTicket, LABEL_IN_PASS, LABEL_PARKED } from "../../../src/github-etat/etats.ts";
 import { corpsDeVerdict } from "../../../src/github-etat/fusion.ts";
 import { ECHECS_ATTEINTS, HORS_CUISINE } from "../../../src/github.ts";
 import {
@@ -138,10 +138,10 @@ test("après N renvois, le ticket n'est plus donné à un cook : remis au manage
 
   assert.match(gh.commentaires().at(-1)?.body ?? "", new RegExp(`^<!-- brigade:au-manager fix=${coup.fix} sha=`));
   assert.match(gh.commentaires().at(-1)?.body ?? "", /handed to the manager, who opened the fix ticket #100, calibrated `sonnet` \/ `high`, one step above `sonnet` \/ `medium`/);
-  assert.ok(gh.labels().includes(LABEL_WAITING));
+  assert.ok(gh.labels().includes(LABEL_PARKED));
   assert.ok(!gh.labels().includes(LABEL_IN_PASS));
   // La boucle ne le donne plus à un cook : il attend son fix.
-  assert.equal(gh.etat(), "waiting");
+  assert.equal(gh.etat(), "parked");
 
   // Rejouée sur la même livraison, elle n'ouvre pas un second fix.
   const encore = await renvoyerLaLivraison(gh.ticket(), ciRouge(3), gh.contexte());

@@ -51,7 +51,8 @@ Related terms built on « cuisine »:
 | `servi` / `Livré` | `served` / `Served` | The ticket is merged and served |
 | `livrés 24 h` | `served 24 h` | Counter of the project card |
 | `BLOQUÉ` | `BLOCKED` | What the ticket waited for was dropped |
-| `WAITING` | `WAITING` | Waiting for a third party, not for you; the kitchen does not take it |
+| `parqué` | `parked` | A ticket that waits for someone: who it waits for, for what, and until when — a date or a fact; nothing takes it before (#4129). Parked for the chef, it is a TODO card |
+| `WAITING` | `WAITING` | The parked tickets that wait for someone other than you; the kitchen does not take them |
 | `second` | `second` | Your product assistant, who helps you write the tickets |
 | `abandonné` | `dropped` | A ticket left the rail without being served |
 | `pas sur le rail` | `off the rail` | Ticket the manager does not serve |

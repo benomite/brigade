@@ -15,7 +15,7 @@
 import { attenteDeLIssue, corpsDuParking, direRelance, poserLAttente, type AttenteGitHub } from "../attente-github/attente-github.ts";
 import { reprendALaDate } from "../attente-github/marque.ts";
 import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
-import { CHEF_TODO, LABEL_PARKED } from "../github-etat/etats.ts";
+import { LABEL_PARKED } from "../github-etat/etats.ts";
 import type { Commentaire, GitHub } from "../github.ts";
 
 // Ce que dit un cook qui ne peut pas le faire avant une date.
@@ -77,12 +77,26 @@ export async function mettreEnAttenteParLaCuisine(github: Pick<GitHub, "labellis
 }
 
 // Ses cooks ont échoué trop de fois : la station arrête sa boucle de relances et le parque — qui : le superviseur, qui
-// reçoit son dossier ; pour quoi : la raison, sa première ligne ; jusqu'à une date, sept jours plus loin, où il reprend
-// seul où il était. Rien ne le prend avant (#4129 : mirrorlab #923 était repris une minute après sa mise de côté).
-export async function parquerSesEchecs(github: Pick<GitHub, "labelliser" | "delabelliser" | "commenter">, numero: number, raison: string, par: { station: string; mots: string } | undefined, maintenant: Date): Promise<AttenteGitHub> {
+// reçoit son dossier ; pour quoi : la raison, sa première ligne ; jusqu'à un fait, la réponse du superviseur. Rien ne le prend avant (#4129 : mirrorlab #923 était repris une minute après sa mise de côté).
+// Le label d'abord, et il reste : c'est lui qui arrête la boucle. Un label refusé lève, comme avant. Un commentaire
+// refusé laisse le ticket parqué sans sa marque, et se dit (`avertir`) : l'invariant 3 lui pose une raison et une date.
+export async function parquerSesEchecs(
+  github: Pick<GitHub, "labelliser" | "commenter">,
+  numero: number,
+  raison: string,
+  par: { station: string; mots: string } | undefined,
+  maintenant: Date,
+  avertir: (ligne: string) => void,
+): Promise<AttenteGitHub> {
   const dite = raison.trim().split("\n")[0] || "its cooks stopped without a delivery";
-  const attente: AttenteGitHub = { what: `its cooks failed too many times, the station stopped relaunching it. The reason: ${dite}`, who: "the supervisor", followUp: new Date(maintenant.getTime() + RELANCE_PAR_DEFAUT_MS).toISOString(), failures: true };
-  await mettreEnAttenteParLaCuisine(github, numero, attente, par);
+  // Jusqu'à un fait, la réponse du superviseur : aucune minuterie ne le remet sur le rail (#3911).
+  const attente: AttenteGitHub = { what: `its cooks failed too many times, the station stopped relaunching it. The reason: ${dite}`, who: "the supervisor", followUp: new Date(maintenant.getTime() + RELANCE_PAR_DEFAUT_MS).toISOString(), fact: "the supervisor answers", failures: true };
+  await github.labelliser(numero, [LABEL_PARKED]);
+  try {
+    await github.commenter(numero, corpsDuParking(attente, par));
+  } catch (erreur) {
+    avertir(`brigade : #${numero} — parked by its failure count, its loop is stopped, but the comment that says why could not be posted: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  }
   return attente;
 }
 
@@ -99,8 +113,9 @@ export async function ramenerALaRelance(
 ): Promise<number[]> {
   const rentres: number[] = [];
   for (const { number: numero, labels } of tickets) {
-    // Parqué pour le chef, il attend sa réponse : aucune date ne l'en sort.
-    if (!labels.includes(LABEL_PARKED) || labels.includes(CHEF_TODO)) continue;
+    // Parqué pour le chef (`chef-todo` seul), il attend sa réponse : aucune date ne l'en sort. Une carte du chef parquée
+    // pour un autre jusqu'à une date y revient, à cette date : elle reprend où elle était, dans TODO.
+    if (!labels.includes(LABEL_PARKED)) continue;
     let attente: AttenteGitHub | null;
     try {
       attente = attenteDeLIssue(await github.commentaires(numero));

@@ -4,6 +4,14 @@ A TODO card asks the chef a question (`Awaiting you`, in the words of [the gloss
 
 The breaker line is answered by a button on the phone too (#3371).
 
+## The TODO is the parked tickets that wait for the chef (#4129)
+
+Rule 13 of [the simplified process](superpowers/specs/2026-11-24-simplified-process.md): a ticket that waits for someone is **parked** (`parked`: who, for what, until when), and the chef's TODO is the parked tickets that **wait for the chef**, each with its buttons. A ticket parked for the chef carries `chef-todo` (`estParque` in `runtime/src/github-etat/etats.ts`): a card the kitchen posts parks its ticket that way (`poserCarte` in `runtime/src/github-seul/carte-todo/carte-todo.ts`), and so does `parked set <owner>/<repo>#<n> --from "the chef"`, with its card. A ticket carrying `parked` waits for someone else: it is never a TODO card, whatever else it carries (`app/src/tableau/attente-du-chef.ts`) — a chef's card parked for someone else leaves TODO, and comes back to it when it resumes.
+
+Answering **sends the ticket on**, with no copy-paste: a button, or the words typed in the card's field, is posted on the issue by the app, which removes `chef-todo`, and `parked` if the card was parked for someone else (`app/src/tableau-gestes/reponse-github.ts`) — the ticket resumes exactly where it was. `Wait for <who>` parks it for that person instead: it leaves TODO and stays parked.
+
+Not done yet: the kinds below that still come from their own label — `blocked-on-human`, `question`, `decision` — are waiting states that #4129 folds into parked; until they are, the app keeps reading them as listed here.
+
 ## What the app can show
 
 The app reads what awaits the chef from GitHub alone (`app/src/tableau/attente-du-chef.ts`, #2460): no box and no kitchen board feed `Awaiting you` any more (#2061). So the kinds below are the ones that reading produces: a card of an issue labelled `chef-todo` (its kind is the `kind=` of its marked comment), an issue the station set aside (`blocked-on-human`), an issue the manager set aside (`question`, `decision`, `blocked-on-human`), and an epic the manager asked a question before splitting. The breaker line, which sits next to the `TODO (N)` entry, outside the columns (#3458), is added.
@@ -31,7 +39,7 @@ On the phone, the list of `Awaiting you` shows only the cards that have a questi
 ### What is not an answer
 
 - `ask the second` is the secondary action of every card, never an answer.
-- `waiting for…` (desktop and phone) puts a card in WAITING until a third party answers: it defers the question, it does not answer it.
+- `waiting for…` (desktop and phone) parks a card for a third party until they answer: it defers the question, it does not answer it.
 - `Relaunch` and `Close as already done` belong to a ticket set aside by `served-elsewhere` on the rail: that ticket asks the chef nothing, so it is not a TODO card.
 
 ## Where this was read

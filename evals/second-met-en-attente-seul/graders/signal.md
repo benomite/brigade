@@ -3,4 +3,4 @@ type: regex
 weight: 1
 ---
 
-brigade:waiting \{.*2026-10-27
+brigade:parked \{.*2026-10-27

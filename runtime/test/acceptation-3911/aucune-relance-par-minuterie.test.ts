@@ -1,12 +1,14 @@
 // #3911, criterion 6: no timer, scheduler or periodic job puts a set-aside ticket back on the rail. The station
 // turn used to heal a set-aside ticket whose reason a cook can fix (here a PR in conflict with the base) by
 // relaunching it. A set-aside ticket now stays off the rail, turn after turn, after the former relaunch delay
-// (a day here) has elapsed: only the supervisor acts on it.
+// (a day here) has elapsed: only the supervisor acts on it. Since #4129 the station parks it instead (`parked`, its
+// marker saying it waits for the supervisor for its failures): it stays parked the same way, until its date.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
+import { corpsDuParking } from "../../src/attente-github/marque.ts";
 import { ECHECS_ATTEINTS, estMisDeCote } from "../../src/github.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
@@ -54,6 +56,23 @@ test("a ticket set aside for its failures, whose PR conflicts with the base, sta
   assert.deepEqual(faux.cuissons, []);
   assert.ok(estMisDeCote([...faux.ticket(TICKET).labels]), "still set aside");
   const relances = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.includes("brigade:relance"));
+  assert.deepEqual(relances, []);
+});
+
+test("a ticket parked for its failures, whose PR conflicts with the base, stays parked after the former relaunch delay has elapsed", async () => {
+  const { faux, passer, avancer } = station();
+  faux.feu(TICKET, [...CALIBRE, "parked"]);
+  // La marque que la station pose en le parquant par ses échecs (`parquerSesEchecs`) : sept jours plus loin.
+  faux.poster(TICKET, "box/claude", corpsDuParking({ what: "its cooks failed too many times, the station stopped relaunching it. The reason: conflict", who: "the supervisor", followUp: "2026-11-27T10:00:00.000Z", failures: true }));
+  faux.prs.push({ number: 100 + TICKET, issue: TICKET, branche: brancheDuTicket(TICKET), sha: faux.sha(), state: "open", merged: false, enRetard: false, enConflit: true, conflitDeContenu: true, mergeePar: null, fichiers: [] });
+  await passer();
+  avancer(JOUR_MS);
+  await passer();
+  avancer(JOUR_MS);
+  await passer();
+  assert.deepEqual(faux.cuissons, []);
+  assert.ok(faux.ticket(TICKET).labels.has("parked"), "still parked");
+  const relances = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.includes("brigade:relance") || c.body.includes("Unparked"));
   assert.deepEqual(relances, []);
 });
 

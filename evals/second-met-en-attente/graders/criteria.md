@@ -6,9 +6,9 @@ weight: 1
 Le second met le ticket en attente par `gh` seul, sans la box.
 
 Réussite si toutes ces conditions tiennent :
-- la réponse écrit `gh issue edit 8 --add-label waiting`, puis un
+- la réponse écrit `gh issue edit 8 --add-label parked`, puis un
   `gh issue comment 8` dont le corps commence par le marqueur
-  `<!-- brigade:waiting {...} -->` (JSON sur une ligne) ;
+  `<!-- brigade:parked {...} -->` (JSON sur une ligne) ;
 - les champs sont corrects : ce qu'on attend (une réponse, une validation du
   client — dit dans les mots du chef), de qui (`le client`), et la relance au
   21 octobre 2026 (`2026-10-21`) ;

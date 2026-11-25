@@ -13,11 +13,11 @@ const MAIN_ROUGE: Reveil = { cause: "main-red", since: "2026-11-20T09:45:00.000Z
 
 const jouer = (depot: FauxDepot, reveil: Reveil, gesture: unknown, saw = "the dossier") => jouerLeRun({ github: depot.client(), depot: "acme/shop", branche: "main", maintenant: MAINTENANT }, reveil, { saw, gesture } satisfies Decision);
 
-test("chaque geste fait, un seul commentaire sur le ticket où le run a agi, qui dit ce qu'il a vu et ce qu'il a fait — WAITING et la carte TODO compris", async () => {
+test("chaque geste fait, un seul commentaire sur le ticket où le run a agi, qui dit ce qu'il a vu et ce qu'il a fait — le parking et la carte TODO compris", async () => {
   const cas: Array<{ nom: string; gesture: unknown; ticket: number; tete?: RegExp; prepare?: (depot: FauxDepot) => void }> = [
     { nom: "rerun", gesture: { gesture: "rerun", ticket: 40 }, ticket: 40, prepare: (depot) => depot.checkRouge("tests (linux)", 7) },
     { nom: "back-on-rail", gesture: { gesture: "back-on-rail", ticket: 40, note: "its zone is free again" }, ticket: 40, prepare: (depot) => depot.issue(40, ["fire", "set-aside:failures"]) },
-    { nom: "waiting", gesture: { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" }, ticket: 40, tete: /^<!-- brigade:waiting \{/ },
+    { nom: "waiting", gesture: { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" }, ticket: 40, tete: /^<!-- brigade:parked \{/ },
     { nom: "close-duplicate", gesture: { gesture: "close-duplicate", ticket: 40, of: 12 }, ticket: 40 },
     { nom: "fix", gesture: { gesture: "fix", cause: "the journal is read twice", title: "Read the journal once per tick", body: "The tick reads the journal twice." }, ticket: 500 },
     { nom: "todo", gesture: { gesture: "todo", ticket: 40, kind: "product", question: "Should the phone show the served tickets?" }, ticket: 40, tete: /^<!-- brigade:todo kind=product-question -->/ },
@@ -177,6 +177,7 @@ test("la carte TODO de design pose la question de design ; une carte qui attend 
   depot.issue(40, ["fire"]);
   const trace = await jouer(depot, PRISES, { gesture: "todo", ticket: 40, kind: "design", question: "Which of the two home layouts do we keep?" });
   assert.match(trace.comment ?? "", /The kitchen has a design question on #40:\n\n> Which of the two home layouts do we keep\?/);
+  // La carte parque le ticket pour le chef (#4129) : `chef-todo` seul — `parked` dit qu'il attend quelqu'un d'autre.
   assert.deepEqual(depot.labelsDe(40), ["fire", "chef-todo"]);
   const encore = await jouer(depot, PRISES, { gesture: "todo", ticket: 40, kind: "design", question: "Which of the two home layouts do we keep?" });
   assert.equal(encore.outcome, "refused");
@@ -185,10 +186,10 @@ test("la carte TODO de design pose la question de design ; une carte qui attend 
 
 test("remettre sur le rail : `fire` posé, ce qui le retenait retiré ; déjà sur le rail, refusé", async () => {
   const depot = new FauxDepot();
-  depot.issue(40, ["waiting", "blocked-on-human", "chef-todo", "served-elsewhere", "set-aside:failures", "prio:1"]);
+  depot.issue(40, ["blocked-on-human", "served-elsewhere", "set-aside:failures", "prio:1"]);
   const trace = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "the client answered" });
   assert.deepEqual(depot.labelsDe(40), ["prio:1", "fire"]);
-  assert.match(trace.comment ?? "", /put #40 back on the rail \(`fire` added, `waiting` removed, `blocked-on-human` removed, `chef-todo` removed, `served-elsewhere` removed, `set-aside:failures` removed\)\. Note: the client answered/);
+  assert.match(trace.comment ?? "", /put #40 back on the rail \(`fire` added, `blocked-on-human` removed, `served-elsewhere` removed, `set-aside:failures` removed\)\. Note: the client answered/);
   const deja = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "again" });
   assert.equal(deja.outcome, "refused");
   const fermee = new FauxDepot();
@@ -198,13 +199,25 @@ test("remettre sur le rail : `fire` posé, ce qui le retenait retiré ; déjà s
   assert.deepEqual(fermee.labelsDe(40), []);
 });
 
-test("WAITING : le label et la marque du tiers dans le seul commentaire ; un commentaire qui ne part pas retire le label", async () => {
+test("remettre sur le rail un ticket parqué (`parked` ou `chef-todo`) : refusé, rien n'est retiré (#4129)", async () => {
+  for (const labels of [["parked", "set-aside:failures", "prio:1"], ["chef-todo", "blocked-on-human", "prio:1"], ["fire", "parked", "chef-todo"]]) {
+    const depot = new FauxDepot();
+    depot.issue(40, labels);
+    const trace = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "the client answered" });
+    assert.equal(trace.outcome, "refused", labels.join(","));
+    assert.deepEqual(depot.labelsDe(40), labels);
+    assert.match(trace.comment ?? "", /- \*\*refused\*\*: back-on-rail: #40 is parked \(`parked`\): it waits for someone, and nothing takes it before its date, its fact or the answer — unpark it first/);
+    assert.equal(depot.ecrits().length, 1);
+  }
+});
+
+test("parked : le label et la marque du tiers dans le seul commentaire ; un commentaire qui ne part pas retire le label", async () => {
   const depot = new FauxDepot();
   depot.issue(40, ["fire"]);
   const trace = await jouer(depot, PRISES, { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" });
-  assert.deepEqual(depot.labelsDe(40), ["fire", "waiting"]);
-  assert.match(trace.comment ?? "", /^<!-- brigade:waiting \{"what":"the API key","who":"the client","followUp":"2026-11-27T10:00:00.000Z"\} -->/);
-  assert.match(trace.comment ?? "", /- \*\*did\*\*: set #40 aside in WAITING for the client: the API key/);
+  assert.deepEqual(depot.labelsDe(40), ["fire", "parked"]);
+  assert.match(trace.comment ?? "", /^<!-- brigade:parked \{"what":"the API key","who":"the client","followUp":"2026-11-27T10:00:00.000Z"\} -->/);
+  assert.match(trace.comment ?? "", /- \*\*did\*\*: parked #40, waiting for the client: the API key/);
   const casse = new FauxDepot();
   casse.issue(40, ["fire"]);
   casse.commentaireEnEchec = true;
@@ -246,14 +259,17 @@ test("relancer : les jobs en échec de chaque run rouge de la base, une fois par
   assert.deepEqual(statut.relances(), []);
 });
 
-test("WAITING sur un ticket qui attend déjà : refusé, rien n'est posé de plus", async () => {
-  const depot = new FauxDepot();
-  depot.issue(40, ["fire", "waiting"]);
-  const trace = await jouer(depot, PRISES, { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" });
-  assert.equal(trace.outcome, "refused");
-  assert.match(trace.comment ?? "", /acme\/shop#40 is already waiting/);
-  assert.doesNotMatch(trace.comment ?? "", /brigade:waiting/);
-  assert.equal(depot.ecrits().length, 1);
+test("parked sur un ticket déjà parqué : refusé, rien n'est posé de plus", async () => {
+  for (const labels of [["fire", "parked"], ["fire", "chef-todo"]]) {
+    const depot = new FauxDepot();
+    depot.issue(40, labels);
+    const trace = await jouer(depot, PRISES, { gesture: "waiting", ticket: 40, what: "the API key", who: "the client" });
+    assert.equal(trace.outcome, "refused", labels.join(","));
+    assert.match(trace.comment ?? "", /#40 is parked \(`parked`\): it waits for someone, and nothing takes it before/);
+    assert.doesNotMatch(trace.comment ?? "", /brigade:parked/);
+    assert.deepEqual(depot.labelsDe(40), labels);
+    assert.equal(depot.ecrits().length, 1);
+  }
 });
 
 test("les tickets ouverts illisibles : aucun fix ne s'ouvre sans avoir cherché son doublon, et le run dit pourquoi", async () => {

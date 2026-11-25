@@ -54,9 +54,9 @@ export type MiseDeCote = { label: string; raison: string | null; complete?: stri
 
 type Brut = Record<string, unknown>;
 
-// Le label qui met l'issue de côté, ou rien. `waiting` l'emporte : le chef a mis le ticket en attente d'un tiers.
+// Le label qui met l'issue de côté, ou rien. `parked` l'emporte : le ticket attend quelqu'un d'autre que le chef (#4129).
 export function labelDeMiseDeCote(labels: readonly string[]): string | null {
-  if (labels.includes("waiting")) return null;
+  if (labels.includes("parked")) return null;
   return LABELS_DE_MISE_DE_COTE.find((label) => labels.includes(label)) ?? null;
 }
 

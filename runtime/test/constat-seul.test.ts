@@ -8,6 +8,8 @@ import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { admetUnConstat, MARQUE_DE_CONSTAT } from "../src/constat-seul.ts";
+import { attenteDeLIssue } from "../src/attente-github/attente-github.ts";
+import { LABEL_PARKED } from "../src/github-etat/etats.ts";
 import { ECHECS_ATTEINTS, HORS_CUISINE } from "../src/github.ts";
 import { MARQUE_D_ECHEC } from "../src/qualite-github.ts";
 import { FauxGitHub, fauxClient } from "./faux-github.ts";
@@ -99,12 +101,20 @@ test("a delivery-expecting ticket whose cook commits nothing still records an ec
   assert.equal(faux.ticket(TICKET).state, "open");
 });
 
+// Parqué par ses échecs (#4129) : le label `parked`, plus `set-aside:failures`, et sa marque dit qu'il attend le
+// superviseur, pour ses échecs.
+function parqueParSesEchecs(faux: FauxGitHub): boolean {
+  const attente = attenteDeLIssue((faux.commentaires.get(TICKET) ?? []).map((c) => ({ body: c.body, association: c.association })));
+  const labels = faux.ticket(TICKET).labels;
+  return labels.has(LABEL_PARKED) && !labels.has(ECHECS_ATTEINTS) && attente?.failures === true && attente.who === "the supervisor";
+}
+
 test("a diagnosis-only ticket whose cook commits nothing and delimits no deliverable records an echec, and is set aside (#2854, #3651)", async (t) => {
   const { faux, corps } = await cookSansCommit(t, DIAGNOSTIC, "I looked around and found nothing conclusive.", 2);
   // Fini `ok`, sa livraison refusée : il est écarté dès ce premier refus (#3651).
   assert.equal(corps.filter((c) => c.startsWith(MARQUE_D_ECHEC)).length, 1);
   assert.equal(corps.filter((c) => c.startsWith(MARQUE_DE_CONSTAT)).length, 0);
-  assert.equal(faux.ticket(TICKET).labels.has(ECHECS_ATTEINTS), true);
+  assert.equal(parqueParSesEchecs(faux), true);
   assert.equal(faux.ticket(TICKET).labels.has(HORS_CUISINE), false);
   assert.equal(faux.ticket(TICKET).state, "open");
 });
@@ -138,7 +148,7 @@ test("a cook finished ok whose delivery is refused is not relaunched as is: the 
   const echecs = corps.filter((c) => c.startsWith(MARQUE_D_ECHEC));
   assert.equal(echecs.length, 1);
   assert.match(echecs[0] ?? "", /the cook committed nothing[\s\S]*finished `ok` and its delivery was refused/);
-  assert.equal(faux.ticket(TICKET).labels.has(ECHECS_ATTEINTS), true);
+  assert.equal(parqueParSesEchecs(faux), true);
   assert.equal(faux.ticket(TICKET).state, "open");
 });
 
@@ -149,7 +159,7 @@ test("a cook finished ok whose delivery is refused goes to the manager at the fi
   const echecs = corps.filter((c) => c.startsWith(MARQUE_D_ECHEC));
   assert.equal(echecs.length, 1);
   assert.match(echecs[0] ?? "", /the cook committed nothing/);
-  assert.equal(faux.ticket(TICKET).labels.has(ECHECS_ATTEINTS), true);
+  assert.equal(parqueParSesEchecs(faux), true);
 });
 
 test("only the acceptance criteria saying the deliverable is a written finding or comment admit a finding, never a quote of them (#2854)", () => {
