@@ -176,8 +176,9 @@ What the shape does not say:
   was launched after it, `idle` otherwise. `nextRun` is the schedule the runtime noted (the supervisor, the closer),
   else null. `figures`: the gestures of its thread in the last 7 days, fixed by itself and handed to the chef — a
   thread that was not read or cannot be read says so in the value and the meaning. The closer has a third figure,
-  the lines its closing passes removed in the last 7 days (`closing.ended` of the log). `settings` is null: the settings
-  API (#4222) is not read yet.
+  the lines its closing passes removed in the last 7 days (`closing.ended` of the log). `settings` is the body
+  `agent-settings <id>` serves (#4222, `{fields}`, or its `{reason}` when its file cannot be read), untouched; null
+  for an agent it holds no settings for (the triage, the second judge).
 - `/api/agents/<id>/gestures`: its gestures, newest first, as `{at, summary, reason, issue}`; the cooks' entry
   gathers every cook's thread, each gesture with its ticket. An id the registry does not hold answers 404.
 

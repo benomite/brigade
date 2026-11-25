@@ -1,7 +1,8 @@
 // `npm run agents` (#4220): the Agents tab read from a real state directory — the log's runs, what `facts` says runs
 // outside the tickets, the gesture log and the noted schedules.
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
+import { readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal } from "../../src/agents-tab/commande.ts";
 import { consignerGeste, OUTCOME } from "../../src/autonomie/agents/gestes.ts";
@@ -11,7 +12,7 @@ import type { Fait } from "../../src/evenements.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { appeler, horloge, repertoireTemporaire } from "../outils.ts";
 
-type Entree = { id: string; state: string; workingOn: number | null; nextRun: string | null; figures: Array<{ value: unknown }> };
+type Entree = { id: string; settings: unknown; state: string; workingOn: number | null; nextRun: string | null; figures: Array<{ value: unknown }> };
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 // A run of the log: its name, its station, how it ended (null: it goes on), its ticket.
 type Run = [string, string, Issue | null, number?];
@@ -101,4 +102,15 @@ test("`agents` says why a path is not served, in 1; a state directory with no lo
   assert.equal(await sansEtat.fin, 2);
   assert.match(sansEtat.sortie(), /run agents/);
   assert.equal(await appeler(principal, ["/api/agents", "/api/agents"], { BRIGADE_STATE_DIR: repertoire }).fin, 2);
+});
+
+test("each agent carries the settings `agent-settings` serves for it, untouched; null for one it holds none for", async (t) => {
+  const repertoire = etat(t);
+  const lus = await agents(repertoire);
+  const closer = lus.closer?.settings as { fields: Array<{ key: string }> };
+  assert.ok(closer.fields.some(({ key }) => key === "model"), JSON.stringify(closer));
+  assert.equal(lus.triage?.settings, null);
+  assert.equal(lus["second-judge"]?.settings, null);
+  writeFileSync(join(repertoire, "agent-settings.json"), "not json");
+  assert.match(JSON.stringify((await agents(repertoire)).closer?.settings), /"reason":"the settings of closer cannot be read/);
 });

@@ -1,12 +1,16 @@
 // What the Agents tab reads (#4220), for `npm run agents` (agents-cli.ts): the runs of the log (`cook_runs`) — which
 // agent each is of, the ticket it works on, how it ended —, the pass at work as `facts` gives it (agents-en-cours.ts),
 // the closing passes that ended, the gesture log and the noted schedules of the state directory.
+import { createAgentSettings } from "../agent-settings/index.ts";
 import { agentDuRun as lireLeRunHorsTicket, type AgentEnCours } from "../agents-en-cours.ts";
 import { LectureImpossible } from "../appel.ts";
 import { horaireDe } from "../autonomie/agents/horaires.ts";
+import { environnementDecide, lireLesDecisions } from "../decisions.ts";
 import { lireLesFaits } from "../faits.ts";
 import { ouvrirJournal } from "../journal.ts";
+import { reglagesPourMontrer } from "../reglages-projet/en-vigueur.ts";
 import type { Sources } from "./api.ts";
+import { REGISTRE } from "./registre.ts";
 
 // A run of the log: `ending` is null while it goes on.
 type RunDuJournal = { run: string; ticket: number | null; station: string | null; ending: string | null };
@@ -65,4 +69,14 @@ export function sourcesDuProjet(env: Record<string, string | undefined>, mainten
   }
   const { agents } = lireLesFaits(env, maintenant) as { agents: AgentEnCours[] };
   return { maintenant, repertoireDesGestes: repertoire, enCours: enCours(agents, runs), enEchec: enEchec(runs), passesDuCloser, horaires: (id) => horaireDe(repertoire, id) };
+}
+
+// Each agent's settings as `GET /api/agents/:id/settings` serves them (#4222), read as the `agent-settings` command
+// reads them (agent-settings/commande.ts): its body, untouched — a settings file that cannot be read is the route's
+// `{reason}` —, and no entry for an agent the route holds no settings for (404).
+export async function reglagesDuProjet(env: Record<string, string | undefined>): Promise<Record<string, unknown>> {
+  const stateDir = env.BRIGADE_STATE_DIR ?? "";
+  const settings = createAgentSettings({ stateDir, env: environnementDecide(env, lireLesDecisions(stateDir).posees, reglagesPourMontrer(env)) });
+  const lus = await Promise.all(REGISTRE.map(async ({ id }) => [id, await settings.handle({ method: "GET", path: `/api/agents/${id}/settings` })] as const));
+  return Object.fromEntries(lus.flatMap(([id, { status, body }]) => (status === 404 ? [] : [[id, body]])));
 }

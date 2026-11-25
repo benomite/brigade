@@ -11,7 +11,8 @@
 // 7 days, the same two for every agent, the closer included. The closer keeps a third, its own: the lines its closing
 // passes removed (`closing.ended`, the figure of its report, closing/report.ts). A thread or passes that were not
 // read, or a thread that cannot be read, say so in the figure's value and meaning: never a zero in its place.
-// `settings`: the object of the settings API (#4222), passed through untouched; null while that source is not there.
+// `settings`: the body the settings API (#4222) serves for the agent, passed through untouched; null for an agent it
+// holds no settings for, or when that source was not read.
 import { agentsDuJournal, gestesDe, GestesIllisibles, OUTCOME, type Geste } from "../autonomie/agents/gestes.ts";
 import { HoraireIllisible, type Horaire } from "../autonomie/agents/prochain-passage.ts";
 import { REGISTRE, type AgentDuRegistre } from "./registre.ts";
@@ -28,12 +29,14 @@ export type Sources = {
   horaires?: (id: string) => Horaire | undefined;
   // The closing passes that ended (`closing.ended` of the log): when, and the lines each removed.
   passesDuCloser?: ReadonlyArray<{ at: string; removedLines: number }>;
+  // The body of `GET /api/agents/:id/settings` (agent-settings/index.ts), by agent id.
+  reglages?: Readonly<Record<string, unknown>>;
 };
 type Demande = { method: string; url: string };
 type Reponse = { statut: number; corps: unknown };
 
 type Chiffre = { label: string; value: number | string; meaning: string };
-type EntreeDAgent = AgentDuRegistre & { state: "idle" | "working" | "broken"; workingOn: number | null; nextRun: string | null; figures: Chiffre[]; settings: null };
+type EntreeDAgent = AgentDuRegistre & { state: "idle" | "working" | "broken"; workingOn: number | null; nextRun: string | null; figures: Chiffre[]; settings: unknown };
 type GesteDuFil = { at: string; summary: string; reason: string; issue: number | null };
 
 const RACINE = "/api/agents";
@@ -108,7 +111,7 @@ const entreeDe = (agent: AgentDuRegistre, sources: Sources): EntreeDAgent => ({
   ...etatDe(sources, agent.id),
   nextRun: prochainDe(sources, agent.id),
   figures: figuresDe(sources, agent.id),
-  settings: null,
+  settings: sources.reglages?.[agent.id] ?? null,
 });
 
 export const repondre = ({ method, url }: Demande, sources: Sources): Reponse =>
