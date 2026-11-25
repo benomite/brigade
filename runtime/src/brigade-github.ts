@@ -2278,7 +2278,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const pourquoi = await vivante(ouverte, { maintenant: instant(), parSonTicket: () => vieParSonTicket(ouverte.branche) });
         if (pourquoi === null) {
           // Périmée, ou déjà marquée : le superviseur la marque `zone-released`, une fois, et demande au chef s'il faut fermer celle d'un humain (#4243).
-          if (ouverte.number !== undefined) perimee(ticket.number, { ...ouverte, number: ouverte.number });
+          if (typeof ouverte.number === "number") perimee(ticket.number, { ...ouverte, number: ouverte.number });
           continue;
         }
         tenante = { pr: ouverte, pourquoi };

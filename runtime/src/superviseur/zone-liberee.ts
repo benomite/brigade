@@ -52,7 +52,7 @@ const marqueDeLaCarte = (pr: number) => `<!-- brigade:zone-released pr=${pr} -->
 // compare pas non plus.
 async function peremption(pr: PRQuiTient, maintenant: Date): Promise<string | null> {
   if (pr.enCook || pr.auPass) return null;
-  if ((await vivante({ branche: "", misAJourLe: pr.miseAJour, surLaBase: pr.surLaBase }, { maintenant: maintenant.getTime(), parSonTicket: async () => null })) !== null) return null;
+  if (typeof (await vivante({ branche: "", misAJourLe: pr.miseAJour, surLaBase: pr.surLaBase }, { maintenant: maintenant.getTime(), parSonTicket: async () => null })) === "string") return null;
   return maintenant.getTime() - Date.parse(pr.miseAJour) >= DELAI_PERIME_MS ? `no activity since ${pr.miseAJour}` : "its changes are already on the base";
 }
 
