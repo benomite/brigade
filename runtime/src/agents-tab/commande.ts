@@ -8,7 +8,7 @@ import { reglagesDuProjet, sourcesDuProjet } from "./sources.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run agents -- [/api/agents | /api/agents/<id>/gestures]";
 
-export async function principal({ args, env, dire, redire }: Appel): void {
+export async function principal({ args, env, dire, redire }: Appel): Promise<void> {
   function echouer(code: number, message: string): never {
     redire(`brigade: ${message}`);
     throw new Sortie(code);
