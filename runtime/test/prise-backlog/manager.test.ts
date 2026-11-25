@@ -120,3 +120,11 @@ test("the free room: the places, less the cooks at work and the fired issues tha
   assert.equal(placeLibre({ places: 3, enCuisine: 1, ouvertes }), 1);
   assert.equal(placeLibre({ places: () => 4, enCuisine: 0, ouvertes }), 3);
 });
+
+test("a take that fails is said, and the turn goes on: nothing else fails with it", async (t) => {
+  const { gh, avertissements, juges, laisserReveiller } = brigade(t, { issues: [issue(30, ["prio:1"])], manager: { freeRoom: () => 1 } });
+  gh.pannes.label = true;
+  await jusqua(() => juges(30) && avertissements.some((m) => /#30 not taken from the backlog — gh api : HTTP 502/.test(m)));
+  await laisserReveiller(3);
+  assert.deepEqual(avertissements.filter((m) => !/#30 not taken from the backlog — gh api : HTTP 502/.test(m)), []);
+});
