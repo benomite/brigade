@@ -96,6 +96,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { tenirLEquipe } from "./autonomie/equipe.js";
+import { jourDe, poserLaCarteDuDigest, poserLeJournal, tenirLaCarteDuMatin } from "./journal/journal.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -716,6 +717,8 @@ const equipeDuProjet = tenirLEquipe(document, element("equipe-du-projet"), (nom)
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
+// La carte du digest de la veille (ticket 4274, journal/) : en tête du rail à la première ouverture du projet dans le jour.
+const carteDuMatin = tenirLaCarteDuMatin(stockageDeLaVue());
 const offreDuTelephone = element("offre-telephone");
 const offre = tenirLOffre({
   stockage: stockageDeLaVue(),
@@ -3240,9 +3243,9 @@ function poserGestesDAttente(projet, carte) {
   );
 }
 
-// « It arrived, back to the kitchen » part sur le tableau de la cuisine, pas dans le second : la carte dit qu'il
-// est en route, puis qu'il est posté — son commentaire au survol — et la box est relue ; refusé, rien n'est parti, et la
-// carte dit pourquoi en une ligne, le détail au survol. Elle reste dans WAITING jusqu'à ce que la box l'ait joué.
+// « It arrived, back to the kitchen » déparque le ticket sur son issue (gestes-github.ts, `deparquer`), jamais par une
+// commande de la box : la carte dit qu'il est en route, puis qu'il est fait — l'issue au survol — et le rail est relu ;
+// refusé, rien n'est parti, et la carte dit pourquoi en une ligne, le détail au survol.
 /** @param {Projet} projet @param {number} ticket */
 async function arriver(projet, ticket) {
   const cle = `${projet.nom}#${ticket}`;
@@ -3271,8 +3274,8 @@ async function arriver(projet, ticket) {
   if (ficheDe(projet, ticket)) poserFiche();
 }
 
-// Un geste de WAITING part dans le second, comme un geste du socle : sa sortie s'y lit, sa note dit
-// ce qui est parti. Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
+// Un geste de WAITING s'écrit sur l'issue (vue/attente/attente-github.ts), jamais par une commande de la box (ticket 4262).
+// Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
 /** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
 async function ecrireAttente(projet, id, ticket, saisie) {
   const cle = `${projet.nom}#${ticket}`;
@@ -3289,7 +3292,7 @@ async function ecrireAttente(projet, id, ticket, saisie) {
     else if (rendu !== undefined && "fait" in rendu) {
       fait = { fait: rendu.fait, detail: rendu.detail ?? "" };
       lireLesFaits();
-    } else if (rendu !== undefined) garder(projet.nom, rendu);
+    }
   } catch (erreur) {
     refus = `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
@@ -3297,7 +3300,7 @@ async function ecrireAttente(projet, id, ticket, saisie) {
   if (saisie !== undefined && ouvert !== undefined && refus !== undefined) ouvert.refus = refus;
   else if (saisie !== undefined) formulairesDAttente.delete(cle);
   if (refus !== undefined && saisie === undefined) nonEcritSecond = refus;
-  // « resume » qui n'est pas parti dans le second : la carte dit dessous ce qu'il en est, comme pour « it arrived ».
+  // « resume » : la carte dit dessous ce qu'il en est, comme pour « it arrived ».
   if (saisie === undefined && (refus !== undefined || fait !== undefined)) arriveesDeCartes.set(cle, fait ?? { refus: refus ?? "", detail: "" });
   poserRail(projet);
   montrer();
@@ -5427,10 +5430,17 @@ function poserLeRail(projet) {
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
+<<<<<<< HEAD
   // Le rail, haut du backlog (ticket 4223) : sous le bandeau, les issues calibrées et prêtes qu'un cook prend ensuite, dans
   // l'ordre de la lecture — rien à y faire, une issue y vient seule.
   const hautDuBacklog = poserLeHautDuBacklog(document, tenu.tableau.hautDuBacklog);
   poser(bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), ...(hautDuBacklog === null ? [] : [hautDuBacklog]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+=======
+  // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
+  const { journal, digest } = tenu.tableau;
+  const duMatin = digest !== undefined && carteDuMatin.aMontrer(projet.nom, jourDe(new Date())) ? [poserLaCarteDuDigest(document, digest)] : [];
+  poser(...duMatin, bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), ...(journal === undefined ? [] : [poserLeJournal(document, journal)]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+>>>>>>> ca281be564403237aafbbd0a7ba945d833d0092e
   // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
   if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);
@@ -8269,7 +8279,7 @@ const outilsDuParcours = tenirLesOutils({
 });
 const outilsDuLogin = tenirLesOutils({ pont: brigade, outils: ["claude"], rendre: () => poserLesOutilsIci() });
 /** @param {ReturnType<typeof tenirLesOutils>} tenus */
-const gestesDesOutils = (tenus) => ({ installer: () => void tenus.installer(), verifier: () => void tenus.verifier(true) });
+const gestesDesOutils = (tenus) => ({ ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url), verifier: () => void tenus.verifier(true) });
 let avisDesOutils = false;
 function poserLesOutilsIci() {
   const surLePremier = ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous && !tous.hidden;

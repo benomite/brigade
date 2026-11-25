@@ -1,21 +1,8 @@
-// WAITING sur un projet GitHub seul (#3074, épique #3073) : les gestes de #591
-// — mettre un ticket en attente d'un tiers, le reprendre, « c'est arrivé, on
-// repart » — sur une carte que la station lit de GitHub, et non du journal.
-// Le ticket se nomme par son dépôt et son numéro (`BOBL-tech/mirrorlab#614`),
-// et chaque geste s'écrit sur l'issue même, rien dans la box :
-//   - `waiting set <dépôt>#<n> --what … --from … [--remind …]` : le label
-//     `waiting`, et un commentaire qui dit quoi, de qui, jusqu'à quand — dans
-//     sept jours, sans `--remind`. Une issue qui porte déjà `waiting` n'est pas
-//     touchée : la commande dit ce qu'elle y a trouvé ;
-//   - `waiting resume <dépôt>#<n>` : le label retiré — la carte qu'elle porte
-//     encore (`chef-todo`, `blocked-on-human`) revient dans TODO ;
-//   - `waiting arrived <dépôt>#<n>` : le ticket repart en cuisine sans repasser
-//     par TODO, comme `cestArrive` le fait d'un ticket du rail (attente.ts) :
-//     `waiting` retiré avec ce qui le tient hors de la cuisine (`chef-todo`,
-//     `blocked-on-human`, `served-elsewhere`), `fire` posé s'il manque, et un
-//     commentaire qui dit que ce qu'il attendait est arrivé ;
-//   - `waiting <dépôt>` : les cartes du projet lues de GitHub — TODO, ce qui
-//     attend le chef (`chef-todo`, `blocked-on-human`), et WAITING, ce qui attend un tiers, avec ses trois mots.
+// WAITING sur un projet GitHub seul (#3074, épique #3073) : ce qu'un ticket attend d'un tiers s'écrit et se relit
+// sur l'issue même, rien dans la box. Le ticket se nomme par son dépôt et son numéro (`BOBL-tech/mirrorlab#614`).
+// La cuisine l'y met (`poserLAttente`, `mettreEnAttenteGitHub`) : le label `waiting`, et un commentaire qui dit quoi,
+// de qui, jusqu'à quand. Le chef et le second le parquent et le déparquent depuis l'app, sans commande de la box
+// (app/src/vue/attente/attente-github.ts, `parquer` ; app/src/gestes-github.ts, `deparquer` ; #4262).
 // Ce qu'une issue attend se relit dans le dernier commentaire marqué
 // `<!-- brigade:waiting … -->` d'un auteur du dépôt : tout le monde peut
 // commenter une issue publique. Une issue au label `waiting` sans ce
@@ -25,7 +12,7 @@
 import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
-import { LABEL, MIS_DE_COTE, type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
+import { type Commentaire, type GitHub, type IssueOuverte } from "../github.ts";
 import { carteEnCours, CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { GesteRefuse } from "../rail.ts";
 import { attenteDeLIssue, MARQUE, type AttenteGitHub, type AttenteMarquee } from "./marque.ts";
@@ -131,40 +118,6 @@ export async function poserLAttente(github: Pick<GitHub, "labelliser" | "delabel
   }
 }
 
-// L'issue qui doit attendre pour être reprise, et ce qu'elle attend.
-async function exigerWaiting(github: GitHubDeLAttente, cible: Cible) {
-  const issue = await issueOuverte(github, cible);
-  if (!issue.labels.includes(LABEL_WAITING)) throw new GesteRefuse(`${nommer(cible)} is not waiting for a third party — it does not carry \`${LABEL_WAITING}\`; nothing was written`);
-  return { issue, attente: attenteDeLIssue(await github.commentaires(cible.numero)) };
-}
-
-const ceQuIlAttendait = (attente: AttenteGitHub | null) => (attente === null ? "" : ` ${attente.who} (“${attente.what}”)`);
-
-// « Reprendre » : `waiting` retiré, et un commentaire qui le dit. La carte que
-// l'issue porte encore revient dans TODO.
-export async function reprendreGitHub(github: GitHubDeLAttente, cible: Cible): Promise<void> {
-  const { attente } = await exigerWaiting(github, cible);
-  await github.delabelliser(cible.numero, LABEL_WAITING);
-  await github.commenter(cible.numero, `**WAITING lifted** — resumed by the chef: no longer awaiting${ceQuIlAttendait(attente)}. The \`${LABEL_WAITING}\` label is removed.`);
-}
-
-// Ce qui, sur l'issue, tient un ticket hors de la cuisine : TODO et la mise de côté. Lu à l'appel :
-// la guérison importe ce module pendant que brigade-github.ts, qui définit `A_LA_MAIN`, se charge (#3134).
-const horsDeLaCuisine = () => [CHEF_TODO, A_LA_MAIN, ...MIS_DE_COTE];
-
-// « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
-// TODO. `fire` d'abord, puis les labels retirés, `waiting` en dernier : une
-// panne en chemin le laisse en WAITING, jamais dans TODO. Rend les labels retirés.
-export async function cestArriveGitHub(github: GitHubDeLAttente, cible: Cible): Promise<string[]> {
-  const { issue, attente } = await exigerWaiting(github, cible);
-  if (!issue.labels.includes(LABEL)) await github.labelliser(cible.numero, [LABEL]);
-  const retires = horsDeLaCuisine().filter((label) => issue.labels.includes(label));
-  for (const label of retires) await github.delabelliser(cible.numero, label);
-  await github.delabelliser(cible.numero, LABEL_WAITING);
-  await github.commenter(cible.numero, `**WAITING lifted — it arrived**: what this ticket was awaiting${ceQuIlAttendait(attente)} has arrived. It goes back to the kitchen: a station takes it in turn. The \`${LABEL_WAITING}\` label is removed.`);
-  return [...retires, LABEL_WAITING];
-}
-
 // Une carte lue de GitHub : son issue, son titre, et ce qu'elle dit. Une carte
 // de TODO dit aussi ce qui lui manque pour poser sa question au chef
 // (`manque`), nul quand elle la pose : le défaut que la station dépose sur la
@@ -173,17 +126,8 @@ export type CarteGitHub = { numero: number; titre: string; ligne: string };
 export type CarteDeTodoGitHub = CarteGitHub & { manque: string | null };
 export type CartesGitHub = { todo: CarteDeTodoGitHub[]; waiting: Array<CarteGitHub & { attente: AttenteGitHub | null }> };
 
-// Les cartes du projet, lues des issues ouvertes : WAITING, celles au label
-// `waiting` — il l'emporte, comme dans l'état lu de GitHub (github-etat/etats.ts) ;
-// TODO, celles qui attendent le chef, `chef-todo` ou `blocked-on-human`.
-export async function lireCartesGitHub(github: GitHubDeLAttente): Promise<CartesGitHub> {
-  const sondage = await github.ouvertes();
-  if (sondage.inchange) throw new Error("GitHub did not return the list of open issues");
-  return cartesDesIssues(github, sondage.issues);
-}
-
-// Les cartes de ces issues-là : la liste de la commande, ou les tickets que le
-// tour de la station vient de lire (guerison/index.ts).
+// Les cartes de ces issues-là : les tickets que le tour de la station vient de
+// lire (guerison/index.ts).
 export async function cartesDesIssues(github: { commentaires(numero: number): Promise<Pick<Commentaire, "body" | "association">[]> }, issues: readonly Pick<IssueOuverte, "number" | "title" | "labels">[]): Promise<CartesGitHub> {
   const cartes: CartesGitHub = { todo: [], waiting: [] };
   const lues = await Promise.all(
