@@ -16,7 +16,7 @@ const github: AppelGitHub = async (chemin) => {
       issue(1, ["fire"]),
       issue(2, ["fire"], "Depends on #1"),
       issue(3, ["fire", "taken"], "Depends on #1"),
-      issue(4, ["fire", "waiting", "taken"]),
+      issue(4, ["fire", "parked", "taken"]),
       issue(5, ["fire"], "Depends on #4"),
       issue(40, ["fire", "in-pass"]),
       issue(41, ["fire", "in-pass"]),

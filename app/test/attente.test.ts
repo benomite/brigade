@@ -1,31 +1,26 @@
-// WAITING sur le rail (#591) : deux colonnes, TODO — ce que le chef peut trancher maintenant — et
-// WAITING — ce qui attend un tiers. Sur une carte de TODO, « waiting for… » ouvre un formulaire :
-// ce qu'elle attend, de qui, la relance proposée à sept jours ; validé, il s'écrit sur l'issue, jamais
-// par une commande de la box (#4262). Une carte de WAITING dit sans clic ce qu'elle attend, de qui, depuis
-// quand, sa relance et ce qui se passera à l'arrivée, et porte « resume » et « it arrived, back to
-// the kitchen ». Une carte revenue de WAITING le dit — pas pourquoi : le runtime ne le rend pas
-// dans `faits`. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// WAITING sur le rail (#591), devenu le parking (#4129) : deux colonnes, TODO — ce que le chef peut trancher maintenant —
+// et WAITING — ce qui attend un tiers. Sur une carte de TODO, « waiting for… » ouvre un formulaire : ce qu'elle attend, de
+// qui, la relance proposée à sept jours ; validé, il s'écrit sur l'issue, jamais par une commande de la box (#4262). Une
+// carte de WAITING dit sans clic ce qu'elle attend, de qui, depuis quand, sa relance et ce qui se passera à l'arrivée, et
+// porte « resume » et « it arrived, back to the kitchen ». Une carte revenue de WAITING le dit — pas pourquoi : le runtime
+// ne le rend pas dans `faits`. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { GESTES_D_ATTENTE, jourDe, relanceProposee } from "../src/attente.ts";
-import type { ClientDeLaPriorite } from "../src/priorite.ts";
-import { attenteSurGithub } from "../src/vue/attente/attente-github.ts";
-import { saisieLue } from "../src/vue/attente/saisie.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { GESTE, type Cuisine } from "../src/box.ts";
-import { EXEMPLE, type Projet } from "../src/config.ts";
+import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, comprendre, rail, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import type { ClientDeLaPriorite } from "../src/priorite.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import { attenteSurGithub, parquer } from "../src/vue/attente/attente-github.ts";
+import { saisieLue, type Saisie } from "../src/vue/attente/saisie.ts";
 import { rouges } from "./aides/rouges.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -65,6 +60,24 @@ describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
       const dit = await attenteSurGithub({ id: "attente-reprendre", ticket, saisie: undefined, aujourdhui: AUJOURDHUI, lu: undefined, client: {} as ClientDeLaPriorite });
       assert.match("refus" in dit ? dit.refus : "", /names no ticket/, String(ticket));
     }
+  });
+
+  test("« waiting for… » parque le ticket : le commentaire de parking dit qui, pour quoi, jusqu'à quand, puis `parked` est posé", async () => {
+    const lue = saisieLue({ quoi: "sa validation écrite du devis", qui: "le client", relance: "2026-10-22" }, AUJOURDHUI);
+    const ecrits: [string, string, unknown][] = [];
+    const client: ClientDeLaPriorite = {
+      lire: () => assert.fail("rien ne se lit"),
+      ecrire: (methode, chemin, corps) => (ecrits.push([methode, chemin, corps]), Promise.resolve(chemin.endsWith("/comments") ? { status: 201, data: { html_url: "https://github.com/o/r/issues/8#c1" } } : { status: 200, data: [] })),
+    };
+    const ecrit = await parquer("o/r", 8, lue as Saisie, AUJOURDHUI, client);
+    assert.ok("fait" in ecrit, JSON.stringify(ecrit));
+    const [[, chemin, poste] = [], [, cheminDuLabel, label] = []] = ecrits;
+    assert.equal(chemin, "/repos/o/r/issues/8/comments");
+    const corps = (poste as { body: string }).body;
+    // La marque que la cuisine relit (runtime/src/attente-github/marque.ts) : rien ne prend un ticket parqué avant sa date.
+    assert.match(corps, /^<!-- brigade:parked \{"what":"sa validation écrite du devis","who":"le client","followUp":"2026-10-2[12]T\d\d:00:00\.000Z"\} -->\n\*\*PARKED: waits for le client\.\*\*/);
+    assert.match(corps, /- \*\*until\*\*: 2026-10-2[12] \d\d:00 UTC/);
+    assert.deepEqual([cheminDuLabel, label], ["/repos/o/r/issues/8/labels", { labels: ["parked"] }]);
   });
 });
 

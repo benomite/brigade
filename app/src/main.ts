@@ -5,7 +5,8 @@ import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuDeLApp } from "./aide-communaute.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, protocol, shell, type MenuItemConstructorOptions } from "electron";
+import { repondreAuxAgents, SCHEMA_DES_AGENTS, SCHEMA_PRIVILEGIE } from "./agents-de-la-box.ts";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
 import { creerLIcone, ICONE_DE_LA_BARRE } from "./tray/icone.ts";
@@ -109,7 +110,7 @@ import { ouvrirPty } from "./pty.ts";
 import { claudeDe, connexionDeLaSession, ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
-import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
+import { lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
 import { tenirRepondues } from "./repondues.ts";
@@ -1006,8 +1007,8 @@ ipcMain.handle("refus", async (_, nom: unknown, id: unknown, ticket: unknown) =>
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
-// Un geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Put on the rail » retire `idea` et pose `fire`,
-// « Drop » ferme l'issue comme non prévue — par l'accès GitHub de l'app (gestes-idee.ts).
+// Le geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Drop » ferme l'issue comme non prévue — par
+// l'accès GitHub de l'app (gestes-idee.ts). Aucun ne la met sur le rail (#4223) : le rail est le haut du backlog.
 ipcMain.handle("idee", async (_, nom: unknown, id: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
@@ -1155,16 +1156,6 @@ ipcMain.handle("lireTitre", (_, nom: unknown, ticket: unknown) => {
   if (vise === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
   return adresse === undefined ? { sans: "the station gave no https address for this issue: the app has nothing to read" } : titreDe(reglagesGh(), adresse);
-});
-// Lever la retenue d'un ticket qui t'attend pour `blocked-on-human` : retirer le label, ou fermer
-// l'issue — un clic, par le `gh` du poste. Rien pour un ticket que le bloc `attend` ne dit pas retenu.
-ipcMain.handle("leverRetenue", (_, nom: unknown, ticket: unknown, geste: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return { fait: false, refus: parti(nom).refus };
-  const dit = faits.attendu(vise.nom, ticket);
-  if (dit === undefined || !dit.lignes.some((ligne) => ligne.includes(`\`${LABEL_RETENUE}\``))) return { fait: false, refus: `nothing was done: the \`attend\` block does not say #${String(ticket)} is held by \`${LABEL_RETENUE}\`` };
-  const adresse = faits.adresse(vise.nom, ticket);
-  return adresse === undefined ? { fait: false, refus: "nothing was done: the station gave no https address for this issue" } : lever(reglagesGh(), adresse, geste);
 });
 // La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
 // l'issue, en commentaire, par le même `gh` — à son nom. L'issue est relue avant : rien ne part sur
@@ -1474,7 +1465,7 @@ ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
   return rendu;
 });
 // Les outils que l'app ne livre pas (#4059, outils-requis.ts) : la connexion à GitHub, le clone et le login Max les
-// demandent d'abord ; un outil qui manque a son écran, qui l'installe par le chemin que le runtime choisit.
+// demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation (l'app n'installe rien, #4266).
 const outilsRequis = tenirOutilsRequis({
   charger: async () => {
     const [requis, machine, outils] = await Promise.all([
@@ -1485,10 +1476,9 @@ const outilsRequis = tenirOutilsRequis({
     return { ...requis, ...machine, programmesDe: outils.programmesDe };
   },
   env: process.env,
-  ouvrir: (url) => shell.openExternal(url),
+  autoriserLaPage: (lien) => pagesDuPremier.add(lien),
 });
 ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
-ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
 ipcMain.handle("seConnecterAClaude", () => loginIci());
 // La page où taper le code se rouvre depuis l'écran.
@@ -1644,6 +1634,14 @@ ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
 // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
 // et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
 ipcMain.handle("gestesRetenus", (_, nom: unknown) => lireLesRetenus(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
+// L'API des agents que lit l'onglet Agents (ticket 4224) : la vue la demande par `fetch` sur `brigade-agents:`, et chaque
+// demande est une commande `agents` ou `agent-settings` lancée là où la cuisine du projet nommé tourne (agents-de-la-box.ts).
+protocol.registerSchemesAsPrivileged([SCHEMA_PRIVILEGIE]);
+const servirLesAgents = () =>
+  protocol.handle(SCHEMA_DES_AGENTS, async (requete) => {
+    const { statut, corps } = await repondreAuxAgents({ methode: requete.method, url: requete.url, corps: await requete.text() }, cuisineDuProjet, lancerSurLaCuisine);
+    return new Response(JSON.stringify(corps), { status: statut, headers: { "content-type": "application/json" } });
+  });
 ipcMain.handle("approuverGeste", (_, nom: unknown, id: unknown) => approuverLeGeste(String(nom), cuisineDuProjet(nom).lu, id, lancerSurLaCuisine));
 ipcMain.handle("listerLesHumains", (_, nom: unknown) => {
   const { vise, lu } = cuisineDuProjet(nom);
@@ -1918,8 +1916,7 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 // La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
-// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js). Celle des ratios
-// (#1682) lit de même `closing --json` sur la box de chacun (vue/closer/tendance/tendance.js).
+// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commandes = commandesDe(id);
   ongletLu = { id, demande };
@@ -2051,6 +2048,7 @@ if (plateforme === "win32") app.setAppUserModelId(process.execPath);
 void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installeeAuLancement) return app.quit();
+  servirLesAgents();
   // La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
   poserLaCommande({ plateforme, facon: emplacements.facon, maison: homedir(), version: app.getVersion(), runtime: emplacements.runtime, node: emplacements.node, racine: racineDeLaStation, chemin: process.env.PATH ?? "" });
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.

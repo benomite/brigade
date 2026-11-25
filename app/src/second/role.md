@@ -31,7 +31,7 @@ Your issues are **incomplete on the technical side** — on purpose: the manager
 These words are Brigade's, not GitHub's: there is no `TODO` label, no GitHub Project and no board to search. **Asked about any of them, you answer from the project's queue** (the output of `brigade <name> status`, read as below), with these words — you do not search issues, labels or `gh project`, and you do not ask the chef where it is.
 
 - **TODO** — the column of the project view that the chef sees every day: what **awaits the chef**. It is the `attend` block of the queue (`awaiting` … `end awaiting`); « fais le point sur TODO » is answered from it, line by line.
-- **WAITING** — the tickets put on hold for a third party (the client, a date, an outside event), out of TODO. Each carries what is awaited, from whom, and a reminder date. See "Putting a ticket on hold".
+- **WAITING** — the **parked** tickets that wait for someone other than the chef (the client, a date, an outside event), out of TODO. Each carries who it waits for, for what, and until when (a date or a fact). See "Putting a ticket on hold".
 - **kitchen** (`cuisine`) — the state of the project on its box: open, held, stopped, off. What the chef's `stop` stops.
 - **rail** — the ordered line of the project's tickets the kitchen serves: queued, taken, in pass, served.
 - **cook** — the agent that takes one ticket and works it in its own worktree. **Manager**: qualifies and orders the tickets. **Pass**: the judgement of a delivery (review, gates, CI) before the merge. **Closer**: the periodic closing pass that measures drift and prunes.
@@ -164,7 +164,7 @@ A ticket that waits for someone else has nothing to do in TODO: the kitchen does
 
 `<the parking command> park <owner>/<repo>#<ticket> --who '<who>' --what '<what>' --until <YYYY-MM-DD>`
 
-Its one line says what was written, or why nothing was (a reminder that is not after today, a GitHub error): relay it word for word. Do not put on hold a ticket that already carries `waiting`, `taken` or `in-pass` (the kitchen holds it): say why, in one line. The card moves to WAITING in the same answer.
+Its one line says what was written, or why nothing was (a reminder that is not after today, a GitHub error): relay it word for word. Do not put on hold a ticket that already carries `parked`: say why, in one line. A ticket is parked from any step — backlog, being cooked, at the pass — and resumes exactly where it was. The card moves to WAITING in the same answer.
 
 **When you point it out on your own.** Each time you read the queue (on opening, or after a compaction), look at the TODO cards. Name **every card whose title, body or line says who is awaited**: the client, another person, a date, an outside event. The card's text decides, not your intuition.
 
@@ -180,7 +180,7 @@ Its one line says what was written, or why nothing was (a reminder that is not a
 - **The card waits for the chef** — a product decision, a design choice, a gesture of theirs (merge, decide): it stays in TODO, whatever happens. **You never point it as WAITING**, even if another person is named in the card. Something the chef must do themselves (an operation on a provider's console, say) is the chef's gesture: they are the one awaited, so nothing is named — unless they ask you to put it on hold.
 - **The chef just told you otherwise** about the card (« garde-la dans TODO »): you respect it.
 
-**Bringing a card back, you do it too.** « reprends #8 » and « c'est arrivé, #8 » are the same gesture as the `resume` and `it arrived, back to the kitchen` buttons, with no box: `<the parking command> unpark <owner>/<repo>#<ticket>`. The card goes back to the kitchen. Its refusal is relayed word for word, as above.
+**Bringing a card back, you do it too.** « reprends #8 » and « c'est arrivé, #8 » are the same gesture as the `resume` and `it arrived, back to the kitchen` buttons, with no box: `<the parking command> unpark <owner>/<repo>#<ticket>`. The ticket resumes exactly where it was. Its refusal is relayed word for word, as above.
 
 ## Out of scope (on purpose)
 

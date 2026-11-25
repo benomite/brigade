@@ -8,11 +8,12 @@ import { carteDuChefDeTodo, type CarteDeTodo, type Reponse } from "../../src/car
 import { comprendre, tableau as tableauDe, type Carte, type Faits } from "../../src/faits.ts";
 import { situation } from "../../src/histoire.ts";
 import { avecCeQuiAttendLeChef } from "../../src/tableau/attente-du-chef.ts";
+import { LABELS_D_AVANT_PARKED, LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../../../runtime/src/github-etat/etats.ts";
 import type { ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../../src/tableau/lecture.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
 import { formeDuChef } from "../../src/tableau/todo-github.ts";
-import { tiersDeLaMarque } from "../../src/vue/attente/attente-github.ts";
+import { tiersDesCommentaires } from "../../src/vue/attente/attente-github.ts";
 import { commentaireDeReponse, repondreSurGithub, type ClientDeLaReponse } from "../../src/tableau-gestes/reponse-github.ts";
 import { CHAMP, ENVOYER, poserCarteDeTodo, REPOS } from "../../src/vue/carte-todo.js";
 import { Faux } from "../aides/fausse-vue.ts";
@@ -146,7 +147,7 @@ describe("le commentaire marqué porte ses choix", () => {
     // Sans choix, la carte garde son champ, dont la réponse joue `resume`.
     const carte = carteDuChefDeTodo({ sorte: "product-question", texte: "Which plan?" });
     assert.deepEqual(carte?.choix, []);
-    assert.match(carte?.prixDuTexte ?? "", /removes what holds the ticket \(`served-elsewhere`, `blocked-on-human`, `question`, `decision`, `chef-todo`\)/);
+    assert.match(carte?.prixDuTexte ?? "", /removes what holds the ticket \(`chef-todo`, `parked`, `served-elsewhere`, and any waiting label of before parked\): it resumes exactly where it was/);
     // Un commentaire marqué sans texte n'a rien à quoi répondre.
     assert.equal(carteDuChefDeTodo({ sorte: "blocked", texte: "  " }), undefined);
   });
@@ -251,41 +252,6 @@ describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un s
     assert.ok((await todo(leMonde.client)).some(({ ticket }) => ticket === 77));
   });
 
-  // Un ticket que la station a mis de côté (`blocked-on-human`) : sa livraison, PR #2330, touche à ce qui la juge (#3368). Son
-  // commentaire est celui que la station écrit en posant le label (runtime/src/brigade-github.ts) ; la PR ne ferme pas l'issue.
-  const JUGES = "Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2330.";
-  const avecLaMiseDeCote = () => {
-    const leMonde = monde();
-    leMonde.issues.set(2326, { labels: new Set(["fire", "blocked-on-human"]), state: "open", commentaires: [{ id: 8, body: JUGES, author_association: "OWNER", created_at: "2026-11-05T03:00:00Z" }] });
-    leMonde.prs.set(2330, { state: "open", merged: false, ref: "cook/2326-ci", body: "For #2326" });
-    return leMonde;
-  };
-
-  test("merge d'une livraison mise de côté par la station : sa carte pose la question avec le bouton `Merge the PR of #2326`, sa PR dite par son ticket (ticket 3716) ; un clic merge la PR, lève `blocked-on-human`, et la carte part", async () => {
-    const leMonde = avecLaMiseDeCote();
-    const carte = carteDe(await todo(leMonde.client), 2326);
-    assert.equal(carte.todo?.question, "Merge the PR of #2326 by hand? It changes what judges it.");
-    assert.deepEqual(carte.todo?.choix.map(({ texte }) => texte), ["Merge the PR of #2326"]);
-    const rendu = await cliquer(leMonde, 2326, "Merge the PR of #2326");
-    assert.ok("repondue" in rendu, JSON.stringify(rendu));
-    assert.match(rendu.dit, /the PR of #2326 merged, `blocked-on-human` removed/);
-    assert.equal(leMonde.prs.get(2330)?.merged, true);
-    assert.ok(!leMonde.issues.get(2326)?.labels.has("blocked-on-human"));
-    assert.equal(leMonde.issues.get(2326)?.state, "open");
-    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 2326));
-  });
-
-  test("merge d'une livraison mise de côté refusé par GitHub : la raison est dite en une ligne, la mise de côté reste, et sa carte aussi", async () => {
-    const leMonde = avecLaMiseDeCote();
-    leMonde.refusees.add(2330);
-    const rendu = await cliquer(leMonde, 2326, "Merge the PR of #2326");
-    assert.ok("refus" in rendu, JSON.stringify(rendu));
-    assert.equal(rendu.detail, "GitHub refused the merge of the PR of #2326 (HTTP 405): Pull Request is not mergeable");
-    assert.equal(leMonde.prs.get(2330)?.merged, false);
-    assert.ok(leMonde.issues.get(2326)?.labels.has("blocked-on-human"));
-    assert.deepEqual(carteDe(await todo(leMonde.client), 2326).todo?.choix.map(({ texte }) => texte), ["Merge the PR of #2326"]);
-  });
-
   test("close : l'issue est fermée", async () => {
     const leMonde = avecLaCarte();
     const rendu = await cliquer(leMonde, 40, "Close it");
@@ -314,23 +280,46 @@ describe("un clic joue son geste sur GitHub, après le commentaire de la répons
     assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 2061));
   });
 
-  // Un ticket que la station a mis de côté sans PR à merger (#3369) : sa carte offre `Back to the kitchen` et `Close it`.
-  const retenu = (leMonde: ReturnType<typeof monde>) => leMonde.issues.set(3369, { labels: new Set(["fire", "blocked-on-human"]), state: "open", commentaires: [] });
+  // Une carte du chef garde `chef-todo` ; « waiting for… » y ajoute `parked` (ticket 4129) et elle quitte Todo. Une réponse à
+  // la carte, lue avant, retire les deux : le ticket reprend où il était.
+  test("resume sur une carte que `parked` a rejointe depuis sa lecture : `chef-todo` et `parked` retirés — il reprend où il était, la carte quitte Todo", async () => {
+    const leMonde = monde();
+    const parque = leMonde.issues.get(2061) ?? assert.fail("#2061");
+    parque.labels.add("chef-todo");
+    const carte = carteDe(await todo(leMonde.client), 2061);
+    const { racine, reponses } = posee(2061, carte.todo ?? assert.fail("the card asks its question"));
+    (boutons(racine).find((bouton) => bouton.textContent === "Yes, every project is on GitHub-only: remove the old path") ?? assert.fail("the button")).click();
+    parque.labels.add("parked");
+    const rendu = await repondreSurGithub({ depot: DEPOT, ticket: 2061, chef: carte.chef, reponse: reponses[0], client: leMonde.client });
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.match(rendu.dit, /`served-elsewhere` and `chef-todo` and `parked` removed/);
+    const retires = leMonde.ecrits.filter(({ methode }) => methode === "DELETE").map(({ chemin }) => chemin.split("/labels/")[1]);
+    assert.deepEqual(retires, ["served-elsewhere", "chef-todo", "parked", ...LABELS_D_AVANT_PARKED.map(encodeURIComponent)]);
+    assert.deepEqual([...(leMonde.issues.get(2061)?.labels ?? [])], ["fire"]);
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 2061));
+  });
 
-  test("`blocked-on-human` sans PR — Back to the kitchen : `blocked-on-human` retiré, le ticket revient sur le rail, la carte quitte Todo", async () => {
+  // Un ticket parqué pour le chef par un label d'attente d'avant parked (#4260, `LABELS_D_AVANT_PARKED_POUR_LE_CHEF`), sans
+  // question sur l'issue : sa carte demande ce que son label attend, avec `Back to the kitchen` et `Close it`.
+  const [ANCIEN] = LABELS_D_AVANT_PARKED_POUR_LE_CHEF;
+  const retenu = (leMonde: ReturnType<typeof monde>) => leMonde.issues.set(3369, { labels: new Set([ANCIEN as string]), state: "open", commentaires: [] });
+
+  test("parqué pour le chef par un label d'avant parked, sans question — Back to the kitchen : le label retiré, il reprend où il était, la carte quitte Todo", async () => {
     const leMonde = monde();
     retenu(leMonde);
+    assert.equal(carteDe(await todo(leMonde.client), 3369).todo?.question, `It carries \`${ANCIEN}\`, a waiting label of before parked: what do you decide?`);
     const rendu = await cliquer(leMonde, 3369, "Back to the kitchen");
     assert.ok("repondue" in rendu, JSON.stringify(rendu));
     assert.equal(dernierCommentaire(leMonde, 3369), "<!-- brigade:reponse gesture=resume -->\nBack to the kitchen");
-    assert.deepEqual([...(leMonde.issues.get(3369)?.labels ?? [])], ["fire"]);
+    assert.deepEqual([...(leMonde.issues.get(3369)?.labels ?? [])], []);
     assert.equal(leMonde.issues.get(3369)?.state, "open");
     assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 3369));
   });
 
-  test("`blocked-on-human` sans PR — Close it : l'issue est fermée, la carte quitte Todo", async () => {
+  test("parqué pour le chef par un label d'avant parked, sans question — Close it : l'issue est fermée, la carte quitte Todo", async () => {
     const leMonde = monde();
     retenu(leMonde);
+    assert.equal(carteDe(await todo(leMonde.client), 3369).todo?.question, `It carries \`${ANCIEN}\`, a waiting label of before parked: what do you decide?`);
     const rendu = await cliquer(leMonde, 3369, "Close it");
     assert.ok("repondue" in rendu, JSON.stringify(rendu));
     assert.equal(leMonde.issues.get(3369)?.state, "closed");
@@ -509,24 +498,25 @@ describe("la carte d'une décision du manager : ses réponses en boutons, celle 
     assert.ok("repondue" in rendu, JSON.stringify(rendu));
     assert.match(rendu.dit, /in WAITING on GitHub: #35 awaits AF, the client, follow-up on 2026-11-20/);
     const issue = leMonde.issues.get(35);
-    assert.deepEqual([...(issue?.labels ?? [])], ["waiting"]);
-    const [reponse, attente] = issue?.commentaires.slice(-2).map(({ body }) => body) ?? [];
-    assert.equal(reponse, "<!-- brigade:reponse gesture=wait -->\nWait for AF, the client");
-    // L'entrée en WAITING, dans la forme que la carte de WAITING relit (vue/attente/attente-github.ts).
-    assert.deepEqual(tiersDeLaMarque(attente ?? "", "2026-11-13T12:00:00Z")?.qui, "AF, the client");
-    // Sous la marque que la station relit, en tête (ticket 4262) : le commentaire que le second et « waiting for… » posent.
-    assert.match(attente ?? "", /^<!-- brigade:waiting \{"what":"Does AF want[^\n]*"who":"AF, the client"[^\n]* -->\n\*\*WAITING: awaiting AF, the client\.\*\* Does AF want direct automatic recontact of the Respondent after the beta\?/);
+    assert.deepEqual([...(issue?.labels ?? [])], ["parked"]);
+    const [reponse, attente] = issue?.commentaires.slice(-2) ?? [];
+    assert.equal(reponse?.body, "<!-- brigade:reponse gesture=wait -->\nWait for AF, the client");
+    // Le commentaire de parking (#4129), dans la forme que la carte de WAITING relit (vue/attente/attente-github.ts).
+    assert.deepEqual(tiersDesCommentaires(attente === undefined ? [] : [attente])?.qui, "AF, the client");
+    assert.match(attente?.body ?? "", /^<!-- brigade:parked \{.*\} -->\n\*\*PARKED: waits for AF, the client\.\*\* Does AF want direct automatic recontact of the Respondent after the beta\?/);
   });
 
-  test("le label `waiting` refusé : la réponse est postée, et le refus dit que le ticket n'est pas en WAITING", async () => {
+  test("le label `parked` refusé : la réponse est postée, et le refus dit que le ticket n'est pas parqué", async () => {
     const leMonde = avec(TIERS);
     const carte = carteDe(await todo(leMonde.client), 35);
     const ecrire = leMonde.client.ecrire;
-    const client: ClientDeLaReponse = { lire: leMonde.client.lire, ecrire: async (methode, chemin, corps) => (chemin.endsWith("/labels") && methode === "POST" ? { status: 500, data: { message: "boom" } } : ecrire(methode, chemin, corps)) };
+    // Seule la pose de `parked` est refusée : « Wait for … » parque le ticket (#4129), il ne pose aucun autre label.
+    const parque = (corps: unknown) => JSON.stringify(corps) === JSON.stringify({ labels: ["parked"] });
+    const client: ClientDeLaReponse = { lire: leMonde.client.lire, ecrire: async (methode, chemin, corps) => (chemin.endsWith("/labels") && methode === "POST" && parque(corps) ? { status: 500, data: { message: "boom" } } : ecrire(methode, chemin, corps)) };
     const rendu = await repondreSurGithub({ depot: DEPOT, ticket: 35, chef: carte.chef, reponse: { question: carte.todo?.question ?? null, choix: 1 }, client, maintenant: new Date(2026, 10, 13, 12) });
-    assert.ok("refus" in rendu);
+    assert.ok("refus" in rendu, JSON.stringify(rendu));
     assert.match(rendu.refus, /its gesture \(wait\) was not played/);
-    assert.match(rendu.detail, /#35 is not in WAITING/);
+    assert.match(rendu.detail, /#35 is not parked: its comment is posted, but GitHub did not set `parked`/);
     assert.ok(leMonde.issues.get(35)?.labels.has("decision"), "the card stays: nothing else was removed");
   });
 });

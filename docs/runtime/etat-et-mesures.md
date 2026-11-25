@@ -165,6 +165,26 @@ What the shape does not say:
   `status`. The log, the partition, the arbiter have no shape; of the station, only
   its cooks in progress have one.
 
+### The agents, for the Agents tab (#4220)
+
+`npm --prefix runtime run agents -- [<path>]` answers one of two paths with its JSON on one line
+(`runtime/src/agents-tab/`):
+
+- `/api/agents` (the default): one entry per agent of the registry (`agents-tab/registre.ts`) — `id`, `name`,
+  `role`, `state`, `workingOn`, `nextRun`, `figures`, `settings`. `state` is `working` while one of its runs goes on
+  (`workingOn`: its ticket, or null), `broken` when its last run failed, died on a guardrail or stalled and nothing
+  was launched after it, `idle` otherwise. `nextRun` is the schedule the runtime noted (the supervisor, the closer),
+  else null. `figures`: the gestures of its thread in the last 7 days, fixed by itself and handed to the chef — a
+  thread that was not read or cannot be read says so in the value and the meaning. The closer has a third figure,
+  the lines its closing passes removed in the last 7 days (`closing.ended` of the log). `settings` is the body
+  `agent-settings <id>` serves (#4222, `{fields}`, or its `{reason}` when its file cannot be read), untouched; null
+  for an agent it holds no settings for (the triage, the second judge).
+- `/api/agents/<id>/gestures`: its gestures, newest first, as `{at, summary, reason, issue}`; the cooks' entry
+  gathers every cook's thread, each gesture with its ticket. An id the registry does not hold answers 404.
+
+A path that is not served gives its status and reason on the error output, in 1. A runtime that starts a new agent
+adds it to the registry: a test fails otherwise.
+
 ### A profile at dispatch
 
 A profile is a **preference, never a constraint** (`runtime/src/profils/preference.ts`). When
@@ -467,3 +487,9 @@ npm --prefix runtime run report -- --week 2026-11-02   # the stored summary of t
 ## Outage post-mortems
 
 When `main` has been red and turns green after more than 30 minutes (the red `main` the supervisor already tracks, `mainRougeDepuis`), the supervisor's wake-up writes a post-mortem for it (#4023, spec `2026-11-23-autonomy-trust-control`, section T4): five fields — cause, duration, who saw it first (`system` or `chef`), what fixed it, the fix ticket — kept per project and per outage in `<BRIGADE_STATE_DIR>/post-mortems/<project>.json`, with the end of the outage beside them. An outage of 30 minutes or less leaves none, and writing the same outage again adds none. « Who saw it first » is read from two dates, the system's first detection and the chef's first report, and the earlier wins (a tie goes to the system). Today the system's date is the start the supervisor recorded, and nothing yet records a chef's report, nor what fixed the outage: those two stay unset (« not recorded » on screen) until a source gives them. `facts` publishes the list as `postMortems`; the project's Settings section shows it, newest first, with the number of outages seen first by the chef over the last 7 days. The supervisor tracks nothing across a restart: an outage open while the runtime restarts is not recorded.
+
+## The morning digest of the previous day
+
+Each morning, on the first tick at or after 06:00 UTC, the runtime builds one digest of the previous UTC day (#4280, spec `2026-11-23-autonomy-trust-control`, section T1; code: `runtime/src/journal-du-jour/`). It is read from the agents' threads (`autonomy-gestures.json`) and the post-mortems of that day, and is at most six lines: the first gives the number of outages seen first by the chef (and, when there are any, those seen first by the system); then one line each, when it has something, for what was delivered, what broke, what the system fixed by itself, what it could not fix (every gesture handed to the chef, and every one its agent calls `unfixed`), and its own mistakes — each line in the order of the day — three items named per line, the others counted. A gesture with no kind is read from its outcome; a gesture `not done` is left out. A day with nothing to say gives the first line alone. The digest is written to the journal (`digest.published`, once per day) and `facts` gives the last one as `digest` (`day`, `text`, `at`), which the app shows as a card. It is never pushed as a message. A thread or post-mortem file that cannot be read publishes nothing: it is said on the service log and tried again ten minutes later.
+
+Building the logbook or the digest sends no notification. The only one is sent when the system gives up: a gesture logged with the outcome `handed to the chef` — through the gate of the agents' gestures, or by the supervisor when it asks the chef about a stale PR's zone (#4243) — writes `chef.notified` to the journal, and `facts` gives the last one as `notification` (`title`, `at`, `line`, `reason`, `notifiedAt`). A notification that cannot be written is said; the gesture stays done and logged.

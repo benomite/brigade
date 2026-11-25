@@ -79,7 +79,7 @@ describe("la lecture du rail tire les alertes de ce qu'elle sait, et `facts` les
   });
 
   test("une réparation de main mise de côté ne dit pas que la cuisine répare la base", () => {
-    const reparation = ticket(3812, { titre: "Repair main: runtime tests", reparationDeMain: true, etat: "86", miseDeCote: { label: "set-aside:failures", raison: null, auChef: true } as TicketSurGithub["miseDeCote"] });
+    const reparation = ticket(3812, { titre: "Repair main: runtime tests", reparationDeMain: true, etat: "86", miseDeCote: { label: "served-elsewhere", raison: null, liens: [], auChef: true } });
     assert.deepEqual(sortes(faitsDe([reparation, ticket(4)], [station()])).filter((sorte) => sorte === "base-rouge"), []);
   });
 

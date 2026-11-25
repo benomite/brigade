@@ -162,3 +162,7 @@ export const depuis3945 = <F extends object>(avant: F): Omit<F, "urgence" | "ret
   const { urgence: _urgence, retenues: _retenues, ...apres } = avant as F & { urgence?: unknown; retenues?: unknown };
   return apres;
 };
+
+// Ce que #4280 ajoute à la forme, en dernier : le digest du matin et le dernier abandon notifié au chef — nuls dans les
+// états d'exemple, qui n'en ont écrit aucun.
+export const depuis4280 = <F extends object>(avant: F): F & { digest: null; notification: null } => ({ ...avant, digest: null, notification: null });
