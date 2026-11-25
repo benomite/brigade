@@ -4,7 +4,7 @@
 // Joué sur un faux GitHub qui tient les labels et les commentaires de ses issues.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, test } from "node:test";
 import { attenteDeLIssue } from "../../../runtime/src/attente-github/marque.ts";
 import type { ClientDeLaPriorite } from "../../src/priorite.ts";
@@ -19,6 +19,8 @@ const TICKET = 614;
 const AUJOURDHUI = new Date(2026, 10, 9, 15, 5);
 const JOUR = "2026-11-20";
 const SCRIPT = join(import.meta.dirname, "../../src/second/parking.ts");
+// Le script tel que la commande le cite : sous Windows, ses `\\` deviennent des `/`, que le `bash` de Git lit (cite1, crochet-de-la-file.ts).
+const SCRIPT_CITE = sep === "\\" ? SCRIPT.replaceAll("\\", "/") : SCRIPT;
 
 type Reponse = { status: number; data: unknown };
 // Le GitHub d'un projet : l'issue 614, une carte de TODO. `panne` : ce qu'il rend à la place, pour une écriture.
@@ -168,10 +170,10 @@ describe("la commande donnée au second à chaque début de session", () => {
   test("le crochet du début de session — ouverture, reprise, compaction — la donne, joué pour de bon par `node`", () => {
     const [crochet] = crochetsDuParking({ node: "/usr/bin/node", cible: { nom: "mirrorlab", depot: DEPOT } }).SessionStart ?? [];
     assert.equal(crochet?.matcher, "startup|resume|compact");
-    assert.equal(crochet?.hooks[0]?.command, `'/usr/bin/node' '${SCRIPT}' 'context' '${DEPOT}'`);
+    assert.equal(crochet?.hooks[0]?.command, `'/usr/bin/node' '${SCRIPT_CITE}' 'context' '${DEPOT}'`);
     const sortie = JSON.parse(execFileSync(process.execPath, [SCRIPT, "context", DEPOT], { encoding: "utf8" })) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } };
     assert.equal(sortie.hookSpecificOutput.hookEventName, "SessionStart");
-    assert.ok(sortie.hookSpecificOutput.additionalContext.includes(`'${SCRIPT}' park ${DEPOT}#<n> --who`), sortie.hookSpecificOutput.additionalContext);
+    assert.ok(sortie.hookSpecificOutput.additionalContext.includes(`'${SCRIPT_CITE}' park ${DEPOT}#<n> --who`), sortie.hookSpecificOutput.additionalContext);
   });
 
   test("le lancement du second le porte dans ses réglages", () => {
@@ -191,6 +193,6 @@ describe("la commande donnée au second à chaque début de session", () => {
     const args = lances.at(0)?.args ?? assert.fail("aucun lancement");
     const reglages = JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as { hooks: { SessionStart: { hooks: { command: string }[] }[] } };
     const commandes = reglages.hooks.SessionStart.flatMap(({ hooks }) => hooks.map(({ command }) => command));
-    assert.ok(commandes.includes(`'/usr/bin/node' '${SCRIPT}' 'context' '${DEPOT}'`), commandes.join("\n"));
+    assert.ok(commandes.includes(`'/usr/bin/node' '${SCRIPT_CITE}' 'context' '${DEPOT}'`), commandes.join("\n"));
   });
 });
