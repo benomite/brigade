@@ -26,6 +26,17 @@ test("every agent of the kitchen is there, in the order the chef reads them, and
   assert.deepEqual(noms, ["second", "manager", "cooks", "pass", "reviewer", "second judge", "triage", "closer", "supervisor", "janitor", "scribe"]);
 });
 
+test("an agent the runtime names that the app does not know is told with what the runtime says of it, never as a blank", () => {
+  const avec = { ...FAITS, rolesCuisine: [...FAITS.rolesCuisine, { role: "janitor", does: "Sweeps the worktrees.", latest: { what: "swept 3 worktrees", at: "2026-10-13T09:00:00.000Z" } }], equipe: [...FAITS.equipe, { ...FAITS.equipe[1], agent: "scout", state: "working on #4040", nextRun: { text: "scout: next run in 1 h", at: null }, autonomy: "propose", gestures: [{ at: "2026-10-13T09:00:00.000Z", line: "scouted #4040", reason: "new issue", outcome: "fixed by itself" }] }] };
+  const fiches = fichesDesAgents(lectures({ faits: avec }));
+  const janitor = fiche(fiches, "janitor");
+  assert.deepEqual([janitor.role, janitor.state, janitor.gestures.map(({ line }) => line)], ["Sweeps the worktrees.", "not read: the runtime names it without a record", ["swept 3 worktrees"]]);
+  // Un agent que l'équipe enregistre a ses états, son niveau et ses chiffres, comme les autres ; sa phrase manque, et la fiche le dit.
+  assert.equal(fiche(fiches, "scout").role, "An agent the kitchen runs: the app has no description of it yet.");
+  const scout = fiche(fiches, "scout");
+  assert.deepEqual([scout.state, scout.nextRun.text, reglage(scout, "autonomy").value, scout.week[0]?.value], ["working on #4040", "scout: next run in 1 h", "propose", "1"]);
+});
+
 test("each agent says what it is for in one sentence, its state, and its next run", () => {
   const fiches = fichesDesAgents(lectures());
   for (const un of fiches) assert.ok(un.role !== "" && un.state !== "" && un.nextRun.text !== "", `${un.agent} is told in full`);

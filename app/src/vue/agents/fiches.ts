@@ -25,7 +25,7 @@ export type Lectures = {
   changements: Changements | Manque;
 };
 
-export type Reglage = { key: string; label: string; value: string; options?: string[]; editable: boolean; livesIn?: string; from?: string; changedAt?: string; changedBy?: string };
+export type Reglage = { key: string; label: string; value: string; options?: string[]; editable: boolean; livesIn?: string; from?: string | undefined; changedAt?: string; changedBy?: string };
 export type Chiffre = { label: string; value: string; meaning: string };
 export type Geste = { at: string; line: string; reason: string; outcome: string };
 export type Fiche = { agent: string; role: string; state: string; nextRun: { text: string; at: string | null }; week: Chiffre[]; now?: Chiffre[]; settings: Reglage[]; gestures: Geste[] };
@@ -144,7 +144,7 @@ export function valeurDe(reglable: Reglable, { reglages, faits }: Pick<Lectures,
     if (!nombre(valeur)) return { sans: "the runtime does not give the gates budget" };
     return { value: String(valeur), from: objet(budget?.parLeChef)?.[cle] === true ? "set on the station" : "default", depot: false };
   }
-  if (estManque(reglages)) return { sans: reglages.sans, ...(reglages.detail === undefined ? {} : { detail: reglages.detail }) };
+  if (estManque(reglages)) return reglages;
   const cle = calibres[reglable.geste]?.cle ?? nombres[reglable.geste];
   const vu: ReglageVu | undefined = reglages.reglages.find((un) => un.cle === cle);
   if (vu === undefined) return { sans: "this station's runtime does not give it yet — update it" };
@@ -165,8 +165,8 @@ function ligneReglable(reglable: Reglable, lectures: Lectures): Reglage {
   const valeur = reglable.agent === "cooks" ? places(lectures.faits) : valeurDe(reglable, lectures);
   if (estManque(valeur)) return { ...base, value: pasLu(valeur.sans), editable: false, livesIn: "the station's runtime, which does not give it here" };
   const decision = reglable.agent === "cooks" ? "cooks" : reglable.decision;
-  if (valeur.depot) return { ...base, value: valeur.value, editable: false, livesIn: "the project's repository (.claude/brigade/projet.json): a change there is a pull request, from Settings", ...(valeur.from === undefined ? {} : { from: valeur.from }) };
-  return { ...base, value: valeur.value, options: choixAvec(reglable, valeur.value), editable: true, ...(valeur.from === undefined ? {} : { from: valeur.from }), ...changeDe(decision, lectures) };
+  if (valeur.depot) return { ...base, value: valeur.value, editable: false, livesIn: "the project's repository (.claude/brigade/projet.json): a change there is a pull request, from Settings", from: valeur.from };
+  return { ...base, value: valeur.value, options: choixAvec(reglable, valeur.value), editable: true, from: valeur.from, ...changeDe(decision, lectures) };
 }
 
 // Le plafond de cooks simultanés : celui de chaque station que le runtime déclare — le même partout, ou dit station par station.
@@ -213,6 +213,10 @@ const PROCHAINES: Record<string, string> = {
 // Les agents que l'onglet nomme, dans l'ordre où il les montre ; ceux que le runtime nomme en plus viennent après.
 const ORDRE = ["second", "manager", "cooks", "pass", "reviewer", "second judge", "triage", "closer", "supervisor"];
 
+// Ce que l'agent sert à faire, en une phrase : la nôtre, celle que le runtime donne de son rôle, ou à défaut le dire.
+const SANS_PHRASE = "An agent the kitchen runs: the app has no description of it yet.";
+const laPhrase = (nom: string, roles: readonly Role[]): string => (Object.hasOwn(ROLES, nom) ? (ROLES[nom] as string) : roles.find(({ role }) => role === nom)?.does || SANS_PHRASE);
+
 type Role = { role: string; does: string; latest: { what: string; at: string } | null };
 function rolesLus(faits: Record<string, unknown>): Role[] {
   if (!Array.isArray(faits.rolesCuisine)) return [];
@@ -249,7 +253,7 @@ export function fichesDesAgents(lectures: Lectures): Fiche[] {
     const gestes = lu === null ? [] : dernier === null || lu.gestures.some(({ at, line }) => at === dernier.at && line === dernier.line) ? lu.gestures : [...lu.gestures, { at: dernier.at, line: dernier.line, reason: "", outcome: "" }];
     return {
       agent: nom,
-      role: ROLES[nom] ?? roles.find(({ role }) => role === nom)?.does ?? "",
+      role: laPhrase(nom, roles),
       ...(lu === null ? sansEtat(nom) : { state: lu.state, nextRun: lu.nextRun }),
       week: lu === null ? [] : chiffresDesGestes(lu.gestures, maintenant),
       settings: reglages,
@@ -267,9 +271,9 @@ export function fichesDesAgents(lectures: Lectures): Fiche[] {
     const role = roles.find((un) => un.role === nom);
     return {
       agent: nom,
-      role: ROLES[nom] ?? role?.does ?? "",
+      role: laPhrase(nom, roles),
       state: etat,
-      nextRun: { text: PROCHAINES[nom] ?? `${nom}: next run not known`, at: null },
+      nextRun: { text: Object.hasOwn(PROCHAINES, nom) ? (PROCHAINES[nom] as string) : `${nom}: next run not known`, at: null },
       week: [],
       settings: reglages,
       gestures: role?.latest == null ? [] : [{ at: role.latest.at, line: role.latest.what, reason: "", outcome: "" }],

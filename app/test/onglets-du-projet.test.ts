@@ -113,7 +113,7 @@ describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
     const vue = await ouvrir();
 
     assert.equal(vue.element("onglets-du-projet").hidden, false);
-    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Stations", "tab"], ["Settings", "tab"]]);
+    assert.deepEqual(onglets(vue).map((onglet) => [onglet.textContent, onglet.role]), [["Rail", "tab"], ["Stations", "tab"], ["Agents", "tab"], ["Settings", "tab"]]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.equal(centre(vue).dataset.onglet, "rail");
 
@@ -256,7 +256,7 @@ describe("le menu de la page d'un projet (#2485, #2921)", () => {
   test("exactement trois entrées, Rail · Stations · Settings ; Rail est ouvert par défaut, sans Kitchen ni sous-onglets", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(onglets(vue).map((onglet) => onglet.textContent), ["Rail", "Stations", "Settings"]);
+    assert.deepEqual(onglets(vue).map((onglet) => onglet.textContent), ["Rail", "Stations", "Agents", "Settings"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.equal(vue.element("rail").dataset.onglet, "rail");
     // Plus de Kitchen, donc plus de sous-onglets Health et Cooks.

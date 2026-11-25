@@ -911,7 +911,7 @@ function explicationDe(projet, mot) {
 /** @param {string} projet @param {import("./explications/explications-box.ts").MotExplique} mot @returns {HTMLElement[]} */
 function explicationDuRail(projet, mot) {
   const visible = actif();
-  return visible === PARAMETRES || visible === AGENTS || ONGLETS.some(({ id }) => id === visible) ? [] : explicationDe(projet, mot);
+  return visible === PARAMETRES || ONGLETS.some(({ id }) => id === visible) ? [] : explicationDe(projet, mot);
 }
 // Sa rangée de Settings, qui les remontre toutes ; cachée tant que le registre n'est pas lu, et sur un pont qui ne le porte pas.
 /** @param {string} projet */
@@ -1438,7 +1438,7 @@ const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom)
 // La lecture suivie : celle de la page ouverte par-dessus — Settings ne lit rien ; sans page, aucune.
 const lue = () => {
   const ouverte = actif();
-  return ouverte === PARAMETRES || ouverte === AGENTS ? undefined : ouverte;
+  return ouverte === PARAMETRES ? undefined : ouverte;
 };
 // L'onglet Agents est ouvert : il ne lit rien sur la box non plus, et a ses propres lectures.
 const agentsMontres = () => courant !== undefined && actif() === AGENTS;

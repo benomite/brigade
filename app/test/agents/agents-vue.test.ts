@@ -185,7 +185,7 @@ test("a broken agent is marked, and an instant is told in UTC to the minute", as
   assert.equal(momentUtc("yesterday"), "yesterday");
 });
 
-test("a badge of the team opens the Agents tab on its agent, its thread open, instead of its own thread; a cook opens the cooks", async () => {
+test("a badge of the team opens the Agents tab on its agent, its thread open, and keeps opening its own thread; a cook opens the cooks", async () => {
   const lire = faux(async () => [agent("closer", { gestures: [{ at: "2026-10-13T09:30:00.000Z", line: "closed pass #4100", reason: "dead code", outcome: "merged" }] }), agent("cooks", { gestures: [{ at: "2026-10-13T09:00:00.000Z", line: "took #4029", reason: "first in line", outcome: "done" }] })]);
   const badges = [
     { agent: "closer", state: "idle", lastGesture: { line: "opened pass", at: "2026-10-13T09:30:00.000Z" }, nextRun: { text: "closer: next pass in 3 h", at: "2026-10-13T13:00:00.000Z" }, thread: "Closer", autonomy: "propose", counters: { fixedBySelf: 0, handedToChef: 0 }, gestures: [], pending: [] },
@@ -202,12 +202,14 @@ test("a badge of the team opens the Agents tab on its agent, its thread open, in
   const badge = (nom: string) => vue.element("equipe-du-projet").dessous("button").find((un) => un.dataset.agent === nom) ?? assert.fail(`pas de badge ${nom}`);
   const onglet = () => vue.element("onglets-du-projet").children.find((un) => un.textContent.trim() === "Agents") ?? assert.fail("no Agents tab");
   assert.equal(onglet().ariaSelected, "false");
+  assert.equal(vue.element("contenu").hidden, true, "the rail alone: no page over it");
   badge("closer").click();
   await repos();
   assert.equal(onglet().ariaSelected, "true");
+  assert.deepEqual([vue.element("contenu").hidden, vue.element("etat").hidden], [false, true], "the page is over the rail, Settings is not");
   assert.equal(vue.element("agents-du-projet").hidden, false);
   assert.match(vue.element("agents-du-projet").textContent, /closed pass #4100 \(dead code\): merged/);
-  assert.equal(vue.element("equipe-du-projet").dessous("section").length, 0, "the badge opened no thread of its own");
+  assert.equal(vue.element("equipe-du-projet").dessous("section").length, 1, "the badge still opens its own thread, where the level and the OK are");
   // Un cook de la rangée ouvre l'agent « cooks », qui tient leurs réglages : son fil s'ouvre, celui du closer se referme.
   badge("cook #4029").click();
   await repos();

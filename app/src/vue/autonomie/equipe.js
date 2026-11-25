@@ -8,8 +8,8 @@
 // Les données passent par autonomie/source.js, et par lui seul : la vue n'appelle que `source.lire`, `source.regler` et
 // `source.approuver`. Une lecture qui ne rend rien ne pose aucune équipe ; une lecture qui échoue, ou qui ne se lit pas,
 // se dit en une ligne, son détail au survol ; un geste qui échoue aussi, et rien ne change à l'écran.
-// Avec `ouvrir`, un badge n'ouvre plus son fil sous la rangée : il ouvre l'onglet Agents sur son agent (ticket 4117), où
-// l'agent a ses réglages et ses derniers gestes ; le badge reste le résumé. Sans lui, le fil s'ouvre sous les badges.
+// Avec `ouvrir`, un clic sur un badge ouvre aussi l'onglet Agents sur son agent (ticket 4117), où l'agent a ses réglages et
+// ses derniers gestes ; le badge reste le résumé, et son fil — où le chef règle le niveau et donne son OK — s'ouvre toujours.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { heureUtc } from "../activite-du-cook.js";
@@ -160,9 +160,9 @@ export function tenirLEquipe(doc, cadre, { ouvrir } = {}) {
     for (const ligne of cree.children) ligne.title = ligne.textContent;
     if (agent.pending.length > 0) cree.append(texte("attente", `${agent.pending.length} ${EN_ATTENTE}`));
     cree.addEventListener("click", () => {
-      if (ouvrir !== undefined) return ouvrir(agent.agent);
       ouvert = ouvert === agent.agent ? null : agent.agent;
       rendre();
+      ouvrir?.(agent.agent);
     });
     return cree;
   };

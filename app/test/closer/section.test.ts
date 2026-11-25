@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Lecture } from "../../src/box.ts";
-import { commandeDe, commandesDe, ONGLETS, PARAMETRES, RUBRIQUES } from "../../src/onglets.ts";
+import { AGENTS, commandeDe, commandesDe, ONGLETS, PARAMETRES, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import {
   AUCUNE,
@@ -248,7 +248,7 @@ describe("la partie closer, ses lectures (#1699)", () => {
     assert.deepEqual(commandesDe("closer"), []);
     assert.ok(!ONGLETS.some(({ id, titre }) => id === "closer" || titre === "Closer"));
     assert.ok(!RUBRIQUES.find(({ id }) => id === PARAMETRES)?.lectures.includes("closer"));
-    assert.deepEqual(RUBRIQUES.map(({ id }) => id), [PARAMETRES]);
+    assert.deepEqual(RUBRIQUES.map(({ id }) => id), [AGENTS, PARAMETRES]);
     assert.deepEqual(commandesDe("cooks"), []);
   });
 });

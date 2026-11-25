@@ -117,7 +117,6 @@ export function tenirLesAgents(doc, cadre) {
         },
         (/** @type {unknown} */ erreur) => {
           if (la !== demande) return;
-          lu = true;
           [agents, echec] = [null, { ligne: `${INDISPONIBLE} ${phraseDe(erreur)}`, detail: detailDe(erreur) }];
           rendre();
         },

@@ -86,8 +86,10 @@ test("a setting is changed by the decision that `station` writes, and nothing el
   assert.deepEqual(await regler("closer", "closer-tokens", "1000000"), { ok: true });
   assert.deepEqual(await regler("closer", "closer-cooks", "5"), { ok: true });
   assert.deepEqual(await regler("cooks", "places", "auto"), { ok: true });
+  assert.deepEqual(await regler("cooks", "places", "5"), { ok: true });
+  assert.equal((await regler("cooks", "places", "0")).ok, false);
   assert.deepEqual(await regler("pass", "budget-gates", "150"), { ok: true });
-  assert.deepEqual(commandes.filter((commande) => commande.startsWith("station")), ["station manager-modele opus", "station closer-tokens 1000000", "station closer-cooks 5", "station cooks auto", "station budget-gates 150"]);
+  assert.deepEqual(commandes.filter((commande) => commande.startsWith("station")), ["station manager-modele opus", "station closer-tokens 1000000", "station closer-cooks 5", "station cooks auto", "station cooks 5", "station budget-gates 150"]);
   // Chaque changement relit `setting` avant d'écrire, rien d'autre : pas un redémarrage.
   assert.deepEqual(commandes.filter((commande) => !commande.startsWith("station") && commande !== "setting"), []);
 });

@@ -973,8 +973,8 @@ The top of the project view, under its menu, shows one badge per agent: supervis
 manager, the pass and each cook, in the same form (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`,
 C1, C2, C4). Each badge says the agent's state, its last gesture with its time, its next run as the runtime words it
 (`closer: next pass in 3 h`), its autonomy level, and how many of its gestures await your OK. Since #4117 the badges are the
-summary and a click on one opens the **Agents** tab on its agent (below; a cook opens `cooks`), where the thread and the settings
-are. Without that tab to open (the badges alone, as `tenirLEquipe` is built without `ouvrir`), a click opens the agent's thread
+summary, and a click on one also opens the **Agents** tab on its agent (below; a cook opens `cooks`), where its settings and its
+last gestures are. A click opens the agent's thread
 under the badges: its last gestures, one line each with its reason and its outcome, its two counters
 `fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
 pressed, its meaning on hover — and each gesture that awaits your OK with one `OK` button. A level click sets the level
