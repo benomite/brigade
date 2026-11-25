@@ -52,7 +52,7 @@ describe("chaque carte dans la colonne de son étape", () => {
 
   test("le backlog : le rail en tête, les tickets prêts à cuire ; dessous, ce qui ne l'est pas — rouges d'abord", () => {
     const [backlog] = planDeLaCuisine([
-      colonne("On the rail", [carte(30, "en attente", { attendu: true }), carte(31, "en attente"), carte(32, "tests écrits"), carte(33, "BLOQUÉ"), carte(34, "en attente", { parque: PARKED })]),
+      colonne("On the rail", [carte(30, "en attente", { attendu: true, parque: { qui: "the chef", jusqua: null, chef: true } }), carte(31, "en attente"), carte(32, "tests écrits"), carte(33, "BLOQUÉ"), carte(34, "en attente", { parque: PARKED })]),
       colonne("Waiting", [carte(35, "WAITING", { parque: { ...PARKED, chef: true } })]),
     ]);
     assert.deepEqual(numeros(backlog?.cartes), [30, 35, 31, 32, 33, 34]);
@@ -82,20 +82,22 @@ describe("la carte parked dit qui elle attend et jusqu'à quand", () => {
 });
 
 describe("le TODO liste exactement ce qui attend le chef", () => {
+  // Ce qui attend le chef est parked pour lui (faits.ts, #4261) ; une relance passée ne la lui rend plus.
   test("les cartes rouges du plan, parked pour le chef comprises, une fois chacune — rien d'autre", () => {
+    const pourLeChef = { parque: { qui: "the chef", jusqua: null, chef: true } };
     const plan = planDeLaCuisine([
-      colonne("On the rail", [carte(50, "en attente", { attendu: true }), carte(51, "en attente")]),
+      colonne("On the rail", [carte(50, "en attente", { attendu: true, ...pourLeChef }), carte(51, "en attente")]),
       colonne("Taken", [carte(52, "pris", { attendu: true, qui: ["bob"] })]),
       colonne("Waiting", [carte(53, "pris", { parque: { ...PARKED, chef: true } }), carte(54, "pris", { parque: PARKED }), carte(55, "WAITING", { relancePassee: true })]),
-      colonne("Pass", [carte(50, "en pass", { attendu: true })]),
+      colonne("Pass", [carte(50, "en pass", { attendu: true, ...pourLeChef })]),
     ]);
-    assert.deepEqual(numeros(ceQuiTAttend(plan)), [50, 55, 53]);
+    assert.deepEqual(numeros(ceQuiTAttend(plan)), [50, 53]);
   });
 
   test("une entrée par ticket, qui ouvre sa carte d'un clic ; rien quand rien n'attend le chef", () => {
     const ouvertes: number[] = [];
-    assert.equal(poserLeTodo(doc, { cartes: [], avis: [], ouvrir: () => {} }), undefined);
-    const todo = poserLeTodo(doc, { cartes: [carte(50, "en attente", { attendu: true }), carte(53, "pris", { parque: { ...PARKED, chef: true }, titre: undefined })], avis: [], ouvrir: ({ ticket }) => void ouvertes.push(ticket) }) as unknown as Faux;
+    assert.equal(poserLeTodo(doc, { cartes: [], ouvrir: () => {} }), undefined);
+    const todo = poserLeTodo(doc, { cartes: [carte(50, "en attente", { attendu: true }), carte(53, "pris", { parque: { ...PARKED, chef: true }, titre: undefined })], ouvrir: ({ ticket }) => void ouvertes.push(ticket) }) as unknown as Faux;
     assert.deepEqual([todo.className, todo.ariaLabel], ["todo-du-rail", "What awaits you"]);
     assert.equal(todo.children[0]?.textContent, "TODO (2)");
     const entrees = todo.dessous("li");
@@ -105,12 +107,6 @@ describe("le TODO liste exactement ce qui attend le chef", () => {
     assert.equal(entrees[0]?.dessous("button")[0]?.title, "open #50's card");
     entrees[1]?.dessous("button")[0]?.click();
     assert.deepEqual(ouvertes, [53]);
-    // Ce qui attend le chef sans être un ticket : sous les entrées, sans entrée de ticket.
-    const avis = new Faux("p");
-    const seul = poserLeTodo(doc, { cartes: [], avis: [avis], ouvrir: () => {} }) as unknown as Faux;
-    assert.equal(seul.children[0]?.textContent, "TODO (0)");
-    assert.equal(seul.children.at(-1), avis);
-    assert.deepEqual(seul.dessous("li"), []);
   });
 });
 

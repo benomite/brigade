@@ -19,10 +19,10 @@ export const LISTE_DU_CHEF = "Awaiting you";
 // La colonne d'une carte qui attend le chef sans étape connue : un ticket pas encore pris est sur le rail.
 const SUR_LE_RAIL = "On the rail";
 
-// Une carte rouge : elle attend le chef — pas un autre humain du projet (« Awaiting others », ticket 2985) —, ou, dans
-// WAITING, sa relance est passée et elle lui revient, ou elle est parked et c'est le chef qu'elle attend (ticket 4238).
+// Une carte rouge : elle est parked, et c'est le chef qu'elle attend (tickets 4238, 4261) — rien d'autre. Ce qu'attend un
+// autre humain du projet (« Awaiting others », ticket 2985), un tiers, ou une date, même passée, ne l'attend pas.
 /** @param {Carte} carte */
-export const estRouge = (carte) => (carte.attendu && carte.qui === undefined) || carte.relancePassee === true || carte.parque?.chef === true;
+export const estRouge = (carte) => carte.parque?.chef === true;
 
 // La colonne d'une carte qui attend le chef : celle de son étape, si le rail l'a ; sinon On the rail.
 /** @param {Carte} carte @param {readonly string[]} noms */

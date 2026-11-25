@@ -319,18 +319,19 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     ]);
   });
 
-  test("sa relance passée, la carte revient au chef : rouge, en tête de sa colonne, comptée dans « TODO (N) » (#3458, #4238)", async () => {
+  // Parked pour un tiers jusqu'à une date, une date passée ne la rend plus au chef (#4261, qui remplace #3458 et #4238 ici).
+  test("sa relance passée, la carte n'attend pas le chef pour autant : ni rouge, ni comptée dans « TODO (N) » (#4261)", async () => {
     const vue = await ouvrir();
     const tiers9 = { ...TIERS, relance: "2026-10-30T00:00:00.000Z" };
     recevoir(vue, dessinable({ ...FAITS, lu: "2026-10-23T00:00:00.000Z", rail: [...FAITS.rail, { ...ticket(9, "WAITING"), tiers: tiers9 }] }));
     const backlog = colonne(vue, "Backlog");
     const enOrdre = backlog.dessous("li").filter(({ className, dataset }) => className === "bon" && ["8", "9"].includes(dataset.ticket ?? "")).map(({ dataset }) => [dataset.ticket, dataset.carte]);
-    assert.deepEqual(enOrdre, [["8", "attente"], ["9", undefined]]);
-    // Ses deux gestes restent : ce sont eux qui y répondent.
+    assert.deepEqual(enOrdre, [["8", undefined], ["9", undefined]]);
+    // Ses deux gestes restent sur sa carte.
     boutonDe(bonDe(vue, 8), "resume");
     boutonDe(bonDe(vue, 8), "it arrived, back to the kitchen");
-    // Les trois cartes du chef, et celle-ci.
-    assert.equal(rouges(vue.element("rail")).length, 4);
+    // Les trois cartes du chef, et elles seules.
+    assert.equal(rouges(vue.element("rail")).length, 3);
   });
 
   test("« resume » et « it arrived, back to the kitchen » partent au clic, pour ce ticket", async () => {
