@@ -17,7 +17,7 @@
 //      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
 //      - `wait` : l'issue est mise en WAITING (#3434) — le commentaire d'entrée en WAITING, qui attend ce que le libellé
 //        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la relance à sept jours, puis le label
-//        `waiting` (vue/attente/attente-github.ts, `ecrireLAttente`) ; `question` et `decision` sont retirés : la question
+//        `waiting` (vue/attente/attente-github.ts, `parquer`) ; `question` et `decision` sont retirés : la question
 //        attend un tiers, plus le chef.
 //      Chaque geste retire aussi `chef-todo` : répondue, la question n'attend plus le chef.
 // La carte quitte TODO à la lecture suivante : ses labels ont changé, et une question que suit une réponse n'en pose plus
@@ -30,7 +30,7 @@ import { ticketDeLaPR } from "../tableau/rail-github.ts";
 import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/todo-github.ts";
 import { refusDe } from "../tableau/client.ts";
 import { PR_DU_TICKET } from "../vue/pr-du-ticket.js";
-import { ecrireLAttente } from "../vue/attente/attente-github.ts";
+import { parquer } from "../vue/attente/attente-github.ts";
 import { relanceProposee, saisieLue } from "../vue/attente/saisie.ts";
 
 // Le client : les lectures par le `GET` du tableau (client.ts), les écritures avec le même jeton — celui des labels de
@@ -84,7 +84,7 @@ async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: numb
   if (geste === "wait") {
     const lue = saisieLue({ quoi: question, qui: attendu(libelle), relance: relanceProposee(maintenant) }, maintenant);
     if ("refus" in lue) throw new Error(lue.refus);
-    const ecrit = await ecrireLAttente(depot, ticket, lue, maintenant, client);
+    const ecrit = await parquer(depot, ticket, lue, maintenant, client);
     if ("refus" in ecrit) throw new Error(`${ecrit.refus}${ecrit.detail === "" ? "" : ` — ${ecrit.detail}`}`);
     fait = ecrit.fait;
   }

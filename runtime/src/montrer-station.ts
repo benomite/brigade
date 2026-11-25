@@ -36,7 +36,6 @@ import { direProvenancesEn, direReglagesEn } from "./closing/say.ts";
 import { COOKS_PAR_DEFAUT, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "./closing/settings.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
-import { direSaturationsEn } from "./machine.ts";
 import { consommation, etatDesGardeFous } from "./projections/guardrails.ts";
 import { direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT, plafondDuProjet } from "./reagir.ts";
 import { reglagesPourMontrer, variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
@@ -306,7 +305,6 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
         ? `on — \`station -- stop ${station}\` to stop the project's cooking here, its running cooks finish`
         : `STOPPED by you since ${arretee} — it takes no more tickets of this project, its running cooks finish; \`station -- start ${station}\` to start it again`,
     );
-    const { saturatedAt, saturatedCauses } = etat;
     // Une station distante ne tourne pas sur cette machine : ce qui se lit
     // d'elle, c'est si elle s'est manifestée.
     if (etat.remote) {
@@ -317,14 +315,6 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
           : `present since ${etat.presentSince} — remote, it pulls its work; last request on ${etat.seenAt ?? etat.presentSince}`,
       );
       ligne("ordinary tickets", direOrdinairesEn(etat));
-    } else {
-      const saturee = direSaturationsEn(saturatedCauses);
-      ligne(
-        "machine",
-        saturatedAt === null || saturatedCauses.length === 0
-          ? "holds"
-          : `SATURATED since ${saturatedAt} on ${saturee.ressources} — ${saturee.detail}; no ticket is taken while it lasts, the running cooks carry on`,
-      );
     }
     ligne(
       "Max connection",

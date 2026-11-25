@@ -162,20 +162,6 @@ function lireEnService(racine: string): EnService | null {
   }
 }
 
-// Les projets que l'app a mis de côté dans la configuration de la station, parce qu'une autre
-// station les sert (`# held-back (served by …): <nom> …`, station-embarquee-cuisine-unique.ts).
-// Une version qui cesse de les servir fait ce qu'il faut : ce n'est pas un projet perdu (#3709).
-function misDeCote(racine: string): Set<string> {
-  try {
-    const noms = readFileSync(join(racine, "projets"), "utf8")
-      .split("\n")
-      .flatMap((ligne) => /^# held-back \(served by .+?\): (\S+)/.exec(ligne.trim())?.[1] ?? []);
-    return new Set(noms);
-  } catch {
-    return new Set();
-  }
-}
-
 function vivant(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -265,8 +251,7 @@ export function tenirProcessDeStation(options: OptionsProcessDeStation): Process
       lancee ||= tenue.tourne();
       const dite = lireEnService(racine);
       if (dite !== null && dite.version === visee && dite.pid !== ancien && Date.parse(dite.depuis) >= debut && vivant(dite.pid)) {
-        const aCote = misDeCote(racine);
-        const perdus = servis.filter((projet) => !dite.servis.includes(projet) && !aCote.has(projet));
+        const perdus = servis.filter((projet) => !dite.servis.includes(projet));
         if (perdus.length === 0) return { le: dite.depuis };
         attente = perdus.map((projet) => `project ${projet} is no longer served in ${visee}${dite.refuses[projet] ? `: ${dite.refuses[projet]}` : ""}`).join("; ");
       }

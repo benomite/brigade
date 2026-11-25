@@ -224,7 +224,7 @@ base, the stale-branch pruning).
   in WAITING by hand. Now the station does it, with no chef gesture:
   - a cook that stops blocked (`<bloque>`) on a date to come ("cannot be done before 2026-11-25", "too early", "only
     from …"), or on something a third party outside the kitchen has not given ("waiting for the client", "nothing in
-    the kitchen can produce it"), puts the ticket in WAITING through the same gesture as `waiting set`: the `waiting`
+    the kitchen can produce it"), puts the ticket in WAITING through the same marks as the chef's park: the `waiting`
     label and the `<!-- brigade:waiting … -->` comment, with what, from whom, and the follow-up taken from its words
     (the date it says; without one, seven days). Any other question goes to the manager, as before, and so does this
     one when GitHub refuses the WAITING gesture: the station says why;
@@ -233,6 +233,14 @@ base, the stale-branch pruning).
     send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
     spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
   - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
+  - an open PR holds a file zone only while it is alive (#4242, `runtime/src/claim-gate.ts`): its ticket is in cook
+    or at the pass, or the PR had activity (commit, comment, review, update — its `updatedAt`) within the stale delay,
+    `STALE_DELAY_MS`, 12 hours. A PR whose changes are already on the base (each of its files has the same content on
+    the base as on its head) holds nothing, nor does a PR labelled `zone-released`. An activity that cannot be read,
+    or a base that cannot be compared, keeps the zone held. A ticket skipped for a PR says it in one line, the PR
+    number and why the PR is alive (`zone held by open PR #4077 (last activity …, within the 12 h stale delay)`), and
+    the skip carries the reason code `zone-held` with the PR number. On 2026-11-24, a forgotten open PR (PR 4077)
+    held the README zone for an hour and the claim gate skipped the only cookable ticket (#4061);
   - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
     `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
     chef lifts it. The turn reads each WAITING ticket's comments once, for this return;
@@ -256,14 +264,9 @@ base, the stale-branch pruning).
   says the ticket was taken with no cook on any station and no wait, and that it returns to the rail. From that turn
   it no longer holds its zone. On 2026-11-19, #3764 kept `taken` on a timed wait for over two hours across two
   restarts of its station, and the claim gate skipped #3761 and #3786 as "zone held by #3764".
-- **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
-  disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). Before each cook, the first
-  included, the admission defers it while the load is over its limit or the cores cap already runs (#4210). With the machine as the bound,
-  the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
-  The one exception is a ticket labelled `saturation-repair`, the repair of the saturation itself: the machine does not
-  hold it (nor does the arbiter read the project as saturated for it), while the stop, the breaker, the quota, the
-  places and the zone holds still apply, and a station takes one such ticket at a time (#4100). Every other ticket is
-  skipped for saturation, and the scan goes on past it to a repair further down the rail.
+- **The machine.** It holds no take and no launch: a saturated machine is only said (`station.saturated`, thresholds
+  in [station.md](station.md)), and the places of the station, the cores' default of one cook per core past the two
+  kept (#3560), bound its cooks (#4285).
   When the disk is the lack, no cook runs, and what the kitchen holds itself (the size of its state directory) could
   not bring the free space back to the floor, the chef gets one TODO card on an issue of its own
   (`<!-- brigade:disk-full -->`): the figures and the biggest consumers on the volume, if `du` reads them. It is
