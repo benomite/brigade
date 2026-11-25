@@ -233,6 +233,14 @@ base, the stale-branch pruning).
     send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
     spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
   - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
+  - an open PR holds a file zone only while it is alive (#4242, `runtime/src/claim-gate.ts`): its ticket is in cook
+    or at the pass, or the PR had activity (commit, comment, review, update — its `updatedAt`) within the stale delay,
+    `STALE_DELAY_MS`, 12 hours. A PR whose changes are already on the base (each of its files has the same content on
+    the base as on its head) holds nothing, nor does a PR labelled `zone-released`. An activity that cannot be read,
+    or a base that cannot be compared, keeps the zone held. A ticket skipped for a PR says it in one line, the PR
+    number and why the PR is alive (`zone held by open PR #4077 (last activity …, within the 12 h stale delay)`), and
+    the skip carries the reason code `zone-held` with the PR number. On 2026-11-24, a forgotten open PR (PR 4077)
+    held the README zone for an hour and the claim gate skipped the only cookable ticket (#4061);
   - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
     `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
     chef lifts it. The turn reads each WAITING ticket's comments once, for this return;
