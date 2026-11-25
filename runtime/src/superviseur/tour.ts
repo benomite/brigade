@@ -23,6 +23,7 @@
 //
 // Le même client porte ce que lit le réveil sans progrès (`inactivite/observer.ts`, #4027).
 import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
+import type { RaisonDuSaut } from "../claim-gate.ts";
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import type { CheckVu } from "../carte-ci-windows.ts";
@@ -45,11 +46,14 @@ export type SuiviDuTour = {
   envelopper(github: GitHubDuTour): GitHubDuTour;
   // La porte de prise n'a pas pris ce ticket prenable, et `ligne` dit pourquoi ;
   // `attendus` : les tickets ouverts qu'il attend, quand c'est ce qui le retient (#3647).
-  sauter(ticket: number, ligne: string, attendus?: readonly number[]): void;
+  // `raison` : le code du saut, quand la porte en donne un — `zone-held` et la PR qui tient la zone (#4242).
+  sauter(ticket: number, ligne: string, attendus?: readonly number[], raison?: RaisonDuSaut): void;
   // Ce que le déclencheur lit, à l'instant.
   faits(): FaitsDuProjet;
   // Ce que la porte de prise a dit, à son dernier tour, des cuisinables qu'elle a sautés.
   sauts(): string[];
+  // Les mêmes sauts, ceux qui portent un code : le ticket, le code et la PR qui tient sa zone (#4242).
+  raisonsDesSauts(): Array<{ ticket: number } & RaisonDuSaut>;
   // Le ticket que le réveil sans merge nomme, à l'instant : la porte de prise le prend avant les autres (#4102).
   enPremier(): number[];
   // Les checks de la base au dernier tour (nom et issue), nuls avant le premier.
@@ -74,6 +78,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   // Les tickets que la porte de prise a vus attendre un ticket ouvert, au tour en cours.
   let attentes = new Map<number, number[]>();
   let sauts = new Map<number, string>();
+  let raisons = new Map<number, RaisonDuSaut>();
   // Les tickets que la porte de prise a sautés depuis la dernière lecture des tickets (#3761) : à la lecture suivante, leurs
   // sauts et leurs attentes restent dits jusqu'à ce que la porte repasse — entre les deux, ce que le superviseur lit dit
   // encore leur cause, jamais rien ; ceux qu'elle n'a pas sautés tombent.
@@ -94,6 +99,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     enCuisson = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_TAKEN) || labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
     attentes = new Map([...attentes].filter(([ticket]) => sautesDuTour.has(ticket)));
     sauts = new Map([...sauts].filter(([ticket]) => sautesDuTour.has(ticket)));
+    raisons = new Map([...raisons].filter(([ticket]) => sautesDuTour.has(ticket)));
     sautesDuTour = new Set();
     for (const ticket of prises.keys()) if (!ouverts.has(ticket)) prises.delete(ticket);
     const suivants = new Map<number, string>();
@@ -104,8 +110,11 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   };
 
   const suivi: SuiviDuTour = {
-    sauter: (ticket, ligne, attendus) => {
+    sauter: (ticket, ligne, attendus, raison) => {
       sauts.set(ticket, ligne);
+      // Repassée sans code, la porte efface celui du tour d'avant.
+      raisons.delete(ticket);
+      if (raison) raisons.set(ticket, raison);
       sautesDuTour.add(ticket);
       // Repassée, la porte remplace aussi l'attente du tour d'avant.
       attentes.delete(ticket);
@@ -147,6 +156,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       mainRougeDepuis,
     }),
     sauts: () => [...sauts].filter(([ticket]) => cuisinables.has(ticket) && !nAttendQueLaCuisson(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne),
+    raisonsDesSauts: () => [...raisons].filter(([ticket]) => cuisinables.has(ticket) && !nAttendQueLaCuisson(ticket)).sort(([a], [b]) => a - b).map(([ticket, raison]) => ({ ticket, ...raison })),
     checks: () => checks,
     reparationMiseDeCote: () => reparationMiseDeCote,
     progres,

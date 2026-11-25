@@ -233,6 +233,14 @@ base, the stale-branch pruning).
     send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
     spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
   - a parked ticket holds no file zone, even with an open PR: the ticket behind it starts;
+  - an open PR holds a file zone only while it is alive (#4242, `runtime/src/claim-gate.ts`): its ticket is in cook
+    or at the pass, or the PR had activity (commit, comment, review, update — its `updatedAt`) within the stale delay,
+    `STALE_DELAY_MS`, 12 hours. A PR whose changes are already on the base (each of its files has the same content on
+    the base as on its head) holds nothing, nor does a PR labelled `zone-released`. An activity that cannot be read,
+    or a base that cannot be compared, keeps the zone held. A ticket skipped for a PR says it in one line, the PR
+    number and why the PR is alive (`zone held by open PR #4077 (last activity …, within the 12 h stale delay)`), and
+    the skip carries the reason code `zone-held` with the PR number. On 2026-11-24, a forgotten open PR (PR 4077)
+    held the README zone for an hour and the claim gate skipped the only cookable ticket (#4061);
   - on its date, a ticket parked until a date resumes exactly where it was by itself — `parked` removed, nothing
     else, a comment that says so — whoever parked it. Parked until a fact, or for the chef, it stays until someone
     unparks it. The turn reads each parked ticket's comments once, for this return;
