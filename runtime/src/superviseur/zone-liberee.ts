@@ -1,22 +1,39 @@
-// Une zone tenue par une PR périmée (#4243, épique #4204) : un ticket cuisinable que la porte de prise saute parce qu'une
-// PR ouverte tient sa zone, et cette PR n'a plus de vie — ni cuite, ni en pass, et sans activité depuis plus de
-// `DELAI_PERIME_MS`, ou ses changements déjà sur la base. Le superviseur lui pose le label `zone-released`, que la porte
-// de prise ne compte plus, et le dit en une ligne sur le ticket retenu et dans son rapport. Il ne ferme jamais la PR.
-// Celle d'un humain — ni d'un cook, ni du second — a de plus UNE carte pour le chef, qui demande s'il faut la fermer :
-// une seule par PR, retrouvée par sa marque cachée, ouverte ou fermée, avant d'en ouvrir une.
+// Une zone tenue par une PR périmée (#4243, épique #4204) : la porte de prise ne compte plus une PR ouverte qui recoupe la
+// zone d'un ticket et n'a plus de vie — ni cuite, ni en pass, sans activité depuis le délai de péremption de la porte
+// (`claim-gate.ts`, #4242), ou ses changements déjà sur la base. Le superviseur lui pose le label `zone-released`, et le
+// dit en une ligne sur le ticket et dans son rapport. Il ne ferme jamais la PR. Celle d'un humain — ni d'un cook, ni du
+// second — a de plus UNE carte pour le chef, qui demande s'il faut la fermer : une seule par PR, retrouvée par sa marque
+// cachée, ouverte ou fermée, avant d'en ouvrir une.
+import { LABEL_ZONE_RELEASED as ZONE_RELEASED, type PRDeLaPorte, STALE_DELAY_MS as DELAI_PERIME_MS, vivante } from "../claim-gate.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
-import { DELAI_CLAIM_PERIME_MS as DELAI_PERIME_MS } from "../guerison/claim-perime.ts";
 
-export const ZONE_RELEASED = "zone-released";
-// Sans activité depuis ce délai, une PR qui n'est ni cuite ni en pass est périmée : le délai de péremption qui existe
-// déjà, celui d'un claim sans cook (`guerison/claim-perime.ts`), pas un second.
-export { DELAI_PERIME_MS };
+// Le label et le délai de péremption de la porte de prise, pas des seconds.
+export { DELAI_PERIME_MS, ZONE_RELEASED };
 
-// La PR qui tient la zone d'un ticket sauté. `auteur` : « brigade » pour une branche d'un cook (`cook/<n>-…`) ou du
-// second (`<type>/<n>-…`), « human » sinon. `miseAJour` : sa dernière activité, telle que GitHub la date.
-// `liberee` : elle porte déjà `zone-released`.
-type PRQuiTient = { number: number; auteur: string; miseAJour: string; enCook: boolean; auPass: boolean; surLaBase: boolean; liberee?: boolean };
+// La PR qui tient la zone d'un ticket. `auteur` : « brigade » pour une branche d'un cook (`cook/<n>-…`) ou du second
+// (`<type>/<n>-…`), « human » sinon. `miseAJour` : sa dernière activité, telle que GitHub la date. `surLaBase` : ses
+// changements sont déjà sur la base, ou la lecture qui le dit. `liberee` : elle porte déjà `zone-released`.
+type PRQuiTient = { number: number; auteur: string; miseAJour: string; enCook: boolean; auPass: boolean; surLaBase: NonNullable<PRDeLaPorte["surLaBase"]>; liberee?: boolean };
 export type Bloque = { ticket: number; pr: PRQuiTient };
+
+// Une branche d'un cook (`cook/<n>-…`) ou du second (`<type>/<n>-…`, commands/dev.md).
+const BRANCHE_DE_LA_BRIGADE = /^[a-z]+\/\d+-/;
+
+// Le ticket et la PR périmée que la porte de prise ne compte plus sur sa zone : elle n'est ni cuite ni en pass.
+export function bloqueDe(ticket: number, pr: PRDeLaPorte & { number: number }): Bloque {
+  return {
+    ticket,
+    pr: {
+      number: pr.number,
+      auteur: BRANCHE_DE_LA_BRIGADE.test(pr.branche) ? "brigade" : "human",
+      miseAJour: pr.misAJourLe ?? "",
+      enCook: false,
+      auPass: false,
+      surLaBase: pr.surLaBase ?? false,
+      liberee: pr.labels?.includes(ZONE_RELEASED) ?? false,
+    },
+  };
+}
 
 // Ce que les zones lisent et écrivent de GitHub. `ouvertes` : les issues où chercher la carte d'une PR, avec leur corps —
 // en production, celles de la dernière année, fermées comprises : une carte que le chef a fermée ne se rouvre pas.
@@ -30,13 +47,13 @@ export type GitHubDesZones = {
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const marqueDeLaCarte = (pr: number) => `<!-- brigade:zone-released pr=${pr} -->`;
 
-// Pourquoi la PR est périmée, ou null quand elle vit. Une date qui ne se lit pas ne la dit pas périmée.
-function peremption(pr: PRQuiTient, maintenant: Date): string | null {
+// Pourquoi la PR est périmée, ou null quand elle vit : cuite ou en pass, elle vit même sur la base ; sinon, la règle de
+// la porte de prise (`vivante`), relue à l'instant. Une date qui ne se lit pas ne la dit pas périmée, une base qui ne se
+// compare pas non plus.
+async function peremption(pr: PRQuiTient, maintenant: Date): Promise<string | null> {
   if (pr.enCook || pr.auPass) return null;
-  if (pr.surLaBase) return "its changes are already on the base";
-  const depuis = Date.parse(pr.miseAJour);
-  if (!(maintenant.getTime() - depuis > DELAI_PERIME_MS)) return null;
-  return `no activity since ${pr.miseAJour}`;
+  if ((await vivante({ branche: "", misAJourLe: pr.miseAJour, surLaBase: pr.surLaBase }, { maintenant: maintenant.getTime(), parSonTicket: async () => null })) !== null) return null;
+  return maintenant.getTime() - Date.parse(pr.miseAJour) >= DELAI_PERIME_MS ? `no activity since ${pr.miseAJour}` : "its changes are already on the base";
 }
 
 const carteDuChef = (pr: number, ticket: number) => ({
@@ -107,56 +124,14 @@ export function ouvrirLesZones({ github, maintenant = () => new Date(), consigne
     async cycle(bloques) {
       const lignes: string[] = [];
       for (const bloque of bloques) {
-        const pourquoi = peremption(bloque.pr, maintenant());
+        const pourquoi = await peremption(bloque.pr, maintenant());
         if (pourquoi === null) continue;
         const { number, auteur, liberee = false } = bloque.pr;
         if (!liberee && !liberees.has(number)) lignes.push(...(await liberer(bloque, pourquoi)));
-        if (auteur !== "human" && (liberee || liberees.has(number)) && !cartes.has(number)) lignes.push(...(await demanderAuChef(bloque)));
+        if (auteur === "human" && (liberee || liberees.has(number)) && !cartes.has(number)) lignes.push(...(await demanderAuChef(bloque)));
       }
       return lignes;
     },
   };
 }
 
-// Une branche d'un cook (`cook/<n>-…`) ou du second (`<type>/<n>-…`, commands/dev.md).
-const BRANCHE_DE_LA_BRIGADE = /^[a-z]+\/\d+-/;
-
-// Une zone que la porte de prise a dite tenue par une PR : le ticket sauté, la PR, et l'état du ticket de la PR.
-export type ZoneTenue = { ticket: number; pr: number; enCook: boolean; auPass: boolean };
-export type PROuverte = { number: number; branche: string; sha?: string; externe?: boolean; miseAJour?: string; labels?: string[] };
-export type LectureDesBloques = {
-  prsOuvertes(): Promise<PROuverte[]>;
-  teteDeLaBase(branche: string): Promise<string>;
-  fichiersEntre?(de: string, a: string): Promise<{ fichiers: string[]; complet: boolean } | null>;
-};
-
-// Les tickets sautés et la PR qui tient leur zone, lus des PR ouvertes. Une PR qui n'est plus ouverte ne tient plus rien.
-// Une PR n'est « sur la base » que si la comparaison de la base à sa tête se lit et ne lui laisse aucun fichier : une
-// comparaison qui ne se lit pas ne la dit pas.
-export async function lireLesBloques(tenues: readonly ZoneTenue[], github: LectureDesBloques, branche: string, maintenant: Date): Promise<Bloque[]> {
-  if (tenues.length === 0) return [];
-  const ouvertes = await github.prsOuvertes();
-  let tete: Promise<string | null> | undefined;
-  const bloques: Bloque[] = [];
-  for (const { ticket, pr: numero, enCook, auPass } of tenues) {
-    const pr = ouvertes.find(({ number }) => number === numero);
-    if (pr === undefined) continue;
-    const lue: PRQuiTient = {
-      number: numero,
-      auteur: pr.externe === true || !BRANCHE_DE_LA_BRIGADE.test(pr.branche) ? "human" : "brigade",
-      miseAJour: pr.miseAJour ?? "",
-      enCook,
-      auPass,
-      surLaBase: false,
-      liberee: (pr.labels ?? []).includes(ZONE_RELEASED),
-    };
-    if (peremption(lue, maintenant) === null && !enCook && !auPass && pr.sha !== undefined && github.fichiersEntre !== undefined) {
-      tete ??= github.teteDeLaBase(branche).catch(() => null);
-      const base = await tete;
-      const comparee = base === null ? null : await github.fichiersEntre(base, pr.sha).catch(() => null);
-      lue.surLaBase = comparee !== null && comparee.complet && comparee.fichiers.length === 0;
-    }
-    bloques.push({ ticket, pr: lue });
-  }
-  return bloques;
-}

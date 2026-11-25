@@ -1,25 +1,25 @@
 // Une zone tenue par une PR périmée (#4243, `superviseur/zone-liberee.ts`) : ce que les tests d'acceptation ne disent
 // pas — une écriture ou une lecture de GitHub qui échoue, une date qui ne se lit pas, une PR déjà libérée —, puis le
-// chemin de production : la porte de prise nomme la PR qui tient la zone, le tour la garde, le superviseur branché lit
-// les PR ouvertes et libère la zone à son réveil.
+// chemin de production : la porte de prise nomme la PR périmée qu'elle ne compte plus, le tour la garde, le superviseur
+// branché la marque à son réveil.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import type { GitHubDuTour, TicketLu } from "../../src/brigade-github.ts";
+import type { GitHubDuTour } from "../../src/brigade-github.ts";
 import { gestesDe } from "../../src/autonomie/agents/gestes.ts";
 import type { GitHub } from "../../src/github.ts";
-import { ouvrirGitHub } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { brancherSuperviseur } from "../../src/superviseur/brancher.ts";
 import { suivreLeTour } from "../../src/superviseur/tour.ts";
-import { DELAI_PERIME_MS, lireLesBloques, ouvrirLesZones } from "../../src/superviseur/zone-liberee.ts";
-import { FauxGitHub } from "../faux-github.ts";
-import { DEPOT, fauxGh, jusqua, repertoireTemporaire } from "../outils.ts";
+import { type Bloque, bloqueDe, DELAI_PERIME_MS, ouvrirLesZones } from "../../src/superviseur/zone-liberee.ts";
+import { stationDuDepot } from "../../src/brigade-github.ts";
+import { depotNeuf, FauxGitHub, fauxClient, STATION_DU_DEPOT } from "../faux-github.ts";
+import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 const MAINTENANT = new Date("2026-11-25T12:00:00.000Z");
 const ancien = new Date(MAINTENANT.getTime() - DELAI_PERIME_MS - 60_000).toISOString();
 const recent = new Date(MAINTENANT.getTime() - 60_000).toISOString();
-type PRQuiTient = Awaited<ReturnType<typeof lireLesBloques>>[number]["pr"];
+type PRQuiTient = Bloque["pr"];
 const pr = (number: number, autres: Partial<PRQuiTient> = {}): PRQuiTient => ({ number, auteur: "human", miseAJour: ancien, enCook: false, auPass: false, surLaBase: false, ...autres });
 
 // Un client des zones dont chaque écriture ou lecture peut échouer, à la demande du test.
@@ -37,7 +37,7 @@ function client() {
   return { f, github };
 }
 
-test("a PR is stale past the delay, or with its changes on the base; never while cooked or in pass, nor on an unreadable date", async () => {
+test("a PR is stale from the claim gate's delay on, or with its changes on the base; never while cooked or in pass, nor on an unreadable date or base", async () => {
   const libere = async (lue: PRQuiTient) => {
     const { f, github } = client();
     const lignes = await ouvrirLesZones({ github, maintenant: () => MAINTENANT }).cycle([{ ticket: 10, pr: { ...lue, auteur: "brigade" } }]);
@@ -45,11 +45,15 @@ test("a PR is stale past the delay, or with its changes on the base; never while
   };
   assert.equal(await libere(pr(1, { miseAJour: recent })), null);
   assert.match((await libere(pr(1))) ?? "", /no activity since/);
-  assert.equal(await libere(pr(1, { miseAJour: new Date(MAINTENANT.getTime() - DELAI_PERIME_MS).toISOString() })), null, "exactly the delay is not past it");
+  assert.equal(DELAI_PERIME_MS, 12 * 3_600_000, "the claim gate's stale delay");
+  assert.equal(await libere(pr(1, { miseAJour: new Date(MAINTENANT.getTime() - DELAI_PERIME_MS + 1).toISOString() })), null, "just inside the delay");
+  assert.match((await libere(pr(1, { miseAJour: new Date(MAINTENANT.getTime() - DELAI_PERIME_MS).toISOString() }))) ?? "", /no activity since/, "exactly the delay, as the claim gate");
   assert.match((await libere(pr(1, { miseAJour: recent, surLaBase: true }))) ?? "", /already on the base/);
   assert.equal(await libere(pr(1, { surLaBase: true, enCook: true })), null);
   assert.equal(await libere(pr(1, { surLaBase: true, auPass: true })), null);
   assert.equal(await libere(pr(1, { miseAJour: "" })), null);
+  assert.match((await libere(pr(1, { miseAJour: "", surLaBase: async () => true }))) ?? "", /already on the base/, "the claim gate's lazy reading of the base");
+  assert.equal(await libere(pr(1, { miseAJour: recent, surLaBase: async () => Promise.reject(new Error("GraphQL down")) })), null);
 });
 
 test("a label that cannot be posted writes no line on the ticket and opens no card; the next cycle tries again", async () => {
@@ -106,110 +110,74 @@ test("a PR that already carries zone-released is not labelled nor said again; a 
   assert.match(f.creees[0]?.title ?? "", /#90/);
 });
 
-// Les PR ouvertes d'un dépôt, telles que le client les rend.
-function lecture(prs: Array<{ number: number; branche: string; sha?: string; externe?: boolean; miseAJour?: string; labels?: string[] }>, options: { tete?: () => Promise<string>; comparer?: (de: string, a: string) => Promise<{ fichiers: string[]; complet: boolean } | null> } = {}) {
-  const appels: string[] = [];
-  return {
-    appels,
-    github: {
-      prsOuvertes: async () => (appels.push("prsOuvertes"), prs),
-      teteDeLaBase: async (branche: string) => (appels.push(`tete ${branche}`), options.tete === undefined ? "b".repeat(40) : options.tete()),
-      ...(options.comparer === undefined ? {} : { fichiersEntre: async (de: string, a: string) => (appels.push(`compare ${a}`), options.comparer!(de, a)) }),
-    },
-  };
-}
-
-test("the blocked tickets are read from the open PRs: who wrote it, its activity, its label, and whether its changes are on the base", async () => {
-  const l = lecture(
-    [
-      { number: 77, branche: "cook/12-github", sha: "1".repeat(40), miseAJour: ancien },
-      { number: 78, branche: "feat/13-thing", sha: "2".repeat(40), miseAJour: recent, labels: ["zone-released"] },
-      { number: 79, branche: "patch-1", sha: "3".repeat(40), miseAJour: recent },
-      { number: 80, branche: "cook/14-github", sha: "4".repeat(40), miseAJour: recent, externe: true },
-    ],
-    { comparer: async (_de, a) => ({ fichiers: a.startsWith("3") ? [] : ["x.ts"], complet: true }) },
-  );
-  const bloques = await lireLesBloques(
-    [
-      { ticket: 1, pr: 77, enCook: false, auPass: false },
-      { ticket: 2, pr: 78, enCook: false, auPass: false },
-      { ticket: 3, pr: 79, enCook: false, auPass: false },
-      { ticket: 4, pr: 80, enCook: false, auPass: false },
-      { ticket: 5, pr: 81, enCook: false, auPass: false },
-    ],
-    l.github,
-    "main",
-    MAINTENANT,
-  );
-  assert.deepEqual(
-    bloques.map(({ ticket, pr }) => [ticket, pr.number, pr.auteur, pr.liberee, pr.surLaBase]),
-    [
-      [1, 77, "brigade", false, false],
-      [2, 78, "brigade", true, false],
-      [3, 79, "human", false, true],
-      [4, 80, "human", false, false],
-    ],
-    "a closed PR (#81) blocks nothing",
-  );
-  assert.deepEqual(l.appels, ["prsOuvertes", "tete main", `compare ${"2".repeat(40)}`, `compare ${"3".repeat(40)}`, `compare ${"4".repeat(40)}`], "an old PR is stale without a comparison, the head is read once");
-});
-
-test("no blocked ticket reads nothing; a PR cooked or in pass is not compared; a comparison that fails or is partial does not say on the base", async () => {
-  const vide = lecture([]);
-  assert.deepEqual(await lireLesBloques([], vide.github, "main", MAINTENANT), []);
-  assert.deepEqual(vide.appels, []);
-  const vivantes = lecture([{ number: 77, branche: "cook/12-github", sha: "1".repeat(40), miseAJour: recent }, { number: 78, branche: "cook/13-github", sha: "2".repeat(40), miseAJour: recent }], { comparer: async () => ({ fichiers: [], complet: true }) });
-  const lues = await lireLesBloques([{ ticket: 1, pr: 77, enCook: true, auPass: false }, { ticket: 2, pr: 78, enCook: false, auPass: true }], vivantes.github, "main", MAINTENANT);
-  assert.deepEqual(lues.map(({ pr }) => [pr.enCook, pr.auPass, pr.surLaBase]), [[true, false, false], [false, true, false]]);
-  assert.deepEqual(vivantes.appels, ["prsOuvertes"]);
-  for (const options of [{ comparer: async () => null }, { comparer: async () => ({ fichiers: [], complet: false }) }, { comparer: async () => Promise.reject(new Error("boom")) }, { tete: async () => Promise.reject(new Error("boom")), comparer: async () => ({ fichiers: [], complet: true }) }]) {
-    const l = lecture([{ number: 77, branche: "patch-1", sha: "1".repeat(40), miseAJour: recent }], options);
-    assert.equal((await lireLesBloques([{ ticket: 1, pr: 77, enCook: false, auPass: false }], l.github, "main", MAINTENANT))[0]?.pr.surLaBase, false);
-  }
-  const sansComparaison = lecture([{ number: 77, branche: "patch-1", sha: "1".repeat(40), miseAJour: recent }]);
-  assert.equal((await lireLesBloques([{ ticket: 1, pr: 77, enCook: false, auPass: false }], sansComparaison.github, "main", MAINTENANT))[0]?.pr.surLaBase, false);
-  await assert.rejects(lireLesBloques([{ ticket: 1, pr: 77, enCook: false, auPass: false }], { ...vide.github, prsOuvertes: async () => Promise.reject(new Error("down")) }, "main", MAINTENANT), /down/);
-});
-
-test("the claim gate names the open PR that holds a zone, and the tour keeps it with the state of that PR's ticket", async () => {
+test("the claim gate names each open PR it no longer counts on a ticket's zone, stale or already released, and no other", async () => {
   const faux = new FauxGitHub();
-  faux.feu(831, ["model:sonnet", "effort:medium"], "## Context\n\nx\n");
-  const tenante = faux.prOuverte(["runtime/src/rail.ts"], "cook/831-abcdef01");
-  tenante.issue = 831;
-  faux.feu(875, ["fire", "model:sonnet", "effort:medium"], "## Context\n\nx\n\n## Zone\n\n- `runtime/src/rail.ts`\n\n## Acceptance\n\n- done\n");
-  const dits: unknown[][] = [];
-  const a = faux.station("A", { sauter: (...args) => void dits.push(args), cuisiner: async () => ({ echec: "no" }), avertir: () => {} });
+  const zone = "## Context\n\nx\n\n## Zone\n\n- `runtime/src/rail.ts`\n\n## Acceptance\n\n- done\n";
+  faux.feu(875, ["fire", "model:sonnet", "effort:medium"], zone);
+  const vieille = faux.prOuverte(["runtime/src/rail.ts"], "patch-1");
+  const liberee = faux.prOuverte(["runtime/src/rail.ts"], "feat/12-thing");
+  const ailleurs = faux.prOuverte(["docs/autre.md"], "patch-2");
+  const origine = faux.pour.bind(faux);
+  faux.pour = (station: string) => {
+    const github = origine(station);
+    return {
+      ...github,
+      prsOuvertes: async () =>
+        (await github.prsOuvertes()).map((ouverte) => ({ ...ouverte, misAJourLe: ouverte.number === liberee.number ? recent : ancien, labels: ouverte.number === liberee.number ? ["zone-released"] : [] })),
+    } as ReturnType<FauxGitHub["pour"]>;
+  };
+  const dites: Array<[number, number, string]> = [];
+  const a = faux.station("A", { maintenant: () => MAINTENANT, perimee: (ticket, pr) => void dites.push([ticket, pr.number, pr.branche]), cuisiner: async () => ({ echec: "no" }), avertir: () => {} });
   await a.tour();
   await a.calme();
-  assert.ok(dits.some(([n, , , t]) => n === 875 && JSON.stringify(t) === JSON.stringify({ pr: tenante.number, branche: "cook/831-abcdef01" })));
-
-  const tour = suivreLeTour(() => MAINTENANT);
-  const calibre = ["fire", "model:opus", "effort:medium"];
-  let tickets: TicketLu[] = [10, 11, 12].map((number) => ({ number, title: `T${number}`, labels: calibre, state: "open" }));
-  tickets.push({ number: 20, title: "T20", labels: [...calibre, "taken"], state: "open" }, { number: 21, title: "T21", labels: [...calibre, "in-pass"], state: "open" });
-  const github = tour.envelopper({ fires: async () => tickets } as unknown as GitHubDuTour);
-  await github.fires();
-  tour.sauter(12, "#12: zone held by the open PR on patch-1", undefined, { pr: 99, branche: "patch-1" });
-  tour.sauter(10, "#10: zone held by #20", undefined, { pr: 120, branche: "cook/20-github" });
-  tour.sauter(11, "#11: zone held by #21", undefined, { pr: 121, branche: "cook/21-github" });
-  assert.deepEqual(tour.zonesTenues(), [
-    { ticket: 10, pr: 120, enCook: true, auPass: false },
-    { ticket: 11, pr: 121, enCook: false, auPass: true },
-    { ticket: 12, pr: 99, enCook: false, auPass: false },
-  ], "in the order of the tickets, not of the skips");
-  tour.sauter(12, "#12: capability missing");
-  await github.fires();
-  tickets = tickets.filter(({ number }) => number !== 11);
-  await github.fires();
-  assert.deepEqual(tour.zonesTenues(), [], "a ticket no longer skipped for a PR, or no longer read, drops");
+  assert.deepEqual(dites, [[875, vieille.number, "patch-1"], [875, liberee.number, "feat/12-thing"]], `not #${ailleurs.number}, which changes no file of the zone`);
 });
 
-test("the real client reads the activity and the labels of an open PR", async (t) => {
-  const gh = fauxGh(t);
-  const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin });
-  gh.repondre(`repos/${DEPOT}/pulls?state=open&per_page=100`, { corps: [{ number: 7, head: { ref: "cook/7-github", sha: "1".repeat(40) }, updated_at: ancien, labels: [{ name: "zone-released" }, {}] }, { number: 8, head: { ref: "patch-1", sha: "2".repeat(40) } }] });
-  for (const numero of [7, 8]) gh.repondre(`repos/${DEPOT}/pulls/${numero}/files?per_page=100`, { corps: [] });
-  assert.deepEqual((await github.prsOuvertes?.())?.map(({ number, sha, miseAJour, labels }) => [number, sha, miseAJour, labels]), [[7, "1".repeat(40), ancien, ["zone-released"]], [8, "2".repeat(40), undefined, undefined]]);
+test("a station of the repo hands the claim gate's stale PRs to the supervisor's turn", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(875, ["fire", "model:sonnet", "effort:medium"], "## Context\n\nx\n\n## Zone\n\n- `a.ts`\n\n## Acceptance\n\n- done\n");
+  const vieille = faux.prOuverte(["a.ts"], "patch-1");
+  const client = fauxClient(faux);
+  const github = { ...client, prsOuvertes: async () => (await client.prsOuvertes!()).map((ouverte) => ({ ...ouverte, misAJourLe: ancien })) };
+  const dites: Array<[number, number]> = [];
+  const repertoire = repertoireTemporaire(t);
+  const station = stationDuDepot({
+    ...STATION_DU_DEPOT,
+    github,
+    depot: depotNeuf(repertoire),
+    flux: repertoire,
+    prise: () => ({ prendre: async () => ({ prise: false }), lacher: async () => true }),
+    maintenant: () => MAINTENANT,
+    avertir: () => {},
+    perimee: (ticket, pr) => void dites.push([ticket, pr.number]),
+  });
+  if ("refus" in station) throw new Error(station.refus);
+  await station.tour();
+  assert.deepEqual(dites, [[875, vieille.number]]);
+});
+
+test("the tour keeps each stale PR once, as the supervisor reads it, until the claim gate no longer names it", async () => {
+  const tour = suivreLeTour(() => MAINTENANT);
+  const github = tour.envelopper({ fires: async () => [] } as unknown as GitHubDuTour);
+  await github.fires();
+  tour.perimee(10, { number: 90, branche: "patch-1", misAJourLe: ancien });
+  tour.perimee(11, { number: 90, branche: "patch-1", misAJourLe: ancien });
+  tour.perimee(12, { number: 91, branche: "cook/12-github", misAJourLe: ancien, labels: ["zone-released"], surLaBase: true });
+  assert.deepEqual(tour.zonesPerimees(), [
+    { ticket: 11, pr: { number: 90, auteur: "human", miseAJour: ancien, enCook: false, auPass: false, surLaBase: false, liberee: false } },
+    { ticket: 12, pr: { number: 91, auteur: "brigade", miseAJour: ancien, enCook: false, auPass: false, surLaBase: true, liberee: true } },
+  ]);
+  await github.fires();
+  assert.equal(tour.zonesPerimees().length, 2, "kept across one reading of the tickets, while the gate passes again");
+  tour.perimee(10, { number: 90, branche: "patch-1" });
+  await github.fires();
+  assert.deepEqual(tour.zonesPerimees().map(({ pr }) => [pr.number, pr.miseAJour]), [[90, ""]], "a PR the gate no longer names drops");
+  await github.fires();
+  assert.deepEqual(tour.zonesPerimees(), []);
+});
+
+test("a PR's author is the brigade for a cook's or the second's branch, a human's otherwise", () => {
+  assert.deepEqual(["cook/12-github", "feat/13-thing", "patch-1", "feat/thing", "Cook/12-x"].map((branche) => bloqueDe(1, { number: 2, branche }).pr.auteur), ["brigade", "brigade", "human", "human", "human"]);
 });
 
 // Le superviseur branché, sur un GitHub en mémoire : une PR humaine périmée tient la zone de #10.
@@ -227,7 +195,6 @@ function branche(t: TestContext, options: { arret?: boolean } = {}) {
       ...ecrit.creees.map((c, i) => ({ number: 501 + i, body: c.corps, association: "OWNER" })),
       { number: 400, body: "<!-- brigade:zone-released pr=91 -->", association: "NONE" },
     ]),
-    prsOuvertes: async () => [{ number: 90, branche: "patch-1", fichiers: ["a.ts"], sha: "1".repeat(40), miseAJour: ancien, labels: [] }],
   } as unknown as GitHub;
   const tour = suivreLeTour(() => MAINTENANT);
   const lu = tour.envelopper({ fires: async () => [{ number: 10, title: "T10", labels: ["fire", "model:opus", "effort:medium"], state: "open" }] } as unknown as GitHubDuTour);
@@ -239,10 +206,10 @@ function branche(t: TestContext, options: { arret?: boolean } = {}) {
   return { ecrit, dits, repertoire, lire: () => lu.fires(), tour, reveiller: () => ecouter?.() };
 }
 
-test("at a wake of the plugged supervisor, the zone of a skipped ticket held by a human's stale PR is released, said, logged, and the chef asked once", async (t) => {
+test("at a wake of the plugged supervisor, a human's stale PR the claim gate no longer counts is released, said, logged, and the chef asked once", async (t) => {
   const p = branche(t);
   await p.lire();
-  p.tour.sauter(10, "#10: zone held by the open PR on patch-1", undefined, { pr: 90, branche: "patch-1" });
+  p.tour.perimee(10, { number: 90, branche: "patch-1", misAJourLe: ancien });
   p.reveiller();
   await jusqua(() => p.ecrit.creees.length > 0);
   assert.deepEqual(p.ecrit.labels, [[90, ["zone-released"]]]);
@@ -260,19 +227,19 @@ test("at a wake of the plugged supervisor, the zone of a skipped ticket held by 
 test("a stopped kitchen releases nothing", async (t) => {
   const p = branche(t, { arret: true });
   await p.lire();
-  p.tour.sauter(10, "#10: zone held by the open PR on patch-1", undefined, { pr: 90, branche: "patch-1" });
+  p.tour.perimee(10, { number: 90, branche: "patch-1", misAJourLe: ancien });
   p.reveiller();
   await new Promise((resoudre) => setTimeout(resoudre, 50));
   assert.deepEqual([p.ecrit.labels, p.ecrit.creees], [[], []]);
 });
 
-test("a release that cannot even read the held zones is said, and the rest of the wake goes on", async (t) => {
+test("a release that cannot even read the stale PRs is said, and the rest of the wake goes on", async (t) => {
   const p = branche(t);
   await p.lire();
-  p.tour.zonesTenues = () => {
+  p.tour.zonesPerimees = () => {
     throw new Error("tour gone");
   };
   p.reveiller();
   await jusqua(() => p.dits.length > 0);
-  assert.deepEqual(p.dits, ["supervisor on shop: the zones held by stale PRs were not read — tour gone"]);
+  assert.deepEqual(p.dits, ["supervisor on shop: the zones held by stale PRs were not released — tour gone"]);
 });

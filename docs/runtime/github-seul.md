@@ -233,6 +233,14 @@ base, the stale-branch pruning).
     send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
     spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
   - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
+  - an open PR holds a file zone only while it is alive (#4242, `runtime/src/claim-gate.ts`): its ticket is in cook
+    or at the pass, or the PR had activity (commit, comment, review, update — its `updatedAt`) within the stale delay,
+    `STALE_DELAY_MS`, 12 hours. A PR whose changes are already on the base (each of its files has the same content on
+    the base as on its head) holds nothing, nor does a PR labelled `zone-released`. An activity that cannot be read,
+    or a base that cannot be compared, keeps the zone held. A ticket skipped for a PR says it in one line, the PR
+    number and why the PR is alive (`zone held by open PR #4077 (last activity …, within the 12 h stale delay)`), and
+    the skip carries the reason code `zone-held` with the PR number. On 2026-11-24, a forgotten open PR (PR 4077)
+    held the README zone for an hour and the claim gate skipped the only cookable ticket (#4061);
   - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
     `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
     chef lifts it. The turn reads each WAITING ticket's comments once, for this return;
@@ -466,19 +474,17 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   is, and `runtime/src/manager/supervision.ts` hands it to the supervisor, which answers with one of its closed list of
   gestures (#3911). It is not parked for ever: it carries a date to look at it again, and past that date it is put
   back on the rail (invariant 3, #4026).
-- **A zone held by a stale PR** (#4243, `superviseur/zone-liberee.ts`). The claim gate names the open PR that holds
-  the zone of each cookable ticket it skips for that reason, and the turn keeps it (`zonesTenues`). On each wake, without
-  the manager, the supervisor reads these PRs. A PR is stale when its ticket is neither cooking (`taken`) nor in pass
-  (`in-pass`) and it had no activity for more than 45 minutes (`DELAI_PERIME_MS`, the stale-claim delay
-  `DELAI_CLAIM_PERIME_MS` of `guerison/claim-perime.ts`, reused), or its changes are already on the base
-  (the comparison of the base to its head leaves it no file). It adds the label `zone-released` to a stale PR, and
-  never closes it. It writes one line on the skipped ticket, `Released the zone held by the stale PR #N (…)`, in the
-  station's service log (`supervisor on <project>: …`) and in its gesture log. A PR that already carries the label is
-  not labelled or said again. When the PR is a human's (its branch is neither `cook/<n>-…` nor the second's
-  `<type>/<n>-…`, or it comes from a fork), the supervisor also opens one `chef-todo` issue asking whether to close
-  it. That issue carries the mark `<!-- brigade:zone-released pr=N -->`, and no second one opens while an issue of the
-  last year, open or closed, carries that mark. The claim gate itself does not read the label yet (another ticket of
-  #4204).
+- **A zone held by a stale PR** (#4243, `superviseur/zone-liberee.ts`). The claim gate no longer counts an open PR
+  that is stale (#4242, `claim-gate.ts`): neither in cook nor at the pass, and idle for 12 hours or more
+  (`STALE_DELAY_MS`), or with its changes already on the base, or carrying `zone-released`. When such a PR overlaps the
+  zone of a ticket, the gate names it, and the turn keeps it (`zonesPerimees`). On each wake, without the manager, the
+  supervisor reads it again with the gate's rule. It adds the label `zone-released` to a stale PR, and never closes it.
+  It writes one line on the ticket, `Released the zone held by the stale PR #N (…)`, in the station's service log
+  (`supervisor on <project>: …`) and in its gesture log. A PR that already carries the label is not labelled or said
+  again. When the PR is a human's (its branch is neither `cook/<n>-…` nor the second's `<type>/<n>-…`), the
+  supervisor also opens one `chef-todo` issue asking whether to close it. That issue carries the mark
+  `<!-- brigade:zone-released pr=N -->`, and no second one opens while an issue of the last year, open or closed,
+  carries that mark. A brigade PR gets no card.
 - **The Windows CI card of the base** (#2413, `carte-ci-windows.ts`) is kept, read by the supervisor's wiring from the
   same turn.
 
