@@ -15,11 +15,11 @@ const MINUTES_SANS_RAISON = 10;
 // (la langue du texte GitHub) ou en français.
 const RAISON = /\b(because|since|given|so|car|donc)\b|\b(parce qu|puisqu|vu qu)/i;
 
-// La ligne de la consigne de découpage qui fait poser `temps_attendu`.
-export const CONSIGNE_TEMPS_ATTENDU = [
-  "`temps_attendu` : le temps, en minutes entières de 1 à 120, dans lequel le ticket doit être mergé — ce que son changement vaut. Repères : une correction de texte ou de titre, environ 2 minutes ; une feature contenue, environ 10 minutes ; la reprise d'un système central, jusqu'à environ 60 minutes. La plupart des tickets tiennent en 10 minutes ou moins : découpe plutôt que de dépasser.",
-  `Au-delà de ${MINUTES_SANS_RAISON} minutes, ton \`calibrage\` dit pourquoi, par une cause (« because… ») : sans elle, le découpage est refusé.`,
-].join(" ");
+// La ligne de la consigne de découpage qui fait poser `temps_attendu`. Courte :
+// la consigne part en un seul argument, et sous Windows le faux `claude` des
+// tests, lancé par le bash de Git, en a perdu la fin — la réponse du chef —
+// passé 8 192 caractères environ (CI de #4307).
+export const CONSIGNE_TEMPS_ATTENDU = `\`temps_attendu\` : minutes (entier, ${MINUTES_MIN} à ${MINUTES_MAX}) pour merger le ticket : ~2 pour un texte ou un titre, ~10 pour une feature contenue, ~60 au plus pour reprendre un système central ; la plupart ≤ ${MINUTES_SANS_RAISON}. Au-delà, ton \`calibrage\` dit pourquoi.`;
 
 // Les minutes lues de `temps_attendu`, ou ce qui les fait refuser.
 // `calibrage` : le texte qui doit dire pourquoi un ticket dépasse 10 minutes.

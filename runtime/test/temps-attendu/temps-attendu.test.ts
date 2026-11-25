@@ -21,10 +21,9 @@ const prevu = (zone: string, expectedMinutes?: number): TicketPrevu => ({
 
 test("la consigne du découpage fait poser `temps_attendu` avec le guide de taille, et son exemple JSON le porte", () => {
   const consigne = consigneDeDecoupage({ depot: "acme/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
-  assert.match(consigne, /`temps_attendu` : le temps, en minutes entières de 1 à 120/);
-  assert.match(consigne, /environ 2 minutes.*environ 10 minutes.*environ 60 minutes/);
-  assert.match(consigne, /La plupart des tickets tiennent en 10 minutes ou moins/);
-  assert.match(consigne, /Au-delà de 10 minutes, ton `calibrage` dit pourquoi/);
+  assert.match(consigne, /`temps_attendu` : minutes \(entier, 1 à 120\) pour merger le ticket/);
+  assert.match(consigne, /~2 pour un texte ou un titre, ~10 pour une feature contenue, ~60 au plus pour reprendre un système central ; la plupart ≤ 10\./);
+  assert.match(consigne, /Au-delà, ton `calibrage` dit pourquoi\./);
   assert.match(consigne, /"effort": "medium", "temps_attendu": 10, "calibrage"/);
 });
 

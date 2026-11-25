@@ -128,7 +128,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "Un seul objet JSON, et rien après lui. Un découpage :",
     "",
     "```json",
-    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "temps_attendu": 10, "calibrage": "pourquoi ce modèle, cet effort et ce temps"}]}`,
+    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "temps_attendu": 10, "calibrage": "pourquoi ce modèle et cet effort"}]}`,
     "```",
     "",
     "une question :",
