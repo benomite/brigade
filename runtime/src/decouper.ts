@@ -116,6 +116,8 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "",
     "Une question au chef se formule comme un choix entre des voies : chaque voie dite en une phrase — ce que l'utilisateur en retrouve, ce qu'elle change pour lui —, jamais en termes de fichiers ou de code. Pas de question ouverte (« comment veux-tu… ? »), pas de question dont la réponse ne change rien pour l'utilisateur.",
     "",
+    "**Découper ou non n'est jamais une question pour le chef** : un ticket ou plusieurs, combien, lesquels — c'est à toi, tu le décides et tu le dis dans le `motif`. Une épique qui tient dans une seule PR est un découpage en un seul ticket. Tu ne demandes jamais au chef s'il faut la découper, ni si elle doit rester un seul ticket.",
+    "",
     "Si l'épique liste déjà ses tickets — des issues nommées par leur numéro, dans son corps ou ses commentaires —, elle est déjà découpée : tu ne crées rien.",
     "",
     "## Ta réponse",
@@ -177,6 +179,12 @@ export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "re
 
 const REPONSES = ["tickets", "question", "deja-decoupee"];
 
+// Une question qui demande au chef s'il faut découper — un ticket ou plusieurs —
+// n'en est pas une : depuis le 2026-11-25 (#4247), c'est au manager. Elle se lit
+// comme une réponse illisible, redemandée une fois, puis l'épique est jugée
+// comme un ticket seul : aucune carte ne la pose au chef.
+const DEMANDE_SI_DECOUPER = /\bsplit(ting)?\b.*\btickets?\b|\btickets?\b.*\bsplit(ting)?\b|\b(a single|several|multiple|separate) tickets?\b|\bone ticket or\b|\bor (keep it as )?(a )?(single|one) ticket\b/i;
+
 function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   const ou = `ticket ${rang}`;
   if (brut === null || typeof brut !== "object" || Array.isArray(brut)) return `${ou}: not an object`;
@@ -222,7 +230,9 @@ export function lireDecoupage(message: string | null): { valeur: Decoupe } | { i
   if (!reponse) return { illisible: `unknown answer ${JSON.stringify(lu.reponse)} — expected ${REPONSES.join(", ")}` };
   if (reponse === "question") {
     const question = phrase(lu.question);
-    return question ? { valeur: { quoi: "question", question } } : { illisible: "no `question`" };
+    if (!question) return { illisible: "no `question`" };
+    if (DEMANDE_SI_DECOUPER.test(question)) return { illisible: "the question asks the chef whether to split the epic: the manager decides that itself" };
+    return { valeur: { quoi: "question", question } };
   }
   const reason = phrase(lu.motif);
   if (!reason) return { illisible: "no `motif`" };
