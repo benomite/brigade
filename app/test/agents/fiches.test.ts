@@ -37,6 +37,11 @@ test("an agent the runtime names that the app does not know is told with what th
   assert.deepEqual([scout.state, scout.nextRun.text, reglage(scout, "autonomy").value, scout.week[0]?.value], ["working on #4040", "scout: next run in 1 h", "propose", "1"]);
 });
 
+test("an entry of `agents` that is not a running role is left out, and the others are told as before", () => {
+  const noms = fichesDesAgents(lectures({ faits: { ...FAITS, agents: [...FAITS.agents, null, { ticket: 3 }, { role: 7 }, "x"] } })).map(({ agent }) => agent);
+  assert.deepEqual(noms, ["second", "manager", "cooks", "pass", "reviewer", "second judge", "triage", "closer", "supervisor"]);
+});
+
 test("each agent says what it is for in one sentence, its state, and its next run", () => {
   const fiches = fichesDesAgents(lectures());
   for (const un of fiches) assert.ok(un.role !== "" && un.state !== "" && un.nextRun.text !== "", `${un.agent} is told in full`);

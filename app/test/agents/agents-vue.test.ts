@@ -104,6 +104,7 @@ test("a setting the runtime refuses says why under its row and keeps the value i
   await repos();
   assert.deepEqual(appels.filter(([quoi]) => quoi === "regler"), [["regler", "closer", "model", "opus", "parade"]]);
   assert.match(modele().textContent, /closer's model was not changed: nothing was changed: the runtime refused it/);
+  assert.equal(modele().dessous("p").find((un) => un.dataset.ligne === "erreur")?.role, "alert", "a refusal is read out at once");
   assert.deepEqual([pose("sonnet").ariaPressed, pose("opus").ariaPressed], ["true", "false"]);
   // Un nouveau clic efface le refus d'avant, et repart.
   pose("opus").click();
@@ -144,6 +145,11 @@ test("a setting that cannot be changed from here shows its value and where it li
   assert.equal(rangee.dessous("button").length, 0);
   // Sans options, un réglage qui se dit modifiable n'a pas de bouton non plus : il dit sa valeur.
   assert.equal(cadre.dessous("div").filter((un) => un.className === "reglage").length, 1);
+  // Et des options sur un réglage qui ne se change pas n'en font pas des boutons.
+  faux(async () => [agent("closer", { settings: [{ key: "a", label: "Fixed", value: "x", options: ["x", "y"], editable: false, livesIn: "the file" }, { key: "b", label: "Open", value: "1", editable: true }] })]);
+  const autre = (await bloc()).cadre;
+  assert.equal(boutons(autre).filter((un) => ["x", "y"].includes(un.textContent)).length, 0);
+  assert.match(autre.textContent, /Open1/);
 });
 
 test("a thread shows at most the ten latest gestures, the newest first, and a gesture without a reason or an outcome says only its line", async () => {
