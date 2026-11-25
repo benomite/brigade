@@ -129,6 +129,7 @@ import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
 import { checksRepares, estUneReparation, PRIO_REPARATION } from "./reparation.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
+import { retenirLaFiche } from "./delais/lecture.ts";
 import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
@@ -668,7 +669,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Illisible, le temps part de la prise, et la station le dit.
   const chrono = chronometre(options.maintenant);
   // Le rapport de sa cuisson à son label `time:` s'écrit à côté (#2675).
-  const servir = async (issue: number, labels: readonly string[]) => {
+  const servir = async (issue: number, labels: readonly string[], titre: string) => {
     if (options.clone === undefined) {
       chrono.oublier(issue);
       return;
@@ -697,6 +698,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       servirLeTemps(options.clone, qualite === null ? temps : { ...temps, qualite }, labels);
     } catch (erreur) {
       avertir(`brigade : the time of #${issue} could not be recorded on ${nom} — ${message(erreur)}`);
+    }
+    // Son titre et ses labels, que lisent les délais de `status` (#4308).
+    try {
+      retenirLaFiche(options.clone, { ticket: issue, titre, etiquettes: [...labels] });
+    } catch (erreur) {
+      avertir(`brigade : the title and labels of #${issue} could not be recorded on ${nom}, its delay counts without an expected time — ${message(erreur)}`);
     }
     await rattraperLesQualites(options.clone);
     await rattraperLesPrises(options.clone);
@@ -1441,7 +1448,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         avertir(`brigade : #${issue} sur ${nom} — the cook committed nothing and delivered a written finding, which the ticket's acceptance criteria accept: it is posted and the ticket is closed`);
         await github.commenter(issue, `${MARQUE_DE_CONSTAT} -->\nStation \`${nom}\`: the cook committed nothing and delivered a written finding, which this ticket's acceptance criteria accept as its outcome. The ticket is closed with it; reopen it if the finding does not answer it.\n\n${fait.constat}`);
         await github.fermerIssue(issue);
-        await servir(issue, ticket.labels);
+        await servir(issue, ticket.labels, ticket.title);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
         liberee = true;
         return;
@@ -1453,7 +1460,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         avertir(`brigade : #${issue} sur ${nom} — the cook committed nothing: the ticket is already satisfied on \`${base}\` by ${sha.slice(0, 7)}, which the station checked (on the branch, gates green): it is closed as served`);
         await github.commenter(issue, `${MARQUE_DEJA_SERVI} sha=${sha} -->\nStation \`${nom}\`: the ticket was already satisfied on \`${base}\` — commit \`${sha}\`${sujet === "" ? "" : ` (${sujet})`}. The station checked that this commit is on \`${base}\` and that the project's gates are green there. The ticket is closed as served; no failed cook is counted. Reopen it if it is not satisfied.\n\nThe cook's statement:\n\n${fait.affirmation}`);
         await github.fermerIssue(issue);
-        await servir(issue, ticket.labels);
+        await servir(issue, ticket.labels, ticket.title);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
         liberee = true;
         return;
@@ -2156,7 +2163,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             if (attendue || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
             if (fusion.issue === "mergee") {
               mergee = true;
-              await servir(ticket.number, ticket.labels);
+              await servir(ticket.number, ticket.labels, ticket.title);
               await cloreLeServi(ticket);
             }
             // Hors de la série des merges : des gates de plusieurs minutes ne retiennent pas les autres.
