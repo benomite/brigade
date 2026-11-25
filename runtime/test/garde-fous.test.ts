@@ -596,7 +596,7 @@ test("un runtime arrêté ne lance plus rien", (t) => {
   const runtime = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
   runtime.arreter("SIGTERM");
 
-  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /arrêté/);
+  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /runtime stopped/);
 });
 
 test("une relance du manager jugée rouge ne compte pas au disjoncteur : une livraison rouge n'est pas une cuisine cassée", async (t) => {

@@ -84,7 +84,7 @@ test("le jeton courant se lit sans attendre, tant qu'il vit ; mort ou jamais dem
   avancer(58 * MINUTE);
   assert.equal(jeton.courant(), frais);
   avancer(2 * MINUTE);
-  assert.throws(() => jeton.courant(), /indisponible/);
+  assert.throws(() => jeton.courant(), /unavailable/);
 });
 
 test("l'entretien renouvelle avant l'échéance : après des heures de ticks, le jeton courant vit toujours", async (t) => {

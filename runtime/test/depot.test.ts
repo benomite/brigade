@@ -637,7 +637,7 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     mkdirSync(worktrees, { recursive: true });
     writeFileSync(join(worktrees, ".essais"), "");
 
-    await assert.rejects(depot.essayer("base"), /^Error: git worktree : \S/);
+    await assert.rejects(depot.essayer("base"), /^Error: git worktree: \S/);
   });
 
   test("une fusion qui ne se fait pas ne rend pas de worktree, et n'en laisse pas", async (t) => {
