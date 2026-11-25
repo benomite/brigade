@@ -175,7 +175,7 @@ const RECOMMANDEE = "Recommended: ";
 
 // La ligne du contexte qui recommande l'un des choix, et ce qui la précise : le choix et pourquoi — rien sans elle, ni pour
 // un libellé qui n'est pas celui d'un choix, ni sans pourquoi.
-function recommandeeDe(contexte: string, choix: readonly ChoixDuChef[]): { recommandee: Recommandee; contexte: string } | null {
+export function recommandeeDe(contexte: string, choix: readonly ChoixDuChef[]): { recommandee: Recommandee; contexte: string } | null {
   const lignes = contexte.split("\n");
   for (const [rang, ligne] of lignes.entries()) {
     const dite = ligne.trim();

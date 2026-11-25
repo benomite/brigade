@@ -21,7 +21,9 @@ import { DE_CONFIANCE } from "../../alimenter.ts";
 import { calibrage as calibrageDesLabels, EFFORTS, type Calibrage } from "../../calibrage.ts";
 import { dernierVerdict } from "../../github-etat/fusion.ts";
 import { LABEL_IN_PASS, LABEL_PARKED } from "../../github-etat/etats.ts";
-import { ECHECS_ATTEINTS, LABEL } from "../../github.ts";
+import { corpsDuParking } from "../../attente-github/marque.ts";
+import { RELANCE_PAR_DEFAUT_MS } from "../../attente.ts";
+import { LABEL } from "../../github.ts";
 import { monter, PLAFOND_PAR_DEFAUT, type Plafond } from "../../reagir.ts";
 
 // Combien de fois une livraison repart au cook avant d'être remise au
@@ -235,8 +237,10 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   const vers = pose === null || estUnFix || remises.length > 0 ? null : calibrageAuDessus(pose, plafond);
   if (pose === null || vers === null) {
     const pourquoi = raisonDeSortie(pose, estUnFix, remises[0], plafond);
-    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`): ${pourquoi}. Not served elsewhere: the supervisor takes it and decides what happens to it.`);
-    await github.labelliser(issue, [ECHECS_ATTEINTS]);
+    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nParked for the supervisor by its failure count (\`${LABEL_PARKED}\`, #4129): ${pourquoi}. Not served elsewhere: the supervisor takes it and decides what happens to it.`);
+    // Parqué pour le superviseur jusqu'à sa réponse, comme la station parque une boucle de relances (`parquerSesEchecs`).
+    await github.labelliser(issue, [LABEL_PARKED]);
+    await github.commenter(issue, corpsDuParking({ what: `its delivery is still not mergeable after ${n - 1} sends back: ${pourquoi}`, who: "the supervisor", followUp: new Date(Date.now() + RELANCE_PAR_DEFAUT_MS).toISOString(), fact: "the supervisor answers", failures: true }));
     await libere();
     return { coup: "set-aside", n, raison: pourquoi };
   }

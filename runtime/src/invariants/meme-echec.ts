@@ -6,7 +6,7 @@
 // l'échec de cette tête ; relancé de nouveau, il rejouerait le même échec sur le
 // même commit (#4001). Le ticket s'arrête : il va au manager, ou il est mis de côté.
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../qualite-github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
+import { CHEF_TODO, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { ECHECS_ATTEINTS, estMisDeCote } from "../github.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import type { Invariant } from "./invariants.ts";
@@ -17,7 +17,7 @@ const teteDeLEchec = (corps: string) => /^<!-- brigade:echec [^\n]*\bsha=([0-9a-
 
 export const memeEchecRelance: Invariant = async (tour) => {
   for (const ticket of tour.tickets) {
-    if (tour.enCuisine(ticket.number) || estMisDeCote(ticket.labels) || [LABEL_TAKEN, LABEL_IN_PASS, LABEL_PARKED, A_LA_MAIN].some((label) => ticket.labels.includes(label))) continue;
+    if (tour.enCuisine(ticket.number) || estMisDeCote(ticket.labels) || [LABEL_TAKEN, LABEL_IN_PASS, LABEL_PARKED, CHEF_TODO, A_LA_MAIN].some((label) => ticket.labels.includes(label))) continue;
     // Illisibles, il n'est pas jugé à ce tour : la prise relit ses commentaires, et ne prend rien qu'elle ne lit pas.
     const commentaires = await tour.github.commentaires(ticket.number).catch(() => null);
     if (commentaires === null) continue;

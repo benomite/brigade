@@ -153,7 +153,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /the manager will not rewrite it/);
     assert.match(dit, /Removing `fire`, `model:` or `effort:` without replacing it takes this ticket away from the manager/);
     assert.match(dit, /`brigade <projet> manager return 30`/);
-    assert.match(dit, /Correcting `prio:`, or setting or removing `question` or `blocked-on-human`, does not take it away/);
+    assert.match(dit, /Correcting `prio:`, or parking or unparking it, does not take it away/);
     assert.match(dit, /Judged by the manager in `sonnet` \/ `medium` · 1 turn · 10 tokens/);
   });
 
@@ -202,7 +202,7 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => dits(30).length === 2);
 
     // Sa complétion ne se lit pas : la question passe au chef, rien ne part sur le rail.
-    assert.deepEqual(labels(30), ["product-question"]);
+    assert.deepEqual(labels(30), ["chef-todo"]);
     assert.ok(!gh.labellisations.flat(2).includes("fire"));
     const [question = "", dit = ""] = dits(30);
     assert.match(question, /a question is asked to the chef/);
@@ -210,7 +210,9 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /Nothing says how to check it is done\./);
     assert.match(dit, /What would make it workable\.\*\* An acceptance criterion\./);
     assert.match(dit, /judged again/);
-    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented"]);
+    // Sa question au chef le parque pour lui (`chef-todo`, #4129) : l'écart qui suit le dit.
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented", "manager.set-aside"]);
+    assert.equal(charge(faits(30)[4])?.reason, "parked");
     assert.deepEqual(faits(30).filter((e) => e.type === "manager.completed").map((e) => charge(e)?.outcome), ["unreadable", "question"]);
     assert.deepEqual((({ verdict, kind }) => ({ verdict, kind }))(charge(faits(30)[0]) ?? {}), { verdict: "refused", kind: "incomplete" });
   });
@@ -246,19 +248,24 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(faits(30).filter((e) => e.type === "manager.completed").map((e) => charge(e)?.outcome), ["question"]);
   });
 
-  test("une issue jugée `decision` devient une carte TODO : sa décision en une phrase sur l'issue, et le label `decision` posé (#3429)", async (t) => {
+  test("une issue jugée `decision` devient une carte TODO : sa décision en une phrase sur l'issue, et l'issue parquée pour le chef — `chef-todo` et sa carte (#3429, #4129)", async (t) => {
     const { gh, labels, dits, faits, jugements, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision" }, issues: [issue(30, [])] });
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
     await laisserTourner();
 
-    assert.deepEqual(labels(30), ["decision"]);
-    assert.deepEqual(gh.labellisations, [[30, ["decision"]]]);
+    assert.deepEqual(labels(30), ["chef-todo"]);
+    assert.deepEqual(gh.labellisations, [[30, ["chef-todo"]]]);
+    // #4129 : sa carte de TODO, qui pose la question — sans réponse écrite par le jugement, les deux choix de toute carte.
+    assert.deepEqual(
+      gh.commentaires.filter(([n, corps]) => n === 30 && corps.startsWith("<!-- brigade:todo")).map(([, corps]) => corps),
+      ["<!-- brigade:todo kind=product-question -->\nDo you grant the deploy role write access to the backup bucket?\n\n- [resume] Back to the kitchen\n- [close] Close it"],
+    );
     assert.equal(jugements().length, 1);
     assert.match(jugements()[0]?.args[1] ?? "", /"question": "la décision à prendre, en une phrase \?"/);
     const [dit = ""] = dits(30);
     assert.equal(dits(30).length, 1);
     assert.match(dit, /not a workable ticket: a decision issue/);
-    assert.match(dit, /The manager sets `decision` on this issue: it is a card in your TODO\. Answer it there/);
+    assert.match(dit, /The manager parks this issue for you \(`chef-todo`\): it is a card in your TODO\. Answer it there/);
     // La question est une ligne à elle, la dernière qui finit par « ? » : celle que la carte TODO pose (#3370).
     const lignes = dit.split("\n");
     assert.equal(lignes.filter((ligne) => /\?\s*$/.test(ligne)).at(-1), "Do you grant the deploy role write access to the backup bucket?");
@@ -269,7 +276,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("une décision porte ses réponses en boutons, et la recommandée avec sa raison en une ligne (#3434)", async (t) => {
     const { labels, dits, faits, jugements, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision-reponses" }, issues: [issue(30, [])] });
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
     await laisserTourner();
 
     assert.match(jugements()[0]?.args[1] ?? "", /"reponses": \[/);
@@ -286,11 +293,11 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("une décision qui attend le client est proposée pour WAITING, avec qui elle attend, sans recommandation sans fondement (#3434)", async (t) => {
     const { labels, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision-tiers" }, issues: [issue(30, [])] });
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
     await laisserTourner();
 
     const [dit = ""] = dits(30);
-    assert.match(dit, /\*\*Not yours to answer: it waits on AF, the client\.\*\* The manager sets `decision` on this issue: its card in your TODO proposes to park it, waiting for AF, the client\./);
+    assert.match(dit, /\*\*Not yours to answer: it waits on AF, the client\.\*\* The manager parks this issue for you \(`chef-todo`\): its card in your TODO proposes to park it for AF, the client instead\./);
     assert.doesNotMatch(dit, /Yours to settle/);
     assert.match(
       dit,
@@ -300,7 +307,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("une décision sans fondement pour recommander : ses réponses en boutons, et aucune recommandation (#3434)", async (t) => {
     const { labels, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-decision-sans-avis" }, issues: [issue(30, [])] });
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
     await laisserTourner();
 
     const [dit = ""] = dits(30);
@@ -310,7 +317,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("la carte répondue rend l'issue au manager, qui la rejuge avec la réponse (#3429)", async (t) => {
     const { gh, labels, jugements } = brigade(t, { manager: { suite: ["juge-decision", "juge-ticket"] }, issues: [issue(30, [])] });
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
 
     // Ce que la réponse de la carte joue sur GitHub (app : tableau-gestes/reponse-github.ts) : son commentaire, et `resume`
     // retire `decision`.
@@ -358,7 +365,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("la réponse du chef n'est jamais suivie de la même question : le manager dit ce qui manque, une fois, et la carte quitte TODO (#3536)", async (t) => {
     const { gh, labels, dits, jugements, faits } = brigade(t, { manager: { jugement: "juge-decision" }, issues: [issue(30, [])] });
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
 
     gh.repondre(30, "<!-- brigade:reponse gesture=resume -->\nIt depends.");
     gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));
@@ -367,14 +374,14 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(dits(30).length, 2);
     assert.match(dits(30)[1] ?? "", /already asked the chef/);
     assert.doesNotMatch(dits(30)[1] ?? "", /Do you grant the deploy role write access to the backup bucket\?\n/);
-    assert.deepEqual(gh.labellisations, [[30, ["decision"]]]);
+    assert.deepEqual(gh.labellisations, [[30, ["chef-todo"]]]);
     assert.deepEqual(labels(30), []);
     assert.equal(charge(faits(30).filter((e) => e.type === "manager.judged").at(-1))?.kind, "stalled");
   });
 
   test("une question que le chef a tranchée ne revient pas, même reformulée, tant que l'issue n'a pas changé (#3738)", async (t) => {
     const { gh, labels, dits, jugements, faits, journal } = brigade(t, { manager: { jugement: "juge-decision", suite: ["juge-decision", "juge-decision-reformulee"] }, issues: [issue(30, [])] });
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
 
     journal.ajouter({ project: "brigade", ticket: 30, author: "chef", type: "todo.answered", payload: { choice: 1, answer: "Keep it parked", then: "resume" } });
     gh.repondre(30, "**The chef's answer** to the TODO card — choice 1 of 2:\n\n> Q\n\nKeep it parked");
@@ -396,14 +403,14 @@ describe("le manager", { concurrency: 8 }, () => {
     }
 
     chef(repertoire, "manager.enabled");
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
     await laisserTourner();
 
     // Rejugée une fois, pour la question que l'ancien jugement ne posait pas ; celle que le chef a parquée (#4129) ne l'est pas.
     assert.deepEqual(jugements().map((jugement) => /Issue #(\d+)/.exec(jugement.args[1] ?? "")?.[1]), ["30"]);
     assert.match(dits(30)[0] ?? "", /\nDo you grant the deploy role write access to the backup bucket\?\n/);
     assert.deepEqual(labels(31), ["parked"]);
-    assert.deepEqual(gh.labellisations, [[30, ["decision"]]]);
+    assert.deepEqual(gh.labellisations, [[30, ["chef-todo"]]]);
   });
 
   test("une issue jugée `decision` que le chef a parquée entre-temps ne reçoit pas le label (#3429, #4129)", async (t) => {
@@ -421,14 +428,14 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.deepEqual(gh.labellisations, []);
   });
 
-  test("le label `decision` non posé : l'avertissement le dit, rien n'est noté, il est reposé au tour suivant sans rejuger (#3429)", async (t) => {
+  test("la carte du chef non posée : l'avertissement le dit, rien n'est noté, il est reposé au tour suivant sans rejuger (#3429)", async (t) => {
     const { gh, labels, faits, jugements, avertissements } = brigade(t, { manager: { jugement: "juge-decision" }, issues: [issue(30, [])] });
     gh.pannes.label = true;
-    await jusqua(() => avertissements.some((message) => /`decision` non posé sur l'issue #30/.test(message)));
+    await jusqua(() => avertissements.some((message) => /carte du chef non posée sur l'issue #30/.test(message)));
     assert.ok(!faits(30).some((e) => e.type === "manager.set-aside"));
 
     gh.pannes.label = false;
-    await jusqua(() => labels(30).includes("decision"));
+    await jusqua(() => labels(30).includes("chef-todo"));
     await jusqua(() => faits(30).some((e) => e.type === "manager.set-aside"));
     assert.equal(jugements().length, 1);
   });
@@ -1225,14 +1232,15 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.equal(journal.tout().filter((e) => e.type === "manager.closed").length, 2);
   });
 
-  test("une issue jugée, exécutable ou non, peut être fermée sans que le journal le note : le manager n'en attendait pas le chef", async (t) => {
+  test("une issue jugée puis fermée : sa question au chef l'a parquée pour lui (#4129), le journal note sa fermeture", async (t) => {
     const { gh, faits, dits, laisserTourner } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
     await jusqua(() => dits(30).length === 2);
 
     gh.poser(issue(30, [], { state: "closed" }));
     await laisserTourner();
 
-    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented"]);
+    // Sa question l'a parquée pour le chef (#4129) : sa fermeture est notée, le manager l'attendait de lui.
+    assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented", "manager.set-aside", "manager.closed"]);
   });
 
   test("un ticket que la cuisine a sorti du rail sans le servir attend le chef : le manager ne le rejuge pas, et ne lui remet pas `fire` (#2118)", async (t) => {
@@ -1255,7 +1263,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("le chef ferme l'issue d'un ticket que la cuisine a sorti du rail sans le servir : le manager le constate, et sa carte sort de TODO (#2118)", async (t) => {
     const { gh, journal, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => faits(30).length === 4);
+    // Jugée, complétée, dite, puis parquée pour le chef par sa question (#4129).
+    await jusqua(() => faits(30).length === 5);
     // La cuisine l'avait pris, puis abandonné : le sondage, qui n'y voyait pas `fire`, l'a sorti du rail.
     journal.ajouter({ project: "brigade", ticket: 30, author: "github", type: "ticket.arrived", payload: { title: "Ticket 30", priority: 1, createdAt: "2026-10-01T00:00:30Z", url: "https://exemple.test/30", card: null } });
     journal.ajouter({ project: "brigade", ticket: 30, author: "pass", type: "pass.kitchen-took-over", payload: { cause: "wrong-base", move: "drop", reason: "sa cause n'est pas au cook" } });

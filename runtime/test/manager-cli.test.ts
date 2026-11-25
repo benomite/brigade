@@ -459,7 +459,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       ]);
       const dit = (ticket: number) => lu.issues.find((issue: { ticket: number }) => issue.ticket === ticket);
       assert.deepEqual(dit(11), { ticket: 11, titre: "Ticket 11", url: `https://github.com/${DEPOT}/issues/11`, priorite: 2, etat: "sortie", dit: "left the rail: label `fire` removed" });
-      assert.match(dit(12).dit, /^set aside by the manager, it carries `question`/);
+      assert.match(dit(12).dit, /^parked for you by the manager, with its question \(`chef-todo`\)/);
       assert.equal(dit(13).dit, "it is the project's roadmap — nothing returns it to the manager");
       // En une ligne : la raison du manager garde ses mots, pas ses retours à la ligne.
       assert.equal(dit(14).dit, "refused (an incomplete ticket) — Aucun critère observable.");

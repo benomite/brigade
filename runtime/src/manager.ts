@@ -39,8 +39,10 @@ import { auteurSansEcriture } from "./github-etat/auteur.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
 import { ENTETE_REPONSE } from "./reponse-carte.ts";
-import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
-import { LABEL_PARKED } from "./github-etat/etats.ts";
+import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, NATURES_AU_CHEF, type Decision } from "./juger.ts";
+import { CHEF_TODO, estParque, LABEL_PARKED } from "./github-etat/etats.ts";
+import { poserCarte } from "./github-seul/carte-todo/carte-todo.ts";
+import { BOUTONS_DE_LA_CARTE } from "./blocages-sans-question.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
@@ -61,8 +63,9 @@ import type { Fin } from "./superviseur.ts";
 export const MANAGER = STATION_DU_MANAGER;
 const AUTEUR = "manager";
 
-// Les labels par lesquels le chef dit lui-même qu'une issue n'est pas une
-// unité de travail. Reconnus s'ils sont là, jamais exigés.
+// Les labels par lesquels le chef disait, avant #4129, qu'une issue n'est pas une
+// unité de travail. Reconnus s'ils sont là, jamais exigés ni posés : une issue qui
+// attend le chef est parquée pour lui (`chef-todo`).
 const RETENUE = "blocked-on-human";
 const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
 // Celui par lequel il dit qu'elle est à découper. Jamais exigé non plus : le
@@ -307,6 +310,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
     if (auteurSansEcriture(issue, declares()) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
+    // Parquée (#4129) — pour le chef, par la carte de sa question, ou pour un autre — : elle n'est pas jugée avant de
+    // reprendre. Parquée par sa question au chef, l'écart garde la nature de cette question.
+    const nature = (NATURES_AU_CHEF as readonly string[]).includes(connue?.reason ?? "") ? (connue?.reason as Ecart) : "parked";
+    if (estParque(issue.labels)) return { quoi: "ecart", raison: nature, fired };
+    // Ceux que le chef posait avant #4129 : lus encore sur les issues qui les portent.
     const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
     if (label) return { quoi: "ecart", raison: label, fired };
     // La liste de ses tickets est déjà dans son corps, et le journal ne sait
@@ -455,6 +463,13 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       ...(recommande === null ? [] : ["", `**Recommended:** ${recommande.answer} — ${recommande.why}`]),
     ];
   };
+  // La carte qui parque pour le chef une issue refusée à lui (#4129) : la question du jugement, puis ses lignes — sans
+  // aucun choix, les deux de toute carte retenue : la rendre au manager, ou la fermer.
+  const carteAuChef = (numero: number, kind: string): string => {
+    const lignes = lignesDeLaCarte(numero);
+    const question = questionDuVerdict(numero) ?? `The manager judged this issue a ${NOMS_DE_NATURE_EN[kind as Nature] ?? kind}: what is your answer?`;
+    return [question, "", ...(lignes.some((ligne) => ligne.startsWith("- [")) ? lignes : [...BOUTONS_DE_LA_CARTE, ...lignes])].join("\n");
+  };
   // Refusée au chef par un jugement d'avant #3429 : il ne lui demandait pas de question, et rien ne l'a montrée au chef.
   // Elle se rejuge une fois, pour que sa carte en pose une.
   const auChefSansQuestion = (issue: IssueOuverte, connue: IssueDuManager | null): boolean =>
@@ -482,7 +497,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           "",
           "It is your quota: replace a calibration label, the manager will not rewrite it.",
           "",
-          `⚠️ **Removing \`fire\`, \`model:\` or \`effort:\` without replacing it takes this ticket away from the manager**: it will set nothing on it again and will not judge it again, even if the issue changes — until you give it back (\`${commandeRendre(issue.number)}\`). Correcting \`prio:\`, or setting or removing \`question\` or \`blocked-on-human\`, does not take it away.`,
+          `⚠️ **Removing \`fire\`, \`model:\` or \`effort:\` without replacing it takes this ticket away from the manager**: it will set nothing on it again and will not judge it again, even if the issue changes — until you give it back (\`${commandeRendre(issue.number)}\`). Correcting \`prio:\`, or parking or unparking it, does not take it away.`,
           "",
           signature(connue.run),
         ].join("\n");
@@ -505,8 +520,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           ...(auChef
             ? [
                 awaits === null
-                  ? `**Yours to settle.** The manager sets \`${connue.kind}\` on this issue: it is a card in your TODO. Answer it there — one of its answers or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`
-                  : `**Not yours to answer: it waits on ${awaits}.** The manager sets \`${connue.kind}\` on this issue: its card in your TODO proposes to park it, waiting for ${awaits}. If you already have the answer, give it there instead — one of its answers or your own words — and the manager judges the issue again with it; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
+                  ? `**Yours to settle.** The manager parks this issue for you (\`chef-todo\`): it is a card in your TODO. Answer it there — one of its answers or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`
+                  : `**Not yours to answer: it waits on ${awaits}.** The manager parks this issue for you (\`chef-todo\`): its card in your TODO proposes to park it for ${awaits} instead. If you already have the answer, give it there instead — one of its answers or your own words — and the manager judges the issue again with it; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
                 ...(question === null ? [] : ["", question, ...lignesDeLaCarte(issue.number)]),
               ]
             : [`The issue will be judged again as soon as it changes — body edited, or an answer in a comment.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`]),
@@ -648,24 +663,23 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   };
 
   // Une issue refusée parce qu'elle attend le chef — `question`, `decision` — ne reste jamais hors du rail et hors de
-  // TODO (#3429) : son refus dit, le manager y pose le label du même nom, dont la carte TODO pose au chef sa question
-  // (#3370). Répondue, la carte retire le label (`resume`) et le manager la rejuge avec la réponse. Une issue que le chef
-  // a mise en WAITING ne l'attend pas, lui : rien n'y est posé. Le label posé, l'issue est écartée par ce label, comme
-  // celle où le chef l'aurait posé lui-même — ce n'est pas un label du manager : le retirer ne la lui retire pas. Rend
-  // faux si c'est à refaire au tour suivant.
+  // TODO (#3429) : son refus dit, le manager la parque pour le chef (#4129) — `chef-todo`, et la carte qui lui pose sa
+  // question, un bouton par réponse (github-seul/carte-todo/carte-todo.ts, `poserCarte`). Répondue, la carte tombe
+  // (`resume`) et le manager la rejuge avec la réponse. Une issue parquée pour un autre ne l'attend pas, lui : rien n'y
+  // est posé. Parquée, l'issue est écartée (`trier`). Rend faux si c'est à refaire au tour suivant.
   const demanderAuChef = async (issue: IssueOuverte): Promise<boolean> => {
     const connue = issueDuManager(base, issue.number);
     if (connue?.decision !== "refused" || !estAuChef(connue.kind) || !connue.commented) return true;
     const label = connue.kind;
     let fraiche;
     try {
-      // Relus juste avant d'écrire : le chef a pu fermer l'issue, la mettre en WAITING, ou poser le label.
+      // Relus juste avant d'écrire : le chef a pu fermer l'issue, la parquer pour un autre, ou y poser une carte.
       fraiche = await github.issue(issue.number);
       if (arrete) return false;
       if (!fraiche || fraiche.state !== "open" || fraiche.labels.includes(LABEL_PARKED)) return true;
-      if (!fraiche.labels.includes(label)) await github.labelliser(issue.number, [label]);
+      if (!fraiche.labels.includes(CHEF_TODO)) await poserCarte(issue.number, { sorte: "product-question", texte: carteAuChef(issue.number, connue.kind) }, github);
     } catch (erreur) {
-      if (!arrete) avertir(`brigade : \`${label}\` non posé sur l'issue #${issue.number}, refusée au chef — repris au tour suivant — ${message(erreur)}`);
+      if (!arrete) avertir(`brigade : carte du chef non posée sur l'issue #${issue.number}, refusée au chef — repris au tour suivant — ${message(erreur)}`);
       return false;
     }
     if (arrete) return false;

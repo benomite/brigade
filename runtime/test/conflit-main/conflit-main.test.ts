@@ -11,6 +11,7 @@ import { test, type TestContext } from "node:test";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { degelerLesConflits, partirSurLaBase, renvoisPourLaBase, suiteDuConflitBloque } from "../../src/conflit-main/conflit-main.ts";
 import { carteDeGesteGit, cibleDuTravail, demandeUnGesteGit, fichiersNommes, MARQUE_DU_CONFLIT_MAIN, refusDeLaCreation } from "../../src/conflit-main/renvoi.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
@@ -95,7 +96,8 @@ function station(t: TestContext, { ticket, cook, manager, avant }: { ticket: num
 }
 
 // Les cartes du chef qu'une station a posées sur l'issue.
-const cartes = (commentaires: string[]) => commentaires.filter((c) => /^\*\*(?:Gesture|Question) for the chef\b/.test(c.trimStart()));
+// Les cartes du chef : depuis #4129, marquées comme toute carte de son TODO (`<!-- brigade:todo kind=blocked -->`).
+const cartes = (commentaires: string[]) => commentaires.map((c) => c.trimStart().replace(/^<!-- brigade:todo kind=blocked -->\n/, "")).filter((c) => /^\*\*(?:Gesture|Question) for the chef\b/.test(c));
 
 test("a branch that conflicts with the base goes back to its own cook with the conflicting files listed, and no new ticket is created", async (t) => {
   const TICKET = 18;
@@ -128,6 +130,7 @@ test("a branch that conflicts with the base goes back to its own cook with the c
   assert.ok(renvoi !== undefined, s.commentaires().join("\n---\n"));
   assert.match(renvoi, new RegExp(`conflicts in \`${FICHIER}\``));
   assert.match(renvoi, /goes back to its own cook/);
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false);
   assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false);
   assert.deepEqual(cartes(s.commentaires()), [], "no chef card");
 
@@ -166,6 +169,7 @@ test("on the conflict path, a cook blocked on a git gesture goes back to its own
   await s.tour();
   assert.equal(s.cooks(), 1);
   assert.deepEqual(s.consultations, [], "a git gesture never reaches the manager, who could put a card");
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false, "never a chef card");
   assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false, "never blocked-on-human");
   assert.deepEqual(cartes(s.commentaires()), [], "no chef card");
   const renvoi = s.commentaires().find((c) => c.startsWith(MARQUE_DU_CONFLIT_MAIN));
@@ -185,6 +189,7 @@ test("on the conflict path, the manager's gesture is never a chef card either: t
   });
   await s.tour();
   assert.equal(s.consultations.length, 1);
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false);
   assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false);
   assert.deepEqual(cartes(s.commentaires()), []);
   assert.ok(s.commentaires().some((c) => c.startsWith(MARQUE_DU_CONFLIT_MAIN)), s.commentaires().join("\n---\n"));
@@ -201,7 +206,8 @@ test("when the conflict hides a product choice, the chef's card asks that choice
   });
   await s.tour();
   assert.equal(s.consultations.length, 1);
-  assert.ok(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), "the ticket waits for the chef's choice");
+  assert.ok(s.faux.ticket(TICKET).labels.has(CHEF_TODO), "the ticket is parked for the chef's choice");
+  assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false, "never blocked-on-human (#4129)");
   const [carte, ...autres] = cartes(s.commentaires());
   assert.deepEqual(autres, []);
   assert.ok(carte?.startsWith(`**Question for the chef (product):** ${choix}`), carte ?? "no card");
@@ -218,6 +224,7 @@ test("a cook blocked off the conflict path, whose question the manager reads as 
   });
   await s.tour();
   assert.equal(s.consultations.length, 1);
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false);
   assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false);
   assert.deepEqual(cartes(s.commentaires()), []);
   assert.ok(s.commentaires().some((c) => c.startsWith(MARQUE_DU_CONFLIT_MAIN)), s.commentaires().join("\n---\n"));
@@ -261,6 +268,7 @@ test("secondes#21: a cook asking for allowLocalBinding in a settings file, the m
   });
   await s.tour();
   assert.equal(s.consultations.length, 1);
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false);
   assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false);
   assert.deepEqual(cartes(s.commentaires()), []);
   assert.ok(s.commentaires().some((c) => c.includes("Nothing here is for the chef") && c.includes("The limit:")), s.commentaires().join("\n---\n"));
@@ -282,6 +290,26 @@ test("a chef card asking for a sandbox setting is withdrawn by the station, and 
   await s.tour();
   assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false, "the card is withdrawn");
   assert.ok(s.commentaires().some((c) => c.includes("The card is withdrawn")), s.commentaires().join("\n---\n"));
+});
+
+// #4129 : la carte du chef est désormais `chef-todo` et sa marque ; une carte qui demande un réglage du bac à sable est
+// retirée de même — `chef-todo` levé —, et le ticket repart à la cuisine.
+test("a chef card parked as `chef-todo` asking for a sandbox setting is withdrawn too: `chef-todo` is removed and the ticket goes back to the kitchen", async (t) => {
+  const TICKET = 22;
+  const s = station(t, {
+    ticket: TICKET,
+    avant: (_lieux, faux) => {
+      faux.ticket(TICKET).labels.add(CHEF_TODO);
+      faux.poster(TICKET, "box", "<!-- brigade:todo kind=blocked -->\n**Gesture for the chef:** On station box/claude, edit the settings file that cook sessions actually load (`~/.claude/settings.json`). Add `\"sandbox\": {\"network\": {\"allowLocalBinding\": true}}`.");
+    },
+    cook: (_rang, worktree) => {
+      commiter(worktree, "livraison.txt");
+      return "Done.\n<livrable>\nDelivered.\n</livrable>";
+    },
+  });
+  await s.tour();
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false, "the card is withdrawn");
+  assert.ok(s.commentaires().some((c) => c.includes("The card is withdrawn and `chef-todo` removed")), s.commentaires().join("\n---\n"));
 });
 
 test("a chef card asking for git commands on the ticket's own branch is withdrawn, and the ticket goes back to its own cook", async (t) => {
@@ -366,8 +394,8 @@ test("on the conflict path, a product question about push notifications reaches 
   });
   assert.deepEqual(consultees, [question], "the manager reads it");
   assert.ok("suite" in suite && suite.suite === "retenue", JSON.stringify(suite));
-  assert.ok(faux.ticket(18).labels.has(A_LA_MAIN));
-  assert.ok((faux.commentaires.get(18) ?? []).some((c) => c.body.startsWith(`**Question for the chef (product):** ${question}`)), JSON.stringify(faux.commentaires.get(18)));
+  assert.ok(faux.ticket(18).labels.has(CHEF_TODO));
+  assert.ok((faux.commentaires.get(18) ?? []).some((c) => c.body.startsWith(`<!-- brigade:todo kind=blocked -->\n**Question for the chef (product):** ${question}`)), JSON.stringify(faux.commentaires.get(18)));
 });
 
 test("send-backs to the ticket's own cook that cannot be read stop the ticket as a cook without delivery, never a loop", async () => {

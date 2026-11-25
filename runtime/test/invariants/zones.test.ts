@@ -144,3 +144,18 @@ test("a ticket cooked on this station keeps the zone of its open PR, even when i
   await a.calme();
   seuleLaCasse(faux);
 });
+
+// #4129 : un ticket parqué pour le chef (`chef-todo`) n'attend aucune prise — rien ne le prend avant sa réponse — : une
+// PR sans cook sur sa zone ne casse rien.
+test("a ticket parked for the chef waits for no take: an unclaimed PR on its zone is no break, and nothing takes it", async () => {
+  const faux = new FauxGitHub();
+  avecUneCasse(faux);
+  faux.feu(3, [...CALIBRE, "chef-todo"]);
+  faux.poster(3, "manager", fiche("runtime/src/c.ts"));
+  faux.prOuverte(["runtime/src/c.ts"], "cook/5-abcdef02");
+  const a = faux.station("A", sansCook);
+  await a.tour();
+  await a.calme();
+  assert.ok(!faux.cuissons.some(({ issue }) => issue === 3), "parked for the chef, nothing takes it");
+  seuleLaCasse(faux);
+});

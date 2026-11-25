@@ -213,7 +213,10 @@ test("au plafond, rien ne monte : le ticket sort de la cuisine, un humain décid
   const coup = await epuiser(gh);
   assert.equal(coup.coup, "set-aside");
   assert.deepEqual(gh.creees, []);
-  assert.ok(gh.labels().includes(ECHECS_ATTEINTS));
+  // #4129 : parqué pour le superviseur, jamais `set-aside:failures`.
+  assert.ok(gh.labels().includes("parked"));
+  assert.ok(!gh.labels().includes(ECHECS_ATTEINTS));
+  assert.ok(gh.commentaires().some(({ body }) => body.startsWith('<!-- brigade:parked {"what":"its delivery is still not mergeable after')), JSON.stringify(gh.commentaires()));
   assert.ok(!gh.labels().includes(HORS_CUISINE));
   assert.match(gh.commentaires().at(-1)?.body ?? "", /already the highest the kitchen sets/);
 });

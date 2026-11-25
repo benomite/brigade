@@ -215,7 +215,12 @@ npm --prefix runtime run parked -- arrived BOBL-tech/mirrorlab#614         # the
   stops its relaunch loop and parks it, waiting for the supervisor, which gets its dossier
   (`parquerSesEchecs`, `runtime/src/manager/supervision.ts`). A ticket whose cook says it cannot be
   done before a date, or that it waits for a third party outside the kitchen: parked until that
-  date, or seven days.
+  date, or seven days. And, for the chef, with a TODO card (`chef-todo`): a cook blocked on a
+  product or design question, or on a gesture only the chef makes (`poserALaMain`); a prerequisite
+  only a human installs on a station; a wait the manager finds to be a product decision; an issue
+  the manager refuses to the chef with its question. `blocked-on-human`, `question`, `decision`,
+  `product-question` and `set-aside:failures` are set by nothing any more: on an issue that still
+  carries one from before, they are read as before.
 - **Nothing takes it before**: see "Nothing takes a parked ticket" in
   [exploitation.md](exploitation.md).
 - **Old logs.** The WAITING events of a box log (`ticket.waiting`, `ticket.resumed`) are still read

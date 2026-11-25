@@ -34,7 +34,7 @@ import type { AttenduDAutrui, Tiers } from "../faits.ts";
 import type { Partage } from "../vue/cartes-assignees/cartes-assignees.ts";
 import type { AppelGitHub } from "./client.ts";
 import type { LectureDuTableauDuDepot, LigneDeLaFile, TableauLu } from "./lecture.ts";
-import { BLOCKED_ON_HUMAN, carteDeLEcart, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, type MiseDeCote } from "./mise-de-cote-github.ts";
+import { BLOCKED_ON_HUMAN, carteDeLEcart, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseDeCoteDe, miseDeCoteLe, recommandeeDe, type MiseDeCote } from "./mise-de-cote-github.ts";
 import { blocAwaiting } from "./rail.ts";
 import type { RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
 import { carteDeLaQuestionDEpique, LABEL_EPIQUE, questionDEpiqueLe } from "./question-d-epique-github.ts";
@@ -250,7 +250,12 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
       // La carte « review before merge » d'un ticket sensible (ticket 3224) : sa PR et son ticket, lus du corps de son issue —
       // ou du commentaire de la carte (ticket 3615).
       const sensible = marque.carte.sorte === SORTE_SENSIBLE ? (revueDuCorps(depot, texte(issue.body)) ?? revueDuCorps(depot, marque.corps)) : null;
-      const chef = { ...marque.carte, ...(design === null ? {} : { design }), ...(sensible === null ? {} : { sensible }) };
+      // La carte d'une question du manager, qui parque l'issue pour le chef (#4129) : la réponse qu'il recommande, comme sur
+      // un écart (#3434) — sa ligne `Recommended:` quitte le texte. Sans elle, la carte est comme toute autre.
+      const forme = formeDuChef(marque.carte.texte.replace(/\*\*/g, ""));
+      const recommandee = recommandeeDe(forme.contexte, forme.choix);
+      const texteDeLaCarte = recommandee === null ? marque.carte.texte : [forme.question ?? "", ...forme.choix.map(({ texte: libelle, suite }) => `- [${suite}] ${libelle}`), ...(recommandee.contexte === "" ? [] : ["", recommandee.contexte])].join("\n");
+      const chef = { ...marque.carte, texte: texteDeLaCarte, ...(recommandee === null ? {} : { recommandee: recommandee.recommandee }), ...(design === null ? {} : { design }), ...(sensible === null ? {} : { sensible }) };
       poser({ ...entree(issue), depuis: marque.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(marque.carte), chef });
     }
     // Les épiques dont le manager attend la réponse du chef avant de les découper, si aucune carte ne les dit déjà.

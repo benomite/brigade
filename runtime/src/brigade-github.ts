@@ -49,7 +49,7 @@ import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
 import { labelPoseLe } from "./attente-du-rail/lecture.ts";
 import { ordreDeMerge } from "./ordre-de-merge/ordre.ts";
-import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "./github-etat/etats.ts";
+import { CHEF_TODO, etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "./github-etat/etats.ts";
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, parquerSesEchecs, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
 import { termeDeLAttente, veilleDesOrphelins } from "./reprise-attente/orphelins.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
@@ -512,7 +512,8 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 // Ce qui juge une livraison : une PR qui y touche ne se merge qu'approuvée
 // aussi par le second juge (#2555) — sa consigne comprise.
 const JUGES = [".claude/brigade/", ".github/workflows/", "agents/second-juge.md"];
-// Le label d'un ticket qui attend un geste du chef.
+// Le label d'un ticket qui attendait un geste du chef avant #4129 : il est désormais parqué pour le chef
+// (`chef-todo`, `poserALaMain`). Rien ne le pose plus ; il se lit encore sur les issues qui le portent.
 export const A_LA_MAIN = "blocked-on-human";
 
 // Le rang d'un ticket dans l'ordre de service : le plus petit `prio:N` qu'il porte.
@@ -880,7 +881,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les tickets `taken` sans cook sur aucune station ni attente vivante : rendus au rail après 5 min (#3883).
   const orphelins = veilleDesOrphelins({ github, station: nom, maintenant: instant });
   // Les tickets du rail tenus par une attente : passé une heure, le manager la revoit, une fois (#3764).
-  const attentesLongues = suiviDesAttentesLongues({ github, station: nom, label: A_LA_MAIN, ...(options.revoirLAttente === undefined ? {} : { revoir: options.revoirLAttente }), maintenant: instant, avertir });
+  const attentesLongues = suiviDesAttentesLongues({ github, station: nom, label: CHEF_TODO, ...(options.revoirLAttente === undefined ? {} : { revoir: options.revoirLAttente }), maintenant: instant, avertir });
   // Le terme de la dernière attente du ticket n'est pas passé. Illisibles, ses commentaires ne le retiennent pas.
   // Rend ce terme (ms), ou null quand le ticket n'attend pas.
   const enAttente = async (ticket: TicketLu): Promise<number | null> => {
@@ -982,10 +983,13 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   // Le commentaire de la reprise, posté après celui de l'essai ; une question
-  // de produit ou de design le porte comme carte du chef (`blocked-on-human`).
+  // de produit ou de design le porte comme carte du chef : le ticket est parqué pour lui (`chef-todo`, #4129).
+  // Le commentaire de la reprise garde sa marque en tête — c'est elle qui dit le ticket déjà repris — ; la carte, après
+  // lui, en porte la question, qui le clôt.
   const direLaReprise = async (numero: number, suite: { commentaire: string; question: boolean }) => {
     if (!suite.question) return void (await github.commenter(numero, suite.commentaire));
-    const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, numero, suite.commentaire);
+    await github.commenter(numero, suite.commentaire);
+    const pose = await poserALaMain({ github, repertoireEtat: options.repertoireEtat }, numero, suite.commentaire.slice(suite.commentaire.lastIndexOf("**Question for the chef")));
     if (!pose.pose) avertir(`brigade : ${pose.echec}`);
   };
 
@@ -1590,7 +1594,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       try {
         await fermerLaCarteDepassee(sorte, github, ticket.number);
       } catch (erreur) {
-        avertir(`brigade : #${ticket.number} sur ${nom} — its “${sorte.titre}” card could not be closed after the send-back, the next card closes it: ${message(erreur)}`);
+        avertir(`brigade : #${ticket.number} sur ${nom} — its “${sorte.titre}” card could not be closed after the send-back, the next sweep of the cards closes it: ${message(erreur)}`);
       }
     }
     // De retour en cuisine : le temps jusqu'au cook suivant est celui du renvoi (#2662).
@@ -2137,8 +2141,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       // Libre : aucun état, et aucun label d'état — un `in-pass` dont la PR
       // vient d'être mergée n'est pas à reprendre.
-      // `blocked-on-human` le retient : il attend la réponse du chef (#2805).
-      if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN) && !ticket.labels.includes(A_LA_MAIN)) libres.push(ticket);
+      // Parqué pour le chef (`chef-todo`, #4129 ; `blocked-on-human` avant), il attend sa réponse (#2805) : rien ne le prend.
+      if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN) && !ticket.labels.includes(CHEF_TODO) && !ticket.labels.includes(A_LA_MAIN)) libres.push(ticket);
       // Au premier tour, un `taken` sans cook ici est peut-être une prise
       // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
       if (premierTour && ticket.labels.includes(LABEL_TAKEN) && !enPass && !enVol.has(ticket.number)) aRendre.set(ticket.number, ticket);

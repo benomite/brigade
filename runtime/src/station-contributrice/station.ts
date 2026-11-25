@@ -26,7 +26,7 @@ import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from 
 import { envelopper, type Cloison } from "../cloison.ts";
 import type { Depot } from "../depot.ts";
 import type { Plafonds } from "../events/guardrails.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
+import { CHEF_TODO, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import type { GardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { MIS_DE_COTE, type GitHub, type Issue } from "../github.ts";
 import { environnementClaude } from "../jeton-claude.ts";
@@ -38,7 +38,7 @@ import { oublierLaBranche, pousserDansLaFourche, type Fourche } from "./fourche.
 import { estUneReclamation, reclamer, rendre, renouveler, type ContexteDeReclamation, type GitHubDeLaReclamation } from "./reclamation.ts";
 
 // Les labels qui retirent un ticket de ceux qu'une station contributrice prend.
-const NON_PRENABLES = [LABEL_TAKEN, LABEL_IN_PASS, LABEL_PARKED, A_LA_MAIN, ...MIS_DE_COTE];
+const NON_PRENABLES = [LABEL_TAKEN, LABEL_IN_PASS, LABEL_PARKED, CHEF_TODO, A_LA_MAIN, ...MIS_DE_COTE];
 
 type TicketDuRail = Pick<Issue, "number" | "title" | "labels" | "epique" | "pr" | "alerte">;
 

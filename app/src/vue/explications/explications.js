@@ -43,8 +43,8 @@ export const EXPLICATIONS = {
   second: "Your product assistant, who helps you write the tickets",
   // §2, `attend` — ce qui attend le chef, ses cartes rouges et l'entrée « TODO (N) » (ticket 3458) : la première phrase.
   TODO: "What waits for the chef's decision.",
-  // §2, `WAITING`.
-  WAITING: "Waiting for a third party, not for you; the kitchen does not take it",
+  // §2, `parqué` (ticket 4129 : WAITING est devenu parked, le mot garde son nom au registre) : la première phrase.
+  WAITING: "A ticket that waits for someone: who it waits for, for what, and until when — a date or a fact; nothing takes it before, and it resumes exactly where it was.",
 };
 
 // Le mot tel que l'écran le montre, en tête de son explication.
@@ -60,7 +60,7 @@ export const MOT_DE_LA_COLONNE = { Pass: "pass" };
 export const MOTS = {
   ecarter: "got it",
   nom: "Explanations of the kitchen's words",
-  aide: "rail, pass, cook, second, TODO and WAITING are each explained once, next to the word, the first time you meet it — kept for you, on all your devices",
+  aide: "rail, pass, cook, second, TODO and parked are each explained once, next to the word, the first time you meet it — kept for you, on all your devices",
   remontrer: "show all the explanations again",
   enCours: "clearing what you have seen…",
   fait: "each explanation shows again the next time you meet its word, on all your devices",

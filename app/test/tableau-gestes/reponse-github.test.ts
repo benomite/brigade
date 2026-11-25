@@ -146,7 +146,7 @@ describe("le commentaire marqué porte ses choix", () => {
     // Sans choix, la carte garde son champ, dont la réponse joue `resume`.
     const carte = carteDuChefDeTodo({ sorte: "product-question", texte: "Which plan?" });
     assert.deepEqual(carte?.choix, []);
-    assert.match(carte?.prixDuTexte ?? "", /removes what holds the ticket \(`served-elsewhere`, `blocked-on-human`, `question`, `decision`, `chef-todo`\)/);
+    assert.match(carte?.prixDuTexte ?? "", /removes what holds the ticket \(`chef-todo`, `parked`, `served-elsewhere`, and the labels of before parked: `blocked-on-human`, `question`, `decision`\): it resumes exactly where it was/);
     // Un commentaire marqué sans texte n'a rien à quoi répondre.
     assert.equal(carteDuChefDeTodo({ sorte: "blocked", texte: "  " }), undefined);
   });

@@ -3,7 +3,7 @@
 // sinon des tickets en file se retiennent en cycle (#3979), ou la livraison
 // d'une épique retient ses propres tickets découpés (#3932).
 import { A_LA_MAIN, secoupent, type TicketLu } from "../brigade-github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
+import { CHEF_TODO, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { tenant } from "../github-etat/prise.ts";
 import { estMisDeCote } from "../github.ts";
 import type { Invariant } from "./invariants.ts";
@@ -26,14 +26,14 @@ export async function tientSaZone(branche: string, { tickets, enCuisine, comment
   const lu = numero === null ? undefined : tickets.find((ticket) => ticket.number === numero);
   if (lu === undefined || enCuisine(lu.number) || lu.labels.includes(LABEL_IN_PASS)) return true;
   if (estMisDeCote(lu.labels) || lu.labels.includes(LABEL_PARKED)) return false;
-  if (lu.labels.includes(A_LA_MAIN)) return true;
+  if (lu.labels.includes(CHEF_TODO) || lu.labels.includes(A_LA_MAIN)) return true;
   if (!lu.labels.includes(LABEL_TAKEN)) return false;
   return commentaires(lu.number).then((lus) => tenant(lus, []) !== null).catch(() => true);
 }
 
 // Un ticket qui attend une prise, et donc sa zone.
 const attendUnePrise = (ticket: TicketLu, enCuisine: (numero: number) => boolean) =>
-  !enCuisine(ticket.number) && ![LABEL_TAKEN, LABEL_IN_PASS, LABEL_PARKED, A_LA_MAIN].some((label) => ticket.labels.includes(label)) && !estMisDeCote(ticket.labels);
+  !enCuisine(ticket.number) && ![LABEL_TAKEN, LABEL_IN_PASS, LABEL_PARKED, CHEF_TODO, A_LA_MAIN].some((label) => ticket.labels.includes(label)) && !estMisDeCote(ticket.labels);
 
 // Cassé quand la PR ouverte d'un tel ticket change des fichiers de la zone d'un
 // ticket qui attend sa prise. La porte de prise ne compte plus cette PR

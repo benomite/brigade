@@ -403,9 +403,10 @@ steps, bubble), `app/src/visite.ts` (the read-only read of `benomite/brigade`, i
 The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
 its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Pass** under its column's
 title; WAITING, shown as **Parked**, under the title of the first column where a card is parked (#4238); **Second** under the second's tab. The Rail, Cooks and TODO lines no longer stand above the columns (#3523). The lines are those of the glossary's entry —
-`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
-third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
-station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
+`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets` — or the first
+sentence of an entry that has several (cook: `A station takes a ticket and runs a cook on it.`; TODO: `What waits for the
+chef's decision.`; parked, #4129: `A ticket that waits for someone: who it waits for, for what, and until when — a date
+or a fact; nothing takes it before, and it resumes exactly where it was.`).
 
 - **Shown once.** An explanation shown is seen: it is written in your record at once, and stays on screen until `got it`
   or until the app reloads. Reloaded, or opened on another device, the app does not show it again; a word you have not
@@ -1122,7 +1123,7 @@ question. On the repository's open issues, read with the token of this computer'
 | `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge the PR of #<ticket> by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #<ticket>” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
-| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
+| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail — set before #4129: the manager now parks for the chef with a `chef-todo` card) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
 
 A `fire` + `blocked-on-human` ticket without a PR reads `Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3369). An issue
 carrying `waiting` waits for a third party, not the chef; an issue carrying `kitchen-board` (left from the old path) is

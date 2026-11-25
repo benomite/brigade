@@ -4,12 +4,13 @@
 // manager consulté, reconnu à la marque de sa consigne. Les suivants passent par
 // la station du faux GitHub, dont le manager est une doublure.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../src/github-etat/etats.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { attenteDeLIssue } from "../src/attente-github/attente-github.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { LABEL_PARKED } from "../src/github-etat/etats.ts";
 import { ticketsDeLaListe } from "../src/epique.ts";
 import type { GitHub } from "../src/github.ts";
@@ -72,7 +73,7 @@ test("through the station of the repository: after its failed tries, the ticket 
   assert.equal(args[args.indexOf("--tools") + 1], "Read,Grep,Glob", "the manager reads the repo, it writes nothing");
   const ticket = faux.ticket(TICKET);
   assert.equal(ticket.labels.has(LABEL_PARKED), false, "not parked for the supervisor");
-  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(ticket.labels.has(CHEF_TODO), false);
   assert.ok(ticket.labels.has("fire"));
   assert.ok(ticket.corps.startsWith(MARQUE_DE_REECRITURE));
   assert.match(ticket.corps, /Make `runtime\/src\/rail\.ts` read the tickets once per turn[\s\S]*<details>[\s\S]*Make the rail faster\./);
@@ -192,7 +193,7 @@ test("a product or design question in the reasons: only then a card for the chef
   const { a } = station(faux, reprise({ choix: "question", motif: "The cooks split on which view to change.", sorte: "product", question: "Should the rail show served tickets?" }), (n) => `the cook asked: which view, ${n}?`);
   await tourner(a, 6, () => reprisesDe(faux, TICKET).length > 0);
   const ticket = faux.ticket(TICKET);
-  assert.ok(ticket.labels.has(A_LA_MAIN));
+  assert.ok(ticket.labels.has(CHEF_TODO));
   assert.equal(parqueParSesEchecs(faux, TICKET), false);
   assert.equal(ticket.labels.has(ECHECS), false);
   const [carte] = reprisesDe(faux, TICKET);
@@ -200,6 +201,9 @@ test("a product or design question in the reasons: only then a card for the chef
   assert.doesNotMatch(carte ?? "", /not sent to the chef/);
   // La carte lit la dernière ligne qui finit par « ? » : c'est la question, pas un motif d'essai.
   assert.equal((carte ?? "").split("\n").filter((ligne) => ligne.trim().endsWith("?")).at(-1), "**Question for the chef (product):** Should the rail show served tickets?");
+  // #4129 : la carte du TODO suit la reprise, qui garde sa marque en tête ; elle s'ouvre sur la question.
+  const carteDuTodo = (faux.commentaires.get(TICKET) ?? []).map((c) => c.body).find((corps) => corps.startsWith("<!-- brigade:todo kind=blocked -->\n"));
+  assert.equal(carteDuTodo?.split("\n")[1], "**Question for the chef (product):** Should the rail show served tickets?");
 });
 
 test("a manager that cannot rework it, or no manager on the station: the ticket is parked for the supervisor, and the comment says why", async () => {

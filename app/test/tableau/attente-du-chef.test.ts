@@ -251,3 +251,24 @@ describe("l'app et le second ne se contredisent pas : la même lecture, les mêm
     assert.match(contexteDeLaFile({ nom: "kitchen" }, file), /file non lue : GitHub n'a pas rendu ce qui attend le chef\nWhat awaits the chef/);
   });
 });
+
+// #4129 : le manager parque pour le chef l'issue qu'il lui refuse — `chef-todo` et la carte de sa question, plus le label
+// `question` ou `decision`. Sa carte garde la réponse qu'il recommande, comme celle d'un écart (#3434).
+describe("la carte `chef-todo` d'une question du manager (#4129)", () => {
+  const carte = (texte: string): Record<number, Issue> => ({ 70: { labels: ["chef-todo"], commentaires: [dit(`<!-- brigade:todo kind=product-question -->\n${texte}`, "2026-11-05T06:00:00Z")] } });
+  const entreeDe = async (monde: Record<number, Issue>) => (await lue(github(monde))).attentes.find(({ ticket }) => ticket === 70);
+
+  test("sa ligne `Recommended:` met en avant le choix qu'elle nomme, et quitte le texte de la carte", async () => {
+    const entree = await entreeDe(carte("Which column order does the export keep?\n\n- [resume] Keep the old order\n- [close] Drop the export\n\n**Recommended:** Keep the old order — the users read it that way"));
+    assert.deepEqual(entree?.chef, {
+      sorte: "product-question",
+      texte: "Which column order does the export keep?\n- [resume] Keep the old order\n- [close] Drop the export",
+      recommandee: { texte: "Keep the old order", pourquoi: "the users read it that way" },
+    });
+  });
+
+  test("sans ligne `Recommended:`, la carte est comme toute autre : son texte tel quel, aucune recommandation dite", async () => {
+    const entree = await entreeDe(carte("Which column order does the export keep?\n\n- [resume] Keep the old order\n- [close] Drop the export"));
+    assert.deepEqual(entree?.chef, { sorte: "product-question", texte: "Which column order does the export keep?\n\n- [resume] Keep the old order\n- [close] Drop the export" });
+  });
+});
