@@ -183,3 +183,20 @@ test("a held zone survives the read-back of the facts and reaches the banner (#4
   assert.match(hote.textContent, /zone held by PR 4077/);
   assert.deepEqual(arretCuisineLu({ cause: { kind: "zone-held", pr: "4077", zone: "app/src/vue" }, since }), { arretCuisine: { cause: { kind: "unknown" }, since, statut: "cause unknown" } });
 });
+
+test("an unknown kind never keeps a text the facts carry: the status is the runtime's 'cause unknown' (#4244)", () => {
+  const since = "2026-11-20T08:30:00Z";
+  assert.equal(arretCuisineLu({ cause: { kind: "out-of-gas" }, since, statut: "zone held by PR 1" }).arretCuisine?.statut, "cause unknown");
+});
+
+test("a banner without a status says each cause in its own words (#4244)", () => {
+  const since = "2026-11-20T08:30:00Z";
+  const dit = (cause: unknown) => {
+    const hote = new Faux("div");
+    monterLeBandeau(doc, hote).maj({ cause, since } as never);
+    return hote.textContent;
+  };
+  assert.match(dit({ kind: "main-red" }), /main is red/);
+  assert.match(dit({ kind: "unknown" }), /the cause is unknown/);
+  assert.doesNotMatch(dit({ kind: "unknown" }), /main is red/);
+});
