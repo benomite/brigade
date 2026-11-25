@@ -33,14 +33,16 @@ import { tenirLesEssais } from "./essai.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
+import { approuverLeGeste, lireLesRetenus } from "./held/lecture.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
+import { ecrireDansLeProjet, lireDansLeProjet } from "./vue/fiche-projet/fiche-projet-dossier.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { brancherLeMotAuCook } from "./vue/mot-au-cook/mot-au-cook-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
-import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
+import { GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
@@ -1200,17 +1202,15 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, oui: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, oui, cuisines.cuisineDe(vise));
 });
-// Un geste de WAITING, sur une carte du rail ou sa fiche : « resume », quand la cuisine du projet tourne sur ce poste, sa commande
-// part dans le second du projet, comme un geste du socle (attente.ts) ; sinon il s'écrit sur l'issue, comme la commande
-// l'y écrit (vue/attente/attente-github.ts, #3075). La vue nomme le geste et le ticket, et donne ce que le chef a rempli.
-// « It arrived, back to the kitchen » n'a pas de commande : il retire `waiting` de l'issue (gestes-github.ts), comme le
-// geste `cuisine` de la fiche.
+// Un geste de WAITING, sur une carte du rail ou sa fiche : il s'écrit sur l'issue, jamais par une commande de la box —
+// parqué ou déparqué comme le second le fait (vue/attente/attente-github.ts, #3075, #4262). La vue nomme le geste et le
+// ticket, et donne ce que le chef a rempli.
 ipcMain.handle("attente", async (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const aujourdhui = new Date();
-  const rendu = await jouerLAttente({ id, ticket, saisie, aujourdhui, lu: () => tableaux.dernier(vise.nom), client: clientDesLabels, parLeRuntime: () => ecrireAttente(terminaux, id, vise, ticket, saisie, aujourdhui, cuisines.cuisineDe(vise)) });
-  if (rendu !== undefined && "fait" in rendu) tableaux.oublier();
+  const rendu = await jouerLAttente({ id, ticket, saisie, aujourdhui, lu: () => tableaux.dernier(vise.nom), client: clientDesLabels });
+  if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
@@ -1474,7 +1474,7 @@ ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
   return rendu;
 });
 // Les outils que l'app ne livre pas (#4059, outils-requis.ts) : la connexion à GitHub, le clone et le login Max les
-// demandent d'abord ; un outil qui manque a son écran, qui l'installe par le chemin que le runtime choisit.
+// demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation (l'app n'installe rien, #4266).
 const outilsRequis = tenirOutilsRequis({
   charger: async () => {
     const [requis, machine, outils] = await Promise.all([
@@ -1485,10 +1485,9 @@ const outilsRequis = tenirOutilsRequis({
     return { ...requis, ...machine, programmesDe: outils.programmesDe };
   },
   env: process.env,
-  ouvrir: (url) => shell.openExternal(url),
+  autoriserLaPage: (lien) => pagesDuPremier.add(lien),
 });
 ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
-ipcMain.handle("installerOutil", (_, outil: unknown) => outilsRequis.installer(outil));
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
 ipcMain.handle("seConnecterAClaude", () => loginIci());
 // La page où taper le code se rouvre depuis l'écran.
@@ -1641,6 +1640,10 @@ ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
 });
 // Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humains-du-projet.ts).
+// Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
+// et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
+ipcMain.handle("gestesRetenus", (_, nom: unknown) => lireLesRetenus(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
+ipcMain.handle("approuverGeste", (_, nom: unknown, id: unknown) => approuverLeGeste(String(nom), cuisineDuProjet(nom).lu, id, lancerSurLaCuisine));
 ipcMain.handle("listerLesHumains", (_, nom: unknown) => {
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesHumains(vise.nom, lu, lancerSurLaCuisine);
@@ -1664,6 +1667,10 @@ ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unkno
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
 });
+// La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
+// poste (vue/fiche-projet/fiche-projet-dossier.ts).
+ipcMain.handle("lireUnFichierDuProjet", (_, nom: unknown, chemin: unknown) => lireDansLeProjet(connu(nom), chemin));
+ipcMain.handle("ecrireUnFichierDuProjet", (_, nom: unknown, chemin: unknown, texte: unknown) => ecrireDansLeProjet(connu(nom), chemin, texte));
 brancherLeMotAuCook(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le mot au cook (#4048, vue/mot-au-cook/mot-au-cook-box.ts)
 // Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
 // marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils

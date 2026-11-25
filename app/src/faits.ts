@@ -12,6 +12,8 @@
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
 // Ce sont les deux seules choses lues hors de la forme.
 import { vueDesPostMortems, type VueDesPostMortems } from "./projets/post-mortems.ts";
+import { digestLu, filsLus, type DigestLu, type FilsLus } from "./journal/fils.ts";
+import { journalDuJour, type JournalDuJour } from "./projets/journal-du-jour.ts";
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
@@ -19,7 +21,7 @@ import type { AlerteDuRail } from "./attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
-import { lieuDe, lignesDuRail, motDEtat, porter, priorite, type Porte } from "./bon.ts";
+import { LE_CHEF, lieuDe, lignesDuRail, motDEtat, parqueDe, porter, priorite, type Porte } from "./bon.ts";
 import { sEssaie } from "./essai.ts";
 import { ligneAuTravail, ligneBaseRouge, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllisible, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRefusee, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
@@ -488,6 +490,10 @@ export type Faits = {
   // Ce que les cooks ont appris au projet, ses leçons et ses profils (apprentissage.ts) : absent quand il
   // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
   apprentissage?: ApprentissageLu;
+  // Les fils des agents du projet, et le digest de la veille (journal/fils.ts, ticket 4274) : le journal du jour et la carte
+  // du matin de sa vue — absents d'un runtime qui ne les donne pas.
+  fils?: FilsLus;
+  digest?: DigestLu;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -524,8 +530,8 @@ export type Faits = {
 // `essai` : le rang de l'essai en cours d'un ticket pris plus d'une fois (#3923) — absent pour un premier essai.
 // `sensible` : son ticket porte le label `sensitive` (ticket 3224) — la carte le marque.
 // `etape` : sur une carte qui attend le chef, la colonne de son étape, où la vue la pose en rouge (#3458) — TODO n'est
-// pas une colonne. `relancePassee` : sur une carte de WAITING, sa relance est passée — elle revient au chef, et la vue la
-// pose en rouge dans WAITING.
+// pas une colonne. `relancePassee` : sur une carte de WAITING, sa relance est passée — sa ligne le signale ; parked jusqu'à
+// une date, elle n'attend pas le chef pour autant : ni rouge, ni dans son TODO (#4261).
 // `miseDeCote` : sur une carte de TODO d'un projet GitHub seul, le label qui met son ticket de côté, et les `#N` de sa
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
@@ -616,6 +622,11 @@ export type Tableau = {
   // Où en est chaque ticket pris, en pass ou servi, que le récit du premier ticket suit (ticket 3302,
   // vue/premier-ticket/) — absent d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ).
   etapesDesTickets?: EtapeDuTicket[];
+  // Le journal du jour, tiré des fils des agents à cette lecture (projets/journal-du-jour.ts, ticket 4274), avec les gestes
+  // illisibles qu'il n'a pas pu ranger — ou pourquoi les fils ne se lisent pas ; et le digest de la veille. Absents d'un
+  // runtime qui ne les donne pas.
+  journal?: (JournalDuJour & { illisibles: number }) | { illisible: string };
+  digest?: DigestLu;
 };
 
 // Un ticket tel que le récit du premier ticket le suit (ticket 3302) : son mot d'état (`pris`, `en pass`, `base rouge`,
@@ -1017,6 +1028,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
       ...(budgetDesAppelsLu(racine.budgetDesAppels) === undefined ? {} : { budgetDesAppels: budgetDesAppelsLu(racine.budgetDesAppels) }),
       ...(racine.apprentissage === undefined ? {} : { apprentissage: apprentissageLu(racine.apprentissage) }),
+      ...(filsLus(racine.fils) === undefined ? {} : { fils: filsLus(racine.fils) }),
+      ...(digestLu(racine.digest) === undefined ? {} : { digest: digestLu(racine.digest) }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe || apprentissageInforme(erreur)) return { informe: erreur.message };
@@ -1260,8 +1273,6 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   const dAutres = new Map((faits.attendAutres ?? []).map((attendu) => [attendu.ticket, attendu]));
   for (const entree of attend === undefined ? [] : ticketsDe(attend.bloc)) dits.set(entree.ticket, [...(dits.get(entree.ticket) ?? []), ditDe(entree)]);
   for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
-  // Un ticket parked que la file nomme attend le chef : sa carte reste dans la colonne où il attend, et va aussi dans son TODO.
-  const parquesPourLeChef = new Set([...enWaiting].filter((ticket) => dits.has(ticket)));
   for (const ticket of enWaiting) dits.delete(ticket);
   // Une question du manager avant de découper une épique — d'un runtime d'avant `decision`, ce que sa
   // ligne du bloc en dit —, et une issue que la question retient : la carte dit la question.
@@ -1359,7 +1370,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     // TODO, pas dans ces colonnes : elle n'en porte pas.
     const age = connu === undefined || connu.illisible !== undefined || dit !== undefined ? undefined : anciennete(connu.etat, connu.depuis, faits.lu, faits.cadence?.medianSeconds);
     const essais = age === undefined ? undefined : points(connu?.essais);
-    return {
+    const posee: Carte = {
       ticket,
       ...ligne,
       ...(essais === undefined ? {} : { essais }),
@@ -1412,6 +1423,11 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(prio === undefined ? {} : { prio: prio === "-" ? SANS_PRIO : prio }),
       ...(age === undefined ? {} : { age }),
     };
+    // Ce qui attend le chef, ou un autre humain du projet, est parked pour lui (#4261) : pour sa question — ou ce que sa
+    // carte attend —, sans date. Parked pour le chef, c'est une carte de son TODO.
+    if (dit === undefined) return posee;
+    const autrui = dits.has(ticket) ? undefined : dAutres.get(ticket)?.qui.join(", ");
+    return { ...posee, parque: parqueDe(autrui ?? LE_CHEF, posee.todo?.question ?? posee.fiche.attendu, null) };
   };
 
   // La carte d'une question répondue, qui attend que le manager lise la réponse : qui y a répondu,
@@ -1470,9 +1486,10 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
               { libelle: "on arrival", valeur: tiers.aLArrivee },
             ],
       ...(tiers == null ? { sans: TIERS_PAS_DONNE } : {}),
-      // Sa relance est passée : il revient au chef, sa carte est rouge dans WAITING (#3458).
+      // Sa relance est passée : sa ligne le signale (#3458) — une date passée ne la rend pas au chef (#4261).
       ...(tiers?.relance != null && relance < 0 ? { relancePassee: true as const } : {}),
-      ...(tiers == null ? {} : { parque: { qui: tiers.qui, jusqua: tiers.relance, ...(parquesPourLeChef.has(ticket) ? { chef: true as const } : {}) } }),
+      // Parked pour qui elle attend, pour ce qu'elle attend : pour le chef seulement, elle est dans son TODO (#4261).
+      ...(tiers == null ? {} : { parque: parqueDe(tiers.qui, tiers.quoi, tiers.relance) }),
       fiche: entete({ titre, url, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }),
       // Sans relance, personne n'a posé l'attente : rien à reprendre ni à renvoyer, le ticket repart seul.
       ...(tiers?.relance === null ? {} : { gestes: ["attente-reprendre" as const, "attente-arrivee" as const] }),
@@ -1633,6 +1650,8 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
     apprentissage: apprentissageDe(faits.apprentissage),
     etapesDesTickets: etapesDesTickets(faits),
+    ...(faits.fils === undefined ? {} : { journal: "illisible" in faits.fils ? faits.fils : { ...journalDuJour(faits.fils.fils, new Date(faits.lu)), illisibles: faits.fils.illisibles } }),
+    ...(faits.digest === undefined ? {} : { digest: faits.digest }),
   };
 }
 
