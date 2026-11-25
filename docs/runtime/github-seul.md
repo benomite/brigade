@@ -257,7 +257,8 @@ base, the stale-branch pruning).
   it no longer holds its zone. On 2026-11-19, #3764 kept `taken` on a timed wait for over two hours across two
   restarts of its station, and the claim gate skipped #3761 and #3786 as "zone held by #3764".
 - **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
-  disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
+  disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). Before each cook, the first
+  included, the admission defers it while the load is over its limit or the cores cap already runs (#4210). With the machine as the bound,
   the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
   The one exception is a ticket labelled `saturation-repair`, the repair of the saturation itself: the machine does not
   hold it (nor does the arbiter read the project as saturated for it), while the stop, the breaker, the quota, the
