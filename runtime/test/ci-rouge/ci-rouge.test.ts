@@ -48,6 +48,7 @@ test("a red CI on a cook/<n>-github PR with no cook on it and held for the chef 
   assert.equal(numero, 30);
   // Un renvoi comme ceux du pass : sa marque, sa tête, sa cause, les checks rouges — et aucune carte du chef.
   assert.match(corps, new RegExp(`^<!-- brigade:renvoi n=1 sha=${SHA} ci-rouge -->\\nStation \`box/claude\`: sent back to a cook — the CI is red on \`aaaaaaa\`: tests\\n`));
+  assert.match(corps, /\n\nSend-back reason: failing test\n\nNo cook was working/);
   assert.doesNotMatch(corps, /tests, types/);
   assert.doesNotMatch(corps, /brigade:todo/);
 });

@@ -5,7 +5,7 @@
 export const MOTIFS_DE_RENVOI = ["wrong behaviour", "unmet criterion", "failing test"] as const;
 export type MotifDeRenvoi = (typeof MOTIFS_DE_RENVOI)[number];
 
-export const estUnMotifDeRenvoi = (motif: string): motif is MotifDeRenvoi => (MOTIFS_DE_RENVOI as readonly string[]).includes(motif);
+const estUnMotifDeRenvoi = (motif: string): motif is MotifDeRenvoi => (MOTIFS_DE_RENVOI as readonly string[]).includes(motif);
 
 // Ne renvoie rien si le motif est permis ; sinon lève, en nommant les motifs permis.
 export function verifierMotifDeRenvoi(motif: string): asserts motif is MotifDeRenvoi {
@@ -41,4 +41,30 @@ export function jugerLaPR({ remarques, ci }: { remarques: readonly Remarque[]; c
 export function commentaireDeRenvoi({ motif, detail }: { motif: string; detail: string }): string {
   verifierMotifDeRenvoi(motif);
   return `Send-back reason: ${motif}\n\n${detail}`;
+}
+
+// Le texte d'une relecture qui demande des changements, en remarques : chaque puce « - **Blocking** » est de fond, avec la
+// nature que ses mots disent ; toute autre puce (« - Advice ») est de forme. Un texte sans puce est une seule remarque de fond.
+export function remarquesDeLaRelecture(texte: string): Remarque[] {
+  const puces = texte.split(/^(?=- )/m).filter((p) => p.startsWith("- "));
+  if (puces.length === 0) return [{ nature: "behaviour", texte }];
+  return puces.map((puce) => {
+    if (!puce.startsWith("- **Blocking**")) return { nature: "form", texte: puce.trim() };
+    if (/criterion/i.test(puce)) return { nature: "criterion", texte: puce.trim() };
+    if (/mutation check|red on main|failing test|test fails|red ci/i.test(puce)) return { nature: "test-failure", texte: puce.trim() };
+    return { nature: "behaviour", texte: puce.trim() };
+  });
+}
+
+// Les motifs d'un renvoi par la relecture : celle-ci a demandé des changements, donc une relecture dont toutes les puces
+// sont de forme renvoie quand même, pour un comportement faux.
+export function motifsDeLaRelecture(texte: string): MotifDeRenvoi[] {
+  const { motifs } = jugerLaPR({ remarques: remarquesDeLaRelecture(texte), ci: "green" });
+  return motifs.length > 0 ? motifs : ["wrong behaviour"];
+}
+
+// La ligne qui énonce les motifs d'un renvoi, chacun vérifié contre la liste.
+export function motifsEnonces(motifs: readonly string[]): string {
+  for (const motif of motifs) verifierMotifDeRenvoi(motif);
+  return `Send-back reason: ${motifs.join(", ")}`;
 }

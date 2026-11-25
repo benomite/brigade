@@ -240,6 +240,20 @@ test("a review that requests changes keeps the PR unmerged", async () => {
   assert.match(verdictDe(faux, 1000)[0]?.body ?? "", /verdict=request-changes[\s\S]*tests missing/);
 });
 
+test("a review send-back states the reason its blocking remarks carry, and not one for its advice (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(5);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "- **Blocking**: Criterion of the ticket not met — it is not wired.\n- Advice: rename the test." }) });
+  for (let tour = 0; tour < 4 && !(faux.commentaires.get(5) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const corps = (faux.commentaires.get(5) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /^<!-- brigade:renvoi n=1 sha=/);
+  assert.match(corps, /sent back to a cook \(1\/2\) — /);
+  assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
+});
+
 test("a cook that delivers nothing gives the ticket back on the issue, which another station then takes", async () => {
   const faux = new FauxGitHub();
   faux.feu(6);
@@ -405,7 +419,7 @@ test("a red-CI send-back counts itself and states its reason from the closed lis
   assert.match(corps, /^<!-- brigade:renvoi n=1 sha=/);
   assert.match(corps, /sent back to a cook \(1\/2\) — /);
   assert.match(corps, /Send-back reason: failing test/);
-  assert.match(corps, /Allowed send-back reasons: wrong behaviour, unmet criterion, failing test/);
+  assert.match(corps, /\n\nSend-back reason: failing test$/);
 });
 
 test("a project with CI on its PRs keeps requiring it: an approved PR whose CI never starts is not merged, and no gates are run for it (#2456)", async () => {

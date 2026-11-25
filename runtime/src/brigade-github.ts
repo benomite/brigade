@@ -97,7 +97,7 @@ import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
-import { commentaireDeRenvoi, jugerLaPR, MOTIFS_DE_RENVOI, verifierMotifDeRenvoi } from "./renvoi-sur-le-fond/regle.ts";
+import { jugerLaPR, motifsDeLaRelecture, motifsEnonces } from "./renvoi-sur-le-fond/regle.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -593,7 +593,7 @@ function memeRenvoi(corps: string, raison: string, maintenant: Date): boolean {
   const dit = corps.split("\n").slice(1).join("\n");
   const debut = dit.indexOf(" — ");
   if (debut === -1) return false;
-  const avant = dit.slice(debut + 3);
+  const avant = dit.slice(debut + 3).split("\n\nSend-back reason:")[0] ?? "";
   if (normeDuRenvoi(avant) === normeDuRenvoi(raison)) return true;
   const [a, b] = [lireAttenteDuCook(avant, maintenant), lireAttenteDuCook(raison, maintenant)];
   return a !== null && b !== null && a.followUp === b.followUp;
@@ -635,15 +635,10 @@ function direLaFin({ conclusion, fin, flux }: { conclusion: string; fin: { code:
 const FENETRE_DES_STATIONS_MS = 2 * 24 * 3600_000;
 const ISSUES_LUES_AU_PLUS = 40;
 
-// Une CI rouge sans remarque de fond est un test qui échoue (#4302) : la règle de renvoi le juge, le motif est vérifié
-// contre la liste fermée, et le commentaire de renvoi l'énonce avec les motifs permis.
-const motifsDuRenvoiParCI = (): string =>
-  jugerLaPR({ remarques: [], ci: "red" })
-    .motifs.map((motif) => {
-      verifierMotifDeRenvoi(motif);
-      return `${commentaireDeRenvoi({ motif, detail: "a check of the PR is red" })}\nAllowed send-back reasons: ${MOTIFS_DE_RENVOI.join(", ")}`;
-    })
-    .join("\n\n");
+// Le motif d'un renvoi, dit sur son commentaire (#4302) : une CI rouge sans remarque de fond est un test qui échoue ; une
+// relecture dit le sien par la nature de ses remarques. Un renvoi pour conflit n'a aucun des trois motifs : il n'en dit pas.
+const motifDuRenvoi = (genre: "conflict" | "red CI" | "review", raison: string): string | null =>
+  genre === "conflict" ? null : motifsEnonces(genre === "red CI" ? jugerLaPR({ remarques: [], ci: "red" }).motifs : motifsDeLaRelecture(raison));
 
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
@@ -1579,6 +1574,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
       return;
     }
+    const motifDit = motifDuRenvoi(genre, raison);
     const deja = renvois.length;
     const marque = genre === "conflict" ? MARQUE_DE_CONFLIT : "";
     // Rendu deux fois de suite pour le même résultat, il ne repart pas une troisième fois de la même façon (#3814) : ce
@@ -1590,7 +1586,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (attenteDite !== null) {
       // Le geste de WAITING d'abord : s'il échoue, aucun renvoi n'est écrit pour cette tête, et le tour suivant le refait.
       await mettreEnAttenteParLaCuisine(github, ticket.number, attenteDite, { station: nom, mots: raison });
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: handed back twice in a row with the same result — ${raison}\n\nNot relaunched a third time: this result says the ticket cannot be done yet, so it goes to WAITING, awaiting ${attenteDite.who}, and comes back on the rail on its own on its follow-up date (comment above).`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: handed back twice in a row with the same result — ${raison}${motifDit === null ? "" : `\n\n${motifDit}`}\n\nNot relaunched a third time: this result says the ticket cannot be done yet, so it goes to WAITING, awaiting ${attenteDite.who}, and comes back on the rail on its own on its follow-up date (comment above).`);
       avertir(`brigade : #${ticket.number} sur ${nom} — handed back twice with the same result, which says it cannot be done yet: WAITING, back on the rail on ${attenteDite.followUp.slice(0, 10)}`);
       chrono.oublier(ticket.number);
     }
@@ -1606,14 +1602,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (attenteDite !== null) {
       // En WAITING : le commentaire et le label sont posés.
     } else if (suite !== null && "auChef" in suite) {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${pourquoi}: not served elsewhere, nobody serves it. A human decides.\n\n${suite.auChef}`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\n${motifDit ?? `Blocking reason: ${genre}`}\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${pourquoi}: not served elsewhere, nobody serves it. A human decides.\n\n${suite.auChef}`);
       await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
       chrono.oublier(ticket.number);
     } else if (suite !== null) {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nIts tries are spent${memeResultat ? " (handed back twice in a row with the same result: not relaunched a third time as it stands)" : ""}: the ticket went to the manager, not to the chef — its comment below says what it did.`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\n${motifDit ?? `Blocking reason: ${genre}`}\nIts tries are spent${memeResultat ? " (handed back twice in a row with the same result: not relaunched a third time as it stands)" : ""}: the ticket went to the manager, not to the chef — its comment below says what it did.`);
       await direLaReprise(ticket.number, suite);
     } else {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}${genre === "red CI" ? `\n\n${motifsDuRenvoiParCI()}` : ""}`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}${motifDit === null ? "" : `\n\n${motifDit}`}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
