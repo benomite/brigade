@@ -21,7 +21,7 @@ function uneMachine(plateforme: NodeJS.Platform, poses: string[], { reussit = ()
   return { chemins, runtime };
 }
 
-test("ce qui manque : les outils demandés, dans l'ordre où les installer, chacun avec sa page", async () => {
+test("ce qui manque : les outils demandés, dans l'ordre où les installer, chacun avec son chemin", async () => {
   const { runtime } = uneMachine("darwin", ["/usr/local/bin/gh"]);
   const outils = tenirOutilsRequis({ charger: async () => runtime, env: { PATH: "/usr/bin:/usr/local/bin" } });
   assert.deepEqual((await outils.manquants()).map(({ outil }) => outil), ["git", "claude"]);

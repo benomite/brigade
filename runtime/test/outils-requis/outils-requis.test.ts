@@ -24,9 +24,7 @@ test("chaque outil, sur chaque plateforme, a une page d'installation officielle 
   assert.equal(choisirInstallation("git", { plateforme: "win32", presents: [] }).lien, "https://git-scm.com/download/win");
   assert.equal(choisirInstallation("gh", { plateforme: "darwin", presents: [] }).lien, "https://cli.github.com");
   assert.equal(choisirInstallation("gh", { plateforme: "linux", presents: [] }).lien, "https://github.com/cli/cli#installation");
-});
-
-test("sous Windows, winget n'est cité que s'il est sur le PC", () => {
+  // Sous Windows, winget n'est cité que s'il est sur le PC.
   assert.doesNotMatch(choisirInstallation("gh", { plateforme: "win32", presents: [] }).texte, /winget/);
   assert.match(choisirInstallation("gh", { plateforme: "win32", presents: ["winget"] }).texte, /winget install --id GitHub\.cli/);
 });
