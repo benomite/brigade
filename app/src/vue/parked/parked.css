@@ -1,0 +1,54 @@
+/* Le TODO parked du chef (ticket 4281) : dans le TODO, au-dessus des colonnes, un item par ticket parked qui l'attend —
+   qui, pour quoi, jusqu'à quand — et ses boutons ; le contrôle de park s'ouvre sous l'item. */
+#rail .parked-todo .tete-parked {
+  margin: 0 0 var(--pas-1);
+  font-weight: 600;
+  color: var(--rouge-clair);
+}
+#rail .parked-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#rail .parked-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  padding-left: var(--pas-2);
+  border-left: 3px solid var(--rouge);
+}
+#rail .parked-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1) var(--pas-3);
+  margin: 0;
+}
+#rail .parked-ligne .libelle,
+#rail .park-control label > span {
+  color: var(--discret);
+}
+#rail .parked-note,
+#rail .park-reason {
+  margin: 0;
+  color: var(--texte-doux);
+}
+#rail .parked-answers,
+#rail .park-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1);
+}
+#rail .park-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--pas-1) var(--pas-2);
+}
+#rail .park-control label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

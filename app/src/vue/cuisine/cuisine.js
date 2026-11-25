@@ -121,17 +121,18 @@ export function ligneParquee(doc, parque) {
 
 /**
  * Le TODO du chef : une entrée par ticket qui l'attend — son numéro et son titre ; un clic ouvre sa carte. `avis` : ce qui
- * attend le chef sans être un ticket (le dépôt pas préparé). Rien du tout quand rien ne l'attend.
- * @param {Fabrique} doc @param {{ cartes: readonly Carte[], avis: readonly any[], ouvrir: (carte: Carte) => void }} todo
+ * attend le chef sans être un ticket (le dépôt pas préparé, les tickets parked qui l'attendent : parked/, ticket 4281). Rien du
+ * tout quand rien ne l'attend. `compte` : ce qui l'attend en tout, quand des tickets sont dans `avis` plutôt qu'en entrée.
+ * @param {Fabrique} doc @param {{ cartes: readonly Carte[], compte?: number, avis: readonly any[], ouvrir: (carte: Carte) => void }} todo
  */
-export function poserLeTodo(doc, { cartes, avis, ouvrir }) {
+export function poserLeTodo(doc, { cartes, compte, avis, ouvrir }) {
   if (cartes.length === 0 && avis.length === 0) return undefined;
   const cadre = doc.createElement("div");
   cadre.className = "todo-du-rail";
   cadre.ariaLabel = "What awaits you";
   const tete = doc.createElement("p");
   tete.className = "tete-du-todo";
-  tete.textContent = `TODO (${cartes.length})`;
+  tete.textContent = `TODO (${compte ?? cartes.length})`;
   cadre.append(tete);
   if (cartes.length > 0) {
     const liste = doc.createElement("ol");

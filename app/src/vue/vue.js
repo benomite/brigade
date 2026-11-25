@@ -112,6 +112,10 @@ import { ligneDesAlertesDuRail } from "./attente-du-rail/ligne-des-alertes.js";
 import { monterLeBandeau } from "./bandeau-arret/bandeau-arret.js";
 import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
+import { parkControl } from "./parked/park-control.js";
+import { parkGesture } from "./parked/park-gesture.js";
+import { parkedInTodo } from "./parked/parked-todo.js";
+import { CHEF, cardOf, notParkedForChef, parkedRecords } from "./parked/records.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
@@ -983,6 +987,12 @@ const formulairesDAttente = new Map();
 // dit sous ses gestes tant qu'elle est dans WAITING.
 /** @type {Map<string, { envoi: true } | { fait: string, detail: string } | { refus: string, detail: string }>} */
 const arriveesDeCartes = new Map();
+// Le TODO parked du chef (parked/, ticket 4281) : les items dont le contrôle de park est ouvert, et ce que le chef y a tapé,
+// par projet et ticket — gardés d'un rendu à l'autre.
+/** @type {Map<string, Set<number>>} */
+const parkOuverts = new Map();
+/** @type {Map<string, import("./parked/park-control.js").Form>} */
+const parkSaisies = new Map();
 // Les gestes directs, et les confirmés, dits de même (gestes.ts) : le clic d'un direct fait partir
 // sa commande dans le second — ou dit pourquoi elle ne part pas ; celui d'un confirmé ouvre sa
 // confirmation, et rien ne part avant son « oui ». La vue ne le décide pas.
@@ -3248,6 +3258,11 @@ async function arriver(projet, ticket) {
   if (ficheDe(projet, ticket)) poserFiche();
 }
 
+// Park et unpark depuis le TODO du chef (parked/, ticket 4281) : un seul geste pour tout projet, par les gestes d'attente du
+// pont ; parti sur GitHub, la cuisine est relue ; parti dans le second, sa sortie s'y lit.
+const BACK_TO_THE_KITCHEN = "back to the kitchen";
+const garerParLePont = parkGesture((projet, id, ticket, saisie) => brigade.attente(projet, id, ticket, saisie), { lire: () => lireLesFaits(), garder });
+
 // Un geste de WAITING part dans le second, comme un geste du socle : sa sortie s'y lit, sa note dit
 // ce qui est parti. Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
 /** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
@@ -5300,7 +5315,23 @@ function poserLeRail(projet) {
   // Le TODO du chef (ticket 4238) : exactement ce qui l'attend — ses cartes rouges, parked compris, et le projet pas préparé
   // pour Brigade (ticket 2628) —, une entrée chacun, qui ouvre sa carte. Posé sous les colonnes, il se montre au-dessus d'elles.
   const avisDeDepot = avisDuDepot(projet, "todo");
-  const todo = poserLeTodo(document, { cartes: ceQuiTAttend(plan), avis: avisDeDepot === undefined ? [] : [avisDeDepot], ouvrir: (carte) => ouvrirFiche(projet, carte, posees.get(carte) ?? rail) });
+  // Les tickets parked qui l'attendent y sont, chacun avec ses boutons et son contrôle de park (parked/, ticket 4281) ; les
+  // autres y gardent leur entrée.
+  const quiTAttend = ceQuiTAttend(plan);
+  const parques = parkedInTodo(document, {
+    records: parkedRecords(lesCartes, projet.nom, arriveesDeCartes),
+    chef: CHEF,
+    choices: [BACK_TO_THE_KITCHEN],
+    answer: (ticket) => void arriver(projet, ticket),
+    readOnly: lectureSeuleDe(projet),
+    open: (ticket) => {
+      const carte = cardOf(lesCartes, ticket);
+      if (carte) ouvrirFiche(projet, carte, posees.get(carte) ?? rail);
+    },
+    opened: parkOuverts.get(projet.nom) ?? parkOuverts.set(projet.nom, new Set()).get(projet.nom),
+    control: ({ ticket, step }) => parkControl(document, { project: projet.nom, ticket, step, gesture: garerParLePont, form: parkSaisies.get(`${projet.nom}#${ticket}`) ?? parkSaisies.set(`${projet.nom}#${ticket}`, {}).get(`${projet.nom}#${ticket}`) }),
+  });
+  const todo = poserLeTodo(document, { cartes: notParkedForChef(quiTAttend), compte: quiTAttend.length, avis: [avisDeDepot, ...parques].filter(Boolean), ouvrir: (carte) => ouvrirFiche(projet, carte, posees.get(carte) ?? rail) });
   // À côté du TODO, hors des colonnes : les réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket
   // 2151) ; puis ce qui attend un autre humain du projet, replié (ticket 2985). Ni l'un ni l'autre ne l'attend.
   const aCote = [];
