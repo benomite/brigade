@@ -82,6 +82,8 @@ export type GardesDuTour = {
   // le projet, faux s'il n'en voit aucune dans son attente, s'il ne retient plus
   // la station ou s'il ne répond pas (#2832). Une seule attente à la fois.
   attendreUnePlace(): Promise<boolean>;
+  // Depuis quand la machine retient la station (#4173) : l'instant de sa retenue, ou null si elle n'est pas retenue pour elle.
+  retenueDeLaMachineDepuis(): string | null;
 };
 
 export type OptionsDesGardes = {
@@ -396,6 +398,10 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
 
   return {
     lancer,
+    retenueDeLaMachineDepuis: () => {
+      const etat = etatStation(base, station);
+      return etat?.heldReason === "machine" ? etat.heldAt : null;
+    },
     retenue: async (cooks, reparation) => {
       lueCeTour = true;
       const retenue = await retenueLue(cooks, reparation !== undefined);

@@ -4,6 +4,7 @@
 // nées d'un découpage, corps d'une épique, PR, CI, merge. Seul module qui lance `gh`. Sous l'identité unique de la
 // machine, c'est `gh` qui porte l'authentification ; sous une identité de rôle,
 // le jeton lui est remis à chaque appel (voir `identites.ts`).
+import { etiquettesALaCreation } from "./liberer-la-machine.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -718,7 +719,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const refus = refusDeLaCreation({ titre, corps });
       if (refus !== null) throw new Error(refus);
       const chemin = `repos/${depot}/issues`;
-      const champs = ["-f", `title=${titre}`, "-f", `body=${corps}`, ...labels.flatMap((label) => ["-f", `labels[]=${label}`])];
+      const champs = ["-f", `title=${titre}`, "-f", `body=${corps}`, ...etiquettesALaCreation({ titre, corps, labels }).flatMap((label) => ["-f", `labels[]=${label}`])];
       const reponse = exiger(await appeler(["-X", "POST", ...champs, chemin]), chemin, 201);
       const numero = (JSON.parse(reponse.corps) as { number?: unknown }).number;
       if (!Number.isSafeInteger(numero)) throw new Error(`gh api ${chemin} : issue créée sans numéro`);

@@ -124,7 +124,7 @@ import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qu
 import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_CONFLIT, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
-import { checksRepares, estUneReparation, LABEL_REPARATION_SATURATION, PRIO_REPARATION } from "./reparation.ts";
+import { checksRepares, estUneReparation, garantirUneReparationDeSaturation, LABEL_REPARATION_SATURATION, PRIO_REPARATION, suiteDeLaSaturation } from "./reparation.ts";
 import { servirLeTemps } from "./temps-cuisson/ratio.ts";
 import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
@@ -372,7 +372,7 @@ export type OptionsDeStation = {
   enPremier?: () => readonly number[];
   // Les garde-fous (#2213) : le « stop », le disjoncteur,
   // le quota et l'arbitre, lus avant chaque prise. Absents, rien ne retient.
-  gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter"> & Partial<Pick<GardesDuTour, "attendreUnePlace">>;
+  gardes?: Pick<GardesDuTour, "retenue" | "redire" | "quitter"> & Partial<Pick<GardesDuTour, "attendreUnePlace" | "retenueDeLaMachineDepuis">>;
   // Où va ce qui rate sans arrêter le tour.
   avertir?: (message: string) => void;
   // Le clone du projet : le temps de chaque ticket que la station merge
@@ -649,6 +649,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const enVol = new Map<number, Promise<void>>();
   // Les tickets de réparation de la saturation que cette station a pris (#4100) : un seul en vol à la fois.
   const reparationsPrises = new Set<number>();
+  // La réparation que le superviseur a déposée pour la retenue en cours (#4173) : une seule par retenue.
+  let reparationDeposee: number | null = null;
   const reparationEnVol = (): boolean => {
     for (const numero of reparationsPrises) if (!enVol.has(numero)) reparationsPrises.delete(numero);
     return reparationsPrises.size > 0;
@@ -2305,6 +2307,25 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Celui que le réveil sans merge nomme passe avant tous (#4102).
     const premiers = new Set(enPremier());
     libres.sort((x, y) => Number(premiers.has(y.number)) - Number(premiers.has(x.number)) || rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
+    // La station retenue pour sa machine a toujours une réparation cookable : sinon le superviseur la dépose (#4173).
+    // Une heure de retenue sans réparation cuisinée, la station le dit : la réparation attend, elle ne se contourne pas.
+    const retenueDepuis = gardes?.retenueDeLaMachineDepuis?.() ?? null;
+    if (retenueDepuis === null) reparationDeposee = null;
+    else {
+      try {
+        if (reparationDeposee === null) {
+          const { deposee } = await garantirUneReparationDeSaturation({ retenue: "machine", ouverts: libres.map(({ number, labels }) => ({ numero: number, labels })), creer: (ticket) => github.creerIssue(ticket) });
+          if (deposee !== null) {
+            reparationDeposee = deposee;
+            avertir(`brigade : station held for machine saturation with no repair ticket — filed #${deposee} on ${nom}`);
+          }
+        }
+        const suite = suiteDeLaSaturation({ heldAt: retenueDepuis, maintenant: options.maintenant?.() ?? new Date(), reparationCuisinee: reparationEnVol() });
+        if (suite === "forcer-la-reparation") avertir(`brigade : station held for machine saturation since ${retenueDepuis} with no repair cooked — the repair ticket goes first on ${nom}`);
+      } catch (erreur) {
+        avertir(`brigade : saturation repair of ${nom} — ${message(erreur)}`);
+      }
+    }
     // Un `tests-written` dont la branche a disparu de l'origine repart de l'étape
     // « queued » : aucun cook ne le prend, aucun échec de cook n'est compté (#3928).
     for (const [rang, ticket] of libres.entries()) {

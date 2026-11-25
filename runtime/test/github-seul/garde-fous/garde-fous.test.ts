@@ -37,6 +37,8 @@ class FauxGitHub {
   commentaires: Array<{ issue: number; corps: string }> = [];
   prises: number[] = [];
 
+  creees: { titre: string; corps: string; labels: string[] }[] = [];
+
   feu(number: number, en_plus: string[] = []): void {
     this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set([...CALIBRE, ...en_plus]), state: "open" });
   }
@@ -59,7 +61,7 @@ class FauxGitHub {
       prsOuvertes: async () => this.prs.map((branche) => ({ branche, fichiers: [] })),
       checksDeLaBase: async () => [{ outcome: "green" }],
       issuesDepuis: async () => [],
-      creerIssue: async () => 0,
+      creerIssue: async (issue) => (this.creees.push(issue), 900 + this.creees.length),
       fermerIssue: async () => {},
       commentaires: async () => [],
       commenter: async (issue, corps) => void this.commentaires.push({ issue, corps }),
@@ -138,7 +140,7 @@ function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario
     juger: async () => assert.fail("nothing is in pass"),
     gardes,
     sauter: (ticket, ligne) => sauts.set(ticket, ligne),
-    avertir: (texte) => { if (!/the cook stopped without a delivery/.test(texte)) assert.fail(texte); },
+    avertir: (texte) => { if (!/the cook stopped without a delivery|held for machine saturation with no repair ticket/.test(texte)) assert.fail(texte); },
   });
   // Les faits d'un type, et ce qu'ils portent.
   const faits = (type: string) => runtime.journal.tout().flatMap((evenement) => (evenement.type === type ? [{ payload: evenement.payload as Record<string, unknown> }] : []));
@@ -751,4 +753,26 @@ test("a disk probe that fails raises nothing, says so, and is tried again next r
   await gardes.retenue(0);
   await jusqua(() => poses.length === 1);
   assert.match(String(poses[0]), /biggest consumers could not be read/);
+});
+
+test("a station held for its machine with no repair ticket on the rail gets one filed by the supervisor, once, labelled `saturation-repair` (#4173)", async (t) => {
+  const { faux, station } = cuisine(t, { machine: () => BOX(16.2) });
+  faux.feu(1);
+  faux.feu(2);
+  await station.tour();
+  await station.calme();
+  await station.tour();
+  await station.calme();
+  assert.equal(faux.creees.length, 1);
+  assert.ok(faux.creees[0]!.labels.includes("saturation-repair"));
+});
+
+// brigade:guard
+test("a station held for its machine with a repair ticket already on the rail files nothing (#4173)", async (t) => {
+  const { faux, station } = cuisine(t, { machine: () => BOX(16.2) });
+  faux.feu(1);
+  faux.feu(2, ["saturation-repair"]);
+  await station.tour();
+  await station.calme();
+  assert.equal(faux.creees.length, 0);
 });
