@@ -21,7 +21,8 @@ npm --prefix runtime run manager -- approve 3   # your OK to a gesture an agent 
 ```
 
 `manager` alone also lists the gestures the agents hold for your OK, with their number: the closer's passes and the
-splits of an epic, on `propose` by default. The gate is described in [`autonomie.md`](autonomie.md).
+splits of an epic when you set `manager split-epic` to `propose` — it is `act` by default since 2026-11-25 (#4247):
+the tickets are created at the same pass. The gate is described in [`autonomie.md`](autonomie.md).
 
 ⚠️ **Once on, it judges the whole open backlog**, and whatever it judges executable goes straight to the
 kitchen and is merged when green. Before switching on, set `blocked-on-human` on whatever must not go:
@@ -124,7 +125,7 @@ without spending anything:
 | is a product vision or a reference document: it carries `vision`, `product-vision` or `reference`, or its title announces a vision (`Product vision — …`, `Vision: …`, `[Vision] …`) — checked before a complete calibration (#3479) | Never judged. If it carries `fire`, the manager removes it and posts **one line** on the issue saying why, once (`brigade:vision`) | `manager.set-aside` (`vision`) |
 | is the breaker issue, the only issue the station opens about the kitchen itself: its `brigade:breaker-open` mark, the `brigade:breaker-open` label, or the title the station gives it — checked first, before everything else (#3620, `runtime/src/issue-de-la-cuisine.ts`) | Never judged, never fired, never calibrated, says nothing on the issue, even if it carries `fire`: it is not a ticket about this project's code, and no station hands it to a cook | `manager.set-aside` (`kitchen-alert`) |
 | carries `fire` and a complete calibration | Nothing: launched, by you or by it | — |
-| received labels from the manager, and lacks `fire`, `model:` or `effort:` since | Nothing, **until you hand it back**; says so once on the issue, with the command | `manager.set-aside` (`chef-changed`) |
+| received labels from the manager, and lacks `fire`, `model:` or `effort:` since | Nothing, **until you hand it back**; says so once on the issue, without the command: it is given back from the kitchen, which the issue's reader may not have (#4056); the report names the command | `manager.set-aside` (`chef-changed`) |
 | is written by someone with no hand on the repository, and is not a station's measure ticket (one carries a `brigade:projet` / `brigade:famille` mark *and* is written by an account of the project's `humans`: the mark alone is text a stranger can paste, so it proves nothing; such a ticket goes to the manager like the kitchen's own, #3012) |and carries no `brigade:projet` / `brigade:famille` mark from a declared `humans` account (a station's measure ticket does: it goes to the manager like the kitchen's own, #3012) | **Triaged** by the LLM, once: one comment proposes `duplicate of #N`, `out of scope`, or `ticket` with a `prio:` value; then a `product-question` TODO card, assigned to the project's `product` human (the chef without one): what the issue asks and who opened it (a stranger, or a declared human when the author is in the project's `humans`), then two buttons — the recommendation first (`rail` with the proposed `prio:`, else `close`), the other choice second — and the free answer; a click plays the choice at once (the app puts the `prio:` label, or closes the issue). Nothing reaches the rail until that human (or an account with write access) answers on the issue: `on the rail` puts the proposed `prio:` — or the one the answer writes, `on the rail prio:N`; `fire` when there is none — and the issue is judged on the next wake-up like one a member prioritised (#2619); `close` closes it (#2934, `runtime/src/issue-etrangere/`) | `manager.set-aside` (`untrusted-author`) |
 | is an epic it already split, or a ticket born from its splits | Nothing: what they carry since is yours | — |
 | carries `served-elsewhere` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`served-elsewhere`) |
@@ -228,12 +229,17 @@ from which it draws each zone; the project's common paths enter none. Three answ
 
 | Answer | What the manager does | In the log |
 |---|---|---|
-| a split, twelve tickets at most | Creates and launches the tickets, says so on the epic | `manager.split`, then a fact per step |
+| a split, twelve tickets at most | Creates and launches the tickets at the same pass, says so on the epic | `manager.split`, then a fact per step |
 | **a question**: the epic is ambiguous on a product choice | Sets it in a comment, creates nothing | `manager.split-asked` |
 | "already split": the epic names its tickets | Creates nothing, says so once | `manager.split-skipped` |
 
 The question is for a **product choice**; a technical ambiguity the manager decides, writing what and
-why (the `motif`). An answer the code cannot read (a ticket with no criterion or zone, one waiting for a
+why (the `motif`). **Whether to split is never a question** (#4247, the chef's decision of 2026-11-25): one
+ticket or several is the manager's to decide — an epic that fits one PR is a split into one ticket. A
+question that asks the chef whether to split (it speaks of splitting into tickets, or of one ticket or
+several) is read as an unreadable answer: asked again once, then the epic is judged as a single ticket,
+and no TODO card asks it. A question asked before this rule, on an epic that has not changed since, is
+read again once at the next pass, with no gesture from you. An answer the code cannot read (a ticket with no criterion or zone, one waiting for a
 ticket placed after it, a calibration outside the table, more than twelve tickets) creates **no** ticket
 (`manager.split-failed`). **The question holds nothing back**: the rail moves on. It is read in `run
 manager` (`QUESTION ASKED`); answer in a comment or edit the epic, and it is read again **with the

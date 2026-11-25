@@ -7,7 +7,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { enAmont } from "../src/amont.ts";
-import { marque, MARQUEUR_QUESTION } from "../src/decouper.ts";
+import { empreinteDEpique, marque, MARQUEUR_QUESTION } from "../src/decouper.ts";
 import { DEBUT, FIN } from "../src/epique.ts";
 import type { Evenement } from "../src/evenements.ts";
 import { fiche, MARQUEUR } from "../src/fiche.ts";
@@ -421,6 +421,25 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.ok(c.dits(30)[0]?.includes(MARQUEUR_QUESTION));
     assert.match(c.jugements()[1]?.args[1] ?? "", /“Faster”: on which screen, and measured how\?[\s\S]*mesuré au nombre de tickets servis par heure/);
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
+  });
+
+  // #4247 : le manager ne demande plus au chef s'il découpe — #4056 attendait
+  // « split into several tickets, or keep it as a single ticket? ». Une
+  // question notée avant, sur une épique qui n'a pas changé, est relue une
+  // fois sous la règle d'aujourd'hui, sans geste du chef.
+  test("une épique qui attend une question notée avant #4247 est relue et découpée au passage suivant, sans geste du chef", async (t) => {
+    const c = brigade(t);
+    const epic = issue(30, ["epic"]);
+    c.journal.ajouter({ project: "brigade", ticket: 30, author: "manager", type: "manager.split-asked", payload: { run: "r0", fingerprint: empreinteDEpique({ ...epic, body: EPIQUE }, []), question: "Does the manager split #30 into several tickets, or keep it as a single ticket?" } });
+    c.journal.ajouter({ project: "brigade", ticket: 30, author: "manager", type: "manager.split-commented", payload: {} });
+    assert.equal(decoupageDe(c.journal.base, 30)?.state, "asked");
+    epique(c);
+    c.gh.poser(epic);
+    await c.decoupee(30);
+
+    assert.equal(c.jugements().length, 1);
+    assert.deepEqual(c.gh.creations, [501, 502, 503]);
+    assert.equal(decoupageDe(c.journal.base, 30)?.state, "split");
   });
 
   test("une épique n'est jamais découpée deux fois : ni les réveils, ni une édition, ni un redémarrage ne la refont", async (t) => {

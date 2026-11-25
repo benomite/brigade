@@ -123,7 +123,7 @@ What this axis gives each of the four autonomous agents:
 |---|---|---|
 | **Supervisor** | its wake reason, each gesture of its closed set with the evidence (C1, C2) | pause, undo a rerun or a ticket put back (C5, T6); starts on « act » |
 | **Closer** | each closing pass in plain words, what it left and why (C2) | « propose »: a preview before the merge, one-click OK (C4); starts on « propose » |
-| **Manager** | its rewrites, calibrations and splits in a card's history (C3) | « act » by default, except that splitting an epic is « propose » (Q2) |
+| **Manager** | its rewrites, calibrations and splits in a card's history (C3) | « act » by default, splitting an epic included since the chef's decision of 2026-11-25 (Q2, reversed); « propose » holds the split again |
 | **Pass** | the steps it ran, what each caught and cost (A5, C8) | pause; starts on « act » |
 
 ### C1. The team strip
@@ -254,5 +254,9 @@ A proposal only: **no issue is created by this spec.** Each entry becomes a `pro
 ## The chef's answers (2026-11-23)
 
 - **Q1 — the first tickets.** The order above stands: A1 + A2, then T4, then C1 + C2, then T1.
-- **Q2 — autonomy levels.** The supervisor and the pass start on « act », the closer on « propose ». The manager starts on « act », except that splitting an epic is « propose ».
+- **Q2 — autonomy levels.** The supervisor and the pass start on « act », the closer on « propose ». The manager starts on « act », except that splitting an epic is « propose ». _Reversed for splitting an epic on 2026-11-25: see below._
 - **Q3 — the logbook's rhythm.** Both: live in the project view, and a morning digest of the previous day.
+
+## The chef's decision (2026-11-25)
+
+- **Q2, reversed for splitting an epic (#4247).** Splitting an epic is neither a product decision nor one that needs a human: the manager's split acts on its own. `manager split-epic` starts on « act », like the rest of the manager; its child tickets are created at the same manager pass, and no TODO card asks the chef whether to split. The chef can still put the split back on hold by setting its level to « propose », the way any agent level is changed.
