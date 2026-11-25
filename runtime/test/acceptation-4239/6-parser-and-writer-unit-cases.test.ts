@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { editEntry, parseKnowHow, removeEntry } from "../../src/know-how/know-how.ts";
 
 // The fixture file (line 0 is the title, line 4 the second Conventions entry).
-const SAVOIR = ["# Know-how", "", "## Conventions", "- Tests live next to the code (#101)", "- Identifiers are in French (#102)", "", "## Pitfalls", "- Never run the pass with a dirty tree (#205)", "", "## Tools", "- Use `gh api` for rate limits (#310)", "- A tool nobody ticketed", ""].join("\\n");
+const SAVOIR = ["# Know-how", "", "## Conventions", "- Tests live next to the code (#101)", "- Identifiers are in French (#102)", "", "## Pitfalls", "- Never run the pass with a dirty tree (#205)", "", "## Tools", "- Use `gh api` for rate limits (#310)", "- A tool nobody ticketed", ""].join("\n");
 
 test("several sections: each entry carries its section and ticket", () => {
   const vus = parseKnowHow(SAVOIR).map((e) => [e.section, e.text, e.ticket]);
