@@ -95,6 +95,18 @@ test("ce que la porte de prise a dit des cuisinables qu'elle a sautés va au dos
   assert.match(p.consignes[0] ?? "", /"skipped": \[\n\s+"#12: no station provides `gpu`"\n\s+\]/);
 });
 
+test("le code d'un saut, `zone-held` et la PR qui tient la zone, va au dossier du manager avec sa ligne (#4242)", async (t) => {
+  const p = projet(t);
+  const fires = p.tour.envelopper({ fires: async () => [{ number: 61, title: "README", labels: ["fire", "model:opus", "effort:medium"], state: "open" }] } as unknown as GitHubDuTour);
+  await fires.fires();
+  await p.lu();
+  p.tour.sauter(61, "#61: zone held by open PR #4077", undefined, { code: "zone-held", pr: 4077 });
+  p.a("10:11");
+  p.reveiller();
+  await jusqua(() => p.depot.relances().length > 0);
+  assert.match(p.consignes[0] ?? "", /"skipReasons": \[\n\s+\{\n\s+"ticket": 61,\n\s+"code": "zone-held",\n\s+"pr": 4077\n\s+\}\n\s+\]/);
+});
+
 test("un check Windows rouge sur la base garde sa carte dans TODO, lue du même tour (#2413) ; avant toute lecture, aucune", async (t) => {
   const p = projet(t);
   const carte = () => cartesEnTodo(p.journal.base).some(({ ticket }) => ticket === ticketDuCheck("runtime-windows", "main"));
