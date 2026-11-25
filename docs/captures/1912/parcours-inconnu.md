@@ -1,6 +1,6 @@
 # The newcomer path, step by step (#1912)
 
-Status: **the walk itself is not done.** It needs a machine that has never seen Brigade and a GitHub
+Status: **the walk itself is not done, and is tracked in #4205.** It needs a machine that has never seen Brigade and a GitHub
 account and a Claude account that are not the chef's. A station has neither, so no capture is taken
 here, and none is claimed. This page holds what a station could do: the steps to walk, with the
 capture each one owes, and the places where the README or the app still ask for ssh, a host, a path
@@ -17,7 +17,7 @@ parade-box, the chef's Mac, a host, the V1 plugin or a chef project (espace, cal
 | 2 | Sign in with GitHub (code shown in the app, typed on GitHub) | `connexion-github` | no |
 | 3 | Sign in with Claude | `connexion-claude` | no |
 | 4 | Pick the stranger's own repository (`owner/repo`, "open this project") | `choix-depot` | no |
-| 5 | "Who cooks <owner/repo>?": this computer, "Start the kitchen" | `choix-station` | no |
+| 5 | "Who cooks <owner/repo>?": this computer, "Start the kitchen" (README) / "Start the kitchen on this computer" (installation.md): the button label differs between the two | `choix-station` | no |
 | 6 | Wait for the setup pull request | `pr-de-mise-en-place` | no |
 | 7 | Cook a first ticket with the second; link its PR on the stranger's repository | `premier-ticket`, `pr-livree` | no |
 
@@ -42,7 +42,7 @@ Found by reading `README.md`, `docs/installation.md` and the user-facing strings
    a clean machine by a person". That is this ticket. It also says the app finds `git`, `gh` and
    `claude` through the shell's `PATH`; the README says the app guides an install when one is missing.
 
-Nothing else matched in the README or in the install guide.
+Re-read on 2026-11-25 against the current README, `docs/installation.md` and `app/src/vue/vue.js`: the quoted commands and messages still match. No ssh, host, path or config-file need is confirmed or ruled out until the walk.
 
 ## What remains
 
