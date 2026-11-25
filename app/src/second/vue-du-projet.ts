@@ -13,9 +13,9 @@ const LE_CHEF = "the chef";
 // Le bandeau STOPPED : ce que l'arrêt attend, et qui — d'après la cause que le runtime a nommée.
 function bandeauDArret(arret: NonNullable<Tableau["arretCuisine"]>): BandeauDeLaVue {
   const { cause } = arret;
-  if (cause.kind === "frozen-zone") return { label: "STOPPED", waitsFor: `frozen ticket #${cause.ticket} holds the file zone ${cause.zone}`, waitsOn: `whoever serves #${cause.ticket}, or the chef who sets it free` };
+  if (cause.kind === "frozen-zone") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: `whoever serves #${cause.ticket}, or the chef who sets it free` };
   if (cause.kind === "zone-held") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: `whoever serves PR ${cause.pr}, or the chef who merges or closes it` };
-  if (cause.kind === "main-red") return { label: "STOPPED", waitsFor: "main is red", waitsOn: "the repair of main" };
+  if (cause.kind === "main-red") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: "the repair of main" };
   return { label: "STOPPED", waitsFor: "the cause is unknown", waitsOn: LE_CHEF };
 }
 

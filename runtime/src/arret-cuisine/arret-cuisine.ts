@@ -47,12 +47,13 @@ function prQuiTientLaZone(skipped: readonly SautDeLaPorte[] | undefined): { pr: 
   return zone === undefined ? { pr } : { pr, zone };
 }
 
-// Le statut d'un arrêt en une ligne (#4244). Une zone tenue se dit avec sa PR ; « cause unknown » ne reste que pour une cause sans code.
+// Le statut d'un arrêt en une ligne (#4244), la seule source de ses mots : la vue du second la lit. Une zone tenue se dit avec sa PR ;
+// « cause unknown » ne reste que pour une cause sans code.
 export function statutDeLArret({ cause }: ArretDeLaCuisine): string {
-  if (cause.kind === "main-red") return "Stopped: main is red";
-  if (cause.kind === "frozen-zone") return `Stopped: frozen ticket #${cause.ticket} holds the file zone ${cause.zone}`;
-  if (cause.kind === "zone-held") return `Waiting: zone held by PR ${cause.pr}`;
-  return "Stopped: cause unknown";
+  if (cause.kind === "main-red") return "main is red";
+  if (cause.kind === "frozen-zone") return `frozen ticket #${cause.ticket} holds the file zone ${cause.zone}`;
+  if (cause.kind === "zone-held") return `zone held by PR ${cause.pr}`;
+  return "cause unknown";
 }
 
 // Le statut de la cuisine en une ligne, ou null quand elle n'est pas arrêtée.
