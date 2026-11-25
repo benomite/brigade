@@ -79,12 +79,21 @@ test("le jeton courant se lit sans attendre, tant qu'il vit ; mort ou jamais dem
   const { identites: ouvertes, avancer } = await identites(t);
   const jeton = ouvertes.jeton("cook");
 
-  assert.throws(() => jeton.courant(), /jeton de l'identité « cook » indisponible/);
+  assert.throws(() => jeton.courant(), /token of the “cook” identity unavailable/);
   const frais = await jeton.frais();
   avancer(58 * MINUTE);
   assert.equal(jeton.courant(), frais);
   avancer(2 * MINUTE);
-  assert.throws(() => jeton.courant(), /indisponible/);
+  assert.throws(() => jeton.courant(), /unavailable/);
+});
+
+test("un jeton courant mort lève en anglais, même quand il a vécu : il n'est jamais rendu périmé", async (t) => {
+  const { identites: ouvertes, avancer } = await identites(t);
+  const jeton = ouvertes.jeton("pass");
+
+  await jeton.frais();
+  avancer(60 * MINUTE);
+  assert.throws(() => jeton.courant(), /^Error: token of the “pass” identity unavailable: GitHub returned none that is still alive$/);
 });
 
 test("l'entretien renouvelle avant l'échéance : après des heures de ticks, le jeton courant vit toujours", async (t) => {

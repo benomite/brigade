@@ -107,18 +107,58 @@ test("on observe, the gesture is never done, and logged once as not done", async
   assert.equal(appels.n, 1);
 });
 
-test("the manager's split of an epic is held by default, its other gestures are done; a cook's are done", async (t) => {
+test("the manager's split of an epic is done by default, like its other gestures and a cook's (#4247); set to propose, it is held", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const porte = porteDesGestes({ repertoire, projet: PROJET, horloge: A(9) });
   const decoupe = fauxGeste(true);
   const autre = fauxGeste(true);
   const cuit = fauxGeste(true);
-  assert.equal((await porte.passer({ agent: "manager", reglable: "manager split-epic" }, { ...DIT, line: "split the epic #7 into 3 tickets" }, decoupe.faire)).etat, "held");
+  const DECOUPE = { agent: "manager", reglable: "manager split-epic" } as const;
+  assert.equal((await porte.passer(DECOUPE, { ...DIT, line: "split the epic #7 into 3 tickets" }, decoupe.faire)).etat, "done");
   assert.equal((await porte.passer({ agent: "manager", reglable: "manager" }, { ...DIT, line: "set `fire` on #8" }, autre.faire)).etat, "done");
   assert.equal((await porte.passer({ agent: "cook #9", reglable: "cook" }, { ...DIT, line: "take #9 and cook it" }, cuit.faire)).etat, "done");
-  assert.deepEqual([decoupe.appels.n, autre.appels.n, cuit.appels.n], [0, 1, 1]);
-  assert.deepEqual(enregistrementDe(repertoire, "manager").gestures.map(({ line }) => line), ["set `fire` on #8"]);
+  assert.deepEqual([decoupe.appels.n, autre.appels.n, cuit.appels.n], [1, 1, 1]);
+  assert.deepEqual(enregistrementDe(repertoire, "manager").gestures.map(({ line }) => line), ["split the epic #7 into 3 tickets", "set `fire` on #8"]);
   assert.deepEqual(enregistrementDe(repertoire, "cook #9").gestures.map(({ line }) => line), ["take #9 and cook it"]);
+
+  magasinDeNiveaux(repertoire).poser(PROJET, "manager split-epic", "propose");
+  assert.equal((await porte.passer(DECOUPE, { ...DIT, line: "split the epic #10 into 2 tickets" }, decoupe.faire)).etat, "held");
+  assert.equal((await porte.passer({ agent: "manager", reglable: "manager" }, { ...DIT, line: "set `fire` on #11" }, autre.faire)).etat, "done");
+  assert.deepEqual([decoupe.appels.n, autre.appels.n], [1, 2]);
+});
+
+test("on act, the same gesture held before — while its level was propose — is done and no longer pending; the others stay", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const porte = porteDesGestes({ repertoire, projet: PROJET, horloge: A(9) });
+  magasinDeNiveaux(repertoire).poser(PROJET, "supervisor", "propose");
+  await porte.passer(SUPERVISEUR, DIT, fauxGeste(1).faire);
+  await porte.passer(SUPERVISEUR, { ...DIT, line: "put #4 back on the rail" }, fauxGeste(1).faire);
+  await porte.passer({ agent: "closer", reglable: "closer" }, DIT, fauxGeste(1).faire);
+  assert.equal(gestesEnAttente(repertoire).length, 3);
+
+  magasinDeNiveaux(repertoire).poser(PROJET, "supervisor", "act");
+  const { appels, faire } = fauxGeste(2);
+  assert.deepEqual(await porte.passer(SUPERVISEUR, DIT, faire), { etat: "done", valeur: 2 });
+  assert.equal(appels.n, 1);
+  assert.deepEqual(gestesEnAttente(repertoire).map(({ agent, line }) => [agent, line]), [["supervisor", "put #4 back on the rail"], ["closer", DIT.line]]);
+  // Its approval, held in this runtime, finds nothing: it is not done twice.
+  assert.equal(await porte.approuver(1), null);
+  assert.equal(enregistrementDe(repertoire, "supervisor").gestures.length, 1);
+});
+
+test("on act, a pending file that cannot be read: the gesture is done and logged, the file is said and left as it is", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const fichier = join(repertoire, FICHIER_DES_ATTENTES);
+  writeFileSync(fichier, "{not json");
+  const avertissements: string[] = [];
+  const { appels, faire } = fauxGeste(3);
+  const passage = await porteDesGestes({ repertoire, projet: PROJET, horloge: A(9), avertir: (texte) => void avertissements.push(texte) }).passer(SUPERVISEUR, DIT, faire);
+  assert.deepEqual(passage, { etat: "done", valeur: 3 });
+  assert.equal(appels.n, 1);
+  assert.equal(enregistrementDe(repertoire, "supervisor").gestures.length, 1);
+  assert.equal(readFileSync(fichier, "utf8"), "{not json");
+  assert.equal(avertissements.length, 1);
+  assert.match(avertissements[0] ?? "", /pending gestures not read, the supervisor's gesture done stays listed/);
 });
 
 test("a gesture that fails on approval is not logged, and is not pending any more", async (t) => {

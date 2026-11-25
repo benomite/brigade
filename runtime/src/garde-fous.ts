@@ -313,7 +313,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   // Le lancement gardé : `surveiller` rend ce qui surveille le cook. Tout ce
   // qui s'écrit et se compte passe par ici.
   const partir = <S extends Supervise>(demande: Pick<DemandeCook, "ticket" | "run" | "contexte" | "plafonds" | "juger">, surveiller: (run: string, plafonds: Plafonds, surArret: (arret: Arret) => void) => S): { run: string; cook: S | null; fin: Promise<FinDeCook> } => {
-    if (arrete) throw new Error("runtime arrêté : aucun cook ne peut être lancé");
+    if (arrete) throw new Error("runtime stopped: no cook can be launched");
     const run = demande.run ?? nomDeRun(demande.ticket);
     // Relatif au répertoire d'état, et écrit avec `/` sur toutes les stations,
     // Windows compris : le journal dit la même chose d'une station à l'autre.
@@ -324,7 +324,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
     const lancement = base.transaction(() => {
       const etat = etatDesGardeFous(base);
       if (etat.stoppedAt !== null) {
-        throw new LancementRefuse("stopped", `cuisine arrêtée par le chef le ${etat.stoppedAt} : aucun cook n'est lancé avant « resume »`);
+        throw new LancementRefuse("stopped", `kitchen stopped by the chef on ${etat.stoppedAt}: no cook is launched before “resume”`);
       }
       // Le disjoncteur ne retient que les cooks : un jugement du manager (#3600) part, ouvert ou non.
       if (etat.breakerOpenedAt !== null && demande.contexte?.station !== STATION_DU_MANAGER) {
@@ -332,8 +332,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
         throw new LancementRefuse(
           "breaker",
           calage === null
-            ? `disjoncteur ouvert le ${etat.breakerOpenedAt} après ${etat.failures} échecs d'affilée : aucun cook n'est lancé avant que le superviseur le referme`
-            : `disjoncteur ouvert le ${etat.breakerOpenedAt} : un run cale encore après ses relances — ${direLeCalage(calage)} ; aucun cook n'est lancé avant que le superviseur le referme, ou qu'un run en cours finisse bien`,
+            ? `breaker open since ${etat.breakerOpenedAt} after ${etat.failures} failures in a row: no cook is launched before the supervisor closes it`
+            : `breaker open since ${etat.breakerOpenedAt}: a run keeps stalling after its relaunches — ${direLeCalage(calage)}; no cook is launched before the supervisor closes it, or a running run ends well`,
         );
       }
       // Une station retenue pour saturation de sa machine ne lance ni ne relance aucun cook (#4097) : un cook
@@ -342,7 +342,7 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       const station = demande.contexte?.station ?? null;
       // Le cook de la réparation de la saturation, que la porte de prise a laissé passer, part (#4100).
       if (station !== null && natureDuRun(run, station) === "cook" && demande.contexte?.saturationRepair !== true && etatStation(base, station)?.heldReason === "machine") {
-        throw new LancementRefuse("held", `station ${station} retenue : sa machine est saturée, aucun cook n'est lancé avant qu'elle se libère`);
+        throw new LancementRefuse("held", `station ${station} held: its machine is saturated, no cook is launched before it frees up`);
       }
       const lance = noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
       // Le même garde-fou a déjà tué ce ticket deux fois : la relance le dit au journal, avec la raison (#3650).
