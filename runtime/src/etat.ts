@@ -58,6 +58,7 @@ import { decisionsPosees } from "./decisions.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
+import { dernierAbandon, dernierDigest, type AbandonNotifie, type DigestPublie } from "./journal-du-jour/publication.ts";
 
 // La raison d'un ticket 86 sous sa carte : ce que la cuisine fait d'une
 // remontée technique, sinon la raison de sa mise de côté.
@@ -179,6 +180,10 @@ export type EtatCuisine = {
   // 30 min, sans que le projet soit éteint ni que toutes attendent une capacité
   // ou un tiers — une panne (cuisine-oisive.ts). Absente d'un état construit sans elle.
   oisive?: CuisineOisive | null;
+  // Le dernier digest du matin (#4280) et le dernier abandon notifié au chef (journal-du-jour/publication.ts). Absents
+  // d'un état construit sans eux.
+  digest?: DigestPublie | null;
+  notification?: AbandonNotifie | null;
   evenements: Evenement[];
 };
 
@@ -252,6 +257,8 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
     livres,
     coincees: livraisonsCoincees(base, maintenant),
     oisive: cuisineOisive({ session, gardeFous, interrupteur, stations, arretees, rail, cooks, livres, finDuDernierCook: finDuDernierCook(base) }, maintenant),
+    digest: dernierDigest(journal),
+    notification: dernierAbandon(journal),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -937,6 +944,11 @@ export type Faits = {
   // nul pour le closer ; `fait`, ce qu'il fait, en anglais ; `depuis`, l'heure où il s'y est mis. La pass d'abord, dans
   // l'ordre du rail. Vide quand rien ne tourne, et quand le runtime est arrêté : rien ne tourne alors.
   agents: Array<{ role: AgentEnCours["role"]; station: string | null; ticket: number | null; fait: string; depuis: string }>;
+  // Le digest du matin de la veille (#4280), que l'app montre en carte : `text`, quelques lignes, la première le nombre
+  // de pannes vues d'abord par le chef ; `day`, le jour qu'il dit. Nul avant le premier. Jamais poussé en message.
+  digest?: DigestPublie | null;
+  // Le dernier abandon du système notifié au chef (#4280) : la seule notification du journal. Nul avant le premier.
+  notification?: AbandonNotifie | null;
 };
 
 // Ce qu'une station fait du projet, pour qui pose un mot dessus. La liste est
@@ -1061,6 +1073,8 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       vueLe: station.remote ? station.seenAt : null,
     })),
     agents: faitsDesAgents(etat),
+    digest: etat.digest ?? null,
+    notification: etat.notification ?? null,
   };
 }
 

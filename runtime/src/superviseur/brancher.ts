@@ -127,7 +127,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     },
     maintenant,
     // La porte de ses gestes (#4039) : celle du runtime, qui fait à chaque tick ceux que le chef approuve.
-    porte: porteDuRuntime({ projet: runtime.projet, repertoireEtat, surReveil: (ecouter) => runtime.surReveil(ecouter) }),
+    porte: porteDuRuntime({ projet: runtime.projet, repertoireEtat, journal: runtime.journal, surReveil: (ecouter) => runtime.surReveil(ecouter) }),
   });
   // Un tour qui ne suit pas les progrès ne réveille pas sur leur absence.
   const inactivite =

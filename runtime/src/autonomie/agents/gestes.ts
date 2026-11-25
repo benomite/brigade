@@ -67,6 +67,9 @@ export function consignerGeste(repertoire: string, agent: string, geste: { line:
 export type Gestes = Geste[] & { 0: Geste };
 export const gestesDe = (repertoire: string, agent: string): Gestes => (lireTout(repertoire)[agent] ?? []) as Gestes;
 
+// Every agent's gestures, by agent, oldest first: the threads the logbook of the day reads (journal-du-jour/).
+export const tousLesGestes = (repertoire: string): Record<string, Geste[]> => lireTout(repertoire);
+
 export const compteursDe = (repertoire: string, agent: string): Compteurs => compter(gestesDe(repertoire, agent));
 
 function compter(gestes: readonly Geste[]): Compteurs {
