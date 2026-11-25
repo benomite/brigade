@@ -1,8 +1,7 @@
 // What the Agents tab reads (#4220), for `npm run agents` (agents-cli.ts): the runs of the log (`cook_runs`) — which
-// agent each is of, the ticket it works on, how it ended —, what runs outside the tickets as `facts` gives it (the pass,
-// the manager, the triage and the closer, agents-en-cours.ts), the closing passes that ended, the gesture log and the
-// noted schedules of the state directory.
-import type { AgentEnCours } from "../agents-en-cours.ts";
+// agent each is of, the ticket it works on, how it ended —, the pass at work as `facts` gives it (agents-en-cours.ts),
+// the closing passes that ended, the gesture log and the noted schedules of the state directory.
+import { agentDuRun as lireLeRunHorsTicket, type AgentEnCours } from "../agents-en-cours.ts";
 import { LectureImpossible } from "../appel.ts";
 import { horaireDe } from "../autonomie/agents/horaires.ts";
 import { lireLesFaits } from "../faits.ts";
@@ -15,17 +14,19 @@ type RunDuJournal = { run: string; ticket: number | null; station: string | null
 // The endings of a run that failed (events/guardrails.ts, `Issue`): it died, a guardrail stopped it, or it stalled.
 // A launch the station refused, or one the chef stopped, is no failure of the agent.
 const ECHECS = new Set(["failed", "guard", "stalled"]);
-// What `facts` already says with the ticket it works on, read from the run's name (agents-en-cours.ts).
 // The last closing passes read; the figure keeps those of the last 7 days.
 const PASSES_LUES = 100;
-const HORS_TICKET = new Set(["manager", "triage", "closer"]);
 
 // The agent a run is of: the manager, the closer and the reviewer launch under their own station (manager.ts,
-// closing/run.ts, reviewer.ts), the triage with the manager's under the prefix `trie` (agents-en-cours.ts); every other
-// run is a cook's.
+// closing/run.ts, reviewer.ts); under the manager's, the prefix of the run says who asked (manager.ts, `demander`):
+// the triage (`trie`), the supervisor (`supervise`, and `controle` for its breaker check, manager/supervision.ts), the
+// manager for every other. Every other run is a cook's.
 const SOUS_SON_NOM = ["closer", "reviewer"];
-const agentDuRun = ({ run, station }: RunDuJournal): string =>
-  station === "manager" ? (run.startsWith("trie-") ? "triage" : "manager") : SOUS_SON_NOM.includes(station ?? "") ? (station as string) : "cook";
+const DU_SUPERVISEUR = /^(supervise|controle)-/;
+const agentDuRun = ({ run, station }: RunDuJournal): string => {
+  if (station === "manager") return run.startsWith("trie-") ? "triage" : DU_SUPERVISEUR.test(run) ? "supervisor" : "manager";
+  return SOUS_SON_NOM.includes(station ?? "") ? (station as string) : "cook";
+};
 
 // The agents whose last run failed, the runs the oldest first: a run launched after it — a retry — clears it.
 function enEchec(runs: readonly RunDuJournal[]): string[] {
@@ -34,10 +35,15 @@ function enEchec(runs: readonly RunDuJournal[]): string[] {
   return [...dernieres].flatMap(([id, ending]) => (ECHECS.has(ending ?? "") ? [id] : []));
 }
 
-// The runs going on, by agent: `agents` as `facts` gives them, then the cooks' and the reviewer's runs of the log.
+// The runs going on, by agent: the pass as `facts` gives it, then the runs of the log that have not ended — a run
+// under the manager's station on the ticket its name says (agents-en-cours.ts), every other on the ticket of the log.
 function enCours(agents: ReadonlyArray<Pick<AgentEnCours, "role" | "ticket">>, runs: readonly RunDuJournal[]): Array<{ id: string; ticket: number | null }> {
-  const duJournal = runs.flatMap((run) => (run.ending === null && !HORS_TICKET.has(agentDuRun(run)) ? [{ id: agentDuRun(run), ticket: run.ticket }] : []));
-  return [...agents.map(({ role, ticket }) => ({ id: role, ticket })), ...duJournal];
+  const pass = agents.flatMap(({ role, ticket }) => (role === "pass" ? [{ id: role, ticket }] : []));
+  const duJournal = runs.filter(({ ending }) => ending === null).map((run) => {
+    const ticket = run.station === "manager" ? lireLeRunHorsTicket({ run: run.run, station: run.station, launchedAt: "" }).ticket : run.ticket;
+    return { id: agentDuRun(run), ticket };
+  });
+  return [...pass, ...duJournal];
 }
 
 export function sourcesDuProjet(env: Record<string, string | undefined>, maintenant: Date): Sources {

@@ -23,7 +23,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
     throw erreur;
   }
   const { statut, corps } = repondre({ method: "GET", url: args[0] ?? "/api/agents" }, sources);
-  if (statut !== 200) echouer(1, `${statut}: ${(corps as { reason: string }).reason}`);
-  dire(JSON.stringify(corps));
+  if (statut === 200) return dire(JSON.stringify(corps));
+  echouer(1, `${statut}: ${(corps as { reason: string }).reason}`);
 }
 

@@ -67,6 +67,13 @@ test("the runs going on: the manager on the ticket its run names, a cook and the
   assert.deepEqual(etats(lus, ["manager", "cook", "reviewer", "closer"]), [["manager", "working", 3], ["cook", "working", 12], ["reviewer", "working", 5], ["closer", "idle", null]]);
 });
 
+test("the supervisor's runs go under the manager's station, and are the supervisor's: its watch at work, its breaker check failed", async (t) => {
+  const auTravail = await agents(etat(t, [["juge-3-a", "manager", "ok"], ["supervise-0-a", "manager", null]]));
+  assert.deepEqual(etats(auTravail, ["supervisor", "manager"]), [["supervisor", "working", null], ["manager", "idle", null]]);
+  const enPanne = await agents(etat(t, [["controle-0-a", "manager", "failed"], ["juge-3-a", "manager", "ok"]]));
+  assert.deepEqual(etats(enPanne, ["supervisor", "manager"]), [["supervisor", "broken", null], ["manager", "idle", null]]);
+});
+
 test("the closer's lines removed are those of its closing passes that ended in the last 7 days; a pass before the tally counts none", async (t) => {
   const repertoire = etat(t);
   const fin = (removedLines?: number) => ({ type: "closing.ended", payload: { run: "fermeture-a", outcome: "delivered", ...(removedLines === undefined ? {} : { removedLines }) } }) as Fait;

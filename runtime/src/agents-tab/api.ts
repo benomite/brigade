@@ -60,12 +60,15 @@ const LIGNES_RETIREES = { label: "Lines removed", meaning: "lines of code its cl
 
 function figuresDe(sources: Sources, id: string): Chiffre[] {
   const duFil = figuresDuFil(sources, id);
-  if (id !== "closer") return duFil;
+  return id === "closer" ? [...duFil, lignesRetirees(sources)] : duFil;
+}
+
+function lignesRetirees(sources: Sources): Chiffre {
   const { label, meaning } = LIGNES_RETIREES;
-  if (sources.passesDuCloser === undefined) return [...duFil, { label, value: "not known", meaning: `${meaning} — its passes were not read` }];
+  if (sources.passesDuCloser === undefined) return { label, value: "not known", meaning: `${meaning} — its passes were not read` };
   const depuis = sources.maintenant.getTime() - SEMAINE_MS;
   const retirees = sources.passesDuCloser.filter(({ at }) => Date.parse(at) > depuis).reduce((total, { removedLines }) => total + removedLines, 0);
-  return [...duFil, { label, value: retirees, meaning }];
+  return { label, value: retirees, meaning };
 }
 
 function figuresDuFil(sources: Sources, id: string): Chiffre[] {
@@ -84,7 +87,9 @@ function figuresDuFil(sources: Sources, id: string): Chiffre[] {
 
 function etatDe(sources: Sources, id: string): Pick<EntreeDAgent, "state" | "workingOn"> {
   const siens = (sources.enCours ?? []).filter((run) => run.id === id);
-  if (siens.length > 0) return { state: "working", workingOn: siens.find(({ ticket }) => ticket !== null)?.ticket ?? null };
+  // The ticket of the run that has one: a run on no ticket works on none.
+  const surUnTicket = siens.find(({ ticket }) => typeof ticket === "number");
+  if (siens.length > 0) return { state: "working", workingOn: surUnTicket?.ticket ?? null };
   return { state: (sources.enEchec ?? []).includes(id) ? "broken" : "idle", workingOn: null };
 }
 
@@ -106,8 +111,10 @@ const entreeDe = (agent: AgentDuRegistre, sources: Sources): EntreeDAgent => ({
   settings: null,
 });
 
-export function repondre({ method, url }: Demande, sources: Sources): Reponse {
-  if (method !== "GET") return { statut: 405, corps: { reason: `${method} is not served here: the agents are only read` } };
+export const repondre = ({ method, url }: Demande, sources: Sources): Reponse =>
+  method === "GET" ? servir(url, sources) : { statut: 405, corps: { reason: `${method} is not served here: the agents are only read` } };
+
+function servir(url: string, sources: Sources): Reponse {
   const chemin = new URL(url, "http://agents.invalid").pathname;
   if (chemin === RACINE) return { statut: 200, corps: REGISTRE.map((agent) => entreeDe(agent, sources)) };
   const id = GESTES.exec(chemin)?.[1];
