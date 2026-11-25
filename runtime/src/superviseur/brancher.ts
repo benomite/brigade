@@ -15,6 +15,10 @@
 // Un ticket sans progrès depuis 30 minutes, dans quelque état qu'il soit, réveille
 // aussi le superviseur (`inactivite/`, #4027) : ses progrès se lisent du tour, et les
 // labels que posent ou retirent les gestes du superviseur — un agent — en sont.
+//
+// À chaque réveil aussi, une PR périmée que la porte de prise ne compte plus sur la zone d'un ticket est marquée
+// (`zone-liberee.ts`, #4243) : sans le manager, le superviseur pose `zone-released` sur la PR, le dit sur le ticket, au
+// journal de ses gestes et ici.
 import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
 import { evaluerMain, statutsDesChecks } from "../statuts-ci/regles.ts";
 import { objet } from "../juger.ts";
@@ -31,6 +35,9 @@ import { echeanceSansMerge, type FaitsDuProjet } from "./declencheur.ts";
 import { noterHoraire } from "../autonomie/agents/horaires.ts";
 import type { SuiviDuTour } from "./tour.ts";
 import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
+import { DE_CONFIANCE } from "../alimenter.ts";
+import { consignerGeste, OUTCOME } from "../autonomie/agents/gestes.ts";
+import { DELAI_PERIME_MS, ouvrirLesZones } from "./zone-liberee.ts";
 
 // Le manager lancé sur une consigne : sa réponse, ou pourquoi il n'y en a pas.
 export type ManagerDuSuperviseur = (consigne: string) => Promise<{ message: string } | { illisible: string }>;
@@ -153,6 +160,39 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       dire(`supervisor on ${runtime.projet}: the post-mortem of an outage was not written — ${message(erreur)}`);
     }
   });
+  // Les zones tenues par une PR périmée, une libération à la fois : deux à la fois ouvriraient deux cartes pour la même PR.
+  const zones = ouvrirLesZones({
+    maintenant,
+    github: {
+      labelliser: (numero, labels) => options.github.labelliser(numero, labels),
+      commenter: (numero, corps) => options.github.commenter(numero, corps),
+      creerIssue: ({ title, body, labels }) => options.github.creerIssue({ titre: title, corps: body, labels }),
+      // Les issues de la dernière année, fermées comprises, que le dépôt a écrites : une carte fermée ne se rouvre pas.
+      ouvertes: async () => (await options.github.issuesDepuis(new Date(maintenant().getTime() - 365 * 86_400_000).toISOString())).filter(({ association }) => DE_CONFIANCE.includes(association)),
+    },
+    consigner: (ligne, auChef) => {
+      if (repertoireEtat === undefined) return;
+      try {
+        consignerGeste(repertoireEtat, "supervisor", { line: ligne, reason: `an open PR neither cooked nor in pass, idle for ${DELAI_PERIME_MS / 3_600_000} h or more or with its changes on the base, overlapped the zone of a ticket`, outcome: auChef ? OUTCOME.HANDED_TO_CHEF : OUTCOME.FIXED_BY_SELF }, maintenant);
+      } catch (erreur) {
+        dire(`supervisor on ${runtime.projet}: a zone release was not logged — ${message(erreur)}`);
+      }
+    },
+  });
+  let liberation: Promise<void> | null = null;
+  const libererLesZones = (suivi: SuiviDuTour) => {
+    if (liberation) return;
+    // Une lecture qui échoue, même d'emblée, se dit ici et n'arrête rien d'autre du réveil.
+    liberation = Promise.resolve()
+      .then(() => zones.cycle(suivi.zonesPerimees()))
+      .then(
+        (lignes) => lignes.forEach((ligne) => dire(`supervisor on ${runtime.projet}: ${ligne}`)),
+        (erreur: unknown) => dire(`supervisor on ${runtime.projet}: the zones held by stale PRs were not released — ${message(erreur)}`),
+      )
+      .finally(() => {
+        liberation = null;
+      });
+  };
   // Quand il se réveillera si rien n'est mergé (#4038), là où `facts` le lit ; une note qui échoue n'arrête pas son tour.
   const noterLeReveil = (faits: FaitsDuProjet) => {
     if (repertoireEtat === undefined) return;
@@ -179,6 +219,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       }
       const { base } = runtime.journal;
       if (etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false) return;
+      libererLesZones(tour);
       if (options.consulter() === null) return;
       noterLeReveil(tour.faits());
       superviser(tour.faits())?.catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: its run failed — ${message(erreur)}`));
