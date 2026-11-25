@@ -26,6 +26,7 @@ test("a branch whose first commit adds a test and whose next commit changes it i
   git("commit", "-q", "-m", "fix(#1): the cook corrects its test");
 
   // The step that compared a changed test with its freeze is gone, or it flags nothing.
+  // @ts-expect-error the module is removed with the step (#4229)
   const module = await import("../../src/passe-gel-tests/gel-tests.ts").catch(() => null);
   if (module !== null) assert.deepEqual(module.testsGelesTouches(racine, "main"), { fichiers: [], diff: "" });
 });
