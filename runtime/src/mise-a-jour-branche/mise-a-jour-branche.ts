@@ -31,7 +31,7 @@ export type MiseAJourDeLaBranche =
   // les chemins en conflit. La fusion tentée est défaite.
   | { etat: "echec"; etape: "recolte" | "fetch" | "merge"; detail: string; fichiers: string[] };
 
-const SUJET_DE_LA_FUSION = (base: string) => `brigade : la branche mise à jour de origin/${base}`;
+const SUJET_DE_LA_FUSION = (base: string) => `brigade: branch updated from origin/${base}`;
 
 const detail = (sortie: SortieGit) => sortie.stderr.trim() || sortie.stdout.trim() || `git exited with ${sortie.code}`;
 
