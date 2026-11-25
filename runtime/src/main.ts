@@ -48,6 +48,8 @@ import { configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
 import { humainsDuProjet } from "./aiguillage-humains/aiguillage.ts";
+import { lireLaCharge } from "./rouge-de-charge/classeur.ts";
+import { createAgentSettings } from "./agent-settings/index.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -115,7 +117,8 @@ try {
   const station = configStation(decide);
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   ({ stations } = station);
-  const reviewer = configReviewer(decide);
+  // Lu ici pour qu'un calibrage du reviewer manquant refuse le démarrage ; la pass le relit ensuite à chaque relecture.
+  configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
   // relit ensuite à chaque réveil.
@@ -147,7 +150,9 @@ try {
   const pose = etablirLInterrupteur(socle.journal, projet);
   if (pose !== null) console.log(pose);
   // Ce que le chef décide sans redémarrer : chaque lecture relit le journal.
-  const decisions = suivreDecisions(socle.journal.base, process.env, undefined, duDepot.suivis);
+  // Les réglages des agents posés depuis l'app passent avant tout, relus eux aussi à chaque lecture (#4222).
+  const reglagesDesAgents = createAgentSettings({ stateDir: repertoireEtat, env: process.env, project: projet });
+  const decisions = suivreDecisions(socle.journal.base, process.env, undefined, duDepot.suivis, () => reglagesDesAgents.overrides());
   // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à
   // chaque tick : un hôte mergé s'ouvre sans rien redémarrer, et avant le
   // setup du premier ticket pris après lui.
@@ -185,6 +190,7 @@ try {
         : (() => {
             const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), env });
             const ecrivaine = stationDuDepot({
+              lireCharge: lireLaCharge,
               porte: gestes,
               nom: ici.nom,
               places,
@@ -201,7 +207,7 @@ try {
               cloison,
               plafonds: reglages.plafonds,
               graceMs: reglages.graceMs,
-              reviewer: reviewer.calibrage,
+              reviewer: () => decisions.reviewer(),
               // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
               manager: () => decisions.manager(),
               // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).

@@ -72,8 +72,7 @@ for the runtime, the pass and its gates, then about one per cook. One to three c
 **8: 6**; 12: 10; 16: 14. The declared cap is only a bound (`box/claude:30` on 8 cores runs 6). A **remote**
 station keeps its declared cap: the box does not see its cores (#1045). Until #3560 it was about two
 cores per cook, `max(1, ⌊(cores − 2) / 2⌋)`: the box ran 3 cooks and its tickets waited for a place,
-while its 15-minute load average, read on 2026-11-14 as it served, stood near 2.3 of its 8 cores. The machine bound below is what keeps the load
-in check: past the first cook, no take while the machine runs short.
+while its 15-minute load average, read on 2026-11-14 as it served, stood near 2.3 of its 8 cores.
 
 `run status` and `run station` say the cap and **where it comes from**:
 
@@ -104,36 +103,21 @@ stops taking well before the out-of-memory killer acts. `BRIGADE_MIN_FREE_MEMORY
 runtime's start; `0` for memory or disk: never withheld.
 
 **The machine is read before each take** of the GitHub-only turn (`gardesDuTour`, #3560), after the
-chef's stop, the breaker and the quota, before the arbiter. It never holds the first cook: with none in
-flight the station takes one, as the cores cap never goes under one. Each take granted counts as one of
-load ahead (`reserver`) for a minute, the time the load average takes to show it, so a full rail does not
-leave in one block. A machine that cannot be read holds nothing — the station's places still bound its
-cooks — and the service log says it once. #2061 had dropped this bound with the old path; until #3560
-only the cores cap stood in for it.
+chef's stop, the breaker and the quota. It holds nothing, the first cook or any other (#4285): the places of the
+station bound its cooks, whatever the load. A machine that cannot be read is said once in the service log. Each take
+granted counts as one of load ahead (`reserver`) for a minute, the time the load average takes to show it.
 
-Saturated, it says so: `station.saturated` then `station.relieved`, `MACHINE SATURATED` in `run
-status` and `run station`. The fact names the first resource at fault and, in `also`, the others; it
-is rewritten when one is added or lifts, not when a value moves. `run status` names each resource at
-fault, with what it has, its threshold, and where the memory's comes from:
-
-```
-MACHINE SATURATED for 1 min on memory — 812 MB of memory available for at least 2,000 MB (set by BRIGADE_MIN_FREE_MEMORY_MB): box/claude takes no more tickets as long as it lasts
-```
+Saturated, it says so: `station.saturated` then `station.relieved`, and a line in the service log. The fact names the
+first resource at fault and, in `also`, the others; it is rewritten when one is added or lifts, not when a value
+moves. `run status` and `run station` show no saturation line: nothing is held for it.
 
 Short of disk or CPU, it also names the biggest consumer when it can (#4090), in the fact
-(`consumer`), the service log and `run status`: for disk, the biggest of what brigade leaves on the
+(`consumer`) and the service log: for disk, the biggest of what brigade leaves on the
 machine — each project's state directory (`espace/`, `brigade/`), the station's temporary directory
 and the npm cache, measured by `du`, never the whole disk; for CPU, the process `ps` shows taking the
-most. A measure that fails, or a missing tool, names nobody and the line reads as before:
+most. A measure that fails, or a missing tool, names nobody.
 
-```
-MACHINE SATURATED for 3 min on disk — 4,096 MB of disk free for at least 5,120 MB — biggest: espace/ (3.2 GB): box/claude takes no more tickets as long as it lasts
-```
-
-**The running cooks continue**, and the station resumes by itself when the machine breathes (ten
-percent of margin, resource by resource). **A full rail does not leave in one block**: during its
-first minute, each cook launched — and each ticket in the entry — weighs in advance one unit of load
-and 512 MB. The gates the pass plays load the machine too.
+The saturation lifts when the machine breathes (ten percent of margin, resource by resource).
 
 **A ticket that could leave and does not says why**: `station.held` in the log, a `WITHHOLDING` line
 in `run status` (`withholding` in `run station`), and the reason on the ticket's line (`withheld by
@@ -141,7 +125,7 @@ in `run status` (`withholding` in `run station`), and the reason on the ticket's
 
 | `reason` | What withholds the station |
 |---|---|
-| `ramp`, `machine` | the gradual ramp-up; the machine saturated |
+| `ramp`, `machine` | the gradual ramp-up; `machine`: read only in logs from before #4285 |
 | `cap`, `setups` | the cooks cap, the setups cap reached |
 | `stopped`, `breaker` | your "stop", the breaker open |
 | `station-stopped` | you stopped the kitchen on this station alone (see "Starting and stopping the kitchen, station by station") |

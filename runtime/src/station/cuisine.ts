@@ -71,6 +71,8 @@ import { configStation } from "../station.ts";
 import { sousLeNomRetenu } from "./nom.ts";
 import { direStations } from "../stations-declarees.ts";
 import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
+import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
+import { createAgentSettings } from "../agent-settings/index.ts";
 
 export type Cuisine = {
   projet: string;
@@ -150,7 +152,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`, "clone-missing");
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   const { stations } = station;
-  const reviewer = configReviewer(decide);
+  // Lu ici pour qu'un calibrage du reviewer manquant refuse le démarrage ; la pass le relit ensuite à chaque relecture.
+  configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   lireSeuils(decide);
   const arbitre = configArbitrage(envProjet);
@@ -204,7 +207,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // station ouvre — au lancement ou quand l'app l'ajoute — part allumé, un interrupteur posé reste tel quel.
     const pose = etablirLInterrupteur(socle.journal, projet);
     if (pose !== null) dire(pose);
-    const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis);
+    // Les réglages des agents posés depuis l'app passent avant tout, relus eux aussi à chaque lecture (#4222).
+    const reglagesDesAgents = createAgentSettings({ stateDir: repertoireEtat, env: envProjet, project: projet });
+    const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis, () => reglagesDesAgents.overrides());
     const journal = socle.journal.base;
     if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU), avertir: dire });
     // Sous une identité par rôle, ni les cooks, ni les gates, ni les juges ne
@@ -240,6 +245,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
           : (() => {
               const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), avertir: dire, env });
               const ecrivaine = stationDuDepot({
+                lireCharge: lireLaCharge,
                 porte: gestes,
                 nom: ici.nom,
                 places,
@@ -256,7 +262,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 bacASable,
                 plafonds: reglages.plafonds,
                 graceMs: reglages.graceMs,
-                reviewer: reviewer.calibrage,
+                reviewer: () => decisions.reviewer(),
                 // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
                 manager: () => decisions.manager(),
                 // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
@@ -269,6 +275,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 avertir: dire,
                 observer: suiviDuTour.envelopper,
                 sauter: suiviDuTour.sauter,
+                // Les PR périmées que la porte ne compte plus : le superviseur les marque `zone-released` (#4243).
+                perimee: suiviDuTour.perimee,
                 superviseur: (consulter) => (managerDuSuperviseur = consulter),
                 // Un ticket dont les gates ne se jouent pas ici va à une autre station du projet (#3057).
                 stationsDuProjet: () => stations.map((declaree) => declaree.nom),

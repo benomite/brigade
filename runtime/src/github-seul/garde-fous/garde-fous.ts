@@ -38,23 +38,19 @@ import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } fr
 import type { Runtime } from "../../runtime.ts";
 import type { Fin } from "../../superviseur.ts";
 
-// Le début de l'erreur d'un lancement refusé parce que la station est retenue : un arrêt subi, que le cook n'a pas causé.
-const LANCEMENT_RETENU = "launch refused (station held)";
-
 // Un arrêt que le cook n'a pas causé : le quota, la session Claude, une station
 // arrêtée ou un process tué (un signal sans erreur du lanceur). Un plafond (jetons, durée, inactivité) est le sien.
 export const arretSubi = (conclusion: string, fin: { code: number | null; signal: string | null; arret: { reason: string } | null; erreur: string | null }): boolean => {
   if (conclusion === "86" || conclusion === "disconnected") return true;
-  if (fin.erreur?.startsWith(LANCEMENT_RETENU)) return true;
   if (fin.arret !== null) return fin.arret.reason === "stop";
   // SIGTERM : le signal, ou le code 143 quand un relais ou un shell l'a rendu en code de sortie (#3528).
   return fin.erreur === null && (fin.signal !== null || fin.code === 143);
 };
 
 // Ce qui retient une prise sur ce chemin : le « stop » du chef, le
-// disjoncteur, le quota du compte épuisé, la machine à court, l'arbitre qui
+// disjoncteur, le quota du compte épuisé, l'arbitre qui
 // refuse — ou qui ne répond pas alors qu'un cook tourne déjà.
-export type RetenueDuTour = Extract<Retenue, "stopped" | "breaker" | "quota" | "machine" | "arbiter" | "unarbitrated">;
+export type RetenueDuTour = Extract<Retenue, "stopped" | "breaker" | "quota" | "arbiter" | "unarbitrated">;
 
 // Un processeur qui dépasse son seuil de moins de cette part ne retient la
 // station que s'il le dépasse ainsi sur ce nombre de lectures de suite (#4142).
@@ -68,9 +64,7 @@ export const REPLI_QUOTA_MS = 3_600_000;
 export type GardesDuTour = {
   // Ce qui retient la prise d'un ticket de plus, `cooks` cooks de tickets en
   // vol : null, la prise peut partir — et l'arbitre a compté sa place.
-  // `reparation` : le numéro du ticket qui répare la saturation de la machine (#4100) — elle ne le retient
-  // pas, et son cook se lance sur la station retenue pour elle.
-  retenue(cooks: number, reparation?: number): Promise<RetenueDuTour | null>;
+  retenue(cooks: number): Promise<RetenueDuTour | null>;
   // La fin d'un tour : le projet redit son état à l'arbitre, qui l'apprend
   // même quand rien n'est demandé.
   redire(cooks: number): Promise<void>;
@@ -116,7 +110,6 @@ export const DIT_DES_RETENUES: Record<RetenueDuTour, string> = {
   stopped: "the kitchen is stopped by the chef — nothing is taken before `guardrails resume`",
   breaker: "the breaker is open — nothing is taken before `guardrails resume`",
   quota: "the Max quota is spent — nothing is taken before it is back",
-  machine: "the machine runs short of processor, memory or disk — nothing is taken before it recovers",
   arbiter: "the arbiter gives the account's places to other projects",
   unarbitrated: "the arbiter does not answer — one cook at a time until it is back",
 };
@@ -173,11 +166,6 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   let recupereCeTour = false;
   // Les lectures de suite où le processeur dépasse à peine son seuil (#4142).
   let pic = 0;
-  let saturee = false;
-  // La machine à court retient les tickets de ce tour, sauf la réparation de la saturation (#4100).
-  let machineRetient = false;
-  // Les tickets de réparation de la saturation que la machine a laissés passer : leur cook se lance (#4100).
-  const reparationsLaissees = new Set<number>();
   // Ce dont le disque manque, tel que la dernière lecture de la machine le dit.
   let manqueDisque: Saturation | null = null;
   // La carte du disque est posée : elle ne se repose pas tant qu'il reste plein.
@@ -190,16 +178,15 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     avertir(retenue === null ? `brigade : GitHub-only station ${station} takes tickets again` : `brigade : GitHub-only station ${station} takes no ticket — ${DIT_DES_RETENUES[retenue]}`);
   };
 
-  // `machine` : l'arbitre partage entre les projets ce que la machine porte quand elle sature —
-  // lue par ce runtime, pas une saturation qu'un runtime d'avant a laissée au journal.
-  const mot = (cooks: number, demande: boolean, reparation: boolean) => ({ cooks, demande, machine: saturee && !reparation, nonArbitres: degrade ? cooks : 0, consommation: consommationDesCooks(base, station, maintenant()) });
+  // `machine` : la machine ne retient plus personne, l'arbitre ne partage rien sur elle.
+  const mot = (cooks: number, demande: boolean) => ({ cooks, demande, machine: false, nonArbitres: degrade ? cooks : 0, consommation: consommationDesCooks(base, station, maintenant()) });
 
   // Demande une place à l'arbitre ; null s'il ne répond pas. L'entrée en mode
   // dégradé et le retour se disent une fois chacun.
-  const echanger = async (cooks: number, veut: boolean, reparation = false): Promise<Reponse | null> => {
+  const echanger = async (cooks: number, veut: boolean): Promise<Reponse | null> => {
     if (arbitre === null) return null;
     try {
-      const reponse = await arbitre.echanger(projet, { ...mot(cooks, veut || enAttente, reparation), veut });
+      const reponse = await arbitre.echanger(projet, { ...mot(cooks, veut || enAttente), veut });
       if (degrade) {
         degrade = false;
         avertir(`brigade : the arbiter answers again — GitHub-only station ${station} is arbitrated`);
@@ -227,13 +214,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   };
 
   // Ce dont la machine manque, ses prises récentes comptées d'avance ; le
-  // journal le dit quand les ressources en cause changent. Sans cook en vol,
-  // elle ne retient rien : jamais moins d'un cook, comme le plafond des cœurs.
-  // Une machine qui ne se lit pas ne retient rien — les places de la station
-  // bornent toujours ses cooks — et le dit une fois.
-  const machineAcourt = (cooks: number): boolean => {
+  // journal le dit quand les ressources en cause changent. La machine ne
+  // retient aucune prise : les places de la station bornent ses cooks. Une
+  // machine qui ne se lit pas le dit une fois.
+  const lireLaMachine = (cooks: number): void => {
     const { machine } = options;
-    if (machine === undefined) return false;
+    if (machine === undefined) return;
     const mesurer = () => {
       const instant = maintenant().getTime();
       accordees = accordees.filter((a) => instant - a < JEUNE_MS);
@@ -267,7 +253,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     } catch (erreur) {
       if (!machineIllisible) avertir(`brigade : the machine under GitHub-only station ${station} could not be read (${message(erreur)}) — its places alone bound its cooks until it reads again`);
       machineIllisible = true;
-      return false;
+      return;
     }
     const { lue, manques } = mesure;
     const ressources = manques.map(({ resource }) => resource);
@@ -285,9 +271,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       }
       saturees = ressources;
     }
-    saturee = manques.length > 0;
     manqueDisque = manques.find(({ resource }) => resource === "disk") ?? null;
-    return saturee && cooks > 0;
   };
 
   // Le disque est plein, aucun cook ne tourne : si ce que la cuisine tient ne
@@ -319,20 +303,17 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     }
   };
 
-  // Le ticket qui répare la saturation passe la machine à court — elle se lit et se dit quand même —, pas les autres bornes (#4100).
-  const retenueLue = async (cooks: number, reparation: boolean): Promise<RetenueDuTour | null> => {
-    machineRetient = false;
+  const retenueLue = async (cooks: number): Promise<RetenueDuTour | null> => {
     const etat = etatDesGardeFous(base);
     if (etat.stoppedAt !== null) return "stopped";
     if (etat.breakerOpenedAt !== null) return "breaker";
     if (surQuelMoteur().blocked) return "quota";
-    machineRetient = machineAcourt(cooks);
+    lireLaMachine(cooks);
     disqueEnCours ??= direLeDisque(cooks).finally(() => {
       disqueEnCours = null;
     });
-    if (machineRetient && !reparation) return "machine";
     if (arbitre === null) return null;
-    const reponse = await echanger(cooks, true, reparation);
+    const reponse = await echanger(cooks, true);
     if (reponse === null) return cooks === 0 ? null : "unarbitrated";
     return reponse.accorde ? null : "arbiter";
   };
@@ -360,7 +341,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
         ticket: null,
         run,
         // Hors ticket au journal ; le ticket servi se dit à part, pour le disjoncteur (#3656).
-        contexte: { station, ...(ticket === undefined ? {} : { serves: ticket }), ...(ticket !== undefined && reparationsLaissees.has(ticket) ? { saturationRepair: true } : {}) },
+        contexte: { station, ...(ticket === undefined ? {} : { serves: ticket }) },
         commande,
         args,
         ...(entree === undefined ? {} : { entree }),
@@ -389,21 +370,19 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       // Le « stop » ou le disjoncteur tombé entre la prise et le lancement :
       // rien n'est parti, et le cook le dit comme une fin sans livraison.
       if (!(erreur instanceof LancementRefuse)) throw erreur;
-      const fin: Fin = { code: null, signal: null, turns: 0, tokens: 0, durationMs: 0, arret: null, erreur: `${erreur.motif === "held" ? LANCEMENT_RETENU : "launch refused"}: ${erreur.message}` };
+      const fin: Fin = { code: null, signal: null, turns: 0, tokens: 0, durationMs: 0, arret: null, erreur: `launch refused: ${erreur.message}` };
       return { fin: Promise.resolve(fin), flux };
     }
   };
 
   return {
     lancer,
-    retenue: async (cooks, reparation) => {
+    retenue: async (cooks) => {
       lueCeTour = true;
-      const retenue = await retenueLue(cooks, reparation !== undefined);
+      const retenue = await retenueLue(cooks);
       if (retenue === null) accordees.push(maintenant().getTime());
-      if (retenue === null && reparation !== undefined) reparationsLaissees.add(reparation);
       if (retenue === "arbiter" || retenue === "unarbitrated") enAttente = true;
-      // La réparation passée, la machine retient encore les autres : la station ne se dit pas libre.
-      if (retenue !== null || !machineRetient) dire(retenue);
+      dire(retenue);
       return retenue;
     },
     redire: async (cooks) => {
