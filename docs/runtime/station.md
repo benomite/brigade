@@ -73,7 +73,8 @@ for the runtime, the pass and its gates, then about one per cook. One to three c
 station keeps its declared cap: the box does not see its cores (#1045). Until #3560 it was about two
 cores per cook, `max(1, ⌊(cores − 2) / 2⌋)`: the box ran 3 cooks and its tickets waited for a place,
 while its 15-minute load average, read on 2026-11-14 as it served, stood near 2.3 of its 8 cores. The machine bound below is what keeps the load
-in check: past the first cook, no take while the machine runs short.
+in check: past the first cook, no take while the machine runs short; the first cook too waits while the load
+is over its limit (#4210).
 
 `run status` and `run station` say the cap and **where it comes from**:
 
@@ -104,8 +105,14 @@ stops taking well before the out-of-memory killer acts. `BRIGADE_MIN_FREE_MEMORY
 runtime's start; `0` for memory or disk: never withheld.
 
 **The machine is read before each take** of the GitHub-only turn (`gardesDuTour`, #3560), after the
-chef's stop, the breaker and the quota, before the arbiter. It never holds the first cook: with none in
-flight the station takes one, as the cores cap never goes under one. Each take granted counts as one of
+chef's stop, the breaker and the quota, before the arbiter. Its shortage never holds the first cook: with none
+in flight the station takes one, as the cores cap never goes under one. **Then the admission** (`admission-charge`,
+#4210) is asked before each cook, the first included: it reads the one-minute load and the cores, and defers the
+cook while the load is over `BRIGADE_MAX_LOAD_PER_CORE` per core, with the 10% margin a brief spike gets (#4142),
+or while the cores cap of cooks already runs. The ticket stays on the rail, held `machine`, and is taken on a later
+turn once the load is back; the service log says each deferral (`admission deferred — a new cook waits on the
+rail: load of 27 on 8 cores, for at most 13.2`). The limit comes from the machine only, never from the rail's
+length. A ticket labelled `saturation-repair` is not deferred (#4100). Each take granted counts as one of
 load ahead (`reserver`) for a minute, the time the load average takes to show it, so a full rail does not
 leave in one block. A machine that cannot be read holds nothing — the station's places still bound its
 cooks — and the service log says it once. #2061 had dropped this bound with the old path; until #3560

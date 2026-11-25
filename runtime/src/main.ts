@@ -48,6 +48,7 @@ import { configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
 import { humainsDuProjet } from "./aiguillage-humains/aiguillage.ts";
+import { lireLaCharge } from "./rouge-de-charge/classeur.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -185,6 +186,7 @@ try {
         : (() => {
             const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), env });
             const ecrivaine = stationDuDepot({
+              lireCharge: lireLaCharge,
               porte: gestes,
               nom: ici.nom,
               places,

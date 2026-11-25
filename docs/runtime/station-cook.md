@@ -162,7 +162,14 @@ series. **The worktree goes away at the end of the cook.**
 with the gates' first red line (`its gates are red, so its delivery was not pushed: …`), the branch is
 marked as saved work (`brigade: work in progress saved before the station restarts (#2586)`), and the
 next cook starts from it. A next cook that delivers the same tree, changed in nothing, gets the same red
-without the gates being played again. A project with no `gates.sh`, or gates that judge nothing (no test command,
+without the gates being played again. **Red gates on a loaded machine are not the code's** (#4211):
+when the machine's one-minute load is above the station's CPU threshold (`BRIGADE_MAX_LOAD_PER_CORE`
+times its cores) at the end of the gates — a cut by their clock guard included —, no failed try is
+counted. The station's log and the issue get one line that names the load (`its gates are red because
+of machine load (load … for at most …)`), and the ticket goes back on the rail with a wait. Its branch is
+not marked as saved: once the load is back under the threshold, the station takes the ticket before
+the end of its wait (after a restart, at its end) and plays its gates again on the same delivery, without a cook. Green, it is
+pushed. Red on a calm machine, it counts as a try, as before. A project with no `gates.sh`, or gates that judge nothing (no test command,
 or provisional until the foundation ticket is served, #3188), pushes as before. A contributor station
 plays them the same way before pushing to its fork. **What is not a delivery is never pushed to the
 ticket's branch**: the work of a cook that stops on a question, or saved before a restart, is parked
