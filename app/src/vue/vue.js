@@ -132,6 +132,7 @@ import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
 import { monterLesRecurrents, serviceDesRecurrents } from "./recurrents/recurrents.js";
+import { monterLaFicheProjet } from "./fiche-projet/monter-fiche-projet.js";
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
@@ -194,6 +195,7 @@ import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneLectureSeule } from "./lecture-seule/lecture-seule.js";
 import { MOT_DE_LA_COLONNE, poserExplication, poserLaRangeeDesExplications, serviceDesExplications, tenirLesExplications } from "./explications/explications.js";
 import { CET_ORDINATEUR, ANNULER, OUI, REESSAYER, AJOUTER_UN_PROJET, PAS_ENCORE, LECTURE_DE, NON_ATTEINT } from "./lexique.js";
+import { phraseDuRailVide, poserLesRetenus, retenusDe, sansLApprouve } from "./gestes-retenus.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -1242,6 +1244,27 @@ async function lireLesEssais(projet) {
   if (vu === undefined) return;
   essaisDeProjets.set(projet.nom, vu);
   if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(projet);
+}
+// Les gestes qu'un agent retient pour l'OK du chef, par projet (held/, ticket 4273) : relus à chaque lecture du rail du
+// projet affiché. Absents : pas encore lus, ou pas lisibles d'ici — le projet ne cuit pas sur cet ordinateur.
+/** @type {Map<string, import("../held/contrat.ts").LectureDesRetenus | undefined>} */
+const retenusDesProjets = new Map();
+/** @param {Projet} projet @param {import("../held/contrat.ts").LectureDesRetenus | undefined} lus */
+function poserLesRetenusLus(projet, lus) {
+  retenusDesProjets.set(projet.nom, lus);
+  if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(projet);
+}
+/** @param {Projet} projet */
+async function lireLesRetenus(projet) {
+  const lus = await brigade.gestesRetenus?.(projet.nom);
+  if (lus !== undefined) poserLesRetenusLus(projet, lus);
+}
+// L'OK du chef à un geste retenu : fait, sa carte part et ne revient pas avant la lecture suivante ; refusé, sa carte le dit.
+/** @param {Projet} projet @param {string} id */
+async function approuverLeGesteRetenu(projet, id) {
+  const rendu = await brigade.approuverGeste?.(projet.nom, id);
+  if (rendu === undefined || "refus" in rendu) throw new Error(rendu?.refus ?? "nothing was approved: the app did not reach this project's station");
+  poserLesRetenusLus(projet, sansLApprouve(retenusDesProjets.get(projet.nom), id));
 }
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
@@ -4520,7 +4543,8 @@ function reposerLEtiquetteDeStation(projet) {
 // Rien sur le rail : sa colonne dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
 /** @param {Projet} projet */
 function railVide(projet) {
-  return amonts.get(projet.nom)?.vide ?? `${PAS_ENCORE("ticket on the rail")} What is before it is being read…`;
+  // Des gestes retenus pour l'OK du chef (ticket 4273) : c'est eux que le rail vide attend.
+  return phraseDuRailVide({ rail: 0, retenus: retenusDe(retenusDesProjets.get(projet.nom)) }) ?? amonts.get(projet.nom)?.vide ?? `${PAS_ENCORE("ticket on the rail")} What is before it is being read…`;
 }
 
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
@@ -5307,7 +5331,8 @@ function poserLeRail(projet) {
   // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
   // réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain
   // du projet, replié (ticket 2985).
-  const aCote = [avisDuDepot(projet, "todo")].flatMap((avis) => avis ?? []);
+  // Les gestes qu'un agent retient pour ton OK (ticket 4273) viennent en premier : chacun sa carte et son bouton Approve.
+  const aCote = [poserLesRetenus(document, retenusDesProjets.get(projet.nom), (id) => approuverLeGesteRetenu(projet, id)), avisDuDepot(projet, "todo")].flatMap((avis) => avis ?? []);
   const resolues = muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
   if (resolues.length > 0) {
     const liste = document.createElement("ol");
@@ -9108,6 +9133,7 @@ async function ouvrir(projet) {
   void lireLesReglages(projet);
   void monterLesHumains(document, element("humains-du-projet"), { projet: projet.nom, service: serviceDuPont(brigade, projet.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
   void monterLesRecurrents(document, element("recurrents-du-projet"), { projet: projet.nom, service: serviceDesRecurrents(brigade, projet.nom) });
+  void monterLaFicheProjet(document, element("fiche-du-projet"), { projet: projet.nom, pont: brigade });
   poserLesExplicationsDuChef(projet.nom);
   void explications.lire(projet.nom);
   void monterLesStations(document, element("stations-contributrices"), { projet: projet.nom, service: serviceDesStations(brigade, projet.nom) });
@@ -9264,6 +9290,7 @@ brigade.surFaits((recue) => {
   if (courant?.nom === recue.projet) {
     equipeDuProjet.lire(courant.nom);
     void lireLesEssais(courant);
+    void lireLesRetenus(courant);
     dessiner();
     poserLeRecitDuPremierTicket();
     void poserOrdinaires(courant);

@@ -33,7 +33,9 @@ import { tenirLesEssais } from "./essai.ts";
 import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
+import { approuverLeGeste, lireLesRetenus } from "./held/lecture.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
+import { ecrireDansLeProjet, lireDansLeProjet } from "./vue/fiche-projet/fiche-projet-dossier.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { brancherLeMotAuCook } from "./vue/mot-au-cook/mot-au-cook-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
@@ -1639,6 +1641,10 @@ ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
 });
 // Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humains-du-projet.ts).
+// Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
+// et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
+ipcMain.handle("gestesRetenus", (_, nom: unknown) => lireLesRetenus(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
+ipcMain.handle("approuverGeste", (_, nom: unknown, id: unknown) => approuverLeGeste(String(nom), cuisineDuProjet(nom).lu, id, lancerSurLaCuisine));
 ipcMain.handle("listerLesHumains", (_, nom: unknown) => {
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesHumains(vise.nom, lu, lancerSurLaCuisine);
@@ -1662,6 +1668,10 @@ ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unkno
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? parti(nom) : ecrireUnRecurrent(vise.nom, lu, geste, id, lancerSurLaCuisine);
 });
+// La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
+// poste (vue/fiche-projet/fiche-projet-dossier.ts).
+ipcMain.handle("lireUnFichierDuProjet", (_, nom: unknown, chemin: unknown) => lireDansLeProjet(connu(nom), chemin));
+ipcMain.handle("ecrireUnFichierDuProjet", (_, nom: unknown, chemin: unknown, texte: unknown) => ecrireDansLeProjet(connu(nom), chemin, texte));
 brancherLeMotAuCook(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le mot au cook (#4048, vue/mot-au-cook/mot-au-cook-box.ts)
 // Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
 // marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
