@@ -12,7 +12,10 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { FICHE, MOTS, monterLaFicheProjet } from "../../src/vue/fiche-projet/fiche-projet.js";
+import { monterLaFicheProjet } from "../../src/vue/fiche-projet/monter-fiche-projet.js";
+
+const FICHE = ".brigade/fiche-projet.json";
+const VIDE = "No project sheet yet.";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const PARADE = "parade";
@@ -56,7 +59,7 @@ describe("Settings : la fiche du projet ouvert", () => {
     await repos();
     await repos();
     assert.equal(vue.element("fiche-du-projet").hidden, false);
-    assert.ok(vue.element("fiche-du-projet").textContent.includes(MOTS.vide));
+    assert.ok(vue.element("fiche-du-projet").textContent.includes(VIDE));
     assert.equal(vue.appels.filter(({ geste }) => geste === "ecrireUnFichierDuProjet").length, 0);
   });
 });
@@ -84,7 +87,7 @@ describe("monterLaFicheProjet", () => {
     await quitte;
     assert.equal(conteneur.dataset.projet, PARADE);
     assert.equal(conteneur.hidden, false);
-    assert.ok(conteneur.textContent.includes(MOTS.vide));
+    assert.ok(conteneur.textContent.includes(VIDE));
     assert.equal([...conteneur.descendants()].filter((pose) => pose.dataset.item !== undefined).length, 0);
   });
 });

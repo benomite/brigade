@@ -4,9 +4,21 @@
 // et n'offre aucun champ. L'écran est joué devant un faux document (aides/fausse-vue.ts), sur des fichiers en mémoire.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ARTICLES, FICHE, MOTS, ouvrirFicheProjet } from "../../src/vue/fiche-projet/fiche-projet.js";
+import { ouvrirFicheProjet } from "../../src/vue/fiche-projet/fiche-projet.js";
 import { Faux, repos } from "../aides/fausse-vue.ts";
 
+const FICHE = ".brigade/fiche-projet.json";
+// Les mots de l'écran, tels que le chef les lit.
+const MOTS = {
+  enregistrer: "Save",
+  enCours: "Saving…",
+  enregistre: "Saved.",
+  nonEnregistre: "Project sheet not saved.",
+  illisible: "Project sheet not reached.",
+  sansFichier: "This project has no .brigade/fiche-projet.json: the kitchen writes it with its defaults.",
+  requis: (nom: string) => `${nom} cannot be empty: nothing was saved.`,
+};
+const ARTICLES = ["work", "stages", "tools", "rules", "risks", "served", "recurring", "humans"].map((cle) => ({ cle }));
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const PLEINE = {
   work: "code and its tests",
@@ -177,6 +189,7 @@ describe("la fiche du projet : écrite", () => {
     champ(ecran, "served").value = "";
     await sauver(ecran);
     assert.deepEqual(classe(ecran, "refus").map((ligne) => ligne.textContent), [MOTS.requis("The cook's work"), MOTS.requis("Served")]);
+    assert.deepEqual(classe(ecran, "refus").map((ligne) => ligne.role), ["alert", "alert"], "chaque refus se lit d'office");
     assert.deepEqual(p.ecritures, []);
     champ(ecran, "work").value = "a page";
     champ(ecran, "served").value = "the live site";
@@ -209,6 +222,7 @@ describe("la fiche du projet : écrite", () => {
     await repos();
     const refus = classe(ecran, "refus")[0] ?? assert.fail("pas de refus");
     assert.equal(refus.children[0]?.textContent, MOTS.nonEnregistre);
+    assert.equal(refus.role, "alert");
     assert.match(refus.dessous("button").at(-1)?.ariaLabel ?? "", /EROFS/);
     assert.equal(enregistrer(ecran)?.disabled, false);
     assert.equal(champ(ecran, "work").value, "an entry");

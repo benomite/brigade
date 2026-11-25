@@ -132,7 +132,7 @@ import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
 import { monterLesRecurrents, serviceDesRecurrents } from "./recurrents/recurrents.js";
-import { monterLaFicheProjet } from "./fiche-projet/fiche-projet.js";
+import { monterLaFicheProjet } from "./fiche-projet/monter-fiche-projet.js";
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";

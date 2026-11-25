@@ -25,10 +25,10 @@ import { ENREGISTREMENT, NON_ATTEINT, PAS_ENCORE } from "../lexique.js";
 /** @typedef {Record<string, unknown>} Fiche */
 /** @typedef {{ lecture: "absente" } | { lecture: "illisible", detail: string } | { lecture: "lue", fiche: Fiche }} Lecture */
 
-export const FICHE = ".brigade/fiche-projet.json";
+const FICHE = ".brigade/fiche-projet.json";
 
 // Les huit articles, dans l'ordre de la spec, avec ses mots. `requis` : vide, le projet n'a plus de quoi cuire.
-export const ARTICLES = /** @type {const} */ ([
+const ARTICLES = /** @type {const} */ ([
   { cle: "work", nom: "The cook's work", requis: true, aide: "What a cook makes for this project: code and its tests, an episode, a page." },
   { cle: "stages", nom: "Stages", requis: true, aide: "The steps a ticket goes through, each through the pass. One by default." },
   { cle: "tools", nom: "Tools", requis: false, aide: "What the cooks use to do the work." },
@@ -39,8 +39,8 @@ export const ARTICLES = /** @type {const} */ ([
   { cle: "humans", nom: "Humans in the kitchen", requis: false, aide: "The people who take a part of the work." },
 ]);
 
-export const TITRE = "project sheet";
-export const MOTS = {
+const TITRE = "project sheet";
+const MOTS = {
   aide: "What this project declares to the kitchen, kept in its repository (.brigade/fiche-projet.json). Each item is one line, or one entry per line for a list.",
   vide: PAS_ENCORE("project sheet"),
   sansFichier: "This project has no .brigade/fiche-projet.json: the kitchen writes it with its defaults.",
@@ -68,7 +68,7 @@ const estListe = (valeur) => Array.isArray(valeur) && valeur.every((element) => 
 
 // La fiche lue : absente, illisible — avec pourquoi —, ou ses articles, chacun un texte ou une liste de textes.
 /** @param {Fichiers["lire"]} lire @returns {Promise<Lecture>} */
-export async function lireLaFiche(lire) {
+async function lireLaFiche(lire) {
   /** @type {string | null} */
   let texte;
   try {
@@ -95,14 +95,14 @@ export async function lireLaFiche(lire) {
 // Ce qu'un champ dit, rendu à la forme de l'article : une liste, une entrée par ligne non vide ; un texte, sans ses
 // blancs autour.
 /** @param {unknown} avant @param {string} saisi */
-export function valeurSaisie(avant, saisi) {
+function valeurSaisie(avant, saisi) {
   if (Array.isArray(avant)) return saisi.split("\n").map((ligne) => ligne.trim()).filter((ligne) => ligne !== "");
   return saisi.trim();
 }
 
 // Les articles requis laissés vides, par leur nom.
 /** @param {Fiche} fiche */
-export function articlesVides(fiche) {
+function articlesVides(fiche) {
   return ARTICLES.filter(({ cle, requis }) => requis && /** @type {string | string[]} */ (fiche[cle]).length === 0);
 }
 
@@ -200,24 +200,4 @@ export async function ouvrirFicheProjet(doc, { lire, ecrire }) {
   }
 
   return racine;
-}
-
-// Monte l'écran dans son conteneur de Settings, pour le projet ouvert, par le pont : sans de quoi lire et écrire un
-// fichier du projet (un téléphone), la section ne se pose pas. Le conteneur retient le projet qu'il montre : une lecture
-// qui arrive pour un autre, quitté depuis, ne s'y pose pas.
-/**
- * @param {Fabrique} doc
- * @param {any} conteneur
- * @param {{ projet: string, pont: Partial<Pick<import("../pont.d.ts").Pont, "lireUnFichierDuProjet" | "ecrireUnFichierDuProjet">> }} options
- */
-export async function monterLaFicheProjet(doc, conteneur, { projet, pont }) {
-  conteneur.dataset.projet = projet;
-  conteneur.hidden = true;
-  conteneur.replaceChildren();
-  const { lireUnFichierDuProjet: lire, ecrireUnFichierDuProjet: ecrire } = pont;
-  if (lire === undefined || ecrire === undefined) return;
-  const ecran = await ouvrirFicheProjet(doc, { lire: (chemin) => lire(projet, chemin), ecrire: (chemin, texte) => ecrire(projet, chemin, texte) });
-  if (conteneur.dataset.projet !== projet) return;
-  conteneur.replaceChildren(ecran);
-  conteneur.hidden = false;
 }

@@ -5,17 +5,14 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { FICHE as FICHE_DE_LA_VUE } from "../../src/vue/fiche-projet/fiche-projet.js";
-import { ecrireDansLeProjet, FICHE, lireDansLeProjet } from "../../src/vue/fiche-projet/fiche-projet-dossier.ts";
+import { ecrireDansLeProjet, lireDansLeProjet } from "../../src/vue/fiche-projet/fiche-projet-dossier.ts";
 
 function dossier() {
   const chemin = mkdtempSync(join(tmpdir(), "fiche-projet-dossier-"));
   return { projet: { dossier: chemin }, chemin, [Symbol.dispose]: () => rmSync(chemin, { recursive: true, force: true }) };
 }
 
-test("le process principal et la vue nomment le même fichier", () => {
-  assert.equal(FICHE, FICHE_DE_LA_VUE);
-});
+const FICHE = ".brigade/fiche-projet.json";
 
 test("absente, la fiche se lit null ; écrite puis réécrite, elle se relit telle quelle, son dossier créé, sans fichier de reste", async () => {
   using d = dossier();

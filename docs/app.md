@@ -3281,8 +3281,8 @@ says `Saved.`. `The cook's work`, `Stages` and `Served` cannot be left empty: `S
 nothing was saved.` for each one, marks its field, and writes nothing. A project with no sheet says `No project sheet yet.`, why on hover, and creates
 nothing — the runtime writes the defaults. A sheet that cannot
 be read (not JSON, not an object, an item that is neither a text nor a list of texts) says `Project sheet not reached.`,
-the detail on hover, and shows no field, so nothing overwrites it. The section is `app/src/vue/fiche-projet/fiche-projet.js`;
-it calls two bridge methods, `lireUnFichierDuProjet(project, path)` and `ecrireUnFichierDuProjet(project, path, text)`,
+the detail on hover, and shows no field, so nothing overwrites it. The section is `app/src/vue/fiche-projet/fiche-projet.js`,
+mounted by `monter-fiche-projet.js`; it calls two bridge methods, `lireUnFichierDuProjet(project, path)` and `ecrireUnFichierDuProjet(project, path, text)`,
 which the desktop app serves from the project's folder on this computer, for that one path only
 (`app/src/vue/fiche-projet/fiche-projet-dossier.ts`). A bridge without them (the phone) does not show the section.
 

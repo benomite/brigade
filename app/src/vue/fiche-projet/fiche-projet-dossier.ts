@@ -7,12 +7,12 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const FICHE = ".brigade/fiche-projet.json";
+const FICHE = ".brigade/fiche-projet.json";
 
 function fichierDe(projet: { dossier: string } | undefined, chemin: unknown): string {
   if (projet === undefined) throw new Error("this project is no longer in the projects file");
-  if (chemin !== FICHE) throw new Error(`only ${FICHE} is read or written here, not ${String(chemin)}`);
-  return join(projet.dossier, FICHE);
+  if (chemin === FICHE) return join(projet.dossier, FICHE);
+  throw new Error(`only ${FICHE} is read or written here, not ${String(chemin)}`);
 }
 
 export async function lireDansLeProjet(projet: { dossier: string } | undefined, chemin: unknown): Promise<string | null> {
