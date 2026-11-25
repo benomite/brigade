@@ -3573,11 +3573,14 @@ backlog without being ready (awaiting you, parked, blocked) —, then **Manager*
 asked or answered), **Cooks**, **Pass** and **Served**. Each card sits in the column of the step it is at
 (`app/src/vue/cuisine/cuisine.js`, `planDeLaCuisine`). **A parked card stays in the column where it waits** — a ticket
 that waits for a third party, or that the runtime set aside —, and says who it waits for and until when: `parked — waits
-for <who>, until <day, hour UTC>` (`no date set` without one). **There is no Waiting column.** A parked ticket that waits
-for the chef (`attend` names it) is red, and is also in the chef's TODO. **The TODO stands above the columns**, one
-glance away: `TODO (N)`, then one entry per ticket that waits for the chef — exactly the red cards, parked ones
-included —, each opening its card in one click; the repository not set up for Brigade joins it. An answer kept from a
-card that left and **Awaiting others** are next to it, under the columns: they do not wait for the chef. **The top band
+for <who>, until <day, hour UTC>` (`no date set` without one). **There is no Waiting column.** **The chef's TODO is
+exactly the tickets parked for the chef (#4261)**: a ticket is red, and in the TODO, when the « who » of its parked record
+is the chef (`parqueDe` in `app/src/bon.ts`) — every card that waits for the chef carries one, for its question, with no
+date (`app/src/faits.ts`). A ticket parked for someone else, even named by the queue, or parked until a date, even a
+passed one, is not. **The TODO stands above the columns**, one glance away: `TODO (N)`, then one entry per ticket parked
+for the chef — its number and title, which open its card in one click; what is asked; the buttons of its card, which
+answer it as the card does ([todo-cards.md](todo-cards.md)). The repository not set up for Brigade, which is not a
+ticket, an answer kept from a card that left and **Awaiting others** are next to it, under the columns. **The top band
 replaces the fault banners**: the supervisor's line — what it watches, its last action, what it parked for you (`its
 thread`, when the team is read) — and the closer's line — its last tidy, its next one —, then at most one message, the
 first cause that offers the chef an action: a message with none is not shown (an alert the kitchen handles itself, the
@@ -3593,12 +3596,12 @@ before it is taken, Taken, Pass, Waiting — **with the black-and-red look of th
 its question and the buttons that answer it; **red cards come first in their column**, before the others. The column
 says where the ticket is, the colour says who holds it. A ticket that is not on the rail yet (an issue set aside, an epic
 the manager asks about) is red in On the rail; an `86` is red where the runtime says it waits (`attente.colonne`). A
-ticket in WAITING whose follow-up date has passed is back on you: its card is red, first in Waiting, with `resume` and
-`it arrived, back to the kitchen`. The main process still files what awaits you in one list (`Awaiting you` in
+ticket in WAITING whose follow-up date has passed says so on its card, and stays as it was: parked for a third party, it
+is not red (#4261). The main process still files what awaits you in one list (`Awaiting you` in
 `app/src/faits.ts`, each card with its `etape`); the view never draws it as a column (`app/src/vue/todo/todo.js`).
 
-**There is no TODO filter and no `TODO (N)` entry any more (#3523).** The red cards come first in their column — in Waiting
-included — and that is all: nothing to click. The count of what awaits the chef stays on the home (`N awaiting you` on a
+**There is no TODO filter and no `TODO (N)` entry any more (#3523).** The red cards come first in their column, and that
+is all: nothing to click. The count of what awaits the chef stays on the home (`N awaiting you` on a
 project's line, the count of the red cards once its rail is read; before that, the count the main process reads in
 `facts`). **What awaits you without being a ticket of the rail is under the columns, outside them**: the repository not set
 up for Brigade, an answer kept from a card that left meanwhile, then **Awaiting others (N)**, folded; the breaker line and
