@@ -4,10 +4,10 @@
 // (`ticket.waiting`), reprises (`ticket.resumed`, vers « todo » : l'état d'avant
 // l'attente ; vers « kitchen » : c'est arrivé) —, et le rail, `status` et TODO
 // les relisent : ni l'une ni l'autre sortie ne passe par TODO (#1834), et il ne
-// tient pas sa zone. Ici la date tapée (`lireRelance`), puis ces relectures.
+// tient pas sa zone. Ici, ces relectures.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../src/attente.ts";
+import { RELANCE_PAR_DEFAUT_MS } from "../src/attente.ts";
 import { attentesDuChef, decrireAttentes } from "../src/attend.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { ATTEND_UN_TIERS, PAR_LE_CHEF } from "../src/events/rail.ts";
@@ -63,18 +63,12 @@ const ligne = (journal: Journal, ticket: number) => decrireEtat(lireEtat(journal
 test("une relance donnée est tenue ; redire l'attente la met à jour sans changer depuis quand", (t) => {
   const { journal } = cuisine(t);
   poser(journal, 8);
-  const premiere = attendre(journal, 8, lireRelance("2026-10-28", MAINTENANT));
+  const premiere = attendre(journal, 8, new Date(2026, 9, 28));
   assert.equal(new Date(premiere.waitingFor?.followUp ?? "").getTime(), new Date(2026, 9, 28).getTime());
 
-  const seconde = attendre(journal, 8, lireRelance("3j", MAINTENANT), { quoi: "sa signature", qui: "le juriste" });
+  const seconde = attendre(journal, 8, new Date("2026-10-17T12:00:00.000Z"), { quoi: "sa signature", qui: "le juriste" });
   assert.deepEqual([seconde.waitingFor?.what, seconde.waitingFor?.who, seconde.waitingFor?.since], ["sa signature", "le juriste", premiere.waitingFor?.since]);
   assert.equal(seconde.waitingFor?.followUp, "2026-10-17T12:00:00.000Z");
-});
-
-test("une date déjà passée, ou qu'on ne sait pas lire, est refusée en nommant `--until`", () => {
-  assert.throws(() => lireRelance("2026-10-01", MAINTENANT), (erreur: unknown) => erreur instanceof GesteRefuse && /^--until: 2026-10-01 has already passed/.test(erreur.message));
-  assert.throws(() => lireRelance("mardi", MAINTENANT), (erreur: unknown) => erreur instanceof GesteRefuse && /^--until: “mardi” cannot be read/.test(erreur.message));
-  assert.equal(lireRelance("36h", MAINTENANT).toISOString(), "2026-10-16T00:00:00.000Z");
 });
 
 test("un ticket en WAITING n'est pas dans TODO, et ne tient pas sa zone", (t) => {
@@ -123,7 +117,7 @@ test("« c'est arrivé, on repart » : le ticket en WAITING repart en cuisine sa
 test("la relance atteinte laisse le ticket en WAITING, sans carte dans TODO : seule sa ligne WAITING montre la date passée", (t) => {
   const { journal } = cuisine(t);
   poser(journal, 8);
-  const relance = lireRelance("2026-10-21", MAINTENANT);
+  const relance = new Date(2026, 9, 21);
   attendre(journal, 8, relance);
   const horloge = new Date(relance.getTime() + 3_600_000);
   const lu = ticketDuRail(journal.base, 8);

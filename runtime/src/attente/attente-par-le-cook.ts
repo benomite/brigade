@@ -4,9 +4,9 @@
 // module fait ce geste :
 //   - `lireAttenteDuCook` : ce que les mots d'un cook (son blocage) ou d'une relecture disent d'une attente — pas avant
 //     une date à venir, ou quelque chose qu'un tiers hors de la cuisine n'a pas encore donné. Qui, pour quoi, et jusqu'à
-//     quand — la date dite ; sans date, dans sept jours, comme `parked set`. Null quand ils ne disent ni l'un ni
+//     quand — la date dite ; sans date, dans sept jours. Null quand ils ne disent ni l'un ni
 //     l'autre : la question va au manager, comme avant ;
-//   - `mettreEnAttenteParLaCuisine` : le geste de `parked set` (attente-github/attente-github.ts, `poserLAttente`) ;
+//   - `mettreEnAttenteParLaCuisine` : le geste du parking (attente-github/attente-github.ts, `poserLAttente`) ;
 //   - `parquerSesEchecs` : ses cooks ont échoué trop de fois, la station arrête sa boucle de relances — il attend le
 //     superviseur, qui reçoit son dossier (manager/supervision.ts) ;
 //   - `ramenerALaRelance` : à chaque tour de station, un ticket parqué jusqu'à une date passée reprend exactement où il

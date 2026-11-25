@@ -988,6 +988,27 @@ up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
 
+### The logbook of the day and the morning digest card (#4274, epic #4025)
+
+Above the columns of the rail, **Today's logbook** reads the day (the UTC day of the last `facts` reading) from the
+agents' threads (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, T1): four groups, always all
+four — **Delivered**, **Broke**, **Fixed by the system**, **Not fixed**, with **The system's own mistakes** under Not
+fixed. Each entry is one gesture of a thread: its time, the agent, its line and its outcome, its reason on hover; an
+empty group says `nothing`. At the first opening of a project in a day (the day of the computer's clock), a card with
+**yesterday**'s digest sits at the top of the view, the number of outages seen first by the chef as its first line; it
+stays while the app stays open that day, and another opening that day does not show it. Both are readings: neither
+asks for a notification.
+
+Both come from `facts`, like the rest of the view: `fils` (one list of gestures per agent, each `at`, `line`,
+`reason`, `outcome`, `kind` — `delivered`, `broke`, `fixed`, `unfixed` or `mistake`) and `digest` (a text, one line
+per thing said), read by `app/src/journal/fils.ts` and sorted by `app/src/projets/journal-du-jour.ts`. A runtime that
+does not give them shows neither. `fils` of another shape says `the agents' threads are not readable`; a gesture of
+another shape, or of an unknown kind, is counted in one line, never sorted; a `digest` that is not a text says
+`yesterday's digest is not readable`. The line about outages is the one that holds the words `seen first by the
+chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/journal/fils.ts`, the words the runtime's digest must write); a
+digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
+the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
+
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail and Cooks tabs are drawn from
@@ -1323,6 +1344,16 @@ carrying `kitchen-board` is never a card (the rule, with its reading, is in the 
 `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
 `todo-github-seul-apres.png`.
 
+**Held gestures (#4273, epic #4209).** A gesture an agent holds for the chef's OK is not a ticket: it sits under the
+columns, next to Todo, in a section **Held for your OK (N)** — one card per gesture, with its summary, its reason (the
+`<summary> — <reason>` line that `manager` lists under `held gestures`) and one **Approve** button. Approve runs
+`manager approve <id>` on this computer's station: no ssh, no typed command. Done, the card leaves the list; refused, it
+stays and says why on one line. When the rail is empty and gestures are held, the rail says `N splits wait for your OK`
+instead of what is before it. The gestures are read by `manager` at each reading of the displayed project's rail, only for
+a project that cooks on this computer; a reading that fails is said on one error line, never as "none". *Code:
+`app/src/held/` (`lecture.ts` reads and approves, `cartes.js` draws), wired in `app/src/vue/vue.js`. Tests:
+`app/test/held/`. Captures: `docs/captures/4273/`.*
+
 ### Changing a ticket's priority (#1739)
 
 A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`
@@ -1369,8 +1400,8 @@ through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the car
 
 ### Parking a ticket, on any project (#4129; before, WAITING on a GitHub project, #3075)
 
-The app parks and unparks a ticket the same way as the second and as the runtime's `parked` command, on any project,
-with no box command: each gesture is written on the issue (`app/src/vue/attente/attente-github.ts`). On a GitHub
+The app parks and unparks a ticket the same way as the second, on any project, with no box command: each gesture is
+written on the issue (`app/src/vue/attente/attente-github.ts`). On a GitHub
 project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a phone's. It
 opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and *follow-up on*,
 proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without whom, or with a
@@ -1378,12 +1409,17 @@ follow-up that is not a day after today is refused, the sentence under the field
 closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
 `app/src/vue/attente/saisie.ts`, the same reading for every path.
 
-- **Park.** *waiting for…* posts the parking comment — the marker `<!-- brigade:parked {…} -->` with who, for what and
-  until when, then `**PARKED: waits for <who>.** <what>`: the very text of `corpsDuParking`
-  (`runtime/src/attente-github/marque.ts`), which `parked set` and the second write too —, then sets the `parked`
-  label. A comment GitHub posted but whose label it refused is said: the ticket is not parked.
-- **Unpark.** *resume* (the person answered) and *it arrived, back to the kitchen* (the fact happened) remove `parked`:
-  the ticket resumes exactly where it was. Neither goes through the runtime or the box any more.
+- **Where it goes.** Always on the issue, on any project, never through a box command (#4262) — from the desktop as
+  from the phone, and from the second, which plays the same two functions with the parking command the app gives it at
+  each session start (`app/src/second/parking.ts`, `park` / `unpark`).
+- **Park.** *waiting for…* parks the ticket (`parquer`, `app/src/vue/attente/attente-github.ts`): it posts the parking
+  comment — the marker `<!-- brigade:parked {…} -->` with who, for what and until when, then
+  `**PARKED: waits for <who>.** <what>`: the very text of `corpsDuParking` (`runtime/src/attente-github/marque.ts`),
+  which the station writes too —, then sets the `parked` label. A comment GitHub posted but whose label it refused is
+  said: the ticket is not parked.
+- **Unpark.** *resume* (the person answered) and *it arrived, back to the kitchen* (the fact happened) unpark it
+  (`deparquer`, `app/src/gestes-github.ts`): `parked` is removed, with any waiting label of before parked, and the
+  ticket resumes exactly where it was.
 - **What is read.** An issue carrying `parked` waits for someone else: it is never a TODO entry, whatever else it
   carries — a chef's card parked for someone else leaves TODO until it resumes. Parked for the chef, an issue carries
   `chef-todo` alone: it is a TODO card. Among the issues the app
@@ -1404,7 +1440,7 @@ width).
 
 ### The `brigade` command on the chef's Mac (#4072)
 
-The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
+The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `status` and `rail`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
 
 ### The second's choices, as buttons under its terminal (#1520)
 
@@ -2310,8 +2346,6 @@ sign of life) is stated only once: the page header does not repeat the state whe
 - **Update failed and rolled back**: the target version did not start, the station
   stayed on its own; the next one will be tried alone. "dismiss" clears the line, as long as
   the app is open. The reason for the failure is not stated here: it is in the projects' queue.
-  A target version that stops serving a project the app held back for another station
-  (`# held-back (served by …)`) has not failed: it is kept (#3709).
 - **Max connection lost**: nothing cooks on the station any more. "log in" runs `claude auth login`,
   which opens the login page in your browser; the station sees the connection restored within
   the minute, and the kitchen resumes on its own. **Only the station of this computer** reconnects
@@ -2464,12 +2498,10 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   after an app restart. A second background station started anyway says the first runs and leaves, and the station
   itself refuses to start (code 2) on a directory another station process holds
   (`runtime/src/station-fond/seule.ts`).
-- **One kitchen per project (#2110).** Before each launch, the app reads the account's stations: a
-  project of this computer's configuration that another station already serves (and that cooks) is not
-  read by the station — its line stays in `projets` as a `# held-back (served by <station>): …`
-  comment, no kitchen opens and no board is published here — and the app logs which station serves
-  it. The line comes back as soon as no other station serves the repository. A reading that fails
-  changes nothing (`app/src/station-embarquee-cuisine-unique.ts`).
+- **Every project is served here (#4286).** The app sets no project aside for another station: tickets are
+  claimed on GitHub, so two stations serving one project never cook the same ticket. A line an older version
+  had turned into a `# held-back (served by <station>): …` comment is put back as it was at the next launch
+  (`app/src/station-projets-remis.ts`).
 - What the station says is written to its log, `station/fond.log`, like its service log
   on a server. It is run by the `node` of `npm start` (`BRIGADE_NODE_BIN` to give
   another): Electron is not one. **The installed app** (the `.dmg`) runs the runtime and the
@@ -2907,6 +2939,15 @@ reached or refusing, or the whole reading — lists, then comments, then label e
 hook's 45 s, so that `claude` never kills it silent) is said in that context, in one line starting `file non lue :`, and
 the hook still exits 0: it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
+**The parking command is given to the second, at each start (#4262).** The launch settings carry a second
+`SessionStart` hook (`startup`, `resume`, `compact`, `app/src/second/crochet-du-parking.ts`): it runs
+`app/src/second/parking.ts context <owner>/<repo>`, which returns, as additional context, the exact command — this
+computer's `node` and the path of `parking.ts`, quoted for the shell — to park a ticket
+(`park <owner>/<repo>#<n> --who <who> --what <what> --until <YYYY-MM-DD>`) or unpark it (`unpark <owner>/<repo>#<n>`).
+The command plays the same two functions as the app's buttons (`parquer`, `deparquer`), on the issue, with this
+computer's `gh` token: no box, on any project. It says in one line what was written, or why nothing was, and exits 0
+(done), 1 (refused by the form or by GitHub) or 2 (a malformed command). The hook always exits 0.
+
 **The role is given again once `/brigade:init` is merged (#2689).** A second opened on a project not set up yet has no
 bindings in its context: it starts the setup, which ends with a PR to merge (#3167, below). So the launch settings also carry
 `app/src/second/role-apres-init.ts` twice. At each start (`SessionStart`), it notes whether the folder's `CLAUDE.md` has the
@@ -3275,7 +3316,21 @@ pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vu
 with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
 phone) does not show the section.
 
-Under the recurring tickets, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
+Under the recurring tickets, the **project sheet** section (#4240, epic #4136) shows the eight items of the open project's
+`.brigade/fiche-projet.json` (see "The project sheet" in `docs/superpowers/specs/2026-11-24-simplified-process.md`), one
+row each with the spec's words: `The cook's work`, `Stages`, `Tools`, `House rules`, `Risks`, `Served`, `Recurring`,
+`Humans in the kitchen`. An item written as a text is one line; an item written as a list is one entry per line (`one per
+line` under it), and keeps its shape when saved. `Save` writes the whole file, keys the screen does not show included, and
+says `Saved.`. `The cook's work`, `Stages` and `Served` cannot be left empty: `Save` refuses, says `<item> cannot be empty:
+nothing was saved.` for each one, marks its field, and writes nothing. A project with no sheet says `No project sheet yet.`, why on hover, and creates
+nothing — the runtime writes the defaults. A sheet that cannot
+be read (not JSON, not an object, an item that is neither a text nor a list of texts) says `Project sheet not reached.`,
+the detail on hover, and shows no field, so nothing overwrites it. The section is `app/src/vue/fiche-projet/fiche-projet.js`,
+mounted by `monter-fiche-projet.js`; it calls two bridge methods, `lireUnFichierDuProjet(project, path)` and `ecrireUnFichierDuProjet(project, path, text)`,
+which the desktop app serves from the project's folder on this computer, for that one path only
+(`app/src/vue/fiche-projet/fiche-projet-dossier.ts`). A bridge without them (the phone) does not show the section.
+
+Under the project sheet, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
 words — rail, pass, cook, second, TODO, WAITING — you have seen explained (`3 of 6 seen`, what it means on hover), with
 one button, `show all the explanations again`: it clears your record, and each word is explained again the next time you
 meet it, on this device and on your other ones (`each explanation shows again the next time you meet its word, on all

@@ -1,10 +1,9 @@
 // WAITING sur le rail (#591), devenu le parking (#4129) : deux colonnes, TODO — ce que le chef peut trancher maintenant —
 // et WAITING — ce qui attend un tiers. Sur une carte de TODO, « waiting for… » ouvre un formulaire : ce qu'elle attend, de
-// qui, la relance proposée à sept jours ; validé, il s'écrit sur l'issue (vue/attente/attente.test.ts) — aucune commande
-// de la box ne part. Une carte de WAITING dit sans clic ce qu'elle attend, de qui, depuis quand, sa relance et ce qui se
-// passera à l'arrivée, et porte « resume » et « it arrived, back to the kitchen ». Une carte revenue de WAITING le dit —
-// pas pourquoi : le runtime ne le rend pas dans `faits`. Ce que le chef remplit est lu avant que rien ne parte
-// (vue/attente/saisie.ts) ; la vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// qui, la relance proposée à sept jours ; validé, il s'écrit sur l'issue, jamais par une commande de la box (#4262). Une
+// carte de WAITING dit sans clic ce qu'elle attend, de qui, depuis quand, sa relance et ce qui se passera à l'arrivée, et
+// porte « resume » et « it arrived, back to the kitchen ». Une carte revenue de WAITING le dit — pas pourquoi : le runtime
+// ne le rend pas dans `faits`. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
@@ -20,39 +19,57 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { ClientDeLaPriorite } from "../src/priorite.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { attenteSurGithub, ecrireLAttente } from "../src/vue/attente/attente-github.ts";
+import { attenteSurGithub, parquer } from "../src/vue/attente/attente-github.ts";
 import { saisieLue, type Saisie } from "../src/vue/attente/saisie.ts";
 import { rouges } from "./aides/rouges.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 // Le jour du poste, fixé : la relance se borne d'après lui.
 const AUJOURDHUI = new Date(2026, 9, 15, 14, 30);
-
 const refus = (saisie: unknown) => {
   const lue = saisieLue(saisie, AUJOURDHUI);
-  assert.ok("refus" in lue, `la saisie part : ${JSON.stringify(lue)}`);
+  assert.ok("refus" in lue, `rien n'est refusé : ${JSON.stringify(lue)}`);
   return lue.refus;
 };
-// Un client qui ne doit jamais être appelé : un geste refusé n'écrit rien sur GitHub.
-const MUET: ClientDeLaPriorite = { lire: () => assert.fail("rien ne se lit"), ecrire: () => assert.fail("rien ne s'écrit") };
 
-describe("ce que le chef remplit dans « waiting for… » est lu avant que rien ne parte", () => {
+describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
   test("la relance proposée est dans sept jours, au calendrier du poste — fin de mois et d'année comprises", () => {
     assert.equal(relanceProposee(AUJOURDHUI), "2026-10-22");
     assert.equal(relanceProposee(new Date(2026, 9, 28, 23, 59)), "2026-11-04");
     assert.equal(relanceProposee(new Date(2026, 11, 30, 0, 1)), "2027-01-06");
   });
 
-  test("« waiting for… » parque le ticket : le commentaire de parking dit qui, pour quoi, jusqu'à quand, puis `parked` est posé — rien sans quoi, de qui, une relance à venir, un ticket", async () => {
+  test("ce sont les trois gestes de WAITING, et aucun n'est une commande de la box (#4262)", () => {
+    assert.deepEqual(GESTES_D_ATTENTE, [
+      { id: "attente-poser", libelle: "waiting for…" },
+      { id: "attente-reprendre", libelle: "resume" },
+      { id: "attente-arrivee", libelle: "it arrived, back to the kitchen" },
+    ]);
+  });
+
+  test("rien n'est écrit sans ce que la commande demande : quoi, de qui, une relance à venir, un ticket", async () => {
     const plein = { quoi: "sa réponse", qui: "le client", relance: "2026-10-22" };
-    const lue = saisieLue({ ...plein, quoi: "  sa validation écrite du devis  " }, AUJOURDHUI);
-    assert.deepEqual(lue, { ...plein, quoi: "sa validation écrite du devis" });
+    assert.deepEqual(saisieLue({ ...plein, quoi: "  sa validation écrite du devis  " }, AUJOURDHUI), { ...plein, quoi: "sa validation écrite du devis" });
+    assert.match(refus({ ...plein, quoi: "   " }), /say what it waits for/);
+    assert.match(refus({ ...plein, qui: "" }), /say whom it waits for/);
+    assert.match(refus({ quoi: "sa réponse" }), /say whom it waits for/);
+    for (const relance of ["", "22/10/2026", "2026-02-30", "2026-10-22T09:00", "7j"]) assert.match(refus({ ...plein, relance }), /is not a day of the calendar/, relance);
+    for (const relance of ["2026-10-15", "2026-10-01"]) assert.match(refus({ ...plein, relance }), /is not after today/, relance);
+    assert.match(refus({ ...plein, quoi: "une ligne\npuis une autre" }), /control character/);
+    for (const ticket of [0, -3, 1.5, "8", null, undefined]) {
+      const dit = await attenteSurGithub({ id: "attente-reprendre", ticket, saisie: undefined, aujourdhui: AUJOURDHUI, lu: undefined, client: {} as ClientDeLaPriorite });
+      assert.match("refus" in dit ? dit.refus : "", /names no ticket/, String(ticket));
+    }
+  });
+
+  test("« waiting for… » parque le ticket : le commentaire de parking dit qui, pour quoi, jusqu'à quand, puis `parked` est posé", async () => {
+    const lue = saisieLue({ quoi: "sa validation écrite du devis", qui: "le client", relance: "2026-10-22" }, AUJOURDHUI);
     const ecrits: [string, string, unknown][] = [];
     const client: ClientDeLaPriorite = {
       lire: () => assert.fail("rien ne se lit"),
       ecrire: (methode, chemin, corps) => (ecrits.push([methode, chemin, corps]), Promise.resolve(chemin.endsWith("/comments") ? { status: 201, data: { html_url: "https://github.com/o/r/issues/8#c1" } } : { status: 200, data: [] })),
     };
-    const ecrit = await ecrireLAttente("o/r", 8, lue as Saisie, AUJOURDHUI, client);
+    const ecrit = await parquer("o/r", 8, lue as Saisie, AUJOURDHUI, client);
     assert.ok("fait" in ecrit, JSON.stringify(ecrit));
     const [[, chemin, poste] = [], [, cheminDuLabel, label] = []] = ecrits;
     assert.equal(chemin, "/repos/o/r/issues/8/comments");
@@ -61,19 +78,6 @@ describe("ce que le chef remplit dans « waiting for… » est lu avant que rien
     assert.match(corps, /^<!-- brigade:parked \{"what":"sa validation écrite du devis","who":"le client","followUp":"2026-10-2[12]T\d\d:00:00\.000Z"\} -->\n\*\*PARKED: waits for le client\.\*\*/);
     assert.match(corps, /- \*\*until\*\*: 2026-10-2[12] \d\d:00 UTC/);
     assert.deepEqual([cheminDuLabel, label], ["/repos/o/r/issues/8/labels", { labels: ["parked"] }]);
-    assert.match(refus({ ...plein, quoi: "   " }), /say what it waits for/);
-    assert.match(refus({ ...plein, qui: "" }), /say whom it waits for/);
-    assert.match(refus({ quoi: "sa réponse" }), /say whom it waits for/);
-    for (const relance of ["", "22/10/2026", "2026-02-30", "2026-10-22T09:00", "7j"]) assert.match(refus({ ...plein, relance }), /is not a day of the calendar/, relance);
-    for (const relance of ["2026-10-15", "2026-10-01"]) assert.match(refus({ ...plein, relance }), /is not after today/, relance);
-    assert.match(refus({ ...plein, quoi: "une ligne\npuis une autre" }), /control character/);
-    const refusDuGeste = async (id: unknown, ticket: unknown) => {
-      const ecrit = await attenteSurGithub({ id, ticket, saisie: plein, aujourdhui: AUJOURDHUI, lu: undefined, client: MUET });
-      return "refus" in ecrit ? ecrit.refus : assert.fail(`« ${String(id)} » écrit quelque chose : ${JSON.stringify(ecrit)}`);
-    };
-    for (const ticket of [0, -3, 1.5, "8", null, undefined]) assert.match(await refusDuGeste("attente-poser", ticket), /names no ticket/, String(ticket));
-    // Un geste inconnu : rien à écrire.
-    assert.match(await refusDuGeste("waiting set 8", 8), /is not a WAITING gesture/);
   });
 });
 

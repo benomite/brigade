@@ -3,7 +3,7 @@
 // nommée et une date pour le revoir : rien n'attend « que quelqu'un s'en
 // souvienne ». La raison et la date se lisent de la marque du parking
 // (`<!-- brigade:parked … -->`), la seule fiche du rail qui les porte. Sans
-// elle, il la pose, du geste de `parked set` : qui il attend — le superviseur
+// elle, il la pose, du geste du parking : qui il attend — le superviseur
 // —, pour quoi, jusqu'à quand. Sa date passée, un ticket parqué reprend seul
 // où il était (`ramenerALaRelance`), un ticket mis de côté par le geste
 // `back-on-rail`.

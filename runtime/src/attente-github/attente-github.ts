@@ -1,22 +1,15 @@
-// Parked sur un projet GitHub (#4129, d'abord WAITING, #3074) : les gestes qui parquent un ticket — il attend quelqu'un,
-// pour quelque chose, jusqu'à une date ou un fait — et qui l'en sortent, sur une carte que la station lit de GitHub.
-// Le ticket se nomme par son dépôt et son numéro (`BOBL-tech/mirrorlab#614`), et chaque geste s'écrit sur l'issue même,
-// rien dans la box — le second et l'app écrivent exactement la même chose, avec `gh` ou l'API :
-//   - `parked set <dépôt>#<n> --what … --from … [--until <date ou durée> | --fact <fait>]` : le label `parked`, et le
-//     commentaire marqué qui dit qui, pour quoi, jusqu'à quand (marque.ts, `corpsDuParking`) — dans sept jours, sans
-//     `--until` ni `--fact`. Ouvert à toute étape : au backlog, en cuisson (`taken`), en pass (`in-pass`) ; ces labels
-//     restent, et le ticket reprend exactement où il était. Parqué pour le chef (`--from "the chef"`), il prend aussi
-//     `chef-todo` (et non `parked`) et sa carte : il est dans son TODO. Une carte du chef parquée pour un autre prend
-//     `parked` et quitte TODO, jusqu'à sa reprise. Une issue déjà parquée autrement n'est pas touchée ;
-//   - `parked resume <dépôt>#<n>` : la personne a répondu — `parked` retiré (`chef-todo`, s'il attendait le chef), le
-//     ticket reprend où il était : une carte du chef parquée pour un autre revient dans TODO ;
-//   - `parked arrived <dépôt>#<n>` : le fait attendu est arrivé — le même geste, dit ainsi ;
-//   - `parked <dépôt>` : les tickets parqués du projet lus de GitHub — le TODO du chef, ceux qui l'attendent, puis les
-//     autres, chacun avec qui, quoi, jusqu'à quand.
+// Parked sur un projet GitHub (#4129, d'abord WAITING, #3074) : ce qu'un ticket attend — quelqu'un, pour quelque chose,
+// jusqu'à une date ou un fait — s'écrit et se relit sur l'issue même, rien dans la box. Le ticket se nomme par son dépôt
+// et son numéro (`BOBL-tech/mirrorlab#614`). La cuisine le parque (`poserLAttente`, `mettreEnAttenteGitHub`, que le
+// superviseur joue) : le label `parked`, et le commentaire marqué qui dit qui, pour quoi, jusqu'à quand (marque.ts,
+// `corpsDuParking`). Ouvert à toute étape : au backlog, en cuisson (`taken`), en pass (`in-pass`) ; ces labels restent,
+// et le ticket reprend exactement où il était. Parqué pour le chef, il prend `chef-todo` (et non `parked`) et sa carte :
+// il est dans son TODO. Le chef et le second le parquent et le déparquent depuis l'app, sans commande de la box
+// (app/src/vue/attente/attente-github.ts, `parquer` ; app/src/gestes-github.ts, `deparquer` ; #4262).
 // Ce qu'une issue attend se relit dans le dernier commentaire marqué `<!-- brigade:parked … -->` d'un auteur du dépôt :
 // tout le monde peut commenter une issue publique. Une issue au label `parked` sans ce commentaire est parquée sans rien
 // inventer : la ligne dit que l'issue ne le dit pas.
-import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
+import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { CHEF_TODO, estParque, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "../github-etat/etats.ts";
 import type { Commentaire, GitHub, IssueOuverte } from "../github.ts";
 import { carteEnCours, corpsDeCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
@@ -73,25 +66,15 @@ async function dejaParquee(github: GitHubDeLAttente, cible: Cible): Promise<stri
   return `${nommer(cible)} is already parked — ${direAttenteGitHub(attenteDeLIssue(await github.commentaires(cible.numero)))}`;
 }
 
-// Jusqu'à quand : une date ou une durée (`until`), ou un fait (`fact`) — jamais les deux ; sans l'un ni l'autre, dans
-// sept jours. Parqué jusqu'à un fait, sa date est celle où la cuisine le regarde de nouveau : il n'y reprend pas seul.
-export function jusqua({ until, fact }: { until?: string | undefined; fact?: string | undefined }, maintenant: Date): Pick<AttenteGitHub, "followUp" | "fact"> {
-  if (until !== undefined && fact !== undefined) throw new GesteRefuse("a ticket is parked until a date or until a fact, not both: --until or --fact");
-  const dit = fact?.trim();
-  if (fact !== undefined && (dit === undefined || dit === "")) throw new GesteRefuse("--fact: the fact it waits for, in your words");
-  const followUp = (until === undefined ? new Date(maintenant.getTime() + RELANCE_PAR_DEFAUT_MS) : lireRelance(until, maintenant)).toISOString();
-  return dit === undefined ? { followUp } : { followUp, fact: dit };
-}
-
-// Parque l'issue : le label, puis le commentaire marqué — pour le chef, `chef-todo` et sa carte aussi. Ouvert à toute
+// Parque l'issue pour sept jours : le label, puis le commentaire marqué — pour le chef, `chef-todo` et sa carte aussi. Ouvert à toute
 // étape : les labels de l'étape (`taken`, `in-pass`, `fire`) restent, le ticket reprend où il était. Refuse une issue
 // déjà parquée. Le commentaire qui ne part pas retire le label posé : l'issue n'attend pas sans dire quoi.
-export async function mettreEnAttenteGitHub(github: GitHubDeLAttente, cible: Cible, { quoi, qui, relance, fait }: { quoi: string; qui: string; relance?: string; fait?: string }, maintenant: Date): Promise<AttenteGitHub> {
+export async function mettreEnAttenteGitHub(github: GitHubDeLAttente, cible: Cible, { quoi, qui }: { quoi: string; qui: string }, maintenant: Date): Promise<AttenteGitHub> {
   const what = quoi.trim();
   const who = qui.trim();
   if (what === "") throw new GesteRefuse("a ticket is not parked without saying for what: what it waits for, in your words");
   if (who === "") throw new GesteRefuse("a ticket is not parked without saying who it waits for: the chef, the client, a team, a person");
-  const attente: AttenteGitHub = { what, who: estLeChef(who) ? LE_CHEF : who, ...jusqua({ until: relance, fact: fait }, maintenant) };
+  const attente: AttenteGitHub = { what, who: estLeChef(who) ? LE_CHEF : who, followUp: new Date(maintenant.getTime() + RELANCE_PAR_DEFAUT_MS).toISOString() };
   const issue = await issueOuverte(github, cible);
   // Une carte du chef (`chef-todo`) se parque pour un autre, comme le bouton de l'app : elle prend `parked` et quitte
   // TODO ; reprise, elle y revient. Déjà parquée pour un autre, ou parquée pour le chef une seconde fois : refusé.
@@ -120,38 +103,6 @@ export async function poserLAttente(github: Pick<GitHub, "labelliser" | "delabel
   }
 }
 
-// L'issue qui doit être parquée pour reprendre, et ce qu'elle attend.
-async function exigerParquee(github: GitHubDeLAttente, cible: Cible) {
-  const issue = await issueOuverte(github, cible);
-  if (!estParque(issue.labels)) throw new GesteRefuse(`${nommer(cible)} is not parked — it does not carry \`${LABEL_PARKED}\`; nothing was written`);
-  return { issue, attente: attenteDeLIssue(await github.commentaires(cible.numero)) };
-}
-
-const ceQuIlAttendait = (attente: AttenteGitHub | null) => (attente === null ? "" : ` ${attente.who} (“${attente.what}”)`);
-
-// Sortir du parking : `parked` retiré s'il attendait quelqu'un d'autre — une carte du chef parquée pour un autre garde
-// `chef-todo`, et revient dans TODO —, sinon `chef-todo`, s'il attendait le chef ; et chaque label d'attente d'avant parked
-// qu'il porte : il le parquait aussi. Rien d'autre : ses labels d'étape restent, il reprend exactement où il était. Un
-// commentaire le dit. Rend les labels retirés.
-async function deparquer(github: GitHubDeLAttente, cible: Cible, dire: (attente: AttenteGitHub | null) => string): Promise<string[]> {
-  const { issue, attente } = await exigerParquee(github, cible);
-  const parqueur = issue.labels.includes(LABEL_PARKED) ? [LABEL_PARKED] : issue.labels.includes(CHEF_TODO) ? [CHEF_TODO] : [];
-  const retires = [...parqueur, ...LABELS_D_AVANT_PARKED.filter((label) => issue.labels.includes(label))];
-  for (const label of retires) await github.delabelliser(cible.numero, label);
-  await github.commenter(cible.numero, dire(attente));
-  return retires;
-}
-
-// « Reprendre » : la personne attendue a répondu.
-export async function reprendreGitHub(github: GitHubDeLAttente, cible: Cible): Promise<string[]> {
-  return deparquer(github, cible, (attente) => `**Unparked** — answered: no longer waiting${attente === null ? "" : ` for${ceQuIlAttendait(attente)}`}. It resumes exactly where it was.`);
-}
-
-// « C'est arrivé » : le fait, ou la chose, qu'il attendait est arrivé.
-export async function cestArriveGitHub(github: GitHubDeLAttente, cible: Cible): Promise<string[]> {
-  return deparquer(github, cible, (attente) => `**Unparked — it arrived**: what this ticket was waiting for${ceQuIlAttendait(attente)} has arrived. It resumes exactly where it was.`);
-}
-
 // Une carte lue de GitHub : son issue, son titre, et ce qu'elle dit. Une carte
 // de TODO dit aussi ce qui lui manque pour poser sa question au chef
 // (`manque`), nul quand elle la pose : le défaut que la station dépose sur la
@@ -160,16 +111,7 @@ export type CarteGitHub = { numero: number; titre: string; ligne: string };
 export type CarteDeTodoGitHub = CarteGitHub & { manque: string | null };
 export type CartesGitHub = { todo: CarteDeTodoGitHub[]; parked: Array<CarteGitHub & { attente: AttenteGitHub | null }> };
 
-// Les tickets parqués du projet, lus des issues ouvertes : le TODO du chef, ceux qui l'attendent (`chef-todo` seul) ;
-// puis ceux qui attendent quelqu'un d'autre (`parked`).
-export async function lireCartesGitHub(github: GitHubDeLAttente): Promise<CartesGitHub> {
-  const sondage = await github.ouvertes();
-  if (sondage.inchange) throw new Error("GitHub did not return the list of open issues");
-  return cartesDesIssues(github, sondage.issues);
-}
-
-// Les cartes de ces issues-là : la liste de la commande, ou les tickets que le
-// tour de la station vient de lire (guerison/index.ts).
+// Les cartes de ces issues-là : les tickets que le tour de la station vient de lire (guerison/index.ts).
 export async function cartesDesIssues(github: { commentaires(numero: number): Promise<Pick<Commentaire, "body" | "association">[]> }, issues: readonly Pick<IssueOuverte, "number" | "title" | "labels">[]): Promise<CartesGitHub> {
   const cartes: CartesGitHub = { todo: [], parked: [] };
   const lues = await Promise.all(issues.filter(({ labels }) => estParque(labels)).map(async (issue) => ({ issue, commentaires: await github.commentaires(issue.number) })));
@@ -182,7 +124,7 @@ export async function cartesDesIssues(github: { commentaires(numero: number): Pr
       continue;
     }
     const carte = carteEnCours(labels, commentaires);
-    // Parqué pour le chef par `parked set`, sans carte d'une sorte : sa marque dit ce qu'il attend de lui.
+    // Parqué pour le chef par le superviseur, sans carte d'une sorte : sa marque dit ce qu'il attend de lui.
     const marque = carte === null ? attenteDeLIssue(commentaires) : null;
     const ligne =
       carte !== null

@@ -17,8 +17,8 @@ export class GesteRefuse extends Error {
 }
 
 // Rien ne prend un ticket parqué (#4129) : aucune station, aucune réparation, aucun superviseur ne le remet sur le rail
-// avant sa date, son fait ou la réponse de celui qu'il attend. Seul le déparquer — `parked resume`/`arrived`, le
-// bouton de l'app, le second, ou sa date atteinte — le fait reprendre, exactement où il était.
+// avant sa date, son fait ou la réponse de celui qu'il attend. Seul le déparquer — les boutons de l'app, le second,
+// la réponse du superviseur, ou sa date atteinte — le fait reprendre, exactement où il était.
 export function exigerNonParque(labels: readonly string[], ticket: number): void {
   if (estParque(labels)) throw new GesteRefuse(`#${ticket} is parked (\`${LABEL_PARKED}\`): it waits for someone, and nothing takes it before its date, its fact or the answer — unpark it first`);
 }

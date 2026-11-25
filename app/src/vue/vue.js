@@ -96,6 +96,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { tenirLEquipe } from "./autonomie/equipe.js";
+import { jourDe, poserLaCarteDuDigest, poserLeJournal, tenirLaCarteDuMatin } from "./journal/journal.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -132,6 +133,7 @@ import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
 import { monterLesRecurrents, serviceDesRecurrents } from "./recurrents/recurrents.js";
+import { monterLaFicheProjet } from "./fiche-projet/monter-fiche-projet.js";
 import { monterLesStations, serviceDuPont as serviceDesStations } from "./reglages-stations/stations.js";
 import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { poserPageDeStation as poserLaCoqueDeStation } from "./station/page/StationPage.js";
@@ -194,6 +196,7 @@ import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneLectureSeule } from "./lecture-seule/lecture-seule.js";
 import { MOT_DE_LA_COLONNE, poserExplication, poserLaRangeeDesExplications, serviceDesExplications, tenirLesExplications } from "./explications/explications.js";
 import { CET_ORDINATEUR, ANNULER, OUI, REESSAYER, AJOUTER_UN_PROJET, PAS_ENCORE, LECTURE_DE, NON_ATTEINT } from "./lexique.js";
+import { phraseDuRailVide, poserLesRetenus, retenusDe, sansLApprouve } from "./gestes-retenus.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -713,6 +716,8 @@ const equipeDuProjet = tenirLEquipe(document, element("equipe-du-projet"), (nom)
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
+// La carte du digest de la veille (ticket 4274, journal/) : en tête du rail à la première ouverture du projet dans le jour.
+const carteDuMatin = tenirLaCarteDuMatin(stockageDeLaVue());
 const offreDuTelephone = element("offre-telephone");
 const offre = tenirLOffre({
   stockage: stockageDeLaVue(),
@@ -1242,6 +1247,27 @@ async function lireLesEssais(projet) {
   if (vu === undefined) return;
   essaisDeProjets.set(projet.nom, vu);
   if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(projet);
+}
+// Les gestes qu'un agent retient pour l'OK du chef, par projet (held/, ticket 4273) : relus à chaque lecture du rail du
+// projet affiché. Absents : pas encore lus, ou pas lisibles d'ici — le projet ne cuit pas sur cet ordinateur.
+/** @type {Map<string, import("../held/contrat.ts").LectureDesRetenus | undefined>} */
+const retenusDesProjets = new Map();
+/** @param {Projet} projet @param {import("../held/contrat.ts").LectureDesRetenus | undefined} lus */
+function poserLesRetenusLus(projet, lus) {
+  retenusDesProjets.set(projet.nom, lus);
+  if (courant?.nom === projet.nom && !rail.hidden && tenus.has(projet.nom)) poserRail(projet);
+}
+/** @param {Projet} projet */
+async function lireLesRetenus(projet) {
+  const lus = await brigade.gestesRetenus?.(projet.nom);
+  if (lus !== undefined) poserLesRetenusLus(projet, lus);
+}
+// L'OK du chef à un geste retenu : fait, sa carte part et ne revient pas avant la lecture suivante ; refusé, sa carte le dit.
+/** @param {Projet} projet @param {string} id */
+async function approuverLeGesteRetenu(projet, id) {
+  const rendu = await brigade.approuverGeste?.(projet.nom, id);
+  if (rendu === undefined || "refus" in rendu) throw new Error(rendu?.refus ?? "nothing was approved: the app did not reach this project's station");
+  poserLesRetenusLus(projet, sansLApprouve(retenusDesProjets.get(projet.nom), id));
 }
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../histoire.ts").Situation>} */
@@ -3210,9 +3236,9 @@ function poserGestesDAttente(projet, carte) {
   );
 }
 
-// « It arrived, back to the kitchen » part sur le tableau de la cuisine, pas dans le second : la carte dit qu'il
-// est en route, puis qu'il est posté — son commentaire au survol — et la box est relue ; refusé, rien n'est parti, et la
-// carte dit pourquoi en une ligne, le détail au survol. Elle reste dans WAITING jusqu'à ce que la box l'ait joué.
+// « It arrived, back to the kitchen » déparque le ticket sur son issue (gestes-github.ts, `deparquer`), jamais par une
+// commande de la box : la carte dit qu'il est en route, puis qu'il est fait — l'issue au survol — et le rail est relu ;
+// refusé, rien n'est parti, et la carte dit pourquoi en une ligne, le détail au survol.
 /** @param {Projet} projet @param {number} ticket */
 async function arriver(projet, ticket) {
   const cle = `${projet.nom}#${ticket}`;
@@ -3241,8 +3267,8 @@ async function arriver(projet, ticket) {
   if (ficheDe(projet, ticket)) poserFiche();
 }
 
-// Un geste de WAITING part dans le second, comme un geste du socle : sa sortie s'y lit, sa note dit
-// ce qui est parti. Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
+// Un geste de WAITING s'écrit sur l'issue (vue/attente/attente-github.ts), jamais par une commande de la box (ticket 4262).
+// Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
 /** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
 async function ecrireAttente(projet, id, ticket, saisie) {
   const cle = `${projet.nom}#${ticket}`;
@@ -3259,7 +3285,7 @@ async function ecrireAttente(projet, id, ticket, saisie) {
     else if (rendu !== undefined && "fait" in rendu) {
       fait = { fait: rendu.fait, detail: rendu.detail ?? "" };
       lireLesFaits();
-    } else if (rendu !== undefined) garder(projet.nom, rendu);
+    }
   } catch (erreur) {
     refus = `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
@@ -3267,7 +3293,7 @@ async function ecrireAttente(projet, id, ticket, saisie) {
   if (saisie !== undefined && ouvert !== undefined && refus !== undefined) ouvert.refus = refus;
   else if (saisie !== undefined) formulairesDAttente.delete(cle);
   if (refus !== undefined && saisie === undefined) nonEcritSecond = refus;
-  // « resume » qui n'est pas parti dans le second : la carte dit dessous ce qu'il en est, comme pour « it arrived ».
+  // « resume » : la carte dit dessous ce qu'il en est, comme pour « it arrived ».
   if (saisie === undefined && (refus !== undefined || fait !== undefined)) arriveesDeCartes.set(cle, fait ?? { refus: refus ?? "", detail: "" });
   poserRail(projet);
   montrer();
@@ -4461,7 +4487,8 @@ function reposerLEtiquetteDeStation(projet) {
 // Rien sur le rail : sa colonne dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
 /** @param {Projet} projet */
 function railVide(projet) {
-  return amonts.get(projet.nom)?.vide ?? `${PAS_ENCORE("ticket on the rail")} What is before it is being read…`;
+  // Des gestes retenus pour l'OK du chef (ticket 4273) : c'est eux que le rail vide attend.
+  return phraseDuRailVide({ rail: 0, retenus: retenusDe(retenusDesProjets.get(projet.nom)) }) ?? amonts.get(projet.nom)?.vide ?? `${PAS_ENCORE("ticket on the rail")} What is before it is being read…`;
 }
 
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
@@ -4593,7 +4620,6 @@ function poserCuisson(projet) {
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const alerte = ligneDAlerte(document, {
-    alerte: stations?.alerte ?? null,
     refusee: stations?.lignes.some(({ etat }) => etat === "refused") ?? false,
     acces: vu?.acces ?? vu?.worktree?.acces ?? null,
     clone: vu?.clone ?? null,
@@ -5248,7 +5274,8 @@ function poserLeRail(projet) {
   // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
   // réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain
   // du projet, replié (ticket 2985).
-  const aCote = [avisDuDepot(projet, "todo")].flatMap((avis) => avis ?? []);
+  // Les gestes qu'un agent retient pour ton OK (ticket 4273) viennent en premier : chacun sa carte et son bouton Approve.
+  const aCote = [poserLesRetenus(document, retenusDesProjets.get(projet.nom), (id) => approuverLeGesteRetenu(projet, id)), avisDuDepot(projet, "todo")].flatMap((avis) => avis ?? []);
   const resolues = muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
   if (resolues.length > 0) {
     const liste = document.createElement("ol");
@@ -5342,7 +5369,10 @@ function poserLeRail(projet) {
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
-  poser(bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+  // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
+  const { journal, digest } = tenu.tableau;
+  const duMatin = digest !== undefined && carteDuMatin.aMontrer(projet.nom, jourDe(new Date())) ? [poserLaCarteDuDigest(document, digest)] : [];
+  poser(...duMatin, bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), ...(journal === undefined ? [] : [poserLeJournal(document, journal)]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
   // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
   if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);
@@ -6417,7 +6447,7 @@ function poserLeRecapDeLAccueil() {
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
-// running », « offline for 12 min », « saturated » (accueil.ts) ; sa machine et sa version ne se lisent
+// running », « offline for 12 min » (accueil.ts) ; sa machine et sa version ne se lisent
 // qu'au survol de l'icône d'aide, jamais dans la page. Dessous, ses pannes, chacune avec son bouton ;
 // puis les projets qu'elle sert, à lire.
 function poserPageDeStation() {
@@ -6519,24 +6549,17 @@ function enregistreeOuverte() {
 }
 
 // Le plafond de cooks de la station, comme sa box le dit — `3 at most — 8 cores`, ou `5 at most — set by you,
-// replaces 3 (8 cores)` — ; quand elle retient des tickets, ce qui la retient, avec ce que chaque ressource a et ce
-// qu'il lui faut. Il se lit seulement : une station prend autant de tickets qu'elle déclare de places, et sa déclaration
+// replaces 3 (8 cores)`. Il se lit seulement : une station prend autant de tickets qu'elle déclare de places, et sa déclaration
 // se change sur sa machine. Une station dont aucun projet lu ne dit le plafond n'a rien de tout cela.
 /** @param {import("../accueil.ts").LigneDeStation | undefined} ligne */
 function poserPlafond(ligne) {
   if (ligne?.plafond === undefined) return plafondDeStation.replaceChildren();
-  const { plafond, retenue } = ligne;
+  const { plafond } = ligne;
   const lignes = [];
   const dit = bloc("p", `Cooks at once: ${plafond.dit}`);
   dit.className = "plafond";
   dit.append(niveauDe(document, "cooks"));
   lignes.push(dit);
-  if (retenue !== undefined) {
-    const retient = bloc("p", `Holding tickets — ${retenue.ressources}: ${retenue.detail}`);
-    retient.className = "retenue";
-    retient.append(survol(document, `no ticket is taken for ${retenue.depuis}, as long as it lasts; the running cooks carry on`));
-    lignes.push(retient);
-  }
   plafondDeStation.replaceChildren(...lignes);
 }
 
@@ -9049,6 +9072,7 @@ async function ouvrir(projet) {
   void lireLesReglages(projet);
   void monterLesHumains(document, element("humains-du-projet"), { projet: projet.nom, service: serviceDuPont(brigade, projet.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
   void monterLesRecurrents(document, element("recurrents-du-projet"), { projet: projet.nom, service: serviceDesRecurrents(brigade, projet.nom) });
+  void monterLaFicheProjet(document, element("fiche-du-projet"), { projet: projet.nom, pont: brigade });
   poserLesExplicationsDuChef(projet.nom);
   void explications.lire(projet.nom);
   void monterLesStations(document, element("stations-contributrices"), { projet: projet.nom, service: serviceDesStations(brigade, projet.nom) });
@@ -9205,6 +9229,7 @@ brigade.surFaits((recue) => {
   if (courant?.nom === recue.projet) {
     equipeDuProjet.lire(courant.nom);
     void lireLesEssais(courant);
+    void lireLesRetenus(courant);
     dessiner();
     poserLeRecitDuPremierTicket();
     void poserOrdinaires(courant);

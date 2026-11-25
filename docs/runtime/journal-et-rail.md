@@ -187,27 +187,28 @@ catalogue renames `waiting` to `parked` on GitHub, an old `<!-- brigade:waiting 
 still read, and the box's `waiting` command is gone. Nothing goes through the box: every gesture
 is written on the issue, on any GitHub project.
 
-```bash
-npm --prefix runtime run parked -- BOBL-tech/mirrorlab                     # the parked tickets: the chef's TODO, then the others
-npm --prefix runtime run parked -- set BOBL-tech/mirrorlab#614 --what "sa validation écrite du devis" --from "le client" [--until 2026-10-21 | --fact "the signed quote is in"]
-npm --prefix runtime run parked -- resume BOBL-tech/mirrorlab#614          # the person answered
-npm --prefix runtime run parked -- arrived BOBL-tech/mirrorlab#614         # the fact happened
-```
+No box command sets or lifts it (#4262): the chef's app and the second park and unpark a ticket the
+same way, on its issue, on any project, through the same two functions — `parquer`
+(`app/src/vue/attente/attente-github.ts`) and `deparquer` (`app/src/gestes-github.ts`). The app
+plays them from **waiting for…** on a card, **resume** and **it arrived, back to the kitchen**; the
+second with the parking command the app gives it at each session start (`app/src/second/parking.ts`):
+`park <owner>/<repo>#<n> --who <who> --what <what> --until <YYYY-MM-DD>` and
+`unpark <owner>/<repo>#<n>`. The kitchen parks with the same marks (`mettreEnAttenteGitHub` and
+`poserLAttente` in `runtime/src/attente-github/attente-github.ts`).
 
 - **From any step.** A ticket is parked at the backlog, while its cook is cooking it (`taken`) or
   at the pass (`in-pass`): the labels of its step stay as they are. A ticket that is already
   parked is refused, and nothing is written.
-- **Until when.** `--until`: a date (midnight, box time), a date and time (`2026-10-21T09:00`) or a
-  duration (`7j`, `36h`), in the future. `--fact`: the fact it waits for, in your words. Not both;
-  with neither, seven days.
+- **Until when.** A date — the day the app's form or the parking command gives, seven days when the
+  kitchen says none — or a fact, which only the kitchen writes today (a ticket parked by its failures
+  waits for the supervisor's answer).
 - **It resumes exactly where it was** — `parked` is removed and nothing else: no `fire` added, the
   labels of its step as they were — when its **date** comes (the station, at each turn:
   `ramenerALaRelance` in `runtime/src/attente/attente-par-le-cook.ts`), when its **fact** happens
   (`arrived`, or the app's *it arrived, back to the kitchen*), or when the person **answers**
   (`resume`, the app's *resume*, the second). A ticket parked until a fact, or for the chef, never
   resumes by a date.
-- **For the chef.** Parked for the chef (`--from "the chef"`), it carries `chef-todo` instead of
-  `parked`, and a card: it is in the chef's TODO ([TODO cards](../todo-cards.md)). A TODO card the
+- **For the chef.** Parked for the chef, it carries `chef-todo` instead of `parked`, and a card: it is in the chef's TODO ([TODO cards](../todo-cards.md)). A TODO card the
   kitchen posts parks its ticket the same way (`poserCarte` in
   `runtime/src/github-seul/carte-todo/carte-todo.ts`). A chef's card parked for someone else takes
   `parked` and leaves TODO; when it resumes, it is back in TODO.

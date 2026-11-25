@@ -25,7 +25,6 @@
     "contributor-stations": "node src/contributor-stations-cli.ts",
     "switch": "node src/interrupteur-cli.ts",
     "manager": "node src/manager-cli.ts",
-    "parked": "node src/attente-cli.ts",
     "design": "node src/design-cli.ts",
     "sensitive": "node src/sensitive-cli.ts",
     "undo": "node src/undo-cli.ts",

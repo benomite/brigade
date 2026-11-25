@@ -43,18 +43,35 @@ export function ticketsLus(lu: Pick<TableauLu, "faits">): Set<number> {
 const numero = (ticket: unknown): ticket is number => typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket >= 1;
 const raison = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `parked` pour le déparquer — et, pour le
-// déparquer, chaque label d'attente d'avant parked (runtime/src/github-etat/etats.ts) : un ticket que l'un d'eux parque
-// reprend aussi. Une issue qui ne le porte déjà plus : c'est fait.
+// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `parked` pour le déparquer
+// (`deparquer`). Rien ne part pour un ticket que la dernière lecture du rail ne porte pas.
 export async function retirerLeLabel(lu: TableauLu | undefined, id: GesteSurGithub, ticket: unknown, client: ClientDeLaPriorite): Promise<Ecrit> {
   if (!numero(ticket)) return { refus: "nothing was written: the action names no ticket", detail: "" };
   if (lu === undefined) return { refus: PAS_LU, detail: "" };
   if (!ticketsLus(lu).has(ticket)) return { refus: `nothing was written: #${ticket} is not on the latest rail read — read it again`, detail: "" };
+  return RETRAITS[id](lu.depot, ticket, client);
+}
+
+// Déparquer un ticket (#4262) : le label `parked` retiré de son issue — et chaque label d'attente d'avant parked
+// (runtime/src/github-etat/etats.ts) : un ticket que l'un d'eux parque reprend aussi —, sur tout dépôt, sans box. C'est
+// le seul chemin qui le sort de son attente, que l'app le joue (« resume », « it arrived, back to the kitchen », « back to
+// the kitchen » de la fiche) ou le second (second/parking.ts) : il reprend exactement où il était.
+export const deparquer = (depot: string, ticket: number, client: ClientDeLaPriorite): Promise<Ecrit> => retirerDeLIssue(depot, ticket, "cuisine", client);
+
+// Ce que chaque geste joue : « remove from the rail » retire `fire` ; rendre le ticket à la cuisine, c'est le déparquer.
+const RETRAITS: Record<GesteSurGithub, (depot: string, ticket: number, client: ClientDeLaPriorite) => Promise<Ecrit>> = {
+  retirer: (depot, ticket, client) => retirerDeLIssue(depot, ticket, "retirer", client),
+  cuisine: (depot, ticket, client) => deparquer(depot, ticket, client),
+};
+
+// Le label du geste retiré de l'issue — et, pour déparquer, les labels d'attente d'avant parked. Une issue qui ne le
+// porte déjà plus : c'est fait.
+async function retirerDeLIssue(depot: string, ticket: number, id: GesteSurGithub, client: ClientDeLaPriorite): Promise<Ecrit> {
   const label = LABELS_DES_GESTES[id];
-  const issue = `https://github.com/${lu.depot}/issues/${ticket}`;
+  const issue = `https://github.com/${depot}/issues/${ticket}`;
   for (const retire of id === "cuisine" ? [label, ...LABELS_D_AVANT_PARKED] : [label]) {
     try {
-      const reponse = await client.ecrire("DELETE", `/repos/${lu.depot}/issues/${ticket}/labels/${encodeURIComponent(retire)}`);
+      const reponse = await client.ecrire("DELETE", `/repos/${depot}/issues/${ticket}/labels/${encodeURIComponent(retire)}`);
       if (reponse.status !== 200 && reponse.status !== 404) throw refusDe(`the removal of \`${retire}\``, reponse);
     } catch (erreur) {
       // Un label d'avant que GitHub ne retire pas : `parked` l'est déjà, le ticket reste parqué par celui-là.

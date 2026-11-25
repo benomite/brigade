@@ -1,15 +1,12 @@
 // Les sorties des commandes qui parlent d'un ticket sont en anglais (#931) : `rail` (avec `remove`, `priority`, `merge`),
-// `pass` (avec `issue`, `comment`), `log` et `parked` (`set`, `resume`, `arrived`). Un état d'exemple qui
+// `pass` (avec `issue`, `comment`) et `log`. Un état d'exemple qui
 // porte un rail, des livraisons en pass et des attentes passe dans le test de glossaire : aucune ligne, refus compris,
-// ne garde un mot de la colonne « français » du glossaire. La sortie `--json` de `pass` garde ses clés. `parked` écrit
-// sur l'issue (#4129) : ses commentaires y passent aussi.
+// ne garde un mot de la colonne « français » du glossaire. La sortie `--json` de `pass` garde ses clés.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { principal as attendre } from "../src/attente-cli.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { principal as relire } from "../src/relire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { fauxGitHub, issue } from "./aides/cuisine.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { appeler, DEPOT, repertoireTemporaire } from "./outils.ts";
 
@@ -65,46 +62,4 @@ test("`log` : l'état d'exemple se lit sans mot français du glossaire, et ses r
     assert.notEqual(refus.code, 0);
     sansMotFrancais(refus.lignes);
   }
-});
-
-test("`parked` : lister, set, resume, arrived et leurs refus ne portent aucun mot français du glossaire, ni ce qu'ils écrivent sur l'issue", async () => {
-  const faux = fauxGitHub(issue(30), issue(31), issue(32));
-  const jouer = (...args: string[]) => sortie((appel) => attendre(appel, () => new Date("2026-10-12T10:04:00.000Z"), () => faux.github), args, {});
-
-  const vide = await jouer("acme/shop");
-  assert.equal(vide.code, 0);
-  sansMotFrancais(vide.lignes);
-  const pose = await jouer("set", "acme/shop#30", "--what", "the contract", "--from", "the lawyer", "--until", "3j");
-  assert.equal(pose.code, 0, pose.lignes.join("\n"));
-  sansMotFrancais(pose.lignes);
-  const pourLeChef = await jouer("set", "acme/shop#32", "--what", "which layout", "--from", "le chef", "--fact", "the chef answers");
-  assert.equal(pourLeChef.code, 0, pourLeChef.lignes.join("\n"));
-  sansMotFrancais(pourLeChef.lignes);
-  sansMotFrancais((await jouer("acme/shop")).lignes);
-  for (const args of [
-    ["resume", "acme/shop#30"],
-    ["resume", "acme/shop#30"],
-    ["arrived", "acme/shop#32"],
-    ["arrived", "acme/shop#32"],
-    ["set", "acme/shop#31", "--what", "x", "--from", "y"],
-    ["set", "acme/shop#31", "--what", "x", "--from", "y"],
-    ["set", "acme/shop#404", "--what", "x", "--from", "y"],
-    ["set", "acme/shop#30", "--what", "x", "--from", "y", "--until", "hier"],
-    ["set", "acme/shop#30", "--what", "x", "--from", "y", "--until", "3j", "--fact", "z"],
-    ["set", "acme/shop#30", "--what", " ", "--from", "y"],
-    ["set", "30", "--what", "x", "--from", "y"],
-    ["bouger", "acme/shop#30"],
-    ["set", "acme/shop#30"],
-    ["resume"],
-  ]) {
-    const lu = await jouer(...args);
-    sansMotFrancais(lu.lignes);
-  }
-  // Ce qui est écrit sur les issues : la marque de chaque parking (#30, #32, #31) — pour le chef, sa carte de TODO la
-  // suit (#32) —, et chaque levée (#30, #32).
-  assert.deepEqual(faux.commentaires.map(([numero]) => numero), [30, 32, 32, 30, 32, 31]);
-  sansMotFrancais(faux.commentaires.flatMap(([, corps]) => corps.split("\n")));
-  const refus = await sortie(attendre, [], {});
-  assert.equal(refus.code, 2);
-  sansMotFrancais(refus.lignes);
 });

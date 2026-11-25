@@ -1,5 +1,6 @@
-// #4116, puis #4129 — le second parque une carte comme le bouton : l'étiquette `parked` et le commentaire marqué
-// `<!-- brigade:parked … -->`, sans commande de la boîte ; à toute étape, en refusant seulement un ticket déjà parqué.
+// #4116 — le second met une carte en WAITING comme le bouton, sans commande de la boîte ; #4262 — par la même commande que
+// le bouton joue (second/parking.ts), et non plus par une étiquette et un commentaire écrits à la main.
+// #4129 — un ticket se parque à toute étape : seul un ticket déjà parqué est refusé.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -7,20 +8,15 @@ import { test } from "node:test";
 
 const ROLE = readFileSync(join(import.meta.dirname, "..", "..", "src", "second", "role.md"), "utf8");
 
-test("le second pose l'étiquette parked et le commentaire marqué lui-même, sans `waiting set` ni `parked set`", () => {
+test("le second parque par la commande de parking — qui, quoi, jusqu'à quand —, sans `waiting set` ni étiquette posée à la main", () => {
   assert.ok(!/waiting set/.test(ROLE), "le rôle renvoie encore vers la commande `waiting set`, qui exige la boîte");
-  assert.ok(!/parked set/.test(ROLE), "le rôle renvoie vers la commande `parked set` de la boîte");
-  assert.ok(ROLE.includes("<!-- brigade:parked"), "le rôle ne donne pas le commentaire marqué à écrire");
-  assert.ok(!ROLE.includes("<!-- brigade:waiting"), "le rôle donne encore la marque d'avant #4129");
-  assert.ok(ROLE.includes("**PARKED: waits for <who>.** <what>"), "le rôle ne donne pas la ligne qui dit le parking");
-  assert.ok(/--add-label parked/.test(ROLE), "le rôle ne dit pas de poser l'étiquette parked avec gh");
-  assert.ok(!/--add-label waiting/.test(ROLE), "le rôle pose encore l'étiquette waiting");
-  for (const champ of ["what", "who", "followUp", "fact"]) assert.ok(ROLE.includes(`"${champ}"`), `le marqueur ne porte pas ${champ}`);
+  assert.match(ROLE, /<the parking command> park <owner>\/<repo>#<ticket> --who '<who>' --what '<what>' --until <YYYY-MM-DD>/, "le rôle ne donne pas la commande de parking");
+  assert.ok(!/--add-label waiting/.test(ROLE), "le rôle pose encore l'étiquette waiting à la main, hors du chemin de l'app");
+  assert.ok(!ROLE.includes("<!-- brigade:waiting"), "le rôle écrit encore le commentaire marqué à la main, hors du chemin de l'app");
 });
 
-test("le second parque à toute étape — `taken` et `in-pass` restent — et ne refuse qu'un ticket déjà parqué", () => {
+test("le second parque à toute étape — un ticket pris ou en pass compris — et ne refuse qu'un ticket déjà parqué", () => {
   assert.match(ROLE, /A ticket is parked from any step/);
-  assert.match(ROLE, /you leave those labels, and it resumes exactly where it was/);
-  assert.match(ROLE, /Do not park a ticket that already carries `parked`/);
-  assert.doesNotMatch(ROLE, /already carries `waiting`, `taken` or `in-pass`/, "le rôle refuse encore un ticket pris ou en pass");
+  assert.match(ROLE, /Do not put on hold a ticket that already carries `parked`/);
+  assert.doesNotMatch(ROLE, /`taken` or `in-pass`/, "le rôle refuse encore un ticket pris ou en pass");
 });

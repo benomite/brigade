@@ -257,7 +257,7 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
     );
     const etat = auTelephone.etat().issues[22];
     assert.deepEqual(etat?.labels, ["fire", "parked"]);
-    assert.match(etat?.commentaires[0] ?? "", /^<!-- brigade:parked \{.*\} -->\n\*\*PARKED: waits for the client\.\*\* the signed quote\n/);
+    assert.match(etat?.commentaires[0] ?? "", /^<!-- brigade:parked \{"what":"the signed quote","who":"the client","followUp":"[^"]+"\} -->\n\*\*PARKED: waits for the client\.\*\* the signed quote\n/);
     assert.deepEqual(dit, { fait: "in WAITING on GitHub: #22 awaits the client, follow-up on 2099-01-02", detail: `https://github.com/${DEPOT}/issues/22#issuecomment-901` });
     assert.deepEqual(ecrits, [PROJET]);
   });

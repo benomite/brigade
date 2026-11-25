@@ -25,7 +25,7 @@
 // qu'elles attendent, et le bloc dit pourquoi (`illisibles`).
 // Le bloc dit aussi chaque issue en WAITING dont l'attente se lit, une ligne chacune sous les entrées : ce qu'elle attend,
 // de qui, et sa relance (#3814) — sans être une entrée : elle ne demande rien au chef. Elle se lit de la marque que la station,
-// `parked set`, le second et l'app posent (runtime/src/attente-github/marque.ts, `corpsDuParking`).
+// le second et l'app posent (runtime/src/attente-github/marque.ts, `corpsDuParking`).
 //
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
@@ -85,8 +85,8 @@ const date = (valeur: unknown): string | null => (typeof valeur === "string" && 
 const labelsDe = (issue: Brut): string[] => liste(issue.labels).flatMap(({ name }) => (typeof name === "string" ? [name] : []));
 
 // Ce qu'une issue parquée attend, d'après son dernier commentaire de parking : la marque `<!-- brigade:parked … -->` (ou
-// `waiting`, d'avant #4129) que la station, `parked set`, le second et l'app posent, d'un auteur du dépôt, ou le
-// commentaire de l'app d'avant. `rentre` : parquée jusqu'à une date, elle reprend seule où elle était à cette date.
+// `waiting`, d'avant #4129) que la station, le second et l'app posent, d'un auteur du dépôt, ou le commentaire de l'app
+// d'avant. `rentre` : parquée jusqu'à une date, elle reprend seule où elle était à cette date.
 // Null sans aucun qui se lise : rien n'est inventé.
 function attenteDeLIssue(commentaires: readonly Brut[]): { quoi: string; qui: string; relance: string | null; rentre: boolean } | null {
   for (const commentaire of [...commentaires].reverse()) {

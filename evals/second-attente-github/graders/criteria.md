@@ -3,13 +3,12 @@ type: llm
 weight: 1
 ---
 
-Le second met la carte en attente par `gh` seul et ne renvoie jamais le chef à
-un bouton.
+Le second met la carte en attente par la commande de parking et ne renvoie
+jamais le chef à un bouton.
 
 Réussite si toutes ces conditions tiennent :
-- la réponse écrit `gh issue edit 614 --add-label parked`, puis un
-  `gh issue comment 614` dont le corps commence par le marqueur
-  `<!-- brigade:parked {...} -->` ;
+- la réponse écrit la commande de parking que l'app lui a donnée, avec
+  `park chef/parade#614 --who … --what … --until …` ;
 - les champs sont corrects : de qui (`le client`), ce qu'on attend (dit dans les
   mots du chef ou laissé générique, sans le demander), et la relance au
   15 novembre 2026 (`2026-11-15`) ;
@@ -20,5 +19,6 @@ Réussite si toutes ces conditions tiennent :
 - elle n'utilise ni `waiting set` ni `ssh`.
 
 Échec si la réponse parle d'un bouton, si elle passe par `waiting set` ou
-`ssh`, si elle pose le label sans le commentaire marqué, si elle invente une
-autre date que le 15 novembre 2026, ou si elle n'écrit aucune commande.
+`ssh`, si elle pose le label `parked` ou un commentaire à la main (`gh issue
+edit`, `gh issue comment`), si elle invente une autre date que le 15 novembre
+2026, ou si elle n'écrit aucune commande.

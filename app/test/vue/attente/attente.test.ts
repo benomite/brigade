@@ -1,7 +1,7 @@
 // WAITING sur un projet GitHub (#3075), devenu le parking (#4129) : toute carte de TODO porte « waiting for… », sur la
 // carte et sur sa fiche, à l'écran large comme à celui d'un téléphone ; le formulaire demande quoi, de qui, et la relance,
-// proposée à sept jours ; validé, le geste s'écrit sur l'issue, sur tout projet — jamais par une commande de la box —,
-// comme `parked set` l'y écrit (runtime/src/attente-github/marque.ts, `corpsDuParking`). La carte quitte TODO et se
+// proposée à sept jours ; validé, le geste s'écrit sur l'issue, sur tout projet — jamais par une commande de la box (#4262) —,
+// comme la station et le second l'y écrivent (runtime/src/attente-github/marque.ts, `corpsDuParking`). La carte quitte TODO et se
 // montre dans WAITING avec ce qu'elle attend, de qui, et sa relance — lus du commentaire de parking ; le commentaire
 // `**WAITING: awaiting …**` d'avant #4129 se lit encore. Une carte de WAITING porte « resume » et « it arrived, back to
 // the kitchen », qui retirent `parked`. Joué sur un faux GitHub qui tient ses issues, leurs labels et leurs commentaires,
@@ -204,7 +204,22 @@ describe("la lecture de GitHub : TODO et WAITING", () => {
 
 const dansDixJours = () => jourDe(new Date(Date.now() + 10 * 86_400_000));
 
-describe("les gestes s'écrivent sur l'issue, sur tout projet", () => {
+describe("les gestes : toujours écrits sur l'issue", () => {
+  test("« waiting for… » pose la marque puis `parked` ; « resume » et « it arrived » retirent `parked` — rien ne part dans le second (#4262)", async () => {
+    const monde = github();
+    const lu = await lueParLApp(monde);
+    const jouer = (id: string, ticket: number, saisie?: unknown) => jouerLAttente({ id, ticket, saisie, aujourdhui: new Date(), lu: () => lu, client: monde.client });
+    assert.ok("fait" in (await jouer("attente-poser", 20, { quoi: "x", qui: "y", relance: dansDixJours() })));
+    assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
+    // Le commentaire porte en tête la marque que la station relit : le même que la commande de parking du second écrit.
+    assert.match(monde.issues.get(20)?.commentaires.at(-1)?.body ?? "", /^<!-- brigade:parked \{"what":"x","who":"y","followUp":"[^"]+"\} -->\n\*\*PARKED: waits for y\.\*\* x\n/);
+    // `parked` retiré d'abord, puis chaque label d'attente d'avant parked.
+    const retraits = [`DELETE /repos/${DEPOT}/issues/40/labels/parked`, ...LABELS_D_AVANT_PARKED.map((label) => `DELETE /repos/${DEPOT}/issues/40/labels/${encodeURIComponent(label)}`)];
+    assert.ok("fait" in (await jouer("attente-reprendre", 40)));
+    assert.deepEqual(monde.ecrites.slice(-retraits.length), retraits);
+    assert.ok("fait" in (await jouer("attente-arrivee", 40)));
+    assert.deepEqual(monde.ecrites.slice(-retraits.length), retraits);
+  });
   test("« waiting for… » pose la marque puis `parked` ; relue, la carte est dans WAITING avec quoi, de qui et sa relance", async () => {
     const monde = github();
     const lu = await lueParLApp(monde);
@@ -212,6 +227,7 @@ describe("les gestes s'écrivent sur l'issue, sur tout projet", () => {
     const dit = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: " the legal review ", qui: "legal", relance }, aujourdhui: new Date(), lu: () => lu, client: monde.client });
     assert.deepEqual(dit, { fait: `in WAITING on GitHub: #20 awaits legal, follow-up on ${relance}`, detail: `${issue(20)}#issuecomment-9` });
     assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
+    assert.ok(monde.issues.get(20)?.commentaires.at(-1)?.body.startsWith("<!-- brigade:parked {\"what\":\"the legal review\",\"who\":\"legal\""), "la marque de la station n'est pas en tête du commentaire");
     const relu = await lueParLApp(monde);
     assert.deepEqual(colonneDe(relu, "Awaiting you"), []);
     const vingt = colonneDe(relu, "Waiting").find(({ ticket }) => ticket === 20) ?? assert.fail("#20 n'est pas dans WAITING");

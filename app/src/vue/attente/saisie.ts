@@ -1,6 +1,7 @@
 // Ce que le chef remplit dans « waiting for… » (vue/attente/attente.js), lu avant que rien ne parte : ce qu'il attend,
 // dans ses mots, de qui, et le jour de la relance, proposé à sept jours. Cette lecture sert le parking écrit sur GitHub
-// (attente-github.ts) — sur le desktop comme sur le téléphone : ce module n'importe rien de Node.
+// (attente-github.ts), sur le desktop comme sur le téléphone, et le second (second/parking.ts) : ce module n'importe rien
+// de Node.
 
 // La relance que le formulaire propose : dans sept jours — celle que le runtime prend sans elle.
 export const RELANCE_PROPOSEE_JOURS = 7;

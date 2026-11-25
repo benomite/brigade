@@ -1,13 +1,14 @@
 // Parquer un ticket depuis l'app (ticket 4129 ; d'abord WAITING, ticket 3075) : ce qu'un ticket attend se lit et s'écrit sur
-// son issue, exactement comme le runtime (`parked set`) et le second l'y posent — le label `parked` tant qu'il attend, et
-// le commentaire marqué `<!-- brigade:parked … -->` qui dit qui il attend, pour quoi, jusqu'à quand
-// (runtime/src/attente-github/marque.ts, `corpsDuParking`). Sur tout projet, sans commande de la box. Ce module en a
-// les deux bouts :
+// son issue, exactement comme la station et le second l'y posent — le label `parked` tant qu'il attend, et le commentaire
+// marqué `<!-- brigade:parked … -->` qui dit qui il attend, pour quoi, jusqu'à quand (runtime/src/attente-github/marque.ts,
+// `corpsDuParking`). Ce module en a les deux bouts :
 //   - la lecture : le dernier commentaire de parking d'une issue au label `parked`, rendu dans la forme de `tiers`
 //     (faits.ts, `Tiers`) — ce que sa carte dit (tableau/attente-du-chef.ts) ; les commentaires `**WAITING: awaiting …**`
 //     d'avant ticket 4129 se lisent encore ;
-//   - les gestes : « waiting for… » écrit le commentaire puis le label ; « resume » et « it arrived, back to the
-//     kitchen » retirent le label (gestes-github.ts, `retirerLeLabel`) : le ticket reprend exactement où il était.
+//   - les gestes, tous écrits sur l'issue, sur tout projet et sans box (ticket 4262) : « waiting for… » parque le ticket
+//     (`parquer` : le commentaire puis le label), « resume » et « it arrived, back to the kitchen » le déparquent
+//     (gestes-github.ts, `deparquer` : le label retiré) — le ticket reprend exactement où il était. Le second joue ces
+//     deux mêmes fonctions (second/parking.ts) : un ticket parqué ou déparqué par lui est dans l'état exact où l'app le met.
 // Rien de Node : le téléphone le charge tel quel.
 import { attenteDeLIssue, corpsDuParking, direJusqua, DE_CONFIANCE } from "../../../../runtime/src/attente-github/marque.ts";
 import type { Tiers } from "../../faits.ts";
@@ -18,14 +19,14 @@ import type { TableauLu } from "../../tableau/lecture.ts";
 import { saisieLue, type Saisie } from "./saisie.ts";
 
 // Le label d'un ticket parqué (`parked`).
-export const LABEL_WAITING = LABELS_DES_GESTES.cuisine;
+export const LABEL_PARKED = LABELS_DES_GESTES.cuisine;
 // Ce que son déparquage fait de lui.
 export const A_L_ARRIVEE = "it resumes exactly where it was";
 
 const MOIS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Le commentaire qui parque le ticket : celui de `parked set` et du second, mot pour mot (`corpsDuParking`). `relance` :
-// minuit, au jour du poste, du jour que le chef a choisi — comme le runtime prend `--until`.
+// Le commentaire qui parque le ticket : celui de la station, mot pour mot (`corpsDuParking`). `relance` : minuit, au jour
+// du poste, du jour que le chef a choisi.
 export const marqueDAttente = ({ quoi, qui }: { quoi: string; qui: string }, relance: Date): string => corpsDuParking({ what: quoi, who: qui, followUp: relance.toISOString() });
 
 const TETE = /^\*\*WAITING(?: — updated)?: awaiting (.+?)\.\*\* ?(.*)$/;
@@ -91,13 +92,14 @@ async function poserSurGithub(lu: TableauLu | undefined, ticket: unknown, saisie
   if ("refus" in lue) return { refus: lue.refus, detail: "" };
   if (lu === undefined) return { refus: "nothing was written: the rail of this project has not been read yet — read it again", detail: "" };
   if (!ticketsLus(lu).has(ticket)) return { refus: `nothing was written: #${ticket} is not on the latest rail read — read it again`, detail: "" };
-  return ecrireLAttente(lu.depot, ticket, lue, aujourdhui, client);
+  return parquer(lu.depot, ticket, lue, aujourdhui, client);
 }
 
-// Le parking écrit sur l'issue de `ticket` : son commentaire, puis le label — ce que « waiting for… » écrit, et ce
-// que « Wait for … » d'une carte du manager joue (tableau-gestes/reponse-github.ts, ticket 3434). Un commentaire posté dont le
-// label est refusé se dit tel : le ticket n'est pas parqué.
-export async function ecrireLAttente(depot: string, ticket: number, lue: Saisie, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
+// Parquer un ticket (tickets 4262, 4129) : son commentaire de parking, puis le label `parked`, écrits sur l'issue de
+// `ticket`, sur tout dépôt, sans box. C'est le seul chemin de l'app qui le parque : « waiting for… », « Wait for … » d'une
+// carte du manager (tableau-gestes/reponse-github.ts, ticket 3434) et le second (second/parking.ts) le jouent. Un
+// commentaire posté dont le label est refusé se dit tel : le ticket n'est pas parqué.
+export async function parquer(depot: string, ticket: number, lue: Saisie, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
   const [an, mois, jour] = lue.relance.split("-").map(Number);
   const corps = marqueDAttente(lue, new Date(an ?? 0, (mois ?? 1) - 1, jour ?? 1));
   const issue = `/repos/${depot}/issues/${ticket}`;
@@ -111,10 +113,10 @@ export async function ecrireLAttente(depot: string, ticket: number, lue: Saisie,
     return { refus: `nothing was changed: GitHub did not take the WAITING comment on #${ticket}`, detail: raison(erreur) };
   }
   try {
-    const pose = await client.ecrire("POST", `${issue}/labels`, { labels: [LABEL_WAITING] });
-    if (pose.status !== 200) throw refusDe(`\`${LABEL_WAITING}\``, pose);
+    const pose = await client.ecrire("POST", `${issue}/labels`, { labels: [LABEL_PARKED] });
+    if (pose.status !== 200) throw refusDe(`\`${LABEL_PARKED}\``, pose);
   } catch (erreur) {
-    return { refus: `#${ticket} is not parked: its comment is posted, but GitHub did not set \`${LABEL_WAITING}\` — try again`, detail: raison(erreur) };
+    return { refus: `#${ticket} is not parked: its comment is posted, but GitHub did not set \`${LABEL_PARKED}\` — try again`, detail: raison(erreur) };
   }
   return { fait: `in WAITING on GitHub: #${ticket} awaits ${lue.qui}, follow-up on ${lue.relance}`, detail: adresse };
 }
@@ -126,7 +128,7 @@ export async function attenteSurGithub(options: { id: unknown; ticket: unknown; 
   if (id === "attente-arrivee") return retirerLeLabel(lu, "cuisine", ticket, client);
   if (id !== "attente-reprendre") return { refus: "nothing was sent: this is not a WAITING gesture", detail: `“${String(id)}” is not one` };
   const rendu = await retirerLeLabel(lu, "cuisine", ticket, client);
-  return "fait" in rendu ? { fait: `resumed on GitHub: #${String(ticket)} no longer carries \`${LABEL_WAITING}\` — it resumes exactly where it was`, detail: rendu.detail } : rendu;
+  return "fait" in rendu ? { fait: `resumed on GitHub: #${String(ticket)} no longer carries \`${LABEL_PARKED}\` — it resumes exactly where it was`, detail: rendu.detail } : rendu;
 }
 
 // Un geste de parking, d'où qu'il parte, sur tout projet : écrit sur l'issue, jamais par une commande de la box (ticket 4129).

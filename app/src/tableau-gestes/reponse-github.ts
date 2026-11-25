@@ -17,7 +17,7 @@
 //      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
 //      - `wait` : l'issue est parquée pour un tiers (#3434, #4129) — le commentaire de parking, qui attend ce que le libellé
 //        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la date à sept jours, puis le label
-//        `parked` (vue/attente/attente-github.ts, `ecrireLAttente`) ; les labels d'avant parked qui la parquaient pour le
+//        `parked` (vue/attente/attente-github.ts, `parquer`) ; les labels d'avant parked qui la parquaient pour le
 //        chef sont retirés : la question attend un tiers, plus le chef.
 //      Chaque geste retire aussi `chef-todo`, et `parked` sauf `wait` : répondue, la question n'attend plus le chef, et le
 //      ticket parqué pour lui reprend où il était (#4129).
@@ -33,7 +33,7 @@ import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/to
 import { refusDe } from "../tableau/client.ts";
 import { PR_DU_TICKET } from "../vue/pr-du-ticket.js";
 import { LABELS_DES_GESTES } from "../gestes-github.ts";
-import { ecrireLAttente } from "../vue/attente/attente-github.ts";
+import { parquer } from "../vue/attente/attente-github.ts";
 import { relanceProposee, saisieLue } from "../vue/attente/saisie.ts";
 
 // Le client : les lectures par le `GET` du tableau (client.ts), les écritures avec le même jeton — celui des labels de
@@ -90,7 +90,7 @@ async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: numb
   if (geste === "wait") {
     const lue = saisieLue({ quoi: question, qui: attendu(libelle), relance: relanceProposee(maintenant) }, maintenant);
     if ("refus" in lue) throw new Error(lue.refus);
-    const ecrit = await ecrireLAttente(depot, ticket, lue, maintenant, client);
+    const ecrit = await parquer(depot, ticket, lue, maintenant, client);
     if ("refus" in ecrit) throw new Error(`${ecrit.refus}${ecrit.detail === "" ? "" : ` — ${ecrit.detail}`}`);
     fait = ecrit.fait;
   }

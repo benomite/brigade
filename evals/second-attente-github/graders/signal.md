@@ -3,4 +3,4 @@ type: regex
 weight: 1
 ---
 
-brigade:parked \{.*2026-11-15
+park chef/parade#614 .*--until '?2026-11-15
