@@ -188,7 +188,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
   };
   let liberation: Promise<void> | null = null;
   const libererLesZones = (suivi: SuiviDuTour) => {
-    if (liberation !== null) return;
+    if (liberation) return;
     // Une lecture qui échoue, même d'emblée, se dit ici et n'arrête rien d'autre du réveil.
     liberation = Promise.resolve()
       .then(() => lireLesBloques(suivi.zonesTenues(), lecture, branche, maintenant()))

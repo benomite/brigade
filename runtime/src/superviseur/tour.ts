@@ -115,7 +115,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       sauts.set(ticket, ligne);
       sautesDuTour.add(ticket);
       tenantes.delete(ticket);
-      if (tenante !== undefined) tenantes.set(ticket, tenante);
+      if (tenante) tenantes.set(ticket, tenante);
       // Repassée, la porte remplace aussi l'attente du tour d'avant.
       attentes.delete(ticket);
       if (attendus !== undefined) attentes.set(ticket, [...attendus]);

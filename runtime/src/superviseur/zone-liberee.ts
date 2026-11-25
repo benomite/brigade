@@ -88,7 +88,7 @@ export function ouvrirLesZones({ github, maintenant = () => new Date(), consigne
       return [`no card asks the chef about the stale PR #${pr.number} yet: the issues could not be read to find one — ${message(erreur)}`];
     }
     const deja = lues.find(({ body }) => body.includes(marqueDeLaCarte(pr.number)));
-    if (deja !== undefined) {
+    if (deja) {
       cartes.add(pr.number);
       return [];
     }
@@ -143,7 +143,7 @@ export async function lireLesBloques(tenues: readonly ZoneTenue[], github: Lectu
     if (pr === undefined) continue;
     const lue: PRQuiTient = {
       number: numero,
-      auteur: pr.externe !== true && BRANCHE_DE_LA_BRIGADE.test(pr.branche) ? "brigade" : "human",
+      auteur: pr.externe === true || !BRANCHE_DE_LA_BRIGADE.test(pr.branche) ? "human" : "brigade",
       miseAJour: pr.miseAJour ?? "",
       enCook,
       auPass,
