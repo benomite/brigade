@@ -120,6 +120,9 @@ const pont = {
   // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus, et chacun suspendu, repris ou retiré (recurrents-box.ts).
   listerLesRecurrents: (projet) => ipcRenderer.invoke("listerLesRecurrents", projet),
   changerUnRecurrent: (projet, geste, id) => ipcRenderer.invoke("changerUnRecurrent", projet, geste, id),
+  // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (fiche-projet/fiche-projet-dossier.ts).
+  lireUnFichierDuProjet: (projet, chemin) => ipcRenderer.invoke("lireUnFichierDuProjet", projet, chemin),
+  ecrireUnFichierDuProjet: (projet, chemin, texte) => ipcRenderer.invoke("ecrireUnFichierDuProjet", projet, chemin, texte),
   // Les explications des mots de la cuisine (ticket 3308) : ce que le chef en a vu, gardé par le runtime du projet (explications/explications-box.ts).
   lireLesExplications: (projet) => ipcRenderer.invoke("lireLesExplications", projet),
   marquerUneExplication: (projet, mot) => ipcRenderer.invoke("marquerUneExplication", projet, mot),
