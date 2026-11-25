@@ -46,7 +46,8 @@ test("sans fichier des projets, rien ne se passe ; un fichier illisible est lais
   chmodSync(join(racine, "projets"), 0o000);
   t.after(() => chmodSync(join(racine, "projets"), 0o644));
   if (process.getuid?.() === 0) return;
-  remettreLesProjets({ racine, dire: (ligne) => lignes.push(ligne) });
-  assert.equal(lignes.length, 1);
-  assert.match(lignes[0] ?? "", /could not be put back .* left as it was/);
+  const dites: string[] = [];
+  remettreLesProjets({ racine, dire: (ligne) => dites.push(ligne) });
+  assert.equal(dites.length, 1);
+  assert.match(dites[0] ?? "", /could not be put back .* left as it was/);
 });
