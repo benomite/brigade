@@ -254,6 +254,36 @@ test("a review send-back states the reason its blocking remarks carry, and not o
   assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
 });
 
+test("two review send-backs with the same remark are the same result despite the reason line, and a conflict send-back states no reason (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(7);
+  const motif = "The settings page still shows the old menu: remove it.";
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif }), avertir: () => {}, maintenant: () => new Date("2026-11-18T09:00:00Z") });
+  for (let tour = 0; tour < 12; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(7) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvois[0] ?? "", /sent back to a cook \(1\/2\) — [^\n]*\n\nSend-back reason: wrong behaviour$/);
+  assert.ok(renvois.some((b) => /handed back twice in a row with the same result/.test(b) && /\n\nSend-back reason: wrong behaviour\n/.test(b)), renvois.join("\n---\n"));
+  const conflit = new FauxGitHub();
+  conflit.feu(36);
+  const b = conflit.station("A", { avertir: () => {} });
+  await b.tour();
+  await b.calme();
+  const pr = conflit.prs.find((p) => p.issue === 36);
+  assert.ok(pr);
+  pr.conflitDeContenu = true;
+  for (let i = 0; i < 6 && !(conflit.commentaires.get(36) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); i += 1) {
+    pr.enConflit = true;
+    await b.tour();
+    await b.calme();
+  }
+  const corps = (conflit.commentaires.get(36) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /sent back to a cook \(1, conflicts\)/);
+  assert.doesNotMatch(corps, /Send-back reason/);
+});
+
 test("a cook that delivers nothing gives the ticket back on the issue, which another station then takes", async () => {
   const faux = new FauxGitHub();
   faux.feu(6);
