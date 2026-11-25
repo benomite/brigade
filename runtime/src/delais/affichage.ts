@@ -1,12 +1,13 @@
 // Les lignes de `status` sur les temps des tickets mergés dans les dernières
 // 24 h (#4308) : la part dans les temps, comptes à l'appui, puis les pires
 // dépassements, le pire d'abord, chacun avec où son temps est passé.
-import { calculerLesDelais, type Delais } from "./delais.ts";
-import { fusionnesDuClone } from "./lecture.ts";
+import type { Delais } from "./delais.ts";
 
 const ligne = (titre: string, valeur: string) => `${titre.padEnd(11)} ${valeur}`;
 
-export function direLesDelais(delais: Delais): string[] {
+// Les délais illisibles (`lecture.ts`) : la ligne dit pourquoi, rien de calculé.
+export function direLesDelais(delais: Delais | { illisible: string }): string[] {
+  if ("illisible" in delais) return [ligne("on time", `merged tickets unreadable: ${delais.illisible}`)];
   const fenetre = `the last ${delais.fenetre_heures} h`;
   if (delais.fusionnes === 0) return [ligne("on time", `no merged ticket in ${fenetre}`)];
   const sans = delais.sans_temps_attendu === 0 ? "" : ` · ${delais.sans_temps_attendu} without an expected time`;
@@ -20,15 +21,3 @@ export function direLesDelais(delais: Delais): string[] {
   ];
 }
 
-// Les délais des tickets mergés que le clone connaît, pour `status --json` ;
-// son fichier des fiches illisible : `illisible`, sa raison, rien de calculé.
-export function delaisDuClone(repertoireDepot: string | undefined, maintenant: Date): Delais | { illisible: string } {
-  const lus = fusionnesDuClone(repertoireDepot);
-  return "illisible" in lus ? lus : calculerLesDelais(lus.tickets, maintenant);
-}
-
-// Les lignes de `status`, ou celle qui dit pourquoi elles ne se lisent pas.
-export function lignesDesDelais(repertoireDepot: string | undefined, maintenant: Date): string[] {
-  const delais = delaisDuClone(repertoireDepot, maintenant);
-  return "illisible" in delais ? [ligne("on time", `merged tickets unreadable: ${delais.illisible}`)] : direLesDelais(delais);
-}

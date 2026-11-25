@@ -6,8 +6,8 @@
 // Un ticket mergé sans ce label n'a pas de temps attendu : il est compté à
 // part (`sans_temps_attendu`), jamais dans les temps ni en retard.
 
-export const FENETRE_HEURES = 24;
-export const PIRES_MONTRES = 5;
+const FENETRE_HEURES = 24;
+const PIRES_MONTRES = 5;
 
 const LABEL_ATTENDU = /^attendu:(\d+)$/;
 
@@ -43,7 +43,7 @@ export type Delais = {
 };
 
 // Les minutes attendues : un seul label `attendu:<minutes>`, entier positif ; sinon null.
-export function minutesAttendues(etiquettes: readonly string[]): number | null {
+function minutesAttendues(etiquettes: readonly string[]): number | null {
   const lues = new Set(etiquettes.flatMap((label) => LABEL_ATTENDU.exec(label)?.[1] ?? []).map(Number));
   const [minutes] = lues;
   return lues.size === 1 && minutes !== undefined && minutes > 0 ? minutes : null;
@@ -54,7 +54,7 @@ const minutesEntre = (debut: string, fin: string) => Math.round((Date.parse(fin)
 // Les cinq parts du temps réel, en minutes entières : le cook (de la prise à
 // la PR ouverte), les gates, la relecture, les renvois, chacune bornée par ce
 // qui reste ; les attentes sont le reste. Leur somme est le temps réel.
-export function repartir(t: TicketFusionne, reel: number): Repartition {
+function repartir(t: TicketFusionne, reel: number): Repartition {
   let reste = reel;
   const prendre = (minutes: number) => {
     const part = Math.min(reste, Math.max(0, Math.round(minutes)));

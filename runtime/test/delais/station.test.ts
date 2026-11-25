@@ -5,8 +5,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/brigade-github.ts";
-import { calculerLesDelais } from "../../src/delais/delais.ts";
-import { FICHIER_DES_FICHES, fusionnesDuClone } from "../../src/delais/lecture.ts";
+import type { Delais } from "../../src/delais/delais.ts";
+import { delaisDuClone } from "../../src/delais/lecture.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
@@ -77,13 +77,11 @@ test("after the station merges a ticket, the clone holds its title and labels, a
     avancer(60);
   }
   assert.equal(faux.pr?.merged, true);
-  const [fiche] = JSON.parse(readFileSync(join(clone, FICHIER_DES_FICHES), "utf8")) as { ticket: number; titre: string; etiquettes: string[] }[];
+  const [fiche] = JSON.parse(readFileSync(join(clone, ".claude/brigade/delais-tickets.json"), "utf8")) as { ticket: number; titre: string; etiquettes: string[] }[];
   assert.equal(fiche?.ticket, 7);
   assert.equal(fiche?.titre, "ticket 7");
   assert.ok(fiche?.etiquettes.includes("attendu:1"));
-  const lus = fusionnesDuClone(clone);
-  assert.ok("tickets" in lus);
-  const delais = calculerLesDelais(lus.tickets, new Date(horloge));
+  const delais = delaisDuClone(clone, new Date(horloge)) as Delais;
   assert.equal(delais.fusionnes, 1);
   assert.equal(delais.sans_temps_attendu, 0);
   assert.deepEqual(delais.pires_depassements.map(({ ticket, titre, modele, effort }) => ({ ticket, titre, modele, effort })), [{ ticket: 7, titre: "ticket 7", modele: "sonnet", effort: "medium" }]);

@@ -31,7 +31,8 @@ import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
-import { delaisDuClone, lignesDesDelais } from "./delais/affichage.ts";
+import { direLesDelais } from "./delais/affichage.ts";
+import { delaisDuClone } from "./delais/lecture.ts";
 import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile, railCherche } from "./attente-du-rail/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>] | --json]";
@@ -187,7 +188,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
   lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
   // La part des tickets mergés en 24 h dans leur temps attendu, et les pires dépassements (#4308).
-  lignes.push(...lignesDesDelais(env.BRIGADE_REPO_DIR, maintenant));
+  lignes.push(...direLesDelais(delaisDuClone(env.BRIGADE_REPO_DIR, maintenant)));
   // Les quatre chiffres (#2672) : valeur, seuil, rouge au-dessus.
   lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR), rouge));
   // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).

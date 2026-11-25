@@ -9,10 +9,10 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { calibrage } from "../calibrage.ts";
 import { lesTempsDesTickets, type TempsTicket } from "../temps-ticket/ligne-status.ts";
-import type { TicketFusionne } from "./delais.ts";
+import { calculerLesDelais, type Delais, type TicketFusionne } from "./delais.ts";
 
-export const FICHIER_DES_FICHES = ".claude/brigade/delais-tickets.json";
-export const FICHES_GARDEES = 200;
+const FICHIER_DES_FICHES = ".claude/brigade/delais-tickets.json";
+const FICHES_GARDEES = 200;
 
 export type FicheDuTicket = { ticket: number; titre: string; etiquettes: string[] };
 
@@ -53,7 +53,7 @@ const iso = (instant: number) => new Date(instant).toISOString();
 // celles du dernier, la livraison mergée. Sans eux : la PR s'ouvre après ses
 // cuissons, et gates, CI, relecture et renvois sont ses phases. Sans merge ni
 // prise datés : null.
-export function depuisLesTemps(temps: TempsTicket, fiche: FicheDuTicket | undefined): TicketFusionne | null {
+function depuisLesTemps(temps: TempsTicket, fiche: FicheDuTicket | undefined): TicketFusionne | null {
   const priseAt = temps.priseAt ?? temps.claimedAt;
   if (priseAt === undefined || temps.mergedAt === undefined) return null;
   const etiquettes = fiche?.etiquettes ?? [];
@@ -69,7 +69,7 @@ export function depuisLesTemps(temps: TempsTicket, fiche: FicheDuTicket | undefi
 
 // Les tickets mergés que le clone `repertoireDepot` connaît ; sans clone,
 // aucun. Le fichier des fiches illisible : `illisible`, sa raison.
-export function fusionnesDuClone(repertoireDepot: string | undefined): { tickets: TicketFusionne[] } | { illisible: string } {
+function fusionnesDuClone(repertoireDepot: string | undefined): { tickets: TicketFusionne[] } | { illisible: string } {
   if (!repertoireDepot) return { tickets: [] };
   let fiches: FicheDuTicket[];
   try {
@@ -79,4 +79,11 @@ export function fusionnesDuClone(repertoireDepot: string | undefined): { tickets
   }
   const parTicket = new Map(fiches.map((fiche) => [fiche.ticket, fiche]));
   return { tickets: lesTempsDesTickets(repertoireDepot).enregistrements.flatMap((temps) => depuisLesTemps(temps, parTicket.get(temps.ticket)) ?? []) };
+}
+
+// Les délais des tickets mergés que le clone connaît, à `maintenant` ; son
+// fichier des fiches illisible : `illisible`, sa raison, rien de calculé.
+export function delaisDuClone(repertoireDepot: string | undefined, maintenant: Date): Delais | { illisible: string } {
+  const lus = fusionnesDuClone(repertoireDepot);
+  return "illisible" in lus ? lus : calculerLesDelais(lus.tickets, maintenant);
 }
