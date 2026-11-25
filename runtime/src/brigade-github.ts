@@ -3230,8 +3230,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       constatAdmis = admetUnConstat(lue.body ?? "");
       brigade = livreSousBrigade(lue.body ?? "", commentaires.map(({ body }) => body));
     } catch (erreur) {
-      const dit = `its ticket could not be read on GitHub: ${message(erreur)}`;
-      return erreur instanceof LimiteGitHubAtteinte ? { subi: dit } : { echec: dit };
+      // La limite de GitHub se dit en français au chef (`status`) : le commentaire qui la porte sur le dépôt la dit en anglais (#4056).
+      if (erreur instanceof LimiteGitHubAtteinte) return { subi: `its ticket could not be read on GitHub: the kitchen's GitHub calls are held back until ${new Date(erreur.resetAt).toISOString()}` };
+      return { echec: `its ticket could not be read on GitHub: ${message(erreur)}` };
     }
     // Ses tests d'acceptation, gelés en premier commit de sa branche (#3725) :
     // une autre station a pu les pousser, le clone la reçoit de l'origine. Sans

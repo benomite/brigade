@@ -348,7 +348,7 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     // n'est pas elle qui dit ce que la station a poussé.
     git(worktree, "fetch", "-q", "origin", "+refs/heads/*:refs/remotes/origin/*");
 
-    assert.throws(() => depot.pousser(branche), /^Error: git push : l'origine porte sur `cook\/15-abc` des commits que la station n'y a pas poussés .* rien n'est écrasé/);
+    assert.throws(() => depot.pousser(branche), /^Error: git push: the origin carries commits on `cook\/15-abc` that the station did not push .* nothing is overwritten/);
     assert.equal(git(origine, "rev-parse", branche), duChef);
 
     await depot.ranger(worktree, branche);
@@ -370,7 +370,7 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     const duCook = depot.tete(branche);
     const duChef = pousserALaMain(origine, branche, "dispute.txt");
 
-    await assert.rejects(depot.reprendre("15-def", branche), /^Error: la branche `cook\/15-abc` a divergé de ce que l'origine en porte, en conflit .* à réconcilier à la main/);
+    await assert.rejects(depot.reprendre("15-def", branche), /^Error: the branch `cook\/15-abc` has diverged from what the origin carries, in conflict .* to reconcile by hand/);
 
     assert.equal(existsSync(join(worktrees, "15-def")), false);
     assert.equal(depot.tete(branche), duCook);
@@ -678,12 +678,23 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
     assert.equal(depot.tete(branche), recolte);
     assert.equal(depot.commits(branche), 2);
     assert.deepEqual(git(worktree, "show", "--format=", "--name-status", "HEAD").split("\n"), ["M\tLISEZMOI", "A\tbrouillon.txt", "D\ttravail.txt"]);
-    assert.equal(git(worktree, "log", "-1", "--format=%an <%ae> | %s"), "brigade <brigade@localhost> | brigade : récolte — ce que le cook avait laissé non commité dans son worktree");
+    assert.equal(git(worktree, "log", "-1", "--format=%an <%ae> | %s"), "brigade <brigade@localhost> | brigade: harvest — what the cook left uncommitted in its worktree");
     // Le reviewer saura quels commits ne sont pas du cook.
     assert.deepEqual(depot.recoltes(branche), [recolte]);
     assert.equal(depot.intact(worktree), true);
     // Rien de plus à récolter.
     assert.equal(depot.recolter(worktree, branche), null);
+  });
+
+  test("une récolte commitée sous l'ancien sujet, français, se reconnaît encore : sa branche a pu être poussée avant (#4056)", async (t) => {
+    const { depot } = projet(t);
+    const { worktree, branche } = await depot.preparer("15-abc");
+    writeFileSync(join(worktree, "brouillon.txt"), "jamais commité\n");
+    const ancienne = depot.recolter(worktree, branche, "brigade : récolte — ce que le cook avait laissé non commité dans son worktree");
+    writeFileSync(join(worktree, "autre.txt"), "jamais commité non plus\n");
+    const neuve = depot.recolter(worktree, branche);
+    assert.equal(git(worktree, "log", "-1", "--format=%s", "HEAD"), "brigade: harvest — what the cook left uncommitted in its worktree");
+    assert.deepEqual(depot.recoltes(branche), [neuve, ancienne]);
   });
 
   test("un worktree qui n'est plus sur sa branche n'est pas récolté : le commit n'irait nulle part", async (t) => {
@@ -1085,14 +1096,14 @@ describe("le dépôt sous une identité", { concurrency: 2 }, () => {
       frais: async () => "ghs_cook_secret",
       courant: () => {
         if (vivant) return "ghs_cook_secret";
-        throw new Error("jeton de l'identité « cook » indisponible");
+        throw new Error("token of the “cook” identity unavailable");
       },
     });
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
     vivant = false;
 
-    assert.throws(() => depot.pousser(branche), /git push : jeton de l'identité « cook » indisponible/);
+    assert.throws(() => depot.pousser(branche), /git push: token of the “cook” identity unavailable/);
     assert.throws(() => git(origine, "rev-parse", "--verify", branche));
   });
 
@@ -1106,7 +1117,7 @@ describe("le dépôt sous une identité", { concurrency: 2 }, () => {
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
 
-    assert.throws(() => depot.pousser(branche), /^Error: git push : droit `workflows` manquant — la livraison touche `\.github\/workflows\/`/);
+    assert.throws(() => depot.pousser(branche), /^Error: git push: missing `workflows` permission — the delivery touches `\.github\/workflows\/`/);
   });
 
   test("sans jeton frais, la base n'est pas rapatriée", async (t) => {

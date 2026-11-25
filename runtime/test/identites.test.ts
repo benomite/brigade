@@ -79,7 +79,7 @@ test("le jeton courant se lit sans attendre, tant qu'il vit ; mort ou jamais dem
   const { identites: ouvertes, avancer } = await identites(t);
   const jeton = ouvertes.jeton("cook");
 
-  assert.throws(() => jeton.courant(), /jeton de l'identité « cook » indisponible/);
+  assert.throws(() => jeton.courant(), /token of the “cook” identity unavailable/);
   const frais = await jeton.frais();
   avancer(58 * MINUTE);
   assert.equal(jeton.courant(), frais);
