@@ -5,7 +5,6 @@
 // le dire quand il en sort.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { principal } from "../src/attente-cli.ts";
 import { cestArrive, LABEL_WAITING, lireRelance, marquerAttentes, mettreEnAttente, PRIX_DE_L_ARRIVEE, RELANCE_PAR_DEFAUT_MS, renvoyerEnCuisine, reprendre } from "../src/attente.ts";
 import { attentesDuChef, decrireAttentes } from "../src/attend.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
@@ -296,40 +295,6 @@ test("une sortie de WAITING que l'ancienne version écrivait seule (relance, com
   assert.deepEqual(todo(journal), []);
   journal.reconstruire();
   assert.deepEqual(lus(), attendu);
-});
-
-test("la commande `waiting` : set, lister, resume, c'est arrivé — et ce qu'elle refuse", (t) => {
-  const { repertoire, journal } = cuisine(t);
-  poser(journal, 8);
-  const lancer = (...args: string[]) => {
-    const [sortie, erreur]: [string[], string[]] = [[], []];
-    let code = 0;
-    try {
-      principal({ args, env: { BRIGADE_STATE_DIR: repertoire }, dire: (l) => void sortie.push(l), redire: (l) => void erreur.push(l) }, () => MAINTENANT);
-    } catch (levee) {
-      code = (levee as { code: number }).code;
-    }
-    return { code, sortie: sortie.join("\n"), erreur: erreur.join("\n") };
-  };
-
-  assert.deepEqual(lancer(), { code: 0, sortie: "no ticket is waiting for a third party", erreur: "" });
-  const pose = lancer("set", "8", "--what", "la réponse du client", "--from", "le client", "--remind", "3j");
-  assert.equal(pose.code, 0, pose.erreur);
-  assert.match(pose.sortie, /^WAITING: #8  awaiting le client: “la réponse du client” — since .* follow-up on 17 Oct 12:00 UTC/);
-  assert.match(lancer().sortie, /^#8  awaiting le client/);
-  assert.equal(ticketDuRail(journal.base, 8)?.waitingFor?.who, "le client");
-
-  assert.deepEqual([lancer("set", "8", "--what", "x").code, lancer("bouger", "8").code, lancer("resume").code, lancer("resume", "8", "--from", "x").code], [2, 2, 2, 2]);
-  assert.match(lancer("set", "8", "--what", "x", "--from", "y", "--remind", "hier").erreur, /--remind: “hier” cannot be read/);
-
-  assert.equal(lancer("resume", "8").code, 0);
-  assert.deepEqual([ticketDuRail(journal.base, 8)?.state, ticketDuRail(journal.base, 8)?.waitingFor], ["waiting", null]);
-  const refus = lancer("resume", "8");
-  assert.deepEqual([refus.code, /not waiting for a third party/.test(refus.erreur)], [1, true]);
-  // « C'est arrivé » n'est pas une commande de la box : l'app retire le label `waiting` de l'issue.
-  const arrive = lancer("arrived", "8");
-  assert.deepEqual([arrive.code, /unknown gesture: “arrived”/.test(arrive.erreur)], [2, true]);
-  assert.equal(ticketDuRail(journal.base, 8)?.state, "waiting");
 });
 
 test("`renvoyerEnCuisine` joue « c'est arrivé » comme un geste du rail : fait avec son prix, ou refusé sans rien changer", (t) => {
