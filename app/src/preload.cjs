@@ -61,7 +61,6 @@ const pont = {
   ouvrirLien: (projet, ticket, url) => ipcRenderer.invoke("ouvrirLien", projet, ticket, url),
   lireTitre: (projet, ticket) => ipcRenderer.invoke("lireTitre", projet, ticket),
   lireCapture: (projet, ticket, ecran, moment) => ipcRenderer.invoke("lireCapture", projet, ticket, ecran, moment),
-  leverRetenue: (projet, ticket, geste) => ipcRenderer.invoke("leverRetenue", projet, ticket, geste),
   lireFeu: (projet) => ipcRenderer.invoke("lireFeu", projet),
   relireBox: (demande) => ipcRenderer.send("relireBox", demande),
   repondreQuestion: (projet, ticket, reponse) => ipcRenderer.invoke("repondreQuestion", projet, ticket, reponse),
@@ -166,7 +165,6 @@ const pont = {
   seConnecterAClaude: () => ipcRenderer.invoke("seConnecterAClaude"),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   outilsManquants: (outils) => ipcRenderer.invoke("outilsManquants", outils),
-  installerOutil: (outil) => ipcRenderer.invoke("installerOutil", outil),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
   // Démarre la station de cet ordinateur, depuis l'alerte d'un projet dont elle est arrêtée (ticket 3637).

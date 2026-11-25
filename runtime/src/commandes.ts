@@ -30,6 +30,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "humans", description: "The project's humans, from its repository, for the app: save <login> [<role>…], remove <login> — each change opens a pull request" },
   { nom: "recurring", description: "The project's recurring tickets, for the app: declare --title <title> [--body <body>] --rhythm daily | weekly --weekday <1-7> | monthly --day <1-31>, pause <id>, resume <id>, remove <id> — each one lands on the rail with `fire` on its next date" },
   { nom: "explanations", description: "The explanations of the kitchen's words a chef has seen, for the app: --chef <login>, seen <word> --chef <login>, reset --chef <login> — each word is explained once per chef, on all their devices" },
+  { nom: "agent-settings", description: "Each agent's settings, for the app's Agents tab: <agent> reads them (value, where it comes from, who changed it and when), <agent> set <key> <value> --by <author> changes one — it holds at the runtime's next read, with no restart" },
   { nom: "recap", description: "What the kitchen did since the chef last looked, for the app: <owner>/<repo> reads it (served tickets and their pull requests, sends back and refusals, guardrail stops), <owner>/<repo> seen <instant> marks it shown up to that instant" },
   { nom: "contributor-stations", description: "The contributor stations that took a ticket, for the app: refuse <station>, accept <station> — a refused station takes no ticket" },
   { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },
@@ -50,6 +51,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "arbiter", ancien: "arbitre", description: "The arbiter's weights: weight <project> <n>, remove <project>", mots: { poids: "weight", retirer: "remove" } },
   { nom: "door", ancien: "porte", description: "Hold the door of the project's remote stations (its service)" },
   { nom: "hold-arbiter", ancien: "tenir-arbitre", description: "Run the arbiter between projects (its service)" },
+  { nom: "agents", description: "The Agents tab, for the app: [/api/agents] lists every agent with its state, next run and 7-day figures; /api/agents/<id>/gestures gives its last gestures, newest first" },
   { nom: "help", description: "List these commands" },
 ];
 

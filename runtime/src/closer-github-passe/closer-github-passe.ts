@@ -299,7 +299,7 @@ export function brancherCloserGithub<R extends Runtime>(runtime: R, options: Opt
     }
   };
 
-  // A project with blocked-on-human tickets that ask no question is not closed clean: one defect names the
+  // A project with tickets parked for the chef that ask no question is not closed clean: one defect names the
   // count, opened once per count, whether the last one is still open or already fixed. A status that cannot be read stops neither the pass nor the issue.
   const blocages = async (lire: NonNullable<OptionsCloserGithub["statut"]>, calibration: { model: string; effort: string }) => {
     try {

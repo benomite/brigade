@@ -119,7 +119,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/exploitation-en-anglais.test.ts", test: "`station` : ses sorties et ses refus ne portent aucun mot français du glossaire" },
   { file: "test/exploitation-en-anglais.test.ts", test: "`status` : ses sorties et ses refus ne portent aucun mot français du glossaire" },
   { file: "test/exploitation-en-anglais.test.ts", test: "`switch` : ses sorties et ses refus ne portent aucun mot français du glossaire" },
-  { file: "test/exploitation-en-anglais.test.ts", test: "`waiting` : ses sorties et ses refus ne portent aucun mot français du glossaire" },
   { file: "test/fermeture-action/action.test.ts", test: "le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison" },
   { file: "test/garde-des-gates.test.ts", test: "un test en échec avant la coupure garde la ligne d'un rouge" },
   { file: "test/garde-des-gates.test.ts", test: "une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué" },

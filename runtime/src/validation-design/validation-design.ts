@@ -349,6 +349,15 @@ export async function fermerLesCartesCaduques(
     }
     if (github.commentaires === undefined || !issue.labels.includes(CHEF_TODO)) continue;
     try {
+      // Sa carte, dépassée par un renvoi, que GitHub n'a pas levée après lui : levée ici. Parqué pour le chef, le ticket
+      // ne repartirait sinon jamais à son cook (#4129).
+      const { commentaires } = github;
+      let depassee = false;
+      for (const sorte of sortes) if (!depassee) depassee = (await fermerLaCarteDepassee(sorte, { ...github, commentaires }, issue.number)) !== null;
+      if (depassee) {
+        fermees.push(issue.number);
+        continue;
+      }
       // La dernière carte de TODO du ticket, comme TODO la lit.
       const derniere = (await github.commentaires(issue.number)).findLast((c) => carteEnCours([CHEF_TODO], [c]) !== null);
       const demande = sortes.map((sorte) => demandeDuCorps(sorte.sorte, derniere?.body ?? "")).find((lue) => lue !== null && lue.ticket === issue.number);

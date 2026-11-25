@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
-import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
+import { corpsDuParking } from "../../src/attente-github/attente-github.ts";
 import { corpsDePrise } from "../../src/github-etat/prise.ts";
 import { ouvrirLimitesDuCompte } from "../../src/github-limite.ts";
 import { ouvrirGitHub, type Transport } from "../../src/github.ts";
@@ -25,8 +25,8 @@ const DEPOT = "faux/rail-inchange";
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 const TICKETS = 20;
 const POIGNEE = 6;
-// Un ticket en WAITING porte sa marque : ce qu'il attend, de qui, jusqu'à quand (invariant 3, #4026).
-const ATTENTE = corpsDeLAttente({ what: "the client's API key", who: "the client", followUp: "2099-01-01T00:00:00.000Z" });
+// Un ticket parqué porte sa marque : ce qu'il attend, de qui, jusqu'à quand (invariant 3, #4026).
+const ATTENTE = corpsDuParking({ what: "the client's API key", who: "the client", followUp: "2099-01-01T00:00:00.000Z" });
 
 type CommentaireFaux = { id: number; body: string; created_at: string; author_association: string; user: { login: string } };
 
@@ -36,7 +36,7 @@ test("a turn over 20 fire tickets takes, labels and comments exactly what it did
     // 1-2 : prenables ; 3-8 : en attente ; 9-14 : tenus par une autre station ; 15-20 : non calibrés.
     if (numero <= 2) faux.feu(numero, CALIBRE);
     else if (numero <= 8) {
-      faux.feu(numero, [...CALIBRE, "waiting"]);
+      faux.feu(numero, [...CALIBRE, "parked"]);
       faux.commenterCommeLeDepot(numero, ATTENTE);
     }
     else if (numero <= 14) {

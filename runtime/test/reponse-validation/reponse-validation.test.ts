@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ticketJoint } from "../../src/bac-a-sable/hors-github.ts";
 import { brancheDuTicket, stationGitHub, type GitHubDuTour, type StationGitHub } from "../../src/brigade-github.ts";
-import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
+import { estParque, etatDuTicket, LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
 import { MARQUE_DE_RENVOI } from "../../src/qualite-github.ts";
 import { questionDuCorps, reponseDuCorps } from "../../src/reponse-validation/marques.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
@@ -118,6 +118,24 @@ test("a send-back comment of the chef on the ticket puts the ticket back to a co
   chef(faux, "Also the colour.");
   await tours(s, 2);
   assert.equal(renvois(faux).length, 1);
+});
+
+// #4260 : une livraison retenue pour la validation du chef parque son ticket pour lui (`chef-todo`) ; parqué en pass, il garde
+// son état de pass (`etatDuTicket`) : la pass lit la réponse du chef. Renvoyé par lui, rien ne le parque plus — sans quoi aucun
+// cook ne le reprendrait (`estParque`).
+test("held for the chef's validation, the ticket in pass is parked for him and the pass still reads his answer; sent back, it is no longer parked and a cook takes it up", async () => {
+  const { faux, s, sha } = await retenue();
+  question(faux, sha);
+  const labels = () => [...faux.ticket(TICKET).labels];
+  assert.ok(estParque(labels()) && labels().includes(LABEL_IN_PASS), labels().join(", "));
+  assert.equal(etatDuTicket({ state: "open", labels: labels(), pr: { state: "open", merged: false } }), "pass");
+  const cuissons = faux.cuissons.length;
+  chef(faux, "Make the take button stand out: it is lost among the cards.");
+  await tours(s, 1);
+  assert.deepEqual(reponses(faux), [{ pr: PR, sha, reponse: "sent-back" }]);
+  assert.equal(estParque(labels()), false, labels().join(", "));
+  await tours(s, 6, () => faux.cuissons.length > cuissons);
+  assert.ok(faux.cuissons.length > cuissons, "no cook took the ticket up again");
 });
 
 test("the chef's answers kept on the ticket name the delivery ticket first, not by its pull request alone (#3718)", async () => {

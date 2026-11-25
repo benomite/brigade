@@ -54,7 +54,7 @@ export function tenirConnexionGitHub(lieu, doc, { pont, apres }) {
   const attend = () => connexion !== undefined && ("enRoute" in connexion || "code" in connexion);
   // Les outils d'abord : tant que l'un manque, ou que leur lecture est en route, son écran tient la place du bouton.
   const outils = tenirLesOutils({ pont, rendre: () => poser() });
-  const gestesDesOutils = { installer: () => void outils.installer(), verifier: () => void outils.verifier(true) };
+  const gestesDesOutils = { ouvrir: (/** @type {string} */ url) => void pont.ouvrirLaPage?.(url), verifier: () => void outils.verifier(true) };
   const poser = () => {
     const { etat } = outils;
     if (etat.manque !== undefined || (etat.enCours === "verification" && !etat.lu)) return suite.replaceChildren(...poserLesOutils(doc, etat, gestesDesOutils));

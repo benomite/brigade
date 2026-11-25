@@ -18,18 +18,20 @@ const MARQUE_ARRET = "STOPPED";
 /** @param {string} iso @returns {string | null} */
 const heureUtc = (iso) => (Number.isNaN(Date.parse(iso)) ? null : `${new Date(iso).toISOString().slice(11, 16)} UTC`);
 
+// Sans `statut` (un arrêt posé sans la lecture du rail), la cause se dit d'après son sorte.
 /** @param {ArretDeLaCuisine["cause"]} cause @returns {string} */
 function causeDite(cause) {
   if (cause.kind === "frozen-zone") return `frozen ticket #${cause.ticket} holds the file zone ${cause.zone}`;
+  if (cause.kind === "zone-held") return `zone held by PR ${cause.pr}`;
   if (cause.kind === "main-red") return "main is red";
   return "the cause is unknown";
 }
 
-// La phrase du bandeau : l'arrêt, depuis quand quand l'heure se lit, et sa cause.
+// La phrase du bandeau : l'arrêt, depuis quand quand l'heure se lit, et sa cause — le `statut` que le runtime a dit (statutDeLaCuisine).
 /** @param {ArretDeLaCuisine} arret @returns {string} */
 function phraseDeLArret(arret) {
   const heure = heureUtc(arret.since);
-  return `The kitchen is stopped${heure === null ? "" : ` since ${heure}`}: ${causeDite(arret.cause)}.`;
+  return `The kitchen is stopped${heure === null ? "" : ` since ${heure}`}: ${arret.statut ?? causeDite(arret.cause)}.`;
 }
 
 /** @typedef {{ ouvrirTicket(ticket: number): void, ouvrirLesChecks(): void, relire(): void }} GestesDeLArret */

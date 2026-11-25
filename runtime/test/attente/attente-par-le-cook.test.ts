@@ -1,8 +1,9 @@
-// Ce que la cuisine lit d'une attente dans les mots d'un cook, et le retour à la relance (#3814) : ce qui n'en est pas une
-// va au manager comme avant, une attente posée par le chef ne sort pas seule, des commentaires illisibles ne lèvent rien.
+// Ce que la cuisine lit d'une attente dans les mots d'un cook, et la reprise à la date (#3814, #4129) : ce qui n'en est pas
+// une va au manager comme avant, un ticket parqué jusqu'à un fait ou pour le chef ne reprend pas seul, des commentaires
+// illisibles ne déparquent rien.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
+import { corpsDuParking } from "../../src/attente-github/attente-github.ts";
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "../../src/attente/attente-par-le-cook.ts";
 import type { GitHubDuTour } from "../../src/brigade-github.ts";
 
@@ -17,7 +18,7 @@ test("a technical block, a past date, or a third party never named as outside th
 
 test("a date with no one named: the wait says the calendar, and the follow-up is that date", () => {
   const attente = lireAttenteDuCook("Not before 2026-12-01: the feature flag only opens that day.", MAINTENANT);
-  assert.deepEqual(attente, { what: "Not before 2026-12-01: the feature flag only opens that day", who: "the calendar: not before 2026-12-01", followUp: "2026-12-01T00:00:00.000Z", backOnFollowUp: true });
+  assert.deepEqual(attente, { what: "Not before 2026-12-01: the feature flag only opens that day", who: "the calendar: not before 2026-12-01", followUp: "2026-12-01T00:00:00.000Z" });
 });
 
 // Un faux GitHub qui tient les commentaires et les gestes de chaque issue.
@@ -38,40 +39,48 @@ function faux(commentaires: Record<number, string[] | Error>) {
   };
 }
 
-test("on its follow-up date only a wait the kitchen set comes back; the chef's stays, one before its date stays, and unreadable comments leave the ticket in WAITING and say so", async () => {
+test("on its date a ticket parked until that date resumes, where it was, and a chef's card parked for someone else goes back to TODO; one parked until a fact stays, one waiting for the chef stays, one before its date stays, and unreadable comments leave the ticket parked and say so", async () => {
   const relance = "2026-11-17T00:00:00.000Z";
   const { github, gestes } = faux({
-    1: [corpsDeLAttente({ what: "the client's API", who: "the client", followUp: relance, backOnFollowUp: true })],
-    2: [corpsDeLAttente({ what: "the lawyer's answer", who: "the lawyer", followUp: relance })],
-    3: [corpsDeLAttente({ what: "the client's API", who: "the client", followUp: "2026-11-25T00:00:00.000Z", backOnFollowUp: true })],
+    1: [corpsDuParking({ what: "the client's API", who: "the client", followUp: relance })],
+    2: [corpsDuParking({ what: "the lawyer's answer", who: "the lawyer", followUp: relance, fact: "the lawyer answered" })],
+    3: [corpsDuParking({ what: "the client's API", who: "the client", followUp: "2026-11-25T00:00:00.000Z" })],
     4: new Error("HTTP 502"),
+    5: [corpsDuParking({ what: "which colour for the button", who: "the chef", followUp: relance })],
+    6: [corpsDuParking({ what: "the designer's mockup", who: "the designer", followUp: relance })],
   });
   const dits: string[] = [];
-  const tickets = [1, 2, 3, 4].map((number) => ({ number, labels: ["waiting", "model:opus", "effort:medium"] }));
+  // Parqué en cuisson : `taken` reste, et aucun `fire` n'est posé — il reprend exactement où il était. Pour le chef,
+  // `chef-todo` seul (#5) : aucune date ne l'en sort. Une carte du chef parquée pour un autre (#6) porte les deux.
+  const labelsDe = (number: number) => (number === 5 ? ["chef-todo"] : number === 6 ? ["chef-todo", "parked"] : ["parked"]);
+  const tickets = [1, 2, 3, 4, 5, 6].map((number) => ({ number, labels: [...labelsDe(number), "taken", "model:opus", "effort:medium"] }));
   const rentres = await ramenerALaRelance(github, tickets, { station: "box", maintenant: MAINTENANT, avertir: (ligne) => dits.push(ligne) });
-  assert.deepEqual(rentres, [1]);
-  assert.deepEqual(gestes.slice(0, 2), ["#1 +fire", "#1 -waiting"]);
-  assert.match(gestes[2] ?? "", /^#1 \*\*WAITING lifted — follow-up date reached\*\*/);
-  assert.equal(gestes.length, 3);
+  assert.deepEqual(rentres, [1, 6]);
+  assert.equal(gestes[0], "#1 -parked");
+  assert.match(gestes[1] ?? "", /^#1 \*\*Unparked — its date is reached\*\*: this ticket was waiting for the client \(“the client's API”\) until 2026-11-17 00:00 UTC\. Station `box` lets it resume exactly where it was\./);
+  // La carte revient dans TODO : seul `parked` est retiré, `chef-todo` reste.
+  assert.equal(gestes[2], "#6 -parked");
+  assert.match(gestes[3] ?? "", /^#6 \*\*Unparked — its date is reached\*\*: this ticket was waiting for the designer \(“the designer's mockup”\) until 2026-11-17 00:00 UTC\./);
+  assert.equal(gestes.length, 4, gestes.join("\n"));
   assert.ok(dits.some((ligne) => /#4 .*could not be read .*HTTP 502/.test(ligne)), dits.join("\n"));
 });
 
-test("what the cook said is the sentence that says the date, and a third party's wait says what it waits for: no date, a week, and back on the rail on its own", () => {
+test("what the cook said is the sentence that says the date, and a third party's wait says what it waits for: no date, a week, and it resumes on its own", () => {
   assert.equal(lireAttenteDuCook("The sale page needs the live prices. They are published on 2026-11-25, not before.", MAINTENANT)?.what, "They are published on 2026-11-25, not before");
   assert.deepEqual(lireAttenteDuCook("The checkout page is ready to build. Waiting for the client's production API key: nothing in the kitchen can produce it.", MAINTENANT), {
     what: "Waiting for the client's production API key: nothing in the kitchen can produce it",
     who: "the client's production API key",
     followUp: "2026-11-25T09:00:00.000Z",
-    backOnFollowUp: true,
   });
 });
 
-test("the WAITING the kitchen sets says the ticket goes back on the rail on its own and holds no zone; the chef's says neither", async () => {
+test("the parking the kitchen sets says nothing takes the ticket and it resumes where it was on its own on its date; one parked until a fact does not resume on its own", async () => {
   const { github, gestes } = faux({});
   const corps: string[] = [];
-  await mettreEnAttenteParLaCuisine({ ...github, commenter: async (_numero, texte) => void corps.push(texte) }, 9, { what: "Too early", who: "the calendar", followUp: "2026-11-25T00:00:00.000Z", backOnFollowUp: true }, { station: "box", mots: "Too early." });
-  assert.deepEqual(gestes, ["#9 +waiting"]);
-  assert.match(corps[0] ?? "", /it holds no file zone .*On its follow-up date it goes back on the rail on its own/);
-  assert.match(corps[0] ?? "", /Set by station `box`, from what the cook said:\n\n> Too early\./);
-  assert.doesNotMatch(corpsDeLAttente({ what: "the lawyer's answer", who: "the lawyer", followUp: "2026-11-25T00:00:00.000Z" }), /on its own|file zone/);
+  await mettreEnAttenteParLaCuisine({ ...github, commenter: async (_numero, texte) => void corps.push(texte) }, 9, { what: "Too early", who: "the calendar", followUp: "2026-11-25T00:00:00.000Z" }, { station: "box", mots: "Too early." });
+  assert.deepEqual(gestes, ["#9 +parked"]);
+  assert.match(corps[0] ?? "", /^<!-- brigade:parked \{"what":"Too early","who":"the calendar","followUp":"2026-11-25T00:00:00.000Z"\} -->\n\*\*PARKED: waits for the calendar\.\*\* Too early/);
+  assert.match(corps[0] ?? "", /nothing takes it: no station, no repair, no supervisor\. On 2026-11-25 00:00 UTC it resumes exactly where it was, on its own/);
+  assert.match(corps[0] ?? "", /Parked by station `box`, from what the cook said:\n\n> Too early\./);
+  assert.doesNotMatch(corpsDuParking({ what: "the lawyer's answer", who: "the lawyer", followUp: "2026-11-25T00:00:00.000Z", fact: "the lawyer answered" }), /on its own/);
 });

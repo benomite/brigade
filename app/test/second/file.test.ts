@@ -62,16 +62,16 @@ function jouer(t: TestContext, gh: string, nom: string, depot: string) {
 const DEPOT = "acme/brigade";
 const LU = "2026-11-05T12:00:00.000Z";
 
-// Ce que GitHub tient du projet : #8, en pass, sa livraison touche à ce qui la juge — la PR #2326 attend le chef ; #20, une
-// carte `chef-todo` ; #1, sur le rail, calibré par le manager, n'attend rien — ni le chef, ni un manager (le rail bloqué,
+// Ce que GitHub tient du projet : #8, en pass, sa livraison touche à ce qui la juge — sa carte `chef-todo` demande au chef
+// de la merger ; #20, une carte `chef-todo` ; #1, sur le rail, calibré par le manager, n'attend rien — ni le chef, ni un manager (le rail bloqué,
 // #3358 : test/rail-bloque/). Rendu par chemin de l'API, comme `gh api` le rend.
 const FIRE = [
   { number: 1, title: "Ticket 1", html_url: `https://github.com/${DEPOT}/issues/1`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "model:sonnet" }, { name: "effort:medium" }] },
-  { number: 8, title: "Ticket 8", html_url: `https://github.com/${DEPOT}/issues/8`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "in-pass" }, { name: "blocked-on-human" }] },
+  { number: 8, title: "Ticket 8", html_url: `https://github.com/${DEPOT}/issues/8`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "in-pass" }, { name: "chef-todo" }] },
 ];
-const CHEF = [{ number: 20, title: "Ticket 20", html_url: `https://github.com/${DEPOT}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "chef-todo" }] }];
+const CHEF = [FIRE[1], { number: 20, title: "Ticket 20", html_url: `https://github.com/${DEPOT}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "chef-todo" }] }];
 const COMMENTAIRES: Record<number, unknown[]> = {
-  8: [{ body: "Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", author_association: "OWNER", created_at: "2026-11-05T09:00:00Z" }],
+  8: [{ body: "<!-- brigade:todo kind=merge-by-hand -->\nMerge the PR of #8 by hand? It changes what judges it.\n- [merge] Merge the PR of #8", author_association: "OWNER", created_at: "2026-11-05T09:00:00Z" }],
   20: [{ body: "<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", author_association: "OWNER", created_at: "2026-11-05T10:00:00Z" }],
 };
 // La réponse de GitHub à un chemin : la liste au label demandé, les commentaires d'une issue, rien d'autre.

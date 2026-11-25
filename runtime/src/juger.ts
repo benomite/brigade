@@ -36,7 +36,7 @@ export type Decision = {
   // Les réponses à cette question, dans ses mots (#3434) : chacune un bouton de la carte — vide quand la réponse du
   // jugement n'en porte aucune qui se lise. `recommended` : celle qu'il recommande, et pourquoi en une ligne — nulle quand
   // rien ne la fonde. `awaits` : qui la question attend quand ce n'est pas le chef (le client…) — la carte propose alors
-  // WAITING —, nul sinon. Absents de toute autre nature, et des jugements d'avant #3434.
+  // de la parquer pour lui —, nul sinon. Absents de toute autre nature, et des jugements d'avant #3434.
   answers?: string[];
   recommended?: { answer: string; why: string } | null;
   awaits?: string | null;

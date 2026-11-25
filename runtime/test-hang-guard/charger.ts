@@ -2,6 +2,7 @@
 // each file `import`s `node:test`, and this redirects that import to `garde.ts`, which gives every
 // test a 30 s limit (#2084).
 import { registerHooks } from "node:module";
+import { adapterFs } from "./chemins.ts";
 
 const GARDE = new URL("./garde.ts", import.meta.url).href;
 
@@ -11,3 +12,6 @@ registerHooks({
     return suivant(specifier, contexte);
   },
 });
+
+// On Windows, a path read from `URL.pathname` keeps a leading slash before its drive (chemins.ts).
+adapterFs();
