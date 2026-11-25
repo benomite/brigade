@@ -41,10 +41,20 @@ test("the rail read from GitHub carries the top of the backlog: queued, calibrat
 
 test("the rail screen says an issue's priority, escapes its title, and says when nothing is ready (#4223)", () => {
   const html = htmlDuRail([
-    { number: 4, title: "a <b> & \"c\"", labels: ["prio:2"], createdAt: "" },
-    { number: 9, title: "plain", labels: [], createdAt: "" },
+    { number: 4, title: "a <b> & \"c\"", labels: [...PRET, "prio:2"], createdAt: "" },
+    { number: 9, title: "plain", labels: PRET, createdAt: "" },
   ]);
   assert.match(html, /#4<\/span> <span class="rail-backlog-prio">prio 2<\/span> <span class="rail-backlog-titre">a &lt;b&gt; &amp; &quot;c&quot;<\/span>/);
   assert.match(html, /#9<\/span> <span class="rail-backlog-titre">plain/);
   assert.equal(htmlDuRail([]), `<p class="rail-backlog-vide">Nothing calibrated and ready in the backlog.</p>`);
+});
+
+test("the rail screen never draws an issue that is not calibrated and ready, whatever it is given (#4223)", () => {
+  const html = htmlDuRail([
+    { number: 4, title: "an idea", labels: [...PRET, "idea"], createdAt: "" },
+    { number: 5, title: "uncalibrated", labels: ["fire"], createdAt: "" },
+    { number: 6, title: "ready", labels: PRET, createdAt: "" },
+  ]);
+  assert.deepEqual([...html.matchAll(/#\d+/g)].map((m) => m[0]), ["#6"]);
+  assert.equal(htmlDuRail([{ number: 5, title: "uncalibrated", labels: ["fire"], createdAt: "" }]), `<p class="rail-backlog-vide">Nothing calibrated and ready in the backlog.</p>`);
 });

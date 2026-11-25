@@ -18,7 +18,7 @@ import { calibrage, complet } from "../calibrage.ts";
 export type IssueDuBacklog = { number: number; title: string; labels: readonly string[]; createdAt: string };
 
 // Combien d'issues le rail montre, par défaut.
-export const TAILLE_DU_RAIL = 10;
+const TAILLE_DU_RAIL = 10;
 
 const LABEL_FIRE = "fire";
 // Ce qui tient une issue hors de la file, en plus des écarts du manager : parquée (glossaire, `parked`), mise en attente

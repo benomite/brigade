@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { priorite } from "../../src/alimenter.ts";
 import { calibrage, complet } from "../../src/calibrage.ts";
-import { prioriteDe, railDuBacklog, TAILLE_DU_RAIL, topDuBacklog, type IssueDuBacklog } from "../../src/rail-backlog/rail-backlog.ts";
+import { prioriteDe, railDuBacklog, topDuBacklog, type IssueDuBacklog } from "../../src/rail-backlog/rail-backlog.ts";
 
 const issue = (number: number, labels: string[], createdAt = "2026-11-01T10:00:00Z"): IssueDuBacklog => ({ number, title: `Issue ${number}`, labels, createdAt });
 const PRETE = ["fire", "model:opus", "effort:medium"];
@@ -43,7 +43,6 @@ test("an unreadable creation date goes after the dated issues of its priority; e
 
 test("the rail shows ten issues by default, and none for a size of zero", () => {
   const backlog = Array.from({ length: 12 }, (_, i) => issue(i + 1, [...PRETE]));
-  assert.equal(TAILLE_DU_RAIL, 10);
   assert.deepEqual(topDuBacklog(backlog).map((i) => i.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   assert.deepEqual(railDuBacklog(() => backlog).rafraichir().length, 10);
   assert.deepEqual(topDuBacklog(backlog, 0), []);
