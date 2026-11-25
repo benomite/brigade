@@ -367,8 +367,9 @@ export type OptionsDeStation = {
   capacites?: readonly string[];
   // Appelé quand la porte de prise ne prend pas un ticket prenable, avec la
   // ligne qui dit pourquoi (zone tenue, capacité, calibrage, dépendance mise de
-  // côté) : le tour du superviseur la lit (#2429, #3945).
-  sauter?: (ticket: number, ligne: string, attendus?: readonly number[]) => void;
+  // côté) : le tour du superviseur la lit (#2429, #3945). `tenante` : la PR
+  // ouverte qui tient sa zone, quand c'est ce qui le retient (#4243).
+  sauter?: (ticket: number, ligne: string, attendus?: readonly number[], tenante?: { pr: number; branche: string }) => void;
   // Les tickets que la porte prend avant les autres quand une place s'ouvre — celui que le réveil sans merge nomme (#4102) :
   // devant les `prio:N` et l'ordre des numéros, sans quoi il attend derrière des tickets mis de côté qui reviennent sans cesse.
   enPremier?: () => readonly number[];
@@ -842,7 +843,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les tickets libres du dernier tour qui a lu le rail (#3713) : un tour que GitHub arrête avant garde ceux d'avant.
   let attendentDuTour = new Set<number>();
   // Ce que la porte de prise dit de chaque ticket qu'elle saute : le superviseur le lit (#3945).
-  const sauter = (ticket: number, ligne: string, attendus?: readonly number[]) => options.sauter?.(ticket, ligne, attendus);
+  const sauter = (ticket: number, ligne: string, attendus?: readonly number[], tenante?: { pr: number; branche: string }) => options.sauter?.(ticket, ligne, attendus, tenante);
   const enPremier = () => {
     try {
       return options.enPremier?.() ?? [];
@@ -2249,7 +2250,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (numero === undefined) return false;
       return porteDesTachesDeTickets(await github.corpsDuTicket(Number(numero)).catch(() => ""));
     };
-    const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null } | null> => {
+    const tenue = async (ticket: TicketLu): Promise<{ branche: string; attente: AttenteDeZone | null; numero?: number } | null> => {
       const zone = await zoneDuTicket(ticket.number);
       if (zone.length === 0) return null;
       ouvertes ??= await github.prsOuvertes();
@@ -2266,7 +2267,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         pr = ouverte;
         break;
       }
-      if (pr !== undefined) return { branche: pr.branche, attente: null };
+      if (pr !== undefined) return { branche: pr.branche, attente: null, ...(pr.number === undefined ? {} : { numero: pr.number }) };
       const enVolDuTour: EnVol[] = [];
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || autre.labels.includes(LABEL_IN_PASS) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
@@ -2502,7 +2503,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (tenuePar !== null) {
         const tenant = tenuePar.branche;
         const numeroDuTenant = /^cook\/(\d+)-/.exec(tenant)?.[1];
-        sauter(ticket.number, direSaut(ticket.number, tenuePar.attente !== null ? direAttenteDeZone(tenuePar.attente) : `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`));
+        sauter(ticket.number, direSaut(ticket.number, tenuePar.attente !== null ? direAttenteDeZone(tenuePar.attente) : `zone held by ${numeroDuTenant === undefined ? `the open PR on ${tenant}` : `#${numeroDuTenant}`}`), undefined, tenuePar.numero === undefined ? undefined : { pr: tenuePar.numero, branche: tenant });
         await ecrireEnAttendant(ticket);
         continue;
       }
@@ -2920,8 +2921,8 @@ export type OptionsDuDepot = {
   // lancer, sous la cloison, et son plafond de durée (#2535). Absent, le cook
   // part dans un worktree tel que git l'a posé, sans dépendances.
   setup?: { delaiMs: number };
-  // Ce que la porte de prise a dit d'un ticket qu'elle n'a pas pris (#2429).
-  sauter?: (ticket: number, ligne: string, attendus?: readonly number[]) => void;
+  // Ce que la porte de prise a dit d'un ticket qu'elle n'a pas pris (#2429), et la PR qui tient sa zone (#4243).
+  sauter?: (ticket: number, ligne: string, attendus?: readonly number[], tenante?: { pr: number; branche: string }) => void;
   // Les tickets que la porte prend avant les autres quand une place s'ouvre — celui que le réveil sans merge nomme (#4102) :
   // devant les `prio:N` et l'ordre des numéros, sans quoi il attend derrière des tickets mis de côté qui reviennent sans cesse.
   enPremier?: () => readonly number[];

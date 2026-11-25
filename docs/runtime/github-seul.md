@@ -471,6 +471,18 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   is, and `runtime/src/manager/supervision.ts` hands it to the supervisor, which answers with one of its closed list of
   gestures (#3911). It is not parked for ever: it carries a date to look at it again, and past that date it is put
   back on the rail (invariant 3, #4026).
+- **A zone held by a stale PR** (#4243, `superviseur/zone-liberee.ts`). The claim gate names the open PR that holds
+  the zone of each cookable ticket it skips for that reason, and the turn keeps it (`zonesTenues`). On each wake, without
+  the manager, the supervisor reads these PRs. A PR is stale when its ticket is neither cooking (`taken`) nor in pass
+  (`in-pass`) and it had no activity for more than 24 hours (`DELAI_PERIME_MS`), or its changes are already on the base
+  (the comparison of the base to its head leaves it no file). It adds the label `zone-released` to a stale PR, and
+  never closes it. It writes one line on the skipped ticket, `Released the zone held by the stale PR #N (…)`, in the
+  station's service log (`supervisor on <project>: …`) and in its gesture log. A PR that already carries the label is
+  not labelled or said again. When the PR is a human's (its branch is neither `cook/<n>-…` nor the second's
+  `<type>/<n>-…`, or it comes from a fork), the supervisor also opens one `chef-todo` issue asking whether to close
+  it. That issue carries the mark `<!-- brigade:zone-released pr=N -->`, and no second one opens while an issue of the
+  last year, open or closed, carries that mark. The claim gate itself does not read the label yet (another ticket of
+  #4204).
 - **The Windows CI card of the base** (#2413, `carte-ci-windows.ts`) is kept, read by the supervisor's wiring from the
   same turn.
 

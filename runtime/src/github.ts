@@ -182,8 +182,9 @@ export type GitHub = {
   // Les PR ouvertes, avec la branche dont chacune est la tête et les fichiers
   // qu'elle change. Facultatif : seul le client réel le porte
   // (`brigade-github.ts`, la zone tenue d'un ticket).
-  // `externe` : sa tête vient d'un autre dépôt — un fork (#2933).
-  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[]; sha?: string; externe?: boolean }[]>;
+  // `externe` : sa tête vient d'un autre dépôt — un fork (#2933). `miseAJour` et
+  // `labels` : sa dernière activité et ses labels, quand la liste les dit (#4243).
+  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[]; sha?: string; externe?: boolean; miseAJour?: string; labels?: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
   // Tous les statuts du commit sous ce contexte, chacun tel qu'il a été posé,
@@ -881,12 +882,12 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     },
     async prsOuvertes() {
       const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
-      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string; repo?: { full_name?: string } | null }; base?: { repo?: { full_name?: string } | null } }>);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string; sha?: string; repo?: { full_name?: string } | null }; base?: { repo?: { full_name?: string } | null }; updated_at?: string; labels?: Array<{ name?: string }> }>);
       return Promise.all(
-        ouvertes.map(async ({ number, head, base: cible }) => {
+        ouvertes.map(async ({ number, head, base: cible, updated_at, labels }) => {
           // Un fork supprimé n'a plus de dépôt de tête : elle reste externe (#2933).
           const externe = (head.repo?.full_name ?? "").toLowerCase() !== (cible?.repo?.full_name ?? depot).toLowerCase();
-          const tete = { ...(head.sha === undefined ? {} : { sha: head.sha }), externe };
+          const tete = { ...(head.sha === undefined ? {} : { sha: head.sha }), externe, ...(updated_at === undefined ? {} : { miseAJour: updated_at }), ...(labels === undefined ? {} : { labels: labels.flatMap(({ name }) => (name === undefined ? [] : [name])) }) };
           // Les fichiers d'une PR ne changent qu'avec sa tête (#2298).
           const cle = head.sha === undefined ? null : `${number}@${head.sha}`;
           const gardes = cle === null ? undefined : fichiersParTete.get(cle);

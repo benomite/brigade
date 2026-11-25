@@ -33,6 +33,7 @@ import { MARQUE_D_ECHEC } from "../qualite-github.ts";
 import { PRIO_REPARATION } from "../reparation.ts";
 import { suivreLesProgres, type SuiviDesProgres } from "../inactivite/observer.ts";
 import { reveil, type FaitsDuProjet } from "./declencheur.ts";
+import type { ZoneTenue } from "./zone-liberee.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
 const AILLEURS: readonly string[] = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING, LABEL_TAKEN, LABEL_IN_PASS];
@@ -44,12 +45,15 @@ export type SuiviDuTour = {
   // Le client du tour, enveloppé.
   envelopper(github: GitHubDuTour): GitHubDuTour;
   // La porte de prise n'a pas pris ce ticket prenable, et `ligne` dit pourquoi ;
-  // `attendus` : les tickets ouverts qu'il attend, quand c'est ce qui le retient (#3647).
-  sauter(ticket: number, ligne: string, attendus?: readonly number[]): void;
+  // `attendus` : les tickets ouverts qu'il attend, quand c'est ce qui le retient (#3647) ;
+  // `tenante` : la PR ouverte qui tient sa zone, quand c'est elle (#4243).
+  sauter(ticket: number, ligne: string, attendus?: readonly number[], tenante?: { pr: number; branche: string }): void;
   // Ce que le déclencheur lit, à l'instant.
   faits(): FaitsDuProjet;
   // Ce que la porte de prise a dit, à son dernier tour, des cuisinables qu'elle a sautés.
   sauts(): string[];
+  // Les cuisinables sautés parce qu'une PR ouverte tient leur zone, et si le ticket de cette PR est cuit ou en pass (#4243).
+  zonesTenues(): ZoneTenue[];
   // Le ticket que le réveil sans merge nomme, à l'instant : la porte de prise le prend avant les autres (#4102).
   enPremier(): number[];
   // Les checks de la base au dernier tour (nom et issue), nuls avant le premier.
@@ -74,6 +78,8 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   // Les tickets que la porte de prise a vus attendre un ticket ouvert, au tour en cours.
   let attentes = new Map<number, number[]>();
   let sauts = new Map<number, string>();
+  // La PR qui tient la zone de chaque ticket sauté pour elle.
+  let tenantes = new Map<number, { pr: number; branche: string }>();
   // Les tickets que la porte de prise a sautés depuis la dernière lecture des tickets (#3761) : à la lecture suivante, leurs
   // sauts et leurs attentes restent dits jusqu'à ce que la porte repasse — entre les deux, ce que le superviseur lit dit
   // encore leur cause, jamais rien ; ceux qu'elle n'a pas sautés tombent.
@@ -94,6 +100,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     enCuisson = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_TAKEN) || labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
     attentes = new Map([...attentes].filter(([ticket]) => sautesDuTour.has(ticket)));
     sauts = new Map([...sauts].filter(([ticket]) => sautesDuTour.has(ticket)));
+    tenantes = new Map([...tenantes].filter(([ticket]) => sautesDuTour.has(ticket)));
     sautesDuTour = new Set();
     for (const ticket of prises.keys()) if (!ouverts.has(ticket)) prises.delete(ticket);
     const suivants = new Map<number, string>();
@@ -104,9 +111,11 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   };
 
   const suivi: SuiviDuTour = {
-    sauter: (ticket, ligne, attendus) => {
+    sauter: (ticket, ligne, attendus, tenante) => {
       sauts.set(ticket, ligne);
       sautesDuTour.add(ticket);
+      tenantes.delete(ticket);
+      if (tenante !== undefined) tenantes.set(ticket, tenante);
       // Repassée, la porte remplace aussi l'attente du tour d'avant.
       attentes.delete(ticket);
       if (attendus !== undefined) attentes.set(ticket, [...attendus]);
@@ -147,6 +156,17 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       mainRougeDepuis,
     }),
     sauts: () => [...sauts].filter(([ticket]) => cuisinables.has(ticket) && !nAttendQueLaCuisson(ticket)).sort(([a], [b]) => a - b).map(([, ligne]) => ligne),
+    zonesTenues: () => {
+      // Le ticket de la PR, quand sa branche est celle d'un cook ; une autre PR n'est ni cuite ni en pass.
+      const etat = ({ pr, branche }: { pr: number; branche: string }) => {
+        const sien = Number(/^cook\/(\d+)-/.exec(branche)?.[1]);
+        return { pr, enCook: enCuisson.has(sien) && !enPass.has(sien), auPass: enPass.has(sien) };
+      };
+      return [...tenantes]
+        .filter(([ticket]) => cuisinables.has(ticket))
+        .sort(([a], [b]) => a - b)
+        .map(([ticket, tenante]) => ({ ticket, ...etat(tenante) }));
+    },
     checks: () => checks,
     reparationMiseDeCote: () => reparationMiseDeCote,
     progres,
