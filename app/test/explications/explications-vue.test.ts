@@ -76,7 +76,8 @@ const FAITS: Faits = {
   dernierTick: A,
   compteurs: { rail: 1, auTravail: 1, aLaPass: 1, attend: 0, livres24h: 1 },
   dernierEvenement: null,
-  rail: [entreeDuRail(21, "en attente"), entreeDuRail(30, "pris"), entreeDuRail(31, "en pass"), entreeDuRail(12, "servi")],
+  // #30, pris, est parked : il attend un tiers (#4238).
+  rail: [entreeDuRail(21, "en attente"), { ...entreeDuRail(30, "pris"), tiers: { quoi: "the keys", qui: "the client", depuis: A, relance: "2026-12-01T09:00:00.000Z", aLArrivee: "goes on" } }, entreeDuRail(31, "en pass"), entreeDuRail(12, "servi")],
   cooks: [],
   attend: [],
 };
@@ -127,8 +128,8 @@ describe("la vue : chaque mot expliqué la première fois que le chef le rencont
       assert.equal(ligne.children.find(({ className }) => className === "dit")?.textContent, DU_GLOSSAIRE[mot], mot);
       assert.equal(ligne.children.find(({ className }) => className === "mot")?.textContent, MOT_A_L_ECRAN[mot], mot);
     }
-    // Pass et Waiting : sous le titre de leur colonne.
-    for (const [colonne, mot] of [["Pass", "pass"], ["Waiting", "WAITING"]] as const) {
+    // Pass : sous le titre de sa colonne ; WAITING, sous celui de la première colonne où une carte est parked (#4238).
+    for (const [colonne, mot] of [["Pass", "pass"], ["Cooks", "WAITING"]] as const) {
       const pose = vue.element("rail").dessous("section").find(({ dataset }) => dataset.colonne === colonne) ?? assert.fail(colonne);
       assert.equal(pose.children[0]?.balise, "h4");
       assert.equal(pose.children[1]?.dataset.mot, mot, colonne);
