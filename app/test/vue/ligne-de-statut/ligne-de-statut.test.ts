@@ -125,35 +125,41 @@ describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoi
     assert.equal(bandeau(vue).dessous("button").some(({ dataset }) => dataset.ticket === "35"), false);
     assert.doesNotMatch(bandeau(vue).textContent, /kitchen is idle/i);
 
-    // La ligne d'état : celle de la cuisine oisive — et une seule.
+    // La ligne d'état : celle de la cuisine oisive — et une seule, sous la bande du haut (#4238).
     assert.match(statut(vue)?.textContent ?? "", /^Kitchen idle: no merge for 60 minutes/);
-    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["statut-du-rail", "backlog-band"]);
+    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["bande-du-haut", "statut-du-rail", "backlog-band"]);
   });
 
-  test("la cuisine oisive, seule : sa ligne dit « Kitchen idle », sans geste inventé", async () => {
+  test("la cuisine oisive, seule : sa ligne dit « Kitchen idle », et son seul geste ouvre l'issue que la cuisine a ouverte (#4238)", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe([...ISSUES, INERTE])));
     assert.match(statut(vue)?.textContent ?? "", /^Kitchen idle: no merge for 60 minutes with 2 cookable ticket\(s\)/);
-    assert.equal(statut(vue)?.dessous("button").length, 0);
+    const gestes = statut(vue)?.dessous("button") ?? [];
+    assert.deepEqual(gestes.map(({ textContent }) => textContent), ["open #35"]);
+    gestes[0]?.click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 35]);
   });
 
   test("rien ne retient la cuisine : aucune ligne d'état — le bandeau Backlog est seul au-dessus des colonnes", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
-    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["backlog-band"]);
+    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["bande-du-haut", "backlog-band"]);
   });
 
   test("la file attend et un ticket est mis de côté : la ligne nomme cette raison, jamais « no reason is found »", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, faitsAvec(FAITS_EN_ATTENTE));
-    // Sans raison connue de la vue, la phrase du runtime est dite telle quelle.
-    assert.equal(statut(vue)?.textContent, LONGUE);
+    // Sans raison connue de la vue, la phrase du runtime est dite telle quelle ; son geste, relire (#4238).
+    const phrase = () => statut(vue)?.dessous("strong")[0]?.textContent;
+    assert.equal(phrase(), LONGUE);
+    assert.deepEqual(statut(vue)?.dessous("button").map(({ textContent }) => textContent), ["read again"]);
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
-    assert.equal(statut(vue)?.textContent, "The queue waits: #12, #13 are set aside.");
+    assert.equal(phrase(), "The queue waits: #12, #13 are set aside.");
     assert.doesNotMatch(vue.element("rail").textContent, /no reason is found/);
-    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className.split(" ")[0]), ["attente-du-rail", "backlog-band"]);
+    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className.split(" ")[0]), ["bande-du-haut", "attente-du-rail", "backlog-band"]);
   });
 });
 
