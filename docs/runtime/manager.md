@@ -122,7 +122,8 @@ the chef set), less its cooks at work, less the open issues that carry `fire` an
 that is parked (`parked`, `waiting`, `blocked-on-human`, `decision`, `question`, `product-question`, `chef-todo`)
 or set aside (`served-elsewhere`, `set-aside:failures`) does not count. While there is room, it takes from the issues
 it judged executable and that nobody fired the best priority (`prio:1` before `prio:2`; an issue without `prio:`
-last), then the oldest. It never takes an `idea`, a parked issue, an epic, nor one already on the rail.
+last), then the oldest. It never takes an `idea`, a parked issue, an epic, nor one already on the rail. It takes again
+at the end of the turn, for the issues the turn completed or judged again, in the room its first take left.
 
 The chosen issue is read again before anything is written: closed or parked since the poll, it is not taken, and
 the choice moves to the next. Then, in this order, the manager calibrates it — `model:` and `effort:` from its
