@@ -211,9 +211,10 @@ test("ce qui est avant le rail : la sortie de `manager upstream`, chaque issue a
   const lecture = lectureDuTableau(publie, "brigade", 1, ["manager upstream"]);
   const vu = voirAmont(lecture);
   assert.ok("compte" in vu, JSON.stringify(vu));
+  // #24, une carte du chef, est parquée pour lui (#4260) : à part, comme le runtime la lit (runtime/src/amont.ts).
   assert.deepEqual(vu.groupes.map(({ etat, issues }) => [etat, issues.map(({ ticket }) => ticket)]), [
-    ["non-lue", [24]],
     ["epique", [60]],
+    ["mise-de-cote", [24]],
   ]);
   assert.deepEqual(JSON.parse(amontDuTableau(publie) ?? "null").issues[1], { ticket: 60, titre: "Ticket 60", priorite: null, etat: "epique", dit: "it carries `epic`: not split yet", url: `https://github.com/${DEPOT}/issues/60` });
 });

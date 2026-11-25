@@ -31,12 +31,11 @@ const DE_STATION: Readonly<Record<string, Attendu>> = {
   refused: { phrase: "The model refused it three times: reword or recalibrate its issue, or take it off the rail.", gestes: ["issue", "retirer"] },
 };
 
-// Les issues que le manager a écartées parce qu'elles sont au chef. Celle qui est retenue
-// (`blocked-on-human`) se lève par ses deux gestes à elle, sur la fiche.
+// Les issues que le manager a parquées pour le chef (`chef-todo`, #4129), comme la box le dit (runtime/src/attend.ts,
+// `GESTES_D_ECART_EN`) : sa carte porte la question ou la décision, et sa réponse la fait reprendre.
 const ECARTEES: Readonly<Record<string, Attendu>> = {
-  question: { phrase: "The manager set it aside with a question: answer it on the issue, then remove the label.", gestes: ["issue"] },
-  decision: { phrase: "The manager set it aside for your decision: decide on the issue, then remove the label.", gestes: ["issue"] },
-  "blocked-on-human": { phrase: "Held for you: remove the label so the manager judges it again, or close the issue.", gestes: [] },
+  question: { phrase: "The manager parked it for you with a question: answer its card, the manager judges it again.", gestes: ["issue"] },
+  decision: { phrase: "The manager parked it for you, for your decision: answer its card, the manager judges it again.", gestes: ["issue"] },
 };
 
 // Ce qui sort une remontée : le retrait du rail ; la phrase dit en plus que la PR, s'il y en a une, se merge sur GitHub.

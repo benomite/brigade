@@ -152,14 +152,4 @@ describe("la notification dit la PR par son ticket (ticket 3716)", () => {
     assert.match(texte, /review the PR of #3709 before it is merged/);
     assert.doesNotMatch(texte, /#3710/);
   });
-
-  test("#3709 mis de côté, sa PR 3710 à merger à la main : « Merge the PR of #3709 », jamais « #3710 »", async () => {
-    monde["chef/parade"]![3709] = {
-      labels: ["fire", "blocked-on-human"],
-      commentaires: ["Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #3710."],
-    };
-    await sonde();
-    const texte = montrees.find(({ ticket }) => ticket === 3709)?.texte ?? assert.fail("#3709 is not notified");
-    assert.equal(texte, "parade — Merge the PR of #3709 by hand? It changes what judges it.");
-  });
 });

@@ -6,6 +6,7 @@
 // `**WAITING: awaiting …**` d'avant #4129 se lit encore. Une carte de WAITING porte « resume » et « it arrived, back to
 // the kitchen », qui retirent `parked`. Joué sur un faux GitHub qui tient ses issues, leurs labels et leurs commentaires,
 // lus et écrits ; la vue est jouée telle qu'elle est (aides/fausse-vue.ts).
+import { LABELS_D_AVANT_PARKED } from "../../../../runtime/src/github-etat/etats.ts";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { corpsDuParking } from "../../../../runtime/src/attente-github/marque.ts";
@@ -241,7 +242,7 @@ describe("les gestes s'écrivent sur l'issue, sur tout projet", () => {
 
     const labelRefuse = github((chemin) => (chemin.startsWith("POST") && chemin.endsWith("/labels") ? { status: 403, data: { message: "Resource not accessible by integration" } } : undefined));
     const aMoitie = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: "x", qui: "y", relance: dansDixJours() }, aujourdhui: new Date(), lu: () => lu, client: labelRefuse.client });
-    assert.deepEqual(aMoitie, { refus: "#20 is not in WAITING: its comment is posted, but GitHub did not set `parked` — try again", detail: "GitHub refused `parked` (HTTP 403): Resource not accessible by integration" });
+    assert.deepEqual(aMoitie, { refus: "#20 is not parked: its comment is posted, but GitHub did not set `parked` — try again", detail: "GitHub refused `parked` (HTTP 403): Resource not accessible by integration" });
     assert.deepEqual(colonneDe(await lueParLApp(labelRefuse), "Awaiting you").map(({ ticket }) => ticket), [20], "sans le label, la carte reste dans TODO");
   });
 });
@@ -355,13 +356,17 @@ describe("sur l'écran d'un projet GitHub", () => {
     assert.deepEqual(dits.slice(0, 4), ["waiting for", "from", "since", "follow-up"]);
   });
 
+  // Déparquer : `parked` retiré, puis chaque label d'attente d'avant parked (runtime/src/github-etat/etats.ts) — un ticket que
+  // l'un d'eux parque reprend aussi.
+  const DEPARQUE = (ticket: number) => ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/${DEPOT}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+
   test("sur une carte de WAITING, « resume » et « it arrived, back to the kitchen » jouent chacun leur geste — `parked` retiré de l'issue", async () => {
     const monde = github();
     const { vue } = await ouvrir(monde);
     boutonDe(bonDe(vue, 40), "resume").click();
     await repos();
     assert.deepEqual(vue.dernier("attente"), [PROJET, "attente-reprendre", 40, undefined]);
-    assert.deepEqual(monde.ecrites, [`DELETE /repos/${DEPOT}/issues/40/labels/parked`]);
+    assert.deepEqual(monde.ecrites, DEPARQUE(40));
     assert.equal(bonDe(vue, 40).dessous("p").find((pose) => pose.className === "arrivee")?.textContent, "resumed on GitHub: #40 no longer carries `parked` — it resumes exactly where it was");
 
     const autre = github();
@@ -369,6 +374,6 @@ describe("sur l'écran d'un projet GitHub", () => {
     boutonDe(bonDe(deux, 40), "it arrived, back to the kitchen").click();
     await repos();
     assert.deepEqual(deux.dernier("attente"), [PROJET, "attente-arrivee", 40]);
-    assert.deepEqual(autre.ecrites, [`DELETE /repos/${DEPOT}/issues/40/labels/parked`]);
+    assert.deepEqual(autre.ecrites, DEPARQUE(40));
   });
 });

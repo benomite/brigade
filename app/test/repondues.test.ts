@@ -97,7 +97,7 @@ const BLOC = {
     "awaiting   3 decisions await the chef",
     "  #30  since 2 h  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
     "  #12  since 4 min  green delivery, not merged: review it first",
-    "  #50  since 1 h  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
+    "  #50  since 1 h  parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
     "end awaiting",
     "",
   ].join("\n"),

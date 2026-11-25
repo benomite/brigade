@@ -9,6 +9,7 @@ import type { TableauLu } from "../../../src/tableau/lecture.ts";
 import { arretCuisineLu, arretDuRail, zoneTenueDe } from "../../../src/vue/bandeau-arret/arret-du-rail.ts";
 import { monterLeBandeau } from "../../../src/vue/bandeau-arret/bandeau-arret.js";
 import { avecLeRail, lireLeRailSurGithub, type SignesDeVie } from "../../../src/vue/rail/github.ts";
+import { corpsDuParking } from "../../../../runtime/src/attente-github/marque.ts";
 import { Faux } from "../../aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";
@@ -30,7 +31,9 @@ const doc = { createElement: (balise: string) => new Faux(balise) };
 
 type Issue = { numero: number; labels: readonly string[]; creeLe?: string; titre?: string; commentaires?: readonly Record<string, unknown>[]; feuLe?: string };
 const FICHE = (zone: string) => ({ id: 2, body: `<!-- brigade:fiche -->\n- awaiting: none\n- zone: ${zone}`, author_association: "OWNER", created_at: "2026-11-20T07:00:00Z" });
-const MIS_DE_COTE = (le: string) => ({ id: 3, body: "Station `parade-box/claude`: the cook failed 3 times. Set aside by its failures (set-aside:failures).", author_association: "OWNER", created_at: le });
+// Mis de côté par ses échecs : la station le parque (`parked`, #4260 ; d'abord `set-aside:failures`), son commentaire de
+// parking le dit (runtime/src/attente/attente-par-le-cook.ts).
+const MIS_DE_COTE = (le: string) => ({ id: 3, body: corpsDuParking({ what: "its cooks failed too many times, the station stopped relaunching it. The reason: the cook failed 3 times", who: "the supervisor", followUp: "2026-11-27T08:30:00.000Z", fact: "the supervisor answers", failures: true }), author_association: "OWNER", created_at: le });
 
 // GitHub, d'après les issues `fire` et les PR ouvertes (`cook/<n>-…`, ouverte à `le`).
 function github(issues: readonly Issue[], prs: readonly { ticket: number; le: string }[] = []): AppelGitHub {
@@ -63,7 +66,7 @@ test("a set-aside ticket whose open PR holds the zone its fiche declares: the bo
   const { arret, texte } = await lire(
     [
       { numero: 21, labels: [], feuLe: "2026-11-20T09:00:00Z" },
-      { numero: 30, labels: ["set-aside:failures"], commentaires: [FICHE("app/src/vue, app/src/faits.ts"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
+      { numero: 30, labels: ["parked"], commentaires: [FICHE("app/src/vue, app/src/faits.ts"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
     ],
     [{ ticket: 30, le: "2026-11-20T08:05:00Z" }],
   );
@@ -74,7 +77,7 @@ test("a set-aside ticket whose open PR holds the zone its fiche declares: the bo
 test("a set-aside ticket without an open PR holds no zone: the cause is unknown, since the queued ticket entered the queue", async () => {
   const { arret, texte } = await lire([
     { numero: 21, labels: [], creeLe: "2026-11-20T05:00:00Z", feuLe: "2026-11-20T09:00:00Z" },
-    { numero: 30, labels: ["set-aside:failures"], creeLe: "2026-11-20T04:00:00Z", commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
+    { numero: 30, labels: ["parked"], creeLe: "2026-11-20T04:00:00Z", commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
   ]);
   assert.deepEqual(arret, { cause: { kind: "unknown" }, since: "2026-11-20T09:00:00Z" });
   assert.match(texte, /since 09:00 UTC: the cause is unknown/);
@@ -82,7 +85,7 @@ test("a set-aside ticket without an open PR holds no zone: the cause is unknown,
 
 test("a set-aside ticket with an open PR but no fiche, or an unreadable one, holds no zone the board can name", async () => {
   for (const commentaires of [[MIS_DE_COTE("2026-11-20T08:30:00Z")], [FICHE("app/src/vue"), FICHE("app/src/faits.ts")], [{ ...FICHE(""), body: "<!-- brigade:fiche -->\n- awaiting: none" }]]) {
-    const { arret } = await lire([{ numero: 21, labels: [], feuLe: "2026-11-20T09:00:00Z" }, { numero: 30, labels: ["set-aside:failures"], commentaires }], [{ ticket: 30, le: "2026-11-20T08:05:00Z" }]);
+    const { arret } = await lire([{ numero: 21, labels: [], feuLe: "2026-11-20T09:00:00Z" }, { numero: 30, labels: ["parked"], commentaires }], [{ ticket: 30, le: "2026-11-20T08:05:00Z" }]);
     assert.deepEqual(arret?.cause, { kind: "unknown" });
   }
 });
@@ -91,7 +94,7 @@ test("main red, its repair queued: the board says main is red, since the repair 
   const { arret, texte } = await lire(
     [
       { numero: 12, labels: ["repair-main"], titre: "Repair main: runtime tests", creeLe: "2026-11-20T07:45:00Z" },
-      { numero: 30, labels: ["set-aside:failures"], commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
+      { numero: 30, labels: ["parked"], commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
     ],
     [{ ticket: 30, le: "2026-11-20T08:05:00Z" }],
   );

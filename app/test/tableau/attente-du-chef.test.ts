@@ -20,14 +20,16 @@ type Commentaire = { body: string; created_at: string; author_association?: stri
 type Issue = { labels: string[]; commentaires?: Commentaire[]; evenements?: { event: string; label: { name: string }; created_at: string }[]; created_at?: string };
 const dit = (body: string, created_at: string): Commentaire => ({ body, created_at, author_association: "OWNER" });
 
-// Le projet du 2026-11-05 : #8 en pass, sa livraison touche à ce qui la juge (PR #2326) ; #12, `served-elsewhere`, pose une question
+// Le projet du 2026-11-05 : #8 en pass, sa livraison touche à ce qui la juge — sa carte `chef-todo` demande au chef de la
+// merger ; #12, `served-elsewhere`, pose une question
 // de produit avec ses choix ; #7, `served-elsewhere` après ses renvois, ne demande rien au chef ; #20, une carte `chef-todo` ;
-// #30, écarté par le manager avec `question` ; #31, `decision`, mais parqué pour un autre que le chef (`parked`, WAITING) ; #1683, l'issue du tableau de la cuisine.
+// #30, parqué pour le chef par `question`, un label d'attente d'avant parked (#4260 ; d'abord un écart du manager) ; #31,
+// `decision`, mais parqué pour un autre que le chef (`parked`, WAITING) ; #1683, l'issue du tableau de la cuisine.
 // #1, sur le rail, calibré par le manager : rien ne le bloque (le rail bloqué, #3358 : test/rail-bloque/).
 const MONDE: Record<number, Issue> = {
   1: { labels: ["fire", "model:sonnet", "effort:medium"] },
   7: { labels: ["fire", "served-elsewhere"], commentaires: [dit("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the PR conflicts with the base\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", "2026-11-05T01:00:00Z")] },
-  8: { labels: ["fire", "in-pass", "blocked-on-human"], commentaires: [dit("Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", "2026-11-05T09:00:00Z")] },
+  8: { labels: ["fire", "in-pass", "chef-todo"], commentaires: [dit("<!-- brigade:todo kind=merge-by-hand -->\nMerge the PR of #8 by hand? It changes what judges it.\n- [merge] Merge the PR of #8", "2026-11-05T09:00:00Z")] },
   12: {
     labels: ["fire", "served-elsewhere"],
     commentaires: [dit("<!-- brigade:todo kind=product-question -->\nDoes the export keep the old column order?\n- [merge] Yes, merge PR #1560 as delivered\n- [close] No, we drop the export", "2026-11-05T08:00:00Z")],
@@ -38,8 +40,8 @@ const MONDE: Record<number, Issue> = {
   1683: { labels: ["fire", "served-elsewhere", "kitchen-board"] },
 };
 
-// La ligne de #30, écarté par le manager avec `question` sans commentaire qui la pose : sa carte demande la réponse (#3370).
-const ECART_30 = "The manager set this ticket aside with a question: what is your answer? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words";
+// La ligne de #30, parqué par `question` sans commentaire qui pose une question : sa carte demande ce que son label attend (#3370).
+const ECART_30 = "It carries `question`, a waiting label of before parked: what do you decide? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words";
 
 // Un faux GitHub : les issues ouvertes au label demandé, leurs commentaires, leurs événements — et, pour le rail de l'app,
 // ses PR. `appels` : chaque chemin demandé.
@@ -71,12 +73,12 @@ describe("ce qui attend le chef, lu de GitHub", () => {
       [
         { ticket: 30, quoi: "ecart", depuis: "2026-11-05T06:00:00Z", ligne: ECART_30 },
         { ticket: 12, quoi: "mise-de-cote", depuis: "2026-11-05T08:00:00Z", ligne: "Does the export keep the old column order? — answer on its Todo card: “Yes, merge PR #1560 as delivered” or “No, we drop the export” — or in your own words" },
-        { ticket: 8, quoi: "mise-de-cote", depuis: "2026-11-05T09:00:00Z", ligne: "Merge the PR of #8 by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #8” — or in your own words" },
+        { ticket: 8, quoi: "carte", depuis: "2026-11-05T09:00:00Z", ligne: "Merge the PR of #8 by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #8” — or in your own words" },
         { ticket: 20, quoi: "carte", depuis: "2026-11-05T10:00:00Z", ligne: "Which token does the box use for the registry? — answer on its Todo card, in your own words" },
       ],
     );
-    // Ce que la carte de TODO en fait : la décision de merge, la question du chef.
-    assert.deepEqual(attentes.find(({ ticket }) => ticket === 8)?.decision, { quoi: "merge", motif: "review-required", cause: null, pr: `https://github.com/${DEPOT}/pull/2326` });
+    // Ce que la carte de TODO en fait : la question du chef, de sa sorte.
+    assert.equal(attentes.find(({ ticket }) => ticket === 8)?.chef?.sorte, "merge-by-hand");
     assert.equal(attentes.find(({ ticket }) => ticket === 20)?.chef?.sorte, "blocked");
   });
 
@@ -111,7 +113,7 @@ describe("ce qui attend le chef, lu de GitHub", () => {
       9: { labels: ["fire", "blocked-on-human"], created_at: "2026-11-05T07:00:00Z" },
     };
     const lecture = await lue(github(monde));
-    assert.deepEqual(lecture.attentes.map(({ ticket, ligne }) => [ticket, ligne]), [[9, "Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words"]]);
+    assert.deepEqual(lecture.attentes.map(({ ticket, ligne }) => [ticket, ligne]), [[9, "It carries `blocked-on-human`, a waiting label of before parked: what do you decide? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words"]]);
     assert.equal(lecture.illisibles.length, 2);
     assert.match(lecture.illisibles[0] ?? "", /^#5 carries `chef-todo` but is not shown in Todo: no comment marked/);
     assert.match(lecture.illisibles[1] ?? "", /^#6 carries `chef-todo` but is not shown in Todo: its marked card has no text/);
@@ -147,7 +149,7 @@ describe("l'écart du manager : sa question, avec ses boutons (#3370)", () => {
     const inconnu = { body: "Is this a good idea?", created_at: "2026-11-05T08:00:00Z", author_association: "NONE" };
     const entree = await carteDe(ecarte([question, prise, inconnu]));
     assert.deepEqual(entree?.chef, {
-      sorte: "manager-decision",
+      sorte: "manager-parked",
       texte: "Which column order does the export keep?\n- [resume] Keep the old order\n- [drop] Not now\n\nManager — set aside: a decision.\n\nThe export can keep the old column order or follow the new one.",
       recommandee: null,
     });
@@ -158,9 +160,9 @@ describe("l'écart du manager : sa question, avec ses boutons (#3370)", () => {
   test("une question sans choix : `Back to the kitchen` et `Close it` ; aucune question sur l'issue, ou une réponse du chef après elle : la carte demande ce que son label attend", async () => {
     const question = dit("Should the invoices be exported as CSV or XLSX?", "2026-11-05T06:00:00Z");
     assert.equal((await carteDe(ecarte([question], "question")))?.chef?.texte, "Should the invoices be exported as CSV or XLSX?\n- [resume] Back to the kitchen\n- [close] Close it");
-    assert.deepEqual((await carteDe(ecarte([dit("No question here.", "2026-11-05T06:00:00Z")], "blocked-on-human")))?.chef, { sorte: "manager-blocked-on-human", texte: "Lift the hold?\n- [resume] Back to the kitchen\n- [close] Close it", recommandee: null });
+    assert.deepEqual((await carteDe(ecarte([dit("No question here.", "2026-11-05T06:00:00Z")], "blocked-on-human")))?.chef, { sorte: "manager-parked", texte: "It carries `blocked-on-human`, a waiting label of before parked: what do you decide?\n- [resume] Back to the kitchen\n- [close] Close it", recommandee: null });
     const repondue = dit("<!-- brigade:reponse gesture=resume -->\nCSV", "2026-11-05T07:00:00Z");
-    assert.equal((await carteDe(ecarte([question, repondue], "question")))?.chef?.texte, "The manager set this ticket aside with a question: what is your answer?\n- [resume] Back to the kitchen\n- [close] Close it");
+    assert.equal((await carteDe(ecarte([question, repondue], "question")))?.chef?.texte, "It carries `question`, a waiting label of before parked: what do you decide?\n- [resume] Back to the kitchen\n- [close] Close it");
   });
 
   test("une issue que le jugement refuse au chef (#3429) : le refus du manager porte sa décision en une phrase, que la carte pose avec ses deux gestes", async () => {

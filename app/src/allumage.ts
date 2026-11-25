@@ -1,7 +1,7 @@
 // Ce qu'engage l'allumage du projet (#1406) — et de son manager, qui le suit —, dit au moment du geste « allumer » :
 // l'avertissement de docs/runtime/manager.md, « Le manager », mot pour mot, et deux
-// nombres — les issues ouvertes du projet, et celles qui portent
-// `blocked-on-human`. Les nombres viennent de la box, par le geste qui existe
+// nombres — les issues ouvertes du projet, et celles qui sont parquées
+// (`parked`, #4129). Les nombres viennent de la box, par le geste qui existe
 // (`brigade <nom> manager backlog`, box.ts) : une commande du runtime
 // qui lit GitHub et n'écrit rien (runtime/src/manager-cli.ts). L'app ne joint
 // pas GitHub elle-même, et ne demande rien de plus à la box.

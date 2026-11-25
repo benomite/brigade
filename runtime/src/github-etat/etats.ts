@@ -39,6 +39,10 @@ export { LABEL_PARKED };
 // Ceux d'entre eux qui attendaient le chef : leur pose, dans l'histoire d'une issue, est une question qu'il a eue.
 export const LABELS_D_AVANT_PARKED_POUR_LE_CHEF: readonly string[] = ["blocked-on-human", "decision", "question", "product-question"];
 export const LABELS_D_AVANT_PARKED: readonly string[] = ["waiting", "set-aside:failures", ...LABELS_D_AVANT_PARKED_POUR_LE_CHEF];
+// Ceux que le TODO de l'app liste chacun par son label (app/src/tableau/attente-du-chef.ts) : `product-question` venait avec
+// la carte de sa question, et l'app ne l'a jamais lu ainsi — une liste de plus à chaque lecture coûte au budget GitHub de
+// l'app (app/test/budget-github.test.ts).
+export const LABELS_D_AVANT_PARKED_SANS_CARTE: readonly string[] = LABELS_D_AVANT_PARKED_POUR_LE_CHEF.filter((label) => label !== "product-question");
 
 // Le ticket est-il parqué ? Le label `parked`, une carte du chef (`chef-todo`, parqué pour lui), ou un label d'avant.
 export const estParque = (labels: readonly string[]): boolean => [LABEL_PARKED, CHEF_TODO, ...LABELS_D_AVANT_PARKED].some((label) => labels.includes(label));

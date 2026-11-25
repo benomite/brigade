@@ -82,9 +82,9 @@ const numero = (ticket: unknown): ticket is number => typeof ticket === "number"
 const raison = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const objet = (valeur: unknown): Record<string, unknown> => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : {});
 
-// « waiting for… » écrit sur l'issue : le commentaire d'entrée en WAITING, puis le label `waiting`. Rien ne part sans un
+// « waiting for… » écrit sur l'issue : le commentaire de parking, puis le label `parked`. Rien ne part sans un
 // formulaire complet, ni pour un ticket que la dernière lecture ne porte pas ; un commentaire posté dont le label est
-// refusé se dit tel : le ticket n'est pas en WAITING.
+// refusé se dit tel : le ticket n'est pas parqué.
 async function poserSurGithub(lu: TableauLu | undefined, ticket: unknown, saisie: unknown, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
   if (!numero(ticket)) return { refus: "nothing was written: the action names no ticket", detail: "" };
   const lue = saisieLue(saisie, aujourdhui);
@@ -94,9 +94,9 @@ async function poserSurGithub(lu: TableauLu | undefined, ticket: unknown, saisie
   return ecrireLAttente(lu.depot, ticket, lue, aujourdhui, client);
 }
 
-// L'entrée en WAITING écrite sur l'issue de `ticket` : son commentaire, puis le label — ce que « waiting for… » écrit, et ce
+// Le parking écrit sur l'issue de `ticket` : son commentaire, puis le label — ce que « waiting for… » écrit, et ce
 // que « Wait for … » d'une carte du manager joue (tableau-gestes/reponse-github.ts, ticket 3434). Un commentaire posté dont le
-// label est refusé se dit tel : le ticket n'est pas en WAITING.
+// label est refusé se dit tel : le ticket n'est pas parqué.
 export async function ecrireLAttente(depot: string, ticket: number, lue: Saisie, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
   const [an, mois, jour] = lue.relance.split("-").map(Number);
   const corps = marqueDAttente(lue, new Date(an ?? 0, (mois ?? 1) - 1, jour ?? 1));
@@ -114,7 +114,7 @@ export async function ecrireLAttente(depot: string, ticket: number, lue: Saisie,
     const pose = await client.ecrire("POST", `${issue}/labels`, { labels: [LABEL_WAITING] });
     if (pose.status !== 200) throw refusDe(`\`${LABEL_WAITING}\``, pose);
   } catch (erreur) {
-    return { refus: `#${ticket} is not in WAITING: its comment is posted, but GitHub did not set \`${LABEL_WAITING}\` — try again`, detail: raison(erreur) };
+    return { refus: `#${ticket} is not parked: its comment is posted, but GitHub did not set \`${LABEL_WAITING}\` — try again`, detail: raison(erreur) };
   }
   return { fait: `in WAITING on GitHub: #${ticket} awaits ${lue.qui}, follow-up on ${lue.relance}`, detail: adresse };
 }

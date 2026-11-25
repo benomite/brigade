@@ -20,8 +20,8 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { ClientDeLaPriorite } from "../src/priorite.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { attenteSurGithub } from "../src/vue/attente/attente-github.ts";
-import { saisieLue } from "../src/vue/attente/saisie.ts";
+import { attenteSurGithub, ecrireLAttente } from "../src/vue/attente/attente-github.ts";
+import { saisieLue, type Saisie } from "../src/vue/attente/saisie.ts";
 import { rouges } from "./aides/rouges.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -43,9 +43,24 @@ describe("ce que le chef remplit dans « waiting for… » est lu avant que rien
     assert.equal(relanceProposee(new Date(2026, 11, 30, 0, 1)), "2027-01-06");
   });
 
-  test("rien n'est écrit sans ce que le parking demande : quoi, de qui, une relance à venir, un ticket", async () => {
+  test("« waiting for… » parque le ticket : le commentaire de parking dit qui, pour quoi, jusqu'à quand, puis `parked` est posé — rien sans quoi, de qui, une relance à venir, un ticket", async () => {
     const plein = { quoi: "sa réponse", qui: "le client", relance: "2026-10-22" };
-    assert.deepEqual(saisieLue({ ...plein, quoi: "  sa validation écrite du devis  " }, AUJOURDHUI), { ...plein, quoi: "sa validation écrite du devis" });
+    const lue = saisieLue({ ...plein, quoi: "  sa validation écrite du devis  " }, AUJOURDHUI);
+    assert.deepEqual(lue, { ...plein, quoi: "sa validation écrite du devis" });
+    const ecrits: [string, string, unknown][] = [];
+    const client: ClientDeLaPriorite = {
+      lire: () => assert.fail("rien ne se lit"),
+      ecrire: (methode, chemin, corps) => (ecrits.push([methode, chemin, corps]), Promise.resolve(chemin.endsWith("/comments") ? { status: 201, data: { html_url: "https://github.com/o/r/issues/8#c1" } } : { status: 200, data: [] })),
+    };
+    const ecrit = await ecrireLAttente("o/r", 8, lue as Saisie, AUJOURDHUI, client);
+    assert.ok("fait" in ecrit, JSON.stringify(ecrit));
+    const [[, chemin, poste] = [], [, cheminDuLabel, label] = []] = ecrits;
+    assert.equal(chemin, "/repos/o/r/issues/8/comments");
+    const corps = (poste as { body: string }).body;
+    // La marque que la cuisine relit (runtime/src/attente-github/marque.ts) : rien ne prend un ticket parqué avant sa date.
+    assert.match(corps, /^<!-- brigade:parked \{"what":"sa validation écrite du devis","who":"le client","followUp":"2026-10-2[12]T\d\d:00:00\.000Z"\} -->\n\*\*PARKED: waits for le client\.\*\*/);
+    assert.match(corps, /- \*\*until\*\*: 2026-10-2[12] \d\d:00 UTC/);
+    assert.deepEqual([cheminDuLabel, label], ["/repos/o/r/issues/8/labels", { labels: ["parked"] }]);
     assert.match(refus({ ...plein, quoi: "   " }), /say what it waits for/);
     assert.match(refus({ ...plein, qui: "" }), /say whom it waits for/);
     assert.match(refus({ quoi: "sa réponse" }), /say whom it waits for/);
