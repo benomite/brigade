@@ -87,7 +87,9 @@ describe("la fiche du projet : lue", () => {
     for (const lu of [null, Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" })]) {
       const p = projet(lu);
       const ecran = await p.ouvrir();
-      assert.equal(classe(ecran, "aucune")[0]?.textContent, MOTS.vide);
+      const vide = classe(ecran, "aucune")[0] ?? assert.fail("pas de ligne vide");
+      assert.equal(vide.children[0]?.textContent, "No project sheet yet.");
+      assert.equal(vide.dessous("button").at(-1)?.ariaLabel, MOTS.sansFichier);
       assert.equal(enregistrer(ecran), undefined);
       assert.equal(classe(ecran, "indisponible").length, 0);
       assert.deepEqual(p.ecritures, []);

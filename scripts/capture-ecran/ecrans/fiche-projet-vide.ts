@@ -6,7 +6,7 @@ import { LUS, OUVRIR } from "./reglages-du-projet.ts";
 import { HUMAINS } from "./settings-humains.ts";
 
 export const ecran: Ecran = {
-  dit: "La fiche de « parade » sous Settings, sans fichier : « project sheet », puis « No project sheet yet: this project has no .brigade/fiche-projet.json. »",
+  dit: "La fiche de « parade » sous Settings, sans fichier : « project sheet », puis « No project sheet yet. », pourquoi au survol",
   largeur: 1440,
   hauteur: HAUTEUR + 200,
   etapes: OUVRIR,

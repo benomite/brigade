@@ -3278,8 +3278,8 @@ row each with the spec's words: `The cook's work`, `Stages`, `Tools`, `House rul
 `Humans in the kitchen`. An item written as a text is one line; an item written as a list is one entry per line (`one per
 line` under it), and keeps its shape when saved. `Save` writes the whole file, keys the screen does not show included, and
 says `Saved.`. `The cook's work`, `Stages` and `Served` cannot be left empty: `Save` refuses, says `<item> cannot be empty:
-nothing was saved.` for each one, marks its field, and writes nothing. A project with no sheet says `No project sheet yet:
-this project has no .brigade/fiche-projet.json.` and creates nothing — the runtime writes the defaults. A sheet that cannot
+nothing was saved.` for each one, marks its field, and writes nothing. A project with no sheet says `No project sheet yet.`, why on hover, and creates
+nothing — the runtime writes the defaults. A sheet that cannot
 be read (not JSON, not an object, an item that is neither a text nor a list of texts) says `Project sheet not reached.`,
 the detail on hover, and shows no field, so nothing overwrites it. The section is `app/src/vue/fiche-projet/fiche-projet.js`;
 it calls two bridge methods, `lireUnFichierDuProjet(project, path)` and `ecrireUnFichierDuProjet(project, path, text)`,

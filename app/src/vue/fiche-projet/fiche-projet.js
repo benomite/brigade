@@ -18,7 +18,7 @@ import { survol } from "../briques.js";
 import { bouton } from "../composants/bouton/bouton.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
-import { ENREGISTREMENT, NON_ATTEINT } from "../lexique.js";
+import { ENREGISTREMENT, NON_ATTEINT, PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ lire(chemin: string): Promise<string | null>, ecrire(chemin: string, texte: string): Promise<unknown> }} Fichiers */
@@ -42,7 +42,8 @@ export const ARTICLES = /** @type {const} */ ([
 export const TITRE = "project sheet";
 export const MOTS = {
   aide: "What this project declares to the kitchen, kept in its repository (.brigade/fiche-projet.json). Each item is one line, or one entry per line for a list.",
-  vide: "No project sheet yet: this project has no .brigade/fiche-projet.json.",
+  vide: PAS_ENCORE("project sheet"),
+  sansFichier: "This project has no .brigade/fiche-projet.json: the kitchen writes it with its defaults.",
   illisible: NON_ATTEINT("project sheet"),
   parLigne: "one per line",
   enregistrer: "Save",
@@ -151,7 +152,7 @@ export async function ouvrirFicheProjet(doc, { lire, ecrire }) {
 
   const lue = await lireLaFiche(lire);
   if (lue.lecture === "absente") {
-    racine.append(ligneVide(doc, MOTS.vide, { classe: "aucune" }));
+    racine.append(ligneVide(doc, MOTS.vide, { classe: "aucune", detail: MOTS.sansFichier }));
     return racine;
   }
   if (lue.lecture === "illisible") {
