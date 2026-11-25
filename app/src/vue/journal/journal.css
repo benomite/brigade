@@ -1,0 +1,41 @@
+/* Le journal du jour et la carte du digest de la veille (ticket 4274) : deux lectures dans la carte de l'app, au-dessus des
+   colonnes du rail — le journal en quatre groupes côte à côte, qui passent à la ligne. Seules des variables de jetons.css
+   portent une couleur. */
+.digest-du-matin,
+.journal-du-jour {
+  margin: var(--pas-2) var(--pas-4);
+  padding: var(--pas-2) var(--pas-3);
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.digest-du-matin h3,
+.journal-du-jour h3 {
+  margin: 0 0 var(--pas-1);
+}
+.digest-du-matin ul,
+.journal-du-jour ul {
+  margin: 0;
+  padding-left: var(--pas-3);
+}
+.digest-du-matin .vues-par-le-chef {
+  font-weight: 600;
+}
+.journal-du-jour .groupes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-3);
+}
+.journal-du-jour .groupe {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.journal-du-jour h4,
+.journal-du-jour h5 {
+  margin: 0 0 var(--pas-1);
+}
+.journal-du-jour h5 {
+  margin-top: var(--pas-1);
+}
