@@ -13,6 +13,7 @@
 // mêmes labels (test/rail-backlog/rail-backlog.test.ts).
 import { LABELS_D_ECART } from "../attente-du-rail/stations.ts";
 import { calibrage, complet } from "../calibrage.ts";
+import { estParque } from "../github-etat/etats.ts";
 
 // Une issue ouverte du backlog, telle que GitHub la porte.
 export type IssueDuBacklog = { number: number; title: string; labels: readonly string[]; createdAt: string };
@@ -21,9 +22,9 @@ export type IssueDuBacklog = { number: number; title: string; labels: readonly s
 const TAILLE_DU_RAIL = 10;
 
 const LABEL_FIRE = "fire";
-// Ce qui tient une issue hors de la file, en plus des écarts du manager : parquée (glossaire, `parked`), mise en attente
-// d'un tiers par le chef (`waiting`), sortie de la cuisine (`out-of-kitchen`).
-const HORS_DE_LA_FILE: readonly string[] = [...LABELS_D_ECART, "parked", "waiting", "out-of-kitchen"];
+// Ce qui tient une issue hors de la file, en plus des écarts du manager : sortie de la cuisine (`out-of-kitchen`). Une
+// issue parquée l'est aussi (`estParque`, github-etat/etats.ts, #4260).
+const HORS_DE_LA_FILE: readonly string[] = [...LABELS_D_ECART, "out-of-kitchen"];
 
 function estCalibree({ labels }: IssueDuBacklog): boolean {
   return complet(calibrage([...labels]));
@@ -36,7 +37,7 @@ export function prioriteDe(labels: readonly string[]): number | null {
 }
 
 function estPrete({ labels }: IssueDuBacklog): boolean {
-  return labels.includes(LABEL_FIRE) && !labels.some((label) => HORS_DE_LA_FILE.includes(label));
+  return labels.includes(LABEL_FIRE) && !estParque(labels) && !labels.some((label) => HORS_DE_LA_FILE.includes(label));
 }
 
 // L'âge d'une issue : l'instant de sa création ; illisible, elle passe après celles qui en ont un.

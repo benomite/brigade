@@ -97,7 +97,7 @@ const BLOC = {
     "awaiting   3 decisions await the chef",
     "  #30  since 2 h  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
     "  #12  since 4 min  green delivery, not merged: review it first",
-    "  #50  since 1 h  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
+    "  #50  since 1 h  parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
     "end awaiting",
     "",
   ].join("\n"),
@@ -110,6 +110,14 @@ describe("le rail d'une question répondue", () => {
   test("sans réponse, la question du manager est dans TODO, et sa carte dit qu'elle porte une question — comme celle que la question retient ; pas la livraison", () => {
     const todo = colonne(rail(FAITS, BLOC), "Awaiting you");
     assert.deepEqual(todo.cartes.map(({ ticket, question: porte }) => [ticket, porte]), [[30, true], [12, undefined], [50, true]]);
+  });
+
+  // Ticket 4260 : la ligne du bloc d'une issue que le manager parque pour le chef avec sa question nomme `chef-todo` ; sa carte
+  // dit la question, comme celle d'une épique avant son découpage. Une autre ligne, non.
+  test("une issue que le manager a parquée pour le chef (`chef-todo`, sa ligne du bloc) : sa carte dit qu'elle porte une question", () => {
+    const todo = colonne(rail(FAITS, BLOC), "Awaiting you");
+    assert.equal(todo.cartes.find(({ ticket }) => ticket === 50)?.question, true);
+    assert.equal(todo.cartes.find(({ ticket }) => ticket === 12)?.question, undefined);
   });
 
   test("répondue, elle quitte TODO pour WAITING — elle attend le manager — et y dit qui a répondu, quand, et ce qui viendra", () => {
