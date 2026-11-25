@@ -69,12 +69,3 @@ export function verdictDeLaRelecture({ verdict, findings }: { verdict: "green" |
   const remarques = findings.map((f): Remarque => ({ nature: f.severity === "blocking" ? "behaviour" : "form", texte: f.text }));
   return jugerLaPR({ remarques, ci: "green" }).action === "merge" ? "approve" : "request-changes";
 }
-
-// La ligne qui dit le motif d'un renvoi sur son commentaire : une CI rouge sans remarque de fond est un test qui échoue ;
-// une relecture dit le sien par la nature de ses remarques. Un renvoi pour conflit n'a aucun des trois motifs : null.
-export function ligneDuMotif(genre: "conflict" | "red CI" | "review", raison: string): string | null {
-  if (genre === "conflict") return null;
-  const motifs = genre === "red CI" ? jugerLaPR({ remarques: [], ci: "red" }).motifs : motifsDeLaRelecture(raison);
-  motifs.forEach(verifierMotifDeRenvoi);
-  return `Send-back reason: ${MOTIFS_DE_RENVOI.filter((m) => motifs.includes(m)).join(", ")}`;
-}

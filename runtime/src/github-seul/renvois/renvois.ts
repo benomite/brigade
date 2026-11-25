@@ -24,7 +24,7 @@ import { LABEL_IN_PASS, LABEL_PARKED } from "../../github-etat/etats.ts";
 import { corpsDuParking } from "../../attente-github/marque.ts";
 import { RELANCE_PAR_DEFAUT_MS } from "../../attente.ts";
 import { LABEL } from "../../github.ts";
-import { ligneDuMotif } from "../../renvoi-sur-le-fond/regle.ts";
+import { ligneDuMotif } from "../../renvoi-sur-le-fond/motif.ts";
 import { monter, PLAFOND_PAR_DEFAUT, type Plafond } from "../../reagir.ts";
 
 // Combien de fois une livraison repart au cook avant d'être remise au
