@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { suiviDesAttentesLongues } from "../../src/attente-longue/attente-longue.ts";
-import { A_LA_MAIN } from "../../src/brigade-github.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 
 const A = 10;
 const B = 20;
@@ -15,7 +15,7 @@ function suivi(commentaires: string[] = []) {
   const s = suiviDesAttentesLongues({
     github: { commentaires: async () => commentaires.map((body) => ({ body })), corpsDuTicket: async () => `Depends on #${A}.`, commenter: async (_n, corps) => void commentaires.push(corps), labelliser: async () => {} },
     station: "box",
-    label: A_LA_MAIN,
+    label: CHEF_TODO,
     revoir: async (_ticket, { depuisMs }) => (revues.push(depuisMs), { revue: { issue: "garde", commentaire: "Kept." } }),
     maintenant: () => maintenant,
     avertir: () => {},

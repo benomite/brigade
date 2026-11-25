@@ -8,19 +8,22 @@
 //     réécrit lui-même les critères d'acceptation, à partir de son « ce qui le
 //     rendrait exécutable », en gardant l'intention de l'auteur, le dit en
 //     commentaire, et qualifie le ticket au même tour ;
-//   - il en demande une : le ticket devient une carte TODO qui porte une seule
-//     question au chef, et l'issue reçoit le label `product-question`.
+//   - il en demande une : le ticket est parqué pour le chef (#4129 ; d'abord le
+//     label `product-question`) — `chef-todo`, et la carte TODO qui porte une
+//     seule question au chef.
 // Chaque issue est écrite au journal (`manager.completed`), avec l'empreinte
 // du verdict qu'elle suit : le même verdict ne se relit pas deux fois.
 import { entrerDansTodo } from "../carte-todo.ts";
+import { CHEF_TODO, corpsDeCarte } from "../github-seul/carte-todo/carte-todo.ts";
 import { gesteGit, reparationDuGeste } from "../garde-todo/geste-git.ts";
 import { uneQuestion } from "../carte-todo/forme.ts";
 import type { IssueOuverte } from "../github.ts";
 import { EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, issueEnDonnee, MARQUEUR_MANAGER, objet, parmi, phrase } from "../juger.ts";
 import { MODELES } from "../calibrage.ts";
 import type { IssueDuManager } from "../projections/manager.ts";
-import type { AtelierDuManager } from "../requalifier.ts";
+import type { AtelierDuManager } from "./atelier.ts";
 
+// La sorte de la carte qui pose la question au chef.
 export const QUESTION_PRODUIT = "product-question";
 const AUTEUR_DE_CARTE = "manager";
 // La première ligne de la consigne : ce qui distingue une complétion d'un
@@ -252,12 +255,18 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
           await commenter(issue.number, ["**Manager — incomplete ticket: the question is a git gesture, no card for the chef.**", "", valeur.motif, "", `The \`fix\` ticket #${fix} is open: ${valeur.questionEn}`, "", signature]);
           return "question";
         }
-        // Le label d'abord : sans lui, rien n'est écrit, et tout se refait.
+        // Le label d'abord : sans lui, rien n'est écrit, et tout se refait. Puis la carte, que le TODO du chef montre ;
+        // refusée, elle se dit — l'issue reste parquée pour le chef, et l'app dit qu'elle ne la montre pas.
         try {
-          if (!issue.labels.includes(QUESTION_PRODUIT)) await github.labelliser(issue.number, [QUESTION_PRODUIT]);
+          if (!issue.labels.includes(CHEF_TODO)) await github.labelliser(issue.number, [CHEF_TODO]);
         } catch (erreur) {
-          if (!arrete()) avertir(`brigade : \`${QUESTION_PRODUIT}\` non posé sur l'issue #${issue.number}, repris au tour suivant — ${message(erreur)}`);
+          if (!arrete()) avertir(`brigade : \`${CHEF_TODO}\` non posé sur l'issue #${issue.number}, repris au tour suivant — ${message(erreur)}`);
           return "attente";
+        }
+        try {
+          await github.commenter(issue.number, corpsDeCarte({ sorte: QUESTION_PRODUIT, texte: valeur.questionEn }));
+        } catch (erreur) {
+          if (!arrete()) avertir(`brigade : carte du chef non postée sur l'issue #${issue.number}, parquée pour lui — ${message(erreur)}`);
         }
         if (arrete()) return "attente";
         const entree = journal.base.transaction(() => {
@@ -270,7 +279,7 @@ export function ouvrirVerdictIncomplet(atelier: AtelierDuManager) {
           "",
           valeur.motif,
           "",
-          `**${entree.porte === "todo" ? "Card in TODO" : "Card proposed, which the triage reads first"}** (\`${QUESTION_PRODUIT}\`). ${valeur.questionEn}`,
+          `**${entree.porte === "todo" ? "Card in TODO" : "Card proposed, which the triage reads first"}** (parked for you: \`${CHEF_TODO}\`). ${valeur.questionEn}`,
           "",
           "Your answer on the issue has it judged again.",
           "",

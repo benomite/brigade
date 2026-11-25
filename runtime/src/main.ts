@@ -29,6 +29,7 @@ import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherLeChef } from "./chef/chef.ts";
+import { brancherLeDigest } from "./journal-du-jour/matin.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
@@ -208,7 +209,7 @@ try {
               plafonds: reglages.plafonds,
               graceMs: reglages.graceMs,
               reviewer: () => decisions.reviewer(),
-              // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+              // La question d'un cook bloqué va au manager avant que le ticket ne soit parqué pour le chef (#2894).
               manager: () => decisions.manager(),
               // Une recalibration du manager après le dernier essai reste sous ce plafond (#3513).
               plafond: () => manager.plafond,
@@ -279,6 +280,8 @@ try {
   brancherMentionDuChef(runtime, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages });
   // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
   brancherReponseParCommentaire(runtime, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages });
+  // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
+  brancherLeDigest(runtime, { repertoireEtat, avertir: (ligne) => console.error(`brigade : ${ligne}`) });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

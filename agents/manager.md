@@ -92,7 +92,7 @@ Quand un ticket du rail est tenu plus d'une heure par une attente — une ligne 
 
 - **ce n'est pas une vraie dépendance** — le ticket ne touche pas ce que l'autre change, ou son corps cite l'autre sans en dépendre : tu la **lèves** (`leve`), et tu dis pourquoi en une ligne. La station l'écrit sur l'issue, et le ticket part au tour suivant ;
 - **la dépendance est réelle** — le ticket bâtit sur un code, un fichier ou une décision que l'autre n'a pas encore livré : tu la **gardes** (`garde`), et tu dis pourquoi. Le ticket part de lui-même une fois l'autre servi ;
-- **seul le chef peut trancher** — partir sans l'autre change ce que l'utilisateur obtient : c'est une question de **produit** (`produit`), sur une ligne, en choix entre les voies. Le ticket va au chef sous `blocked-on-human` ; sa réponse donnée, tu relis l'attente avec elle.
+- **seul le chef peut trancher** — partir sans l'autre change ce que l'utilisateur obtient : c'est une question de **produit** (`produit`), sur une ligne, en choix entre les voies. Le ticket est parqué pour le chef (`chef-todo`, sa carte porte la question) ; sa réponse donnée, tu relis l'attente avec elle.
 
 Toute question technique — l'ordre des merges, un fichier partagé, un module commun — est à toi : jamais au chef. Quoi que tu répondes, l'issue porte alors une ligne qui dit ce que le ticket attend et qui l'a décidé (la station, toi ou le chef).
 

@@ -3,6 +3,7 @@
 // l'onglet Cooks montre les stations d'après leurs commentaires de prise et leurs signes de vie (#2358). Joué sur un faux
 // GitHub, puis rendu par le rail de l'app. Son TODO est ce qui attend le chef lu de GitHub, la lecture même que le
 // second relaie (#2460).
+import { LABELS_D_AVANT_PARKED_SANS_CARTE } from "../../../../runtime/src/github-etat/etats.ts";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { porter } from "../../../src/bon.ts";
@@ -34,8 +35,11 @@ function github({ fermees, base = "success", issues, commentaires = {}, appels =
   return async (chemin) => {
     appels.push(chemin);
     if (chemin.includes("/issues?") && chemin.includes("labels=fire")) {
-      return ok(issues?.() ?? [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(4, ["fire", "waiting", "taken"]), issue(5, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })]);
+      return ok(issues?.() ?? [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(4, ["fire", "parked", "taken"]), issue(5, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })]);
     }
+    // Les issues d'un monde dit, au label demandé : ce qui attend le chef (tableau/attente-du-chef.ts).
+    const label = /[?&]labels=([^&]+)/.exec(chemin)?.[1];
+    if (chemin.includes("/issues?") && label !== undefined && issues !== undefined) return ok((issues() as { labels: { name: string }[] }[]).filter(({ labels }) => labels.some(({ name }) => name === label)));
     // Toutes les issues ouvertes : ce qui est avant le rail (tableau/lecture.ts).
     if (chemin.includes("/issues?")) return ok([issue(1, ["fire"]), issue(2, ["fire", "taken"]), issue(6, [])]);
     if (chemin.includes("/pulls?state=closed")) return ok(fermees ?? []);
@@ -214,24 +218,25 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
   });
 });
 
-// Un ticket mis de côté (#2075) : #7 sorti de la cuisine après ses renvois, #8 en pass retenu par `blocked-on-human` — sa
-// livraison touche à ce qui la juge —, #9 sorti à la main sans un mot, #10 sorti puis mis en WAITING par le chef.
+// Un ticket mis de côté (#2075) : #7 sorti de la cuisine après ses renvois, #8 retenu par `blocked-on-human` — un label
+// d'attente d'avant parked : il est parqué pour le chef (#4260) —, #9 sorti à la main sans un mot, #10 sorti puis parqué par
+// le chef.
 describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, sur GitHub seul (#2075)", () => {
-  const issuesMisesDeCote = () => [issue(1, ["fire"]), issue(7, ["fire", "served-elsewhere"]), issue(8, ["fire", "in-pass", "blocked-on-human"]), issue(9, ["fire", "served-elsewhere"]), issue(10, ["fire", "served-elsewhere", "waiting"])];
+  const issuesMisesDeCote = () => [issue(1, ["fire"]), issue(7, ["fire", "served-elsewhere"]), issue(8, ["fire", "in-pass", "blocked-on-human"]), issue(9, ["fire", "served-elsewhere"]), issue(10, ["fire", "served-elsewhere", "parked"])];
   const commentaires = {
     7: [
       prise(21, "box/claude", "2026-11-04T01:00:00Z"),
       { id: 22, body: "<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes: the empty case is not tested\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", author_association: "OWNER", created_at: "2026-11-04T02:00:00Z" },
       { id: 23, body: "<!-- brigade:manager -->\n**Manager — `served-elsewhere` : ce ticket ne se sert pas sur cette box.**", author_association: "OWNER", created_at: "2026-11-04T02:01:00Z" },
     ],
-    8: [{ id: 31, body: "Station `box/claude`: this delivery changes what judges it (`.github/workflows/ci.yml`), so it is not merged on the review alone. Review it and merge it by hand: PR #2326.", author_association: "OWNER", created_at: "2026-11-04T02:30:00Z" }],
   };
   const lireMisDeCote = () => lire(github({ issues: issuesMisesDeCote, commentaires }));
 
   test("seul `blocked-on-human` entre dans TODO ; les autres restent sur le rail, jamais sous « outside the columns » ; dans WAITING si le chef l'y a mis", async () => {
     const vu = dessine(await lireMisDeCote());
     const lues = colonnes(vu);
-    assert.deepEqual(lues["Awaiting you"], ["#8 set aside"]);
+    // Parqué pour le chef, #8 garde l'étape où il est, comme sous `chef-todo` (#4260).
+    assert.deepEqual(lues["Awaiting you"], ["#8 queued"]);
     assert.deepEqual(lues["Waiting"], ["#10 waiting"]);
     assert.deepEqual(lues["On the rail"], ["#1 queued", "#7 set aside", "#9 set aside"]);
     assert.deepEqual(lues["Pass"], []);
@@ -243,7 +248,7 @@ describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, 
     const todo = vu.rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes ?? [];
     assert.deepEqual(
       todo.map(({ ticket, ligne, miseDeCote, fiche, todo: carte }) => ({ ticket, ligne, miseDeCote, attendu: fiche.attendu, question: carte?.question })),
-      [{ ticket: 8, ligne: "Green, but not merged: merge it yourself.", miseDeCote: { label: "blocked-on-human", liens: [8, 2326] }, attendu: "Green, but not merged: merge it yourself.", question: "Merge the PR of #8 by hand? It changes what judges it." }],
+      [{ ticket: 8, ligne: "Parked for you by a waiting label of before parked: it waits for your answer.", miseDeCote: undefined, attendu: "Parked for you by a waiting label of before parked: it waits for your answer.", question: "It carries `blocked-on-human`, a waiting label of before parked: what do you decide?" }],
     );
     const rail = vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? [];
     const dit = Object.fromEntries(rail.map(({ ticket, ligne }) => [ticket, ligne]));
@@ -254,55 +259,41 @@ describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, 
     assert.equal(SANS_RAISON, "set aside by hand — no reason on the issue");
   });
 
-  test("un `#N` de sa ligne s'ouvre : le process principal en tient l'adresse, sur le dépôt du projet", async () => {
-    const lu = await lireMisDeCote();
-    assert.ok(lu.lu);
-    const tenus = tenirFaits();
-    tenus.recevoir({ projet: "kitchen", demande: 0, a: LU.toISOString(), sorties: [{ commande: "facts", texte: JSON.stringify(lu.faits) }] });
-    assert.equal(tenus.adresse("kitchen", 2326), `https://github.com/${DEPOT}/pull/2326`);
-    assert.equal(tenus.adresse("kitchen", 8), `https://github.com/${DEPOT}/issues/8`);
-    assert.equal(tenus.adresse("kitchen", 2327), undefined);
+  // Ticket 4260 : un label d'attente d'avant parked pour le chef parque le ticket pour lui, comme `chef-todo` : il garde
+  // l'étape où il est — en file, en pass —, jamais mis de côté ni parqué pour un autre.
+  test("un ticket parqué pour le chef par un label d'avant parked garde l'étape où il est : en file, en pass", async () => {
+    const [ancien] = LABELS_D_AVANT_PARKED_SANS_CARTE;
+    const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler: github({ issues: () => [issue(8, ["fire", ancien as string]), issue(3, ["fire", "in-pass", ancien as string])] }), maintenant: () => LU });
+    assert.deepEqual(rail.tickets.map(({ ticket, etat, miseDeCote }) => [ticket, etat, miseDeCote]), [[8, "en attente", undefined], [3, "en pass", undefined]]);
   });
 
   test("ni prise ni cook pour un ticket mis de côté, et la ligne `rail` de `status` le compte à part", async () => {
     const lu = await lireMisDeCote();
     assert.ok(lu.lu);
     assert.deepEqual(lu.faits?.cooks, []);
-    assert.match(statusDuTableau(lu), /^rail {7}1 WAITING · 1 queued · 3 set aside$/m);
-  });
-
-  // Ticket 3716 : la PR à merger à la main se dit par son ticket ; son lien reste celui de la PR.
-  test("la carte de #8 dit « Merge the PR of #8 », jamais « #2326 » ; la PR garde son lien (ticket 3716)", async () => {
-    const lu = await lireMisDeCote();
-    assert.ok(lu.lu);
-    const carte = dessine(lu).rail.colonnes.find(({ nom }) => nom === "Awaiting you")?.cartes.find(({ ticket }) => ticket === 8) ?? assert.fail("pas de carte #8 dans TODO");
-    const textes = [carte.todo?.question ?? "", ...(carte.todo?.choix.map(({ texte }) => texte) ?? [])];
-    assert.deepEqual(textes, ["Merge the PR of #8 by hand? It changes what judges it.", "Merge the PR of #8"]);
-    assert.ok(textes.every((texte) => !texte.includes("#2326")), textes.join(" | "));
-    const tenus = tenirFaits();
-    tenus.recevoir({ projet: "kitchen", demande: 0, a: LU.toISOString(), sorties: [{ commande: "facts", texte: JSON.stringify(lu.faits) }] });
-    assert.equal(tenus.adresse("kitchen", 2326), `https://github.com/${DEPOT}/pull/2326`);
+    assert.match(statusDuTableau(lu), /^rail {7}1 WAITING · 2 queued · 2 set aside$/m);
   });
 });
 
 // Le Todo du chef du 2026-11-05 (#2422), tel que ses issues le disaient : treize cartes, aucune ne demandait rien — onze
-// `served-elsewhere` de cause technique, deux `blocked-on-human` (#2408, #2322) dont la ligne était un constat, et #1683, l'issue du
-// tableau de la cuisine. Les commentaires sont ceux que la station écrit (runtime/src/brigade-github.ts, renvois.ts).
+// `served-elsewhere` de cause technique, deux livraisons à merger à la main (#2408, #2322) dont la ligne était un constat,
+// aujourd'hui des cartes `chef-todo` (#4260), et #1683, l'issue du tableau de la cuisine. Les commentaires sont ceux que la
+// station écrit (runtime/src/brigade-github.ts, renvois.ts).
 describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaque carte le demande (#2422)", () => {
   const renvoi = (n: number, raison: string) => ({ id: n, body: `<!-- brigade:renvoi n=3 sha=7579211 -->\nStation \`box/claude\`: still not mergeable after 2 sends back — ${raison}\n\nTaken off the kitchen (\`served-elsewhere\`): a human decides.`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
   const sansLivraison = (n: number) => ({ id: n, body: "<!-- brigade:echec n=3 -->\nStation `box/claude`: the cook stopped without a delivery — the cook committed nothing\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides.", author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
-  const juge = (n: number, pr: number) => ({ id: n, body: `Station \`box/claude\`: this delivery changes what judges it (\`.github/workflows/ci.yml\`, \`.claude/brigade/gates.sh\`), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr}.`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
+  const juge = (n: number, ticket: number) => ({ id: n, body: `<!-- brigade:todo kind=merge-by-hand -->\nMerge the PR of #${ticket} by hand? It changes what judges it.\n- [merge] Merge the PR of #${ticket}`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
   const conflit = "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit";
   const ciRouge = "the CI is red on `7579211` (PR #2400):\n- `app tests`";
   const revue = "the review requested changes on `7579211` (PR #2401):\n\nThe empty case is not tested.";
   const techniques: Record<number, unknown> = { 2301: renvoi(1, conflit), 2302: renvoi(2, ciRouge), 2303: renvoi(3, revue), 2304: sansLivraison(4), 2305: renvoi(5, conflit), 2306: renvoi(6, ciRouge), 2307: sansLivraison(7), 2308: renvoi(8, revue), 2309: renvoi(9, conflit), 2310: sansLivraison(10), 2311: renvoi(11, ciRouge) };
   const issues = () => [
     ...Object.keys(techniques).map((n) => issue(Number(n), ["fire", "served-elsewhere"])),
-    issue(2408, ["fire", "in-pass", "blocked-on-human"]),
-    issue(2322, ["fire", "in-pass", "blocked-on-human"]),
+    issue(2408, ["fire", "in-pass", "chef-todo"]),
+    issue(2322, ["fire", "in-pass", "chef-todo"]),
     issue(1683, ["fire", "served-elsewhere", "kitchen-board"]),
   ];
-  const commentaires = { ...Object.fromEntries(Object.entries(techniques).map(([n, c]) => [Number(n), [c]])), 2408: [juge(21, 2416)], 2322: [juge(22, 2325)] };
+  const commentaires = { ...Object.fromEntries(Object.entries(techniques).map(([n, c]) => [Number(n), [c]])), 2408: [juge(21, 2408)], 2322: [juge(22, 2322)] };
   const lireLeTodo = async () => dessine(await lire(github({ issues, commentaires })));
 
   test("Todo montre deux cartes, #2408 et #2322, chacune une question qui nomme sa PR", async () => {
@@ -314,12 +305,11 @@ describe("le Todo du chef ne tient que ce qui lui demande quelque chose, et chaq
     ]);
     // Le merge est le choix de sa carte (#3368), joué par sa réponse : aucun autre geste de la fiche ne merge.
     for (const carte of todo) assert.ok(!gestesDeCarte(carte).some(({ id }) => (id as string) === "merger"), `#${carte.ticket} offers no other merge gesture`);
-    assert.deepEqual(todo.map(({ miseDeCote }) => miseDeCote?.liens), [[2322, 2325], [2408, 2416]]);
   });
 
   test("les onze `served-elsewhere` techniques sont sur le rail, avec leur ligne, et aucun dans Todo", async () => {
     const vu = await lireLeTodo();
-    const rail = vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? [];
+    const rail = (vu.rail.colonnes.find(({ nom }) => nom === "On the rail")?.cartes ?? []).filter(({ ticket }) => ticket in techniques);
     assert.equal(rail.length, 11);
     assert.deepEqual([...new Set(rail.map(({ ligne }) => ligne))].sort(), [
       "Will not start: 3 cooks in a row stopped without delivering anything.",

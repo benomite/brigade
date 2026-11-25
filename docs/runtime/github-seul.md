@@ -191,18 +191,18 @@ base, the stale-branch pruning).
 - **A cook that says the ticket cannot be done yet puts it in WAITING** (#3814, `runtime/src/attente/`). On
   BOBL-tech/mirrorlab, #824 could only be done from 2026-11-25: each cook said "Too early", the review asked for changes,
   and the kitchen relaunched it about every 3 minutes for 26 h (1,198 runs) while its zone held #803; the second put it
-  in WAITING by hand. Now the station does it, with no chef gesture:
+  in WAITING by hand. Now the station parks it (#4129), with no chef gesture:
   - a cook that stops blocked (`<bloque>`) on a date to come ("cannot be done before 2026-11-25", "too early", "only
     from …"), or on something a third party outside the kitchen has not given ("waiting for the client", "nothing in
-    the kitchen can produce it"), puts the ticket in WAITING through the same marks as the chef's park: the `waiting`
-    label and the `<!-- brigade:waiting … -->` comment, with what, from whom, and the follow-up taken from its words
+    the kitchen can produce it"), parks the ticket through the same marks as the chef's park: the `parked`
+    label and the `<!-- brigade:parked … -->` comment, with who, for what, and the date taken from its words
     (the date it says; without one, seven days). Any other question goes to the manager, as before, and so does this
-    one when GitHub refuses the WAITING gesture: the station says why;
+    one when GitHub refuses the parking: the station says why;
   - a delivery the review hands back twice in a row with the same result is not relaunched a third time as it stands:
-    if that result says the ticket cannot be done yet, it goes to WAITING the same way — the gesture first, then the
+    if that result says the ticket cannot be done yet, it is parked the same way — the gesture first, then the
     send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
     spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
-  - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
+  - a parked ticket holds no file zone, even with an open PR: the ticket behind it starts;
   - an open PR holds a file zone only while it is alive (#4242, `runtime/src/claim-gate.ts`): its ticket is in cook
     or at the pass, or the PR had activity (commit, comment, review, update — its `updatedAt`) within the stale delay,
     `STALE_DELAY_MS`, 12 hours. A PR whose changes are already on the base (each of its files has the same content on
@@ -211,12 +211,12 @@ base, the stale-branch pruning).
     number and why the PR is alive (`zone held by open PR #4077 (last activity …, within the 12 h stale delay)`), and
     the skip carries the reason code `zone-held` with the PR number. On 2026-11-24, a forgotten open PR (PR 4077)
     held the README zone for an hour and the claim gate skipped the only cookable ticket (#4061);
-  - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
-    `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
-    chef lifts it. The turn reads each WAITING ticket's comments once, for this return;
-  - the chef's TODO (the `awaiting` block) lists each ticket in WAITING with its follow-up date, without
-    counting it as a decision for the chef. The second's queue also lists the `waiting` issues; the app, which reads
-    each project every thirty seconds, keeps to the WAITING tickets of the lists it already reads.
+  - on its date, a ticket parked until a date resumes exactly where it was by itself — `parked` removed, nothing
+    else, a comment that says so — whoever parked it. Parked until a fact, or for the chef, it stays until someone
+    unparks it. The turn reads each parked ticket's comments once, for this return;
+  - the chef's TODO (the `awaiting` block) lists each ticket parked for someone else with its date, without
+    counting it as a decision for the chef. The second's queue also lists the `parked` issues; the app, which reads
+    each project every thirty seconds, keeps to the parked tickets of the lists it already reads.
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
   gives its ticket back on the issue, and at its first turn a restarted station gives back the tickets it held with no
   cook (#2179). Its places are read again at each turn: the cap the chef sets live (`station -- cooks <N>`, `0` for no

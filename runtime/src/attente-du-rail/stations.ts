@@ -10,8 +10,9 @@ import { stationDe } from "../stations-github/stations.ts";
 // Au-delà de ce délai, l'attente d'un ticket sur le rail est plus longue que d'ordinaire (`raison.ts`).
 export const DELAI_MS = 5 * 60_000;
 
-// Les labels que le manager pose quand il écarte une issue (`events/manager.ts`, `Ecart`) : il l'a prise.
-export const LABELS_D_ECART: readonly string[] = ["roadmap", "epic", "question", "decision", "blocked-on-human", "served-elsewhere", "set-aside:failures", "idea"];
+// Les labels d'une issue que le manager écarte (`events/manager.ts`, `Ecart`) : il l'a prise. Une issue parquée l'est
+// aussi (`estParque`, github-etat/etats.ts).
+export const LABELS_D_ECART: readonly string[] = ["roadmap", "epic", "served-elsewhere", "idea"];
 
 // Une station du compte, telle que son enregistrement la dit
 // (`enregistrement-station/stations-du-compte.ts`, `StationEnregistree` ;
