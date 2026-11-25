@@ -1,5 +1,5 @@
 // @ts-check
-// Le rail, haut du backlog (#4223, épique #4131), sur la page du projet : au-dessus des colonnes, sous le bandeau Backlog,
+// Le rail, haut du backlog (ticket 4223, épique 4131), sur la page du projet : au-dessus des colonnes, sous le bandeau Backlog,
 // les issues calibrées et prêtes que la cuisine servira d'abord, dans l'ordre priorité puis âge — l'écran que rail.ts
 // (`htmlDuRail`) compose dans le process principal, tel quel : il montre les issues des faits, ni plus ni dans un autre ordre.
 // Il se lit seulement : une issue y vient d'être calibrée et prête, sans geste du chef, et ce bloc n'en offre aucun.

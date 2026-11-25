@@ -1,4 +1,4 @@
-// L'écran du rail, haut du backlog (#4223, épique #4131) : les issues que runtime/src/rail-backlog/rail-backlog.ts
+// L'écran du rail, haut du backlog (ticket 4223, épique 4131) : les issues que runtime/src/rail-backlog/rail-backlog.ts
 // (`topDuBacklog`) range, dans cet ordre, une ligne chacune — son numéro, sa priorité, son titre ; ce qu'on lui donne d'autre,
 // il ne le montre pas. Le rail se lit, il ne se remplit pas : une issue y vient d'être calibrée et prête, sans geste du chef,
 // et l'écran n'en a donc aucun.
