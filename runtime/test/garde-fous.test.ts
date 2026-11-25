@@ -264,7 +264,7 @@ test("après N échecs d'affilée le disjoncteur s'ouvre, le dit au journal, et 
   const avant = faits();
   assert.throws(
     () => cook(9, "fini"),
-    (erreur: unknown) => erreur instanceof LancementRefuse && erreur.motif === "breaker" && /disjoncteur/.test(erreur.message),
+    (erreur: unknown) => erreur instanceof LancementRefuse && erreur.motif === "breaker" && /breaker/.test(erreur.message),
   );
   assert.deepEqual(faits(), avant);
 });
@@ -596,7 +596,7 @@ test("un runtime arrêté ne lance plus rien", (t) => {
   const runtime = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
   runtime.arreter("SIGTERM");
 
-  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /arrêté/);
+  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /runtime stopped/);
 });
 
 test("une relance du manager jugée rouge ne compte pas au disjoncteur : une livraison rouge n'est pas une cuisine cassée", async (t) => {
@@ -723,6 +723,15 @@ test("la réconciliation du démarrage ne se rejoue pas : un second démarrage n
 
   assert.equal(runtime.journal.tout().filter((e) => e.type === "cook.reclassified").length, 3);
   assert.equal(runtime.journal.tout().filter((e) => e.type === "breaker.lifted").length, 1);
+});
+
+test("le refus d'une station retenue pour sa machine se dit en anglais : il part dans le commentaire du ticket (#4056)", (t) => {
+  const { runtime } = cuisine(t);
+  runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "station.held", payload: { station: "parade-box/claude", reason: "machine" } } as never);
+  assert.throws(
+    () => runtime.lancer({ ticket: 4056, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "fini" }, contexte: { station: "parade-box/claude" } }),
+    (erreur: unknown) => erreur instanceof LancementRefuse && erreur.message === "station parade-box/claude held: its machine is saturated, no cook is launched before it frees up",
+  );
 });
 
 test("une station retenue pour sa machine ne lance ni ne relance aucun cook, et repart quand elle est relâchée (#4097)", async (t) => {

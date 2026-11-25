@@ -2,8 +2,9 @@
 // `observe` (it says what it would do), `propose` (it waits for the chef's OK), `act` (it does it, then says so).
 //
 // Levels are kept in one file of the directory the store is given, per project, and only those the chef set: a level
-// never set is its default, the chef's choice of 2026-11-23 (the spec's « The chef's answers », Q2). Splitting an epic
-// has its own level, apart from the rest of the manager's gestures.
+// never set is its default, the chef's choice of 2026-11-23 (the spec's « The chef's answers », Q2), but for splitting
+// an epic, `act` since the chef's choice of 2026-11-25 (#4247). Splitting an epic keeps its own level, apart from the
+// rest of the manager's gestures: the chef puts it back on hold by setting it to `propose`.
 //
 // A missing file is a fresh project: every level is its default. A file that cannot be read — not JSON, or a level
 // that is not one of the three steps — is refused, by the read and by the write: nothing is guessed in its place, and
@@ -20,11 +21,11 @@ const REGLABLES = ["manager", "manager split-epic", "supervisor", "closer", "pas
 export type Reglable = (typeof REGLABLES)[number];
 export type Niveaux = Record<Reglable, Niveau>;
 
-// The defaults the chef chose on 2026-11-23. The cooks' is not in that answer: a cook already does its ticket and
-// says so, which is `act`.
+// The defaults the chef chose on 2026-11-23, and on 2026-11-25 for splitting an epic: neither a product decision nor
+// one that needs a human. The cooks' is not in that answer: a cook already does its ticket and says so, which is `act`.
 const NIVEAUX_PAR_DEFAUT: Readonly<Niveaux> = {
   manager: "act",
-  "manager split-epic": "propose",
+  "manager split-epic": "act",
   supervisor: "act",
   closer: "propose",
   pass: "act",
