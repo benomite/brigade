@@ -40,16 +40,26 @@ export function ticketsLus(lu: Pick<TableauLu, "faits">): Set<number> {
 const numero = (ticket: unknown): ticket is number => typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket >= 1;
 const raison = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `waiting` pour le rendre à la cuisine.
-// Une issue qui ne le porte déjà plus : c'est fait.
+// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `waiting` pour le rendre à la cuisine
+// (`deparquer`). Rien ne part pour un ticket que la dernière lecture du rail ne porte pas.
 export async function retirerLeLabel(lu: TableauLu | undefined, id: GesteSurGithub, ticket: unknown, client: ClientDeLaPriorite): Promise<Ecrit> {
   if (!numero(ticket)) return { refus: "nothing was written: the action names no ticket", detail: "" };
   if (lu === undefined) return { refus: PAS_LU, detail: "" };
   if (!ticketsLus(lu).has(ticket)) return { refus: `nothing was written: #${ticket} is not on the latest rail read — read it again`, detail: "" };
+  return id === "cuisine" ? deparquer(lu.depot, ticket, client) : retirerDeLIssue(lu.depot, ticket, id, client);
+}
+
+// Déparquer un ticket (#4262) : le label `waiting` retiré de son issue, sur tout dépôt, sans box. C'est le seul chemin
+// qui le sort de son attente, que l'app le joue (« resume », « it arrived, back to the kitchen », « back to the kitchen »
+// de la fiche) ou le second (second/parking.ts).
+export const deparquer = (depot: string, ticket: number, client: ClientDeLaPriorite): Promise<Ecrit> => retirerDeLIssue(depot, ticket, "cuisine", client);
+
+// Le label du geste retiré de l'issue. Une issue qui ne le porte déjà plus : c'est fait.
+async function retirerDeLIssue(depot: string, ticket: number, id: GesteSurGithub, client: ClientDeLaPriorite): Promise<Ecrit> {
   const label = LABELS_DES_GESTES[id];
-  const issue = `https://github.com/${lu.depot}/issues/${ticket}`;
+  const issue = `https://github.com/${depot}/issues/${ticket}`;
   try {
-    const reponse = await client.ecrire("DELETE", `/repos/${lu.depot}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+    const reponse = await client.ecrire("DELETE", `/repos/${depot}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
     if (reponse.status !== 200 && reponse.status !== 404) throw refusDe(`the removal of \`${label}\``, reponse);
   } catch (erreur) {
     return { refus: `nothing was changed: GitHub did not remove \`${label}\` from #${ticket}`, detail: raison(erreur) };

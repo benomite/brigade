@@ -1,4 +1,4 @@
-// Test d'acceptation gelé (#4072). Critère 2 : `brigade <project> waiting set <ticket> --what … --from … --remind <date>`, lancée depuis l'onglet du second, met la carte en WAITING comme le bouton de la carte.
+// Test d'acceptation gelé (#4072). Critère 2 : la commande `brigade` que l'app écrit, lancée depuis l'onglet du second, joue le geste de la station. Mettre une carte en WAITING n'en passe plus : le second la parque par la commande de parking, comme le bouton de la carte (#4262).
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ const lire = (f: string) => readFileSync(f, "utf8");
 const poseurs = () =>
   sources(SRC).filter((f) => !f.endsWith("emplacements.ts") && /(writeFileSync|symlinkSync|copyFileSync|linkSync)/.test(lire(f)) && /(["'`]bin["'`]\s*,\s*["'`]brigade["'`]|\/bin\/brigade)/.test(lire(f)));
 
-test("the `brigade` the app writes runs the station's gesture, which carries `waiting set` to the card", () => {
+test("the `brigade` the app writes runs the station's gesture", () => {
   const trouves = poseurs();
   assert.ok(trouves.length > 0, "the app writes no `brigade` command");
   const texte = trouves.map(lire).join("\n");

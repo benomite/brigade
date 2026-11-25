@@ -1,7 +1,6 @@
 // WAITING sur un projet GitHub (#3075) : toute carte de TODO porte « waiting for… », sur la carte et sur sa fiche, à
 // l'écran large comme à celui d'un téléphone ; le formulaire demande quoi, de qui, et la relance, proposée à sept jours ;
-// validé, le geste part par la commande `waiting set` du runtime quand il tourne sur ce poste — une doublure ici —, sinon
-// il s'écrit sur l'issue comme la commande l'y écrit. La carte quitte TODO et se montre dans WAITING avec ce qu'elle
+// validé, le geste s'écrit sur l'issue, jamais par une commande de la box (#4262). La carte quitte TODO et se montre dans WAITING avec ce qu'elle
 // attend, de qui, et sa relance — lus du commentaire que le runtime pose (runtime/src/attente.ts, `direMarque`). Une carte
 // de WAITING porte « resume » et « it arrived, back to the kitchen ». Joué sur un faux GitHub qui tient ses issues, leurs
 // labels et leurs commentaires, lus et écrits ; la vue est jouée telle qu'elle est (aides/fausse-vue.ts).
@@ -23,7 +22,6 @@ import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { avecCeQuiAttendLeChef } from "../../../src/tableau/attente-du-chef.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type TableauLu } from "../../../src/tableau/lecture.ts";
-import type { Terminal } from "../../../src/terminaux.ts";
 import { A_L_ARRIVEE, attenteSurGithub, jouerLAttente, marqueDAttente, tiersDeLaMarque, tiersDesCommentaires } from "../../../src/vue/attente/attente-github.ts";
 import { jourDe, relanceProposee } from "../../../src/vue/attente/saisie.ts";
 import { FauxEcran, jouerLaVue, repos, type Faux, type Jouee } from "../../aides/fausse-vue.ts";
@@ -173,31 +171,25 @@ describe("la lecture de GitHub : TODO et WAITING", () => {
   });
 });
 
-const SECOND: Terminal = { id: 1, projet: PROJET, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const dansDixJours = () => jourDe(new Date(Date.now() + 10 * 86_400_000));
 
-describe("les gestes : la commande du runtime quand il tourne ici, sinon l'issue", () => {
-  test("le runtime ici : « resume » part par sa commande, rien sur GitHub ; « waiting for… » s'écrit sur l'issue, rien dans le second ; « it arrived » retire `waiting`", async () => {
+describe("les gestes : toujours écrits sur l'issue", () => {
+  test("« waiting for… » pose la marque puis `waiting` ; « resume » et « it arrived » retirent `waiting` — rien ne part dans le second (#4262)", async () => {
     const monde = github();
     const lu = await lueParLApp(monde);
-    const commandes: string[] = [];
-    const parLeRuntime = (id: string) => () => (commandes.push(id), SECOND);
-    const jouer = (id: string, ticket: number, saisie?: unknown) => jouerLAttente({ id, ticket, saisie, aujourdhui: new Date(), lu: () => lu, client: monde.client, parLeRuntime: parLeRuntime(id) });
+    const jouer = (id: string, ticket: number, saisie?: unknown) => jouerLAttente({ id, ticket, saisie, aujourdhui: new Date(), lu: () => lu, client: monde.client });
     assert.ok("fait" in (await jouer("attente-poser", 20, { quoi: "x", qui: "y", relance: dansDixJours() })));
-    assert.deepEqual(commandes, []);
     assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
-    assert.equal(await jouer("attente-reprendre", 40), SECOND);
-    assert.deepEqual(commandes, ["attente-reprendre"]);
+    assert.ok("fait" in (await jouer("attente-reprendre", 40)));
+    assert.equal(monde.ecrites.at(-1), `DELETE /repos/${DEPOT}/issues/40/labels/waiting`);
     assert.ok("fait" in (await jouer("attente-arrivee", 40)));
-    assert.deepEqual(commandes, ["attente-reprendre"]);
     assert.equal(monde.ecrites.at(-1), `DELETE /repos/${DEPOT}/issues/40/labels/waiting`);
   });
-
-  test("sans runtime ici : « waiting for… » pose la marque puis `waiting` ; relue, la carte est dans WAITING avec quoi, de qui et sa relance", async () => {
+  test("« waiting for… » pose la marque puis `waiting` ; relue, la carte est dans WAITING avec quoi, de qui et sa relance", async () => {
     const monde = github();
     const lu = await lueParLApp(monde);
     const relance = dansDixJours();
-    const dit = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: " the legal review ", qui: "legal", relance }, aujourdhui: new Date(), lu: () => lu, client: monde.client, parLeRuntime: () => undefined });
+    const dit = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: " the legal review ", qui: "legal", relance }, aujourdhui: new Date(), lu: () => lu, client: monde.client });
     assert.deepEqual(dit, { fait: `in WAITING on GitHub: #20 awaits legal, follow-up on ${relance}`, detail: `${issue(20)}#issuecomment-9` });
     assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
     const relu = await lueParLApp(monde);

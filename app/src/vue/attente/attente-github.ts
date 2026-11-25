@@ -4,11 +4,10 @@
 // (`direMarque`). Ce module en a les deux bouts :
 //   - la lecture : le dernier commentaire `**WAITING…: awaiting …**` d'une issue au label `waiting`, rendu dans la forme
 //     de `tiers` (faits.ts, `Tiers`) — ce que la carte de WAITING dit (tableau/attente-du-chef.ts) ;
-//   - les gestes : « waiting for… » et « resume » partent dans la commande `waiting` du runtime quand il tourne sur ce
-//     poste (attente.ts, `ecrireAttente`) ; sans runtime à joindre — le téléphone, ou un ordinateur dont la station du
-//     projet est ailleurs —, ils s'écrivent sur l'issue, ce que la commande y écrit : le commentaire puis le label pour
-//     « waiting for… », le label retiré pour « resume ». « It arrived, back to the kitchen » retire le label, partout
-//     (gestes-github.ts, `retirerLeLabel`).
+//   - les gestes, tous écrits sur l'issue, sur tout projet et sans box (#4262) : « waiting for… » parque le ticket
+//     (`parquer` : le commentaire puis le label), « resume » et « it arrived, back to the kitchen » le déparquent
+//     (gestes-github.ts, `deparquer` : le label retiré). Le second joue ces deux mêmes fonctions (second/parking.ts) :
+//     un ticket parqué ou déparqué par lui est dans l'état exact où l'app le met.
 // Rien de Node : le téléphone le charge tel quel.
 import type { Tiers } from "../../faits.ts";
 import { LABELS_DES_GESTES, retirerLeLabel, ticketsLus, type Ecrit } from "../../gestes-github.ts";
@@ -28,10 +27,16 @@ const deux = (n: number) => String(n).padStart(2, "0");
 // ne se relit pas l'année d'avant.
 const instantEcrit = (date: Date) => `${date.getUTCDate()} ${MOIS[date.getUTCMonth()]} ${date.getUTCFullYear()} ${deux(date.getUTCHours())}:${deux(date.getUTCMinutes())} UTC`;
 
-// Le commentaire d'entrée en WAITING, dans la forme de `direMarque` (runtime/src/attente.ts) : sa tête, puis une ligne
-// par ce qu'il dit. `relance` : minuit, au jour du poste, du jour que le chef a choisi — comme le runtime prend `--remind`.
+// La marque de la station, en tête du commentaire d'entrée en WAITING : la lecture de l'app passe à la ligne qui la suit.
+const MARQUE = "<!-- brigade:waiting";
+
+// Le commentaire d'entrée en WAITING : la marque que la station relit (runtime/src/attente-github/marque.ts,
+// `attenteDeLIssue`) — qui, quoi, la relance, `>` échappé pour qu'un `-->` des mots du chef ne la ferme pas —, puis, dans
+// la forme de `direMarque` (runtime/src/attente.ts), sa tête et une ligne par ce qu'il dit. `relance` : minuit, au jour
+// du poste, du jour que le chef a choisi.
 export function marqueDAttente({ quoi, qui }: { quoi: string; qui: string }, depuis: Date, relance: Date): string {
   return [
+    `${MARQUE} ${JSON.stringify({ what: quoi, who: qui, followUp: relance.toISOString() }).replace(/>/g, "\\u003e")} -->`,
     `**WAITING: awaiting ${qui}.** ${quoi}`,
     "",
     `- **from whom**: ${qui}`,
@@ -63,7 +68,8 @@ function instantDit(dit: string, repere: number, sens: "avant" | "apres"): strin
 // Ce qu'un commentaire d'entrée en WAITING dit, dans la forme de `tiers` — ou null pour un autre commentaire, ou une
 // marque dont un morceau ne se lit pas : rien n'est inventé à sa place. `posteLe` : l'instant où il a été posté.
 export function tiersDeLaMarque(corps: string, posteLe: string): Tiers | null {
-  const lignes = corps.split("\n").map((ligne) => ligne.trimEnd());
+  const toutes = corps.split("\n").map((ligne) => ligne.trimEnd());
+  const lignes = toutes[0]?.startsWith(MARQUE) === true ? toutes.slice(1) : toutes;
   const [, qui, quoi] = TETE.exec(lignes[0] ?? "") ?? [];
   if (qui === undefined || quoi === undefined || quoi.trim() === "") return null;
   const dit = (libelle: string) => lignes.find((ligne) => ligne.startsWith(`- **${libelle}**: `))?.slice(`- **${libelle}**: `.length).trim();
@@ -98,13 +104,14 @@ async function poserSurGithub(lu: TableauLu | undefined, ticket: unknown, saisie
   if ("refus" in lue) return { refus: lue.refus, detail: "" };
   if (lu === undefined) return { refus: "nothing was written: the rail of this project has not been read yet — read it again", detail: "" };
   if (!ticketsLus(lu).has(ticket)) return { refus: `nothing was written: #${ticket} is not on the latest rail read — read it again`, detail: "" };
-  return ecrireLAttente(lu.depot, ticket, lue, aujourdhui, client);
+  return parquer(lu.depot, ticket, lue, aujourdhui, client);
 }
 
-// L'entrée en WAITING écrite sur l'issue de `ticket` : son commentaire, puis le label — ce que « waiting for… » écrit, et ce
-// que « Wait for … » d'une carte du manager joue (tableau-gestes/reponse-github.ts, ticket 3434). Un commentaire posté dont le
+// Parquer un ticket (#4262) : son commentaire d'entrée en WAITING, puis le label, écrits sur l'issue de `ticket`, sur tout
+// dépôt, sans box. C'est le seul chemin qui le met en attente : « waiting for… », « Wait for … » d'une carte du manager
+// (tableau-gestes/reponse-github.ts, ticket 3434) et le second (second/parking.ts) le jouent. Un commentaire posté dont le
 // label est refusé se dit tel : le ticket n'est pas en WAITING.
-export async function ecrireLAttente(depot: string, ticket: number, lue: Saisie, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
+export async function parquer(depot: string, ticket: number, lue: Saisie, aujourdhui: Date, client: ClientDeLaPriorite): Promise<Ecrit> {
   const [an, mois, jour] = lue.relance.split("-").map(Number);
   const corps = marqueDAttente(lue, aujourdhui, new Date(an ?? 0, (mois ?? 1) - 1, jour ?? 1));
   const issue = `/repos/${depot}/issues/${ticket}`;
@@ -136,12 +143,8 @@ export async function attenteSurGithub(options: { id: unknown; ticket: unknown; 
   return "fait" in rendu ? { fait: `resumed on GitHub: #${String(ticket)} no longer carries \`${LABEL_WAITING}\` — it is back where it was before waiting`, detail: rendu.detail } : rendu;
 }
 
-// Un geste de WAITING, d'où qu'il parte : « resume » par la commande du runtime quand il tourne ici (`parLeRuntime`,
-// attente.ts), sinon écrit sur GitHub. « waiting for… » s'écrit toujours sur l'issue, jamais dans le second : la commande
-// du runtime refuse une carte de TODO hors du rail (`decision`, `chef-todo`), l'écriture sur l'issue les prend toutes.
-// « It arrived » n'est pas une commande.
-export async function jouerLAttente<R>(options: { id: unknown; ticket: unknown; saisie: unknown; aujourdhui: Date; lu: () => TableauLu | undefined; client: ClientDeLaPriorite; parLeRuntime?: () => R | undefined }): Promise<R | Ecrit> {
-  const parti = options.id !== "attente-reprendre" ? undefined : options.parLeRuntime?.();
-  if (parti !== undefined) return parti;
+// Un geste de WAITING, d'où qu'il parte, sur la dernière lecture du rail du projet : toujours écrit sur l'issue, jamais par
+// une commande de la box (#4262).
+export async function jouerLAttente(options: { id: unknown; ticket: unknown; saisie: unknown; aujourdhui: Date; lu: () => TableauLu | undefined; client: ClientDeLaPriorite }): Promise<Ecrit> {
   return attenteSurGithub({ ...options, lu: options.lu() });
 }

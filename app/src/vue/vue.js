@@ -3217,9 +3217,9 @@ function poserGestesDAttente(projet, carte) {
   );
 }
 
-// « It arrived, back to the kitchen » part sur le tableau de la cuisine, pas dans le second : la carte dit qu'il
-// est en route, puis qu'il est posté — son commentaire au survol — et la box est relue ; refusé, rien n'est parti, et la
-// carte dit pourquoi en une ligne, le détail au survol. Elle reste dans WAITING jusqu'à ce que la box l'ait joué.
+// « It arrived, back to the kitchen » déparque le ticket sur son issue (gestes-github.ts, `deparquer`), jamais par une
+// commande de la box : la carte dit qu'il est en route, puis qu'il est fait — l'issue au survol — et le rail est relu ;
+// refusé, rien n'est parti, et la carte dit pourquoi en une ligne, le détail au survol.
 /** @param {Projet} projet @param {number} ticket */
 async function arriver(projet, ticket) {
   const cle = `${projet.nom}#${ticket}`;
@@ -3248,8 +3248,8 @@ async function arriver(projet, ticket) {
   if (ficheDe(projet, ticket)) poserFiche();
 }
 
-// Un geste de WAITING part dans le second, comme un geste du socle : sa sortie s'y lit, sa note dit
-// ce qui est parti. Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
+// Un geste de WAITING s'écrit sur l'issue (vue/attente/attente-github.ts), jamais par une commande de la box (#4262).
+// Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
 /** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
 async function ecrireAttente(projet, id, ticket, saisie) {
   const cle = `${projet.nom}#${ticket}`;
@@ -3266,7 +3266,7 @@ async function ecrireAttente(projet, id, ticket, saisie) {
     else if (rendu !== undefined && "fait" in rendu) {
       fait = { fait: rendu.fait, detail: rendu.detail ?? "" };
       lireLesFaits();
-    } else if (rendu !== undefined) garder(projet.nom, rendu);
+    }
   } catch (erreur) {
     refus = `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
   }
@@ -3274,7 +3274,7 @@ async function ecrireAttente(projet, id, ticket, saisie) {
   if (saisie !== undefined && ouvert !== undefined && refus !== undefined) ouvert.refus = refus;
   else if (saisie !== undefined) formulairesDAttente.delete(cle);
   if (refus !== undefined && saisie === undefined) nonEcritSecond = refus;
-  // « resume » qui n'est pas parti dans le second : la carte dit dessous ce qu'il en est, comme pour « it arrived ».
+  // « resume » : la carte dit dessous ce qu'il en est, comme pour « it arrived ».
   if (saisie === undefined && (refus !== undefined || fait !== undefined)) arriveesDeCartes.set(cle, fait ?? { refus: refus ?? "", detail: "" });
   poserRail(projet);
   montrer();
