@@ -114,8 +114,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
     await jusqua(() => faits(30).length === 3);
 
-    assert.deepEqual(labels(30), ["fire", "model:haiku", "effort:low"]);
-    assert.deepEqual(gh.labellisations, [[30, ["fire", "model:haiku", "effort:low"]]]);
+    assert.deepEqual(labels(30), ["model:haiku", "effort:low", "fire"]);
+    assert.deepEqual(gh.labellisations, [[30, ["model:haiku", "effort:low"]], [30, ["fire"]]]);
     assert.equal(jugements().length, 1);
     assert.match(jugements()[0]?.args[1] ?? "", /Le rail perd un ticket quand le bail tombe\./);
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged", "manager.labeled", "manager.commented"]);
@@ -128,7 +128,8 @@ describe("le manager", { concurrency: 8 }, () => {
 
     await jusqua(() => labels(30).includes("effort:low") && labels(31).includes("effort:low"));
 
-    assert.deepEqual(pressions, [1, 2]);
+    // #31, lancée par le chef, se calibre en une labellisation ; #30, prise du backlog (#4221), en deux : son calibrage, puis `fire`.
+    assert.deepEqual(pressions, [1, 3]);
   });
 
   test("une issue écartée ne presse pas la station : rien n'y est prenable (#2796)", async (t) => {
@@ -574,7 +575,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(gh.corpsDe(501), /_ds_manifest\.json is committed but no longer matches/);
     assert.match(gh.corpsDe(501), /Spotted by the manager in the roadmap #1, which stays a tracking document\./);
     // Le chemin ordinaire de la cuisine : née sans label, jugée, lancée et calibrée.
-    assert.deepEqual(labels(501), ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(labels(501), ["model:haiku", "effort:low", "fire"]);
     assert.equal(jugements().length, 1);
     assert.equal(lecturesDeRoadmap().length, 1);
     assert.deepEqual(charge(faits(1).find((e) => e.type === "manager.roadmap-filed"))?.issue, 501);
@@ -747,8 +748,8 @@ describe("le manager", { concurrency: 8 }, () => {
     const { gh, labels, dits } = brigade(t, { issues: [issue(30, ["model:opus"])] });
     await jusqua(() => dits(30).length === 1);
 
-    assert.deepEqual(gh.labellisations, [[30, ["fire", "effort:low"]]]);
-    assert.deepEqual(labels(30), ["model:opus", "fire", "effort:low"]);
+    assert.deepEqual(gh.labellisations, [[30, ["effort:low"]], [30, ["fire"]]]);
+    assert.deepEqual(labels(30), ["model:opus", "effort:low", "fire"]);
     assert.match(dits(30)[0] ?? "", /`model:opus` was already set: left as it was/);
   });
 
@@ -761,7 +762,7 @@ describe("le manager", { concurrency: 8 }, () => {
     await laisserTourner();
 
     assert.deepEqual(labels(30), ["model:haiku", "effort:low"]);
-    assert.equal(gh.labellisations.length, 1);
+    assert.equal(gh.labellisations.length, 2);
     assert.equal(jugements().length, 1);
     assert.deepEqual(faits(30).map((e) => [e.type, charge(e)?.reason]).filter(([type]) => type === "manager.set-aside"), [["manager.set-aside", "chef-changed"]]);
   });
@@ -795,7 +796,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.equal(jugements().length, 2);
     assert.deepEqual(gh.delabellisations, [[30, "model:haiku"], [30, "effort:low"]]);
-    assert.deepEqual(labels(30), ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(labels(30), ["model:haiku", "effort:low", "fire"]);
     assert.deepEqual(faits(30).map((e) => e.type).slice(-5), ["manager.handed-back", "manager.withdrew", "manager.judged", "manager.labeled", "manager.commented"]);
     assert.deepEqual(charge(faits(30).at(-2)), { labels: ["fire", "model:haiku", "effort:low"] });
     assert.equal(issueDuManager(journal.base, 30)?.decision, "fire");
@@ -880,7 +881,7 @@ describe("le manager", { concurrency: 8 }, () => {
     relire();
 
     await jusqua(() => faits(30).filter((e) => e.type === "manager.judged").length === 2);
-    assert.deepEqual(labels(30), ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(labels(30), ["model:haiku", "effort:low", "fire"]);
   });
 
   test("rendue puis relancée et calibrée par le chef avant que le manager y revienne : il n'y retire rien et ne la rejuge pas", async (t) => {
@@ -912,7 +913,7 @@ describe("le manager", { concurrency: 8 }, () => {
     await jusqua(() => faits(30).filter((e) => e.type === "manager.labeled").length === 2);
 
     assert.deepEqual(gh.delabellisations, [[30, "effort:low"]]);
-    assert.deepEqual(labels(30), ["model:opus", "fire", "effort:low"]);
+    assert.deepEqual(labels(30), ["model:opus", "effort:low", "fire"]);
   });
 
   test("ranger son backlog n'écarte rien : `prio:`, `question` et `blocked-on-human`, posés ou retirés, ne font jamais un `chef-changed`", async (t) => {
@@ -944,7 +945,7 @@ describe("le manager", { concurrency: 8 }, () => {
     await laisserTourner();
 
     assert.deepEqual(labels(30), ["fire", "model:opus", "effort:high"]);
-    assert.equal(gh.labellisations.length, 1);
+    assert.equal(gh.labellisations.length, 2);
     assert.equal(jugements().length, 1);
   });
 
@@ -1038,13 +1039,13 @@ describe("le manager", { concurrency: 8 }, () => {
   test("une décision prise se pose sans rejuger quand GitHub a refusé les labels la première fois", async (t) => {
     const { gh, labels, jugements, faits, dits, avertissements } = brigade(t, { issues: [issue(30, [])] });
     gh.pannes.label = true;
-    await jusqua(() => avertissements.some((message) => /labels non posés/.test(message)));
+    await jusqua(() => avertissements.some((message) => /#30 not taken from the backlog/.test(message)));
     assert.deepEqual(faits(30).map((e) => e.type), ["manager.judged"]);
 
     gh.pannes.label = false;
     await jusqua(() => dits(30).length === 1);
 
-    assert.deepEqual(labels(30), ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(labels(30), ["model:haiku", "effort:low", "fire"]);
     assert.equal(jugements().length, 1);
   });
 
@@ -1081,7 +1082,8 @@ describe("le manager", { concurrency: 8 }, () => {
   // suivant : la liste relue au plus tard toutes les 30 s, elle passe avant
   // les issues déjà vues qu'il reste au tour (#3422).
   test("une issue déposée pendant le tour est jugée avant les issues déjà vues qu'il lui reste (#3422)", async (t) => {
-    const { gh, faits, avertissements, heure } = brigade(t, { issues: [issue(31, []), issue(32, [])] });
+    // Lancées par le chef, sans calibrage : le manager les calibre dès leur jugement (#4221).
+    const { gh, faits, avertissements, heure } = brigade(t, { issues: [issue(31, ["fire"]), issue(32, ["fire"])] });
     // Jugées, leurs labels refusés : chaque tour revient les poser, sans les rejuger.
     gh.pannes.label = true;
     await jusqua(() => avertissements.filter((message) => /labels non posés/.test(message)).length >= 2);
@@ -1093,7 +1095,7 @@ describe("le manager", { concurrency: 8 }, () => {
         depose = true;
         gh.pannes.label = false;
         heure.avancer(31_000);
-        gh.poser(issue(40, []));
+        gh.poser(issue(40, ["fire"]));
       }
       return lire(numero);
     };
