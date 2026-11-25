@@ -387,6 +387,27 @@ test("with no CI on its PRs, red gates send the delivery back to a cook like a r
   assert.deepEqual([...faux.statutsDeCommit.values()].flat().map(({ state }) => state), ["pending", "failure"]);
 });
 
+test("a red-CI send-back counts itself and states its reason from the closed list (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(759);
+  const gates = gatesDites({ vert: false, resume: "FAIL  runtime/test/pass.test.ts", detail: "They exited with code 1." });
+  const a = faux.station("box/claude", { ciDesPR: () => false, gates: gates.pour("box/claude") });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 759);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4 && !(faux.commentaires.get(759) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const corps = (faux.commentaires.get(759) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /^<!-- brigade:renvoi n=1 sha=/);
+  assert.match(corps, /sent back to a cook \(1\/2\) — /);
+  assert.match(corps, /Send-back reason: failing test/);
+  assert.match(corps, /Allowed send-back reasons: wrong behaviour, unmet criterion, failing test/);
+});
+
 test("a project with CI on its PRs keeps requiring it: an approved PR whose CI never starts is not merged, and no gates are run for it (#2456)", async () => {
   const faux = new FauxGitHub();
   faux.feu(761);
