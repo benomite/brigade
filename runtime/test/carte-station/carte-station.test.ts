@@ -9,7 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { lireLeGeste, MARQUE_CARTE_STATION, poserLaCarteDeLaStation } from "../../src/carte-station/carte-station.ts";
 import type { GitHub } from "../../src/github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
@@ -58,8 +59,8 @@ for (const [genre, geste] of [
 ] as const) {
   test(`${genre}: no per-ticket gesture card for the chef, the ticket waits`, async (t) => {
     const { labelDe, commentairesDe } = await bloque(t, geste, { tickets: [75] });
-    assert.equal(labelDe(75).has(A_LA_MAIN), false);
-    assert.ok(commentairesDe(75).every((corps) => !corps.startsWith("**Gesture for the chef:**")), commentairesDe(75).join("\n"));
+    assert.equal(labelDe(75).has(CHEF_TODO), false);
+    assert.ok(commentairesDe(75).every((corps) => !corps.includes("**Gesture for the chef:**")), commentairesDe(75).join("\n"));
     assert.ok(commentairesDe(75).some((corps) => corps.startsWith("<!-- brigade:attente")));
   });
 }
@@ -72,11 +73,21 @@ test("three tickets blocked by the same missing Postgres server on one station: 
   assert.match(carte.corps, /Station `box`.*PostgreSQL server/);
   assert.match(carte.corps, /prerequis=postgres/);
   assert.match(carte.corps, /station=box/);
-  assert.equal(carte.labels.has(A_LA_MAIN), true);
+  assert.equal(carte.labels.has(CHEF_TODO), true);
   for (const numero of TICKETS) {
-    assert.equal(labelDe(numero).has(A_LA_MAIN), false, `#${numero} stays out of the chef's queue`);
+    assert.equal(labelDe(numero).has(CHEF_TODO), false, `#${numero} stays out of the chef's queue`);
     assert.ok(commentairesDe(numero).some((corps) => corps.includes(`single card is #${carte.number}`)), commentairesDe(numero).join("\n"));
   }
+});
+
+// #4129 : la carte de la station est un ticket parqué pour le chef — `chef-todo`, jamais `blocked-on-human` —, et sa
+// question est une carte de son TODO, avec son bouton.
+test("the station's card is parked for the chef: `chef-todo` and a marked card that asks its question, with its button", async (t) => {
+  const { cartes, commentairesDe } = await bloque(t, "Install the PostgreSQL server on the station, then start it with `systemctl start postgresql`", { tickets: [75] });
+  const [carte] = cartes();
+  assert.ok(carte, "one card");
+  assert.equal(carte.labels.has("blocked-on-human"), false);
+  assert.deepEqual(commentairesDe(carte.number), ["<!-- brigade:todo kind=blocked -->\nIs the PostgreSQL server installed and running on station `box`?\n\n- [close] It is installed: close this card"]);
 });
 
 test("the same detection run again opens no second card for the same station and prerequisite", async (t) => {
@@ -109,15 +120,15 @@ test("a station and a prerequisite each have their own card", async (t) => {
 test("issues that cannot be read open no card: a duplicate is worse than a missing card, and the ticket still waits", async (t) => {
   const { cartes, labelDe, avertissements } = await bloque(t, "Install the PostgreSQL server on the station", { tickets: [75], issuesIllisibles: true });
   assert.equal(cartes().length, 0);
-  assert.equal(labelDe(75).has(A_LA_MAIN), false);
+  assert.equal(labelDe(75).has(CHEF_TODO), false);
   assert.ok(avertissements.some((a) => a.includes("could not be read to find the card")), avertissements.join("\n"));
 });
 
 test("other kinds of gesture cards are still created as before", async (t) => {
   const geste = "Run `gh auth refresh -s project` under the station's account";
   const { labelDe, commentairesDe, cartes } = await bloque(t, geste, { tickets: [75] });
-  assert.equal(labelDe(75).has(A_LA_MAIN), true);
-  assert.equal(commentairesDe(75).find((corps) => corps.startsWith("**Gesture for the chef:**"))?.split("\n")[0], `**Gesture for the chef:** ${geste}`);
+  assert.equal(labelDe(75).has(CHEF_TODO), true);
+  assert.equal(commentairesDe(75).find((corps) => corps.startsWith("<!-- brigade:todo kind=blocked -->\n**Gesture for the chef:**"))?.split("\n")[1], `**Gesture for the chef:** ${geste}`);
   assert.equal(cartes().length, 0);
 });
 

@@ -5,7 +5,7 @@ import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 test("the comment of a repair says which invariant broke and what the supervisor did", async () => {
   const faux = new FauxGitHub();
-  faux.feu(1, [...CALIBRE, "waiting"]);
+  faux.feu(1, [...CALIBRE, "parked"]);
   const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {} });
   await a.tour();
   await a.calme();

@@ -15,7 +15,8 @@
 //   aucun-cook         celles qui peuvent le servir sont arrêtées ou hors ligne ;
 //   base-rouge         la branche d'intégration est rouge, et une réparation la tient ou un geste la lève ;
 //   relance-en-boucle  un ticket a été pris `SEUIL_DE_BOUCLE` fois ou plus ;
-//   tout-mis-de-cote   les seuls tickets `fire` sont mis de côté par leurs échecs (`set-aside:failures`, #3875) : aucun ne part ;
+//   tout-mis-de-cote   les seuls tickets `fire` sont parqués par leurs échecs (#3875 ; `parked`, son commentaire le dit, #4129) :
+//                      aucun ne part ;
 //   cuisine-muette     rien servi depuis `MUETTE_MS` alors qu'un ticket est prêt : une ligne, qui nomme la cause connue
 //                      — une des quatre ci-dessus, ou la raison de l'attente de la file (`expliquerLAttente`) —, jamais
 //                      « cause inconnue » seule.
@@ -157,8 +158,8 @@ function alerteDesRelances(e: EntreeDesAlertes): AlerteDuRail | null {
   return { sorte: "relance-en-boucle", phrase: `#${relance.ticket} has been relaunched ${fois} ${depuisQuand(relance.depuis, e.maintenant)}: the kitchen loops on it.`, fait, geste: null, geree: `The kitchen puts #${relance.ticket} in WAITING by itself.` };
 }
 
-// Les seuls tickets du rail sont mis de côté par leurs échecs : aucune station ne les prend, et la file n'attend pas un tour.
-// Le geste est celui du superviseur, qui a le ticket : aucune minuterie ne le remet sur le rail. Le ticket le plus ancien mis de côté est nommé.
+// Les seuls tickets du rail sont parqués par leurs échecs : aucune station ne les prend, et la file n'attend pas un tour.
+// Le geste est celui du superviseur, qui a le ticket : aucune minuterie ne le remet sur le rail. Le ticket le plus ancien parqué est nommé.
 function alerteDuTicketMisDeCote(e: EntreeDesAlertes): AlerteDuRail | null {
   if (e.tickets.length > 0) return null;
   const mis = (e.misDeCoteParEchecs ?? []).filter(({ depuis }) => !Number.isNaN(date(depuis))).sort((a, b) => date(a.depuis) - date(b.depuis) || a.ticket - b.ticket)[0];
@@ -167,7 +168,7 @@ function alerteDuTicketMisDeCote(e: EntreeDesAlertes): AlerteDuRail | null {
   const raison = mis.raison === null ? "" : `: ${mis.raison.replace(/[.\s]+$/, "")}`;
   return {
     sorte: "tout-mis-de-cote",
-    phrase: `Nothing is served: #${mis.ticket} is set aside by its failures ${depuisQuand(mis.depuis, e.maintenant)}${raison}. ${geste}`,
+    phrase: `Nothing is served: #${mis.ticket} is parked by its failures ${depuisQuand(mis.depuis, e.maintenant)}${raison}. ${geste}`,
     fait: { depuis: mis.depuis, ticket: mis.ticket },
     geste,
     geree: null,

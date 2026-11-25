@@ -10,15 +10,15 @@ import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
-import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_DU_CONFLIT_MAIN } from "../../src/conflit-main/renvoi.ts";
 import type { GitHub } from "../../src/github.ts";
 import type { SortieGit } from "../../src/integration-base.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche } from "../../src/mise-a-jour-branche/mise-a-jour-branche.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 
 const TICKET = 7;
 const BRANCHE = `cook/${TICKET}-github`;
@@ -92,7 +92,7 @@ function station(t: TestContext, cook: Cook, avant?: (depot: { origine: string; 
 
 const sansCarte = (s: ReturnType<typeof station>) => {
   assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false, "no TODO card");
-  assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false, "never blocked-on-human");
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false, "never blocked-on-human");
   assert.deepEqual(s.consultations, [], "the question never reaches the manager, who could put a card");
 };
 

@@ -1,5 +1,5 @@
 // Le récapitulatif et le rail lisent les mêmes faits de GitHub (#3581) : sur un même faux GitHub — le Todo du chef du
-// 2026-11-05 (#2422 : onze `served-elsewhere` techniques, deux `blocked-on-human`), et des PR servies —, ce que le
+// 2026-11-05 (#2422 : onze `served-elsewhere` techniques, deux livraisons à merger à la main), et des PR servies —, ce que le
 // récapitulatif dit servi est ce que la colonne Served du rail montre depuis le marqueur, avec la même PR ; ce qu'il dit en
 // attente dans TODO est ce que TODO montre, et ce que la file du chef (`lireCeQuiAttendLeChef`) relaie au second.
 import assert from "node:assert/strict";
@@ -22,18 +22,19 @@ const VU_JUSQUA = "2026-11-05T00:00:00.000Z";
 
 const renvoi = (raison: string) => ({ id: 1, body: `<!-- brigade:renvoi n=3 sha=7579211 -->\nStation \`box/claude\`: still not mergeable after 2 sends back — ${raison}\n\nTaken off the kitchen (\`served-elsewhere\`): a human decides.`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
 const sansLivraison = () => ({ id: 2, body: "<!-- brigade:echec n=3 -->\nStation `box/claude`: the cook stopped without a delivery — the cook committed nothing\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides.", author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
-const juge = (pr: number) => ({ id: 3, body: `Station \`box/claude\`: this delivery changes what judges it (\`.github/workflows/ci.yml\`), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr}.`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
+// Une livraison à merger à la main : la carte du chef (`chef-todo`, #4129) qui le demande.
+const juge = (ticket: number) => ({ id: 3, body: `<!-- brigade:todo kind=merge-by-hand -->\nMerge the PR of #${ticket} by hand? It changes what judges it.\n- [merge] Merge the PR of #${ticket}`, author_association: "OWNER", created_at: "2026-11-05T01:00:00Z" });
 const CONFLIT = "the PR conflicts with the base: merge the base into the branch, resolve the conflicts, run the gates, and commit";
 const TECHNIQUES: Record<number, Record<string, unknown>> = { 2301: renvoi(CONFLIT), 2302: renvoi("the CI is red on `7579211` (PR #2400):"), 2304: sansLivraison(), 2305: renvoi(CONFLIT) };
 
 const MONDE: Monde = {
   issues: [
     ...Object.keys(TECHNIQUES).map((n) => issue(DEPOT, Number(n), ["fire", "served-elsewhere"])),
-    issue(DEPOT, 2408, ["fire", "in-pass", "blocked-on-human"]),
-    issue(DEPOT, 2322, ["fire", "in-pass", "blocked-on-human"]),
+    issue(DEPOT, 2408, ["fire", "in-pass", "chef-todo"]),
+    issue(DEPOT, 2322, ["fire", "in-pass", "chef-todo"]),
     issue(DEPOT, 1683, ["fire", "served-elsewhere", "kitchen-board"]),
   ],
-  commentaires: { ...Object.fromEntries(Object.entries(TECHNIQUES).map(([n, c]) => [Number(n), [c]])), 2408: [juge(2416)], 2322: [juge(2325)] },
+  commentaires: { ...Object.fromEntries(Object.entries(TECHNIQUES).map(([n, c]) => [Number(n), [c]])), 2408: [juge(2408)], 2322: [juge(2322)] },
   fermees: [
     fermee(DEPOT, 2470, 2471, "2026-11-05T11:00:00Z"),
     fermee(DEPOT, 2469, 2475, "2026-11-05T09:30:00Z"),
