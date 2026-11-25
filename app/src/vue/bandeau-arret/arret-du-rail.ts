@@ -6,7 +6,7 @@
 //   - un ticket gelé qui tient une zone de fichiers : un ticket mis de côté, ou parqué par ses échecs (ticket 4260), dont la PR est
 //     ouverte — une PR ouverte tient sa zone (runtime/src/brigade-github.ts, la porte de prise) —, et la zone que sa fiche
 //     déclare ;
-//   - une zone tenue par une PR (#4244) : les tickets en file sautés pour `zone-held`, avec le numéro de la PR du ticket gelé ;
+//   - une zone tenue par une PR (ticket 4244) : les tickets en file sautés pour `zone-held`, avec le numéro de la PR du ticket gelé ;
 //   - sinon, la cause est inconnue, et l'arrêt se dit quand même.
 import { arretDeLaCuisine, statutDeLaCuisine, statutDeLArret, type ArretDeLaCuisine, type EntreeDeLArret } from "../../../../runtime/src/arret-cuisine/arret-cuisine.ts";
 import type { BaseRougeLue } from "../../attente-du-rail/alertes.ts";
@@ -49,7 +49,7 @@ export function arretDuRail(file: readonly TicketDuRail[], tickets: readonly Tic
     return zoneTenue === undefined ? [] : [{ ticket, zoneTenue }];
   });
   const gele = geles[0];
-  // Les sauts que la porte de prise ferait (#4244), lus de ce que le rail sait : un ticket en file dont la zone de fiche chevauche celle
+  // Les sauts que la porte de prise ferait (ticket 4244), lus de ce que le rail sait : un ticket en file dont la zone de fiche chevauche celle
   // d'un ticket gelé dont la PR ouverte la tient est sauté pour `zone-held`, une fois par PR qui le tient ; un ticket que rien ne
   // tient, ou dont la zone n'est pas lue, est sauté sans ce code — la cause reste alors celle d'avant.
   const tenues = geles.flatMap(({ zoneTenue }) => (zoneTenue.pr === undefined ? [] : [{ pr: zoneTenue.pr, zone: zoneTenue.zone }]));
