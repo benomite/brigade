@@ -47,7 +47,7 @@ function prQuiTientLaZone(skipped: readonly SautDeLaPorte[] | undefined): { pr: 
   return zone === undefined ? { pr } : { pr, zone };
 }
 
-// Le statut d'un arrêt en une ligne (#4244), la seule source de ses mots : la vue du second la lit. Une zone tenue se dit avec sa PR ;
+// Le statut d'un arrêt en une ligne (#4244), la source des mots que la vue du second lit ; le bandeau du navigateur (app/src/vue/bandeau-arret/bandeau-arret.js) n'importe pas le runtime et redit les mêmes phrases, à garder alignées. Une zone tenue se dit avec sa PR ;
 // « cause unknown » ne reste que pour une cause sans code.
 export function statutDeLArret({ cause }: ArretDeLaCuisine): string {
   if (cause.kind === "main-red") return "main is red";

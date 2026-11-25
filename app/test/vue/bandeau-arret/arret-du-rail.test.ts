@@ -164,6 +164,7 @@ test("several held PRs: the board names the PR blocking the most queued tickets,
   assert.deepEqual(egalite.arret?.cause, { kind: "zone-held", pr: 130, zone: "app/src/vue" });
 });
 
+// brigade:guard
 test("a queued ticket that no open PR holds keeps the stop on the frozen ticket, not a held zone (#4244)", async () => {
   const { arret } = await lire([EN_FILE(21, "app/src/vue/x.ts"), EN_FILE(22, "docs"), GELE(30, "app/src/vue")], [{ ticket: 30, le: "2026-11-20T08:05:00Z" }]);
   assert.deepEqual(arret?.cause, { kind: "frozen-zone", ticket: 30, zone: "app/src/vue" });
