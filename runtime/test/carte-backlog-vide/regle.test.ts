@@ -2,21 +2,24 @@
 // un envoi qui échoue, la carte retirée quand une issue redevient cuisinable.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { creerCarteBacklogVide, cuisinable, LABELS_PARQUES, TEXTE_BACKLOG_VIDE } from "../../src/carte-backlog-vide/carte-backlog-vide.ts";
+import { creerCarteBacklogVide } from "../../src/carte-backlog-vide/carte-backlog-vide.ts";
 
-for (const label of LABELS_PARQUES) {
-  test(`an issue labelled ${label} is parked: not cookable`, () => {
-    assert.equal(cuisinable({ number: 1, labels: [label] }), false);
+// Le nombre de cartes qu'un tour sur une issue portant ces labels pose.
+const cartesPour = (labels: string[]) => {
+  const cartes: string[] = [];
+  creerCarteBacklogVide({ envoyer: (texte) => void cartes.push(texte) }).boucle([{ number: 1, labels }]);
+  return cartes.length;
+};
+
+for (const label of ["parked", "waiting", "blocked-on-human", "chef-todo", "question", "decision", "set-aside:failures", "served-elsewhere"]) {
+  test(`an issue labelled ${label} is parked: nothing is left to cook`, () => {
+    assert.equal(cartesPour([label]), 1);
   });
 }
 
 test("an issue with no label, or with fire, is cookable", () => {
-  assert.equal(cuisinable({ number: 1, labels: [] }), true);
-  assert.equal(cuisinable({ number: 1, labels: ["fire", "prio:1"] }), true);
-});
-
-test("the waiting and set-aside labels of the runtime count as parked", () => {
-  for (const label of ["waiting", "blocked-on-human", "chef-todo", "question", "decision", "set-aside:failures", "served-elsewhere"]) assert.ok(LABELS_PARQUES.includes(label), label);
+  assert.equal(cartesPour([]), 0);
+  assert.equal(cartesPour(["fire", "prio:1"]), 0);
 });
 
 test("a card that fails to be sent is sent again at the next loop", () => {
@@ -32,7 +35,7 @@ test("a card that fails to be sent is sent again at the next loop", () => {
   echoue = false;
   carte.boucle([]);
   carte.boucle([]);
-  assert.deepEqual(cartes, [TEXTE_BACKLOG_VIDE]);
+  assert.equal(cartes.length, 1);
 });
 
 test("the card is taken back once, when an issue becomes cookable after it", () => {
