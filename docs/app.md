@@ -2905,6 +2905,15 @@ reached or refusing, or the whole reading — lists, then comments, then label e
 hook's 45 s, so that `claude` never kills it silent) is said in that context, in one line starting `file non lue :`, and
 the hook still exits 0: it never blocks the session. By hand, in the project's folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
+**The parking command is given to the second, at each start (#4262).** The launch settings carry a second
+`SessionStart` hook (`startup`, `resume`, `compact`, `app/src/second/crochet-du-parking.ts`): it runs
+`app/src/second/parking.ts context <owner>/<repo>`, which returns, as additional context, the exact command — this
+computer's `node` and the path of `parking.ts`, quoted for the shell — to park a ticket
+(`park <owner>/<repo>#<n> --who <who> --what <what> --until <YYYY-MM-DD>`) or unpark it (`unpark <owner>/<repo>#<n>`).
+The command plays the same two functions as the app's buttons (`parquer`, `deparquer`), on the issue, with this
+computer's `gh` token: no box, on any project. It says in one line what was written, or why nothing was, and exits 0
+(done), 1 (refused by the form or by GitHub) or 2 (a malformed command). The hook always exits 0.
+
 **The role is given again once `/brigade:init` is merged (#2689).** A second opened on a project not set up yet has no
 bindings in its context: it starts the setup, which ends with a PR to merge (#3167, below). So the launch settings also carry
 `app/src/second/role-apres-init.ts` twice. At each start (`SessionStart`), it notes whether the folder's `CLAUDE.md` has the
