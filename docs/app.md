@@ -1003,8 +1003,10 @@ Both come from `facts`, like the rest of the view: `fils` (one list of gestures 
 per thing said), read by `app/src/journal/fils.ts` and sorted by `app/src/projets/journal-du-jour.ts`. A runtime that
 does not give them shows neither. `fils` of another shape says `the agents' threads are not readable`; a gesture of
 another shape, or of an unknown kind, is counted in one line, never sorted; a `digest` that is not a text says
-`yesterday's digest is not readable`, and a digest with no line about outages seen first by the chef says so as its
-first line. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
+`yesterday's digest is not readable`. The line about outages is the one that holds the words `seen first by the
+chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/journal/fils.ts`, the words the runtime's digest must write); a
+digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
+the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 

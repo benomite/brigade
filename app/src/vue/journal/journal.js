@@ -31,9 +31,6 @@ const RIEN = "nothing";
 const ILLISIBLES = (n) => `${n} ${n === 1 ? "gesture" : "gestures"} of the threads not readable`;
 /** @param {number} n */
 const NON_RANGES = (n) => `${n} ${n === 1 ? "gesture" : "gestures"} of the day of a kind the logbook does not know`;
-// La ligne que le digest doit porter en premier (spec, « seen by the chef first ») ; un digest qui ne la dit pas le montre.
-const VUES_PAR_LE_CHEF = /seen first by the chef/i;
-const SANS_LE_COMPTE = "outages seen first by the chef: not said by the digest";
 const CLE = "brigade.digest-vu";
 
 // Le jour du chef, sur l'horloge de son ordinateur : la carte est celle de son matin.
@@ -86,8 +83,8 @@ export function poserLaCarteDuDigest(doc, digest) {
     carte.append(ligneErreur(doc, digest.illisible));
     return carte;
   }
-  const compte = digest.lignes.find((ligne) => VUES_PAR_LE_CHEF.test(ligne));
-  const lignes = [compte ?? SANS_LE_COMPTE, ...digest.lignes.filter((ligne) => ligne !== compte)];
+  // La ligne des pannes vues d'abord par le chef, trouvée à la lecture (journal/fils.ts), passe devant les autres.
+  const lignes = [digest.vuesParLeChef, ...digest.lignes];
   const liste = doc.createElement("ul");
   for (const [rang, dit] of lignes.entries()) {
     const ligne = doc.createElement("li");

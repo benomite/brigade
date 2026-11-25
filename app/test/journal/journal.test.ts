@@ -7,6 +7,7 @@ import { comprendre, tableau, type Faits } from "../../src/faits.ts";
 import { digestLu, filsLus } from "../../src/journal/fils.ts";
 import { journalDuJour } from "../../src/projets/journal-du-jour.ts";
 import { jourDe, poserLaCarteDuDigest as carteDuDigest, poserLeJournal as leJournal, tenirLaCarteDuMatin } from "../../src/vue/journal/journal.js";
+import { tenirNotifications } from "../../src/notification.ts";
 import { Faux, FauxStockage } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -15,6 +16,7 @@ const poserLaCarteDuDigest = (...args: Parameters<typeof carteDuDigest>) => cart
 const poserLeJournal = (...args: Parameters<typeof leJournal>) => leJournal(...args) as Faux;
 const geste = (at: string, line: string, kind: string, outcome = "o", reason = "r") => ({ at, line, reason, outcome, kind });
 const LU = "2026-11-25T15:00:00.000Z";
+const BRUT = { etat: "ouverte", lu: LU, dernierTick: LU, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [] };
 const vide = { delivered: [], broke: [], fixedBySelf: [], notFixed: [], mistakes: [], nonRanges: 0, illisibles: 0 };
 
 test("the threads of `facts`: absent says nothing, another shape is unreadable, a gesture of another shape is counted", () => {
@@ -29,7 +31,9 @@ test("the digest of `facts`: absent says nothing, not a text is unreadable, its 
   assert.equal(digestLu(undefined), undefined);
   assert.equal(digestLu(null), undefined);
   assert.deepEqual(digestLu(["a"]), { illisible: "yesterday's digest is not readable" });
-  assert.deepEqual(digestLu(" a \n\n b\n"), { lignes: ["a", "b"] });
+  assert.deepEqual(digestLu(" a \n\n b\n"), { vuesParLeChef: "outages seen first by the chef: not said by the digest", lignes: ["a", "b"] });
+  assert.deepEqual(digestLu("merged #1\n2 Outages Seen First By The Chef\nmain red"), { vuesParLeChef: "2 Outages Seen First By The Chef", lignes: ["merged #1", "main red"] });
+  assert.deepEqual(digestLu("1 outage seen first by the chef"), { vuesParLeChef: "1 outage seen first by the chef", lignes: [] });
 });
 
 test("the logbook of the day is the UTC day of the reading, in time order, each entry with its agent; an unknown kind is counted, not sorted", () => {
@@ -46,11 +50,10 @@ test("the logbook of the day is the UTC day of the reading, in time order, each 
 });
 
 test("the board carries the logbook drawn from the threads at the reading, the count of unreadable gestures, and the digest", () => {
-  const brut = { etat: "ouverte", lu: LU, dernierTick: LU, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [] };
-  const lu = (extra: object) => comprendre(JSON.stringify({ ...brut, ...extra })) as Faits;
+  const lu = (extra: object) => comprendre(JSON.stringify({ ...BRUT, ...extra })) as Faits;
   const plein = tableau(lu({ fils: { cook: [geste(LU, "merged", "delivered"), { at: LU }] }, digest: "0 outages seen first by the chef" }));
   assert.deepEqual(plein.journal, { ...vide, delivered: [{ agent: "cook", at: LU, line: "merged", reason: "r", outcome: "o" }], illisibles: 1 });
-  assert.deepEqual(plein.digest, { lignes: ["0 outages seen first by the chef"] });
+  assert.deepEqual(plein.digest, { vuesParLeChef: "0 outages seen first by the chef", lignes: [] });
   assert.deepEqual(tableau(lu({ fils: [] })).journal, { illisible: "the agents' threads are not readable" });
   const sans = tableau(lu({}));
   assert.equal("journal" in sans || "digest" in sans, false);
@@ -58,9 +61,10 @@ test("the board carries the logbook drawn from the threads at the reading, the c
 
 test("the digest card shows the outages seen first by the chef before any other line, or says the digest does not say them", () => {
   const lignes = (carte: Faux) => carte.dessous("li").map(({ textContent }) => textContent);
-  assert.deepEqual(lignes(poserLaCarteDuDigest(doc, { lignes: ["merged #1", "2 outages seen first by the chef", "main red"] })), ["2 outages seen first by the chef", "merged #1", "main red"]);
-  assert.deepEqual(lignes(poserLaCarteDuDigest(doc, { lignes: ["merged #1"] })), ["outages seen first by the chef: not said by the digest", "merged #1"]);
-  assert.deepEqual(poserLaCarteDuDigest(doc, { lignes: ["merged #1", "2 outages seen first by the chef"] }).dessous("li").map(({ className }) => className), ["vues-par-le-chef", ""]);
+  const carte = (texte: string) => poserLaCarteDuDigest(doc, digestLu(texte) ?? assert.fail("no digest"));
+  assert.deepEqual(lignes(carte("merged #1\n2 outages seen first by the chef\nmain red")), ["2 outages seen first by the chef", "merged #1", "main red"]);
+  assert.deepEqual(lignes(carte("merged #1")), ["outages seen first by the chef: not said by the digest", "merged #1"]);
+  assert.deepEqual(carte("merged #1\n2 outages seen first by the chef").dessous("li").map(({ className }) => className), ["vues-par-le-chef", ""]);
   const illisible = poserLaCarteDuDigest(doc, { illisible: "yesterday's digest is not readable" });
   assert.match(illisible.textContent, /yesterday's digest is not readable/);
   assert.deepEqual(lignes(illisible), []);
@@ -105,4 +109,15 @@ test("a storage that cannot be read or written never hides the digest card", () 
   assert.equal(tenirLaCarteDuMatin(pasDuJson).aMontrer("parade", "2026-11-25"), true);
   pasDuJson.setItem("brigade.digest-vu", "{");
   assert.equal(tenirLaCarteDuMatin(pasDuJson).aMontrer("parade", "2026-11-25"), true);
+});
+
+test("facts read with threads that broke, failures not fixed and a digest of outages ask for no notification", () => {
+  const fils = { supervisor: [geste(LU, "main went red", "broke"), geste(LU, "zone cycle stuck", "unfixed"), geste(LU, "released #3911 by mistake", "mistake")] };
+  const faits = comprendre(JSON.stringify({ ...BRUT, fils, digest: "3 outages seen first by the chef" })) as Faits;
+  assert.ok(faits.fils !== undefined && faits.digest !== undefined, "the threads and the digest are read");
+  const montrees: unknown[] = [];
+  const notifications = tenirNotifications({ montrer: (montree) => montrees.push(montree), ouvrir: () => {}, memoire: { lire: () => ({}), ecrire: () => {} } });
+  assert.equal(notifications.recevoir("parade", faits), undefined);
+  assert.equal(notifications.recevoir("parade", { ...faits, lu: new Date(Date.parse(LU) + 60_000).toISOString() }), undefined);
+  assert.deepEqual(montrees, []);
 });

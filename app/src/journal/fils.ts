@@ -7,8 +7,14 @@ export type GesteDuFil = { at: string; line: string; reason: string; outcome: st
 // Les fils lus, par agent ; `illisibles`, les gestes qui n'ont pas cette forme, que le journal compte sans les inventer. Ou
 // pourquoi les fils ne se lisent pas du tout.
 export type FilsLus = { fils: Record<string, GesteDuFil[]>; illisibles: number } | { illisible: string };
-// Le digest de la veille, ligne par ligne, dans l'ordre où le runtime l'écrit ; ou pourquoi il ne se lit pas.
-export type DigestLu = { lignes: string[] } | { illisible: string };
+// Le digest de la veille : sa ligne des pannes vues d'abord par le chef — ou ce qui dit qu'il ne la porte pas —, puis ses
+// autres lignes dans l'ordre où le runtime les écrit ; ou pourquoi il ne se lit pas.
+export type DigestLu = { vuesParLeChef: string; lignes: string[] } | { illisible: string };
+
+// Les mots qui font, dans le digest, la ligne du compte des pannes vues d'abord par le chef (spec, « seen first by the
+// chef ») : le digest du runtime les écrit tels quels, et seule cette constante les cherche.
+export const VUES_PAR_LE_CHEF = "seen first by the chef";
+const SANS_LE_COMPTE = `outages ${VUES_PAR_LE_CHEF}: not said by the digest`;
 
 const FILS_ILLISIBLES = "the agents' threads are not readable";
 const DIGEST_ILLISIBLE = "yesterday's digest is not readable";
@@ -36,9 +42,13 @@ export function filsLus(brut: unknown): FilsLus | undefined {
   return { fils, illisibles };
 }
 
-// Le champ `digest` d'un `facts` : un texte, une ligne par chose dite ; les lignes vides n'en sont pas. Absent, rien n'est
-// dit ; d'une autre forme, il est illisible.
+// Le champ `digest` d'un `facts` : un texte, une ligne par chose dite ; les lignes vides n'en sont pas. La ligne qui dit les
+// pannes vues d'abord par le chef passe devant ; sans elle, le digest le dit à sa place. Absent, rien n'est dit ; d'une autre
+// forme, il est illisible.
 export function digestLu(brut: unknown): DigestLu | undefined {
   if (brut === undefined || brut === null) return undefined;
-  return typeof brut === "string" ? { lignes: brut.split("\n").map((ligne) => ligne.trim()).filter((ligne) => ligne.length > 0) } : { illisible: DIGEST_ILLISIBLE };
+  if (typeof brut !== "string") return { illisible: DIGEST_ILLISIBLE };
+  const lignes = brut.split("\n").map((ligne) => ligne.trim()).filter((ligne) => ligne.length > 0);
+  const compte = lignes.findIndex((ligne) => ligne.toLowerCase().includes(VUES_PAR_LE_CHEF));
+  return compte < 0 ? { vuesParLeChef: SANS_LE_COMPTE, lignes } : { vuesParLeChef: lignes[compte] as string, lignes: lignes.toSpliced(compte, 1) };
 }
