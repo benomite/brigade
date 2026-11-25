@@ -49,3 +49,7 @@ Le bac à sable de ta session vient de la déclaration du projet, que ta PR peut
 - La seule phrase que le chef peut voir est **une ligne** disant que la cuisine ajoute un besoin à la déclaration du projet.
 
 **Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.
+
+## La suite de tests entière n'est pas à toi
+
+La suite entière tourne en CI et à la pass : tu ne la lances jamais. Tu ne joues que la liste « Tests to play » que la station te remet — les tests de ta zone et ceux qui l'importent. Si cette liste dit qu'aucun test ne couvre ta zone, tu écris un test et tu joues celui-là ; tu ne te rabats pas sur la suite entière.

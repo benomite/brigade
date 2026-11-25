@@ -19,6 +19,7 @@ import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts"
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
 import type { AlerteDuRail } from "./attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
+import { hautDuBacklogLu, htmlDuRail, type HautDuBacklog } from "./vue/rail/rail.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { LE_CHEF, lieuDe, lignesDuRail, motDEtat, parqueDe, porter, priorite, type Porte } from "./bon.ts";
@@ -423,6 +424,9 @@ export type Faits = {
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseDuCompte;
+  // Le rail, haut du backlog (vue/rail/, #4223) : les issues calibrées et prêtes, par priorité puis âge, et leur écran ;
+  // absent d'une lecture qui ne le compose pas.
+  hautDuBacklog?: HautDuBacklog;
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -590,6 +594,8 @@ export type Tableau = {
   arretCuisine?: ArretDeLaCuisine;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
   pauseQuota?: PauseDuCompte;
+  // Le rail, haut du backlog (vue/rail/, #4223) : au-dessus des colonnes, sous le bandeau Backlog. Absent sans lecture qui le porte.
+  hautDuBacklog?: HautDuBacklog;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
   // tout s'y voit, aucun geste n'y est offert, et une ligne en tête le dit. Absent : la vue ordinaire.
   lectureSeule?: { depot: string };
@@ -908,6 +914,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...alertesDuRailLues(racine.alertesDuRail),
       ...arretCuisineLu(racine.arretCuisine),
       ...pauseQuotaLue(racine.pauseQuota),
+      ...hautDuBacklogLu(racine.hautDuBacklog, htmlDuRail),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
@@ -1640,6 +1647,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.alertesDuRail === undefined ? {} : { alertesDuRail: faits.alertesDuRail }),
     ...(faits.arretCuisine === undefined ? {} : { arretCuisine: faits.arretCuisine }),
     ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
+    ...(faits.hautDuBacklog === undefined ? {} : { hautDuBacklog: faits.hautDuBacklog }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
