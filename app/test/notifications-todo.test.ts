@@ -71,7 +71,7 @@ describe("la notification d'une carte de TODO", () => {
     const parade = monde["chef/parade"]!;
     parade[2] = { labels: ["fire", "in-pass"], commentaires: ["Station `box/claude`: taken"] };
     parade[1]!.commentaires.push("a comment");
-    parade[1]!.labels.push("prio:1", "waiting");
+    parade[1]!.labels.push("prio:1", "parked");
     parade[3] = { labels: ["fire", "served-elsewhere"], commentaires: ["<!-- brigade:renvoi n=1 -->\nnothing to ask"] };
     parade[4] = { labels: ["chef-todo"], commentaires: ["a label without a marked question"] };
     delete parade[2];

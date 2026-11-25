@@ -19,7 +19,8 @@ import type { ClientDeLaPriorite } from "./priorite.ts";
 export type Ecrit = { fait: string; detail: string } | { refus: string; detail: string };
 
 // Les gestes de la fiche qui s'écrivent sur GitHub, et le label que chacun retire de l'issue.
-export const LABELS_DES_GESTES = { retirer: "fire", cuisine: "waiting" } as const;
+// `cuisine` : le ticket parqué reprend où il était (#4129, d'abord `waiting`).
+export const LABELS_DES_GESTES = { retirer: "fire", cuisine: "parked" } as const;
 export type GesteSurGithub = keyof typeof LABELS_DES_GESTES;
 export const surGithub = (id: unknown): id is GesteSurGithub => typeof id === "string" && Object.hasOwn(LABELS_DES_GESTES, id);
 
@@ -40,7 +41,7 @@ export function ticketsLus(lu: Pick<TableauLu, "faits">): Set<number> {
 const numero = (ticket: unknown): ticket is number => typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket >= 1;
 const raison = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `waiting` pour le rendre à la cuisine.
+// Retire de l'issue du ticket le label du geste : `fire` pour le retirer du rail, `parked` pour le déparquer.
 // Une issue qui ne le porte déjà plus : c'est fait.
 export async function retirerLeLabel(lu: TableauLu | undefined, id: GesteSurGithub, ticket: unknown, client: ClientDeLaPriorite): Promise<Ecrit> {
   if (!numero(ticket)) return { refus: "nothing was written: the action names no ticket", detail: "" };
@@ -54,7 +55,7 @@ export async function retirerLeLabel(lu: TableauLu | undefined, id: GesteSurGith
   } catch (erreur) {
     return { refus: `nothing was changed: GitHub did not remove \`${label}\` from #${ticket}`, detail: raison(erreur) };
   }
-  const fait = id === "retirer" ? `taken off the rail on GitHub: #${ticket} no longer carries \`fire\` — no station takes it` : `back to the kitchen on GitHub: #${ticket} no longer carries \`waiting\` — it is queued on the rail again`;
+  const fait = id === "retirer" ? `taken off the rail on GitHub: #${ticket} no longer carries \`fire\` — no station takes it` : `back to the kitchen on GitHub: #${ticket} no longer carries \`${label}\` — it resumes exactly where it was`;
   return { fait, detail: issue };
 }
 

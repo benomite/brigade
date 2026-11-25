@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { attendusDesCartes, expliquerLAttente, lignesDesCartes, UNE_HEURE_MS, type TicketDuRail, type TicketEnWaiting } from "../../src/attente-du-rail/raison.ts";
 import { lignesDeLAttente } from "../../src/attente-du-rail/status.ts";
-import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
+import { corpsDuParking } from "../../src/attente-github/attente-github.ts";
 import type { StationDuCompte } from "../../src/attente-du-rail/stations.ts";
 import { DEPOT } from "../outils.ts";
 
@@ -48,7 +48,7 @@ describe("un ticket en file qu'un ticket en WAITING retient", () => {
 describe("`status` lit qui retient un ticket en WAITING de sa marque", () => {
   const FEUX = `/repos/${DEPOT}/issues?state=open&labels=fire&sort=created&direction=asc&per_page=100&page=1`;
   const issue = (number: number, labels: string[], body = "") => ({ number, title: `#${number}`, body, created_at: "2026-11-17T09:00:00Z", labels: labels.map((name) => ({ name })) });
-  const MARQUE = corpsDeLAttente({ what: "the answer", who: "a collaborator", followUp: "2026-11-24T09:00:00.000Z" });
+  const MARQUE = corpsDuParking({ what: "the answer", who: "a collaborator", followUp: "2026-11-24T09:00:00.000Z" });
   const enLigne = { lues: [{ ...station, lastSeen: iso(T0 - 30_000) }] };
   const lignes = (commentaires: (chemin: string) => unknown) =>
     lignesDeLAttente({
@@ -56,7 +56,7 @@ describe("`status` lit qui retient un ticket en WAITING de sa marque", () => {
       maintenant: T0,
       stations: async () => enLigne,
       lire: async (chemin) => {
-        if (chemin === FEUX) return [issue(1912, ["fire", "waiting"]), issue(3734, ["fire", "model:opus", "effort:medium"], "Depends on #1912")];
+        if (chemin === FEUX) return [issue(1912, ["fire", "parked"]), issue(3734, ["fire", "model:opus", "effort:medium"], "Depends on #1912")];
         if (/\/issues\/1912\/comments/.test(chemin)) return commentaires(chemin);
         if (/\/comments/.test(chemin)) return [];
         return [{ event: "labeled", label: { name: "fire" }, created_at: "2026-11-17T09:30:00Z" }];

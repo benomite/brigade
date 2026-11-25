@@ -12,21 +12,22 @@
 // La première lecture d'une tête ou de ses checks n'est pas un progrès : elle ne dit pas quand
 // ils sont arrivés.
 import { A_LA_MAIN, type GitHubDuTour } from "../brigade-github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
 import { MARQUE_DE_VERDICT } from "../github-etat/fusion.ts";
-import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { estMisDeCote } from "../github.ts";
 import type { GenreDeProgres, Progres, TicketSuivi } from "./inactivite.ts";
 
-// L'état d'un ticket dans les mots du glossaire, ou null s'il n'est dans aucun des cinq :
-// WAITING l'emporte, puis la pass, la cuisine, la mise de côté, puis le ticket parqué
-// pour un humain (`blocked-on-human`, `chef-todo`).
+// L'état d'un ticket dans les mots du glossaire, ou null s'il n'est dans aucun des quatre :
+// la pass, la cuisine, la mise de côté, puis le ticket retenu pour un humain
+// (`blocked-on-human`). Un ticket parqué (`parked`, `chef-todo`) n'est pas suivi, à
+// quelque étape qu'il soit : il attend quelqu'un, et aucun superviseur ne s'éveille
+// sur lui avant sa date, son fait ou la réponse (#4129).
 function etatSuivi(labels: readonly string[]): string | null {
-  if (labels.includes(LABEL_WAITING)) return "WAITING";
+  if (estParque(labels)) return null;
   if (labels.includes(LABEL_IN_PASS)) return "in pass";
   if (labels.includes(LABEL_TAKEN)) return "cooking";
   if (estMisDeCote(labels)) return "set aside";
-  if (labels.includes(A_LA_MAIN) || labels.includes(CHEF_TODO)) return "parked";
+  if (labels.includes(A_LA_MAIN)) return "blocked on a human";
   return null;
 }
 

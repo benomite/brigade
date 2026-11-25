@@ -37,7 +37,9 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // `kitchen-alert`: an issue the station opened for its own needs — its
 // breaker (`issue-de-la-cuisine.ts`) —, not a ticket about the project's
 // code: never judged, never handed to a cook (#3620).
-export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "set-aside:failures" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert";
+// `parked` (#4129) : le ticket attend quelqu'un — `parked`, ou `chef-todo` pour le chef ; le manager ne le juge pas avant
+// qu'il reprenne.
+export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "set-aside:failures" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert" | "parked";
 
 // The command by which the chef hands a `chef-changed` issue back to the
 // manager, as it is told on the issue and in the report.

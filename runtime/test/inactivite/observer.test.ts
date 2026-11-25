@@ -42,9 +42,13 @@ test("the state of a ticket, in the words of the glossary, from its labels", asy
     [["fire", "in-pass", "taken"], "in pass"],
     [["fire", "set-aside:failures"], "set aside"],
     [["fire", "served-elsewhere"], "set aside"],
-    [["fire", "blocked-on-human"], "parked"],
-    [["fire", "chef-todo"], "parked"],
-    [["fire", "waiting", "in-pass"], "WAITING"],
+    [["fire", "blocked-on-human"], "blocked on a human"],
+    // Parqué (#4129), il n'est pas suivi, à quelque étape qu'il soit : il attend quelqu'un.
+    [["fire", "chef-todo"], null],
+    [["fire", "blocked-on-human", "chef-todo"], null],
+    [["fire", "parked", "in-pass"], null],
+    [["fire", "parked", "taken"], null],
+    [["fire", "parked", "set-aside:failures"], null],
     [["fire", "model:opus"], null],
   ];
   dicte.tickets = cas.map(([labels], i) => ticket(i + 1, labels));
@@ -52,11 +56,11 @@ test("the state of a ticket, in the words of the glossary, from its labels", asy
   assert.deepEqual(suivi.tickets(), cas.flatMap(([, state], i) => (state === null ? [] : [{ number: i + 1, state }])));
 });
 
-test("each reading of the tickets says which are followed, and in which state; a queued ticket is not", async () => {
+test("each reading of the tickets says which are followed, and in which state; a queued or parked ticket is not", async () => {
   const { suivi, dicte, github } = monter();
-  dicte.tickets = [ticket(1, ["fire", "taken"]), ticket(2, ["fire"]), ticket(3, ["fire", "waiting"])];
+  dicte.tickets = [ticket(1, ["fire", "taken"]), ticket(2, ["fire"]), ticket(3, ["fire", "parked"]), ticket(4, ["fire", "blocked-on-human"])];
   assert.deepEqual(await github.fires(), dicte.tickets);
-  assert.deepEqual(suivi.tickets(), [{ number: 1, state: "cooking" }, { number: 3, state: "WAITING" }]);
+  assert.deepEqual(suivi.tickets(), [{ number: 1, state: "cooking" }, { number: 4, state: "blocked on a human" }]);
 });
 
 for (const lecture of ["prDuTicket", "prOuverteDuTicket"] as const) {

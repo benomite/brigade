@@ -9,7 +9,7 @@ import type { Base } from "../base.ts";
 import { cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees } from "../projections/stations.ts";
 import { porteListe, ticketsDeLaListe } from "../epique.ts";
 import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-compte.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { lireGitHubSeul } from "../github-seul-etat.ts";
 import { clientGh } from "../proteger-branche.ts";
 import { feuPoseLe, lesFeux, type Lire } from "./lecture.ts";
@@ -49,8 +49,8 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
   for (const issue of feux) {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
     const labels = (Array.isArray(issue.labels) ? issue.labels : []).flatMap((label) => (typeof objet(label)?.name === "string" ? [objet(label)?.name as string] : []));
-    if (labels.includes(LABEL_WAITING)) waiting.push({ ticket: issue.number, qui: await quiAttend(issue.number) });
-    if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_WAITING)) continue;
+    if (labels.includes(LABEL_PARKED)) waiting.push({ ticket: issue.number, qui: await quiAttend(issue.number) });
+    if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_PARKED)) continue;
     const decoupage = (n: number) => decoupages.get(n) ?? [];
     const duCorps = attentesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires: [], decoupage }).attentes;
     const depend = [...new Set(duCorps.map(({ ticket }) => ticket))];

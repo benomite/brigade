@@ -393,11 +393,11 @@ test("ce que le manager attend du chef est dans la file, avec le geste attendu, 
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "awaiting   7 decisions await the chef — the oldest for 1 h 00",
-    "  #30  for 1 h 00  set aside by the manager, it carries `question` — to decide: answer it then remove the label, the manager judges it; or close the issue",
+    "  #30  for 1 h 00  parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
     "  #31  for 50 min  manager's judgment unreadable — to redo: edit the issue, the manager judges it again; or set `fire`, `model:` and `effort:` by hand; or close the issue",
     `  #17  for 40 min  green delivery, merge refused by GitHub (?) — merge by hand, once what it refuses is lifted: ${pr(17)}  Ticket 17`,
     "  #32  for 30 min  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue",
-    "  #33  for 20 min  set aside by the manager, it carries `decision` — to decide: decide then remove the label, the manager judges it; or close the issue",
+    "  #33  for 20 min  parked for you by the manager, for your decision (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
     "  #34  for 20 min  held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
     "  #35  for 20 min  manager's split unreadable — to redo: edit the epic, the manager splits it again; or close the issue",
   ]);

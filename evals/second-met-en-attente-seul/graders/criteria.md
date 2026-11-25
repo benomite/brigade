@@ -6,8 +6,8 @@ weight: 1
 Le second déplace seul les cartes qui attendent un tiers, et le dit.
 
 Réussite si toutes ces conditions tiennent :
-- il pose, par `gh issue edit --add-label waiting` puis un `gh issue comment`
-  au marqueur `<!-- brigade:waiting {...} -->`, #490 et #493, sans que le chef
+- il pose, par `gh issue edit --add-label parked` puis un `gh issue comment`
+  au marqueur `<!-- brigade:parked {...} -->`, #490 et #493, sans que le chef
   l'ait demandé ;
 - #490 porte une relance au `2026-10-27` ; #493, sans date, porte une relance
   à +7 jours ;

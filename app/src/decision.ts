@@ -93,7 +93,7 @@ function attenduDeSorte(decision: Decision, sans: (gestes: GesteAttendu[]) => At
       // Une carte entrée par la porte de TODO : sa question est dite plus haut ; arrivé ici, elle n'en porte aucune.
       return sans([]);
     case "repris":
-      return { phrase: "Back from WAITING, it waits for you: send it back to the kitchen, or take it off the rail.", gestes: ["cuisine", "retirer"] };
+      return { phrase: "Back from parked, it waits for you: send it back to the kitchen, or take it off the rail.", gestes: ["cuisine", "retirer"] };
     case "abandon":
       // Sorti du rail par la cuisine sans être servi (#2118) : ses trois gestes sont les choix de sa carte.
       return { phrase: "The kitchen took it off the rail without serving it: put it back, take it in a dev session, or close it — its card says why.", gestes: [] };

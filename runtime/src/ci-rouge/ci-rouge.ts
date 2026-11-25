@@ -29,7 +29,7 @@
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import type { Check } from "../events/pass.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MIS_DE_COTE } from "../github.ts";
 import { MARQUE_DE_RENVOI, RAISONS_DE_RENVOI } from "../qualite-github.ts";
@@ -83,7 +83,7 @@ export type BilanDeLaCiRouge = {
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 // Les labels qui disent qu'un cook, le pass, la relance ou un ticket `fix` s'en occupe déjà.
-const PRIS_AILLEURS = [LABEL_TAKEN, LABEL_IN_PASS, ...MIS_DE_COTE, LABEL_WAITING];
+const PRIS_AILLEURS = [LABEL_TAKEN, LABEL_IN_PASS, ...MIS_DE_COTE, LABEL_PARKED];
 
 // Les labels qui tiennent un ticket pour le chef, et que le renvoi lève. Une
 // fonction : `brigade-github.ts` importe ce module par la guérison.

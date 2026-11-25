@@ -73,12 +73,12 @@ export const PRIX_DU_TEXTE = PRIX_DE_SUITE.resume as string;
 // du chef (tableau-gestes/reponse-github.ts) — aucune box, aucune station ne le joue.
 const POSTEE = "your answer is posted on the issue from your GitHub account";
 const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
-  resume: `${POSTEE}, and the app removes what holds the ticket (\`served-elsewhere\`, \`blocked-on-human\`, \`question\`, \`decision\`, \`chef-todo\`): the kitchen takes it up again and its cook reads your answer`,
+  resume: `${POSTEE}, and the app removes what holds the ticket (\`chef-todo\`, \`parked\`, \`served-elsewhere\`, and the labels of before parked: \`blocked-on-human\`, \`question\`, \`decision\`): it resumes exactly where it was and its cook reads your answer`,
   merge: `${POSTEE}, and the app merges the PR the card names under your GitHub account — a merge is not undone from the app`,
   drop: `${POSTEE}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
   close: `${POSTEE}, and the app closes the issue: the ticket is not cooked`,
   rail: `${POSTEE}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
-  wait: `${POSTEE}, and the app puts the ticket in WAITING for the one the choice names, follow-up in seven days, and removes \`question\` and \`decision\`: no cook takes it until you take it out of WAITING`,
+  wait: `${POSTEE}, and the app parks the ticket for the one the choice names, until a date seven days away, and it leaves your TODO: nothing takes it before they answer or that date comes`,
 };
 
 // La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,

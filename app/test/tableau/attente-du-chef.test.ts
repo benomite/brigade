@@ -22,7 +22,7 @@ const dit = (body: string, created_at: string): Commentaire => ({ body, created_
 
 // Le projet du 2026-11-05 : #8 en pass, sa livraison touche à ce qui la juge (PR #2326) ; #12, `served-elsewhere`, pose une question
 // de produit avec ses choix ; #7, `served-elsewhere` après ses renvois, ne demande rien au chef ; #20, une carte `chef-todo` ;
-// #30, écarté par le manager avec `question` ; #31, `decision`, mais en WAITING ; #1683, l'issue du tableau de la cuisine.
+// #30, écarté par le manager avec `question` ; #31, `decision`, mais parqué pour un autre que le chef (`parked`, WAITING) ; #1683, l'issue du tableau de la cuisine.
 // #1, sur le rail, calibré par le manager : rien ne le bloque (le rail bloqué, #3358 : test/rail-bloque/).
 const MONDE: Record<number, Issue> = {
   1: { labels: ["fire", "model:sonnet", "effort:medium"] },
@@ -34,7 +34,7 @@ const MONDE: Record<number, Issue> = {
   },
   20: { labels: ["chef-todo"], commentaires: [dit("chatter", "2026-11-05T02:00:00Z"), dit("<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", "2026-11-05T10:00:00Z")] },
   30: { labels: ["question"], evenements: [{ event: "labeled", label: { name: "prio:2" }, created_at: "2026-11-04T08:00:00Z" }, { event: "labeled", label: { name: "question" }, created_at: "2026-11-05T06:00:00Z" }] },
-  31: { labels: ["decision", "waiting"] },
+  31: { labels: ["decision", "parked"] },
   1683: { labels: ["fire", "served-elsewhere", "kitchen-board"] },
 };
 
@@ -249,5 +249,21 @@ describe("l'app et le second ne se contredisent pas : la même lecture, les mêm
     assert.match(!lu.lu ? lu.raison : "", /^What awaits the chef in acme\/kitchen was not read from GitHub: GitHub answered HTTP 502/);
     const file = await lireLaFile(refuse, DEPOT, maintenant);
     assert.match(contexteDeLaFile({ nom: "kitchen" }, file), /file non lue : GitHub n'a pas rendu ce qui attend le chef\nWhat awaits the chef/);
+  });
+});
+
+// #4129 : le manager parque pour le chef l'issue qu'il lui refuse — `chef-todo` et la carte de sa question, plus le label
+// `question` ou `decision`. Sa carte garde la réponse qu'il recommande, comme celle d'un écart (#3434).
+describe("la carte `chef-todo` d'une question du manager (#4129)", () => {
+  const carte = (texte: string): Record<number, Issue> => ({ 70: { labels: ["chef-todo"], commentaires: [dit(`<!-- brigade:todo kind=product-question -->\n${texte}`, "2026-11-05T06:00:00Z")] } });
+  const entreeDe = async (monde: Record<number, Issue>) => (await lue(github(monde))).attentes.find(({ ticket }) => ticket === 70);
+
+  test("sa ligne `Recommended:` met en avant le choix qu'elle nomme, et quitte le texte de la carte", async () => {
+    const entree = await entreeDe(carte("Which column order does the export keep?\n\n- [resume] Keep the old order\n- [close] Drop the export\n\n**Recommended:** Keep the old order — the users read it that way"));
+    assert.deepEqual(entree?.chef, {
+      sorte: "product-question",
+      texte: "Which column order does the export keep?\n- [resume] Keep the old order\n- [close] Drop the export",
+      recommandee: { texte: "Keep the old order", pourquoi: "the users read it that way" },
+    });
   });
 });

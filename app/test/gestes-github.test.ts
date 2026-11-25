@@ -1,5 +1,5 @@
 // Les gestes du chef écrits sur GitHub même (#2061) : « remove from the rail » retire le label `fire` de l'issue,
-// « back to the kitchen » et « it arrived » retirent `waiting`, et le commentaire de la fiche est posté sur l'issue du
+// « back to the kitchen » et « it arrived » retirent `parked` (#4129, d'abord `waiting`), et le commentaire de la fiche est posté sur l'issue du
 // ticket, par l'accès GitHub de l'app. Rien ne part sans lecture du rail, ni pour un ticket qu'elle ne porte pas. Joué
 // contre un GitHub en mémoire, qui note chaque demande.
 import assert from "node:assert/strict";
@@ -47,13 +47,13 @@ describe("retirer le label du geste de l'issue du ticket", () => {
     assert.deepEqual(demandes, ["DELETE /repos/chef/parade/issues/22/labels/fire"]);
   });
 
-  test("« back to the kitchen » sur un ticket de TODO : `waiting` retiré", async () => {
+  test("« back to the kitchen » sur un ticket de TODO : `parked` retiré", async () => {
     const { client, demandes } = github();
     assert.deepEqual(await retirerLeLabel(LU, "cuisine", 31, client), {
-      fait: "back to the kitchen on GitHub: #31 no longer carries `waiting` — it is queued on the rail again",
+      fait: "back to the kitchen on GitHub: #31 no longer carries `parked` — it resumes exactly where it was",
       detail: "https://github.com/chef/parade/issues/31",
     });
-    assert.deepEqual(demandes, ["DELETE /repos/chef/parade/issues/31/labels/waiting"]);
+    assert.deepEqual(demandes, ["DELETE /repos/chef/parade/issues/31/labels/parked"]);
   });
 
   test("une issue qui ne porte déjà plus le label (404) : c'est fait", async () => {

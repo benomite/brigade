@@ -15,11 +15,12 @@
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
 //      - `close` : l'issue est fermée ;
 //      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
-//      - `wait` : l'issue est mise en WAITING (#3434) — le commentaire d'entrée en WAITING, qui attend ce que le libellé
-//        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la relance à sept jours, puis le label
-//        `waiting` (vue/attente/attente-github.ts, `ecrireLAttente`) ; `question` et `decision` sont retirés : la question
+//      - `wait` : l'issue est parquée pour un tiers (#3434, #4129) — le commentaire de parking, qui attend ce que le libellé
+//        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la date à sept jours, puis le label
+//        `parked` (vue/attente/attente-github.ts, `ecrireLAttente`) ; `question` et `decision` sont retirés : la question
 //        attend un tiers, plus le chef.
-//      Chaque geste retire aussi `chef-todo` : répondue, la question n'attend plus le chef.
+//      Chaque geste retire aussi `chef-todo`, et `parked` sauf `wait` : répondue, la question n'attend plus le chef, et le
+//      ticket parqué pour lui reprend où il était (#4129).
 // La carte quitte TODO à la lecture suivante : ses labels ont changé, et une question que suit une réponse n'en pose plus
 // (tableau/mise-de-cote-github.ts).
 import { carteLueDuChef, reponseLue, type Rendu } from "../carte-todo.ts";
@@ -30,6 +31,7 @@ import { ticketDeLaPR } from "../tableau/rail-github.ts";
 import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/todo-github.ts";
 import { refusDe } from "../tableau/client.ts";
 import { PR_DU_TICKET } from "../vue/pr-du-ticket.js";
+import { LABELS_DES_GESTES } from "../gestes-github.ts";
 import { ecrireLAttente } from "../vue/attente/attente-github.ts";
 import { relanceProposee, saisieLue } from "../vue/attente/saisie.ts";
 
@@ -38,17 +40,20 @@ import { relanceProposee, saisieLue } from "../vue/attente/saisie.ts";
 export type ClientDeLaReponse = { lire: AppelGitHub; ecrire: (methode: MethodeDEcriture, chemin: string, corps?: unknown) => Promise<ReponseGitHub> };
 
 const LABEL_FIRE = "fire";
+// Le ticket d'une carte attend le chef : il est parqué pour lui (`chef-todo`, #4129). Répondu, il ne l'attend plus, ni
+// personne : sa carte tombe, et `parked` s'il l'avait parquée pour un autre — sauf `wait`, qui la parque pour un autre.
+const PARKED = LABELS_DES_GESTES.cuisine;
 // Ce que chaque geste retire de l'issue, en plus de jouer ce qu'il joue.
 const RETIRES: Readonly<Record<GesteDuChef, readonly string[]>> = {
   // Le ticket revient sur le rail : la mise de côté, de la station ou du manager, est levée (#3369) ; la question ou la décision
   // que le manager attendait est répondue, il le juge de nouveau (#3370).
-  resume: [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN, "question", "decision", LABEL_DU_CHEF],
+  resume: [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN, "question", "decision", LABEL_DU_CHEF, PARKED],
   // Mergée, la livraison mise de côté parce qu'elle touche à ce qui la juge n'est plus retenue (#3368).
-  merge: [BLOCKED_ON_HUMAN, LABEL_DU_CHEF],
-  drop: [LABEL_FIRE, LABEL_DU_CHEF],
-  close: [LABEL_DU_CHEF],
-  rail: [LABEL_DU_CHEF],
-  // Mise en WAITING, la question du manager attend un tiers : elle n'attend plus le chef (#3434).
+  merge: [BLOCKED_ON_HUMAN, LABEL_DU_CHEF, PARKED],
+  drop: [LABEL_FIRE, LABEL_DU_CHEF, PARKED],
+  close: [LABEL_DU_CHEF, PARKED],
+  rail: [LABEL_DU_CHEF, PARKED],
+  // Parquée pour un tiers, la question du manager l'attend, lui : elle n'attend plus le chef (#3434).
   wait: ["question", "decision", LABEL_DU_CHEF],
 };
 

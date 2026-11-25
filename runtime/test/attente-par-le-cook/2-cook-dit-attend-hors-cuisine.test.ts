@@ -1,4 +1,4 @@
-// Un cook qui dit que le ticket attend quelque chose hors de la cuisine, sans date, le met en WAITING (#3814) :
+// Un cook qui dit que le ticket attend quelque chose hors de la cuisine, sans date, le parque (#3814, #4129) :
 // ce qu'il attend et de qui.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { attenteDeLIssue } from "../../src/attente-github/attente-github.ts";
 import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
-import { LABEL_TAKEN, LABEL_WAITING } from "../../src/github-etat/etats.ts";
+import { LABEL_PARKED, LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import type { GitHub } from "../../src/github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
@@ -51,11 +51,11 @@ function station(t: TestContext, bloque: string) {
   return { faux, tour, cooks: () => cooks, attente, ticket: () => faux.ticket(B), avancer: (iso: string) => void (instant = new Date(iso)) };
 }
 
-test("a cook that says the ticket waits for the client's answer, with no date, puts it in WAITING with what and from whom", async (t) => {
+test("a cook that says the ticket waits for the client's answer, with no date, parks it with what and from whom", async (t) => {
   const s = station(t, "I cannot start: the client has not sent the production API key yet. Nothing in the kitchen can produce it.");
   await s.tour();
   const ticket = s.ticket();
-  assert.equal(ticket.labels.has(LABEL_WAITING), true, "the ticket carries `waiting`");
+  assert.equal(ticket.labels.has(LABEL_PARKED), true, "the ticket carries `parked`");
   assert.equal(ticket.labels.has(LABEL_TAKEN), false);
   assert.equal(ticket.labels.has(A_LA_MAIN), false, "not blocked-on-human");
   assert.equal(ticket.labels.has(CHEF_TODO), false, "no chef TODO card");

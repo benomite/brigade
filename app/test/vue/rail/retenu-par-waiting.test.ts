@@ -10,21 +10,21 @@ import { lireLeTableauDuDepot, type TableauLu } from "../../../src/tableau/lectu
 import { avecCeQuiAttendLeChef } from "../../../src/tableau/attente-du-chef.ts";
 import { statusDuTableau } from "../../../src/tableau/rail.ts";
 import { attenteDuRailLue } from "../../../src/vue/attente-du-rail/attente-du-rail.ts";
-import { corpsDeLAttente } from "../../../../runtime/src/attente-github/attente-github.ts";
+import { corpsDuParking } from "../../../../runtime/src/attente-github/marque.ts";
 
 const DEPOT = "acme/kitchen";
 const LU = new Date("2026-11-17T10:00:00.000Z");
 const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
 const issue = (number: number, labels: string[], body = "") => ({ number, title: `Ticket ${number}`, body, html_url: `https://github.com/${DEPOT}/issues/${number}`, created_at: "2026-11-07T09:00:00Z", labels: labels.map((name) => ({ name })) });
-const MARQUE = { body: corpsDeLAttente({ what: "the collaborator's answer", who: "a collaborator", followUp: "2026-11-24T09:00:00.000Z" }), author_association: "OWNER", created_at: "2026-11-07T09:00:00Z" };
+const MARQUE = { body: corpsDuParking({ what: "the collaborator's answer", who: "a collaborator", followUp: "2026-11-24T09:00:00.000Z" }), author_association: "OWNER", created_at: "2026-11-07T09:00:00Z" };
 
 // #1912 en WAITING sur un collaborateur ; #3734 en file depuis `minutes`, qui l'attend ; #3800, s'il est là, en file, libre.
 function github(minutes: number, { marque = true, libre = false } = {}): AppelGitHub {
   return async (chemin) => {
-    if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return ok([issue(1912, ["fire", "waiting"]), issue(3734, ["fire", "prio:1", "model:opus", "effort:medium"], "Depends on #1912"), ...(libre ? [issue(3800, ["fire", "model:opus", "effort:medium"])] : [])]);
+    if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return ok([issue(1912, ["fire", "parked"]), issue(3734, ["fire", "prio:1", "model:opus", "effort:medium"], "Depends on #1912"), ...(libre ? [issue(3800, ["fire", "model:opus", "effort:medium"])] : [])]);
     if (chemin.includes("/issues/1912/comments")) return marque ? ok([MARQUE]) : { status: 502, data: {} };
     if (/\/issues\/\d+\/events/.test(chemin)) return ok([{ event: "labeled", label: { name: "fire" }, created_at: new Date(LU.getTime() - minutes * 60_000).toISOString() }]);
-    if (chemin.includes("/issues?labels=waiting") || /\/issues\/\d+\/comments/.test(chemin) || chemin.includes("/issues?") || chemin.includes("/pulls?")) return ok([]);
+    if (chemin.includes("/issues?labels=parked") || /\/issues\/\d+\/comments/.test(chemin) || chemin.includes("/issues?") || chemin.includes("/pulls?")) return ok([]);
     return { status: 404, data: {} };
   };
 }

@@ -106,17 +106,19 @@ test("a green, pending or check-less CI is left alone", async () => {
   assert.deepEqual([ecrits, retires], [[], []]);
 });
 
-test("a PR on a branch that is not cook/<n>-github, or whose ticket is off the rail, set aside or waiting, is left alone", async () => {
+test("a PR on a branch that is not cook/<n>-github, or whose ticket is off the rail, set aside or parked, is left alone", async () => {
   const { client, ecrits, retires } = github({ [SHA]: "red" });
   const bilan = await renvoyerLesCiRouges({
     github: client,
     station: "box/claude",
-    prs: [pr(30, SHA, "feature/30"), pr(30, SHA, "cook/30-local"), pr(50), pr(51), pr(52), pr(53)],
+    prs: [pr(30, SHA, "feature/30"), pr(30, SHA, "cook/30-local"), pr(50), pr(51), pr(52), pr(53), pr(54)],
     tickets: [
       { number: 30, labels: [...CALIBRE, "blocked-on-human"] },
       { number: 51, labels: [...CALIBRE, "served-elsewhere"] },
-      { number: 52, labels: [...CALIBRE, "waiting"] },
+      // Parqué (#4129), tenu pour le chef ou par sa carte : rien ne le prend, pas même ce renvoi.
+      { number: 52, labels: [...CALIBRE, "blocked-on-human", "parked"] },
       { number: 53, labels: ["fire"], epique: true },
+      { number: 54, labels: [...CALIBRE, "chef-todo", "parked"] },
     ],
     enCuisine: new Set(),
   });

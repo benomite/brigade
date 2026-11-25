@@ -34,7 +34,7 @@ function github({ fermees, base = "success", issues, commentaires = {}, appels =
   return async (chemin) => {
     appels.push(chemin);
     if (chemin.includes("/issues?") && chemin.includes("labels=fire")) {
-      return ok(issues?.() ?? [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(4, ["fire", "waiting", "taken"]), issue(5, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })]);
+      return ok(issues?.() ?? [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(4, ["fire", "parked", "taken"]), issue(5, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })]);
     }
     // Toutes les issues ouvertes : ce qui est avant le rail (tableau/lecture.ts).
     if (chemin.includes("/issues?")) return ok([issue(1, ["fire"]), issue(2, ["fire", "taken"]), issue(6, [])]);
@@ -217,7 +217,7 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
 // Un ticket mis de côté (#2075) : #7 sorti de la cuisine après ses renvois, #8 en pass retenu par `blocked-on-human` — sa
 // livraison touche à ce qui la juge —, #9 sorti à la main sans un mot, #10 sorti puis mis en WAITING par le chef.
 describe("un ticket mis de côté par `served-elsewhere` ou `blocked-on-human`, sur GitHub seul (#2075)", () => {
-  const issuesMisesDeCote = () => [issue(1, ["fire"]), issue(7, ["fire", "served-elsewhere"]), issue(8, ["fire", "in-pass", "blocked-on-human"]), issue(9, ["fire", "served-elsewhere"]), issue(10, ["fire", "served-elsewhere", "waiting"])];
+  const issuesMisesDeCote = () => [issue(1, ["fire"]), issue(7, ["fire", "served-elsewhere"]), issue(8, ["fire", "in-pass", "blocked-on-human"]), issue(9, ["fire", "served-elsewhere"]), issue(10, ["fire", "served-elsewhere", "parked"])];
   const commentaires = {
     7: [
       prise(21, "box/claude", "2026-11-04T01:00:00Z"),

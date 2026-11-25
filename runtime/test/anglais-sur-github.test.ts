@@ -14,7 +14,7 @@ import { carteDuChoixDeProduit, corpsDuRenvoiPourConflit } from "../src/conflit-
 import { corpsDeLaReponse } from "../src/desaccord-cook.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { corpsDeReclamation, corpsDeRendu } from "../src/station-contributrice/reclamation.ts";
-import { direLevee, direMarque } from "../src/attente.ts";
+import { corpsDuParking } from "../src/attente-github/marque.ts";
 import { corpsDeLaCarte, corpsDeLaReponseAuBlocage, sectionDeLaDecision } from "../src/blocage-au-manager.ts";
 import { corpsDuTicket, ficheDuTicket } from "../src/decouper.ts";
 import { rendreListe } from "../src/epique.ts";
@@ -30,7 +30,6 @@ import { corpsDeRetourAvec, corpsDeSortieAvec } from "../src/abandon-en-chaine.t
 import { corpsDeLaFermeture, titreDeLaFermeture } from "../src/closer-github-passe/closer-github-passe.ts";
 import { mesurerRatio } from "../src/closing/ratio.ts";
 import { corps as corpsDeLaPreparation, TITRE as TITRE_DE_LA_PREPARATION } from "../src/preparation-depot/ticket.ts";
-import { direALArrivee } from "../src/projections/rail.ts";
 import { corpsDeCeQuiEstFait, lignesDuBrief } from "../src/validation-design/brief.ts";
 import { nomDuProjet } from "../src/geste.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
@@ -144,10 +143,11 @@ describe("in English on GitHub", { concurrency: 8 }, () => {
       corpsDeCarte(carteMergeALaMain(12, "#13", "the PR touches the workflows")),
       corpsDeCarte(carteQuestionProduit(12, "Which layout?")),
       corpsDeCarte(carteAbandon(12, "its delivery stays red")),
-      // Le service pose toujours `BRIGADE_PROJECT` : le geste y nomme le projet, jamais `<projet>`.
-      direMarque(12, { what: "the vendor's API key", who: "Alice", since: "2026-11-09T10:00:00.000Z", followUp: "2026-11-10T10:00:00.000Z", onArrival: direALArrivee("open") }, false).replaceAll(nomDuProjet(), "shop"),
-      direMarque(12, { what: "the vendor's API key", who: "Alice", since: "2026-11-09T10:00:00.000Z", followUp: "2026-11-10T10:00:00.000Z", onArrival: direALArrivee(null) }, true).replaceAll(nomDuProjet(), "shop"),
-      direLevee(null, { what: "the key", who: "Alice" }),
+      // Le parking (#4129) : jusqu'à une date, jusqu'à un fait, pour le chef, et posé par la cuisine avec les mots du cook.
+      corpsDuParking({ what: "the vendor's API key", who: "Alice", followUp: "2026-11-10T10:00:00.000Z" }),
+      corpsDuParking({ what: "the vendor's API key", who: "Alice", followUp: "2026-11-10T10:00:00.000Z", fact: "the key is sent" }),
+      corpsDuParking({ what: "Which layout?", who: "the chef", followUp: "2026-11-10T10:00:00.000Z", fact: "the chef answers" }),
+      corpsDuParking({ what: "Too early", who: "the calendar", followUp: "2026-11-10T10:00:00.000Z" }, { station: "box", mots: "Too early: it opens on 2026-11-10." }),
     ]);
   });
 

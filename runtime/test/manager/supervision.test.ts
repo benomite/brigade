@@ -1,10 +1,13 @@
 // Le superviseur du projet (#3911, `manager/supervision.ts`) : le contrôle qui referme le disjoncteur, la trace qu'il laisse,
-// et le dossier d'un ticket mis de côté — seuls les gestes de l'étape 4 de la spec s'appliquent.
+// et le dossier d'un ticket que la station a parqué par ses échecs (#4129) — seuls les gestes de l'étape 4 de la spec
+// s'appliquent.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { etatDesGardeFous } from "../../src/projections/guardrails.ts";
 import { ouvrirSupervision } from "../../src/manager/supervision.ts";
+import { attenteDeLIssue, corpsDuParking, type AttenteGitHub } from "../../src/attente-github/marque.ts";
+import { corpsDeCarte, carteQuestionProduit } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 // Les gestes de l'étape 4 de la spec que ce ticket sait appliquer, et le rythme du superviseur : 10 minutes, trois essais.
@@ -17,7 +20,10 @@ const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 type Reponse = { run: string; valeur: unknown } | { run: string; illisible: string } | null;
 
-function superviseur(t: TestContext, { labels = ["fire", "set-aside:failures"], reponses, lectureEnPanne = false, sansRun = false }: { labels?: string[]; reponses: Array<Reponse | ((lire: (message: string | null) => unknown) => Reponse | Promise<Reponse>)>; lectureEnPanne?: boolean; sansRun?: boolean }) {
+// La marque que la station pose en parquant un ticket par ses échecs (`parquerSesEchecs`) : il attend le superviseur.
+const PAR_SES_ECHECS: AttenteGitHub = { what: "its cooks failed too many times, the station stopped relaunching it. The reason: the cook stopped", who: "the supervisor", followUp: "2026-11-27T09:00:00.000Z", failures: true };
+
+function superviseur(t: TestContext, { labels = ["fire", "parked"], marque = PAR_SES_ECHECS, reponses, lectureEnPanne = false, sansRun = false }: { labels?: string[]; marque?: AttenteGitHub | null; reponses: Array<Reponse | ((lire: (message: string | null) => unknown) => Reponse | Promise<Reponse>)>; lectureEnPanne?: boolean; sansRun?: boolean }) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "guard.configured", payload: { limits: LIMITES, breakerThreshold: 3 } });
   const portes = [...labels];
@@ -35,7 +41,12 @@ function superviseur(t: TestContext, { labels = ["fire", "set-aside:failures"], 
       return { inchange: false as const, issues: [{ number: 77, title: "Add the lap screen", labels: [...portes], state: "open" as const, createdAt: "", updatedAt: "", url: "" }], confirmer: () => {} };
     },
     issue: async () => ({ number: 77, title: "Add the lap screen", labels: [...portes], state: "open" as const, createdAt: "", updatedAt: "", url: "", body: "The lap screen shows each lap." }),
-    commentaires: async () => [{ body: "The cook stopped without a delivery", author: "station", association: "OWNER", createdAt: "2026-11-20T09:00:00Z" }],
+    // Ses commentaires : le dernier mot de la cuisine, la marque du parking, puis ce que le superviseur y a écrit.
+    commentaires: async () => [
+      { body: "The cook stopped without a delivery", author: "station", association: "OWNER", createdAt: "2026-11-20T09:00:00Z" },
+      ...(marque === null ? [] : [{ body: corpsDuParking(marque, { station: "station", mots: "the cook stopped" }), author: "station", association: "OWNER", createdAt: "2026-11-20T09:00:01Z" }]),
+      ...ecritures.filter((e) => e.startsWith("comment #77: ")).map((e) => ({ body: e.slice("comment #77: ".length), author: "supervisor", association: "OWNER", createdAt: "2026-11-20T10:00:00Z" })),
+    ],
     commenter: async (numero: number, corps: string) => {
       if (panne.commentaire === numero) throw new Error("HTTP 502");
       ecritures.push(`comment #${numero}: ${corps}`);
@@ -169,7 +180,7 @@ test("a comment that cannot be posted is said, the other tickets are told, and t
   assert.match(s.avertissements[0] ?? "", /#32 — HTTP 502/);
 });
 
-test("a ticket set aside for its failures is handed to the supervisor with its dossier, and no write precedes the answer", async (t) => {
+test("a ticket parked for its failures is handed to the supervisor with its dossier, and no write precedes the answer", async (t) => {
   const s = superviseur(t, { reponses: [null] });
   await s.supervision.passer();
   assert.deepEqual(s.sujets, ["supervise"]);
@@ -182,24 +193,28 @@ test("a ticket set aside for its failures is handed to the supervisor with its d
 });
 
 const AVEC_NOTE = { note: "the PR conflicts with the base" };
+const TRACE = `comment #77: ${MARQUE_DU_SUPERVISEUR}`;
+// « waiting » : parqué de nouveau, pour le tiers, sept jours après la réponse — plus pour ses échecs.
+const POUR_LE_TIERS = { what: "the PR conflicts with the base", who: "the design team", followUp: "2026-11-27T10:00:00.000Z" };
+// Chaque geste, la trace qu'il laisse, et toutes ses écritures sur GitHub, dans l'ordre (la première ligne de chaque commentaire).
 const CAS: Array<[string, Record<string, unknown>, RegExp[], string[]]> = [
-  ["rail", { gesture: "rail", ...AVEC_NOTE }, [/put it back on the rail/], ["label #77 -set-aside:failures"]],
-  ["waiting", { gesture: "waiting", ...AVEC_NOTE, third_party: "the design team" }, [/set it aside in WAITING for the design team/, /^comment #77: <!-- brigade:waiting /], ["label #77 +waiting", "label #77 -set-aside:failures"]],
-  ["close", { gesture: "close", ...AVEC_NOTE }, [/closed it/], ["close #77", "label #77 -set-aside:failures"]],
-  ["todo", { gesture: "todo", ...AVEC_NOTE, question: "Which screen keeps the laps?" }, [/Which screen keeps the laps\?/], ["label #77 +blocked-on-human", "label #77 -set-aside:failures"]],
+  ["rail", { gesture: "rail", ...AVEC_NOTE }, [/\*\*Did:\*\* unparked it onto the rail\./], [TRACE, "label #77 -parked"]],
+  ["waiting", { gesture: "waiting", ...AVEC_NOTE, third_party: "the design team" }, [/\*\*Did:\*\* kept it parked, waiting for the design team\./, /^comment #77: <!-- brigade:parked /], [`comment #77: <!-- brigade:parked ${JSON.stringify(POUR_LE_TIERS)} -->`]],
+  ["close", { gesture: "close", ...AVEC_NOTE }, [/\*\*Did:\*\* closed it, a duplicate or a stale alert\./], [TRACE, "close #77", "label #77 -parked"]],
+  ["todo", { gesture: "todo", ...AVEC_NOTE, question: "Which screen keeps the laps?" }, [/\*\*Did:\*\* parked it for the chef: a product or design question, a card in the chef's TODO\./], [TRACE, "label #77 +chef-todo", "comment #77: <!-- brigade:todo kind=product-question -->", "label #77 -parked"]],
 ];
-for (const [nom, reponse, attendus, labels] of CAS) {
-  test(`the gesture « ${nom} » is applied with one trace comment, then the set-aside label falls`, async (t) => {
+for (const [nom, reponse, attendus, ecritures] of CAS) {
+  test(`the gesture « ${nom} » is applied with one trace comment, and the ticket no longer waits for the supervisor`, async (t) => {
     const s = superviseur(t, { reponses: [decision(reponse)] });
     await s.supervision.passer();
     const traces = s.ecritures.filter((e) => e.includes(MARQUE_DU_SUPERVISEUR));
     assert.equal(traces.length, 1);
     for (const attendu of attendus) assert.match(traces[0] ?? "", attendu);
+    assert.match(traces[0] ?? "", /\*\*Supervisor\*\* — the ticket was parked by its failure count, waiting for the supervisor\./);
     assert.match(traces[0] ?? "", /\*\*Saw:\*\* the PR conflicts with the base/);
-    for (const ecriture of labels) assert.ok(s.ecritures.includes(ecriture), `${ecriture} in ${s.ecritures.join(" | ")}`);
-    assert.equal(s.ecritures.at(-1), "label #77 -set-aside:failures");
-    // Rien d'autre que les gestes de la liste : jamais de `fire` retiré, de merge ni de commentaire hors trace.
-    assert.deepEqual(s.ecritures.filter((e) => e.startsWith("comment") && !e.includes(MARQUE_DU_SUPERVISEUR)), []);
+    // Rien d'autre que les gestes de la liste : jamais de `fire` retiré, de merge ni de commentaire hors trace — sauf la
+    // carte du chef, que « todo » pose.
+    assert.deepEqual(s.ecritures.map((e) => e.split("\n")[0]), ecritures);
     // Le ticket n'est plus confié.
     s.avancer(DOSSIER_TOUS_LES_MS);
     await s.supervision.passer();
@@ -207,8 +222,26 @@ for (const [nom, reponse, attendus, labels] of CAS) {
   });
 }
 
+test("« waiting » parks it for the third party: its latest marker says who, for what, until a date seven days on", async (t) => {
+  const s = superviseur(t, { reponses: [decision({ gesture: "waiting", ...AVEC_NOTE, third_party: "the design team" })] });
+  await s.supervision.passer();
+  const [commentaire = ""] = s.ecritures;
+  assert.deepEqual(attenteDeLIssue([{ body: commentaire.slice("comment #77: ".length), association: "OWNER" }]), POUR_LE_TIERS);
+  assert.ok(commentaire.includes("- **who**: the design team"), commentaire);
+  // Les mots du superviseur sont sa note, dans la trace : jamais donnés pour ceux d'un cook.
+  assert.ok(!commentaire.includes("from what the cook said"), commentaire);
+  assert.ok(commentaire.includes("**Saw:** the PR conflicts with the base"), commentaire);
+});
+
+test("« todo » parks it for the chef: `chef-todo` and the card asking the question, then `parked` falls — it no longer waits for the supervisor", async (t) => {
+  const s = superviseur(t, { reponses: [decision({ gesture: "todo", ...AVEC_NOTE, question: "Which screen keeps the laps?" })] });
+  await s.supervision.passer();
+  assert.deepEqual(s.ecritures.slice(-2), [`comment #77: ${corpsDeCarte(carteQuestionProduit(77, "Which screen keeps the laps?"))}`, "label #77 -parked"]);
+  assert.ok((s.ecritures.at(-2) ?? "").includes("> Which screen keeps the laps?"));
+});
+
 test("« rail » puts `fire` back only when the ticket has lost it", async (t) => {
-  const sans = superviseur(t, { labels: ["set-aside:failures"], reponses: [decision({ gesture: "rail", ...AVEC_NOTE })] });
+  const sans = superviseur(t, { labels: ["parked"], reponses: [decision({ gesture: "rail", ...AVEC_NOTE })] });
   await sans.supervision.passer();
   assert.ok(sans.ecritures.includes("label #77 +fire"));
   const avec = superviseur(t, { reponses: [decision({ gesture: "rail", ...AVEC_NOTE })] });
@@ -249,17 +282,35 @@ test("an answer that is not JSON does nothing", async (t) => {
   assert.match(s.avertissements[0] ?? "", /no JSON object/);
 });
 
-test("a ticket that is not set aside for its failures is not handed over", async (t) => {
+test("a ticket that is not parked for its failures is not handed over", async (t) => {
   const s = superviseur(t, { labels: ["fire", "served-elsewhere"], reponses: [null] });
   await s.supervision.passer();
   assert.deepEqual(s.sujets, []);
 });
 
-test("a gesture that fails on GitHub is said, keeps the set-aside label, and is retried after the delay", async (t) => {
+const PAS_A_LUI: Array<[string, { labels?: string[]; marque: AttenteGitHub | null }]> = [
+  ["parked for the client, not for its failures", { marque: { what: "the signed quote", who: "the client", followUp: "2026-11-27T09:00:00.000Z" } }],
+  ["parked for its failures but waiting for the client", { marque: { ...PAR_SES_ECHECS, who: "the client" } }],
+  ["parked until a date the supervisor set, not for its failures", { marque: { what: "no reason was written", who: "the supervisor", followUp: "2026-11-27T09:00:00.000Z" } }],
+  ["parked with no marker", { marque: null }],
+  ["parked for the chef", { labels: ["fire", "chef-todo"], marque: PAR_SES_ECHECS }],
+  ["carrying `chef-todo` and `parked`", { labels: ["fire", "parked", "chef-todo"], marque: PAR_SES_ECHECS }],
+];
+for (const [nom, options] of PAS_A_LUI) {
+  test(`a ticket ${nom} is not handed over, and nothing is written`, async (t) => {
+    const s = superviseur(t, { ...options, reponses: [decision({ gesture: "rail", ...AVEC_NOTE })] });
+    await s.supervision.passer();
+    s.avancer(DOSSIER_TOUS_LES_MS);
+    await s.supervision.passer();
+    assert.deepEqual([s.sujets, s.ecritures], [[], []]);
+  });
+}
+
+test("a gesture that fails on GitHub is said, keeps the parked label, and is retried after the delay", async (t) => {
   const s = superviseur(t, { reponses: [decision({ gesture: "close", ...AVEC_NOTE })] });
   s.panne.fermer = true;
   await s.supervision.passer();
-  assert.equal(s.ecritures.includes("label #77 -set-aside:failures"), false);
+  assert.equal(s.ecritures.includes("label #77 -parked"), false);
   assert.match(s.avertissements[0] ?? "", /#77 non traité — HTTP 502/);
   s.panne.fermer = false;
   await s.supervision.passer();
@@ -268,7 +319,7 @@ test("a gesture that fails on GitHub is said, keeps the set-aside label, and is 
   await s.supervision.passer();
   assert.equal(s.sujets.length, 2);
   assert.ok(s.ecritures.includes("close #77"));
-  assert.equal(s.ecritures.at(-1), "label #77 -set-aside:failures");
+  assert.equal(s.ecritures.at(-1), "label #77 -parked");
 });
 
 test("a gesture that keeps failing on GitHub is handed again at most DOSSIER_ESSAIS_MAX times", async (t) => {

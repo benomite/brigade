@@ -1,14 +1,14 @@
-// WAITING sur un projet GitHub (#3075) : toute carte de TODO porte « waiting for… », sur la carte et sur sa fiche, à
-// l'écran large comme à celui d'un téléphone ; le formulaire demande quoi, de qui, et la relance, proposée à sept jours ;
-// validé, le geste part par la commande `waiting set` du runtime quand il tourne sur ce poste — une doublure ici —, sinon
-// il s'écrit sur l'issue comme la commande l'y écrit. La carte quitte TODO et se montre dans WAITING avec ce qu'elle
-// attend, de qui, et sa relance — lus du commentaire que le runtime pose (runtime/src/attente.ts, `direMarque`). Une carte
-// de WAITING porte « resume » et « it arrived, back to the kitchen ». Joué sur un faux GitHub qui tient ses issues, leurs
-// labels et leurs commentaires, lus et écrits ; la vue est jouée telle qu'elle est (aides/fausse-vue.ts).
+// WAITING sur un projet GitHub (#3075), devenu le parking (#4129) : toute carte de TODO porte « waiting for… », sur la
+// carte et sur sa fiche, à l'écran large comme à celui d'un téléphone ; le formulaire demande quoi, de qui, et la relance,
+// proposée à sept jours ; validé, le geste s'écrit sur l'issue, sur tout projet — jamais par une commande de la box —,
+// comme `parked set` l'y écrit (runtime/src/attente-github/marque.ts, `corpsDuParking`). La carte quitte TODO et se
+// montre dans WAITING avec ce qu'elle attend, de qui, et sa relance — lus du commentaire de parking ; le commentaire
+// `**WAITING: awaiting …**` d'avant #4129 se lit encore. Une carte de WAITING porte « resume » et « it arrived, back to
+// the kitchen », qui retirent `parked`. Joué sur un faux GitHub qui tient ses issues, leurs labels et leurs commentaires,
+// lus et écrits ; la vue est jouée telle qu'elle est (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { direMarque } from "../../../../runtime/src/attente.ts";
-import { direALArriveeEn } from "../../../../runtime/src/projections/rail.ts";
+import { corpsDuParking } from "../../../../runtime/src/attente-github/marque.ts";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { GESTES_D_ATTENTE } from "../../../src/attente.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
@@ -23,7 +23,6 @@ import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { avecCeQuiAttendLeChef } from "../../../src/tableau/attente-du-chef.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type TableauLu } from "../../../src/tableau/lecture.ts";
-import type { Terminal } from "../../../src/terminaux.ts";
 import { A_L_ARRIVEE, attenteSurGithub, jouerLAttente, marqueDAttente, tiersDeLaMarque, tiersDesCommentaires } from "../../../src/vue/attente/attente-github.ts";
 import { jourDe, relanceProposee } from "../../../src/vue/attente/saisie.ts";
 import { FauxEcran, jouerLaVue, repos, type Faux, type Jouee } from "../../aides/fausse-vue.ts";
@@ -32,18 +31,41 @@ const DEPOT = "chef/parade";
 const PROJET = "parade";
 const LU = "2026-11-09T10:00:00.000Z";
 const issue = (ticket: number) => `https://github.com/${DEPOT}/issues/${ticket}`;
-// Ce que le runtime a posé sur #40, mis en WAITING par sa commande.
-const MARQUE_40 = direMarque(40, { what: "the signed quote", who: "the client", since: "2026-11-02T09:30:00.000Z", followUp: "2026-11-16T00:00:00.000Z", onArrival: A_L_ARRIVEE }, false);
+// Ce que `parked set` (ou le second) a posé sur #40.
+const MARQUE_40 = corpsDuParking({ what: "the signed quote", who: "the client", followUp: "2026-11-16T00:00:00.000Z" });
 
-type Commentaire = { body: string; created_at: string };
+// Le commentaire d'entrée en WAITING d'avant #4129, tel que la commande `waiting set` du runtime l'écrivait
+// (`direMarque`, retiré) : un ticket mis en attente avant garde ce qu'il attend.
+const MOIS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const deux = (n: number) => String(n).padStart(2, "0");
+const instantDAvant = (iso: string) => {
+  const date = new Date(iso);
+  return `${date.getUTCDate()} ${MOIS[date.getUTCMonth()]} ${deux(date.getUTCHours())}:${deux(date.getUTCMinutes())} UTC`;
+};
+const A_L_ARRIVEE_D_AVANT = "it goes back to the kitchen, without going through TODO: it is put back on the rail, and a cook takes it in its turn";
+function marqueDAvant(ticket: number, { what, who, since, followUp }: { what: string; who: string; since: string; followUp: string }, miseAJour: boolean): string {
+  return [
+    `**WAITING${miseAJour ? " — updated" : ""}: awaiting ${who}.** ${what}`,
+    "",
+    `- **from whom**: ${who}`,
+    `- **since**: ${instantDAvant(since)}`,
+    `- **follow-up**: ${instantDAvant(followUp)}`,
+    `- **on arrival**: ${A_L_ARRIVEE_D_AVANT}`,
+    "",
+    `As long as it has the \`waiting\` label, the kitchen does not take it, and its follow-up does not take it out. Removing this label sends it back to the kitchen; \`brigade waiting resume ${ticket}\` gives it back the state it had before waiting.`,
+  ].join("\n");
+}
+const ANCIENNE_40 = marqueDAvant(40, { what: "the signed quote", who: "the client", since: "2026-11-02T09:30:00.000Z", followUp: "2026-11-16T00:00:00.000Z" }, false);
+
+type Commentaire = { body: string; created_at: string; author_association?: string };
 type Issue = { labels: Set<string>; commentaires: Commentaire[] };
-// #20, une carte `chef-todo` hors du rail ; #21, sur le rail ; #40, sur le rail et en WAITING, sa marque posée par le
-// runtime. `panne` : ce que GitHub rend à la place, pour un chemin.
+// #20, une carte `chef-todo` hors du rail ; #21, sur le rail ; #40, sur le rail et parqué, son commentaire de parking
+// posé par un auteur du dépôt. `panne` : ce que GitHub rend à la place, pour un chemin.
 function github(panne: (chemin: string) => ReponseGitHub | undefined = () => undefined) {
   const issues = new Map<number, Issue>([
     [20, { labels: new Set(["chef-todo"]), commentaires: [{ body: "<!-- brigade:todo kind=product-question -->\nShould the export keep the old columns?", created_at: "2026-11-08T09:00:00Z" }] }],
     [21, { labels: new Set(["fire"]), commentaires: [] }],
-    [40, { labels: new Set(["fire", "waiting"]), commentaires: [{ body: MARQUE_40, created_at: "2026-11-02T09:31:00Z" }] }],
+    [40, { labels: new Set(["fire", "parked"]), commentaires: [{ body: MARQUE_40, created_at: "2026-11-02T09:31:00Z", author_association: "OWNER" }] }],
   ]);
   const ecrites: string[] = [];
   const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
@@ -71,7 +93,7 @@ function github(panne: (chemin: string) => ReponseGitHub | undefined = () => und
       const lue = issues.get(Number(numero));
       if (lue === undefined) return { status: 404, data: { message: "Not Found" } };
       if (methode === "POST" && reste === "/comments") {
-        lue.commentaires.push({ body: (corps as { body: string }).body, created_at: new Date().toISOString() });
+        lue.commentaires.push({ body: (corps as { body: string }).body, created_at: new Date().toISOString(), author_association: "OWNER" });
         return { status: 201, data: { html_url: `${issue(Number(numero))}#issuecomment-9` } };
       }
       if (methode === "POST" && reste === "/labels") {
@@ -101,32 +123,37 @@ const faitsDe = (lu: TableauLu): Faits => {
 const colonneDe = (lu: TableauLu, nom: string) => tableau(faitsDe(lu)).rail.colonnes.find((colonne) => colonne.nom === nom)?.cartes ?? [];
 
 describe("la marque d'attente : ce que le runtime écrit sur l'issue, l'app le lit", () => {
-  test("le commentaire de `waiting set` (direMarque) se lit : quoi, de qui, depuis, la relance, ce que fera l'arrivée", () => {
-    assert.deepEqual(tiersDeLaMarque(MARQUE_40, "2026-11-02T09:31:00Z"), { quoi: "the signed quote", qui: "the client", depuis: "2026-11-02T09:30:00.000Z", relance: "2026-11-16T00:00:00.000Z", aLArrivee: A_L_ARRIVEE });
+  test("le commentaire de `waiting set` d'avant #4129 (direMarque) se lit encore : quoi, de qui, depuis, la relance, ce que fera l'arrivée", () => {
+    assert.deepEqual(tiersDeLaMarque(ANCIENNE_40, "2026-11-02T09:31:00Z"), { quoi: "the signed quote", qui: "the client", depuis: "2026-11-02T09:30:00.000Z", relance: "2026-11-16T00:00:00.000Z", aLArrivee: A_L_ARRIVEE_D_AVANT });
+    assert.deepEqual(tiersDesCommentaires([{ body: ANCIENNE_40, created_at: "2026-11-02T09:31:00Z" }])?.relance, "2026-11-16T00:00:00.000Z");
     // Mise à jour, et à cheval sur deux années : la relance sans année est celle qui suit la mise en attente.
-    const maj = direMarque(40, { what: "the PO", who: "Acme", since: "2026-12-30T08:00:00.000Z", followUp: "2027-01-06T00:00:00.000Z", onArrival: A_L_ARRIVEE }, true);
-    assert.deepEqual(tiersDeLaMarque(maj, "2026-12-30T08:01:00Z"), { quoi: "the PO", qui: "Acme", depuis: "2026-12-30T08:00:00.000Z", relance: "2027-01-06T00:00:00.000Z", aLArrivee: A_L_ARRIVEE });
+    const maj = marqueDAvant(40, { what: "the PO", who: "Acme", since: "2026-12-30T08:00:00.000Z", followUp: "2027-01-06T00:00:00.000Z" }, true);
+    assert.deepEqual(tiersDeLaMarque(maj, "2026-12-30T08:01:00Z"), { quoi: "the PO", qui: "Acme", depuis: "2026-12-30T08:00:00.000Z", relance: "2027-01-06T00:00:00.000Z", aLArrivee: A_L_ARRIVEE_D_AVANT });
   });
 
-  test("la marque que l'app écrit dit la même chose, l'année en plus — une relance lointaine se relit telle quelle", () => {
-    assert.equal(A_L_ARRIVEE, direALArriveeEn(null));
-    const depuis = new Date("2026-11-09T10:00:00.000Z");
+  test("la marque que l'app écrit est celle de `parked set`, mot pour mot — une relance lointaine se relit telle quelle", () => {
     const relance = new Date("2028-03-01T00:00:00.000Z");
-    assert.deepEqual(tiersDeLaMarque(marqueDAttente({ quoi: "the signed quote", qui: "the client" }, depuis, relance), "2026-11-09T10:00:05Z"), { quoi: "the signed quote", qui: "the client", depuis: depuis.toISOString(), relance: relance.toISOString(), aLArrivee: A_L_ARRIVEE });
+    const corps = marqueDAttente({ quoi: "the signed quote", qui: "the client" }, relance);
+    assert.equal(corps, corpsDuParking({ what: "the signed quote", who: "the client", followUp: relance.toISOString() }));
+    // Ce que l'arrivée fera, l'app le dit dans les mots du commentaire.
+    assert.ok(corps.includes(A_L_ARRIVEE), corps);
+    assert.deepEqual(tiersDesCommentaires([{ body: corps, created_at: "2026-11-09T10:00:05Z", author_association: "OWNER" }]), { quoi: "the signed quote", qui: "the client", depuis: "2026-11-09T10:00:05.000Z", relance: relance.toISOString(), aLArrivee: `until 2028-03-01 00:00 UTC, then ${A_L_ARRIVEE}` });
   });
 
   test("un autre commentaire, ou une marque dont un morceau manque, ne se lit pas : rien n'est inventé ; la dernière marque l'emporte", () => {
     assert.equal(tiersDeLaMarque("**WAITING lifted** — no longer awaiting the client", "2026-11-02T09:31:00Z"), null);
-    assert.equal(tiersDeLaMarque(MARQUE_40.replace(/- \*\*follow-up\*\*.*\n/, ""), "2026-11-02T09:31:00Z"), null);
-    assert.equal(tiersDeLaMarque(MARQUE_40.replace("16 Nov", "16 Foo"), "2026-11-02T09:31:00Z"), null);
-    const autre = direMarque(40, { what: "the PO", who: "Acme", since: "2026-11-05T08:00:00.000Z", followUp: "2026-11-20T00:00:00.000Z", onArrival: A_L_ARRIVEE }, true);
-    assert.equal(tiersDesCommentaires([{ body: MARQUE_40, created_at: "2026-11-02T09:31:00Z" }, { body: autre, created_at: "2026-11-05T08:01:00Z" }, { body: "thanks", created_at: "2026-11-06T08:00:00Z" }])?.qui, "Acme");
+    assert.equal(tiersDeLaMarque(ANCIENNE_40.replace(/- \*\*follow-up\*\*.*\n/, ""), "2026-11-02T09:31:00Z"), null);
+    assert.equal(tiersDeLaMarque(ANCIENNE_40.replace("16 Nov", "16 Foo"), "2026-11-02T09:31:00Z"), null);
+    const autre = corpsDuParking({ what: "the PO", who: "Acme", followUp: "2026-11-20T00:00:00.000Z" });
+    assert.equal(tiersDesCommentaires([{ body: ANCIENNE_40, created_at: "2026-11-02T09:31:00Z" }, { body: autre, created_at: "2026-11-05T08:01:00Z", author_association: "OWNER" }, { body: "thanks", created_at: "2026-11-06T08:00:00Z" }])?.qui, "Acme");
+    // Une marque de parking d'un auteur hors du dépôt ne se lit pas.
+    assert.equal(tiersDesCommentaires([{ body: autre, created_at: "2026-11-05T08:01:00Z", author_association: "NONE" }]), null);
     assert.equal(tiersDesCommentaires([{ body: "thanks", created_at: "2026-11-06T08:00:00Z" }]), null);
   });
 });
 
 describe("la lecture de GitHub : TODO et WAITING", () => {
-  test("toute carte de TODO porte « waiting for… » ; #40, au label `waiting`, est dans WAITING avec ce qu'il attend", async () => {
+  test("toute carte de TODO porte « waiting for… » ; #40, au label `parked`, est dans WAITING avec ce qu'il attend", async () => {
     const lu = await lueParLApp(github());
     assert.deepEqual(colonneDe(lu, "Awaiting you").map(({ ticket, gestes }) => [ticket, gestes]), [[20, ["attente-poser"]]]);
     const [waiting] = colonneDe(lu, "Waiting");
@@ -142,8 +169,9 @@ describe("la lecture de GitHub : TODO et WAITING", () => {
   test("une carte `chef-todo` mise en WAITING quitte TODO, et se montre dans WAITING, hors du rail", async () => {
     const monde = github();
     const vingt = monde.issues.get(20) ?? assert.fail();
-    vingt.labels.add("waiting");
-    vingt.commentaires.push({ body: direMarque(20, { what: "the legal review", who: "legal", since: "2026-11-09T08:00:00.000Z", followUp: "2026-11-23T00:00:00.000Z", onArrival: A_L_ARRIVEE }, false), created_at: "2026-11-09T08:00:30Z" });
+    // Ce que « waiting for… » laisse sur l'issue (ticket 4129) : `chef-todo` reste, `parked` s'ajoute — elle attend un autre.
+    vingt.labels.add("parked");
+    vingt.commentaires.push({ body: corpsDuParking({ what: "the legal review", who: "legal", followUp: "2026-11-23T00:00:00.000Z" }), created_at: "2026-11-09T08:00:30Z", author_association: "OWNER" });
     const lu = await lueParLApp(monde);
     assert.deepEqual(colonneDe(lu, "Awaiting you"), []);
     assert.deepEqual(colonneDe(lu, "Waiting").map(({ ticket, dit }) => [ticket, dit[0]?.valeur]), [
@@ -160,10 +188,10 @@ describe("la lecture de GitHub : TODO et WAITING", () => {
     const [waiting] = colonneDe(lu, "Waiting");
     assert.equal(waiting?.ticket, 40);
     assert.match(waiting?.sans ?? "", /^not given/);
-    assert.deepEqual(lu.bilans, ["what the `waiting` issues wait for was not read from GitHub: GitHub answered HTTP 502 on /repos/chef/parade/issues/40/comments — their WAITING cards do not say it until the next reading"]);
+    assert.deepEqual(lu.bilans, ["what the `parked` issues wait for was not read from GitHub: GitHub answered HTTP 502 on /repos/chef/parade/issues/40/comments — their WAITING cards do not say it until the next reading"]);
   });
 
-  test("une issue au label `waiting` sans marque lisible — posé à la main : sa carte est dans WAITING, sans rien inventer", async () => {
+  test("une issue au label `parked` sans marque lisible — posé à la main : sa carte est dans WAITING, sans rien inventer", async () => {
     const monde = github();
     (monde.issues.get(40) ?? assert.fail()).commentaires = [{ body: "waiting on the client", created_at: "2026-11-02T09:31:00Z" }];
     const [waiting] = colonneDe(await lueParLApp(monde), "Waiting");
@@ -173,31 +201,14 @@ describe("la lecture de GitHub : TODO et WAITING", () => {
   });
 });
 
-const SECOND: Terminal = { id: 1, projet: PROJET, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const dansDixJours = () => jourDe(new Date(Date.now() + 10 * 86_400_000));
 
-describe("les gestes : la commande du runtime quand il tourne ici, sinon l'issue", () => {
-  test("le runtime ici : « resume » part par sa commande, rien sur GitHub ; « waiting for… » s'écrit sur l'issue, rien dans le second ; « it arrived » retire `waiting`", async () => {
-    const monde = github();
-    const lu = await lueParLApp(monde);
-    const commandes: string[] = [];
-    const parLeRuntime = (id: string) => () => (commandes.push(id), SECOND);
-    const jouer = (id: string, ticket: number, saisie?: unknown) => jouerLAttente({ id, ticket, saisie, aujourdhui: new Date(), lu: () => lu, client: monde.client, parLeRuntime: parLeRuntime(id) });
-    assert.ok("fait" in (await jouer("attente-poser", 20, { quoi: "x", qui: "y", relance: dansDixJours() })));
-    assert.deepEqual(commandes, []);
-    assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
-    assert.equal(await jouer("attente-reprendre", 40), SECOND);
-    assert.deepEqual(commandes, ["attente-reprendre"]);
-    assert.ok("fait" in (await jouer("attente-arrivee", 40)));
-    assert.deepEqual(commandes, ["attente-reprendre"]);
-    assert.equal(monde.ecrites.at(-1), `DELETE /repos/${DEPOT}/issues/40/labels/waiting`);
-  });
-
-  test("sans runtime ici : « waiting for… » pose la marque puis `waiting` ; relue, la carte est dans WAITING avec quoi, de qui et sa relance", async () => {
+describe("les gestes s'écrivent sur l'issue, sur tout projet", () => {
+  test("« waiting for… » pose la marque puis `parked` ; relue, la carte est dans WAITING avec quoi, de qui et sa relance", async () => {
     const monde = github();
     const lu = await lueParLApp(monde);
     const relance = dansDixJours();
-    const dit = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: " the legal review ", qui: "legal", relance }, aujourdhui: new Date(), lu: () => lu, client: monde.client, parLeRuntime: () => undefined });
+    const dit = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: " the legal review ", qui: "legal", relance }, aujourdhui: new Date(), lu: () => lu, client: monde.client });
     assert.deepEqual(dit, { fait: `in WAITING on GitHub: #20 awaits legal, follow-up on ${relance}`, detail: `${issue(20)}#issuecomment-9` });
     assert.deepEqual(monde.ecrites, [`POST /repos/${DEPOT}/issues/20/comments`, `POST /repos/${DEPOT}/issues/20/labels`]);
     const relu = await lueParLApp(monde);
@@ -209,7 +220,7 @@ describe("les gestes : la commande du runtime quand il tourne ici, sinon l'issue
     ]);
     const [an, mois, jour] = relance.split("-").map(Number);
     assert.equal(faitsDe(relu).rail.find(({ ticket }) => ticket === 20)?.tiers?.relance, new Date(an ?? 0, (mois ?? 1) - 1, jour).toISOString());
-    // « resume » : `waiting` retiré, la carte revient dans TODO.
+    // « resume » : `parked` retiré, la carte revient dans TODO.
     const repris = await attenteSurGithub({ id: "attente-reprendre", ticket: 20, saisie: undefined, aujourdhui: new Date(), lu: relu, client: monde.client });
     assert.ok("fait" in repris);
     assert.deepEqual(colonneDe(await lueParLApp(monde), "Awaiting you").map(({ ticket }) => ticket), [20]);
@@ -230,13 +241,13 @@ describe("les gestes : la commande du runtime quand il tourne ici, sinon l'issue
 
     const labelRefuse = github((chemin) => (chemin.startsWith("POST") && chemin.endsWith("/labels") ? { status: 403, data: { message: "Resource not accessible by integration" } } : undefined));
     const aMoitie = await jouerLAttente({ id: "attente-poser", ticket: 20, saisie: { quoi: "x", qui: "y", relance: dansDixJours() }, aujourdhui: new Date(), lu: () => lu, client: labelRefuse.client });
-    assert.deepEqual(aMoitie, { refus: "#20 is not in WAITING: its comment is posted, but GitHub did not set `waiting` — try again", detail: "GitHub refused `waiting` (HTTP 403): Resource not accessible by integration" });
+    assert.deepEqual(aMoitie, { refus: "#20 is not in WAITING: its comment is posted, but GitHub did not set `parked` — try again", detail: "GitHub refused `parked` (HTTP 403): Resource not accessible by integration" });
     assert.deepEqual(colonneDe(await lueParLApp(labelRefuse), "Awaiting you").map(({ ticket }) => ticket), [20], "sans le label, la carte reste dans TODO");
   });
 });
 
 // L'écran : la vue jouée devant le faux document, sur ce que la lecture de l'app range, et son geste `attente` porté par
-// la chaîne du process principal (`jouerLAttente`) — ici sans runtime, sur le faux GitHub.
+// la chaîne du process principal (`jouerLAttente`), sur le faux GitHub.
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PROJET, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
@@ -344,20 +355,20 @@ describe("sur l'écran d'un projet GitHub", () => {
     assert.deepEqual(dits.slice(0, 4), ["waiting for", "from", "since", "follow-up"]);
   });
 
-  test("sur une carte de WAITING, « resume » et « it arrived, back to the kitchen » jouent chacun leur geste — `waiting` retiré de l'issue", async () => {
+  test("sur une carte de WAITING, « resume » et « it arrived, back to the kitchen » jouent chacun leur geste — `parked` retiré de l'issue", async () => {
     const monde = github();
     const { vue } = await ouvrir(monde);
     boutonDe(bonDe(vue, 40), "resume").click();
     await repos();
     assert.deepEqual(vue.dernier("attente"), [PROJET, "attente-reprendre", 40, undefined]);
-    assert.deepEqual(monde.ecrites, [`DELETE /repos/${DEPOT}/issues/40/labels/waiting`]);
-    assert.equal(bonDe(vue, 40).dessous("p").find((pose) => pose.className === "arrivee")?.textContent, "resumed on GitHub: #40 no longer carries `waiting` — it is back where it was before waiting");
+    assert.deepEqual(monde.ecrites, [`DELETE /repos/${DEPOT}/issues/40/labels/parked`]);
+    assert.equal(bonDe(vue, 40).dessous("p").find((pose) => pose.className === "arrivee")?.textContent, "resumed on GitHub: #40 no longer carries `parked` — it resumes exactly where it was");
 
     const autre = github();
     const { vue: deux } = await ouvrir(autre);
     boutonDe(bonDe(deux, 40), "it arrived, back to the kitchen").click();
     await repos();
     assert.deepEqual(deux.dernier("attente"), [PROJET, "attente-arrivee", 40]);
-    assert.deepEqual(autre.ecrites, [`DELETE /repos/${DEPOT}/issues/40/labels/waiting`]);
+    assert.deepEqual(autre.ecrites, [`DELETE /repos/${DEPOT}/issues/40/labels/parked`]);
   });
 });

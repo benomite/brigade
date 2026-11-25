@@ -4,28 +4,32 @@
 // - Le disjoncteur ouvert. Le chef ne le referme plus : le superviseur rejoue le contrôle qui l'a ouvert — un run, qui
 //   finit bien ou non — et ne le referme que si ce run finit bien. Tant que le contrôle échoue, le disjoncteur reste
 //   ouvert, et le contrôle est rejoué plus tard. Fermé, il le dit sur chaque ticket que la cause touchait.
-// - Un ticket mis de côté par ses échecs (`set-aside:failures`). Aucune minuterie ne le remet sur le rail : il est confié
-//   au superviseur, qui reçoit son dossier et répond par UN geste de la liste fermée ci-dessous — les gestes de l'étape 4 de
-//   la spec. Sa réponse illisible, ou hors de la liste, ne fait rien : le dossier est redonné plus tard, trois fois au plus.
+// - Un ticket que la station a parqué par ses échecs (#4129 : `parked`, sa marque dit `failures` et qu'il attend le
+//   superviseur). Il attend le superviseur : celui-ci reçoit son dossier et répond par UN geste de la liste fermée
+//   ci-dessous — les gestes de l'étape 4 de la spec. Sa réponse illisible, ou hors de la liste, ne fait rien : le dossier
+//   est redonné plus tard, trois fois au plus. Un ticket parqué pour quelqu'un d'autre n'est jamais confié.
 //
-// Rien n'est tenu ici qu'un cache : l'état se relit du journal et de GitHub à chaque passe. Un geste qui réussit retire
-// `set-aside:failures`, et le ticket n'est plus confié.
+// Rien n'est tenu ici qu'un cache : l'état se relit du journal et de GitHub à chaque passe. Un geste qui réussit dit
+// au ticket qui il attend désormais, ou le déparque : il n'est plus confié.
 import type { Base } from "../base.ts";
 import { calageDuDisjoncteur, direLeCalage } from "../breaker/calage.ts";
 import { projetEteint } from "../projections/switch.ts";
-import { poserLAttente, corpsDeLAttente } from "../attente-github/attente-github.ts";
+import { attenteDeLIssue, corpsDuParking, type AttenteGitHub } from "../attente-github/marque.ts";
+import { carteQuestionProduit, poserCarte } from "../github-seul/carte-todo/carte-todo.ts";
+import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
+import { CHEF_TODO, LABEL_PARKED } from "../github-etat/etats.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
-import { ECHECS_ATTEINTS, LABEL, type GitHub, type Issue } from "../github.ts";
+import { LABEL, type GitHub, type Issue } from "../github.ts";
 import type { Journal } from "../journal.ts";
 import { couper, COMMENTAIRES_MAX, CORPS_MAX } from "../juger.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous } from "../projections/guardrails.ts";
 import type { Reponse } from "../decoupage.ts";
 
 // Les gestes que le superviseur peut faire sur un ticket mis de côté : ceux de l'étape 4 de la spec que ce ticket sait
-// appliquer, et aucun autre. `rail` : remettre le ticket sur le rail, avec une note ; `waiting` : le mettre de côté en
-// WAITING pour un tiers nommé ; `close` : fermer un doublon ou une alerte périmée ; `todo` : poser une carte de TODO, pour
-// une question de produit ou de design seulement.
+// appliquer, et aucun autre. `rail` : le déparquer sur le rail, avec une note ; `waiting` : le laisser parqué, pour un
+// tiers nommé ; `close` : fermer un doublon ou une alerte périmée ; `todo` : le parquer pour le chef — sa carte de TODO —,
+// pour une question de produit ou de design seulement.
 const GESTES = ["rail", "waiting", "close", "todo"] as const;
 type Geste = (typeof GESTES)[number];
 
@@ -60,6 +64,9 @@ export type OptionsSupervision = {
   arrete: () => boolean;
 };
 
+// Le ticket attend-il le superviseur ? La station l'a parqué par ses échecs, et personne ne l'a parqué depuis pour un autre.
+const pourLeSuperviseur = (attente: AttenteGitHub | null): boolean => attente !== null && attente.failures === true && attente.who === "the supervisor";
+
 type Decision = { geste: Geste; note: string; tiers?: string; question?: string };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -92,11 +99,11 @@ const CONSIGNE_DU_CONTROLE = "This is a health check of the kitchen's `claude` r
 
 function consigneDuDossier(ticket: Issue, corps: string, commentaires: readonly string[], faits: readonly string[]): string {
   return [
-    "You are the supervisor of a software kitchen. A ticket was set aside by its failure count (`set-aside:failures`): its cooks stopped without a delivery too many times, and nothing puts it back on the rail by itself. Read its dossier and choose ONE gesture.",
+    "You are the supervisor of a software kitchen. A ticket was parked by its failure count (`parked`, waiting for the supervisor): its cooks stopped without a delivery too many times, and nothing takes it before you answer. Read its dossier and choose ONE gesture.",
     "",
     "The only gestures you may make:",
-    '- "rail": put the ticket back on the rail, with a note for the next cook saying what to change;',
-    '- "waiting": set the ticket aside in WAITING for a named third party (`third_party`) — only when what it waits for is outside the kitchen;',
+    '- "rail": unpark the ticket onto the rail, with a note for the next cook saying what to change;',
+    '- "waiting": keep the ticket parked, waiting for a named third party (`third_party`) — only when what it waits for is outside the kitchen;',
     '- "close": close the ticket, when it is a duplicate or a stale alert;',
     '- "todo": post a TODO card for the chef, only for a product or design question (`question`).',
     "You never ask the chef for a technical gesture (a rerun, a merge, a rebase, a log reading).",
@@ -180,8 +187,14 @@ export function ouvrirSupervision(options: OptionsSupervision) {
   };
 
   const confierUnTicket = async (ticket: Issue) => {
+    const lus = await github.commentaires(ticket.number);
+    // Parqué pour quelqu'un d'autre que le superviseur, il n'est pas à lui : il attend cette personne, ou sa date.
+    if (!pourLeSuperviseur(attenteDeLIssue(lus))) {
+      confies.set(ticket.number, { essais: confies.get(ticket.number)?.essais ?? 0, a: maintenant().getTime() });
+      return;
+    }
     const corps = (await github.issue(ticket.number))?.body ?? "";
-    const commentaires = (await github.commentaires(ticket.number)).slice(-8).map((c) => `${c.author} (${c.createdAt}):\n${c.body}`);
+    const commentaires = lus.slice(-8).map((c) => `${c.author} (${c.createdAt}):\n${c.body}`);
     const faits = journal.duTicket(ticket.number).slice(-15).map(resume);
     const reponse = await demander({ numero: ticket.number, prefixe: "supervise", nom: "supervisor dossier" }, consigneDuDossier(ticket, corps, commentaires, faits), lireLaDecision);
     if (reponse === null || arrete()) return;
@@ -195,32 +208,35 @@ export function ouvrirSupervision(options: OptionsSupervision) {
     confies.delete(ticket.number);
   };
 
-  // Le geste, puis la trace : un seul commentaire sur le ticket, ce que le superviseur a vu et ce qu'il a fait. Le label
-  // `set-aside:failures` tombe en dernier : un geste interrompu se rejoue.
+  // Le geste, puis la trace : ce que le superviseur a vu et ce qu'il a fait. Parqué pour un tiers, la marque ouvre ce
+  // commentaire ; pour le chef, sa carte le suit : le ticket attend désormais cette personne, et le superviseur ne le
+  // reprend plus. Remis sur le rail ou fermé, `parked` tombe en dernier : un geste interrompu se rejoue.
   const appliquer = async (ticket: Issue, { geste, note, tiers, question }: Decision) => {
     const n = ticket.number;
-    const trace = (fait: string) => `${MARQUE_DU_SUPERVISEUR}\n**Supervisor** — the ticket was set aside by its failure count (\`${ECHECS_ATTEINTS}\`).\n\n**Saw:** ${note}\n\n**Did:** ${fait}`;
+    const trace = (fait: string) => `${MARQUE_DU_SUPERVISEUR}\n**Supervisor** — the ticket was parked by its failure count, waiting for the supervisor.\n\n**Saw:** ${note}\n\n**Did:** ${fait}`;
+    const parquer = async (attente: AttenteGitHub, fait: string) => github.commenter(n, `${corpsDuParking(attente)}\n\n${trace(fait)}`);
     switch (geste) {
       case "rail":
-        await github.commenter(n, trace("put it back on the rail."));
+        await github.commenter(n, trace("unparked it onto the rail."));
         if (!ticket.labels.includes(LABEL)) await github.labelliser(n, [LABEL]);
+        await github.delabelliser(n, LABEL_PARKED);
         break;
-      case "waiting": {
-        // La marque de l'attente ouvre le commentaire, la trace le suit : un seul commentaire, aucune relance à une date.
-        const attente = { what: note, who: tiers ?? "a third party", followUp: maintenant().toISOString() };
-        await poserLAttente(github, n, `${corpsDeLAttente(attente, { station: "supervisor", mots: note })}\n\n${trace(`set it aside in WAITING for ${tiers}.`)}`, `#${n}`, "the ticket stays set aside");
+      case "waiting":
+        await parquer({ what: note, who: tiers ?? "a third party", followUp: new Date(maintenant().getTime() + RELANCE_PAR_DEFAUT_MS).toISOString() }, `kept it parked, waiting for ${tiers}.`);
         break;
-      }
       case "close":
         await github.commenter(n, trace("closed it, a duplicate or a stale alert."));
         await github.fermerIssue(n);
+        await github.delabelliser(n, LABEL_PARKED);
         break;
       case "todo":
-        await github.commenter(n, `${trace("posted a TODO card for the chef: a product or design question.")}\n\n**Question for the chef:** ${question}`);
-        await github.labelliser(n, ["blocked-on-human"]);
+        // La carte parque le ticket pour le chef (`chef-todo`) : il n'attend plus le superviseur (`parked` tombe), et la
+        // réponse du chef, dans l'app, le fait reprendre.
+        await github.commenter(n, trace("parked it for the chef: a product or design question, a card in the chef's TODO."));
+        await poserCarte(n, carteQuestionProduit(n, question ?? note), github);
+        await github.delabelliser(n, LABEL_PARKED);
         break;
     }
-    await github.delabelliser(n, ECHECS_ATTEINTS);
   };
 
   const confierLesTicketsEcartes = async () => {
@@ -232,14 +248,15 @@ export function ouvrirSupervision(options: OptionsSupervision) {
         sondage.confirmer();
       }
     }
-    for (const ticket of confirmees.filter((issue) => issue.labels.includes(ECHECS_ATTEINTS))) {
+    // Les tickets parqués, hors de ceux du chef : la marque de chacun dit s'il attend le superviseur (`confierUnTicket`).
+    for (const ticket of confirmees.filter((issue) => issue.labels.includes(LABEL_PARKED) && !issue.labels.includes(CHEF_TODO))) {
       const deja = confies.get(ticket.number);
       if (deja && (deja.essais >= DOSSIER_ESSAIS_MAX || maintenant().getTime() - deja.a < DOSSIER_TOUS_LES_MS)) continue;
       if (arrete() || projetEteint(base)) return;
       try {
         await confierUnTicket(ticket);
       } catch (erreur) {
-        // Un geste qui a manqué se rejoue à la passe suivante : `set-aside:failures` n'est retiré qu'après lui.
+        // Un geste qui a manqué se rejoue à la passe suivante : le ticket attend le superviseur tant qu'il n'a pas réussi.
         if (!arrete()) avertir(`brigade : superviseur — #${ticket.number} non traité — ${message(erreur)}`);
         confies.set(ticket.number, { essais: (deja?.essais ?? 0) + 1, a: maintenant().getTime() });
       }

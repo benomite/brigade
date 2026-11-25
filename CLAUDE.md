@@ -1,6 +1,6 @@
 ## Brigade's goal: autonomy
 
-The kitchen serves its tickets on its own. **Every `blocked-on-human` without a product or design decision is a failure**, to be fixed like a bug, never a normal step. A TODO card asks a human a question: a product choice, a design choice, or a review only the chef can make. It is never something an agent can decide: a technical merge with a green CI, a rebase, a rerun, putting a ticket back on the rail. When in doubt, decide, say what you decided, and move on.
+The kitchen serves its tickets on its own. **Every ticket parked for the chef (`chef-todo`) without a product or design decision is a failure**, to be fixed like a bug, never a normal step. A TODO card asks a human a question: a product choice, a design choice, or a review only the chef can make. It is never something an agent can decide: a technical merge with a green CI, a rebase, a rerun, putting a ticket back on the rail. When in doubt, decide, say what you decided, and move on.
 
 ## Équipe multi-agents (plugin brigade)
 

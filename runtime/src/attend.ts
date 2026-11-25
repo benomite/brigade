@@ -266,8 +266,8 @@ const SANS_BOUTON = "no app button for it yet";
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
 // — la roadmap, l'issue d'un inconnu — n'attendent personne.
 const GESTES_D_ECART_EN = {
-  question: "set aside by the manager, it carries `question` — to decide: answer it then remove the label, the manager judges it; or close the issue",
-  decision: "set aside by the manager, it carries `decision` — to decide: decide then remove the label, the manager judges it; or close the issue",
+  question: "parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
+  decision: "parked for you by the manager, for your decision (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue",
   "blocked-on-human": "held back, it carries `blocked-on-human` — to lift: remove the label, the manager judges it; or close the issue",
 } as const satisfies Partial<Record<Ecart, string>>;
 type EcartQuiAttend = keyof typeof GESTES_D_ECART_EN;
@@ -766,8 +766,8 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
 // — la roadmap, l'issue d'un inconnu — n'attendent personne.
 const GESTES_D_ECART = {
-  question: "écartée par le manager, elle porte `question` — à trancher : y répondre puis retirer le label, il la juge ; ou fermer l'issue",
-  decision: "écartée par le manager, elle porte `decision` — à trancher : décider puis retirer le label, il la juge ; ou fermer l'issue",
+  question: "parquée pour le chef par le manager, avec sa question (`chef-todo`) — à trancher : répondre à sa carte, il la rejuge ; ou fermer l'issue",
+  decision: "parquée pour le chef par le manager, pour sa décision (`chef-todo`) — à trancher : répondre à sa carte, il la rejuge ; ou fermer l'issue",
   "blocked-on-human": "retenue, elle porte `blocked-on-human` — à lever : retirer le label, le manager la juge ; ou fermer l'issue",
 } as const satisfies Partial<Record<Ecart, string>>;
 

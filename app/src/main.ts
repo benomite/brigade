@@ -40,7 +40,7 @@ import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
-import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
+import { GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
 import { tenirLesColonnes } from "./colonnes-videes.ts";
@@ -1209,8 +1209,8 @@ ipcMain.handle("attente", async (_, nom: unknown, id: unknown, ticket: unknown, 
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const aujourdhui = new Date();
-  const rendu = await jouerLAttente({ id, ticket, saisie, aujourdhui, lu: () => tableaux.dernier(vise.nom), client: clientDesLabels, parLeRuntime: () => ecrireAttente(terminaux, id, vise, ticket, saisie, aujourdhui, cuisines.cuisineDe(vise)) });
-  if (rendu !== undefined && "fait" in rendu) tableaux.oublier();
+  const rendu = await jouerLAttente({ id, ticket, saisie, aujourdhui, lu: () => tableaux.dernier(vise.nom), client: clientDesLabels });
+  if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits

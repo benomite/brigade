@@ -71,9 +71,11 @@ function corpsDeLaGarde({ ticket, attendus, origine, commentaire }: { ticket: nu
 
 function corpsDeLaQuestion({ station, ticket, attendus, origine, question }: { station: string; ticket: number; attendus: readonly number[]; origine: string; question: string }): string {
   return [
+    // Une carte du TODO du chef (#4129) : le ticket est parqué pour lui (`chef-todo`).
+    "<!-- brigade:todo kind=blocked -->",
     `**Question for the chef (product):** ${surUneLigne(question)}`,
     "",
-    `Station \`${station}\`: #${ticket} has waited more than an hour for ${liste(attendus)} (${origine}). The manager reviewed the wait: whether it holds is a product decision, only the chef makes it. Answer it on this issue, then remove \`blocked-on-human\`: the manager reads your answer, then lifts or keeps the wait.`,
+    `Station \`${station}\`: #${ticket} has waited more than an hour for ${liste(attendus)} (${origine}). The manager reviewed the wait: whether it holds is a product decision, only the chef makes it. Answer this card: the manager reads your answer, then lifts or keeps the wait.`,
     marque("produit", attendus),
   ].join("\n");
 }

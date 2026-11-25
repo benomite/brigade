@@ -96,6 +96,6 @@ test("the command runs the gesture with the app's node, a clean environment and 
   writeFileSync(faux, '#!/bin/sh\necho "$@|$BRIGADE_STATION_DIR|$HOME|$PATH|$SECRET|$USER|$(pwd)"\n');
   chmodSync(faux, 0o755);
   const fichier = poserLaCommande(options(maison, { runtime, node: faux }));
-  const r = spawnSync("/bin/sh", [fichier!, "proj", "waiting", "set", "7"], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", SECRET: "x", USER: "chef" } });
-  assert.equal(r.stdout.trim(), `src/station/geste.ts proj waiting set 7|/h/station|${maison}|/usr/bin:/bin||chef|${runtime}`);
+  const r = spawnSync("/bin/sh", [fichier!, "proj", "parked", "set", "7"], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", SECRET: "x", USER: "chef" } });
+  assert.equal(r.stdout.trim(), `src/station/geste.ts proj parked set 7|/h/station|${maison}|/usr/bin:/bin||chef|${runtime}`);
 });

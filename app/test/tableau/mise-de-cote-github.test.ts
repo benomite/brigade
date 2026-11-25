@@ -73,10 +73,12 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
     assert.deepEqual(miseDeCoteDe(DEPOT, "served-elsewhere", [commentaire("Taken by station `box/claude`."), commentaire("served-elsewheres are elsewhere")], 8), { label: "served-elsewhere", raison: null, liens: [], auChef: false, pr: null });
   });
 
-  test("le label qui met de côté : `served-elsewhere` d'abord, `blocked-on-human` ensuite, aucun quand le chef l'a mis en WAITING", () => {
+  test("le label qui met de côté : `served-elsewhere` d'abord, `blocked-on-human` ensuite, aucun quand il est parqué (`parked` : il attend un autre que le chef, WAITING)", () => {
     assert.equal(labelDeMiseDeCote(["fire", "in-pass", "blocked-on-human"]), "blocked-on-human");
     assert.equal(labelDeMiseDeCote(["fire", "blocked-on-human", "served-elsewhere"]), "served-elsewhere");
-    assert.equal(labelDeMiseDeCote(["fire", "served-elsewhere", "waiting"]), null);
+    assert.equal(labelDeMiseDeCote(["fire", "served-elsewhere", "parked"]), null);
+    // `parked` attend toujours un autre que le chef (ticket 4129), même sur une carte qui garde `chef-todo` : aucun.
+    assert.equal(labelDeMiseDeCote(["fire", "served-elsewhere", "parked", "chef-todo"]), null);
     assert.equal(labelDeMiseDeCote(["fire", "taken"]), null);
   });
 

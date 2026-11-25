@@ -11,8 +11,8 @@
 //   - `technique` — un outil, un chemin, un dépôt, un choix entre options
 //     techniques, un accès que la cuisine a : il y répond sur l'issue, dit la
 //     décision qu'il prend, et le ticket repart à un cook depuis sa branche ;
-//   - `produit` ou `design` — seul le chef tranche : `blocked-on-human`, et le
-//     commentaire porte la question sur une ligne ;
+//   - `produit` ou `design` — seul le chef tranche : le ticket est parqué pour
+//     lui (`chef-todo`, #4129), et sa carte porte la question sur une ligne ;
 //   - `geste` — rien à décider, mais un geste que seul le chef peut faire : la
 //     carte nomme ce geste exact, jamais la question du cook seule. Un geste
 //     sur GitHub — ouvrir des issues, commenter, un label — la station le fait
@@ -201,7 +201,7 @@ export function corpsDeLaCarte({ station, questionEn, avis, secret = false }: { 
     : avis.issue === "geste"
       ? "nothing in it is to decide, but only the chef can make this gesture"
       : `it is a ${avis.issue === "produit" ? "product" : "design"} decision, only the chef makes it`;
-  const ensuite = avis.issue === "geste" ? "Once it is done, remove `blocked-on-human`: a cook resumes the ticket from its branch." : "Answer it on this issue, then remove `blocked-on-human`: a cook resumes the ticket from its branch.";
+  const ensuite = avis.issue === "geste" ? "Once it is done, answer this card: the ticket resumes where it was, a cook from its branch." : "Answer this card: the ticket resumes where it was, a cook carries your answer from its branch.";
   return [
     tete,
     "",

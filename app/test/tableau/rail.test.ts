@@ -58,11 +58,11 @@ const issue = (number: number, labels: string[], extra: object = {}) => ({
 const prise = (id: number, station: string, le: string) => ({ id, body: `<!-- brigade:prise station=${station} -->`, author_association: "OWNER", created_at: le });
 
 // Le projet sur GitHub : #30 en attente (prio:0), #23 pris par box/claude, #17 en pass (PR #50) cuisiné par mac/claude,
-// #35 en WAITING ; #60, une épique, avant le rail ; #24, une carte du chef (`chef-todo`) qui pose une question.
+// #35 parqué (`parked`, WAITING) ; #60, une épique, avant le rail ; #24, une carte du chef (`chef-todo`) qui pose une question.
 // `chemins` : ce qui a été demandé.
 function github(chemins: string[] = []): AppelGitHub {
   // #30, calibré par le manager : rien ne le bloque (le rail bloqué, #3358 : test/rail-bloque/).
-  const auFeu = [issue(30, ["fire", "prio:0", "model:sonnet", "effort:medium"]), issue(23, ["fire", "taken"]), issue(17, ["fire", "in-pass"]), issue(35, ["fire", "waiting", "taken"])];
+  const auFeu = [issue(30, ["fire", "prio:0", "model:sonnet", "effort:medium"]), issue(23, ["fire", "taken"]), issue(17, ["fire", "in-pass"]), issue(35, ["fire", "parked", "taken"])];
   return async (chemin) => {
     chemins.push(chemin);
     if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return ok(auFeu);
