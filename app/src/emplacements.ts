@@ -7,7 +7,7 @@
 //   retard de son clone, et se met à jour par lui (retard.ts, rattrapage.ts).
 // - **Installée** (le .dmg, app/packaging/) : tout est dans le paquet de l'app —
 //   `Contents/Resources/` porte l'app (`app/`), le runtime (`runtime/`), le `node` qui le joue
-//   (`node/bin/node`) et les commandes du plugin de l'app (`plugin/commands/`). Il n'y a ni clone, ni `node`, ni `npm` à chercher sur la machine : rien
+//   (`node/bin/brigade-node`) et les commandes du plugin de l'app (`plugin/commands/`). Il n'y a ni clone, ni `node`, ni `npm` à chercher sur la machine : rien
 //   ne s'y lit du retard d'un clone, rien ne s'y met à jour par `git`.
 //
 // Ouverte depuis le Finder, une app ne reçoit pas le PATH du chef : seulement celui du système.
@@ -49,14 +49,13 @@ export type OptionsEmplacements = {
 // Ce que le paquet de l'app porte, sous `Contents/Resources` : la forme qu'écrit app/packaging/.
 export const APP_DU_PAQUET = "app";
 export const RUNTIME_DU_PAQUET = "runtime";
-export const NODE_DU_PAQUET = join("node", "bin", "node");
+export const NODE_DU_PAQUET = join("node", "bin", "brigade-node");
 // Les commandes du plugin de l'app (plugin-app.ts), copiées de `commands/` du dépôt.
 export const COMMANDES_DU_PAQUET = join("plugin", "commands");
 
 // L'app est installée quand ses sources sont celles du paquet qui la joue : `Resources/app/src`.
 // Depuis le dépôt, Electron est celui de `app/node_modules`, et les sources sont à côté. Ce n'est
-// pas `app.isPackaged` : Electron le dit faux pour un exécutable nommé « Electron », et celui du
-// paquet garde ce nom — c'est sous lui qu'Electron cherche ses auxiliaires (app/packaging/).
+// pas `app.isPackaged` : Electron le dit faux depuis le dépôt, où l'exécutable s'appelle `electron`.
 export function estInstallee(options: Pick<OptionsEmplacements, "ressources" | "src" | "reel">): boolean {
   const reel = (chemin: string) => {
     try {

@@ -18,7 +18,7 @@
 //   resources/app/         `src/`, son package.json et ses dépendances de production ; node-pty n'y
 //                          garde que son `pty.node`, compilé pour linux-x64 (`prebuilds/linux-x64/`)
 //   resources/runtime/     `src/` et package.json du runtime
-//   resources/node/bin/node   le `node` qui joue la station : celui de la machine n'y est pour rien
+//   resources/node/bin/brigade-node   le `node` qui joue la station : celui de la machine n'y est pour rien
 //   resources/plugin/commands/   `dev.md` et `ask.md` de `commands/` (src/plugin-app.ts)
 //
 // Une AppImage est le runtime d'AppImage (un exécutable ELF qui monte ce qui le suit), suivi de
