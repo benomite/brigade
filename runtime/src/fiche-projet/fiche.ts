@@ -86,7 +86,7 @@ function etapes(valeur: unknown): Etape[] {
 }
 
 function servi(valeur: unknown): { branch: string } {
-  if (!estObjet(valeur)) throw new FicheInvalide("served", `${nomme("served")} must be an object \`{branch}\``);
+  if (estObjet(valeur)) throw new FicheInvalide("served", `${nomme("served")} must be an object \`{branch}\``);
   const inconnue = Object.keys(valeur).find((cle) => cle !== "branch");
   if (inconnue !== undefined) throw new FicheInvalide(`served.${inconnue}`, `${nomme("served")}: \`${inconnue}\` is not part of it: expected \`branch\``);
   const branche = texte("served.branch", valeur.branch);
