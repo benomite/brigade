@@ -19,8 +19,7 @@ Each kind of action has a rank:
 | `fix-typo` | `safe` |
 | any other kind | `chef` |
 
-A kind the project sheet does not rank takes its default. A kind with no default is `chef`. A value that is neither
-`chef` nor `safe` is no rank: the kind is `chef`.
+A kind the project sheet does not rank takes its default. A kind with no default is `chef`.
 
 ## Where the chef changes a rank
 
@@ -36,9 +35,13 @@ In the project sheet, `.claude/brigade/projet.json` of the project's repository,
 }
 ```
 
-The pass reads the sheet in the station's clone of the project, again each time a ticket's action reaches it: a rank
-changed in the sheet applies from the next ticket, with no other edit and no restart. A sheet that cannot be read is said in the parked item, and every
-kind is taken as `chef` until it reads again.
+`risk` is one of the project's settings ([`../reglages.md`](../reglages.md)): a rank that is neither `chef` nor `safe`
+is refused, like any invalid setting.
+
+The pass reads the sheet as the integration branch holds it, like the station's other settings, again each time a
+ticket's merge reaches it: a rank changed in the sheet on the integration branch applies from the next ticket, with no
+other edit and no restart. While the sheet cannot be read, the merge of a ticket that has a kind is parked for the
+chef, and the parked item says why.
 
 ## At the pass
 

@@ -1,45 +1,44 @@
 // #4230: the pass of a station submits the merge of a ticket that says its kind of action (`action:<kind>`) to the
-// risk ranking of the project sheet, read in the station's clone. Ranked `chef`, the merge is parked for the chef at
+// risk ranking of the project sheet, read as the station reads it at the integration branch (`reglagesDuTexte`). Ranked `chef`, the merge is parked for the chef at
 // the gesture gate, whatever the pass's level, and done once the chef approves it; ranked `safe`, it is merged with
 // nothing held. The cook and the review are fakes; the clock is given; no `claude` is launched.
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { gestesDe, OUTCOME } from "../../src/autonomie/agents/gestes.ts";
 import { magasinDeNiveaux, type Niveau } from "../../src/autonomie/agents/niveaux.ts";
 import { gestesEnAttente, porteDesGestes } from "../../src/autonomie/agents/porte.ts";
+import { reglagesDuTexte, texteDuFichier } from "../../src/reglages-projet/reglages.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
 const PROJET = "risque-station";
 const A9 = () => new Date("2026-11-23T09:00:00.000Z");
 
-// A station of a fake GitHub with ticket #1 on the rail, labelled with its kind of action, and a clone whose project
-// sheet holds `fiche` (a string: written as is).
+// A station of a fake GitHub with ticket #1 on the rail, labelled with its kind of action, and a project sheet that
+// holds `fiche` at the integration branch (a string: written as is), which `poser` changes.
 function station(t: TestContext, genre: string, fiche: unknown, pass?: Niveau) {
   const repertoire = repertoireTemporaire(t);
   if (pass !== undefined) magasinDeNiveaux(repertoire).poser(PROJET, "pass", pass);
-  const clone = repertoireTemporaire(t);
-  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
-  writeFileSync(join(clone, ".claude", "brigade", "projet.json"), typeof fiche === "string" ? fiche : JSON.stringify(fiche));
+  let texte = "";
+  const poser = (contenu: unknown) => void (texte = typeof contenu === "string" ? contenu : JSON.stringify({ version: 1, integrationBranch: "main", ...(contenu as object) }));
+  poser(fiche);
   const porte = porteDesGestes({ repertoire, projet: PROJET, horloge: A9 });
   const faux = new FauxGitHub();
   faux.feu(1, [...CALIBRE, `action:${genre}`]);
   faux.nonFermees.add(1);
   const avertissements: string[] = [];
-  const box = faux.station("A", { porte, clone, avertir: (texte) => void avertissements.push(texte) });
+  const box = faux.station("A", { porte, ficheDuProjet: () => reglagesDuTexte(texte), avertir: (texte) => void avertissements.push(texte) });
   const tours = async (n: number) => {
     for (let i = 0; i < n; i++) {
       await box.tour();
       await box.calme();
     }
   };
-  return { repertoire, porte, faux, clone, avertissements, tours };
+  return { repertoire, porte, faux, poser, avertissements, tours };
 }
 
 test("a merge whose kind the sheet does not rank as safe is parked for the chef with what it will do, and merged once the chef approves it", async (t) => {
-  const { repertoire, porte, faux, avertissements, tours } = station(t, "publish", { version: 1 });
+  const { repertoire, porte, faux, avertissements, tours } = station(t, "publish", {});
   await tours(3);
   assert.equal(faux.mergee(1), undefined, "the merge did not run");
   // Held as a delivery the chef answers: never said refused by GitHub.
@@ -55,10 +54,10 @@ test("a merge whose kind the sheet does not rank as safe is parked for the chef 
 });
 
 test("a rank changed in the sheet applies to the next ticket: ranked 'safe', its merge goes through with nothing parked", async (t) => {
-  const { repertoire, faux, clone, tours } = station(t, "publish", {});
+  const { repertoire, faux, poser, tours } = station(t, "publish", {});
   await tours(3);
   assert.equal(faux.mergee(1), undefined);
-  writeFileSync(join(clone, ".claude", "brigade", "projet.json"), JSON.stringify({ risk: { publish: "safe" } }));
+  poser({ risk: { publish: "safe" } });
   faux.feu(2, [...CALIBRE, "action:publish"]);
   faux.nonFermees.add(2);
   await tours(3);
@@ -73,7 +72,7 @@ test("a sheet that cannot be read parks the merge for the chef and says why", as
   const { repertoire, faux, tours } = station(t, "fix-typo", "{not json");
   await tours(3);
   assert.equal(faux.mergee(1), undefined);
-  assert.match(gestesEnAttente(repertoire)[0]?.line ?? "", /the project sheet cannot be read, so its kind `fix-typo` is taken as ranked 'chef'/);
+  assert.match(gestesEnAttente(repertoire)[0]?.line ?? "", /the project sheet cannot be read, so its kind `fix-typo` is taken as ranked 'chef' — `.claude\/brigade\/projet.json` is not valid JSON/);
 });
 
 // brigade:guard
@@ -101,4 +100,12 @@ test("the gate holds a gesture said for the chef whatever its level but observe,
   magasinDeNiveaux(repertoire).poser(PROJET, "pass", "observe");
   assert.equal((await porte.passer({ agent: "pass", reglable: "pass", auChef: true }, { ...dit, line: "publish" }, faire)).etat, "observed");
   assert.equal(faits, 1);
+});
+
+test("the project sheet's `risk` field is a setting of the project: read, kept when the sheet is written again, and refused when a rank is no rank", () => {
+  const fiche = reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", risk: { publish: "safe", "fix-typo": "chef" } }));
+  assert.deepEqual(fiche.risk, { publish: "safe", "fix-typo": "chef" });
+  assert.deepEqual(reglagesDuTexte(texteDuFichier(fiche)).risk, { publish: "safe", "fix-typo": "chef" });
+  assert.throws(() => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", risk: { pay: "maybe" } })), /`risk\.pay` .*must be a rank: `chef` or `safe`/);
+  assert.throws(() => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", risk: ["pay"] })), /risk.*must be an object of kinds of actions/);
 });

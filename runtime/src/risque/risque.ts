@@ -68,15 +68,17 @@ export type PassDuRisque = {
   repondre(id: number): Promise<void>;
 };
 
-// `parquer` hands each parked item to the chef. A sheet that cannot be read parks the action, and says why.
-export function ouvrirLePass({ dossier, parquer }: { dossier: string; parquer: (item: ItemParque) => unknown }): PassDuRisque {
+// `parquer` hands each parked item to the chef. The sheet is the one of the folder `dossier`, or what `lire` gives —
+// the station's, read at the integration branch. A sheet that cannot be read parks the action, and says why.
+export function ouvrirLePass({ parquer, ...fiche }: { parquer: (item: ItemParque) => unknown } & ({ dossier: string } | { lire: () => unknown })): PassDuRisque {
+  const lire = "lire" in fiche ? fiche.lire : () => lireFicheDuProjet(fiche.dossier);
   const parquees = new Map<number, { item: ItemParque; executer: () => Promise<void> }>();
   let dernier = 0;
   return {
     async soumettre({ ticket, genre, description, executer }) {
       let pourquoi: string;
       try {
-        pourquoi = rangDuGenre(lireFicheDuProjet(dossier), genre) === "safe" ? "" : `its kind \`${genre}\` is ranked 'chef' in the project sheet`;
+        pourquoi = rangDuGenre(lire(), genre) === "safe" ? "" : `its kind \`${genre}\` is ranked 'chef' in the project sheet`;
       } catch (erreur) {
         pourquoi = `the project sheet cannot be read, so its kind \`${genre}\` is taken as ranked 'chef' — ${(erreur as Error).message}`;
       }

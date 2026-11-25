@@ -425,6 +425,9 @@ export type OptionsDeStation = {
   // relu à chaque merge : une livraison design verte attend sa carte au lieu
   // d'être mergée (`validation-design/`). Absent, non.
   designsValidesParUnHumain?: () => boolean;
+  // La fiche du projet telle que la branche d'intégration la porte, relue à chaque merge : son classement du risque
+  // (\`risk\`, #4230) parque pour le chef le merge d'un ticket dont le genre d'action est rangé \`chef\`.
+  ficheDuProjet?: () => unknown;
   // Le compte GitHub du chef, résolu à chaque demande de validation (#3615) :
   // la demande posée sur le ticket le mentionne. Absent, nul ou illisible, elle
   // ne mentionne personne, et la station le dit.
@@ -766,12 +769,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
   const { clone } = options;
   // Le classement du risque de la fiche du projet, relu à chaque action (#4230) : une action rangée \`chef\` attend
-  // l'OK du chef à la porte des gestes, quel que soit le niveau de la pass ; sans clone, aucune fiche à lire.
+  // l'OK du chef à la porte des gestes, quel que soit le niveau de la pass ; sans fiche, aucun classement à lire.
   const passDuRisque =
-    clone === undefined
+    options.ficheDuProjet === undefined
       ? null
       : ouvrirLePass({
-          dossier: clone,
+          lire: options.ficheDuProjet,
           parquer: async (item) => {
             const porte = station.porte ?? null;
             if (porte === null) return avertir(`brigade : #${item.ticket} on ${nom} — parked for the chef, who cannot answer: this runtime has no gesture gate (${item.texte})`);
@@ -4083,7 +4086,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     await depot.elaguer?.(branche);
     return true;
   };
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.projet === undefined ? {} : { ficheDuProjet: options.projet }), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   station.porte = options.porte ?? null;
   station.lacune = options.lacune;
