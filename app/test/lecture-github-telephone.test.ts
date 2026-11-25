@@ -443,7 +443,7 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
     caseDe(vue, "parade").click();
     await jusqua(() => rouges(vue).length === 2);
     assert.deepEqual(rouges(vue).toSorted(), ["#12", "#20"]);
-    assert.deepEqual((colonnesVues(vue)["On the rail"] ?? []).filter((numero: string | undefined) => !rouges(vue).includes(numero)), ["#1"]);
+    assert.deepEqual((colonnesVues(vue)["Backlog"] ?? []).filter((numero: string | undefined) => !rouges(vue).includes(numero)), ["#1"]);
     assert.ok(!("Awaiting you" in colonnesVues(vue)), "TODO n'est pas une colonne");
     // Le projet vide : un rail sans carte, dont la première colonne le dit — pas un écran vide, et plus de ligne « nothing awaits you » (#3523).
     caseDe(vue, "cantine").click();
