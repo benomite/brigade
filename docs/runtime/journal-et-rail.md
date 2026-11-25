@@ -181,41 +181,29 @@ What waits for someone other than you — a client's answer, an external decisio
 what awaits you (TODO) and is put aside: **WAITING**. The ticket says what it waits for (your
 words), from whom, since when, the date to come back to it, and what happens on arrival.
 
-```bash
-npm --prefix runtime run waiting                # the tickets in WAITING
-npm --prefix runtime run waiting -- set 8 --what "sa validation écrite du devis" --from "le client" [--remind 2026-10-21]
-npm --prefix runtime run waiting -- resume 8    # WAITING → TODO, right away
-```
+No box command sets or lifts it (#4262): the chef's app and the second park and unpark a ticket the
+same way, on its issue, on any project, through the same two functions — `parquer`
+(`app/src/vue/attente/attente-github.ts`) and `deparquer` (`app/src/gestes-github.ts`):
 
-`--what` and `--from` values are the chef's own words, so French; `set`, `resume`, `--what`,
-`--from`, `--remind` are English (the old `poser`, `reprendre`, `--quoi`, `--de` still answer). "It
-arrived" is not a box command: on the GitHub-only path, remove the ticket's `waiting` label on
-GitHub ([`github-seul.md`](github-seul.md)).
-
-- **`set`** puts a ticket of the rail that is **queued or 86** in WAITING; a ticket taken or in pass
-  is refused. `--remind`: a date (midnight, box time), a date and time (`2026-10-21T09:00`) or a
-  duration (`7j`, `36h`); **default seven days**. Said again, it updates what it waits for, not since
-  when.
+- **Park**: the WAITING comment — the `<!-- brigade:waiting {"what","who","followUp"} -->` marker the
+  station reads, then who, what, since when, the follow-up day and what arrival does — then the
+  `waiting` label. A comment GitHub posted but whose label it refused is said: the ticket is not in
+  WAITING. The app plays it from **waiting for…** on a TODO card; the second plays it with the
+  parking command the app gives it at each session start (`app/src/second/parking.ts`):
+  `park <owner>/<repo>#<n> --who <who> --what <what> --until <YYYY-MM-DD>`.
+- **Unpark**: the `waiting` label removed. The app plays it from **resume**, **it arrived, back to
+  the kitchen** and the sheet's **back to the kitchen**; the second with `unpark <owner>/<repo>#<n>`.
 - **The second launches it, alone or on request.** Alone: reading the queue, any TODO card whose
   text names the awaited third party goes to WAITING through this action, with a follow-up (the
   card's date, otherwise seven days); it says so in its first answer, one line per card, and the chef
   cancels in a word ("resume #N"). If who is awaited is unclear, it moves nothing and asks one
   question. A card that awaits the chef stays in TODO. On request ("put #8 in waiting for the client
   until the 21st"), it extracts what, from whom and the follow-up, asks for what is missing, then
-  launches the same action through the box (`brigade <name> waiting set 8 --what … --from …
-  --remind 2026-10-21`), never a label or comment set by hand; a refusal is relayed as is. Auto mode
-  judges it: no narrow rule names free arguments. Evals: `evals/second-met-en-attente`,
-  `evals/second-met-en-attente-seul`.
+  runs the parking command, never a label or comment set by hand; a refusal is relayed as is. Evals:
+  `evals/second-met-en-attente`, `evals/second-met-en-attente-seul`, `evals/second-attente-github`.
 - **The kitchen never takes a WAITING ticket**: it is an 86 with no return time, reason
   `third-party`, holding no zone even with an open delivery; put back on the rail, it claims it
   again.
-- **`resume`** brings it back to TODO: in its state before waiting if it had been set aside (its
-  `attend` line as it was), otherwise set aside for you (reason `third-party:resumed`), with what it
-  waited for and your actions. It does not go to the kitchen alone.
-- **`/brigade arrived #<N>`** puts it back on the rail, queued: a cook takes it in turn, on its open
-  delivery if any. It also works on a ticket back from WAITING into TODO. The box answers under the
-  comment: done, or why not (a ticket not on the rail, or neither in WAITING nor back from it). The
-  app's "it arrived, back to the kitchen" and "back to the kitchen" (sheet) post it.
 - **On the issue**: the `waiting` label while the ticket waits, and a comment on entering WAITING and
   at each change; on leaving, the label goes and a comment says where the ticket went. What is set
   is logged (`waiting.marked`); if GitHub is unreachable, it is caught up at the next wake-up.
