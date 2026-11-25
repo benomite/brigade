@@ -21,6 +21,7 @@ import { EFFORTS, MODELES, type Calibrage } from "../calibrage.ts";
 import { HumainsInvalides, humainsDe, type Humain } from "../humains/humains.ts";
 import { LOGIN } from "../humains/login.ts";
 import { JOURS_DU_RESUME, type JourDuResume } from "../resume-hebdomadaire/jour.ts";
+import { rangDuGenre, type Rang } from "../risque/risque.ts";
 import { execFile } from "../sans-invite.ts";
 import { refusEn } from "../zones.ts";
 import { nomPrive, valeurPrivee, type Prive } from "./prive.ts";
@@ -129,6 +130,9 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // Les outils que le projet offre à ses cooks (#4162, `outils-du-cook.ts`) :
   // `screenshots`, `browser`, la CLI du projet, un connecteur.
   tools?: string[];
+  // Le classement du risque des genres d'actions (#4230, `risque/risque.ts`) :
+  // genre -> `chef` | `safe`. Absent : les rangs par défaut.
+  risk?: Record<string, Rang>;
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -173,7 +177,7 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
 // accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
 // sa réécriture le retire.
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "recurring", "tools", "githubOnlyState", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "recurring", "tools", "risk", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -287,6 +291,16 @@ function outilsDe(valeur: unknown): string[] {
   return noms;
 }
 
+// Le classement du risque : chaque rang est celui que la pass lira tel quel
+// (`rangDuGenre`), `chef` ou `safe` — un autre est refusé, jamais deviné.
+function classementDe(valeur: unknown): Record<string, Rang> {
+  if (!estObjet(valeur)) throw invalide("risk", "must be an object of kinds of actions and their rank: `chef` or `safe`");
+  for (const [genre, rang] of Object.entries(valeur)) {
+    if (rangDuGenre({ risk: valeur }, genre) !== rang) throw invalide(`risk.${genre}`, "must be a rank: `chef` or `safe`");
+  }
+  return valeur as Record<string, Rang>;
+}
+
 // Les réglages valides tirés d'un objet quelconque, ou un refus qui dit
 // lequel et pourquoi. `version` : vrai pour le contenu du fichier, qui la
 // porte ; faux pour ce qu'on demande d'écrire, qui ne la porte pas.
@@ -351,6 +365,7 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     const outils = outilsDe(objet.tools);
     if (outils.length > 0) reglages.tools = outils;
   }
+  if (objet.risk !== undefined) reglages.risk = classementDe(objet.risk);
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -369,7 +384,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay, recurring, tools } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay, recurring, tools, risk } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -398,6 +413,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(weeklySummaryDay === undefined ? {} : { weeklySummaryDay }),
       ...(recurring === undefined || recurring.length === 0 ? {} : { recurring }),
       ...(tools === undefined || tools.length === 0 ? {} : { tools }),
+      ...(risk === undefined ? {} : { risk }),
       ...Object.fromEntries(desSeuils),
     },
     null,

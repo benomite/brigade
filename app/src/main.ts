@@ -5,7 +5,8 @@ import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuDeLApp } from "./aide-communaute.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, protocol, shell, type MenuItemConstructorOptions } from "electron";
+import { repondreAuxAgents, SCHEMA_DES_AGENTS, SCHEMA_PRIVILEGIE } from "./agents-de-la-box.ts";
 import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirBarreDeMenus, type Entree } from "./barre-de-menus.ts";
 import { creerLIcone, ICONE_DE_LA_BARRE } from "./tray/icone.ts";
@@ -1633,6 +1634,14 @@ ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
 // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
 // et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
 ipcMain.handle("gestesRetenus", (_, nom: unknown) => lireLesRetenus(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
+// L'API des agents que lit l'onglet Agents (ticket 4224) : la vue la demande par `fetch` sur `brigade-agents:`, et chaque
+// demande est une commande `agents` ou `agent-settings` lancée là où la cuisine du projet nommé tourne (agents-de-la-box.ts).
+protocol.registerSchemesAsPrivileged([SCHEMA_PRIVILEGIE]);
+const servirLesAgents = () =>
+  protocol.handle(SCHEMA_DES_AGENTS, async (requete) => {
+    const { statut, corps } = await repondreAuxAgents({ methode: requete.method, url: requete.url, corps: await requete.text() }, cuisineDuProjet, lancerSurLaCuisine);
+    return new Response(JSON.stringify(corps), { status: statut, headers: { "content-type": "application/json" } });
+  });
 ipcMain.handle("approuverGeste", (_, nom: unknown, id: unknown) => approuverLeGeste(String(nom), cuisineDuProjet(nom).lu, id, lancerSurLaCuisine));
 ipcMain.handle("listerLesHumains", (_, nom: unknown) => {
   const { vise, lu } = cuisineDuProjet(nom);
@@ -1907,8 +1916,7 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 // La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
-// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js). Celle des ratios
-// (#1682) lit de même `closing --json` sur la box de chacun (vue/closer/tendance/tendance.js).
+// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
   const commandes = commandesDe(id);
   ongletLu = { id, demande };
@@ -2040,6 +2048,7 @@ if (plateforme === "win32") app.setAppUserModelId(process.execPath);
 void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installeeAuLancement) return app.quit();
+  servirLesAgents();
   // La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
   poserLaCommande({ plateforme, facon: emplacements.facon, maison: homedir(), version: app.getVersion(), runtime: emplacements.runtime, node: emplacements.node, racine: racineDeLaStation, chemin: process.env.PATH ?? "" });
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.
