@@ -165,6 +165,10 @@ branch takes effect at the next fetch, with no restart and no `sudo`.
   the file sets wins over the box's variable, which wins over the runtime's default. They are read when
   the kitchen opens, so a change reaches them at the station's next start. A box whose project has no
   file keeps its variables exactly as before.
+- **An agent's setting changed from the app** (the Agents tab, `brigade <projet> agent-settings`, #4222): it wins over
+  all of the above — the repository's file, the box's decision or variable, the default — for that setting, and holds
+  at the runtime's next read, with no restart. Today: the model and effort of the manager and of the reviewer, the
+  drift thresholds, and the autonomy levels. Every other agent setting says where it lives (`livesIn`).
 - **A file that is not project settings** (unknown key, wrong value, a secret in it) is **refused**:
   the kitchen does not open, and it says why. It does not fall back to the box's values, which the
   file would replace.
