@@ -25,8 +25,9 @@ import { magasinDeNiveaux, type MagasinDeNiveaux, type Reglable } from "./niveau
 // A gesture as its agent says it: its line, its reason, and its outcome once done.
 export type GesteDit = { line: string; reason: string; outcome: Outcome };
 // Who makes the gesture: the name its log is kept under (`closer`, `cook #12`), and what holds its level (`cook`,
-// `manager split-epic`).
-export type AgentDuGeste = { agent: string; reglable: Reglable };
+// `manager split-epic`). `auChef`: the gesture waits for the chef's OK whatever its level but `observe` — an action
+// whose kind the project ranks `chef` (risque/risque.ts, #4230).
+export type AgentDuGeste = { agent: string; reglable: Reglable; auChef?: boolean };
 // What the gate did of a gesture: done, with what it gave; held, under its id; or only logged.
 export type Passage<T> = { etat: "done"; valeur: T } | { etat: "held"; id: number } | { etat: "observed" };
 
@@ -144,7 +145,8 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
 
   return {
     async passer(qui, geste, faire, consigne = () => geste) {
-      const niveau = niveaux.lire(projet)[qui.reglable];
+      const lu = niveaux.lire(projet)[qui.reglable];
+      const niveau = qui.auChef === true && lu !== "observe" ? "propose" : lu;
       if (niveau === "act") {
         const valeur = await faire();
         consigner(qui.agent, consigne(valeur));

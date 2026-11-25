@@ -29,16 +29,12 @@ export const RUBRIQUES: readonly Rubrique[] = [
 // chaque projet qu'elle sert encore, tant que la page est affichée.
 export const COUTS = "couts";
 export const COMMANDE_DES_COUTS = "station";
-// La tendance du rapport ajouté / retiré de tous les projets (#1682), de même : une page ouverte depuis « Tous les
-// projets », qui lit `closing --json` sur la box de chaque projet qu'elle sert encore (vue/closer/tendance/).
-export const RATIOS = "ratios";
-export const COMMANDE_DES_RATIOS = "closing --json";
 
-// Les projets dont une lecture lit la cuisine : pour un onglet, son projet et lui seul ; pour la page des coûts
-// et celle des ratios, chaque projet qu'une station sert (`servi`), ou qui cuit sur cet ordinateur (`ici`) — jamais
+// Les projets dont une lecture lit la cuisine : pour un onglet, son projet et lui seul ; pour la page des coûts,
+// chaque projet qu'une station sert (`servi`), ou qui cuit sur cet ordinateur (`ici`) — jamais
 // un projet qui n'est lu nulle part.
 export function projetsLus<P extends { nom: string; servi?: unknown; ici?: unknown }>(id: unknown, nom: unknown, projets: readonly P[]): P[] {
-  if (id === COUTS || id === RATIOS) return projets.filter(({ servi, ici }) => servi === true || ici === true);
+  if (id === COUTS) return projets.filter(({ servi, ici }) => servi === true || ici === true);
   return projets.filter((projet) => projet.nom === nom);
 }
 
@@ -50,7 +46,6 @@ export function commandeDe(id: unknown): string | undefined {
 // Ce que la lecture d'un onglet lance, dans l'ordre : rien pour un nom qui n'en est pas un.
 export function commandesDe(id: unknown): readonly Commande[] {
   if (id === COUTS) return [COMMANDE_DES_COUTS];
-  if (id === RATIOS) return [COMMANDE_DES_RATIOS];
   const commande = commandeDe(id);
   return commande === undefined ? [] : [commande];
 }

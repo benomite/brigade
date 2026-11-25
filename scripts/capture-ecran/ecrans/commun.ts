@@ -33,6 +33,8 @@ export type Donnees = {
   // Ce que le stockage de la vue (`localStorage`) garde déjà à l'ouverture : la trace de la dernière ouverture, par exemple.
   stockage?: Record<string, string>;
   reponses: Record<string, unknown>;
+  // L'API du runtime que lit l'onglet Agents (#4224), par « <méthode> <chemin> » (pont.js).
+  api?: Record<string, unknown>;
   envois: { faits?: Envoi[]; tous?: Envoi[]; regarder?: Record<string, Envoi[]>; onglet?: Record<string, Envoi[]> };
 };
 
