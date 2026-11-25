@@ -117,6 +117,9 @@ const pont = {
   listerLesHumains: (projet) => ipcRenderer.invoke("listerLesHumains", projet),
   enregistrerUnHumain: (projet, humain) => ipcRenderer.invoke("enregistrerUnHumain", projet, humain),
   retirerUnHumain: (projet, login) => ipcRenderer.invoke("retirerUnHumain", projet, login),
+  // Les gestes retenus pour l'OK du chef (held/, ticket 4273) : lus, et approuvés un par un.
+  gestesRetenus: (projet) => ipcRenderer.invoke("gestesRetenus", projet),
+  approuverGeste: (projet, id) => ipcRenderer.invoke("approuverGeste", projet, id),
   // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus, et chacun suspendu, repris ou retiré (recurrents-box.ts).
   listerLesRecurrents: (projet) => ipcRenderer.invoke("listerLesRecurrents", projet),
   changerUnRecurrent: (projet, geste, id) => ipcRenderer.invoke("changerUnRecurrent", projet, geste, id),
