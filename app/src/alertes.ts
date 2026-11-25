@@ -56,8 +56,8 @@ export type Appel = { geste: string } | { demande: true } | { onglet: string } |
 // le verdict que l'écran Verify pose — la même phrase, les mêmes lignes de manque.
 // `bouton` : ce que dit le bouton du geste, en quelques mots — jamais une commande ni une phrase de
 // mode d'emploi : celles-là (`geste`, `pourquoi`, `releve`, `prix`) se lisent au survol. Absent, la
-// ligne n'a pas de geste à faire depuis l'app. `disjoncteur` : la ligne du disjoncteur ouvert, que la vue pose en tête de TODO — une
-// information, sans bouton : le chef ne le referme pas (#3911).
+// ligne n'a pas de geste à faire depuis l'app. `disjoncteur` : la ligne du disjoncteur ouvert — une information, sans
+// bouton : le chef ne le referme pas (#3911) ; le rail ne la pose donc pas (#4238), la bande la dit.
 export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string; pourquoi?: string; consignes?: string[]; releve?: string; geste: string; bouton?: string; appel?: Appel; prix: string; verification?: Verification; disjoncteur?: true };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
 // Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
