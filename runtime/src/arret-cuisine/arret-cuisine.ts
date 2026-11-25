@@ -4,7 +4,8 @@
 // l'arrêt, sa cause et depuis quand. Une cause qu'il ne sait pas nommer est dite inconnue, jamais tue.
 
 export type CauseDeLArret = { kind: "frozen-zone"; ticket: number; zone: string } | { kind: "zone-held"; pr: number; zone: string } | { kind: "main-red" } | { kind: "unknown" };
-export type ArretDeLaCuisine = { cause: CauseDeLArret; since: string };
+// `statut` : le texte en une ligne de l'arrêt (`statutDeLaCuisine`), posé par la lecture du rail de l'app pour que le bandeau le dise tel quel.
+export type ArretDeLaCuisine = { cause: CauseDeLArret; since: string; statut?: string };
 
 // `queued`, `taken`, `inPass` : les cartes du rail en file, prises, en pass. `since` : depuis quand rien ne bouge, quand
 // aucune cause ne le sait. `frozen` : un ticket gelé qui tient une zone, et depuis quand ; `mainRed` : main rouge, depuis quand.
@@ -47,7 +48,7 @@ function prQuiTientLaZone(skipped: readonly SautDeLaPorte[] | undefined): { pr: 
   return zone === undefined ? { pr } : { pr, zone };
 }
 
-// Le statut d'un arrêt en une ligne (#4244), la source des mots que la vue du second lit ; le bandeau du navigateur (app/src/vue/bandeau-arret/bandeau-arret.js) n'importe pas le runtime et redit les mêmes phrases, à garder alignées. Une zone tenue se dit avec sa PR ;
+// Le statut d'un arrêt en une ligne (#4244), la source des mots que la vue du second lit ; le bandeau du navigateur (app/src/vue/bandeau-arret/bandeau-arret.js) n'importe pas le runtime : la lecture du rail (arret-du-rail.ts) lui porte ce texte. Une zone tenue se dit avec sa PR ;
 // « cause unknown » ne reste que pour une cause sans code.
 export function statutDeLArret({ cause }: ArretDeLaCuisine): string {
   if (cause.kind === "main-red") return "main is red";

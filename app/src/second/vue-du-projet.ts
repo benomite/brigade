@@ -16,7 +16,7 @@ function bandeauDArret(arret: NonNullable<Tableau["arretCuisine"]>): BandeauDeLa
   if (cause.kind === "frozen-zone") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: `whoever serves #${cause.ticket}, or the chef who sets it free` };
   if (cause.kind === "zone-held") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: `whoever serves PR ${cause.pr}, or the chef who merges or closes it` };
   if (cause.kind === "main-red") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: "the repair of main" };
-  return { label: "STOPPED", waitsFor: "the cause is unknown", waitsOn: LE_CHEF };
+  return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: LE_CHEF };
 }
 
 // Qui est vraiment attendu d'une carte : le chef seulement quand elle lui demande quelque chose.

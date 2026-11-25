@@ -7,7 +7,7 @@
 //     zone (runtime/src/brigade-github.ts, la porte de prise) —, et la zone que sa fiche déclare ;
 //   - une zone tenue par une PR (#4244) : les tickets en file sautés pour `zone-held`, avec le numéro de la PR du ticket gelé ;
 //   - sinon, la cause est inconnue, et l'arrêt se dit quand même.
-import { arretDeLaCuisine, type ArretDeLaCuisine } from "../../../../runtime/src/arret-cuisine/arret-cuisine.ts";
+import { arretDeLaCuisine, statutDeLaCuisine, statutDeLArret, type ArretDeLaCuisine, type EntreeDeLArret } from "../../../../runtime/src/arret-cuisine/arret-cuisine.ts";
 import type { BaseRougeLue } from "../../attente-du-rail/alertes.ts";
 import type { TicketDuRail } from "../../../../runtime/src/attente-du-rail/raison.ts";
 import { fiche } from "../../../../runtime/src/fiche.ts";
@@ -53,7 +53,7 @@ export function arretDuRail(file: readonly TicketDuRail[], tickets: readonly Tic
     const tenant = tenues.filter((tenue) => recouvrement([...zone], [...tenue.zone]) !== null);
     return tenant.length === 0 ? [{ ticket, reason: "not-held" }] : tenant.map(({ pr, zone: tenue }) => ({ ticket, reason: "zone-held", pr, zone: tenue.join(", ") }));
   });
-  const arret = arretDeLaCuisine({
+  const entree: EntreeDeLArret = {
     queued: enFile.length,
     taken: file.filter(({ etat }) => etat === "taken").length,
     inPass: file.filter(({ etat }) => etat === "pass").length,
@@ -61,8 +61,11 @@ export function arretDuRail(file: readonly TicketDuRail[], tickets: readonly Tic
     ...(gele?.miseDeCote?.zoneTenue === undefined ? {} : { frozen: { ticket: gele.ticket, zone: gele.miseDeCote.zoneTenue.zone.join(", "), since: gele.miseDeCote.zoneTenue.depuis } }),
     skipped: sauts,
     ...(baseRouge === null ? {} : { mainRed: { since: baseRouge.depuis } }),
-  });
-  return arret === null ? {} : { arretCuisine: arret };
+  };
+  const arret = arretDeLaCuisine(entree);
+  const statut = statutDeLaCuisine(entree);
+  // Le bandeau ne dit que ce texte : celui du runtime, une seule fois dit, jamais refait par la vue.
+  return arret === null || statut === null ? {} : { arretCuisine: { ...arret, statut } };
 }
 
 // `arretCuisine`, de la racine de `facts` (faits.ts, `comprendre`) : rien de mal formé ne le pose. Une cause d'une sorte
@@ -71,10 +74,14 @@ export function arretCuisineLu(valeur: unknown): { arretCuisine?: ArretDeLaCuisi
   if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
   const { cause, since } = valeur as Record<string, unknown>;
   if (typeof since !== "string" || typeof cause !== "object" || cause === null || Array.isArray(cause)) return {};
-  const { kind, ticket, zone } = cause as Record<string, unknown>;
-  if (kind === "frozen-zone" && typeof ticket === "number" && typeof zone === "string") return { arretCuisine: { cause: { kind, ticket, zone }, since } };
-  const { pr } = cause as Record<string, unknown>;
-  if (kind === "zone-held" && typeof pr === "number" && typeof zone === "string") return { arretCuisine: { cause: { kind, pr, zone }, since } };
-  if (kind === "main-red") return { arretCuisine: { cause: { kind }, since } };
-  return { arretCuisine: { cause: { kind: "unknown" }, since } };
+  const { kind, ticket, zone, pr } = cause as Record<string, unknown>;
+  const lu = (laCause: ArretDeLaCuisine["cause"], garde: boolean): { arretCuisine: ArretDeLaCuisine } => {
+    const arret = { cause: laCause, since };
+    const { statut } = valeur as Record<string, unknown>;
+    return { arretCuisine: { ...arret, statut: garde && typeof statut === "string" ? statut : statutDeLArret(arret) } };
+  };
+  if (kind === "frozen-zone" && typeof ticket === "number" && typeof zone === "string") return lu({ kind, ticket, zone }, true);
+  if (kind === "zone-held" && typeof pr === "number" && typeof zone === "string") return lu({ kind, pr, zone }, true);
+  if (kind === "main-red") return lu({ kind }, true);
+  return lu({ kind: "unknown" }, false);
 }
