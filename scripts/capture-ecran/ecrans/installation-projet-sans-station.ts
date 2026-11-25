@@ -23,7 +23,7 @@ export const ecran: Ecran = {
       espace: [SECOND],
       stationsDuCompte: { state: "listed", stations: [], unreadable: [] },
       projetsServis: { depots: [] },
-      checkRepoSetup: { ready: false, missingBindings: ["Gates", "Worktrees"], missingLabels: ["fire", "waiting"] },
+      checkRepoSetup: { ready: false, missingBindings: ["Gates", "Worktrees"], missingLabels: ["fire", "parked"] },
       runRepoSetup: { ready: true, missingBindings: [], missingLabels: [] },
     },
     envois: cuisine({ cantine: { ...RENDUS.cantine!, status: "", station: "" } }),

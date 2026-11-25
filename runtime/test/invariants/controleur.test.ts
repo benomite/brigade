@@ -28,7 +28,7 @@ test("a check that fails is said, and neither the other checks nor the tick stop
 test("while the red base's rerun has no result, no other invariant is repaired", async () => {
   const faux = new FauxGitHub();
   faux.base = "red";
-  faux.feu(1, [...CALIBRE, "waiting"]);
+  faux.feu(1, [...CALIBRE, "parked"]);
   const a = faux.station("A", { places: 1, sauter: () => {}, avertir: () => {}, relancerLaBase: async () => {} });
   await a.tour();
   await a.calme();

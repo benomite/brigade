@@ -96,11 +96,11 @@ describe("deux stations sur un projet : le manager agit une fois par issue", { c
       { ticket: 30, type: "manager.commented", payload: {} },
     ]);
 
-    await jusqua(() => p.gh.lire(30)?.labels.includes("decision") === true);
+    await jusqua(() => p.gh.lire(30)?.labels.includes("chef-todo") === true);
     await p.laisserTourner();
 
     assert.equal(box.runs("juge-30-").length, 1);
-    assert.deepEqual(p.gh.labellisations, [[30, ["decision"]]]);
+    assert.deepEqual(p.gh.labellisations, [[30, ["chef-todo"]]]);
     assert.match(p.dits(30)[0] ?? "", /\nDo you grant the deploy role write access to the backup bucket\?\n/);
   });
 

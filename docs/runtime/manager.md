@@ -25,8 +25,8 @@ splits of an epic when you set `manager split-epic` to `propose` — it is `act`
 the tickets are created at the same pass. The gate is described in [`autonomie.md`](autonomie.md).
 
 ⚠️ **Once on, it judges the whole open backlog**, and whatever it judges executable goes straight to the
-kitchen and is merged when green. Before switching on, set `blocked-on-human` on whatever must not go:
-an issue that carries it is never judged, **an epic that carries it is never split**. It sets no
+kitchen and is merged when green. Before switching on, park whatever must not go (`parked`, #4129):
+a parked issue is never judged, **a parked epic is never split**. It sets no
 dependencies between issues you wrote (unless you write `attend` in a card), but does between the
 tickets of an epic it splits.
 The kitchen holds a ticket only for a `Depends on #N` line of its body, written by the manager or the chef (#3865), until that ticket is closed;
@@ -41,7 +41,7 @@ of the station starts the hour over. Past an hour, the station gives the wait to
 in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the manager lifts it,
 the issue says so in one line, and a cook takes the ticket at the next turn. A real one: it keeps it,
 the issue says why, and the wait stays until the awaited ticket is served. Only a product decision goes
-to the chef, as a question under `blocked-on-human`; once the chef has answered and removed the label,
+to the chef, as a TODO card that parks the ticket for the chef (`chef-todo`, #4129); once the chef has answered it,
 the manager reads the wait again with that answer. Whatever the outcome, the issue then carries a line
 naming what the ticket waits for and who decided it (the station, the manager or the chef) — also when
 the manager gives no readable answer, or the station has no manager. That line carries a mark: the same
@@ -152,7 +152,8 @@ without spending anything:
 | is an epic it already split, or a ticket born from its splits | Nothing: what they carry since is yours | — |
 | carries `served-elsewhere` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`served-elsewhere`) |
 | carries `blocked-on-human` | **Reread** by the LLM once per state, for the decision it awaits. Stated in the issue: stays held. Absent but a real question derives: a `product`, `design` or `gesture` card is proposed and goes to the triage; the issue stays held, the card leaves with the label. Absent, no question: the kitchen takes the ticket back, the label is removed, the issue judged in the same turn. The comment says which | `manager.requalified` (`stated`, `card`, `taken-back`, `unreadable`), then `manager.set-aside` unless taken back |
-| carries `question` or `decision` — set by you, or by the manager on a `question` or `decision` verdict (#3429) | Nothing: it is a TODO card until it is answered | `manager.set-aside` (the label) |
+| is parked — `parked`, or `chef-todo` for you: by the manager on a `question` or `decision` verdict (#3429, #4129), by a station, or by you | Nothing: it waits until it resumes; parked for you, it is a TODO card until it is answered | `manager.set-aside` (`parked`, or the nature of its question) |
+| carries `question` or `decision` — set before #4129 | Nothing: it is a TODO card until it is answered | `manager.set-aside` (the label) |
 | already lists an epic's tickets in its body, unsplit by it | Nothing: split by hand | `manager.set-aside` (`already-split`) |
 | carries `epic` | **Split** by the LLM, once | `manager.split`, or a question |
 | any other | **Judged** by the LLM, once per state | `manager.judged`, or `manager.failed` |
@@ -193,8 +194,8 @@ call to `claude`, and does one of two things:
   a test, a split): it rewrites the issue's acceptance criteria section (or adds one), keeping the rest of
   the body and the author's intent, says on the issue that it completed it, and judges it `fire` with a
   calibration — the labels are set in the same turn;
-- **the gap is a product or design choice**: the issue gets the `product-question` label and a `product`
-  TODO card carrying exactly one question for you. Your answer on the issue changes it, and it is judged
+- **the gap is a product or design choice**: the issue is parked for you (`chef-todo`, #4129; it got the
+  `product-question` label before) with a `product` TODO card carrying exactly one question for you. Your answer on the issue changes it, and it is judged
   again.
 
 An answer that does not read is never the end of it: the manager then asks you itself, in the same kind of
@@ -205,10 +206,12 @@ by a completion or a card is not followed twice.
 
 **A `question` or `decision` verdict never ends outside the rail and TODO either** (#3429). Such an issue
 awaits you, so the judgment also writes what you have to settle, in one sentence ending with its only "?".
-The refusal comment carries that sentence on a line of its own, then the manager sets the label of the same
-name (`question` or `decision`) on the issue. The issue is now a TODO card with that question
-(`carteDeLEcart`, #3370), its answers as buttons, and the free answer. Answering it, by a
-choice or in your own words, removes the label, and the manager judges the issue again with your answer.
+The refusal comment carries that sentence on a line of its own, then the manager parks the issue for you
+(#4129): `chef-todo`, and a TODO card (`<!-- brigade:todo kind=product-question -->`, `poserCarte`) with that
+question, its answers as buttons, its recommendation, and the free answer. It no longer sets `question` or
+`decision`. A parked issue is not judged (`manager.set-aside`, `parked` or the nature of its question). Answering
+the card, by a choice or in your own words, removes `chef-todo`, and the manager judges the issue again with your
+answer.
 
 **The card carries the answers, not `Back to the kitchen`** (#3434). With its question, the judgment writes
 the answers to it (`reponses`, two to four, in the question's own words), the one it recommends with why in
@@ -218,17 +221,18 @@ client, another team, a named person). The refusal comment writes, under the que
 `**Recommended:** <answer> — <why>`. A recommendation that is not one of the answers word for word, or has no
 why, is dropped: the card then recommends nothing, never a default. A question that waits on someone else
 says so instead of `Yours to settle` (`Not yours to answer: it waits on <who>`), and its first choice is
-`- [wait] Wait for <who>`, the one recommended: the app puts the issue in WAITING, awaiting them. A card
-judged before #3434 keeps `Back to the kitchen` and `Close it`, with no recommendation.
-With no sentence that reads, the card asks what its label waits for. Nothing is set on an issue you put in
-WAITING. The set label is not the manager's: removing it never makes a `chef-changed`. A verdict judged
+`- [wait] Wait for <who>`, the one recommended: the app parks the issue for them. A card with no answer
+carries `Back to the kitchen` and `Close it`, with no recommendation.
+With no sentence that reads, the card asks for your answer to its nature. Nothing is set on an issue parked for
+someone else. `chef-todo` is not the manager's label: removing it never makes a `chef-changed`. A verdict judged
 before #3429 (no sentence in the log, no label) is judged once more, to get its question.
 
 ### Handing it back
 
 **Each deviation has its gesture, and `run manager` says it** (the `set aside` section, ten most recent).
 `chef-changed` (you removed a `fire`, `model:` or `effort:` it set): `npm --prefix runtime run manager --
-return <n°>`. `blocked-on-human`, `question`, `decision`: remove the label, judged at the next wake-up.
+return <n°>`. Parked (`chef-todo` or `parked`): answer its card, or unpark it, judged at the next wake-up.
+`blocked-on-human`, `question`, `decision` (set before #4129): remove the label, judged at the next wake-up.
 `already-split`: remove the list from the body. `served-elsewhere`, roadmap, vision, kitchen alert, author with no hand on the
 repository: nothing to hand back (remove `served-elsewhere` if the box must take the issue).
 

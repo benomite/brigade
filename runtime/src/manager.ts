@@ -34,22 +34,23 @@ import { NOMS_DE_NATURE_EN, type Ecart, type FaitManager, type Nature } from "./
 import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { LancementRefuse, STATION_DU_MANAGER, type GardeFous, type Verdict } from "./garde-fous.ts";
-import { ECHECS_ATTEINTS, HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
+import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
 import { choisirSuivante, prendreSuivante } from "./prise-backlog/prise-backlog.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
 import { ENTETE_REPONSE } from "./reponse-carte.ts";
-import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
-import { LABEL_WAITING } from "./attente.ts";
+import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, NATURES_AU_CHEF, type Decision } from "./juger.ts";
+import { CHEF_TODO, estParque, LABEL_PARKED } from "./github-etat/etats.ts";
+import { poserCarte } from "./github-seul/carte-todo/carte-todo.ts";
+import { BOUTONS_DE_LA_CARTE } from "./blocages-sans-question.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
 import { labelsMontes } from "./projections/reactions.ts";
 import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
-import { ouvrirRequalification } from "./requalifier.ts";
 import { ouvrirRoadmap } from "./manager/roadmap.ts";
 import { ouvrirVerdictIncomplet } from "./manager/verdict-incomplet.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
@@ -63,10 +64,6 @@ import type { Fin } from "./superviseur.ts";
 export const MANAGER = STATION_DU_MANAGER;
 const AUTEUR = "manager";
 
-// Les labels par lesquels le chef dit lui-même qu'une issue n'est pas une
-// unité de travail. Reconnus s'ils sont là, jamais exigés.
-const RETENUE = "blocked-on-human";
-const LABELS_ECARTES: Ecart[] = [RETENUE, "question", "decision"];
 // Celui par lequel il dit qu'elle est à découper. Jamais exigé non plus : le
 // jugement reconnaît une épique sans lui.
 const LABEL_EPIQUE = "epic";
@@ -75,7 +72,7 @@ const LABEL_EPIQUE = "epic";
 const MARQUE_STATION_HORS_CUISINE = "Taken off the kitchen (`served-elsewhere`)";
 // Le label par lequel il dit qu'elle est une idée en réserve, pas une demande (#3536).
 const LABEL_IDEE = "idea";
-const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", "set-aside:failures", "idea", ...LABELS_ECARTES];
+const ECARTS_DITS: Ecart[] = ["roadmap", "already-split", "served-elsewhere", "idea"];
 // La réponse recommandée qui dit de ne rien faire (« Keep it parked ») : le chef n'a pas à la trancher.
 const NE_RIEN_FAIRE = /\b(?:keep|leave|let)\b[^.]*\b(?:parked|in reserve|as (?:it )?is|alone)\b|\bdo nothing\b|\bno action\b|\bnothing to do\b/i;
 const sansForme = (texte: string) => texte.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -171,12 +168,8 @@ export type OptionsManager = ConfigManager & {
 const RAISONS: Partial<Record<Ecart, string>> = {
   roadmap: "it is the project's roadmap",
   epic: "it has the `epic` label",
-  question: "it has the `question` label",
-  decision: "it has the `decision` label",
-  "blocked-on-human": "it has the `blocked-on-human` label",
   "served-elsewhere": "it has the `served-elsewhere` label: it is not served on this box",
   idea: "it has the `idea` label: an idea in reserve is not a request",
-  "set-aside:failures": "it has the `set-aside:failures` label: its failure count set it aside",
   "already-split": "it is an epic whose body already lists its tickets",
   vision: "it is a product vision or a reference document, not a deliverable",
   "kitchen-alert": "it is an alert the station opened about the kitchen itself, not a ticket about this project's code",
@@ -286,8 +279,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // La roadmap est un document de suivi, jamais un ticket : reconnue avant
     // tout le reste, elle n'est ni jugée, ni lancée, ni au chef (#3436).
     if (estLaRoadmap(issue.number)) return { quoi: "ecart", raison: "roadmap", fired };
-    // Mis de côté par son compte d'échecs : aucune station ne le sert, et il ne repart pas sans que son label tombe.
-    if (issue.labels.includes(ECHECS_ATTEINTS)) return { quoi: "ecart", raison: ECHECS_ATTEINTS, fired };
     // Le ticket dit qu'il ne se sert pas ici : il l'emporte sur tout le reste,
     // `fire` posé, calibrage complet compris.
     if (issue.labels.includes(HORS_CUISINE)) return { quoi: "ecart", raison: "served-elsewhere", fired };
@@ -296,8 +287,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const decoupee = decoupageDe(base, issue.number);
     if (decoupee?.state === "split") {
       if (decoupee.done && decoupee.commented) return { quoi: "fini" };
-      // Retenue par le chef au milieu des créations : elles attendent.
-      return issue.labels.includes(RETENUE) ? { quoi: "ecart", raison: RETENUE, fired } : { quoi: "decouper" };
+      // Parquée au milieu des créations : elles attendent qu'elle reprenne.
+      return estParque(issue.labels) ? { quoi: "ecart", raison: "parked", fired } : { quoi: "decouper" };
     }
     // Un ticket né d'un découpage est déjà jugé et calibré.
     if (ticketDEpique(base, issue.number)?.index != null || neDUnDecoupage(issue.body)) return { quoi: "fini" };
@@ -312,8 +303,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
     if (auteurSansEcriture(issue, declares()) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
-    const label = LABELS_ECARTES.find((ecarte) => issue.labels.includes(ecarte));
-    if (label) return { quoi: "ecart", raison: label, fired };
+    // Parquée (#4129) — pour le chef, par la carte de sa question, ou pour un autre — : elle n'est pas jugée avant de
+    // reprendre. Parquée par sa question au chef, l'écart garde la nature de cette question.
+    const nature = (NATURES_AU_CHEF as readonly string[]).includes(connue?.reason ?? "") ? (connue?.reason as Ecart) : "parked";
+    if (estParque(issue.labels)) return { quoi: "ecart", raison: nature, fired };
     // La liste de ses tickets est déjà dans son corps, et le journal ne sait
     // rien d'un découpage : il a été fait à la main.
     if (porteListe(issue.body)) return { quoi: "ecart", raison: "already-split", fired };
@@ -344,7 +337,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const commentaires = async (issue: IssueOuverte): Promise<string[]> => (await lire(issue)).corps;
 
   // Plusieurs stations servent le projet, chacune avec son manager (#2568) :
-  // avant de juger, découper, requalifier une issue ou d'y dire un écart, la
+  // avant de juger, découper une issue ou d'y dire un écart, la
   // station en prend le travail sur GitHub, pour l'état où elle la lit. La
   // première prise l'emporte ; les autres la laissent tranquille jusqu'à ce
   // que le travail soit dit fait, ou que la prise périme.
@@ -446,7 +439,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Les lignes de la carte qui suivent sa question (#3434), dans la forme que l'app lit (tableau/mise-de-cote-github.ts,
   // `carteDeLEcart`) : un bouton par réponse — `- [resume] <réponse>`, qui la poste et rend l'issue au manager ; `close`
   // pour celle qui la ferme —, et, quand la question attend un tiers, `- [wait] Wait for <qui>` d'abord, que l'app joue
-  // en mettant l'issue en WAITING. Puis la recommandation : la réponse recommandée et pourquoi, en une ligne — WAITING
+  // en parquant l'issue pour lui. Puis la recommandation : la réponse recommandée et pourquoi, en une ligne — parquer
   // quand un tiers est attendu —, et aucune sans fondement. Un jugement d'avant #3434 n'en porte aucune : rien.
   const lignesDeLaCarte = (numero: number): string[] => {
     const jugement = dernierJugement(numero);
@@ -460,10 +453,17 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       ...(recommande === null ? [] : ["", `**Recommended:** ${recommande.answer} — ${recommande.why}`]),
     ];
   };
+  // La carte qui parque pour le chef une issue refusée à lui (#4129) : la question du jugement, puis ses lignes — sans
+  // aucun choix, les deux de toute carte retenue : la rendre au manager, ou la fermer.
+  const carteAuChef = (numero: number, kind: string): string => {
+    const lignes = lignesDeLaCarte(numero);
+    const question = questionDuVerdict(numero) ?? `The manager judged this issue a ${NOMS_DE_NATURE_EN[kind as Nature] ?? kind}: what is your answer?`;
+    return [question, "", ...(lignes.some((ligne) => ligne.startsWith("- [")) ? lignes : [...BOUTONS_DE_LA_CARTE, ...lignes])].join("\n");
+  };
   // Refusée au chef par un jugement d'avant #3429 : il ne lui demandait pas de question, et rien ne l'a montrée au chef.
   // Elle se rejuge une fois, pour que sa carte en pose une.
   const auChefSansQuestion = (issue: IssueOuverte, connue: IssueDuManager | null): boolean =>
-    connue?.decision === "refused" && estAuChef(connue.kind) && !issue.labels.includes(LABEL_WAITING) && !("question" in (dernierJugement(issue.number) ?? { question: null }));
+    connue?.decision === "refused" && estAuChef(connue.kind) && !issue.labels.includes(LABEL_PARKED) && !("question" in (dernierJugement(issue.number) ?? { question: null }));
 
   const dire = (issue: IssueOuverte, connue: IssueDuManager, parLaStation = false): string => {
     const fired = issue.labels.includes(LABEL);
@@ -487,7 +487,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           "",
           "It is your quota: replace a calibration label, the manager will not rewrite it.",
           "",
-          `⚠️ **Removing \`fire\`, \`model:\` or \`effort:\` without replacing it takes this ticket away from the manager**: it will set nothing on it again and will not judge it again, even if the issue changes — until the kitchen gives it back to the manager (it is given back from the kitchen, not from GitHub). Correcting \`prio:\`, or setting or removing \`question\` or \`blocked-on-human\`, does not take it away.`,
+          `⚠️ **Removing \`fire\`, \`model:\` or \`effort:\` without replacing it takes this ticket away from the manager**: it will set nothing on it again and will not judge it again, even if the issue changes — until the kitchen gives it back to the manager (it is given back from the kitchen, not from GitHub). Correcting \`prio:\`, or parking or unparking it, does not take it away.`,
           "",
           signature(connue.run),
         ].join("\n");
@@ -510,8 +510,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           ...(auChef
             ? [
                 awaits === null
-                  ? `**Yours to settle.** The manager sets \`${connue.kind}\` on this issue: it is a card in your TODO. Answer it there — one of its answers or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`
-                  : `**Not yours to answer: it waits on ${awaits}.** The manager sets \`${connue.kind}\` on this issue: its card in your TODO proposes to put it in WAITING, awaiting ${awaits}. If you already have the answer, give it there instead — one of its answers or your own words — and the manager judges the issue again with it; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
+                  ? `**Yours to settle.** The manager parks this issue for you (\`chef-todo\`): it is a card in your TODO. Answer it there — one of its answers or your own words — and the manager judges the issue again with your answer; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`
+                  : `**Not yours to answer: it waits on ${awaits}.** The manager parks this issue for you (\`chef-todo\`): its card in your TODO proposes to park it for ${awaits} instead. If you already have the answer, give it there instead — one of its answers or your own words — and the manager judges the issue again with it; or close the issue.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`,
                 ...(question === null ? [] : ["", question, ...lignesDeLaCarte(issue.number)]),
               ]
             : [`The issue will be judged again as soon as it changes — body edited, or an answer in a comment.${fired ? " `fire` is set on it: it stays, but without a calibration no cook starts." : ""}`]),
@@ -550,13 +550,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           `**Manager — \`idea\`: this issue is an idea in reserve, not a request.** \`fire\` is set on it, and \`idea\` wins: the manager does not qualify it, sets no calibration, and will not say this again.`,
           "",
           "Remove `idea` if it must be qualified.",
-        ].join("\n")
-      : connue.reason === ECHECS_ATTEINTS
-      ? [
-          MARQUEUR_MANAGER,
-          `**Manager — set aside by its failure count (\`${ECHECS_ATTEINTS}\`).**${connue.fired ? " `fire` is set on it, and the label wins: the ticket does not enter the rail, no cook starts." : " It does not enter the rail."} Its cooks stopped without a delivery too many times in a row; no other box serves it.`,
-          "",
-          `The reason is in the station's last comment. The supervisor takes the ticket and acts with its own gestures; no timer puts it back on the rail, and the chef does not need to act.`,
         ].join("\n")
       : connue.reason === ("served-elsewhere" satisfies Ecart)
       ? parLaStation
@@ -656,24 +649,23 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   };
 
   // Une issue refusée parce qu'elle attend le chef — `question`, `decision` — ne reste jamais hors du rail et hors de
-  // TODO (#3429) : son refus dit, le manager y pose le label du même nom, dont la carte TODO pose au chef sa question
-  // (#3370). Répondue, la carte retire le label (`resume`) et le manager la rejuge avec la réponse. Une issue que le chef
-  // a mise en WAITING ne l'attend pas, lui : rien n'y est posé. Le label posé, l'issue est écartée par ce label, comme
-  // celle où le chef l'aurait posé lui-même — ce n'est pas un label du manager : le retirer ne la lui retire pas. Rend
-  // faux si c'est à refaire au tour suivant.
+  // TODO (#3429) : son refus dit, le manager la parque pour le chef (#4129) — `chef-todo`, et la carte qui lui pose sa
+  // question, un bouton par réponse (github-seul/carte-todo/carte-todo.ts, `poserCarte`). Répondue, la carte tombe
+  // (`resume`) et le manager la rejuge avec la réponse. Une issue parquée pour un autre ne l'attend pas, lui : rien n'y
+  // est posé. Parquée, l'issue est écartée (`trier`). Rend faux si c'est à refaire au tour suivant.
   const demanderAuChef = async (issue: IssueOuverte): Promise<boolean> => {
     const connue = issueDuManager(base, issue.number);
     if (connue?.decision !== "refused" || !estAuChef(connue.kind) || !connue.commented) return true;
     const label = connue.kind;
     let fraiche;
     try {
-      // Relus juste avant d'écrire : le chef a pu fermer l'issue, la mettre en WAITING, ou poser le label.
+      // Relus juste avant d'écrire : le chef a pu fermer l'issue, la parquer pour un autre, ou y poser une carte.
       fraiche = await github.issue(issue.number);
       if (arrete) return false;
-      if (!fraiche || fraiche.state !== "open" || fraiche.labels.includes(LABEL_WAITING)) return true;
-      if (!fraiche.labels.includes(label)) await github.labelliser(issue.number, [label]);
+      if (!fraiche || fraiche.state !== "open" || fraiche.labels.includes(LABEL_PARKED)) return true;
+      if (!fraiche.labels.includes(CHEF_TODO)) await poserCarte(issue.number, { sorte: "product-question", texte: carteAuChef(issue.number, connue.kind) }, github);
     } catch (erreur) {
-      if (!arrete) avertir(`brigade : \`${label}\` non posé sur l'issue #${issue.number}, refusée au chef — repris au tour suivant — ${message(erreur)}`);
+      if (!arrete) avertir(`brigade : carte du chef non posée sur l'issue #${issue.number}, refusée au chef — repris au tour suivant — ${message(erreur)}`);
       return false;
     }
     if (arrete) return false;
@@ -878,19 +870,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Les issues ouvertes du tour en cours, parmi lesquelles le tri cherche un doublon.
   let ouvertesDuTour: IssueOuverte[] = [];
 
-  const requalification = ouvrirRequalification({
-    journal,
-    projet,
-    github,
-    depotGitHub: options.depotGitHub,
-    noter,
-    demander,
-    peutJuger,
-    arrete: () => arrete,
-    avertir,
-    signature,
-  });
-
   // La roadmap écartée : ce qui y questionne le chef s'en retire, et le travail
   // séparé qu'elle porte s'ouvre en issues (#3436).
   const roadmap = ouvrirRoadmap({
@@ -984,18 +963,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     }
     const connue = issueDuManager(base, issue.number);
     await garantir(issue);
-    let tri = trier(issue, connue);
-    // Un ticket retenu sans dire ce qu'il attend : une carte, ou la cuisine le
-    // reprend. Une épique retenue est au chef, pas requalifiée.
-    if (tri.quoi === "ecart" && tri.raison === RETENUE && !issue.labels.includes(LABEL_EPIQUE) && decoupageDe(base, issue.number)?.state !== "split") {
-      const { corps } = await lire(issue);
-      const suite = await requalification.traiter(issue, corps);
-      if (suite === "attente") return "reste";
-      if (suite === "reprise") {
-        issue = { ...issue, labels: issue.labels.filter((label) => label !== RETENUE) };
-        tri = trier(issue, connue);
-      }
-    }
+    const tri = trier(issue, connue);
     // La roadmap des bindings ne s'est jamais lue : cette issue l'est peut-être.
     if ((tri.quoi === "juger" || tri.quoi === "decouper") && roadmapDesBindings === undefined) return "reste";
     let epique = tri.quoi === "decouper";
@@ -1237,7 +1205,6 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const issues = (sondage.inchange ? (confirmees ?? []) : sondage.issues).filter((issue) => !terminees.has(issue.number));
     const presentes = new Set(issues.map((issue) => issue.number));
     ouvertesDuTour = issues.filter(lisible);
-    requalification.suivre(issues);
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
     constater(presentes);

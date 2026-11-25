@@ -5,7 +5,7 @@ import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./com
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { SECOND } from "./rail-waiting-commun.ts";
 
-const MANQUE = { ready: false, missingBindings: ["Gates", "Worktrees"], missingLabels: ["fire", "waiting", "chef-todo"] };
+const MANQUE = { ready: false, missingBindings: ["Gates", "Worktrees"], missingLabels: ["fire", "parked", "chef-todo"] };
 
 export function depotNonPrepare(dit: string, refus?: string): Ecran {
   return {

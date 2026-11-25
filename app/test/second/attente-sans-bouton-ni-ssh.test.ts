@@ -1,4 +1,4 @@
-// #4116 — le second ne demande jamais au chef de cliquer, et n'a jamais besoin de SSH vers la boîte pour l'attente.
+// #4116, puis #4129 — le second ne demande jamais au chef de cliquer, et n'a jamais besoin de SSH vers la boîte pour parquer.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,6 +12,6 @@ test("le rôle ne renvoie ni vers un bouton ni vers la boîte pour mettre en att
   assert.ok(debut >= 0);
   assert.ok(!/ssh/i.test(section), "la section d'attente parle de SSH");
   assert.ok(!/needs the box|only runs on the box/i.test(section));
-  assert.ok(!/brigade <name> waiting/.test(section), "la section d'attente dépend encore d'une commande de la boîte");
+  assert.ok(!/brigade <name> (?:waiting|parked)/.test(section), "la section d'attente dépend encore d'une commande de la boîte");
   assert.ok(/not need the box|without the box|no box/i.test(section), "le rôle ne dit pas que l'attente se passe de la boîte");
 });

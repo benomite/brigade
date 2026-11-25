@@ -2,7 +2,7 @@
 // attend ce ticket sur le rail, jamais le chef (#2968). Le 2026-11-08, les
 // tickets de design #2910, #2914 et #2915 bâtissaient sur #2907, dont la PR
 // #2908 était rouge : leurs cooks se sont arrêtés bloqués, et les tickets sont
-// allés dans la TODO du chef sous `blocked-on-human`, la carte disant
+// allés dans la TODO du chef, la carte disant
 // seulement « merge PR ». Rien n'y était à décider : il fallait attendre.
 //
 // Ce qu'un ticket attend se lit de trois sources, sur son issue : les lignes

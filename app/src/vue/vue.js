@@ -1299,11 +1299,6 @@ const confirmationsDeFiches = new Map();
 // reposée ne la perd pas.
 /** @type {Map<string, string>} */
 const prioritesChoisies = new Map();
-// Le label qui retient un ticket (question.ts, `LABEL_RETENUE`) : ce que la ligne du bloc `attend` nomme.
-const LABEL_RETENUE = "blocked-on-human";
-// Ce que le chef a fait d'une retenue `blocked-on-human`, par `<projet>#<ticket>` : en cours, ou ce qui en est advenu.
-/** @type {Map<string, { envoi: true } | { leve: import("../question.ts").Leve } | { confirme: true }>} */
-const levees = new Map();
 // La phrase que le chef écrit en réponse, par projet et ticket : une fiche reposée ne la perd pas.
 /** @type {Map<string, string>} */
 const brouillons = new Map();
@@ -2987,9 +2982,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   if (titre === undefined && ouvrable && !titres.has(cleDuBon)) void lireTitre(projet, ticket);
   const nomme = titre ?? /** @type {{ titre?: string } | undefined} */ (titres.get(cleDuBon))?.titre;
   if (nomme !== undefined) bon.append(bloc("strong", nomme));
-  // Une question du manager — avant de découper une épique, ou qui retient le ticket par
-  // `blocked-on-human` (faits.ts, `question`) : la question qu'on me pose, en une ou deux lignes, et
-  // qui l'a posée. Répondue, la carte n'est plus ici mais dans WAITING : une lecture qui la disait
+  // Une question du manager — avant de découper une épique, ou qui parque le ticket pour le chef (`chef-todo`, faits.ts,
+  // `question`) : la question qu'on me pose, en une ou deux lignes, et qui l'a posée. Répondue, la carte n'est plus ici mais dans WAITING : une lecture qui la disait
   // répondue est relue, la carte revenue — le manager a posé une autre question.
   const interroge = attendu && carte.question === true;
   if (interroge && ouvrable && (!questions.has(cleDuBon) || perimee(questions.get(cleDuBon)))) void lireQuestion(projet, ticket);
@@ -3598,19 +3592,12 @@ function poserFiche() {
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
   // Répondue, sa carte attend le manager dans WAITING : la fiche la garde, et ce qui y a été répondu.
-  // Retenu par `blocked-on-human` : lever la retenue d'un clic, sans commande à recopier. Puis,
-  // pour tout ticket, ses gestes — la demande au second en est. Rien n'est envoyé sans un clic.
+  // Puis, pour tout ticket, ses gestes — la demande au second en est. Rien n'est envoyé sans un clic.
   if (attend.length > 0 || carte.repondue !== undefined) {
     const cle = `${projet.nom}#${ticket}`;
     if (!questions.has(cle)) void lireQuestion(projet, ticket);
     const question = poserQuestion(projet, ticket, questions.get(cle) ?? {});
     if (question !== undefined) panneau.append(question);
-    if (attend.some((entree) => entree.includes(LABEL_RETENUE)) && lectureSeuleDe(projet) === undefined) {
-      const gestes = document.createElement("div");
-      gestes.className = "gestes";
-      gestes.append(...poserLevees(projet, ticket));
-      panneau.append(gestes);
-    }
   }
   panneau.append(poserGestesDeFiche(projet, carte), ...diagrammeDeFiche(projet, ticket), repliee(projet, ticket), ...suite);
 }
@@ -4186,52 +4173,6 @@ function avec(balise, contenu) {
 // La fiche ouverte est-elle celle de ce ticket : ce qui revient pour lui ne se pose que là.
 /** @param {Projet} projet @param {number} ticket */
 const ficheDe = (projet, ticket) => ouverte?.projet.nom === projet.nom && ouverte.carte.ticket === ticket;
-
-// Les deux gestes qui lèvent une retenue `blocked-on-human` : retirer le label — le manager juge
-// l'issue à son prochain tour —, ou la fermer, ce qui coûte : le chef le confirme, prix dit en une
-// ligne. Ce qui en advient est dit à la place des boutons.
-const PRIX_DE_FERMETURE = "the issue is closed on GitHub, in your name: the ticket leaves your queue and is not cooked — reopen it to bring it back";
-/** @param {Projet} projet @param {number} ticket */
-function poserLevees(projet, ticket) {
-  const cle = `${projet.nom}#${ticket}`;
-  const etat = levees.get(cle);
-  if (etat !== undefined && "envoi" in etat) return [bloc("p", "working on it…")];
-  if (etat !== undefined && "leve" in etat && etat.leve.fait) return [bloc("p", `${etat.leve.dit} — the card leaves your queue at the next read`)];
-  /** @param {"label" | "fermer"} geste */
-  const lancer = async (geste) => {
-    levees.set(cle, { envoi: true });
-    if (ficheDe(projet, ticket)) poserFiche();
-    /** @type {import("../question.ts").Leve} */
-    let leve;
-    try {
-      leve = await brigade.leverRetenue(projet.nom, ticket, geste);
-    } catch (erreur) {
-      leve = { fait: false, refus: `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
-    }
-    levees.set(cle, { leve });
-    if (ficheDe(projet, ticket)) poserFiche();
-  };
-  const retirer = boutonAction(document, "remove the label", () => void lancer("label"), { recommande: true });
-  retirer.children[0].title = `remove \`${LABEL_RETENUE}\` from #${ticket}: nothing right away — the manager judges it again at its next tick, and may send it to the kitchen`;
-  retirer.children[0].dataset.geste = "levee";
-  const fermer = boutonAction(
-    document,
-    "close the issue",
-    () => {
-      levees.set(cle, { confirme: true });
-      if (ficheDe(projet, ticket)) poserFiche();
-    },
-    { prix: PRIX_DE_FERMETURE },
-  );
-  fermer.children[0].dataset.geste = "levee";
-  const refus = etat !== undefined && "leve" in etat && !etat.leve.fait ? [bloc("p", etat.leve.refus)] : [];
-  if (etat === undefined || !("confirme" in etat)) return [retirer, fermer, ...refus];
-  const renoncer = () => {
-    levees.delete(cle);
-    if (ficheDe(projet, ticket)) poserFiche();
-  };
-  return [retirer, fermer, confirmationDeGeste(document, { titre: `close issue #${ticket} on GitHub?`, prix: PRIX_DE_FERMETURE, oui: OUI("close the issue"), non: ANNULER }, { oui: () => void lancer("fermer"), non: renoncer })];
-}
 
 // La question de ce ticket, lue sur son issue par le process principal (question.ts) : la vue
 // nomme le projet et le ticket. Une lecture partie avant une autre ne la remplace pas.

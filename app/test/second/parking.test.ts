@@ -82,11 +82,11 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
     assert.deepEqual(second.etat(), app.etat());
 
     const { labels, commentaires } = second.etat() ?? assert.fail();
-    assert.deepEqual(labels, ["fire", "chef-todo", "waiting"]);
+    assert.deepEqual(labels, ["fire", "chef-todo", "parked"]);
     assert.equal(commentaires.length, 1);
     // La station le relit (runtime/src/attente-github/marque.ts), et l'app aussi : le même enregistrement.
     assert.deepEqual(attenteDeLIssue(commentaires.map((body) => ({ body, association: "OWNER" }))), { what: "the signed quote", who: "the client", followUp: new Date(2026, 10, 20).toISOString() });
-    const tiers = tiersDesCommentaires(commentaires.map((body) => ({ body, created_at: AUJOURDHUI.toISOString() })));
+    const tiers = tiersDesCommentaires(commentaires.map((body) => ({ body, created_at: AUJOURDHUI.toISOString(), author_association: "OWNER" })));
     assert.deepEqual([tiers?.qui, tiers?.quoi, tiers?.relance], ["the client", "the signed quote", new Date(2026, 10, 20).toISOString()]);
   });
 
@@ -98,7 +98,7 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
       assert.ok("fait" in (await parLApp(app.client, id)));
       const lance = await parLeSecond(second.client, "unpark", `${DEPOT}#${TICKET}`);
       assert.deepEqual([lance.code, lance.redit], [0, ""]);
-      assert.equal(lance.dit, `back to the kitchen on GitHub: #${TICKET} no longer carries \`waiting\` — it is queued on the rail again — https://github.com/${DEPOT}/issues/${TICKET}`);
+      assert.equal(lance.dit, `back to the kitchen on GitHub: #${TICKET} no longer carries \`parked\` — it resumes exactly where it was — https://github.com/${DEPOT}/issues/${TICKET}`);
       assert.deepEqual(second.ecrites, app.ecrites);
       assert.deepEqual(second.etat(), app.etat());
       assert.deepEqual(second.etat()?.labels, ["fire", "chef-todo"]);
@@ -151,8 +151,8 @@ describe("la commande de parking : ce qu'elle refuse, et ce que GitHub refuse", 
     assert.equal((await parLeSecond(retraitRefuse.client, ...PARQUER)).code, 0);
     const lance = await parLeSecond(retraitRefuse.client, "unpark", `${DEPOT}#${TICKET}`);
     assert.equal(lance.code, 1);
-    assert.match(lance.redit, /^nothing was changed: GitHub did not remove `waiting` from #614 — /);
-    assert.ok(retraitRefuse.etat()?.labels.includes("waiting"));
+    assert.match(lance.redit, /^nothing was changed: GitHub did not remove `parked` from #614 — /);
+    assert.ok(retraitRefuse.etat()?.labels.includes("parked"));
   });
 });
 
