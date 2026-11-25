@@ -3248,7 +3248,7 @@ async function arriver(projet, ticket) {
   if (ficheDe(projet, ticket)) poserFiche();
 }
 
-// Un geste de WAITING s'écrit sur l'issue (vue/attente/attente-github.ts), jamais par une commande de la box (#4262).
+// Un geste de WAITING s'écrit sur l'issue (vue/attente/attente-github.ts), jamais par une commande de la box (ticket 4262).
 // Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
 /** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
 async function ecrireAttente(projet, id, ticket, saisie) {

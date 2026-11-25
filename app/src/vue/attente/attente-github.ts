@@ -4,7 +4,7 @@
 // (`direMarque`). Ce module en a les deux bouts :
 //   - la lecture : le dernier commentaire `**WAITING…: awaiting …**` d'une issue au label `waiting`, rendu dans la forme
 //     de `tiers` (faits.ts, `Tiers`) — ce que la carte de WAITING dit (tableau/attente-du-chef.ts) ;
-//   - les gestes, tous écrits sur l'issue, sur tout projet et sans box (#4262) : « waiting for… » parque le ticket
+//   - les gestes, tous écrits sur l'issue, sur tout projet et sans box (ticket 4262) : « waiting for… » parque le ticket
 //     (`parquer` : le commentaire puis le label), « resume » et « it arrived, back to the kitchen » le déparquent
 //     (gestes-github.ts, `deparquer` : le label retiré). Le second joue ces deux mêmes fonctions (second/parking.ts) :
 //     un ticket parqué ou déparqué par lui est dans l'état exact où l'app le met.
@@ -107,7 +107,7 @@ async function poserSurGithub(lu: TableauLu | undefined, ticket: unknown, saisie
   return parquer(lu.depot, ticket, lue, aujourdhui, client);
 }
 
-// Parquer un ticket (#4262) : son commentaire d'entrée en WAITING, puis le label, écrits sur l'issue de `ticket`, sur tout
+// Parquer un ticket (ticket 4262) : son commentaire d'entrée en WAITING, puis le label, écrits sur l'issue de `ticket`, sur tout
 // dépôt, sans box. C'est le seul chemin qui le met en attente : « waiting for… », « Wait for … » d'une carte du manager
 // (tableau-gestes/reponse-github.ts, ticket 3434) et le second (second/parking.ts) le jouent. Un commentaire posté dont le
 // label est refusé se dit tel : le ticket n'est pas en WAITING.
@@ -144,7 +144,7 @@ export async function attenteSurGithub(options: { id: unknown; ticket: unknown; 
 }
 
 // Un geste de WAITING, d'où qu'il parte, sur la dernière lecture du rail du projet : toujours écrit sur l'issue, jamais par
-// une commande de la box (#4262).
+// une commande de la box (ticket 4262).
 export async function jouerLAttente(options: { id: unknown; ticket: unknown; saisie: unknown; aujourdhui: Date; lu: () => TableauLu | undefined; client: ClientDeLaPriorite }): Promise<Ecrit> {
   return attenteSurGithub({ ...options, lu: options.lu() });
 }
