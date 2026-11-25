@@ -15,7 +15,7 @@ test("every agent instruction file, closer included, keeps a readable frontmatte
     const texte = readFileSync(new URL(nom, AGENTS), "utf8");
     const entete = texte.match(/^---\n([\s\S]*?)\n---\n/);
     assert.ok(entete, `${nom} has no frontmatter`);
-    assert.match(entete[1], /^name:\s*\S+/m, `${nom} has no name`);
-    assert.match(entete[1], /^description:\s*\S+/m, `${nom} has no description`);
+    assert.match(entete[1] ?? "", /^name:\s*\S+/m, `${nom} has no name`);
+    assert.match(entete[1] ?? "", /^description:\s*\S+/m, `${nom} has no description`);
   }
 });
