@@ -1,7 +1,7 @@
 // What the Agents tab reads (#4220), for `npm run agents` (agents-cli.ts): the runs of the log (`cook_runs`) — which
 // agent each is of, the ticket it works on, how it ended —, what runs outside the tickets as `facts` gives it (the pass,
-// the manager, the triage and the closer, agents-en-cours.ts), the gesture log and the noted schedules of the state
-// directory.
+// the manager, the triage and the closer, agents-en-cours.ts), the closing passes that ended, the gesture log and the
+// noted schedules of the state directory.
 import type { AgentEnCours } from "../agents-en-cours.ts";
 import { LectureImpossible } from "../appel.ts";
 import { horaireDe } from "../autonomie/agents/horaires.ts";
@@ -16,6 +16,8 @@ type RunDuJournal = { run: string; ticket: number | null; station: string | null
 // A launch the station refused, or one the chef stopped, is no failure of the agent.
 const ECHECS = new Set(["failed", "guard", "stalled"]);
 // What `facts` already says with the ticket it works on, read from the run's name (agents-en-cours.ts).
+// The last closing passes read; the figure keeps those of the last 7 days.
+const PASSES_LUES = 100;
 const HORS_TICKET = new Set(["manager", "triage", "closer"]);
 
 // The agent a run is of: the manager, the closer and the reviewer launch under their own station (manager.ts,
@@ -47,12 +49,14 @@ export function sourcesDuProjet(env: Record<string, string | undefined>, mainten
   } catch (erreur) {
     throw new LectureImpossible(1, (erreur as Error).message);
   }
-  let runs;
+  let runs, passesDuCloser;
   try {
     runs = journal.base.lire<RunDuJournal>("SELECT run, ticket, station, ending FROM cook_runs ORDER BY launched_seq");
+    // A pass ended before the tally existed carries no `removedLines`: it removed nothing that was counted.
+    passesDuCloser = journal.duType("closing.ended", PASSES_LUES).map(({ at, payload }) => ({ at, removedLines: payload.removedLines ?? 0 }));
   } finally {
     journal.fermer();
   }
   const { agents } = lireLesFaits(env, maintenant) as { agents: AgentEnCours[] };
-  return { maintenant, repertoireDesGestes: repertoire, enCours: enCours(agents, runs), enEchec: enEchec(runs), horaires: (id) => horaireDe(repertoire, id) };
+  return { maintenant, repertoireDesGestes: repertoire, enCours: enCours(agents, runs), enEchec: enEchec(runs), passesDuCloser, horaires: (id) => horaireDe(repertoire, id) };
 }

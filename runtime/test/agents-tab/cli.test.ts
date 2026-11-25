@@ -67,6 +67,19 @@ test("the runs going on: the manager on the ticket its run names, a cook and the
   assert.deepEqual(etats(lus, ["manager", "cook", "reviewer", "closer"]), [["manager", "working", 3], ["cook", "working", 12], ["reviewer", "working", 5], ["closer", "idle", null]]);
 });
 
+test("the closer's lines removed are those of its closing passes that ended in the last 7 days; a pass before the tally counts none", async (t) => {
+  const repertoire = etat(t);
+  const fin = (removedLines?: number) => ({ type: "closing.ended", payload: { run: "fermeture-a", outcome: "delivered", ...(removedLines === undefined ? {} : { removedLines }) } }) as Fait;
+  for (const [jours, fait] of [[8, fin(500)], [3, fin(40)], [2, fin()], [1, fin(2)]] as const) {
+    const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.now() - jours * 24 * 3_600_000) });
+    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", ...fait });
+    journal.fermer();
+  }
+  const lus = await agents(repertoire);
+  assert.deepEqual(lus.closer?.figures.map(({ value }) => value), [0, 0, 42]);
+  assert.equal(lus.manager?.figures.length, 2);
+});
+
 test("`agents` says why a path is not served, in 1; a state directory with no log is said, and given none; without its state directory or with two paths, it refuses in 2", async (t) => {
   const repertoire = etat(t);
   const inconnu = appeler(principal, ["/api/agents/nobody/gestures"], { BRIGADE_STATE_DIR: repertoire });

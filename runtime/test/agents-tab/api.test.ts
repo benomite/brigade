@@ -32,8 +32,8 @@ test("the figures count the thread's gestures of the last 7 days, fixed by itsel
   noter(dossier, "closer", "would have pruned", OUTCOME.NOT_DONE, ilYA(1));
   noter(dossier, "manager", "split an epic", OUTCOME.HANDED_TO_CHEF, ilYA(1));
   const closer = de("closer", { repertoireDesGestes: dossier });
-  assert.deepEqual(closer.figures.map(({ label }) => label), ["Fixed by itself", "Handed to the chef"]);
-  assert.deepEqual(valeurs(closer.figures), [2, 1]);
+  assert.deepEqual(closer.figures.map(({ label }) => label), ["Fixed by itself", "Handed to the chef", "Lines removed"]);
+  assert.deepEqual(valeurs(closer.figures).slice(0, 2), [2, 1]);
   assert.deepEqual(valeurs(de("manager", { repertoireDesGestes: dossier }).figures), [0, 1]);
   assert.deepEqual(valeurs(de("supervisor", { repertoireDesGestes: dossier }).figures), [0, 0]);
 });
@@ -54,8 +54,16 @@ test("the cooks' entry gathers the thread of every cook, each gesture with its t
   assert.deepEqual(gestes("triage", { repertoireDesGestes: dossier }), { statut: 200, corps: [] });
 });
 
+test("the closer's third figure adds the lines its passes removed in the last 7 days; its passes not read are said, never a zero", () => {
+  const passesDuCloser = [ilYA(7), ilYA(6.9), ilYA(1)].map((quand, rang) => ({ at: quand().toISOString(), removedLines: [500, 30, 12][rang] as number }));
+  const [, , lignes] = de("closer", { passesDuCloser }).figures;
+  assert.deepEqual(lignes, { label: "Lines removed", value: 42, meaning: "lines of code its closing passes removed, last 7 days" });
+  assert.deepEqual(de("closer").figures[2], { label: "Lines removed", value: "not known", meaning: "lines of code its closing passes removed, last 7 days — its passes were not read" });
+  for (const id of ["manager", "pass", "cook"]) assert.equal(de(id, { passesDuCloser }).figures.length, 2, id);
+});
+
 test("a thread that was not read is said in the figures, never a zero, and its gestures answer 503", () => {
-  for (const { value, meaning } of de("closer").figures) {
+  for (const { value, meaning } of de("closer").figures.slice(0, 2)) {
     assert.equal(value, "not known");
     assert.match(meaning, /its thread was not read/);
   }
@@ -65,7 +73,7 @@ test("a thread that was not read is said in the figures, never a zero, and its g
 test("a thread that cannot be read is said in the figures, and its gestures answer 500 with the reason", (t) => {
   const dossier = repertoireTemporaire(t);
   writeFileSync(join(dossier, "autonomy-gestures.json"), "not json");
-  for (const { value, meaning } of de("closer", { repertoireDesGestes: dossier }).figures) {
+  for (const { value, meaning } of de("closer", { repertoireDesGestes: dossier }).figures.slice(0, 2)) {
     assert.equal(value, "cannot be read");
     assert.match(meaning, /cannot be read/);
   }

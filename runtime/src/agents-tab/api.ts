@@ -8,8 +8,9 @@
 // The state: `working` while one of its runs goes on — with the ticket it works on, null for a run on no ticket —,
 // else `broken` when its last run failed and nothing was launched after it, else `idle`.
 // The figures come from the agent's thread: the gestures it fixed by itself and those it handed to the chef in the last
-// 7 days, the same two for every agent, the closer included. A thread that was not read, or cannot be read, says so in
-// the figure's value and meaning: never a zero in its place.
+// 7 days, the same two for every agent, the closer included. The closer keeps a third, its own: the lines its closing
+// passes removed (`closing.ended`, the figure of its report, closing/report.ts). A thread or passes that were not
+// read, or a thread that cannot be read, say so in the figure's value and meaning: never a zero in its place.
 // `settings`: the object of the settings API (#4222), passed through untouched; null while that source is not there.
 import { agentsDuJournal, gestesDe, GestesIllisibles, OUTCOME, type Geste } from "../autonomie/agents/gestes.ts";
 import { HoraireIllisible, type Horaire } from "../autonomie/agents/prochain-passage.ts";
@@ -25,6 +26,8 @@ export type Sources = {
   enEchec?: readonly string[];
   // Each agent's schedule as the runtime noted it (autonomie/agents/horaires.ts).
   horaires?: (id: string) => Horaire | undefined;
+  // The closing passes that ended (`closing.ended` of the log): when, and the lines each removed.
+  passesDuCloser?: ReadonlyArray<{ at: string; removedLines: number }>;
 };
 type Demande = { method: string; url: string };
 type Reponse = { statut: number; corps: unknown };
@@ -53,7 +56,19 @@ function filDe(repertoire: string, id: string): Array<Geste & { issue: number | 
   });
 }
 
+const LIGNES_RETIREES = { label: "Lines removed", meaning: "lines of code its closing passes removed, last 7 days" };
+
 function figuresDe(sources: Sources, id: string): Chiffre[] {
+  const duFil = figuresDuFil(sources, id);
+  if (id !== "closer") return duFil;
+  const { label, meaning } = LIGNES_RETIREES;
+  if (sources.passesDuCloser === undefined) return [...duFil, { label, value: "not known", meaning: `${meaning} — its passes were not read` }];
+  const depuis = sources.maintenant.getTime() - SEMAINE_MS;
+  const retirees = sources.passesDuCloser.filter(({ at }) => Date.parse(at) > depuis).reduce((total, { removedLines }) => total + removedLines, 0);
+  return [...duFil, { label, value: retirees, meaning }];
+}
+
+function figuresDuFil(sources: Sources, id: string): Chiffre[] {
   if (sources.repertoireDesGestes === undefined) return FIGURES.map(({ label, meaning }) => ({ label, value: "not known", meaning: `${meaning} — its thread was not read` }));
   let fil;
   try {
