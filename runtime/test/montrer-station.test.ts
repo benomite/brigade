@@ -40,7 +40,7 @@ test("le chef voit la station : son nom, ce qu'elle fournit, son plafond, sa con
   assert.equal(code, 0);
   assert.match(sortie, /station\s+box\/claude — engine claude, provides: code/);
   assert.match(sortie, /simultaneous cooks\s+1 at most — declared — `station -- cooks <N>` to change it, 0 for no limit\n/);
-  assert.match(sortie, /machine\s+holds/);
+  assert.doesNotMatch(sortie, /^machine\s/m);
   assert.match(sortie, /Max connection\s+taken as good/);
   assert.match(sortie, /quota\s+available/);
   assert.match(sortie, /withholding\s+none — every servable ticket leaves/);
@@ -175,14 +175,11 @@ test("un arbitre injoignable se voit, avec le mode dégradé ; rien n'en est dit
   assert.match(sortie, /withholding\s+since .* — arbiter unreachable, one cook at a time: the servable tickets wait/);
 });
 
-test("une machine saturée se voit, avec ce qui manque", async (t) => {
+test("une machine saturée ne retient rien : la station ne montre aucune saturation (#4285)", async (t) => {
   const { annoncer, noter, montrer } = cuisine(t);
   annoncer();
   noter({ type: "station.saturated", payload: { station: STATION, resource: "disk", observed: 2048, limit: 5120 } });
-  noter({ type: "station.held", payload: { station: STATION, reason: "machine" } });
-
-  assert.match((await montrer()).sortie, new RegExp(String.raw`withholding\s+since ${JOUR_HORLOGE}T10:00:02.000Z — machine saturated: the servable tickets wait`));
-  assert.match((await montrer()).sortie, new RegExp(String.raw`machine\s+SATURATED since ${JOUR_HORLOGE}T10:00:01.000Z on disk — 2,048 MB of disk free for at least 5,120 MB; no ticket is taken`));
+  assert.doesNotMatch((await montrer()).sortie, /SATURATED/);
 });
 
 test("un plafond qui n'est pas un nombre, ou réglé avant toute station, est refusé sans rien écrire", async (t) => {

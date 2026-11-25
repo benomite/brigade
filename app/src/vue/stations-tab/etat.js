@@ -88,7 +88,7 @@ export const sorteDe = (station, locale) => (station.id === locale ? "ici" : est
 // Les mots d'une ligne de cuisson (cuisson.ts) qui disent qu'elle prend les tickets du projet — elle cuit, attend le
 // prochain, ou n'a plus de place mais tient les siens. Les autres disent qu'elle ne cuit pas à l'instant : tue, arrêtée,
 // que la cuisine ne voit pas, ou qui refuse le projet.
-const PREND = new Set(["cooking", "idle", "saturated"]);
+const PREND = new Set(["cooking", "idle"]);
 const REFUSE = "refused";
 // Le mot d'une station distante que la cuisine ne voit pas (cuisson.ts, `ABSENTE`).
 const ABSENTE = "not cooking";
@@ -143,10 +143,10 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
     if (appairee !== undefined) prises.add(appairee.id);
     const refuse = ligne.etat === REFUSE;
     const horsLigne = appairee?.etat === "hors-ligne" || !enLigneDe(ligne);
-    // En ligne, une station saturée dit que sa machine n'a plus de place (cuisson.ts) ; une que la limite de GitHub retient
+    // En ligne, une station que la limite de GitHub retient
     // (ticket 2443), jusqu'à quand — elle sert ses projets, son signe de vie attend la fin de la limite. Refusant le projet,
     // elle dit pourquoi.
-    const note = refuse ? ligne.dit : horsLigne ? "" : ligne.retenue !== undefined ? RETENUE(ligne.retenue) : ligne.etat === "saturated" ? ligne.dit : "";
+    const note = refuse ? ligne.dit : horsLigne ? "" : ligne.retenue !== undefined ? RETENUE(ligne.retenue) : "";
     const moteur = statutLu(ligne.engine);
     servantes.push({
       id: appairee?.id ?? "",

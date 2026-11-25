@@ -7,7 +7,7 @@ import { motsFrancaisDans } from "./aides/glossaire.ts";
 const ATTENDUS = [
   "product", "design", "triage", "blocked-on-human", "feature", "fix", "tech", "prio:0", "prio:1", "prio:2", "prio:3", "fire",
   "model:opus", "model:sonnet", "model:haiku", "effort:low", "effort:medium", "effort:high", "effort:xhigh", "effort:max",
-  "decision", "epic", "served-elsewhere", "set-aside:failures", "tests-written", "taken", "in-pass", "waiting", "chef-todo", "product-question", "idea", "horizon:1", "horizon:2", "horizon:3", "saturation-repair", "kitchen-board",
+  "decision", "epic", "served-elsewhere", "set-aside:failures", "tests-written", "taken", "in-pass", "waiting", "chef-todo", "product-question", "idea", "horizon:1", "horizon:2", "horizon:3", "kitchen-board",
 ];
 
 test("le catalogue porte chaque label du projet, une fois", () => {

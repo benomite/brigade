@@ -12,7 +12,6 @@ import { calageDuDisjoncteur, direLeCalage, estUnCalage, natureDuRun } from "./b
 import { arretsDeGardeDesTickets, gardeRepetee } from "./gardes-historique/historique.ts";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
 import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
-import { etatStation } from "./projections/stations.ts";
 import { cooksEnCours, echecsExternes, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
 import { veilleDuProcess } from "./reveil-machine/du-process.ts";
@@ -88,7 +87,7 @@ export type CookLance = {
 
 // `deploy` : n'est plus levé — une mise en service ne retient aucun cook ; le
 // motif reste pour que les journaux d'avant se lisent.
-export type RefusDeLancer = "breaker" | "stopped" | "deploy" | "held";
+export type RefusDeLancer = "breaker" | "stopped" | "deploy";
 
 export class LancementRefuse extends Error {
   readonly motif: RefusDeLancer;
@@ -335,14 +334,6 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
             ? `breaker open since ${etat.breakerOpenedAt} after ${etat.failures} failures in a row: no cook is launched before the supervisor closes it`
             : `breaker open since ${etat.breakerOpenedAt}: a run keeps stalling after its relaunches — ${direLeCalage(calage)}; no cook is launched before the supervisor closes it, or a running run ends well`,
         );
-      }
-      // Une station retenue pour saturation de sa machine ne lance ni ne relance aucun cook (#4097) : un cook
-      // pris avant la retenue, ou relancé après sa fin, attend qu'elle se lève. Le manager, la pass (relecture,
-      // mutations, blocage) et les autres runs hors ticket partent, comme avec le disjoncteur.
-      const station = demande.contexte?.station ?? null;
-      // Le cook de la réparation de la saturation, que la porte de prise a laissé passer, part (#4100).
-      if (station !== null && natureDuRun(run, station) === "cook" && demande.contexte?.saturationRepair !== true && etatStation(base, station)?.heldReason === "machine") {
-        throw new LancementRefuse("held", `station ${station} held: its machine is saturated, no cook is launched before it frees up`);
       }
       const lance = noter(demande.ticket, { type: "cook.launched", payload: { run, limits: plafonds, stream, ...demande.contexte } })?.seq ?? 0;
       // Le même garde-fou a déjà tué ce ticket deux fois : la relance le dit au journal, avec la raison (#3650).

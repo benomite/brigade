@@ -1580,9 +1580,6 @@ main > header,
 #station .plafond-de-station p {
   margin: var(--pas-1) 0;
 }
-#station .plafond-de-station .retenue {
-  color: var(--jaune);
-}
 #station .plafond-de-station:empty {
   display: none;
 }
@@ -3203,10 +3200,6 @@ main > header,
   margin: 0;
   font-size: var(--taille-intertitre);
   color: var(--texte);
-}
-#rail .closer-lancement .etat.retenue {
-  padding-left: var(--pas-2);
-  border-left: 3px solid var(--jaune);
 }
 /* Un écran étroit — le téléphone (ticket 1186) : trois colonnes n'y tiennent pas. La barre passe en haut, en une rangée
    qui défile ; la page du projet prend toute la largeur, et le second, quand son onglet est ouvert, prend la place du
