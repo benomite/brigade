@@ -74,7 +74,7 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       // #18 attend #12, parti l'issue ouverte : il l'attend sur le rail, et rien n'attend le chef (#1834).
       `"attend":[],` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
-      `"cuisineOisive":null,"stations":[],"agents":[]}`,
+      `"cuisineOisive":null,"stations":[],"agents":[],"digest":null,"notification":null}`,
   );
 });
 
@@ -531,6 +531,8 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     cuisineOisive: null,
     stations: [],
     agents: [],
+    digest: null,
+    notification: null,
   });
 });
 
@@ -545,7 +547,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "cuisineOisive", "stations", "agents", "blockedWithoutQuestion", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "equipe", "coutDesGates"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "cuisineOisive", "stations", "agents", "digest", "notification", "blockedWithoutQuestion", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "equipe", "coutDesGates"]);
   // Aucune gate jouée, aucun budget posé : le défaut, rien de dépassé, un jour à zéro.
   assert.deepEqual(forme.coutDesGates, {
     budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },
