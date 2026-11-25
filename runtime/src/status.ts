@@ -77,7 +77,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const lu = journal;
   if (!railCherche(env)) return ecrire(lignes);
   // Pourquoi la file ne part pas (#3433) : sa phrase au-dessus de la ligne `rail`, la même que le rail de l'app.
-  return attenteEtRailDuStatus(env, maintenant, lu.base).then((attente) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(lignes, attente.enFile), attente.lignes)), (erreur: unknown) => {
+  // Puis, au-dessus, pourquoi la cuisine ne cuit pas (#4214) : au repos ou en panne, sa cause et son action.
+  return attenteEtRailDuStatus(env, maintenant, lu.base).then((attente) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(lignes, attente.enFile), [...attente.cuisine, ...attente.lignes])), (erreur: unknown) => {
     lu.fermer();
     throw erreur;
   });
