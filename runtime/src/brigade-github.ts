@@ -2282,7 +2282,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         tenante = { pr: ouverte, pourquoi };
         break;
       }
-      if (tenante !== undefined) return { branche: tenante.pr.branche, attente: null, tenante };
+      if (tenante) return { branche: tenante.pr.branche, attente: null, tenante };
       const enVolDuTour: EnVol[] = [];
       for (const autre of tickets) {
         if (autre.number === ticket.number || !(autre.labels.includes(LABEL_TAKEN) || autre.labels.includes(LABEL_IN_PASS) || enVol.has(autre.number) || prisCeTour.has(autre.number))) continue;
@@ -2517,7 +2517,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const tenuePar = await tenue(ticket);
       if (tenuePar !== null) {
         // Tenue par une PR : la ligne la nomme, avec ce qui la garde vivante, et le saut porte `zone-held` (#4242).
-        if (tenuePar.tenante !== undefined) sauter(ticket.number, direSaut(ticket.number, direZoneTenue(tenuePar.tenante.pr, tenuePar.tenante.pourquoi)), undefined, { code: ZONE_HELD, pr: tenuePar.tenante.pr.number ?? null });
+        if (tenuePar.tenante) sauter(ticket.number, direSaut(ticket.number, direZoneTenue(tenuePar.tenante.pr, tenuePar.tenante.pourquoi)), undefined, { code: ZONE_HELD, pr: tenuePar.tenante.pr.number ?? null });
         else sauter(ticket.number, direSaut(ticket.number, direAttenteDeZone(tenuePar.attente)));
         await ecrireEnAttendant(ticket);
         continue;
