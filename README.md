@@ -10,9 +10,9 @@
 
 ## Install
 
-- **macOS** (Apple silicon): download `Brigade-<version>-mac-arm64.dmg` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v).
-- **Linux** (x64): download `brigade-<version>-linux-x64.AppImage` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v), then `chmod +x` it and run it ([details](docs/installation-linux.md)).
-- **Windows** (x64): download `Brigade-<version>-windows-x64-setup.exe` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases?q=app-v).
+- **macOS** (Apple silicon): download `Brigade-<version>-mac-arm64.dmg` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases/latest).
+- **Linux** (x64): download `brigade-<version>-linux-x64.AppImage` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases/latest), then `chmod +x` it and run it ([details](docs/installation-linux.md)).
+- **Windows** (x64): download `Brigade-<version>-windows-x64-setup.exe` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases/latest).
 
 **[Brigade builds itself — see its live autonomy figures](https://benomite.github.io/brigade/autonomie.html)**
 
@@ -45,15 +45,21 @@ You need two accounts:
 
 The app also needs three tools on your computer: **`gh`** (the GitHub CLI), **`git`** and **`claude`** (Claude Code). If one of them is missing, the app says which one and why, shows the shortest way to install it on that machine, and carries on where you left off. A Mac without Homebrew (Apple silicon) and a Windows PC (x64) are supported, and you are never asked to install Homebrew. The details for each tool are in **[docs/installation.md](docs/installation.md)**.
 
-1. **Download the app** (macOS on Apple silicon, Windows x64, or Linux x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)** and open it. On Linux, see **[docs/installation-linux.md](docs/installation-linux.md)**.
+**The app is not signed.** macOS and Windows refuse an unsigned app the first time you open it; the way through is below, in step 1, and in **[docs/installation.md](docs/installation.md)**.
+
+1. **Download the app** (macOS on Apple silicon, Windows x64, or Linux x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)**, then open it past the warning. On Linux, see **[docs/installation-linux.md](docs/installation-linux.md)**.
+   - **Mac**: drag **Brigade** into **Applications**, right-click it, choose **Open**, then **Open** again. On macOS 15 and later, also open **System Settings > Privacy & Security** and click **Open Anyway**. If macOS says Brigade is "damaged and can't be opened", the app is not damaged and you must not move it to the Trash: open **Terminal**, run `xattr -dr com.apple.quarantine /Applications/Brigade.app`, then open Brigade again.
+   - **Windows**: run the installer. When SmartScreen says "Windows protected your PC", click **More info**, then **Run anyway**.
 2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
 3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
-4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it, prepares it with a ticket of its own, and tells you when it is ready.
-5. **Cook a first ticket**: once the project is ready, the second asks you, in the app, what you want to change first. It writes the ticket from your answer and shows it to you; say yes, and it goes on the rail. A cook takes it, opens a pull request, and the pass judges it and merges it.
+4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it.
+5. **Choose the station, and start the kitchen**: the project's page asks `Who cooks <owner/repo>?`. Keep **this computer** (marked `recommended` when it can cook now), then click **Start the kitchen**. If the page offers no station, **choose its machine** first; if it warns that the machine has no sandbox, **continue without sandbox** is your call.
+6. **Wait for the setup pull request**: before your own issue moves, brigade cooks and merges a **setup pull request** in your repository (gates, worktree setup, allowed sites). It comes first, and your issue waits for it. It is a cook's ticket like any other, so count a while, not seconds. It runs on **your Claude quota**, on Opus at high effort. The project's page says what is awaited and from whom; when it ends, it says the project is ready.
+7. **Cook a first ticket**: once the project is ready, the second asks you, in the app, what you want to change first. It writes the ticket from your answer and shows it to you; say yes, and it goes on the rail. A cook takes it, opens a pull request, and the pass judges it and merges it.
 
-**Alternative, on GitHub**: open an issue in that repository and put the label `fire` on it. It goes on the rail the same way.
+**Alternative, on GitHub**: open an issue in that repository and put the label `fire` on it. The `fire` label is already there, created by the setup: set nothing else on the issue, and brigade picks the model and the effort itself. It goes on the rail the same way.
 
-You type almost no command: the app runs the tools it needs. What you still type is the GitHub code shown on the GitHub page (step 2), your repository as `owner/repo` (step 4), and your answers to the second (step 5). Every screen is described in **[docs/installation.md](docs/installation.md)**.
+You type almost no command: the app runs the tools it needs. What you still type is the GitHub code shown on the GitHub page (step 2), your repository as `owner/repo` (step 4), and your answers to the second (step 7). Every screen is described in **[docs/installation.md](docs/installation.md)**.
 
 ## Where brigade is going
 
