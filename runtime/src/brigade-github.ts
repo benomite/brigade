@@ -49,9 +49,8 @@ import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
 import { labelPoseLe } from "./attente-du-rail/lecture.ts";
 import { ordreDeMerge } from "./ordre-de-merge/ordre.ts";
-import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "./github-etat/etats.ts";
-import { RELANCE_PAR_DEFAUT_MS } from "./attente.ts";
-import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
+import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "./github-etat/etats.ts";
+import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, parquerSesEchecs, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
 import { termeDeLAttente, veilleDesOrphelins } from "./reprise-attente/orphelins.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
 import type { CheckDeLaBase } from "./checks-de-la-branche.ts";
@@ -81,7 +80,7 @@ import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SET
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
-import { ECHECS_ATTEINTS, estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type PR } from "./github.ts";
+import { estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type PR } from "./github.ts";
 import { avecListe, porteDesTachesDeTickets, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
@@ -991,21 +990,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   // Une boucle de relances — ses essais épuisés sans livraison, ou un invariant
-  // cassé par ses relances — s'arrête ici, sans geste du chef (#4041) : mis de
-  // côté (`set-aside:failures`), le superviseur reçoit son dossier, et le ticket
-  // passe en WAITING avec sa raison écrite et sa relance, sept jours plus loin
-  // (l'invariant 3). Il en sort à cette relance, ou dès que sa mise de côté est
-  // retirée (`ramenerALaRelance`). Une attente qui ne se pose pas est dite ; la
-  // mise de côté le tient hors du rail.
+  // cassé par ses relances — s'arrête ici, sans geste du chef (#4041) : le ticket
+  // est parqué (#4129) — qui : le superviseur, qui reçoit son dossier ; pour quoi :
+  // sa raison écrite ; jusqu'à une date, sept jours plus loin, où il reprend seul
+  // où il était (`ramenerALaRelance`). Rien ne le prend avant.
   const arreterLaBoucle = async (numero: number, motifs: readonly string[]): Promise<void> => {
-    await github.labelliser(numero, [ECHECS_ATTEINTS]);
-    const raison = motifs.at(-1)?.trim().split("\n")[0] || "its cooks stopped without a delivery";
-    const attente = { what: `the station stopped its relaunch loop, taken again and again without a delivery. The reason: ${raison}`, who: "the supervisor", followUp: new Date(instant() + RELANCE_PAR_DEFAUT_MS).toISOString(), backOnFollowUp: true as const, whileSetAside: true };
-    try {
-      await mettreEnAttenteParLaCuisine(github, numero, attente, { station: nom, mots: motifs.join("\n") });
-    } catch (erreur) {
-      avertir(`brigade : #${numero} sur ${nom} — its relaunch loop is set aside, but it could not be put in WAITING: ${message(erreur)}`);
-    }
+    await parquerSesEchecs(github, numero, motifs.at(-1) ?? "", { station: nom, mots: motifs.join("\n") }, new Date(instant()));
   };
 
   const confierAuManager = async (ticket: TicketLu, question: string): Promise<"liberee" | "retenue" | { echec: string }> => {
@@ -1298,8 +1288,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Sa CI est rouge sur le même check trois runs de suite : il ne pousse plus,
       // et sort de la cuisine. Le commentaire qui le dit est déjà sur l'issue (#3953).
       if ("arrete" in fait) {
-        avertir(`brigade : #${issue} sur ${nom} — not pushed: ${fait.arrete}; the ticket is set aside`);
-        await github.labelliser(issue, [ECHECS_ATTEINTS]);
+        avertir(`brigade : #${issue} sur ${nom} — not pushed: ${fait.arrete}; the ticket is parked`);
+        await parquerSesEchecs(github, issue, fait.arrete, undefined, new Date(instant()));
         chrono.rater(issue);
         await prise.lacher({ number: issue, labels: [...ticket.labels, LABEL_TAKEN] });
         liberee = true;
@@ -1500,7 +1490,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (${fini ? "its run ended ok, not counted" : `try ${echecs}/${ECHECS_MAX}`}): ${fait.echec}`);
       await github.commenter(
         issue,
-        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${detailDesGates(fait)}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere: the supervisor takes it and decides what happens to it.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere. The supervisor takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
+        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${detailDesGates(fait)}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Parked (\`${LABEL_PARKED}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. It waits for the supervisor, who takes it and decides what happens to it.` : `Parked (\`${LABEL_PARKED}\`) by its failure count ${direLaMiseDeCote(echoues)}: it waits for the supervisor, who takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
       );
       chrono.rater(issue);
       if (suite !== null && "auChef" in suite) {
@@ -1582,8 +1572,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (attenteDite !== null) {
       // En WAITING : le commentaire et le label sont posés.
     } else if (suite !== null && "auChef" in suite) {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nSet aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${pourquoi}: not served elsewhere, nobody serves it. A human decides.\n\n${suite.auChef}`);
-      await github.labelliser(ticket.number, [ECHECS_ATTEINTS]);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nParked (\`${LABEL_PARKED}\`) by its failure count ${pourquoi}: it waits for the supervisor, who takes it and decides what happens to it.\n\n${suite.auChef}`);
+      await parquerSesEchecs(github, ticket.number, raison, undefined, new Date(instant()));
       chrono.oublier(ticket.number);
     } else if (suite !== null) {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nIts tries are spent${memeResultat ? " (handed back twice in a row with the same result: not relaunched a third time as it stands)" : ""}: the ticket went to the manager, not to the chef — its comment below says what it did.`);
@@ -1865,7 +1855,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const suite = await apresLesEssais(ticket, motifs);
         if ("auChef" in suite) {
           await arreterLaBoucle(ticket.number, motifs);
-          return `set aside (\`${ECHECS_ATTEINTS}\`) and in WAITING with its reason: the supervisor takes it and decides what happens to it. ${suite.auChef}`;
+          return `parked (\`${LABEL_PARKED}\`) with its reason: it waits for the supervisor, who takes it and decides what happens to it. ${suite.auChef}`;
         }
         await direLaReprise(ticket.number, suite);
         return "it went to the manager, not to the chef — its comment says what it did.";
@@ -1876,7 +1866,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Un ticket que la cuisine a mis en WAITING rentre seul sur le rail à sa relance (#3814) : ce tour le lit encore en
     // WAITING, le suivant le prend. Un geste qui échoue est dit ; le tour suivant réessaie.
     // Sorti de WAITING parce que sa mise de côté est retirée (#4041), il se prend à ce tour, comme sans l'attente.
-    const leve = (numero: number) => fires.filter((ticket) => ticket.number === numero).forEach((ticket) => void (ticket.labels = ticket.labels.filter((label) => label !== LABEL_WAITING)));
+    const leve = (numero: number) => fires.filter((ticket) => ticket.number === numero).forEach((ticket) => void (ticket.labels = ticket.labels.filter((label) => label !== LABEL_PARKED)));
     await ramenerALaRelance(github, fires, { station: nom, maintenant: new Date(instant()), avertir, leve }).catch((echec: unknown) => avertir(`brigade : the WAITING tickets past their follow-up date could not be put back on the rail on ${nom} — ${message(echec)}`));
     const { tickets: gueris } = await guerir(fires, new Set(enVol.keys()));
     // Ce que l'ancien chemin du conflit avec la base a laissé — un ticket ouvert

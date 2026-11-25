@@ -40,7 +40,7 @@ import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
 import { ENTETE_REPONSE } from "./reponse-carte.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, type Decision } from "./juger.ts";
-import { LABEL_WAITING } from "./attente.ts";
+import { LABEL_PARKED } from "./github-etat/etats.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { issueDuManager, issuesEnAttente, managerAllume, remiseDe, remisesEnAttente, type IssueDuManager, type Remise } from "./projections/manager.ts";
@@ -458,7 +458,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Refusée au chef par un jugement d'avant #3429 : il ne lui demandait pas de question, et rien ne l'a montrée au chef.
   // Elle se rejuge une fois, pour que sa carte en pose une.
   const auChefSansQuestion = (issue: IssueOuverte, connue: IssueDuManager | null): boolean =>
-    connue?.decision === "refused" && estAuChef(connue.kind) && !issue.labels.includes(LABEL_WAITING) && !("question" in (dernierJugement(issue.number) ?? { question: null }));
+    connue?.decision === "refused" && estAuChef(connue.kind) && !issue.labels.includes(LABEL_PARKED) && !("question" in (dernierJugement(issue.number) ?? { question: null }));
 
   const dire = (issue: IssueOuverte, connue: IssueDuManager, parLaStation = false): string => {
     const fired = issue.labels.includes(LABEL);
@@ -662,7 +662,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       // Relus juste avant d'écrire : le chef a pu fermer l'issue, la mettre en WAITING, ou poser le label.
       fraiche = await github.issue(issue.number);
       if (arrete) return false;
-      if (!fraiche || fraiche.state !== "open" || fraiche.labels.includes(LABEL_WAITING)) return true;
+      if (!fraiche || fraiche.state !== "open" || fraiche.labels.includes(LABEL_PARKED)) return true;
       if (!fraiche.labels.includes(label)) await github.labelliser(issue.number, [label]);
     } catch (erreur) {
       if (!arrete) avertir(`brigade : \`${label}\` non posé sur l'issue #${issue.number}, refusée au chef — repris au tour suivant — ${message(erreur)}`);

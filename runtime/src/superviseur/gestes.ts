@@ -26,7 +26,7 @@ import { DE_CONFIANCE } from "../alimenter.ts";
 import { mettreEnAttenteGitHub } from "../attente-github/attente-github.ts";
 import { A_LA_MAIN } from "../brigade-github.ts";
 import { gesteGit, LABELS_DE_REPARATION } from "../garde-todo/geste-git.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { CHEF_TODO, carteQuestionProduit, poserCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { Check } from "../events/pass.ts";
 import { jobDuCheck, LABEL, MIS_DE_COTE, type GitHub } from "../github.ts";
@@ -174,7 +174,7 @@ export async function remettreSurLeRail({ github }: { github: Pick<GitHubDesGest
   const issue = await issueOuverte(github, ticket);
   const tenu = [LABEL_TAKEN, LABEL_IN_PASS].find((label) => issue.labels.includes(label));
   if (tenu !== undefined) throw new Refus(`#${ticket} carries \`${tenu}\`: the kitchen holds it`);
-  const retenus = [LABEL_WAITING, A_LA_MAIN, CHEF_TODO, ...MIS_DE_COTE].filter((label) => issue.labels.includes(label));
+  const retenus = [LABEL_PARKED, A_LA_MAIN, CHEF_TODO, ...MIS_DE_COTE].filter((label) => issue.labels.includes(label));
   const sansFeu = !issue.labels.includes(LABEL);
   if (retenus.length === 0 && !sansFeu) throw new Refus(`#${ticket} is already on the rail: nothing holds it`);
   if (sansFeu) await github.labelliser(ticket, [LABEL]);
@@ -185,7 +185,7 @@ export async function remettreSurLeRail({ github }: { github: Pick<GitHubDesGest
 
 async function mettreDeCote(ctx: ContexteDesGestes, gh: GitHubDesGestes, ticket: number, what: string, who: string): Promise<Effet> {
   await mettreEnAttenteGitHub(gh, { depot: ctx.depot, numero: ticket }, { quoi: what, qui: who }, ctx.maintenant);
-  return { ticket, fait: `set #${ticket} aside in WAITING for ${who}: ${what}`, defaire: () => ctx.github.delabelliser(ticket, LABEL_WAITING) };
+  return { ticket, fait: `set #${ticket} aside in WAITING for ${who}: ${what}`, defaire: () => ctx.github.delabelliser(ticket, LABEL_PARKED) };
 }
 
 async function fermerLeDoublon({ github }: ContexteDesGestes, ticket: number, of: number): Promise<Effet> {

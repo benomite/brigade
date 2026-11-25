@@ -2,12 +2,13 @@
 // (épique #2209, ticket #2217). L'ancien chemin les tenait dans `carte-todo/`
 // (ticket bloqué, merge à la main, question produit, ticket abandonné #2118) ;
 // ici, chaque carte est un fait de GitHub sur l'issue du ticket :
-// - le label `chef-todo`, que l'issue porte tant que la carte attend le chef ;
+// - les labels `parked` et `chef-todo`, que l'issue porte tant que la carte attend le chef : le ticket est
+//   parqué pour le chef (#4129), et le TODO du chef est exactement ces tickets-là ;
 // - un commentaire qui commence par `<!-- brigade:todo kind=<sorte> -->`, puis
 //   le texte de la carte, à lire par un humain.
 // La carte d'une issue est son plus récent commentaire de carte, tant qu'elle
-// porte le label. Lever la carte, c'est retirer le label : le commentaire reste,
-// comme trace. L'app lit cette convention (#2221) : elle ne change pas.
+// porte le label. Lever la carte, c'est retirer les deux labels : le commentaire reste,
+// comme trace, et le ticket reprend exactement où il était. L'app lit cette convention (#2221) : elle ne change pas.
 //
 // Poser une carte n'en double aucune : la même situation vue deux fois — de
 // tour en tour, ou par deux stations — trouve sa carte déjà posée et n'écrit
@@ -17,10 +18,11 @@
 // commentaire sans label, que la pose suivante ne saurait distinguer d'une
 // carte levée, et doublerait.
 import { DE_CONFIANCE } from "../../alimenter.ts";
+import { CHEF_TODO, LABEL_PARKED } from "../../github-etat/etats.ts";
 import type { GitHub } from "../../github.ts";
 
-// Le label d'une issue dont une carte attend le chef.
-export const CHEF_TODO = "chef-todo";
+// Le label d'une issue dont une carte attend le chef : elle est parquée pour lui.
+export { CHEF_TODO };
 
 // Les sortes de carte, telles que le marqueur les écrit.
 // `design-validation` : une livraison design verte que la pass retient pour
@@ -91,15 +93,17 @@ export async function poserCarte(numero: number, carte: Carte, github: GitHubDes
   if (texte === "") throw new Error(`TODO card of kind ${carte.sorte} with no text: a card tells the chef what happens`);
   const issue = await github.issue(numero);
   if (issue === null) return "absente";
-  const tient = issue.labels.includes(CHEF_TODO);
-  if (tient && carteEnCours(issue.labels, await github.commentaires(numero))?.sorte === carte.sorte) return "deja";
-  if (!tient) await github.labelliser(numero, [CHEF_TODO]);
+  const deja = issue.labels.includes(CHEF_TODO) && carteEnCours(issue.labels, await github.commentaires(numero))?.sorte === carte.sorte;
+  // Une carte d'avant #4129 n'a que `chef-todo` : elle prend `parked`, sans se redire.
+  const manquent = [CHEF_TODO, LABEL_PARKED].filter((label) => !issue.labels.includes(label));
+  if (manquent.length > 0) await github.labelliser(numero, manquent);
+  if (deja) return "deja";
   await github.commenter(numero, corpsDeCarte({ sorte: carte.sorte, texte }));
   return "posee";
 }
 
 // Lève la carte de l'issue quand sa situation est résolue : retire
-// `chef-todo`. Avec une sorte, ne lève que la carte de cette sorte — une autre
+// `chef-todo`, puis `parked` — le ticket reprend où il était. Avec une sorte, ne lève que la carte de cette sorte — une autre
 // situation, qui attend toujours le chef, garde la sienne. Rend vrai si le
 // label est retiré.
 export async function leverCarte(numero: number, github: GitHubDesCartes, sorte?: Sorte): Promise<boolean> {
@@ -107,6 +111,7 @@ export async function leverCarte(numero: number, github: GitHubDesCartes, sorte?
   if (issue === null || !issue.labels.includes(CHEF_TODO)) return false;
   if (sorte !== undefined && carteEnCours(issue.labels, await github.commentaires(numero))?.sorte !== sorte) return false;
   await github.delabelliser(numero, CHEF_TODO);
+  if (issue.labels.includes(LABEL_PARKED)) await github.delabelliser(numero, LABEL_PARKED);
   return true;
 }
 

@@ -12,7 +12,7 @@
 // La première lecture d'une tête ou de ses checks n'est pas un progrès : elle ne dit pas quand
 // ils sont arrivés.
 import { A_LA_MAIN, type GitHubDuTour } from "../brigade-github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { MARQUE_DE_VERDICT } from "../github-etat/fusion.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { estMisDeCote } from "../github.ts";
@@ -22,7 +22,7 @@ import type { GenreDeProgres, Progres, TicketSuivi } from "./inactivite.ts";
 // WAITING l'emporte, puis la pass, la cuisine, la mise de côté, puis le ticket parqué
 // pour un humain (`blocked-on-human`, `chef-todo`).
 function etatSuivi(labels: readonly string[]): string | null {
-  if (labels.includes(LABEL_WAITING)) return "WAITING";
+  if (labels.includes(LABEL_PARKED)) return "WAITING";
   if (labels.includes(LABEL_IN_PASS)) return "in pass";
   if (labels.includes(LABEL_TAKEN)) return "cooking";
   if (estMisDeCote(labels)) return "set aside";

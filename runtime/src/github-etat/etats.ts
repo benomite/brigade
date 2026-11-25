@@ -7,7 +7,8 @@
 //
 // | État       | Lu sur                                                         |
 // |------------|----------------------------------------------------------------|
-// | `waiting`  | le label `waiting` — il l'emporte sur tout autre               |
+// | `parked`   | le label `parked`, ou `chef-todo` (parqué pour le chef) — il   |
+// |            | l'emporte sur tout autre : rien ne prend un ticket parqué      |
 // | `base-red` | le label `in-pass`, sa PR ouverte, le dernier commit de la     |
 // |            | base rouge                                                     |
 // | `pass`     | le label `in-pass` et sa PR ouverte, la base n'étant pas rouge |
@@ -21,13 +22,19 @@
 // un `in-pass` sans PR ouverte à juger n'ont pas d'état (null).
 import type { Check } from "../events/pass.ts";
 import type { Issue, PR } from "../github.ts";
+import { LABEL_PARKED } from "../attente-github/marque.ts";
 
 // Les labels qui portent un état sur l'issue.
 export const LABEL_TAKEN = "taken";
 export const LABEL_IN_PASS = "in-pass";
-export const LABEL_WAITING = "waiting";
+// Le label d'une carte de TODO : le ticket est parqué pour le chef (#4129). Il vaut `parked`.
+export const CHEF_TODO = "chef-todo";
+export { LABEL_PARKED };
 
-export type EtatDuTicket = "taken" | "pass" | "waiting" | "base-red";
+// Le ticket est-il parqué ? Le label `parked`, ou une carte du chef posée avant #4129 sans lui.
+export const estParque = (labels: readonly string[]): boolean => labels.includes(LABEL_PARKED) || labels.includes(CHEF_TODO);
+
+export type EtatDuTicket = "taken" | "pass" | "parked" | "base-red";
 
 // Le statut du dernier commit de la base, d'après ses checks. `pending` : un
 // check court encore, aucun n'est rouge.
@@ -51,7 +58,7 @@ export function etatDeLaBase(checks: Pick<Check, "outcome">[]): EtatDeLaBase | n
 export function etatDuTicket(issue: IssueLue, base: EtatDeLaBase | null = null): EtatDuTicket | null {
   if (issue.state !== "open") return null;
   const labels = new Set(issue.labels);
-  if (labels.has(LABEL_WAITING)) return "waiting";
+  if (estParque(issue.labels)) return "parked";
   if (labels.has(LABEL_IN_PASS)) {
     const aJuger = issue.pr !== null && issue.pr.state === "open" && !issue.pr.merged;
     if (!aJuger) return null;

@@ -34,12 +34,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "contributor-stations", description: "The contributor stations that took a ticket, for the app: refuse <station>, accept <station> — a refused station takes no ticket" },
   { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },
   { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream; approve <n> does once a gesture an agent holds for the chef's OK", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
-  {
-    nom: "waiting",
-    ancien: "attente",
-    description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>; a GitHub-only ticket is named <owner>/<repo>#<issue>, which also takes arrived; <owner>/<repo> lists its TODO and WAITING cards",
-    mots: { poser: "set", reprendre: "resume", "--quoi": "--what", "--de": "--from", "--relance": "--remind" },
-  },
+  { nom: "parked", description: "Tickets that wait for someone — who, for what, until when — on any GitHub project, with no box: set <owner>/<repo>#<issue> --what <…> --from <who> [--until <date> | --fact <fact>], resume and arrived <owner>/<repo>#<issue> unpark it where it was; <owner>/<repo> lists the chef's TODO and the other parked tickets" },
   { nom: "design", description: "A green design delivery held for the chef's validation (its card “Validate its screen”): validate <owner>/<repo>#<ticket> merges it, send-back <owner>/<repo>#<ticket> --comment <what to change> sends it back to a cook; both close the card; the pull request's number is still accepted in place of the ticket's" },
   { nom: "sensitive", description: "A green delivery of a sensitive ticket held for the chef's review (its card “review before merge”): merge <owner>/<repo>#<ticket> merges it, send-back <owner>/<repo>#<ticket> --note <note> sends the ticket back to a cook with the note; both close the card; the pull request's number is still accepted in place of the ticket's" },
   { nom: "undo", description: "Undo a served ticket (its card's “undo”): <owner>/<repo>#<ticket> opens a pull request reverting its merge, which the pass judges and merges like any delivery, and reopens the ticket; a revert that does not apply cleanly files a ticket for the kitchen instead" },

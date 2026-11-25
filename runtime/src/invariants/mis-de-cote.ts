@@ -8,7 +8,7 @@
 // (`ramenerALaRelance`), un ticket mis de côté par le geste `back-on-rail`.
 import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { attenteDeLIssue, corpsDeLAttente, direRelance } from "../attente-github/attente-github.ts";
-import { LABEL_WAITING } from "../github-etat/etats.ts";
+import { LABEL_PARKED } from "../github-etat/etats.ts";
 import { MIS_DE_COTE } from "../github.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { remettreSurLeRail } from "../superviseur/gestes.ts";
@@ -19,14 +19,14 @@ const raisonDite = (corps: string | undefined) => corps?.split("\n").slice(1).fi
 
 export const misDeCoteSansDate: Invariant = async (tour) => {
   for (const ticket of tour.tickets) {
-    const retenu = [...MIS_DE_COTE, LABEL_WAITING].filter((label) => ticket.labels.includes(label));
+    const retenu = [...MIS_DE_COTE, LABEL_PARKED].filter((label) => ticket.labels.includes(label));
     if (retenu.length === 0) continue;
     // Illisibles, il est relu au tour suivant : rien ne se pose sur une issue qu'on ne lit pas.
     const commentaires = await tour.github.commentaires(ticket.number).catch(() => null);
     if (commentaires === null) continue;
     // Mis de côté, seule une marque posée depuis sa mise de côté compte : celle d'une attente d'avant ne dit pas pourquoi il l'est.
     const cuisine = commentaires.findLastIndex(({ body }) => body.startsWith(MARQUE_D_ECHEC) || body.startsWith(MARQUE_DE_RENVOI));
-    const depuis = ticket.labels.includes(LABEL_WAITING) ? commentaires : commentaires.slice(cuisine + 1);
+    const depuis = ticket.labels.includes(LABEL_PARKED) ? commentaires : commentaires.slice(cuisine + 1);
     const attente = attenteDeLIssue(depuis);
     const etiquettes = retenu.map((label) => `\`${label}\``).join(", ");
     if (attente === null) {
@@ -45,7 +45,7 @@ export const misDeCoteSansDate: Invariant = async (tour) => {
       continue;
     }
     // En WAITING, sa relance passée le ramène sur le rail (`ramenerALaRelance`) ; posée par le chef, elle reste à lui.
-    if (ticket.labels.includes(LABEL_WAITING) || attente.backOnFollowUp !== true || Date.parse(attente.followUp) > tour.maintenant.getTime()) continue;
+    if (ticket.labels.includes(LABEL_PARKED) || attente.backOnFollowUp !== true || Date.parse(attente.followUp) > tour.maintenant.getTime()) continue;
     const { github } = tour;
     if (github.issue === undefined) continue;
     await tour.reparer({
