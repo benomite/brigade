@@ -38,6 +38,8 @@ import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { consignerGeste, OUTCOME } from "../autonomie/agents/gestes.ts";
 import { DELAI_PERIME_MS, ouvrirLesZones } from "./zone-liberee.ts";
+import { notifierLesAbandons } from "../journal-du-jour/notifications.ts";
+import { notifierAuJournal } from "../journal-du-jour/publication.ts";
 
 // Le manager lancé sur une consigne : sa réponse, ou pourquoi il n'y en a pas.
 export type ManagerDuSuperviseur = (consigne: string) => Promise<{ message: string } | { illisible: string }>;
@@ -134,7 +136,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     },
     maintenant,
     // La porte de ses gestes (#4039) : celle du runtime, qui fait à chaque tick ceux que le chef approuve.
-    porte: porteDuRuntime({ projet: runtime.projet, repertoireEtat, surReveil: (ecouter) => runtime.surReveil(ecouter) }),
+    porte: porteDuRuntime({ projet: runtime.projet, repertoireEtat, journal: runtime.journal, surReveil: (ecouter) => runtime.surReveil(ecouter) }),
   });
   // Un tour qui ne suit pas les progrès ne réveille pas sur leur absence.
   const inactivite =
@@ -172,10 +174,18 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     },
     consigner: (ligne, auChef) => {
       if (repertoireEtat === undefined) return;
+      let consigne;
       try {
-        consignerGeste(repertoireEtat, "supervisor", { line: ligne, reason: `an open PR neither cooked nor in pass, idle for ${DELAI_PERIME_MS / 3_600_000} h or more or with its changes on the base, overlapped the zone of a ticket`, outcome: auChef ? OUTCOME.HANDED_TO_CHEF : OUTCOME.FIXED_BY_SELF }, maintenant);
+        consigne = consignerGeste(repertoireEtat, "supervisor", { line: ligne, reason: `an open PR neither cooked nor in pass, idle for ${DELAI_PERIME_MS / 3_600_000} h or more or with its changes on the base, overlapped the zone of a ticket`, outcome: auChef ? OUTCOME.HANDED_TO_CHEF : OUTCOME.FIXED_BY_SELF }, maintenant);
       } catch (erreur) {
         dire(`supervisor on ${runtime.projet}: a zone release was not logged — ${message(erreur)}`);
+        return;
+      }
+      // Remise au chef, la libération le notifie, comme tout abandon (#4280) ; faite seule, elle ne notifie personne.
+      try {
+        notifierLesAbandons([consigne], notifierAuJournal(runtime.journal, runtime.projet));
+      } catch (erreur) {
+        dire(`supervisor on ${runtime.projet}: a zone release was handed to the chef, the chef not notified — ${message(erreur)}`);
       }
     },
   });
