@@ -9,6 +9,7 @@ import type { TableauLu } from "../../../src/tableau/lecture.ts";
 import { arretCuisineLu, arretDuRail, zoneTenueDe } from "../../../src/vue/bandeau-arret/arret-du-rail.ts";
 import { monterLeBandeau } from "../../../src/vue/bandeau-arret/bandeau-arret.js";
 import { avecLeRail, lireLeRailSurGithub, type SignesDeVie } from "../../../src/vue/rail/github.ts";
+import { corpsDuParking } from "../../../../runtime/src/attente-github/marque.ts";
 import { Faux } from "../../aides/fausse-vue.ts";
 
 const DEPOT = "chef/parade";
@@ -30,7 +31,9 @@ const doc = { createElement: (balise: string) => new Faux(balise) };
 
 type Issue = { numero: number; labels: readonly string[]; creeLe?: string; titre?: string; commentaires?: readonly Record<string, unknown>[]; feuLe?: string };
 const FICHE = (zone: string) => ({ id: 2, body: `<!-- brigade:fiche -->\n- awaiting: none\n- zone: ${zone}`, author_association: "OWNER", created_at: "2026-11-20T07:00:00Z" });
-const MIS_DE_COTE = (le: string) => ({ id: 3, body: "Station `parade-box/claude`: the cook failed 3 times. Set aside by its failures (set-aside:failures).", author_association: "OWNER", created_at: le });
+// Mis de côté par ses échecs : la station le parque (`parked`, #4260 ; d'abord `set-aside:failures`), son commentaire de
+// parking le dit (runtime/src/attente/attente-par-le-cook.ts).
+const MIS_DE_COTE = (le: string) => ({ id: 3, body: corpsDuParking({ what: "its cooks failed too many times, the station stopped relaunching it. The reason: the cook failed 3 times", who: "the supervisor", followUp: "2026-11-27T08:30:00.000Z", fact: "the supervisor answers", failures: true }), author_association: "OWNER", created_at: le });
 
 // GitHub, d'après les issues `fire` et les PR ouvertes (`cook/<n>-…`, ouverte à `le`).
 function github(issues: readonly Issue[], prs: readonly { ticket: number; le: string }[] = []): AppelGitHub {
@@ -65,7 +68,7 @@ test("a set-aside ticket whose open PR holds the zone its fiche declares: the bo
   const { arret, texte } = await lire(
     [
       { numero: 21, labels: [], feuLe: "2026-11-20T09:00:00Z" },
-      { numero: 30, labels: ["set-aside:failures"], commentaires: [FICHE("app/src/vue, app/src/faits.ts"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
+      { numero: 30, labels: ["parked"], commentaires: [FICHE("app/src/vue, app/src/faits.ts"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
     ],
     [{ ticket: 30, le: "2026-11-20T08:05:00Z" }],
   );
@@ -76,7 +79,7 @@ test("a set-aside ticket whose open PR holds the zone its fiche declares: the bo
 test("a set-aside ticket without an open PR holds no zone: the cause is unknown, since the queued ticket entered the queue", async () => {
   const { arret, texte } = await lire([
     { numero: 21, labels: [], creeLe: "2026-11-20T05:00:00Z", feuLe: "2026-11-20T09:00:00Z" },
-    { numero: 30, labels: ["set-aside:failures"], creeLe: "2026-11-20T04:00:00Z", commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
+    { numero: 30, labels: ["parked"], creeLe: "2026-11-20T04:00:00Z", commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
   ]);
   assert.deepEqual(arret, { cause: { kind: "unknown" }, since: "2026-11-20T09:00:00Z" });
   assert.match(texte, /since 09:00 UTC: cause unknown/);
@@ -84,7 +87,7 @@ test("a set-aside ticket without an open PR holds no zone: the cause is unknown,
 
 test("a set-aside ticket with an open PR but no fiche, or an unreadable one, holds no zone the board can name", async () => {
   for (const commentaires of [[MIS_DE_COTE("2026-11-20T08:30:00Z")], [FICHE("app/src/vue"), FICHE("app/src/faits.ts")], [{ ...FICHE(""), body: "<!-- brigade:fiche -->\n- awaiting: none" }]]) {
-    const { arret } = await lire([{ numero: 21, labels: [], feuLe: "2026-11-20T09:00:00Z" }, { numero: 30, labels: ["set-aside:failures"], commentaires }], [{ ticket: 30, le: "2026-11-20T08:05:00Z" }]);
+    const { arret } = await lire([{ numero: 21, labels: [], feuLe: "2026-11-20T09:00:00Z" }, { numero: 30, labels: ["parked"], commentaires }], [{ ticket: 30, le: "2026-11-20T08:05:00Z" }]);
     assert.deepEqual(arret?.cause, { kind: "unknown" });
   }
 });
@@ -93,7 +96,7 @@ test("main red, its repair queued: the board says main is red, since the repair 
   const { arret, texte } = await lire(
     [
       { numero: 12, labels: ["repair-main"], titre: "Repair main: runtime tests", creeLe: "2026-11-20T07:45:00Z" },
-      { numero: 30, labels: ["set-aside:failures"], commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
+      { numero: 30, labels: ["parked"], commentaires: [FICHE("app/src/vue"), MIS_DE_COTE("2026-11-20T08:30:00Z")] },
     ],
     [{ ticket: 30, le: "2026-11-20T08:05:00Z" }],
   );
@@ -147,7 +150,7 @@ test("`arretCuisine` read back from `facts`: nothing malformed sets it, and an u
   assert.deepEqual(arretCuisineLu({ cause: { kind: "out-of-gas" }, since }), { arretCuisine: { cause: { kind: "unknown" }, since, statut: "cause unknown" } });
 });
 
-const GELE = (numero: number, zone: string) => ({ numero, labels: ["set-aside:failures"], commentaires: [FICHE(zone), MIS_DE_COTE("2026-11-20T08:30:00Z")] });
+const GELE = (numero: number, zone: string) => ({ numero, labels: ["parked"], commentaires: [FICHE(zone), MIS_DE_COTE("2026-11-20T08:30:00Z")] });
 const EN_FILE = (numero: number, zone: string) => ({ numero, labels: [], feuLe: "2026-11-20T09:00:00Z", commentaires: [FICHE(zone)] });
 
 test("every queued ticket's zone is held by a set-aside ticket's open PR: the board names the PR, never 'unknown' (#4244)", async () => {
@@ -200,4 +203,19 @@ test("a banner without a status says each cause in its own words (#4244)", () =>
   assert.match(dit({ kind: "main-red" }), /main is red/);
   assert.match(dit({ kind: "unknown" }), /the cause is unknown/);
   assert.doesNotMatch(dit({ kind: "unknown" }), /main is red/);
+});
+
+test("a ticket parked by its failures (ticket 4260) whose open PR holds its zone freezes the kitchen like a set-aside one; without a held zone, it does not", () => {
+  const file = [{ ticket: 21, etat: "queued" as const, entreLe: "2026-11-20T09:00:00Z", depend: [] }];
+  const enFile = { ticket: 21, creeLe: "2026-11-20T06:00:00Z", entreLe: "2026-11-20T09:00:00Z" };
+  const zoneTenue = { zone: ["app/src/vue", "app/src/faits.ts"], depuis: "2026-11-20T08:30:00Z" };
+  assert.deepEqual(arretDuRail(file, [enFile, { ticket: 30, creeLe: "2026-11-20T06:00:00Z", parqueParEchecs: { zoneTenue } }], [], null).arretCuisine, { cause: { kind: "frozen-zone", ticket: 30, zone: "app/src/vue, app/src/faits.ts" }, since: "2026-11-20T08:30:00Z", statut: "frozen ticket #30 holds the file zone app/src/vue, app/src/faits.ts" });
+  assert.deepEqual(arretDuRail(file, [enFile, { ticket: 30, creeLe: "2026-11-20T06:00:00Z", parqueParEchecs: {} }], [], null).arretCuisine, { cause: { kind: "unknown" }, since: "2026-11-20T09:00:00Z", statut: "cause unknown" });
+});
+
+test("a ticket parked by its failures (ticket 4260) whose open PR holds a queued ticket's zone stops the kitchen on that PR (#4244)", () => {
+  const file = [{ ticket: 21, etat: "queued" as const, entreLe: "2026-11-20T09:00:00Z", depend: [] }];
+  const enFile = { ticket: 21, creeLe: "2026-11-20T06:00:00Z", entreLe: "2026-11-20T09:00:00Z", zone: ["app/src/vue/x.ts"] };
+  const zoneTenue = { zone: ["app/src/vue"], depuis: "2026-11-20T08:30:00Z", pr: 130 };
+  assert.deepEqual(arretDuRail(file, [enFile, { ticket: 30, creeLe: "2026-11-20T06:00:00Z", parqueParEchecs: { zoneTenue } }], [], null).arretCuisine, { cause: { kind: "zone-held", pr: 130, zone: "app/src/vue" }, since: "2026-11-20T08:30:00Z", statut: "zone held by PR 130" });
 });

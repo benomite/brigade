@@ -170,7 +170,7 @@ function proposition(attente: AttenteDeTicket) {
         choix: [choix("Start it over: a cook takes it up again", "resume"), RETIRER],
       };
     case "ecartee": {
-      const retenue = attente.reason === "blocked-on-human" ? `#${ticket} is held back by the blocked-on-human label.` : `The manager set #${ticket} aside: its issue carries the ${attente.reason} label.`;
+      const retenue = `The manager parked #${ticket} for you (${attente.reason}).`;
       return { resume: `${retenue} ${commentaireRetenue(attente.reponseEcrite === true)}`, question: null, choix: [RENDRE_AU_MANAGER] };
     }
     case "illisible":

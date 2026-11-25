@@ -399,9 +399,10 @@ steps, bubble), `app/src/visite.ts` (the read-only read of `benomite/brigade`, i
 The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
 its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Pass** under its column's
 title; WAITING, shown as **Parked**, under the title of the first column where a card is parked (#4238); **Second** under the second's tab. The Rail, Cooks and TODO lines no longer stand above the columns (#3523). The lines are those of the glossary's entry —
-`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets`, `Waiting for a
-third party, not for you; the kitchen does not take it` — or the first sentence of an entry that has several (cook: `A
-station takes a ticket and runs a cook on it.`; TODO: `What waits for the chef's decision.`).
+`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets` — or the first
+sentence of an entry that has several (cook: `A station takes a ticket and runs a cook on it.`; TODO: `What waits for the
+chef's decision.`; parked, #4129: `A ticket that waits for someone: who it waits for, for what, and until when — a date
+or a fact; nothing takes it before, and it resumes exactly where it was.`).
 
 - **Shown once.** An explanation shown is seen: it is written in your record at once, and stays on screen until `got it`
   or until the app reloads. Reloaded, or opened on another device, the app does not show it again; a word you have not
@@ -1139,7 +1140,7 @@ question. On the repository's open issues, read with the token of this computer'
 | `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge the PR of #<ticket> by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #<ticket>” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
-| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
+| `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail — set before #4129: the manager now parks for the chef with a `chef-todo` card) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
 
 A `fire` + `blocked-on-human` ticket without a PR reads `Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3369). An issue
 carrying `waiting` waits for a third party, not the chef; an issue carrying `kitchen-board` (left from the old path) is
@@ -1375,17 +1376,17 @@ The box has no command for it: the label is read like any other (`docs/runtime/j
 ### Sending a ticket back to the kitchen after WAITING (#1740)
 
 `it arrived, back to the kitchen`, on a WAITING card, and `back to the kitchen`, on the sheet of a ticket back from
-WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `waiting` label
+WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `parked` label (`waiting` before #4129)
 from the ticket's issue itself (`app/src/gestes-github.ts`, #2061), with the token of this computer's `gh`. No second, no
 command: the gesture works with the kitchen unreachable — the ticket leaves WAITING (or TODO) and goes back on the rail,
 queued, without going through TODO.
 
-- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `waiting` — it is queued on the rail
-  again`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
+- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `parked` — it resumes exactly where
+  it was`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
   is on its way, the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are
-  inactive. An issue that no longer carries `waiting` counts as done.
+  inactive. An issue that no longer carries `parked` counts as done.
 - **Not done**: nothing changes and the card says why in one line, in red — the rail not read yet, a ticket the
-  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `waiting` from #<n>``,
+  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `parked` from #<n>``,
   GitHub's answer on hover). One click tries again.
 
 Captures: `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
@@ -1393,33 +1394,39 @@ through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the car
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
-### WAITING on a GitHub project (#3075)
+### Parking a ticket, on any project (#4129; before, WAITING on a GitHub project, #3075)
 
-On a GitHub project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a
-phone's. It opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and
-*follow-up on*, proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without
-whom, or with a follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves.
-**Cancel** closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
+The app parks and unparks a ticket the same way as the second, on any project, with no box command: each gesture is
+written on the issue (`app/src/vue/attente/attente-github.ts`). On a GitHub
+project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a phone's. It
+opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and *follow-up on*,
+proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without whom, or with a
+follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves. **Cancel**
+closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
 `app/src/vue/attente/saisie.ts`, the same reading for every path.
 
 - **Where it goes.** Always on the issue, on any project, never through a box command (#4262) — from the desktop as
   from the phone, and from the second, which plays the same two functions with the parking command the app gives it at
-  each session start (`app/src/second/parking.ts`, `park` / `unpark`). *waiting for…* parks the ticket (`parquer`,
-  `app/src/vue/attente/attente-github.ts`): it posts the WAITING comment — the `<!-- brigade:waiting … -->` marker the
-  station reads, then `**WAITING: awaiting <who>.** <what>`, *from whom*, *since*, *follow-up*, *on arrival*, the shape
-  of `direMarque` in `runtime/src/attente.ts`, its dates with their year —, then sets the `waiting` label. *resume* and
-  *it arrived, back to the kitchen* unpark it (`deparquer`, `app/src/gestes-github.ts`): the label is removed, and the
-  ticket goes back to what its other labels make it — a TODO card back in TODO. A comment GitHub posted but whose label
-  it refused is said: the ticket is not in WAITING.
-- **What is read.** An issue carrying `waiting` is never a TODO entry, whatever else it carries. Among the issues the
-  app already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one carrying `waiting` has
-  its last WAITING comment read (`app/src/tableau/attente-du-chef.ts`), and no other list is asked of GitHub (the
-  budget of #3007): its card in WAITING says
-  `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what arrival does, and it carries
-  *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo` card) is
-  placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading of these
-  issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications do not pay
-  for this reading.
+  each session start (`app/src/second/parking.ts`, `park` / `unpark`).
+- **Park.** *waiting for…* parks the ticket (`parquer`, `app/src/vue/attente/attente-github.ts`): it posts the parking
+  comment — the marker `<!-- brigade:parked {…} -->` with who, for what and until when, then
+  `**PARKED: waits for <who>.** <what>`: the very text of `corpsDuParking` (`runtime/src/attente-github/marque.ts`),
+  which the station writes too —, then sets the `parked` label. A comment GitHub posted but whose label it refused is
+  said: the ticket is not parked.
+- **Unpark.** *resume* (the person answered) and *it arrived, back to the kitchen* (the fact happened) unpark it
+  (`deparquer`, `app/src/gestes-github.ts`): `parked` is removed, with any waiting label of before parked, and the
+  ticket resumes exactly where it was.
+- **What is read.** An issue carrying `parked` waits for someone else: it is never a TODO entry, whatever else it
+  carries — a chef's card parked for someone else leaves TODO until it resumes. Parked for the chef, an issue carries
+  `chef-todo` alone: it is a TODO card. Among the issues the app
+  already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one parked for someone else
+  has its last parking comment read (`app/src/tableau/attente-du-chef.ts`; the `**WAITING: awaiting …**` comments the
+  app wrote before #4129 still read), and no other list is asked of GitHub (the budget of #3007): its card in WAITING
+  says `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what unparking does, and it
+  carries *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo`
+  card) is placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading
+  of these issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications
+  do not pay for this reading.
 
 Captures: `docs/captures/3075/` — `attente-github-avant.png` / `attente-github-apres.png` (the rail: the button on each
 TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-github-dialogue-apres.png` (the form opened on
@@ -4136,10 +4143,10 @@ section. With the section laid, `right now` is not repeated under it.
   - **Next**: the open needs and tickets, in the order the kitchen will serve them — `prio:1`, `prio:2`, `prio:3`, then
     no priority, the oldest first —, each with its priority, its title and, split, its progress (`2/6 served`);
   - **Ideas in reserve**: the open `idea` issues, each with its title and a one-line summary (its context, cut at the
-    edge, whole on hover), and two buttons: **Put on the rail** removes `idea` and sets `fire` (the manager reads it at
-    its next wake-up), **Drop** closes the issue as not planned — one click each, played on GitHub by the app's access
-    (`app/src/gestes-idee.ts`). While it goes, both buttons wait; refused, the line says why. Nothing is sent for an
-    issue the latest reading does not show as an idea.
+    edge, whole on hover), and one button: **Drop** closes the issue as not planned — one click, played on GitHub by the
+    app's access (`app/src/gestes-idee.ts`). While it goes, the button waits; refused, the line says why. Nothing is sent
+    for an issue the latest reading does not show as an idea. No button puts an idea in the queue (#4223): the rail is
+    the top of the backlog, and an issue comes onto it by being calibrated and ready.
 
   Then **Directions** (#3590): the open needs under the three horizons of the vision, by their `horizon:N` label, then
   `No direction yet` — each line with its number, its title, and its progress or `idea`, nothing else; neither what
@@ -4191,8 +4198,12 @@ The band at the top of the Rail tab is an order book above the rail: **one tag p
 - **Red tags come first**: a tag that awaits the chef is red and stands before the others.
 - **`+N` overflow**: a `+N` tag stands for the needs the line does not show; on a phone-width window the line scrolls sideways instead.
 - **Click on a tag**: unfolds the band with that need's detail and highlights its tickets in the rail.
-- **Click on the title, "Backlog"**: unfolds the backlog for the chef (#3589) — **Next**, in the order the kitchen will serve it, then **Ideas in reserve**, each with **Put on the rail** and **Drop**, and what was served folded at the bottom; no technical wording on the lines, and a click on a line opens its issue. What awaits the chef stays in Todo, and the roadmap is never a line. A second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
+- **Click on the title, "Backlog"**: unfolds the backlog for the chef (#3589) — **Next**, in the order the kitchen will serve it, then **Ideas in reserve**, each with **Drop**, and what was served folded at the bottom; no technical wording on the lines, and a click on a line opens its issue. What awaits the chef stays in Todo, and the roadmap is never a line. A second click folds it back to its line. The band is **folded by default**, and is folded again when the chef leaves the project or its Rail tab: it is not left open from one visit to the next (#3523).
 - **Served needs stay 24 hours**: a served need stays in the band for 24 hours, then leaves it.
+
+### The rail, top of the backlog (#4223)
+
+Under the Backlog band, above the columns, one line: **On the rail — the top of the backlog (N)**, then the issues a cook takes next, numbered in the order priority then age — each with its number, its `prio`, and its title. They are the open `fire` issues that are calibrated (a valid `model:` and `effort:`) and ready (no `idea`, nothing parked or set aside, not taken by a station), the first ten (`runtime/src/rail-backlog/rail-backlog.ts`). The line has no button and no action: no gesture of the chef puts an issue there; an issue arrives on its own once it is calibrated and ready, and a priority changed on GitHub reorders the line at the next read. With none, it says `Nothing calibrated and ready in the backlog.` The read from GitHub puts its issues in the facts (`app/src/vue/rail/github.ts`); reading the facts composes the line from them, titles escaped (`app/src/vue/rail/rail.ts`), never from markup the facts carry; the page draws it as it is (`app/src/vue/rail/haut-du-backlog.js`).
 
 ### Above the rail: at most two lines (#3523)
 

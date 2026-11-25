@@ -1,7 +1,7 @@
-// Un ticket en WAITING ne tient aucune zone de fichiers (#3814) : les tickets derrière elle partent.
+// Un ticket parqué ne tient aucune zone de fichiers (#3814, #4129) : les tickets derrière elle partent.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { corpsDeLAttente } from "../../src/attente-github/attente-github.ts";
+import { corpsDuParking } from "../../src/attente-github/attente-github.ts";
 import { brancheDuTicket } from "../../src/brigade-github.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
@@ -14,10 +14,10 @@ function feu(faux: FauxGitHub, numero: number, labels: string[], ...zone: string
 
 const cuits = (faux: FauxGitHub) => faux.cuissons.map(({ issue }) => issue).sort((a, b) => a - b);
 
-test("a ticket in WAITING holds no zone: the ticket behind it starts", async () => {
+test("a parked ticket holds no zone: the ticket behind it starts", async () => {
   const faux = new FauxGitHub();
-  feu(faux, 1, ["waiting"], "runtime/src/a.ts");
-  faux.poster(1, "station", corpsDeLAttente({ what: "the client's API key", who: "the client", followUp: "2026-11-25T00:00:00.000Z" }));
+  feu(faux, 1, ["parked"], "runtime/src/a.ts");
+  faux.poster(1, "station", corpsDuParking({ what: "the client's API key", who: "the client", followUp: "2026-11-25T00:00:00.000Z" }));
   faux.prOuverte(["runtime/src/a.ts"], brancheDuTicket(1));
   feu(faux, 2, [], "runtime/src/a.ts");
   const sauts: string[] = [];

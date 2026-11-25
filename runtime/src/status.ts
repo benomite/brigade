@@ -171,7 +171,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   if (githubSeul !== null) lignes.push(direGitHubSeul(githubSeul));
   // Les redémarrages de la station des dernières 24 heures (#2589).
   lignes.push(ligneDesRedemarrages(env.BRIGADE_STATION_DIR, maintenant.getTime()));
-  // Les `blocked-on-human` demandés sans question sur la carte, jamais remis à zéro (#2556).
+  // Les tickets parqués pour le chef sans question sur la carte, jamais remis à zéro (#2556).
   lignes.push(`${"blocked w/o q".padEnd(11)} ${lireBlocagesSansQuestion(env.BRIGADE_STATE_DIR)}`);
   // Le chef que les cartes de TODO mentionnent, et d'où il vient, tel que la cuisine l'a résolu (#2928).
   lignes.push(direLeChef(lireLeChef(env.BRIGADE_STATE_DIR)));

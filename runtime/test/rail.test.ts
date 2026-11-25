@@ -6,10 +6,9 @@
 // tests éprouvent ce qui s'en lit.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { REDECOUPE } from "../src/events/rail.ts";
+import { PAR_LE_CHEF, REDECOUPE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { communsDuRail, lireRail, ticketDuRail } from "../src/projections/rail.ts";
-import { cestArrive, mettreEnAttente } from "../src/attente.ts";
 import { direAttenteDUnWaiting, direAttentesLevees, direAttentesLeveesEn, direRetenue, direRetenueEn, etatLu, etatLuEn, retenue } from "../src/rail.ts";
 import { ouvrirRail, type Rail } from "./aides/rail-du-journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
@@ -462,7 +461,8 @@ test("un ticket qui attend deux tickets en WAITING n'en revient que quand aucun 
   poserAvecFiche(journal, 20, [21, 22, 23]);
   for (const ticket of [21, 22, 23]) poser(journal, ticket);
   rail.quatreVingtSix(21, { motif: "no-station: macos" });
-  mettreEnAttente(journal, "brigade", 22, { quoi: "sa signature", qui: "le client" }, heure.maintenant());
+  // #22 attend un tiers, comme le journal d'une box d'avant #4129 le dit.
+  journal.ajouter({ project: "brigade", ticket: 22, author: "chef", type: "ticket.waiting", payload: { what: "sa signature", who: "le client", followUp: new Date(heure.maintenant().getTime() + 7 * 24 * 3_600_000).toISOString() } });
 
   const vingt = () => ticketDuRail(journal.base, 20)!;
   assert.equal(etatLu(vingt()), "WAITING");
@@ -477,7 +477,7 @@ test("un ticket qui attend deux tickets en WAITING n'en revient que quand aucun 
   aucunSurLeRailNAttendUnWaiting(journal);
 
   // Ce qu'attendait #22 est arrivé : plus rien ne le tient, il revient sur le rail.
-  cestArrive(journal, "brigade", 22);
+  journal.ajouter({ project: "brigade", ticket: 22, author: "chef", type: "ticket.resumed", payload: { to: "kitchen", why: PAR_LE_CHEF } });
   assert.equal(etatLu(vingt()), "en attente");
   assert.deepEqual(vingt().waitingOn, []);
   assert.equal(direRetenueEn(vingt()), "awaiting #21, #22, #23");
