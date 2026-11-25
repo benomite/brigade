@@ -1,19 +1,20 @@
 // WAITING sur le rail (#591) : deux colonnes, TODO — ce que le chef peut trancher maintenant — et
 // WAITING — ce qui attend un tiers. Sur une carte de TODO, « waiting for… » ouvre un formulaire :
-// ce qu'elle attend, de qui, la relance proposée à sept jours ; validé, la commande `waiting set` du
-// runtime part dans le second. Une carte de WAITING dit sans clic ce qu'elle attend, de qui, depuis
+// ce qu'elle attend, de qui, la relance proposée à sept jours ; validé, il s'écrit sur l'issue, jamais
+// par une commande de la box (#4262). Une carte de WAITING dit sans clic ce qu'elle attend, de qui, depuis
 // quand, sa relance et ce qui se passera à l'arrivée, et porte « resume » et « it arrived, back to
 // the kitchen ». Une carte revenue de WAITING le dit — pas pourquoi : le runtime ne le rend pas
-// dans `faits`. Ce qui part se compare à la commande
-// du runtime (runtime/src/attente-cli.ts), passée par les deux shells qu'elle traverse ; la vue est
-// jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// dans `faits`. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { commandeDAttente, ecrireAttente, GESTES_D_ATTENTE, jourDe, relanceProposee } from "../src/attente.ts";
+import { GESTES_D_ATTENTE, jourDe, relanceProposee } from "../src/attente.ts";
+import type { ClientDeLaPriorite } from "../src/priorite.ts";
+import { attenteSurGithub } from "../src/vue/attente/attente-github.ts";
+import { saisieLue } from "../src/vue/attente/saisie.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { GESTE, type Cuisine } from "../src/box.ts";
@@ -28,94 +29,42 @@ import type { Terminal } from "../src/terminaux.ts";
 import { rouges } from "./aides/rouges.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
-const RACINE = join(import.meta.dirname, "../..");
-const PARADE: Projet = { nom: "parade", dossier: "/projets/parade" };
 // Le jour du poste, fixé : la relance se borne d'après lui.
-const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const AUJOURDHUI = new Date(2026, 9, 15, 14, 30);
-
-// Ce que le shell lit d'une ligne : ses mots, un par un — joué par un vrai `sh`, qui n'exécute rien d'autre que `printf`.
-const mots = (ligne: string): string[] => execFileSync("sh", ["-c", `printf '%s\\0' ${ligne}`], { encoding: "utf8" }).split("\0").slice(0, -1);
-// Ce que le geste de la station reçoit d'une commande de poste : le shell du Mac la découpe, une seule fois.
-const DEBUT = `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} `;
-function recuParLeGeste(commande: string): string[] {
-  assert.ok(commande.startsWith(DEBUT) && commande.endsWith(")"), commande);
-  return mots(commande.slice(DEBUT.length, -1));
-}
-
-function ecrite(id: string, ticket: unknown, saisie?: unknown, projet: Projet = PARADE): string {
-  const ecrit = commandeDAttente(id, projet, ticket, saisie, AUJOURDHUI, CUISINE);
-  assert.ok(ecrit !== undefined && "commande" in ecrit, `rien n'est écrit par « ${id} » : ${JSON.stringify(ecrit)}`);
-  return ecrit.commande;
-}
-const refus = (id: string, ticket: unknown, saisie?: unknown) => {
-  const ecrit = commandeDAttente(id, PARADE, ticket, saisie, AUJOURDHUI, CUISINE);
-  assert.ok(ecrit !== undefined && "refus" in ecrit, `« ${id} » écrit quelque chose : ${JSON.stringify(ecrit)}`);
-  return ecrit.refus;
+const refus = (saisie: unknown) => {
+  const lue = saisieLue(saisie, AUJOURDHUI);
+  assert.ok("refus" in lue, `rien n'est refusé : ${JSON.stringify(lue)}`);
+  return lue.refus;
 };
 
-describe("les gestes de WAITING écrivent la commande `waiting` du runtime — sauf « it arrived », posté sur le tableau de la cuisine", () => {
+describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
   test("la relance proposée est dans sept jours, au calendrier du poste — fin de mois et d'année comprises", () => {
     assert.equal(relanceProposee(AUJOURDHUI), "2026-10-22");
     assert.equal(relanceProposee(new Date(2026, 9, 28, 23, 59)), "2026-11-04");
     assert.equal(relanceProposee(new Date(2026, 11, 30, 0, 1)), "2027-01-06");
   });
 
-  test("ce sont les gestes que la commande accepte, et ses options : rien d'autre ne s'écrit", () => {
-    const { scripts } = JSON.parse(readFileSync(join(RACINE, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
-    assert.equal(scripts.waiting, "node src/attente-cli.ts");
-    const cli = readFileSync(join(RACINE, "runtime/src/attente-cli.ts"), "utf8");
-    assert.ok(cli.includes('const OPTIONS = ["--what", "--from", "--remind"];'), "la commande du runtime ne prend plus ces options");
-    assert.ok(cli.includes('!["set", "resume"].includes(geste)'), "la commande du runtime ne prend plus ces gestes");
-    assert.deepEqual(
-      GESTES_D_ATTENTE.map(({ id, commande }) => [id, commande]),
-      [
-        ["attente-poser", "waiting set"],
-        ["attente-reprendre", "waiting resume"],
-        ["attente-arrivee", null],
-      ],
-    );
+  test("ce sont les trois gestes de WAITING, et aucun n'est une commande de la box (#4262)", () => {
+    assert.deepEqual(GESTES_D_ATTENTE, [
+      { id: "attente-poser", libelle: "waiting for…" },
+      { id: "attente-reprendre", libelle: "resume" },
+      { id: "attente-arrivee", libelle: "it arrived, back to the kitchen" },
+    ]);
   });
 
-  test("« resume » écrit la commande de poste, au caractère près, pour le ticket nommé ; « it arrived » n'en écrit aucune : il part sur le tableau de la cuisine (#1740)", () => {
-    assert.equal(ecrite("attente-reprendre", 8), `${DEBUT}parade waiting resume 8)`);
-    assert.equal(commandeDAttente("attente-arrivee", PARADE, 8, undefined, AUJOURDHUI, CUISINE), undefined);
-  });
-
-  test("« waiting for… » écrit ce que le chef a rempli : le geste reçoit chaque champ entier, en un argument, sans rien en exécuter", () => {
-    const saisie = { quoi: "  sa validation écrite du devis  ", qui: "le client", relance: "2026-10-22" };
-    assert.deepEqual(recuParLeGeste(ecrite("attente-poser", 8, saisie)), ["parade", "waiting", "set", "8", "--what", "sa validation écrite du devis", "--from", "le client", "--remind", "2026-10-22"]);
-
-    // Ce qu'un shell lirait autrement : des apostrophes, des guillemets, `$(…)`, `;`, des étoiles, un tiret en tête.
-    for (const texte of ["l'accord d'Anne", `"le" devis`, "$(reboot)", "`id`; sudo reboot", "* et ?", "--remind demain", "a\\b & c | d > e"]) {
-      assert.deepEqual(recuParLeGeste(ecrite("attente-poser", 12, { quoi: texte, qui: texte, relance: "2026-11-01" })).slice(4), ["--what", texte, "--from", texte, "--remind", "2026-11-01"], texte);
-    }
-  });
-
-  test("rien n'est écrit sans ce que la commande demande : quoi, de qui, une relance à venir, un ticket", () => {
+  test("rien n'est écrit sans ce que la commande demande : quoi, de qui, une relance à venir, un ticket", async () => {
     const plein = { quoi: "sa réponse", qui: "le client", relance: "2026-10-22" };
-    assert.match(refus("attente-poser", 8, { ...plein, quoi: "   " }), /say what it waits for/);
-    assert.match(refus("attente-poser", 8, { ...plein, qui: "" }), /say whom it waits for/);
-    assert.match(refus("attente-poser", 8, { quoi: "sa réponse" }), /say whom it waits for/);
-    for (const relance of ["", "22/10/2026", "2026-02-30", "2026-10-22T09:00", "7j"]) assert.match(refus("attente-poser", 8, { ...plein, relance }), /is not a day of the calendar/, relance);
-    for (const relance of ["2026-10-15", "2026-10-01"]) assert.match(refus("attente-poser", 8, { ...plein, relance }), /is not after today/, relance);
-    assert.match(refus("attente-poser", 8, { ...plein, quoi: "une ligne\npuis une autre" }), /control character/);
-    for (const ticket of [0, -3, 1.5, "8", null, undefined]) assert.match(refus("attente-reprendre", ticket), /names no ticket/, String(ticket));
-    // Un geste inconnu, ou une cuisine qui n'est pas dite : rien à écrire.
-    assert.equal(commandeDAttente("waiting set 8", PARADE, 8, undefined, AUJOURDHUI, CUISINE), undefined);
-    assert.equal(commandeDAttente("attente-reprendre", PARADE, 8, undefined, AUJOURDHUI, undefined), undefined);
-  });
-
-  test("le geste part dans le second, préfixé du `!` qui le lance — ou dit pourquoi rien n'est parti", async () => {
-    const envoyes: string[] = [];
-    const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second", note: "", arrete: false };
-    const terminaux = { envoyer: (_: Projet, commande: string) => (envoyes.push(commande), Promise.resolve(SECOND)) };
-
-    assert.deepEqual(await ecrireAttente(terminaux, "attente-reprendre", PARADE, 8, undefined, AUJOURDHUI, CUISINE), SECOND);
-    assert.deepEqual(envoyes, [`!${DEBUT}parade waiting resume 8)`]);
-    assert.deepEqual(ecrireAttente(terminaux, "attente-poser", PARADE, 8, { quoi: "", qui: "x", relance: "2026-10-22" }, AUJOURDHUI, CUISINE), { refus: "nothing is written: say what it waits for, in your words" });
-    assert.match((ecrireAttente(terminaux, "attente-reprendre", { ...PARADE, refus: "illisible" }, 8, undefined, AUJOURDHUI, CUISINE) as { refus: string }).refus, /does not open — illisible/);
-    assert.equal(envoyes.length, 1);
+    assert.deepEqual(saisieLue({ ...plein, quoi: "  sa validation écrite du devis  " }, AUJOURDHUI), { ...plein, quoi: "sa validation écrite du devis" });
+    assert.match(refus({ ...plein, quoi: "   " }), /say what it waits for/);
+    assert.match(refus({ ...plein, qui: "" }), /say whom it waits for/);
+    assert.match(refus({ quoi: "sa réponse" }), /say whom it waits for/);
+    for (const relance of ["", "22/10/2026", "2026-02-30", "2026-10-22T09:00", "7j"]) assert.match(refus({ ...plein, relance }), /is not a day of the calendar/, relance);
+    for (const relance of ["2026-10-15", "2026-10-01"]) assert.match(refus({ ...plein, relance }), /is not after today/, relance);
+    assert.match(refus({ ...plein, quoi: "une ligne\npuis une autre" }), /control character/);
+    for (const ticket of [0, -3, 1.5, "8", null, undefined]) {
+      const dit = await attenteSurGithub({ id: "attente-reprendre", ticket, saisie: undefined, aujourdhui: AUJOURDHUI, lu: undefined, client: {} as ClientDeLaPriorite });
+      assert.match("refus" in dit ? dit.refus : "", /names no ticket/, String(ticket));
+    }
   });
 });
 

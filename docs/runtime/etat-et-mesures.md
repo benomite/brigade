@@ -57,7 +57,7 @@ escalation goes to the kitchen").
 | `PR closed without merge` | the ticket still holds its place: remove `fire`, or close the issue | the ticket leaving the rail, or returned to it if 86; the PR reopened then merged by hand. A re-split ticket does not enter |
 | `no calibration` · `unreadable card` · `refused three times by the model` | an 86 **with no return time**: set `model:` and `effort:`, fix the card, or — refused — rephrase or recalibrate then remove and set `fire` again | calibrated or fixed, the station returns it to the rail; the ticket leaving the rail |
 | `BLOCKED: #N dropped (…)` | put #N back on the rail, or remove it from the card's `attend` line | #N back (`ticket.arrived`); the card fixed (`ticket.changed`); the ticket leaving the rail |
-| `back from WAITING, picked up again by the chef (it was waiting for <who>: “<what>”)` | a ticket picked up again by the chef's own gesture (`waiting resume`) — **never by its follow-up date, a new comment or a box update**: `/brigade arrived #<N>` on the Kitchen board sends it back to the kitchen; `waiting set <N> --what … --from …` puts it back to waiting; or remove `fire`. **A ticket in WAITING is never in this block** | "it has arrived" (`ticket.resumed`, `kitchen`); put back in WAITING; the ticket leaving the rail |
+| `back from WAITING, picked up again by the chef (it was waiting for <who>: “<what>”)` | a ticket picked up again by the chef's own gesture (the journal's `resume`; since #4262 no box command plays it — the app and the second unpark on the issue) — **never by its follow-up date, a new comment or a box update**: remove `fire`. The box gestures that answered it — `/brigade arrived` on the Kitchen board, the `waiting` command — are gone: no box command parks or unparks a ticket (#4262). **A ticket in WAITING is never in this block** | "it has arrived" (`ticket.resumed`, `kitchen`); put back in WAITING; the ticket leaving the rail |
 | ``set aside by the manager, it carries `question` `` · `` `decision` `` · ``held back, it carries `blocked-on-human` `` | answer, decide or lift the hold, then remove the label; or close the issue | the label removed; the issue closed (`manager.closed`) or launched by hand |
 | `manager's judgment unreadable` · `manager's split unreadable` · `manager's question before splitting the epic` | edit the issue so it is picked up again, or answer the question on it; for a ticket, set `fire`, `model:` and `effort:` by hand; or close the issue | the issue edited, your answer, the issue closed or launched by hand; any later manager decision that sees no epic to split |
 | `Max connection missing` · `expired` | the line carries the station, not a ticket: `claude /login` under the service account | the renewal (`session.restored`); the "resume" (`kitchen.resumed`) |
@@ -164,6 +164,26 @@ What the shape does not say:
 - **Why** the kitchen is held, what a ticket awaits, who holds it, since when: that is
   `status`. The log, the partition, the arbiter have no shape; of the station, only
   its cooks in progress have one.
+
+### The agents, for the Agents tab (#4220)
+
+`npm --prefix runtime run agents -- [<path>]` answers one of two paths with its JSON on one line
+(`runtime/src/agents-tab/`):
+
+- `/api/agents` (the default): one entry per agent of the registry (`agents-tab/registre.ts`) — `id`, `name`,
+  `role`, `state`, `workingOn`, `nextRun`, `figures`, `settings`. `state` is `working` while one of its runs goes on
+  (`workingOn`: its ticket, or null), `broken` when its last run failed, died on a guardrail or stalled and nothing
+  was launched after it, `idle` otherwise. `nextRun` is the schedule the runtime noted (the supervisor, the closer),
+  else null. `figures`: the gestures of its thread in the last 7 days, fixed by itself and handed to the chef — a
+  thread that was not read or cannot be read says so in the value and the meaning. The closer has a third figure,
+  the lines its closing passes removed in the last 7 days (`closing.ended` of the log). `settings` is the body
+  `agent-settings <id>` serves (#4222, `{fields}`, or its `{reason}` when its file cannot be read), untouched; null
+  for an agent it holds no settings for (the triage, the second judge).
+- `/api/agents/<id>/gestures`: its gestures, newest first, as `{at, summary, reason, issue}`; the cooks' entry
+  gathers every cook's thread, each gesture with its ticket. An id the registry does not hold answers 404.
+
+A path that is not served gives its status and reason on the error output, in 1. A runtime that starts a new agent
+adds it to the registry: a test fails otherwise.
 
 ### A profile at dispatch
 
