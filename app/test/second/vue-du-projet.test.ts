@@ -61,5 +61,6 @@ test("le bandeau STOPPED dit ce que l'arrêt attend selon la cause que le runtim
   const avec = (cause: unknown) => vueDeposee({ ...tableau, arretCuisine: { cause, since: "2026-11-24T10:00:00Z" } } as unknown as Tableau).banners[0]!;
   assert.deepEqual(avec({ kind: "frozen-zone", ticket: 1078, zone: "app/src" }), { label: "STOPPED", waitsFor: "frozen ticket #1078 holds the file zone app/src", waitsOn: "whoever serves #1078, or the chef who sets it free" });
   assert.deepEqual(avec({ kind: "main-red" }), { label: "STOPPED", waitsFor: "main is red", waitsOn: "the repair of main" });
+  assert.deepEqual(avec({ kind: "zone-held", pr: 4077, zone: "app/src" }), { label: "STOPPED", waitsFor: "Waiting: zone held by PR 4077", waitsOn: "whoever serves PR 4077, or the chef who merges or closes it" });
   assert.deepEqual(avec({ kind: "unknown" }), { label: "STOPPED", waitsFor: "the cause is unknown", waitsOn: "the chef" });
 });
