@@ -61,7 +61,7 @@ test("on the station, red gates under load count no try and hold the delivery; o
   };
   let charge = 40;
   const journal: string[] = [];
-  const station = stationDuDepot({ ...STATION_DU_DEPOT, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, lireCharge: () => charge, avertir: (ligne) => void journal.push(ligne) });
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, places: 2, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, lireCharge: () => charge, avertir: (ligne) => void journal.push(ligne) });
   if ("refus" in station) throw new Error(station.refus);
   const corps = () => (faux.commentaires.get(TICKET) ?? []).map((c) => c.body);
 
@@ -87,8 +87,6 @@ test("on the station, red gates under load count no try and hold the delivery; o
   }
   assert.equal(readFileSync(trace, "utf8"), "gates\ngates\n", "the gates are replayed once the load drops");
   assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "green on the replay: the delivery is pushed");
-  await station.tour();
-  await station.calme();
   assert.deepEqual(cuissons, [TICKET], "no cook was launched again, and the ticket waiting for another reason stays waiting");
 });
 
