@@ -1,6 +1,7 @@
 // The gate every gesture of an agent goes through (spec 2026-11-23-autonomy-trust-control, C4, #4039). It reads the
 // agent's level (niveaux.ts), and takes the gesture as a function:
-//   - `act`: it does the gesture, then logs it in the agent's gesture log (gestes.ts);
+//   - `act`: it does the gesture, then logs it in the agent's gesture log (gestes.ts). The same gesture held while the
+//     level was `propose` is done now: it is no longer pending (#4247);
 //   - `propose`: it holds it as a pending gesture, not done. The chef's approval does it once, then logs it; a second
 //     approval does nothing;
 //   - `observe`: it logs the gesture the agent would make, as `not done`, and never does it.
@@ -104,6 +105,20 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
     }
   };
 
+  // A gesture done on `act` that was held before — its level was `propose` — is out of the pending gestures: nothing
+  // asks the chef's OK for it any more, and an approval finds nothing to do again. A pending file that cannot be read is said, and left as it is.
+  const plusEnAttente = (agent: string, line: string) => {
+    try {
+      const attentes = gestesEnAttente(repertoire);
+      const faits = attentes.filter((une) => une.agent === agent && une.line === line);
+      if (faits.length === 0) return;
+      ecrire(repertoire, attentes.filter((une) => !faits.includes(une)));
+      for (const { id } of faits) tenus.delete(id);
+    } catch (erreur) {
+      avertir(`brigade : pending gestures not read, the ${agent}'s gesture done stays listed (${line}) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  };
+
   const approuver = async (id: number): Promise<Passage<unknown> | null> => {
     const tenu = tenus.get(id);
     if (tenu === undefined) return null;
@@ -122,6 +137,7 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
       if (niveau === "act") {
         const valeur = await faire();
         consigner(qui.agent, consigne(valeur));
+        plusEnAttente(qui.agent, geste.line);
         return { etat: "done", valeur };
       }
       if (niveau === "observe") {
