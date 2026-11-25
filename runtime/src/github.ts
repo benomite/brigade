@@ -164,6 +164,12 @@ export type GitHub = {
   // Assigne l'issue à ces comptes, sans retirer ceux qui l'ont déjà (#2760).
   // Facultatif : seul le client réel le porte.
   assigner?(numero: number, logins: string[]): Promise<void>;
+  // Retire ces comptes des assignees de l'issue. Facultatif : seul le client réel le porte.
+  desassigner?(numero: number, logins: string[]): Promise<void>;
+  // Les issues ouvertes qui portent ce label, PR écartées, avec leurs assignees :
+  // la liste des tickets qui attendent un cook humain (cook-humain/liste.ts, #4276).
+  // Facultatif : seul le client réel le porte.
+  ouvertesDuLabel?(label: string): Promise<Array<Issue & { assignees: string[] }>>;
   // Crée une issue ; rend son numéro.
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   // Les issues modifiées depuis `instant`, ouvertes ou fermées, PR écartées,
@@ -507,7 +513,7 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers" | "ouvertesDuLabel" | "desassigner">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -838,6 +844,17 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async labelliser(numero, labels) {
       const chemin = `repos/${depot}/issues/${numero}/labels`;
       exiger(await appeler(["-X", "POST", ...labels.flatMap((label) => ["-f", `labels[]=${label}`]), chemin]), chemin);
+    },
+    async ouvertesDuLabel(label) {
+      const pages = await lireLaListe(`repos/${depot}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=100`);
+      return pages
+        .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
+        .filter((brute) => brute.pull_request === undefined)
+        .map((brute) => ({ ...lire(brute), assignees: (brute.assignees ?? []).flatMap((assigne) => (assigne?.login ? [assigne.login] : [])) }));
+    },
+    async desassigner(numero, logins) {
+      const chemin = `repos/${depot}/issues/${numero}/assignees`;
+      exiger(await appeler(["-X", "DELETE", ...logins.flatMap((login) => ["-f", `assignees[]=${login}`]), chemin]), chemin);
     },
     async assigner(numero, logins) {
       const chemin = `repos/${depot}/issues/${numero}/assignees`;

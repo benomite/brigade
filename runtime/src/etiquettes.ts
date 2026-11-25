@@ -29,6 +29,7 @@ export const ETIQUETTES: readonly Etiquette[] = [
   { name: "tests-written", color: "0E8A16", description: "Its acceptance tests are written and frozen: a cook can take it" },
   { name: "taken", color: "0052CC", description: "A cook holds the ticket" },
   { name: "in-pass", color: "0052CC", description: "The delivery of the ticket is being judged" },
+  { name: "human-cook", color: "FBCA04", description: "A human cook takes this ticket: its assignee does the work, and their pull request goes through the same pass" },
   { name: "parked", color: "C5DEF5", description: "Waits for someone: who, for what, until when (a date or a fact) — nothing takes it before" },
   { name: "chef-todo", color: "B60205", description: "Parked for the chef: a card in the chef's to-do list waits on this ticket" },
   { name: "idea", color: "C2E0C6", description: "An idea in reserve, not a request: the manager never reads it" },

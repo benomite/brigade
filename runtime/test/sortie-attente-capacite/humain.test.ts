@@ -129,27 +129,32 @@ describe("« It is a human's job » : le ticket quitte le rail pour TODO", () =>
     assert.equal(c.lire().rail.some(({ ticket }) => ticket === 22), false);
   });
 
-  test("un ticket qui n'attend pas de capacité, ou qui n'est pas sur le rail, est refusé, et rien n'est touché", async (t) => {
+  test("un ticket qui n'est pas sur le rail, ou un nom illisible, est refusé, et rien n'est touché ; un ticket ordinaire du rail est marqué pour l'humain (#4276)", async (t) => {
     const c = atelier(t);
 
-    assert.deepEqual(await c.confier(23), { done: false, reason: "#23 does not wait for a capability no station provides: only such a WAITING card becomes a human's job", price: "none: nothing was changed" });
     assert.deepEqual(await c.confier(99), { done: false, reason: "#99 is not on the rail, and no human's job of it is in TODO", price: "none: nothing was changed" });
     assert.equal((await c.confier(22, "deux\nlignes")).done, false);
     assert.deepEqual([c.gh.labellisations, c.gh.delabellisations, c.gh.commentaires], [[], [], []]);
     assert.deepEqual(cartesEnTodo(c.journal.base), []);
     assert.equal(ticketDuRail(c.journal.base, 22)?.state, "86");
+    // Il n'attend pas de capacité : il n'est plus refusé, il est marqué (test/cook-humain/marquage.test.ts).
+    assert.equal((await c.confier(23, "alice")).done, true);
   });
 
-  test("`rail human` est un geste du rail : il dit son usage, et refuse en 1 un ticket qui n'attend pas de capacité, sans rien appeler", async (t) => {
+  test("`rail human` est un geste du rail : il dit son usage, refuse en 1 un ticket qui n'est pas sur le rail, et marque sur GitHub un ticket ordinaire (#4276)", async (t) => {
     const c = atelier(t);
     const jouer = (args: string[]) => appeler(montrerRail, args, { BRIGADE_STATE_DIR: c.repertoire, BRIGADE_GITHUB_REPO: "acme/brigade", BRIGADE_GH_BIN: "/nonexistent/gh" });
 
     const inconnu = jouer(["humain", "22"]);
     assert.equal(await inconnu.fin, 2);
     assert.match(inconnu.sortie(), /^ {2}human <ticket> \[who…\]$/m);
-    const refuse = jouer(["human", "23", "alice"]);
+    const refuse = jouer(["human", "99", "alice"]);
     assert.equal(await refuse.fin, 1);
-    assert.match(refuse.sortie(), /#23 is not touched: #23 does not wait for a capability no station provides/);
+    assert.match(refuse.sortie(), /#99 is not touched: #99 is not on the rail, and no human's job of it is in TODO/);
+    // Un ticket ordinaire part vers GitHub, que ce test n'a pas : le geste le dit, en 1.
+    const ordinaire = jouer(["human", "23", "alice"]);
+    assert.equal(await ordinaire.fin, 1);
+    assert.match(ordinaire.sortie(), /the gesture on #23 did not go through on GitHub/);
   });
 });
 

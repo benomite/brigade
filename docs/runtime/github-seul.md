@@ -83,6 +83,18 @@ base, the stale-branch pruning).
   delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
   unreadable — sends nothing to the chef: the ticket waits (`brigade:attente … manager`), then
   is retried; the third such wait since the ticket was last relaunched counts as a cook without a delivery. Seen on #2875 (#2894).
+- **A ticket only a human can do is taken by that human, on the same rail** (#4276, rule 6 of the
+  [simplified process](../superpowers/specs/2026-11-24-simplified-process.md)). The chef marks it with
+  `rail human <ticket> [who]` (`runtime/src/sortie-attente-capacite/sortie.ts`, `runtime/src/cook-humain/`): the issue
+  gets the label `human-cook`, its assignee — the login the chef names, or the repository's owner for the chef (an
+  organisation is refused: name who takes it) —, and one comment telling that person the ticket is their work and the
+  branch to open their pull request from (`cook/<n>-github`). The ticket keeps `fire` and its task enters the chef's TODO
+  with the assignee's name; marked again for someone else, the previous assignee is removed. No station takes a ticket
+  that carries `human-cook`. When its pull request is open, the station sets `in-pass`, as at a cook's delivery, and the
+  same pass judges it: review, gates, CI, then merge, in the same order, nothing skipped
+  (`runtime/src/cook-humain/livraison.ts`). `npm --prefix runtime run human-cooks` lists every open ticket marked
+  `human-cook` with its assignee, then the address of the same list on GitHub; a ticket leaves it when it closes or
+  loses the label.
 - **A station with no manager posts the cook's question for a manager on another station** (#3938,
   `runtime/src/manager/question-sans-manager.ts`). It posts the question on the issue
   (`<!-- brigade:question-au-manager station=<name> -->`) and gives the ticket back. A station runs a manager when GitHub

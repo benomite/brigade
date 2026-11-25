@@ -22,11 +22,12 @@ export type DeLaBox = { nom: string; description: string; ancien?: string; mots?
 export const COMMANDES: readonly DeLaBox[] = [
   { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live", mots: { "--suivre": "--follow" } },
   { nom: "facts", ancien: "faits", description: "The machine-readable form of status, for the app" },
-  { nom: "rail", description: "The ticket rail; remove <ticket>, choose, answer, human" },
+  { nom: "rail", description: "The ticket rail; remove <ticket>, choose, answer, human <ticket> [who] (a ticket for a human cook)" },
   { nom: "release-notes", description: "Publish a weekly summary as the release notes of a version: <tag> <summary.json> creates the GitHub Release of that tag, once, on this explicit call only" },
   { nom: "log", ancien: "journal", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
   { nom: "station", description: "A station's settings: cooks <N>, stop <station>, start <station>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
   { nom: "setting", description: "The project's settings, from its repository, for the app; a change is refused: make it by a pull request on GitHub" },
+  { nom: "human-cooks", description: "The tickets waiting on a human cook, read on GitHub: each open ticket marked `human-cook` with who holds it, then the address of the same list on GitHub (read-only)" },
   { nom: "humans", description: "The project's humans, from its repository, for the app: save <login> [<role>…], remove <login> — each change opens a pull request" },
   { nom: "recurring", description: "The project's recurring tickets, for the app: declare --title <title> [--body <body>] --rhythm daily | weekly --weekday <1-7> | monthly --day <1-31>, pause <id>, resume <id>, remove <id> — each one lands on the rail with `fire` on its next date" },
   { nom: "explanations", description: "The explanations of the kitchen's words a chef has seen, for the app: --chef <login>, seen <word> --chef <login>, reset --chef <login> — each word is explained once per chef, on all their devices" },
