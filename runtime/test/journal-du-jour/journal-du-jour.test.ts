@@ -45,8 +45,28 @@ test("a gesture with no kind is read from its outcome, a gesture not done is lef
     "1 outage seen first by the chef yesterday, 1 first by the system.",
     "Delivered: merged #1; merged #2; merged #3 and 2 more.",
     "Fixed by itself: reran main.",
-    "Could not fix, handed to the chef: zone cycle stuck.",
+    "Could not fix: zone cycle stuck.",
   ]);
+});
+
+test("each line names its gestures in the order of the day, whichever thread they come from", () => {
+  const texte = digestDeLaVeille(
+    {
+      postMortems: [],
+      fils: {
+        closer: [{ ...geste("2026-11-24T15:00:00.000Z", "merged #3", OUTCOME.FIXED_BY_SELF), kind: "delivered" }],
+        cook: [{ ...geste("2026-11-24T08:00:00.000Z", "merged #1", OUTCOME.FIXED_BY_SELF), kind: "delivered" }, { ...geste("2026-11-24T20:00:00.000Z", "merged #4", OUTCOME.FIXED_BY_SELF), kind: "delivered" }],
+        supervisor: [{ ...geste("2026-11-24T12:00:00.000Z", "merged #2", OUTCOME.FIXED_BY_SELF), kind: "delivered" }],
+      },
+    },
+    MATIN,
+  );
+  assert.equal(texte.split("\n")[1], "Delivered: merged #1; merged #2; merged #3 and 1 more.");
+});
+
+test("a gesture its agent calls unfixed is on the could-not-fix line, handed to the chef or not", () => {
+  const texte = digestDeLaVeille({ postMortems: [], fils: { supervisor: [{ ...geste("2026-11-24T09:00:00.000Z", "would restart the station", OUTCOME.NOT_DONE), kind: "unfixed" }, geste("2026-11-24T10:00:00.000Z", "zone cycle stuck", OUTCOME.HANDED_TO_CHEF)] } }, MATIN);
+  assert.equal(texte.split("\n")[1], "Could not fix: would restart the station; zone cycle stuck.");
 });
 
 test("a quiet day with outages seen first by the system says how many, on its one line", () => {
@@ -78,7 +98,7 @@ test("each morning, once, the digest of yesterday is read from the threads and t
   const digest = vue(journal).digest;
   assert.deepEqual(digest && { day: digest.day, text: digest.text }, {
     day: "2026-11-24",
-    text: "1 outage seen first by the chef yesterday.\nFixed by itself: reran main.\nCould not fix, handed to the chef: closed #12, a duplicate.",
+    text: "1 outage seen first by the chef yesterday.\nFixed by itself: reran main.\nCould not fix: closed #12, a duplicate.",
   });
   horloge.maintenant = new Date("2026-11-25T09:00:00.000Z");
   tick();
@@ -131,7 +151,7 @@ test("the gate of the runtime notifies the chef of a gesture handed to them, and
   await porte.passer(qui, { line: "zone cycle stuck, gave up", reason: "stuck for 30 min", outcome: OUTCOME.HANDED_TO_CHEF }, () => 1);
   assert.equal(journal.duType("chef.notified", 10).length, 1);
   const { notifiedAt: _quand, ...notification } = vue(journal).notification ?? { notifiedAt: "" };
-  assert.deepEqual(notification, { at: "2026-11-25T10:00:00.000Z", line: "zone cycle stuck, gave up", reason: "stuck for 30 min" });
+  assert.deepEqual(notification, { title: "The kitchen gave up and needs you", at: "2026-11-25T10:00:00.000Z", line: "zone cycle stuck, gave up", reason: "stuck for 30 min" });
 });
 
 test("a notification that cannot be sent is said, and the gesture stays done and logged", async (t) => {

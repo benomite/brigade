@@ -7,7 +7,7 @@
 // The day is the UTC day before the morning it is built on. Building it sends nothing: it is a reading
 // (publication.ts keeps it for the project view).
 import { OUTCOME } from "../autonomie/agents/gestes.ts";
-import { notificationsDuJournal, type GesteDuFil } from "./notifications.ts";
+import { estUnAbandon, type GesteDuFil } from "./notifications.ts";
 
 const JOUR_MS = 24 * 60 * 60_000;
 // Items named on one line; the others are counted.
@@ -23,17 +23,18 @@ const SORTES = [
   ["delivered", "Delivered"],
   ["broke", "Broke"],
   ["fixed", "Fixed by itself"],
-  ["unfixed", "Could not fix, handed to the chef"],
+  ["unfixed", "Could not fix"],
   ["mistake", "Its own mistakes"],
 ] as const;
 type Sorte = (typeof SORTES)[number][0];
 const estSorte = (kind: string | undefined): kind is Sorte => SORTES.some(([sorte]) => sorte === kind);
 
 // What a gesture was. Handed to the chef, the system could not fix it, whatever its kind: those are the gestures that
-// notified the chef (notifications.ts), and the digest lists the same ones. Otherwise, the kind its agent said, or else
-// what its outcome says. A gesture not done (an agent on `observe`) is none.
-function sorteDe({ kind, outcome }: GesteDuFil): Sorte | null {
-  if (outcome === OUTCOME.HANDED_TO_CHEF) return "unfixed";
+// notified the chef (notifications.ts). Otherwise, the kind its agent said, or else what its outcome says. A gesture
+// with no kind and not done (an agent on `observe`) is none.
+function sorteDe(geste: GesteDuFil): Sorte | null {
+  const { kind, outcome } = geste;
+  if (estUnAbandon(geste)) return "unfixed";
   if (estSorte(kind)) return kind;
   if (outcome === OUTCOME.FIXED_BY_SELF) return "fixed";
   return null;
@@ -62,7 +63,7 @@ export function digestDeLaVeille({ postMortems, fils }: SourcesDuDigest, matin: 
 
   const gestes = Object.values(fils).flat().filter(({ at }) => dansLaVeille(at)).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const suite = SORTES.flatMap(([sorte, titre]) => {
-    const siens = sorte === "unfixed" ? notificationsDuJournal(gestes).map(({ line }) => line) : gestes.filter((geste) => sorteDe(geste) === sorte).map(({ line }) => line);
+    const siens = gestes.filter((geste) => sorteDe(geste) === sorte).map(({ line }) => line);
     return siens.length === 0 ? [] : [ligneDe(titre, siens)];
   });
 

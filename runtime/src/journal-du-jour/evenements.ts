@@ -7,4 +7,4 @@
 // the logbook sends.
 export type FaitJournalDuJour =
   | { type: "digest.published"; payload: { day: string | null; text: string } }
-  | { type: "chef.notified"; payload: { at: string; line: string; reason: string } };
+  | { type: "chef.notified"; payload: { title: string; at: string; line: string; reason: string } };

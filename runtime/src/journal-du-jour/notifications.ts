@@ -12,9 +12,12 @@ export type NotificationDAbandon = { title: string; at: string; line: string; re
 
 const TITRE = "The kitchen gave up and needs you";
 
+// A give-up: a gesture handed to the chef. The digest lists the same ones (digest.ts).
+export const estUnAbandon = ({ outcome }: GesteDuFil): boolean => outcome === OUTCOME.HANDED_TO_CHEF;
+
 // The notifications these gestures call for: one per gesture handed to the chef, none for any other.
 export function notificationsDuJournal(gestes: readonly GesteDuFil[]): NotificationDAbandon[] {
-  return gestes.filter(({ outcome }) => outcome === OUTCOME.HANDED_TO_CHEF).map(({ at, line, reason }) => ({ title: TITRE, at, line, reason }));
+  return gestes.filter(estUnAbandon).map(({ at, line, reason }) => ({ title: TITRE, at, line, reason }));
 }
 
 // Sends each notification these gestures call for.

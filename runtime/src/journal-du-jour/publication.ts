@@ -12,7 +12,7 @@ import type { NotificationDAbandon } from "./notifications.ts";
 const AUTEUR = "runtime";
 
 export type DigestPublie = { day: string | null; text: string; at: string };
-export type AbandonNotifie = { at: string; line: string; reason: string; notifiedAt: string };
+export type AbandonNotifie = { title: string; at: string; line: string; reason: string; notifiedAt: string };
 
 type OptionsDePublication = {
   // The day the digest tells, YYYY-MM-DD: a second digest of the same day is not written.
@@ -35,7 +35,7 @@ export function dernierDigest(journal: Journal): DigestPublie | null {
 
 // The notifier of the give-ups: the notification is written to the journal, from which the project view reads it.
 export function notifierAuJournal(journal: Journal, projet: string): (notification: NotificationDAbandon) => void {
-  return ({ at, line, reason }) => void journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "chef.notified", payload: { at, line, reason } });
+  return ({ title, at, line, reason }) => void journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "chef.notified", payload: { title, at, line, reason } });
 }
 
 // The last give-up notified to the chef, null before the first.
