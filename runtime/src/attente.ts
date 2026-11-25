@@ -18,7 +18,6 @@
 // `waiting` tant qu'il attend, et un commentaire à chaque changement — qui,
 // quoi, jusqu'à quand ; puis qu'il n'attend plus, et pourquoi.
 import { PAR_LE_CHEF } from "./events/rail.ts";
-import { geste } from "./geste.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { GitHub } from "./github.ts";
 import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./instants.ts";
@@ -160,7 +159,7 @@ export function direMarque(ticket: number, attente: AttenteDeTiers, miseAJour: b
     `- **follow-up**: ${direInstantEn(attente.followUp)}`,
     `- **on arrival**: ${alArriveeEn(attente)}`,
     "",
-    `As long as it has the \`${LABEL_WAITING}\` label, the kitchen does not take it, and its follow-up does not take it out. Removing this label sends it back to the kitchen; \`${geste(`waiting resume ${ticket}`)}\` gives it back the state it had before waiting.`,
+    `As long as it has the \`${LABEL_WAITING}\` label, the kitchen does not take it, and its follow-up does not take it out. Removing this label sends it back to the kitchen; “resume” on its card in the app gives it back the state it had before waiting.`,
   ].join("\n");
 }
 
