@@ -8,7 +8,7 @@
 // box injoignable ; jaune quand une décision attend le chef ; vert sinon ; gris tant que rien n'en
 // est lu. Sa phrase dit, dans cet ordre, ce qui bloque, ce qui attend le chef — combien, depuis
 // quand —, puis ce qui cuit ; et, quand la fiabilité de ses cooks a dérivé, d'un mot : « drifting » (#987).
-// Une station : son état (« online », « offline for 12 min »), ce qu'elle fait — ses cooks, saturée,
+// Une station : son état (« online », « offline for 12 min »), ce qu'elle fait — ses cooks,
 // une mise à jour ratée, sa connexion Max perdue —, et les projets qu'elle porte. Sa machine et sa
 // version ne se lisent qu'au survol.
 //
@@ -22,7 +22,7 @@ import { COMMANDE as FAITS, comprendre, estHorsLigne, type AppelsGithub, type Fa
 import { deriveDe } from "./fiabilite.ts";
 import { heure, heureCourte } from "./format.ts";
 import type { VuDesProjets } from "./projets/projets.ts";
-import { plafondsDe, retenuesDe, type PlafondVu, type RetenueVue } from "./plafond.ts";
+import { plafondsDe, type PlafondVu } from "./plafond.ts";
 import { raisonDe, type RaisonDeStation } from "./stations/raison.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
 import { bloqueDe, ditALAccueil } from "./vue/rail-bloque/rail-bloque.ts";
@@ -35,17 +35,17 @@ export type Ton = "vert" | "jaune" | "rouge" | "gris" | "bleu";
 // `attend` : combien de décisions attendent le chef, absent quand aucune (la pastille « N awaiting you » de l'accueil, #2912).
 export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string; attend?: number };
 // Une station a aussi `phrase` : son état en une phrase, en tête de sa page (#877) — « online · 2 cooks
-// running », « offline for 12 min », « saturated ». Ni sa machine, ni sa version, ni ses projets.
+// running », « offline for 12 min ». Ni sa machine, ni sa version, ni ses projets.
 // `raison` : une station installée qui ne cuit pas encore dit pourquoi, en une phrase qui nomme le geste (stations/raison.ts, #1758).
 // `note` : sous la phrase, une station en ligne qui ne fait la cuisine d'aucun projet dit en une phrase si c'est normal.
-// `plafond` et `retenue` : ce que le `status` d'un projet dit de son plafond de cooks et de ce qui la retient (plafond.ts) ;
+// `plafond` : ce que le `status` d'un projet dit de son plafond de cooks (plafond.ts) ;
 // `reglable` : un projet que l'app lit nomme son plafond, la page peut donc le régler.
-export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; raison?: RaisonDeStation; plafond?: PlafondVu; retenue?: RetenueVue; reglable?: true; appels?: AppelsGithub };
+export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; raison?: RaisonDeStation; plafond?: PlafondVu; reglable?: true; appels?: AppelsGithub };
 export type Sante = { ton: Ton; dit: string; survol: string };
 // `stations` : absentes, la première lecture sur GitHub est en route.
 // `plafonds` : par projet dont le `status` est lu, et par station qu'il nomme, le plafond de cooks de ce projet sur elle
 // et ce qui la retient (ticket 1292) — la ligne de station de l'onglet Stations les dit et les règle.
-export type PlafondsDeStation = { plafond: PlafondVu; retenue?: RetenueVue };
+export type PlafondsDeStation = { plafond: PlafondVu };
 export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; sante: Sante; plafonds?: Record<string, Record<string, PlafondsDeStation>> };
 
 // Un projet du fichier, tel que l'accueil le nomme : `servi` faux, aucune station ne le sert, et rien n'en est lu.
@@ -157,14 +157,6 @@ export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined
 
 // --- Une station -----------------------------------------------------------------
 
-// Les stations que le `status` d'un projet dit saturées (runtime/src/etat.ts) : `MACHINE SATURATED … : <station> takes no
-// more tickets` depuis #940, `MACHINE SATURÉE … : <station> ne prend plus de ticket` sur une box pas encore à jour.
-export function saturees(status: string): string[] {
-  return [...status.matchAll(/MACHINE (?:SATURÉE\b.* : (.+?) ne prend plus de ticket|SATURATED\b.*: (.+?) takes no more tickets)/g)].map(
-    ([, francaise, anglaise]) => francaise ?? anglaise ?? "",
-  );
-}
-
 // Un projet ouvert dans l'app dont la cuisine tourne sur une autre station : `station` la nomme.
 export type CuisineAilleurs = { projet: string; station: string };
 
@@ -176,7 +168,7 @@ function cuisinesAilleurs(ailleurs: readonly CuisineAilleurs[]): string {
 
 export const NE_CUISINE_PAS = "does not cook";
 
-// La ligne d'une station qui ne cuisine pas : son état, et la mention. Jamais de cooks, ni de saturation.
+// La ligne d'une station qui ne cuisine pas : son état, et la mention. Jamais de cooks.
 function ligneDeTelephone(station: StationVue, survol: string): LigneDeStation {
   const { id, nom } = station;
   const enLigne = station.etat === "en-ligne";
@@ -192,9 +184,9 @@ function ligneDeTelephone(station: StationVue, survol: string): LigneDeStation {
   };
 }
 
-// `cooks` : ceux que les projets disent en cours sur elle ; `saturee` : un `status` lu la dit saturée ;
+// `cooks` : ceux que les projets disent en cours sur elle ;
 // `ailleurs` : si c'est l'ordinateur de l'app, ses projets ouverts dont la cuisine tourne sur une autre station.
-export function ligneDeStation(station: StationVue, cooks: number, saturee: boolean, ailleurs: readonly CuisineAilleurs[] = []): LigneDeStation {
+export function ligneDeStation(station: StationVue, cooks: number, ailleurs: readonly CuisineAilleurs[] = []): LigneDeStation {
   const { id, nom } = station;
   const survol = [station.machine, station.version === "" ? "" : `version ${station.version}`].filter((partie) => partie !== "").join(" · ");
   const sansCuisine = station.projets.length === 0;
@@ -204,14 +196,13 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
   if (station.etat !== "en-ligne") return { id, nom, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projets])].join(" · "), phrase: station.dit, raison: raisonDe(station.etat === "illisible" ? "illisible" : "hors-ligne", nom), survol: survol === "" ? "its state on GitHub cannot be read — open it to see why" : survol };
   const max = station.pannes.some(({ sujet }) => sujet === "connexion-max");
   const miseAJour = station.pannes.some(({ sujet }) => sujet === "mise-a-jour");
-  const fait = [...(max ? ["Max connection lost"] : []), ...(miseAJour ? ["update failed"] : []), ...(saturee ? ["saturated"] : []), ...(cooks > 0 ? [`${cooks} cook${s(cooks)}`] : [])];
+  const fait = [...(max ? ["Max connection lost"] : []), ...(miseAJour ? ["update failed"] : []), ...(cooks > 0 ? [`${cooks} cook${s(cooks)}`] : [])];
   return {
     id,
     nom,
-    ton: max ? "rouge" : miseAJour || saturee ? "jaune" : "vert",
+    ton: max ? "rouge" : miseAJour ? "jaune" : "vert",
     dit: [station.dit, ...(fait.length === 0 ? ["idle"] : fait), sansCuisine ? "runs no kitchen" : projets].join(" · "),
-    // Saturée, elle ne prend plus de ticket : c'est ce qui compte d'elle, ses cooks attendent.
-    phrase: saturee ? "saturated" : `${station.dit} · ${cooks === 0 ? "no cook running" : `${cooks} cook${s(cooks)} running`}`,
+    phrase: `${station.dit} · ${cooks === 0 ? "no cook running" : `${cooks} cook${s(cooks)} running`}`,
     ...(sansCuisine && ailleurs.length === 0 ? { raison: raisonDe("sans-projet", nom) } : {}),
     survol: sansCuisine && ailleurs.length > 0 ? [survol, cuisinesAilleurs(ailleurs)].filter((partie) => partie !== "").join(" · ") : survol,
     ...(sansCuisine
@@ -310,9 +301,7 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
         return portee === undefined ? [] : [{ projet: nom, station: portee }];
       });
     const ici = locale();
-    const pleines = new Set([...statuts.values()].flatMap(({ texte }) => saturees(texte)));
     const plafonds = [...statuts.values()].map(({ texte }) => plafondsDe(texte));
-    const retenues = [...statuts.values()].map(({ texte }) => retenuesDe(texte));
     // Ce que dit le premier projet lu qui nomme la station : un plafond se règle pour tous, et ils disent le même.
     const premier = <T>(dits: readonly Map<string, T>[], station: string) => dits.find((lus) => lus.has(station))?.get(station);
     // Les appels de la box à GitHub : ceux que publie le premier projet lu qui nomme la station et dont le runtime les donne.
@@ -325,20 +314,16 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
     };
     const detail = (station: StationVue): Partial<LigneDeStation> => {
       const plafond = premier(plafonds, station.nom);
-      const retenue = premier(retenues, station.nom);
       const appels = appelsDe(station.nom);
-      return { ...(plafond === undefined ? {} : { plafond, reglable: true as const }), ...(retenue === undefined ? {} : { retenue }), ...(appels === undefined ? {} : { appels }) };
+      return { ...(plafond === undefined ? {} : { plafond, reglable: true as const }), ...(appels === undefined ? {} : { appels }) };
     };
     const plafondsDesProjets = Object.fromEntries(
-      [...statuts].map(([nom, { texte }]) => {
-        const retenuesDuProjet = retenuesDe(texte);
-        return [nom, Object.fromEntries([...plafondsDe(texte)].map(([station, plafond]) => [station, { plafond, ...(retenuesDuProjet.has(station) ? { retenue: retenuesDuProjet.get(station) } : {}) }]))];
-      }),
+      [...statuts].map(([nom, { texte }]) => [nom, Object.fromEntries([...plafondsDe(texte)].map(([station, plafond]) => [station, { plafond }]))]),
     );
     return {
       projets: liste.map((projet) => ligneDeProjet(projet, faits.get(projet.nom), statuts.get(projet.nom))),
       ...(Object.keys(plafondsDesProjets).length === 0 ? {} : { plafonds: plafondsDesProjets }),
-      ...(stations === undefined ? {} : { stations: stations.stations.map((station) => ({ ...ligneDeStation(station, cooks(station.nom), pleines.has(station.nom), station.id === ici ? ailleursDe(station.id) : []), ...detail(station) })) }),
+      ...(stations === undefined ? {} : { stations: stations.stations.map((station) => ({ ...ligneDeStation(station, cooks(station.nom), station.id === ici ? ailleursDe(station.id) : []), ...detail(station) })) }),
       sante: sante(
         stations,
         projetsDesStations,
