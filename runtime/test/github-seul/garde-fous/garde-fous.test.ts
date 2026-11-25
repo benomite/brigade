@@ -206,13 +206,17 @@ const GO = 1024 * 1024 * 1024;
 const BOX = (charge: number): Machine => ({ charge, coeurs: 8, memoireDisponible: 16 * GO, memoireTotale: 32 * GO, disqueLibre: 100 * GO });
 
 test("a machine short of processor holds the GitHub-only claim beyond the first cook, says so, and says when it has room again (#3560)", async (t) => {
-  let charge = 16.2;
+  let charge = 2.3;
   const avertis: string[] = [];
   const { runtime, faux, station, faits } = cuisine(t, { machine: () => BOX(charge), avertir: (texte) => avertis.push(texte) });
   faux.feu(1);
-  faux.feu(2);
+  await station.tour();
+  await station.calme();
 
-  // Jamais moins d'un cook : #1 part ; #2, derrière lui, attend que la machine respire.
+  // #1 est parti sur une machine qui respirait ; #2, derrière lui, attend qu'elle respire de nouveau.
+  // 15,2 lus, et #1, tout juste parti, compté d'avance : 16,2.
+  charge = 15.2;
+  faux.feu(2);
   await station.tour();
   await station.calme();
   assert.deepEqual(faux.prises, [1]);
@@ -262,12 +266,13 @@ test("each claim granted counts on the machine before its load shows it: a full 
 });
 
 // La machine sature sous les cooks qui tournent (#4100) : une horloge fixe, une
-// charge de 16,2 pour 12 au plus. #1, le premier cook, part toujours.
+// charge de 16,2 pour 12 au plus. #1, le premier cook, part sur une machine qui
+// respire ; elle sature dès qu'il est pris — chargée, elle ne l'admettrait pas (#4210).
 const INSTANT = new Date("2026-11-23T22:35:00Z");
 // Le label que le chef ou le superviseur pose sur la réparation.
 const REPARATION = "saturation-repair";
 const saturee = (t: TestContext) => {
-  const cuisson = cuisine(t, { machine: () => BOX(16.2), maintenant: () => INSTANT, scenario: () => "bavard", places: 4 });
+  const cuisson = cuisine(t, { machine: () => BOX(cuisson.faux.prises.length === 0 ? 1 : 16.2), maintenant: () => INSTANT, scenario: () => "bavard", places: 4 });
   cuisson.faux.feu(1);
   return cuisson;
 };
