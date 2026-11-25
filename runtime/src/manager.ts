@@ -1073,7 +1073,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const prises = new Set<number>();
     let place: number;
     try {
-      place = options.freeRoom !== undefined ? Number.POSITIVE_INFINITY : options.freeRoom(ouvertes);
+      place = options.freeRoom === undefined ? Number.POSITIVE_INFINITY : options.freeRoom(ouvertes);
     } catch (erreur) {
       if (!arrete) avertir(`brigade : le manager ne prend rien du backlog à ce tour — la place de la cuisine ne se lit pas — ${message(erreur)}`);
       return prises;
