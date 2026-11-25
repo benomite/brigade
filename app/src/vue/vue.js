@@ -96,6 +96,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { tenirLEquipe } from "./autonomie/equipe.js";
+import { jourDe, poserLaCarteDuDigest, poserLeJournal, tenirLaCarteDuMatin } from "./journal/journal.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -713,6 +714,8 @@ const equipeDuProjet = tenirLEquipe(document, element("equipe-du-projet"), (nom)
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
+// La carte du digest de la veille (ticket 4274, journal/) : en tête du rail à la première ouverture du projet dans le jour.
+const carteDuMatin = tenirLaCarteDuMatin(stockageDeLaVue());
 const offreDuTelephone = element("offre-telephone");
 const offre = tenirLOffre({
   stockage: stockageDeLaVue(),
@@ -5401,7 +5404,10 @@ function poserLeRail(projet) {
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
-  poser(bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+  // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
+  const { journal, digest } = tenu.tableau;
+  const duMatin = digest !== undefined && carteDuMatin.aMontrer(projet.nom, jourDe(new Date())) ? [poserLaCarteDuDigest(document, digest)] : [];
+  poser(...duMatin, bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), ...(journal === undefined ? [] : [poserLeJournal(document, journal)]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
   // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
   if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);

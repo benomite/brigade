@@ -12,6 +12,8 @@
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
 // Ce sont les deux seules choses lues hors de la forme.
 import { vueDesPostMortems, type VueDesPostMortems } from "./projets/post-mortems.ts";
+import { digestLu, filsLus, type DigestLu, type FilsLus } from "./journal/fils.ts";
+import { journalDuJour, type JournalDuJour } from "./projets/journal-du-jour.ts";
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
@@ -488,6 +490,10 @@ export type Faits = {
   // Ce que les cooks ont appris au projet, ses leçons et ses profils (apprentissage.ts) : absent quand il
   // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
   apprentissage?: ApprentissageLu;
+  // Les fils des agents du projet, et le digest de la veille (journal/fils.ts, ticket 4274) : le journal du jour et la carte
+  // du matin de sa vue — absents d'un runtime qui ne les donne pas.
+  fils?: FilsLus;
+  digest?: DigestLu;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -616,6 +622,11 @@ export type Tableau = {
   // Où en est chaque ticket pris, en pass ou servi, que le récit du premier ticket suit (ticket 3302,
   // vue/premier-ticket/) — absent d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ).
   etapesDesTickets?: EtapeDuTicket[];
+  // Le journal du jour, tiré des fils des agents à cette lecture (projets/journal-du-jour.ts, ticket 4274), avec les gestes
+  // illisibles qu'il n'a pas pu ranger — ou pourquoi les fils ne se lisent pas ; et le digest de la veille. Absents d'un
+  // runtime qui ne les donne pas.
+  journal?: (JournalDuJour & { illisibles: number }) | { illisible: string };
+  digest?: DigestLu;
 };
 
 // Un ticket tel que le récit du premier ticket le suit (ticket 3302) : son mot d'état (`pris`, `en pass`, `base rouge`,
@@ -1017,6 +1028,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
       ...(budgetDesAppelsLu(racine.budgetDesAppels) === undefined ? {} : { budgetDesAppels: budgetDesAppelsLu(racine.budgetDesAppels) }),
       ...(racine.apprentissage === undefined ? {} : { apprentissage: apprentissageLu(racine.apprentissage) }),
+      ...(filsLus(racine.fils) === undefined ? {} : { fils: filsLus(racine.fils) }),
+      ...(digestLu(racine.digest) === undefined ? {} : { digest: digestLu(racine.digest) }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe || apprentissageInforme(erreur)) return { informe: erreur.message };
@@ -1637,6 +1650,8 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
     apprentissage: apprentissageDe(faits.apprentissage),
     etapesDesTickets: etapesDesTickets(faits),
+    ...(faits.fils === undefined ? {} : { journal: "illisible" in faits.fils ? faits.fils : { ...journalDuJour(faits.fils.fils, new Date(faits.lu)), illisibles: faits.fils.illisibles } }),
+    ...(faits.digest === undefined ? {} : { digest: faits.digest }),
   };
 }
 
