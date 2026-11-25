@@ -426,7 +426,7 @@ export type OptionsDeStation = {
   // d'être mergée (`validation-design/`). Absent, non.
   designsValidesParUnHumain?: () => boolean;
   // La fiche du projet telle que la branche d'intégration la porte, relue à chaque merge : son classement du risque
-  // (\`risk\`, #4230) parque pour le chef le merge d'un ticket dont le genre d'action est rangé \`chef\`.
+  // (`risk`, #4230) parque pour le chef le merge d'un ticket dont le genre d'action est rangé `chef`.
   ficheDuProjet?: () => unknown;
   // Le compte GitHub du chef, résolu à chaque demande de validation (#3615) :
   // la demande posée sur le ticket le mentionne. Absent, nul ou illisible, elle
@@ -768,7 +768,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Une cause qui vit dans la station se dépose sur la brigade (#3098), comme le temps perdu.
   const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
   const { clone } = options;
-  // Le classement du risque de la fiche du projet, relu à chaque action (#4230) : une action rangée \`chef\` attend
+  // Le classement du risque de la fiche du projet, relu à chaque action (#4230) : une action rangée `chef` attend
   // l'OK du chef à la porte des gestes, quel que soit le niveau de la pass ; sans fiche, aucun classement à lire.
   const passDuRisque =
     options.ficheDuProjet === undefined
@@ -2118,7 +2118,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       retenue = true;
                       return { fait: false, motif: "held by the pass's autonomy level" };
                     };
-                    // Un ticket qui dit le genre de son action (\`action:<genre>\`) passe par le classement du risque de la fiche du projet (#4230).
+                    // Un ticket qui dit le genre de son action (`action:<genre>`) passe par le classement du risque de la fiche du projet (#4230).
                     const genre = genreDuTicket(ticket.labels);
                     if (genre === null || passDuRisque === null) return mergerParLaPorte();
                     let fusion: Merge = { fait: false, motif: "parked for the chef: its kind of action is ranked 'chef' in the project sheet" };
