@@ -61,6 +61,12 @@ test("the expected time is one positive `attendu:` label, else none; a ticket ex
   assert.equal(calculerLesDelais([{ ...pile, fusionneAt: a(24 * 60), priseAt: a(24 * 60 + 30) }], MAINTENANT).fusionnes, 1, "merged exactly 24 h ago: inside the window");
 });
 
+test("the worst overrun is the one furthest past its own expected time, not the longest", () => {
+  const ticket = (n: number, attendu: number, reel: number) => ({ ticket: n, titre: `T${n}`, etiquettes: [`attendu:${attendu}`], modele: "?", effort: "?", priseAt: a(reel), prOuverteAt: a(0), fusionneAt: a(0), gatesMin: 0, revueMin: 0, renvoisMin: 0 });
+  // #1 : 20 min past 10 ; #2 : 10 min past 100, longer but nearer its expected time.
+  assert.deepEqual(calculerLesDelais([ticket(2, 100, 110), ticket(1, 10, 30)], MAINTENANT).pires_depassements.map((p) => p.ticket), [1, 2]);
+});
+
 test("the share line counts the tickets without an expected time apart, and says when none has one", () => {
   const base = { fenetre_heures: 24, fusionnes: 3, dans_les_temps: 2, part_dans_les_temps: 1, sans_temps_attendu: 1, pires_depassements: [] };
   assert.match(direLesDelais(base).join("\n"), /100 % \(2\/2\).* · 1 without an expected time/);
