@@ -282,7 +282,9 @@ export type ReglagesSuivis = { auDemarrage: ReglagesProjet | null; relire: () =>
 // relus à chaque lecture, et passent avant les décisions de la box. Ceux du
 // closer disent d'où chacun vient (`from`) : c'est ce que le runtime en note. Illisibles un moment, le runtime s'en
 // tient aux derniers qu'il a lus, et le dit une fois.
-export function suivreDecisions(base: Base, env: Record<string, string | undefined>, avertir: (message: string) => void = (message) => console.error(message), depot?: ReglagesSuivis): Decisions {
+// `depuisLApp` : les variables que les réglages des agents posés depuis l'app remplacent (agent-settings/, #4222),
+// relues à chaque lecture et passées avant tout le reste.
+export function suivreDecisions(base: Base, env: Record<string, string | undefined>, avertir: (message: string) => void = (message) => console.error(message), depot?: ReglagesSuivis, depuisLApp?: () => Record<string, string>): Decisions {
   let derniers = depot?.auDemarrage ?? null;
   let ditDuDepot: string | null = null;
   const duDepot = (premiere: boolean): ReglagesProjet | null => {
@@ -301,7 +303,7 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
   const suivre = <T>(quoi: string, lire: (env: Record<string, string | undefined>, reglages: ReglagesProjet | null) => T, avecDepot = false): (() => T) => {
     const decide = (premiere: boolean) => {
       const reglages = avecDepot ? duDepot(premiere) : null;
-      return lire(environnementDecide(env, decisionsPosees(base), reglages), reglages);
+      return lire({ ...environnementDecide(env, decisionsPosees(base), reglages), ...depuisLApp?.() }, reglages);
     };
     let retenue = decide(true);
     let dit: string | null = null;

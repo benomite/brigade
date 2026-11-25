@@ -69,7 +69,7 @@ import type { Sonde } from "../installation/besoins/fourni.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts";
-import { lignesDuBloc, nomsHorsDuBloc, nomsMisDeCote, reecrireBloc } from "./bloc.ts";
+import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type Demande, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
@@ -357,8 +357,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     const texte = lireTexte(fichier);
     const avant = lignesDuBloc(texte);
     const aLaMain = new Set(nomsHorsDuBloc(texte));
-    // Les projets que l'app a mis de côté : cette station ne les sert pas, la ligne reste en commentaire.
-    const misDeCote = new Set(nomsMisDeCote(texte));
     const lignes: string[] = [];
     const suivis = new Map<string, SuiviDuProjet>();
     // Ce que la station dit de plus d'un projet qu'elle sert encore, et où en
@@ -402,10 +400,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
           lignes.push(ligne);
           motifs.set(projet.nom, motif);
         } else suivis.set(projet.nom, { ...suiviDu(projet, "secondaire", motif), bascule: bascules.get(projet.nom) ?? null });
-        continue;
-      }
-      if (misDeCote.has(projet.nom)) {
-        suivis.set(projet.nom, suiviDu(projet, "refuse", `${projet.nom} is held back on this station (another station serves it): its line stays a comment, this station does not serve it`));
         continue;
       }
       if (aLaMain.has(projet.nom)) {

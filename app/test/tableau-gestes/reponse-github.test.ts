@@ -514,7 +514,8 @@ describe("la carte d'une décision du manager : ses réponses en boutons, celle 
     assert.equal(reponse, "<!-- brigade:reponse gesture=wait -->\nWait for AF, the client");
     // L'entrée en WAITING, dans la forme que la carte de WAITING relit (vue/attente/attente-github.ts).
     assert.deepEqual(tiersDeLaMarque(attente ?? "", "2026-11-13T12:00:00Z")?.qui, "AF, the client");
-    assert.match(attente ?? "", /^\*\*WAITING: awaiting AF, the client\.\*\* Does AF want direct automatic recontact of the Respondent after the beta\?/);
+    // Sous la marque que la station relit, en tête (ticket 4262) : le commentaire que le second et « waiting for… » posent.
+    assert.match(attente ?? "", /^<!-- brigade:waiting \{"what":"Does AF want[^\n]*"who":"AF, the client"[^\n]* -->\n\*\*WAITING: awaiting AF, the client\.\*\* Does AF want direct automatic recontact of the Respondent after the beta\?/);
   });
 
   test("le label `waiting` refusé : la réponse est postée, et le refus dit que le ticket n'est pas en WAITING", async () => {

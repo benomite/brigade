@@ -70,6 +70,9 @@ export const gestesDe = (repertoire: string, agent: string): Gestes => (lireTout
 // Every agent's gestures, by agent, oldest first: the threads the logbook of the day reads (journal-du-jour/).
 export const tousLesGestes = (repertoire: string): Record<string, Geste[]> => lireTout(repertoire);
 
+// The names the log holds a list under (`closer`, `cook #12`): the Agents tab gathers the cooks' (agents-tab/api.ts).
+export const agentsDuJournal = (repertoire: string): string[] => Object.keys(lireTout(repertoire));
+
 export const compteursDe = (repertoire: string, agent: string): Compteurs => compter(gestesDe(repertoire, agent));
 
 function compter(gestes: readonly Geste[]): Compteurs {
