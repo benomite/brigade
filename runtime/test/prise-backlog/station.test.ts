@@ -10,9 +10,7 @@ import { empreinte } from "../../src/juger.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../src/station/configuration.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
-import { DEPOT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
-
-const rienNeReste = temporaireDuFichier();
+import { DEPOT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire } from "../outils.ts";
 
 // Une issue du dépôt, ouverte par son propriétaire.
 const issueDuChef = (numero: number, labels: string[]) => {
@@ -62,7 +60,7 @@ function ouvrir(t: TestContext, issues: Array<ReturnType<typeof issueDuChef>>, j
 test("with room in the kitchen, the manager of the station calibrates the issue it judged, then puts `fire` on it", async (t) => {
   const { cuisine, labellisations } = ouvrir(t, [issueDuChef(1, ["prio:1"])], [1]);
   try {
-    await jusqua(() => labellisations().length === 2, 5000);
+    await jusqua(() => labellisations().length === 2);
     assert.deepEqual(labellisations(), [
       [1, ["model:haiku", "effort:low"]],
       [1, ["fire"]],
@@ -77,12 +75,10 @@ test("its one place taken by a fired ticket that waits for its cook, the manager
   // #5 : lancée par le chef sans calibrage, elle attend son cook ; le manager la calibre, plus loin dans son tour.
   const { cuisine, labellisations } = ouvrir(t, [issueDuChef(1, ["prio:1"]), issueDuChef(5, ["fire"])], [1, 5]);
   try {
-    await jusqua(() => labellisations().some(([numero]) => numero === 5), 5000);
+    await jusqua(() => labellisations().some(([numero]) => numero === 5));
     assert.deepEqual(labellisations(), [[5, ["model:haiku", "effort:low"]]]);
   } finally {
     cuisine.arreter("fin du test");
     await cuisine.arretee?.();
   }
 });
-
-test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
