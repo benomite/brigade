@@ -244,6 +244,7 @@ test("une version qui ne se dit jamais en service dans le temps laissé : la ver
 });
 
 // #3709 : la version X cesse de servir un projet : c'est un projet perdu, la version d'avant revient.
+// brigade:guard
 test("#3709 : la version X ne sert plus un projet que rien ne met de côté : la version d'avant revient", { skip: SANS_POSIX }, async (t) => {
   const ordi = unOrdinateur(t);
   const qui = (servis: string[]) => SAINE.replace("servis: []", `servis: ${JSON.stringify(servis)}`);
