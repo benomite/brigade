@@ -70,6 +70,8 @@ test("le bandeau STOPPED d'une zone tenue nomme la PR, et les autres causes ne l
   const tenue = avec({ kind: "zone-held", pr: 4077, zone: "app/src" });
   assert.match(tenue.waitsFor, /zone held by PR 4077/);
   assert.match(tenue.waitsOn, /PR 4077/);
+  assert.equal(avec({ kind: "main-red" }).waitsFor, "main is red");
+  assert.equal(avec({ kind: "unknown" }).waitsFor, "the cause is unknown");
   for (const cause of [{ kind: "main-red" }, { kind: "unknown" }, { kind: "frozen-zone", ticket: 5, zone: "app/src" }]) {
     assert.doesNotMatch(avec(cause).waitsOn, /PR /);
     assert.doesNotMatch(avec(cause).waitsFor, /zone held by PR/);
