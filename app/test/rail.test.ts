@@ -178,9 +178,9 @@ describe("le rail occupe le centre de l'écran principal", () => {
     const vue = await ouvrir();
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
-    // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris. TODO n'est pas une colonne (#3458) :
+    // Sur l'onglet Rail, où l'espace s'ouvre : le plan de la cuisine entier (#4238). TODO n'est pas une colonne (#3458) :
     // #12, qui attend le chef, est dans Pass, son étape.
-    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "2"], ["Waiting", "0"], ["Served", "1"]];
+    const ATTENDU = [["Backlog", "2"], ["Manager", "0"], ["Cooks", "1"], ["Pass", "2"], ["Served", "1"]];
     const entree = () => `TODO (${rouges(vue.element("rail")).length})`;
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
@@ -198,7 +198,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Waiting", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["Backlog", "0"], ["Manager", "0"], ["Cooks", "0"], ["Pass", "0"], ["Served", "0"]]);
     assert.equal(entree(), "TODO (0)");
   });
 
@@ -227,7 +227,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["On the rail", "Taken", "Pass", "Waiting", "Served"],
+      ["Backlog", "Manager", "Cooks", "Pass", "Served"],
     );
   });
 
@@ -444,8 +444,12 @@ describe("le haut du rail est allégé (#623)", () => {
     const vue = await ouvrir();
     recevoir(vue);
     // Les faits des fixtures datent de 2026-10-13 : la lecture est vieille.
-    assert.match(vue.element("rail").children[0]?.textContent ?? "", /^up to date \d+ min ago — /);
-    assert.equal(vue.element("rail").children[0]?.className, "fraicheur");
+    // Sous la bande du haut (#4238), avec son geste : relire.
+    const ligne = vue.element("rail").children[1];
+    assert.equal(ligne?.className, "relisible");
+    assert.match(ligne?.children[0]?.textContent ?? "", /^up to date \d+ min ago — /);
+    assert.equal(ligne?.children[0]?.className, "fraicheur");
+    assert.equal(ligne?.dessous("button").map(({ textContent }) => textContent).join(), "read again");
   });
 
   test("l'âge du rail se dit toujours, d'après l'heure où la box a lu l'état — pas celle de la lecture de l'app (#2054)", async () => {
@@ -564,8 +568,8 @@ describe("le clic d'une carte de T'attend (#452)", () => {
       attend: [...(FAITS.attend ?? []), { ticket: 40, titre: "Un ticket retenu", url: "https://github.com/benomite/parade/issues/40", miseDeCote: { label: "blocked-on-human", raison, liens: [{ numero: 2326, url: "https://github.com/benomite/parade/issues/2326" }] } }],
     };
     recevoir(vue, dessinable(misDeCote, PAS_LU));
-    // Mis de côté sans colonne dite par le runtime : il est sur le rail, rouge (#3458).
-    const surLeRail = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "On the rail") ?? assert.fail("pas de colonne On the rail");
+    // Mis de côté sans colonne dite par le runtime : il est dans le backlog, rouge (#3458, #4238).
+    const surLeRail = colonnes(vue).find((colonne) => colonne.children[0]?.children[0]?.textContent === "Backlog") ?? assert.fail("pas de colonne Backlog");
     const bon = bons(surLeRail).find((pose) => pose.children[0]?.children[0]?.textContent === "#40") ?? assert.fail("#40 n'est pas sur le rail");
     assert.equal(bon.dataset.carte, "attente");
     assert.equal(ligneDe(bon), raison);
@@ -764,8 +768,8 @@ describe("une question du manager se lit sur sa carte, et la carte quitte TODO d
     await repos();
 
     assert.deepEqual(vue.dernier("lireQuestion"), [PARADE, 60]);
-    // L'épique n'est pas sur le rail que `faits` rend : sa carte rouge est dans On the rail (#3458).
-    assert.equal(colonneDe(vue, 60), "On the rail");
+    // L'épique n'est pas sur le rail que `faits` rend : la question du manager, sa carte rouge est dans Manager (#3458, #4238).
+    assert.equal(colonneDe(vue, 60), "Manager");
     assert.equal(bonDe(vue, 60).dataset.carte, "attente");
     const bon = bonDe(vue, 60);
     assert.equal(bon.dessous("p").find((pose) => pose.className === "question-courte")?.textContent, "Le popup remplace-t-il la fiche ?");
@@ -786,10 +790,11 @@ describe("une question du manager se lit sur sa carte, et la carte quitte TODO d
 
     recevoir(vue, dessinable(FAITS_60, STATUS_60, new Map([[60, { question: `${ISSUE}#issuecomment-2`, par: "you", a: "2026-10-15T10:05:00.000Z" }]])));
     await repos();
-    assert.equal(colonneDe(vue, 60), "Waiting");
+    // Répondue, elle attend que le manager lise la réponse : dans Manager (#4238).
+    assert.equal(colonneDe(vue, 60), "Manager");
     assert.match(bonDe(vue, 60).textContent, /answered by you · the manager's turn/);
     assert.doesNotMatch(bonDe(vue, 60).textContent, /awaiting you/);
-    assert.match(section(vue)?.dessous("p").find((pose) => pose.className === "postee")?.textContent ?? "", /^answer posted on #60, in your name: “b\) non” — the manager reads it at its next tick; until then the card waits for it in WAITING\.$/);
+    assert.match(section(vue)?.dessous("p").find((pose) => pose.className === "postee")?.textContent ?? "", /^answer posted on #60, in your name: “b\) non” — the manager reads it at its next tick; until then the card waits for it in the Manager column\.$/);
   });
 
   test("répondue ailleurs — sur GitHub, par le second —, la fiche le dit, et ce que le chef poste encore dit ce qu'il a vu dessous", async () => {
@@ -917,7 +922,7 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219" },
     { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-12T16:30:05.000Z", station: "box/claude", pr: null },
   ];
-  // Et un ticket qui attend un tiers : chaque colonne a sa carte, WAITING comprise.
+  // Et un ticket qui attend un tiers : parked, il a sa carte dans le backlog (#4238).
   const EN_WAITING = { ticket: 50, etat: "WAITING", titre: "Le devis du client", url: "https://github.com/benomite/brigade/issues/50", activite: null, tiers: { quoi: "sa validation écrite", qui: "le client", depuis: "2026-10-12T09:00:00.000Z", relance: "2026-10-19T00:00:00.000Z", aLArrivee: "il repart en cuisine" } };
   const AVEC_LIVRES = { ...FAITS, rail: [...FAITS.rail, EN_WAITING], compteurs: { ...FAITS.compteurs, livres24h: 2 }, livres: LIVRES };
 
@@ -928,7 +933,10 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     const poses = rail.dessous("li");
     assert.equal(fiche(vue).hidden, true);
 
-    for (const colonne of colonnes(vue)) {
+    // Le manager ne tient aucun ticket de ce rail : chaque autre colonne a sa carte — #50, parked, dans le backlog (#4238).
+    const garnies = colonnes(vue).filter((colonne) => bons(colonne).length > 0);
+    assert.deepEqual(garnies.map((colonne) => colonne.children[0]?.children[0]?.textContent), ["Backlog", "Cooks", "Pass", "Served"]);
+    for (const colonne of garnies) {
       const [bon] = bons(colonne);
       const numero = bon?.children[0]?.children[0]?.textContent ?? assert.fail(`pas de carte dans ${colonne.textContent}`);
       for (const ferme of ["bouton", "Échap"]) {
@@ -1177,8 +1185,8 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     assert.equal(vue.appels.filter(({ geste }) => geste === "gestesDeFiche").length, lectures + 1);
     assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"]);
     assert.equal(fiche(vue).dessous("select")[0]?.value, "2");
-    // Pris, il est dans Taken, sur Rail.
-    assert.ok(colonnes(vue).find((colonne) => colonne.textContent.startsWith("Taken"))?.textContent.includes("#21"));
+    // Pris, il est dans Cooks, sur Rail.
+    assert.ok(colonnes(vue).find((colonne) => colonne.textContent.startsWith("Cooks"))?.textContent.includes("#21"));
   });
 
   test("un geste qui ne part pas le dit sur la fiche, sous ses gestes", async () => {
