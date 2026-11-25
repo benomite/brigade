@@ -97,7 +97,7 @@ import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
-import { jugerLaPR, motifsDeLaRelecture, motifsEnonces } from "./renvoi-sur-le-fond/regle.ts";
+import { jugerLaPR, motifsDeLaRelecture, motifsEnonces, verdictDeLaRelecture } from "./renvoi-sur-le-fond/regle.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -637,7 +637,7 @@ const ISSUES_LUES_AU_PLUS = 40;
 
 // Le motif d'un renvoi, dit sur son commentaire (#4302) : une CI rouge sans remarque de fond est un test qui échoue ; une
 // relecture dit le sien par la nature de ses remarques. Un renvoi pour conflit n'a aucun des trois motifs : il n'en dit pas.
-const motifDuRenvoi = (genre: "conflict" | "red CI" | "review", raison: string): string | null =>
+const motifDitDuRenvoi = (genre: "conflict" | "red CI" | "review", raison: string): string | null =>
   genre === "conflict" ? null : motifsEnonces(genre === "red CI" ? jugerLaPR({ remarques: [], ci: "red" }).motifs : motifsDeLaRelecture(raison));
 
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
@@ -1574,7 +1574,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
       return;
     }
-    const motifDit = motifDuRenvoi(genre, raison);
+    const motifDit = motifDitDuRenvoi(genre, raison);
     const deja = renvois.length;
     const marque = genre === "conflict" ? MARQUE_DE_CONFLIT : "";
     // Rendu deux fois de suite pour le même résultat, il ne repart pas une troisième fois de la même façon (#3814) : ce
@@ -3700,7 +3700,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const constatsDe = ({ findings }: Pick<Lue, "findings">) => findings.map((constat) => `- ${constat.severity === "blocking" ? "**Blocking**" : "Advice"}${constat.file === null ? "" : ` (\`${constat.file}\`)`}: ${constat.text}`);
   const relireDans = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">): Promise<Jugement> => {
     const lue = await relecture(worktree, run, texte, pr);
-    return { verdict: lue.verdict === "green" ? "approve" : "request-changes", motif: [lue.summary, ...constatsDe(lue)].join("\n") };
+    return { verdict: verdictDeLaRelecture(lue), motif: [lue.summary, ...constatsDe(lue)].join("\n") };
   };
 
   // Rouge sur main, vert sur la branche (#3466) : les tests que la livraison
@@ -3845,7 +3845,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const lue = relue.status === "fulfilled" ? relue.value : null;
       const resume = [resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base), "", mutations === null ? LIGNE_SANS_MUTATION : resumeDesMutations(mutations, criteres.length, lue?.criteria ?? null, preuve)].join("\n");
       if (renvoi.length > 0) return { verdict: "request-changes", motif: [...renvoi, ...(lue === null ? [] : ["", lue.summary, ...constatsDe(lue)]), "", resume].join("\n") };
-      return { verdict: lue!.verdict === "green" ? "approve" : "request-changes", motif: [lue!.summary, ...constatsDe(lue!), "", resume].join("\n") };
+      return { verdict: verdictDeLaRelecture(lue!), motif: [lue!.summary, ...constatsDe(lue!), "", resume].join("\n") };
     } finally {
       depot.retirer(worktree);
     }

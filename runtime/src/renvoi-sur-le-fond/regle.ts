@@ -5,11 +5,9 @@
 export const MOTIFS_DE_RENVOI = ["wrong behaviour", "unmet criterion", "failing test"] as const;
 export type MotifDeRenvoi = (typeof MOTIFS_DE_RENVOI)[number];
 
-const estUnMotifDeRenvoi = (motif: string): motif is MotifDeRenvoi => (MOTIFS_DE_RENVOI as readonly string[]).includes(motif);
-
 // Ne renvoie rien si le motif est permis ; sinon lève, en nommant les motifs permis.
 export function verifierMotifDeRenvoi(motif: string): asserts motif is MotifDeRenvoi {
-  if (!estUnMotifDeRenvoi(motif)) throw new Error(`send-back reason "${motif}" refused: a PR is sent back only for one of: ${MOTIFS_DE_RENVOI.join(", ")}`);
+  if (!(MOTIFS_DE_RENVOI as readonly string[]).includes(motif)) throw new Error(`send-back reason "${motif}" refused: a PR is sent back only for one of: ${MOTIFS_DE_RENVOI.join(", ")}`);
 }
 
 export type Remarque = { nature: "behaviour" | "criterion" | "test-failure" | "form"; texte: string };
@@ -46,7 +44,7 @@ export function commentaireDeRenvoi({ motif, detail }: { motif: string; detail: 
 // Le texte d'une relecture qui demande des changements, en remarques : chaque puce « - **Blocking** » est de fond, avec la
 // nature que ses mots disent ; toute autre puce (« - Advice ») est de forme. Un texte sans puce est une seule remarque de fond.
 export function remarquesDeLaRelecture(texte: string): Remarque[] {
-  const puces = texte.split(/^(?=- )/m).filter((p) => p.startsWith("- "));
+  const puces = texte.split(/(?:^(?=- )|(?<=\s)(?=- (?:\*\*Blocking\*\*|Advice)))/m).filter((p) => p.startsWith("- "));
   if (puces.length === 0) return [{ nature: "behaviour", texte }];
   return puces.map((puce) => {
     if (!puce.startsWith("- **Blocking**")) return { nature: "form", texte: puce.trim() };
@@ -67,4 +65,13 @@ export function motifsDeLaRelecture(texte: string): MotifDeRenvoi[] {
 export function motifsEnonces(motifs: readonly string[]): string {
   for (const motif of motifs) verifierMotifDeRenvoi(motif);
   return `Send-back reason: ${motifs.join(", ")}`;
+}
+
+// Le verdict d'une relecture, jugé sur ses constats : une relecture rouge dont aucun constat ne bloque n'a que des remarques
+// de forme, elles font des notes et la PR n'est pas renvoyée. Sans aucun constat, elle n'a dit que son résumé : elle renvoie.
+export function verdictDeLaRelecture({ verdict, findings }: { verdict: "green" | "red"; findings: readonly { severity: string; text: string }[] }): "approve" | "request-changes" {
+  if (verdict === "green") return "approve";
+  if (findings.length === 0) return "request-changes";
+  const remarques = findings.map((f): Remarque => ({ nature: f.severity === "blocking" ? "behaviour" : "form", texte: f.text }));
+  return jugerLaPR({ remarques, ci: "green" }).action === "merge" ? "approve" : "request-changes";
 }

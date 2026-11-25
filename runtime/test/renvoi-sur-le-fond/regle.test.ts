@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { jugerLaPR, motifsDeLaRelecture, motifsEnonces, remarquesDeLaRelecture, verifierMotifDeRenvoi } from "../../src/renvoi-sur-le-fond/regle.ts";
+import { jugerLaPR, motifsDeLaRelecture, motifsEnonces, remarquesDeLaRelecture, verdictDeLaRelecture, verifierMotifDeRenvoi } from "../../src/renvoi-sur-le-fond/regle.ts";
 
 test("a red CI without any remark is sent back as a failing test", () => {
   assert.deepEqual(jugerLaPR({ remarques: [], ci: "red" }), { action: "send-back", notes: [], motifs: ["failing test"] });
@@ -32,4 +32,12 @@ test("a review text without bullets is one wrong behaviour; an advice-only revie
 test("the stated reasons are checked against the list", () => {
   assert.equal(motifsEnonces(["failing test", "unmet criterion"]), "Send-back reason: failing test, unmet criterion");
   assert.throws(() => motifsEnonces(["style"]), /wrong behaviour/);
+});
+
+test("a red review whose findings are all advice is approved; one blocking finding, or none at all, sends back", () => {
+  const conseil = { severity: "advice", text: "rename the test" };
+  assert.equal(verdictDeLaRelecture({ verdict: "red", findings: [conseil] }), "approve");
+  assert.equal(verdictDeLaRelecture({ verdict: "red", findings: [conseil, { severity: "blocking", text: "it crashes" }] }), "request-changes");
+  assert.equal(verdictDeLaRelecture({ verdict: "red", findings: [] }), "request-changes");
+  assert.equal(verdictDeLaRelecture({ verdict: "green", findings: [{ severity: "blocking", text: "x" }] }), "approve");
 });
