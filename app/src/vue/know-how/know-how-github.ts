@@ -1,8 +1,8 @@
-// The project know-how file, read and changed from Settings (#4239, epic #4135): `.brigade/know-how.md` of the project's
+// The project know-how file, read and changed from Settings (ticket 4239, epic 4135): `.brigade/know-how.md` of the project's
 // repository, on its integration branch, read on GitHub with the token of this computer's `gh` — like the closer's extra
 // checks (closer-sante.ts). Its entries are parsed by the runtime's module (runtime/src/know-how/know-how.ts). An entry
 // edited or removed is never written in place: the new file is proposed by a pull request towards the integration
-// branch (`proposerLeFichier`, plafonds-duree.ts, #2920), which the pass reviews like any other change, and nothing
+// branch (`proposerLeFichier`, plafonds-duree.ts, ticket 2920), which the pass reviews like any other change, and nothing
 // changes on the branch until it is merged. This module composes the requests; what carries them is given
 // (`ClientDeLaPriorite`).
 import { editEntry, entryText, KNOW_HOW_FILE, parseKnowHow, removeEntry, type KnowHowEntry } from "../../../../runtime/src/know-how/know-how.ts";

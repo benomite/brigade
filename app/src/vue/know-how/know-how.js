@@ -1,5 +1,5 @@
 // @ts-check
-// The project know-how, a section of Settings (#4239, epic #4135): the entries of `.brigade/know-how.md` of the project's
+// The project know-how, a section of Settings (ticket 4239, epic 4135): the entries of `.brigade/know-how.md` of the project's
 // repository — the lessons its cooks keep for the next ones (agents/cook.md) —, grouped by section, `Conventions`,
 // `Pitfalls`, `Tools` first, each with its source ticket. The chef edits the text of an entry or removes it: the change
 // is proposed by a pull request on the integration branch (know-how-github.ts), which the pass reviews, and the list
@@ -77,7 +77,7 @@ function poserLEntree(doc, entree, etat, { editer, taper, annuler, changer, ouvr
   const gestes = cree(doc, "span");
   gestes.className = "gestes";
   if (etat?.edition !== undefined) {
-    // No Save button (#2920): the field applies on its `change` — Enter, or leaving it — when its text is a new one; the
+    // No Save button (ticket 2920): the field applies on its `change` — Enter, or leaving it — when its text is a new one; the
     // text left as it was, or emptied, closes it; Escape closes it.
     const champ = cree(doc, "input");
     champ.type = "text";

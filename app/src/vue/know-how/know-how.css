@@ -1,4 +1,4 @@
-/* The project know-how, a section of Settings (#4239, know-how.js): one part per section of the file, its title and its
+/* The project know-how, a section of Settings (ticket 4239, know-how.js): one part per section of the file, its title and its
    count, then one row per entry — its text, its source ticket, Edit and Remove; under a row, what its last change returned. */
 [data-bloc="know-how"] .section-du-savoir {
   display: flex;
