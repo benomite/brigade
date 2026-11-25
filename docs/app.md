@@ -2736,7 +2736,7 @@ it was or emptied, it closes; Escape closes it. **Remove** applies at once. Eith
 the integration branch (`proposerLeFichier` with that path): only that line changes — an edit keeps its ` (#ticket)` —,
 the file is read again first, and a row whose text moved since the reading proposes nothing and says so. The row says
 `opening the pull request…`, then `the new text proposed in` (or `the removal proposed in`) and a `pull request #<n>`
-link; the list keeps the text in force until the PR is merged. Screenshots: `docs/captures/4239/`. Modules:
+link; the list keeps the text in force until the PR is merged. Both states (entries, empty) are rendered by `app/test/vue/know-how/know-how-vue.test.ts`. Modules:
 `app/src/vue/know-how/` (the block, and its reading and pull request), `runtime/src/know-how/know-how.ts` (the parser and
 writer of the file).
 
