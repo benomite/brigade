@@ -153,7 +153,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /Why `haiku` \/ `low`\.\*\* A fix whose test is already written\./);
     assert.match(dit, /the manager will not rewrite it/);
     assert.match(dit, /Removing `fire`, `model:` or `effort:` without replacing it takes this ticket away from the manager/);
-    assert.match(dit, /`brigade <projet> manager return 30`/);
+    assert.match(dit, /until the kitchen gives it back to the manager \(it is given back from the kitchen, not from GitHub\)/);
     assert.match(dit, /Correcting `prio:`, or setting or removing `question` or `blocked-on-human`, does not take it away/);
     assert.match(dit, /Judged by the manager in `sonnet` \/ `medium` · 1 turn · 10 tokens/);
   });
@@ -766,7 +766,8 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /ticket set aside: it is no longer fired and calibrated/);
     assert.match(dit, /it now lacks `fire`\./);
     assert.match(dit, /does not judge it again, even if it changes/);
-    assert.match(dit, /`brigade <projet> manager return 30`/);
+    assert.match(dit, /\*\*To give it back:\*\* from the kitchen, not from GitHub — the manager's report there names how\./);
+    assert.doesNotMatch(dit, /`brigade \S+ [a-z]/);
   });
 
   test("rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois", async (t) => {
