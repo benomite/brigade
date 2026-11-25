@@ -9,7 +9,6 @@
 // A second run finds no matching comment and no set-aside label: it writes nothing.
 import { execFileSync } from "node:child_process";
 import { parseArgs } from "node:util";
-import { ECHECS_ATTEINTS } from "../../runtime/src/github.ts";
 import { MARQUE_D_ECHEC } from "../../runtime/src/qualite-github.ts";
 
 // What this script asks of GitHub, replaceable for the tests: `lire` returns every item of a
@@ -38,6 +37,7 @@ export const RAISON = "couldn't find remote ref refs/heads/v2";
 export const DEBUT = Date.parse("2026-11-25T17:00:00Z");
 export const FIN = Date.parse("2026-11-25T19:40:00Z");
 const RAIL = "fire";
+const ECHECS_ATTEINTS = "set-aside:failures";
 
 const dit = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
