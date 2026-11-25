@@ -1322,6 +1322,16 @@ carrying `kitchen-board` is never a card (the rule, with its reading, is in the 
 `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
 `todo-github-seul-apres.png`.
 
+**Held gestures (#4273, epic #4209).** A gesture an agent holds for the chef's OK is not a ticket: it sits under the
+columns, next to Todo, in a section **Held for your OK (N)** — one card per gesture, with its summary, its reason (the
+`<summary> — <reason>` line that `manager` lists under `held gestures`) and one **Approve** button. Approve runs
+`manager approve <id>` on this computer's station: no ssh, no typed command. Done, the card leaves the list; refused, it
+stays and says why on one line. When the rail is empty and gestures are held, the rail says `N splits wait for your OK`
+instead of what is before it. The gestures are read by `manager` at each reading of the displayed project's rail, only for
+a project that cooks on this computer; a reading that fails is said on one error line, never as "none". *Code:
+`app/src/held/` (`lecture.ts` reads and approves, `cartes.js` draws), wired in `app/src/vue/vue.js`. Tests:
+`app/test/held/`. Captures: `docs/captures/4273/`.*
+
 ### Changing a ticket's priority (#1739)
 
 A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`
@@ -3272,7 +3282,21 @@ pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vu
 with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
 phone) does not show the section.
 
-Under the recurring tickets, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
+Under the recurring tickets, the **project sheet** section (#4240, epic #4136) shows the eight items of the open project's
+`.brigade/fiche-projet.json` (see "The project sheet" in `docs/superpowers/specs/2026-11-24-simplified-process.md`), one
+row each with the spec's words: `The cook's work`, `Stages`, `Tools`, `House rules`, `Risks`, `Served`, `Recurring`,
+`Humans in the kitchen`. An item written as a text is one line; an item written as a list is one entry per line (`one per
+line` under it), and keeps its shape when saved. `Save` writes the whole file, keys the screen does not show included, and
+says `Saved.`. `The cook's work`, `Stages` and `Served` cannot be left empty: `Save` refuses, says `<item> cannot be empty:
+nothing was saved.` for each one, marks its field, and writes nothing. A project with no sheet says `No project sheet yet.`, why on hover, and creates
+nothing — the runtime writes the defaults. A sheet that cannot
+be read (not JSON, not an object, an item that is neither a text nor a list of texts) says `Project sheet not reached.`,
+the detail on hover, and shows no field, so nothing overwrites it. The section is `app/src/vue/fiche-projet/fiche-projet.js`,
+mounted by `monter-fiche-projet.js`; it calls two bridge methods, `lireUnFichierDuProjet(project, path)` and `ecrireUnFichierDuProjet(project, path, text)`,
+which the desktop app serves from the project's folder on this computer, for that one path only
+(`app/src/vue/fiche-projet/fiche-projet-dossier.ts`). A bridge without them (the phone) does not show the section.
+
+Under the project sheet, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
 words — rail, pass, cook, second, TODO, WAITING — you have seen explained (`3 of 6 seen`, what it means on hover), with
 one button, `show all the explanations again`: it clears your record, and each word is explained again the next time you
 meet it, on this device and on your other ones (`each explanation shows again the next time you meet its word, on all

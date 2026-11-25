@@ -4,7 +4,7 @@
 // depuis plus de 10 min : le superviseur se réveille, et le manager du projet
 // est lancé sur sa consigne, son dossier compris.
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test, type TestContext } from "node:test";
@@ -39,6 +39,10 @@ function baseRouge(t: TestContext): FauxGh {
 const luLaBase = (gh: FauxGh) => gh.appels().some((appel) => appel.at(-1) === `repos/${DEPOT}/commits/${BASE}`);
 const superviseurLance = (temoin: string) => lancementsDuFauxClaude(temoin).filter(({ args, entree }) => [...args, entree].join("\n").includes(CONSIGNE));
 
+// Le run du manager fini : son worktree retiré. Le test ne finit pas avant lui —
+// un manager encore en vol écrirait dans les répertoires temporaires déjà effacés.
+const runFini = (worktree: string) => attendre(() => !existsSync(worktree));
+
 // Attend un fait sans lire l'heure : le `Date` de la cuisine est figé par le test, et `jusqua` le lit.
 // Un fait qui ne vient pas laisse le test au garde du lanceur.
 async function attendre(condition: () => boolean): Promise<void> {
@@ -69,6 +73,7 @@ test("the station's kitchen reaches the supervisor: main red for 10 min launches
     await attendre(() => superviseurLance(temoin).length > 0);
     const [lancement] = superviseurLance(temoin);
     assert.match([...(lancement?.args ?? []), lancement?.entree].join("\n"), /"cause": "main-red"/);
+    await runFini(lancement?.cwd ?? "");
   } finally {
     cuisine.arreter("fin du test");
     await cuisine.arretee?.();
@@ -112,6 +117,7 @@ test("the single-project runtime (main.ts) reaches the supervisor: main red for 
   await jusqua(() => superviseurLance(temoin).length > 0);
   const [lancement] = superviseurLance(temoin);
   assert.match([...(lancement?.args ?? []), lancement?.entree].join("\n"), /"cause": "main-red"/);
+  await runFini(lancement?.cwd ?? "");
   runtime.process.kill("SIGTERM");
   assert.equal(await runtime.fin, 0);
 });
