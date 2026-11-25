@@ -3849,7 +3849,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const lue = relue.status === "fulfilled" ? relue.value : null;
       const resume = [resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base), "", mutations === null ? LIGNE_SANS_MUTATION : resumeDesMutations(mutations, criteres.length, lue?.criteria ?? null, preuve)].join("\n");
       if (renvoi.length > 0) return { verdict: "request-changes", motif: [...renvoi, ...(lue === null ? [] : ["", lue.summary, ...constatsDe(lue)]), "", resume].join("\n") };
-      return { verdict: verdictDeLaRelecture(lue!), motif: [lue!.summary, ...constatsDe(lue!), "", resume].join("\n") };
+      const dite = lue as Lue;
+      return { verdict: verdictDeLaRelecture(dite), motif: [dite.summary, ...constatsDe(dite), "", resume].join("\n") };
     } finally {
       depot.retirer(worktree);
     }

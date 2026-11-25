@@ -284,6 +284,55 @@ test("two review send-backs with the same remark are the same result despite the
   assert.doesNotMatch(corps, /Send-back reason/);
 });
 
+test("the send-back that spends the tries counts itself and states its reason, the chef's card (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(8);
+  let appels = 0;
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: `Remark number ${(appels += 1)}: the page is wrong.` }), avertir: () => {} });
+  for (let tour = 0; tour < 20; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(8) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
+  const dernier = renvois.at(-1) ?? "";
+  assert.match(dernier, /^<!-- brigade:renvoi n=3 sha=/);
+  assert.match(dernier, /still not mergeable after 2 sends back — /);
+  assert.match(dernier, /\n\nSend-back reason: wrong behaviour\n/);
+  assert.doesNotMatch(dernier, /Blocking reason/);
+});
+
+test("the send-back that spends the tries counts itself and states its reason, the ticket going to the manager (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(8);
+  faux.corpsEcrivables = true;
+  let appels = 0;
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: `Remark number ${(appels += 1)}: the page is wrong.` }), avertir: () => {}, reprendre: async () => ({ reprise: { choix: "reecrire", motif: "The page is still wrong.", corps: "Fix the page." } }) });
+  for (let tour = 0; tour < 20; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(8) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
+  const dernier = renvois.find((r) => /still not mergeable/.test(r)) ?? "";
+  assert.match(dernier, /^<!-- brigade:renvoi n=3 sha=/);
+  assert.match(dernier, /still not mergeable after 2 sends back — [\s\S]*the ticket went to the manager/);
+  assert.match(dernier, /\n\nSend-back reason: wrong behaviour\n/);
+  assert.doesNotMatch(dernier, /Blocking reason/);
+});
+
+test("the send-back that sends the ticket to WAITING counts itself and states its reason (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(9);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "Too early: this can only be done from 2026-11-25." }), avertir: () => {}, maintenant: () => new Date("2026-11-18T09:00:00Z") });
+  for (let tour = 0; tour < 12; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(9) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
+  const attente = renvois.find((b) => /handed back twice in a row with the same result/.test(b));
+  assert.match(attente ?? "", /^<!-- brigade:renvoi n=2 sha=/);
+  assert.match(attente ?? "", /\n\nSend-back reason: wrong behaviour\n\nNot relaunched a third time/);
+});
+
 test("a cook that delivers nothing gives the ticket back on the issue, which another station then takes", async () => {
   const faux = new FauxGitHub();
   faux.feu(6);
