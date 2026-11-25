@@ -189,14 +189,14 @@ test("the claim gate names the open PR that holds a zone, and the tour keeps it 
   tickets.push({ number: 20, title: "T20", labels: [...calibre, "taken"], state: "open" }, { number: 21, title: "T21", labels: [...calibre, "in-pass"], state: "open" });
   const github = tour.envelopper({ fires: async () => tickets } as unknown as GitHubDuTour);
   await github.fires();
+  tour.sauter(12, "#12: zone held by the open PR on patch-1", undefined, { pr: 99, branche: "patch-1" });
   tour.sauter(10, "#10: zone held by #20", undefined, { pr: 120, branche: "cook/20-github" });
   tour.sauter(11, "#11: zone held by #21", undefined, { pr: 121, branche: "cook/21-github" });
-  tour.sauter(12, "#12: zone held by the open PR on patch-1", undefined, { pr: 99, branche: "patch-1" });
   assert.deepEqual(tour.zonesTenues(), [
     { ticket: 10, pr: 120, enCook: true, auPass: false },
     { ticket: 11, pr: 121, enCook: false, auPass: true },
     { ticket: 12, pr: 99, enCook: false, auPass: false },
-  ]);
+  ], "in the order of the tickets, not of the skips");
   tour.sauter(12, "#12: capability missing");
   await github.fires();
   tickets = tickets.filter(({ number }) => number !== 11);
@@ -209,7 +209,7 @@ test("the real client reads the activity and the labels of an open PR", async (t
   const github = ouvrirGitHub({ depot: DEPOT, bin: gh.bin });
   gh.repondre(`repos/${DEPOT}/pulls?state=open&per_page=100`, { corps: [{ number: 7, head: { ref: "cook/7-github", sha: "1".repeat(40) }, updated_at: ancien, labels: [{ name: "zone-released" }, {}] }, { number: 8, head: { ref: "patch-1", sha: "2".repeat(40) } }] });
   for (const numero of [7, 8]) gh.repondre(`repos/${DEPOT}/pulls/${numero}/files?per_page=100`, { corps: [] });
-  assert.deepEqual((await github.prsOuvertes?.())?.map(({ number, miseAJour, labels }) => [number, miseAJour, labels]), [[7, ancien, ["zone-released"]], [8, undefined, undefined]]);
+  assert.deepEqual((await github.prsOuvertes?.())?.map(({ number, sha, miseAJour, labels }) => [number, sha, miseAJour, labels]), [[7, "1".repeat(40), ancien, ["zone-released"]], [8, "2".repeat(40), undefined, undefined]]);
 });
 
 // Le superviseur branché, sur un GitHub en mémoire : une PR humaine périmée tient la zone de #10.
@@ -217,16 +217,16 @@ function branche(t: TestContext, options: { arret?: boolean } = {}) {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire);
   t.after(() => journal.fermer());
-  const ecrit = { labels: [] as Array<[number, string[]]>, commentaires: [] as Array<[number, string]>, creees: [] as Array<{ titre: string; corps: string; labels: string[] }> };
+  const ecrit = { labels: [] as Array<[number, string[]]>, commentaires: [] as Array<[number, string]>, creees: [] as Array<{ titre: string; corps: string; labels: string[] }>, depuis: [] as string[] };
   const github = {
     labelliser: async (n: number, labels: string[]) => void ecrit.labels.push([n, labels]),
     delabelliser: async () => undefined,
     commenter: async (n: number, corps: string) => void ecrit.commentaires.push([n, corps]),
     creerIssue: async (c: { titre: string; corps: string; labels: string[] }) => (ecrit.creees.push(c), 500 + ecrit.creees.length),
-    issuesDepuis: async () => [
+    issuesDepuis: async (depuis: string) => (ecrit.depuis.push(depuis), [
       ...ecrit.creees.map((c, i) => ({ number: 501 + i, body: c.corps, association: "OWNER" })),
       { number: 400, body: "<!-- brigade:zone-released pr=91 -->", association: "NONE" },
-    ],
+    ]),
     prsOuvertes: async () => [{ number: 90, branche: "patch-1", fichiers: ["a.ts"], sha: "1".repeat(40), miseAJour: ancien, labels: [] }],
   } as unknown as GitHub;
   const tour = suivreLeTour(() => MAINTENANT);
@@ -249,6 +249,7 @@ test("at a wake of the plugged supervisor, the zone of a skipped ticket held by 
   assert.equal(p.ecrit.commentaires.length, 1);
   assert.match(p.ecrit.commentaires[0]?.[1] ?? "", /^Released the zone held by the stale PR #90/);
   assert.ok(p.ecrit.creees[0]?.labels.includes("chef-todo"));
+  assert.equal(p.ecrit.depuis[0], new Date(MAINTENANT.getTime() - 365 * 86_400_000).toISOString(), "the cards of the last year are looked for");
   assert.ok(p.dits.some((ligne) => /^supervisor on shop: Released the zone held by the stale PR #90/.test(ligne)));
   assert.deepEqual(gestesDe(p.repertoire, "supervisor").map(({ outcome }) => outcome), ["fixed by itself", "handed to the chef"]);
   p.reveiller();
