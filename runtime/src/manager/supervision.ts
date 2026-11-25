@@ -26,11 +26,11 @@ import { couper, COMMENTAIRES_MAX, CORPS_MAX } from "../juger.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous } from "../projections/guardrails.ts";
 import type { Reponse } from "../decoupage.ts";
 
-// Les gestes que le superviseur peut faire sur un ticket mis de côté : ceux de l'étape 4 de la spec que ce ticket sait
-// appliquer, et aucun autre. `rail` : le déparquer sur le rail, avec une note ; `waiting` : le laisser parqué, pour un
+// Les gestes que le superviseur peut faire sur un ticket parqué pour lui : ceux de l'étape 4 de la spec que ce ticket sait
+// appliquer, et aucun autre. `rail` : le déparquer sur le rail, avec une note ; `park` : le laisser parqué, pour un
 // tiers nommé ; `close` : fermer un doublon ou une alerte périmée ; `todo` : le parquer pour le chef — sa carte de TODO —,
 // pour une question de produit ou de design seulement.
-const GESTES = ["rail", "waiting", "close", "todo"] as const;
+const GESTES = ["rail", "park", "close", "todo"] as const;
 type Geste = (typeof GESTES)[number];
 
 // Un contrôle de disjoncteur rejoué au plus toutes les 10 minutes.
@@ -90,7 +90,7 @@ function lireLaDecision(texte: string | null): { valeur: Decision } | { illisibl
   const { gesture, note, third_party: tiers, question } = lu;
   if (!(typeof gesture === "string" && (GESTES as readonly string[]).includes(gesture))) return { illisible: `\`gesture\` is not one of ${GESTES.join(", ")}` };
   if (typeof note !== "string" || note.trim() === "") return { illisible: "`note` is empty" };
-  if (gesture === "waiting" && (typeof tiers !== "string" || tiers.trim() === "")) return { illisible: "`waiting` names no third party in `third_party`" };
+  if (gesture === "park" && (typeof tiers !== "string" || tiers.trim() === "")) return { illisible: "`park` names no third party in `third_party`" };
   if (gesture === "todo" && (typeof question !== "string" || question.trim() === "")) return { illisible: "`todo` asks no question in `question`" };
   return { valeur: { geste: gesture as Geste, note: note.trim(), ...(typeof tiers === "string" ? { tiers: tiers.trim() } : {}), ...(typeof question === "string" ? { question: question.trim() } : {}) } };
 }
@@ -103,12 +103,12 @@ function consigneDuDossier(ticket: Issue, corps: string, commentaires: readonly 
     "",
     "The only gestures you may make:",
     '- "rail": unpark the ticket onto the rail, with a note for the next cook saying what to change;',
-    '- "waiting": keep the ticket parked, waiting for a named third party (`third_party`) — only when what it waits for is outside the kitchen;',
+    '- "park": keep the ticket parked, waiting for a named third party (`third_party`) — only when what it waits for is outside the kitchen;',
     '- "close": close the ticket, when it is a duplicate or a stale alert;',
     '- "todo": post a TODO card for the chef, only for a product or design question (`question`).',
     "You never ask the chef for a technical gesture (a rerun, a merge, a rebase, a log reading).",
     "",
-    'Answer with one JSON object and nothing else: {"gesture": "rail" | "waiting" | "close" | "todo", "note": "what you saw and why", "third_party": "...", "question": "..."} — `third_party` only for "waiting", `question` only for "todo".',
+    'Answer with one JSON object and nothing else: {"gesture": "rail" | "park" | "close" | "todo", "note": "what you saw and why", "third_party": "...", "question": "..."} — `third_party` only for "park", `question` only for "todo".',
     "",
     `# Ticket #${ticket.number} — ${ticket.title}`,
     `Labels: ${ticket.labels.join(", ")}`,
@@ -221,7 +221,7 @@ export function ouvrirSupervision(options: OptionsSupervision) {
         if (!ticket.labels.includes(LABEL)) await github.labelliser(n, [LABEL]);
         await github.delabelliser(n, LABEL_PARKED);
         break;
-      case "waiting":
+      case "park":
         await parquer({ what: note, who: tiers ?? "a third party", followUp: new Date(maintenant().getTime() + RELANCE_PAR_DEFAUT_MS).toISOString() }, `kept it parked, waiting for ${tiers}.`);
         break;
       case "close":

@@ -4,8 +4,7 @@
 // ce qu'un agent peut trancher.
 //
 // `poserALaMain` est le seul endroit où la cuisine parque un ticket pour le chef
-// parce que son cook ne peut pas avancer sans lui (#4129 ; d'abord le label
-// `blocked-on-human`) : avec une question non vide, elle pose `chef-todo` puis
+// parce que son cook ne peut pas avancer sans lui (#4129, #4260) : avec une question non vide, elle pose `chef-todo` puis
 // la carte (`<!-- brigade:todo kind=blocked -->`, la question, ses deux
 // boutons) ; sans, rien n'est posé, et le cas est compté. Le compte est cumulé, jamais remis
 // à zéro, et vit dans le répertoire d'état du projet (`blocages-sans-question.json`).

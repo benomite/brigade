@@ -10,7 +10,7 @@
 // commenter, poser ou retirer un label, relancer un check —, la station la
 // fait elle-même, avec son accès GitHub (`GitHubDuTour`) : elle poste le
 // résultat (le numéro de l'issue ouverte…) en commentaire sur le ticket, où le
-// cook le lit, retire `blocked-on-human` et rend le ticket à la cuisine. Un
+// cook le lit, et rend le ticket à la cuisine. Un
 // autre geste — un accès, un secret, un réglage — reste la carte du chef.
 //
 // Un appel GitHub qui échoue n'est pas avalé : la station rend l'échec avec

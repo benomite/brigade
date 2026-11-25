@@ -434,7 +434,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Les lignes de la carte qui suivent sa question (#3434), dans la forme que l'app lit (tableau/mise-de-cote-github.ts,
   // `carteDeLEcart`) : un bouton par réponse — `- [resume] <réponse>`, qui la poste et rend l'issue au manager ; `close`
   // pour celle qui la ferme —, et, quand la question attend un tiers, `- [wait] Wait for <qui>` d'abord, que l'app joue
-  // en mettant l'issue en WAITING. Puis la recommandation : la réponse recommandée et pourquoi, en une ligne — WAITING
+  // en parquant l'issue pour lui. Puis la recommandation : la réponse recommandée et pourquoi, en une ligne — parquer
   // quand un tiers est attendu —, et aucune sans fondement. Un jugement d'avant #3434 n'en porte aucune : rien.
   const lignesDeLaCarte = (numero: number): string[] => {
     const jugement = dernierJugement(numero);

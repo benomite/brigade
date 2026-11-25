@@ -2,7 +2,7 @@
 //   npm --prefix runtime run manager                s'il juge, les dernières décisions, ce qu'il a écarté, les épiques, et ses réactions aux échecs
 //   npm --prefix runtime run manager -- on | off    refusées : le manager n'a plus d'interrupteur à lui, il suit celui du projet (`switch`, interrupteur.ts)
 //   npm --prefix runtime run manager -- return <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
-//   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien portent `blocked-on-human`
+//   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien sont parquées
 //   npm --prefix runtime run manager -- upstream    ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour un programme
 //   npm --prefix runtime run manager -- approve <n> l'OK du chef à un geste en attente d'un agent sur « propose » (#4039, autonomie/agents/porte.ts) :
 //                                                   le runtime qui tourne le fait à son prochain réveil, une fois ; `manager` seul les liste

@@ -118,7 +118,7 @@ export type FaitManager =
   // capabilities no station provides, `reason`: why the rewrite is impossible.
   | { type: "manager.capability-resplit"; payload: { missing: string[]; run: string | null } }
   | { type: "manager.capability-gestured"; payload: { missing: string[]; reason: string } }
-  // An issue held by `blocked-on-human` was re-read for the decision it awaits.
+  // An issue held for a human, before parked (#4260), was re-read for the decision it awaits: the log's history.
   // `outcome`: `stated` (the decision is written: nothing changes), `card` (a
   // typed TODO card was derived: `card` holds it), `taken-back` (the label was
   // removed, the kitchen judges the issue), `unreadable` (no usable answer: it
@@ -130,7 +130,7 @@ export type FaitManager =
   // An issue judged `incomplete` was followed up (#2692). `outcome`: `completed`
   // (the manager rewrote its acceptance criteria and judged it `fire`:
   // `criteria` holds them), `question` (a `product` TODO card asks the chef
-  // `question`, and the issue carries `product-question`), `unreadable` (no
+  // `question`, and the issue is parked for the chef), `unreadable` (no
   // usable answer). `fingerprint`: that of the verdict it follows — the same
   // one is not followed twice.
   | {

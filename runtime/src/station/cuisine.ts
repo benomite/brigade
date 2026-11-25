@@ -259,7 +259,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 plafonds: reglages.plafonds,
                 graceMs: reglages.graceMs,
                 reviewer: reviewer.calibrage,
-                // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+                // La question d'un cook bloqué va au manager avant que le ticket ne soit parqué pour le chef (#2894).
                 manager: () => decisions.manager(),
                 // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
                 testsAcceptation: () => decisions.manager(),

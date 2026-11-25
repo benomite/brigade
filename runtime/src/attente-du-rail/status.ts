@@ -33,7 +33,7 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme. Un ticket en file porte aussi
 // ses attentes avec leur source (#3763) : son corps, sa fiche et les arrêts de ses cooks, lus de ses commentaires, sur un
 // ticket du rail : un ticket hors du rail ne se dit pas.
-// Un ticket en WAITING n'est pas sur le rail, mais un ticket en file qui l'attend le dit (#3761) : `waiting`, chacun avec
+// Un ticket parqué n'est pas sur le rail, mais un ticket en file qui l'attend le dit (#3761) : `waiting`, chacun avec
 // qui il attend, relu de sa marque ; ses commentaires illisibles ne le cachent pas, ils taisent seulement qui (nul).
 export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<{ tickets: TicketDuRail[]; waiting: TicketEnWaiting[] }> {
   const { depot, lire } = options;
@@ -73,7 +73,7 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
 // Chaque ticket du rail avec les tickets dont le merge passe avant le sien (#4044) : ses dépendances déclarées encore sur le
 // rail, et les tickets en pass dont la PR change un fichier qu'il change aussi. Un ordre qui ne se lit pas ne lie rien.
 async function avecLOrdreDeMerge(depot: string, lire: Lire, tickets: TicketDuRail[]): Promise<TicketDuRail[]> {
-  // Un ticket en WAITING attend un tiers, hors de la suite des merges : sa carte le dit déjà (#3761), elle ne se dit pas « after ».
+  // Un ticket parqué attend quelqu'un, hors de la suite des merges : sa carte le dit déjà (#3761), elle ne se dit pas « after ».
   const surLeRail = new Set(tickets.map(({ ticket }) => ticket));
   const declarees = new Map(tickets.filter(({ etat }) => etat !== "taken").map((carte) => [carte.ticket, carte.depend.filter((n) => n !== carte.ticket && surLeRail.has(n))] as const));
   const enPass = tickets.filter(({ etat }) => etat === "pass").map(({ ticket }) => ticket);

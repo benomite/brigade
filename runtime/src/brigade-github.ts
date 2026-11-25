@@ -111,7 +111,7 @@ import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreu
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
-import { direLaMiseDeCote, RUN_OK, runFiniOk, runsEchoues } from "./set-aside.ts";
+import { direLaMiseDeCote, RUN_OK, runFiniOk, runsEchoues } from "./echecs-sans-livraison.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { superviser, type Supervise } from "./superviseur.ts";
 import { estUneSauvegarde, SUJET_DE_SAUVEGARDE } from "./mise-a-jour/attente/attente.ts";
@@ -406,7 +406,7 @@ export type OptionsDeStation = {
   consulter?: ConsulterLeManager;
   // Le manager, à qui va un ticket après son dernier essai raté (#3513) : il
   // le réécrit, le découpe, le recalibre, ou pose au chef une question de
-  // produit ou de design. Absent, le ticket est mis de côté pour le chef, et
+  // produit ou de design. Absent, le ticket est parqué, et
   // le commentaire le dit.
   reprendre?: ReprendreLeTicket;
   // Le manager, à qui va un ticket du rail tenu plus d'une heure par une
@@ -1561,7 +1561,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const marque = genre === "conflict" ? MARQUE_DE_CONFLIT : "";
     // Rendu deux fois de suite pour le même résultat, il ne repart pas une troisième fois de la même façon (#3814) : ce
     // résultat dit une attente hors de la cuisine — pas avant une date, un tiers —, il est parqué ; sinon ses renvois
-    // sont épuisés, il va au manager, qui le reprend autrement, ou au chef, mis de côté avec sa raison en une ligne.
+    // sont épuisés, il va au manager, qui le reprend autrement, ou il est parqué avec sa raison en une ligne.
     const precedent = genre === "review" ? renvois.at(-1) : undefined;
     const memeResultat = precedent !== undefined && memeRenvoi(precedent.body, raison, new Date(instant()));
     const attenteDite = memeResultat ? lireAttenteDuCook(raison, new Date(instant())) : null;

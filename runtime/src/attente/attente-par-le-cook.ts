@@ -1,4 +1,4 @@
-// La cuisine parque elle-même un ticket (#4129 ; d'abord WAITING, #3814, épique #3813). Sur BOBL-tech/mirrorlab, #824
+// La cuisine parque elle-même un ticket (#3814, épique #3813, #4260). Sur BOBL-tech/mirrorlab, #824
 // ne se faisait qu'à partir du 2026-11-25 : chaque cook disait « Too early », la relecture demandait des changements, et
 // la cuisine l'a relancé toutes les trois minutes pendant 26 h (1 198 runs), sa zone tenant #803 tout ce temps. Ce
 // module fait ce geste :

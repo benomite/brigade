@@ -6,7 +6,7 @@
 // le serveur Postgres, par exemple : une seule carte par station et par
 // prérequis le nomme, quel que soit le nombre de tickets que son absence bloque.
 //
-// La carte est une issue parquée pour le chef (`chef-todo`, #4129 ; d'abord `blocked-on-human`) qui porte une marque
+// La carte est une issue parquée pour le chef (`chef-todo`, #4129) qui porte une marque
 // cachée (station et prérequis) : la station la cherche avant d'en ouvrir une. Sa question est un commentaire de carte,
 // que l'app montre dans le TODO du chef avec son bouton. Une carte fermée par le chef se rouvre si le
 // prérequis manque encore.

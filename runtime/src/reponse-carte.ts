@@ -17,9 +17,8 @@
 //   réponse. Une livraison qui attend le chef — verte, ou remontée — repart
 //   chez un cook, qui lit la réponse à la place des findings ; un ticket 86
 //   sans livraison, ou dont la PR a été fermée sans merge, revient sur le
-//   rail ; une issue retenue par `blocked-on-human`, ou écartée par le manager
-//   sous `question` ou `decision`, perd ce label, et le manager la rejuge, la
-//   réponse sur l'issue ; un ticket en attente sur le rail y reste, et son
+//   rail ; une issue parquée (`chef-todo`, `parked`) ne l'est plus, et le
+//   manager la rejuge, la réponse sur l'issue ; un ticket en attente sur le rail y reste, et son
 //   cook lira l'issue ; un ticket que la cuisine a sorti du rail sans le
 //   servir (abandon-au-chef.ts) y revient, `fire` reposé — sorti avec un
 //   ticket abandonné, c'est sur celui-là que `fire` revient, et il le suit.

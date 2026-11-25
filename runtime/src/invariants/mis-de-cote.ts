@@ -1,5 +1,5 @@
-// Invariant 3 (#4026) : un ticket parqué (`parked`, #4129) ou mis de côté
-// (`served-elsewhere`, et `set-aside:failures` posé avant #4129) a une raison
+// Invariant 3 (#4026) : un ticket parqué (`parked`, #4260) ou mis de côté
+// (`served-elsewhere`) a une raison
 // nommée et une date pour le revoir : rien n'attend « que quelqu'un s'en
 // souvienne ». La raison et la date se lisent de la marque du parking
 // (`<!-- brigade:parked … -->`), la seule fiche du rail qui les porte. Sans

@@ -6,8 +6,8 @@
 // - Le dernier merge : un merge que ce tour a fait, ou un ticket en pass qui
 //   n'est plus parmi les tickets ouverts — une autre station l'a mergé.
 // - Les cuisinables : les tickets `fire` qu'une station prendrait — ni pris, ni
-//   en pass, au calibrage complet, ni mis de côté, ni en attente du chef
-//   (`blocked-on-human`, `chef-todo`) ou d'un tiers (`waiting`), ni une épique
+//   en pass, au calibrage complet, ni mis de côté, ni parqué — pour le chef
+//   (`chef-todo`) ou pour un autre (`parked`) —, ni une épique
 //   ni un besoin dont un ticket lancé est né (#2618, #3479) —, et depuis quand :
 //   le premier tour qui a vu chacun attendre. Un ticket que la porte de prise
 //   a sauté parce qu'il n'attend que des tickets en cuisson n'en est pas un :

@@ -12,13 +12,13 @@
 //     marque de `boucle-attente/levee.ts`, que les trois sources respectent), et
 //     l'issue le dit en une ligne ; le ticket part au tour suivant ;
 //   - `garde`   — la dépendance est réelle : l'issue dit pourquoi, le ticket reste tenu ;
-//   - `produit` — seul le chef tranche : `blocked-on-human`, et la carte porte la question.
+//   - `produit` — seul le chef tranche : le ticket est parqué pour lui (`chef-todo`), et la carte porte la question.
 // Une réponse illisible, ou une station sans manager, laisse l'attente et l'issue
 // le dit. Dans tous les cas, l'issue porte alors une ligne qui dit ce que le
 // ticket attend et qui l'a décidé (la station, le manager ou le chef), et sa
 // marque fait qu'elle ne revient pas : la même attente ne repasse pas au manager.
 // Seule exception, la question au chef : une fois sa réponse donnée et
-// `blocked-on-human` retiré, le manager relit l'attente avec cette réponse.
+// `chef-todo` retiré, le manager relit l'attente avec cette réponse.
 import { dependancesDuCorps } from "../attente-du-rail/raison.ts";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../attente-ticket/attente-ticket.ts";
 import { MARQUE_D_ATTENTE_LEVEE } from "../boucle-attente/levee.ts";
