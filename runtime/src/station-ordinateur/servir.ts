@@ -42,6 +42,7 @@ import { surLeProjetRalenti } from "../limite-github.ts";
 import { ETATS, lieuxDuProjet } from "../station/configuration.ts";
 import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { lireProjetsServis } from "./projets-servis.ts";
+import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
 
 // Ce qui se dit d'un projet que le quota réel de GitHub ralentit : l'heure (UTC) où son appel repart (#3705, #3833).
 const direLeRalentissement = (reprise: number): string => `slowed by the low GitHub quota, resumes at ${new Date(reprise).toISOString().slice(11, 16)} UTC`;
@@ -137,6 +138,7 @@ export function tourDeLaBox(options: OptionsDuService): (projet: ProjetAServir) 
       const retenue = options.retenue;
       const managerDuDepot = reglages?.defaultCalibrations?.manager;
       return stationDuDepot({
+        lireCharge: lireLaCharge,
         nom: options.station,
         places: plafondDesCoeurs(availableParallelism()),
         capacites: capacitesDe([], process.platform === PLATEFORME_LOCALE ? "macos" : undefined),

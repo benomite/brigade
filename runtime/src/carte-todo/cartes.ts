@@ -16,8 +16,9 @@
 // - `fermee`, une PR fermée sans merge : le recommencer, ou le sortir du rail ;
 // - `ecartee`, `illisible` — une issue que le manager ne juge pas, ou qu'il n'a
 //   pas su lire : un seul geste, la lui rendre avec la réponse du chef ;
-// - `question`, la question du manager avant de découper une épique : la
-//   découper comme il l'entend, ou en faire un seul ticket ;
+// - `question`, la question de produit du manager avant de découper une
+//   épique : un seul geste, la lui rendre avec la réponse du chef. Elle ne
+//   demande jamais s'il faut la découper : c'est au manager (#4247) ;
 // - `carte`, entrée par la porte de TODO (carte-todo.ts) : la sienne, telle
 //   qu'elle a été admise ;
 // - `abandon`, un ticket que la cuisine a sorti du rail sans le servir
@@ -180,9 +181,9 @@ function proposition(attente: AttenteDeTicket) {
       };
     case "question":
       return {
-        resume: `The manager asked a question on the epic #${ticket} before splitting it. It splits the epic once your answer is on the issue.`,
-        question: `How does the manager split #${ticket}?`,
-        choix: [choix("Split it as you think best", "resume"), choix("Do not split it: make it a single ticket", "resume")],
+        resume: `The manager asked a product question on the epic #${ticket}: it is on the issue. It splits the epic once your answer is there.`,
+        question: null,
+        choix: [choix("Split it with what the issue says", "resume")],
       };
     case "abandon":
       return {

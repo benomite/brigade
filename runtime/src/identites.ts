@@ -278,7 +278,7 @@ export function ouvrirIdentites(options: OptionsIdentites): Identites {
       frais: async () => (reste(role) > MARGE_MS ? (vivants.get(role)?.jeton ?? echanger(role)) : echanger(role)),
       courant() {
         const vivant = vivants.get(role);
-        if (!vivant || reste(role) <= MARGE_COURANT_MS) throw new Error(`jeton de l'identité « ${role} » indisponible : GitHub n'en a rendu aucun qui vive encore`);
+        if (!vivant || reste(role) <= MARGE_COURANT_MS) throw new Error(`token of the “${role}” identity unavailable: GitHub returned none that is still alive`);
         return vivant.jeton;
       },
     }),

@@ -8,9 +8,9 @@ import { magasinDeNiveaux, NiveauxIllisibles, type Niveaux } from "../../../src/
 import { repertoireTemporaire } from "../../outils.ts";
 
 const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
-// The chef's answer of 2026-11-23 (Q2): supervisor and pass on act, closer on propose, manager on act except
-// splitting an epic, on propose.
-const DU_CHEF: Niveaux = { manager: "act", "manager split-epic": "propose", supervisor: "act", closer: "propose", pass: "act", cook: "act" };
+// The chef's answer of 2026-11-23 (Q2): supervisor and pass on act, closer on propose, manager on act — and splitting
+// an epic on act too since the chef's answer of 2026-11-25 (#4247).
+const DU_CHEF: Niveaux = { manager: "act", "manager split-epic": "act", supervisor: "act", closer: "propose", pass: "act", cook: "act" };
 
 test("a fresh project reads the chef's default levels, and writes nothing", (t) => {
   const repertoire = repertoireTemporaire(t);
