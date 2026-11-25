@@ -56,6 +56,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "arbiter", ancien: "arbitre", description: "The arbiter's weights: weight <project> <n>, remove <project>", mots: { poids: "weight", retirer: "remove" } },
   { nom: "door", ancien: "porte", description: "Hold the door of the project's remote stations (its service)" },
   { nom: "hold-arbiter", ancien: "tenir-arbitre", description: "Run the arbiter between projects (its service)" },
+  { nom: "agents", description: "The Agents tab, for the app: [/api/agents] lists every agent with its state, next run and 7-day figures; /api/agents/<id>/gestures gives its last gestures, newest first" },
   { nom: "help", description: "List these commands" },
 ];
 

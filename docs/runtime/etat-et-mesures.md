@@ -165,6 +165,24 @@ What the shape does not say:
   `status`. The log, the partition, the arbiter have no shape; of the station, only
   its cooks in progress have one.
 
+### The agents, for the Agents tab (#4220)
+
+`npm --prefix runtime run agents -- [<path>]` answers one of two paths with its JSON on one line
+(`runtime/src/agents-tab/`):
+
+- `/api/agents` (the default): one entry per agent of the registry (`agents-tab/registre.ts`) — `id`, `name`,
+  `role`, `state`, `workingOn`, `nextRun`, `figures`, `settings`. `state` is `working` while one of its runs goes on
+  (`workingOn`: its ticket, or null), `broken` when its last run failed, died on a guardrail or stalled and nothing
+  was launched after it, `idle` otherwise. `nextRun` is the schedule the runtime noted (the supervisor, the closer),
+  else null. `figures`: the gestures of its thread in the last 7 days, fixed by itself and handed to the chef — a
+  thread that was not read or cannot be read says so in the value and the meaning. `settings` is null: the settings
+  API (#4222) is not read yet.
+- `/api/agents/<id>/gestures`: its gestures, newest first, as `{at, summary, reason, issue}`; the cooks' entry
+  gathers every cook's thread, each gesture with its ticket. An id the registry does not hold answers 404.
+
+A path that is not served gives its status and reason on the error output, in 1. A runtime that starts a new agent
+adds it to the registry: a test fails otherwise.
+
 ### A profile at dispatch
 
 A profile is a **preference, never a constraint** (`runtime/src/profils/preference.ts`). When
