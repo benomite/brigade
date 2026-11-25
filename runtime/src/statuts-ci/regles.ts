@@ -22,7 +22,8 @@
 // la branche du ticket (`ciDeLaBranche`).
 import { accuseeTantQueRouge, sortirAuVert, ticketDuCheck, type CheckVu } from "../carte-ci-windows.ts";
 import { cartesEnTodo, cartesRetenues, entrerDansTodo } from "../carte-todo.ts";
-import { CONCLUSIONS_VERTES, ECHECS_ATTEINTS } from "../github.ts";
+import { LABEL_PARKED } from "../github-etat/etats.ts";
+import { CONCLUSIONS_VERTES } from "../github.ts";
 import type { Journal } from "../journal.ts";
 import type { RunDeCi } from "../temps-ticket/ci-github.ts";
 import { BRANCHE_PRINCIPALE_PAR_DEFAUT } from "../fiche-projet/defauts.ts";
@@ -71,7 +72,7 @@ function rougesDeSuite(resultats: readonly ResultatDeCheck[]): { check: string; 
 const direLesRuns = (runs: readonly (number | null)[]) => runs.map((run) => (run === null ? "an unnamed run" : `run ${run}`)).join(", ");
 
 const commentaireDesRouges = ({ check, runs }: { check: string; runs: readonly (number | null)[] }): string =>
-  `${MARQUE_DES_ROUGES} check=${check} -->\nThe CI of this ticket is red on \`${check}\` for the third time in a row (${direLesRuns(runs)}). The runtime does not push it again, so no fourth run of this failure starts: the ticket is set aside (\`${ECHECS_ATTEINTS}\`). Remove the label to try again; the count restarts from there.`;
+  `${MARQUE_DES_ROUGES} check=${check} -->\nThe CI of this ticket is red on \`${check}\` for the third time in a row (${direLesRuns(runs)}). The runtime does not push it again, so no fourth run of this failure starts: the ticket is parked (\`${LABEL_PARKED}\`), waiting for the supervisor. Removing \`${LABEL_PARKED}\` tries again; the count restarts from there.`;
 
 // Ce que la règle B décide avant un push. `pousser` faux : le check et les
 // runs qui l'arrêtent, et `nonDit` si le commentaire n'a pas pu s'écrire.

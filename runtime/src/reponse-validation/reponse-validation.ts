@@ -28,6 +28,7 @@
 // plus. Une lecture ou une écriture qui échoue lève : la pass le dit, ne merge
 // pas, et relit au tour suivant.
 import { DE_CONFIANCE } from "../alimenter.ts";
+import { CHEF_TODO } from "../github-etat/etats.ts";
 import type { GitHub } from "../github.ts";
 import { MARQUE_DE_RENVOI } from "../qualite-github.ts";
 import { duBot, separerLaCitation } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
@@ -103,6 +104,8 @@ export async function agirSurLaReponse(github: GitHubDeLaReponse, ticket: number
     return "validated";
   }
   await renvoyerAuCook(github, ticket, pr.sha, renvoiDuChef(ticket, pr.number, lue.texte));
+  // Répondue, sa carte n'attend plus le chef : le ticket n'est plus parqué pour lui, un cook le reprend (#4129).
+  await github.delabelliser(ticket, CHEF_TODO);
   await github.commenter(ticket, `${marqueDeReponse(pr.number, lue.sha, "sent-back")}\nSent back to a cook by the chef on this ticket, for ${livraisonDe(ticket, pr.number)} at ${court}.`);
   return "sent-back";
 }

@@ -7,22 +7,17 @@
 //
 // `creerCarteBacklogVide` est la règle, sans E/S ; carte-du-journal.ts la branche sur la
 // porte de TODO, et le tour du manager (manager.ts) la sert à chaque lecture du backlog.
-import { A_LA_MAIN } from "../brigade-github.ts";
-import { LABEL_WAITING } from "../github-etat/etats.ts";
-import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
-import { MIS_DE_COTE } from "../github.ts";
+import { estParque } from "../github-etat/etats.ts";
+import { estMisDeCote } from "../github.ts";
 
 // Une issue ouverte du backlog, telle que le tour du manager la lit.
 export type IssueDuBacklog = { number: number; labels: readonly string[] };
 
 // Le label d'une idée en réserve : jamais cuite (#3536).
 const IDEE = "idea";
-// Les labels d'une issue parquée : `parked`, et ceux que le parking remplace (règle 13) —
-// WAITING, mis de côté, `blocked-on-human`, `chef-todo`, `question`, `decision`.
-const LABELS_PARQUES: readonly string[] = ["parked", LABEL_WAITING, A_LA_MAIN, CHEF_TODO, "question", "decision", ...MIS_DE_COTE];
 
-// Une issue que le manager peut cuire : ni une idée, ni parquée.
-const cuisinable = ({ labels }: IssueDuBacklog): boolean => !labels.includes(IDEE) && !labels.some((label) => LABELS_PARQUES.includes(label));
+// Une issue que le manager peut cuire : ni une idée, ni parquée (`estParque`, règle 13), ni hors de cette cuisine.
+const cuisinable = ({ labels }: IssueDuBacklog): boolean => !labels.includes(IDEE) && !estParque(labels) && !estMisDeCote(labels);
 
 // Ce que la carte dit au chef, dans les mots du glossaire.
 const TEXTE_BACKLOG_VIDE = "Nothing is left to cook: every open issue in the backlog is an idea or parked, or none is open.";

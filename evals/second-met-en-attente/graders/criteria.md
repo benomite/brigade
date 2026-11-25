@@ -17,6 +17,6 @@ Réussite si toutes ces conditions tiennent :
   chef à un bouton.
 
 Échec si la réponse passe par `brigade … waiting set` ou `ssh`, si elle pose
-le label `waiting` ou un commentaire à la main (`gh issue edit`, `gh issue
+le label `parked` ou un commentaire à la main (`gh issue edit`, `gh issue
 comment`), si elle invente une autre date que le 21 octobre 2026, ou si elle
 n'écrit aucune commande.

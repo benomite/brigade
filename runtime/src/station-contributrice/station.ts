@@ -7,7 +7,7 @@
 // renouvelées, puis, tant qu'elle a des places, un ticket prenable pris
 // (`reclamation.ts`) et son cook lancé, sans l'attendre. Prenable : sur le
 // rail (`fire`), ni épique, ni tenu par une station du dépôt (`taken`,
-// `in-pass`), ni en attente (`waiting`, `blocked-on-human`, `served-elsewhere`),
+// `in-pass`), ni parqué (`estParque`), ni servi ailleurs (`served-elsewhere`),
 // calibré, sans dépendance ouverte, sans PR ouverte de sa branche, et que
 // personne ne tient. Un cook qui ne livre pas lâche le ticket — la station ne
 // le reprend plus s'il était bloqué, ni après `ECHECS_MAX` cooks sans
@@ -18,7 +18,7 @@ import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { attendusDuCorps } from "../attente-ticket/attente-ticket.ts";
 import { horsDesTickets } from "../issue-de-la-cuisine.ts";
-import { brancheDuTicket, delaiDesGatesMs, ECHECS_MAX, runDuTicket, A_LA_MAIN, verdictDesGates, type Lancer, type StationGitHub } from "../brigade-github.ts";
+import { brancheDuTicket, delaiDesGatesMs, ECHECS_MAX, runDuTicket, verdictDesGates, type Lancer, type StationGitHub } from "../brigade-github.ts";
 import { environnementHorsGitHub, ticketJoint } from "../bac-a-sable/hors-github.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "../calibrage.ts";
@@ -26,7 +26,7 @@ import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from 
 import { envelopper, type Cloison } from "../cloison.ts";
 import type { Depot } from "../depot.ts";
 import type { Plafonds } from "../events/guardrails.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
 import type { GardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { MIS_DE_COTE, type GitHub, type Issue } from "../github.ts";
 import { environnementClaude } from "../jeton-claude.ts";
@@ -38,8 +38,8 @@ import { superviser } from "../superviseur.ts";
 import { oublierLaBranche, pousserDansLaFourche, type Fourche } from "./fourche.ts";
 import { estUneReclamation, reclamer, rendre, renouveler, type ContexteDeReclamation, type GitHubDeLaReclamation } from "./reclamation.ts";
 
-// Les labels qui retirent un ticket de ceux qu'une station contributrice prend.
-const NON_PRENABLES = [LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN, ...MIS_DE_COTE];
+// Les labels qui retirent un ticket de ceux qu'une station contributrice prend ; un ticket parqué ne se prend pas non plus.
+const NON_PRENABLES = [LABEL_TAKEN, LABEL_IN_PASS, ...MIS_DE_COTE];
 
 type TicketDuRail = Pick<Issue, "number" | "title" | "labels" | "epique" | "pr" | "alerte">;
 
@@ -200,7 +200,7 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
     if (ticket.pr || ticket.epique || enVol.has(ticket.number) || ecartes.has(ticket.number)) return null;
     // Une alerte que la station a ouverte sur la cuisine n'est pas un ticket du projet (#3620).
     if (horsDesTickets(ticket.alerte)) return null;
-    if (ticket.labels.some((label) => NON_PRENABLES.includes(label))) return null;
+    if (estParque(ticket.labels) || ticket.labels.some((label) => NON_PRENABLES.includes(label))) return null;
     if (ouvertes.has(brancheDuTicket(ticket.number))) return null;
     const calibrage = calibrageDesLabels(ticket.labels);
     return complet(calibrage) ? calibrage : null;

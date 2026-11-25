@@ -2,12 +2,13 @@
 // ni relancé deux fois.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { attenteDeLIssue } from "../../src/attente-github/marque.ts";
 import { avecLaTete } from "../../src/invariants/meme-echec.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 const echecs = (faux: FauxGitHub, numero: number) => (faux.commentaires.get(numero) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).map((c) => c.body);
 
-test("the stop is written on the ticket, and the ticket is set aside for the supervisor; a ticket without a PR names no commit, and is relaunched as before", async () => {
+test("the stop is written on the ticket, and the ticket is parked for the supervisor; a ticket without a PR names no commit, and is relaunched as before", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, CALIBRE);
   const pr = faux.prOuverte(["runtime/src/a.ts"], "cook/1-abcdef01");
@@ -21,8 +22,12 @@ test("the stop is written on the ticket, and the ticket is set aside for the sup
   }
   assert.match(echecs(faux, 1)[0] ?? "", new RegExp(`^<!-- brigade:echec n=1${avecLaTete(pr.sha)} -->`), "the failure names the commit it left");
   const arret = (faux.commentaires.get(1) ?? []).map((c) => c.body).find((body) => /invariant 2/i.test(body)) ?? "";
-  assert.match(arret, new RegExp(`relaunched on commit \`${pr.sha.slice(0, 7)}\` of PR #${pr.number}[\\s\\S]*stopped it[\\s\\S]*set-aside:failures`));
-  assert.ok(faux.ticket(1).labels.has("set-aside:failures"));
+  assert.match(arret, new RegExp(`relaunched on commit \`${pr.sha.slice(0, 7)}\` of PR #${pr.number}[\\s\\S]*stopped it[\\s\\S]*parked \\(\`parked\`\\) with its reason: it waits for the supervisor`));
+  // Parqué par ses échecs (#4129) : sa marque dit qu'il attend le superviseur, qui reçoit son dossier.
+  assert.ok(faux.ticket(1).labels.has("parked"));
+  assert.ok(!faux.ticket(1).labels.has("set-aside:failures"));
+  const attente = attenteDeLIssue(faux.commentaires.get(1) ?? []);
+  assert.deepEqual([attente?.who, attente?.failures], ["the supervisor", true]);
   assert.equal(faux.cuissons.filter(({ issue }) => issue === 1).length, 1);
   // Sans PR : ni tête dite, ni arrêt — ses essais comptent comme avant.
   assert.equal(fois, 3);

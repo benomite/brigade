@@ -12,13 +12,13 @@
 //     marque de `boucle-attente/levee.ts`, que les trois sources respectent), et
 //     l'issue le dit en une ligne ; le ticket part au tour suivant ;
 //   - `garde`   — la dépendance est réelle : l'issue dit pourquoi, le ticket reste tenu ;
-//   - `produit` — seul le chef tranche : `blocked-on-human`, et la carte porte la question.
+//   - `produit` — seul le chef tranche : le ticket est parqué pour lui (`chef-todo`), et la carte porte la question.
 // Une réponse illisible, ou une station sans manager, laisse l'attente et l'issue
 // le dit. Dans tous les cas, l'issue porte alors une ligne qui dit ce que le
 // ticket attend et qui l'a décidé (la station, le manager ou le chef), et sa
 // marque fait qu'elle ne revient pas : la même attente ne repasse pas au manager.
 // Seule exception, la question au chef : une fois sa réponse donnée et
-// `blocked-on-human` retiré, le manager relit l'attente avec cette réponse.
+// `chef-todo` retiré, le manager relit l'attente avec cette réponse.
 import { dependancesDuCorps } from "../attente-du-rail/raison.ts";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../attente-ticket/attente-ticket.ts";
 import { MARQUE_D_ATTENTE_LEVEE } from "../boucle-attente/levee.ts";
@@ -71,9 +71,11 @@ function corpsDeLaGarde({ ticket, attendus, origine, commentaire }: { ticket: nu
 
 function corpsDeLaQuestion({ station, ticket, attendus, origine, question }: { station: string; ticket: number; attendus: readonly number[]; origine: string; question: string }): string {
   return [
+    // Une carte du TODO du chef (#4129) : le ticket est parqué pour lui (`chef-todo`).
+    "<!-- brigade:todo kind=blocked -->",
     `**Question for the chef (product):** ${surUneLigne(question)}`,
     "",
-    `Station \`${station}\`: #${ticket} has waited more than an hour for ${liste(attendus)} (${origine}). The manager reviewed the wait: whether it holds is a product decision, only the chef makes it. Answer it on this issue, then remove \`blocked-on-human\`: the manager reads your answer, then lifts or keeps the wait.`,
+    `Station \`${station}\`: #${ticket} has waited more than an hour for ${liste(attendus)} (${origine}). The manager reviewed the wait: whether it holds is a product decision, only the chef makes it. Answer this card: the manager reads your answer, then lifts or keeps the wait.`,
     marque("produit", attendus),
   ].join("\n");
 }

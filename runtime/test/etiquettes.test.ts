@@ -5,9 +5,9 @@ import { ANCIEN_NOM_DE_SERVED_ELSEWHERE as ANCIEN, ETIQUETTES, LABELS_RENOMMES, 
 import { motsFrancaisDans } from "./aides/glossaire.ts";
 
 const ATTENDUS = [
-  "product", "design", "triage", "blocked-on-human", "feature", "fix", "tech", "prio:0", "prio:1", "prio:2", "prio:3", "fire",
+  "product", "design", "triage", "feature", "fix", "tech", "prio:0", "prio:1", "prio:2", "prio:3", "fire",
   "model:opus", "model:sonnet", "model:haiku", "effort:low", "effort:medium", "effort:high", "effort:xhigh", "effort:max",
-  "decision", "epic", "served-elsewhere", "set-aside:failures", "tests-written", "taken", "in-pass", "waiting", "chef-todo", "product-question", "idea", "horizon:1", "horizon:2", "horizon:3", "kitchen-board",
+  "epic", "served-elsewhere", "tests-written", "taken", "in-pass", "parked", "chef-todo", "idea", "horizon:1", "horizon:2", "horizon:3", "kitchen-board",
 ];
 
 test("le catalogue porte chaque label du projet, une fois", () => {
