@@ -71,7 +71,7 @@ function consigne(depot: string, dossier: Dossier, sauts: readonly string[], rai
     "",
     '- `{"gesture": "rerun", "ticket": N | null}` — relancer les jobs en échec des checks rouges de la base.',
     '- `{"gesture": "back-on-rail", "ticket": N, "note": "…"}` — remettre un ticket sur le rail, avec la note que le prochain cook lira.',
-    '- `{"gesture": "waiting", "ticket": N, "what": "…", "who": "…"}` — mettre un ticket de côté en WAITING, pour un tiers nommé.',
+    '- `{"gesture": "park", "ticket": N, "what": "…", "who": "…"}` — parquer un ticket pour un tiers nommé : qui il attend, pour quoi ; rien ne le prend avant.',
     '- `{"gesture": "close-duplicate", "ticket": N, "of": M}` — fermer un doublon, ou une alerte périmée, au profit de M.',
     '- `{"gesture": "fix", "cause": "…", "title": "…", "body": "…", "check": "<check rouge>" | null}` — ouvrir UN ticket `fix` pour une cause neuve. Sur une base rouge, il nomme le check rouge qu\'il répare.',
     '- `{"gesture": "todo", "ticket": N, "kind": "product" | "design", "question": "…"}` — seulement pour une question de produit ou de design que seul le chef tranche.',

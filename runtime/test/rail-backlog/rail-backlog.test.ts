@@ -36,6 +36,11 @@ test("without `fire`, set aside by the manager, waiting on a third party or out 
   assert.deepEqual(topDuBacklog(backlog).map((i) => i.number), [7]);
 });
 
+test("a parked issue is not on the rail, whatever label parks it: `parked`, a chef's card or a waiting label from before parked (#4260)", () => {
+  const backlog = [issue(1, [...PRETE, "parked"]), issue(2, [...PRETE, "chef-todo"]), issue(3, [...PRETE, "product-question"]), issue(4, [...PRETE, "question"]), issue(5, [...PRETE])];
+  assert.deepEqual(topDuBacklog(backlog).map((i) => i.number), [5]);
+});
+
 test("an unreadable creation date goes after the dated issues of its priority; equal dates go by number", () => {
   const backlog = [issue(1, [...PRETE, "prio:2"], "not a date"), issue(3, [...PRETE, "prio:2"], "2026-11-02T10:00:00Z"), issue(2, [...PRETE, "prio:2"], "2026-11-02T10:00:00Z"), issue(4, [...PRETE, "prio:1"], "not a date")];
   assert.deepEqual(topDuBacklog(backlog).map((i) => i.number), [4, 2, 3, 1]);

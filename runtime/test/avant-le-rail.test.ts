@@ -41,8 +41,8 @@ test("un tableau de référence : chaque issue dans un seul des cinq états, et 
   noter({ type: "manager.judged", payload: { ...REFUS, kind: "epic" } }, 31);
   // Mise sur le rail par le manager, `fire` pas encore posé.
   noter({ type: "manager.judged", payload: LANCE }, 34);
-  // Écartées par le code : un `blocked-on-human`, et `served-elsewhere` jugé.
-  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 42);
+  // Écartées par le code : un ticket parqué, et `served-elsewhere` jugé.
+  noter({ type: "manager.set-aside", payload: { reason: "parked", fired: false } }, 42);
   noter({ type: "manager.set-aside", payload: { reason: "served-elsewhere", fired: false } }, 43);
   const ouvertes = [
     issue(10),
@@ -58,7 +58,7 @@ test("un tableau de référence : chaque issue dans un seul des cinq états, et 
     issue(35, ["model:sonnet", "effort:low", "prio:1"]),
     issue(40),
     issue(41),
-    issue(42, ["blocked-on-human"]),
+    issue(42, ["parked"]),
     issue(43, ["served-elsewhere"]),
     // `served-elsewhere` l'emporte sur tout le reste : calibrée, épique, elle est mise de côté.
     issue(44, ["served-elsewhere", "epic", "model:opus", "effort:high"]),
@@ -88,11 +88,11 @@ test("un tableau de référence : chaque issue dans un seul des cinq états, et 
   assert.match(de(34)?.dit ?? "", /put on the rail by the manager, sonnet \/ low/);
 });
 
-test("un ticket mis de côté par son compte d'échecs le dit en toutes lettres, jamais « served-elsewhere » (#3528)", (t) => {
+test("un ticket parqué par son compte d'échecs le dit en toutes lettres, jamais « served-elsewhere » (#3528, #4260)", (t) => {
   const { base } = journal(t);
-  const [carte] = avantLeRail(base, [issue(70, ["fire", "model:opus", "effort:high", "set-aside:failures"])]);
+  const [carte] = avantLeRail(base, [issue(70, ["fire", "model:opus", "effort:high", "parked"])]);
   assert.equal(carte?.etat, "mise-de-cote");
-  assert.match(carte?.dit ?? "", /set aside by its failure count/);
+  assert.match(carte?.dit ?? "", /parked \(`parked`\): it waits for someone/);
   assert.doesNotMatch(carte?.dit ?? "", /served-elsewhere|not serve/);
 });
 

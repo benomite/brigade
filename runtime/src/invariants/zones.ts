@@ -2,8 +2,8 @@
 // pass ne tient ni ne réserve aucune zone de fichiers. Sa PR ouverte pas plus :
 // sinon des tickets en file se retiennent en cycle (#3979), ou la livraison
 // d'une épique retient ses propres tickets découpés (#3932).
-import { A_LA_MAIN, secoupent, type TicketLu } from "../brigade-github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { secoupent, type TicketLu } from "../brigade-github.ts";
+import { CHEF_TODO, estParque, LABEL_IN_PASS, LABEL_TAKEN, LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../github-etat/etats.ts";
 import { tenant } from "../github-etat/prise.ts";
 import { estMisDeCote } from "../github.ts";
 import type { Invariant } from "./invariants.ts";
@@ -17,23 +17,23 @@ const ticketDeLaBranche = (branche: string): number | null => {
 
 // La PR ouverte de la branche `cook/<n>-…` tient-elle encore sa zone ? Non quand
 // son ticket, lu au tour, n'a de cook nulle part et n'est pas en pass : mis de
-// côté ou en WAITING (#3798, #3814), libre, ou `taken` sans prise lisible
+// côté ou parqué (#3798, #3814, #4260), libre, ou `taken` sans prise lisible
 // (#3966). Une livraison qui attend le chef la tient tant qu'il ne l'a pas vue
-// (#2977). Un ticket que le tour n'a pas lu, ou dont la prise ne se lit pas, la
+// (#2977), parquée pour lui (`chef-todo`, ou un label d'attente du chef d'avant parked). Un ticket que le tour n'a pas lu, ou dont la prise ne se lit pas, la
 // tient encore : dans le doute, la zone reste tenue.
 export async function tientSaZone(branche: string, { tickets, enCuisine, commentaires }: LectureDeLaPrise): Promise<boolean> {
   const numero = ticketDeLaBranche(branche);
   const lu = numero === null ? undefined : tickets.find((ticket) => ticket.number === numero);
   if (lu === undefined || enCuisine(lu.number) || lu.labels.includes(LABEL_IN_PASS)) return true;
-  if (estMisDeCote(lu.labels) || lu.labels.includes(LABEL_WAITING)) return false;
-  if (lu.labels.includes(A_LA_MAIN)) return true;
+  if ([CHEF_TODO, ...LABELS_D_AVANT_PARKED_POUR_LE_CHEF].some((label) => lu.labels.includes(label))) return true;
+  if (estMisDeCote(lu.labels) || estParque(lu.labels)) return false;
   if (!lu.labels.includes(LABEL_TAKEN)) return false;
   return commentaires(lu.number).then((lus) => tenant(lus, []) !== null).catch(() => true);
 }
 
 // Un ticket qui attend une prise, et donc sa zone.
 const attendUnePrise = (ticket: TicketLu, enCuisine: (numero: number) => boolean) =>
-  !enCuisine(ticket.number) && ![LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING, A_LA_MAIN].some((label) => ticket.labels.includes(label)) && !estMisDeCote(ticket.labels);
+  !enCuisine(ticket.number) && ![LABEL_TAKEN, LABEL_IN_PASS].some((label) => ticket.labels.includes(label)) && !estParque(ticket.labels) && !estMisDeCote(ticket.labels);
 
 // Cassé quand la PR ouverte d'un tel ticket change des fichiers de la zone d'un
 // ticket qui attend sa prise. La porte de prise ne compte plus cette PR

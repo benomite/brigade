@@ -2,6 +2,7 @@
 // `fire`, leurs labels, leurs PR, la station qui tient chacune —, puis ce qui est avant le rail, rangé d'après les
 // labels seuls ; et, quand rien ne se lit, un échec qui dit pourquoi en une phrase — jamais un rail vide. Rien ne passe
 // par le réseau : l'appel à GitHub est une doublure, qui répond selon le chemin demandé.
+import { LABELS_D_AVANT_PARKED } from "../../../runtime/src/github-etat/etats.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -135,7 +136,8 @@ test("ce qui est avant le rail : les issues ouvertes sans `fire`, chacune dans l
 
 test("l'état avant le rail se tire des labels seuls", () => {
   assert.deepEqual(avantLeRailDe(["served-elsewhere", "epic"]), { etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" });
-  assert.deepEqual(avantLeRailDe(["blocked-on-human", "model:opus", "effort:high"]), { etat: "mise-de-cote", dit: "it carries `blocked-on-human`: a human decides" });
+  // Parquée — `parked`, sa carte du chef, ou un label d'attente d'avant parked (#4260) —, comme le runtime la lit (runtime/src/amont.ts).
+  for (const labels of [["parked"], ["chef-todo"], [LABELS_D_AVANT_PARKED[0] as string]]) assert.deepEqual(avantLeRailDe([...labels, "model:opus", "effort:high"]), { etat: "mise-de-cote", dit: "parked (`parked`): it waits for someone — who, for what and until when are on the issue; nothing takes it before" }, labels.join());
   assert.deepEqual(avantLeRailDe(["epic", "model:opus", "effort:high"]), { etat: "epique", dit: "it carries `epic`: not split yet" });
   assert.deepEqual(avantLeRailDe(["prio:2", "model:opus", "effort:high"]), { etat: "prete", dit: "calibrated (model:opus, effort:high), without `fire`: the rail takes it once `fire` is set" });
   // L'un sans l'autre n'est pas calibré.

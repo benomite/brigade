@@ -1,5 +1,5 @@
 // Les gestes du chef écrits sur GitHub même (#2061) : « remove from the rail » retire le label `fire` de l'issue,
-// « back to the kitchen » et « it arrived » retirent `waiting`, et le commentaire de la fiche est posté sur l'issue du
+// « back to the kitchen » et « it arrived » retirent `parked` (#4129, d'abord `waiting`), et le commentaire de la fiche est posté sur l'issue du
 // ticket, par l'accès GitHub de l'app. Rien ne part sans lecture du rail, ni pour un ticket qu'elle ne porte pas. Joué
 // contre un GitHub en mémoire, qui note chaque demande.
 import assert from "node:assert/strict";
@@ -7,6 +7,7 @@ import { describe, test } from "node:test";
 import { commenter, PRIX } from "../src/discussion.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub, ticketsLus } from "../src/gestes-github.ts";
 import type { ClientDeLaPriorite } from "../src/priorite.ts";
+import { LABELS_D_AVANT_PARKED } from "../../runtime/src/github-etat/etats.ts";
 import type { ReponseGitHub } from "../src/tableau/client.ts";
 import type { TableauLu } from "../src/tableau/lecture.ts";
 
@@ -47,13 +48,31 @@ describe("retirer le label du geste de l'issue du ticket", () => {
     assert.deepEqual(demandes, ["DELETE /repos/chef/parade/issues/22/labels/fire"]);
   });
 
-  test("« back to the kitchen » sur un ticket de TODO : `waiting` retiré", async () => {
+  test("« back to the kitchen » sur un ticket de TODO : `parked` retiré", async () => {
     const { client, demandes } = github();
     assert.deepEqual(await retirerLeLabel(LU, "cuisine", 31, client), {
-      fait: "back to the kitchen on GitHub: #31 no longer carries `waiting` — it is queued on the rail again",
+      fait: "back to the kitchen on GitHub: #31 no longer carries `parked` — it resumes exactly where it was",
       detail: "https://github.com/chef/parade/issues/31",
     });
-    assert.deepEqual(demandes, ["DELETE /repos/chef/parade/issues/31/labels/waiting"]);
+    assert.deepEqual(demandes, ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/chef/parade/issues/31/labels/${encodeURIComponent(label)}`));
+  });
+
+  // #4260 : un ticket qu'un label d'attente d'avant parked parque (`blocked-on-human`, `set-aside:failures`…) est parqué pour la
+  // cuisine (runtime/src/github-etat/etats.ts, `estParque`) : « back to the kitchen » le lui retire aussi, ou il ne reprendrait jamais.
+  test("« back to the kitchen » sur un ticket parqué par un label d'avant parked : ce label retiré aussi — il reprend ; refusé, la phrase dit que `parked` est retiré, pas lui", async () => {
+    const [ancien] = LABELS_D_AVANT_PARKED.filter((label) => label !== "waiting");
+    const porte = new Set(["fire", ancien as string]);
+    const { client, demandes } = github((methode, chemin) => {
+      const label = decodeURIComponent(chemin.split("/labels/")[1] ?? "");
+      return methode === "DELETE" && porte.delete(label) ? { status: 200, data: [] } : { status: 404, data: { message: "Label does not exist" } };
+    });
+    assert.ok("fait" in (await retirerLeLabel(LU, "cuisine", 31, client)));
+    assert.deepEqual([...porte], ["fire"]);
+    assert.ok(demandes.includes(`DELETE /repos/chef/parade/issues/31/labels/${encodeURIComponent(ancien as string)}`), demandes.join("\n"));
+    const refuse = github((_, chemin) => (chemin.endsWith(`/labels/${encodeURIComponent(ancien as string)}`) ? REFUSE : { status: 200, data: [] }));
+    const dit = await retirerLeLabel(LU, "cuisine", 31, refuse.client);
+    assert.ok("refus" in dit, JSON.stringify(dit));
+    assert.equal(dit.refus, `\`parked\` is removed, but GitHub did not remove \`${ancien}\` from #31`);
   });
 
   test("une issue qui ne porte déjà plus le label (404) : c'est fait", async () => {
