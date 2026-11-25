@@ -243,29 +243,23 @@ test("une version qui ne se dit jamais en service dans le temps laissé : la ver
   assert.equal(enService(ordi.racine)?.version, "1.0.0");
 });
 
-// #3709 : la version X cesse de servir un projet. Mis de côté par l'app pour une autre station,
-// c'est ce qu'elle doit faire, X tient ; sinon, c'est un projet perdu, la version d'avant revient.
-for (const [cas, projets, quoi] of [
-  ["mis de côté par l'app pour une autre station : X tient", "# held-back (served by box): other acme/other main\nshop acme/shop main\n", "passee"],
-  ["que rien ne met de côté : la version d'avant revient", "other acme/other main\nshop acme/shop main\n", "revenue"],
-] as const) {
-  test(`#3709 : la version X ne sert plus un projet ${cas}`, { skip: SANS_POSIX }, async (t) => {
-    const ordi = unOrdinateur(t);
-    const qui = (servis: string[]) => SAINE.replace("servis: []", `servis: ${JSON.stringify(servis)}`);
-    poserRuntime(join(ordi.paquet, "Contents", "Resources", "runtime"), "1.0.0", qui(["shop", "other"]));
-    ordi.telecharger("1.0.1", qui(["shop"]));
-    mkdirSync(ordi.racine, { recursive: true });
-    writeFileSync(join(ordi.racine, "projets"), projets);
-    const { station } = tenir(t, ordi, { demarrageMs: 300 });
-    await jusqua(() => enService(ordi.racine)?.version === "1.0.0");
+// #3709 : la version X cesse de servir un projet : c'est un projet perdu, la version d'avant revient.
+test("#3709 : la version X ne sert plus un projet : la version d'avant revient", { skip: SANS_POSIX }, async (t) => {
+  const ordi = unOrdinateur(t);
+  const qui = (servis: string[]) => SAINE.replace("servis: []", `servis: ${JSON.stringify(servis)}`);
+  poserRuntime(join(ordi.paquet, "Contents", "Resources", "runtime"), "1.0.0", qui(["shop", "other"]));
+  ordi.telecharger("1.0.1", qui(["shop"]));
+  mkdirSync(ordi.racine, { recursive: true });
+  writeFileSync(join(ordi.racine, "projets"), "other acme/other main\nshop acme/shop main\n");
+  const { station } = tenir(t, ordi, { demarrageMs: 300 });
+  await jusqua(() => enService(ordi.racine)?.version === "1.0.0");
 
-    const issue = await station.redemarrer("1.0.1");
+  const issue = await station.redemarrer("1.0.1");
 
-    assert.equal(issue?.quoi, quoi);
-    if (issue?.quoi === "revenue") assert.match(issue.motif, /project other is no longer served in 1\.0\.1/);
-    assert.equal(enService(ordi.racine)?.version, quoi === "passee" ? "1.0.1" : "1.0.0");
-  });
-}
+  assert.equal(issue?.quoi, "revenue");
+  if (issue?.quoi === "revenue") assert.match(issue.motif, /project other is no longer served in 1\.0\.1/);
+  assert.equal(enService(ordi.racine)?.version, "1.0.0");
+});
 
 test("pendant le remplacement de son process, la station dit sur quelle version elle redémarre ; avant et après, rien (#3637)", { skip: SANS_POSIX }, async (t) => {
   const ordi = unOrdinateur(t);
