@@ -3881,19 +3881,6 @@ main > header {
   font-weight: 600;
   color: var(--texte);
 }
-[data-bloc="closer"] p.verification {
-  display: grid;
-  grid-template-columns: 220px auto 1fr;
-  align-items: center;
-  justify-items: start;
-  gap: 0 var(--pas-3);
-  padding: var(--pas-1) 0;
-  color: var(--texte);
-  border-top: 1px solid var(--trait-doux);
-}
-[data-bloc="closer"] p.verification > .nom {
-  color: var(--discret);
-}
 [data-bloc="closer"] ol.candidats {
   display: flex;
   flex-direction: column;

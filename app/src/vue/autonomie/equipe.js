@@ -8,6 +8,8 @@
 // Les données passent par autonomie/source.js, et par lui seul : la vue n'appelle que `source.lire`, `source.regler` et
 // `source.approuver`. Une lecture qui ne rend rien ne pose aucune équipe ; une lecture qui échoue, ou qui ne se lit pas,
 // se dit en une ligne, son détail au survol ; un geste qui échoue aussi, et rien ne change à l'écran.
+// Avec `ouvrir`, un badge n'ouvre plus son fil sous la rangée : il ouvre l'onglet Agents sur son agent (ticket 4117), où
+// l'agent a ses réglages et ses derniers gestes ; le badge reste le résumé. Sans lui, le fil s'ouvre sous les badges.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { heureUtc } from "../activite-du-cook.js";
@@ -70,8 +72,8 @@ const detailDe = (erreur) => (erreur instanceof Error ? erreur.message : String(
 
 // L'équipe posée dans `cadre`, la section en tête de la vue du projet. `lire(projet)` la relit — à l'ouverture du
 // projet, à chaque lecture de son rail ; `montrer(projet)` la montre pour le projet affiché, et la cache pour tout autre.
-/** @param {Fabrique} doc @param {any} cadre */
-export function tenirLEquipe(doc, cadre) {
+/** @param {Fabrique} doc @param {any} cadre @param {{ ouvrir?: (agent: string) => void }} [options] */
+export function tenirLEquipe(doc, cadre, { ouvrir } = {}) {
   const element = doc.createElement("div");
   element.className = "equipe";
   element.ariaLabel = TITRE;
@@ -158,6 +160,7 @@ export function tenirLEquipe(doc, cadre) {
     for (const ligne of cree.children) ligne.title = ligne.textContent;
     if (agent.pending.length > 0) cree.append(texte("attente", `${agent.pending.length} ${EN_ATTENTE}`));
     cree.addEventListener("click", () => {
+      if (ouvrir !== undefined) return ouvrir(agent.agent);
       ouvert = ouvert === agent.agent ? null : agent.agent;
       rendre();
     });

@@ -23,7 +23,9 @@ function poste(racine: string): Cuisine {
 describe("les onglets de contenu d'un espace", () => {
   test("il n'y a que Log — ni Rail ni Manager (#1700), ni Cooks (#2921), ni Grants (#2924)", () => {
     assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Log"]);
-    assert.deepEqual(RUBRIQUES.map(({ lectures }) => lectures), [["parametres"]]);
+    // Les pages sans commande : Agents (#4117), puis Settings.
+    assert.deepEqual(RUBRIQUES.map(({ lectures }) => lectures), [["agents"], ["parametres"]]);
+    assert.deepEqual(RUBRIQUES.map(({ titre }) => titre), ["Agents", "Settings"]);
   });
 
   test("chacun relaie une commande que le geste de la box accepte : un script du runtime, tel qu'il existe", () => {

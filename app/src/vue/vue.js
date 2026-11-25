@@ -96,6 +96,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { tenirLesChiffresDAutonomie } from "./autonomie/chiffres.js";
 import { tenirLEquipe } from "./autonomie/equipe.js";
+import { tenirLesAgents } from "./agents/agents.js";
 import { capaciteDuBesoin, choixDeCapacites, revenir, SEULE, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE } from "./apprentissage.js";
 import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
@@ -208,6 +209,8 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 /** @typedef {import("../alertes.ts").Alerte} Alerte */
 // Ce que `onglets.ts` nomme : l'onglet Paramètres, qui n'a pas de commande à lui.
 const PARAMETRES = "parametres";
+// Et l'onglet Agents (ticket 4117), qui n'a pas non plus de commande à lui : les agents du projet, lus par le process principal.
+const AGENTS = "agents";
 // Et la lecture de la page des coûts de l'app (ticket 1022) : `station`, sur la box de chaque projet (onglets.ts, `COUTS`).
 const COUTS = "couts";
 // Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
@@ -701,7 +704,10 @@ const stationsDuProjet = element("stations-du-projet");
 const delaiDuProjet = element("delai-du-projet");
 // L'équipe du projet affiché (ticket 4029, autonomie/equipe.js), en tête de sa vue : relue à son ouverture et à chaque
 // lecture de son rail, montrée pour lui seul.
-const equipeDuProjet = tenirLEquipe(document, element("equipe-du-projet"));
+const equipeDuProjet = tenirLEquipe(document, element("equipe-du-projet"), { ouvrir: (agent) => ouvrirLOngletDesAgents(agent) });
+// L'onglet Agents du projet (ticket 4117, agents/agents.js) : chaque agent, ce qu'il fait, ses réglages, ses derniers gestes ;
+// relu à son ouverture et à chaque lecture du rail tant qu'il est montré.
+const agentsDuProjet = tenirLesAgents(document, element("agents-du-projet"));
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
@@ -905,7 +911,7 @@ function explicationDe(projet, mot) {
 /** @param {string} projet @param {import("./explications/explications-box.ts").MotExplique} mot @returns {HTMLElement[]} */
 function explicationDuRail(projet, mot) {
   const visible = actif();
-  return visible === PARAMETRES || ONGLETS.some(({ id }) => id === visible) ? [] : explicationDe(projet, mot);
+  return visible === PARAMETRES || visible === AGENTS || ONGLETS.some(({ id }) => id === visible) ? [] : explicationDe(projet, mot);
 }
 // Sa rangée de Settings, qui les remontre toutes ; cachée tant que le registre n'est pas lu, et sur un pont qui ne le porte pas.
 /** @param {string} projet */
@@ -1432,8 +1438,10 @@ const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom)
 // La lecture suivie : celle de la page ouverte par-dessus — Settings ne lit rien ; sans page, aucune.
 const lue = () => {
   const ouverte = actif();
-  return ouverte === PARAMETRES ? undefined : ouverte;
+  return ouverte === PARAMETRES || ouverte === AGENTS ? undefined : ouverte;
 };
+// L'onglet Agents est ouvert : il ne lit rien sur la box non plus, et a ses propres lectures.
+const agentsMontres = () => courant !== undefined && actif() === AGENTS;
 // Settings est ouvert : il ne lit rien, et n'a ni sortie ni heure à poser.
 const reglagesMontres = () => courant !== undefined && actif() === PARAMETRES;
 // L'onglet de la conversation est montré (écran étroit) : le second prend la place du centre. Une page ouverte
@@ -1544,7 +1552,8 @@ function montrer() {
   );
   note.hidden = (note.childElementCount === 0 && note.textContent === "") || conversationMontree();
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
-  contenu.hidden = relaye === undefined && visible !== PARAMETRES;
+  contenu.hidden = relaye === undefined && visible !== PARAMETRES && visible !== AGENTS;
+  agentsDuProjet.montrer(agentsMontres() ? courant?.nom : undefined);
   rail.inert = !contenu.hidden || !fiche.hidden;
   // Settings est une seule page, sans sous-pages (ticket 1700) : son seul groupe, celui du projet, et rien d'autre.
   etat.hidden = courant === undefined || visible !== PARAMETRES;
@@ -1587,7 +1596,7 @@ function poserSecond(ouvrable, montre) {
       ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
       : nonEcritSecond !== ""
         ? nonEcritSecond
-        : (montre?.note ?? (ouvrable ? "the second is opening…" : ""));
+        : (montre?.note ?? (ouvrable ? "your second is opening…" : ""));
   // Ce que le runtime dit d'un second qui ne part pas nomme ses outils entre accents graves : posés en code (ticket 1435).
   if (montre?.empeche !== undefined && note === montre.note) noteSecond.replaceChildren(phrase(document, "span", note));
   // Un second que la fenêtre rechargée n'a pas pu rattacher (ticket 3159) : sa ligne, et de quoi le reprendre — comme une
@@ -2010,6 +2019,16 @@ function activerRubrique(id) {
   if (courant === undefined) return montrer();
   if (rubriqueDe(laisse.get(courant.nom))?.id === id) laisse.delete(courant.nom);
   else laisse.set(courant.nom, rubrique.defaut);
+  montrer();
+}
+
+// Un badge de l'équipe ouvre l'onglet Agents sur son agent (ticket 4117) : les cooks y sont un seul agent, qui tient leurs réglages.
+/** @param {string} agent */
+function ouvrirLOngletDesAgents(agent) {
+  if (courant === undefined) return;
+  nonEcrit = "";
+  laisse.set(courant.nom, AGENTS);
+  agentsDuProjet.ouvrir(agent.startsWith("cook #") ? "cooks" : agent);
   montrer();
 }
 
@@ -9202,6 +9221,7 @@ brigade.surFaits((recue) => {
   if (detailOuvert?.projet === recue.projet && laValidation(detailOuvert.projet, detailOuvert.ticket) === undefined) poserLeDetail();
   if (courant?.nom === recue.projet) {
     equipeDuProjet.lire(courant.nom);
+    if (agentsMontres()) void agentsDuProjet.lire(courant.nom);
     void lireLesEssais(courant);
     dessiner();
     poserLeRecitDuPremierTicket();

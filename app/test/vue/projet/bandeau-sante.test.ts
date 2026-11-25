@@ -190,14 +190,11 @@ describe("le closer, sur Health", () => {
     assert.deepEqual(ouverts, ["https://github.com/chef/parade/pull/2480", "https://github.com/chef/parade/issues/2531"]);
   });
 
-  test("ce qu'il vérifie en premier : ce que la dernière passe lui a remis sur ce projet, ses candidats repliés", () => {
+  test("ce qu'il vérifie en premier : plus de chiffres — ils sont sur l'onglet Agents —, ses candidats repliés", () => {
     const en = partieDe(poserBlocCloser(doc, { lecture: CLOSER }), "en-premier");
-    assert.deepEqual(en.children.filter(({ className }) => className === "verification").map(texte), [
-      "Dead code2 exports referenced nowhere, or by tests only",
-      "Duplicates1 passage of identical lines",
-      "Driftlast 100 merges: +18,340 / −7,336 (2.5:1)?",
-      "Ticket timesstable since the previous pass?",
-    ]);
+    assert.deepEqual(en.children.filter(({ className }) => className === "verification"), []);
+    assert.doesNotMatch(texte(en), /Dead code|Duplicates|Drift|Ticket times|2\.5:1/);
+    assert.match(texte(en), /Its figures — what it sees on main, and what it did this week — are told, with what each means, on the Agents tab\./);
     const replie = en.dessous("details")[0] ?? assert.fail("pas de candidats");
     assert.match(texte(replie), /^Candidates3 handed to pass #2531 on 9f3c2a1/);
     assert.match(texte(replie), /M1export vieux of c\.ts:12 — referenced nowhere/);

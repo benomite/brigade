@@ -1,0 +1,122 @@
+/* L'onglet Agents (ticket 4117) : une carte par agent, l'une sous l'autre — sa tête cliquable, sa phrase, ses chiffres, ses
+   réglages, et son fil quand il est ouvert. Seules des variables de jetons.css portent une couleur, une taille, un pas. */
+#agents-du-projet {
+  padding: var(--pas-4);
+  overflow-y: auto;
+}
+.agents h2 {
+  margin: 0 0 var(--pas-1);
+  font-size: var(--taille-titre);
+}
+.agents .presentation {
+  margin: 0 0 var(--pas-4);
+  color: var(--texte-doux);
+}
+.agents .agent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin-bottom: var(--pas-3);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.agents .agent.ouvert {
+  border-color: var(--accent);
+}
+.agents .agent[data-etat="casse"] {
+  border-left: 3px solid var(--rouge);
+}
+.agents .tete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pas-1) var(--pas-4);
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--texte);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.agents .tete .nom {
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+}
+.agents .tete .prochaine {
+  margin-left: auto;
+  color: var(--discret);
+}
+.agents .role {
+  margin: 0;
+  color: var(--texte-doux);
+}
+.agents .titre {
+  margin: 0 0 var(--pas-1);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  color: var(--discret);
+}
+.agents ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.agents .chiffres ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2) var(--pas-5);
+}
+.agents .chiffre {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--pas-2);
+  align-items: baseline;
+}
+.agents .chiffre .valeur {
+  font-size: var(--taille-intertitre);
+}
+.agents .chiffre .sens {
+  grid-column: 2;
+  max-width: 30ch;
+  color: var(--discret);
+}
+.agents .reglage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-1) 0;
+  border-top: 1px solid var(--trait-doux);
+}
+.agents .reglage .choix {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1);
+}
+.agents .reglage .valeur {
+  font-weight: 600;
+}
+.agents .reglage .ou,
+.agents .reglage .origine,
+.agents .reglage .change {
+  color: var(--discret);
+}
+.agents .reglage [data-ligne="erreur"] {
+  flex-basis: 100%;
+  margin: 0;
+}
+.agents .fil {
+  padding-top: var(--pas-2);
+  border-top: 1px solid var(--trait-doux);
+}
+.agents .derniers-gestes li {
+  padding: var(--pas-1) 0;
+  color: var(--texte-doux);
+}
+.agents .reste {
+  margin: 0;
+  color: var(--discret);
+}

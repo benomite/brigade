@@ -51,6 +51,7 @@
     <link rel="stylesheet" href="projets-servis/projets-servis.css" />
     <link rel="stylesheet" href="autonomie/chiffres.css" />
     <link rel="stylesheet" href="autonomie/equipe.css" />
+    <link rel="stylesheet" href="agents/agents.css" />
     <link rel="stylesheet" href="resume-hebdomadaire/resume-hebdomadaire.css" />
     <link rel="stylesheet" href="reglages-stations/stations.css" />
     <link rel="stylesheet" href="visite/visite.css" />
@@ -194,6 +195,8 @@
           <div id="apps-github" aria-label="This station's GitHub Apps" hidden></div>
           <div id="projets-servis" aria-label="The projects this computer serves" hidden></div>
         </div>
+        <!-- Les agents du projet (ticket 4117, agents/agents.js) : chacun, ce qu'il fait, ses réglages, ses derniers gestes. -->
+        <section id="agents-du-projet" aria-label="Agents" aria-live="polite" hidden></section>
         <p id="lu-onglet" aria-live="polite"></p>
         <div id="lecture-onglet"></div>
       </section>

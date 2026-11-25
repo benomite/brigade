@@ -55,6 +55,8 @@ const SOURCES: Readonly<Record<string, string>> = {
   "CLAUDE.md": "from CLAUDE.md",
   default: "default",
 };
+// Ce que dit un réglage que le dépôt du projet pose : une décision de la station n'y change rien (onglet Agents, #4117).
+export const SOURCE_DU_DEPOT = SOURCES.repository as string;
 // Ce qui est dit d'une proposition ouverte : la PR, et quand elle vaut.
 export const PROPOSE = "proposed as a pull request — it applies once merged";
 

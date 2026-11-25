@@ -125,6 +125,8 @@ const pont = {
   marquerUneExplication: (projet, mot) => ipcRenderer.invoke("marquerUneExplication", projet, mot),
   remontrerLesExplications: (projet) => ipcRenderer.invoke("remontrerLesExplications", projet),
   envoyerUnMot: (projet, entree) => ipcRenderer.invoke("envoyerUnMot", projet, entree), // le mot au cook (ticket 4048, mot-au-cook/)
+  lireLesAgentsDuProjet: (projet) => ipcRenderer.invoke("lireLesAgentsDuProjet", projet), // l'onglet Agents (ticket 4117, agents/)
+  reglerUnAgent: (projet, agent, cle, valeur) => ipcRenderer.invoke("reglerUnAgent", projet, agent, cle, valeur),
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : lu, dit montré, et la PR d'un ticket servi ouverte (recap/recap-box.ts).
   lireLeRecap: (projet) => ipcRenderer.invoke("lireLeRecap", projet),
   marquerLeRecap: (projet, until) => ipcRenderer.invoke("marquerLeRecap", projet, until),

@@ -332,6 +332,9 @@ export type Pont = {
   marquerUneExplication?(projet: string, mot: import("./explications/explications-box.ts").MotExplique): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   remontrerLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   envoyerUnMot?(projet: string, entree: { ticket: number; text: string }): Promise<import("./mot-au-cook/source.js").Reponse>; // le mot au cook (ticket 4048)
+  // L'onglet Agents (ticket 4117, agents/) : chaque agent du projet, lu là où sa cuisine tourne ; un réglage changé, à chaud.
+  lireLesAgentsDuProjet?(projet: string): Promise<import("./agents/source.js").Agent[] | { sans: string; detail?: string }>;
+  reglerUnAgent?(projet: string, agent: string, cle: string, valeur: string): Promise<{ ok: true } | { ok: false; reason: string; detail?: string }>;
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : ce que sa cuisine a fait depuis que le chef a regardé, lu
   // là où elle tourne ; montré, son marqueur avance jusqu'à `until` ; la PR d'un ticket servi s'ouvre (recap/recap-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucun récapitulatif.

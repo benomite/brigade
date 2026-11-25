@@ -115,7 +115,7 @@ Every automatic gesture is logged with its reason, and can be undone when it is 
 
 ## Axis 3 — View and control of the agents
 
-The principle: **no autonomous agent is a black box.** For each agent, the chef sees who it is, what it is doing, why and at what cost, and can stop it or undo what it did. All of it lives **in the existing project view**, with no new screen.
+The principle: **no autonomous agent is a black box.** For each agent, the chef sees who it is, what it is doing, why and at what cost, and can stop it or undo what it did. All of it lives in the project view. **Chef's decision, 2026-11-24 (#4117): the agents have a tab of their own, Agents, next to Rail, Stations and Settings** — each agent, what it is for, how it is doing, and its settings changed in one place; the badges of C1 stay as the summary and open it.
 
 What this axis gives each of the four autonomous agents:
 

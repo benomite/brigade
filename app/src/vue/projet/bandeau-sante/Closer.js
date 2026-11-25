@@ -1,6 +1,7 @@
 // @ts-check
 // Le closer, sur Kitchen > Health (ticket 2491, épique 2484) : ce qu'il a fait — ses passes, et ce que chacune a retiré —,
-// ce qu'il vérifie en premier sur ce projet, ce que le chef lui demande de vérifier en plus, et ses réglages — son
+// ce que sa dernière passe lui a remis — ses candidats ; ses chiffres sont ceux de l'onglet Agents (ticket 4117) —, ce que le
+// chef lui demande de vérifier en plus, et ses réglages — son
 // calibrage, sa condition de départ, ses plafonds. Tout vient du dépôt du projet, sur GitHub (closer-sante.ts) : une
 // passe est une issue de fermeture, ce qu'elle a retiré est sa PR mergée ; ce qu'il vérifie en premier, ce que la
 // dernière passe lui a remis ; ses vérifications en plus, `.claude/brigade/closer-checks.md` ; ses réglages, `closer.*`
@@ -34,6 +35,7 @@ export const AIDE =
   "The closer prunes what the project no longer needs — dead code, duplicates. After 20 merges since its last pass, at most once a day, a station opens a closing issue; a cook cooks it and the pass merges its PR.";
 export const FAIT = "What it did";
 export const EN_PREMIER = "What it checks first";
+export const SES_CHIFFRES = "Its figures — what it sees on main, and what it did this week — are told, with what each means, on the Agents tab.";
 export const EN_PLUS = "Extra checks";
 export const REGLAGES = "Settings";
 export const REGLAGES_AIDE =
@@ -137,30 +139,6 @@ function ceQuIlAFait(doc, passes, ouvrir) {
 
 // --- Ce qu'il vérifie en premier -----------------------------------------------------
 
-// Les temps des tickets, tels que la passe les a relevés : stables, une dérive et son ticket de correction, ou non lus.
-/** @param {readonly string[]} temps */
-function lesTemps(temps) {
-  const premier = temps[0];
-  if (premier === undefined || /^Times not read/.test(premier)) return "not read at this pass";
-  if (/^Times stable/.test(premier)) return "stable since the previous pass";
-  const correction = /Correction ticket #(\d+)/.exec(temps.join(" "))?.[1];
-  return `a drift found${correction === undefined ? "" : ` — correction ticket #${correction}`}`;
-}
-
-// Ce que la dernière passe lui a remis, une ligne par vérification : son nom, ce qu'elle a trouvé sur ce projet.
-/** @param {Passe} passe */
-export function sesVerifications(passe) {
-  const morts = passe.candidats.filter(({ id }) => id.startsWith("M")).length;
-  const doublons = passe.candidats.filter(({ id }) => id.startsWith("D")).length;
-  const derive = passe.derive.at(-1);
-  return [
-    { nom: "Dead code", dit: morts === 0 ? "none spotted" : `${morts} export${s(morts)} referenced nowhere, or by tests only`, survol: "" },
-    { nom: "Duplicates", dit: doublons === 0 ? "none spotted" : `${doublons} passage${s(doublons)} of identical lines`, survol: "" },
-    { nom: "Drift", dit: derive ?? "no merge read", survol: passe.derive.slice(0, -1).join(" · ") },
-    { nom: "Ticket times", dit: lesTemps(passe.temps), survol: passe.temps.join(" ") },
-  ];
-}
-
 /** @param {Fabrique} doc @param {Lecture["passes"] | undefined} passes @param {{ ouverts: boolean, basculer?: (ouvert: boolean) => void }} replis */
 function ceQuIlVerifie(doc, passes, { ouverts, basculer }) {
   const pose = partie(doc, EN_PREMIER, SES_VERIFICATIONS);
@@ -171,15 +149,9 @@ function ceQuIlVerifie(doc, passes, { ouverts, basculer }) {
     pose.append(dit);
     return pose;
   }
-  for (const { nom, dit, survol: detail } of sesVerifications(derniere)) {
-    const rangee = cree(doc, "p");
-    rangee.className = "verification";
-    const appele = cree(doc, "span", nom);
-    appele.className = "nom";
-    rangee.append(appele, cree(doc, "span", dit));
-    if (detail !== "") rangee.append(survol(doc, detail));
-    pose.append(rangee);
-  }
+  // Ses chiffres — le code mort, les doublons, la dérive, les temps — ne sont plus ici : ils sont dits en mots simples, avec
+  // leur sens, sur l'onglet Agents (ticket 4117). Reste ce que la passe lui a remis : ses candidats.
+  pose.append(cree(doc, "p", SES_CHIFFRES));
   const total = derniere.candidats.length;
   if (total > 0) {
     const liste = cree(doc, "ol");

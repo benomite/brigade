@@ -20,7 +20,10 @@ export const ONGLETS: readonly Onglet[] = [
 // `defaut` : la lecture que l'onglet ouvre — sans commande pour Paramètres.
 export type Rubrique = { id: string; titre: string; defaut: string; lectures: readonly string[] };
 export const PARAMETRES = "parametres";
+// Agents (#4117) : une page comme Settings, sans commande à elle — les agents du projet, lus par le process principal.
+export const AGENTS = "agents";
 export const RUBRIQUES: readonly Rubrique[] = [
+  { id: AGENTS, titre: "Agents", defaut: AGENTS, lectures: [AGENTS] },
   { id: PARAMETRES, titre: "Settings", defaut: PARAMETRES, lectures: [PARAMETRES] },
 ];
 

@@ -972,8 +972,10 @@ sheet of a TODO ticket whose decision is known, offering its gestures).
 The top of the project view, under its menu, shows one badge per agent: supervisor and closer first, then the
 manager, the pass and each cook, in the same form (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`,
 C1, C2, C4). Each badge says the agent's state, its last gesture with its time, its next run as the runtime words it
-(`closer: next pass in 3 h`), its autonomy level, and how many of its gestures await your OK. A click on a badge opens
-the agent's thread under the badges: its last gestures, one line each with its reason and its outcome, its two counters
+(`closer: next pass in 3 h`), its autonomy level, and how many of its gestures await your OK. Since #4117 the badges are the
+summary and a click on one opens the **Agents** tab on its agent (below; a cook opens `cooks`), where the thread and the settings
+are. Without that tab to open (the badges alone, as `tenirLEquipe` is built without `ouvrir`), a click opens the agent's thread
+under the badges: its last gestures, one line each with its reason and its outcome, its two counters
 `fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
 pressed, its meaning on hover — and each gesture that awaits your OK with one `OK` button. A level click sets the level
 once; an `OK` approves the gesture once and removes it. A gesture that fails changes nothing and says it in one line,
@@ -986,6 +988,79 @@ fails says `The agents not reached.`, and a record missing a field says the read
 up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
+
+### The Agents tab: every agent, what it does, how it is doing, its settings (#4117, epic #4024)
+
+A tab of its own in the project menu — **Rail · Stations · Agents · Settings** — replaces, for the agents, the line "all of it
+lives in the existing project view, with no new screen" of the spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`
+(axis 3; the chef's decision of 2026-11-24). Like Settings it is a page laid over the rail (`app/src/onglets.ts`, `AGENTS`), and
+it reads nothing on the box on its own: the project's agents are read when the tab opens, and again at each reading of the rail
+while it stays open.
+
+**One card per agent, none left out**: the second, the manager, the cooks (one agent: the cooks that run are in its state, and the
+design work is done by the same cooks, with the project's tools — spec 2026-11-24, "Cooks have one trade"), the pass, its
+reviewer, the second judge, the triage, the closer and the supervisor — then any other agent the runtime names: a record of
+`equipe`, a role of `rolesCuisine`, a role that runs in `agents` (`app/src/vue/agents/fiches.ts`). Each card says, in this order:
+- **what it is for**, in one sentence;
+- **its state now** — `idle`, `working on #N`, `broken: …` when the runtime cannot read its record — and **its next run**, as the
+  runtime words it (`closer: next pass in 3 h`);
+- **its last 7 days**, each figure with its meaning under it. An agent that logs its gestures (`equipe`) shows `Done by itself`
+  and `Left to you` — the gestures of its log from the last seven days that ended `fixed by itself` and `handed to the chef` —
+  and `Only reported` when it was on `observe` and described a gesture without making it. The cooks and the pass add the usual
+  time a ticket stays with a cook, and in the pass (`cadence.medianSeconds`, over 7 days; `not enough yet` under three stays).
+  An agent the runtime keeps no figure of says `No figure kept for this agent yet.`;
+- for the closer, **right now**: the merges since its last pass, the lines added for each line removed over the last 100 merges, the
+  duplicated passages and the unused exports — what `closing --json` says, in words, each with its meaning. They replace the closer's
+  figures of Settings (above);
+- **its settings**, one row each: the name, then a button per choice with the one in force pressed — a click applies it, with no
+  save and nothing restarted —, or, for a setting that cannot be changed from here, its value and `lives in …`, with no button; and,
+  under it, `changed <date> UTC by <who>` when the log or the switch says it.
+- **its last gestures**, at a click on the card: the ten latest, newest first, `<time> UTC · <line> (<reason>): <outcome>`; a gesture
+  the runtime keeps no reason or outcome of says only its line. A second click closes it; one thread is open at a time.
+
+**What can be changed from the tab, and how.** Every change goes through a command of the runtime that exists — the app adds none —
+and is read again at once.
+
+| Agent | Setting | Command | Takes effect |
+|---|---|---|---|
+| manager | Model, Effort; Highest model / effort for a red ticket | `station -- manager-modele`, `manager-effort`, `ceiling-modele`, `ceiling-effort` | at the runtime's next read, without a restart; no running cook is stopped |
+| reviewer | Model, Effort | `station -- reviewer-modele`, `reviewer-effort` | same |
+| closer | Model, Effort; Starts when fewer cooks than; Tokens cap; Removed lines cap | `station -- closer-modele`, `closer-effort`, `closer-cooks`, `closer-tokens`, `closer-retraits` | same |
+| pass | Gates time budget, Gates CPU budget | `station -- budget-gates`, `budget-gates-cpu` | same |
+| cooks | Cooks at once (`auto` gives each station its default back) | `station -- cooks <N>` | same |
+| manager, cooks, pass | Pause | `switch off` — **the project switch**: nothing new is taken, judged, split or merged | at the runtime's next wake, within a second |
+
+A setting is written as a decision of the chef in the project's log (`docs/runtime/exploitation.md`, "Piloter"): the tab says
+**when** from the log's last `decision.set` (or `station.capped`, or the switch's `since`), and **by whom** as the log writes it —
+`the chef`, whatever gesture wrote it: the log does not tell the app from a terminal. The tab reads the last 1,000 events of the log
+for that; a decision older than that shows no date. A choice is a closed list of the runtime's models and efforts, or a few round
+numbers — and the value in force when it is not among them — and any whole number the command takes is accepted.
+
+**What cannot be changed from the tab, and says where it lives**:
+- **The autonomy level** of each agent, and the manager's level for splitting an epic: shown, from `equipe`; it lives in
+  `autonomy-levels.json` of the box's state directory, and **no command of the runtime sets it yet** (`docs/runtime/autonomie.md`).
+- **The pause of the closer, the supervisor, the reviewer, the second judge and the triage**: the runtime has no switch of their own;
+  the project switch holds only the manager, the cooks and the pass. And a paused project is **not switched back on from the tab**:
+  switching on asks for a confirmation, at the head of the page, which the tab does not bypass.
+- **A setting the project's repository sets** (`.claude/brigade/projet.json`): the runtime ignores a decision while the file sets it, so
+  the row shows the value and says it is changed there, by a pull request, from Settings; a change sent anyway is refused before
+  anything is written.
+- **The gates' hard time-out** (`BRIGADE_GATES_TIMEOUT_SECONDS` on the box, or the repository's thresholds), **the second's model**
+  (Claude Code's own, `/model` in its terminal), and any setting of the second judge and the triage, which the app reads none of.
+
+**What is not read is said, never filled in**: `facts` failing — or not an object — says `The agents not reached.` with its reason;
+`setting`, `switch`, `closing --json` or `log` failing says `not read: …` in the rows and figures it feeds, the others staying; a
+runtime that does not publish its agents says so in each state; an `equipe` that cannot be read is `broken: …`; a record missing a
+field makes the reading unreadable. A setting the runtime refuses is one line under its row (`<agent>'s <setting> was not changed:
+<reason>`), the value in force staying pressed. The tab is not on the phone: it says `This device does not read the agents.`.
+
+*Code: `app/src/vue/agents/` — `agents.js` (the tab), `source.js` (its one door to the bridge: `lireLesAgentsDuProjet`,
+`reglerUnAgent`), `agents-box.ts` (the main process: the commands above), `fiches.ts` (one record per agent), `reglables.ts` (the
+settings that change and their commands), `agents.css`. Tests: `app/test/agents/`, and `app/test/acceptation-4117/`. Captures:
+`docs/captures/4117/` — `espace-projet-avant.png` / `espace-projet-apres.png` (the project menu without, then with, the Agents
+tab), `espace-projet-agents-apres.png` (the tab) and `espace-projet-agents-closer-apres.png` (the closer's card open: its figures in
+words, its settings, its gestures), `projet-sante-closer-avant.png` / `projet-sante-closer-apres.png` (the closer's figures in
+Settings, before and after).*
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
@@ -2675,10 +2750,10 @@ pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted 
 `+56 added`. Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
 the pass`, `nothing removed` (closed with no PR, or its PR closed without a merge). The issue number and the PR open in the
 browser. No pass yet: `No closing pass yet on this project`, when one is opened on hover.
-**What it checks first**: what the latest pass handed it, on this project — the dead code (`3 exports referenced nowhere,
-or by tests only`), the duplicates, the drift of the latest merges (its longest window; the others on hover) and the
-ticket times (`stable since the previous pass`, or the drift found and its correction ticket) — then, folded behind one
-line (`Candidates · 5 handed to pass #2531 on 9f3c2a1`), each candidate under its pass name.
+**What it checks first**: what the latest pass handed it, on this project: folded behind one line (`Candidates · 5 handed
+to pass #2531 on 9f3c2a1`), each candidate under its pass name. Since #4117 the four figures that stood above it — the dead
+code, the duplicates, the drift of the latest merges and the ticket times — are gone from here: the closer's figures are on the
+**Agents** tab, in plain words with what each means (below), and this part says so in one line.
 **Extra checks**: what the chef asks the closer to check in addition, one per line, each with **remove**; a field and
 **add** (recommended, enabled once something is typed; Enter adds too). Kept in **`.claude/brigade/closer-checks.md`**, the
 part says `a change opens a pull request, applied once merged`: adding or removing one is
