@@ -471,6 +471,9 @@ export type StationGitHub = {
   // La porte des gestes du runtime (#4039), relue à chaque prise et à chaque merge : la station la reçoit après sa
   // construction (`stationDuDepot`).
   porte?: PorteDesGestes | null;
+  // La fiche du projet, relue à chaque merge (#4230) : son classement du risque parque pour le chef le merge d'un
+  // ticket dont le genre d'action est rangé `chef`. La station la reçoit, comme sa porte, après sa construction.
+  ficheDuProjet?: (() => unknown) | null;
   // La charge de la machine, relue pour reprendre un ticket rendu pour elle (#4211) : la station la reçoit après sa
   // construction (`stationDuDepot`). Absente, celle du système.
   lireCharge?: () => number;
@@ -775,17 +778,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { clone } = options;
   // Le classement du risque de la fiche du projet, relu à chaque action (#4230) : une action rangée `chef` attend
   // l'OK du chef à la porte des gestes, quel que soit le niveau de la pass ; sans fiche, aucun classement à lire.
-  const passDuRisque =
-    options.ficheDuProjet === undefined
-      ? null
-      : ouvrirLePass({
-          lire: options.ficheDuProjet,
-          parquer: async (item) => {
-            const porte = station.porte ?? null;
-            if (porte === null) return avertir(`brigade : #${item.ticket} on ${nom} — parked for the chef, who cannot answer: this runtime has no gesture gate (${item.texte})`);
-            await porte.passer({ agent: "pass", reglable: "pass", auChef: true }, { line: item.texte, reason: `the project sheet ranks \`${item.genre}\` 'chef'`, outcome: OUTCOME.HANDED_TO_CHEF }, () => passDuRisque?.repondre(item.id));
-          },
-        });
+  const passDuRisque = ouvrirLePass({
+    lire: () => station.ficheDuProjet?.(),
+    parquer: async (item) => {
+      const porte = station.porte ?? null;
+      if (porte === null) return avertir(`brigade : #${item.ticket} on ${nom} — parked for the chef, who cannot answer: this runtime has no gesture gate (${item.texte})`);
+      await porte.passer({ agent: "pass", reglable: "pass", auChef: true }, { line: item.texte, reason: `the project sheet ranks \`${item.genre}\` 'chef'`, outcome: OUTCOME.HANDED_TO_CHEF }, () => passDuRisque.repondre(item.id));
+    },
+  });
   // Une PR ouverte dont le ticket est fermé, reste du circuit d'avant, ne sera
   // plus servie par personne : la station la ferme, d'un commentaire, et garde
   // sa branche (#3097). Le commentaire se lit avant d'être posé, pour qu'une
@@ -2131,7 +2131,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     };
                     // Un ticket qui dit le genre de son action (`action:<genre>`) passe par le classement du risque de la fiche du projet (#4230).
                     const genre = genreDuTicket(ticket.labels);
-                    if (genre === null || passDuRisque === null) return mergerParLaPorte();
+                    if (genre === null || (station.ficheDuProjet ?? null) === null) return mergerParLaPorte();
                     // Rangé `safe`, le merge passe par le niveau de la pass, comme avant. Parqué, c'est la réponse du chef qui le
                     // lance : il ne lui redemande pas son OK, et un merge qui échoue alors se dit.
                     const lance: { fusion: Merge | null } = { fusion: null };
@@ -2624,6 +2624,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const station: StationGitHub = {
     porte: options.porte ?? null,
+    ficheDuProjet: options.ficheDuProjet ?? null,
     tour,
     arreter: () => {
       arretee = true;
@@ -4147,7 +4148,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     await depot.elaguer?.(branche);
     return true;
   };
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.projet === undefined ? {} : { ficheDuProjet: options.projet }), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  station.ficheDuProjet = options.projet ?? null;
   station.sauver = sauver;
   station.porte = options.porte ?? null;
   station.lireCharge = lireCharge;
