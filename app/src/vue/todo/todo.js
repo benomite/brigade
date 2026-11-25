@@ -30,7 +30,7 @@ export const colonneDe = (carte, noms) => (carte.etape !== undefined && noms.inc
 
 /**
  * Le rail tel que la vue le pose : ses colonnes sans la liste du chef, chaque carte de celle-ci rouge en tête de la
- * colonne de son étape, les autres rouges (WAITING, relance passée) en tête de la leur. `compte` : le nombre de cartes qui
+ * colonne de son étape, les autres rouges (parked pour le chef, ticket 4261) en tête de la leur. `compte` : le nombre de cartes qui
  * attendent le chef — `?` quand la liste n'est pas lue ; `autres` : ce qui attend un autre humain du projet.
  * @param {readonly Colonne[]} lues
  * @returns {{ colonnes: Colonne[], compte: string, autres: Carte[] | undefined }}
