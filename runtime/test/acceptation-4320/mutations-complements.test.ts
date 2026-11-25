@@ -1,0 +1,82 @@
+// #4320 : cas qui distinguent les lignes du correctif de leurs mutants (fetch de la base en échec, branche du clone, réécriture du bloc).
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import { priseDeLaStation, stationDuDepot, type Lancer, type OptionsDuDepot } from "../../src/brigade-github.ts";
+import { DEBUT, FIN, reecrireBloc } from "../../src/projets/bloc.ts";
+import { baseDuClone } from "../../src/projets-station/selection.ts";
+import { projetSurGit } from "../aides/projet-sur-git.ts";
+import { FauxGitHub, fauxClient } from "../faux-github.ts";
+
+type Preparer = OptionsDuDepot["depot"]["preparer"];
+
+const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: Preparer, connait: boolean) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-4320-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const lancer: Lancer = ({ flux }) => {
+    writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "done" })}\n`);
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const depot: OptionsDuDepot["depot"] = {
+    connait: () => connait,
+    preparer,
+    reprendre: async (run) => { throw new Error(`resume ${run}: boom`); },
+    retirer: () => {},
+    ranger: async () => null,
+    pousser: () => {},
+    commits: () => 1,
+    changes: () => ["a.ts"],
+    diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+  };
+  const s = stationDuDepot({ nom: "A", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux, "A"), depot, prise: priseDeLaStation,
+    claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {} });
+  if ("refus" in s) throw new Error("inaccessible");
+  return s;
+};
+
+const echecs = (faux: FauxGitHub, issue: number) => (faux.commentaires.get(issue) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length;
+
+test("a failed fetch of the base presses a new turn: the ticket is given back", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(31);
+  const s = station(t, faux, async () => { throw new Error("git fetch origin main : no route"); }, false);
+  let pressee = 0;
+  s.presser = () => { pressee += 1; };
+  await s.tour();
+  await s.calme();
+  assert.ok(pressee >= 1);
+});
+
+test("a worktree failure that is not a fetch is the ticket's own failure: it counts a try and does not stop the project", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(31);
+  const s = station(t, faux, async () => { throw new Error("disk full"); }, false);
+  await s.tour();
+  await s.calme();
+  assert.equal(echecs(faux, 31), 1);
+});
+
+test("a resumed branch whose resume fails with a fetch message is the ticket's failure, not the station's", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(31);
+  const s = station(t, faux, async () => { throw new Error("unused"); }, true);
+  await s.tour();
+  await s.calme();
+  assert.equal(echecs(faux, 31), 1);
+});
+
+test("baseDuClone: null when the repository declares its branch, the default branch otherwise", (t) => {
+  const { clone: sans } = projetSurGit(t, { parDefaut: "trunk" });
+  assert.equal(baseDuClone(sans), "trunk");
+  const { clone: declare } = projetSurGit(t, { parDefaut: "main", autres: ["v2"], reglages: { integrationBranch: "v2" } });
+  assert.equal(baseDuClone(declare), null);
+});
+
+test("reecrireBloc: lines are written inside the block; no line and no comment removes it", () => {
+  assert.equal(reecrireBloc("", ["a x main"]), `${DEBUT}\na x main\n${FIN}\n`);
+  assert.equal(reecrireBloc(`${DEBUT}\na x main\n${FIN}\n`, []), "");
+  assert.equal(reecrireBloc(`${DEBUT}\n# note\n${FIN}\n`, []), `${DEBUT}\n# note\n${FIN}\n`);
+});
