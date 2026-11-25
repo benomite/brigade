@@ -11,6 +11,7 @@ import { DEBUT_DIAGRAMME, FIN_DIAGRAMME, sansBloc } from "./diagramme-epique.ts"
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
+import { CONSIGNE_TEMPS_ATTENDU, lireTempsAttendu, tempsJoint, texteDuCalibrage } from "./temps-attendu/temps-attendu.ts";
 import { recouvrement, segments } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
@@ -106,6 +107,8 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "",
     `Le calibrage le plus bas qui suffit : c'est le quota du chef. ${EFFORT_HIGH_AU_RENVOI} Tu ne poses jamais \`xhigh\` ni \`max\`.`,
     "",
+    CONSIGNE_TEMPS_ATTENDU,
+    "",
     CRITERE_DE_FORME,
     "",
     "## Tu ne découpes pas ce que tu ne comprends pas",
@@ -125,7 +128,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "Un seul objet JSON, et rien après lui. Un découpage :",
     "",
     "```json",
-    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}`,
+    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "temps_attendu": 10, "calibrage": "pourquoi ce modèle et cet effort"}]}`,
     "```",
     "",
     "une question :",
@@ -217,7 +220,9 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   if (!effort) return `${ou}: an effort the manager does not set: ${JSON.stringify(lu.effort)} — expected ${EFFORTS_DU_MANAGER.join(", ")}`;
   const calibration = phrase(lu.calibrage);
   if (!calibration) return `${ou}: calibration not justified`;
-  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration };
+  const attendu = lireTempsAttendu(lu.temps_attendu, calibration);
+  if ("refus" in attendu) return `${ou}: ${attendu.refus}`;
+  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration, expectedMinutes: attendu.minutes };
 }
 
 // Lit le découpage dans le dernier message du jugement. `fichiers` : le plan
@@ -302,6 +307,7 @@ export function joindre(tickets: TicketPrevu[], communs: string[] = []): TicketP
     if (membres.length === 1) return premier;
     const sans = <T>(valeurs: T[]) => [...new Set(valeurs)];
     const requires = sans(membres.flatMap((m) => m.requires ?? []));
+    const joint = tempsJoint(membres.map((m) => m.expectedMinutes));
     const joined = rangs.slice(1).map((i, k) => {
       const prevu = membres[k + 1] as TicketPrevu;
       const path = membres.slice(0, k + 1).reduce<string | null>((trouve, avant) => trouve ?? recouvrement(prevu.zone, avant.zone, communs), null);
@@ -318,6 +324,7 @@ export function joindre(tickets: TicketPrevu[], communs: string[] = []): TicketP
       model: plusHaut(MODELES, membres.map((m) => m.model), "debut") ?? premier.model,
       effort: plusHaut(EFFORTS, membres.map((m) => m.effort), "fin") ?? premier.effort,
       calibration: sans(membres.map((m) => m.calibration)).join(" "),
+      ...(joint === undefined ? {} : { expectedMinutes: joint }),
     };
   });
 }
@@ -368,7 +375,7 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     "",
     "---",
     "",
-    `_Born of the split of epic #${epic} by the manager. Calibrated \`${prevu.model}\` / \`${prevu.effort}\` — ${prevu.calibration} This ticket is yours: change a criterion, replace a calibration label, remove \`fire\` or close it, the manager will not come back to it._`,
+    `_Born of the split of epic #${epic} by the manager. Calibrated ${texteDuCalibrage(prevu.model, prevu.effort, prevu.expectedMinutes)} — ${prevu.calibration} This ticket is yours: change a criterion, replace a calibration label, remove \`fire\` or close it, the manager will not come back to it._`,
   ].join("\n");
 }
 
