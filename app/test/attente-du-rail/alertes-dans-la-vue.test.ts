@@ -48,7 +48,12 @@ describe("les alertes du haut du rail, dans la vue", () => {
     assert.deepEqual(alertesDe(await montrer({ alertesDuRail: [AUCUN_COOK] })), ["aucun-cook"]);
     const pendant = await espace(true);
     assert.deepEqual(alertesDe(await pendant({ alertesDuRail: [AUCUN_COOK] })), []);
-    assert.deepEqual(alertesDe(await pendant({ alertesDuRail: [AUCUN_COOK, BASE_ROUGE] })), ["base-rouge"]);
+    // La base rouge que la cuisine répare seule ne demande rien au chef : pas de bannière (#4238). Celle qui attend son geste reste,
+    // avec un bouton.
+    assert.deepEqual(alertesDe(await pendant({ alertesDuRail: [AUCUN_COOK, BASE_ROUGE] })), []);
+    const rail = await pendant({ alertesDuRail: [AUCUN_COOK, { ...BASE_ROUGE, geste: "Open the failing check", geree: null }] });
+    assert.deepEqual(alertesDe(rail), ["base-rouge"]);
+    assert.deepEqual(rail.children.find(({ className }) => className.includes("alerte-du-rail"))?.dessous("button").map(({ textContent }) => textContent), ["open #12"]);
   });
 
   test("la phrase de l'attente qui porte un geste ne se montre plus ; celle sans geste reste", async () => {
