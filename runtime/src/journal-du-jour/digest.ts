@@ -7,7 +7,7 @@
 // The day is the UTC day before the morning it is built on. Building it sends nothing: it is a reading
 // (publication.ts keeps it for the project view).
 import { OUTCOME } from "../autonomie/agents/gestes.ts";
-import { estUnAbandon, type GesteDuFil } from "./notifications.ts";
+import { notificationsDuJournal, type GesteDuFil } from "./notifications.ts";
 
 const JOUR_MS = 24 * 60 * 60_000;
 // Items named on one line; the others are counted.
@@ -34,7 +34,7 @@ const estSorte = (kind: string | undefined): kind is Sorte => SORTES.some(([sort
 // with no kind and not done (an agent on `observe`) is none.
 function sorteDe(geste: GesteDuFil): Sorte | null {
   const { kind, outcome } = geste;
-  if (estUnAbandon(geste)) return "unfixed";
+  if (notificationsDuJournal([geste]).length > 0) return "unfixed";
   if (estSorte(kind)) return kind;
   if (outcome === OUTCOME.FIXED_BY_SELF) return "fixed";
   return null;
