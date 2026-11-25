@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { abandonsAuChef } from "./abandon-au-chef.ts";
 import { DE_CONFIANCE, priorite } from "./alimenter.ts";
+import { carteBacklogVideDuJournal } from "./carte-backlog-vide/carte-du-journal.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
@@ -29,7 +30,7 @@ import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { ouvrirDecoupage, type Reponse } from "./decoupage.ts";
 import { MARQUEUR_QUESTION, neDUnDecoupage } from "./decouper.ts";
 import { porteListe } from "./epique.ts";
-import { commandeRendre, NOMS_DE_NATURE_EN, type Ecart, type FaitManager, type Nature } from "./events/manager.ts";
+import { NOMS_DE_NATURE_EN, type Ecart, type FaitManager, type Nature } from "./events/manager.ts";
 import type { FaitPass } from "./events/pass.ts";
 import type { FaitStation } from "./events/station.ts";
 import { LancementRefuse, STATION_DU_MANAGER, type GardeFous, type Verdict } from "./garde-fous.ts";
@@ -482,7 +483,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           "",
           "It is your quota: replace a calibration label, the manager will not rewrite it.",
           "",
-          `⚠️ **Removing \`fire\`, \`model:\` or \`effort:\` without replacing it takes this ticket away from the manager**: it will set nothing on it again and will not judge it again, even if the issue changes — until you give it back (\`${commandeRendre(issue.number)}\`). Correcting \`prio:\`, or setting or removing \`question\` or \`blocked-on-human\`, does not take it away.`,
+          `⚠️ **Removing \`fire\`, \`model:\` or \`effort:\` without replacing it takes this ticket away from the manager**: it will set nothing on it again and will not judge it again, even if the issue changes — until the kitchen gives it back to the manager (it is given back from the kitchen, not from GitHub). Correcting \`prio:\`, or setting or removing \`question\` or \`blocked-on-human\`, does not take it away.`,
           "",
           signature(connue.run),
         ].join("\n");
@@ -530,7 +531,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           MARQUEUR_MANAGER,
           `**Manager — ticket set aside: it is no longer fired and calibrated.** The manager had set labels on it, and ${manque.length === 0 ? "its calibration no longer reads" : `it now lacks ${code(manque)}`}. The issue is yours: the manager sets nothing on it any more and does not judge it again, even if it changes.`,
           "",
-          `**To give it back:** \`${commandeRendre(issue.number)}\`. It judges it afresh: it removes the calibration it had set, then sets \`fire\` and the one of the new judgement — or says why it is not a workable ticket.`,
+          `**To give it back:** from the kitchen, not from GitHub — the manager's report there names how. It judges it afresh: it removes the calibration it had set, then sets \`fire\` and the one of the new judgement — or says why it is not a workable ticket.`,
           "",
           "To cook it without the manager, set `fire`, `model:` and `effort:` yourself.",
         ].join("\n");
@@ -1059,6 +1060,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // elle attend son jugement, et `fire` avec lui.
   const neuve = (issue: IssueOuverte) => issueDuManager(base, issue.number) === null && trier(issue, null).quoi === "juger";
 
+  // La carte du backlog vide, relue du journal au démarrage (#4225).
+  const backlogVide = carteBacklogVideDuJournal(journal, projet);
+
   // Un tour : chaque issue ouverte est triée par le code, et seules celles
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   //
@@ -1148,6 +1152,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
     constater(presentes);
+    // Plus rien à cuire — toutes ses issues sont des idées, parquées ou mises à l'écart par
+    // le tri, ou aucune n'est ouverte : le chef le lit sur une seule carte (#4225).
+    backlogVide.boucle(issues.filter(lisible).filter((issue) => trier(issue, issueDuManager(base, issue.number)).quoi !== "ecart"));
 
     // Les remises que ce tour verra toutes : celle que le chef écrit pendant
     // qu'il tourne est au suivant.

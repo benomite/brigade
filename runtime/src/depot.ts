@@ -293,8 +293,11 @@ const IDENTITE = ["-c", "user.name=brigade", "-c", "user.email=brigade@localhost
 // son auteur et à son sujet. L'environnement l'emporte sur `-c` : l'identité
 // passe par les deux.
 const COURRIEL = "brigade@localhost";
-const SUJET_DE_RECOLTE = "brigade : récolte — ce que le cook avait laissé non commité dans son worktree";
-const SUJET_DE_TRANSPOSITION = "brigade : la livraison portée sur l'arbre du renommage du code";
+// En anglais : le commit part sur le dépôt (#4056). L'ancien sujet, français,
+// reste reconnu sur les branches déjà poussées.
+const SUJET_DE_RECOLTE = "brigade: harvest — what the cook left uncommitted in its worktree";
+const ANCIEN_SUJET_DE_RECOLTE = "brigade : récolte — ce que le cook avait laissé non commité dans son worktree";
+const SUJET_DE_TRANSPOSITION = "brigade: the delivery carried onto the tree of the code rename";
 const ENV_DE_RECOLTE = { GIT_AUTHOR_NAME: "brigade", GIT_AUTHOR_EMAIL: COURRIEL, GIT_COMMITTER_NAME: "brigade", GIT_COMMITTER_EMAIL: COURRIEL };
 // Ce qu'un `git` lancé dans le worktree d'un cook ne fait jamais, quoi qu'en
 // dise la configuration : ni guetteur de fichiers, ni hook, ni descente dans
@@ -332,7 +335,7 @@ const trace = (chemin: string): string => {
 
 const motif = (geste: string, erreur: unknown): Error => {
   const { stderr, message } = erreur as { stderr?: string | Buffer; message?: string };
-  return new Error(`${geste} : ${String(stderr ?? "").trim() || message || "échec"}`);
+  return new Error(`${geste}: ${String(stderr ?? "").trim() || message || "failed"}`);
 };
 
 // Un fichier tel que l'origine le porte sur la branche d'intégration, d'après
@@ -543,7 +546,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       if (rien && !vide) return null;
       dans(...IDENTITE, "commit", "--quiet", "--no-verify", ...(rien ? ["--allow-empty"] : []), "-m", sujet);
     } catch (erreur) {
-      throw motif("récolte du worktree", erreur);
+      throw motif("worktree harvest", erreur);
     }
     return dans("rev-parse", "HEAD").trim();
   };
@@ -625,8 +628,8 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         mkdirSync(essais, { recursive: true });
         const index = join(essais, `${nom}.index`);
         const commitTree = (arbre: string, ...args: string[]) => execFileSync("git", [...IDENTITE, "commit-tree", arbre, ...args], { ...reglages, env: { ...envGit, ...ENV_DE_RECOLTE }, stdio: ["ignore", "pipe", "pipe"] }).trim();
-        const departTraduit = commitTree(arbreTraduit(depart, traduire, index), "-m", "départ traduit");
-        const livraisonTraduite = commitTree(arbreTraduit(de, traduire, index), "-p", departTraduit, "-m", "livraison traduite");
+        const departTraduit = commitTree(arbreTraduit(depart, traduire, index), "-m", "translated start");
+        const livraisonTraduite = commitTree(arbreTraduit(de, traduire, index), "-p", departTraduit, "-m", "translated delivery");
         jeter(nom);
         const essai = join(essais, nom);
         await gitAsync("worktree", "add", "--quiet", "--detach", essai, tete);
@@ -728,7 +731,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           }
           if (disputes.length === 0) throw erreur;
           throw new Error(
-            `la branche \`${branche}\` a divergé de ce que l'origine en porte, en conflit sur ${disputes.map((chemin) => `\`${chemin}\``).join(", ")} : le clone y garde du travail jamais poussé, et l'origine porte des commits que la station n'y a pas poussés — rien n'est écrasé, à réconcilier à la main`,
+            `the branch \`${branche}\` has diverged from what the origin carries, in conflict on ${disputes.map((chemin) => `\`${chemin}\``).join(", ")}: the clone keeps work on it that was never pushed, and the origin carries commits the station did not push there — nothing is overwritten, to reconcile by hand`,
           );
         }
         return worktree;
@@ -810,7 +813,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
           for (let i = 0; i + 1 < changes.length; i += 2) tous.push(`${changes[i]} ${changes[i + 1]}`);
           for (const neuf of sur("ls-files", "--others", "--exclude-standard", "--directory", "--no-empty-directory", "-z").split("\0").filter(Boolean)) tous.push(`? ${neuf}`);
         } catch (erreur) {
-          throw motif("lecture de ce que le worktree abandonné emporte", erreur);
+          throw motif("reading what the abandoned worktree carries", erreur);
         } finally {
           rmSync(index, { force: true });
         }
@@ -859,13 +862,13 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       } catch (erreur) {
         if (/stale info/.test(String((erreur as { stderr?: unknown }).stderr ?? ""))) {
           throw new Error(
-            `git push : l'origine porte sur \`${branche}\` des commits que la station n'y a pas poussés — quelqu'un y a écrit pendant que le cook travaillait ; rien n'est écrasé : le travail du cook reste sur sa branche locale, et la reprise d'un renvoi fusionne les deux`,
+            `git push: the origin carries commits on \`${branche}\` that the station did not push — someone wrote there while the cook was working; nothing is overwritten: the cook's work stays on its local branch, and the resumption of a send-back merges the two`,
           );
         }
         // GitHub refuse à une App sans le droit `workflows` de pousser un
         // changement sous `.github/workflows/`, et le dit.
         if (options.jeton && /without `?workflows`? permission/i.test(String((erreur as { stderr?: unknown }).stderr ?? ""))) {
-          throw new Error("git push : droit `workflows` manquant — la livraison touche `.github/workflows/`, que l'identité cook n'a pas le droit de pousser (ce droit ne lui est pas donné : un cook ne réécrit pas la CI du projet) ; à pousser à la main");
+          throw new Error("git push: missing `workflows` permission — the delivery touches `.github/workflows/`, which the cook identity is not allowed to push (it is not given this permission: a cook does not rewrite the project's CI); to push by hand");
         }
         throw motif("git push", erreur);
       }
@@ -915,7 +918,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
       gitDans(worktree)("reset", "--quiet", "--hard", dejaPublie(branche).at(-1) ?? `origin/${base}`);
     },
     recoltes: (branche) =>
-      git("log", "--format=%H", "--fixed-strings", `--author=<${COURRIEL}>`, `--grep=${SUJET_DE_RECOLTE}`, `origin/${base}..${branche}`).split("\n").filter(Boolean),
+      git("log", "--format=%H", "--fixed-strings", `--author=<${COURRIEL}>`, `--grep=${SUJET_DE_RECOLTE}`, `--grep=${ANCIEN_SUJET_DE_RECOLTE}`, `origin/${base}..${branche}`).split("\n").filter(Boolean),
     liste(branche, repertoire) {
       try {
         return git("ls-tree", "-z", "--name-only", `${branche}:${repertoire}`).split("\0").filter(Boolean);

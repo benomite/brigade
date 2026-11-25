@@ -152,7 +152,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /Why `haiku` \/ `low`\.\*\* A fix whose test is already written\./);
     assert.match(dit, /the manager will not rewrite it/);
     assert.match(dit, /Removing `fire`, `model:` or `effort:` without replacing it takes this ticket away from the manager/);
-    assert.match(dit, /`brigade <projet> manager return 30`/);
+    assert.match(dit, /until the kitchen gives it back to the manager \(it is given back from the kitchen, not from GitHub\)/);
     assert.match(dit, /Correcting `prio:`, or setting or removing `question` or `blocked-on-human`, does not take it away/);
     assert.match(dit, /Judged by the manager in `sonnet` \/ `medium` · 1 turn · 10 tokens/);
   });
@@ -523,7 +523,8 @@ describe("le manager", { concurrency: 8 }, () => {
     ]);
     assert.deepEqual(labels(1), []);
     assert.deepEqual(gh.labellisations, []);
-    assert.deepEqual(cartesEnTodo(journal.base), []);
+    // La roadmap seule ouverte, le backlog n'a rien à cuire : sa carte (#4225) n'est pas celle de la roadmap.
+    assert.deepEqual(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1), []);
     // Rien n'est dit sur la roadmap : aucun commentaire, donc aucune mention du chef.
     assert.deepEqual(gh.commentaires.filter(([numero]) => numero === 1), []);
     assert.deepEqual(gh.creations, []);
@@ -534,14 +535,14 @@ describe("le manager", { concurrency: 8 }, () => {
     gh.decrire(1, { body: ROADMAP });
     // L'état d'espace#1 : jugée `decision`, sa question posée au chef, une carte de TODO.
     journal.ajouter({ project: "brigade", ticket: 1, author: "manager", type: "todo.entered", payload: { kind: "product", summary: "The roadmap.", statement: "Is the roadmap still a tracking document?", choices: [{ text: "Yes", then: "resume" }], captures: null } });
-    assert.equal(cartesEnTodo(journal.base).length, 1);
+    assert.equal(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1).length, 1);
 
     await jusqua(() => faits(1).some((e) => e.type === "manager.roadmap-cleared"));
     await laisserTourner();
 
     assert.deepEqual(labels(1), []);
     assert.deepEqual(gh.delabellisations, [[1, "decision"]]);
-    assert.deepEqual(cartesEnTodo(journal.base), []);
+    assert.deepEqual(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1), []);
     assert.deepEqual(charge(faits(1).find((e) => e.type === "manager.roadmap-cleared")), { labels: ["decision"], card: true });
     // Aucun geste du chef n'y a pris part : tout est du manager.
     assert.deepEqual(journal.duTicket(1).filter((e) => e.author === "chef"), []);
@@ -766,7 +767,8 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(dit, /ticket set aside: it is no longer fired and calibrated/);
     assert.match(dit, /it now lacks `fire`\./);
     assert.match(dit, /does not judge it again, even if it changes/);
-    assert.match(dit, /`brigade <projet> manager return 30`/);
+    assert.match(dit, /\*\*To give it back:\*\* from the kitchen, not from GitHub — the manager's report there names how\./);
+    assert.doesNotMatch(dit, /`brigade \S+ [a-z]/);
   });
 
   test("rendue par le chef, l'issue est rejugée à neuf sans avoir changé : le calibrage du manager est retiré, puis reposé — et une remise ne vaut qu'une fois", async (t) => {

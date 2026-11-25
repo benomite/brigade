@@ -14,7 +14,7 @@ import { repertoireTemporaire } from "../../outils.ts";
 const PROJET = "shop";
 const FICHIER_DES_NIVEAUX = "autonomy-levels.json";
 // The chef's defaults (niveaux.test.ts reads them from a fresh store).
-const NIVEAUX_PAR_DEFAUT: Niveaux = { manager: "act", "manager split-epic": "propose", supervisor: "act", closer: "propose", pass: "act", cook: "act" };
+const NIVEAUX_PAR_DEFAUT: Niveaux = { manager: "act", "manager split-epic": "act", supervisor: "act", closer: "propose", pass: "act", cook: "act" };
 type FicheDAgent = ReturnType<typeof equipeDuProjet>[number];
 const MAINTENANT = new Date("2026-11-23T12:00:00.000Z");
 const VIDE = { nextRun: null, counters: { fixedBySelf: 0, handedToChef: 0 }, gestures: [] };
@@ -37,7 +37,7 @@ test("one record per agent: the manager, the supervisor, the closer, the pass, t
   const de = (agent: string) => equipe.find((fiche) => fiche.agent === agent);
   assert.deepEqual<FicheDAgent | undefined>(de("supervisor"), { agent: "supervisor", state: "idle", lastGesture: null, thread: "Supervisor", autonomy: "act", exceptions: {}, ...VIDE });
   assert.deepEqual<FicheDAgent | undefined>(de("closer"), { agent: "closer", state: "working", lastGesture: { line: "ended a cleanup with nothing removed", at: "2026-11-23T08:00:00.000Z" }, thread: "Closer", autonomy: "observe", exceptions: {}, ...VIDE });
-  assert.deepEqual<FicheDAgent | undefined>(de("manager"), { agent: "manager", state: "idle", lastGesture: null, thread: "Manager", autonomy: "act", exceptions: { "split-epic": "propose" }, ...VIDE });
+  assert.deepEqual<FicheDAgent | undefined>(de("manager"), { agent: "manager", state: "idle", lastGesture: null, thread: "Manager", autonomy: "act", exceptions: { "split-epic": "act" }, ...VIDE });
   // The pass's last gesture is the latest of the reviewer's and the second judge's.
   assert.deepEqual<FicheDAgent | undefined>(de("pass"), { agent: "pass", state: "working on #31", lastGesture: { line: "reviewed #31: green", at: "2026-11-23T10:00:00.000Z" }, thread: "Pass", autonomy: "act", exceptions: {}, ...VIDE });
   assert.deepEqual<FicheDAgent | undefined>(de("cook #12"), { agent: "cook #12", state: "working on #12", lastGesture: null, thread: "Cook #12", autonomy: "act", exceptions: {}, ...VIDE });
@@ -61,11 +61,11 @@ function etat(t: TestContext) {
 test("`facts` gives the records in `equipe`, each with the chef's default level on a fresh project, then the one the store set", (t) => {
   const { repertoire, env } = etat(t);
   const niveaux = () => (lireLesFaits(env, MAINTENANT).equipe as FicheDAgent[]).map(({ agent, autonomy, exceptions }) => [agent, autonomy, exceptions]);
-  assert.deepEqual(niveaux(), [["manager", "act", { "split-epic": "propose" }], ["supervisor", "act", {}], ["closer", "propose", {}], ["pass", "act", {}]]);
+  assert.deepEqual(niveaux(), [["manager", "act", { "split-epic": "act" }], ["supervisor", "act", {}], ["closer", "propose", {}], ["pass", "act", {}]]);
 
   magasinDeNiveaux(repertoire).poser(PROJET, "closer", "act");
-  magasinDeNiveaux(repertoire).poser(PROJET, "manager split-epic", "act");
-  assert.deepEqual(niveaux(), [["manager", "act", { "split-epic": "act" }], ["supervisor", "act", {}], ["closer", "act", {}], ["pass", "act", {}]]);
+  magasinDeNiveaux(repertoire).poser(PROJET, "manager split-epic", "propose");
+  assert.deepEqual(niveaux(), [["manager", "act", { "split-epic": "propose" }], ["supervisor", "act", {}], ["closer", "act", {}], ["pass", "act", {}]]);
 });
 
 test("without `BRIGADE_PROJECT`, `facts` gives the levels of the log's project", (t) => {
