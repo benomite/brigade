@@ -5,9 +5,10 @@ import assert from "node:assert/strict";
 import { afterEach, describe, test } from "node:test";
 import type { ExecFileException } from "node:child_process";
 import type { Lu, Rendu } from "../../src/box.ts";
-import { repondreAuxAgents, SCHEMA_DES_AGENTS, SCHEMA_PRIVILEGIE, type Demande } from "../../src/agents-de-la-box.ts";
+import { repondreAuxAgents, SCHEMA_DES_AGENTS, SCHEMA_PRIVILEGIE } from "../../src/agents-de-la-box.ts";
 import { BASE_DES_AGENTS, source } from "../../src/vue/agents/source.js";
 
+type Demande = Parameters<typeof repondreAuxAgents>[0];
 const LU: Lu = { nom: "parade", cuisine: { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } } };
 const AGENTS = [{ id: "closer", name: "closer", role: "Removes dead code.", state: "idle", workingOn: null, nextRun: "in 3 h", figures: [], settings: null }];
 const rendu = (sortie: string, erreur: Partial<ExecFileException> | null = null, erreurs = ""): Rendu => ({ lance: "$ node geste.ts parade …", erreur: erreur as ExecFileException | null, sortie, erreurs });

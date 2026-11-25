@@ -17,11 +17,11 @@ export { SCHEMA_DES_AGENTS };
 // Le schéma tel que main.ts le déclare avant que l'app soit prête : `fetch` doit pouvoir le demander.
 export const SCHEMA_PRIVILEGIE = { scheme: SCHEMA_DES_AGENTS, privileges: { supportFetchAPI: true } };
 // L'auteur d'un changement fait depuis l'app : le chef, celui qui tient l'app.
-export const AUTEUR = "chef";
+const AUTEUR = "chef";
 
 // `corps` : le texte de la demande, tel que la page l'a envoyé — vide pour une lecture.
-export type Demande = { methode: string; url: string; corps: string };
-export type Reponse = { statut: number; corps: unknown };
+type Demande = { methode: string; url: string; corps: string };
+type Reponse = { statut: number; corps: unknown };
 type Lancer = (lu: Lu, commande: string) => Promise<Rendu>;
 
 // Un agent, une clé de réglage : des mots sans blanc ni apostrophe, rien d'autre ne part sur la box.
