@@ -15,6 +15,7 @@ import {
   type GitHubDesCartes,
   type Sorte,
 } from "../../../src/github-seul/carte-todo/carte-todo.ts";
+import { LABEL_PARKED } from "../../../src/github-etat/etats.ts";
 import type { Commentaire } from "../../../src/github.ts";
 
 // Une issue de GitHub, tenue en mémoire : ses labels, ses commentaires, et
@@ -44,7 +45,8 @@ for (const [sorte, carte, lisible] of QUATRE) {
   test(`une carte ${sorte} pose le label chef-todo et un seul commentaire, marqué de sa sorte, au texte lisible`, async () => {
     const issue = issueEnMemoire();
     assert.equal(await poserCarte(issue.numero, carte, issue.github), "posee");
-    assert.ok(issue.labels().includes(CHEF_TODO));
+    // La carte parque le ticket pour le chef (#4129) : `chef-todo` seul — `parked` dit qu'il attend quelqu'un d'autre.
+    assert.deepEqual(issue.labels(), ["fire", "taken", CHEF_TODO]);
     assert.equal(issue.commentaires.length, 1);
     const [marque, ...texte] = (issue.commentaires[0]?.body ?? "").split("\n");
     assert.equal(marque, `<!-- brigade:todo kind=${sorte} -->`);
@@ -106,6 +108,13 @@ test("le label posé sans son commentaire — une station arrêtée entre les de
   assert.equal(await poserCarte(issue.numero, carteAbandon(42, "closed by hand"), issue.github), "posee");
   assert.equal(issue.commentaires.length, 1);
   assert.deepEqual(issue.ecritures, ["commenter"]);
+});
+
+test("lever une carte parquée pour un autre retire aussi `parked` : le ticket reprend où il était", async () => {
+  const issue = issueEnMemoire(42, ["fire", "taken", CHEF_TODO, LABEL_PARKED]);
+  assert.equal(await leverCarte(issue.numero, issue.github), true);
+  assert.deepEqual(issue.ecritures, [`delabelliser ${CHEF_TODO}`, `delabelliser ${LABEL_PARKED}`]);
+  assert.deepEqual(issue.labels(), ["fire", "taken"]);
 });
 
 test("un commentaire de carte écrit par un inconnu ne compte pas", () => {

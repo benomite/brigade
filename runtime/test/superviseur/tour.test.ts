@@ -48,7 +48,7 @@ test("les cuisinables : les tickets calibrés qu'une station prendrait, depuis l
     ticket(2, ["fire", "model:opus"]),
     ticket(3, [...CALIBRE, "taken"]),
     ticket(4, [...CALIBRE, "in-pass"]),
-    ticket(5, [...CALIBRE, "waiting"]),
+    ticket(5, [...CALIBRE, "parked"]),
     ticket(6, [...CALIBRE, "blocked-on-human"]),
     ticket(7, [...CALIBRE, "chef-todo"]),
     ticket(8, [...CALIBRE, "set-aside:failures"]),

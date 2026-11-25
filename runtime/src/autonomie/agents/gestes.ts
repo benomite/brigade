@@ -67,6 +67,9 @@ export function consignerGeste(repertoire: string, agent: string, geste: { line:
 export type Gestes = Geste[] & { 0: Geste };
 export const gestesDe = (repertoire: string, agent: string): Gestes => (lireTout(repertoire)[agent] ?? []) as Gestes;
 
+// Every agent's gestures, by agent, oldest first: the threads the logbook of the day reads (journal-du-jour/).
+export const tousLesGestes = (repertoire: string): Record<string, Geste[]> => lireTout(repertoire);
+
 // The names the log holds a list under (`closer`, `cook #12`): the Agents tab gathers the cooks' (agents-tab/api.ts).
 export const agentsDuJournal = (repertoire: string): string[] => Object.keys(lireTout(repertoire));
 

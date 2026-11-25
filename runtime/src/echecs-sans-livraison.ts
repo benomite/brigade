@@ -1,4 +1,4 @@
-// Le compte qui met un ticket de côté « par ses échecs » (`set-aside:failures`) : seuls y comptent
+// Le compte qui parque un ticket « par ses échecs » (`parked`, sa marque dit `failures`, #4260) : seuls y comptent
 // les runs de cook qui ont échoué. Un cook dont le run s'est fini `ok` sans livrer — rien commité,
 // rien ajouté — est relancé, il n'est pas un échec (#3652). Ces arrêts-là portent `run=ok` dans
 // leur commentaire `brigade:echec`.
@@ -11,7 +11,7 @@ export type EssaiSansLivraison = { motif: string; runOk: boolean };
 export const runFiniOk = (corps: string): boolean => /^<!-- brigade:echec[^\n]* run=ok\b/.test(corps);
 
 // Les runs qui ont échoué, du plus ancien au plus récent : ce que le seuil compte, et ce que la
-// raison de la mise de côté nomme.
+// raison du parking nomme.
 export const runsEchoues = (essais: readonly EssaiSansLivraison[]): string[] => essais.filter((essai) => !essai.runOk).map((essai) => essai.motif);
 
 // La phrase de la mise de côté, avec les runs échoués qui l'ont déclenchée.

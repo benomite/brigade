@@ -35,9 +35,8 @@ import { entete, type Entete } from "./fiche.ts";
 import { agentsDe, cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { gardeRepeteeLue, ligneDeGarde, type GardeRepeteeLue, type LigneDeGarde } from "./vue/carte-ticket/garde-repetee.ts";
 import { anciennete, cadenceLue, essaisLus, points, type Anciennete, type EssaiLu, type Point, type CadenceLue } from "./cadence.ts";
-import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
-import type { CarteDuChef, Recommandee } from "./tableau/todo-github.ts";
+import { LABEL_DU_CHEF, type CarteDuChef, type Recommandee } from "./tableau/todo-github.ts";
 import { validationLue } from "./vue/validation-design/validation-design-github.ts";
 import { revueLue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
@@ -289,10 +288,8 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
   "review-before-merge": "A sensitive ticket waits for your review before merge.",
   // La question du manager avant de découper une épique (tableau/question-d-epique-github.ts).
   "manager-epic-question": "The manager asked you a question before splitting this epic: it waits for your answer.",
-  // Les écarts du manager (#3370, tableau/mise-de-cote-github.ts, `carteDeLEcart`).
-  "manager-question": "The manager set this ticket aside with a question for you.",
-  "manager-decision": "The manager set this ticket aside for your decision.",
-  "manager-blocked-on-human": "The manager holds this ticket until you lift the hold.",
+  // Un ticket parqué pour le chef par un label d'attente d'avant parked (#3370, #4129, tableau/mise-de-cote-github.ts, `carteDeLEcart`).
+  "manager-parked": "Parked for you by a waiting label of before parked: it waits for your answer.",
 };
 const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
 
@@ -325,7 +322,7 @@ export { SANS_RAISON };
 // quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
 // `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
 // (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
-// `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` ou `blocked-on-human` met de côté, ce qui le
+// `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` met de côté, ce qui le
 // met de côté (tableau/mise-de-cote-github.ts, #2075) — absente pour toute autre entrée.
 // Une carte qui attend un autre humain du projet que le compte connecté (vue/cartes-assignees/, ticket 2985) : TODO la
 // replie sous « Awaiting others » — comme une entrée de `attend` (sa carte, sa décision…), et `qui` elle attend, leurs logins
@@ -521,7 +518,7 @@ export type Faits = {
 // `captures` : celles d'un ticket d'interface livré, avant et après (captures.ts) — absentes,
 // le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
 // `question` : sur une carte de TODO, son issue porte une question du manager — avant de découper
-// une épique, ou qui la retient (`blocked-on-human`) —, que la carte dit en deux lignes (question.ts).
+// une épique, ou qui la parque pour le chef (`chef-todo`) —, que la carte dit en deux lignes (question.ts).
 // `todo` : sur une carte de TODO entrée par la porte du runtime, sa question, ses choix et ses captures
 // (carte-todo.ts) — ce que le chef tranche sur la carte même, d'un clic ou d'un texte.
 // `repondue` : sur une carte de WAITING, sa question est répondue, et elle attend que le manager lise
@@ -1282,13 +1279,14 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
   for (const ticket of enWaiting) dits.delete(ticket);
   // Une question du manager avant de découper une épique — d'un runtime d'avant `decision`, ce que sa
-  // ligne du bloc en dit —, et une issue que la question retient : la carte dit la question.
+  // ligne du bloc en dit —, et une issue que le manager a parquée pour le chef avec sa question (`chef-todo`, que sa ligne
+  // du bloc nomme, runtime/src/attend.ts ; d'abord un label d'attente d'avant parked, #4260) : la carte dit la question.
   const avantDecoupage = (ticket: number) => {
     const decision = (faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket))?.decision;
     return decision === undefined ? (dits.get(ticket) ?? []).some((dit) => QUESTION_D_EPIQUE.test(dit)) : decision.quoi === "question";
   };
-  const interroge = (ticket: number) => avantDecoupage(ticket) || (dits.get(ticket) ?? []).some((dit) => dit.includes(`\`${LABEL_RETENUE}\``));
-  // Répondue, la question avant découpage n'attend plus le chef. Celle qui retient l'issue, si : le label reste à lever.
+  const interroge = (ticket: number) => avantDecoupage(ticket) || (dits.get(ticket) ?? []).some((dit) => dit.includes(`\`${LABEL_DU_CHEF}\``));
+  // Répondue, la question avant découpage n'attend plus le chef. Celle qui parque l'issue, si : sa carte reste à répondre.
   const repondus = new Map([...dits.keys()].flatMap((ticket) => {
     const repondue = repondues?.get(ticket);
     return repondue !== undefined && avantDecoupage(ticket) ? [[ticket, repondue] as const] : [];
