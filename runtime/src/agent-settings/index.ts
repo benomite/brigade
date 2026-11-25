@@ -23,7 +23,7 @@ import { DEFINITIONS, isAgent, refusal, type Agent, type Definition, type Kind }
 export type Source = "app" | "env" | "default";
 export type Value = string | number | boolean | null;
 
-export type Field = {
+type Field = {
   key: string;
   label: string;
   kind: Kind;

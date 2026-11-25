@@ -5,7 +5,9 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { createAgentSettings, type Field } from "../../src/agent-settings/index.ts";
+import { createAgentSettings } from "../../src/agent-settings/index.ts";
+
+type Field = Record<string, unknown> & { key: string };
 
 const fresh = (env: Record<string, string> = {}) => {
   const stateDir = mkdtempSync(join(tmpdir(), "agent-settings-"));
