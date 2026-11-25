@@ -1,7 +1,10 @@
 // The #3955 loop: send-back 2/2, relaunch, send-back on the same sha (#3961).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { estMisDeCote, HORS_CUISINE } from "../../src/github.ts";
+import { HORS_CUISINE } from "../../src/github.ts";
+import { LABEL_PARKED } from "../../src/github-etat/etats.ts";
+// Chez le superviseur : parqué par ses échecs, depuis #4129.
+const chezLeSuperviseur = (labels: Set<string>) => labels.has(LABEL_PARKED);
 import { corpsDeLaReponse } from "../../src/desaccord-cook.ts";
 import { FauxGitHub } from "../faux-github.ts";
 
@@ -36,10 +39,10 @@ test("the #3955 sequence ends with the ticket at the supervisor after at most on
   relance = true;
   const dernier = Date.parse(renvois(faux).at(-1)!.createdAt);
   faux.retraits.set(7, [...(faux.retraits.get(7) ?? []), { label: HORS_CUISINE, createdAt: new Date(dernier + 500).toISOString() }]);
-  for (let tour = 0; tour < 15 && !estMisDeCote([...faux.ticket(7).labels]); tour += 1) {
+  for (let tour = 0; tour < 15 && !chezLeSuperviseur(faux.ticket(7).labels); tour += 1) {
     await a.tour();
     await a.calme();
   }
-  assert.ok(estMisDeCote([...faux.ticket(7).labels]), `the ticket is at the supervisor: ${[...faux.ticket(7).labels].join(", ")}`);
+  assert.ok(chezLeSuperviseur(faux.ticket(7).labels), `the ticket is at the supervisor: ${[...faux.ticket(7).labels].join(", ")}`);
   assert.ok(jugees.length - avant <= 1, `${jugees.length - avant} reviews after the relaunch`);
 });

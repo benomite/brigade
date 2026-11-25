@@ -6,8 +6,8 @@
 // - Le dernier merge : un merge que ce tour a fait, ou un ticket en pass qui
 //   n'est plus parmi les tickets ouverts — une autre station l'a mergé.
 // - Les cuisinables : les tickets `fire` qu'une station prendrait — ni pris, ni
-//   en pass, au calibrage complet, ni mis de côté, ni en attente du chef
-//   (`blocked-on-human`, `chef-todo`) ou d'un tiers (`waiting`), ni une épique
+//   en pass, au calibrage complet, ni mis de côté, ni parqué — pour le chef
+//   (`chef-todo`) ou pour un autre (`parked`) —, ni une épique
 //   ni un besoin dont un ticket lancé est né (#2618, #3479) —, et depuis quand :
 //   le premier tour qui a vu chacun attendre. Un ticket que la porte de prise
 //   a sauté parce qu'il n'attend que des tickets en cuisson n'en est pas un :
@@ -22,12 +22,12 @@
 // Rien n'est tenu d'un process à l'autre : à l'ouverture, les comptes repartent.
 //
 // Le même client porte ce que lit le réveil sans progrès (`inactivite/observer.ts`, #4027).
-import { A_LA_MAIN, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
+import type { GitHubDuTour, TicketLu } from "../brigade-github.ts";
 import type { PRDeLaPorte, RaisonDuSaut } from "../claim-gate.ts";
 import { horsDesBesoins } from "../besoin/besoin.ts";
 import { calibrage, complet } from "../calibrage.ts";
 import type { CheckVu } from "../carte-ci-windows.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "../github-etat/etats.ts";
 import { estMisDeCote, MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
@@ -37,7 +37,7 @@ import { reveil, type FaitsDuProjet } from "./declencheur.ts";
 import { bloqueDe, type Bloque } from "./zone-liberee.ts";
 
 // Les labels d'un ticket qui n'attend pas la cuisine.
-const AILLEURS: readonly string[] = [...MIS_DE_COTE, A_LA_MAIN, CHEF_TODO, LABEL_WAITING, LABEL_TAKEN, LABEL_IN_PASS];
+const AILLEURS: readonly string[] = [...MIS_DE_COTE, CHEF_TODO, LABEL_PARKED, ...LABELS_D_AVANT_PARKED, LABEL_TAKEN, LABEL_IN_PASS];
 
 const PRISES = new RegExp(`^${MARQUE_D_ECHEC} n=(\\d+)`);
 const A_VIDE = /the cook added nothing, and the delivery still has work left — /; // `brigade-github.ts`
@@ -136,7 +136,7 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       fires: async () => {
         const tickets = await github.fires();
         noterTickets(tickets);
-        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && estMisDeCote(labels));
+        reparationMiseDeCote = tickets.some(({ labels }) => labels.includes(PRIO_REPARATION) && (estMisDeCote(labels) || estParque(labels)));
         return tickets;
       },
       commenter: async (numero, corps) => {

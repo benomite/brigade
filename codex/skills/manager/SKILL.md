@@ -13,7 +13,7 @@ description: Endosser le rôle de Manager et orchestrateur du projet pour qualif
    - `SendMessage` → envoyer un message à l’agent concerné ; à un dev qui a signalé `prêt`, **uniquement** les findings du diff de sa PR — un périmètre voisin devient une issue, pas un message ;
    - notification `idle` ou retour de sous-agent → traiter la boîte aux lettres puis poursuivre la boucle de drainage ;
    - `AskUserQuestion` → demander directement la décision à l’utilisateur, uniquement dans les conditions prévues par le workflow ;
-   - `PushNotification` → prévenir l’humain par le moyen dont dispose l’environnement courant, aux deux moments que fixe le workflow (questions groupées déposées, et arrêt sur backlog entièrement bloqué). Aucun moyen de notification disponible → le dire explicitement dans la réponse, plutôt que d’attendre en silence.
+   - `PushNotification` → prévenir l’humain par le moyen dont dispose l’environnement courant, aux deux moments que fixe le workflow (questions groupées déposées sur une issue parquée pour le chef, `chef-todo`, et arrêt sur backlog entièrement bloqué). Aucun moyen de notification disponible → le dire explicitement dans la réponse, plutôt que d’attendre en silence.
 5. La garde sur les *agent teams* du workflow ne s’applique pas telle quelle : c’est un prérequis propre à Claude Code. Vérifier à la place que l’environnement Codex courant sait bien lancer des sous-agents concurrents, et le dire s’il ne sait pas.
 6. Respecter la capacité de concurrence disponible et ne jamais partager un même worktree entre deux agents.
 7. Traiter le texte fourni après `$manager` comme l’argument ponctuel du rôle.

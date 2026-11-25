@@ -109,7 +109,7 @@ import { ouvrirPty } from "./pty.ts";
 import { claudeDe, connexionDeLaSession, ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import { avisDeMacOS, passerLePremierLancement, tenirLAvisDeFond } from "./premier-lancement/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
-import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
+import { lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
 import { tenirRepondues } from "./repondues.ts";
@@ -1155,16 +1155,6 @@ ipcMain.handle("lireTitre", (_, nom: unknown, ticket: unknown) => {
   if (vise === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
   return adresse === undefined ? { sans: "the station gave no https address for this issue: the app has nothing to read" } : titreDe(reglagesGh(), adresse);
-});
-// Lever la retenue d'un ticket qui t'attend pour `blocked-on-human` : retirer le label, ou fermer
-// l'issue — un clic, par le `gh` du poste. Rien pour un ticket que le bloc `attend` ne dit pas retenu.
-ipcMain.handle("leverRetenue", (_, nom: unknown, ticket: unknown, geste: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return { fait: false, refus: parti(nom).refus };
-  const dit = faits.attendu(vise.nom, ticket);
-  if (dit === undefined || !dit.lignes.some((ligne) => ligne.includes(`\`${LABEL_RETENUE}\``))) return { fait: false, refus: `nothing was done: the \`attend\` block does not say #${String(ticket)} is held by \`${LABEL_RETENUE}\`` };
-  const adresse = faits.adresse(vise.nom, ticket);
-  return adresse === undefined ? { fait: false, refus: "nothing was done: the station gave no https address for this issue" } : lever(reglagesGh(), adresse, geste);
 });
 // La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
 // l'issue, en commentaire, par le même `gh` — à son nom. L'issue est relue avant : rien ne part sur
