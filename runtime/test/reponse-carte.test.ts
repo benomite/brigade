@@ -7,6 +7,7 @@ import { describe, test, type TestContext } from "node:test";
 import { cartesEnTodo, entrerDansTodo, type Proposition } from "../src/carte-todo.ts";
 import { carteDuTicket } from "../src/carte-todo/cartes.ts";
 import type { Fait } from "../src/evenements.ts";
+import { CHEF_TODO } from "../src/github-etat/etats.ts";
 import { DU_MANAGER, ENCORE_ROUGE, NON_JUGEE } from "../src/events/pass.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
@@ -14,7 +15,6 @@ import { passDuTicket } from "../src/projections/pass.ts";
 import { ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "./aides/rail-du-journal.ts";
 import { repondreALaCarte, REPONSE_DU_CHEF } from "../src/reponse-carte.ts";
-import { RETENUE } from "../src/requalifier.ts";
 import { fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { aArreter, appeler, DEPOT, fauxGh, repertoireTemporaire } from "./outils.ts";
 
@@ -36,7 +36,7 @@ function atelier(t: TestContext) {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: heure.maintenant });
   aArreter(t, () => journal.fermer());
   const rail = ouvrirRail(journal, { projet: PROJET, dureeBailMs: 600_000, maintenant: heure.maintenant });
-  const gh = fauxGitHub(issue(30), issue(40, [RETENUE]));
+  const gh = fauxGitHub(issue(30), issue(40, [CHEF_TODO]));
   const noter = (ticket: number, fait: Fait, author = "runtime") => journal.ajouter({ project: PROJET, ticket, author, ...fait });
   const arriver = () =>
     noter(30, { type: "ticket.arrived", payload: { title: "Ticket 30", priority: 1, createdAt: "2026-10-01T00:00:30Z", url: `https://github.com/${DEPOT}/issues/30`, card: null } }, "github");
@@ -112,7 +112,7 @@ describe("répondre d'un clic à une carte de TODO", () => {
     assert.equal(cartesEnTodo(c.journal.base).length, 1);
   });
 
-  test("un ticket 86 sans livraison revient sur le rail ; une issue retenue par `blocked-on-human` perd son label, et le manager la rejuge", async (t) => {
+  test("un ticket 86 sans livraison revient sur le rail ; une issue parquée pour le chef perd `chef-todo`, et le manager la rejuge (#4260)", async (t) => {
     const c = atelier(t);
     c.arriver();
     c.rail.quatreVingtSix(30, { motif: "no-station: chrome" });
@@ -123,8 +123,8 @@ describe("répondre d'un clic à une carte de TODO", () => {
     entrerDansTodo(c.journal, PROJET, 40, CARTE, "manager");
     const retenue = await c.repondre({ texte: "Le CSV, séparé par des points-virgules." }, 40);
     assert.equal(retenue.done, true);
-    assert.match(retenue.price, /`blocked-on-human` is removed: the manager judges the issue again with your answer/);
-    assert.deepEqual(c.gh.delabellisations, [[40, RETENUE]]);
+    assert.match(retenue.price, /`chef-todo` is removed: the manager judges the issue again with your answer/);
+    assert.deepEqual(c.gh.delabellisations, [[40, CHEF_TODO]]);
     assert.equal(c.dits(40).length, 1);
     assert.deepEqual(cartesEnTodo(c.journal.base), []);
   });

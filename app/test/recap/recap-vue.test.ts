@@ -35,7 +35,8 @@ const RIEN = "Nothing happened since you last looked.";
 const FICHIER_DU_RECAP = "recap.json";
 const DEPOTS: Record<string, string> = { parade: "chef/parade", cantine: "chef/cantine" };
 const renvoi = (raison: string, le: string) => ({ id: 7, body: `<!-- brigade:renvoi n=1 sha=7579211 -->\nStation \`box/claude\`: sent back to a cook (1/2) — ${raison}\n\nThe next cook takes up the branch of PR #50.`, author_association: "OWNER", created_at: le });
-const juge = (pr: number) => ({ id: 8, body: `Station \`box/claude\`: this delivery changes what judges it (\`.github/workflows/ci.yml\`), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr}.`, author_association: "OWNER", created_at: "2026-11-10T01:00:00Z" });
+// Une livraison à merger à la main : la carte du chef (`chef-todo`, #4129) qui le demande.
+const juge = (ticket: number) => ({ id: 8, body: `<!-- brigade:todo kind=merge-by-hand -->\nMerge the PR of #${ticket} by hand? It changes what judges it.\n- [merge] Merge the PR of #${ticket}`, author_association: "OWNER", created_at: "2026-11-10T01:00:00Z" });
 
 const demarrage = () => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
@@ -53,8 +54,8 @@ function cuisine(t: TestContext) {
   let maintenant = "2026-11-10T10:00:00.000Z";
   const mondes: Record<string, Monde> = {
     parade: {
-      issues: [issue("chef/parade", 2408, ["fire", "in-pass", "blocked-on-human"])],
-      commentaires: { 2408: [juge(2416)], 20: [renvoi("the CI is red on `7579211` (PR #50):", "2026-11-10T03:00:00Z")] },
+      issues: [issue("chef/parade", 2408, ["fire", "in-pass", "chef-todo"])],
+      commentaires: { 2408: [juge(2408)], 20: [renvoi("the CI is red on `7579211` (PR #50):", "2026-11-10T03:00:00Z")] },
       fermees: [fermee("chef/parade", 12, 41, "2026-11-10T09:00:00Z"), fermee("chef/parade", 11, 40, "2026-11-09T08:00:00Z")],
     },
     cantine: { issues: [], commentaires: {}, fermees: [] },

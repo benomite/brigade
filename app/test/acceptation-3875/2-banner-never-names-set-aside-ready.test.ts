@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
+import { corpsDuParking } from "../../../runtime/src/attente-github/marque.ts";
 import type { Faits } from "../../src/faits.ts";
 import type { AppelGitHub } from "../../src/tableau/client.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
@@ -27,7 +28,9 @@ const VIDE: TableauLu = {
   activites: [],
 };
 
-// #1029 porte `fire` depuis le 2026-11-10 et `label` ; la station a dit pourquoi, en le mettant de côté, le 2026-11-16 à 11:17.
+// #1029 porte `fire` depuis le 2026-11-10 et `label` ; la station a dit pourquoi, en le parquant par ses échecs, le 2026-11-16 à
+// 11:17 : son commentaire de parking (#4260 ; d'abord le label `set-aside:failures`).
+const PARKING = corpsDuParking({ what: `its cooks failed too many times, the station stopped relaunching it. The reason: ${RAISON}`, who: "the supervisor", followUp: "2026-11-23T11:17:00.000Z", fact: "the supervisor answers", failures: true });
 function github(label: string): AppelGitHub {
   const ok = (data: unknown) => ({ status: 200, data });
   return async (chemin) => {
@@ -36,7 +39,7 @@ function github(label: string): AppelGitHub {
     }
     if (chemin.includes("/pulls?")) return ok([]);
     if (chemin.includes("/issues/1029/comments")) {
-      return ok([{ id: 1, body: `Station \`parade-box/claude\`: ${RAISON}. Set aside by its failures (${label}).`, author_association: "OWNER", created_at: MIS_DE_COTE_LE }]);
+      return ok([{ id: 1, body: PARKING, author_association: "OWNER", created_at: MIS_DE_COTE_LE }]);
     }
     if (chemin.includes("/issues/1029/events")) return ok([{ event: "labeled", label: { name: "fire" }, created_at: "2026-11-10T09:05:00Z" }]);
     return { status: 404, data: {} };
@@ -49,7 +52,7 @@ async function lire(label: string) {
 }
 
 test("the Nothing served banner does not say #1029 is ready when it is set aside by its failures", async () => {
-  const { lu } = await lire("set-aside:failures");
+  const { lu } = await lire("parked");
   const alertes = (lu.faits as unknown as Faits).alertesDuRail ?? [];
   for (const { phrase } of alertes) {
     assert.doesNotMatch(phrase, /#1029 is ready/, phrase);
