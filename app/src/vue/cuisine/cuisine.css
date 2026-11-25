@@ -1,0 +1,94 @@
+/* Le plan de la cuisine (cuisine.js, ticket 4238) : la bande du haut, le TODO du chef au-dessus des colonnes, le rail en tête
+   du backlog et les cartes parked. */
+
+/* La bande du haut : la ligne du supervisor, celle du closer, puis le message qui demande un geste. */
+#rail .bande-du-haut {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  margin: var(--pas-2) var(--pas-4) 0;
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+#rail .bande-du-haut > .ligne-du-supervisor,
+#rail .bande-du-haut > .ligne-du-closer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pas-1) var(--pas-3);
+}
+#rail .bande-du-haut > .ligne-du-supervisor > strong,
+#rail .bande-du-haut > .ligne-du-closer > strong {
+  min-width: 80px;
+  color: var(--texte);
+}
+#rail .bande-du-haut > .ligne-du-supervisor > span + span::before,
+#rail .bande-du-haut > .ligne-du-closer > span + span::before {
+  content: "· ";
+  color: var(--discret);
+}
+
+/* Le TODO du chef : posé sous les colonnes, montré juste au-dessus d'elles, d'un coup d'œil. */
+#rail > .colonnes {
+  order: 1;
+}
+#rail > .colonnes ~ * {
+  order: 2;
+}
+#rail > .colonnes ~ .todo-du-rail {
+  order: 0;
+}
+#rail .todo-du-rail > .tete-du-todo {
+  flex: none;
+  align-self: center;
+  font-weight: 600;
+  color: var(--rouge-clair);
+}
+#rail .todo-du-rail > .tete-du-todo + .entrees-du-todo {
+  flex: 1 1 0;
+}
+#rail .todo-du-rail > .entrees-du-todo {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--pas-1) var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#rail .todo-du-rail > .entrees-du-todo > li {
+  padding-left: var(--pas-1);
+  border-left: 3px solid var(--rouge);
+}
+
+/* Le backlog : le rail en tête, ce qui est prêt à cuire ; dessous, ce qui ne l'est pas encore. */
+#rail .colonne h5 {
+  margin: var(--pas-2) 0 var(--pas-1);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--discret);
+}
+#rail .colonne > .pas-prets {
+  margin-top: var(--pas-3);
+  padding-top: var(--pas-1);
+  border-top: 1px dashed var(--trait);
+}
+
+/* Une carte parked : qui elle attend, jusqu'à quand, en tête de sa ligne. */
+#rail [data-parque] .parque {
+  margin: var(--pas-1) 0 0;
+  padding-left: var(--pas-2);
+  border-left: 3px solid var(--orange);
+  font-size: var(--taille-corps);
+  font-weight: 600;
+}
+
+/* Une lecture hors ligne ou périmée, en tête du rail : son signe, et « read again » à côté. */
+#rail > .relisible {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+}

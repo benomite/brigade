@@ -534,10 +534,13 @@ export type Faits = {
 // quand GitHub les a donnés (#4051). `TailleDePr` : ce que GitHub en a donné, rien de plus.
 export type TailleDePr = { additions?: number; deletions?: number; ouvertLe?: string };
 export type LivraisonLue = { numero: number; url: string; lignes?: { ajoutees: number; retirees: number }; age?: string };
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: LivraisonLue; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: LivraisonLue; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; parque?: Parque; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
+// Une carte parked (#4238, spec 2026-11-24-simplified-process, règle 13) : qui elle attend — un tiers, ou ce qui la retient
+// —, jusqu'à quand (nul : aucune date), et `chef` quand c'est le chef qu'elle attend : elle est aussi dans son TODO.
+export type Parque = { qui: string; jusqua: string | null; chef?: true };
 export type Livraison = { resume: string; remarques: string; constats: Constat[] } | { sans: string };
 // `compte` : le nombre de ses cartes — ou `?`, pour TODO, tant que rien ne dit
 // qui attend. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
@@ -1260,6 +1263,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   const dAutres = new Map((faits.attendAutres ?? []).map((attendu) => [attendu.ticket, attendu]));
   for (const entree of attend === undefined ? [] : ticketsDe(attend.bloc)) dits.set(entree.ticket, [...(dits.get(entree.ticket) ?? []), ditDe(entree)]);
   for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
+  // Un ticket parked que la file nomme attend le chef : sa carte reste dans la colonne où il attend, et va aussi dans son TODO.
+  const parquesPourLeChef = new Set([...enWaiting].filter((ticket) => dits.has(ticket)));
   for (const ticket of enWaiting) dits.delete(ticket);
   // Une question du manager avant de découper une épique — d'un runtime d'avant `decision`, ce que sa
   // ligne du bloc en dit —, et une issue que la question retient : la carte dit la question.
@@ -1401,6 +1406,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(dit === undefined && connu?.etat === "pris" && connu.attente == null && connu.illisible === undefined && faits.cooks !== undefined && !faits.cooks.some((cook) => cook.ticket === ticket) ? { sansCook: true as const } : {}),
       // En pass ou livrée, et sur le rail : « try it » (essai.ts, #3215) — pas une carte qui t'attend.
       ...(dit === undefined && connu?.illisible === undefined && sEssaie(connu?.etat) ? { essayable: true as const } : {}),
+      // Mis de côté par le runtime, sans question au chef : parked, jusqu'à son retour (#4238).
+      ...(dit === undefined && connu?.attente != null && !refusee ? { parque: { qui: connu.attente.raison, jusqua: connu.attente.retour } } : {}),
       ...(miseDeCote === undefined ? {} : { miseDeCote: { label: miseDeCote.label, liens: miseDeCote.raison === null ? [] : miseDeCote.liens.map(({ numero }) => numero) } }),
       ...(duChef !== undefined ? { todo: duChef } : dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte) } : {}),
       // Confié à un humain : sa tâche (vue/attente-capacite/).
@@ -1468,6 +1475,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(tiers == null ? { sans: TIERS_PAS_DONNE } : {}),
       // Sa relance est passée : il revient au chef, sa carte est rouge dans WAITING (#3458).
       ...(tiers?.relance != null && relance < 0 ? { relancePassee: true as const } : {}),
+      ...(tiers == null ? {} : { parque: { qui: tiers.qui, jusqua: tiers.relance, ...(parquesPourLeChef.has(ticket) ? { chef: true as const } : {}) } }),
       fiche: entete({ titre, url, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }),
       // Sans relance, personne n'a posé l'attente : rien à reprendre ni à renvoyer, le ticket repart seul.
       ...(tiers?.relance === null ? {} : { gestes: ["attente-reprendre" as const, "attente-arrivee" as const] }),
@@ -1724,6 +1732,19 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
         // Un `#N` de la ligne d'un ticket mis de côté (#2075) : une issue ou une PR du dépôt, que le rail ne porte pas.
         donnes?.attend?.flatMap(({ miseDeCote }) => miseDeCote?.liens ?? []).find((lien) => lien.numero === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
+    },
+    // La page des checks du dépôt d'un projet (#4238), ouverte par `ouvrir` : celle de GitHub Actions, d'après l'adresse d'une
+    // issue que la dernière lecture donne. Rend si elle l'a été — faux quand la lecture n'en donne aucune de GitHub, ou que
+    // `ouvrir` échoue.
+    ouvrirLesChecks(projet: unknown, ouvrir: (adresse: string) => Promise<unknown>): Promise<boolean> {
+      const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
+      const adresses = [...(donnes?.rail ?? []), ...(donnes?.attend ?? []), ...(donnes?.livres ?? [])].map(({ url }) => url ?? "");
+      const depot = adresses.map((url) => /^https:\/\/github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/\d+$/.exec(url)?.[1]).find((trouve) => trouve !== undefined);
+      if (depot === undefined) return Promise.resolve(false);
+      return ouvrir(`https://github.com/${depot}/actions`).then(
+        () => true,
+        () => false,
+      );
     },
     // L'adresse d'une capture d'un ticket d'interface, telle que la box l'a donnée à la dernière
     // lecture — sa livraison servie d'abord, puis le rail, puis sa carte de TODO. Rien pour une capture

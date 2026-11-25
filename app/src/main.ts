@@ -1957,6 +1957,9 @@ ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
     () => false,
   );
 });
+// Les checks du dépôt d'un projet, d'une alerte du rail qui en nomme un (#4238) : la page que la dernière lecture permet de
+// trouver (faits.ts). Rend si elle a été ouverte.
+ipcMain.handle("ouvrirLesChecks", (_, nom: unknown) => faits.ouvrirLesChecks(nom, (adresse) => shell.openExternal(adresse)));
 // Un ticket de Livré s'ouvre aussi sur sa PR mergée : l'adresse est celle que la box a donnée
 // pour lui (faits.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirPr", (_, nom: unknown, ticket: unknown) => {

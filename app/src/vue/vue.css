@@ -2239,16 +2239,18 @@ main > header,
 #rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) > ol > li {
   container: todo-plein / inline-size;
 }
-/* Ce qui attend le chef sans être une carte du rail, sous les colonnes (ticket 3523) : le dépôt pas préparé, une réponse
-   gardée, et « Awaiting others », replié. */
-#rail .todo-du-rail {
+/* Le TODO du chef (ticket 4238, cuisine/cuisine.css le montre au-dessus des colonnes), et à côté de lui, sous les colonnes, une
+   réponse gardée et « Awaiting others », replié. */
+#rail .todo-du-rail,
+#rail .a-cote-du-todo {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--pas-2);
   padding: var(--pas-2) var(--pas-4) 0;
 }
-#rail .todo-du-rail > * {
+#rail .todo-du-rail > *,
+#rail .a-cote-du-todo > * {
   flex: 1 1 100%;
 }
 /* La ligne d'état du rail (ticket 3523) : ce qui retient la cuisine, en une ligne sous laquelle les colonnes commencent. */
@@ -2265,7 +2267,7 @@ main > header,
 }
 /* « Awaiting others » (tickets 2985, 3071) : le bloc replié, à côté de l'entrée TODO. Dépliées, les cartes d'un autre humain sont
    des cartes d'attente, avec en plus qui elles attendent. */
-#rail .todo-du-rail > .replie.autres {
+#rail .a-cote-du-todo > .replie.autres {
   padding: var(--pas-2);
 }
 #rail .replie.autres > ol {
