@@ -1,8 +1,38 @@
 # TODO cards: the gesture that answers each kind
 
-A TODO card asks the chef a question (`Awaiting you`, in the words of [the glossary](glossary.md)). TODO is not a column (#3458): on the rail, a TODO card is a red card in the column of its stage, first in it, and the `TODO (N)` entry above the columns counts and filters them. The answer should always be a click in the app and on the phone, never a typed command or a trip to GitHub. This page lists every kind of TODO card the app can show, and the gesture that answers it today (epic #3218, ticket #3228).
+A TODO card asks the chef a question (`Awaiting you`, in the words of [the glossary](glossary.md)). TODO is not a column (#3458): on the rail, a TODO card is a red card in the column of its stage, first in it, and the `TODO (N)` list above the columns counts them and answers them. The answer should always be a click in the app and on the phone, never a typed command or a trip to GitHub. This page lists every kind of TODO card the app can show, and the gesture that answers it today (epic #3218, ticket #3228).
 
 The breaker line is answered by a button on the phone too (#3371).
+
+## The TODO is the tickets parked for the chef (#4261)
+
+Rule 13 of [the simplified process](superpowers/specs/2026-11-24-simplified-process.md): a ticket that waits for someone is **parked** — who, for what, until when. The chef's TODO is **exactly the tickets parked for the chef**: a card is red, and in the TODO, when the « who » of its parked record is the chef (`parqueDe` in `app/src/bon.ts`, `estRouge` in `app/src/vue/todo/todo.js`). Every card of `Awaiting you` — each kind below — is parked for the chef, for its question (or, without one, for what its card waits for), with no date (`app/src/faits.ts`). Not in the TODO:
+
+- a ticket parked for someone else — a third party in WAITING, even when the queue names it, or `Awaiting others`;
+- a ticket parked until a date, even a passed one: its card says its follow-up passed, and stays where it waits;
+- the repository not set up for Brigade, which is not a ticket: its notice and its button are next to the TODO, under the columns.
+
+### A TODO entry
+
+Above the columns, `TODO (N)`, then one entry per ticket parked for the chef (`poserLeTodo` in `app/src/vue/cuisine/cuisine.js`):
+
+1. its number and title — a click opens its card, where its free answer field and `ask the second` are;
+2. what is asked — the « for what » of its parked record;
+3. its buttons, the ones of its card (`gestesDuTodo`):
+
+| The card | Its buttons on the TODO entry |
+|---|---|
+| A card with choices — a `chef-todo` card, a ticket set aside by the station or the manager, a stranger's issue, an epic's question | One per choice, in the card's order; the recommended one filled with the accent. While its answer is on its way, or posted and waiting for the kitchen, it has none |
+| `design-validation` | `Validate`; `Send back to the kitchen`, which needs a comment, is on its card |
+| `review before merge` | `Merge`; `Send back`, which needs a note, is on its card |
+| A ticket in WAITING parked for the chef | `resume` and `it arrived, back to the kitchen` |
+| A card answered only in words | None: its number opens its card and its field |
+
+On a project in read-only (#3163), the entries say what is asked, with no button.
+
+### Answering sends the ticket on
+
+A button of a TODO entry plays the same gesture as the same button on its card, with no copy-paste: a choice is posted on the issue, then its gesture is played (`app/src/tableau-gestes/reponse-github.ts`), which removes what parked the ticket for the chef — `chef-todo`, and `served-elsewhere`, `blocked-on-human`, `question` or `decision` for the gestures that lift them. The ticket keeps `fire` and the label of its step (`in-pass`): at the next reading it leaves the TODO and is back at the step it was at — in Pass for a delivery the chef answered about, ready on the rail for a ticket the station had set aside. `Validate` and `Merge` merge the pull request; `resume` and `it arrived` take the ticket out of WAITING.
 
 ## What the app can show
 
@@ -36,4 +66,4 @@ On the phone, the list of `Awaiting you` shows only the cards that have a questi
 
 ## Where this was read
 
-Runtime: `runtime/src/attend.ts`, `runtime/src/carte-todo.ts`, `runtime/src/carte-todo/cartes.ts`, `runtime/src/carte-todo/forme.ts`, `runtime/src/github-seul/carte-todo/carte-todo.ts`, `runtime/src/validation-design/validation-design.ts`, `runtime/src/issue-etrangere/issue-etrangere.ts`, `runtime/src/pr-externe/pr-externe.ts`, `runtime/src/second-init/pr-de-setup.ts`, `runtime/src/carte-ci-windows.ts`. App: `app/src/tableau/attente-du-chef.ts`, `app/src/tableau/todo-github.ts`, `app/src/tableau/mise-de-cote-github.ts`, `app/src/tableau/question-d-epique-github.ts`, `app/src/carte-todo.ts`, `app/src/faits.ts`, `app/src/decision.ts`, `app/src/gestes-fiche.ts`, `app/src/gestes-github.ts`, `app/src/gestes-github-telephone.ts`, `app/src/gestes-refus.ts`, `app/src/tableau-gestes/reponse-github.ts`, `app/src/vue/vue.js`, `app/src/vue/cartes-du-chef/cartes-du-chef.js`, `app/src/vue/validation-design/validation-design.js`, `app/src/vue/todo-breaker-line.js`.
+Runtime: `runtime/src/attend.ts`, `runtime/src/carte-todo.ts`, `runtime/src/carte-todo/cartes.ts`, `runtime/src/carte-todo/forme.ts`, `runtime/src/github-seul/carte-todo/carte-todo.ts`, `runtime/src/validation-design/validation-design.ts`, `runtime/src/issue-etrangere/issue-etrangere.ts`, `runtime/src/pr-externe/pr-externe.ts`, `runtime/src/second-init/pr-de-setup.ts`, `runtime/src/carte-ci-windows.ts`. App: `app/src/bon.ts`, `app/src/vue/cuisine/cuisine.js`, `app/src/vue/todo/todo.js`, `app/src/tableau/attente-du-chef.ts`, `app/src/tableau/todo-github.ts`, `app/src/tableau/mise-de-cote-github.ts`, `app/src/tableau/question-d-epique-github.ts`, `app/src/carte-todo.ts`, `app/src/faits.ts`, `app/src/decision.ts`, `app/src/gestes-fiche.ts`, `app/src/gestes-github.ts`, `app/src/gestes-github-telephone.ts`, `app/src/gestes-refus.ts`, `app/src/tableau-gestes/reponse-github.ts`, `app/src/vue/vue.js`, `app/src/vue/cartes-du-chef/cartes-du-chef.js`, `app/src/vue/validation-design/validation-design.js`, `app/src/vue/todo-breaker-line.js`.

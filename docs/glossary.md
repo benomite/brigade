@@ -40,7 +40,7 @@ Related terms built on « cuisine »:
 | `dérive` | `drift` | Measures that crossed a declared threshold |
 | `consommé` | `consumed` | What launches have spent (in flight, 5 h window, 24 h) |
 | `attend` (bloc, ligne, pilule) | `awaiting` | What waits for the chef's decision. Block `attend` … `fin attend` → `awaiting` … `end awaiting` |
-| `TODO` | `TODO` | What awaits the chef, a property of a ticket, not a step of the rail: shown as red cards, first in the column of their stage, and counted on the home, N the number of red cards. Not a column (#3458), and no filter any more (#3523). Listed above the columns of the project view, one entry per ticket, parked ones that wait for the chef included (#4238) |
+| `TODO` | `TODO` | What awaits the chef, a property of a ticket, not a step of the rail: exactly the tickets parked for the chef (#4261), shown as red cards, first in the column of their stage, and counted on the home, N the number of red cards. Not a column (#3458), and no filter any more (#3523). Listed above the columns of the project view, one entry per ticket, each with what is asked and the buttons that answer it ([todo-cards.md](todo-cards.md)) |
 | `T'attend` | `Awaiting you` | The card pill of the same object, and the phone's list of the cards that await the chef — no longer a rail column (#3458) |
 | `Attend les autres` | `Awaiting others` | The folded section under the columns, outside them: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071, #3458) |
 | `attend` (ligne de la fiche) | `awaiting` | The same word, same translation: a ticket that waits for another ticket, in its card (`attend : #12` → `awaiting: #12`) |
@@ -52,7 +52,7 @@ Related terms built on « cuisine »:
 | `livrés 24 h` | `served 24 h` | Counter of the project card |
 | `BLOQUÉ` | `BLOCKED` | What the ticket waited for was dropped |
 | `WAITING` | `WAITING` | Waiting for a third party, not for you; the kitchen does not take it |
-| — | `parked` | One state for everything that waits: who, for what, until when ([simplified process](superpowers/specs/2026-11-24-simplified-process.md), rule 13). A parked card stays in the column where it waits and says who it waits for and until when; no Waiting column (#4238) |
+| — | `parked` | One state for everything that waits: who, for what, until when ([simplified process](superpowers/specs/2026-11-24-simplified-process.md), rule 13). A parked card stays in the column where it waits and says who it waits for and until when; no Waiting column (#4238). A ticket that waits for the chef is parked for the chef — for its question, with no date — and the chef's TODO is those tickets, and nothing else: a ticket in WAITING is parked for a third party, and a passed follow-up date does not bring it to the TODO (#4261) |
 | `second` | `second` | Your product assistant, who helps you write the tickets |
 | `abandonné` | `dropped` | A ticket left the rail without being served |
 | `pas sur le rail` | `off the rail` | Ticket the manager does not serve |
