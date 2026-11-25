@@ -59,7 +59,7 @@ async function lire(issues: readonly Issue[], prs: readonly { ticket: number; le
   return { rail, arret: vu.arretCuisine, texte: hote.textContent };
 }
 
-test("a set-aside ticket whose open PR holds the zone its fiche declares: the board names it, its zone, and since its setting aside", async () => {
+test("a set-aside ticket whose open PR holds the zone its fiche declares: the board names the PR and says the zone is held, never 'unknown' (#4244)", async () => {
   const { arret, texte } = await lire(
     [
       { numero: 21, labels: [], feuLe: "2026-11-20T09:00:00Z" },
@@ -67,8 +67,9 @@ test("a set-aside ticket whose open PR holds the zone its fiche declares: the bo
     ],
     [{ ticket: 30, le: "2026-11-20T08:05:00Z" }],
   );
-  assert.deepEqual(arret, { cause: { kind: "frozen-zone", ticket: 30, zone: "app/src/vue, app/src/faits.ts" }, since: "2026-11-20T08:30:00Z" });
-  assert.equal(texte, "STOPPEDThe kitchen is stopped since 08:30 UTC: frozen ticket #30 holds the file zone app/src/vue, app/src/faits.ts.");
+  assert.deepEqual(arret, { cause: { kind: "zone-held", pr: 130, zone: "app/src/vue, app/src/faits.ts" }, since: "2026-11-20T08:30:00Z" });
+  assert.equal(texte, "STOPPEDThe kitchen is stopped since 08:30 UTC: zone held by PR 130.");
+  assert.doesNotMatch(texte, /unknown/);
 });
 
 test("a set-aside ticket without an open PR holds no zone: the cause is unknown, since the queued ticket entered the queue", async () => {
@@ -143,4 +144,24 @@ test("`arretCuisine` read back from `facts`: nothing malformed sets it, and an u
   assert.deepEqual(arretCuisineLu({ cause: { kind: "frozen-zone", ticket: "30", zone: "app/src/vue" }, since }), { arretCuisine: { cause: { kind: "unknown" }, since } });
   assert.deepEqual(arretCuisineLu({ cause: { kind: "main-red" }, since }), { arretCuisine: { cause: { kind: "main-red" }, since } });
   assert.deepEqual(arretCuisineLu({ cause: { kind: "out-of-gas" }, since }), { arretCuisine: { cause: { kind: "unknown" }, since } });
+});
+
+test("a held zone survives the read-back of the facts and reaches the banner (#4244)", () => {
+  const since = "2026-11-20T08:30:00Z";
+  const cause = { kind: "zone-held", pr: 4077, zone: "app/src/vue" };
+  const { arretCuisine } = arretCuisineLu({ cause, since });
+  assert.deepEqual(arretCuisine, { cause, since });
+  const hote = new Faux("div");
+  monterLeBandeau(doc, hote).maj(arretCuisine);
+  assert.match(hote.textContent, /zone held by PR 4077/);
+  assert.deepEqual(arretCuisineLu({ cause: { kind: "zone-held", pr: "4077", zone: "app/src/vue" }, since }), { arretCuisine: { cause: { kind: "unknown" }, since } });
+});
+
+// brigade:guard
+test("no held zone, no cause: the banner still says the cause is unknown (#4244)", () => {
+  const { arretCuisine } = arretDuRail([{ ticket: 1, etat: "queued" } as never], [{ ticket: 1, creeLe: "2026-11-20T06:00:00Z" }], [], null);
+  assert.deepEqual(arretCuisine?.cause, { kind: "unknown" });
+  const hote = new Faux("div");
+  monterLeBandeau(doc, hote).maj(arretCuisine);
+  assert.match(hote.textContent, /the cause is unknown/);
 });
