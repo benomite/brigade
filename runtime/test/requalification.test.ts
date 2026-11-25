@@ -9,6 +9,9 @@ import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
+// Les cartes de TODO du ticket 40 : la carte du backlog vide (#4225), sans issue, n'en est pas.
+const cartesDu40 = (c: ReturnType<typeof brigade>) => cartesEnTodo(c.journal.base).filter((carte) => carte.ticket === 40);
+
 function brigade(t: TestContext, jugement: string | string[], options: Options = {}) {
   const c = cuisine(t, { manager: typeof jugement === "string" ? { jugement } : { suite: jugement }, issues: [issue(40, ["blocked-on-human"])], ...options });
   chef(c.repertoire, "manager.enabled");
@@ -48,7 +51,7 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     const c = brigade(t, "requalifie-geste-git");
     await jusqua(() => c.dits().length === 1);
 
-    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.deepEqual(cartesDu40(c), []);
     assert.deepEqual(cartesRetenues(c.journal.base), []);
     assert.equal(c.journal.duTicket(40).filter((e) => e.type === "todo.rerouted").length, 1);
     const fix = c.gh.lire(501);
@@ -64,9 +67,9 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     // La carte, réécrite en question, est entrée dans TODO — ce que le triage
     // des journaux d'avant écrivait.
     c.journal.ajouter({ project: "brigade", ticket: 40, author: "manager", type: "todo.entered", payload: { kind: "product", summary: "Deux voies s'opposent.", statement: "Export CSV ou export JSON ?", choices: [{ text: "CSV", then: "resume" }], captures: null } });
-    await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
+    await jusqua(() => cartesDu40(c).length === 1);
     await c.gh.github.delabelliser(40, "blocked-on-human");
-    await jusqua(() => cartesEnTodo(c.journal.base).length === 0);
+    await jusqua(() => cartesDu40(c).length === 0);
   });
 
   test("sans rien d'attendu, la cuisine reprend le ticket : le label s'en va, le journal dit « taken-back », l'issue est jugée", async (t) => {
@@ -75,7 +78,7 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
 
     assert.equal((c.requalifie()[0]?.payload as { outcome: string }).outcome, "taken-back");
     assert.ok(!c.gh.lire(40)?.labels.includes("blocked-on-human"));
-    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.deepEqual(cartesDu40(c), []);
     await jusqua(() => c.journal.duTicket(40).some((e) => e.type === "manager.judged"));
     assert.ok(c.dits().some((dit) => /the kitchen takes the ticket back/.test(dit)));
   });
@@ -86,7 +89,7 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     await c.laisserTourner();
 
     assert.equal((c.requalifie()[0]?.payload as { outcome: string }).outcome, "stated");
-    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.deepEqual(cartesDu40(c), []);
     assert.deepEqual(c.gh.lire(40)?.labels, ["blocked-on-human"]);
     assert.deepEqual(c.journal.duTicket(40).filter((e) => e.type === "manager.set-aside").map((e) => (e.payload as { reason: string }).reason), ["blocked-on-human"]);
     assert.equal(c.journal.duTicket(40).filter((e) => e.type === "manager.judged").length, 0);
