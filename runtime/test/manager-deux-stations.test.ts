@@ -121,7 +121,7 @@ describe("deux stations sur un projet : le manager agit une fois par issue", { c
     await jusqua(() => p.dits(30).length === 1);
 
     assert.equal(box.runs("juge-30-").length, 1);
-    assert.deepEqual(p.gh.lire(30)?.labels, ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(p.gh.lire(30)?.labels, ["model:haiku", "effort:low", "fire"]);
     // Le travail est dit fait au tour qui l'a mené au bout.
     await p.laisserTourner(2);
     assert.deepEqual(await p.prises(30), [

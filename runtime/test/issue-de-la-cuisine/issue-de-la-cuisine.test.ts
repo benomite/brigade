@@ -44,14 +44,14 @@ describe("an issue the station opened for its own needs is never a ticket of the
     c.gh.decrire(46, { body: CORPS_46 });
     chef(c.repertoire, "manager.enabled");
 
-    await jusqua(() => c.gh.lire(44)?.labels.includes("effort:low") === true && issueDuManager(c.journal.base, 46) !== null);
+    await jusqua(() => c.gh.lire(44)?.labels.includes("fire") === true && issueDuManager(c.journal.base, 46) !== null);
 
-    assert.deepEqual(c.gh.lire(44)?.labels, ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(c.gh.lire(44)?.labels, ["model:haiku", "effort:low", "fire"]);
     for (const numero of [46]) {
       assert.deepEqual([issueDuManager(c.journal.base, numero)?.decision, issueDuManager(c.journal.base, numero)?.reason], ["aside", "kitchen-alert"]);
       assert.equal(c.journal.duTicket(numero).some((fait) => fait.type === "manager.judged"), false);
     }
-    assert.deepEqual(c.gh.labellisations, [[44, ["fire", "model:haiku", "effort:low"]]]);
+    assert.deepEqual(c.gh.labellisations, [[44, ["model:haiku", "effort:low"]], [44, ["fire"]]]);
     // Un seul jugement : celui de l'issue du projet.
     assert.equal(c.lancements().filter((lancement) => lancement.args.includes("--tools")).length, 1);
   });

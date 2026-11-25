@@ -706,6 +706,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
     assert.equal(jugements().length, 1);
     assert.equal(faits(30).some((e) => e.type === "manager.set-aside"), false);
+    assert.deepEqual(faits(31).map((e) => [e.type, charge(e)?.reason]), [["manager.set-aside", "untrusted-author"]]);
   });
 
   test("le chef pose `fire` sur ce que le code écarte : le manager ne le retire pas, ne calibre pas, et le dit une fois", async (t) => {
