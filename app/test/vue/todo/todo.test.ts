@@ -147,12 +147,14 @@ describe("la vue du projet, sur un écran large et sur un téléphone", () => {
   for (const etroit of [false, true]) {
     test(`${etroit ? "téléphone" : "écran large"} : aucune colonne TODO, ni entrée ni filtre ; les rouges en tête de leur étape, au nombre de 6`, async () => {
       const vue = await ouvrir(etroit);
-      assert.deepEqual(lesColonnes(vue).map(({ dataset }) => dataset.colonne), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
+      // Le plan de la cuisine (#4238) : WAITING n'a plus de colonne, #8 et #9 sont parked dans le backlog — le rail en tête, les
+      // prêts à part : #21 ; dessous, ce qui ne l'est pas, les rouges d'abord.
+      assert.deepEqual(lesColonnes(vue).map(({ dataset }) => dataset.colonne), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
       assert.deepEqual(lesColonnes(vue).map(bonsDe), [
-        [[20, true], [60, true], [21, false]],
+        [[21, false], [20, true], [60, true], [8, true], [9, false]],
+        [],
         [[14, true], [15, false]],
         [[30, true], [40, true], [31, false]],
-        [[8, true], [9, false]],
         [],
       ]);
       assert.equal(rouges(vue.element("rail")).length, 6);
