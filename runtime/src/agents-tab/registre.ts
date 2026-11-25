@@ -15,7 +15,6 @@ export const REGISTRE: readonly AgentDuRegistre[] = [
   { id: "manager", name: "Manager", role: ditDe("manager") },
   { id: "triage", name: "Triage", role: ditDe("triage") },
   { id: "cook", name: "Cooks", role: "Each cook takes one ticket on the rail, writes its change and delivers it." },
-  { id: "design-cook", name: "Design cook", role: "Cooks a ticket that changes a screen, and delivers its screenshots before and after." },
   { id: "pass", name: "Pass", role: "Judges each delivery: its gates, its review and its tests, then merges it or sends it back." },
   { id: "reviewer", name: "Reviewer", role: ditDe("reviewer") },
   { id: "second-judge", name: "Second judge", role: ditDe("second judge") },
