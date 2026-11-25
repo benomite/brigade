@@ -11,7 +11,7 @@
 // (`incapables`) : une autre station du projet, qui n'est pas marquée, le
 // prend à son tour. Si le projet n'en a pas d'autre, le ticket reste sur le
 // rail, retenu sur cette station : c'est elle qu'il faut réparer, ce que son
-// journal et la ligne de saut de sa porte disent — ni `blocked-on-human`, ni
+// journal et la ligne de saut de sa porte disent — ni parqué pour le chef, ni
 // carte TODO, ni manager.
 //
 // Les marques comptent depuis le dernier retrait de `fire` ou de

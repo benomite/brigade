@@ -129,6 +129,7 @@ import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserLOffre, premierProjetServi, tenirLOffre } from "./offre-telephone/offre-telephone.js";
 import { besoinsDuBacklog, marquerLeRail, poserBandeauBacklog, rougesDuBacklog, suivreLeBandeau } from "./backlog-band/backlog-band.js";
+import { poserLeHautDuBacklog } from "./rail/haut-du-backlog.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
@@ -1298,11 +1299,6 @@ const confirmationsDeFiches = new Map();
 // reposée ne la perd pas.
 /** @type {Map<string, string>} */
 const prioritesChoisies = new Map();
-// Le label qui retient un ticket (question.ts, `LABEL_RETENUE`) : ce que la ligne du bloc `attend` nomme.
-const LABEL_RETENUE = "blocked-on-human";
-// Ce que le chef a fait d'une retenue `blocked-on-human`, par `<projet>#<ticket>` : en cours, ou ce qui en est advenu.
-/** @type {Map<string, { envoi: true } | { leve: import("../question.ts").Leve } | { confirme: true }>} */
-const levees = new Map();
 // La phrase que le chef écrit en réponse, par projet et ticket : une fiche reposée ne la perd pas.
 /** @type {Map<string, string>} */
 const brouillons = new Map();
@@ -2986,9 +2982,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
   if (titre === undefined && ouvrable && !titres.has(cleDuBon)) void lireTitre(projet, ticket);
   const nomme = titre ?? /** @type {{ titre?: string } | undefined} */ (titres.get(cleDuBon))?.titre;
   if (nomme !== undefined) bon.append(bloc("strong", nomme));
-  // Une question du manager — avant de découper une épique, ou qui retient le ticket par
-  // `blocked-on-human` (faits.ts, `question`) : la question qu'on me pose, en une ou deux lignes, et
-  // qui l'a posée. Répondue, la carte n'est plus ici mais dans WAITING : une lecture qui la disait
+  // Une question du manager — avant de découper une épique, ou qui parque le ticket pour le chef (`chef-todo`, faits.ts,
+  // `question`) : la question qu'on me pose, en une ou deux lignes, et qui l'a posée. Répondue, la carte n'est plus ici mais dans WAITING : une lecture qui la disait
   // répondue est relue, la carte revenue — le manager a posé une autre question.
   const interroge = attendu && carte.question === true;
   if (interroge && ouvrable && (!questions.has(cleDuBon) || perimee(questions.get(cleDuBon)))) void lireQuestion(projet, ticket);
@@ -3597,19 +3592,12 @@ function poserFiche() {
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
   // Répondue, sa carte attend le manager dans WAITING : la fiche la garde, et ce qui y a été répondu.
-  // Retenu par `blocked-on-human` : lever la retenue d'un clic, sans commande à recopier. Puis,
-  // pour tout ticket, ses gestes — la demande au second en est. Rien n'est envoyé sans un clic.
+  // Puis, pour tout ticket, ses gestes — la demande au second en est. Rien n'est envoyé sans un clic.
   if (attend.length > 0 || carte.repondue !== undefined) {
     const cle = `${projet.nom}#${ticket}`;
     if (!questions.has(cle)) void lireQuestion(projet, ticket);
     const question = poserQuestion(projet, ticket, questions.get(cle) ?? {});
     if (question !== undefined) panneau.append(question);
-    if (attend.some((entree) => entree.includes(LABEL_RETENUE)) && lectureSeuleDe(projet) === undefined) {
-      const gestes = document.createElement("div");
-      gestes.className = "gestes";
-      gestes.append(...poserLevees(projet, ticket));
-      panneau.append(gestes);
-    }
   }
   panneau.append(poserGestesDeFiche(projet, carte), ...diagrammeDeFiche(projet, ticket), repliee(projet, ticket), ...suite);
 }
@@ -4186,52 +4174,6 @@ function avec(balise, contenu) {
 /** @param {Projet} projet @param {number} ticket */
 const ficheDe = (projet, ticket) => ouverte?.projet.nom === projet.nom && ouverte.carte.ticket === ticket;
 
-// Les deux gestes qui lèvent une retenue `blocked-on-human` : retirer le label — le manager juge
-// l'issue à son prochain tour —, ou la fermer, ce qui coûte : le chef le confirme, prix dit en une
-// ligne. Ce qui en advient est dit à la place des boutons.
-const PRIX_DE_FERMETURE = "the issue is closed on GitHub, in your name: the ticket leaves your queue and is not cooked — reopen it to bring it back";
-/** @param {Projet} projet @param {number} ticket */
-function poserLevees(projet, ticket) {
-  const cle = `${projet.nom}#${ticket}`;
-  const etat = levees.get(cle);
-  if (etat !== undefined && "envoi" in etat) return [bloc("p", "working on it…")];
-  if (etat !== undefined && "leve" in etat && etat.leve.fait) return [bloc("p", `${etat.leve.dit} — the card leaves your queue at the next read`)];
-  /** @param {"label" | "fermer"} geste */
-  const lancer = async (geste) => {
-    levees.set(cle, { envoi: true });
-    if (ficheDe(projet, ticket)) poserFiche();
-    /** @type {import("../question.ts").Leve} */
-    let leve;
-    try {
-      leve = await brigade.leverRetenue(projet.nom, ticket, geste);
-    } catch (erreur) {
-      leve = { fait: false, refus: `nothing was done: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
-    }
-    levees.set(cle, { leve });
-    if (ficheDe(projet, ticket)) poserFiche();
-  };
-  const retirer = boutonAction(document, "remove the label", () => void lancer("label"), { recommande: true });
-  retirer.children[0].title = `remove \`${LABEL_RETENUE}\` from #${ticket}: nothing right away — the manager judges it again at its next tick, and may send it to the kitchen`;
-  retirer.children[0].dataset.geste = "levee";
-  const fermer = boutonAction(
-    document,
-    "close the issue",
-    () => {
-      levees.set(cle, { confirme: true });
-      if (ficheDe(projet, ticket)) poserFiche();
-    },
-    { prix: PRIX_DE_FERMETURE },
-  );
-  fermer.children[0].dataset.geste = "levee";
-  const refus = etat !== undefined && "leve" in etat && !etat.leve.fait ? [bloc("p", etat.leve.refus)] : [];
-  if (etat === undefined || !("confirme" in etat)) return [retirer, fermer, ...refus];
-  const renoncer = () => {
-    levees.delete(cle);
-    if (ficheDe(projet, ticket)) poserFiche();
-  };
-  return [retirer, fermer, confirmationDeGeste(document, { titre: `close issue #${ticket} on GitHub?`, prix: PRIX_DE_FERMETURE, oui: OUI("close the issue"), non: ANNULER }, { oui: () => void lancer("fermer"), non: renoncer })];
-}
-
 // La question de ce ticket, lue sur son issue par le process principal (question.ts) : la vue
 // nomme le projet et le ticket. Une lecture partie avant une autre ne la remplace pas.
 /** @param {Projet} projet @param {number} ticket */
@@ -4644,9 +4586,9 @@ function bandeauBacklog(projet, colonnes) {
   return { bandeau, choisi };
 }
 
-// Un geste d'une idée en réserve (gestes-idee.ts, ticket 3589) : « Put on the rail » ou « Drop », joué sur GitHub par le
-// process principal. Fait, la lecture suivante ne la montre plus parmi les idées ; refusé, sa ligne dit pourquoi.
-/** @param {Projet} projet @param {number} ticket @param {"rail" | "abandonner"} id */
+// Le geste d'une idée en réserve (gestes-idee.ts, ticket 3589) : « Drop », joué sur GitHub par le process principal. Fait,
+// la lecture suivante ne la montre plus parmi les idées ; refusé, sa ligne dit pourquoi.
+/** @param {Projet} projet @param {number} ticket @param {"abandonner"} id */
 async function jouerLIdee(projet, ticket, id) {
   const cle = `${projet.nom}#${ticket}`;
   const enCours = gestesDIdees.get(cle);
@@ -5280,7 +5222,8 @@ function poserLeRail(projet) {
   };
   // Le plan de la cuisine (cuisine/, ticket 4238) : backlog — le rail en tête, les prêts à part —, manager, cooks, pass, servi.
   // Chaque carte dans la colonne de son étape ; une carte parked reste dans celle où elle attend. Aucune colonne Waiting.
-  const plan = planDeLaCuisine(colonnes);
+  // Le rail du backlog est le haut du backlog que la lecture porte (ticket 4223) : les mêmes tickets, dans le même ordre.
+  const plan = planDeLaCuisine(colonnes, tenu.tableau.hautDuBacklog?.issues.map(({ number }) => number));
   // Ce qu'attendre un tiers veut dire (WAITING, ticket 3308) s'explique sous le titre de la première colonne où une carte est parked.
   const colonneParquee = plan.find(({ cartes }) => cartes.some(({ parque }) => parque !== undefined))?.nom;
   const grille = document.createElement("div");
@@ -5428,10 +5371,13 @@ function poserLeRail(projet) {
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
+  // Le rail, haut du backlog (ticket 4223) : sous le bandeau, les issues calibrées et prêtes qu'un cook prend ensuite, dans
+  // l'ordre de la lecture — rien à y faire, une issue y vient seule.
+  const hautDuBacklog = poserLeHautDuBacklog(document, tenu.tableau.hautDuBacklog);
   // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
   const { journal, digest } = tenu.tableau;
   const duMatin = digest !== undefined && carteDuMatin.aMontrer(projet.nom, jourDe(new Date())) ? [poserLaCarteDuDigest(document, digest)] : [];
-  poser(...duMatin, bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), ...(journal === undefined ? [] : [poserLeJournal(document, journal)]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+  poser(...duMatin, bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), ...(hautDuBacklog === null ? [] : [hautDuBacklog]), ...(journal === undefined ? [] : [poserLeJournal(document, journal)]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
   // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
   if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);
@@ -8270,7 +8216,7 @@ const outilsDuParcours = tenirLesOutils({
 });
 const outilsDuLogin = tenirLesOutils({ pont: brigade, outils: ["claude"], rendre: () => poserLesOutilsIci() });
 /** @param {ReturnType<typeof tenirLesOutils>} tenus */
-const gestesDesOutils = (tenus) => ({ installer: () => void tenus.installer(), verifier: () => void tenus.verifier(true) });
+const gestesDesOutils = (tenus) => ({ ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url), verifier: () => void tenus.verifier(true) });
 let avisDesOutils = false;
 function poserLesOutilsIci() {
   const surLePremier = ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous && !tous.hidden;

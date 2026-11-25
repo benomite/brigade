@@ -50,9 +50,9 @@ describe("les lignes de l'attente de la file", () => {
     assert.deepEqual(lignes, ["  #4  after #3 — waiting for its merge; waits for #3 — read from the body: 'Depends on #3'"]);
   });
 
-  test("rien en file : aucune ligne ; un ticket mis de côté, en WAITING ou épique n'est pas en file", async () => {
+  test("rien en file : aucune ligne ; un ticket mis de côté, parqué ou épique n'est pas en file", async () => {
     const epique = issue(7, ["fire"], `${DEBUT}\n- [ ] #8\n- [ ] #9\n${FIN}`);
-    const feux = [issue(4, ["fire", "blocked-on-human"]), issue(5, ["fire", "waiting"]), epique, issue(6, ["fire", "kitchen-board"])];
+    const feux = [issue(4, ["fire", "blocked-on-human"]), issue(5, ["fire", "parked"]), epique, issue(6, ["fire", "kitchen-board"])];
     assert.deepEqual(await lignesDeLAttente({ depot: DEPOT, lire: lireDe({ [FEUX]: feux }), stations: () => assert.fail("no station read"), maintenant: MAINTENANT }), []);
   });
 

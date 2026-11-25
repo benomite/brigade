@@ -11,7 +11,7 @@ const ok = (data: unknown, etag?: string): ReponseGitHub => ({ status: 200, data
 
 describe("ce que GitHub dit d'un ticket du rail", () => {
   test("chaque état de GitHub a son mot du rail, que la vue sait colorer", () => {
-    assert.deepEqual(MOT_DE_L_ETAT, { taken: "pris", pass: "en pass", waiting: "WAITING", "base-red": "base rouge" });
+    assert.deepEqual(MOT_DE_L_ETAT, { taken: "pris", pass: "en pass", parked: "WAITING", "base-red": "base rouge" });
     for (const mot of Object.values(MOT_DE_L_ETAT)) assert.ok(TONS_DE_TICKET.has(mot), mot);
   });
 
@@ -45,8 +45,8 @@ describe("les lectures conditionnelles", () => {
     const seconde = await lire("/repos/acme/kitchen/issues?state=open");
     assert.deepEqual(envoyes, [undefined, '"i-taken"']);
     assert.deepEqual(seconde, premiere);
-    labels = ["waiting"];
-    assert.deepEqual((await lire("/repos/acme/kitchen/issues?state=open")).data, [{ number: 2, labels: ["waiting"] }]);
+    labels = ["parked"];
+    assert.deepEqual((await lire("/repos/acme/kitchen/issues?state=open")).data, [{ number: 2, labels: ["parked"] }]);
   });
 
   test("un refus oublie la réponse gardée : la lecture suivante redemande tout", async () => {

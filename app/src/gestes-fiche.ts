@@ -28,8 +28,8 @@ export type Actions = Readonly<Partial<Record<IdDeFiche, Branchement>>>;
 
 // Ce qui est branché aujourd'hui. Ouvrir l'issue et la PR, demander au second : l'app les joue
 // elle-même ; changer la priorité aussi — elle remplace le label `prio:` de l'issue sur GitHub
-// (priorite.ts, #1739), sans la box ; renvoyer en cuisine un ticket revenu de WAITING et le retirer
-// du rail aussi — elle retire de son issue `waiting` ou `fire` (gestes-github.ts, #2061). Merger la
+// (priorite.ts, #1739), sans la box ; renvoyer en cuisine un ticket parqué et le retirer
+// du rail aussi — elle retire de son issue `parked` ou `fire` (gestes-github.ts, #2061). Merger la
 // livraison se fait sur sa PR, sur GitHub : le geste n'est pas proposé. Les autres attendent leur
 // action (en tête de ce fichier).
 export const ACTIONS: Actions = {
