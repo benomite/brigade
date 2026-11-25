@@ -23,18 +23,18 @@ import { LECTURE_DE, NON_ATTEINT, PAS_ENCORE } from "../lexique.js";
 // last one returned.
 /** @typedef {{ edition?: string, enCours?: "edit" | "remove", dit?: { pr: string, numero: number, kind: "edit" | "remove" } | { refus: string, detail?: string } }} Etat */
 
-export const TITRE = "Project know-how";
-export const AIDE =
+const TITRE = "Project know-how";
+const AIDE =
   "The lessons the cooks keep for the next ones, in .brigade/know-how.md of the project's repository. Editing or removing an entry opens a pull request on its integration branch, which the pass reviews; the list changes once it is merged.";
-export const VIDE = `${PAS_ENCORE("project know-how")} .brigade/know-how.md is missing or has no entry.`;
-export const NON_LU = NON_ATTEINT("the project know-how");
-export const VIDE_DETAIL = "Cooks add an entry, - text (#ticket), under Conventions, Pitfalls or Tools, in the pull request of the ticket that taught it.";
-export const SANS_TICKET = "no source ticket";
-export const HORS_SECTION = "Outside any section";
-export const EN_COURS = "opening the pull request…";
-export const EDITION = "Enter proposes the new text, Escape cancels";
+const VIDE = `${PAS_ENCORE("project know-how")} .brigade/know-how.md is missing or has no entry.`;
+const NON_LU = NON_ATTEINT("the project know-how");
+const VIDE_DETAIL = "Cooks add an entry, - text (#ticket), under Conventions, Pitfalls or Tools, in the pull request of the ticket that taught it.";
+const SANS_TICKET = "no source ticket";
+const HORS_SECTION = "Outside any section";
+const EN_COURS = "opening the pull request…";
+const EDITION = "Enter proposes the new text, Escape cancels";
 // The sections of the file, in its order: the three it is made of, then any other the file has, in its order.
-export const SECTIONS = ["Conventions", "Pitfalls", "Tools"];
+const SECTIONS = ["Conventions", "Pitfalls", "Tools"];
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
@@ -45,7 +45,7 @@ function cree(doc, balise, texte) {
 
 // The entries by section, the file's three sections first.
 /** @param {readonly Entree[]} entrees @returns {[string, Entree[]][]} */
-export function parSection(entrees) {
+function parSection(entrees) {
   /** @type {Map<string, Entree[]>} */
   const groupes = new Map();
   for (const entree of entrees) groupes.set(entree.section, [...(groupes.get(entree.section) ?? []), entree]);
@@ -128,7 +128,7 @@ function poserLEntree(doc, entree, etat, { editer, taper, annuler, changer, ouvr
  * @param {Fabrique} doc
  * @param {{ lecture?: Lecture, etats?: ReadonlyMap<number, Etat>, editer?: (entree: Entree) => void, taper?: (entree: Entree, texte: string) => void, annuler?: (entree: Entree) => void, changer?: (changement: Changement) => void, ouvrir?: (url: string) => void }} [options]
  */
-export function poserBlocSavoir(doc, { lecture, etats = new Map(), editer = () => {}, taper = () => {}, annuler = () => {}, changer = () => {}, ouvrir = () => {} } = {}) {
+function poserBlocSavoir(doc, { lecture, etats = new Map(), editer = () => {}, taper = () => {}, annuler = () => {}, changer = () => {}, ouvrir = () => {} } = {}) {
   const bloc = cree(doc, "section");
   bloc.className = "bloc-du-projet";
   bloc.dataset.bloc = "know-how";
