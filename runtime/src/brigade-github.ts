@@ -96,7 +96,7 @@ import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
-import { commentaireDeRenvoi } from "./renvoi-sur-le-fond/regle.ts";
+import { commentaireDeRenvoi, jugerLaPR, MOTIFS_DE_RENVOI, verifierMotifDeRenvoi } from "./renvoi-sur-le-fond/regle.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
@@ -633,6 +633,16 @@ function direLaFin({ conclusion, fin, flux }: { conclusion: string; fin: { code:
 // Ce que la lecture des stations du projet sur GitHub regarde : les issues qui ont bougé depuis deux jours, et pas plus de quarante.
 const FENETRE_DES_STATIONS_MS = 2 * 24 * 3600_000;
 const ISSUES_LUES_AU_PLUS = 40;
+
+// Une CI rouge sans remarque de fond est un test qui échoue (#4302) : la règle de renvoi le juge, le motif est vérifié
+// contre la liste fermée, et le commentaire de renvoi l'énonce avec les motifs permis.
+const motifsDuRenvoiParCI = (): string =>
+  jugerLaPR({ remarques: [], ci: "red" })
+    .motifs.map((motif) => {
+      verifierMotifDeRenvoi(motif);
+      return `${commentaireDeRenvoi({ motif, detail: "a check of the PR is red" })}\nAllowed send-back reasons: ${MOTIFS_DE_RENVOI.join(", ")}`;
+    })
+    .join("\n\n");
 
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
@@ -1602,7 +1612,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nBlocking reason: ${genre}\nIts tries are spent${memeResultat ? " (handed back twice in a row with the same result: not relaunched a third time as it stands)" : ""}: the ticket went to the manager, not to the chef — its comment below says what it did.`);
       await direLaReprise(ticket.number, suite);
     } else {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}${genre === "red CI" ? `\n\n${commentaireDeRenvoi({ motif: "failing test", detail: "a check of the PR is red" })}` : ""}`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}${genre === "red CI" ? `\n\n${motifsDuRenvoiParCI()}` : ""}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);

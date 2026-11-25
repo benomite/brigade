@@ -13,7 +13,9 @@ export function verifierMotifDeRenvoi(motif: string): asserts motif is MotifDeRe
 }
 
 export type Remarque = { nature: "behaviour" | "criterion" | "test-failure" | "form"; texte: string };
-export type Verdict = { action: "merge" | "send-back"; notes: string[]; motifs: MotifDeRenvoi[] };
+// Le premier élément est typé `string` : sous l'indexation stricte, `notes[0]` serait sinon `string | undefined` pour qui lit
+// la note d'une PR qu'il sait de forme. La valeur reste un tableau simple, vide quand il n'y a aucune remarque de forme.
+export type Verdict = { action: "merge" | "send-back"; notes: string[] & { 0: string }; motifs: MotifDeRenvoi[] };
 
 const MOTIF_DE_LA_NATURE: Record<Exclude<Remarque["nature"], "form">, MotifDeRenvoi> = {
   behaviour: "wrong behaviour",
@@ -24,7 +26,7 @@ const MOTIF_DE_LA_NATURE: Record<Exclude<Remarque["nature"], "form">, MotifDeRen
 // Les remarques de fond renvoient la PR, chacune avec son motif ; celles de forme font des notes. Une CI rouge sans
 // remarque de fond est un test qui échoue : elle renvoie aussi. Sans motif, la PR part au merge.
 export function jugerLaPR({ remarques, ci }: { remarques: readonly Remarque[]; ci: "green" | "red" }): Verdict {
-  const notes = remarques.filter((r) => r.nature === "form").map((r) => r.texte);
+  const notes = remarques.filter((r) => r.nature === "form").map((r) => r.texte) as Verdict["notes"];
   const motifs: MotifDeRenvoi[] = [];
   for (const r of remarques) {
     if (r.nature === "form") continue;
