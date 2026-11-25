@@ -9,42 +9,26 @@ const fichiers = (...chemins: string[]) => {
   return (chemin: string) => tous.has(chemin);
 };
 
-test("sur un Mac nu, Claude Code s'installe par son script, Git par l'installeur d'Apple, le GitHub CLI par son paquet — rien de Homebrew", () => {
-  const mac = { plateforme: "darwin" as const, presents: [] };
-  const claude = choisirInstallation("claude", mac);
-  assert.equal(claude.moyen, "commande");
-  assert.deepEqual(claude.commande, { argv: ["/bin/bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"], installeEnFinissant: true });
-  const git = choisirInstallation("git", mac);
-  assert.deepEqual(git.commande, { argv: ["xcode-select", "--install"], installeEnFinissant: false });
-  const gh = choisirInstallation("gh", mac);
-  assert.equal(gh.moyen, "installateur");
-  assert.equal(gh.commande, undefined);
-  assert.match(gh.texte, /macOS_universal\.pkg/);
-  assert.equal(gh.lien, "https://github.com/cli/cli/releases/latest");
-  // Homebrew présent ne change rien : le chemin qui s'en passe reste le même.
-  assert.deepEqual(choisirInstallation("gh", { plateforme: "darwin", presents: ["brew"] }), gh);
+test("chaque outil, sur chaque plateforme, a une page d'installation officielle en https, jamais Homebrew — et rien ne se lance", () => {
+  for (const plateforme of ["darwin", "win32", "linux"] as const) {
+    for (const presents of [[], ["winget", "brew"]]) {
+      for (const outil of OUTILS_REQUIS) {
+        const choix = choisirInstallation(outil, { plateforme, presents });
+        assert.deepEqual(Object.keys(choix).sort(), ["lien", "texte"], `${plateforme} ${outil}`);
+        assert.match(choix.lien, /^https:\/\//, `${plateforme} ${outil}`);
+        assert.doesNotMatch(JSON.stringify(choix), /brew/i, `${plateforme} ${outil}`);
+      }
+    }
+  }
+  assert.equal(choisirInstallation("claude", { plateforme: "darwin", presents: [] }).lien, "https://code.claude.com/docs/en/setup");
+  assert.equal(choisirInstallation("git", { plateforme: "win32", presents: [] }).lien, "https://git-scm.com/download/win");
+  assert.equal(choisirInstallation("gh", { plateforme: "darwin", presents: [] }).lien, "https://cli.github.com");
+  assert.equal(choisirInstallation("gh", { plateforme: "linux", presents: [] }).lien, "https://github.com/cli/cli#installation");
 });
 
-test("sous Windows, winget installe Git et le GitHub CLI quand il est là ; sans lui, leurs installeurs ; Claude Code par PowerShell", () => {
-  const nu = { plateforme: "win32" as const, presents: [] };
-  const avecWinget = { plateforme: "win32" as const, presents: ["winget"] };
-  const choisis = Object.fromEntries(OUTILS_REQUIS.map((outil) => [outil, [choisirInstallation(outil, nu).moyen, choisirInstallation(outil, avecWinget).moyen]]));
-  assert.deepEqual(choisis, { git: ["installateur", "commande"], gh: ["installateur", "commande"], claude: ["commande", "commande"] });
-  assert.equal(choisirInstallation("gh", avecWinget).commande?.argv.slice(0, 4).join(" "), "winget install --id GitHub.cli");
-  assert.equal(choisirInstallation("git", avecWinget).commande?.argv.slice(0, 4).join(" "), "winget install --id Git.Git");
-  assert.match(choisirInstallation("gh", nu).texte, /windows_amd64\.msi/);
-  assert.equal(choisirInstallation("git", nu).lien, "https://git-scm.com/download/win");
-  assert.equal(choisirInstallation("claude", nu).commande?.argv[0], "powershell");
-  for (const outil of OUTILS_REQUIS) assert.deepEqual(choisirInstallation(outil, nu).exige, []);
-});
-
-test("ailleurs, Claude Code par son script, Git et le GitHub CLI par la page qui les explique", () => {
-  const linux = { plateforme: "linux" as const, presents: [] };
-  assert.equal(choisirInstallation("claude", linux).moyen, "commande");
-  assert.equal(choisirInstallation("git", linux).moyen, "page");
-  assert.equal(choisirInstallation("gh", linux).moyen, "page");
-  assert.equal(choisirInstallation("git", linux).lien, "https://git-scm.com/download/linux");
-  assert.equal(choisirInstallation("gh", linux).lien, "https://github.com/cli/cli#installation");
+test("sous Windows, winget n'est cité que s'il est sur le PC", () => {
+  assert.doesNotMatch(choisirInstallation("gh", { plateforme: "win32", presents: [] }).texte, /winget/);
+  assert.match(choisirInstallation("gh", { plateforme: "win32", presents: ["winget"] }).texte, /winget install --id GitHub\.cli/);
 });
 
 test("une commande lancée pour de bon réussit à son code 0 ; un autre code, ou un programme absent, compte pour un échec", () => {
@@ -77,11 +61,7 @@ test("sous Windows, winget se lit dans le PATH, et un outil posé par son instal
   assert.deepEqual(machine.horsDuPath, { gh: "C:\\Program Files\\GitHub CLI" });
   const manquants = outilsManquants(machine, ["gh", "claude"]);
   assert.deepEqual(manquants.map(({ outil }) => outil), ["gh", "claude"]);
-  assert.equal(manquants[0]?.installation.moyen, "commande");
-  // Sans winget, le GitHub CLI se prend par son installeur.
-  const nu = lireLaMachine({ plateforme: "win32", env: { Path: "" }, maison: "C:\\Users\\chef", existe: () => false });
-  assert.deepEqual(nu.presents, []);
-  assert.equal(outilsManquants(nu, ["gh"])[0]?.installation.moyen, "installateur");
+  assert.equal(manquants[0]?.installation.lien, "https://cli.github.com");
 });
 
 test("tout présent : rien ne manque", () => {
