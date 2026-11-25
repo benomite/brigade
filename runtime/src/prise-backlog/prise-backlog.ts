@@ -9,9 +9,11 @@
 //                     rien sans place dans la cuisine. Sans E/S.
 //   prendreSuivante   le choix, puis le calibrage (le modèle et l'effort) posé
 //                     sur l'issue, puis `fire`, puis le cook.
+//   placeLibre        la place de la cuisine : ses places, moins ses cooks en
+//                     cuisine et les tickets lancés qui attendent le leur.
 import { priorite } from "../alimenter.ts";
 import { LABEL_WAITING } from "../attente.ts";
-import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "../calibrage.ts";
+import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage, type CalibragePose } from "../calibrage.ts";
 import { LABEL, MIS_DE_COTE } from "../github.ts";
 
 // Une issue ouverte du backlog, telle que GitHub la rend.
@@ -36,6 +38,14 @@ const age = (issue: IssueDuBacklog) => {
 };
 const avant = (a: IssueDuBacklog, b: IssueDuBacklog) => rang(a) - rang(b) || age(a) - age(b) || a.number - b.number;
 
+// Les places de la station — un nombre, ou ce qui les relit à chaque tour —, moins ses cooks en cuisine, moins les issues ouvertes où `fire` est posé et qu'aucun cook
+// ne tient encore : chacune prendra une place au tour suivant de la station. Une issue lancée mais parked, ou mise de
+// côté, n'en prendra pas.
+export function placeLibre({ places, enCuisine, ouvertes }: { places: number | (() => number); enCuisine: number; ouvertes: readonly IssueDuBacklog[] }): number {
+  const enFile = ouvertes.filter((issue) => issue.labels.includes(LABEL) && !issue.labels.some((label) => [...PARKED, "taken", "in-pass"].includes(label))).length;
+  return (typeof places === "number" ? places : places()) - enCuisine - enFile;
+}
+
 // `freeRoom` : les places libres de la cuisine.
 export function choisirSuivante<I extends IssueDuBacklog>({ backlog, freeRoom }: { backlog: readonly I[]; freeRoom: number }): I | null {
   if (freeRoom < 1) return null;
@@ -45,8 +55,8 @@ export function choisirSuivante<I extends IssueDuBacklog>({ backlog, freeRoom }:
 export type PriseDuBacklog<I extends IssueDuBacklog> = {
   backlog: readonly I[];
   freeRoom: number;
-  // Le calibrage du manager pour l'issue choisie.
-  calibrate: (issue: I) => Promise<Calibrage>;
+  // Le calibrage du manager pour l'issue choisie ; une dimension à null, ou une réponse à null : il n'en a pas.
+  calibrate: (issue: I) => Promise<CalibragePose | null>;
   // Pose un label sur l'issue.
   addLabel: (number: number, label: string) => Promise<void>;
   // Pose le calibrage sur l'issue (`model:` et `effort:`).

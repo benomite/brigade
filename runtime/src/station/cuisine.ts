@@ -44,6 +44,7 @@ import { disqueDuProjet } from "../github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { placeLibre } from "../prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
@@ -313,7 +314,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
-    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
     // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
     // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
     const superviser = <R extends Runtime>(runtime: R) => brancherSuperviseur(runtime, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, dire });
