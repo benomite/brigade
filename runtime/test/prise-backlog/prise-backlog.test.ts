@@ -1,4 +1,4 @@
-// #4221 : ce que les tests d'acceptation ne tiennent pas — chaque état qui tient une issue hors du choix, l'ordre des
+// #4221 : ce que les tests d'acceptation ne tiennent pas — chaque état autre que `parked` (critère 3) qui tient une issue hors du choix, l'ordre des
 // issues sans priorité ou sans date lisible, le calibrage du chef qui l'emporte, et chaque étape qui échoue.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -10,7 +10,7 @@ type IssueDuBacklog = { number: number; labels: string[]; createdAt: string };
 const issue = (number: number, labels: string[], createdAt = "2026-01-01T00:00:00Z"): IssueDuBacklog => ({ number, labels, createdAt });
 
 test("an issue that waits, is set aside, is not a ticket, or is already on the rail is never chosen", () => {
-  for (const label of ["parked", "waiting", "blocked-on-human", "decision", "question", "product-question", "chef-todo", "served-elsewhere", "set-aside:failures", "epic", "kitchen-board", "fire", "taken", "in-pass"]) {
+  for (const label of ["waiting", "blocked-on-human", "decision", "question", "product-question", "chef-todo", "served-elsewhere", "set-aside:failures", "epic", "kitchen-board", "fire", "taken", "in-pass"]) {
     const backlog = [issue(1, [label, "prio:0"], "2020-01-01T00:00:00Z"), issue(2, ["prio:3"])];
     assert.equal(choisirSuivante({ backlog, freeRoom: 1 })?.number, 2, label);
   }
