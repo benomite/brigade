@@ -38,6 +38,7 @@ import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
+import { choisirSuivante, prendreSuivante } from "./prise-backlog/prise-backlog.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
 import { ENTETE_REPONSE } from "./reponse-carte.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, NATURES_AU_CHEF, type Decision } from "./juger.ts";
@@ -150,6 +151,9 @@ export type OptionsManager = ConfigManager & {
   // son tour tout de suite, pas à son tour suivant, jusqu'à deux minutes plus
   // loin (#2796).
   surLeRail?: () => void;
+  // La place libre de la cuisine, lue des issues ouvertes du sondage : le manager y prend, à chaque tour, la prochaine
+  // issue jugée exécutable du backlog (#4221). Absente : sans limite. Lève si elle ne se lit pas : rien n'est pris.
+  freeRoom?: (ouvertes: readonly IssueOuverte[]) => number;
   // Les humains du projet (`humans` de ses réglages), relus à chaque carte :
   // l'humain `product` reçoit celle de l'issue d'un auteur sans l'écriture
   // (#2934). Absents, elle va au chef.
@@ -584,6 +588,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     let issue = lue;
     let connue = issueDuManager(base, issue.number);
     if (!connue) return true;
+    // Sans `fire`, elle attend sa prise du backlog (`prendreDuBacklog`, #4221) : le manager la lance et la calibre quand
+    // la cuisine a de la place, et le dit alors. Seul le `fire` du chef se calibre ici, aussitôt.
+    if (connue.decision === "fire" && connue.labels === null && !issue.labels.includes(LABEL)) return true;
     if (connue.decision === "fire" && connue.labels === null) {
       const { model, effort } = connue;
       let aPoser: string[] = [];
@@ -1024,6 +1031,78 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     })();
   };
 
+  // La prise du backlog (#4221, règles 2 et 3 du processus simplifié) : quand la cuisine a de la place, le manager prend
+  // lui-même, parmi les issues ouvertes qu'il a jugées exécutables et que personne n'a lancées, la meilleure priorité
+  // puis la plus ancienne (`prise-backlog/prise-backlog.ts`), la calibre de son jugement, y pose `fire`, et presse la
+  // station. Avant, il posait `fire` et le calibrage sur chaque issue dès son jugement, place ou non. Les labels du
+  // sondage peuvent dater d'un jugement : l'issue choisie se relit avant d'écrire, et le choix repasse sur ce qu'elle
+  // porte. Ce qui échoue est dit, et repris au tour suivant. `prises` : celles que ce tour a déjà prises — le sondage
+  // ne dit pas ce qui y est posé, et chacune tient déjà une place.
+  const prendreDuBacklog = async (ouvertes: readonly IssueOuverte[], prises: Set<number>): Promise<void> => {
+    let place: number;
+    try {
+      place = (options.freeRoom === undefined ? Number.POSITIVE_INFINITY : options.freeRoom(ouvertes)) - prises.size;
+    } catch (erreur) {
+      if (!arrete) avertir(`brigade : le manager ne prend rien du backlog à ce tour — la place de la cuisine ne se lit pas — ${message(erreur)}`);
+      return;
+    }
+    const relues = new Map<number, IssueOuverte | null>();
+    const attendLaPrise = (issue: IssueOuverte) => {
+      const connue = issueDuManager(base, issue.number);
+      return connue?.decision === "fire" && connue.labels === null && trier(issue, connue).quoi === "juger";
+    };
+    const backlog = () =>
+      ouvertes
+        .filter((issue) => !prises.has(issue.number))
+        .map((issue) => (relues.has(issue.number) ? relues.get(issue.number) : issue))
+        .filter((issue): issue is IssueOuverte => issue != null && attendLaPrise(issue));
+    // Les labels que le manager a posés sur chaque issue prise, notés avec `fire`.
+    const posees = new Map<number, string[]>();
+    while (!arrete) {
+      const choisie = choisirSuivante({ backlog: backlog(), freeRoom: place });
+      if (choisie === null) return;
+      if (!relues.has(choisie.number)) {
+        try {
+          const fraiche = await github.issue(choisie.number);
+          relues.set(choisie.number, fraiche?.state === "open" ? { ...choisie, labels: fraiche.labels } : null);
+        } catch (erreur) {
+          if (!arrete) avertir(`brigade : #${choisie.number} not taken from the backlog — its labels could not be read again — ${message(erreur)}`);
+          return;
+        }
+        continue;
+      }
+      const prise = await prendreSuivante({
+        backlog: backlog(),
+        freeRoom: place,
+        // Le calibrage de son jugement ; `prendreSuivante` refuse celui qui ne se lit pas.
+        calibrate: async (issue) => {
+          const { model = null, effort = null } = issueDuManager(base, issue.number) ?? {};
+          return { model, effort };
+        },
+        storeCalibration: async (numero, { model, effort }) => {
+          // Une dimension qui porte un label est au chef : rien n'y est posé.
+          const portes = relues.get(numero)?.labels ?? [];
+          const aPoser = [["model:", model], ["effort:", effort]].filter(([prefixe = ""]) => dimension(portes, prefixe).length === 0).map(([prefixe, valeur]) => `${prefixe}${valeur}`);
+          if (aPoser.length > 0) await github.labelliser(numero, aPoser);
+          posees.set(numero, aPoser);
+        },
+        addLabel: async (numero, label) => {
+          await github.labelliser(numero, [label]);
+          if (arrete) throw new Error("the manager stopped");
+          noter(numero, { type: "manager.labeled", payload: { labels: [label, ...(posees.get(numero) ?? [])] } });
+        },
+        startCook: async () => options.surLeRail?.(),
+        avertir: (texte) => void (arrete || avertir(texte)),
+      });
+      if (prise === null) return;
+      prises.add(prise.number);
+      place--;
+      // Prise : le manager dit sur l'issue ce qu'il y a posé, et pourquoi ce calibrage. Raté, le tour suivant le redit.
+      const labels = issueDuManager(base, prise.number)?.labels ?? [];
+      await appliquer({ ...prise, labels: [...prise.labels, ...labels] });
+    }
+  };
+
   // Une issue que le manager n'a jamais vue, et que le code laisse à juger :
   // elle attend son jugement, et `fire` avec lui.
   const neuve = (issue: IssueOuverte) => issueDuManager(base, issue.number) === null && trier(issue, null).quoi === "juger";
@@ -1108,6 +1187,16 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // les issues déjà vues : une épique dont tous les tickets sont fermés se
     // ferme, et ce tour ne la sert plus (#2618).
     const vues = sondage.inchange ? confirmees : sondage.issues;
+    // Les neuves jugées, le manager prend du backlog ce que la cuisine a de place pour (#4221), puis encore à la fin
+    // du tour, pour celles que le tour a complétées ou rejugées. Une issue prise, ce tour ne la sert plus : ses labels
+    // du sondage n'ont ni `fire` ni son calibrage.
+    const prisesDuTour = new Set<number>();
+    const prendre = async (liste: readonly IssueOuverte[]) => {
+      await prendreDuBacklog(liste.filter(lisible), prisesDuTour);
+      for (const prise of prisesDuTour) faites.add(prise);
+    };
+    if (vues !== null) await prendre(vues);
+    if (arrete) return;
     const terminees = vues === null ? new Set<number>() : await decoupage.suivre(vues.filter(lisible));
     if (arrete) return;
     // Rendre une issue ne la modifie pas : GitHub répond « inchangé », et la
@@ -1132,6 +1221,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       if (!(await servirLesNeuves(await resonder()))) return;
       if (!(await servirLa(sondee))) return;
     }
+    await prendre(issues);
     if (arrete || !complet) return;
     // Ce qu'un tour complet laisse en attente n'a plus rien à attendre du
     // manager : l'issue est fermée, ou le chef l'a relancée lui-même.

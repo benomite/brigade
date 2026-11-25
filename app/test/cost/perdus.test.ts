@@ -285,7 +285,7 @@ describe("le coût d'un projet n'est plus sur sa page (#1699)", () => {
 
   test("le projet n'a plus d'onglet Cost : son seul onglet est Settings", async () => {
     const vue = await ouvrirStations();
-    assert.deepEqual(vue.element("onglets-du-projet").children.map(({ textContent }) => textContent), ["Rail", "Stations", "Settings"]);
+    assert.deepEqual(vue.element("onglets-du-projet").children.map(({ textContent }) => textContent), ["Rail", "Stations", "Agents", "Settings"]);
   });
 
   test("Stations ne pose ni ses tokens perdus ni ses tickets les plus chers ; Settings non plus", async () => {
