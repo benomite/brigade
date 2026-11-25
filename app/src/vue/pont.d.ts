@@ -325,6 +325,11 @@ export type Pont = {
   // ne les porte pas (le téléphone) ne montre pas la section.
   listerLesRecurrents?(projet: string): Promise<import("./recurrents/recurrents-box.ts").LectureDesRecurrents>;
   changerUnRecurrent?(projet: string, geste: import("./recurrents/recurrents-box.ts").Geste, id: string): Promise<import("./recurrents/recurrents-box.ts").EcritureDUnRecurrent>;
+  // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
+  // `.brigade/fiche-projet.json` (fiche-projet/fiche-projet-dossier.ts). `null` : il n'y est pas. Optionnels : un pont qui
+  // ne les porte pas (le téléphone) ne montre pas la section.
+  lireUnFichierDuProjet?(projet: string, chemin: string): Promise<string | null>;
+  ecrireUnFichierDuProjet?(projet: string, chemin: string, texte: string): Promise<void>;
   // Les explications des mots de la cuisine (ticket 3308) : les mots dont le chef de cet ordinateur a vu l'explication, gardés
   // par chef là où la cuisine du projet tourne ; un mot vu, et tout remontré depuis Settings (explications/explications-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucune explication.
