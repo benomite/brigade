@@ -130,6 +130,7 @@ import { partagerLaCi } from "./temps-ticket/ci-github.ts";
 import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } from "./temps-ticket/mesure.ts";
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 import { agirSurLaReponse } from "./reponse-validation/reponse-validation.ts";
+import { creerPlafondEssais, PLAFOND_ESSAIS } from "./plafond-essais/index.ts";
 import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
 import { ecrireLesTests } from "./tests-acceptation/ecriture.ts";
 import { estLeCommitDesTests, LABEL_TESTS_ECRITS } from "./tests-acceptation/etape.ts";
@@ -1494,8 +1495,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // message (#3651). Le manager le reprend, ou le chef lit ce refus.
       // Les runs finis `ok` ne comptent pas parmi les échecs (#3652).
       const sortie = fini || horsCuisine(essais.filter((essai) => !essai.runOk).map((essai) => ({ motif: essai.motif, desaccord: false })));
-      // Ses essais épuisés, le ticket va au manager, pas au chef (#3513).
-      const suite = sortie ? await apresLesEssais(ticket, echoues) : null;
+      // Le total des essais du ticket, réécritures du manager comprises (#4212) : tous ses commentaires d'échec, sans remise à zéro.
+      const tousLesCommentaires = await github.commentaires(issue).catch(() => []);
+      const dejaTentes = tousLesCommentaires.filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).length;
+      const plafond = creerPlafondEssais({
+        arreter: async (numero) => void (await github.labelliser(numero, [ECHECS_ATTEINTS])),
+        commenter: async (numero, corps) => void (await github.commenter(numero, corps)),
+      });
+      plafond.amorcer(issue, dejaTentes);
+      // Ses essais épuisés, le ticket va au manager, pas au chef (#3513) ; au plafond, il s'arrête sans réécriture de plus.
+      const suite = sortie && plafond.total(issue) + 1 < PLAFOND_ESSAIS ? await apresLesEssais(ticket, echoues) : null;
       const tete = depart === null ? null : await github.prDuTicket(issue).then((pr) => (pr?.state === "open" ? pr.sha : null), () => null);
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (${fini ? "its run ended ok, not counted" : `try ${echecs}/${ECHECS_MAX}`}): ${fait.echec}`);
       await github.commenter(
@@ -1503,6 +1512,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${detailDesGates(fait)}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Set aside (\`${ECHECS_ATTEINTS}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. Not served elsewhere: the supervisor takes it and decides what happens to it.` : `Set aside by its failure count (\`${ECHECS_ATTEINTS}\`) ${direLaMiseDeCote(echoues)}: not served elsewhere. The supervisor takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
       );
       chrono.rater(issue);
+      await plafond.enregistrerEssai(issue, { echec: fait.echec });
       if (suite !== null && "auChef" in suite) {
         chrono.oublier(issue);
         await arreterLaBoucle(issue, [...echoues, ...(fini ? [fait.echec] : [])]);
