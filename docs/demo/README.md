@@ -17,3 +17,7 @@ The real work it stands for: issue <https://github.com/benomite/brigade/issues/4
 | 0:30–0:38 | The merge: "Served — the pass merged the PR", the ticket is done | `recit-premier-ticket-servi` |
 
 `shots/` holds one frame extracted from the video inside each shot (at 0:04, 0:12, 0:19, 0:26, 0:35).
+
+## Rebuilding
+
+`sh docs/demo/build.sh` renders the five screens into `docs/demo/src/` and assembles the video and the poster with ffmpeg (fades, H.264, no audio). It is not part of the test run. The committed video predates the script, whose timings are approximate: it has not been run, because ffmpeg was not available where it was written.
