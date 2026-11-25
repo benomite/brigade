@@ -322,16 +322,12 @@ Open one of your projects on this PC: one click, no folder to choose.
 - **A tool the app does not ship is checked first** (#4059): the screen, the `connect to GitHub` button and
   `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
   (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
-  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence, the install step
-  for this machine — the command, or the installer to download —, `install the GitHub CLI` (recommended) and
-  `I installed it`. The button never spins on a sign-in that cannot start. The install path never needs a tool the
-  computer lacks: no Homebrew; on macOS, Git comes from Apple's command line developer tools (`xcode-select
-  --install`), the GitHub CLI from its `.pkg` installer, Claude Code from its official script; on Windows, `winget`
-  when it is there, the installers otherwise, and Claude Code from its PowerShell script. A command the app runs
-  itself; an installer opens its download page. Installed, the app checks again (by itself after a command, or on
-  `I installed it`), adds to its PATH a tool its installer put outside it, and the step comes back where it was —
-  the button, or the project that was opening, which starts again by itself. A failed install, or a tool still
-  missing, says so in one line, and the offer stays. The same screen opens in the notice when **log in** on a lost
+  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence,
+  one link to the tool's official install page, and `I installed it`. The app installs nothing itself (#4266): the
+  tool is the user's to install. The button never spins on a sign-in that cannot start. On `I installed it` the app
+  checks again, adds to its PATH a tool its installer put outside it, and the step comes back where it was — the
+  button, or the project that was opening, which starts again by itself. A tool still missing says so in one line,
+  and the link stays. The same screen opens in the notice when **log in** on a lost
   Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
 - **Claude Code is asked before the kitchen starts** (#4057): opening a project first asks `claude auth status`
   whether Claude Code is logged in on this computer — no call to the model. Logged in, the project opens as before,
@@ -4059,7 +4055,7 @@ section. With the section laid, `right now` is not repeated under it.
 - **A stopped kitchen is always said** (#3924, `runtime/src/arret-cuisine/arret-cuisine.ts`, the notice in
   `app/src/vue/bandeau-arret/`). When at least one ticket is queued and no card is taken or in pass, the head of the
   rail opens with a red `STOPPED` line, above the status line, whatever that line shows: `The kitchen is stopped since
-  08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.`, or `…: main is red.`, or `…: the cause is unknown.`.
+  08:30 UTC: frozen ticket #30 holds the file zone app/src/vue/.`, or `…: zone held by PR 4077.`, or `…: main is red.`, or `…: cause unknown.`.
   The GitHub reading of the rail names main red from its live `repair-main` ticket, since the issue opened, and a frozen
   ticket from a set-aside ticket whose PR is open and whose fiche declares a zone, since it was set aside (or else since
   its PR opened). With no known

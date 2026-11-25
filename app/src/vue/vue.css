@@ -4004,8 +4004,7 @@ main > header {
 .post-mortems-liste { list-style: none; margin: 0; padding: 0; }
 .post-mortems-liste li { margin-top: var(--pas-3); }
 /* L'écran de l'outil manquant (ticket 4059, outils-requis/) : à la place du pas qu'il retient — le compte du premier
-   lancement, ou l'avis —, l'outil nommé, pourquoi, son pas d'installation et ses deux boutons. La commande du pas se
-   sélectionne d'un clic, pour la copier. */
+   lancement, ou l'avis —, l'outil nommé, pourquoi, le lien de sa page d'installation et « I installed it ». */
 #tous .ecran-outil-manquant h3,
 .ecran-outil-manquant h3 {
   margin: 0;
@@ -4015,13 +4014,6 @@ main > header {
 }
 .ecran-outil-manquant .pourquoi {
   margin: var(--pas-2) 0 0;
-}
-.ecran-outil-manquant .pas {
-  margin: var(--pas-2) 0 0;
-  color: var(--texte-doux);
-}
-.ecran-outil-manquant .pas code {
-  user-select: all;
 }
 
 /* La PR d'une carte en pass ou servie : son lien, sa taille, son âge (ticket 4051). */
