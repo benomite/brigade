@@ -49,12 +49,13 @@ export const EXPLICATIONS = {
 
 // Le mot tel que l'écran le montre, en tête de son explication.
 /** @type {Readonly<Record<Mot, string>>} */
-export const MOT_A_L_ECRAN = { rail: "Rail", pass: "Pass", cook: "Cooks", second: "Second", TODO: "TODO", WAITING: "Waiting" };
+export const MOT_A_L_ECRAN = { rail: "Rail", pass: "Pass", cook: "Cooks", second: "Second", TODO: "TODO", WAITING: "Parked" };
 
 // Les colonnes du rail qui portent un mot : l'explication se pose sous leur titre. TODO n'est pas une colonne (ticket 3458) :
-// la sienne se pose à côté de l'entrée « TODO (N) ».
+// la sienne se pose à côté de l'entrée « TODO (N) ». WAITING n'en est plus une (ticket 4238) : la sienne se pose sous le
+// titre de la première colonne où une carte est parked.
 /** @type {Readonly<Record<string, Mot>>} */
-export const MOT_DE_LA_COLONNE = { Pass: "pass", Waiting: "WAITING" };
+export const MOT_DE_LA_COLONNE = { Pass: "pass" };
 
 export const MOTS = {
   ecarter: "got it",
