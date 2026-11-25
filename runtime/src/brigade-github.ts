@@ -72,6 +72,7 @@ import { avecChangements, lireChangements } from "./validation-design/changement
 import { cleDansLaLivraison, lancementDuCook, moteurDeLaStation, noterLaLivraison } from "./moteur/moteur.ts";
 import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-design/choix-de-design.ts";
 import { consigneDesOutils, outilsDuCook } from "./outils-du-cook.ts";
+import { consigneDesTestsDeLaZone, selectionnerTests } from "./tests-de-la-zone/tests-de-la-zone.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
@@ -3432,6 +3433,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if (outils.message) avertir(`brigade : #${ticket.number} sur ${nom} — ${outils.message}`);
     const consigneOutils = consigneDesOutils(ticket.number, outils);
     if (consigneOutils) joint += `\n\n${consigneOutils}`;
+    // Les tests de sa zone, et eux seuls (#4301) ; illisible, il ne reçoit que la règle, jamais une liste inventée.
+    const zoneDuCook = zoneDeclaree(corpsDuTicket, fiche(commentairesDuTicket.map(({ body }) => body)));
+    try {
+      joint += `\n\n## Tests to play\n\n${selectionnerTests(zoneDuCook, worktree).consigne}`;
+    } catch (erreur) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the tests of its zone could not be listed: ${message(erreur)}`);
+      joint += `\n\n## Tests to play\n\n${consigneDesTestsDeLaZone([], [])}`;
+    }
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
     // dépendances, ses premières gates sortaient rouges — contrôle de types
     // injouable —, et il les rejouait après le setup. Le setup part sans le
