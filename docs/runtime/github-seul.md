@@ -469,7 +469,8 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
 - **A zone held by a stale PR** (#4243, `superviseur/zone-liberee.ts`). The claim gate names the open PR that holds
   the zone of each cookable ticket it skips for that reason, and the turn keeps it (`zonesTenues`). On each wake, without
   the manager, the supervisor reads these PRs. A PR is stale when its ticket is neither cooking (`taken`) nor in pass
-  (`in-pass`) and it had no activity for more than 24 hours (`DELAI_PERIME_MS`), or its changes are already on the base
+  (`in-pass`) and it had no activity for more than 45 minutes (`DELAI_PERIME_MS`, the stale-claim delay
+  `DELAI_CLAIM_PERIME_MS` of `guerison/claim-perime.ts`, reused), or its changes are already on the base
   (the comparison of the base to its head leaves it no file). It adds the label `zone-released` to a stale PR, and
   never closes it. It writes one line on the skipped ticket, `Released the zone held by the stale PR #N (…)`, in the
   station's service log (`supervisor on <project>: …`) and in its gesture log. A PR that already carries the label is

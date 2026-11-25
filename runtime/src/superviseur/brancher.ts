@@ -172,7 +172,7 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
     consigner: (ligne, auChef) => {
       if (repertoireEtat === undefined) return;
       try {
-        consignerGeste(repertoireEtat, "supervisor", { line: ligne, reason: `a PR neither cooked nor in pass, idle for more than ${DELAI_PERIME_MS / 3_600_000} hours or with its changes on the base, held the zone of a skipped ticket`, outcome: auChef ? OUTCOME.HANDED_TO_CHEF : OUTCOME.FIXED_BY_SELF }, maintenant);
+        consignerGeste(repertoireEtat, "supervisor", { line: ligne, reason: `a PR neither cooked nor in pass, idle for more than ${DELAI_PERIME_MS / 60_000} minutes or with its changes on the base, held the zone of a skipped ticket`, outcome: auChef ? OUTCOME.HANDED_TO_CHEF : OUTCOME.FIXED_BY_SELF }, maintenant);
       } catch (erreur) {
         dire(`supervisor on ${runtime.projet}: a zone release was not logged — ${message(erreur)}`);
       }

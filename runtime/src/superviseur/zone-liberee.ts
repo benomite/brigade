@@ -5,10 +5,12 @@
 // Celle d'un humain — ni d'un cook, ni du second — a de plus UNE carte pour le chef, qui demande s'il faut la fermer :
 // une seule par PR, retrouvée par sa marque cachée, ouverte ou fermée, avant d'en ouvrir une.
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
+import { DELAI_CLAIM_PERIME_MS as DELAI_PERIME_MS } from "../guerison/claim-perime.ts";
 
 export const ZONE_RELEASED = "zone-released";
-// Sans activité depuis ce délai, une PR qui n'est ni cuite ni en pass est périmée.
-export const DELAI_PERIME_MS = 24 * 3_600_000;
+// Sans activité depuis ce délai, une PR qui n'est ni cuite ni en pass est périmée : le délai de péremption qui existe
+// déjà, celui d'un claim sans cook (`guerison/claim-perime.ts`), pas un second.
+export { DELAI_PERIME_MS };
 
 // La PR qui tient la zone d'un ticket sauté. `auteur` : « brigade » pour une branche d'un cook (`cook/<n>-…`) ou du
 // second (`<type>/<n>-…`), « human » sinon. `miseAJour` : sa dernière activité, telle que GitHub la date.
