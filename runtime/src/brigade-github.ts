@@ -2132,10 +2132,26 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     // Un ticket qui dit le genre de son action (`action:<genre>`) passe par le classement du risque de la fiche du projet (#4230).
                     const genre = genreDuTicket(ticket.labels);
                     if (genre === null || passDuRisque === null) return mergerParLaPorte();
-                    let fusion: Merge = { fait: false, motif: "parked for the chef: its kind of action is ranked 'chef' in the project sheet" };
-                    const issue = await passDuRisque.soumettre({ ticket: ticket.number, genre, description: `${genre} by merging PR #${numero} (\`${sha.slice(0, 7)}\`)`, executer: async () => void (fusion = await mergerParLaPorte()) });
-                    if (issue === "parquee") retenue = true;
-                    return fusion;
+                    // Rangé `safe`, le merge passe par le niveau de la pass, comme avant. Parqué, c'est la réponse du chef qui le
+                    // lance : il ne lui redemande pas son OK, et un merge qui échoue alors se dit.
+                    const lance: { fusion: Merge | null } = { fusion: null };
+                    const issue = await passDuRisque.soumettre({
+                      ticket: ticket.number,
+                      genre,
+                      description: `${genre} by merging PR #${numero} (\`${sha.slice(0, 7)}\`)`,
+                      executer: async () => {
+                        if (lance.fusion === null) {
+                          lance.fusion = await mergerParLaPorte();
+                          return;
+                        }
+                        const merge = await github.merger(numero, sha);
+                        if (!merge.fait) avertir(`brigade : #${ticket.number} on ${nom} — the chef answered, but the merge of PR #${numero} did not go through: ${merge.motif}`);
+                      },
+                    });
+                    if (issue === "executee" && lance.fusion !== null) return lance.fusion;
+                    retenue = true;
+                    lance.fusion = { fait: false, motif: "parked for the chef: its kind of action is ranked 'chef' in the project sheet" };
+                    return lance.fusion;
                   },
                 },
                 { ciDesPR: ciDesPR(sienne) },
