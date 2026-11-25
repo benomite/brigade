@@ -22,6 +22,7 @@ import { HumainsInvalides, humainsDe, type Humain } from "../humains/humains.ts"
 import { LOGIN } from "../humains/login.ts";
 import { JOURS_DU_RESUME, type JourDuResume } from "../resume-hebdomadaire/jour.ts";
 import { execFile } from "../sans-invite.ts";
+import { classementDe, ClassementInvalide, type ClassementDesRisques } from "../risque/risque.ts";
 import { refusEn } from "../zones.ts";
 import { nomPrive, valeurPrivee, type Prive } from "./prive.ts";
 
@@ -129,6 +130,9 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // Les outils que le projet offre à ses cooks (#4162, `outils-du-cook.ts`) :
   // `screenshots`, `browser`, la CLI du projet, un connecteur.
   tools?: string[];
+  // Le classement des sortes d'action par risque (#4230, `risque/risque.ts`) :
+  // `chef` ou `safe` par sorte. Absent : les rangs par défaut.
+  risks?: ClassementDesRisques;
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -173,7 +177,7 @@ const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.sta
 // `githubOnlyState`, l'ancien interrupteur de l'état GitHub seul (#2060), est
 // accepté et ignoré (#2061) : un fichier qui le porte encore reste lisible, et
 // sa réécriture le retire.
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "recurring", "tools", "githubOnlyState", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", "humans", "humanValidatesDesigns", "weeklySummaryDay", "recurring", "tools", "risks", "githubOnlyState", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -351,6 +355,16 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     const outils = outilsDe(objet.tools);
     if (outils.length > 0) reglages.tools = outils;
   }
+  if (objet.risks !== undefined) {
+    let classement: ClassementDesRisques;
+    try {
+      classement = classementDe(objet.risks);
+    } catch (erreur) {
+      if (erreur instanceof ClassementInvalide) throw new ReglageRefuse("invalide", erreur.cle, erreur.message);
+      throw erreur;
+    }
+    if (Object.keys(classement).length > 0) reglages.risks = classement;
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -369,7 +383,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay, recurring, tools } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef, humans, humanValidatesDesigns, weeklySummaryDay, recurring, tools, risks } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -398,6 +412,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(weeklySummaryDay === undefined ? {} : { weeklySummaryDay }),
       ...(recurring === undefined || recurring.length === 0 ? {} : { recurring }),
       ...(tools === undefined || tools.length === 0 ? {} : { tools }),
+      ...(risks === undefined ? {} : { risks: Object.fromEntries(Object.entries(risks).sort(([a], [b]) => a.localeCompare(b))) }),
       ...Object.fromEntries(desSeuils),
     },
     null,

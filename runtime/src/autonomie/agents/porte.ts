@@ -5,6 +5,7 @@
 //   - `propose`: it holds it as a pending gesture, not done. The chef's approval does it once, then logs it; a second
 //     approval does nothing;
 //   - `observe`: it logs the gesture the agent would make, as `not done`, and never does it.
+// A gesture whose kind of action the project ranks `chef` (#4230) is held on `act` too, as on `propose`.
 //
 // The pending gestures are kept in one file of the directory the gate is given, so that the chef's approval, typed in
 // its own process (`manager -- approve <id>`), reaches them: it marks the gesture approved, and the runtime does it at
@@ -33,7 +34,9 @@ export type GesteEnAttente = { id: number; agent: string; line: string; reason: 
 export type PorteDesGestes = {
   // `consigne`: what is logged once the gesture is done, from what it gave — null logs nothing (a gesture refused on
   // the way). By default, the gesture as its agent said it.
-  passer<T>(qui: AgentDuGeste, geste: GesteDit, faire: () => T | Promise<T>, consigne?: (valeur: T) => GesteDit | null): Promise<Passage<T>>;
+  // `auChef`: its kind of action is ranked `chef` (`risque/risque.ts`, #4230) — on `act`, it is held for the chef's
+  // answer as on `propose`; `observe` still never does it.
+  passer<T>(qui: AgentDuGeste, geste: GesteDit, faire: () => T | Promise<T>, consigne?: (valeur: T) => GesteDit | null, auChef?: boolean): Promise<Passage<T>>;
   // The chef's approval of a pending gesture: done once, then logged. Null when no gesture is pending under this id
   // in this runtime — never done twice.
   approuver(id: number): Promise<Passage<unknown> | null>;
@@ -132,9 +135,9 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
   };
 
   return {
-    async passer(qui, geste, faire, consigne = () => geste) {
+    async passer(qui, geste, faire, consigne = () => geste, auChef) {
       const niveau = niveaux.lire(projet)[qui.reglable];
-      if (niveau === "act") {
+      if (niveau === "act" && auChef !== true) {
         const valeur = await faire();
         consigner(qui.agent, consigne(valeur));
         plusEnAttente(qui.agent, geste.line);

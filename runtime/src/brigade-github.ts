@@ -95,6 +95,8 @@ import type { ManagerDuSuperviseur } from "./superviseur/brancher.ts";
 import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
+import { risquesDuClone } from "./risque/de-la-fiche.ts";
+import { risqueDuTicket, type ClassementDesRisques } from "./risque/risque.ts";
 import { geste as gesteDeBox } from "./geste.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
@@ -384,6 +386,10 @@ export type OptionsDeStation = {
   // s'ajoute à son `.claude/brigade/temps-tickets.json` (#2342). Absent, rien
   // ne s'écrit.
   clone?: string;
+  // Le classement des sortes d'action par risque, tel que la fiche du projet le porte, relu à chaque merge (#4230,
+  // `risque/`). Lève si la fiche ne se lit pas. Absent : celui que la base du `clone` porte, et sans clone les rangs
+  // par défaut.
+  risques?: () => ClassementDesRisques | null;
   // Le dépôt du projet servi et le GitHub de la brigade : le ticket du temps
   // perdu se dépose sur la brigade (#2783). Absents, il reste sur le projet.
   depotServi?: string;
@@ -2098,11 +2104,22 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       return { fait: false, motif: sensible };
                     }
                     chrono.marquer(ticket.number, "merge");
+                    // Les sortes d'action de son ticket, classées par risque dans la fiche du projet relue à chaque merge (#4230) :
+                    // `chef` le gare pour le chef, avec ce qu'il fera ; `safe` ne lui arrive jamais.
+                    const risque = risqueDuTicket(ticket.labels, options.risques ?? risquesDuClone(options.clone, options.base));
                     // Le merge est le geste de la pass : il passe par la porte de son niveau (#4039).
                     const porte = station.porte ?? null;
-                    if (porte === null) return github.merger(numero, sha);
-                    const dit = { line: `merge PR #${numero} of #${ticket.number}`, reason: `its delivery is green on \`${sha.slice(0, 7)}\``, outcome: OUTCOME.FIXED_BY_SELF };
-                    const passage = await porte.passer({ agent: "pass", reglable: "pass" }, dit, () => github.merger(numero, sha), (merge) => (merge.fait ? { ...dit, line: `merged PR #${numero} of #${ticket.number}` } : null));
+                    if (porte === null) {
+                      if (risque?.rang !== "chef") return github.merger(numero, sha);
+                      // Sans porte, rien où le garer : il ne se merge pas, et c'est dit.
+                      retenue = true;
+                      avertir(`brigade : #${ticket.number} on ${nom} — its merge waits for the chef (${risque.pourquoi}), but this station has no gate to park it`);
+                      return { fait: false, motif: "ranked 'chef', with no gate to park it" };
+                    }
+                    const dit = { line: `merge PR #${numero} of #${ticket.number}${risque === null ? "" : `, which will ${risque.ceQuIlFera}: ${ticket.title}`}`, reason: risque?.rang === "chef" ? risque.pourquoi : `its delivery is green on \`${sha.slice(0, 7)}\``, outcome: OUTCOME.FIXED_BY_SELF };
+                    // Garé, le merge se fait à la réponse du chef (`approuver`) : la PR mergée, le tour suivant la sert comme
+                    // une autre, sans seconde réponse. Une porte qui manquerait entre-temps laisserait le geste en mémoire.
+                    const passage = await porte.passer({ agent: "pass", reglable: "pass" }, dit, () => github.merger(numero, sha), (merge) => (merge.fait ? { ...dit, line: `merged PR #${numero} of #${ticket.number}` } : null), risque?.rang === "chef");
                     if (passage.etat === "done") return passage.valeur;
                     // Attendu ou observé, il est retenu comme une livraison que le chef valide : il ne se retente pas sur la même tête.
                     retenue = true;

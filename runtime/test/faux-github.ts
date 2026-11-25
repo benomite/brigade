@@ -36,8 +36,7 @@ export type OptionsDuFaux = {
   invariants?: OptionsDeStation["invariants"];
   relancerLaBase?: OptionsDeStation["relancerLaBase"];
   // La porte des gestes des agents (#4039).
-  porte?: OptionsDeStation["porte"];
-};
+  porte?: OptionsDeStation["porte"];};
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
 // de la station qui le fait, et rend la main avant de répondre, pour que deux
@@ -294,8 +293,7 @@ export class FauxGitHub {
       ...(options.reprendre === undefined ? {} : { reprendre: options.reprendre }),
       ...(options.invariants === undefined ? {} : { invariants: options.invariants }),
       ...(options.relancerLaBase === undefined ? {} : { relancerLaBase: options.relancerLaBase }),
-      ...(options.porte === undefined ? {} : { porte: options.porte }),
-      places: options.places ?? 1,
+      ...(options.porte === undefined ? {} : { porte: options.porte }),      places: options.places ?? 1,
       ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",
       github,
