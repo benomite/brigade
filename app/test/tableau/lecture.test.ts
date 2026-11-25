@@ -277,6 +277,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // Le rail bloqué : les tickets qu'aucun manager n'a pris, et le diagnostic, sans E/S (ticket 3358).
     "app/src/vue/rail-bloque/rail-bloque.ts",
     "app/src/vue/rail/github.ts",
+    // Le rail, haut du backlog, et son écran, sans E/S (ticket 4223).
+    "app/src/vue/rail/rail.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/renvoi.ts",
     "runtime/src/arret-cuisine/arret-cuisine.ts",
@@ -287,6 +289,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/attente-github/marque.ts",
     // Les attentes d'un ticket en file et leur source — son corps, sa fiche, l'arrêt d'un cook —, sans E/S (ticket 3763).
     "runtime/src/boucle-attente/levee.ts",
+    // La calibration d'un ticket, sans E/S : le haut du backlog ne montre qu'un ticket calibré (ticket 4223).
+    "runtime/src/calibrage.ts",
     "runtime/src/capacites.ts",
     "runtime/src/carte-attente/carte-attente.ts",
     "runtime/src/enregistrement-station/contrat.ts",
@@ -298,6 +302,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // L'ordre de merge des tickets qui touchent au même terrain, lu de GitHub sans station (ticket 4044).
     "runtime/src/ordre-de-merge/lecture.ts",
     "runtime/src/ordre-de-merge/ordre.ts",
+    // Le rail, haut du backlog : les tickets calibrés et prêts, par priorité puis âge, sans E/S (ticket 4223).
+    "runtime/src/rail-backlog/rail-backlog.ts",
     // Le ticket qu'une PR sert, sans E/S : la règle que le récapitulatif du runtime lit sur les mêmes PR (ticket 3581).
     "runtime/src/recap/servis.ts",
     // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).
