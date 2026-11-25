@@ -183,7 +183,7 @@ test("l'issue d'un ticket en WAITING dit qui est attendu, quoi et jusqu'à quand
   assert.match(corps ?? "", /^\*\*WAITING: awaiting le client\.\*\* sa validation écrite du devis/);
   assert.match(corps ?? "", /\*\*from whom\*\*: le client/);
   assert.match(corps ?? "", /\*\*follow-up\*\*: 21 Oct 12:00 UTC/);
-  assert.match(corps ?? "", /its follow-up does not take it out\. Removing this label sends it back to the kitchen; `.*waiting resume 8` gives it back the state it had before waiting/);
+  assert.match(corps ?? "", /its follow-up does not take it out\. Removing this label sends it back to the kitchen; “resume” on its card in the app gives it back the state it had before waiting/);
   assert.deepEqual(gh.lire(8)?.labels.includes(LABEL_WAITING), true);
   // Rien de neuf : rien ne se redit.
   assert.equal(await marquerAttentes(journal, gh.github, PROJET), 0);
