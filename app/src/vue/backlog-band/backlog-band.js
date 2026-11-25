@@ -11,7 +11,8 @@
 //     issue — et, s'il attend le chef, sa carte de TODO, la question et le bouton qui y répond. Ses tickets ressortent dans
 //     le rail, les autres cartes s'effacent (`marquerLeRail`). Un second clic, ou un clic sur une autre, finit la sélection.
 //   - Un clic sur le titre déplie tout le backlog en liste, pour le chef (ticket 3589) : « Next », ce qui vient ensuite dans
-//     l'ordre où la cuisine le servira, puis « Ideas in reserve », chacune avec son résumé, « Put on the rail » et « Drop » ;
+//     l'ordre où la cuisine le servira, puis « Ideas in reserve », chacune avec son résumé et « Drop » — aucune n'a de geste
+//     qui la met en file : le rail est le haut du backlog (ticket 4223) ;
 //     ce qui a été servi, replié en bas. Ce qui attend le chef n'y est pas (il est dans TODO), ni aucun mot du manager ; un
 //     clic sur une ligne ouvre son issue. Un second clic sur le titre replie le bandeau sur sa ligne.
 //   - Un besoin découpé dont tous les tickets sont servis reste 24 h, marqué servi, puis quitte le bandeau.
@@ -202,9 +203,9 @@ export function combienTiennent(largeurs, place, largeurPlus, ecart) {
  * `selection` : le besoin choisi, son détail déplié ; `deplie` : la liste entière dépliée ; `rouges` : combien t'attendent
  * (`rougesDuBacklog`), que le titre dit. `servisDeplies` : ce qui a été servi, déplié en entier au bas de la liste ;
  * `idees` : le geste d'une idée en route (`envoi`), ou pourquoi il n'est pas passé (`refus`), par issue.
- * @typedef {{ envoi: "rail" | "abandonner" } | { refus: string }} GesteDIdee
+ * @typedef {{ envoi: "abandonner" } | { refus: string }} GesteDIdee
  * @typedef {{ vu: Vu | undefined, besoins: Besoin[], selection: number | undefined, deplie: boolean, rouges: number, servisDeplies?: boolean, idees?: ReadonlyMap<number, GesteDIdee> }} Etat
- * @typedef {{ choisir: (ticket: number) => void, basculer: () => void, ouvrirIssue: (ticket: number) => void, carteDuChef: (carte: Carte) => any, basculerServis: () => void, idee: (ticket: number, id: "rail" | "abandonner") => void }} Gestes
+ * @typedef {{ choisir: (ticket: number) => void, basculer: () => void, ouvrirIssue: (ticket: number) => void, carteDuChef: (carte: Carte) => any, basculerServis: () => void, idee: (ticket: number, id: "abandonner") => void }} Gestes
  */
 
 /** @param {Fabrique} doc @param {Besoin} besoin @param {boolean} choisi @param {Gestes} gestes */
@@ -309,18 +310,13 @@ function ligneDIdee(doc, besoin, geste, gestes) {
   if (besoin.contexte !== undefined) resume.title = besoin.contexte;
   const actions = noeud(doc, "span", "backlog-band-idee-actions");
   const envoi = geste !== undefined && "envoi" in geste ? geste.envoi : undefined;
-  for (const [id, libelle, enCours] of /** @type {const} */ ([
-    ["rail", "Put on the rail", "putting on the rail…"],
-    ["abandonner", "Drop", "dropping…"],
-  ])) {
-    const bouton = noeud(doc, "button", "backlog-band-idee-geste", envoi === id ? enCours : libelle);
-    bouton.type = "button";
-    bouton.dataset.geste = id;
-    bouton.title = id === "rail" ? `put #${besoin.ticket} on the rail: the manager reads it at its next wake-up` : `drop #${besoin.ticket}: its issue is closed as not planned`;
-    bouton.disabled = envoi !== undefined;
-    bouton.addEventListener("click", () => gestes.idee(besoin.ticket, id));
-    actions.append(bouton);
-  }
+  const bouton = noeud(doc, "button", "backlog-band-idee-geste", envoi === undefined ? "Drop" : "dropping…");
+  bouton.type = "button";
+  bouton.dataset.geste = "abandonner";
+  bouton.title = `drop #${besoin.ticket}: its issue is closed as not planned`;
+  bouton.disabled = envoi !== undefined;
+  bouton.addEventListener("click", () => gestes.idee(besoin.ticket, "abandonner"));
+  actions.append(bouton);
   ligne.append(ouvrable(doc, besoin, [noeud(doc, "span", "backlog-band-ligne-titre", besoin.titre), resume], gestes), actions);
   if (geste !== undefined && "refus" in geste) ligne.append(noeud(doc, "p", "backlog-band-idee-refus", geste.refus));
   return ligne;
@@ -328,7 +324,7 @@ function ligneDIdee(doc, besoin, geste, gestes) {
 
 /**
  * Le backlog déplié, pour le chef (ticket 3589) : ce qui vient ensuite, dans l'ordre où la cuisine le servira — `prio:1`, `prio:2`,
- * `prio:3`, puis sans priorité —, puis les idées en réserve, chacune avec son résumé et ses deux gestes ; ce qui a été servi,
+ * `prio:3`, puis sans priorité —, puis les idées en réserve, chacune avec son résumé et « Drop » ; ce qui a été servi,
  * replié en bas sur les plus récents. Ce qui attend le chef n'y est pas : il est dans TODO. Aucun mot du manager sur les
  * lignes (calibrage, `fire`, `not read yet`) : un clic ouvre l'issue, où ils restent.
  * @param {Fabrique} doc @param {Besoin[]} besoins @param {{ servisDeplies: boolean, idees: ReadonlyMap<number, GesteDIdee> }} etat @param {Gestes} gestes
