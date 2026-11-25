@@ -18,6 +18,7 @@
 // et du reviewer —, lancés ici sans journal.
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { current } from "./agent-settings/index.ts";
 import { direZoneTenue, lecteurDeLaBase, type PRDeLaPorte, type RaisonDuSaut, vivante, ZONE_HELD } from "./claim-gate.ts";
 import { retirerLesRestesDuCook } from "./station/restes-du-cook.ts";
 import { horsDesBesoins } from "./besoin/besoin.ts";
@@ -2880,7 +2881,8 @@ export type OptionsDuDepot = {
   bacASable?: BacASableLocal | null;
   plafonds: Plafonds;
   graceMs: number;
-  reviewer: Calibrage;
+  // Relu à chaque relecture quand c'est une fonction : un calibrage changé depuis l'app vaut à la suivante (#4222).
+  reviewer: Calibrage | (() => Calibrage);
   // Le calibrage du manager, relu à chaque consultation : la question d'un cook
   // bloqué lui va avant tout \`blocked-on-human\` (#2894). Absent, la station n'a
   // pas de manager à consulter, et le dit sur l'issue.
@@ -3661,7 +3663,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // La consigne part sur son entrée : le diff des tests gelés s'y ajoute à celui de la livraison (#3910).
   const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0, ticket?: number): Promise<Lue> => {
     const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
-    const lancement = { ...envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" }), entree: texte };
+    const lancement = { ...envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(current(options.reviewer)), worktree) }, { cwd: worktree, depot: "lecture" }), entree: texte };
     const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ...(ticket === undefined ? {} : { ticket }) });
     await lance.fin;
     const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message, null, criteres);
@@ -4023,7 +4025,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const texte = consigneDuChoix({ ticket, fichiers, diff: depot.diff(brancheDuTicket(ticket.number)) });
       const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
       // La consigne part sur l'entrée du reviewer, pas sur sa ligne de commande : le diff la fait dépasser la limite des arguments (spawn E2BIG, #3786).
-      const lancement = { ...envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(options.reviewer), worktree) }, { cwd: worktree, depot: "lecture" }), entree: texte };
+      const lancement = { ...envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(current(options.reviewer)), worktree) }, { cwd: worktree, depot: "lecture" }), entree: texte };
       // Sans `ticket` : un lancement qui le porte remet la livraison en « cooking » et la sort de la pass (pass.ts, `cook.launched`) ; le run se lit par son nom (`design-<n>-`).
       const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux });
       const fin = await lance.fin;
