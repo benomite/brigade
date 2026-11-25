@@ -10,7 +10,7 @@ description: Endosser le rôle de développeur pour implémenter une issue GitHu
 3. Considérer le premier numéro fourni après `$dev`, ou dans la mission déléguée, comme le numéro d’issue attendu par `$ARGUMENTS`.
 4. Suivre le workflow partagé comme source de vérité pour toute la mission.
 5. En mode sous-agent :
-   - remonter au parent les signaux normalisés du workflow (`question-spec`, `prêt`, `bloqué`, `hors-scope`, `refus-réassignation`, `refus-lot`, `refus-extension`) ;
+   - remonter au parent les signaux normalisés du workflow (`question-spec`, `prêt`, `bloqué`, `hors-scope`, `refus-réassignation`, `refus-lot`, `refus-extension`) ; une `question-spec` parque l’issue pour le chef (`chef-todo`) jusqu’à sa réponse ;
    - ne vivre que pour **une seule issue** : après la livraison, ne traiter que les findings de sa propre PR, refuser toute autre issue par `refus-réassignation`, un lot d'arrivée par `refus-lot`, une extension de périmètre post-livraison par `refus-extension` ;
    - ne jamais solliciter directement l’utilisateur ;
    - attendre ou reprendre sur instruction du parent — mais **ne jamais rester inactif pendant un gate** : relire son propre diff, écrire le corps de la PR, synchroniser la doc vivante, comme l'exige le workflow partagé.

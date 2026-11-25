@@ -3,9 +3,10 @@
 // `avecLeRail`) lui donne ce qu'elle sait, et pose l'arrêt dans `facts` sous `arretCuisine` ; le rail le dit en tête
 // (bandeau-arret.js). Ce qu'elle sait des causes :
 //   - main rouge : la réparation `repair-main` sur le rail, que la lecture dit déjà aux alertes (`baseRougeDuRail`) ;
-//   - un ticket gelé qui tient une zone de fichiers : un ticket mis de côté dont la PR est ouverte — une PR ouverte tient sa
-//     zone (runtime/src/brigade-github.ts, la porte de prise) —, et la zone que sa fiche déclare ;
-//   - une zone tenue par une PR (#4244) : les tickets en file sautés pour `zone-held`, avec le numéro de la PR du ticket gelé ;
+//   - un ticket gelé qui tient une zone de fichiers : un ticket mis de côté, ou parqué par ses échecs (ticket 4260), dont la PR est
+//     ouverte — une PR ouverte tient sa zone (runtime/src/brigade-github.ts, la porte de prise) —, et la zone que sa fiche
+//     déclare ;
+//   - une zone tenue par une PR (ticket 4244) : les tickets en file sautés pour `zone-held`, avec le numéro de la PR du ticket gelé ;
 //   - sinon, la cause est inconnue, et l'arrêt se dit quand même.
 import { arretDeLaCuisine, statutDeLaCuisine, statutDeLArret, type ArretDeLaCuisine, type EntreeDeLArret } from "../../../../runtime/src/arret-cuisine/arret-cuisine.ts";
 import type { BaseRougeLue } from "../../attente-du-rail/alertes.ts";
@@ -17,13 +18,13 @@ import { recouvrement } from "../../../../runtime/src/zones.ts";
 export type ZoneTenue = { zone: string[]; depuis: string; pr?: number };
 // Ce que l'arrêt lit d'un ticket du rail et d'un servi (vue/rail/github.ts, `TicketSurGithub`, `ServiSurGithub`) : dit ici,
 // car faits.ts — que le runtime type par pont.d.ts — charge ce module, et pas la lecture du rail.
-type TicketLu = { ticket: number; creeLe: string; entreLe?: string | null; zone?: string[]; miseDeCote?: { zoneTenue?: ZoneTenue } };
+type TicketLu = { ticket: number; creeLe: string; entreLe?: string | null; zone?: string[]; miseDeCote?: { zoneTenue?: ZoneTenue }; parqueParEchecs?: { zoneTenue?: ZoneTenue } };
 type ServiLu = { livre: string };
 
 const instant = (valeur: unknown): valeur is string => typeof valeur === "string" && !Number.isNaN(Date.parse(valeur));
 
-// D'un ticket mis de côté, des commentaires de son issue déjà lus : la zone que sa fiche déclare, tenue par sa PR ouverte,
-// depuis sa mise de côté — à défaut, l'ouverture de sa PR. Sans PR ouverte, sans fiche, une fiche illisible — elle ne
+// D'un ticket mis de côté ou parqué par ses échecs, des commentaires de son issue déjà lus : la zone que sa fiche déclare,
+// tenue par sa PR ouverte, depuis sa mise de côté ou son parking — à défaut, l'ouverture de sa PR. Sans PR ouverte, sans fiche, une fiche illisible — elle ne
 // possède rien — ou sans zone : il n'en tient aucune.
 export function zoneTenueDe(commentaires: readonly Record<string, unknown>[], pr: { le: string; numero?: number } | null, misDeCoteLe: string | null): ZoneTenue | undefined {
   if (pr === null) return undefined;
@@ -43,11 +44,15 @@ export function arretDuRail(file: readonly TicketDuRail[], tickets: readonly Tic
   const enFile = file.filter(({ etat }) => etat === "queued");
   const entrees = tickets.filter(({ ticket }) => enFile.some((enAttente) => enAttente.ticket === ticket)).map(({ entreLe, creeLe }) => entreLe ?? creeLe).filter(instant);
   const plusAncienne = entrees.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
-  const gele = tickets.find(({ miseDeCote }) => miseDeCote?.zoneTenue);
-  // Les sauts que la porte de prise ferait (#4244), lus de ce que le rail sait : un ticket en file dont la zone de fiche chevauche celle
+  const geles = tickets.flatMap(({ ticket, miseDeCote, parqueParEchecs }) => {
+    const zoneTenue = miseDeCote?.zoneTenue ?? parqueParEchecs?.zoneTenue;
+    return zoneTenue === undefined ? [] : [{ ticket, zoneTenue }];
+  });
+  const gele = geles[0];
+  // Les sauts que la porte de prise ferait (ticket 4244), lus de ce que le rail sait : un ticket en file dont la zone de fiche chevauche celle
   // d'un ticket gelé dont la PR ouverte la tient est sauté pour `zone-held`, une fois par PR qui le tient ; un ticket que rien ne
   // tient, ou dont la zone n'est pas lue, est sauté sans ce code — la cause reste alors celle d'avant.
-  const tenues = tickets.flatMap(({ miseDeCote }) => (miseDeCote?.zoneTenue?.pr === undefined ? [] : [{ pr: miseDeCote.zoneTenue.pr, zone: miseDeCote.zoneTenue.zone }]));
+  const tenues = geles.flatMap(({ zoneTenue }) => (zoneTenue.pr === undefined ? [] : [{ pr: zoneTenue.pr, zone: zoneTenue.zone }]));
   const sauts = enFile.flatMap(({ ticket }) => {
     const zone = tickets.find((lu) => lu.ticket === ticket)?.zone ?? [];
     const tenant = tenues.filter((tenue) => recouvrement([...zone], [...tenue.zone]) !== null);
@@ -58,7 +63,7 @@ export function arretDuRail(file: readonly TicketDuRail[], tickets: readonly Tic
     taken: file.filter(({ etat }) => etat === "taken").length,
     inPass: file.filter(({ etat }) => etat === "pass").length,
     since: plusRecent([...(plusAncienne === undefined ? [] : [plusAncienne]), ...servis.map(({ livre }) => livre)]),
-    ...(gele?.miseDeCote?.zoneTenue === undefined ? {} : { frozen: { ticket: gele.ticket, zone: gele.miseDeCote.zoneTenue.zone.join(", "), since: gele.miseDeCote.zoneTenue.depuis } }),
+    ...(gele === undefined ? {} : { frozen: { ticket: gele.ticket, zone: gele.zoneTenue.zone.join(", "), since: gele.zoneTenue.depuis } }),
     skipped: sauts,
     ...(baseRouge === null ? {} : { mainRed: { since: baseRouge.depuis } }),
   };

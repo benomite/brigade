@@ -158,9 +158,6 @@ export type Pont = {
   // Une capture d'un ticket d'interface, par son écran et son moment : l'image, lue par le `gh` du
   // poste à l'adresse que la box a rendue, en `data:` — ou pourquoi elle ne l'est pas.
   lireCapture(projet: string, ticket: number, ecran: string, moment: "avant" | "apres"): Promise<import("../captures.ts").Image | undefined>;
-  // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou
-  // fermer l'issue (`fermer`), par le `gh` du poste. Rien ne part pour un ticket que le bloc ne dit pas retenu.
-  leverRetenue(projet: string, ticket: number, geste: "label" | "fermer"): Promise<import("../question.ts").Leve>;
   // Les tickets `fire` du projet, lus sur GitHub par le `gh` du poste (feu.ts) : ce que le rail sait encore quand la box ne répond pas.
   lireFeu(projet: string): Promise<import("../feu.ts").Feu | undefined>;
   // « réessayer maintenant » : les lectures de la box repartent tout de suite, au lieu d'attendre leur tour.
@@ -196,8 +193,8 @@ export type Pont = {
   essayer(projet: string, ticket: number): Promise<void>;
   arreterEssai(projet: string, ticket: number): Promise<void>;
   refus(projet: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  // Un geste d'une idée en réserve, depuis la liste du Backlog (gestes-idee.ts, ticket 3589) : `rail` retire `idea` et pose `fire`, `abandonner` ferme l'issue.
-  idee(projet: string, id: "rail" | "abandonner", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
+  // Le geste d'une idée en réserve, depuis la liste du Backlog (gestes-idee.ts, ticket 3589) : `abandonner` ferme l'issue.
+  idee(projet: string, id: "abandonner", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
@@ -427,7 +424,7 @@ export type Pont = {
   // publie sur GitHub, rangé dans les colonnes du rail — ou pourquoi il ne se lit pas, en une phrase.
   railDuProjet?(nom: string): Promise<import("../faits.ts").RailDuProjetLu>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
-  // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
+  // celles qui sont parquées (`parked`) — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
   compter(projet: string): Promise<Compte | undefined>;
   // La réponse du chef à la carte de TODO d'un ticket (carte-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
