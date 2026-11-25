@@ -1,6 +1,7 @@
 // @ts-check
 // TODO n'est pas une colonne (ticket 3458) : ce qui attend le chef est une propriété d'un ticket, pas une place sur le rail.
-// Une carte qui attend le chef reste dans la colonne de son étape — On the rail, Taken, Pass, Waiting —, avec la peau
+// Une carte qui attend le chef reste dans la colonne de son étape — celle que faits.ts lui donne, puis celle du plan de la
+// cuisine (cuisine/, ticket 4238) —, avec la peau
 // noire et rouge de la carte d'attente, en tête de sa colonne. La colonne dit où est le ticket, la couleur dit qui le
 // tient. Il n'y a plus de filtre (ticket 3523) : les cartes rouges viennent d'abord dans leur colonne, et N, le nombre de
 // cartes rouges, est le compte de l'accueil et de l'onglet du projet.
@@ -19,9 +20,9 @@ export const LISTE_DU_CHEF = "Awaiting you";
 const SUR_LE_RAIL = "On the rail";
 
 // Une carte rouge : elle attend le chef — pas un autre humain du projet (« Awaiting others », ticket 2985) —, ou, dans
-// WAITING, sa relance est passée et elle lui revient.
+// WAITING, sa relance est passée et elle lui revient, ou elle est parked et c'est le chef qu'elle attend (ticket 4238).
 /** @param {Carte} carte */
-export const estRouge = (carte) => (carte.attendu && carte.qui === undefined) || carte.relancePassee === true;
+export const estRouge = (carte) => (carte.attendu && carte.qui === undefined) || carte.relancePassee === true || carte.parque?.chef === true;
 
 // La colonne d'une carte qui attend le chef : celle de son étape, si le rail l'a ; sinon On the rail.
 /** @param {Carte} carte @param {readonly string[]} noms */
