@@ -231,7 +231,7 @@ export function tenirLesAgents(doc, { valeurs = () => ({ modeles: [], efforts: [
         option.value = choix;
         entree.append(option);
       }
-    } else entree.type = champ.kind === "number" ? "number" : "text";
+    } else entree.type = champ.kind !== "number" ? "number" : "text";
     entree.ariaLabel = champ.label;
     entree.value = String((enRoute ? envoyees.get(`${agent.id} ${champ.key}`) : champ.value) ?? "");
     entree.disabled = enRoute;
