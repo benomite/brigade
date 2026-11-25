@@ -121,6 +121,7 @@ import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { type GitHubDeLaBrigade } from "./issue-de-la-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
+import { ESSAIS_MAX, estUnParc, horsDuParc, parquer, refusDuTicket } from "./essais/essais.ts";
 import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_CONFLIT, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
@@ -1525,8 +1526,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   // Renvoie au cook une livraison rouge ou refusée : la raison s'écrit sur
   // l'issue, que le cook lit, et `in-pass` tombe — le ticket redevient libre, et
-  // la station qui le prend reprend sa branche, sous sa PR. Au-delà de
-  // `RENVOIS_MAX`, il sort de la cuisine (`served-elsewhere`) : un humain décide.
+  // la station qui le prend reprend sa branche, sous sa PR. Au troisième
+  // refus de sa vie, il est mis de côté pour le chef (`essais/`, #4226).
   // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
   const renvoyes = new Set<number>();
   // La tête de chaque PR en conflit dont la station a déjà tenté la synchro (#2726).
@@ -1538,13 +1539,24 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // du cook (la base bouge sous la PR sans que le cook y soit pour rien) : il a
   // le sien, et avant de sortir le ticket pour conflit la station resynchronise
   // une dernière fois (`resynchroniser`) — seul un vrai conflit de contenu sort (#2726).
+  // La carte qui retenait sa livraison pour le chef n'attend plus rien de
+  // lui : elle quitte TODO tout de suite (#3332). Une fermeture qui échoue se
+  // dit ; la carte suivante la fermera, comme avant.
+  const fermerLesCartesDuRenvoi = async (numero: number) => {
+    for (const sorte of [DESIGN, SENSIBLE]) {
+      try {
+        await fermerLaCarteDepassee(sorte, github, numero);
+      } catch (erreur) {
+        avertir(`brigade : #${numero} sur ${nom} — its “${sorte.titre}” card could not be closed after the send-back, the next card closes it: ${message(erreur)}`);
+      }
+    }
+  };
   const renvoyer = async (ticket: TicketLu, sha: string, raison: string, fois = 1, genre: "conflict" | "red CI" | "review" = "review", resynchroniser?: () => Promise<boolean>) => {
     const lus = await github.commentaires(ticket.number);
-    const tous = lus.filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
-    // Compté par ticket, relancements compris (#3961) : #3955 est reparti à 1/2
-    // après chaque relance et a bouclé. Seule la reprise du manager (#3513),
-    // à la limite, le remet à zéro.
-    const tousRenvois = lus.slice(lus.findLastIndex((c) => c.body.startsWith(MARQUE_DE_LA_REPRISE)) + 1).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    const tous = lus.filter((c) => c.body.startsWith(MARQUE_DE_RENVOI) || estUnParc(c));
+    // Compté par ticket sur toute sa vie (#3961, #4226) : ni une relance, ni une
+    // prise, ni la reprise du manager, ni un redémarrage ne le remet à zéro.
+    const tousRenvois = lus.filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
     const enConflit = tousRenvois.filter((c) => c.body.includes(MARQUE_DE_CONFLIT));
     const renvois = genre === "conflict" ? enConflit : tousRenvois.filter((c) => !c.body.includes(MARQUE_DE_CONFLIT));
     // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
@@ -1553,6 +1565,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // (GitHub qui limite ses appels), il se refait, sans second commentaire (#2319).
     if (tous.filter((c) => c.body.includes(` sha=${sha} `)).length >= fois) {
       if (ticket.labels.includes(LABEL_IN_PASS)) await github.delabelliser(ticket.number, LABEL_IN_PASS);
+      return;
+    }
+    // Le troisième refus de sa vie met le ticket de côté pour le chef (#4226) : ni manager, ni quatrième cook. La carte
+    // de validation qu'il tenait se ferme d'abord, pour que sa fermeture ne lève pas la carte de la mise de côté.
+    if (genre !== "conflict" && refusDuTicket(lus).length + 1 >= ESSAIS_MAX) {
+      await fermerLesCartesDuRenvoi(ticket.number);
+      await parquer(github, ticket, { station: nom, sha, raison, rouges: () => checksRougesDits(sha) });
+      chrono.oublier(ticket.number);
+      await github.delabelliser(ticket.number, LABEL_IN_PASS);
+      renvoyes.add(ticket.number);
       return;
     }
     const deja = renvois.length;
@@ -1593,16 +1615,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
     renvoyes.add(ticket.number);
-    // La carte qui retenait sa livraison pour le chef n'attend plus rien de
-    // lui : elle quitte TODO tout de suite (#3332). Une fermeture qui échoue se
-    // dit ; la carte suivante la fermera, comme avant.
-    for (const sorte of [DESIGN, SENSIBLE]) {
-      try {
-        await fermerLaCarteDepassee(sorte, github, ticket.number);
-      } catch (erreur) {
-        avertir(`brigade : #${ticket.number} sur ${nom} — its “${sorte.titre}” card could not be closed after the send-back, the next card closes it: ${message(erreur)}`);
-      }
-    }
+    await fermerLesCartesDuRenvoi(ticket.number);
     // De retour en cuisine : le temps jusqu'au cook suivant est celui du renvoi (#2662).
     if (attenteDite === null && (!epuise || (suite !== null && !("auChef" in suite) && !suite.question))) chrono.marquer(ticket.number, "renvoi");
   };
@@ -1888,7 +1901,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     if (clone !== undefined) await rattraperLesPrises(clone).catch((echec) => avertir(`brigade : the claims of the recent tickets could not be caught up on ${nom} — ${message(echec)}`));
     // Une épique découpée, ou un besoin dont un ticket lancé est né : ni elle
     // ne se prend, ni elle ne compte parmi les tickets du tour (#2618, #3479).
-    const tickets = horsDesBesoins(lus.filter((ticket) => !estMisDeCote(ticket.labels)));
+    // Un ticket mis de côté pour le chef à son troisième refus ne se prend ni ne se sert avant sa réponse (#4226).
+    const tickets = horsDesBesoins(await horsDuParc(lus.filter((ticket) => !estMisDeCote(ticket.labels)), github, avertir));
     ouvertsDuTour = new Set(tickets.map(({ number }) => number));
     ticketsDuTour = tickets;
     const libres: TicketLu[] = [];

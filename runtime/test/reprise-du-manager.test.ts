@@ -217,7 +217,8 @@ test("a rewrite the station cannot write goes to the chef with the reason, never
   assert.equal(reprisesDe(faux, TICKET).length, 0);
 });
 
-test("after its last send-back by the pass, the ticket goes to the manager too, and back on the rail under the same PR", async () => {
+// Ses essais épuisés à la pass, le ticket est mis de côté pour le chef, pas repris par le manager (#4226).
+test("after its last send-back by the pass, the ticket is parked for the chef, not reworked by the manager, and keeps its PR", async () => {
   const faux = new FauxGitHub();
   faux.corpsEcrivables = true;
   faux.feu(31);
@@ -234,18 +235,14 @@ test("after its last send-back by the pass, the ticket goes to the manager too, 
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  await tourner(a, 12, () => consultations.length > 0);
-  assert.equal(consultations.length, 1);
-  assert.equal(consultations[0]?.length, 3);
-  assert.match(consultations[0]?.[0] ?? "", /the CI is red/);
+  await tourner(a, 12, () => faux.ticket(31).labels.has("chef-todo"));
+  assert.equal(consultations.length, 0, "the manager is not consulted");
   assert.equal(faux.ticket(31).labels.has(ECHECS), false);
   const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).map((c) => c.body);
-  assert.match(renvois.at(-1) ?? "", /still not mergeable after 2 sends back[\s\S]*the ticket went to the manager, not to the chef/);
-  assert.equal(reprisesDe(faux, 31).length, 1);
-  assert.match(faux.ticket(31).corps, /Fix the `tests` check first\./);
-  // Ses renvois se recomptent : le suivant est le premier.
-  await tourner(a, 2, () => (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).length > renvois.length);
-  assert.match((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).at(-1)?.body ?? "", /sent back to a cook \(1\/2\)/);
+  assert.equal(renvois.length, 2);
+  assert.match((faux.commentaires.get(31) ?? []).at(-1)?.body ?? "", /^<!-- brigade:todo kind=blocked tries=3 [\s\S]*parked for the chef[\s\S]*the CI is red/);
+  assert.equal(reprisesDe(faux, 31).length, 0);
+  assert.equal(faux.pr(pr.number).state, "open");
 });
 
 test("the manager's answer is read strictly: a choice it cannot make is not guessed", () => {
