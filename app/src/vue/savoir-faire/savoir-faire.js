@@ -168,7 +168,7 @@ function poserLEntree(doc, projet, etat, entree, reposer) {
  * @param {Fabrique} doc @param {string} projet @param {() => void} reposer
  */
 export function poserLeSavoirFaire(doc, projet, reposer) {
-  if (!etats.has(projet)) relireLeSavoirFaire(projet, reposer);
+  if (etats.has(projet)) relireLeSavoirFaire(projet, reposer);
   const etat = /** @type {Etat} */ (etats.get(projet));
   const section = doc.createElement("section");
   section.className = "savoir-faire";
