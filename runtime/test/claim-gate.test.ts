@@ -4,13 +4,16 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { clientDuTour } from "../src/brigade-github.ts";
-import { direZoneTenue, LABEL_ZONE_RELEASED, lecteurDeLaBase, STALE_DELAY_MS, vivante } from "../src/claim-gate.ts";
+import { direZoneTenue, lecteurDeLaBase, vivante } from "../src/claim-gate.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import { lireInstantane } from "../src/github-etat/instantane.ts";
 import { ouvrirGitHub, type GitHub } from "../src/github.ts";
 import { FauxGitHub } from "./faux-github.ts";
 import { DEPOT, fauxGh } from "./outils.ts";
 
+// Le délai de péremption et le label du superviseur, tels que le ticket les nomme.
+const STALE_DELAY_MS = 12 * 3_600_000;
+const LABEL_ZONE_RELEASED = "zone-released";
 const MAINTENANT = Date.parse("2026-11-25T12:00:00Z");
 const il_y_a = (ms: number): string => new Date(MAINTENANT - ms).toISOString();
 const sansTicket = async () => null;
