@@ -83,7 +83,7 @@ import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SET
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
-import { estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type PR } from "./github.ts";
+import { estMisDeCote, LABEL, MIS_DE_COTE, type GitHub, type Issue, type IssueOuverte, type Merge, type PR } from "./github.ts";
 import { avecListe, porteDesTachesDeTickets, rendreListe } from "./epique.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "./reagir.ts";
 import { ceQuiAEteTente, commentaireDeReprise, consigneDeReprise, corpsDuSousTicket, corpsReecrit, lireReprise, MARQUE_DE_LA_REPRISE, parentDeLaReprise, type ReprendreLeTicket } from "./reprise-du-manager.ts";
@@ -94,6 +94,7 @@ import { ouvrirGuerison } from "./guerison/index.ts";
 import type { ManagerDuSuperviseur } from "./superviseur/brancher.ts";
 import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
+import { genreDuTicket, ouvrirLePass } from "./risque/risque.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
@@ -432,6 +433,9 @@ export type OptionsDeStation = {
   // relu à chaque merge : une livraison design verte attend sa carte au lieu
   // d'être mergée (`validation-design/`). Absent, non.
   designsValidesParUnHumain?: () => boolean;
+  // La fiche du projet telle que la branche d'intégration la porte, relue à chaque merge : son classement du risque
+  // (`risk`, #4230) parque pour le chef le merge d'un ticket dont le genre d'action est rangé `chef`.
+  ficheDuProjet?: () => unknown;
   // Le compte GitHub du chef, résolu à chaque demande de validation (#3615) :
   // la demande posée sur le ticket le mentionne. Absent, nul ou illisible, elle
   // ne mentionne personne, et la station le dit.
@@ -473,6 +477,9 @@ export type StationGitHub = {
   // La porte des gestes du runtime (#4039), relue à chaque prise et à chaque merge : la station la reçoit après sa
   // construction (`stationDuDepot`).
   porte?: PorteDesGestes | null;
+  // La fiche du projet, relue à chaque merge (#4230) : son classement du risque parque pour le chef le merge d'un
+  // ticket dont le genre d'action est rangé `chef`. La station la reçoit, comme sa porte, après sa construction.
+  ficheDuProjet?: (() => unknown) | null;
   // La charge de la machine, relue pour reprendre un ticket rendu pour elle (#4211) : la station la reçoit après sa
   // construction (`stationDuDepot`). Absente, celle du système.
   lireCharge?: () => number;
@@ -767,6 +774,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Une cause qui vit dans la station se dépose sur la brigade (#3098), comme le temps perdu.
   const { guerir } = ouvrirGuerison({ github, station: nom, base, avertir, ...(options.depotServi === undefined || options.githubDeLaBrigade === undefined ? {} : { servi: options.depotServi, brigade: options.githubDeLaBrigade }), ...(options.maintenant === undefined ? {} : { maintenant: () => (options.maintenant as () => Date)().getTime() }) });
   const { clone } = options;
+  // Le classement du risque de la fiche du projet, relu à chaque action (#4230) : une action rangée `chef` attend
+  // l'OK du chef à la porte des gestes, quel que soit le niveau de la pass ; sans fiche, aucun classement à lire.
+  const passDuRisque = ouvrirLePass({
+    lire: () => station.ficheDuProjet?.(),
+    parquer: async (item) => {
+      const porte = station.porte ?? null;
+      if (porte === null) return avertir(`brigade : #${item.ticket} on ${nom} — parked for the chef, who cannot answer: this runtime has no gesture gate (${item.texte})`);
+      await porte.passer({ agent: "pass", reglable: "pass", auChef: true }, { line: item.texte, reason: `the project sheet ranks \`${item.genre}\` 'chef'`, outcome: OUTCOME.HANDED_TO_CHEF }, () => passDuRisque.repondre(item.id));
+    },
+  });
   // Une PR ouverte dont le ticket est fermé, reste du circuit d'avant, ne sera
   // plus servie par personne : la station la ferme, d'un commentaire, et garde
   // sa branche (#3097). Le commentaire se lit avant d'être posé, pour qu'une
@@ -2095,14 +2112,41 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                     }
                     chrono.marquer(ticket.number, "merge");
                     // Le merge est le geste de la pass : il passe par la porte de son niveau (#4039).
-                    const porte = station.porte ?? null;
-                    if (porte === null) return github.merger(numero, sha);
-                    const dit = { line: `merge PR #${numero} of #${ticket.number}`, reason: `its delivery is green on \`${sha.slice(0, 7)}\``, outcome: OUTCOME.FIXED_BY_SELF };
-                    const passage = await porte.passer({ agent: "pass", reglable: "pass" }, dit, () => github.merger(numero, sha), (merge) => (merge.fait ? { ...dit, line: `merged PR #${numero} of #${ticket.number}` } : null));
-                    if (passage.etat === "done") return passage.valeur;
-                    // Attendu ou observé, il est retenu comme une livraison que le chef valide : il ne se retente pas sur la même tête.
+                    const mergerParLaPorte = async (): Promise<Merge> => {
+                      const porte = station.porte ?? null;
+                      if (porte === null) return github.merger(numero, sha);
+                      const dit = { line: `merge PR #${numero} of #${ticket.number}`, reason: `its delivery is green on \`${sha.slice(0, 7)}\``, outcome: OUTCOME.FIXED_BY_SELF };
+                      const passage = await porte.passer({ agent: "pass", reglable: "pass" }, dit, () => github.merger(numero, sha), (merge) => (merge.fait ? { ...dit, line: `merged PR #${numero} of #${ticket.number}` } : null));
+                      if (passage.etat === "done") return passage.valeur;
+                      // Attendu ou observé, il est retenu comme une livraison que le chef valide : il ne se retente pas sur la même tête.
+                      retenue = true;
+                      return { fait: false, motif: "held by the pass's autonomy level" };
+                    };
+                    // Un ticket qui dit le genre de son action (`action:<genre>`) passe par le classement du risque de la fiche du projet (#4230).
+                    const genre = genreDuTicket(ticket.labels);
+                    if (genre === null || (station.ficheDuProjet ?? null) === null) return mergerParLaPorte();
+                    // Rangé `safe`, le merge passe par le niveau de la pass, comme avant. Parqué, c'est la réponse du chef qui le
+                    // lance : il ne lui redemande pas son OK, et un merge qui échoue alors se dit. Ce merge direct tient à
+                    // `lance.fusion`, posé après le retour de `soumettre` : la réponse du chef le trouve posé. Sans porte, l'item
+                    // parqué reste en mémoire, que personne ne répondra : le `parquer` du pass le dit.
+                    const lance: { fusion: Merge | null } = { fusion: null };
+                    const issue = await passDuRisque.soumettre({
+                      ticket: ticket.number,
+                      genre,
+                      description: `${genre} by merging PR #${numero} (\`${sha.slice(0, 7)}\`)`,
+                      executer: async () => {
+                        if (lance.fusion === null) {
+                          lance.fusion = await mergerParLaPorte();
+                          return;
+                        }
+                        const merge = await github.merger(numero, sha);
+                        if (!merge.fait) avertir(`brigade : #${ticket.number} on ${nom} — the chef answered, but the merge of PR #${numero} did not go through: ${merge.motif}`);
+                      },
+                    });
+                    if (issue === "executee" && lance.fusion !== null) return lance.fusion;
                     retenue = true;
-                    return { fait: false, motif: "held by the pass's autonomy level" };
+                    lance.fusion = { fait: false, motif: "parked for the chef: its kind of action is ranked 'chef' in the project sheet" };
+                    return lance.fusion;
                   },
                 },
                 { ciDesPR: ciDesPR(sienne) },
@@ -2588,6 +2632,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
 
   const station: StationGitHub = {
     porte: options.porte ?? null,
+    ficheDuProjet: options.ficheDuProjet ?? null,
     tour,
     arreter: () => {
       arretee = true;
@@ -4127,6 +4172,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     return true;
   };
   const station = stationGitHub({ ...(options.perimee === undefined ? {} : { perimee: options.perimee }), ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  station.ficheDuProjet = options.projet ?? null;
   station.sauver = sauver;
   station.porte = options.porte ?? null;
   station.lireCharge = lireCharge;

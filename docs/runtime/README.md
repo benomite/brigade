@@ -25,6 +25,7 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`station-navigateur.md`](station-navigateur.md) | Looking at an interface delivery |
 | [`manager.md`](manager.md) | The manager and the tickets of the epic |
 | [`pass.md`](pass.md) | The pass: review, decision, merge |
+| [`risk-levels.md`](risk-levels.md) | The risk ranking of the project sheet: which kinds of actions the pass parks for the chef |
 | [`conflits-avec-main.md`](conflits-avec-main.md) | Who resolves a conflict with main: the cook of the ticket, the chef only for a product choice |
 | [`pass-merge.md`](pass-merge.md) | The merge, seeing the pass |
 | [`etat-et-mesures.md`](etat-et-mesures.md) | Kitchen state, measures |
