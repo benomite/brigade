@@ -31,7 +31,7 @@ test("a refusal is thrown with its line and its detail", async () => {
 test("a bridge without the gestures, or one that rejects, says so on one line", async () => {
   global.window = { brigade: {} };
   for (const appel of [() => source.lire("parade"), () => source.modifier("L1", "a", "parade"), () => source.retirer("L1", "parade")]) {
-    await assert.rejects(appel(), { message: "know-how unavailable: this app cannot reach the project's runtime" });
+    await assert.rejects(appel(), { message: "the know-how cannot be read here: this app does not carry it" });
   }
   const rejet = async () => Promise.reject(new Error("ipc closed"));
   global.window = { brigade: { lireLeSavoirFaire: rejet, modifierLeSavoirFaire: rejet, retirerDuSavoirFaire: rejet } };

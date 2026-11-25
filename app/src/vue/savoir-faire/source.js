@@ -10,7 +10,7 @@ import { NON_ATTEINT } from "../lexique.js";
 
 /** @typedef {{ id: string, text: string, ticket: number }} Entree */
 
-const SANS_LE_GESTE = "know-how unavailable: this app cannot reach the project's runtime";
+const SANS_LE_GESTE = "the know-how cannot be read here: this app does not carry it";
 
 /** @param {string} ligne @param {string} [detail] */
 const echec = (ligne, detail) => Object.assign(new Error(ligne), { detail: detail ?? "" });
