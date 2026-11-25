@@ -131,7 +131,7 @@ make. A room that cannot be read, a read or a label that fails, is said in the s
 the next turn takes it again. An issue you fire yourself is calibrated at once, as before.
 
 The code is `runtime/src/prise-backlog/prise-backlog.ts` (the choice and the order of the steps), reached from the
-turn of `runtime/src/manager.ts`; the room is given by `runtime/src/station/cuisine.ts`.
+turn of `runtime/src/manager.ts`; the room is given by `runtime/src/station/cuisine.ts` and `runtime/src/main.ts`.
 
 ### What the code decides, and what the LLM judges
 
