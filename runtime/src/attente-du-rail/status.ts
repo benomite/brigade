@@ -2,7 +2,7 @@
 // de la file, puis la ligne de chaque carte — les mêmes que le rail de l'app écrit (vue/rail/github.ts).
 //
 // Seule une station GitHub seul la cherche : le rail y est sur GitHub. Le rail se lit de
-// ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni `waiting`, ni mise de côté), pris, ou en pass — un
+// ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni parqué, ni mise de côté), pris, ou en pass — un
 // `in-pass` est compté en pass sans relire sa PR. Une lecture qui échoue le dit sur la même ligne : jamais une file dite
 // calme faute de l'avoir lue.
 import type { Base } from "../base.ts";
