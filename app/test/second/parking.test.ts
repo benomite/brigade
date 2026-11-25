@@ -9,7 +9,7 @@ import { describe, test } from "node:test";
 import { attenteDeLIssue } from "../../../runtime/src/attente-github/marque.ts";
 import type { ClientDeLaPriorite } from "../../src/priorite.ts";
 import { crochetsDuParking } from "../../src/second/crochet-du-parking.ts";
-import { contexte, principal, USAGE } from "../../src/second/parking.ts";
+import { contexte, principal, USAGE } from "../../src/second/geste-de-parking.ts";
 import type { TableauLu } from "../../src/tableau/lecture.ts";
 import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
 import { jouerLAttente, tiersDesCommentaires } from "../../src/vue/attente/attente-github.ts";
