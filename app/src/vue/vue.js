@@ -114,8 +114,6 @@ import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } f
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
 import { parkControl } from "./parked/park-control.js";
 import { parkGesture } from "./parked/park-gesture.js";
-import { parkedInTodo } from "./parked/parked-todo.js";
-import { CHEF, cardOf, notParkedForChef, parkedRecords } from "./parked/records.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
@@ -2914,9 +2912,8 @@ function poserBon(projet, carte, etatDeColonne, avecStation = false, horsColonne
       : "the address the station returned for this ticket is not https: the app does not open it";
   const pose = { numero, hors: horsColonne, ...(etat === undefined ? {} : { mot: motDEtat ?? etat, ...(horsColonne ? {} : { etat: etatDeColonne ?? etatDuTon(ton) }) }) };
   // Une carte qui attend un autre humain (« Awaiting others ») garde la carte d'attente, sans dire qu'elle t'attend (ticket 3071).
-  // Une carte de WAITING dont la relance est passée revient au chef : rouge, dans WAITING (ticket 3458).
-  // Parked pour le chef, elle aussi l'attend (ticket 4238).
-  const bon = attendu || carte.relancePassee === true || carte.parque?.chef === true ? carteAttente(document, { ...pose, attendu: carte.qui === undefined }) : bonDeLaFamille(document, pose);
+  // Parked pour le chef, elle l'attend (tickets 4238, 4261) ; une relance passée ne la lui rend pas.
+  const bon = attendu || estRouge(carte) ? carteAttente(document, { ...pose, attendu: carte.qui === undefined }) : bonDeLaFamille(document, pose);
   bon.dataset.ticket = String(ticket);
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
   // clique déjà — son numéro, sa PR, ses remarques — garde son geste ; un texte
@@ -3260,7 +3257,6 @@ async function arriver(projet, ticket) {
 
 // Park et unpark depuis le TODO du chef (parked/, ticket 4281) : un seul geste pour tout projet, par les gestes d'attente du
 // pont ; parti sur GitHub, la cuisine est relue ; parti dans le second, sa sortie s'y lit.
-const BACK_TO_THE_KITCHEN = "back to the kitchen";
 const garerParLePont = parkGesture((projet, id, ticket, saisie) => brigade.attente(projet, id, ticket, saisie), { lire: () => lireLesFaits(), garder });
 
 // Un geste de WAITING part dans le second, comme un geste du socle : sa sortie s'y lit, sa note dit
@@ -5135,8 +5131,8 @@ function lignesDeCetOrdinateur(projet) {
 }
 
 // Le plan de la cuisine en cinq colonnes — Backlog, le rail en tête, Manager, Cooks, Pass, Served (ticket 4238, cuisine/) —, ce
-// qui attend le chef rouge dans la colonne de son étape et dans son TODO (tickets 3458, 4238), une carte parked dans la colonne
-// où elle attend, tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
+// qui est parked pour le chef rouge dans la colonne de son étape et dans son TODO (tickets 3458, 4238, 4261), une carte
+// parked dans la colonne où elle attend, tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
 // — la file, ce qui est en amont —, puis toutes les colonnes, Cooks et Pass compris, sans rien
 // d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, et la lecture de `station`. Un projet sans box n'en a
@@ -5312,29 +5308,22 @@ function poserLeRail(projet) {
       return colonne;
     }),
   );
-  // Le TODO du chef (ticket 4238) : exactement ce qui l'attend — ses cartes rouges, parked compris, et le projet pas préparé
-  // pour Brigade (ticket 2628) —, une entrée chacun, qui ouvre sa carte. Posé sous les colonnes, il se montre au-dessus d'elles.
-  const avisDeDepot = avisDuDepot(projet, "todo");
-  // Les tickets parked qui l'attendent y sont, chacun avec ses boutons et son contrôle de park (parked/, ticket 4281) ; les
-  // autres y gardent leur entrée.
-  const quiTAttend = ceQuiTAttend(plan);
-  const parques = parkedInTodo(document, {
-    records: parkedRecords(lesCartes, projet.nom, arriveesDeCartes),
-    chef: CHEF,
-    choices: [BACK_TO_THE_KITCHEN],
-    answer: (ticket) => void arriver(projet, ticket),
-    readOnly: lectureSeuleDe(projet),
-    open: (ticket) => {
-      const carte = cardOf(lesCartes, ticket);
-      if (carte) ouvrirFiche(projet, carte, posees.get(carte) ?? rail);
-    },
+  // Le TODO du chef (tickets 4238, 4261) : exactement les tickets parked pour lui, une entrée chacun — ce qui lui est
+  // demandé, ses boutons, et un clic sur son numéro ouvre sa carte. Posé sous les colonnes, il se montre au-dessus d'elles.
+  // Un projet en lecture seule (ticket 3163) : ses cartes se lisent, aucun bouton ne les tranche d'ici.
+  const todo = poserLeTodo(document, {
+    cartes: ceQuiTAttend(plan),
+    ouvrir: (carte) => ouvrirFiche(projet, carte, posees.get(carte) ?? rail),
+    ...(lectureSeuleDe(projet) === undefined ? { gestes: { etat: (ticket, todo) => etatDeLaCarte(projet, ticket, todo), attente: GESTES_D_ATTENTE, jouer: (ticket, sorte, reponse) => GESTES_DU_TODO[sorte](projet, ticket, reponse) } } : {}),
+    // Sous chaque entrée, son contrôle de park, derrière « park or unpark… » (parked/, ticket 4281) : ce qui y est ouvert
+    // et tapé se garde d'un rendu à l'autre.
     opened: parkOuverts.get(projet.nom) ?? parkOuverts.set(projet.nom, new Set()).get(projet.nom),
     control: ({ ticket, step }) => parkControl(document, { project: projet.nom, ticket, step, gesture: garerParLePont, form: parkSaisies.get(`${projet.nom}#${ticket}`) ?? parkSaisies.set(`${projet.nom}#${ticket}`, {}).get(`${projet.nom}#${ticket}`) }),
   });
-  const todo = poserLeTodo(document, { cartes: notParkedForChef(quiTAttend), compte: quiTAttend.length, avis: [avisDeDepot, ...parques].filter(Boolean), ouvrir: (carte) => ouvrirFiche(projet, carte, posees.get(carte) ?? rail) });
-  // À côté du TODO, hors des colonnes : les réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket
-  // 2151) ; puis ce qui attend un autre humain du projet, replié (ticket 2985). Ni l'un ni l'autre ne l'attend.
-  const aCote = [];
+  // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
+  // réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain
+  // du projet, replié (ticket 2985).
+  const aCote = [avisDuDepot(projet, "todo")].flatMap((avis) => avis ?? []);
   const resolues = muet === undefined ? poserLesCartesResolues(projet, tenu.tableau.rail) : [];
   if (resolues.length > 0) {
     const liste = document.createElement("ol");
@@ -6017,6 +6006,17 @@ function poserLesCartesDuChef() {
     }),
   );
 }
+
+// Chaque geste d'une entrée du TODO (cuisine/, `gestesDuTodo`, ticket 4261), joué comme sur sa carte : la réponse d'un
+// choix, la validation d'un écran, le merge d'une revue, la reprise d'une carte de WAITING ou son « it arrived ».
+/** @type {Record<import("./cuisine/cuisine.js").SorteDeGeste, (projet: Projet, ticket: number, reponse?: import("../carte-todo.ts").Reponse) => void>} */
+const GESTES_DU_TODO = {
+  repondre: (projet, ticket, reponse) => void repondreALaCarte(projet, ticket, /** @type {import("../carte-todo.ts").Reponse} */ (reponse)),
+  valider: (projet, ticket) => void validerLaCarte(projet, ticket, { geste: "valider" }),
+  merger: (projet, ticket) => void repondreALaRevue(projet, ticket, { geste: "merger" }),
+  "attente-reprendre": (projet, ticket) => void ecrireAttente(projet, "attente-reprendre", ticket),
+  "attente-arrivee": (projet, ticket) => void arriver(projet, ticket),
+};
 
 // La réponse du chef à une carte de TODO part par le process principal (carte-todo.ts) — une seule à la
 // fois. Postée, la carte dit qu'elle attend la cuisine, et le tableau est relu tout de suite ; refusée, elle

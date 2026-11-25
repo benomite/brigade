@@ -2,9 +2,12 @@
 // Le TODO du chef fait des tickets parked qui l'attendent (ticket 4281, épique 4129 ; spec 2026-11-24-simplified-process,
 // règle 16) : exactement les enregistrements dont « who » est le chef, et aucun autre. Chaque item dit qui, pour quoi et
 // jusqu'à quand, et porte ses boutons : un clic répond — l'action de réponse, une fois, avec le ticket et la réponse
-// choisie —, et l'item quitte le TODO. Rien à taper ni à recopier. `open` : son numéro ouvre sa carte, d'un clic. `control` : le contrôle de park d'un item
-// (park-control.js), derrière « park or unpark… » ; `opened` garde les items dont il est ouvert d'un rendu à l'autre.
-// En lecture seule (`readOnly`, la raison), l'item se lit sans bouton.
+// choisie —, et l'item quitte le TODO. Rien à taper ni à recopier. C'est le TODO que le rail pose (cuisine.js,
+// `poserLeTodo`, ticket 4261), qui lui donne les boutons de chaque carte.
+// `choices` : les mêmes pour chaque item, ou ceux de son ticket — le recommandé, plein. `open` : son numéro ouvre sa carte,
+// d'un clic (`openTitle` au survol). `control` : le contrôle de park d'un item (park-control.js), derrière « park or
+// unpark… » ; `opened` garde les items dont il est ouvert d'un rendu à l'autre. En lecture seule (`readOnly`, la raison),
+// l'item se lit sans bouton.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
 import { bouton } from "../composants/bouton/bouton.js";
@@ -12,98 +15,97 @@ import { waitingFor } from "./records.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./records.js").ParkedRecord} ParkedRecord */
+/** @typedef {{ texte: string, recommande?: boolean }} Choice */
 /**
- * @typedef {{ records: readonly ParkedRecord[], chef: string, choices: readonly string[], answer: (ticket: number, choice: string) => unknown,
- *   readOnly?: string, control?: (record: ParkedRecord) => any, opened?: Set<number>, open?: (ticket: number) => void }} Options
+ * @typedef {{ records: readonly ParkedRecord[], chef: string, choices: readonly string[] | ((record: ParkedRecord) => readonly Choice[]),
+ *   answer: (ticket: number, choice: string) => unknown, readOnly?: string, open?: (ticket: number) => void,
+ *   openTitle?: (ticket: number) => string, control?: (record: ParkedRecord) => any, opened?: Set<number> }} Options
  */
 
 export const OPEN_PARK = "park or unpark…";
-export const NO_WHAT = "not given";
+export const NO_WHAT = "for what: not given";
 export const NO_UNTIL = "no date set";
 /** @param {number} n */
-export const headOf = (n) => `Parked for you (${n})`;
+export const headOf = (n) => `TODO (${n})`;
 
-// Une ligne de l'item : son libellé, puis sa valeur.
-/** @param {Fabrique} doc @param {string} libelle @param {string} valeur @param {string} classe */
-function champ(doc, libelle, valeur, classe) {
+// Qui il attend et jusqu'à quand, sur une ligne ; et pour quoi, quand rien ne le dit au-dessus.
+/** @param {Fabrique} doc @param {ParkedRecord} record */
+function quiEtQuand(doc, { who, what, until }) {
   const ligne = doc.createElement("span");
-  ligne.className = classe;
-  const nom = doc.createElement("span");
-  nom.className = "libelle";
-  nom.textContent = `${libelle} `;
-  ligne.append(nom, valeur);
+  ligne.className = "qui-jusqua";
+  ligne.textContent = [`waits for ${who}`, ...(what === null ? [NO_WHAT] : []), until === null ? NO_UNTIL : `until ${until}`].join(" · ");
   return ligne;
 }
 
 /** @param {Fabrique} doc @param {Options} options */
-export function parkedTodo(doc, { records, chef, choices, answer, readOnly, control, opened = new Set(), open }) {
+export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open, openTitle = (ticket) => `open #${ticket}'s card`, control, opened = new Set() }) {
   const siens = waitingFor(records, chef);
-  const cadre = doc.createElement("section");
-  cadre.className = "parked-todo";
-  cadre.ariaLabel = "Parked tickets that wait for you";
+  const cadre = doc.createElement("div");
+  cadre.className = "todo-du-rail";
+  cadre.ariaLabel = "What awaits you";
   const tete = doc.createElement("p");
-  tete.className = "tete-parked";
-  const liste = doc.createElement("ol");
-  liste.className = "parked-items";
+  tete.className = "tete-du-todo";
   let restants = siens.length;
   tete.textContent = headOf(restants);
+  const liste = doc.createElement("ol");
+  liste.className = "entrees-du-todo";
   liste.append(
     ...siens.map((record) => {
       const { ticket } = record;
       const item = doc.createElement("li");
-      item.className = "parked-item";
+      item.className = "entree-du-todo";
       item.dataset.ticket = String(ticket);
       const nom = `#${ticket}${record.title === undefined ? "" : ` ${record.title}`}`;
-      const numero = open === undefined ? doc.createElement("strong") : bouton(doc, nom, () => open(ticket), { sorte: "discret" });
-      numero.textContent = nom;
-      if (open !== undefined) numero.title = `open #${ticket}'s card`;
-      const ligne = doc.createElement("p");
-      ligne.className = "parked-ligne";
-      ligne.append(numero, champ(doc, "who", record.who, "who"), champ(doc, "for", record.what ?? NO_WHAT, "what"), champ(doc, "until", record.until ?? NO_UNTIL, "until"));
-      item.append(ligne);
-      if (record.note !== undefined) {
-        const note = doc.createElement("p");
-        note.className = "parked-note";
-        note.textContent = record.note;
-        item.append(note);
-      }
+      if (open === undefined) item.append(Object.assign(doc.createElement("strong"), { textContent: nom }));
+      else item.append(Object.assign(bouton(doc, nom, () => open(ticket), { sorte: "discret" }), { title: openTitle(ticket) }));
+      if (record.what !== null) item.append(Object.assign(doc.createElement("p"), { className: "demande-du-todo", textContent: record.what }));
+      item.append(quiEtQuand(doc, record));
       if (readOnly !== undefined) return item;
+      /** @type {readonly Choice[]} */
+      const lesChoix = typeof choices === "function" ? choices(record) : choices.map((texte) => ({ texte }));
       let repondu = false;
-      const boutons = doc.createElement("div");
-      boutons.className = "parked-answers";
-      boutons.append(
-        ...choices.map((choice) =>
-          bouton(doc, choice, () => {
+      const boutons = lesChoix.map(({ texte, recommande }) =>
+        bouton(
+          doc,
+          texte,
+          () => {
             if (repondu) return;
             repondu = true;
             item.remove();
             restants -= 1;
             tete.textContent = headOf(restants);
-            answer(ticket, choice);
-          }),
+            answer(ticket, texte);
+          },
+          { sorte: recommande === true ? "recommande" : "secondaire" },
         ),
       );
-      item.append(boutons);
-      if (control === undefined) return item;
       /** @type {any} */
-      let pose = opened.has(ticket) ? control(record) : undefined;
-      const ouvrir = bouton(
-        doc,
-        OPEN_PARK,
-        () => {
-          if (opened.delete(ticket)) {
-            pose?.remove();
-            pose = undefined;
-            return;
-          }
-          opened.add(ticket);
-          pose = control(record);
-          item.append(pose);
-        },
-        { sorte: "discret" },
-      );
-      ouvrir.dataset.action = "open-park";
-      boutons.append(ouvrir);
+      let pose = control !== undefined && opened.has(ticket) ? control(record) : undefined;
+      if (control !== undefined) {
+        const ouvrir = bouton(
+          doc,
+          OPEN_PARK,
+          () => {
+            if (opened.delete(ticket)) {
+              pose?.remove();
+              pose = undefined;
+              return;
+            }
+            opened.add(ticket);
+            pose = control(record);
+            item.append(pose);
+          },
+          { sorte: "discret" },
+        );
+        ouvrir.dataset.action = "open-park";
+        boutons.push(ouvrir);
+      }
+      if (boutons.length > 0) {
+        const reponses = doc.createElement("div");
+        reponses.className = "reponses-du-todo";
+        reponses.append(...boutons);
+        item.append(reponses);
+      }
       if (pose !== undefined) item.append(pose);
       return item;
     }),
@@ -111,7 +113,3 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, cont
   cadre.append(tete, liste);
   return cadre;
 }
-
-// Le TODO parked tel que la vue le pose dans celui du chef : rien quand aucun ticket parked ne l'attend.
-/** @param {Fabrique} doc @param {Options} options @returns {any[]} */
-export const parkedInTodo = (doc, options) => (waitingFor(options.records, options.chef).length > 0 ? [parkedTodo(doc, options)] : []);
