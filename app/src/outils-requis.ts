@@ -16,6 +16,8 @@ export type OptionsDesOutilsRequis = {
   charger: () => Promise<Runtime>;
   // L'environnement de l'app : son PATH est complété des dossiers que les installeurs ont posés hors de lui.
   env: Record<string, string | undefined>;
+  // Appelée avec la page d'installation de chaque outil qui manque : l'app n'ouvre que les pages qu'elle a elle-même montrées.
+  autoriserLaPage: (lien: string) => void;
 };
 
 export function tenirOutilsRequis(options: OptionsDesOutilsRequis) {
@@ -36,7 +38,9 @@ export function tenirOutilsRequis(options: OptionsDesOutilsRequis) {
     async manquants(outils?: unknown): Promise<OutilManquant[]> {
       const { runtime, machine } = await lire();
       const voulus = Array.isArray(outils) ? runtime.OUTILS_REQUIS.filter((outil) => outils.includes(outil)) : runtime.OUTILS_REQUIS;
-      return runtime.outilsManquants(machine, voulus);
+      const manquants = runtime.outilsManquants(machine, voulus);
+      for (const { installation } of manquants) options.autoriserLaPage(installation.lien);
+      return manquants;
     },
   };
 }

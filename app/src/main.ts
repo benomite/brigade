@@ -1487,6 +1487,7 @@ const outilsRequis = tenirOutilsRequis({
     return { ...requis, ...machine, programmesDe: outils.programmesDe };
   },
   env: process.env,
+  autoriserLaPage: (lien) => pagesDuPremier.add(lien),
 });
 ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
