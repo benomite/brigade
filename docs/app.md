@@ -1402,7 +1402,7 @@ width).
 
 ### The `brigade` command on the chef's Mac (#4072)
 
-The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `waiting set` and `waiting resume`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
+The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/commande-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `status` and `rail`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
 
 ### The second's choices, as buttons under its terminal (#1520)
 
