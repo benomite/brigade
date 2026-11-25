@@ -921,7 +921,7 @@ export type Faits = {
 
 // Ce qu'une station fait du projet, pour qui pose un mot dessus. La liste est
 // fermée, et peut gagner un mot.
-export const CUISSONS = ["cooking", "stopped", "saturated", "refused"] as const;
+export const CUISSONS = ["cooking", "stopped", "refused"] as const;
 export type Cuisson = (typeof CUISSONS)[number];
 
 // Une relecture, dans les mots que le reviewer lui-même emploie (reviewer.ts).
@@ -959,7 +959,6 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
   const cuisson = (station: EtatStation): Cuisson => {
     if (!station.remote && refusDeLaMachine !== null) return "refused";
     if (etat.arretees.has(station.station) || etat.gardeFous.stoppedAt !== null) return "stopped";
-    if (!station.remote && station.saturatedCauses.length > 0) return "saturated";
     return "cooking";
   };
   return {

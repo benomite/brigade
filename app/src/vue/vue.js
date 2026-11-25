@@ -4653,7 +4653,6 @@ function poserCuisson(projet) {
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const alerte = ligneDAlerte(document, {
-    alerte: stations?.alerte ?? null,
     refusee: stations?.lignes.some(({ etat }) => etat === "refused") ?? false,
     acces: vu?.acces ?? vu?.worktree?.acces ?? null,
     clone: vu?.clone ?? null,
@@ -6461,7 +6460,7 @@ function poserLeRecapDeLAccueil() {
 }
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
-// running », « offline for 12 min », « saturated » (accueil.ts) ; sa machine et sa version ne se lisent
+// running », « offline for 12 min » (accueil.ts) ; sa machine et sa version ne se lisent
 // qu'au survol de l'icône d'aide, jamais dans la page. Dessous, ses pannes, chacune avec son bouton ;
 // puis les projets qu'elle sert, à lire.
 function poserPageDeStation() {
@@ -6563,24 +6562,17 @@ function enregistreeOuverte() {
 }
 
 // Le plafond de cooks de la station, comme sa box le dit — `3 at most — 8 cores`, ou `5 at most — set by you,
-// replaces 3 (8 cores)` — ; quand elle retient des tickets, ce qui la retient, avec ce que chaque ressource a et ce
-// qu'il lui faut. Il se lit seulement : une station prend autant de tickets qu'elle déclare de places, et sa déclaration
+// replaces 3 (8 cores)`. Il se lit seulement : une station prend autant de tickets qu'elle déclare de places, et sa déclaration
 // se change sur sa machine. Une station dont aucun projet lu ne dit le plafond n'a rien de tout cela.
 /** @param {import("../accueil.ts").LigneDeStation | undefined} ligne */
 function poserPlafond(ligne) {
   if (ligne?.plafond === undefined) return plafondDeStation.replaceChildren();
-  const { plafond, retenue } = ligne;
+  const { plafond } = ligne;
   const lignes = [];
   const dit = bloc("p", `Cooks at once: ${plafond.dit}`);
   dit.className = "plafond";
   dit.append(niveauDe(document, "cooks"));
   lignes.push(dit);
-  if (retenue !== undefined) {
-    const retient = bloc("p", `Holding tickets — ${retenue.ressources}: ${retenue.detail}`);
-    retient.className = "retenue";
-    retient.append(survol(document, `no ticket is taken for ${retenue.depuis}, as long as it lasts; the running cooks carry on`));
-    lignes.push(retient);
-  }
   plafondDeStation.replaceChildren(...lignes);
 }
 

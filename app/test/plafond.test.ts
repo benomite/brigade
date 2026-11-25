@@ -1,4 +1,4 @@
-// Le plafond de cooks et la retenue d'une station, lus dans le `status` que le runtime écrit (plafond.ts), posés sur
+// Le plafond de cooks d'une station, lu dans le `status` que le runtime écrit (plafond.ts), posé sur
 // la ligne de sa station par l'accueil. Le réglage ne part plus de l'app (#2061) : aucune box ne lit plus de tableau
 // de la cuisine.
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import type { EtatStation } from "../../runtime/src/projections/stations.ts";
 import { tenirAccueil } from "../src/accueil.ts";
-import { plafondsDe, retenuesDe } from "../src/plafond.ts";
+import { plafondsDe } from "../src/plafond.ts";
 import type { StationVue } from "../src/stations/stations.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
@@ -37,11 +37,6 @@ function statusDe(stations: EtatStation[]): string {
   }
 }
 
-const SATUREE = {
-  saturatedAt: "2026-10-16T11:56:00.000Z", saturatedResource: "memory", saturatedObserved: 812, saturatedLimit: 3205,
-  saturatedCauses: [{ resource: "cpu", observed: 18.4, limit: 12 }, { resource: "memory", observed: 812, limit: 3205, limitFrom: { totalMb: 32050 } }],
-} as Partial<EtatStation>;
-
 describe("le plafond d'une station, tel que `status` le dit", () => {
   test("le défaut dit d'où il vient, le réglage du chef dit ce qu'il remplace", () => {
     const plafonds = plafondsDe(statusDe([station("box"), station("mac/claude", { cap: 5 }), station("vieille", { cores: null, maxCooks: 2 }), station("libre", { cap: 0 })]));
@@ -62,32 +57,16 @@ describe("le plafond d'une station, tel que `status` le dit", () => {
   });
 });
 
-describe("ce qui retient la station : la ressource, sa valeur et son seuil", () => {
-  test("la mémoire et le processeur à la fois", () => {
-    const retenues = retenuesDe(statusDe([station("box", SATUREE), station("mac")]));
-    assert.deepEqual([...retenues.keys()], ["box"]);
-    const { ressources, detail, depuis } = retenues.get("box")!;
-    assert.equal(ressources, "CPU and memory");
-    assert.equal(depuis, "4 min");
-    assert.match(detail, /^load of 18\.4 for at most 12 · 812 MB of memory available for at least 3,205 MB \(default: 10% of the machine's 32,050 MB\)$/);
-  });
-
-  test("une station qui ne se retient pas n'est pas dite retenue", () => {
-    assert.equal(retenuesDe(statusDe([station("box")])).size, 0);
-  });
-});
-
-describe("l'accueil pose le plafond et la retenue sur la ligne de leur station", () => {
+describe("l'accueil pose le plafond sur la ligne de leur station", () => {
   const vue = (nom: string): StationVue => ({ id: "g1", nom, machine: "Linux", ton: "vert", dit: "online", pannes: [], etat: "en-ligne", version: "1.4.0", projets: ["brigade"], max: null, versionDit: "", ligne: "" }) as unknown as StationVue;
 
   test("la page peut régler une station dont un projet lu dit le plafond — et seulement celle-là", () => {
     const accueil = tenirAccueil({ projets: () => [{ nom: "brigade", servi: true }], maintenant: () => Date.parse(A) });
     accueil.stations({ a: A, stations: [vue("box"), vue("autre")] });
-    const vu = accueil.status({ projet: "brigade", demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte: statusDe([station("box", SATUREE)]) }] });
+    const vu = accueil.status({ projet: "brigade", demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte: statusDe([station("box")]) }] });
     const [box, autre] = vu?.stations ?? [];
     assert.equal(box?.plafond?.dit, "6 at most — 8 cores");
     assert.equal(box?.reglable, true);
-    assert.equal(box?.retenue?.ressources, "CPU and memory");
     assert.equal(autre?.plafond, undefined);
     assert.equal(autre?.reglable, undefined);
     assert.deepEqual(accueil.projetsDe("box"), ["brigade"]);

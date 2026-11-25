@@ -515,7 +515,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
 // libellé de chaque état reste dans le DOM. Rien n'est demandé au runtime : tout vient de ce que
 // la box dit déjà (faits). La vue est jouée devant un faux document.
 const PASTILLE = sansCommentaires(lire("composants/pastille/pastille.css"));
-const faits = (etat: string, ton: string | undefined, arretee = false, stations: { lignes: []; alerte: null } | null = { lignes: [], alerte: null }): Dessinable => ({
+const faits = (etat: string, ton: string | undefined, arretee = false, stations: { lignes: [] } | null = { lignes: [] }): Dessinable => ({
   projet: PARADE,
   demande: 0,
   a: A,
