@@ -19,11 +19,11 @@ import { estRouge } from "../todo/todo.js";
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
 // Les cinq colonnes du plan, dans l'ordre du service (spec, « The plan of the kitchen »).
-export const BACKLOG = "Backlog";
-export const MANAGER = "Manager";
+const BACKLOG = "Backlog";
+const MANAGER = "Manager";
 export const COOKS = "Cooks";
 export const PASS = "Pass";
-export const SERVED = "Served";
+const SERVED = "Served";
 // Le haut du backlog : le rail, ce qui est calibré et prêt (spec, règle 2) ; puis le reste du backlog.
 export const DU_RAIL = "Rail — ready to cook";
 export const PAS_PRETS = "Not ready yet";
@@ -101,14 +101,14 @@ const MOIS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 const deux = (/** @type {number} */ n) => String(n).padStart(2, "0");
 // Une date de la box, en UTC : « 28 Nov, 09:00 UTC ». Illisible, elle est dite telle quelle.
 /** @param {string} iso */
-export const jourUtc = (iso) => {
+const jourUtc = (iso) => {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? iso : `${date.getUTCDate()} ${MOIS[date.getUTCMonth()]}, ${deux(date.getUTCHours())}:${deux(date.getUTCMinutes())} UTC`;
 };
 
 // La phrase d'une carte parked : qui elle attend, et jusqu'à quand.
 /** @param {NonNullable<Carte["parque"]>} parque */
-export const ditParque = ({ qui, jusqua }) => `parked — waits for ${qui}, ${jusqua === null ? "no date set" : `until ${jourUtc(jusqua)}`}`;
+const ditParque = ({ qui, jusqua }) => `parked — waits for ${qui}, ${jusqua === null ? "no date set" : `until ${jourUtc(jusqua)}`}`;
 
 // La ligne parked d'une carte, sous sa tête.
 /** @param {Fabrique} doc @param {NonNullable<Carte["parque"]>} parque */

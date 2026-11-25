@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Carte, Colonne } from "../../../src/faits.ts";
-import { aUnGeste, ceQuiTAttend, colonneDuPlan, ditParque, jourUtc, ligneParquee, messageDesAlertes, planDeLaCuisine, poserLaBandeDuHaut, poserLeTodo } from "../../../src/vue/cuisine/cuisine.js";
+import { aUnGeste, ceQuiTAttend, colonneDuPlan, ligneParquee, messageDesAlertes, planDeLaCuisine, poserLaBandeDuHaut, poserLeTodo } from "../../../src/vue/cuisine/cuisine.js";
 import { Faux } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -72,10 +72,10 @@ describe("chaque carte dans la colonne de son étape", () => {
 
 describe("la carte parked dit qui elle attend et jusqu'à quand", () => {
   test("qui, puis la date, en UTC ; sans date, elle le dit ; une date illisible est dite telle quelle", () => {
-    assert.equal(ditParque(PARKED), "parked — waits for Camille, until 28 Nov, 09:00 UTC");
-    assert.equal(ditParque({ qui: "the chef", jusqua: null }), "parked — waits for the chef, no date set");
-    assert.equal(jourUtc("2026-01-05T17:30:00Z"), "5 Jan, 17:30 UTC");
-    assert.equal(jourUtc("next week"), "next week");
+    const dit = (parque: { qui: string; jusqua: string | null }) => (ligneParquee(doc, parque) as unknown as Faux).textContent;
+    assert.equal(dit({ qui: "the chef", jusqua: null }), "parked — waits for the chef, no date set");
+    assert.equal(dit({ qui: "Camille", jusqua: "2026-01-05T17:30:00Z" }), "parked — waits for Camille, until 5 Jan, 17:30 UTC");
+    assert.equal(dit({ qui: "Camille", jusqua: "next week" }), "parked — waits for Camille, until next week");
     const ligne = ligneParquee(doc, PARKED) as unknown as Faux;
     assert.deepEqual([ligne.balise, ligne.className, ligne.textContent], ["p", "parque", "parked — waits for Camille, until 28 Nov, 09:00 UTC"]);
   });
