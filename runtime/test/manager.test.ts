@@ -524,7 +524,8 @@ describe("le manager", { concurrency: 8 }, () => {
     ]);
     assert.deepEqual(labels(1), []);
     assert.deepEqual(gh.labellisations, []);
-    assert.deepEqual(cartesEnTodo(journal.base), []);
+    // La roadmap seule ouverte, le backlog n'a rien à cuire : sa carte (#4225) n'est pas celle de la roadmap.
+    assert.deepEqual(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1), []);
     // Rien n'est dit sur la roadmap : aucun commentaire, donc aucune mention du chef.
     assert.deepEqual(gh.commentaires.filter(([numero]) => numero === 1), []);
     assert.deepEqual(gh.creations, []);
@@ -535,14 +536,14 @@ describe("le manager", { concurrency: 8 }, () => {
     gh.decrire(1, { body: ROADMAP });
     // L'état d'espace#1 : jugée `decision`, sa question posée au chef, une carte de TODO.
     journal.ajouter({ project: "brigade", ticket: 1, author: "manager", type: "todo.entered", payload: { kind: "product", summary: "The roadmap.", statement: "Is the roadmap still a tracking document?", choices: [{ text: "Yes", then: "resume" }], captures: null } });
-    assert.equal(cartesEnTodo(journal.base).length, 1);
+    assert.equal(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1).length, 1);
 
     await jusqua(() => faits(1).some((e) => e.type === "manager.roadmap-cleared"));
     await laisserTourner();
 
     assert.deepEqual(labels(1), []);
     assert.deepEqual(gh.delabellisations, [[1, "decision"]]);
-    assert.deepEqual(cartesEnTodo(journal.base), []);
+    assert.deepEqual(cartesEnTodo(journal.base).filter((carte) => carte.ticket === 1), []);
     assert.deepEqual(charge(faits(1).find((e) => e.type === "manager.roadmap-cleared")), { labels: ["decision"], card: true });
     // Aucun geste du chef n'y a pris part : tout est du manager.
     assert.deepEqual(journal.duTicket(1).filter((e) => e.author === "chef"), []);
