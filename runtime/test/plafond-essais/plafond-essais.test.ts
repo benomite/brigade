@@ -53,3 +53,11 @@ test("the comment says the cap, the count and the last failure, in English", () 
   assert.match(corps, /\(12 tries so far\)/);
   assert.match(corps, /Last failure: red CI$/);
 });
+
+test("the stop comment gives the count of tries, not a shifted one", async () => {
+  const { p, commentaires } = monter(3);
+  for (let i = 0; i < 3; i++) await p.enregistrerEssai(1, { echec: "boom" });
+  assert.equal(commentaires.length, 1);
+  assert.match(commentaires[0], /cap of 3 tries/);
+  assert.match(commentaires[0], /\(3 tries so far\)/);
+});
