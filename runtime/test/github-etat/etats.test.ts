@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { CHEF_TODO, etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_PARKED, LABEL_TAKEN, type IssueLue } from "../../src/github-etat/etats.ts";
+import { CHEF_TODO, estParque, etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_PARKED, LABEL_TAKEN, type IssueLue } from "../../src/github-etat/etats.ts";
 
 const PR_OUVERTE = { state: "open", merged: false } as const;
 const ouverte = (labels: string[], pr: IssueLue["pr"] = null): IssueLue => ({ state: "open", labels: ["fire", ...labels], pr });
@@ -28,9 +28,10 @@ test("parked : le label `parked`, et il l'emporte sur `taken` comme sur `in-pass
   assert.equal(etatDuTicket(ouverte([LABEL_IN_PASS, LABEL_PARKED], PR_OUVERTE), "red"), "parked");
 });
 
-test("parked : `chef-todo` seul parque le ticket, pour le chef", () => {
-  assert.equal(etatDuTicket(ouverte([CHEF_TODO])), "parked");
-  assert.equal(etatDuTicket(ouverte([LABEL_IN_PASS, CHEF_TODO], PR_OUVERTE), "red"), "parked");
+test("parked : `chef-todo` seul parque le ticket pour le chef, qui garde son état — la pass lit sa réponse sur la carte", () => {
+  assert.equal(estParque([CHEF_TODO]), true);
+  assert.equal(etatDuTicket(ouverte([CHEF_TODO])), null);
+  assert.equal(etatDuTicket(ouverte([LABEL_IN_PASS, CHEF_TODO], PR_OUVERTE), "red"), "base-red");
 });
 
 test("base red : en pass, et le dernier commit de la base est rouge", () => {

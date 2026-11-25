@@ -17,6 +17,7 @@
 // tout le monde peut commenter une issue publique. Une issue au label `parked` sans ce commentaire est parquée sans rien
 // inventer : la ligne dit que l'issue ne le dit pas.
 import { lireRelance, RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
+import { A_LA_MAIN } from "../brigade-github.ts";
 import { CHEF_TODO, estParque, LABEL_PARKED } from "../github-etat/etats.ts";
 import type { Commentaire, GitHub, IssueOuverte } from "../github.ts";
 import { carteEnCours, corpsDeCarte, type Carte } from "../github-seul/carte-todo/carte-todo.ts";
@@ -170,7 +171,8 @@ export async function lireCartesGitHub(github: GitHubDeLAttente): Promise<Cartes
 // tour de la station vient de lire (guerison/index.ts).
 export async function cartesDesIssues(github: { commentaires(numero: number): Promise<Pick<Commentaire, "body" | "association">[]> }, issues: readonly Pick<IssueOuverte, "number" | "title" | "labels">[]): Promise<CartesGitHub> {
   const cartes: CartesGitHub = { todo: [], parked: [] };
-  const lues = await Promise.all(issues.filter(({ labels }) => estParque(labels)).map(async (issue) => ({ issue, commentaires: await github.commentaires(issue.number) })));
+  // `blocked-on-human` attend encore le chef sans être parqué : un état d'attente que #4129 n'a pas encore replié.
+  const lues = await Promise.all(issues.filter(({ labels }) => estParque(labels) || labels.includes(A_LA_MAIN)).map(async (issue) => ({ issue, commentaires: await github.commentaires(issue.number) })));
   for (const { issue, commentaires } of lues.sort((a, b) => a.issue.number - b.issue.number)) {
     const { number: numero, title: titre, labels } = issue;
     // `parked` : il attend quelqu'un d'autre que le chef — une carte du chef parquée pour un autre comprise.
@@ -182,11 +184,19 @@ export async function cartesDesIssues(github: { commentaires(numero: number): Pr
     const carte = carteEnCours(labels, commentaires);
     // Parqué pour le chef par `parked set`, sans carte d'une sorte : sa marque dit ce qu'il attend de lui.
     const marque = carte === null ? attenteDeLIssue(commentaires) : null;
-    const ligne = carte !== null ? (carte.texte.split("\n")[0] ?? "") : marque !== null ? `waits for ${LE_CHEF}: “${marque.what}”` : `carries \`${CHEF_TODO}\`, but no marked comment says what it asks`;
+    const ligne =
+      carte !== null
+        ? (carte.texte.split("\n")[0] ?? "")
+        : !labels.includes(CHEF_TODO)
+          ? `held back, it carries \`${A_LA_MAIN}\``
+          : marque !== null
+            ? `waits for ${LE_CHEF}: “${marque.what}”`
+            : `carries \`${CHEF_TODO}\`, but no marked comment says what it asks`;
     // Une carte posée (`chef-todo`) sans commentaire marqué, ou dont le commentaire marqué n'a pas de texte, ne pose
     // aucune question : la question est la première ligne de son texte, comme l'app la lit (app/src/tableau/todo-github.ts).
-    const manque =
-      carte === null
+    const manque = !labels.includes(CHEF_TODO)
+      ? null
+      : carte === null
         ? marque !== null
           ? null
           : `no comment marked \`<!-- brigade:todo kind=… -->\` or \`${MARQUE} … -->\` from the repository says what it asks`

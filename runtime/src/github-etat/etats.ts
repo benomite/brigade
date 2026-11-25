@@ -7,8 +7,8 @@
 //
 // | État       | Lu sur                                                         |
 // |------------|----------------------------------------------------------------|
-// | `parked`   | le label `parked`, ou `chef-todo` (parqué pour le chef) — il   |
-// |            | l'emporte sur tout autre : rien ne prend un ticket parqué      |
+// | `parked`   | le label `parked` — il l'emporte sur tout autre : aucune       |
+// |            | station ne prend un ticket parqué                              |
 // | `base-red` | le label `in-pass`, sa PR ouverte, le dernier commit de la     |
 // |            | base rouge                                                     |
 // | `pass`     | le label `in-pass` et sa PR ouverte, la base n'étant pas rouge |
@@ -58,7 +58,8 @@ export function etatDeLaBase(checks: Pick<Check, "outcome">[]): EtatDeLaBase | n
 export function etatDuTicket(issue: IssueLue, base: EtatDeLaBase | null = null): EtatDuTicket | null {
   if (issue.state !== "open") return null;
   const labels = new Set(issue.labels);
-  if (estParque(issue.labels)) return "parked";
+  // Parqué pour le chef (`chef-todo`), il garde son état : la pass lit sa réponse sur une carte de validation (#3184).
+  if (labels.has(LABEL_PARKED)) return "parked";
   if (labels.has(LABEL_IN_PASS)) {
     const aJuger = issue.pr !== null && issue.pr.state === "open" && !issue.pr.merged;
     if (!aJuger) return null;
