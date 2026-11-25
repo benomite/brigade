@@ -66,9 +66,9 @@ test("toutes les stations, le dernier bloc de l'accueil, une ligne chacune : sa 
   // Ni la machine ni la version ne s'écrivent à plat sur les lignes : les versions ont leur propre ligne dessous (#2191).
   assert.doesNotMatch(section().children[0]?.textContent ?? "", /Linux|macOS|version/);
   // Relu, l'accueil remplace ses lignes, sous les yeux.
-  jouee.dire("surAccueil", { ...ACCUEIL, stations: [{ id: "g1", nom: "box", ton: "jaune", dit: "online · saturated · 2 cooks · parade", phrase: "saturated", survol: "Linux 6.1.0 · version 1.4.0" }] });
+  jouee.dire("surAccueil", { ...ACCUEIL, stations: [{ id: "g1", nom: "box", ton: "jaune", dit: "online · update failed · 2 cooks · parade", phrase: "online · 2 cooks running", survol: "Linux 6.1.0 · version 1.4.0" }] });
   await repos();
-  assert.deepEqual(lignes(section()).map(({ texte }) => texte), ["boxonline · saturated · 2 cooks · parade›"]);
+  assert.deepEqual(lignes(section()).map(({ texte }) => texte), ["boxonline · update failed · 2 cooks · parade›"]);
 });
 
 test("sans station, la liste dit quoi faire ; avant la première lecture, qu'elle est en cours", async () => {

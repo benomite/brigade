@@ -37,8 +37,9 @@ const DETAIL_MAX = 2_000;
 // Ce que `gh` écrit (cli/cli, internal/authflow) : « ! First copy your one-time code: ABCD-1234 »,
 // puis, s'il peut attendre Entrée, « Press Enter to open https://github.com/login/device in your
 // browser... » — sinon « Open this URL to continue in your web browser: https://github.com/login/device ».
-// Les versions récentes le formulent autrement (« Your device code is: ABCD-1234 ») : on lit le code après le mot « code ».
-const CODE = /\bcode\b[^\n:]*:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/i;
+// Les versions récentes le formulent autrement (« Your device code is: ABCD-1234 », « One-time code (ABCD-1234) copied to
+// clipboard ») : on lit le code qui suit le mot « code », sur la même ligne.
+const CODE = /\bcode\b[^\n]*?\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/i;
 const PAGE = /(?:https?:\/\/)?[\w.-]+\/login\/device\b\S*/i;
 const ENTREE = /press enter/i;
 // Les couleurs que `gh` poserait malgré `NO_COLOR`.

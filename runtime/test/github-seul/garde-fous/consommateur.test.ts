@@ -28,7 +28,7 @@ function gardes(t: TestContext, consommateur?: LireConsommateur) {
 
 test("a station saturated on CPU and disk names the top process and the biggest brigade directory: in the journal, the state and the warning (#4090)", async (t) => {
   const { du, avertis, saturees, etat } = gardes(t, (resource) => (resource === "cpu" ? { name: "node (pid 42)", amount: "380% CPU" } : { name: "espace/", amount: "3.2 GB" }));
-  assert.equal(await du.retenue(1), "machine");
+  assert.equal(await du.retenue(1), null);
   assert.deepEqual(saturees(), [
     { station: STATION, resource: "cpu", observed: 16.2, limit: 12, consumer: "node (pid 42) (380% CPU)", also: [{ resource: "disk", observed: 4096, limit: 5120, consumer: "espace/ (3.2 GB)" }] },
   ]);
@@ -45,7 +45,7 @@ test("a consumer that names nobody, throws or is absent leaves the saturation by
   const DIT = `brigade : the machine under GitHub-only station ${STATION} runs short of CPU and disk — load of 16.2 for at most 12 · 4,096 MB of disk free for at least 5,120 MB`;
   for (const consommateur of [undefined, () => null, () => { throw new Error("ps: not found"); }] as (LireConsommateur | undefined)[]) {
     const { du, avertis, saturees } = gardes(t, consommateur);
-    assert.equal(await du.retenue(1), "machine");
+    assert.equal(await du.retenue(1), null);
     assert.deepEqual(saturees(), [AVANT]);
     assert.equal(avertis[0], DIT);
   }
