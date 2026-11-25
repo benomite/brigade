@@ -64,3 +64,14 @@ test("le bandeau STOPPED dit ce que l'arrêt attend selon la cause que le runtim
   assert.deepEqual(avec({ kind: "zone-held", pr: 4077, zone: "app/src" }), { label: "STOPPED", waitsFor: "Waiting: zone held by PR 4077", waitsOn: "whoever serves PR 4077, or the chef who merges or closes it" });
   assert.deepEqual(avec({ kind: "unknown" }), { label: "STOPPED", waitsFor: "the cause is unknown", waitsOn: "the chef" });
 });
+
+test("le bandeau STOPPED d'une zone tenue nomme la PR, et les autres causes ne la nomment pas (#4244)", () => {
+  const avec = (cause: unknown) => vueDeposee({ ...tableau, arretCuisine: { cause, since: "2026-11-24T10:00:00Z" } } as unknown as Tableau).banners[0]!;
+  const tenue = avec({ kind: "zone-held", pr: 4077, zone: "app/src" });
+  assert.match(tenue.waitsFor, /zone held by PR 4077/);
+  assert.match(tenue.waitsOn, /PR 4077/);
+  for (const cause of [{ kind: "main-red" }, { kind: "unknown" }, { kind: "frozen-zone", ticket: 5, zone: "app/src" }]) {
+    assert.doesNotMatch(avec(cause).waitsOn, /PR /);
+    assert.doesNotMatch(avec(cause).waitsFor, /zone held by PR/);
+  }
+});
