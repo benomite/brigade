@@ -227,8 +227,8 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     assert.equal("deplie" in leBandeau(vue).dataset, false);
   });
 
-  test("une idée en réserve : son résumé sur sa ligne ; « Put on the rail » et « Drop » partent sur GitHub par le process principal, un refus se dit sur sa ligne", async () => {
-    const reponses = { rail: { fait: "put on the rail on GitHub" }, abandonner: { refus: "nothing was changed: GitHub did not close #23" } };
+  test("une idée en réserve : son résumé sur sa ligne ; « Drop » part sur GitHub par le process principal, un refus se dit sur sa ligne — aucun geste ne la met sur le rail (ticket 4223)", async () => {
+    const reponses = { abandonner: { refus: "nothing was changed: GitHub did not close #23" } };
     const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], ouvrirIssue: () => true, gestesDeFiche: (carte) => gestesDeCarte(carte), idee: (_projet, id) => reponses[id] });
     (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
     await repos();
@@ -242,13 +242,10 @@ describe("le bandeau Backlog, au-dessus des colonnes du rail", () => {
     const suite = leBandeau(vue).dessous("section").find(({ dataset }) => dataset.section === "suite");
     assert.doesNotMatch(suite?.textContent ?? "", /fidélité|QR code/);
     const geste = (ticket: number, id: string) => ligne(ticket).dessous("button").find(({ dataset }) => dataset.geste === id) ?? assert.fail(`pas de geste ${id}`);
-    geste(24, "rail").click();
+    assert.deepEqual(ligne(24).dessous("button").slice(1).map(({ dataset }) => dataset.geste), ["abandonner"]);
     geste(23, "abandonner").click();
     await repos();
-    assert.deepEqual(vue.appels.filter(({ geste: nom }) => nom === "idee").map(({ args }) => args), [
-      [PARADE, "rail", 24],
-      [PARADE, "abandonner", 23],
-    ]);
+    assert.deepEqual(vue.appels.filter(({ geste: nom }) => nom === "idee").map(({ args }) => args), [[PARADE, "abandonner", 23]]);
     assert.equal(ligne(23).dessous("p").find(({ className }) => className === "backlog-band-idee-refus")?.textContent, "nothing was changed: GitHub did not close #23");
     assert.equal(ligne(24).dessous("p").length, 0);
   });
