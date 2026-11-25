@@ -99,7 +99,7 @@ const faitsDe = (lu: TableauLu): Faits => {
 const colonneDe = (lu: TableauLu, nom: string) => tableau(faitsDe(lu)).rail.colonnes.find((colonne) => colonne.nom === nom)?.cartes ?? [];
 
 describe("la marque d'attente : ce que le runtime écrit sur l'issue, l'app le lit", () => {
-  test("le commentaire de `waiting set` (direMarque) se lit : quoi, de qui, depuis, la relance, ce que fera l'arrivée", () => {
+  test("le commentaire du runtime (direMarque) se lit : quoi, de qui, depuis, la relance, ce que fera l'arrivée", () => {
     assert.deepEqual(tiersDeLaMarque(MARQUE_40, "2026-11-02T09:31:00Z"), { quoi: "the signed quote", qui: "the client", depuis: "2026-11-02T09:30:00.000Z", relance: "2026-11-16T00:00:00.000Z", aLArrivee: A_L_ARRIVEE });
     // Mise à jour, et à cheval sur deux années : la relance sans année est celle qui suit la mise en attente.
     const maj = direMarque(40, { what: "the PO", who: "Acme", since: "2026-12-30T08:00:00.000Z", followUp: "2027-01-06T00:00:00.000Z", onArrival: A_L_ARRIVEE }, true);

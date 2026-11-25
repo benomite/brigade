@@ -18,7 +18,11 @@ Le contrôle de version du plugin a déjà été fait : ne le revérifie pas. Tu
 pas de shell ici : ne lance rien, écris la commande exacte que tu lancerais.
 
 Sur ce poste, `~/.config/brigade/app.json` déclare le projet `parade` avec
-l'hôte `box`. Nous sommes le 2026-10-20. La file vient d'être lue ; la sortie
+l'hôte `box`. Nous sommes le 2026-10-20.
+
+En début de session, l'app t'a donné la commande de parking : `'/Applications/Brigade.app/Contents/Resources/node' '/Applications/Brigade.app/Contents/Resources/app/src/second/parking.ts'`, suivie de `park <owner>/<repo>#<n> --who '<who>' --what '<what>' --until <YYYY-MM-DD>` ou de `unpark <owner>/<repo>#<n>`. Le dépôt du projet est `chef/parade`.
+
+La file vient d'être lue ; la sortie
 de `status` porte, entre autres, ces cartes en TODO :
 
 - #490 « Intégrer les textes du client » — attend le retour du client sur les textes, relance possible le 2026-10-27

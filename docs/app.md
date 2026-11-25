@@ -1375,14 +1375,15 @@ whom, or with a follow-up that is not a day after today is refused, the sentence
 **Cancel** closes it. The buttons and the form are `app/src/vue/attente/attente.js`; what the chef typed is read by
 `app/src/vue/attente/saisie.ts`, the same reading for every path.
 
-- **Where it goes.** When the project's kitchen runs on this computer, *waiting for…* and *resume* go through the
-  runtime's `waiting set` / `waiting resume` command, typed in the project's second (`app/src/attente.ts`). Otherwise —
-  the project served elsewhere, or the phone — they are written on the issue as the runtime writes them there
-  (`app/src/vue/attente/attente-github.ts`): *waiting for…* posts the WAITING comment (`**WAITING: awaiting <who>.**
-  <what>`, then *from whom*, *since*, *follow-up*, *on arrival*, the shape of `direMarque` in `runtime/src/attente.ts`,
-  its dates with their year), then sets the `waiting` label; *resume* removes the label, and the ticket goes back to
-  what its other labels make it — a TODO card back in TODO. *it arrived, back to the kitchen* removes the label, as
-  before (#1740). A comment GitHub posted but whose label it refused is said: the ticket is not in WAITING.
+- **Where it goes.** Always on the issue, on any project, never through a box command (#4262) — from the desktop as
+  from the phone, and from the second, which plays the same two functions with the parking command the app gives it at
+  each session start (`app/src/second/parking.ts`, `park` / `unpark`). *waiting for…* parks the ticket (`parquer`,
+  `app/src/vue/attente/attente-github.ts`): it posts the WAITING comment — the `<!-- brigade:waiting … -->` marker the
+  station reads, then `**WAITING: awaiting <who>.** <what>`, *from whom*, *since*, *follow-up*, *on arrival*, the shape
+  of `direMarque` in `runtime/src/attente.ts`, its dates with their year —, then sets the `waiting` label. *resume* and
+  *it arrived, back to the kitchen* unpark it (`deparquer`, `app/src/gestes-github.ts`): the label is removed, and the
+  ticket goes back to what its other labels make it — a TODO card back in TODO. A comment GitHub posted but whose label
+  it refused is said: the ticket is not in WAITING.
 - **What is read.** An issue carrying `waiting` is never a TODO entry, whatever else it carries. Among the issues the
   app already lists — `fire`, `chef-todo`, `question`, `decision`, `blocked-on-human` —, each one carrying `waiting` has
   its last WAITING comment read (`app/src/tableau/attente-du-chef.ts`), and no other list is asked of GitHub (the

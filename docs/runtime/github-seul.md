@@ -224,7 +224,7 @@ base, the stale-branch pruning).
   in WAITING by hand. Now the station does it, with no chef gesture:
   - a cook that stops blocked (`<bloque>`) on a date to come ("cannot be done before 2026-11-25", "too early", "only
     from …"), or on something a third party outside the kitchen has not given ("waiting for the client", "nothing in
-    the kitchen can produce it"), puts the ticket in WAITING through the same gesture as `waiting set`: the `waiting`
+    the kitchen can produce it"), puts the ticket in WAITING through the same marks as the chef's park: the `waiting`
     label and the `<!-- brigade:waiting … -->` comment, with what, from whom, and the follow-up taken from its words
     (the date it says; without one, seven days). Any other question goes to the manager, as before, and so does this
     one when GitHub refuses the WAITING gesture: the station says why;
