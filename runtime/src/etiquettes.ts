@@ -39,7 +39,6 @@ export const ETIQUETTES: readonly Etiquette[] = [
   { name: "horizon:1", color: "1D76DB", description: "Direction of the product: autonomy now" },
   { name: "horizon:2", color: "1D76DB", description: "Direction of the product: humans as stations" },
   { name: "horizon:3", color: "1D76DB", description: "Direction of the product: any project run on its own" },
-  { name: "saturation-repair", color: "D73A4A", description: "Repairs the saturation of the machine: the claim gate lets it through while the machine runs short, one at a time" },
   { name: "kitchen-board", color: "BFD4F2", description: "The former board issue of the kitchen: never a card" },
 ];
 

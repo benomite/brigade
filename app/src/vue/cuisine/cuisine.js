@@ -2,16 +2,21 @@
 // La vue du projet dessine le plan de la cuisine (ticket 4238, docs/superpowers/specs/2026-11-24-simplified-process.md) :
 // de gauche à droite, le backlog — le rail en tête, les tickets prêts à part —, le manager, les cooks, la pass, servi. Une
 // carte est dans la colonne de son étape. Une carte parked reste dans la colonne où elle attend, dessinée parked : qui elle
-// attend, jusqu'à quand. Il n'y a pas de colonne Waiting. Ce qui attend le chef est aussi dans son TODO, à côté des
-// colonnes, et rien d'autre. Au-dessus, la bande du haut : la ligne du supervisor, celle du closer, et au plus un message
-// — jamais sans un geste que le chef peut faire.
+// attend, jusqu'à quand. Il n'y a pas de colonne Waiting. Ce qui est parked pour le chef est aussi dans son TODO, à côté
+// des colonnes, et rien d'autre (ticket 4261) : chaque entrée dit ce qui lui est demandé, avec ses boutons. Au-dessus, la
+// bande du haut : la ligne du supervisor, celle du closer, et au plus un message — jamais sans un geste que le chef peut
+// faire.
 // Le process principal range le rail en colonnes (faits.ts) : On the rail, Taken, Pass, Waiting, Served, et la liste de ce
 // qui attend le chef, que todo.js pose déjà dans la colonne de son étape. Ce module en tire le plan, sans rien relire.
 // Il ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
+import { recommandationDe } from "../briques.js";
+import { vuDeLaCarte } from "../carte-todo.js";
+import { estUneRevue, MERGER } from "../carte-sensible/carte-sensible.js";
 import { bouton } from "../composants/bouton/bouton.js";
 import { PAS_ENCORE } from "../lexique.js";
 import { estRouge } from "../todo/todo.js";
+import { estUneValidation, VALIDER } from "../validation-design/validation-design.js";
 
 /** @typedef {import("../../faits.ts").Carte} Carte */
 /** @typedef {import("../../faits.ts").Colonne} Colonne */
@@ -122,37 +127,74 @@ export function ligneParquee(doc, parque) {
   return ligne;
 }
 
+// Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix, valider
+// un écran, merger une revue, reprendre une carte de WAITING ou dire arrivé ce qu'elle attendait.
+/** @typedef {"repondre" | "valider" | "merger" | "attente-reprendre" | "attente-arrivee"} SorteDeGeste */
+/** @typedef {{ texte: string, recommande: boolean, sorte: SorteDeGeste, reponse?: import("../../carte-todo.ts").Reponse }} GesteDuTodo */
 /**
- * Le TODO du chef : une entrée par ticket qui l'attend — son numéro et son titre ; un clic ouvre sa carte. `avis` : ce qui
- * attend le chef sans être un ticket (le dépôt pas préparé). Rien du tout quand rien ne l'attend.
- * @param {Fabrique} doc @param {{ cartes: readonly Carte[], avis: readonly any[], ouvrir: (carte: Carte) => void }} todo
+ * Ce que le TODO sait de la vue pour trancher ses cartes : où en est la réponse d'une carte (`etat`), les gestes de WAITING
+ * et leurs libellés (`attente`), et de quoi jouer un geste (`jouer`).
+ * @typedef {{ etat: (ticket: number, todo: import("../../carte-todo.ts").CarteDeTodo) => import("../carte-todo.js").Etat, attente: readonly { id: string, libelle: string }[], jouer: (ticket: number, sorte: SorteDeGeste, reponse?: import("../../carte-todo.ts").Reponse) => void }} GestesDuTodo
  */
-export function poserLeTodo(doc, { cartes, avis, ouvrir }) {
-  if (cartes.length === 0 && avis.length === 0) return undefined;
+
+// Les gestes de WAITING qui la tranchent : la reprendre, ou dire arrivé ce qu'elle attendait — « waiting for… » remet la
+// question à plus tard, il n'y répond pas (docs/todo-cards.md).
+const TRANCHENT = ["attente-reprendre", "attente-arrivee"];
+
+/**
+ * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider, « Merge » d'une revue,
+ * un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici ; ou les gestes de
+ * WAITING qu'elle a. Aucun sur une carte qui ne se tranche qu'en mots : un clic sur son entrée ouvre sa carte et son champ.
+ * @param {Carte} carte @param {GestesDuTodo} gestes @returns {GesteDuTodo[]}
+ */
+export function gestesDuTodo(carte, gestes) {
+  const { todo } = carte;
+  if (todo === undefined) return gestes.attente.filter(({ id }) => TRANCHENT.includes(id) && carte.gestes?.includes(/** @type {never} */ (id))).map(({ id, libelle }) => ({ texte: libelle, recommande: false, sorte: /** @type {SorteDeGeste} */ (id) }));
+  // Un écran à valider, une revue : leur bouton, quand leur carte dit la PR qu'ils tranchent — sinon aucun, comme sur leur carte.
+  if (estUneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDER, recommande: true, sorte: "valider" }] : [];
+  if (estUneRevue(todo)) return "pr" in (todo.revue ?? {}) ? [{ texte: MERGER, recommande: true, sorte: "merger" }] : [];
+  if (!["repos", "refus"].includes(vuDeLaCarte(todo, gestes.etat(carte.ticket, todo)).vu)) return [];
+  const recommandee = recommandationDe(todo)?.rang;
+  return todo.choix.map(({ texte }, rang) => ({ texte, recommande: rang + 1 === recommandee, sorte: "repondre", reponse: { question: todo.question, choix: rang + 1 } }));
+}
+
+/**
+ * Le TODO du chef : une entrée par ticket parked pour lui (ticket 4261) — son numéro et son titre, dont un clic ouvre sa
+ * carte ; ce qui lui est demandé ; ses boutons, qui y répondent. Sans `gestes` — un projet en lecture seule —, ses cartes se
+ * lisent sans bouton. Rien du tout quand rien ne l'attend.
+ * @param {Fabrique} doc @param {{ cartes: readonly Carte[], ouvrir: (carte: Carte) => void, gestes?: GestesDuTodo }} todo
+ */
+export function poserLeTodo(doc, { cartes, ouvrir, gestes }) {
+  if (cartes.length === 0) return undefined;
   const cadre = doc.createElement("div");
   cadre.className = "todo-du-rail";
   cadre.ariaLabel = "What awaits you";
   const tete = doc.createElement("p");
   tete.className = "tete-du-todo";
   tete.textContent = `TODO (${cartes.length})`;
-  cadre.append(tete);
-  if (cartes.length > 0) {
-    const liste = doc.createElement("ol");
-    liste.className = "entrees-du-todo";
-    liste.append(
-      ...cartes.map((carte) => {
-        const entree = doc.createElement("li");
-        entree.className = "entree-du-todo";
-        entree.dataset.ticket = String(carte.ticket);
-        const ouvre = bouton(doc, `#${carte.ticket}${carte.titre === undefined ? "" : ` ${carte.titre}`}`, () => ouvrir(carte), { sorte: "discret" });
-        ouvre.title = carte.parque === undefined ? `open #${carte.ticket}'s card` : `open #${carte.ticket}'s card — ${ditParque(carte.parque)}`;
-        entree.append(ouvre);
-        return entree;
-      }),
-    );
-    cadre.append(liste);
-  }
-  cadre.append(...avis);
+  const liste = doc.createElement("ol");
+  liste.className = "entrees-du-todo";
+  liste.append(
+    ...cartes.map((carte) => {
+      const entree = doc.createElement("li");
+      entree.className = "entree-du-todo";
+      entree.dataset.ticket = String(carte.ticket);
+      const ouvre = bouton(doc, `#${carte.ticket}${carte.titre === undefined ? "" : ` ${carte.titre}`}`, () => ouvrir(carte), { sorte: "discret" });
+      ouvre.title = carte.parque === undefined ? `open #${carte.ticket}'s card` : `open #${carte.ticket}'s card — ${ditParque(carte.parque)}`;
+      entree.append(ouvre);
+      const quoi = carte.parque?.quoi;
+      if (quoi !== undefined) entree.append(Object.assign(doc.createElement("p"), { className: "demande-du-todo", textContent: quoi }));
+      const siens = gestes === undefined ? [] : gestesDuTodo(carte, gestes);
+      if (siens.length > 0) {
+        const reponses = doc.createElement("div");
+        reponses.className = "reponses-du-todo";
+        reponses.append(...siens.map(({ texte, recommande, sorte, reponse }) => bouton(doc, texte, () => gestes?.jouer(carte.ticket, sorte, reponse), { sorte: recommande ? "recommande" : "secondaire" })));
+        entree.append(reponses);
+      }
+      return entree;
+    }),
+  );
+  cadre.append(tete, liste);
   return cadre;
 }
 

@@ -20,8 +20,13 @@ export type Fait = { libelle: string; valeur: string; exact?: true };
 // quand l'app n'a pas su le découper.
 export type Porte = { dit: Fait[]; sans?: string; relais?: string; parque?: Parque };
 // Une carte parked (#4238, spec 2026-11-24-simplified-process, règle 13) : qui elle attend — un tiers, ou ce qui la retient
-// —, jusqu'à quand (nul : aucune date), et `chef` quand c'est le chef qu'elle attend : elle est aussi dans son TODO.
-export type Parque = { qui: string; jusqua: string | null; chef?: boolean };
+// —, pour quoi (`quoi`, quand il se dit), jusqu'à quand (nul : aucune date), et `chef` quand c'est le chef qu'elle attend :
+// elle est dans son TODO, et rien d'autre ne l'est (#4261).
+export type Parque = { qui: string; quoi?: string; jusqua: string | null; chef?: boolean };
+// Qui attend le chef : c'est ce « qui » d'un ticket parked qui le met dans son TODO.
+export const LE_CHEF = "the chef";
+// Le ticket parked pour `qui`, pour `quoi`, jusqu'à `jusqua` : au chef seulement, il va dans son TODO.
+export const parqueDe = (qui: string, quoi: string | undefined, jusqua: string | null): Parque => ({ qui, ...(quoi === undefined ? {} : { quoi }), jusqua, ...(qui === LE_CHEF ? { chef: true } : {}) });
 
 // Ce dont un bon se compose, pour un ticket.
 // `lignes` : les siennes sous la ligne `rail` de `status` — absentes, cette ligne
