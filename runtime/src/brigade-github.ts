@@ -96,7 +96,7 @@ import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { risquesDuClone } from "./risque/de-la-fiche.ts";
-import { risqueDuTicket, type ClassementDesRisques } from "./risque/risque.ts";
+import { risqueDuTicket } from "./risque/risque.ts";
 import { geste as gesteDeBox } from "./geste.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
@@ -389,10 +389,6 @@ export type OptionsDeStation = {
   // s'ajoute à son `.claude/brigade/temps-tickets.json` (#2342). Absent, rien
   // ne s'écrit.
   clone?: string;
-  // Le classement des sortes d'action par risque, tel que la fiche du projet le porte, relu à chaque merge (#4230,
-  // `risque/`). Lève si la fiche ne se lit pas. Absent : celui que la base du `clone` porte, et sans clone les rangs
-  // par défaut.
-  risques?: () => ClassementDesRisques | null;
   // Le dépôt du projet servi et le GitHub de la brigade : le ticket du temps
   // perdu se dépose sur la brigade (#2783). Absents, il reste sur le projet.
   depotServi?: string;
@@ -2108,9 +2104,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       return { fait: false, motif: sensible };
                     }
                     chrono.marquer(ticket.number, "merge");
-                    // Les sortes d'action de son ticket, classées par risque dans la fiche du projet relue à chaque merge (#4230) :
-                    // `chef` le gare pour le chef, avec ce qu'il fera ; `safe` ne lui arrive jamais.
-                    const risque = risqueDuTicket(ticket.labels, options.risques ?? risquesDuClone(options.clone, options.base));
+                    // Les sortes d'action de son ticket, classées par risque dans la fiche du projet que la base du clone porte,
+                    // relue à chaque merge (#4230 ; sans clone, les rangs par défaut) : `chef` le gare pour le chef, avec ce
+                    // qu'il fera ; `safe` laisse son niveau décider, comme avant.
+                    const risque = risqueDuTicket(ticket.labels, risquesDuClone(options.clone, options.base));
                     // Le merge est le geste de la pass : il passe par la porte de son niveau (#4039).
                     const porte = station.porte ?? null;
                     if (porte === null) {
