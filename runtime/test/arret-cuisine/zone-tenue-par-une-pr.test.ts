@@ -22,3 +22,13 @@ test("a skip with no code or no PR invents no cause: frozen-zone when a ticket i
   assert.deepEqual(arretDeLaCuisine({ ...SANS_CARTE, frozen, skipped: [tenu(1, 9), { ticket: 2, reason: "other" }] })?.cause, { kind: "frozen-zone", ticket: 7, zone: "app/src" });
   assert.deepEqual(arretDeLaCuisine({ ...SANS_CARTE, skipped: [{ ticket: 1, reason: "zone-held" }] })?.cause, { kind: "unknown" });
 });
+
+test("the zone carried is the one the named PR holds, not another PR's", () => {
+  const skipped = [
+    { ticket: 1, reason: "zone-held", pr: 9, zone: "runtime/src" },
+    { ticket: 2, reason: "zone-held", pr: 5, zone: "app/src" },
+    { ticket: 3, reason: "zone-held", pr: 9, zone: "runtime/src" },
+  ];
+  assert.deepEqual(arretDeLaCuisine({ ...SANS_CARTE, skipped })?.cause, { kind: "zone-held", pr: 9, zone: "runtime/src" });
+  assert.deepEqual(arretDeLaCuisine({ ...SANS_CARTE, skipped: skipped.slice(0, 2) })?.cause, { kind: "zone-held", pr: 5, zone: "app/src" });
+});
