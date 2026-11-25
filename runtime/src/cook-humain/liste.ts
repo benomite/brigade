@@ -18,7 +18,7 @@ export function listeDesCooksHumains(tickets: readonly TicketDeLaListe[]): CookH
 }
 
 // L'adresse de la liste sur GitHub.
-export const adresseDeLaListe = (depot: string) => `https://github.com/${depot}/issues?q=${encodeURIComponent(`is:issue is:open label:${LABEL_COOK_HUMAIN}`)}`;
+const adresseDeLaListe = (depot: string) => `https://github.com/${depot}/issues?q=${encodeURIComponent(`is:issue is:open label:${LABEL_COOK_HUMAIN}`)}`;
 
 // La liste telle que la commande la dit : une ligne par ticket, puis son adresse.
 export function direLaListe(liste: readonly CookHumain[], depot: string): string {

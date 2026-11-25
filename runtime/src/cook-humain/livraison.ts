@@ -25,7 +25,7 @@ export const enLivraisonDuTour = (github: {
 });
 
 // Vrai si la PR de l'humain est ouverte et vient d'entrer en pass.
-export async function livrerLaPRDuCookHumain(ticket: number, github: GitHubDeLaLivraison): Promise<boolean> {
+async function livrerLaPRDuCookHumain(ticket: number, github: GitHubDeLaLivraison): Promise<boolean> {
   const pr = await github.prOuverteDuTicket(ticket);
   if (pr === null || pr.state !== "open" || pr.merged) return false;
   await github.labelliser(ticket, [LABEL_IN_PASS]);

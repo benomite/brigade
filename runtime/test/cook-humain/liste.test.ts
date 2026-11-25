@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { principal } from "../../src/cook-humain/commande.ts";
-import { adresseDeLaListe, direLaListe } from "../../src/cook-humain/liste.ts";
+import { direLaListe } from "../../src/cook-humain/liste.ts";
 import { ouvrirGitHub } from "../../src/github.ts";
 import { appeler, DEPOT, fauxGh, issueGitHub, repertoireTemporaire } from "../outils.ts";
 
@@ -11,7 +11,6 @@ const ADRESSE = "https://github.com/acme/brigade/issues?q=is%3Aissue%20is%3Aopen
 const CHEMIN = `repos/${DEPOT}/issues?state=open&labels=human-cook&per_page=100`;
 
 test("the list says one line per ticket and who holds it, then its address on GitHub", () => {
-  assert.equal(adresseDeLaListe(DEPOT), ADRESSE);
   assert.equal(direLaListe([{ ticket: 10, assignee: "alice" }, { ticket: 12, assignee: "" }], DEPOT), `#10  alice\n#12  (no one assigned yet)\n${ADRESSE}`);
   assert.equal(direLaListe([], DEPOT), `no ticket waits on a human cook\n${ADRESSE}`);
 });

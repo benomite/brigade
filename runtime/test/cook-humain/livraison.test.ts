@@ -2,7 +2,7 @@
 // `human-cook`, et sa PR ouverte reçoit `in-pass` — d'où la même pass la juge.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { enLivraisonDuTour, laisserAuxCooksHumains, livrerLaPRDuCookHumain } from "../../src/cook-humain/livraison.ts";
+import { enLivraisonDuTour, laisserAuxCooksHumains } from "../../src/cook-humain/livraison.ts";
 import { LimiteGitHubAtteinte } from "../../src/limite-github.ts";
 
 type PRLue = { state: "open" | "closed"; merged: boolean } | null;
@@ -24,17 +24,19 @@ function client(prs: Record<number, PRLue | Error>) {
   };
 }
 
+const marque = (number: number) => ({ number, labels: ["fire", "human-cook"] });
+
 test("the human's open pull request enters the pass: its ticket gets in-pass", async () => {
   const c = client({ 23: { state: "open", merged: false } });
-  assert.equal(await livrerLaPRDuCookHumain(23, c.github), true);
+  assert.equal(await laisserAuxCooksHumains([marque(23)], c.github), true);
   assert.deepEqual(c.labels, [[23, ["in-pass"]]]);
 });
 
 test("no pull request, a closed one or a merged one: nothing enters the pass", async () => {
   const c = client({ 24: { state: "closed", merged: false }, 25: { state: "open", merged: true } });
-  assert.equal(await livrerLaPRDuCookHumain(23, c.github), false);
-  assert.equal(await livrerLaPRDuCookHumain(24, c.github), false);
-  assert.equal(await livrerLaPRDuCookHumain(25, c.github), false);
+  assert.equal(await laisserAuxCooksHumains([marque(23)], c.github), false);
+  assert.equal(await laisserAuxCooksHumains([marque(24)], c.github), false);
+  assert.equal(await laisserAuxCooksHumains([marque(25)], c.github), false);
   assert.deepEqual(c.labels, []);
 });
 
@@ -78,7 +80,7 @@ test("the station's turn reads the open pull request from its snapshot, or else 
     prDuTicket: async (n) => (lues.push(`branche ${n}`), pr),
     labelliser: async (n, l) => void lues.push(`label ${n} ${l.join(",")}`),
   });
-  assert.equal(await livrerLaPRDuCookHumain(23, avecInstantane), true);
+  assert.equal(await laisserAuxCooksHumains([marque(23)], { ...avecInstantane, avertir: () => {} }), true);
   const sansInstantane = enLivraisonDuTour({ prDuTicket: async (n) => (lues.push(`branche ${n}`), pr), labelliser: async () => {} });
   await sansInstantane.prOuverteDuTicket(24);
   assert.deepEqual(lues, ["instantane 23", "label 23 in-pass", "branche 24"]);
