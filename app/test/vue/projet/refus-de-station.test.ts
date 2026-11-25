@@ -57,7 +57,8 @@ const refus = (vue: Jouee) => vue.element("rail").dessous("p").filter((p) => p.c
 describe("la page du projet dit le refus d'une station", () => {
   test("une station refuse : une seule ligne — son nom, sa raison, le geste qui la lève", async () => {
     const vue = await ouvrir([station("box/claude", { cuisson: "refused", refus: PUSH }), station("mac/claude", { distante: true })]);
-    assert.deepEqual(refus(vue), [`box/claude refuses the project: ${PUSH.message} ${PUSH.action}`]);
+    // Sur le rail, la ligne offre son geste : ouvrir Stations, où le refus se lève (#4238).
+    assert.deepEqual(refus(vue), [`box/claude refuses the project: ${PUSH.message} ${PUSH.action}open Cooks`]);
   });
 
   test("aucune station ne refuse : aucune ligne", async () => {
@@ -67,7 +68,7 @@ describe("la page du projet dit le refus d'une station", () => {
 
   test("plusieurs stations refusent : chacune sa ligne", async () => {
     const vue = await ouvrir([station("box/claude", { cuisson: "refused", refus: PUSH }), station("atelier/claude", { cuisson: "refused", refus: FETCH })]);
-    assert.deepEqual(refus(vue), [`box/claude refuses the project: ${PUSH.message} ${PUSH.action}`, `atelier/claude refuses the project: ${FETCH.message} ${FETCH.action}`]);
+    assert.deepEqual(refus(vue), [`box/claude refuses the project: ${PUSH.message} ${PUSH.action}open Cooks`, `atelier/claude refuses the project: ${FETCH.message} ${FETCH.action}open Cooks`]);
   });
 
   test("la ligne part quand la station ne refuse plus", async () => {

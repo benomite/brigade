@@ -64,8 +64,9 @@ function recevoir(vue: Jouee, faits: Faits) {
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
 
-const todo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
-const sansTodo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "todo-du-rail");
+// « Awaiting others » n'attend pas le chef : il est à côté de son TODO, sous les colonnes, pas dedans (#4238).
+const todo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "a-cote-du-todo") ?? assert.fail("pas de bloc à côté du TODO");
+const sansTodo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "a-cote-du-todo");
 const compte = (vue: Jouee) => rouges(vue.element("rail")).length;
 const pliDe = (colonne: Faux) => colonne.children.find((enfant) => enfant.balise === "details");
 const ouvert = (pli: Faux) => (pli as unknown as { open?: boolean }).open === true;
