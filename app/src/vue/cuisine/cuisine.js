@@ -51,7 +51,7 @@ const auManager = (carte) => carte.question === true || carte.repondue !== undef
 export const colonneDuPlan = (nomDeFaits, carte) => (auManager(carte) ? MANAGER : nomDeFaits === WAITING ? (ETAPE_DU_MOT[carte.etat ?? ""] ?? BACKLOG) : (DE_FAITS[nomDeFaits] ?? BACKLOG));
 
 /**
- * @typedef {{ nom: string, ton: string, compte: string, cartes: Carte[], vide: string, defile?: true, pretes?: Carte[], pasPretes?: Carte[] }} ColonneDuPlan
+ * @typedef {{ nom: string, ton: string, compte: string, cartes: Carte[], vide: string, defile?: boolean, pretes?: Carte[], pasPretes?: Carte[] }} ColonneDuPlan
  */
 
 /**
@@ -61,7 +61,7 @@ export const colonneDuPlan = (nomDeFaits, carte) => (auManager(carte) ? MANAGER 
  * @returns {ColonneDuPlan[]}
  */
 export function planDeLaCuisine(colonnes) {
-  /** @type {Map<string, { cartes: Carte[], vide?: string, defile?: true }>} */
+  /** @type {Map<string, { cartes: Carte[], vide?: string, defile?: boolean }>} */
   const plan = new Map([BACKLOG, MANAGER, COOKS, PASS, SERVED].map((nom) => [nom, { cartes: [] }]));
   // Une colonne de faits.ts pas connue — la box ne répond pas — laisse tout le plan inconnu : ses cartes iraient n'importe où.
   const inconnue = colonnes.find(({ compte }) => compte === "?");

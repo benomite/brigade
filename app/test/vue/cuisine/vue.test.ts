@@ -8,6 +8,8 @@ import { pourLaBarre } from "../../../src/barre.ts";
 import { EXEMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
+import { tenirBandes } from "../../../src/alertes.ts";
+import { mettreAPart } from "../../../src/attend.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../../src/faits.ts";
 import { gestesDeCarte } from "../../../src/gestes-fiche.ts";
 import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
@@ -227,5 +229,84 @@ describe("la bande du haut lit l'équipe", () => {
     } finally {
       Object.assign(source, avant);
     }
+  });
+});
+
+describe("le plan, colonne par colonne", () => {
+  test("le rail vide le dit en tête du backlog ; un rail sans ticket prêt le dit aussi ; sans rien d'autre, pas de « Not ready yet »", async () => {
+    const vue = await ouvrir();
+    let rail = await montrer(vue, { rail: [] });
+    const duRail = () => colonne(rail, "Backlog").dessous("div").find(({ className }) => className === "du-rail") ?? assert.fail("pas de rail en tête du backlog");
+    assert.match(duRail().children[1]?.textContent ?? "", /^No ticket on the rail yet\./);
+    rail = await montrer(vue, { rail: [entree(33, "BLOQUÉ")] });
+    assert.equal(duRail().children[1]?.textContent, "no ticket is ready on the rail");
+    assert.ok(colonne(rail, "Backlog").dessous("div").some(({ className }) => className === "pas-prets"));
+    rail = await montrer(vue, { rail: [entree(31, "en attente")] });
+    assert.equal(colonne(rail, "Backlog").dessous("div").some(({ className }) => className === "pas-prets"), false);
+  });
+
+  test("la station d'une carte s'étiquette dans Cooks et Pass, pas dans le backlog", async () => {
+    const vue = await ouvrir();
+    const rail = await montrer(vue, { rail: [entree(31, "en attente", { station: "box/claude" }), entree(32, "pris", { station: "box/claude" }), entree(33, "en pass", { station: "mac/claude" })] });
+    const etiquette = (carte: Faux) => carte.dessous("span").find(({ className }) => className.includes("etiquette-station"))?.textContent;
+    assert.equal(etiquette(bon(colonne(rail, "Backlog"), 31)), undefined);
+    assert.equal(etiquette(bon(colonne(rail, "Cooks"), 32)), "box");
+    assert.equal(etiquette(bon(colonne(rail, "Pass"), 33)), "mac");
+  });
+
+  test("ce qu'attendre un tiers veut dire s'explique une fois, sous le titre de la colonne où une carte est parked", async () => {
+    const vue = await ouvrir({ lireLesExplications: () => ({ vus: [] }), marquerUneExplication: () => ({ vus: [] }) });
+    const rail = await montrer(vue, { rail: [entree(31, "en attente"), entree(32, "pris", { tiers: { ...TIERS, qui: "Camille" } })] });
+    await repos();
+    const sous = rail.dessous("section").filter((une) => une.children[1]?.dataset.mot === "WAITING").map(({ dataset }) => dataset.colonne);
+    assert.deepEqual(sous, ["Cooks"]);
+  });
+});
+
+describe("le haut du rail, sous la bande", () => {
+  test("une ligne sans geste ne passe pas devant une alerte qui en offre un", async () => {
+    const vue = await ouvrir();
+    const railBloque = { tickets: [41], depuis: "2026-11-24T09:00:00Z", cause: "manager-muet", stations: [], geste: null, constat: "1 ticket waits for a manager.", phrase: "1 ticket waits for a manager." };
+    const rail = await montrer(vue, { rail: [entree(41, "en attente")], railBloque, alertesDuRail: [{ sorte: "base-rouge", phrase: "Main is red.", fait: { depuis: "2026-11-25T08:00:00Z", ticket: 41 }, geste: "Open it", geree: null }] } as unknown as Faits);
+    assert.doesNotMatch(rail.textContent, /waits for a manager/);
+    assert.match(rail.textContent, /Main is red/);
+  });
+
+  test("la cuisine arrêtée, sur le rail du projet affiché : son bouton ouvre le ticket gelé, ou les checks de main rouge", async () => {
+    const vue = await ouvrir({ ouvrirLesChecks: () => true });
+    let rail = await montrer(vue, { rail: [entree(41, "en attente")], arretCuisine: { cause: { kind: "frozen-zone", ticket: 30, zone: "app/" }, since: A } } as unknown as Faits);
+    boutonNomme(rail, "open #30").click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 30]);
+    rail = await montrer(vue, { rail: [entree(41, "en attente")], arretCuisine: { cause: { kind: "main-red" }, since: A } } as unknown as Faits);
+    boutonNomme(rail, "open the checks").click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirLesChecks"), [PARADE]);
+  });
+
+  test("l'équipe lue après le rail : la bande se repose avec ce qu'elle dit", async () => {
+    let lire: (equipe: unknown) => void = () => {};
+    const vue = await ouvrir({ lireLesAgents: () => new Promise((resolu) => (lire = resolu)) });
+    const rail = await montrer(vue, { rail: [entree(41, "pris")] });
+    const closer = () => rail.dessous("p").find(({ className }) => className === "ligne-du-closer")?.textContent ?? "";
+    assert.match(closer(), /next tidy: not known/);
+    lire(structuredClone(EQUIPE));
+    await repos();
+    assert.match(closer(), /next tidy: next pass in 3 h/);
+  });
+
+  test("le disjoncteur ouvert n'est plus sur le rail : la bande de l'espace le dit — pas la ligne du projet éteint, que son interrupteur dit", async () => {
+    const vue = await ouvrir({ geste: () => undefined });
+    await montrer(vue, { rail: [entree(21, "en attente")] });
+    const lu = (commande: string, texte: string) => ({ projet: PARADE, demande: 1, a: A, sorties: [{ commande, texte }] });
+    const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+    bandes.ouvrir([PARADE]);
+    bandes.faits(lu("facts", JSON.stringify(faits({ rail: [entree(21, "en attente")], etat: "retenue" }))));
+    bandes.status(mettreAPart(lu("status", ["project    parade", "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)", ""].join("\n"))));
+    vue.dire("surAlertes", bandes.manager(lu("manager", "manager               ÉTEINT depuis le 2026-11-03T09:25:21.838Z (par chef) — aucune issue n'est jugée, ce qu'il a posé reste posé\n")));
+    await repos();
+    assert.doesNotMatch(vue.element("alertes").textContent, /project off/);
+    assert.match(vue.element("alertes").textContent, /breaker open/);
+    assert.doesNotMatch(vue.element("rail").textContent, /breaker open/);
   });
 });

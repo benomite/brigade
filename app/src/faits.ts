@@ -534,13 +534,10 @@ export type Faits = {
 // quand GitHub les a donnés (#4051). `TailleDePr` : ce que GitHub en a donné, rien de plus.
 export type TailleDePr = { additions?: number; deletions?: number; ouvertLe?: string };
 export type LivraisonLue = { numero: number; url: string; lignes?: { ajoutees: number; retirees: number }; age?: string };
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: LivraisonLue; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; parque?: Parque; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: LivraisonLue; livraison?: Livraison; moteur?: MoteurDeLivraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; chef?: CarteDuChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Anciennete; essais?: Point[]; essai?: number; garde?: LigneDeGarde; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TacheHumaine; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
-// Une carte parked (#4238, spec 2026-11-24-simplified-process, règle 13) : qui elle attend — un tiers, ou ce qui la retient
-// —, jusqu'à quand (nul : aucune date), et `chef` quand c'est le chef qu'elle attend : elle est aussi dans son TODO.
-export type Parque = { qui: string; jusqua: string | null; chef?: true };
 export type Livraison = { resume: string; remarques: string; constats: Constat[] } | { sans: string };
 // `compte` : le nombre de ses cartes — ou `?`, pour TODO, tant que rien ne dit
 // qui attend. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
