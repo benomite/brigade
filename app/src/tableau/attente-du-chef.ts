@@ -24,8 +24,8 @@
 // se montre là. Cette lecture qui échoue ne fait pas tomber celle du chef : ses cartes de WAITING ne disent pas ce
 // qu'elles attendent, et le bloc dit pourquoi (`illisibles`).
 // Le bloc dit aussi chaque issue en WAITING dont l'attente se lit, une ligne chacune sous les entrées : ce qu'elle attend,
-// de qui, et sa relance (#3814) — sans être une entrée : elle ne demande rien au chef. Elle se lit de la marque que la station et `waiting set`
-// posent (runtime/src/attente-github/attente-github.ts, `corpsDeLAttente`), ou du commentaire que l'app écrit.
+// de qui, et sa relance (#3814) — sans être une entrée : elle ne demande rien au chef. Elle se lit de la marque que la station
+// pose (runtime/src/attente-github/attente-github.ts, `corpsDeLAttente`), ou du commentaire que l'app écrit.
 //
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`, `decision`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
@@ -90,7 +90,7 @@ const date = (valeur: unknown): string | null => (typeof valeur === "string" && 
 const labelsDe = (issue: Brut): string[] => liste(issue.labels).flatMap(({ name }) => (typeof name === "string" ? [name] : []));
 
 // Ce qu'une issue en WAITING attend, d'après son dernier commentaire d'entrée en WAITING : la marque de la station ou de
-// `waiting set`, d'un auteur du dépôt, ou le commentaire de l'app. `rentre` : la cuisine l'y a mise, elle rentre seule sur
+// l'app, d'un auteur du dépôt, ou le commentaire de l'app d'avant #4262. `rentre` : la cuisine l'y a mise, elle rentre seule sur
 // le rail à sa relance. Null sans aucun qui se lise : rien n'est inventé.
 function attenteDeLIssue(commentaires: readonly Brut[]): { quoi: string; qui: string; relance: string | null; rentre: boolean } | null {
   for (const commentaire of [...commentaires].reverse()) {

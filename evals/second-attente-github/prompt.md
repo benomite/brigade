@@ -23,4 +23,6 @@ l'hôte `box`. Le projet tourne en GitHub seul : la carte #614 n'existe que sur
 GitHub, et tu ne sais pas si l'app lui montre un bouton d'attente. Nous sommes
 le 2026-11-09.
 
+En début de session, l'app t'a donné la commande de parking : `'/Applications/Brigade.app/Contents/Resources/node' '/Applications/Brigade.app/Contents/Resources/app/src/second/parking.ts'`, suivie de `park <owner>/<repo>#<n> --who '<who>' --what '<what>' --until <YYYY-MM-DD>` ou de `unpark <owner>/<repo>#<n>`. Le dépôt du projet est `chef/parade`.
+
 Le chef te dit : « mets #614 en attente du client jusqu'au 15 ».

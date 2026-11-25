@@ -59,7 +59,7 @@ export type OptionsStationLocale = {
   // Le temps laissé à la station pour s'arrêter, avant qu'elle soit tuée.
   gardeMs?: number;
   // Joué avant chaque lancement du process de la station : ce qu'elle doit sentir de sa configuration
-  // (station-embarquee-cuisine-unique.ts). Il ne lève pas ; la station part quand il a fini.
+  // (station-projets-remis.ts). Il ne lève pas ; la station part quand il a fini.
   avantLancement?: () => Promise<void>;
   // La station vient de se lancer, ou de s'arrêter : `tourne()` a changé.
   surChangement?: () => void;

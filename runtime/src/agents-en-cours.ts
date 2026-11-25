@@ -42,7 +42,7 @@ export function runsHorsTicket(base: Base): RunHorsTicket[] {
 }
 
 // Un lancement, lu : `<prefixe>-<numero>-<id>` pour le manager, `fermeture-<id>` pour le closer.
-function agentDuRun({ run, station, launchedAt }: RunHorsTicket): AgentEnCours {
+export function agentDuRun({ run, station, launchedAt }: RunHorsTicket): AgentEnCours {
   if (station === "closer") return { role: "closer", ticket: null, fait: NETTOIE, depuis: launchedAt };
   const lu = /^([a-z]+)-(\d+)-/.exec(run);
   const numero = lu === null ? null : Number(lu[2]);
