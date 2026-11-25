@@ -182,6 +182,7 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     assert.equal(ligneDeStation(station({ projets: [] }), 0).dit, "online · idle · runs no kitchen");
   });
 
+  // brigade:guard
   test("hors ligne : depuis quand, en gris ; une mise à jour ratée, jaune ; sa connexion Max perdue, rouge", () => {
     assert.deepEqual(
       [ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 12 min", projets: [], max: null }), 0)].map(({ ton, dit }) => ({ ton, dit })),
@@ -191,6 +192,7 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     assert.deepEqual([ligneDeStation(station({ pannes: [MAX_PERDUE], max: "perdue" }), 0)].map(({ ton, dit }) => [ton, dit]), [["rouge", "online · Max connection lost · brigade, espace, calculus"]]);
   });
 
+  // brigade:guard
   test("l'état en une phrase, en tête de sa page : en ligne et ses cooks, hors ligne depuis quand — ni machine, ni version, ni projets", () => {
     assert.deepEqual(
       [

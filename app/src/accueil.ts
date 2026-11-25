@@ -8,7 +8,7 @@
 // box injoignable ; jaune quand une décision attend le chef ; vert sinon ; gris tant que rien n'en
 // est lu. Sa phrase dit, dans cet ordre, ce qui bloque, ce qui attend le chef — combien, depuis
 // quand —, puis ce qui cuit ; et, quand la fiabilité de ses cooks a dérivé, d'un mot : « drifting » (#987).
-// Une station : son état (« online », « offline for 12 min »), ce qu'elle fait — ses cooks, saturée,
+// Une station : son état (« online », « offline for 12 min »), ce qu'elle fait — ses cooks,
 // une mise à jour ratée, sa connexion Max perdue —, et les projets qu'elle porte. Sa machine et sa
 // version ne se lisent qu'au survol.
 //

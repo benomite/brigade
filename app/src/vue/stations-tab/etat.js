@@ -143,7 +143,7 @@ export function servantesDe({ projet, lignes = [], stations = [], declarees = []
     if (appairee !== undefined) prises.add(appairee.id);
     const refuse = ligne.etat === REFUSE;
     const horsLigne = appairee?.etat === "hors-ligne" || !enLigneDe(ligne);
-    // En ligne, une station saturée dit que sa machine n'a plus de place (cuisson.ts) ; une que la limite de GitHub retient
+    // En ligne, une station que la limite de GitHub retient
     // (ticket 2443), jusqu'à quand — elle sert ses projets, son signe de vie attend la fin de la limite. Refusant le projet,
     // elle dit pourquoi.
     const note = refuse ? ligne.dit : horsLigne ? "" : ligne.retenue !== undefined ? RETENUE(ligne.retenue) : "";

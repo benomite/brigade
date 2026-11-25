@@ -883,7 +883,7 @@ export type Faits = {
   // `cuisson` : ce que la station fait du projet, un mot de `CUISSONS` —
   // `refused` (la station de la machine refuse le projet : `refus` dit
   // pourquoi), `stopped` (le chef l'a arrêtée — `arreteeDepuis` —, ou il a
-  // arrêté toute la cuisine), `saturated` (sa machine n'en peut plus), sinon
+  // arrêté toute la cuisine), sinon
   // `cooking`. `cooks` : ses cooks en cours, le plus ancien d'abord — arrêtée,
   // ce sont ceux qui finissent. Et ce que la principale sait d'elle (#1830) :
   // `fournit`, ce qu'elle déclare fournir ; `presente`, si elle la voit — toujours

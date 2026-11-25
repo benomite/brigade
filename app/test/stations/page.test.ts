@@ -61,6 +61,7 @@ async function laPage(nom: string, reponses: Reponses = {}) {
   return { jouee, page: jouee.element("station") };
 }
 
+// brigade:guard
 test("un clic sur une station ouvre sa page : son nom, sa pastille et son état en une phrase — en ligne, hors ligne, un seul cook", async () => {
   const vues = [];
   for (const nom of ["box", "mac", "atelier"]) {
