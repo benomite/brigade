@@ -10,44 +10,42 @@
   font-size: var(--taille-corps);
   color: var(--texte-doux);
 }
-#rail .bande-du-haut > .ligne-du-supervisor,
-#rail .bande-du-haut > .ligne-du-closer {
+#rail .ligne-du-supervisor,
+#rail .ligne-du-closer {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--pas-1) var(--pas-3);
 }
-#rail .bande-du-haut > .ligne-du-supervisor > strong,
-#rail .bande-du-haut > .ligne-du-closer > strong {
+#rail .ligne-du-supervisor strong,
+#rail .ligne-du-closer strong {
   min-width: 80px;
   color: var(--texte);
 }
-#rail .bande-du-haut > .ligne-du-supervisor > span + span::before,
-#rail .bande-du-haut > .ligne-du-closer > span + span::before {
+#rail .ligne-du-supervisor span:not(:first-of-type)::before,
+#rail .ligne-du-closer span:not(:first-of-type)::before {
   content: "· ";
   color: var(--discret);
 }
 
 /* Le TODO du chef : posé sous les colonnes, montré juste au-dessus d'elles, d'un coup d'œil. */
-#rail > .colonnes {
+#rail .colonnes {
   order: 1;
 }
-#rail > .colonnes ~ * {
+#rail .colonnes ~ * {
   order: 2;
 }
-#rail > .colonnes ~ .todo-du-rail {
+#rail .colonnes ~ .todo-du-rail {
   order: 0;
 }
-#rail .todo-du-rail > .tete-du-todo {
+#rail .todo-du-rail .tete-du-todo {
   flex: none;
   align-self: center;
   font-weight: 600;
   color: var(--rouge-clair);
 }
-#rail .todo-du-rail > .tete-du-todo + .entrees-du-todo {
+#rail .todo-du-rail .entrees-du-todo {
   flex: 1 1 0;
-}
-#rail .todo-du-rail > .entrees-du-todo {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -56,7 +54,7 @@
   padding: 0;
   list-style: none;
 }
-#rail .todo-du-rail > .entrees-du-todo > li {
+#rail .entree-du-todo {
   padding-left: var(--pas-1);
   border-left: 3px solid var(--rouge);
 }
@@ -70,7 +68,7 @@
   letter-spacing: 0.04em;
   color: var(--discret);
 }
-#rail .colonne > .pas-prets {
+#rail .pas-prets {
   margin-top: var(--pas-3);
   padding-top: var(--pas-1);
   border-top: 1px dashed var(--trait);
@@ -86,9 +84,20 @@
 }
 
 /* Une lecture hors ligne ou périmée, en tête du rail : son signe, et « read again » à côté. */
-#rail > .relisible {
+#rail .relisible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--pas-2);
+}
+
+/* À côté du TODO, sous les colonnes : une réponse gardée, et « Awaiting others », replié — ni l'un ni l'autre n'attend le chef. */
+#rail .a-cote-du-todo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-4) 0;
+}
+#rail .a-cote-du-todo .replie.autres {
+  padding: var(--pas-2);
 }

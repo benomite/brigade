@@ -9,12 +9,13 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 const PARADE = RENDUS.parade as Rendu;
 const issue = (ticket: number) => `https://github.com/benomite/parade/issues/${ticket}`;
 
+// #22 attend Stripe support : sa ligne du rail porte ce qu'il attend d'un tiers.
+const PARKED: Record<number, object> = { 22: { tiers: { quoi: "the sandbox keys", qui: "Stripe support", depuis: "2026-10-12T09:00:00.000Z", relance: "2026-10-17T09:00:00.000Z", aLArrivee: "goes back on the rail" } } };
+
 const FACTS = {
   ...PARADE.facts,
   rail: [
-    ...PARADE.facts.rail.map((ligne) =>
-      ligne.ticket === 22 ? { ...ligne, tiers: { quoi: "the sandbox keys", qui: "Stripe support", depuis: "2026-10-12T09:00:00.000Z", relance: "2026-10-17T09:00:00.000Z", aLArrivee: "goes back on the rail" } } : ligne,
-    ),
+    ...PARADE.facts.rail.map((ligne) => ({ ...ligne, ...PARKED[ligne.ticket] })),
     { ticket: 16, etat: "pris", titre: "Le menu du soir", url: issue(16), activite: null, attente: null, tiers: { quoi: "your call on the menu order", qui: "the chef", depuis: "2026-10-13T08:00:00.000Z", relance: "2026-10-14T08:00:00.000Z", aLArrivee: "the cook goes on" } },
   ],
   attend: [...(PARADE.facts.attend ?? []), { ticket: 16, titre: "Le menu du soir", url: issue(16) }],
