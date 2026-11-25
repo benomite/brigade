@@ -117,9 +117,15 @@ const pont = {
   listerLesHumains: (projet) => ipcRenderer.invoke("listerLesHumains", projet),
   enregistrerUnHumain: (projet, humain) => ipcRenderer.invoke("enregistrerUnHumain", projet, humain),
   retirerUnHumain: (projet, login) => ipcRenderer.invoke("retirerUnHumain", projet, login),
+  // Les gestes retenus pour l'OK du chef (held/, ticket 4273) : lus, et approuvés un par un.
+  gestesRetenus: (projet) => ipcRenderer.invoke("gestesRetenus", projet),
+  approuverGeste: (projet, id) => ipcRenderer.invoke("approuverGeste", projet, id),
   // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus, et chacun suspendu, repris ou retiré (recurrents-box.ts).
   listerLesRecurrents: (projet) => ipcRenderer.invoke("listerLesRecurrents", projet),
   changerUnRecurrent: (projet, geste, id) => ipcRenderer.invoke("changerUnRecurrent", projet, geste, id),
+  // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (fiche-projet/fiche-projet-dossier.ts).
+  lireUnFichierDuProjet: (projet, chemin) => ipcRenderer.invoke("lireUnFichierDuProjet", projet, chemin),
+  ecrireUnFichierDuProjet: (projet, chemin, texte) => ipcRenderer.invoke("ecrireUnFichierDuProjet", projet, chemin, texte),
   // Les explications des mots de la cuisine (ticket 3308) : ce que le chef en a vu, gardé par le runtime du projet (explications/explications-box.ts).
   lireLesExplications: (projet) => ipcRenderer.invoke("lireLesExplications", projet),
   marquerUneExplication: (projet, mot) => ipcRenderer.invoke("marquerUneExplication", projet, mot),
@@ -164,7 +170,6 @@ const pont = {
   seConnecterAClaude: () => ipcRenderer.invoke("seConnecterAClaude"),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   outilsManquants: (outils) => ipcRenderer.invoke("outilsManquants", outils),
-  installerOutil: (outil) => ipcRenderer.invoke("installerOutil", outil),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
   // Démarre la station de cet ordinateur, depuis l'alerte d'un projet dont elle est arrêtée (ticket 3637).

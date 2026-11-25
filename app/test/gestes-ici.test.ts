@@ -12,7 +12,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { verdictDeLaPanne } from "../../runtime/src/verdict.ts";
-import { commandeDAttente, ecrireAttente } from "../src/attente.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { GESTE, lancerLa, ouvrirVeille, type Cuisine, type Lecture, type Locale } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
@@ -145,18 +144,6 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
     assert.equal(confirmationDe("stop", PARADE, { sans: "pas lus" }, undefined), undefined);
   });
 
-  test("ce que le chef tape passe un seul shell, ici : chaque mot arrive entier, et rien n'en est exécuté", { skip: SANS_POSIX }, async (t) => {
-    const essai = poste(t);
-    const { ecrits, terminaux } = temoin();
-    const quoi = "the client's go — $(touch pris) `touch pris`";
-    const qui = "Ana & Bo; touch pris";
-    const ecrit = await ecrireAttente(terminaux, "attente-poser", PARADE, 7, { quoi, qui, relance: "2099-01-02" }, new Date(2026, 9, 20), essai.ici);
-    assert.deepEqual(ecrit, SECOND);
-    essai.jouer(ecrits[0] as string);
-    assert.deepEqual(essai.lances(), [recu(essai, "waiting", "set", "7", "--what", quoi, "--from", qui, "--remind", "2099-01-02")]);
-    assert.equal(existsSync(join(essai.racine, "pris")), false, "rien de ce que le chef a tapé n'a été exécuté");
-  });
-
   test("vérifier l'installation : lancée ici, elle rend le verdict — et l'erreur — du geste de la station", { skip: SANS_POSIX }, async (t) => {
     const essai = poste(t);
     const verifie = async () => {
@@ -192,6 +179,5 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
 describe("sans cuisine", () => {
   test("une cuisine qui n'est nulle part n'a rien à écrire", () => {
     assert.equal(commandeDuGeste("stop", PARADE, undefined), undefined);
-    assert.equal(commandeDAttente("attente-reprendre", PARADE, 7, undefined, new Date(2026, 9, 20), undefined), undefined);
   });
 });

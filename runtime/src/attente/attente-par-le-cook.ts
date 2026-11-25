@@ -4,9 +4,9 @@
 // sa zone tenant #803 tout ce temps. Le second l'a mis en WAITING à la main. Ce module fait ce geste :
 //   - `lireAttenteDuCook` : ce que les mots d'un cook (son blocage) ou d'une relecture disent d'une attente — pas avant
 //     une date à venir, ou quelque chose qu'un tiers hors de la cuisine n'a pas encore donné. Quoi, de qui, et la relance
-//     prise de ses mots (la date dite ; sans date, dans sept jours, comme `waiting set`). Null quand ils ne disent ni
+//     prise de ses mots (la date dite ; sans date, dans sept jours). Null quand ils ne disent ni
 //     l'un ni l'autre : la question va au manager, comme avant ;
-//   - `mettreEnAttenteParLaCuisine` : le geste de `waiting set` (attente-github/attente-github.ts, `poserLAttente`), sa
+//   - `mettreEnAttenteParLaCuisine` : le geste de la mise en attente (attente-github/attente-github.ts, `poserLAttente`), sa
 //     marque disant que le ticket rentre seul sur le rail à sa relance (`backOnFollowUp`) ;
 //   - `ramenerALaRelance` : à chaque tour de station, un ticket que la cuisine a mis en WAITING et dont la relance est
 //     passée quitte `waiting` et repart sur le rail, sans geste du chef. Une attente posée par le chef n'en sort pas.

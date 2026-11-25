@@ -61,7 +61,7 @@ test("le ticket en tête dont la zone est tenue nomme le ticket qui la tient ; l
   assert.match(lignesDuRail(journal)[0] ?? "", /zone held by #20 \(runtime\/src\)/);
 });
 
-test("le ticket en tête qui attend une machine saturée le dit ; celui qui part n'a pas de raison", (t) => {
+test("une machine saturée ne retient pas le ticket en tête : ni lui ni l'autre n'ont de raison (#4285)", (t) => {
   const { journal, noter, arriver } = cuisine(t);
   arriver(30);
   arriver(31);
@@ -69,7 +69,6 @@ test("le ticket en tête qui attend une machine saturée le dit ; celui qui part
 
   noter({ type: "station.saturated", payload: { station: "box/claude", resource: "cpu", observed: 16.2, limit: 15 } });
 
-  assert.deepEqual(faits(lire(journal), LU_LE).rail.map(({ raison }) => raison), ["machine saturated", null]);
-  assert.match(lignesDuRail(journal)[0] ?? "", /^ {2}#30 {2}queued {2}prio:2 {2}machine saturated — since /);
-  assert.doesNotMatch(lignesDuRail(journal)[1] ?? "", /saturated/);
+  assert.deepEqual(faits(lire(journal), LU_LE).rail.map(({ raison }) => raison), [null, null]);
+  assert.doesNotMatch(lignesDuRail(journal).join("\n"), /saturated/);
 });
