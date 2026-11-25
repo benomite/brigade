@@ -223,9 +223,9 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.deepEqual(colonnesDe(vue), []);
 
     recevoir(vue, duTableau(FAITS, STATUS));
-    // TODO n'est pas une colonne (#3458) : #14, en attente, est rouge sur le rail, et l'entrée le compte.
-    assert.deepEqual(nomsEtComptes(vue), [["On the rail", "1"], ["Taken", "1"], ["Pass", "0"], ["Waiting", "0"], ["Served", "0"]]);
-    const surLeRail = colonnesDe(vue)[0] ?? assert.fail("pas de On the rail");
+    // TODO n'est pas une colonne (#3458) : #14, en attente, est rouge dans le backlog (#4238), et l'entrée le compte.
+    assert.deepEqual(nomsEtComptes(vue), [["Backlog", "1"], ["Manager", "0"], ["Cooks", "1"], ["Pass", "0"], ["Served", "0"]]);
+    const surLeRail = colonnesDe(vue)[0] ?? assert.fail("pas de Backlog");
     const carte = carteDuTicket(vue, 14) ?? assert.fail("pas de carte #14");
     assert.equal(surLeRail.contains(carte), true);
     assert.equal(carte.dataset.carte, "attente");
@@ -256,7 +256,7 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 1);
     // Relu, le tableau pose le rail.
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.deepEqual(nomsEtComptes(vue).map((nomEtCompte) => nomEtCompte?.[0]), ["On the rail", "Taken", "Pass", "Waiting", "Served"]);
+    assert.deepEqual(nomsEtComptes(vue).map((nomEtCompte) => nomEtCompte?.[0]), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
   });
 
   test("indisponible, la phrase du runtime ; « read again » relit", async () => {
