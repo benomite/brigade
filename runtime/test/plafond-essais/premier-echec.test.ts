@@ -12,6 +12,6 @@ test("a first failed try does not send the ticket to the manager", async () => {
   await a.calme();
   const corps = (faux.commentaires.get(894) ?? []).map(({ body }) => body).filter((b) => b.includes("the cook stopped without a delivery"));
   assert.equal(corps.length >= 1, true);
-  assert.doesNotMatch(corps[0], /tries are spent|No manager runs|Set aside/);
+  assert.doesNotMatch(corps[0]!, /tries are spent|No manager runs|Set aside/);
   assert.equal(faux.ticket(894).labels.has(ECHECS_ATTEINTS), false);
 });

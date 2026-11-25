@@ -21,6 +21,7 @@
     "test/acceptation-4138/1-rejected-entries.test.ts",
     "test/acceptation-4138/2-opens-per-frequency.test.ts",
     "test/acceptation-4138/3-one-issue-per-period.test.ts",
-    "test/acceptation-4138/4-new-period-new-issue.test.ts"
+    "test/acceptation-4138/4-new-period-new-issue.test.ts",
+    "test/acceptation-4212/3-stop-and-comment.test.ts"
   ]
 }
