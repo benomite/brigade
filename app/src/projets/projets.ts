@@ -89,6 +89,8 @@ export type ProjetVu = {
   delai?: Delai;
   // Les temps de ses derniers tickets et son plafond, tels que le suivi les publie (#2346). Absent sans temps publiés.
   temps?: TempsPublie;
+  // Les délais de ses dernières 24 heures, tels que le suivi les publie (#4309), relus par la vue. Absent sans délais publiés.
+  delais?: unknown;
   // Ce qui manque à la station pour ses tests, un choix par besoin, tel qu'elle le publie (#1398) — et les
   // issues que l'app a écrites dans sa demande, que la station n'a peut-être pas encore lues (#1400). Absents quand
   // il n'y en a pas.
@@ -514,6 +516,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
             else delete vu.blocages;
             if (dit?.delai !== undefined) vu.delai = dit.delai;
             else delete vu.delai;
+            vu.delais = dit?.delais;
             if (dit?.choix !== undefined) vu.choix = dit.choix;
             else delete vu.choix;
             if (projet.choix !== undefined) vu.choisis = projet.choix;

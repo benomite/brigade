@@ -1005,6 +1005,21 @@ chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/journal/fils.ts`, the words t
 digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
 the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
 
+### The last 24 hours: tickets merged on time, and the slowest overruns (#4309, epic #4298)
+
+At the top of the project view, **Last 24 hours** shows the share of tickets merged within their expected time —
+`83 % merged within their expected time (20/24)` —, then the worst overruns, worst first (the most minutes over the
+expected time): each says its ticket number, its title, its expected time and its actual time. A click on an overrun
+opens where its time went — cook, gates, review, send-backs, waits —, in minutes; a second click closes it.
+
+The data is the `delais` object that `brigade <project> status --json` returns, relayed as is in the station's
+follow-up next to `temps` (`app/src/projets/demande.ts`) and read by `app/src/vue-delais/delais.js`. With no `delais`,
+a `part_dans_les_temps` that is `null`, or a share that is not readable, the block says `No ticket merged with an
+expected time in the last 24 hours.` — never a made-up figure. An overrun with no readable time or title is left out;
+one whose breakdown is not readable says so when opened. Captures: `docs/captures/4309/` — `espace-projet-avant.png`,
+`espace-projet-apres.png` (no `delais`: the short empty line), `projet-delais-apres.png` and
+`projet-delais-ouvert-apres.png` (the worst overrun opened).
+
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail and Cooks tabs are drawn from
