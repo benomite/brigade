@@ -144,9 +144,9 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.match(c.gh.corpsDe(502), /Calibrated `opus` \/ `high` \/ `5 min` — Un écran\./);
     for (const numero of [501, 502, 503, 504]) assert.doesNotMatch(c.gh.corpsDe(numero), /design cook|cook:design/i);
     const dit = c.dits(30).find((texte) => /epic split into/.test(texte)) ?? "";
-    assert.match(dit, /\| #501 \| Le rail expose le compte \| .* \| `sonnet` \/ `medium` \|$/m);
-    assert.match(dit, /\| #502 \| La carte montre le compte \| .* \| `opus` \/ `high` \|$/m);
-    assert.match(dit, /\| #504 \| La doc dit le compte \| .* \| `haiku` \/ `low` \|$/m);
+    assert.match(dit, /\| #501 \| Le rail expose le compte \| .* \| `sonnet` \/ `medium` \/ `5 min` \|$/m);
+    assert.match(dit, /\| #502 \| La carte montre le compte \| .* \| `opus` \/ `high` \/ `5 min` \|$/m);
+    assert.match(dit, /\| #504 \| La doc dit le compte \| .* \| `haiku` \/ `low` \/ `5 min` \|$/m);
     // L'intention au journal ne porte aucun cook.
     const prevus = charge(c.tous("manager.split")[0])?.tickets as { cook?: string }[];
     assert.deepEqual(prevus.map((prevu) => prevu.cook ?? null), [null, null, null, null]);
@@ -235,7 +235,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.match(dit, /epic split into 3 tickets/);
     assert.match(dit, /Why these tickets\.\*\* Un livrable par module touché\./);
     assert.match(dit, /Why this order\.\*\* Le rail d'abord/);
-    assert.match(dit, /\| #502 \| La pass lit le compte \| none \| `runtime\/src\/pass\.ts` \| `sonnet` \/ `medium` \|/);
+    assert.match(dit, /\| #502 \| La pass lit le compte \| none \| `runtime\/src\/pass\.ts` \| `sonnet` \/ `medium` \/ `5 min` \|/);
     assert.doesNotMatch(dit, /Tickets joined/);
     assert.match(dit, /The manager never splits an epic again\./);
     assert.match(dit, /Split by the manager in `sonnet` \/ `medium` · 1 turn/);
