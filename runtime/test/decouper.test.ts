@@ -177,6 +177,19 @@ test("un découpage se lit avec son motif, son ordre, et chaque ticket avec crit
   });
 });
 
+test("une question qui demande au chef s'il faut découper ne se lit pas : c'est au manager (#4247)", () => {
+  for (const question of [
+    "Does the manager split #4056 into several tickets, or keep it as a single ticket?",
+    "Should this epic be split into tickets?",
+    "One ticket or several?",
+    "Do we keep it as one ticket, or split it?",
+  ]) {
+    assert.match(illisible(JSON.stringify({ reponse: "question", question })), /asks the chef whether to split the epic/, question);
+  }
+  // Une question de produit se lit toujours, même quand elle parle de tickets.
+  assert.deepEqual(lireDecoupage('{"reponse": "question", "question": "Should the rail show one ticket per line?"}'), { valeur: { quoi: "question", question: "Should the rail show one ticket per line?" } });
+});
+
 test("une question et une épique déjà découpée se lisent, et ne portent aucun ticket", () => {
   assert.deepEqual(lireDecoupage('{"reponse": "question", "question": "Quel écran ?"}'), { valeur: { quoi: "question", question: "Quel écran ?" } });
   assert.deepEqual(lireDecoupage('{"reponse": "deja-decoupee", "motif": "Elle liste #68 à #74."}'), { valeur: { quoi: "deja", reason: "Elle liste #68 à #74." } });
