@@ -72,6 +72,7 @@ import { avecChangements, lireChangements } from "./validation-design/changement
 import { cleDansLaLivraison, lancementDuCook, moteurDeLaStation, noterLaLivraison } from "./moteur/moteur.ts";
 import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-design/choix-de-design.ts";
 import { consigneDesOutils, outilsDuCook } from "./outils-du-cook.ts";
+import { consigneDesTestsDeLaZone, selectionnerTests } from "./tests-de-la-zone/tests-de-la-zone.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
@@ -373,6 +374,9 @@ export type OptionsDeStation = {
   // ligne qui dit pourquoi (zone tenue, capacité, calibrage, dépendance mise de
   // côté) : le tour du superviseur la lit (#2429, #3945).
   sauter?: (ticket: number, ligne: string, attendus?: readonly number[], raison?: RaisonDuSaut) => void;
+  // Appelé quand la porte de prise ne compte plus une PR ouverte, périmée ou marquée `zone-released`, qui recoupe la zone
+  // d'un ticket : le superviseur lui pose ce label (`superviseur/zone-liberee.ts`, #4243).
+  perimee?: (ticket: number, pr: PRDeLaPorte & { number: number }) => void;
   // Les tickets que la porte prend avant les autres quand une place s'ouvre — celui que le réveil sans merge nomme (#4102) :
   // devant les `prio:N` et l'ordre des numéros, sans quoi il attend derrière des tickets mis de côté qui reviennent sans cesse.
   enPremier?: () => readonly number[];
@@ -841,6 +845,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   let attendentDuTour = new Set<number>();
   // Ce que la porte de prise dit de chaque ticket qu'elle saute : le superviseur le lit (#3945).
   const sauter = (ticket: number, ligne: string, attendus?: readonly number[], raison?: RaisonDuSaut) => options.sauter?.(ticket, ligne, attendus, raison);
+  const perimee = (ticket: number, pr: PRDeLaPorte & { number: number }) => options.perimee?.(ticket, pr);
   const enPremier = () => {
     try {
       return options.enPremier?.() ?? [];
@@ -2274,7 +2279,11 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         if (await estUneEpique(ouverte.branche)) continue;
         // Une PR oubliée ne tient plus la zone : elle n'est ni en cuisine, ni au pass, ni récente (#4242).
         const pourquoi = await vivante(ouverte, { maintenant: instant(), parSonTicket: () => vieParSonTicket(ouverte.branche) });
-        if (pourquoi === null) continue;
+        if (pourquoi === null) {
+          // Périmée, ou déjà marquée : le superviseur la marque `zone-released`, une fois, et demande au chef s'il faut fermer celle d'un humain (#4243).
+          if (typeof ouverte.number === "number") perimee(ticket.number, { ...ouverte, number: ouverte.number });
+          continue;
+        }
         tenante = { pr: ouverte, pourquoi };
         break;
       }
@@ -2933,6 +2942,8 @@ export type OptionsDuDepot = {
   setup?: { delaiMs: number };
   // Ce que la porte de prise a dit d'un ticket qu'elle n'a pas pris (#2429).
   sauter?: (ticket: number, ligne: string, attendus?: readonly number[], raison?: RaisonDuSaut) => void;
+  // La PR périmée que la porte de prise ne compte plus sur la zone d'un ticket (#4243).
+  perimee?: (ticket: number, pr: PRDeLaPorte & { number: number }) => void;
   // Les tickets que la porte prend avant les autres quand une place s'ouvre — celui que le réveil sans merge nomme (#4102) :
   // devant les `prio:N` et l'ordre des numéros, sans quoi il attend derrière des tickets mis de côté qui reviennent sans cesse.
   enPremier?: () => readonly number[];
@@ -3412,6 +3423,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     if (outils.message) avertir(`brigade : #${ticket.number} sur ${nom} — ${outils.message}`);
     const consigneOutils = consigneDesOutils(ticket.number, outils);
     if (consigneOutils) joint += `\n\n${consigneOutils}`;
+    // Les tests de sa zone, et eux seuls (#4301) ; illisible, il ne reçoit que la règle, jamais une liste inventée.
+    const zoneDuCook = zoneDeclaree(corpsDuTicket, fiche(commentairesDuTicket.map(({ body }) => body)));
+    try {
+      joint += `\n\n## Tests to play\n\n${selectionnerTests(zoneDuCook, worktree).consigne}`;
+    } catch (erreur) {
+      avertir(`brigade : #${ticket.number} sur ${nom} — the tests of its zone could not be listed: ${message(erreur)}`);
+      joint += `\n\n## Tests to play\n\n${consigneDesTestsDeLaZone([], [])}`;
+    }
     // Le worktree rendu prêt avant que le cook n'y entre (#2535) : sans ses
     // dépendances, ses premières gates sortaient rouges — contrôle de types
     // injouable —, et il les rejouait après le setup. Le setup part sans le
@@ -4126,7 +4145,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     await depot.elaguer?.(branche);
     return true;
   };
-  const station = stationGitHub({ ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(options.perimee === undefined ? {} : { perimee: options.perimee }), ...(testsAcceptation === undefined ? {} : { testsAcceptation, testsPerdus }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.sauver = sauver;
   station.porte = options.porte ?? null;
   station.lireCharge = lireCharge;
