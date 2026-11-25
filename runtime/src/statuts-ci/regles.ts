@@ -25,6 +25,7 @@ import { cartesEnTodo, cartesRetenues, entrerDansTodo } from "../carte-todo.ts";
 import { CONCLUSIONS_VERTES, ECHECS_ATTEINTS } from "../github.ts";
 import type { Journal } from "../journal.ts";
 import type { RunDeCi } from "../temps-ticket/ci-github.ts";
+import { BRANCHE_PRINCIPALE_PAR_DEFAUT } from "../fiche-projet/defauts.ts";
 
 // Un résultat d'un check : son nom, son issue, le run qui l'a rendu (nul s'il
 // n'est pas connu) et la tête qu'il a jugée — les résultats d'une même tête,
@@ -110,11 +111,11 @@ type EntreeDeMain = {
   projet: string;
   // Vrai tant qu'une relance ou un ticket de réparation peut encore rendre `main` vert.
   cuisinePeutReparer: () => Promise<boolean>;
-  // Le nom de la branche d'intégration, que la carte dit ; `main` par défaut.
+  // Le nom de la branche d'intégration, que la carte dit ; celle des défauts de la fiche du projet sinon.
   branche?: string;
 };
 
-export async function evaluerMain({ statuts, journal, projet, cuisinePeutReparer, branche = CIBLE_MAIN }: EntreeDeMain): Promise<EvaluationDeMain> {
+export async function evaluerMain({ statuts, journal, projet, cuisinePeutReparer, branche = BRANCHE_PRINCIPALE_PAR_DEFAUT }: EntreeDeMain): Promise<EvaluationDeMain> {
   let derniers: ResultatDeCheck[];
   let reparable: boolean;
   try {

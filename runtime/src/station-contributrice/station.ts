@@ -31,6 +31,7 @@ import type { GardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
 import { MIS_DE_COTE, type GitHub, type Issue } from "../github.ts";
 import { environnementClaude } from "../jeton-claude.ts";
 import { lireBlocage } from "../livrable.ts";
+import { faitsDuDossier, type FaitsDeLaCuisine } from "../fiche-projet/fiche.ts";
 import { aDesGates, jouerGates } from "../gates.ts";
 import { VARIABLES_GITHUB } from "../identites.ts";
 import { superviser } from "../superviseur.ts";
@@ -154,8 +155,16 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
     } catch (erreur) {
       return lacher(ticket.number, `its worktree could not be prepared (${message(erreur)})`);
     }
+    // Le travail du cook, tel que la fiche du projet le dit (#4237). Refusée, aucun cook ne part.
+    let fiche: FaitsDeLaCuisine["cook"];
+    try {
+      fiche = faitsDuDossier(worktree, base).cook;
+    } catch (erreur) {
+      depot.retirer(worktree);
+      return lacher(ticket.number, `the project sheet is refused (${message(erreur)})`);
+    }
     const flux = join(options.flux, `${run}.flux.jsonl`);
-    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
+    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint, fiche });
     const lancement = envelopper(options.cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree) }, { cwd: worktree, depot: "ecriture" });
     const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: envDuCook(), flux });
     const fin = await lance.fin;
