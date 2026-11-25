@@ -207,6 +207,8 @@ is in the log (`cook.reported`), the raw stream in `runs/<run>.jsonl`.
 A cook's deliverable is **what it delimits in its last message, between `<livrable>` and
 `</livrable>`** (`runtime/src/livrable.ts`; tags French until the runtime is translated), and nothing
 else. With a diff it is the report, in the PR body; with no diff it is the deliverable itself.
+The prompt asks for it in English, with the commit messages and what goes into the PR, whatever the language of the prompt
+or the ticket: it is published on the repository, which others than the chef read (#4056).
 
 - Several delimitations: **the last one**. An opening reopened before being closed: what follows the
   **last** opening. A closing with no opening, a foreign tag, a **quoted** tag: ignored.
