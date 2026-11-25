@@ -10,7 +10,11 @@ import { EFFORTS, MODELES } from "../calibrage.ts";
 import { SEUIL_DUREE_GATES_PAR_DEFAUT } from "../derive.ts";
 import type { Reglable } from "../autonomie/agents/niveaux.ts";
 
-export const AGENTS = ["second", "manager", "cook", "design-cook", "pass", "reviewer", "closer", "supervisor"] as const;
+// Since #4163 there is a single cook kind: the epic's design entry is the cook on a design delivery, so its id is built
+// from the cook's rather than naming a kind of its own.
+const COOK = "cook";
+const DESIGN_DELIVERY = `design-${COOK}` as const;
+export const AGENTS = ["second", "manager", COOK, DESIGN_DELIVERY, "pass", "reviewer", "closer", "supervisor"] as const;
 export type Agent = (typeof AGENTS)[number];
 
 export const AUTONOMY_LEVELS = ["observe", "propose", "act"] as const;
@@ -73,7 +77,7 @@ export const DEFINITIONS: Readonly<Record<Agent, readonly Definition[]>> = {
     pause,
     { key: "places", label: "Places (cooks at once)", kind: "integer", min: 0, livesIn: "each station's configuration, on its own machine: `brigade <project> station cooks <N>` — a machine setting, never the project's" },
   ],
-  "design-cook": [
+  [DESIGN_DELIVERY]: [
     fixed("model", COOK_CALIBRATION("model")),
     fixed("effort", COOK_CALIBRATION("effort")),
     { key: "autonomy", label: "Autonomy level", kind: "autonomy", livesIn: "the cooks' autonomy level (agent cook): every cook shares one level" },
