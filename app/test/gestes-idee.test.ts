@@ -53,9 +53,7 @@ describe("les gestes d'une idée en réserve", () => {
     const rendu = await jouerLIdee(LU, "abandonner", 30, client);
     assert.deepEqual(demandes, ['PATCH /repos/chef/parade/issues/30 {"state":"closed","state_reason":"not_planned"}']);
     assert.deepEqual(rendu, { fait: "dropped on GitHub: #30 is closed as not planned", detail: "https://github.com/chef/parade/issues/30" });
-  });
-
-  test("GitHub refuse : rien n'a changé, et la phrase le dit", async () => {
+    // GitHub refuse : rien n'a changé, et la phrase le dit.
     const ferme = await jouerLIdee(LU, "abandonner", 30, github(() => ({ status: 403, data: { message: "Must have admin rights" } })).client);
     assert.ok("refus" in ferme && ferme.refus === "nothing was changed: GitHub did not close #30" && ferme.detail.includes("403"), JSON.stringify(ferme));
     const jete = await jouerLIdee(LU, "abandonner", 30, { lire: async () => assert.fail("rien ne se lit"), ecrire: async () => Promise.reject(new Error("socket hang up")) });
