@@ -6,7 +6,7 @@ import type { ClientGitHub } from "./proteger-branche.ts";
 import { ETIQUETTES } from "./etiquettes.ts";
 import { LABEL_REPARATION_SATURATION } from "./reparation.ts";
 
-export async function garantirLabelsDuProjet(depot: string, client: ClientGitHub): Promise<void> {
+async function garantirLabelsDuProjet(depot: string, client: ClientGitHub): Promise<void> {
   const lus = await client({ methode: "GET", chemin: `repos/${depot}/labels?per_page=100` });
   if (lus.statut !== 200 || !Array.isArray(lus.corps)) throw new Error(`labels of ${depot} unreadable (HTTP ${lus.statut})`);
   if (lus.corps.some((lu) => String((lu as { name?: unknown }).name ?? "").toLowerCase() === LABEL_REPARATION_SATURATION)) return;

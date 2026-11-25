@@ -2,7 +2,7 @@
 // configuration. Elle relit cette configuration sans cesse : un projet ajouté
 // s'ouvre, un projet retiré s'arrête, une ligne changée rouvre son projet —
 // sans redémarrer la station ni toucher aux autres projets.
-import { garantirLabelsDuProjet } from "../labels-des-projets.ts";
+import { garantirLabelsDesProjets } from "../labels-des-projets.ts";
 import { clientGh } from "../proteger-branche.ts";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
@@ -165,7 +165,7 @@ export function ouvrirStation(options: OptionsStation): Station {
       ouvertes.set(projet.nom, { cle, depot: projet.depot, clone, cuisine });
       refuses.delete(projet.nom);
       // Le label de la réparation de la saturation existe dans chaque projet servi, créé par la cuisine (#4173).
-      void garantirLabelsDuProjet(projet.depot, clientGh(sien.BRIGADE_GH_BIN || process.env.BRIGADE_GH_BIN || "gh", { ...process.env, ...sien })).catch((erreur) => dit(`label saturation-repair not guaranteed — ${message(erreur)}`));
+      void garantirLabelsDesProjets({ projets: [{ github: projet.depot }], client: () => clientGh(sien.BRIGADE_GH_BIN || process.env.BRIGADE_GH_BIN || "gh", { ...process.env, ...sien }) }).catch((erreur) => dit(`label saturation-repair not guaranteed — ${message(erreur)}`));
       dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);
     } catch (erreur) {
       const motif = message(erreur);
