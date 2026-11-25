@@ -1,4 +1,4 @@
-// Test d'acceptation gelé (#4072). Critère 2 : `brigade <project> waiting set <ticket> --what … --from … --remind <date>`, lancée depuis l'onglet du second, met la carte en WAITING comme le bouton de la carte.
+// Test d'acceptation gelé (#4072). Critère 2 : la commande `brigade` que l'app écrit, lancée depuis l'onglet du second, joue le geste de la station. Mettre une carte en WAITING n'en passe plus : le second la parque par la commande de parking, comme le bouton de la carte (#4262).
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
