@@ -36,7 +36,7 @@ import { attenteDuRailDe } from "../attente-du-rail/attente-du-rail.ts";
 import { avecLaPause, pauseDuCompte, type QuotaGithub } from "../pause-quota/pause-quota.ts";
 import { arretDuRail, zoneTenueDe } from "../bandeau-arret/arret-du-rail.ts";
 import { railDuBacklog } from "../../../../runtime/src/rail-backlog/rail-backlog.ts";
-import { htmlDuRail } from "./rail.ts";
+import { htmlDuRail, type HautDuBacklog } from "./rail.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
@@ -412,10 +412,11 @@ function alertesDe(depot: string, tickets: readonly TicketSurGithub[], servis: r
   return alertes.length === 0 ? {} : { alertesDuRail: alertes };
 }
 
-// Le haut du backlog que la lecture porte : les tickets en file — ni pris, ni en pass, ni mis de côté, ni tenus —, rangés
-// par rail-backlog.ts, et l'écran qui les montre (rail.ts).
-function hautDuBacklogDe(montres: readonly TicketSurGithub[], labelsLus: Readonly<Record<number, string[]>>): { issues: { number: number; title: string; url: string }[]; html: string } {
-  const enFile = montres.flatMap(({ ticket, titre, url, etat, creeLe, miseDeCote }) => (EN_FILE.has(etat) && miseDeCote === undefined ? [{ number: ticket, title: titre, url, labels: labelsLus[ticket] ?? [], createdAt: creeLe }] : []));
+// Le haut du backlog que la lecture porte, et l'écran qui le montre (rail.ts). Ses labels seuls disent si une issue est
+// calibrée et prête (rail-backlog.ts, une seule règle) ; son état dit seulement si une station la tient déjà — prise, en
+// pass, ou qui attend un autre ticket —, ce qu'aucun label ne dit : celle-là a quitté la file.
+function hautDuBacklogDe(montres: readonly TicketSurGithub[], labelsLus: Readonly<Record<number, string[]>>): HautDuBacklog {
+  const enFile = montres.flatMap(({ ticket, titre, url, etat, creeLe }) => (EN_FILE.has(etat) ? [{ number: ticket, title: titre, url, labels: labelsLus[ticket] ?? [], createdAt: creeLe }] : []));
   const haut = railDuBacklog(() => enFile).rafraichir();
   return { issues: haut.map(({ number, title, url }) => ({ number, title, url })), html: htmlDuRail(haut) };
 }
