@@ -115,7 +115,7 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
     const posee = poserLeTodo(doc, { cartes: [validation, revue], ouvrir: () => {}, gestes: siens as never }) as unknown as Faux;
     const [premiere, seconde] = posee.dessous("li");
     assert.deepEqual(boutons(premiere as Faux).map(({ textContent, className }) => [textContent, className]), [["Validate", "recommande"]]);
-    assert.deepEqual(boutons(seconde as Faux).map(({ textContent }) => textContent), ["Merge"]);
+    assert.deepEqual(boutons(seconde as Faux).map(({ textContent, className }) => [textContent, className]), [["Merge", "recommande"]]);
     boutons(premiere as Faux)[0]?.click();
     boutons(seconde as Faux)[0]?.click();
     assert.deepEqual(joues, [[60, "valider", undefined], [62, "merger", undefined]]);
@@ -172,6 +172,8 @@ describe("la vue : le TODO, ses questions et ses boutons", () => {
     assert.deepEqual(leTodo(vue).dessous("li").map(({ dataset }) => Number(dataset.ticket)).sort(), [50, 51]);
     assert.equal(leTodo(vue).children[0]?.textContent, "TODO (2)");
     assert.deepEqual([50, 51, 52, 53].map((ticket) => bon(vue, ticket).dataset.carte === "attente"), [true, true, false, false]);
+    // Chacune dit qu'elle t'attend, en mots.
+    assert.deepEqual([50, 51].map((ticket) => bon(vue, ticket).dessous("span").some(({ dataset }) => dataset.pastille === "awaiting")), [true, true]);
     assert.equal(entreeDe(vue, 50).dessous("p")[0]?.textContent, "Ship the export as CSV?");
     assert.equal(entreeDe(vue, 51).dessous("p")[0]?.textContent, "the signed quote");
   });
