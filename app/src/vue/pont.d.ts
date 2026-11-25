@@ -320,11 +320,21 @@ export type Pont = {
   listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
   enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
   retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet
+  // tourne — rien pour un projet qui ne cuit pas sur cet ordinateur —, et l'OK donné à l'un par son id.
+  // Optionnels : un pont qui ne les porte pas (le téléphone) n'en montre aucun.
+  gestesRetenus?(projet: string): Promise<import("../held/contrat.ts").LectureDesRetenus | undefined>;
+  approuverGeste?(projet: string, id: string): Promise<import("../held/contrat.ts").Approbation>;
   // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus par `recurring` là où sa cuisine tourne, et chacun
   // suspendu, repris ou retiré d'un clic (recurrents/recurrents.js, recurrents/recurrents-box.ts). Optionnels : un pont qui
   // ne les porte pas (le téléphone) ne montre pas la section.
   listerLesRecurrents?(projet: string): Promise<import("./recurrents/recurrents-box.ts").LectureDesRecurrents>;
   changerUnRecurrent?(projet: string, geste: import("./recurrents/recurrents-box.ts").Geste, id: string): Promise<import("./recurrents/recurrents-box.ts").EcritureDUnRecurrent>;
+  // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
+  // `.brigade/fiche-projet.json` (fiche-projet/fiche-projet-dossier.ts). `null` : il n'y est pas. Optionnels : un pont qui
+  // ne les porte pas (le téléphone) ne montre pas la section.
+  lireUnFichierDuProjet?(projet: string, chemin: string): Promise<string | null>;
+  ecrireUnFichierDuProjet?(projet: string, chemin: string, texte: string): Promise<void>;
   // Les explications des mots de la cuisine (ticket 3308) : les mots dont le chef de cet ordinateur a vu l'explication, gardés
   // par chef là où la cuisine du projet tourne ; un mot vu, et tout remontré depuis Settings (explications/explications-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucune explication.
