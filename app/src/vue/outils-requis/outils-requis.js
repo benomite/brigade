@@ -16,7 +16,7 @@ import { CET_ORDINATEUR } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {"gh" | "git" | "claude"} OutilRequis */
-/** @typedef {{ outil: OutilRequis, installation: import("../../outils-requis.ts").OutilManquant["installation"] }} Manque */
+/** @typedef {{ outil: OutilRequis, installation?: import("../../outils-requis.ts").OutilManquant["installation"] }} Manque */
 /** @typedef {{ outilsManquants?(outils?: OutilRequis[]): Promise<Manque[]> }} PontDesOutils */
 /**
  * Ce que l'écran tient. `lu` : une vérification a rendu — avant, rien n'est sûr. `manque` : l'outil à installer, le
@@ -150,10 +150,10 @@ export function poserLesOutils(doc, etat, geste) {
   pourquoi.className = "pourquoi";
   racine.append(tete, pourquoi);
   const occupe = etat.enCours !== undefined;
-  const lien = boutonAction(doc, LA_PAGE(outil), () => geste.ouvrir(installation.lien), { recommande: true });
+  const lien = installation === undefined ? undefined : boutonAction(doc, LA_PAGE(outil), () => geste.ouvrir(installation.lien), { recommande: true });
   const relit = boutonAction(doc, DEJA_INSTALLE, geste.verifier);
   relit.children[0].disabled = occupe;
-  racine.append(gestes(doc, [lien, relit]));
+  racine.append(gestes(doc, lien === undefined ? [relit] : [lien, relit]));
   const { dit } = etat;
   if (etat.enCours !== undefined) {
     const enRoute = cree(doc, "p", VERIFICATION);
