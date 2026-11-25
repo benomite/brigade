@@ -96,3 +96,13 @@ test("a read that no longer carries the top of the backlog, or carries it malfor
   recevoirFaits(vue, { ...sans, hautDuBacklog: { issues: [{ number: "3" }], html: "<ol></ol>" } });
   assert.equal(bloc(vue), undefined);
 });
+
+test("the Backlog column's rail is the top of the backlog: the same tickets, in the same order; a queued ticket not calibrated sits below (#4223)", async () => {
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: github, maintenant: () => new Date(A) });
+  const vue = await ouvrir();
+  recevoirFaits(vue, lu.faits);
+  const section = (classe: string) => [...vue.element("rail").descendants()].find(({ className }) => className === classe) ?? assert.fail(`pas de ${classe}`);
+  const tickets = (classe: string) => section(classe).dessous("li").filter(({ className }) => className === "bon").map((li) => li.children[0]?.children[0]?.textContent);
+  assert.deepEqual(tickets("du-rail"), ["#3", "#2", "#1"]);
+  assert.ok(tickets("pas-prets").includes("#5"), JSON.stringify(tickets("pas-prets")));
+});

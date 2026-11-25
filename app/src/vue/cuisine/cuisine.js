@@ -56,11 +56,13 @@ export const colonneDuPlan = (nomDeFaits, carte) => (auManager(carte) ? MANAGER 
 
 /**
  * Le plan, des colonnes que todo.js a rangées : chaque carte dans la colonne de son étape, les rouges en tête. Le backlog
- * sépare le rail — ce qui est prêt à cuire — du reste.
- * @param {readonly Colonne[]} colonnes
+ * sépare le rail — ce qui est prêt à cuire — du reste. `rail` : les numéros du haut du backlog que la lecture porte
+ * (vue/rail/, ticket 4223), dans leur ordre ; donné, le rail du backlog est celui-là — les mêmes tickets, dans le même
+ * ordre —, et un ticket prêt qui n'y est pas passe dessous.
+ * @param {readonly Colonne[]} colonnes @param {readonly number[]} [rail]
  * @returns {ColonneDuPlan[]}
  */
-export function planDeLaCuisine(colonnes) {
+export function planDeLaCuisine(colonnes, rail) {
   /** @type {Map<string, { cartes: Carte[], vide?: string, defile?: boolean }>} */
   const plan = new Map([BACKLOG, MANAGER, COOKS, PASS, SERVED].map((nom) => [nom, { cartes: [] }]));
   // Une colonne de faits.ts pas connue — la box ne répond pas — laisse tout le plan inconnu : ses cartes iraient n'importe où.
@@ -86,7 +88,8 @@ export function planDeLaCuisine(colonnes) {
     };
     if (nom !== BACKLOG) return colonne;
     const pret = (/** @type {Carte} */ carte) => !estRouge(carte) && carte.parque === undefined && PRETS.includes(carte.etat ?? "");
-    return { ...colonne, pretes: rangees.filter(pret), pasPretes: rangees.filter((carte) => !pret(carte)) };
+    const pretes = rail === undefined ? rangees.filter(pret) : rail.flatMap((ticket) => rangees.filter((carte) => carte.ticket === ticket && pret(carte)));
+    return { ...colonne, pretes, pasPretes: rangees.filter((carte) => !pretes.includes(carte)) };
   });
 }
 
