@@ -1,7 +1,7 @@
 // Le vrai pty : node-pty, le seul module natif de l'app. Il est livré compilé
 // pour macOS et pour Windows (ConPTY), et passe par N-API — le même binaire sert
 // Node (les tests) et Electron (l'app), sans recompilation.
-import { chmodSync, existsSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import type { Lancement, Pty } from "./terminaux.ts";
@@ -12,7 +12,36 @@ const PRECOMPILE = join(dirname(requerir.resolve("node-pty/package.json")), "pre
 // node-pty 1.1.0 livre `spawn-helper` sans son bit d'exécution : tout lancement
 // échoue alors par « posix_spawnp failed ». Windows n'en a pas.
 const AIDE = join(PRECOMPILE, "spawn-helper");
-if (existsSync(AIDE)) chmodSync(AIDE, 0o755);
+
+// Lancée d'un lieu en lecture seule (l'app ouverte depuis l'image disque, #4269), l'app ne peut pas rendre l'aide
+// exécutable (EROFS). Si elle l'est déjà, tout va bien ; sinon aucun terminal ne s'ouvrira, et l'app doit le dire.
+// Toute autre erreur reste levée : ce n'est pas ce cas-là.
+export function aideUtilisable(
+  aide: string,
+  fs: { existe: (chemin: string) => boolean; chmod: (chemin: string) => void; executable: (chemin: string) => boolean } = {
+    existe: existsSync,
+    chmod: (chemin) => chmodSync(chemin, 0o755),
+    executable: (chemin) => {
+      try {
+        accessSync(chemin, constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  },
+): boolean {
+  if (!fs.existe(aide)) return true;
+  try {
+    fs.chmod(aide);
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "EROFS") throw erreur;
+    return fs.executable(aide);
+  }
+  return true;
+}
+
+export const aideInutilisable = !aideUtilisable(AIDE);
 
 // Faux là où node-pty n'est pas livré compilé (Linux) : l'app est une app du Mac et de Windows.
 export const ptyDisponible = existsSync(PRECOMPILE);
