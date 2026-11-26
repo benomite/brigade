@@ -41,21 +41,23 @@
 // qui n'est pas un Mac) — rien n'est écrit.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { APP_DU_PAQUET, COMMANDES_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
 import { COMMANDES } from "../src/plugin-app.ts";
-import { defautsDeNom } from "./verifier-plist.ts";
+import { defautsDeNom, IDENTIFIANT } from "./verifier-plist.ts";
 
 const REFUS = 2;
 const ECHEC = 1;
 
 export const NOM = "Brigade";
-export const IDENTIFIANT = "com.github.benomite.brigade";
+export { IDENTIFIANT };
 export const ARCH = "arm64";
+// L'identifiant de signature du `node` porté : sans lui, codesign garde le nom du fichier.
+const IDENTIFIANT_DU_NODE = `${IDENTIFIANT}.node`;
 // L'icône du paquet, sous `Contents/Resources/` : celle de `icones/`, que CFBundleIconFile nomme.
 export const ICONE = "Brigade.icns";
 
@@ -111,8 +113,8 @@ export function versionCourte(version: string): string {
   return courte;
 }
 
-// Le `Info.plist` d'Electron, au nom de l'app. L'exécutable et les auxiliaires gardent le nom
-// d'Electron (seuls les noms que macOS montre changent, voir reecrirePlistAuxiliaire) : c'est sous lui qu'Electron cherche ses auxiliaires. L'intégrité de `default_app.asar`
+// Le `Info.plist` d'Electron, au nom de l'app, exécutable compris (assembler renomme le fichier) :
+// macOS nomme l'activité d'arrière-plan d'après lui. L'intégrité de `default_app.asar`
 // part avec lui — l'app n'est pas une archive asar.
 export function reecrirePlist(xml: string, courte: string): string {
   const remplacer = (texte: string, cle: string, valeur: string) => {
@@ -129,14 +131,21 @@ export function reecrirePlist(xml: string, courte: string): string {
     ["CFBundleVersion", courte],
   ] as const)
     texte = remplacer(texte, cle, valeur);
+  // L'exécutable : celui qu'assembler renomme ; à défaut, on pose la clé.
+  texte = /<key>CFBundleExecutable<\/key>/.test(texte) ? remplacer(texte, "CFBundleExecutable", NOM) : texte.replace("<dict>", `<dict>\n\t<key>CFBundleExecutable</key>\n\t<string>${NOM}</string>`);
   // L'icône : le plist d'Electron en nomme une (`electron.icns`) ; à défaut, on pose la clé.
   texte = /<key>CFBundleIconFile<\/key>/.test(texte) ? remplacer(texte, "CFBundleIconFile", ICONE) : texte.replace("<dict>", `<dict>\n\t<key>CFBundleIconFile</key>\n\t<string>${ICONE}</string>`);
   return sansCle(texte, "ElectronAsarIntegrity");
 }
 
-// Le `Info.plist` d'un auxiliaire d'Electron (« Electron Helper (GPU) »…), au nom de l'app : c'est
-// ce nom que macOS montre pour l'activité d'arrière-plan d'un processus auxiliaire. Son dossier,
-// son exécutable et ses fichiers gardent le nom d'Electron : Electron les cherche sous lui.
+// Le nom d'un auxiliaire d'Electron au nom de l'app : « Electron Helper (GPU).app » devient
+// « Brigade Helper (GPU) ». C'est celui de son dossier et de son exécutable : Electron cherche
+// ses auxiliaires sous le nom de l'exécutable principal, suivi de « Helper ».
+export const nomDAuxiliaire = (dossier: string): string => dossier.replace(/\.app$/, "").replace(/^Electron(?= Helper)/, NOM);
+
+// Le `Info.plist` d'un auxiliaire d'Electron (« Electron Helper (GPU) »…), au nom de l'app : nom,
+// exécutable et identifiant. macOS nomme d'après eux l'activité d'arrière-plan d'un processus
+// auxiliaire. assembler renomme le dossier et l'exécutable de même.
 // Les plists réels n'ont pas toujours les deux clés, ni dans la forme attendue : CFBundleName est
 // renommé s'il commence par « Electron Helper », sinon le nom vient du dossier (`Electron Helper*.app`) ;
 // CFBundleDisplayName prend la même valeur, posée si elle manque.
@@ -151,8 +160,8 @@ export function reecrirePlistAuxiliaire(xml: string, dossier = "Electron Helper.
     const motif = new RegExp(`(<key>${cle}</key>\\s*<string>)[^<]*(</string>)`);
     return motif.test(texte) ? texte.replace(motif, `$1${contenu}$2`) : texte.replace("<dict>", `<dict>\n\t<key>${cle}</key>\n\t<string>${contenu}</string>`);
   };
-  const identifiant = /(<key>CFBundleIdentifier<\/key>\s*<string>)com\.github\.Electron(\.helper[^<]*<\/string>)/;
-  return poser(poser(xml, "CFBundleName", nom), "CFBundleDisplayName", nom).replace(identifiant, `$1${IDENTIFIANT}$2`);
+  const identifiant = /(<key>CFBundleIdentifier<\/key>\s*<string>)com\.github\.Electron([^<]*<\/string>)/;
+  return poser(poser(poser(xml, "CFBundleName", nom), "CFBundleDisplayName", nom), "CFBundleExecutable", nomDAuxiliaire(dossier)).replace(identifiant, `$1${IDENTIFIANT}$2`);
 }
 
 // Le plist sans une clé de premier niveau ni sa valeur : un dictionnaire, jusqu'à son `</dict>`
@@ -234,6 +243,12 @@ export type OptionsConstruction = {
 
 export const DROITS = join(ICI, "droits.plist");
 
+// Renomme un exécutable ou un dossier d'Electron ; il doit exister, faute de quoi le paquet garderait son nom.
+function renommer(de: string, vers: string): void {
+  if (!existsSync(de)) echouer(`${de} is missing from Electron — it cannot be renamed ${basename(vers)}`);
+  renameSync(de, vers);
+}
+
 // Pose `Brigade.app` dans `dossier`, depuis Electron, l'app, le runtime et le `node` : rend son chemin.
 export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier" | "executer">, dossier: string): string {
   const app = options.app ?? APP;
@@ -247,6 +262,9 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
   const ressources = join(contenu, "Resources");
   const plist = join(contenu, "Info.plist");
   writeFileSync(plist, reecrirePlist(readFileSync(plist, "utf8"), courte));
+  renommer(join(contenu, "MacOS", "Electron"), join(contenu, "MacOS", NOM));
+  // Electron n'enregistre aucun agent launchd ; un qui porterait son nom s'en va avec le reste.
+  rmSync(join(contenu, "Library", "LaunchAgents"), { recursive: true, force: true });
   rmSync(join(ressources, "default_app.asar"), { force: true });
   // L'icône : celle d'Electron s'en va, celle de Brigade vient, et CFBundleIconFile la nomme.
   rmSync(join(ressources, "electron.icns"), { force: true });
@@ -256,6 +274,9 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
     if (/^Electron Helper.*\.app$/.test(nom)) {
       const plistAuxiliaire = join(auxiliaires, nom, "Contents", "Info.plist");
       writeFileSync(plistAuxiliaire, reecrirePlistAuxiliaire(readFileSync(plistAuxiliaire, "utf8"), nom));
+      const aide = nomDAuxiliaire(nom);
+      renommer(join(auxiliaires, nom, "Contents", "MacOS", nom.replace(/\.app$/, "")), join(auxiliaires, nom, "Contents", "MacOS", aide));
+      renommer(join(auxiliaires, nom), join(auxiliaires, `${aide}.app`));
     }
 
   // L'app : ses sources, son package.json — au nom de l'app, à la version construite — et ses
@@ -362,6 +383,7 @@ export function construire(options: OptionsConstruction): string {
   const paquet = assembler(options, volume);
   const defauts = defautsDeNom(paquet);
   if (defauts.length > 0) echouer(`the built app is not named “${NOM}”: ${defauts.join("; ")}`);
+  const node = join(paquet, "Contents", "Resources", NODE_DU_PAQUET);
   const lancer = (commande: string, args: string[], quoi: string) => {
     const rendu = executer(commande, args);
     if (rendu.status !== 0) echouer(`${quoi} failed (\`${commande} ${args.join(" ")}\`): ${dit(rendu)}`);
@@ -370,13 +392,15 @@ export function construire(options: OptionsConstruction): string {
     // Ce que node-pty lance est signé à part : `--deep` ne signe que ce qui est rangé en paquet.
     const pty = join(paquet, "Contents", "Resources", APP_DU_PAQUET, "node_modules", "node-pty", "prebuilds", `darwin-${ARCH}`);
     for (const binaire of ["pty.node", "spawn-helper"]) if (existsSync(join(pty, binaire))) lancer("codesign", ["--force", "--sign", "-", join(pty, binaire)], `signing ${binaire}`);
+    // Le `node` porté perd la signature de la Node.js Foundation : il est signé à part, sous un identifiant de Brigade.
+    lancer("codesign", ["--force", "--sign", "-", "--identifier", IDENTIFIANT_DU_NODE, node], "signing the bundled node");
     lancer("codesign", ["--force", "--deep", "--sign", "-", paquet], "signing the app");
     lancer("codesign", ["--verify", paquet], "checking the app's signature");
   } else {
     // Le runtime durci et l'horodatage sont ce qu'Apple exige pour notariser ; les droits
     // laissent V8 et le `node` porté faire ce qu'ils font.
     for (const chemin of aSigner(paquet))
-      lancer("codesign", ["--force", "--sign", identite, "--options", "runtime", "--timestamp", "--entitlements", DROITS, chemin], `signing ${relative(paquet, chemin) || basename(paquet)}`);
+      lancer("codesign", ["--force", "--sign", identite, ...(chemin === node ? ["--identifier", IDENTIFIANT_DU_NODE] : []), "--options", "runtime", "--timestamp", "--entitlements", DROITS, chemin], `signing ${relative(paquet, chemin) || basename(paquet)}`);
     lancer("codesign", ["--verify", "--deep", "--strict", paquet], "checking the app's signature");
     if (profilNotarisation !== undefined) {
       const zip = join(options.atelier, `${NOM}.zip`);

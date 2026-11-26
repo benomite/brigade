@@ -1,10 +1,11 @@
 // #4041, critère 1 : le blocage de #894 (clé d'API et URL de base de données) pose une seule carte du chef, classée besoin de secret ou de compte.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { basename, join } from "node:path";
 import { writeFileSync } from "node:fs";
 import { test, type TestContext } from "node:test";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import type { GitHub } from "../../src/github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
@@ -54,7 +55,7 @@ function station(t: TestContext, { besoin, geste }: { besoin: string; geste: str
 }
 
 // Les cartes du chef posées sur l'issue.
-const cartes = (commentaires: string[]) => commentaires.filter((c) => /^\*\*(?:Gesture|Question) for the chef\b/.test(c.trimStart()));
+const cartes = (commentaires: string[]) => commentaires.filter((c) => /^(?:<!-- brigade:todo kind=blocked -->\n)?\*\*(?:Gesture|Question) for the chef\b/.test(c.trimStart()));
 const BESOIN = "I need an OpenRouter API key and the preprod database URL in the station's local environment file; only the chef can add them.";
 const GESTE_SECRET = "add the OpenRouter API key and the preprod database URL to the station's local environment file";
 
@@ -63,7 +64,7 @@ test("a cook blocked on an API key and a database URL gets exactly one card, cla
   await s.tour();
   const cartesPosees = cartes(s.commentaires());
   assert.equal(cartesPosees.length, 1, s.commentaires().join("\n---\n"));
-  assert.ok(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), "the ticket waits on the chef's card");
+  assert.ok(s.faux.ticket(TICKET).labels.has(CHEF_TODO), "the ticket waits on the chef's card");
   assert.match(cartesPosees[0] ?? "", /\b(secret|account)\b/i, "the card says it is a secret or account need");
   assert.doesNotMatch(s.avertissements.join("\n"), /git gesture/i, "never read as a git gesture");
 });

@@ -74,7 +74,7 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       // #18 attend #12, parti l'issue ouverte : il l'attend sur le rail, et rien n'attend le chef (#1834).
       `"attend":[],` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
-      `"cuisineOisive":null,"stations":[],"agents":[]}`,
+      `"cuisineOisive":null,"stations":[],"agents":[],"digest":null,"notification":null}`,
   );
 });
 
@@ -101,12 +101,12 @@ test("les stations : une d'ici prend les tickets ordinaires ; une distante, selo
 test("une issue qui attend sans être sur le rail a son adresse : celle que le dépôt de la box donne, et aucun titre — sans dépôt, aucune adresse", (t) => {
   const { noter, arriver, journal, lire } = cuisine(t);
   arriver(14, 1);
-  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 378, "manager");
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
   // Sa carte de TODO : un seul geste, la lui rendre avec la réponse du chef.
   const carte = {
     type: "ecartee",
-    resume: "#378 is held back by the blocked-on-human label. No answer was found on the issue yet, so the label stays until you answer.",
+    resume: "The manager parked #378 for you (question). No answer was found on the issue yet, so the label stays until you answer.",
     question: null,
     choix: [{ texte: "Hand it back to the manager with my answer", suite: "resume" }],
     reponseLibre: true,
@@ -114,16 +114,16 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
     captures: null,
   };
 
-  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/acme/brigade/issues/378", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
-  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/acme/brigade/issues/378", decision: { quoi: "ecartee", motif: "question", cause: null, pr: null }, carte }]);
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "question", cause: null, pr: null }, carte }]);
   // Un nom de dépôt qui n'en est pas un ne donne rien : rien n'est composé de travers.
-  assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "question", cause: null, pr: null }, carte }]);
 });
 
 test("la carte d'une issue retenue ne dit sa réponse écrite que si le chef a répondu depuis : sinon elle dit qu'aucune réponse n'y est (#3135)", (t) => {
   const { noter, arriver, journal } = cuisine(t);
   arriver(14, 1);
-  noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
+  noter({ type: "manager.set-aside", payload: { reason: "question", fired: false } }, 378, "manager");
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
   const resume = () => (faits(lireEtat(journal, a), a, "acme/brigade").attend[0]?.carte as { resume: string }).resume;
   assert.match(resume(), /No answer was found on the issue yet/);
@@ -531,6 +531,8 @@ test("un journal vide a une forme : éteinte, des zéros, aucun événement, un 
     cuisineOisive: null,
     stations: [],
     agents: [],
+    digest: null,
+    notification: null,
   });
 });
 
@@ -545,7 +547,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "cuisineOisive", "stations", "agents", "blockedWithoutQuestion", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "equipe", "coutDesGates"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "cuisineOisive", "stations", "agents", "digest", "notification", "blockedWithoutQuestion", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "equipe", "coutDesGates"]);
   // Aucune gate jouée, aucun budget posé : le défaut, rien de dépassé, un jour à zéro.
   assert.deepEqual(forme.coutDesGates, {
     budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },

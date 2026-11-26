@@ -39,9 +39,6 @@ export type OptionsStation = {
   // (`BRIGADE_STATION_PORTES`), ou null : chaque projet sort alors par la
   // porte que sa ligne nomme, ou sans porte.
   portes?: string | null;
-  // Vrai tant que la station se vide pour sa mise à jour (#2189) : remis à
-  // chaque cuisine, qui ne prend plus aucun ticket.
-  retenue?: () => boolean;
 };
 
 export type Station = {
@@ -49,14 +46,11 @@ export type Station = {
   relire(): void;
   // Les projets servis, dans l'ordre où ils ont été ouverts.
   projets(): string[];
-  // Les tickets que les cooks GitHub seul de ses cuisines cuisinent : ce que
-  // sa mise à jour attend avant de demander sa relance (#2189).
+  // Les tickets que les cooks GitHub seul de ses cuisines cuisinent.
   enCuisine(): number[];
   // Les tickets de ses cuisines qui attendent une prise sur GitHub : ce qui
   // garde le Mac éveillé sans cook qui cuise (#3713).
   enAttente(): number[];
-  // Sauve le travail de ces cooks sur leur branche, avant une relance (#2586).
-  sauver(): Promise<number[]>;
   // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
   depots(): Record<string, string>;
   // Le dépôt de chaque projet dont la cuisine prend les tickets sur GitHub, par
@@ -159,7 +153,7 @@ export function ouvrirStation(options: OptionsStation): Station {
         for (const ligne of demenagement.deplaces) dit(`déménagé dans l'atelier de la station — ${ligne}`);
         for (const ligne of demenagement.restes) dit(`pas déménagé dans l'atelier de la station — ${ligne}`);
       }
-      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }), ...(options.intervalleRelaisMs === undefined ? {} : { intervalleRelaisMs: options.intervalleRelaisMs }), ...(options.retenue === undefined ? {} : { retenue: options.retenue }), departMs: departDuProjet(ouvertes.size, total, options.fenetreDeDepartMs ?? FENETRE_PAR_DEFAUT_MS) }));
+      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }), ...(options.intervalleRelaisMs === undefined ? {} : { intervalleRelaisMs: options.intervalleRelaisMs }), departMs: departDuProjet(ouvertes.size, total, options.fenetreDeDepartMs ?? FENETRE_PAR_DEFAUT_MS) }));
       ouvertes.set(projet.nom, { cle, depot: projet.depot, clone, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);
@@ -205,7 +199,6 @@ export function ouvrirStation(options: OptionsStation): Station {
     projets: () => [...ouvertes.keys()],
     enCuisine: () => [...ouvertes.values()].flatMap(({ cuisine }) => cuisine.enCuisine?.() ?? []),
     enAttente: () => [...ouvertes.values()].flatMap(({ cuisine }) => cuisine.enAttente?.() ?? []),
-    sauver: async () => (await Promise.all([...ouvertes.values()].map(async ({ cuisine }) => (await cuisine.sauver?.()) ?? []))).flat(),
     depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
     servisSurGitHub: () => Object.fromEntries([...ouvertes].filter(([, { cuisine }]) => (cuisine.refusGitHub?.() ?? null) === null).map(([nom, { depot }]) => [nom, depot])),
     clones: () => Object.fromEntries([...ouvertes].flatMap(([nom, { clone }]) => (clone === undefined ? [] : [[nom, clone]]))),

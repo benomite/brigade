@@ -133,7 +133,7 @@ describe("une ligne par machine : appairée, elle se dit par sa présence ; seul
 });
 
 describe("appairée et enregistrée : ce qui lui est choisi se fond dans la ligne de sa présence", () => {
-  const enLigne = (projets: string[]): LigneDeStation => ligneDeStation(presence("f0b2", "macbook", projets), 0, false);
+  const enLigne = (projets: string[]): LigneDeStation => ligneDeStation(presence("f0b2", "macbook", projets), 0);
   const choisie = (repositories: string[] | null): StationEnregistree => ({ ...BOX, name: "macbook", selection: repositories });
 
   test("les projets servis : ceux de sa présence, puis ceux qui lui sont choisis et qu'elle ne nomme pas encore", () => {
@@ -165,7 +165,7 @@ describe("appairée et enregistrée : ce qui lui est choisi se fond dans la lign
   });
 
   test("hors ligne, elle le reste, sa raison avec : seuls ses projets changent", () => {
-    const horsLigne = ligneDeStation({ ...presence("f0b2", "macbook", []), etat: "hors-ligne", dit: "offline for 12 min" }, 0, false);
+    const horsLigne = ligneDeStation({ ...presence("f0b2", "macbook", []), etat: "hors-ligne", dit: "offline for 12 min" }, 0);
     const fondue = ligneFondue(horsLigne, [], choisie(["acme/shop"]));
     assert.equal(fondue.dit, "offline for 12 min · acme/shop");
     assert.equal(fondue.raison?.cle, "hors-ligne");
@@ -290,7 +290,7 @@ const demarrage = (stations?: VuDesStations, accueil?: Accueil) => ({
 });
 // Les stations appairées, et l'accueil qui les dit : chaque ligne écrite par `ligneDeStation`, comme le process principal.
 function appairees(...stations: StationVue[]): { stations: VuDesStations; accueil: Accueil } {
-  const lignes: LigneDeStation[] = stations.map((station) => ligneDeStation(station, 0, false));
+  const lignes: LigneDeStation[] = stations.map((station) => ligneDeStation(station, 0));
   return { stations: { a: VU, stations }, accueil: { projets: [], stations: lignes, sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } } };
 }
 const presence = (id: string, nom: string, projets: string[]): StationVue => ({ id, nom, machine: "Debian 12", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "1.4.0", projets, max: null });

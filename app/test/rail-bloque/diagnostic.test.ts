@@ -107,7 +107,7 @@ describe("pris par un manager", () => {
   test("qualifié, écarté, en cuisson, pris ou jugé par le manager : pris ; sinon, non", async () => {
     assert.ok(await pris(["fire", "model:opus"], []));
     assert.ok(await pris(["fire", "effort:medium"], []));
-    for (const label of ["blocked-on-human", "question", "taken", "in-pass", "waiting"]) assert.ok(await pris(["fire", label], []), label);
+    for (const label of ["blocked-on-human", "question", "taken", "in-pass", "parked"]) assert.ok(await pris(["fire", label], []), label);
     assert.ok(await pris(["fire"], [{ body: corpsDePriseDuManager("box/claude", "ab12", "cd34"), association: "OWNER" }]));
     assert.ok(await pris(["fire"], [{ body: `${MARQUEUR_MANAGER}\nA ticket.`, association: "MEMBER" }]));
     assert.ok(!(await pris(["fire", "prio:1"], [{ body: "When will this ship?", association: "OWNER" }])));
