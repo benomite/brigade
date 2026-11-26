@@ -44,7 +44,7 @@ const meme = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 // ouverte. Rien du titre ni du corps de l'issue : ce commentaire est celui de la
 // cuisine, que ses agents lisent comme de confiance.
 // `declare` : l'auteur est un humain que le projet déclare (`humans`), pas un inconnu.
-export function carteDeLIssueRetenue(numero: number, issue: { auteur?: string; declare?: boolean } = {}): Carte {
+function carteDeLIssueRetenue(numero: number, issue: { auteur?: string; declare?: boolean } = {}): Carte {
   const declare = issue.declare === true;
   const auteur = issue.auteur === undefined || issue.auteur === "" ? null : `@${issue.auteur}`;
   const qui = declare
@@ -69,7 +69,7 @@ export function carteDeLIssueRetenue(numero: number, issue: { auteur?: string; d
 }
 
 // Le geste qu'un commentaire écrit, ou nul : sa première ligne, ou la réponse `[rail]` de l'app.
-export function gesteDuCommentaire(body: string): ReponseDuProduit["geste"] | null {
+function gesteDuCommentaire(body: string): ReponseDuProduit["geste"] | null {
   if (REPONSE_RAIL_DE_L_APP.test(body)) return "accept";
   if (body.includes("<!-- brigade:")) return null;
   const ligne = (body.split("\n").find((lue) => lue.trim() !== "") ?? "").replace(/[`*_>]/g, "").trim().toLowerCase();

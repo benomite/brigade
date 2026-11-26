@@ -12,7 +12,7 @@ import { DE_CONFIANCE } from "../../src/alimenter.ts";
 import type { Commentaire, IssueOuverte } from "../../src/github.ts";
 import { auteurSansEcriture } from "../../src/github-etat/auteur.ts";
 import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
-import { carteDeLIssueRetenue, gesteDuCommentaire, ouvrirIssuesEtrangeres, reponseDuProduit, type AtelierDuTri } from "../../src/issue-etrangere/issue-etrangere.ts";
+import { ouvrirIssuesEtrangeres, reponseDuProduit, type AtelierDuTri } from "../../src/issue-etrangere/issue-etrangere.ts";
 import { ouvrirAcceptes, type Acceptes } from "../../src/trust/acceptes.ts";
 import { creerConfiance } from "../../src/trust/trust.ts";
 import { chef, cuisine, issue, type Options } from "../aides/cuisine.ts";
@@ -262,15 +262,14 @@ describe("la retenue, sans manager autour", () => {
   });
 
   test("sans humain `product` déclaré, la carte va au chef : seul un auteur de confiance y répond", async () => {
-    assert.equal(carteDeLIssueRetenue(40).sorte, "product-question");
     const deConfiance = async ({ association }: Commentaire) => DE_CONFIANCE.includes(association);
     const lus = (author: string, association: string, body: string): Commentaire[] => [{ author, association, body, createdAt: "" }];
     assert.equal(await reponseDuProduit(lus("lea", "NONE", "close"), null, deConfiance), null);
     assert.deepEqual(await reponseDuProduit(lus("chef", "MEMBER", "Close it, please."), null, deConfiance), { geste: "close", par: "chef" });
     assert.equal(await reponseDuProduit(lus("chef", "OWNER", "Why close it?"), null, deConfiance), null);
     assert.equal(await reponseDuProduit(lus("brigade", "OWNER", "<!-- brigade:todo kind=product-question -->\nclose"), null, deConfiance), null);
-    assert.equal(gesteDuCommentaire("accepted, but later"), null);
-    assert.equal(gesteDuCommentaire("on the rail prio:3"), "accept");
+    assert.equal(await reponseDuProduit(lus("chef", "OWNER", "accepted, but later"), null, deConfiance), null);
+    assert.deepEqual(await reponseDuProduit(lus("chef", "OWNER", "on the rail prio:3"), null, deConfiance), { geste: "accept", par: "chef" });
   });
 
   test("l'auteur sans l'écriture : ni le propriétaire, ni un membre, ni un collaborateur — sauf quand la porte de confiance dit autrement", () => {
