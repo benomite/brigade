@@ -53,6 +53,12 @@ const colonne = (rail: Faux, nom: string): Faux => rail.dessous("section").find(
 const bon = (ou: Faux, ticket: number): Faux => ou.dessous("li").find(({ className, dataset }) => className.split(" ").includes("bon") && dataset.ticket === String(ticket)) ?? assert.fail(`pas de carte #${ticket}`);
 const parque = (carte: Faux) => carte.dessous("p").find(({ className }) => className === "parque")?.textContent;
 const boutonNomme = (ou: Faux, texte: string): Faux => ou.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
+// Le TODO, une ligne au-dessus des colonnes (#4354) : un clic la déplie et montre ses entrées.
+const leTodo = (rail: Faux): Faux => {
+  const avis = rail.children.find(({ className }) => className === "avis-du-todo") ?? assert.fail("pas de TODO");
+  avis.dessous("button")[0]?.click();
+  return avis.children.find(({ className }) => className === "todo-du-rail") ?? assert.fail("TODO pas déplié");
+};
 const TIERS = { quoi: "your call", qui: "the chef", depuis: "2026-11-24T10:00:00Z", relance: "2026-11-28T09:00:00Z", aLArrivee: "goes on" };
 
 describe("la carte parked, dans la colonne où elle attend", () => {
@@ -70,7 +76,7 @@ describe("la carte parked, dans la colonne où elle attend", () => {
     assert.notEqual(bon(cooks, 52).dataset.carte, "attente");
     assert.equal(parque(bon(cooks, 53)), undefined);
     assert.equal(bon(cooks, 53).dataset.parque, undefined);
-    const todo = rail.children.find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+    const todo = leTodo(rail);
     assert.deepEqual(todo.dessous("li").map(({ dataset }) => dataset.ticket), ["51"]);
   });
 
@@ -85,7 +91,7 @@ describe("la carte parked, dans la colonne où elle attend", () => {
     const vue = await ouvrir();
     const rail = await montrer(vue, { rail: [entree(51, "pris", { tiers: TIERS })], attend: [{ ticket: 51, titre: "Ticket 51", url: url(51) }] });
     assert.equal(vue.element("fiche").hidden, true);
-    const todo = rail.children.find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+    const todo = leTodo(rail);
     boutonNomme(todo, "#51 Ticket 51").click();
     await repos();
     assert.equal(vue.element("fiche").hidden, false);
@@ -192,19 +198,15 @@ describe("chaque message du haut offre un geste", () => {
   });
 });
 
-describe("la bande du haut lit l'équipe", () => {
-  test("l'équipe lue remplit la ligne du supervisor et celle du closer, et « its thread » ouvre leur fil", async () => {
+describe("la bande du haut et l'équipe (#4354)", () => {
+  test("l'équipe lue montre le supervisor et le closer dans ses badges : la bande n'en repose pas de carte", async () => {
     const vue = await ouvrir({ lireLesAgents: () => structuredClone(EQUIPE) });
     const rail = await montrer(vue, { rail: [entree(41, "pris")] });
     await repos();
     const bande = rail.children.find(({ className }) => className === "bande-du-haut") ?? assert.fail("pas de bande du haut");
-    const closer = bande.children.find(({ className }) => className === "ligne-du-closer") ?? assert.fail("pas de ligne du closer");
-    assert.match(closer.textContent, /last tidy: deleted 412 dead lines/);
-    assert.match(closer.textContent, /next tidy: next pass in 3 h/);
-    assert.match(bande.children[0]?.textContent ?? "", /parked for you: \d+ so far/);
-    boutonNomme(closer, "its thread").click();
-    await repos();
-    assert.ok(vue.element("equipe-du-projet").dessous("section").some(({ className, ariaLabel }) => className === "fil" && ariaLabel === "closer's thread"));
+    assert.deepEqual(bande.dessous("button"), []);
+    const badges = vue.element("equipe-du-projet").dessous("button").filter(({ className }) => className.split(" ").includes("badge"));
+    assert.deepEqual(badges.slice(0, 2).map(({ dataset }) => dataset.agent), ["supervisor", "closer"]);
   });
 
   test("le bloc de l'équipe : l'agent du projet lu, rien d'un autre ; une lecture qui change l'équipe le dit, une qui ne change rien, non", async () => {
@@ -285,15 +287,15 @@ describe("le haut du rail, sous la bande", () => {
     assert.deepEqual(vue.dernier("ouvrirLesChecks"), [PARADE]);
   });
 
-  test("l'équipe lue après le rail : la bande se repose avec ce qu'elle dit", async () => {
+  test("l'équipe lue après le rail : la bande se repose, ses cartes cèdent la place aux badges", async () => {
     let lire: (equipe: unknown) => void = () => {};
     const vue = await ouvrir({ lireLesAgents: () => new Promise((resolu) => (lire = resolu)) });
     const rail = await montrer(vue, { rail: [entree(41, "pris")] });
-    const closer = () => rail.dessous("p").find(({ className }) => className === "ligne-du-closer")?.textContent ?? "";
-    assert.match(closer(), /next tidy: not known/);
+    const cartes = () => rail.dessous("button").filter(({ className }) => className.split(" ").includes("carte-d-agent")).map(({ dataset }) => dataset.agent);
+    assert.deepEqual(cartes(), ["supervisor", "closer"]);
     lire(structuredClone(EQUIPE));
     await repos();
-    assert.match(closer(), /next tidy: next pass in 3 h/);
+    assert.deepEqual(cartes(), []);
   });
 
   test("le disjoncteur ouvert n'est plus sur le rail : la bande de l'espace le dit — pas la ligne du projet éteint, que son interrupteur dit", async () => {

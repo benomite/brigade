@@ -1,6 +1,7 @@
 // L'espace de « parade » tel que la vue dessine le plan de la cuisine (#4238) : backlog — le rail en tête —, manager, cooks,
 // pass, served. #22 est parked dans le backlog, il attend Stripe support ; #16, pris, est parked dans Cooks et attend le chef :
-// il est aussi dans son TODO, avec #12. En haut, la ligne du supervisor et celle du closer, d'après l'équipe de la fixture.
+// il est aussi dans son TODO, avec #12 — une ligne, « 2 wait for you » (#4354). En haut, l'équipe de la fixture, un badge d'une
+// ligne par agent.
 import type { Faits } from "../../../app/src/faits.ts";
 import { EQUIPE } from "../../../app/test/autonomie/equipe-fixture.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
@@ -12,7 +13,7 @@ const issue = (ticket: number) => `https://github.com/benomite/parade/issues/${t
 // #22 attend Stripe support : sa ligne du rail porte ce qu'il attend d'un tiers.
 const PARKED: Record<number, object> = { 22: { tiers: { quoi: "the sandbox keys", qui: "Stripe support", depuis: "2026-10-12T09:00:00.000Z", relance: "2026-10-17T09:00:00.000Z", aLArrivee: "goes back on the rail" } } };
 
-const FACTS = {
+export const FACTS = {
   ...PARADE.facts,
   rail: [
     ...PARADE.facts.rail.map((ligne) => ({ ...ligne, ...PARKED[ligne.ticket] })),
@@ -26,7 +27,7 @@ const FACTS = {
 } as Faits;
 
 export const ecran: Ecran = {
-  dit: "L'espace de « parade » : le plan de la cuisine — backlog (le rail en tête), manager, cooks, pass, served —, #22 parked dans le backlog, #16 parked pour le chef dans Cooks et dans son TODO, la bande du supervisor et du closer (#4238)",
+  dit: "L'espace de « parade » : le plan de la cuisine — backlog (le rail en tête), manager, cooks, pass, served —, #22 parked dans le backlog, #16 parked pour le chef dans Cooks, « 2 wait for you » au-dessus des colonnes, l'équipe en badges d'une ligne (#4238, #4354)",
   largeur: 1900,
   hauteur: 1000,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],

@@ -110,7 +110,7 @@ export type SecondaireTenue = { nom: string; station: string; gist: string; cook
 // l'ancien runtime/src/projets/rejoindre.ts, retiré par #2713 : plus écrit) — elle en a rejoint la cuisine, celle que `principale` fait tourner, ou elle refuse
 // en une phrase (`phrase`), sans en ouvrir une seconde. Absent quand aucune autre station ne le sert.
 export type Rejoindre = { issue: "rejointe"; principale: string } | { issue: "refusee"; phrase: string };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; temps?: TempsPublie; delais?: unknown; choix?: Choix[]; secondaires?: SecondaireTenue[]; rejoindre?: Rejoindre; depot: string | null; base: string | null; cooks: number | null };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; temps?: TempsPublie; choix?: Choix[]; secondaires?: SecondaireTenue[]; rejoindre?: Rejoindre; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -286,7 +286,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, delai, temps, delais, choix, secondaires, rejoindre, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, delai, temps, choix, secondaires, rejoindre, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       const echecDuClone = lireClone(clone);
       const lesBlocages = Array.isArray(blocages) ? blocages.flatMap(lireUnBlocage) : [];
@@ -312,8 +312,6 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           ...(lesBlocages.length === 0 ? {} : { blocages: lesBlocages }),
           ...(leDelai === null ? {} : { delai: leDelai }),
           ...(lesTemps === null ? {} : { temps: lesTemps }),
-          // Les délais des dernières 24 heures (#4309), relayés tels quels : la vue les relit (app/src/vue-delais/).
-          ...(delais === undefined ? {} : { delais }),
           ...(lesChoix.length === 0 ? {} : { choix: lesChoix }),
           ...(lesSecondaires.length === 0 ? {} : { secondaires: lesSecondaires }),
           ...(laJonction === null ? {} : { rejoindre: laJonction }),

@@ -65,7 +65,6 @@ import { lireLaCuisineVisitee } from "./visite.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
-import { jouerLIdee } from "./gestes-idee.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
@@ -1012,15 +1011,6 @@ ipcMain.handle("refus", async (_, nom: unknown, id: unknown, ticket: unknown) =>
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const rendu = await jouerLeRefus(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
-  if ("fait" in rendu) tableaux.oublier();
-  return rendu;
-});
-// Le geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Drop » ferme l'issue comme non prévue — par
-// l'accès GitHub de l'app (gestes-idee.ts). Aucun ne la met sur le rail (#4223) : le rail est le haut du backlog.
-ipcMain.handle("idee", async (_, nom: unknown, id: unknown, ticket: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return parti(nom);
-  const rendu = await jouerLIdee(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
