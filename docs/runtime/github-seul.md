@@ -221,7 +221,8 @@ base, the stale-branch pruning).
   - a delivery the review hands back twice in a row with the same result is not relaunched a third time as it stands:
     if that result says the ticket cannot be done yet, it is parked the same way — the gesture first, then the
     send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
-    spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
+    spent and it goes to the manager (rework, or set aside with its reason) — at the third refusal of its life it is
+    parked for the chef instead (`chef-todo`, #4226). A red CI keeps its own count;
   - a parked ticket holds no file zone, even with an open PR: the ticket behind it starts;
   - an open PR holds a file zone only while it is alive (#4242, `runtime/src/claim-gate.ts`): its ticket is in cook
     or at the pass, or the PR had activity (commit, comment, review, update — its `updatedAt`) within the stale delay,
@@ -262,6 +263,19 @@ base, the stale-branch pruning).
   (`<!-- brigade:disk-full -->`): the figures and the biggest consumers on the volume, if `du` reads them. It is
   not raised while that reclaim could still be enough, nor twice for the same state, and it is lifted once the disk
   has room (#4091).
+- **The watchdog of a stalled kitchen** (#4213, `runtime/src/stall-watchdog/`). At each wake of a project's runtime,
+  next to the supervisor: when nothing has merged for one hour (`IDLE_WITHOUT_MERGE_MS`, counted like the
+  supervisor's 30 min, from the later of the last merge and the oldest waiting ticket) while at least one ticket
+  waits, and the kitchen is neither stopped nor switched off, it reads the machine (load per core, cooks of the
+  station in flight, what the claim gate skipped, tickets taken three times without delivering, the leftovers of
+  exited cooks, the disk) and decides one cause. Leftovers of exited cooks (orphaned processes, worktrees, run files
+  and tmp dirs, read as the reclaim above reads them, without the npm cache) are repaired at once, with one line in the
+  service log naming the cause and the action. A full disk, or a machine over its load per core with no cook of the
+  station in flight, needs a human: one TODO card (`blocked`) in plain words — the disk's on the disk issue above,
+  shared with it, the load's on the first waiting ticket — and no second card while the cause lasts, across restarts
+  (`<state>/stall-watchdog.json`). Each card posted, by the watchdog or by the disk guard above, is a machine outage
+  that reached the chef, noted with its date; the watchdog's line and the disk guard's say how many there were in the
+  last 7 days. With no machine cause, it says so once, and the tickets stay with the supervisor.
 - **A word to a cooking cook** (#4047, `runtime/src/mot-au-cook/`). `send-word <owner>/<repo>#<ticket> <word…>`
   answers `{"ok":true}` or `{"ok":false,"reason":"…"}` on one line. It reads the issue: a ticket that is not `taken`
   (in pass, closed, unknown, queued, waiting) is refused with the reason, and nothing is posted or queued. A `taken`
@@ -278,9 +292,18 @@ base, the stale-branch pruning).
   nothing the ticket is given back with a comment, uncounted, since that is work left, not a failed cook.
 - **Sends back are counted per ticket** (#3961). The count is read from the ticket's `brigade:renvoi` comments and
   survives relaunches: removing `served-elsewhere` or `set-aside:failures` no longer restarts it at 1/2 (on 2026-11-20,
-  #3955 went "send-back 3", "relaunch 2", then "send-back 1" on the same commit). Only the manager's rework at the limit
-  (#3513) starts it again. Set aside at its last send-back, a ticket is never relaunched to a cook by the kitchen: the
-  manager or the chef decides.
+  #3955 went "send-back 3", "relaunch 2", then "send-back 1" on the same commit).
+- **Three tries per ticket, in total** (#4226, rule 12 of `docs/superpowers/specs/2026-11-24-simplified-process.md`). A
+  try counts when a refusal comes back from the pass — red gates, red CI or the review — not a send-back for a conflict
+  with the base. The count is read from all the ticket's comments, over its whole life (`runtime/src/essais/`): no
+  claim, manager rewrite, split, supervisor pass or station restart takes one off. At the third refusal the ticket is
+  **parked for the chef**, not given to the manager: one `chef-todo` card (`<!-- brigade:todo kind=blocked tries=3
+  sha=… -->`) lists each try, the checks still red on the refused head and the send-back reason line (#4302), `in-pass` is removed, and the PR stays open.
+  Running that step again — the same station, another one, after a restart — posts nothing. No station takes a
+  parked ticket until the chef answers on the issue: a comment of theirs after the card (or the app's answer), or
+  `chef-todo` removed. The station then lifts the card, and a cook takes the ticket up from its branch; its next
+  refusal parks it again. A turn reads the comments of each `chef-todo` ticket out of the pass; when they cannot be
+  read, the ticket stays aside for that turn.
 - **A cook that disagrees with the review.** Sent back on review remarks, a cook that judges them already addressed or
   wrong replies on the PR instead of ending silently: its brief tells it to write the reply in its last message between
   `<reponse-pr>` tags, and the station posts it on the PR (`brigade:reponse-cook sha=…`), since the cook has no GitHub

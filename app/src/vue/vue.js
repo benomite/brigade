@@ -130,8 +130,6 @@ import { poserBlocages } from "./projet/blocages.js";
 import { lignesDeRefus } from "./projet/rail/refus-de-station.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserLOffre, premierProjetServi, tenirLOffre } from "./offre-telephone/offre-telephone.js";
-import { besoinsDuBacklog, marquerLeRail, poserBandeauBacklog, rougesDuBacklog, suivreLeBandeau } from "./backlog-band/backlog-band.js";
-import { poserLeHautDuBacklog } from "./rail/haut-du-backlog.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages } from "./projet/reglages.js";
 import { monterLesHumains, serviceDuPont } from "./settings-humans/humains.js";
@@ -193,7 +191,6 @@ import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js"
 import { tenirLeSavoir } from "./know-how/know-how.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserBlocTempsDeLaPasse } from "./projet/bandeau-sante/TempsDeLaPasse.js";
-import { tenirLesDelais } from "./delais.js";
 import { poserBlocPostMortems } from "./projet/bandeau-sante/PostMortems.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
@@ -686,8 +683,6 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
-const delaisDuProjet = element("delais-du-projet");
-const delaisTenus = tenirLesDelais(document);
 // L'équipe du projet affiché (ticket 4029, autonomie/equipe.js), en tête de sa vue : relue à son ouverture et à chaque
 // lecture de son rail, montrée pour lui seul.
 // La bande du haut du rail lit son supervisor et son closer : une lecture qui les change la repose (ticket 4238).
@@ -974,6 +969,12 @@ const arriveesDeCartes = new Map();
 // par projet et ticket — gardés d'un rendu à l'autre.
 /** @type {Map<string, Set<number>>} */
 const parkOuverts = new Map();
+// Ce que le chef a déplié en tête du rail (ticket 4354), par projet : le détail d'une carte d'agent, et la liste du TODO
+// (« todo ») — gardés d'un rendu à l'autre.
+/** @type {Map<string, Set<string>>} */
+const deplisDuHaut = new Map();
+/** @param {string} projet */
+const deplisDe = (projet) => deplisDuHaut.get(projet) ?? deplisDuHaut.set(projet, new Set()).get(projet) ?? new Set();
 /** @type {Map<string, import("./parked/park-control.js").Form>} */
 const parkSaisies = new Map();
 // Les gestes directs, et les confirmés, dits de même (gestes.ts) : le clic d'un direct fait partir
@@ -1159,18 +1160,6 @@ const remarquesDepliees = new Set();
 // tableau de la cuisine en donne, pour le projet affiché.
 /** @type {Map<string, import("../amont.ts").Vu>} */
 const amonts = new Map();
-// Le bandeau Backlog de chaque projet (backlog-band/, ticket 3460) : les projets dont le chef a déplié la liste entière, et
-// le besoin dont il a choisi l'étiquette — une lecture neuve ne replie ni ne désélectionne rien.
-/** @type {Set<string>} */
-const backlogsDeplies = new Set();
-/** @type {Map<string, number>} */
-const besoinsChoisis = new Map();
-// Les projets dont le chef a déplié tout ce qui a été servi, au bas de la liste du Backlog (ticket 3589) ; et le geste de
-// chaque idée en réserve, par projet et issue (`<projet>#<n>`) : en route, ou pourquoi il n'est pas passé.
-/** @type {Set<string>} */
-const servisDeplies = new Set();
-/** @type {Map<string, import("./backlog-band/backlog-band.js").GesteDIdee>} */
-const gestesDIdees = new Map();
 // La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
@@ -4531,84 +4520,6 @@ function teteDuRail(projet) {
   return [tete, ...confirmation];
 }
 
-// Le bandeau Backlog, au-dessus des colonnes du rail (backlog-band/, ticket 3460) : une étiquette par besoin hors du rail,
-// ceux qui t'attendent en rouge d'abord. Un clic sur une étiquette choisit le besoin : son détail se déplie, ses tickets
-// ressortent dans le rail ; un second clic, ou un autre besoin, finit ce choix. Ce qui t'attend s'y pose avec sa carte de
-// TODO, celle que le rail pose en rouge. Un clic sur le titre déplie le backlog du chef (ticket 3589) — Next, les idées en
-// réserve et leurs gestes, ce qui a été servi replié en bas —, une ligne y ouvre son issue ; un second le replie sur sa
-// ligne, sans choix.
-/** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
-function bandeauBacklog(projet, colonnes) {
-  const vu = amonts.get(projet.nom);
-  const maintenant = Date.now();
-  const besoins = besoinsDuBacklog(vu, colonnes, maintenant);
-  // Un besoin choisi qui n'est plus dans le bandeau ne l'est plus.
-  const choisi = besoins.find(({ ticket }) => ticket === besoinsChoisis.get(projet.nom));
-  if (choisi === undefined) besoinsChoisis.delete(projet.nom);
-  const bandeau = poserBandeauBacklog(
-    document,
-    // Le titre dit combien t'attendent : le nombre que l'entrée TODO (N) compte (ticket 3458).
-    {
-      vu,
-      besoins,
-      selection: choisi?.ticket,
-      deplie: backlogsDeplies.has(projet.nom),
-      rouges: rougesDuBacklog(vu, colonnes, maintenant),
-      servisDeplies: servisDeplies.has(projet.nom),
-      idees: new Map(besoins.flatMap(({ ticket }) => { const geste = gestesDIdees.get(`${projet.nom}#${ticket}`); return geste === undefined ? [] : [[ticket, geste]]; })),
-    },
-    {
-      choisir: (ticket) => {
-        if (besoinsChoisis.get(projet.nom) === ticket) besoinsChoisis.delete(projet.nom);
-        else besoinsChoisis.set(projet.nom, ticket);
-        poserRail(projet);
-      },
-      basculer: () => {
-        if (backlogsDeplies.delete(projet.nom)) {
-          besoinsChoisis.delete(projet.nom);
-          servisDeplies.delete(projet.nom);
-        } else backlogsDeplies.add(projet.nom);
-        poserRail(projet);
-      },
-      basculerServis: () => {
-        if (!servisDeplies.delete(projet.nom)) servisDeplies.add(projet.nom);
-        poserRail(projet);
-      },
-      idee: (ticket, id) => void jouerLIdee(projet, ticket, id),
-      ouvrirIssue: (ticket) => void ouvrirIssue(projet, ticket),
-      carteDuChef: (carte) => {
-        const liste = document.createElement("ol");
-        liste.append(poserBon(projet, carte, undefined));
-        return liste;
-      },
-    },
-  );
-  return { bandeau, choisi };
-}
-
-// Le geste d'une idée en réserve (gestes-idee.ts, ticket 3589) : « Drop », joué sur GitHub par le process principal. Fait,
-// la lecture suivante ne la montre plus parmi les idées ; refusé, sa ligne dit pourquoi.
-/** @param {Projet} projet @param {number} ticket @param {"abandonner"} id */
-async function jouerLIdee(projet, ticket, id) {
-  const cle = `${projet.nom}#${ticket}`;
-  const enCours = gestesDIdees.get(cle);
-  if (enCours !== undefined && "envoi" in enCours) return;
-  gestesDIdees.set(cle, { envoi: id });
-  poserRail(projet);
-  /** @type {{ refus: string } | undefined} */
-  let dit;
-  try {
-    const rendu = await brigade.idee(projet.nom, id, ticket);
-    if ("fait" in rendu) lireLesFaits();
-    else dit = { refus: "refus" in rendu ? rendu.refus : "nothing was changed" };
-  } catch (erreur) {
-    dit = { refus: `nothing was changed: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
-  }
-  if (dit === undefined) gestesDIdees.delete(cle);
-  else gestesDIdees.set(cle, dit);
-  poserRail(projet);
-}
-
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
 const STATION_ARRETEE = `${CET_ORDINATEUR}'s station is not running`;
 
@@ -5094,18 +5005,12 @@ function lignesDeCetOrdinateur(projet) {
 // d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, et la lecture de `station`. Un projet sans box n'en a
 // pas : rien n'est lu de lui. Sans faits, il dit pourquoi il n'est pas dessiné : la carte du panneau
 // dit ce qui a été obtenu.
-/** @param {string} nom */
-function replierLeBacklog(nom) {
-  backlogsDeplies.delete(nom);
-  besoinsChoisis.delete(nom);
-  servisDeplies.delete(nom);
-}
 /** @param {Projet} projet */
 function poserRail(projet) {
   // Le chef répond sur une carte de TODO (ticket 2151) : rien du rail ne bouge sous ses mains.
   if (garderLaCarteEnMain(projet)) return;
-  // Le backlog se replie en quittant le projet, ou son rail pour Stations : il ne reste pas déplié d'une visite à l'autre (ticket 3523).
-  if ((railPoseDe !== undefined && railPoseDe !== projet.nom) || ongletDe(projet) !== RAIL) for (const nom of new Set([projet.nom, railPoseDe ?? projet.nom])) replierLeBacklog(nom);
+  // Le haut du rail se replie en quittant le projet, ou son rail pour Stations : rien n'y reste déplié d'une visite à l'autre (tickets 3523, 4354).
+  if ((railPoseDe !== undefined && railPoseDe !== projet.nom) || ongletDe(projet) !== RAIL) for (const nom of new Set([projet.nom, railPoseDe ?? projet.nom])) deplisDuHaut.delete(nom);
   poserLeRail(projet);
   reposerLEtiquetteDeStation(projet);
 }
@@ -5278,8 +5183,9 @@ function poserLeRail(projet) {
       return colonne;
     }),
   );
-  // Le TODO du chef (tickets 4238, 4261) : exactement les tickets parked pour lui, une entrée chacun — ce qui lui est
-  // demandé, ses boutons, et un clic sur son numéro ouvre sa carte. Posé sous les colonnes, il se montre au-dessus d'elles.
+  // Le TODO du chef (tickets 4238, 4261, 4354) : une ligne, « 2 wait for you », dont un clic montre exactement les tickets
+  // parked pour lui, une entrée chacun — ce qui lui est demandé, ses boutons, et un clic sur son numéro ouvre sa carte. Posé
+  // sous les colonnes, il se montre au-dessus d'elles.
   // Un projet en lecture seule (ticket 3163) : ses cartes se lisent, aucun bouton ne les tranche d'ici.
   const todo = poserLeTodo(document, {
     cartes: ceQuiTAttend(plan),
@@ -5288,6 +5194,7 @@ function poserLeRail(projet) {
     // Sous chaque entrée, son contrôle de park, derrière « park or unpark… » (parked/, ticket 4281) : ce qui y est ouvert
     // et tapé se garde d'un rendu à l'autre.
     opened: parkOuverts.get(projet.nom) ?? parkOuverts.set(projet.nom, new Set()).get(projet.nom),
+    deplie: { get ouvert() { return deplisDe(projet.nom).has("todo"); }, set ouvert(oui) { void (oui ? deplisDe(projet.nom).add("todo") : deplisDe(projet.nom).delete("todo")); } },
     control: ({ ticket, step }) => parkControl(document, { project: projet.nom, ticket, step, gesture: garerParLePont, form: parkSaisies.get(`${projet.nom}#${ticket}`) ?? parkSaisies.set(`${projet.nom}#${ticket}`, {}).get(`${projet.nom}#${ticket}`) }),
   });
   // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
@@ -5309,9 +5216,6 @@ function poserLeRail(projet) {
   const sousLesColonnes = [...(todo === undefined ? [] : [todo]), ...(aCote.length === 0 ? [] : [horsTodo])];
   // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail.
   if (muet !== undefined) return poser(...marque, grille, ...sousLesColonnes);
-  // Au-dessus des colonnes, le bandeau Backlog (ticket 3460) : le besoin choisi marque ses tickets dans le rail.
-  const { bandeau, choisi } = bandeauBacklog(projet, toutes);
-  marquerLeRail(grille, posees, choisi);
   // La cuisine, en marche ou à l'arrêt, est une ligne de Settings (ticket 1700).
   poserArreter(projet, tenu.tableau.arretee);
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
@@ -5348,7 +5252,7 @@ function poserLeRail(projet) {
   // une mise à jour n'est pas une panne (ticket 3637). Elles disent seules les pannes des stations : la phrase de l'attente
   // qui porte un geste ne se montre plus, elle ne sait ni l'en-tête ni le dernier cook.
   const alertesDuRail = (tenu.tableau.alertesDuRail ?? []).filter(({ sorte, cause }) => projet.redemarre === undefined || (sorte !== "aucun-cook" && cause !== "aucun-cook"));
-  // La bande du haut (cuisine/, ticket 4238) remplace les bandeaux FAULT : la ligne du supervisor, celle du closer, et dessous au
+  // La bande du haut (cuisine/, tickets 4238, 4354) remplace les bandeaux FAULT : les cartes du supervisor et du closer, et dessous au
   // plus un message — la première cause de la liste qui offre un geste au chef ; une qui n'en offre aucun n'est pas montrée. La
   // lecture hors ligne ou périmée, l'attente de la file et la pause du quota, qui passent seules, offrent de relire ; la ligne
   // d'une issue que la cuisine a ouverte sur elle-même, d'ouvrir cette issue. Une alerte du rail sans bouton du runtime offre
@@ -5382,29 +5286,24 @@ function poserLeRail(projet) {
       // Pourquoi la file ne part pas (ticket 3433) : jamais « no reason is found » devant une raison que la vue connaît.
       avecSonGeste(ligneDeLAttente(document, attente === undefined || attente.geste !== null ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail), "read again", relire),
     ].find((lignes) => lignes.length > 0 && aUnGeste(lignes)) ?? [];
-  const bandeDuHaut = poserLaBandeDuHaut(document, { roles: tenu.tableau.rolesCuisine, agent: (nom) => equipeDuProjet.agent(projet.nom, nom), ouvrirLeFil: lectureSeuleDe(projet) === undefined ? (nom) => equipeDuProjet.ouvrirLeFil(nom) : undefined });
-  // Sur 24 h, la part des tickets mergés en 10 min ou moins de leur prise et leur médiane, la ligne de `status` (ticket 4299).
+  // La bande du haut (ticket 4354) : les cartes du supervisor et du closer sur une ligne, et au bout, sur 24 h, la part des
+  // tickets mergés en 10 min ou moins de leur prise et leur médiane, la ligne de `status` (ticket 4299).
   const delaiDePrise = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.delaiDePrise;
-  if (delaiDePrise !== undefined) bandeDuHaut.append(Object.assign(document.createElement("p"), { className: "ligne-du-delai", textContent: delaiDePrise }));
+  const bandeDuHaut = poserLaBandeDuHaut(document, { roles: tenu.tableau.rolesCuisine, montre: (nom) => equipeDuProjet.agent(projet.nom, nom) !== undefined, alerte: issueDeLaCuisine?.ticket, maintenant: Date.now(), deplies: deplisDe(projet.nom), ...(delaiDePrise === undefined ? {} : { delai: delaiDePrise }) });
   bandeauDArret.maj(tenu.tableau.arretCuisine);
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
-  for (const porteur of age === undefined ? [] : [statut[0], bandeau ?? undefined, grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
+  for (const porteur of age === undefined ? [] : [statut[0], grille]) if (porteur !== undefined && !porteur.title) porteur.title = age;
   // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
-  // Le rail, haut du backlog (ticket 4223) : sous le bandeau, les issues calibrées et prêtes qu'un cook prend ensuite, dans
-  // l'ordre de la lecture — rien à y faire, une issue y vient seule.
-  const hautDuBacklog = poserLeHautDuBacklog(document, tenu.tableau.hautDuBacklog);
   // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
   const { journal, digest } = tenu.tableau;
   const duMatin = digest !== undefined && carteDuMatin.aMontrer(projet.nom, jourDe(new Date())) ? [poserLaCarteDuDigest(document, digest)] : [];
-  poser(...duMatin, bandeDuHaut, ...statut, ...(bandeau === null ? [] : [bandeau]), ...(hautDuBacklog === null ? [] : [hautDuBacklog]), ...(journal === undefined ? [] : [poserLeJournal(document, journal)]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
+  poser(...duMatin, bandeDuHaut, ...statut, ...(journal === undefined ? [] : [poserLeJournal(document, journal)]), grille, ...sousLesColonnes, ...explicationDuRail(projet.nom, "rail"), ...explicationDuRail(projet.nom, "cook"), ...explicationDuRail(projet.nom, "TODO"), ...(hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors, undefined, false, true)]));
   // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
   if (tenu.tableau.arretCuisine) rail.prepend(hoteDeLArret);
   rendreLeClavier(reprise);
   placerLaRangee(projet, grille, defile);
   if (memeRail) rail.scrollTop = hautDuRail;
-  // Ce qui tient sur sa ligne se compte dans la page, et se recompte quand sa largeur change.
-  if (bandeau !== null) suivreLeBandeau(bandeau, etroit);
 }
 
 // La rangée des colonnes, une fois posée : la lecture qui suit garde le défilement du chef ; à l'ouverture du rail, la
@@ -7070,7 +6969,6 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
-  delaisDuProjet.replaceChildren(...(projet === undefined ? [] : [delaisTenus.poser(projet.nom, vu?.delais)]));
   poserLOffreDuTelephone(projet);
 }
 

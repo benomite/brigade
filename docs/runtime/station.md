@@ -445,7 +445,9 @@ still open, the cook's answer is an ordinary failed attempt, with the reason in 
 ### After the third failed try: the manager reworks the ticket
 
 A station on GitHub alone stops trying a ticket after 3 cooks in a row without a delivery (or 2 in a
-row with the same stop reason, #2729), or when the pass refuses its delivery again after 2 sends back.
+row with the same stop reason, #2729), or when the pass hands its delivery back twice in a row with the
+same result. A delivery the pass refuses a third time over the ticket's life is parked for the chef, not
+reworked by the manager (#4226, "Three tries per ticket, in total" in `github-seul.md`).
 **A cook that finished `ok` and whose delivery the station refuses** — it committed nothing, added
 nothing since its last delivery, or said the ticket is already satisfied and the station could not
 confirm it — **stops the tries at that first refusal** (#3651): another cook on the ticket as it stands
