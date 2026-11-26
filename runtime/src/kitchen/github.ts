@@ -106,6 +106,20 @@ export function gestures(gh: Gh, repo: string) {
     },
     openPr: (issue: number, base: string, title: string) => gh(["pr", "create", ...r, "--head", branchOf(issue), "--base", base, "--title", `#${issue} — ${title}`, "--body-file", "-"], `Closes #${issue}`),
     prFiles: async (pr: number): Promise<string[]> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "files"])).files as Array<{ path: string }>).map((file) => file.path),
+    // The last lines of each failing Actions job's failed steps: the cook has no token to read them.
+    failedLogs: async (pr: number, max = 5, lines = 40): Promise<Array<{ name: string; log: string }>> => {
+      const sha = (JSON.parse(await gh(["api", `repos/${repo}/pulls/${pr}`])) as { head: { sha: string } }).head.sha;
+      const runs = (JSON.parse(await gh(["api", `repos/${repo}/commits/${sha}/check-runs?per_page=100`])) as { check_runs: Array<{ name: string; conclusion: string | null; html_url: string }> }).check_runs;
+      const failed = runs.filter((check) => FAILED.has((check.conclusion ?? "").toUpperCase())).slice(0, max);
+      return Promise.all(failed.map(async (check) => {
+        const job = /\/job\/(\d+)/.exec(check.html_url)?.[1];
+        if (job === undefined) return { name: check.name, log: `(no Actions log: ${check.html_url})` };
+        const raw = await gh(["run", "view", "--job", job, ...r, "--log-failed"]).catch((error: Error) => `(log unreadable: ${error.message})`);
+        // Each line is `<job>\t<step>\t<text>`: only the text is kept.
+        const text = raw.trimEnd().split("\n").map((line) => line.replace(/^[^\t]*\t[^\t]*\t/, "").slice(0, 300));
+        return { name: check.name, log: text.slice(-lines).join("\n") };
+      }));
+    },
     merge: (pr: number) => gh(["pr", "merge", String(pr), ...r, "--merge", "--delete-branch"]),
     ensureLabels: async (names: string[]) => {
       for (const name of names) await gh(["label", "create", name, ...r, "--force"]).catch(() => "");

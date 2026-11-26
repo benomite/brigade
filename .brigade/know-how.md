@@ -1,0 +1,1 @@
+- The kitchen reads a red CI through the REST check-runs of the PR head (each Actions check-run's html_url ends in /job/<id>) and `gh run view --job <id> --log-failed`; `gh pr checks` exits non-zero on failing checks, so `ghCli` would lose its stdout (#4473)
