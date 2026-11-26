@@ -37,3 +37,19 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`identites-et-secrets.md`](identites-et-secrets.md) | One GitHub identity per role, the project's secrets |
 | [`cloison-et-arbitre.md`](cloison-et-arbitre.md) | The partition, the arbiter between projects |
 | [`exploitation.md`](exploitation.md) | Variables, backup, "Driving it", dev workstation, the box |
+
+## Where the code lives
+
+The code of `runtime/src/` is one directory per subsystem. [`code-layout.md`](code-layout.md) lists
+each directory, the page that describes it, and where a new file goes. The index by directory:
+
+| Directory | Page |
+|---|---|
+| `station/` | [`station.md`](station.md) |
+| `rail/` | [`journal-et-rail.md`](journal-et-rail.md) |
+| `github/` | [`quota-github.md`](quota-github.md) |
+| `pass/` | [`pass.md`](pass.md) |
+| `manager/` | [`manager.md`](manager.md) |
+| `bac-a-sable/` | [`bac-a-sable.md`](bac-a-sable.md) |
+| `second/` | [`role-produit.md`](role-produit.md) |
+| `cli/` | [`exploitation.md`](exploitation.md) |
