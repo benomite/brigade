@@ -1,7 +1,7 @@
 // Everything the kitchen reads from and writes to GitHub, through `gh`.
 // The state is read in one paged GraphQL query per turn; the gestures are
 // plain `gh` commands. Only text from trusted authors leaves this module.
-import { execFile } from "node:child_process";
+import { execFile } from "../sans-invite.ts";
 import type { Checks, Issue, PullRequest } from "./decide.ts";
 
 export type Gh = (args: string[], input?: string) => Promise<string>;

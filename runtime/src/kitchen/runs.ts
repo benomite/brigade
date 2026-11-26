@@ -2,7 +2,7 @@
 // project's state, launched through the relay (`relais.ts`) so it outlives
 // the kitchen. A restarted kitchen lists the same directories and finds the
 // same runs: nothing about them lives in memory.
-import { spawn } from "node:child_process";
+import { spawn } from "../sans-invite.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ecrireAtomique, type ConsigneDuRelais, type FinDuRelais } from "../relais.ts";

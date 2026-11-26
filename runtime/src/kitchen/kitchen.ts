@@ -1,7 +1,7 @@
 // One turn of a project's kitchen: read what the finished agents left, read
 // GitHub, decide, act. The agents judge; this file only does the few
 // gestures that stay locked in code: merge, the try count, places, risk zones.
-import { execFile } from "node:child_process";
+import { execFile } from "../sans-invite.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
