@@ -177,6 +177,14 @@ base, the stale-branch pruning).
   issue of the brigade that carries that mark — open or closed, changed within 30 days, from the repository or from
   this station's account — covers the card: no second one. A brigade that cannot be read files nothing and is
   warned; the next turn tries again (`runtime/src/signalement-carte-sans-question.ts`, #3134).
+- **A ticket the manager judged is never left in limbo** (#4215). At each turn's healing, a ticket of the turn that is
+  open, has no calibration, no `chef-todo` card, no `decision` label and is not parked is read again: its latest
+  manager judgment, from the repository, is the source of truth, whatever happened to its labels since. Judged a
+  decision for the chef (`**Manager — not a workable ticket: a decision issue.**` or `a question`), and not answered
+  yet (`<!-- brigade:reponse`), its `product-question` card comes back with the judgment's question and answers. Judged
+  on hold, with `fire`, it is parked (`parked`, and the parking comment with the manager's reason). Each repair is said
+  in a comment marked `<!-- brigade:limbo -->`. A repaired ticket carries its card or its hold, so the next turn writes
+  nothing (`runtime/src/limbo/reparer.ts`).
 - **No step writes acceptance tests before the cook** (#4229, epic #4132). The cook writes its tests with its work, in the
   same pull request, and the review judges them (`agents/cook.md`). Nothing freezes a test: a cook may change any test
   file of its own branch. The app's rail still reads the `tests-written` label of a ticket that went through the former

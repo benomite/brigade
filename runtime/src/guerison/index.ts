@@ -8,7 +8,10 @@
 // - la clôture d'une épique dont tous les sous-tickets sont fermés
 //   (`epique-finie.ts`, #2754) ;
 // - le défaut d'une carte de TODO sans question, déposé sur la brigade
-//   (`../signalement-carte-sans-question.ts`, #3134).
+//   (`../signalement-carte-sans-question.ts`, #3134) ;
+// - un ticket en limbes — jugé décision ou attente par le manager, sans
+//   calibrage, ni décision ouverte, ni attente — remis en carte ou parqué
+//   (`../limbo/reparer.ts`, #4215).
 // La lacune technique que le manager complète seul (#2753) est dans ses
 // instructions, pas ici.
 //
@@ -33,6 +36,7 @@ import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { ouvrirSignalement } from "../signalement-carte-sans-question.ts";
+import { reparerLesLimbesSurGitHub } from "../limbo/reparer.ts";
 
 // Ce que la guérison demande au client GitHub de la station, et rien de plus.
 export type GitHubDeLaGuerison = {
@@ -74,7 +78,7 @@ export type OptionsDeLaGuerison = {
   maintenant?: () => number;
 };
 
-export type Geste = "claim" | "in-pass" | "epique" | "sans-question";
+export type Geste = "claim" | "in-pass" | "epique" | "sans-question" | "limbes";
 
 // Ce qu'un tour de guérison a fait, geste par geste. `tickets` : ceux du tour
 // tels que la guérison les laisse — un
@@ -182,6 +186,21 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       const posees = tickets.filter((t) => t.labels.includes(CHEF_TODO));
       if (sansQuestion === null || posees.length === 0) return;
       for (const { carte, defaut } of await sansQuestion.signaler((await cartesDesIssues(github, posees)).todo)) avertir(`brigade : the TODO card of #${carte} asks no question — defect #${defaut} filed on ${DEPOT_BRIGADE}`);
+    });
+
+    // Un ticket en limbes : sa carte revient, ou il se parque, comme le manager l'a jugé (#4215).
+    await tache("limbes", async () => {
+      // Le client du runtime la lit toujours ; un client réduit (un test) ne pose aucune carte.
+      const { issue } = github;
+      if (issue === undefined) return;
+      const client = {
+        issue: (numero: number) => issue.call(github, numero),
+        commentaires: async (numero: number) => (await github.commentaires(numero)).map(({ body, association, createdAt }) => ({ body, association, createdAt, author: "" })),
+        commenter: (numero: number, corps: string) => github.commenter(numero, corps),
+        labelliser: (numero: number, labels: string[]) => github.labelliser(numero, labels),
+        delabelliser: (numero: number, label: string) => github.delabelliser(numero, label),
+      };
+      await reparerLesLimbesSurGitHub(client, tickets, () => new Date(maintenant()));
     });
 
     const sans = (labels: readonly string[], label: string) => labels.filter((l) => l !== label);
