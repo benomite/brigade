@@ -367,6 +367,8 @@ export type Pont = {
   closerDeSante(projet: string): Promise<import("../closer-sante.ts").LectureDuCloser>;
   changerReglageDuCloser(projet: string, cle: string, saisie: string | { model: string; effort: string }): Promise<import("../closer-sante.ts").RenduDuReglage>;
   changerVerificationDuCloser(projet: string, geste: "ajouter" | "retirer", saisie: string): Promise<import("../closer-sante.ts").RenduDesVerifications>;
+  savoirDuProjet(projet: string): Promise<import("./know-how/know-how-github.ts").LectureDuSavoir>;
+  changerLeSavoir(projet: string, changement: import("./know-how/know-how-github.ts").ChangementDuSavoir): Promise<import("./know-how/know-how-github.ts").RenduDuSavoir>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —

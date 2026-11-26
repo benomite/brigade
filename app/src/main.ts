@@ -74,6 +74,7 @@ import { lancerLeTriage, mettreSurLeRail, proposerLeDepart } from "./depart-du-p
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
+import { changerLeSavoir, lireLeSavoirDuProjet } from "./vue/know-how/know-how-github.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { jouerLaRevue } from "./vue/carte-sensible/carte-sensible-github.ts";
@@ -1585,6 +1586,15 @@ ipcMain.handle("changerVerificationDuCloser", async (_, nom: unknown, geste: unk
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const rendu = await changerLesVerifications({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), geste, saisie, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+});
+// Le savoir-faire du projet, sous Settings (#4239, vue/know-how/) : `.brigade/know-how.md` lu sur sa branche
+// d'intégration, et une entrée changée ou retirée proposée par une pull request vers elle, comme un plafond.
+const savoirDe = (nom: unknown) => ({ nom, projet: connu(nom), depotDe: depotDuProjet, brancheDe: brancheDuProjet, client: clientDesLabels });
+ipcMain.handle("savoirDuProjet", (_, nom: unknown) => lireLeSavoirDuProjet(savoirDe(nom)));
+ipcMain.handle("changerLeSavoir", async (_, nom: unknown, changement: unknown) => {
+  const rendu = await changerLeSavoir({ ...savoirDe(nom), changement });
   if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
   return rendu;
 });
