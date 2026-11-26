@@ -110,13 +110,15 @@ const reglagesDe = (contenu: Record<string, unknown> | null): ReglageLu[] => {
 export const verificationsDu = (texte: string): string[] => texte.split(/\r?\n/).flatMap((ligne) => (/^\s*[-*]\s+\S/.test(ligne) ? [ligne.replace(/^\s*[-*]\s+/, "").trim()] : []));
 export const texteDesVerifications = (liste: readonly string[]): string => [...ENTETE, ...liste.map((verification) => `- ${verification}`), ""].join("\n");
 
-type MarkdownLu = { texte: string; sha: string } | { texte: null; sha: null };
-async function lireLeMarkdown(client: ClientDeLaPriorite, depot: string, branche: string | null): Promise<MarkdownLu> {
-  const lu = await client.lire(`/repos/${depot}/contents/${VERIFICATIONS}${branche === null ? "" : `?ref=${encodeURIComponent(branche)}`}`);
+// Un fichier texte du dépôt (`chemin`, celui des vérifications par défaut ; le savoir-faire du projet, #4239) : son texte
+// et son `sha`, ou null quand la branche ne l'a pas.
+export type MarkdownLu = { texte: string; sha: string } | { texte: null; sha: null };
+export async function lireLeMarkdown(client: ClientDeLaPriorite, depot: string, branche: string | null, chemin: string = VERIFICATIONS): Promise<MarkdownLu> {
+  const lu = await client.lire(`/repos/${depot}/contents/${chemin}${branche === null ? "" : `?ref=${encodeURIComponent(branche)}`}`);
   if (lu.status === 404) return { texte: null, sha: null };
-  if (lu.status !== 200) throw refusDe(`the reading of ${VERIFICATIONS}`, lu);
+  if (lu.status !== 200) throw refusDe(`the reading of ${chemin}`, lu);
   const { content, sha } = estObjet(lu.data) ? lu.data : {};
-  if (typeof content !== "string" || typeof sha !== "string") throw new Error(`GitHub gave ${VERIFICATIONS} without its content`);
+  if (typeof content !== "string" || typeof sha !== "string") throw new Error(`GitHub gave ${chemin} without its content`);
   return { texte: Buffer.from(content, "base64").toString("utf8"), sha };
 }
 

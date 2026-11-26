@@ -60,7 +60,6 @@ test("critère 2 — la ligne `in pass` dit « cooked by <station> » d'après l
 });
 
 // Ticket #3902 — critère 3 : une livraison sans marque de station ne montre aucune puce, rien n'est deviné. Lu de GitHub seul, sur un faux GitHub : le rail d'un projet, ses cartes (`facts`) et les lignes que `status` écrit.
-// brigade:guard
 test("critère 3 — une PR sans marque « Cooked by station » : ni puce ni « cooked by », même si une prise a existé", async () => {
   const { rail, lignes } = await lire({
     issues: [issue(3891, ["fire", "in-pass"])],

@@ -21,12 +21,10 @@ async function demarre(labelsDeDeux: string[], prise: boolean): Promise<boolean>
 }
 
 // #4260 : un ticket retenu pour le chef porte `chef-todo` (parqué pour lui), plus `blocked-on-human`.
-// brigade:guard
 test("the open PR of a ticket held for the chef keeps its zone", async () => {
   assert.equal(await demarre([...CALIBRE, CHEF_TODO], false), false);
 });
 
-// brigade:guard
 test("the open PR of a ticket taken by a station keeps its zone", async () => {
   assert.equal(await demarre([...CALIBRE, "taken"], true), false);
 });

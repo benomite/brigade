@@ -7,6 +7,7 @@
 // garde-fous, avec la vraie règle de l'arbitre : seuls GitHub et `claude` sont
 // faux — un GitHub en mémoire et la doublure de `claude`.
 import assert from "node:assert/strict";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Arbitrage } from "../../../src/arbitrage.ts";
@@ -22,7 +23,7 @@ import { ouvrirJournal } from "../../../src/journal.ts";
 import { etatDesGardeFous } from "../../../src/projections/guardrails.ts";
 import { etatStation } from "../../../src/projections/stations.ts";
 import { demarrer } from "../../../src/runtime.ts";
-import { ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire } from "../../outils.ts";
+import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, tuerLesRelais } from "../../outils.ts";
 
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 const STATION = "box/claude";
@@ -112,8 +113,8 @@ const mot = (cooks: number, demande: boolean): Mot => ({ cooks, demande, machine
 // Une cuisine GitHub seul : le runtime du projet et ses garde-fous, la station
 // du tour et ses gardes. Le cook de chaque ticket est la doublure de `claude`,
 // lancée par les gardes, avec le scénario que le test lui donne.
-function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; places?: number; maintenant?: () => Date; disquePlein?: DisquePlein } = {}) {
-  const repertoire = repertoireTemporaire(t);
+function cuisine(t: TestContext, options: { arbitre?: Arbitrage | null; scenario?: (issue: number) => string; avertir?: (texte: string) => void; machine?: () => Machine; places?: number; maintenant?: () => Date; disquePlein?: DisquePlein; repertoire?: string } = {}) {
+  const repertoire = options.repertoire ?? repertoireTemporaire(t);
   const runtime = brancherGardeFous({ plafonds: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, seuilDisjoncteur: 3, graceMs: 2000 }, demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5 }));
   t.after(() => runtime.arreter("test"));
   const machine = options.machine;
@@ -454,7 +455,8 @@ function stationDuTour(kitchen: ReturnType<typeof cuisine>, { places, branche, a
     github: client as GitHub,
     depot: {
       connait: () => false,
-      preparer: async (run) => ({ worktree: repertoire, branche: branche(run) }),
+      // Un worktree à chaque run : la station retire celui d'un cook sorti (#4104), et l'état des relais vit dans le répertoire du projet (#4401).
+      preparer: async (run) => ({ worktree: mkdtempSync(join(repertoire, `${run}-`)), branche: branche(run) }),
       reprendre: async () => repertoire,
       retirer: () => void fait.push("retirer"),
       ranger: async () => null,
@@ -579,6 +581,26 @@ test("a station held for its machine by an older runtime still launches its cook
   assert.equal(fin.erreur, null);
   assert.equal(faits("cook.launched").length, 1);
   assert.deepEqual(faits("breaker.opened"), []);
+});
+
+test("a cook launched through the guards outlives its runtime: the next runtime's guards follow it under the stream the station names, and launch no other (#4401)", async (t) => {
+  const premiere = cuisine(t);
+  aArreter(t, () => tuerLesRelais(premiere.repertoire));
+  const feu = join(premiere.repertoire, "feu");
+  const lancement = { commande: FAUX_CLAUDE, args: [], cwd: premiere.repertoire, env: { ...ENV_ENFANT, FAUX_CLAUDE: "attend", FAUX_CLAUDE_FEU: feu }, flux: join(premiere.repertoire, "7-github.flux.jsonl"), ticket: 7 };
+  const lance = premiere.gardes.lancer(lancement);
+  await jusqua(() => readdirSync(join(premiere.repertoire, "runs")).some((nom) => nom.endsWith(".cook.pid")));
+  premiere.runtime.arreter("SIGTERM");
+  assert.equal((await lance.fin).code, null);
+
+  const seconde = cuisine(t, { repertoire: premiere.repertoire });
+  writeFileSync(feu, "");
+  const suivi = seconde.gardes.lancer({ ...lancement, suivre: true });
+  assert.equal((await suivi.fin).code, 0);
+  // Le même run, suivi : aucun autre lancement.
+  assert.equal(seconde.faits("cook.launched").length, 1);
+  assert.equal(seconde.faits("cook.resumed").length, 1);
+  assert.deepEqual(seconde.faits("cook.exited").map((evenement) => evenement.payload.outcome), ["ok"]);
 });
 
 // Le disque de #4091 : 2 Go libres, le seuil par défaut est de 5 Go.

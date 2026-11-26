@@ -4,7 +4,7 @@
 // forme de son flux.
 import { spawn } from "./sans-invite.ts";
 import { signalerLArbre, signalerLArbreSync } from "./arbre.ts";
-import { closeSync, createWriteStream, openSync, readFileSync, readSync, type WriteStream } from "node:fs";
+import { closeSync, createWriteStream, openSync, readFileSync, readSync, rmSync, type WriteStream } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { lecteurDActivite, type Activite } from "./activite.ts";
@@ -102,6 +102,47 @@ const FINITION_MS = 60_000;
 const delaiDeFinition = (plafonds: Pick<Plafonds, "idleMs">) => Math.min(FINITION_MS, Math.floor(plafonds.idleMs / 4));
 
 const nombre = (valeur: unknown) => (typeof valeur === "number" ? valeur : 0);
+
+// Le cook qui a dit son résultat rend son travail : il a `delaiDeFinition`
+// pour sortir. Passé ce délai, `terminer` l'arrête, et sa fin est celle que son
+// résultat dit — 0 s'il réussit, 1 sinon, comme `claude` sort après lui. Le
+// délai court tant que son dernier geste est ce résultat : un cook qui reprend
+// la parole travaille, et la garde d'inactivité le veille à nouveau. Le même
+// pour un cook tenu et pour un cook relayé.
+function veilleDeFinition(plafonds: Pick<Plafonds, "idleMs">, lecteur: { activite(): Activite | null }, terminer: () => void) {
+  let minuterie: NodeJS.Timeout | undefined;
+  let enErreur = true;
+  let apres: number | null = null;
+  return {
+    voir(ligne: string, arrete: boolean) {
+      if (lecteur.activite()?.doing !== "finishing") {
+        clearTimeout(minuterie);
+        minuterie = undefined;
+        return;
+      }
+      try {
+        const evenement = JSON.parse(ligne);
+        if (evenement?.type === "result") enErreur = evenement.is_error !== false;
+      } catch {
+        // Une ligne illisible ne change pas le résultat dit.
+      }
+      if (minuterie !== undefined || arrete) return;
+      const delai = delaiDeFinition(plafonds);
+      minuterie = setTimeout(() => {
+        apres = delai;
+        terminer();
+      }, delai);
+    },
+    // La fin lue, ou celle que son résultat dit s'il a été terminé après lui
+    // sans qu'un garde-fou l'ait arrêté entre-temps.
+    fin(lue: { code: number | null; signal: string | null }, arret: Arret | null, erreur: string | null): { code: number | null; signal: string | null; apresResultatMs?: number } {
+      clearTimeout(minuterie);
+      if (apres === null || arret !== null || erreur !== null) return lue;
+      return { code: enErreur ? 1 : 0, signal: null, apresResultatMs: apres };
+    },
+  };
+}
+
 
 // Les tours et les tokens d'un flux de `claude`, ligne à ligne. Un tour = un
 // message de l'assistant. `claude` livre un même message en plusieurs lignes
@@ -236,37 +277,14 @@ export function superviser(options: OptionsSupervision): Supervise {
     masquer: (texte) => masquerIdentifiants(options.masquer?.(texte) ?? texte).texte,
   });
 
-  // Le cook qui a dit son résultat rend son travail : il a `delaiDeFinition`
-  // pour sortir. Passé ce délai, il est terminé, et sa fin est celle que son
-  // résultat dit — 0 s'il réussit, 1 sinon, comme `claude` sort après lui. Le
-  // délai court tant que son dernier geste est ce résultat : un cook qui
-  // reprend la parole travaille, et la garde d'inactivité le veille à nouveau.
-  let finition: NodeJS.Timeout | undefined;
-  let resultatEnErreur = true;
-  let apresResultat: number | null = null;
-  const veillerLaFinition = (ligne: string) => {
-    if (lecteur.activite()?.doing !== "finishing") {
-      clearTimeout(finition);
-      finition = undefined;
-      return;
-    }
-    try {
-      const evenement = JSON.parse(ligne);
-      if (evenement?.type === "result") resultatEnErreur = evenement.is_error !== false;
-    } catch {
-      // Une ligne illisible ne change pas le résultat dit.
-    }
-    if (finition !== undefined || arret || mort) return;
-    const delai = delaiDeFinition(plafonds);
-    finition = setTimeout(() => {
-      if (arret || mort) return;
-      apresResultat = delai;
-      // Le cook n'est plus inactif : c'est le superviseur qui le termine.
-      inactivite?.annuler();
-      void signaler("SIGTERM");
-      grace = setTimeout(() => void signaler("SIGKILL"), options.graceMs);
-    }, delai);
-  };
+  // Le cook qui a dit son résultat et ne sort pas est terminé (`veilleDeFinition`).
+  const finition = veilleDeFinition(plafonds, lecteur, () => {
+    if (arret || mort) return;
+    // Le cook n'est plus inactif : c'est le superviseur qui le termine.
+    inactivite?.annuler();
+    void signaler("SIGTERM");
+    grace = setTimeout(() => void signaler("SIGKILL"), options.graceMs);
+  });
 
   const lignes = createInterface({ input: enfant.stdout });
   let fluxLu = false;
@@ -277,7 +295,7 @@ export function superviser(options: OptionsSupervision): Supervise {
     veiller();
     compter(ligne);
     lecteur.lire(ligne);
-    veillerLaFinition(ligne);
+    finition.voir(ligne, arret !== null || mort);
     const depasse = depassement(plafonds, compte);
     if (depasse) arreter(depasse);
   });
@@ -289,11 +307,7 @@ export function superviser(options: OptionsSupervision): Supervise {
       clearTimeout(duree);
       inactivite?.annuler();
       clearTimeout(grace);
-      clearTimeout(finition);
-      // Terminé après son résultat, sans qu'un garde-fou l'ait arrêté entre-temps : sa fin est ce résultat.
-      const termine = apresResultat !== null && arret === null && erreur === null;
-      const code = termine ? (resultatEnErreur ? 1 : 0) : sortie;
-      const signal = termine ? null : signe;
+      const { code, signal, apresResultatMs } = finition.fin({ code: sortie, signal: signe }, arret, erreur);
       // Rien ne survit à son cook : ce qui reste du groupe (un petit-enfant
       // sourd à SIGTERM, un serveur laissé en fond) est tué maintenant. Après
       // ce point, plus aucun signal ne part — le numéro du groupe peut être
@@ -315,7 +329,7 @@ export function superviser(options: OptionsSupervision): Supervise {
           arret,
           erreur,
           ...(masques === 0 ? {} : { masques }),
-          ...(termine && apresResultat !== null ? { apresResultatMs: apresResultat } : {}),
+          ...(apresResultatMs === undefined ? {} : { apresResultatMs }),
         });
       };
       const unDeMoins = () => {
@@ -435,6 +449,8 @@ export type OptionsRelais = Omit<OptionsSupervision, "masquer"> & {
 // rendre la main : un runtime qui meurt juste après la laisse au suivant.
 export function superviserParRelais(options: OptionsRelais): Supervise & { lacher(): void } {
   const fichiers = fichiersDuRelais(options.flux);
+  // La fin d'un relais d'avant sur ce flux n'est pas celle de ce cook.
+  rmSync(fichiers.fin, { force: true });
   const debut = Date.now();
   const relais = spawn(process.execPath, [RELAIS, options.run], {
     detached: true,
@@ -573,10 +589,16 @@ function suivre(
   let lu = 0;
   let reste = "";
   const decodeur = new TextDecoder();
+  const finition = veilleDeFinition(plafonds, lecteur, () => {
+    if (arret || mort || lache) return;
+    inactivite?.annuler();
+    signalerAuRelais();
+  });
   const traiter = (ligne: string) => {
     veiller();
     compter(ligne);
     lecteur.lire(ligne);
+    finition.voir(ligne, arret !== null || mort);
     const depasse = depassement(plafonds, compte);
     if (depasse) arreter(depasse);
   };
@@ -618,15 +640,17 @@ function suivre(
     clearTimeout(duree);
     inactivite?.annuler();
     clearInterval(lecture);
+    const { code, signal, apresResultatMs } = finition.fin(lue, arret, lue.erreur);
     resoudre({
-      code: lue.code,
-      signal: lue.signal,
+      code,
+      signal,
       turns: compte.turns,
       tokens: compte.tokens,
       durationMs: ecoule(),
       arret,
       erreur: lue.erreur,
       ...(lue.masques ? { masques: lue.masques } : {}),
+      ...(apresResultatMs === undefined ? {} : { apresResultatMs }),
     });
   };
   const regarder = () => {
@@ -660,6 +684,7 @@ function suivre(
     lacher() {
       if (mort || lache) return;
       lache = true;
+      finition.fin({ code: null, signal: null }, null, null);
       clearTimeout(duree);
       inactivite?.annuler();
       clearInterval(lecture);

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/events/guardrails.ts";
-import { superviser, type Arret } from "../src/superviseur.ts";
+import { arreterParLeRelais, superviser, superviserParRelais, type Arret } from "../src/superviseur.ts";
 import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, temporaireDuFichier, vivant } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
@@ -453,6 +453,18 @@ describe("superviser, à l'horloge du test", () => {
 
     assert.deepEqual(arrets, []);
     assert.deepEqual([resultat.arret, resultat.code, resultat.signal, resultat.apresResultatMs], [null, 1, null, 250]);
+  });
+
+  // Le cook relayé de la station (#4401) a la même finition : sans elle, il attendait la garde d'inactivité.
+  test("un cook relayé qui a dit son résultat sans sortir est terminé passé le délai de finition, et sa fin est son résultat (#3648, #4401)", async (t) => {
+    const flux = join(repertoireTemporaire(t), "run.jsonl");
+    const arrets: Arret[] = [];
+    const relaye = superviserParRelais({ commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "livre-puis-reste" }, plafonds: { ...LARGES, idleMs: 400 }, graceMs: 2000, flux, run: "finition", secrets: {}, surArret: (arret) => arrets.push(arret) });
+    aArreter(t, () => arreterParLeRelais(flux));
+    const resultat = await relaye.fin;
+
+    assert.deepEqual(arrets, []);
+    assert.deepEqual([resultat.arret, resultat.code, resultat.signal, resultat.apresResultatMs, resultat.erreur], [null, 0, null, 100, null]);
   });
 
   test("un cook muet est détecté comme inactif et arrêté", async (t) => {

@@ -4,7 +4,7 @@
 // L'état des tickets, la relecture et le merge sont les vrais modules de
 // l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`,
 // `github-etat/prise.ts`) : seul le client GitHub est faux, plus bas qu'eux.
-import { SUJET_DE_SAUVEGARDE } from "../src/mise-a-jour/attente/attente.ts";
+import { SUJET_DE_SAUVEGARDE } from "../src/cuisson/reprise/reprise.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -1114,7 +1114,6 @@ test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
 });
 
-// brigade:guard
 test("places full, a place opens: a `prio:0` repair ticket is claimed before an older ticket without prio (#4102)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10, CALIBRE);
@@ -1400,7 +1399,6 @@ test("a red main: no PR is merged, and the next turns merge nothing either (#221
   assert.equal(faux.prs.filter((pr) => pr.merged && pr.issue === 10).length, 0);
 });
 
-// brigade:guard
 test("merges resume once main is green again (#2214)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10);
@@ -2101,8 +2099,9 @@ test("a cook that ends with exit code 143 (SIGTERM) is not a failed cook: the ti
 });
 
 // #2543, 2026-11-06 : la station, relancée par sa mise à jour toutes les 35 à 45 min, tuait ses
-// cooks ; chaque ticket attendait 30 min, puis son cook repris mourait à la relance suivante.
-test("a cook killed because its station stops does not hold its ticket: no wait, no try counted, and the next round takes it again (#2543)", async (t) => {
+// cooks. Depuis #4401, son cook lui survit : la station qui s'arrête garde le ticket pris, sans rien
+// en dire, et celle qui la relance le reprend à son premier tour.
+test("a station that stops while its cook runs keeps the ticket taken and says nothing on it; the restarted station takes it back at its first round (#2543, #4401)", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -2130,10 +2129,11 @@ test("a cook killed because its station stops does not hold its ticket: no wait,
   await station.calme();
 
   const corps = (faux.commentaires.get(79) ?? []).map((c) => c.body).join("\n");
-  assert.match(corps, /stopped with its station[\s\S]*signal SIGKILL/);
+  assert.doesNotMatch(corps, /stopped with its station/);
   assert.doesNotMatch(corps, /brigade:attente/);
   assert.doesNotMatch(corps, /brigade:echec/);
-  assert.equal(faux.ticket(79).labels.has(LABEL_TAKEN), false);
+  assert.doesNotMatch(corps, /brigade:lache/);
+  assert.equal(faux.ticket(79).labels.has(LABEL_TAKEN), true);
 
   // La station relancée le reprend à son premier tour, sans attendre.
   const relancee = stationDuDepot(options);

@@ -21,7 +21,6 @@ test("`report` without `--week` is a usage error: the daily report is gone", (t)
   assert.match(redits.join("\n"), /usage: .*--week <YYYY-MM-DD>/);
 });
 
-// brigade:guard
 test("`report --week <date>` is read as a call, not as a usage error", (t) => {
   const { code, redits } = appeler(["--week", "2026-11-02"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   assert.equal(code, 1);

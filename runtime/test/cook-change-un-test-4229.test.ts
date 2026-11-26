@@ -11,7 +11,6 @@ import { FauxGitHub, fauxClient, STATION_DU_DEPOT } from "./faux-github.ts";
 
 const DIFF = ["diff --git a/lib/calcul.test.ts b/lib/calcul.test.ts", "--- a/lib/calcul.test.ts", "+++ b/lib/calcul.test.ts", "@@ -1 +1 @@", "-test('adds', () => assert.equal(somme(2, 3), 6));", "+test('adds', () => assert.equal(somme(2, 3), 5));", ""].join("\n");
 
-// brigade:guard
 test("a cook that changes an existing test file in its PR reaches the pass: no block, no send-back, no failed cook", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "cook-change-un-test-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));

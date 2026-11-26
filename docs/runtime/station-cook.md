@@ -160,7 +160,7 @@ series. **The worktree goes away at the end of the cook.**
 **A delivery is pushed only once the project's gates are green** (#3996). The station plays
 `.claude/brigade/gates.sh` in the cook's worktree before the push; red, nothing is pushed: the try fails
 with the gates' first red line (`its gates are red, so its delivery was not pushed: …`), the branch is
-marked as saved work (`brigade: work in progress saved before the station restarts (#2586)`), and the
+marked as saved work (`brigade: work in progress kept for the next cook (#2586)`), and the
 next cook starts from it. A next cook that delivers the same tree, changed in nothing, gets the same red
 without the gates being played again. **Red gates on a loaded machine are not the code's** (#4211):
 when the machine's one-minute load is above the station's CPU threshold (`BRIGADE_MAX_LOAD_PER_CORE`
@@ -172,7 +172,7 @@ the end of its wait (after a restart, at its end) and plays its gates again on t
 pushed. Red on a calm machine, it counts as a try, as before. A project with no `gates.sh`, or gates that judge nothing (no test command,
 or provisional until the foundation ticket is served, #3188), pushes as before. A contributor station
 plays them the same way before pushing to its fork. **What is not a delivery is never pushed to the
-ticket's branch**: the work of a cook that stops on a question, or saved before a restart, is parked
+ticket's branch**: the work of a cook that stops on a question is parked
 on the origin under `refs/brigade/parked/<branch>` — no branch, no PR head, so no CI workflow runs on
 it. A station that does not have the branch resumes from that parked work when it carries what the
 origin has of the branch; the next delivery push removes it. So the CI runs on a cook branch only for
@@ -345,35 +345,6 @@ the entry point — and is blocking. Blocking review was still the first send-ba
 cooked after all the rules above: its first commit rewrote the idle-kitchen integration test that filed
 an inertia bug from the station into the `waiting` case that files none, so the ticket's positive case
 was tested from the station no more, and its second commit added it back next to the new one.
-
-The same instruction tells the cook that the pass replays each test its diff adds — a new test file, or
-a new case in a file that existed — alone on the base, without its change ("Red on main, green on the
-branch", [`pass.md`](pass.md)): a test that already passes there proves nothing about its ticket, and
-sends the delivery back naming it, whatever the review says; only a `tech` ticket is exempt. Before
-committing, the cook plays each new test as the pass will: in a throwaway checkout of the base
-(`git worktree add --detach <throwaway folder> origin/<base>`, never `git stash`, whose stack every
-worktree of the repo shares), it copies its test files and their helpers, sees the test fail there,
-throws the checkout away (`git worktree remove --force`), and sees the test pass on its branch; it
-rewrites a test that passes on both sides, or removes it from its delivery: no reply on the PR nor free
-comment lifts that send-back (#3694: 13 of the 16 blocking reviews over 20 merged tickets were this
-rule, ten of them #3632's, whose cook kept such a test with a guard comment). Only a test whose
-ticket's criteria say the behavior stays "as before" / "unchanged" stays, marked `// brigade:guard` on
-the line above its case: the pass accepts it green on the base (#3852). Blocking review
-was still the first send-back reason after #3466 brought the rule to the pass (#3628: 5 over 20 merged
-tickets), and 4 of those 5 were this rule — #3528 twice, #3559, #3600 —, which the cook's instructions
-did not name: the cook played its test on its branch only.
-
-The same instruction tells the cook that the pass then mutates, one by one, the lines of code its diff
-adds or changes ("Mutations caught", [`pass.md`](pass.md)) — each by the first of `===`/`!==`,
-`==`/`!=`, `&&`/`||`, `<=`/`>`, `>=`/`<`, ` < `/` >= `, ` > `/` <= `, `true`/`false`, ` + `/` - ` or a
-removed unary `!` it finds outside the line's strings and comments — and replays the tests the
-delivery adds against each mutant: a mutation that survives sends the delivery back naming its line,
-whatever the review says. Before committing, the cook does it itself: on each line of code its diff
-adds or changes that carries one of these mutations, it applies it by hand, plays its added tests,
-sees one of them fail, and puts the line back. A surviving mutation calls for a test
-case that tells the line from its mutant, or for removing a line nothing asks for. Blocking review was
-still the first send-back reason after the mutations came to the pass (#3880: 33 over 20 merged
-tickets), and 24 of those 33 were a surviving mutation, which the cook's instructions did not name.
 
 The same instruction tells the cook to list, before writing, every place each criterion applies to,
 and to serve it in each: a criterion that says "every", "all", "never" or "no" covers each message,
