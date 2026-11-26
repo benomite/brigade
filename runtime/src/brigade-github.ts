@@ -79,6 +79,7 @@ import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-exte
 import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
+import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
 import { avisDuChefALaBase, faitsDuDossier, type FaitsDeLaCuisine } from "./fiche-projet/fiche.ts";
 import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
@@ -531,8 +532,9 @@ export const REPRISE_MIN_MS = 5_000;
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 // Ce qui juge une livraison : une PR qui y touche ne se merge qu'approuvée
-// aussi par le second juge (#2555) — sa consigne comprise.
-const JUGES = [".claude/brigade/", ".github/workflows/", "agents/second-juge.md"];
+// aussi par le second juge (#2555) — sa consigne comprise, et la fiche du
+// projet, qui nomme les gates (#4237).
+const JUGES = [".claude/brigade/", ".github/workflows/", "agents/second-juge.md", CHEMIN_DE_LA_FICHE];
 
 // Le rang d'un ticket dans l'ordre de service : le plus petit `prio:N` qu'il porte.
 const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>

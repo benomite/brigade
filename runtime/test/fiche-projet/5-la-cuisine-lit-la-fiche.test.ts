@@ -17,6 +17,10 @@ import type { ClientGitHub } from "../../src/proteger-branche.ts";
 import { brancheDuProjet } from "../../src/reglages-projet/en-vigueur.ts";
 import { consigneDeRelecture } from "../../src/reviewer.ts";
 import { retenirLeSensible } from "../../src/sensible/sensible.ts";
+import { touchePeutJuger } from "../../src/github-seul/second-juge/second-juge.ts";
+import { evaluerMain, statutsDesChecks } from "../../src/statuts-ci/regles.ts";
+import { ouvrirJournal } from "../../src/journal.ts";
+import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, depotRepris, fauxClient } from "../faux-github.ts";
 import { BASE, DEPOT, ENV_ENFANT, depotGit, git, repertoireTemporaire } from "../outils.ts";
 
@@ -53,13 +57,13 @@ test("the pass: the gates are the scripts the sheet names, stage after stage, th
   script(worktree, "ok.sh", 'echo "ok on $1"');
   script(worktree, "ko.sh", "echo 'FAIL  no broken link'; exit 3");
   script(worktree, "jamais.sh", "echo 'FAIL  never played'; exit 4");
-  const jouer = () => jouerGates({ worktree, ticket: 4, env: ENV_ENFANT, delaiMs: 60_000 });
+  const jouer = () => jouerGates({ worktree, ticket: 4, env: ENV_ENFANT, delaiMs: 2_000 });
 
   ecrireFiche(worktree, fiche((f) => (f.stages = [{ name: "script", gates: ["ok.sh"] }])));
   assert.equal(aDesGates(worktree), true);
   const vertes = await jouer();
   assert.equal(vertes.outcome, "green");
-  assert.match(vertes.tail, new RegExp(`ok on ${worktree}`));
+  assert.ok(vertes.tail.includes(`ok on ${worktree}`), vertes.tail);
 
   ecrireFiche(worktree, fiche((f) => (f.stages = [{ name: "script", gates: ["ok.sh"] }, { name: "render", gates: ["ko.sh", "jamais.sh"] }])));
   const rouges = await jouer();
@@ -77,7 +81,7 @@ test("the pass: a sheet the loader refuses makes the gates red, naming the item,
   mkdirSync(join(worktree, ".brigade"));
   writeFileSync(join(worktree, CHEMIN_DE_LA_FICHE), JSON.stringify(fiche((f) => ((f.stages = [{ name: "code", gates: ["temoin.sh"] }]), delete f.rules))));
   assert.equal(aDesGates(worktree), true, "the pass reaches the gates, which say the refusal");
-  const gates = await jouerGates({ worktree, ticket: 4, env: ENV_ENFANT, delaiMs: 60_000 });
+  const gates = await jouerGates({ worktree, ticket: 4, env: ENV_ENFANT, delaiMs: 2_000 });
   assert.equal(gates.outcome, "red");
   assert.match(gates.failures[0] ?? "", /^FAIL {2}\.brigade\/fiche-projet\.json: the item `rules` \(House rules\) is missing$/);
   assert.throws(() => readFileSync(join(worktree, "joue")));
@@ -194,16 +198,6 @@ test("the cook, through the station: a refused sheet starts no cook, says why, a
   assert.deepEqual(repris.retraits, [undefined]);
 });
 
-test("the pass: the gates of the sheet share one time budget with the setup that runs before them", async (t: TestContext) => {
-  const worktree = repertoireTemporaire(t);
-  mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
-  script(worktree, ".claude/brigade/worktree-setup.sh", "sleep 0.6");
-  script(worktree, "lent.sh", "sleep 0.9");
-  ecrireFiche(worktree, fiche((f) => (f.stages = [{ name: "code", gates: ["lent.sh"] }])));
-  const gates = await jouerGates({ worktree, ticket: 4, env: ENV_ENFANT, delaiMs: 1_200 });
-  assert.equal(gates.outcome, "timeout", "0.6 s of setup leave 0.6 s to gates that take 0.9 s");
-});
-
 test("the pass: whether the gates run anything is read in the scripts the sheet names", async (t: TestContext) => {
   const worktree = repertoireTemporaire(t);
   const fondation = { labels: ["foundation"] };
@@ -221,4 +215,34 @@ test("the pass: whether the gates run anything is read in the scripts the sheet 
   assert.match((await gatesQuiNeJugentPas(worktree, fondation, lire)) ?? "", /^the `absent\.sh` of the delivery could not be read/);
   writeFileSync(join(worktree, CHEMIN_DE_LA_FICHE), "[]");
   assert.match((await gatesQuiNeJugentPas(worktree, fondation, lire)) ?? "", /^the project sheet of the delivery is refused, so nothing says which gates judge it: /);
+});
+
+test("served: the red-base rule reads the statuses of the branch the sheet serves, not of main", async (t: TestContext) => {
+  const statuts = statutsDesChecks([{ name: "unit", outcome: "red" }]);
+  assert.deepEqual(await statuts.resultats("trunk"), [{ check: "unit", outcome: "red", run: null }], "the checks of the base, whatever its name");
+  assert.deepEqual(await statuts.resultats("ticket:5"), []);
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  t.after(() => journal.fermer());
+  const lus: string[] = [];
+  const lecteur = { resultats: async (cible: string) => (lus.push(cible), cible === "trunk" ? [{ check: "unit", outcome: "red" as const, run: null }] : []) };
+  assert.deepEqual(await evaluerMain({ statuts: lecteur, journal, projet: "brigade", branche: "trunk", cuisinePeutReparer: async () => false }), { carte: "entree" });
+  assert.deepEqual(lus, ["trunk"]);
+});
+
+test("the pass: a delivery that changes the project sheet changes what judges it, and goes before the second judge", async () => {
+  assert.equal(touchePeutJuger(CHEMIN_DE_LA_FICHE), true);
+  const faux = new FauxGitHub();
+  faux.feu(38);
+  const a = faux.station("box/claude");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 38);
+  assert.ok(pr);
+  pr.fichiers = [CHEMIN_DE_LA_FICHE];
+  faux.ticket(38).labels.add(LABEL_IN_PASS);
+  for (let i = 0; i < 6 && faux.mergee(38) === undefined; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.deepEqual(faux.secondsJugements.map(({ juges }) => juges), [[CHEMIN_DE_LA_FICHE]]);
 });

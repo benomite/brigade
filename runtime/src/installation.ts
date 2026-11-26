@@ -25,7 +25,7 @@ import { ouvrirDepot, worktreesDuProjet } from "./depot.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
-import { BRANCHE_PRINCIPALE_PAR_DEFAUT } from "./fiche-projet/defauts.ts";
+import { BRANCHE_PRINCIPALE_PAR_DEFAUT as BRANCHE_PAR_DEFAUT } from "./fiche-projet/defauts.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { POSABLES } from "./poser-decisions.ts";
@@ -99,7 +99,6 @@ const REGLAGE_DE_CLOISON = /^#?Environment=BRIGADE_SANDBOX_(?:HIDDEN|PRIVATE)=.*
 const BLOC = /^## Équipe multi-agents/;
 // Les bindings que le runtime ne lit pas, mais que le cook et les gates lisent.
 const BINDINGS_ATTENDUS = ["Zones de fichiers", "Dev local", "Plafond des gates"];
-const BRANCHE_PAR_DEFAUT = BRANCHE_PRINCIPALE_PAR_DEFAUT;
 const DELAI_MS = 120_000;
 
 type Sortie = { code: number | null; stdout: string; stderr: string; introuvable: boolean };

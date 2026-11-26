@@ -33,12 +33,12 @@ import { BRANCHE_PRINCIPALE_PAR_DEFAUT } from "../fiche-projet/defauts.ts";
 // ou à défaut d'un même run, font un seul run de la règle B.
 type ResultatDeCheck = { check: string; outcome: "red" | "green"; run: number | null; tete?: string };
 
-// Les résultats d'une cible — `main`, ou `ticket:<n>` —, du plus récent au plus
-// ancien. Aucun : la cible n'a encore rien de conclu.
+// Les résultats d'une cible — la branche d'intégration, ou `ticket:<n>` —, du
+// plus récent au plus ancien. Aucun : la cible n'a encore rien de conclu.
 type StatutsCi = { resultats(cible: string): Promise<ResultatDeCheck[]> };
 
-const CIBLE_MAIN = "main";
 const cibleDuTicket = (ticket: number): string => `ticket:${ticket}`;
+const CIBLE_DE_TICKET = /^ticket:\d+$/;
 
 // Combien de runs rouges de suite sur le même check arrêtent les pushs d'un ticket.
 export const ROUGES_DE_SUITE = 3;
@@ -122,7 +122,7 @@ export async function evaluerMain({ statuts, journal, projet, cuisinePeutReparer
   try {
     // Le dernier résultat de chaque check.
     const vus = new Map<string, ResultatDeCheck>();
-    for (const resultat of await statuts.resultats(CIBLE_MAIN)) if (!vus.has(resultat.check)) vus.set(resultat.check, resultat);
+    for (const resultat of await statuts.resultats(branche)) if (!vus.has(resultat.check)) vus.set(resultat.check, resultat);
     derniers = [...vus.values()];
     // Lu avant la carte : rien n'attend entre ce que TODO porte et ce qui y entre.
     reparable = derniers.some(({ outcome }) => outcome === "red") ? await cuisinePeutReparer() : true;
@@ -153,11 +153,12 @@ export async function evaluerMain({ statuts, journal, projet, cuisinePeutReparer
   return { carte: entree.porte === "todo" ? "entree" : "aucune" };
 }
 
-// Les statuts de `main` tels que le tour les a lus : chaque check conclu de la
-// base, son dernier résultat. Un check qui tourne n'en rend aucun.
+// Les statuts de la branche d'intégration tels que le tour les a lus, quel que
+// soit son nom : chaque check conclu de la base, son dernier résultat. Un check
+// qui tourne n'en rend aucun, et aucun ticket ne s'y lit.
 export function statutsDesChecks(checks: readonly CheckVu[]): StatutsCi {
   return {
-    resultats: async (cible) => (cible === CIBLE_MAIN ? checks.flatMap(({ name, outcome }) => (outcome === "pending" ? [] : [{ check: name ?? "unnamed check", outcome, run: null }])) : []),
+    resultats: async (cible) => (CIBLE_DE_TICKET.test(cible) ? [] : checks.flatMap(({ name, outcome }) => (outcome === "pending" ? [] : [{ check: name ?? "unnamed check", outcome, run: null }]))),
   };
 }
 
