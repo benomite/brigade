@@ -39,7 +39,7 @@ export type OptionsDeLaVeilleDuProjet = {
 
 export function brancherVeilleBlocage<R extends Runtime>(runtime: R, options: OptionsDeLaVeilleDuProjet): R {
   const { tour, station, repertoireEtat, seuils, env, disque, github, dire } = options;
-  if (tour !== null) return runtime;
+  if (tour === null) return runtime;
   const { base } = runtime.journal;
   const machine = options.machine ?? (() => lireMachine(repertoireEtat));
   const fichiers = options.fichiers ?? fichiersReels;
