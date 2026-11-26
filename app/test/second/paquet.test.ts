@@ -46,6 +46,8 @@ test("Brigade.app porte le rôle du second, tel qu'il est dans le dépôt", { sk
   const racine = dossier(t);
   const contenu = join(racine, "Electron.app", "Contents");
   mkdirSync(join(contenu, "Resources"), { recursive: true });
+  mkdirSync(join(contenu, "MacOS"), { recursive: true });
+  writeFileSync(join(contenu, "MacOS", "Electron"), "");
   writeFileSync(join(contenu, "Info.plist"), PLIST);
   writeFileSync(join(racine, "node"), "node");
 

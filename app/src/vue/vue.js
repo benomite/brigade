@@ -189,6 +189,7 @@ import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserBlocTempsDeLaPasse } from "./projet/bandeau-sante/TempsDeLaPasse.js";
+import { tenirLesDelais } from "./delais.js";
 import { poserBlocPostMortems } from "./projet/bandeau-sante/PostMortems.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
@@ -681,6 +682,8 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+const delaisDuProjet = element("delais-du-projet");
+const delaisTenus = tenirLesDelais(document);
 // L'équipe du projet affiché (ticket 4029, autonomie/equipe.js), en tête de sa vue : relue à son ouverture et à chaque
 // lecture de son rail, montrée pour lui seul.
 // La bande du haut du rail lit son supervisor et son closer : une lecture qui les change la repose (ticket 4238).
@@ -5347,6 +5350,9 @@ function poserLeRail(projet) {
       avecSonGeste(ligneDeLAttente(document, attente === undefined || attente.geste !== null ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail), "read again", relire),
     ].find((lignes) => lignes.length > 0 && aUnGeste(lignes)) ?? [];
   const bandeDuHaut = poserLaBandeDuHaut(document, { roles: tenu.tableau.rolesCuisine, agent: (nom) => equipeDuProjet.agent(projet.nom, nom), ouvrirLeFil: lectureSeuleDe(projet) === undefined ? (nom) => equipeDuProjet.ouvrirLeFil(nom) : undefined });
+  // Sur 24 h, la part des tickets mergés en 10 min ou moins de leur prise et leur médiane, la ligne de `status` (ticket 4299).
+  const delaiDePrise = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.delaiDePrise;
+  if (delaiDePrise !== undefined) bandeDuHaut.append(Object.assign(document.createElement("p"), { className: "ligne-du-delai", textContent: delaiDePrise }));
   bandeauDArret.maj(tenu.tableau.arretCuisine);
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
@@ -7031,6 +7037,7 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  delaisDuProjet.replaceChildren(...(projet === undefined ? [] : [delaisTenus.poser(projet.nom, vu?.delais)]));
   poserLOffreDuTelephone(projet);
 }
 
@@ -9401,7 +9408,8 @@ async function ranger(nom, rang) {
 // s'il existe encore — sinon « Tous les projets », ou l'ajout tant qu'il n'y a aucun projet.
 function afficher() {
   relecture.hidden = configuration.nonRelu === undefined;
-  relecture.textContent = [
+  // Relu sans faute, rien à dire : la ligne cachée ne garde pas « → undefined » (ticket 4309).
+  relecture.textContent = configuration.nonRelu === undefined ? "" : [
     `${configuration.chemin} changed, and could not be re-read:`,
     `  → ${configuration.nonRelu}`,
     "Your projects are the ones from before, and nothing is closed. The app re-reads it as soon as it changes.",
