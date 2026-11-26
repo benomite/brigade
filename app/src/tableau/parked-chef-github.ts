@@ -26,4 +26,4 @@ export function pourquoiParque(commentaires: readonly Commentaire[]): { texte: s
 }
 
 // La carte d'une issue `parked:chef` : ce que la cuisine en dit, ou `SANS_POURQUOI`.
-export const carteDuParkedChef = (commentaires: readonly Commentaire[]): CarteDuChef => ({ sorte: SORTE_PARKED_CHEF, texte: pourquoiParque(commentaires)?.texte ?? SANS_POURQUOI });
+export const parkedChefCard = (commentaires: readonly Commentaire[]): CarteDuChef => ({ sorte: SORTE_PARKED_CHEF, texte: pourquoiParque(commentaires)?.texte ?? SANS_POURQUOI });

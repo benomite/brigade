@@ -65,7 +65,7 @@ export const REPOS = { etape: "repos" };
 export const ENVOYER = "send";
 export const CHAMP = "or answer in your own words";
 // La carte d'un ticket que la nouvelle cuisine parque pour le chef (ticket 4474) : sa réponse, et son issue.
-export const CHAMP_SEUL = "your answer, in your own words";
+export const OWN_WORDS_FIELD = "your answer, in your own words";
 export const SUR_GITHUB = "Open on GitHub";
 export const EN_ROUTE = "sending your answer…";
 // Le bouton cliqué le dit à l'instant, avant que GitHub ne réponde (ticket 3386).
@@ -204,7 +204,7 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   const saisie = cree(doc, "textarea");
   saisie.value = brouillon;
   saisie.rows = 2;
-  saisie.placeholder = carte.repondre === undefined ? CHAMP : CHAMP_SEUL;
+  saisie.placeholder = carte.repondre === undefined ? CHAMP : OWN_WORDS_FIELD;
   saisie.ariaLabel = question === null ? `your answer to #${ticket}, in your own words` : `your answer to #${ticket}'s question, in your own words`;
   saisie.disabled = enRoute;
   saisie.dataset.cle = cle;

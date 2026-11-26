@@ -42,7 +42,7 @@ import { carteDeLEcart, LABEL_DU_TABLEAU_DE_LA_CUISINE, labelDeMiseDeCote, miseD
 import { blocAwaiting } from "./rail.ts";
 import type { RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
 import { carteDeLaQuestionDEpique, LABEL_EPIQUE, questionDEpiqueLe } from "./question-d-epique-github.ts";
-import { carteDuParkedChef, LABEL_PARKED_CHEF, pourquoiParque, SORTE_PARKED_CHEF } from "./parked-chef-github.ts";
+import { parkedChefCard, LABEL_PARKED_CHEF, pourquoiParque, SORTE_PARKED_CHEF } from "./parked-chef-github.ts";
 import { carteDuCommentaire, formeDuChef, LABEL_DU_CHEF, type CarteDuChef } from "./todo-github.ts";
 import { tiersDesCommentaires } from "../vue/attente/attente-github.ts";
 import { revueDuCorps, SORTE_SENSIBLE } from "../vue/carte-sensible/carte-sensible-github.ts";
@@ -247,7 +247,7 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     // Les issues que la nouvelle cuisine parque pour le chef, si aucune carte ne les dit déjà : depuis son commentaire.
     for (const { issue, lus } of parquees) {
       if (dits.has(issue.number as number)) continue;
-      const chef = carteDuParkedChef(lus);
+      const chef = parkedChefCard(lus);
       poser({ ...entree(issue), depuis: pourquoiParque(lus)?.le ?? creee(issue), quoi: "carte", ligne: ligneDeLaCarte(chef), chef });
     }
     // Les épiques dont le manager attend la réponse du chef avant de les découper, si aucune carte ne les dit déjà.
