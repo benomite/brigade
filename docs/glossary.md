@@ -54,6 +54,7 @@ Related terms built on « cuisine »:
 | `WAITING` | `WAITING` | Waiting for a third party, not for you; the kitchen does not take it |
 | — | `parked` | One state for everything that waits: who, for what, until when ([simplified process](superpowers/specs/2026-11-24-simplified-process.md), rule 13). A parked card stays in the column where it waits and says who it waits for and until when; no Waiting column (#4238). A ticket that waits for the chef is parked for the chef — for its question, with no date — and the chef's TODO is those tickets, and nothing else: a ticket in WAITING is parked for a third party, and a passed follow-up date does not bring it to the TODO (#4261) |
 | `second` | `second` | Your product assistant, who helps you write the tickets |
+| `savoir-faire` | `know-how` | What the project's cooks learned: the lessons they receive when they start, each with the ticket it came from; the chef reads, edits and removes them in the app's Know-how tab (#4241) |
 | `abandonné` | `dropped` | A ticket left the rail without being served |
 | `pas sur le rail` | `off the rail` | Ticket the manager does not serve |
 | `COINCE` / `COINCENT` | `STUCK` | A cook with no progress for half its lease |
@@ -110,6 +111,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | — | `sensitive` | A green delivery of a ticket labelled `sensitive`, held on its `review before merge` card (#3223) | `merge <owner>/<repo>#<ticket>`, `send-back <owner>/<repo>#<ticket> --note <note>` — new, with no old name |
 | — | `undo` | A served ticket undone from its card (#3274): a pull request reverts its merge and goes through the pass like any delivery, and the ticket is reopened | `<owner>/<repo>#<ticket>` — new, with no old name |
 | — | `send-word` | A word: one line of text the chef sends to the cook of a `taken` ticket (#4047). It is posted on the issue and reaches the cook at the end of its current turn | `<owner>/<repo>#<ticket> <word…>` — new, with no old name |
+| — | `know-how` | The project's know-how: the lessons its cooks receive, each with the ticket it came from (#4241) | `edit <id> <text…>`, `remove <id>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
