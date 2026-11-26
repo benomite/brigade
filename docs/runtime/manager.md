@@ -1,8 +1,8 @@
 ## The manager
 
 The manager decides **what goes onto the rail, and at what calibration**. The chef writes an issue in
-product language, with no label: the manager sets `fire`, `model:` and `effort:` and says why — or says
-in a comment why it is not executable. An **epic** it **splits**; a ticket that **fails in the pass**, it
+product language, with no label: the manager judges it, and when the kitchen has room it takes it from the
+backlog, sets `model:` and `effort:`, then `fire`, and says why — or says in a comment why it is not executable. An **epic** it **splits**; a ticket that **fails in the pass**, it
 acts on rather than passing it up as is.
 
 **It has no switch of its own: it follows the project switch** (`npm --prefix runtime run switch`, see
@@ -112,6 +112,28 @@ equal priority. Each has `ticket`, `titre`, `url`, `priorite` (its `prio:` label
 
 What the rail did with an issue (left, served) counts only if more recent than the manager's decision.
 It is **a read**. GitHub not reached, or a log without the manager's state, it exits with `1`.
+
+### It takes the next backlog issue (#4221)
+
+Rules 2 and 3 of `docs/superpowers/specs/2026-11-24-simplified-process.md`. A judgment no longer sets `fire`: an
+issue judged executable waits in the backlog. On each turn, once the new issues are judged, the manager reads the
+room of the kitchen: the places of the station on this machine (its declared cap bounded by the cores, or the cap
+the chef set), less its cooks at work, less the open issues that carry `fire` and that no cook holds yet — one
+that is parked (`parked`, `waiting`, `blocked-on-human`, `decision`, `question`, `product-question`, `chef-todo`)
+or set aside (`served-elsewhere`, `set-aside:failures`) does not count. While there is room, it takes from the issues
+it judged executable and that nobody fired the best priority (`prio:1` before `prio:2`; an issue without `prio:`
+last), then the oldest. It never takes an `idea`, a parked issue, an epic, nor one already on the rail. It takes again
+at the end of the turn, for the issues the turn completed or judged again, in the room its first take left.
+
+The chosen issue is read again before anything is written: closed or parked since the poll, it is not taken, and
+the choice moves to the next. Then, in this order, the manager calibrates it — `model:` and `effort:` from its
+judgment, set on the issue; a dimension that already carries a label is left as it is —, sets `fire`, presses the
+station's turn, and posts its comment (`ticket put on the rail`). Neither the chef nor the second has a gesture to
+make. A room that cannot be read, a read or a label that fails, is said in the station's journal (journald), and
+the next turn takes it again. An issue you fire yourself is calibrated at once, as before.
+
+The code is `runtime/src/prise-backlog/prise-backlog.ts` (the choice and the order of the steps), reached from the
+turn of `runtime/src/manager.ts`; the room is given by `runtime/src/station/cuisine.ts` and `runtime/src/main.ts`.
 
 ### What the code decides, and what the LLM judges
 
@@ -273,13 +295,19 @@ not proven (a cook cannot read that journal), only that a new issue no longer wa
 **The tickets of a split never await each other** (#3130): two tickets whose zones overlap (the project's
 common paths aside), or one the answer makes await another, are **joined into one ticket** by the code —
 its title the titles joined by `; `, all their criteria, zones and capabilities, the highest model and effort
-of theirs, the interface label if one had it —, and the split comment names each one joined, with the path they
+of theirs, the sum of their expected times (120 at most), the interface label if one had it —, and the split comment names each one joined, with the path they
 shared, under "Tickets joined". Before, the second awaited the first, and lost its whole cooking, pass, CI
 and merge waiting for its claim. The instruction asks for disjoint zones and an empty `attend`; an `attend`
 between disjoint zones is refused, and the split redone once.
 
+**Each ticket of a split has an expected time** (#4307): `temps_attendu`, the minutes it should be merged
+in — about 2 for a wording or title fix, about 10 for a contained feature, up to about 60 for a rework of a
+central system; most tickets 10 or less. An answer whose ticket has none, or one that is not a whole number
+from 1 to 120, is refused; so is one above 10 whose `calibrage` gives no reason (no "because", "since", "so"…).
+
 **A ticket born from a split** carries a body starting with `Epic: #N`, then context, criteria and
-**why this calibration**; `model:`, `effort:` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
+**why this calibration**, shown as model, effort and expected time (`sonnet` / `medium` / `10 min`);
+`model:`, `effort:`, `attendu:<minutes>` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
 `requires`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends
 on (see "A ticket's card", in `station.md`).
 

@@ -77,6 +77,7 @@ export const Menu = souple("Menu");
 export const nativeImage = souple("nativeImage");
 export const Notification = souple("Notification");
 export const powerMonitor = souple("powerMonitor");
+export const protocol = souple("protocol");
 export const shell = souple("shell");
 export const Tray = souple("Tray");
 export default { app };

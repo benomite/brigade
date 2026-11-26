@@ -18,6 +18,7 @@ const ticket = (autres: Record<string, unknown> = {}) => ({
   zone: ["runtime/src/rail.ts"],
   modele: "sonnet",
   effort: "low",
+  temps_attendu: 10,
   calibrage: "Un module.",
   ...autres,
 });
@@ -170,8 +171,8 @@ test("un découpage se lit avec son motif, son ordre, et chaque ticket avec crit
       reason: "Un livrable par module.",
       order: "Le rail d'abord.",
       tickets: [
-        { title: "Le rail compte", context: "Le compte n'existe pas.", criteria: ["`run rail` affiche le compte"], waitsFor: [], zone: ["runtime/src/rail.ts"], model: "sonnet", effort: "low", calibration: "Un module." },
-        { title: "La pass lit", context: "", criteria: ["`run rail` affiche le compte"], waitsFor: [1], zone: ["runtime/src/pass.ts", "docs/"], model: "sonnet", effort: "low", calibration: "Un module." },
+        { title: "Le rail compte", context: "Le compte n'existe pas.", criteria: ["`run rail` affiche le compte"], waitsFor: [], zone: ["runtime/src/rail.ts"], model: "sonnet", effort: "low", calibration: "Un module.", expectedMinutes: 10 },
+        { title: "La pass lit", context: "", criteria: ["`run rail` affiche le compte"], waitsFor: [1], zone: ["runtime/src/pass.ts", "docs/"], model: "sonnet", effort: "low", calibration: "Un module.", expectedMinutes: 10 },
       ],
     },
   });
@@ -241,7 +242,7 @@ test("le corps d'un ticket dit son épique, porte sa marque, ses critères, et p
   assert.equal(neDUnDecoupage(`Le manager écrit \`${marque(30, 2)}\` dans ses tickets.`), false);
   assert.equal(marqueDe(`\`\`\`\n${marque(30, 2)}\n\`\`\``), null);
   assert.match(corps, /## Acceptance criteria\n\n- `run rail` affiche le compte/);
-  assert.match(corps, /Calibrated `sonnet` \/ `low` — Un module\./);
+  assert.match(corps, /Calibrated `sonnet` \/ `low` \/ `10 min` — Un module\./);
   assert.match(corps, /the manager will not come back to it/);
 });
 
@@ -329,6 +330,6 @@ test("le corps d'un ticket ne désigne aucun cook, que sa zone touche la vue de 
   for (const prevu of lu.valeur.tickets) {
     const corps = corpsDuTicket(30, 1, prevu);
     assert.doesNotMatch(corps, /design cook|cook:design|## Design/i);
-    assert.match(corps, /Calibrated `sonnet` \/ `low` — Un module\./);
+    assert.match(corps, /Calibrated `sonnet` \/ `low` \/ `10 min` — Un module\./);
   }
 });

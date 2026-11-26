@@ -28,6 +28,7 @@ import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentite
 import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
+import { placeLibre } from "./prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "./chef/chef.ts";
 import { brancherLeDigest } from "./journal-du-jour/matin.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
@@ -260,7 +261,7 @@ try {
   brancherDerive(socle, decisions.seuils);
   // Le manager : il ne lance que des jugements et des découpages. Son travail
   // sur une issue se prend sur GitHub au nom de la station (#2568).
-  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,
