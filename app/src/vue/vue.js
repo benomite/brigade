@@ -5350,6 +5350,9 @@ function poserLeRail(projet) {
       avecSonGeste(ligneDeLAttente(document, attente === undefined || attente.geste !== null ? undefined : phraseDeLAttente(attente, retenues), gestesDuRail), "read again", relire),
     ].find((lignes) => lignes.length > 0 && aUnGeste(lignes)) ?? [];
   const bandeDuHaut = poserLaBandeDuHaut(document, { roles: tenu.tableau.rolesCuisine, agent: (nom) => equipeDuProjet.agent(projet.nom, nom), ouvrirLeFil: lectureSeuleDe(projet) === undefined ? (nom) => equipeDuProjet.ouvrirLeFil(nom) : undefined });
+  // Sur 24 h, la part des tickets mergés en 10 min ou moins de leur prise et leur médiane, la ligne de `status` (ticket 4299).
+  const delaiDePrise = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.delaiDePrise;
+  if (delaiDePrise !== undefined) bandeDuHaut.append(Object.assign(document.createElement("p"), { className: "ligne-du-delai", textContent: delaiDePrise }));
   bandeauDArret.maj(tenu.tableau.arretCuisine);
   const age = tenu.publieLe === undefined ? undefined : ageDuRail(tenu.publieLe, tenu.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.

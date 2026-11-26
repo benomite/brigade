@@ -67,6 +67,9 @@ export type TicketPrevu = {
   model: string;
   effort: string;
   calibration: string;
+  // The minutes it is expected to be merged in (#4307): label
+  // `attendu:<minutes>`. Absent from splits before #4307.
+  expectedMinutes?: number;
 };
 
 // What the manager does with a ticket the pass handed to it. `retry`: the
