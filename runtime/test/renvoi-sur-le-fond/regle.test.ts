@@ -14,6 +14,10 @@ test("behaviour and criterion remarks are sent back with their own reason, once 
   assert.deepEqual(v.motifs, ["wrong behaviour", "unmet criterion"]);
 });
 
+test("a red CI next to a behaviour remark is sent back for that remark only", () => {
+  assert.deepEqual(jugerLaPR({ remarques: [{ nature: "behaviour", texte: "a" }], ci: "red" }).motifs, ["wrong behaviour"]);
+});
+
 test("an empty reason is refused", () => {
   assert.throws(() => verifierMotifDeRenvoi(""), /failing test/);
 });
