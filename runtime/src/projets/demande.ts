@@ -105,6 +105,7 @@ import type { Chiffre } from "../chiffres-du-projet.ts";
 import type { Resume } from "../temps-ticket/mesure.ts";
 import type { TempsTicket } from "../temps-ticket/ligne-status.ts";
 import type { ResumeDeLaPasse } from "../temps-ticket/passe.ts";
+import type { Delais } from "../delais/delais.ts";
 import type { Delai } from "../installation/delai/delai.ts";
 import { selectionsLues, type Choix, type Selections } from "../installation/besoins/besoins.ts";
 import type { AccesBloque } from "./acces.ts";
@@ -190,6 +191,8 @@ export type SuiviDuProjet = {
   // Les temps des derniers tickets mesurés du projet et le seuil de leur temps perdu (`temps-ticket/ligne-status.ts`).
   // `passe` : le temps de chaque phase de la pass sur 7 jours (`temps-ticket/passe.ts`, #3512).
   temps?: { enregistrements: TempsTicket[]; lostTimeMaxMin: number; resume?: Resume | null; chiffres?: Chiffre[]; passe?: ResumeDeLaPasse | null };
+  // Les délais des dernières 24 heures (`delais/lecture.ts`, #4309), l'objet de `status --json` ; illisibles, leur raison.
+  delais?: Delais | { illisible: string };
   choix?: Choix[];
 };
 
