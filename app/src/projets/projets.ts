@@ -26,6 +26,7 @@ import type { StationVue } from "../stations/stations.ts";
 import { avecLeSuivi, capacitesLues, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, porteLeSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type Delai, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet, type TempsPublie } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
+import { delaiDuProjet } from "../delais/cuisine.ts";
 import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
 
 // Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibrage.ts).
@@ -89,6 +90,9 @@ export type ProjetVu = {
   delai?: Delai;
   // Les temps de ses derniers tickets et son plafond, tels que le suivi les publie (#2346). Absent sans temps publiés.
   temps?: TempsPublie;
+  // Sur 24 h, la part des tickets mergés en 10 min ou moins de leur prise et leur médiane, la ligne de `status`,
+  // tirée de ces temps (#4299). Absente sans temps publiés.
+  delaiDePrise?: string;
   // Ce qui manque à la station pour ses tests, un choix par besoin, tel qu'elle le publie (#1398) — et les
   // issues que l'app a écrites dans sa demande, que la station n'a peut-être pas encore lues (#1400). Absents quand
   // il n'y en a pas.
@@ -530,6 +534,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
         }
       }
       for (const projet of projets.values()) projet.stations.sort((a, b) => a.nom.localeCompare(b.nom));
+      for (const projet of projets.values()) if (projet.temps !== undefined) projet.delaiDePrise = delaiDuProjet(projet.temps, new Date(instant));
       const calibrage = calibrageRecommande(lus.flatMap(({ demande }) => demande ?? []));
       vu = { a: new Date(instant).toISOString(), projets: [...projets.values()].sort((a, b) => a.nom.localeCompare(b.nom)), locale: ici, ...choix(), calibrage };
       // Une station ajoutée avant que son appairage ne dise ce qu'elle fournit : sa demande le reprend.

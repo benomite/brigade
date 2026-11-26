@@ -13,19 +13,26 @@ import { appeler, repertoireTemporaire } from "../outils.ts";
 
 const MAINTENANT = new Date("2026-11-25T12:00:00.000Z");
 const a = (minutes: number, maintenant = MAINTENANT) => new Date(maintenant.getTime() - minutes * 60_000).toISOString();
-const phases = { cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 };
+const vide = { cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0 };
 const FICHES = ".claude/brigade/delais-tickets.json";
 
-// Pris il y a 100 min, PR à 70 (premier passage), renvoyé, dernier passage à 40 : gates 2 min, CI 3, relecture 5 ; mergé il y a 10 min.
-const avecPasses = (m = MAINTENANT) => ({
+// Déposé il y a 110 min, pris il y a 100 (« Taken by station ») ; ses phases, bout à bout, jusqu'au merge il y a 10 min.
+const avecPhases = (m = MAINTENANT) => ({
   ticket: 9,
+  depuis: a(110, m),
   claimedAt: a(95, m),
   priseAt: a(100, m),
   mergedAt: a(10, m),
-  ...phases,
-  passes: [
-    { debut: a(70, m), fin: a(60, m), attente: 60, gates: 60, revue: 300, ci: 0, merge: 0, renvoyee: true },
-    { debut: a(40, m), fin: a(10, m), attente: 120, gates: 120, revue: 300, ci: 180, merge: 60, renvoyee: false },
+  ...vide,
+  phases: [
+    { nom: "claim wait", minutes: 10 },
+    { nom: "cooking", minutes: 30 },
+    { nom: "gates", minutes: 2 },
+    { nom: "CI", minutes: 3 },
+    { nom: "review", minutes: 5 },
+    { nom: "send-back", minutes: 30 },
+    { nom: "pass wait", minutes: 15 },
+    { nom: "merge", minutes: 5 },
   ],
 });
 const fiche = { ticket: 9, titre: "A slow ticket", etiquettes: ["fire", "attendu:20", "model:opus", "effort:high"] };
@@ -38,19 +45,31 @@ function clone(t: TestContext, temps: readonly object[]): string {
 }
 const lus = (d: string, m = MAINTENANT) => delaisDuClone(d, m) as Delais;
 
-test("a record with its passes: PR at the first, send-backs to the last, gates with CI and review of the last", (t) => {
-  const d = clone(t, [avecPasses()]);
+test("a merged ticket's parts are those of its phases, from its claim on the issue to its merge", (t) => {
+  const d = clone(t, [avecPhases()]);
   retenirLaFiche(d, fiche);
   assert.deepEqual(lus(d).pires_depassements, [{ ticket: 9, titre: "A slow ticket", attendu_min: 20, reel_min: 90, modele: "opus", effort: "high", repartition_min: { cook: 30, gates: 5, review: 5, renvois: 30, attentes: 20 } }]);
 });
 
-test("a record without passes: the PR opens after its cooks, its phases are the parts; no claim on the issue, the station's first mark", (t) => {
-  const sans = { ticket: 3, claimedAt: a(60), mergedAt: a(0), ...phases, cuisson: 600, cuissonsRatees: 300, gates: 60, ci: 120, revue: 240, renvois: 420 };
-  const d = clone(t, [sans, { ...sans, ticket: 4, priseAt: null }, { ...sans, ticket: 5, mergedAt: undefined }, { ...sans, ticket: 6, claimedAt: undefined }]);
+test("no claim on the issue: the station's first mark; no phases: all waits; no merge or no claim dated: not counted", (t) => {
+  const sans = { ticket: 3, claimedAt: a(60), mergedAt: a(0), ...vide };
+  const d = clone(t, [sans, { ...avecPhases(), ticket: 4, priseAt: null }, { ...sans, ticket: 5, mergedAt: undefined }, { ...sans, ticket: 6, claimedAt: undefined }]);
   for (const ticket of [3, 4]) retenirLaFiche(d, { ticket, titre: `T${ticket}`, etiquettes: ["attendu:10"] });
   const delais = lus(d);
-  assert.equal(delais.fusionnes, 2, "no merge or no claim dated: not counted");
-  assert.deepEqual(delais.pires_depassements.map(({ ticket, reel_min, modele, effort, repartition_min }) => ({ ticket, reel_min, modele, effort, repartition_min })), [3, 4].map((ticket) => ({ ticket, reel_min: 60, modele: "?", effort: "?", repartition_min: { cook: 15, gates: 3, review: 4, renvois: 7, attentes: 31 } })));
+  assert.equal(delais.fusionnes, 2);
+  assert.deepEqual(
+    delais.pires_depassements.map(({ ticket, reel_min, modele, effort, repartition_min }) => ({ ticket, reel_min, modele, effort, repartition_min })),
+    [
+      { ticket: 4, reel_min: 85, modele: "?", effort: "?", repartition_min: { cook: 25, gates: 5, review: 5, renvois: 30, attentes: 20 } },
+      { ticket: 3, reel_min: 60, modele: "?", effort: "?", repartition_min: { cook: 0, gates: 0, review: 0, renvois: 0, attentes: 60 } },
+    ],
+  );
+});
+
+test("a times file that does not read is said, nothing computed", (t) => {
+  const d = clone(t, []);
+  writeFileSync(join(d, ".claude", "brigade", "temps-tickets.json"), "{ not json");
+  assert.match((delaisDuClone(d, MAINTENANT) as { illisible: string }).illisible, /ticket times of the clone cannot be read/);
 });
 
 test("the expected time is one positive `attendu:` label, else none; a ticket exactly on its expected time is on time", () => {
@@ -76,7 +95,7 @@ test("the share line counts the tickets without an expected time apart, and says
 
 test("the clone's tickets join their cards; without a clone none; a ticket without a card has no expected time", (t) => {
   assert.equal((delaisDuClone(undefined, MAINTENANT) as Delais).fusionnes, 0);
-  const d = clone(t, [avecPasses(), { ...avecPasses(), ticket: 8, passes: undefined }]);
+  const d = clone(t, [avecPhases(), { ...avecPhases(), ticket: 8, phases: undefined }]);
   assert.equal(lus(d).sans_temps_attendu, 2, "no card file: no expected time");
   retenirLaFiche(d, fiche);
   const delais = lus(d);
@@ -86,7 +105,7 @@ test("the clone's tickets join their cards; without a clone none; a ticket witho
 });
 
 test("a card file that does not read is said, never overwritten, and its malformed entries are dropped", (t) => {
-  const d = clone(t, [avecPasses()]);
+  const d = clone(t, [avecPhases()]);
   const fichier = join(d, FICHES);
   writeFileSync(fichier, "{ not json");
   const illisible = delaisDuClone(d, MAINTENANT);
@@ -112,8 +131,8 @@ test("a ticket's card replaces its older one, and only the last 200 are kept", (
 });
 
 test("`status` and `status --json` read the clone: the share, the overrun and its parts; `--json` takes no other argument", async (t) => {
-  const temps = avecPasses(new Date());
-  const d = clone(t, [temps, { ...temps, ticket: 8, passes: undefined }]);
+  const temps = avecPhases(new Date());
+  const d = clone(t, [temps, { ...temps, ticket: 8, phases: undefined }]);
   retenirLaFiche(d, fiche);
   const repertoire = repertoireTemporaire(t);
   demarrer({ repertoireEtat: repertoire, projet: "brigade" }).arreter("SIGTERM");

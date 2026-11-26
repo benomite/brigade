@@ -27,6 +27,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
+import { ligneDuDelaiDePrise } from "./delais/ligne.ts";
 import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
@@ -189,6 +190,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
   // La part des tickets mergés en 24 h dans leur temps attendu, et les pires dépassements (#4308).
   lignes.push(...direLesDelais(delaisDuClone(env.BRIGADE_REPO_DIR, maintenant)));
+  // La part des tickets mergés en 10 min ou moins de leur prise, et la médiane, sur 24 h (#4299).
+  lignes.push(ligneDuDelaiDePrise(env.BRIGADE_REPO_DIR, maintenant));
   // Les quatre chiffres (#2672) : valeur, seuil, rouge au-dessus.
   lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR), rouge));
   // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).
