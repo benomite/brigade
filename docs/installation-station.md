@@ -9,6 +9,9 @@ On a Mac, the same command installs the station under your account, so that it r
 app is closed: see "On a Mac", at the end. On Windows, one PowerShell command does the same: see
 "On Windows", after it.
 
+**From the app**, `Add a server` (a project's Stations tab, or `Who cooks <owner/repo>?`) shows
+this same command, then pairs the station and gives it the project: see step 7.
+
 **You can get help.** Paste this guide into an assistant (Claude, for example) and
 ask it to walk you through step by step: everything it needs to know is here, and there is only
 one command to type.
@@ -290,13 +293,14 @@ their work, as on a server —, and does not redo a connection already made. It 
 why: fix it, and rerun the same command. A station built by hand installs from its archive:
 `powershell -ExecutionPolicy Bypass -File installer-station.ps1 .\brigade-station-windows.zip`.
 
-## 7. What comes next — not yet in this guide
+## 7. What comes next: the app pairs it and gives it a project (#4347)
 
-Two steps then bring the station to you. They are not yet written here: this
-guide will gain them as they arrive.
-
-1. **Pairing with the app** — the server shows a code, you type it in the app, and the station
-   appears on its home: "en ligne · version X · aucun projet". The app will also show there the
-   state of its update, and the button that freezes its version.
-2. **Adding a project** — from the app: the GitHub repo, its stations, its primary. Without a
-   terminal.
+You do not need this guide to start: **the app starts the same path**. On a project's Stations
+tab, and on the `Who cooks <owner/repo>?` question of a new project, `Add a server` opens a panel
+that shows the command of step 1 — with a `copy` button —, one sentence on where to run it, and the
+same hint for a Mac. Then the panel waits for the station: `Waiting for its first check-in`.
+Once the command has made its GitHub connection, the station publishes itself under your GitHub
+account, and `check again` reads it there: `<name> checked in: it is paired with your account.`
+`Choose who cooks it` then gives it the project, by the station choice of the Stations tab.
+Nothing else is typed on the server. The app page says it in detail (`docs/app.md`, "Add a
+server").

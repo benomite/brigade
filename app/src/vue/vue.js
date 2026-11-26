@@ -144,6 +144,7 @@ import { diagrammeTenu, rendreAvecMermaid } from "./fiche-diagramme/fiche-diagra
 import { ligneDAlerte, plafondLu } from "./stations-de-cuisson.js";
 import { deplacementSuivi, estUnOrdinateur, hautDe, nomDePrise, servantesDe, UNE_MINUTE_MS } from "./stations-tab/etat.js";
 import { choixDuDeplacement } from "./stations-tab/choix.js";
+import { apresLecture } from "./ajout-serveur/ajout-serveur.js";
 import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET, QUI_D_AUTRE } from "./stations-tab/stations-tab.js";
 import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
@@ -4668,6 +4669,66 @@ function poserOngletStations(projet) {
   rail.replaceChildren(ongletDesStations(projet));
 }
 
+// « Add a server » (ticket 4347, ajout-serveur/) : le panneau ouvert sur l'onglet Stations ou sur la question « Who cooks »
+// d'un projet neuf — un seul à la fois —, les stations du compte connues à sa première lecture, et où en est la station
+// attendue. Il lit l'appairage que l'app lit déjà, les stations du chef (`stationsDuChef`, ticket 2713) : à son ouverture, puis à
+// chaque « check again ». Appairée, les stations du compte se relisent : le choix de qui cuit le projet l'offre.
+/** @type {{ projet: string, etat: import("./ajout-serveur/ajout-serveur.js").EtatDuServeur, connues: ReadonlySet<string> | undefined } | undefined} */
+let ajoutDeServeur;
+
+/** @param {Projet} projet */
+const serveurDe = (projet) => (ajoutDeServeur?.projet === projet.nom ? { serveur: ajoutDeServeur.etat } : {});
+
+// Les gestes du panneau, pour un projet. `reposer` : repose l'écran qui le porte — l'onglet Stations, ou la question « Who
+// cooks ». `confier` : le geste que l'écran a déjà pour donner le projet à une station — absent, le panneau ne l'offre pas.
+/** @param {Projet} projet @param {() => void} reposer @param {(() => void) | undefined} confier */
+function gestesDuServeur(projet, reposer, confier) {
+  return {
+    ouvrir: () => {
+      ajoutDeServeur = { projet: projet.nom, etat: { lecture: "en-cours" }, connues: undefined };
+      void relireLeServeur(reposer);
+    },
+    relire: () => void relireLeServeur(reposer),
+    copier: (/** @type {string} */ texte) => navigator.clipboard?.writeText(texte),
+    fermer: () => {
+      ajoutDeServeur = undefined;
+      reposer();
+    },
+    ...(confier === undefined
+      ? {}
+      : {
+          confier: () => {
+            ajoutDeServeur = undefined;
+            confier();
+            reposer();
+          },
+        }),
+  };
+}
+
+// Une lecture des stations du chef pour le panneau ouvert : ce qu'elle rend (`apresLecture`) devient son état. Tant qu'elle
+// court, le panneau n'offre pas « check again » ; refermé ou rouvert entre-temps, ce n'est plus le même : elle n'écrit rien.
+/** @param {() => void} reposer */
+async function relireLeServeur(reposer) {
+  const tenu = ajoutDeServeur;
+  if (tenu === undefined) return;
+  tenu.etat = { lecture: "en-cours" };
+  reposer();
+  /** @type {import("../premier-lancement.ts").StationsDuChef | undefined} */
+  let lu;
+  try {
+    lu = await brigade.stationsDuChef?.();
+  } catch (erreur) {
+    lu = { state: "unavailable", cause: "github", reason: "Your stations could not be read: the app failed while reading them.", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if (ajoutDeServeur !== tenu) return;
+  const { etat, connues } = apresLecture(tenu.connues, lu);
+  tenu.etat = etat;
+  tenu.connues = connues;
+  if (etat.lecture === "appairee") await lireLesEnregistrees();
+  reposer();
+}
+
 // Ce que `servantesDe` lit d'un projet : sa cuisson, les stations appairées, celles qu'il déclare, et sa station de ce
 // poste. L'onglet Stations du projet et la page de chaque station le lisent ici, d'une même façon : un projet n'est sur la
 // page d'une station que si l'onglet l'y montre. `lues` : sa cuisson, ses stations sur GitHub, ou celles qu'il déclare —
@@ -4798,8 +4859,11 @@ function ongletDesStations(projet) {
       ...(tenu !== undefined && "tableau" in tenu && tenu.tableau.quotaGithub !== undefined ? { quota: tenu.tableau.quotaGithub } : {}),
       ...(veilleVue === undefined ? {} : { veille: veilleVue }),
       ...(stationLocaleLue.projet === projet.nom && stationLocaleLue.moteur !== undefined ? { moteurIci: stationLocaleLue.moteur } : {}),
+      ...serveurDe(projet),
     },
     {
+      // Appairée depuis « Add a server », la station prend le projet par « Choose who cooks it » (ticket 4347).
+      serveur: gestesDuServeur(projet, reposerLOngletStations, ajout === undefined ? undefined : () => ajout.gestes.ouvrir()),
       choisirQuiCuit: () => ajout?.gestes.ouvrir(),
       deplacer: () => ouvrirLeChoixDeMachine(),
       versIci: () => {
@@ -8686,8 +8750,12 @@ function poserLeProjetAPreparer() {
         ...(parcours.illisible === undefined ? {} : { illisible: parcours.illisible }),
         ...(preparation?.etape === "refus" ? { refus: preparation.dit } : {}),
         ...(parcours.absente === undefined ? {} : { absente: parcours.absente }),
+        ...serveurDe(projet),
       },
       {
+        // Appairée depuis « Add a server », la station est dans la liste au-dessus : le panneau se referme, le chef la choisit
+        // d'un clic (ticket 4347).
+        serveur: gestesDuServeur(projet, () => void (courant?.nom === nom && poserLeProjetAPreparer()), () => {}),
         // Un clic, et la page passe à la suite : cet ordinateur sert le dépôt par le geste de « Add a station »
         // (`servirUnProjet`) ; une station du compte le reçoit dans sa sélection (`choisirLesProjets`).
         choisir: async (un) => {

@@ -1,0 +1,50 @@
+/* « Add a server » (ticket 4347, ajout-serveur/) : un cadre sous la liste des stations — la phrase, la commande entière
+   dans son cadre, qui passe à la ligne sans jamais se couper, son bouton « copy », ce qu'en dit un Mac, où en est la
+   station. Les jetons de l'app seulement ; le bouton et la ligne d'erreur sont ceux de leurs composants. */
+.ajout-serveur {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.ajout-serveur h4,
+.ajout-serveur p {
+  margin: 0;
+}
+.ajout-serveur .explication,
+.ajout-serveur .sur-un-mac {
+  color: var(--texte-doux);
+}
+.ajout-serveur .commande-du-serveur {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pas-2);
+}
+.ajout-serveur .commande-du-serveur pre {
+  flex: 1;
+  margin: 0;
+  padding: var(--pas-2);
+  font-family: var(--police-mono);
+  font-size: var(--taille-corps);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.ajout-serveur .etat-du-serveur {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+}
+.ajout-serveur .gestes {
+  display: flex;
+  justify-content: flex-end;
+}
+.ajouter-un-serveur {
+  align-self: flex-start;
+}

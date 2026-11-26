@@ -11,6 +11,8 @@
 //      « Stop cooking here » — et « Details », replié, qui porte ses réglages et ses lectures, chacun avec son contrôle.
 //   3. Comment le changer : le choix de station (choix.js), ouvert sous la ligne du haut — qui le cuit, ou où déménager.
 //      Quand une station le sert déjà, « Add a station » ouvre le même choix pour en ajouter une (ticket 3402).
+//   4. Comment en ajouter une sur un serveur : « Add a server », sous les cartes, ouvre le panneau qui donne la commande
+//      d'installation et suit l'appairage de la station (ajout-serveur/, ticket 4347).
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), ce qu'elle a lu et les gestes.
 
 import { boutonAction, replie, survol } from "../briques.js";
@@ -22,6 +24,7 @@ import { ANNULER, CET_ORDINATEUR, ENREGISTREMENT, LECTURE_DE, OUI } from "../lex
 import { lignesDeCooks } from "../stations-de-cuisson.js";
 import { poserLeQuota } from "../stations-quota/stations-quota.js";
 import { poserLesChoix } from "./choix.js";
+import { entreeDuServeur } from "../ajout-serveur/ajout-serveur.js";
 import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
 import { ligneDeVeille, veilleTenue } from "../veille-machine/veille-machine.js";
 import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
@@ -56,6 +59,8 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *                 dit quand le runtime n'en publie rien.
  *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163) ; et,
  *                 quand une station le sert déjà, « Add a station » (ticket 3402).
+ *   `serveur`     le panneau « Add a server » ouvert : où en est la station attendue (ajout-serveur/, ticket 4347) ;
+ *                 absent, son bouton.
  * @typedef {{
  *   projet: string,
  *   poste: string,
@@ -77,6 +82,7 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *   quota?: import("../stations-quota/stations-quota.js").QuotaGithub,
  *   veille?: import("../veille-machine/veille-machine.js").Veille,
  *   moteurIci?: string,
+ *   serveur?: import("../ajout-serveur/ajout-serveur.js").EtatDuServeur,
  * }} VuDeLOnglet
  */
 /**
@@ -91,6 +97,7 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *   confirmerArret(id: string): void,
  *   renoncerArret(): void,
  *   basculer(id: string, ouvert: boolean): void,
+ *   serveur?: import("../ajout-serveur/ajout-serveur.js").GestesDuServeur & { ouvrir(): void },
  * }} GestesDeLOnglet
  */
 
@@ -129,6 +136,9 @@ export const ARRET = (projet, station) => `Stop cooking ${projet} on ${station}?
 /** @param {string} projet @param {string} station */
 export const PRIX_DE_L_ARRET = (projet, station) => `${station} takes no more of ${projet}'s tickets; its cooks in flight finish.`;
 export const OUI_ARRET = OUI("stop cooking here");
+
+// Le panneau « Add a server » posé sans vue pour le tenir : il s'ouvre, et ne lit ni ne copie rien.
+const SERVEUR_SANS_VUE = { ouvrir() {}, relire() {}, copier: () => undefined, fermer() {} };
 
 // Chaque classe est posée en clair, `className = "…"` : la peau ne vise que des classes que la vue pose (peau.test.ts).
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -317,8 +327,9 @@ export function poserLOngletDesStations(doc, vu, gestes) {
   racine.className = "onglet-des-stations";
   racine.dataset.bloc = "stations-tab";
   racine.ariaLabel = "Stations";
+  // « Add a server » ne dépend pas de qui cuit le projet : il se pose aussi tant que les stations se lisent.
   if (!vu.lues) {
-    racine.append(ligneVide(doc, LECTURE, { classe: "lecture" }));
+    racine.append(ligneVide(doc, LECTURE, { classe: "lecture" }), ...ajoutDeServeur(doc, vu, gestes));
     return racine;
   }
   racine.append(ligneDuHaut(doc, vu, gestes));
@@ -335,5 +346,10 @@ export function poserLOngletDesStations(doc, vu, gestes) {
     cartes.append(...vu.servantes.map((station) => carte(doc, vu, station, gestes)));
     racine.append(cartes);
   }
+  // « Add a server », sous les cartes ; l'écran étroit se lit sans rien régler : ni son bouton, ni son panneau.
+  racine.append(...ajoutDeServeur(doc, vu, gestes));
   return racine;
 }
+
+/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {GestesDeLOnglet} gestes */
+const ajoutDeServeur = (doc, vu, gestes) => (vu.lecture === true ? [] : [entreeDuServeur(doc, vu.serveur, gestes.serveur ?? SERVEUR_SANS_VUE)]);

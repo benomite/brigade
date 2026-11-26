@@ -21,6 +21,7 @@ import { PREPARER } from "../page-projet/depot-non-prepare.js";
 import { CET_ORDINATEUR, LECTURE_DE, REESSAYER } from "../lexique.js";
 import { AU_RETOUR } from "../choix-station/choix-station.js";
 import { ICI, poserLesChoix } from "../stations-tab/choix.js";
+import { entreeDuServeur } from "../ajout-serveur/ajout-serveur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../page-projet/depot-non-prepare.js").Etat} Preparation */
@@ -53,6 +54,7 @@ import { ICI, poserLesChoix } from "../stations-tab/choix.js";
  *   relire: () => void,
  *   preparer: () => void,
  *   ouvrirLaCarte: () => void,
+ *   serveur?: import("../ajout-serveur/ajout-serveur.js").GestesDuServeur & { ouvrir(): void },
  * }} GestesDuParcours
  */
 
@@ -162,8 +164,18 @@ function cree(doc, balise, texte) {
 
 // La question « qui le cuit » : la phrase du choix recommandé, puis le choix de station de l'onglet Stations
 // (stations-tab/choix.js) — un refus y dit sa cause et son geste (stations-du-compte.ts), ce que GitHub a répondu au survol.
+// Sous la liste — et à sa place quand aucune station ne peut le prendre —, « Add a server » (ajout-serveur/, ticket 4347).
+/**
+ * @param {Fabrique} doc @param {Station} station @param {readonly Choix[]} choix @param {GestesDuParcours} geste
+ * @param {import("../ajout-serveur/ajout-serveur.js").EtatDuServeur | undefined} serveur
+ */
+function corpsDeLaStation(doc, station, choix, geste, serveur) {
+  const ajout = geste.serveur === undefined ? [] : [entreeDuServeur(doc, serveur, geste.serveur)];
+  return [...listeDeLaStation(doc, station, choix, geste), ...ajout];
+}
+
 /** @param {Fabrique} doc @param {Station} station @param {readonly Choix[]} choix @param {GestesDuParcours} geste */
-function corpsDeLaStation(doc, station, choix, geste) {
+function listeDeLaStation(doc, station, choix, geste) {
   if (choix.length === 0) return [cree(doc, "p", AUCUN_CHOIX)];
   const recommande = choix.find((un) => un.recommande);
   const dit = cree(doc, "p", recommande === undefined ? AUCUNE_EN_LIGNE : recommande.cle === ICI ? ICI_DIT : STATION_DIT(recommande.nom));
@@ -209,10 +221,10 @@ function corpsDuSetup(doc, depot, { attente, qui }, raisons, geste) {
 // « pret » ici : prêt, le rail reprend la page, sous le premier ticket (premier-ticket/).
 /**
  * @param {Fabrique} doc
- * @param {{ depot: string, vu: Exclude<Vu, { etape: "pret" }>, progression: string, station: Station, choix: readonly Choix[], illisible?: string, refus?: string, absente?: string }} donnees
+ * @param {{ depot: string, vu: Exclude<Vu, { etape: "pret" }>, progression: string, station: Station, choix: readonly Choix[], illisible?: string, refus?: string, absente?: string, serveur?: import("../ajout-serveur/ajout-serveur.js").EtatDuServeur }} donnees
  * @param {GestesDuParcours} geste
  */
-export function poserParcoursPremierProjet(doc, { depot, vu, progression: ligne, station, choix, illisible, refus, absente }, geste) {
+export function poserParcoursPremierProjet(doc, { depot, vu, progression: ligne, station, choix, illisible, refus, absente, serveur }, geste) {
   const racine = cree(doc, "section");
   racine.className = "parcours-premier-projet carte";
   racine.ariaLabel = vu.etape === "station" ? QUI_CUIT(depot) : MISE_EN_PLACE(depot);
@@ -222,7 +234,7 @@ export function poserParcoursPremierProjet(doc, { depot, vu, progression: ligne,
   const titre = cree(doc, "h2", vu.etape === "station" ? QUI_CUIT(depot) : MISE_EN_PLACE(depot));
   titre.className = "attendu";
   const corps =
-    vu.etape === "station" ? corpsDeLaStation(doc, station, choix, geste)
+    vu.etape === "station" ? corpsDeLaStation(doc, station, choix, geste, serveur)
     : corpsDuSetup(doc, depot, vu, { ...(illisible === undefined ? {} : { illisible }), ...(refus === undefined ? {} : { refus }) }, geste);
   racine.append(ou, titre, ...(vu.etape === "station" ? [] : auRetour(doc, depot, absente)), ...corps);
   return racine;

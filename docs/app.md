@@ -560,7 +560,7 @@ name, and the second stays on the right.
 
 | Question | Asked when | What it says | Its gesture |
 |---|---|---|---|
-| Who cooks it — `Who cooks <owner/repo>?` (the station choice of the Stations tab, `stations-tab/choix.js`, #3195) | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | one sentence for the recommended choice: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`); with neither, nothing is recommended (`None of your stations is online right now: the one you choose takes the project when it comes back.`) | one button per choice — `this computer` first, its host name beside it, then your stations, online ones first —, the recommended one set apart; an offline station is never recommended, and says beside it since when it is offline and how to bring it back (#3187). One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of the Stations tab's `Choose who cooks it` — and the page moves on; an offline station chosen, the page says `<name> is offline: it takes <owner/repo> when it comes back.` A refusal is said in one line, its cause and its gesture, GitHub's answer on hover |
+| Who cooks it — `Who cooks <owner/repo>?` (the station choice of the Stations tab, `stations-tab/choix.js`, #3195) | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | one sentence for the recommended choice: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`); with neither, nothing is recommended (`None of your stations is online right now: the one you choose takes the project when it comes back.`) | one button per choice — `this computer` first, its host name beside it, then your stations, online ones first —, the recommended one set apart; an offline station is never recommended, and says beside it since when it is offline and how to bring it back (#3187). One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of the Stations tab's `Choose who cooks it` — and the page moves on; an offline station chosen, the page says `<name> is offline: it takes <owner/repo> when it comes back.` A refusal is said in one line, its cause and its gesture, GitHub's answer on hover. Under the list — in its place when no station can take it —, `Add a server` opens the panel that installs and pairs a server station (#4347, "Add a server: a server station from the app") |
 | Its setup for Brigade — `<owner/repo> is being set up for Brigade` | the project is not set up yet (the reading of #2628, `checkRepoSetup`) | what is awaited, and from whom — below | the button of the state, if any |
 
 The line counts only the questions the project has: one already set up, or already cooked by a station, shows `1 of 1`.
@@ -788,12 +788,46 @@ With none of them left, it says `No other station can take it: each of yours alr
 the project enters its station's list, and the list it gives back must hold it, or nothing is said done; refused, the
 choice stays open, the reason in one line, its buttons still there.
 
+#### Add a server: a server station from the app (#4347)
+
+Under the cards — whatever the top line says, and while the stations are being read —, **`Add a server`** opens a panel in
+its place. The same button sits under the list of `Who cooks <owner/repo>?`, the first question of a new project, and in
+place of that list when no station can take it (`parcours-premier-projet/`). The panel (`app/src/vue/ajout-serveur/`):
+
+```
+Add a server
+On a Debian server that stays on, paste this one line in a terminal: it installs a station, then asks you
+once to log in to GitHub and to Claude Max. Its station then shows up here.
+┌───────────────────────────────────────────────────────────────────────────────────────────────┐
+│ curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh │ [copy]
+└───────────────────────────────────────────────────────────────────────────────────────────────┘
+On a Mac: the same command, in Terminal. That Mac must stay on and reachable for its station to cook.
+Waiting for its first check-in.  [check again]
+                                                                                              [Close]
+```
+
+- **The command** is the one of `docs/installation-station.md`, character for character; `copy` puts it on the clipboard
+  and says `copied`, or `copy failed` with the reason on hover. It is the only command the panel asks to type, and the
+  panel sends to no page.
+- **Its state** comes from the pairing the app already reads, your stations under your GitHub account (`stationsDuChef`,
+  #2713): read when the panel opens, then at each `check again`. The stations listed at the first reading are known; the
+  awaited one is a station that cooks (not a phone) and was not among them. Until it shows: `Waiting for its first
+  check-in.` A reading that fails says its reason in one line, with `check again`; it is never taken as a wait.
+- **Paired**: `<name> checked in: it is paired with your account.`, and `Choose who cooks it`. The account's stations are
+  read again, so the station choice offers the new one; the button closes the panel and opens that choice on the Stations
+  tab — on `Who cooks <owner/repo>?`, the new station is in the list above. A click gives it the project with the usual
+  gesture (`choisirLesProjets`), and the line under the top line says so.
+- `Close` closes the panel; it opens on one project at a time.
+
+*Code: `app/src/vue/ajout-serveur/ajout-serveur.js` (the panel, `apresLecture`), `gestesDuServeur` and
+`relireLeServeur` in `app/src/vue/vue.js`. Tests: `app/test/ajout-serveur/`, `app/test/acceptation-4347/`.*
+
 **Gone from the tab**: the local `kitchen` pseudo-station and its empty log, the `Its stations` list, the old `Add a station`
 step (the button is back since #3402, opening the station choice), the `Station settings` and `Local station` blocks with their `not read yet` lines, the station line at the head of the page
 (`Cooks on …`, `does not serve this project`, `move the kitchen`, `+ station`, the `kitchen moves to …` sentence — the
 station and its state are now a tag beside the tab, #3523), and any line naming a station that does not serve the project. Before the stations are read, the tab says
-`Reading your stations on GitHub…` and nothing else. On a narrow screen, the tab is read-only: the line and the cards,
-no gesture and no `Details` (#1186). **All stations** and its `+ station`, which list every paired station, are no longer
+`Reading your stations on GitHub…` and, under it, `Add a server` (below), nothing else. On a narrow screen, the tab is
+read-only: the line and the cards, no gesture, no `Details` and no `Add a server` (#1186). **All stations** and its `+ station`, which list every paired station, are no longer
 under the tab (#3195): they belong to the account, not to a project, and are the last block of the home.
 
 Captures, before and after, of each of the four states: `docs/captures/stations-tab/` (`cuit`, `deplacement`, `hors-ligne`,
@@ -2380,7 +2414,8 @@ sign of life) is stated only once: the page header does not repeat the state whe
 - **Max connection lost**: nothing cooks on the station any more. "log in" runs `claude auth login`,
   which opens the login page in your browser; the station sees the connection restored within
   the minute, and the kitchen resumes on its own. **Only the station of this computer** reconnects
-  this way: the login of a server station does not yet start from the app, and the button says so.
+  this way: a server station is logged in on the server itself, by the one-line installer that
+  `Add a server` shows (see "Add a server: a server station from the app"), and the button says so.
 - What the app knows about it, the station publishes in its gist ([docs/runtime/](runtime/station-machine.md), "Une
   station par machine"): versions and dates, no reason and no command. An offline station
   no longer states its connection — what it published before going silent is no longer reliable.

@@ -49,6 +49,8 @@ import {
   type GestesDuParcours,
 } from "../../src/vue/parcours-premier-projet/parcours-premier-projet.js";
 import { REESSAYER } from "../../src/vue/lexique.js";
+import { AJOUTER_UN_SERVEUR, APPAIREE, COMMANDE_DU_SERVEUR, EN_ATTENTE, RELIRE as RELIRE_LE_SERVEUR } from "../../src/vue/ajout-serveur/ajout-serveur.js";
+import { CHOISIR as CHOISIR_QUI_CUIT } from "../../src/vue/stations-tab/etat.js";
 import { PLUS_TARD, poserPremierTicket, QUESTION as QUESTION_DU_PREMIER } from "../../src/vue/premier-ticket/premier-ticket.js";
 import { REFUS_RESEAU } from "../../src/stations-du-compte.ts";
 import { CONTINUER, LACHER, METTRE, PASSER, poserLeDepart, tenirLesDeparts, TITRE as TITRE_DU_DEPART, type Etat as EtatDuDepart } from "../../src/vue/parcours-premier-projet/depart.js";
@@ -372,7 +374,8 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     assert.equal(principal(vue).dataset.parcours, "station");
     assert.equal(progressionDe(vue), "1 of 2: who cooks it");
     assert.equal(phraseDe(question(vue))?.textContent, ICI_DIT);
-    assert.deepEqual(boutons(question(vue)), ["this computer"]);
+    // Sous la liste, « Add a server » (#4347).
+    assert.deepEqual(boutons(question(vue)), ["this computer", "Add a server"]);
     // L'avis d'un projet pas préparé n'ajoute pas un second geste.
     assert.equal(vue.poses().some((pose) => pose.className === "avis-depot"), false);
 
@@ -424,10 +427,44 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     await lire(vue);
     await repos();
     assert.equal(phraseDe(question(vue))?.textContent, STATION_DIT("parade-box"));
-    assert.deepEqual(boutons(question(vue)), ["this computer", "parade-box", "atelier"]);
+    assert.deepEqual(boutons(question(vue)), ["this computer", "parade-box", "atelier", "Add a server"]);
     bouton(question(vue), "parade-box").click();
     await repos();
     assert.deepEqual(choisis, [["g2", ["chef/parade", DEPOT]]]);
+    assert.equal(principal(vue).dataset.parcours, "setup");
+  });
+
+  test("« Add a server » (#4347) : la commande d'une ligne, le serveur appairé, puis dans la liste — un clic lui confie le projet", async () => {
+    const choisis: [string, string[]][] = [];
+    const paire = (id: string, name: string) => ({ id, name, machine: "Linux", kind: null, cooks: true, version: "2.4.0", online: true, lastSeen: A, stoppedAt: null, projects: [] });
+    let chef = [paire("g1", "atelier")];
+    let compte: StationEnregistree[] = [];
+    const vue = await choisirCantine({
+      stationsDuChef: () => ({ state: "listed", stations: chef, unreadable: [] }),
+      stationsDuCompte: () => ({ state: "listed", stations: compte, unreadable: [] }),
+      choisirLesProjets: (id, depots) => (choisis.push([id, depots]), { selection: depots }),
+      checkRepoSetup: () => MANQUE,
+    });
+    await lire(vue);
+    await repos();
+    bouton(question(vue), AJOUTER_UN_SERVEUR).click();
+    await repos();
+    assert.ok(question(vue).dessous("pre").some(({ textContent }) => textContent === COMMANDE_DU_SERVEUR));
+    assert.ok(question(vue).textContent.includes(EN_ATTENTE));
+    // Le serveur signe : il est appairé, les stations du compte se relisent, et la liste au-dessus l'offre.
+    chef = [...chef, paire("g9", "parade-box")];
+    compte = [station("g9", "parade-box", true)];
+    bouton(question(vue), RELIRE_LE_SERVEUR).click();
+    await repos();
+    await repos();
+    assert.ok(question(vue).textContent.includes(APPAIREE("parade-box")), question(vue).textContent);
+    assert.deepEqual(boutons(question(vue)).slice(0, 2), ["this computer", "parade-box"]);
+    bouton(question(vue), CHOISIR_QUI_CUIT).click();
+    await repos();
+    assert.ok(!question(vue).textContent.includes(COMMANDE_DU_SERVEUR), "the panel stays open");
+    bouton(question(vue), "parade-box").click();
+    await repos();
+    assert.deepEqual(choisis, [["g9", [DEPOT]]]);
     assert.equal(principal(vue).dataset.parcours, "setup");
   });
 
