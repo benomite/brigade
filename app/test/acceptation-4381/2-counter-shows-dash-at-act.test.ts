@@ -17,7 +17,7 @@ async function fil(agent: Record<string, unknown>) {
   equipe.lire("parade");
   equipe.montrer("parade");
   await repos();
-  (cadre.dessous("button").find((pose) => pose.dataset.agent === lu[0].agent) ?? assert.fail("pas de badge")).click();
+  (cadre.dessous("button").find((pose) => pose.dataset.agent === lu[0]?.agent) ?? assert.fail("pas de badge")).click();
   return (cadre.dessous("section")[0] ?? assert.fail("pas de fil")).textContent;
 }
 
