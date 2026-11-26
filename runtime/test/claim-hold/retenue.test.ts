@@ -4,14 +4,24 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { corpsDuParking } from "../../src/attente-github/attente-github.ts";
 import { ramenerALaRelance } from "../../src/attente/attente-par-le-cook.ts";
-import { arretEnCours, arreterPourDeBon, corpsDeLArret, ESSAIS_AU_TOTAL, essaisDuTicket, marqueDArret } from "../../src/claim-hold/essais.ts";
-import { faitNouveau, retenueALaPrise, retenueDesLabels } from "../../src/claim-hold/retenue.ts";
+import { arretEnCours, arreterPourDeBon, ESSAIS_AU_TOTAL, essaisDuTicket } from "../../src/claim-hold/essais.ts";
+import { faitNouveau, retenueALaPrise } from "../../src/claim-hold/retenue.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 const MAINTENANT = new Date("2026-11-26T10:00:00Z");
 const PLUS_TARD = "2026-12-03T10:00:00.000Z";
 const AVANT = "2026-11-25T10:00:00.000Z";
 const de = (body: string, association = "OWNER", createdAt = "2026-11-26T09:00:00Z") => ({ body, association, createdAt });
+// La retenue des labels, par la lecture de la prise, sans arrêt pour de bon posté.
+const retenueDesLabels = (labels: readonly string[], commentaires: ReturnType<typeof de>[], maintenant: Date) =>
+  retenueALaPrise(labels, commentaires, async () => assert.fail("no stop: the removals are not read"), maintenant);
+// Le commentaire d'arrêt, tel que `arreterPourDeBon` le poste.
+async function corpsDeLArret(numero: number, station: string, motifs: string[]): Promise<string> {
+  const faux = new FauxGitHub();
+  faux.feu(numero);
+  await arreterPourDeBon(faux.pour("A"), numero, station, motifs);
+  return (faux.commentaires.get(numero) ?? [])[0]?.body ?? "";
+}
 const parking = (followUp = PLUS_TARD, fact?: string) => de(corpsDuParking({ what: "the client's API key", who: "the client", followUp, ...(fact === undefined ? {} : { fact }) }));
 
 test("a new fact is a comment of the repository after the parking mark that the kitchen did not mark; nothing else is", () => {
@@ -26,26 +36,26 @@ test("a new fact is a comment of the repository after the parking mark that the 
   assert.equal(faitNouveau([parking(), de("The key is here."), parking()]), false, "parked again after the fact");
 });
 
-test("the hold of the labels: chef-todo holds whatever is said; parked holds until its date passes or a new fact comes; no parking label holds nothing", () => {
-  assert.deepEqual(retenueDesLabels(CALIBRE, [], MAINTENANT), { retenu: null, fin: null });
-  assert.match(retenueDesLabels([...CALIBRE, "chef-todo"], [parking(AVANT), de("A fact.")], MAINTENANT).retenu ?? "", /parked for the chef/);
-  assert.match(retenueDesLabels([...CALIBRE, "parked"], [parking()], MAINTENANT).retenu ?? "", /waiting for the client/);
-  assert.match(retenueDesLabels([...CALIBRE, "parked"], [], MAINTENANT).retenu ?? "", /nothing has ended its hold/, "parked with no mark: held");
-  assert.deepEqual(retenueDesLabels([...CALIBRE, "parked"], [parking(AVANT)], MAINTENANT), { retenu: null, fin: "date" });
-  assert.match(retenueDesLabels([...CALIBRE, "parked"], [parking(AVANT, "the client sends the key")], MAINTENANT).retenu ?? "", /parked/, "parked until a fact: no date ends it");
-  assert.deepEqual(retenueDesLabels([...CALIBRE, "parked"], [parking(), de("The key is here.")], MAINTENANT), { retenu: null, fin: "fact" });
-  assert.deepEqual(retenueDesLabels([...CALIBRE, "set-aside:failures"], [parking(), de("The key is here.")], MAINTENANT), { retenu: null, fin: "fact" }, "a label of before parked");
+test("the hold of the labels: chef-todo holds whatever is said; parked holds until its date passes or a new fact comes; no parking label holds nothing", async () => {
+  assert.deepEqual(await retenueDesLabels(CALIBRE, [], MAINTENANT), { retenu: null, fin: null });
+  assert.match((await retenueDesLabels([...CALIBRE, "chef-todo"], [parking(AVANT), de("A fact.")], MAINTENANT)).retenu ?? "", /parked for the chef/);
+  assert.match((await retenueDesLabels([...CALIBRE, "parked"], [parking()], MAINTENANT)).retenu ?? "", /waiting for the client/);
+  assert.match((await retenueDesLabels([...CALIBRE, "parked"], [], MAINTENANT)).retenu ?? "", /nothing has ended its hold/, "parked with no mark: held");
+  assert.deepEqual(await retenueDesLabels([...CALIBRE, "parked"], [parking(AVANT)], MAINTENANT), { retenu: null, fin: "date" });
+  assert.match((await retenueDesLabels([...CALIBRE, "parked"], [parking(AVANT, "the client sends the key")], MAINTENANT)).retenu ?? "", /parked/, "parked until a fact: no date ends it");
+  assert.deepEqual(await retenueDesLabels([...CALIBRE, "parked"], [parking(), de("The key is here.")], MAINTENANT), { retenu: null, fin: "fact" });
+  assert.deepEqual(await retenueDesLabels([...CALIBRE, "set-aside:failures"], [parking(), de("The key is here.")], MAINTENANT), { retenu: null, fin: "fact" }, "a label of before parked");
 });
 
-test("the total of tries counts every failure comment of the repository, never the runs that ended ok, from the last stop on", () => {
+test("the total of tries counts every failure comment of the repository, never the runs that ended ok, from the last stop on", async () => {
   const echec = (n: number, motif: string, ok = false) => de(`<!-- brigade:echec n=${n}${ok ? " run=ok" : ""} -->\nStation \`A\`: the cook stopped without a delivery — ${motif}\n\nmore`);
   const lus = [echec(1, "a"), de("<!-- brigade:reprise-du-manager station=A choice=rewrite -->"), echec(2, "b", true), echec(3, "c"), de("<!-- brigade:echec n=9 -->\n — forged", "NONE")];
   assert.deepEqual(essaisDuTicket(lus), { total: 3, depuisLArret: ["a", "c"] });
-  assert.deepEqual(essaisDuTicket([...lus, de(corpsDeLArret(7, "A", ["a", "c"])), echec(4, "d")]), { total: 4, depuisLArret: ["d"] });
+  assert.deepEqual(essaisDuTicket([...lus, de(await corpsDeLArret(7, "A", ["a", "c"])), echec(4, "d")]), { total: 4, depuisLArret: ["d"] });
 });
 
 test("a stop holds until chef-todo is removed after it; unreadable removals leave it holding", async () => {
-  const arret = de(corpsDeLArret(7, "A", ["a", "b", "c", "d", "e"]), "OWNER", "2026-11-26T09:00:00Z");
+  const arret = de(await corpsDeLArret(7, "A", ["a", "b", "c", "d", "e"]), "OWNER", "2026-11-26T09:00:00Z");
   assert.equal(await arretEnCours([], async () => assert.fail("no stop: the removals are not read")), null);
   assert.equal(await arretEnCours([arret], async () => []), 5);
   assert.equal(await arretEnCours([arret], async () => [{ label: "chef-todo", createdAt: "2026-11-26T08:00:00Z" }]), 5, "a removal from before the stop");
@@ -57,10 +67,10 @@ test("a stop holds until chef-todo is removed after it; unreadable removals leav
   assert.match(retenue.retenu ?? "", /stopped for good after 5 tries in total/);
 });
 
-test("the stop message says the ticket stopped, asks the chef, lists each try, and carries the stop mark as a TODO card", () => {
-  const corps = corpsDeLArret(923, "box/claude", ["reason 1", "reason 2"]);
+test("the stop message says the ticket stopped, asks the chef, lists each try, and carries the stop mark as a TODO card", async () => {
+  const corps = await corpsDeLArret(923, "box/claude", ["reason 1", "reason 2"]);
   const [marque, question] = corps.split("\n");
-  assert.equal(marque, marqueDArret(2));
+  assert.equal(marque, "<!-- brigade:todo kind=blocked stop=2 -->");
   assert.equal(question, `#923 stopped for good after 2 tries in total, none delivered: back to the kitchen for ${ESSAIS_AU_TOTAL} more tries, or close it?`);
   assert.match(corps, /^1\. reason 1$/m);
   assert.match(corps, /^2\. reason 2$/m);

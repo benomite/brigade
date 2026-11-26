@@ -32,7 +32,7 @@ export function faitNouveau(commentaires: readonly CommentaireLu[]): boolean {
 // `fin` : ses labels le parquent encore, mais l'un des trois événements est arrivé — la prise les retire.
 export type Retenue = { retenu: string } | { retenu: null; fin: "date" | "fact" | null };
 
-export function retenueDesLabels(labels: readonly string[], commentaires: readonly CommentaireLu[], maintenant: Date): Retenue {
+function retenueDesLabels(labels: readonly string[], commentaires: readonly CommentaireLu[], maintenant: Date): Retenue {
   if (labels.includes(CHEF_TODO)) return { retenu: `it is parked for the chef (\`${CHEF_TODO}\`): only the chef lifts it` };
   const parque = LABELS_DE_LA_RETENUE.filter((label) => labels.includes(label));
   if (parque.length === 0) return { retenu: null, fin: null };

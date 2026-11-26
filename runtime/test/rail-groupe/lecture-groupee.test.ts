@@ -33,8 +33,10 @@ test("the rail of a project with 20 fire tickets, their labels and their latest 
   for (let numero = 1; numero <= TICKETS; numero += 1) {
     // Des tickets que la cuisine ne prend pas : ils attendent, l'un est tenu par une autre station.
     faux.feu(numero, numero % 2 === 0 ? [...CALIBRE, "parked"] : [...CALIBRE, "taken"]);
-    if (numero % 2 === 0) faux.commenterCommeLeDepot(numero, ATTENTE);
+    // Le commentaire du dépôt vient avant la marque qui le parque : posté après, ce serait un fait nouveau, qui fait
+    // tomber sa retenue (#4217).
     faux.commenterCommeLeDepot(numero, numero % 2 === 0 ? `latest comment on ${numero}` : corpsDePrise("mac/claude"));
+    if (numero % 2 === 0) faux.commenterCommeLeDepot(numero, ATTENTE);
   }
   const requetes: string[] = [];
   // Ce que le dépôt porte, tel que GraphQL le rendrait : tout ce qu'un client groupé peut y demander.

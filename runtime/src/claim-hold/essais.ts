@@ -22,7 +22,7 @@ type CommentaireLu = { body: string; association: string; createdAt: string };
 const MARQUE_D_ECHEC = /^<!-- brigade:echec[ >]/;
 // L'arrêt pour de bon : une carte de TODO (github-seul/carte-todo/carte-todo.ts) qui porte `stop=<essais>`.
 const MARQUE_D_ARRET = /^<!-- brigade:todo kind=blocked stop=(\d+) -->/;
-export const marqueDArret = (essais: number) => `<!-- brigade:todo kind=blocked stop=${essais} -->`;
+const marqueDArret = (essais: number) => `<!-- brigade:todo kind=blocked stop=${essais} -->`;
 
 const deConfiance = <C extends { association: string }>(commentaires: readonly C[]) => commentaires.filter((c) => DE_CONFIANCE.includes(c.association));
 
@@ -50,7 +50,7 @@ export async function arretEnCours(commentaires: readonly CommentaireLu[], retra
 }
 
 // Le commentaire de l'arrêt : la carte du chef, sa question en première ligne, puis ce qui a été tenté.
-export function corpsDeLArret(numero: number, station: string, motifs: readonly string[]): string {
+function corpsDeLArret(numero: number, station: string, motifs: readonly string[]): string {
   return [
     marqueDArret(motifs.length),
     `#${numero} stopped for good after ${motifs.length} tries in total, none delivered: back to the kitchen for ${ESSAIS_AU_TOTAL} more tries, or close it?`,

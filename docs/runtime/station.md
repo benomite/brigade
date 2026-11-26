@@ -499,6 +499,21 @@ set-aside needs the full number of failures again. The earlier `brigade:echec` a
 comments stay on the issue as history. A delivery that was already good needs no `in-pass` by hand:
 it is reviewed again once the ticket is served.
 
+**The total of tries never restarts** (#4217, `runtime/src/claim-hold/`). Seen on BOBL-tech/mirrorlab #923: each claim,
+manager rewrite or supervisor pass started the count again at n=1, and the ticket saw 13 failed cooks in two hours.
+The `n=` of a `brigade:echec` comment is now the ticket's total: every failure comment on the issue, whatever the
+claims, rewrites, supervisor passes or label removals between them. At 5 failed cooks in total (3 for the first
+loop, 2 after the manager or the supervisor), the ticket **stops for good**: `chef-todo` is put on it and one
+comment, marked `<!-- brigade:todo kind=blocked stop=<tries> -->`, says it stopped and lists what was tried. Running
+that step again posts nothing. No station claims it until the chef removes `chef-todo`, which gives it 5 more tries.
+
+**A held ticket is refused at the claim.** `prendre` (`runtime/src/github-etat/prise.ts`) refuses, to every station,
+a ticket that stopped for good, is parked for the chef, or is parked (`parked`, or the labels from before it:
+`waiting`, `set-aside:failures`) while its hold is active. The hold ends on one of three events only: its follow-up
+date passes, a new fact is added on the ticket (a comment of a repository author after the WAITING mark, not a
+kitchen comment marked `<!-- brigade:`), or the chef acts (removes the label). On the first two, the station lifts
+the label and the ticket can be claimed again.
+
 **Reconciliation at start** (#3528, `runtime/src/garde-fous.ts`).
 Before the fix, cooks killed from outside were counted as failures. When the runtime starts, once, it
 reads again the failures it recorded: those whose cook ended with exit code 143 (or SIGTERM), with no
