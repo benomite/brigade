@@ -100,13 +100,14 @@ describe("la carte parked, dans la colonne où elle attend", () => {
 });
 
 describe("le process principal pose `parque`", () => {
-  test("un ticket qui attend un tiers est parked ; nommé par `attend`, il attend le chef ; mis de côté, jusqu'à son retour", () => {
+  // Qui il attend décide s'il attend le chef — plus d'être nommé par `attend` (#4261).
+  test("un ticket qui attend un tiers est parked ; parked pour « the chef », il attend le chef ; mis de côté, jusqu'à son retour", () => {
     const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits({ rail: [entree(51, "pris", { tiers: TIERS }), entree(52, "WAITING", { tiers: TIERS }), entree(40, "86", { attente: { raison: "the setup", colonne: "en pass", retour: null } }), entree(53, "pris")], attend: [{ ticket: 51, titre: "Ticket 51", url: url(51) }] })) }] });
     assert.ok("tableau" in recue);
     const cartes = recue.tableau.rail.colonnes.flatMap(({ cartes: siennes }) => siennes);
     const de = (ticket: number) => cartes.find((une) => une.ticket === ticket)?.parque;
-    assert.deepEqual(de(51), { qui: "the chef", jusqua: "2026-11-28T09:00:00Z", chef: true });
-    assert.deepEqual(de(52), { qui: "the chef", jusqua: "2026-11-28T09:00:00Z" });
+    assert.deepEqual(de(51), { qui: "the chef", quoi: "your call", jusqua: "2026-11-28T09:00:00Z", chef: true });
+    assert.deepEqual(de(52), { qui: "the chef", quoi: "your call", jusqua: "2026-11-28T09:00:00Z", chef: true });
     assert.deepEqual(de(40), { qui: "the setup", jusqua: null });
     assert.equal(de(53), undefined);
   });

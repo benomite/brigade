@@ -15,7 +15,7 @@
 // L'app le lit de GitHub (vue/rail/github.ts) ; il n'importe rien de lourd.
 import { retenueJusqua, disponible } from "../../../runtime/src/enregistrement-station/contrat.ts";
 import { porteListe } from "../../../runtime/src/epique.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../../../runtime/src/github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../../../runtime/src/github-etat/etats.ts";
 import { stationDe } from "../../../runtime/src/stations-github/stations.ts";
 import { DELAI_MS, dureeCourte, LABELS_D_ECART, MOTS_DU_GESTE, servantesDe, type Geste, type StationDuCompte, type StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
 import { feuPoseLe, lesFeux, type Lire } from "../../../runtime/src/attente-du-rail/lecture.ts";
@@ -32,7 +32,7 @@ type CommentaireLu = { body: string; association: string };
 // Le ticket est-il passé par un manager ? D'après ses labels et ses commentaires.
 function prisParUnManager(labels: readonly string[], commentaires: readonly CommentaireLu[]): boolean {
   if (labels.some((label) => label.startsWith("model:") || label.startsWith("effort:"))) return true;
-  if (labels.some((label) => LABELS_D_ECART.includes(label) || label === LABEL_TAKEN || label === LABEL_IN_PASS || label === LABEL_WAITING)) return true;
+  if (estParque(labels) || labels.some((label) => LABELS_D_ECART.includes(label) || label === LABEL_TAKEN || label === LABEL_IN_PASS)) return true;
   return commentaires.some(({ body, association }) => AUTEURS_DE_CONFIANCE.includes(association) && (MARQUE_DE_PRISE.test(body) || body.startsWith(MARQUEUR_DU_MANAGER)));
 }
 

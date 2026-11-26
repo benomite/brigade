@@ -158,9 +158,6 @@ export type Pont = {
   // Une capture d'un ticket d'interface, par son écran et son moment : l'image, lue par le `gh` du
   // poste à l'adresse que la box a rendue, en `data:` — ou pourquoi elle ne l'est pas.
   lireCapture(projet: string, ticket: number, ecran: string, moment: "avant" | "apres"): Promise<import("../captures.ts").Image | undefined>;
-  // Lever la retenue `blocked-on-human` d'un ticket qui t'attend : retirer le label (`label`) ou
-  // fermer l'issue (`fermer`), par le `gh` du poste. Rien ne part pour un ticket que le bloc ne dit pas retenu.
-  leverRetenue(projet: string, ticket: number, geste: "label" | "fermer"): Promise<import("../question.ts").Leve>;
   // Les tickets `fire` du projet, lus sur GitHub par le `gh` du poste (feu.ts) : ce que le rail sait encore quand la box ne répond pas.
   lireFeu(projet: string): Promise<import("../feu.ts").Feu | undefined>;
   // « réessayer maintenant » : les lectures de la box repartent tout de suite, au lieu d'attendre leur tour.
@@ -196,8 +193,8 @@ export type Pont = {
   essayer(projet: string, ticket: number): Promise<void>;
   arreterEssai(projet: string, ticket: number): Promise<void>;
   refus(projet: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  // Un geste d'une idée en réserve, depuis la liste du Backlog (gestes-idee.ts, ticket 3589) : `rail` retire `idea` et pose `fire`, `abandonner` ferme l'issue.
-  idee(projet: string, id: "rail" | "abandonner", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
+  // Le geste d'une idée en réserve, depuis la liste du Backlog (gestes-idee.ts, ticket 3589) : `abandonner` ferme l'issue.
+  idee(projet: string, id: "abandonner", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
@@ -320,11 +317,21 @@ export type Pont = {
   listerLesHumains?(projet: string): Promise<import("../humains-du-projet.ts").LectureDesHumains>;
   enregistrerUnHumain?(projet: string, humain: import("./settings-humans/humains.js").Humain): Promise<import("./settings-humans/humains.js").Rendu>;
   retirerUnHumain?(projet: string, login: string): Promise<import("./settings-humans/humains.js").Rendu>;
+  // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet
+  // tourne — rien pour un projet qui ne cuit pas sur cet ordinateur —, et l'OK donné à l'un par son id.
+  // Optionnels : un pont qui ne les porte pas (le téléphone) n'en montre aucun.
+  gestesRetenus?(projet: string): Promise<import("../held/contrat.ts").LectureDesRetenus | undefined>;
+  approuverGeste?(projet: string, id: string): Promise<import("../held/contrat.ts").Approbation>;
   // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus par `recurring` là où sa cuisine tourne, et chacun
   // suspendu, repris ou retiré d'un clic (recurrents/recurrents.js, recurrents/recurrents-box.ts). Optionnels : un pont qui
   // ne les porte pas (le téléphone) ne montre pas la section.
   listerLesRecurrents?(projet: string): Promise<import("./recurrents/recurrents-box.ts").LectureDesRecurrents>;
   changerUnRecurrent?(projet: string, geste: import("./recurrents/recurrents-box.ts").Geste, id: string): Promise<import("./recurrents/recurrents-box.ts").EcritureDUnRecurrent>;
+  // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
+  // `.brigade/fiche-projet.json` (fiche-projet/fiche-projet-dossier.ts). `null` : il n'y est pas. Optionnels : un pont qui
+  // ne les porte pas (le téléphone) ne montre pas la section.
+  lireUnFichierDuProjet?(projet: string, chemin: string): Promise<string | null>;
+  ecrireUnFichierDuProjet?(projet: string, chemin: string, texte: string): Promise<void>;
   // Les explications des mots de la cuisine (ticket 3308) : les mots dont le chef de cet ordinateur a vu l'explication, gardés
   // par chef là où la cuisine du projet tourne ; un mot vu, et tout remontré depuis Settings (explications/explications-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucune explication.
@@ -332,6 +339,11 @@ export type Pont = {
   marquerUneExplication?(projet: string, mot: import("./explications/explications-box.ts").MotExplique): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   remontrerLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   envoyerUnMot?(projet: string, entree: { ticket: number; text: string }): Promise<import("./mot-au-cook/source.js").Reponse>; // le mot au cook (ticket 4048)
+  // Le savoir-faire du projet, sous Know-how (ticket 4241) : ses entrées lues, une réécrite, une retirée, là où sa cuisine
+  // tourne (savoir-faire/savoir-faire-box.ts). Optionnels : un pont qui ne les porte pas (le téléphone) le dit sur l'onglet.
+  lireLeSavoirFaire?(projet: string): Promise<import("./savoir-faire/savoir-faire-box.ts").LectureDuSavoirFaire>;
+  modifierLeSavoirFaire?(projet: string, id: string, texte: string): Promise<import("./savoir-faire/savoir-faire-box.ts").EcritureDuSavoirFaire>;
+  retirerDuSavoirFaire?(projet: string, id: string): Promise<import("./savoir-faire/savoir-faire-box.ts").EcritureDuSavoirFaire>;
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : ce que sa cuisine a fait depuis que le chef a regardé, lu
   // là où elle tourne ; montré, son marqueur avance jusqu'à `until` ; la PR d'un ticket servi s'ouvre (recap/recap-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucun récapitulatif.
@@ -355,6 +367,8 @@ export type Pont = {
   closerDeSante(projet: string): Promise<import("../closer-sante.ts").LectureDuCloser>;
   changerReglageDuCloser(projet: string, cle: string, saisie: string | { model: string; effort: string }): Promise<import("../closer-sante.ts").RenduDuReglage>;
   changerVerificationDuCloser(projet: string, geste: "ajouter" | "retirer", saisie: string): Promise<import("../closer-sante.ts").RenduDesVerifications>;
+  savoirDuProjet(projet: string): Promise<import("./know-how/know-how-github.ts").LectureDuSavoir>;
+  changerLeSavoir(projet: string, changement: import("./know-how/know-how-github.ts").ChangementDuSavoir): Promise<import("./know-how/know-how-github.ts").RenduDuSavoir>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —
@@ -382,9 +396,11 @@ export type Pont = {
   // ce qu'il a fait, ou pourquoi rien. Sa fin arrive par `surLoginClaude`.
   seConnecterAClaude?(): Promise<RenduDePanne>;
   // Les outils que l'app ne livre pas (ticket 4059, outils-requis.ts) : ceux de `outils` — les trois, sans liste — qui
-  // manquent à cet ordinateur, chacun avec le chemin qui l'installe ; puis ce geste joué, ou pourquoi il n'a pas abouti.
-  outilsManquants?(outils?: ("gh" | "git" | "claude")[]): Promise<import("../outils-requis.ts").OutilManquant[]>;
-  installerOutil?(outil: "gh" | "git" | "claude"): Promise<import("../outils-requis.ts").RenduDInstallation>;
+  // manquent à cet ordinateur, chacun avec le lien de sa page d'installation.
+  // `installable` : l'app sait installer cet outil d'un clic sur cet ordinateur (ticket 4350) — jamais Git.
+  outilsManquants?(outils?: ("gh" | "git" | "claude")[]): Promise<(import("../outils-requis.ts").OutilManquant & { installable?: boolean })[]>;
+  // Installe `gh` ou `claude` (ticket 4350, install-tools/), au clic du chef seulement : done, ou failed et sa raison.
+  installerOutil?(outil: "gh" | "claude"): Promise<import("../install-tools/install-tools.ts").EtatDInstallation>;
   // Le compte GitHub que le `gh` de cet ordinateur tient (ticket 2475, connexion-github.ts) : son login, aucun, ou
   // pourquoi il ne se lit pas. L'étape du compte du parcours d'ajout le dit, et le relit au bout d'une connexion.
   compteGitHub?(): Promise<CompteGitHub>;
@@ -416,7 +432,7 @@ export type Pont = {
   // publie sur GitHub, rangé dans les colonnes du rail — ou pourquoi il ne se lit pas, en une phrase.
   railDuProjet?(nom: string): Promise<import("../faits.ts").RailDuProjetLu>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
-  // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
+  // celles qui sont parquées (`parked`) — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
   compter(projet: string): Promise<Compte | undefined>;
   // La réponse du chef à la carte de TODO d'un ticket (carte-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.

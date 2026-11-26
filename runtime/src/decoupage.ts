@@ -26,6 +26,7 @@ import { MARQUEUR_MANAGER } from "./juger.ts";
 import { creationsAnnoncees, decoupageDe, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
 import { communsDuRail } from "./projections/rail.ts";
 import { capacitesFournies } from "./projections/stations.ts";
+import { labelAttendu, texteDuCalibrage } from "./temps-attendu/temps-attendu.ts";
 
 // Ce qu'un jugement rend : sa réponse lue, ou ce qui la rend illisible. Null :
 // il n'a pas abouti, et reste à faire.
@@ -55,7 +56,8 @@ export type Atelier = {
   // Un ticket du découpage vient d'être lancé : la station le prend sans attendre son tour suivant (#2796).
   surLeRail?: () => void;
   // La porte des gestes du runtime (#4039) : créer les tickets d'un découpage passe par le niveau `manager split-epic`,
-  // « propose » par défaut — il attend l'OK du chef. Sans elle, ils se créent sans porte ni journal des gestes.
+  // « act » par défaut depuis le choix du chef du 2026-11-25 (#4247) — ils se créent au même passage ; sur « propose »,
+  // ils attendent son OK. Sans elle, ils se créent sans porte ni journal des gestes.
   porte?: PorteDesGestes | null;
 };
 
@@ -68,6 +70,12 @@ const MARQUEUR_TERMINEE = "<!-- brigade:epique-terminee -->";
 const MARQUEUR_SERVIE = "<!-- brigade:epique-servie -->";
 
 const MARGE_MS = 600_000;
+
+// Depuis le 2026-11-25 (#4247), le manager ne demande plus au chef s'il découpe une épique : il le décide. Une question
+// notée avant porte l'empreinte nue de l'épique, et se relit donc une fois sous la règle d'aujourd'hui ; celle notée
+// après porte cette marque, et ne se relit que quand l'épique change.
+const QUESTION_DEPUIS_4247 = " question-4247";
+const empreinteDeLaQuestion = (etat: string) => `${etat}${QUESTION_DEPUIS_4247}`;
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const priorites = (labels: string[]) => labels.filter((label) => /^prio:[1-9]$/.test(label));
@@ -139,7 +147,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           "|---|---|---|---|---|",
           ...connu.tickets.map(
             (prevu, i) =>
-              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\` |`,
+              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | ${texteDuCalibrage(prevu.model, prevu.effort, prevu.expectedMinutes)} |`,
           ),
           ...(joints.length === 0
             ? []
@@ -206,7 +214,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       return;
     }
     const { valeur } = reponse;
-    if (valeur.quoi === "question") noter(epic, { type: "manager.split-asked", payload: { ...commun, question: valeur.question } });
+    if (valeur.quoi === "question") noter(epic, { type: "manager.split-asked", payload: { ...commun, fingerprint: empreinteDeLaQuestion(etat), question: valeur.question } });
     else if (valeur.quoi === "deja") noter(epic, { type: "manager.split-skipped", payload: { ...commun, reason: valeur.reason } });
     else noter(epic, { type: "manager.split", payload: { ...commun, reason: valeur.reason, order: valeur.order, tickets: joindre(valeur.tickets, communsDuRail(base)) } });
   };
@@ -245,7 +253,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
         } else noter(epic.number, { type: "manager.split-creating", payload: { index: rang } });
         const retrouve = numero !== undefined;
         if (numero === undefined) {
-          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...priorites(epic.labels)];
+          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...(prevu.expectedMinutes === undefined ? [] : [labelAttendu(prevu.expectedMinutes)]), ...priorites(epic.labels)];
           numero = await github.creerIssue({ titre: prevu.title, corps: corpsDuTicket(epic.number, rang, prevu), labels });
           neuf = true;
           if (arrete()) return false;
@@ -289,7 +297,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       let connu = decoupageDe(base, epic.number);
       if (connu?.state !== "split") {
         const etat = empreinteDEpique(epic, commentaires);
-        if (connu?.fingerprint !== etat) {
+        if (connu?.fingerprint !== (connu?.state === "asked" ? empreinteDeLaQuestion(etat) : etat)) {
           if (!atelier.peutJuger()) return false;
           let fichiers: string[] = [];
           try {

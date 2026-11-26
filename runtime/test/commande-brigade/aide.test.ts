@@ -103,7 +103,6 @@ for (const [plateforme, poser] of Object.entries(ENTREES)) {
 }
 
 describe("sous Linux, la commande du paquet", { skip: posixOnly("runs the extensionless bash command of the Linux package") }, () => {
-  // brigade:guard
   test("après l'installation du paquet, `brigade <project> status` marche comme avant", () => {
     const r = linux().lancer(["calculus", "status", "--suivre"]);
 

@@ -14,7 +14,7 @@ import { carteDuChoixDeProduit, corpsDuRenvoiPourConflit } from "../src/conflit-
 import { corpsDeLaReponse } from "../src/desaccord-cook.ts";
 import { corpsDeLacher, corpsDePrise } from "../src/github-etat/prise.ts";
 import { corpsDeReclamation, corpsDeRendu } from "../src/station-contributrice/reclamation.ts";
-import { direLevee, direMarque } from "../src/attente.ts";
+import { corpsDuParking } from "../src/attente-github/marque.ts";
 import { corpsDeLaCarte, corpsDeLaReponseAuBlocage, sectionDeLaDecision } from "../src/blocage-au-manager.ts";
 import { corpsDuTicket, ficheDuTicket } from "../src/decouper.ts";
 import { rendreListe } from "../src/epique.ts";
@@ -30,7 +30,6 @@ import { corpsDeRetourAvec, corpsDeSortieAvec } from "../src/abandon-en-chaine.t
 import { corpsDeLaFermeture, titreDeLaFermeture } from "../src/closer-github-passe/closer-github-passe.ts";
 import { mesurerRatio } from "../src/closing/ratio.ts";
 import { corps as corpsDeLaPreparation, TITRE as TITRE_DE_LA_PREPARATION } from "../src/preparation-depot/ticket.ts";
-import { direALArrivee } from "../src/projections/rail.ts";
 import { corpsDeCeQuiEstFait, lignesDuBrief } from "../src/validation-design/brief.ts";
 import { nomDuProjet } from "../src/geste.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
@@ -79,15 +78,18 @@ test("the check sees French: an accent, or a French word of the glossary", () =>
 });
 
 describe("in English on GitHub", { concurrency: 8 }, () => {
-  test("the manager: its comments on a ticket it fires, an incomplete ticket it completes or asks about, a held ticket, an epic it cannot split, a ticket it sets aside", async (t) => {
+  test("the manager: its comments on a ticket it fires, an incomplete ticket it completes or asks about, a ticket it parks for the chef, an epic it cannot split, a ticket it sets aside", async (t) => {
     const scenarios: Array<{ suite: string[]; ticket: number; labels: string[]; dits: number }> = [
       { suite: ["juge-ticket"], ticket: 30, labels: [], dits: 1 },
       { suite: ["juge-incomplet", "complete-question"], ticket: 40, labels: [], dits: 2 },
       { suite: ["juge-incomplet", "complete-criteres"], ticket: 41, labels: [], dits: 2 },
-      { suite: ["requalifie-carte"], ticket: 45, labels: ["blocked-on-human"], dits: 1 },
-      { suite: ["requalifie-reprise", "juge-ticket"], ticket: 46, labels: ["blocked-on-human"], dits: 2 },
+      // #4260 : la requalification d'un `blocked-on-human` n'est plus ; le manager parque pour le chef la décision qu'il
+      // lui laisse, ou celle qu'un autre attend.
+      { suite: ["juge-decision"], ticket: 45, labels: [], dits: 1 },
+      { suite: ["juge-decision-tiers"], ticket: 46, labels: [], dits: 1 },
       { suite: ["decoupe-question"], ticket: 50, labels: ["epic"], dits: 1 },
-      { suite: [], ticket: 60, labels: ["fire", "question"], dits: 1 },
+      // Un ticket parqué (`question` se lit parqué, #4260) est écarté sans un mot : l'écart qui se dit est un `served-elsewhere` lancé.
+      { suite: [], ticket: 60, labels: ["fire", "served-elsewhere"], dits: 1 },
     ];
     const dits = await Promise.all(
       scenarios.map(async ({ suite, ticket, labels, dits: attendus }) => {
@@ -144,10 +146,11 @@ describe("in English on GitHub", { concurrency: 8 }, () => {
       corpsDeCarte(carteMergeALaMain(12, "#13", "the PR touches the workflows")),
       corpsDeCarte(carteQuestionProduit(12, "Which layout?")),
       corpsDeCarte(carteAbandon(12, "its delivery stays red")),
-      // Le service pose toujours `BRIGADE_PROJECT` : le geste y nomme le projet, jamais `<projet>`.
-      direMarque(12, { what: "the vendor's API key", who: "Alice", since: "2026-11-09T10:00:00.000Z", followUp: "2026-11-10T10:00:00.000Z", onArrival: direALArrivee("open") }, false).replaceAll(nomDuProjet(), "shop"),
-      direMarque(12, { what: "the vendor's API key", who: "Alice", since: "2026-11-09T10:00:00.000Z", followUp: "2026-11-10T10:00:00.000Z", onArrival: direALArrivee(null) }, true).replaceAll(nomDuProjet(), "shop"),
-      direLevee(null, { what: "the key", who: "Alice" }),
+      // Le parking (#4129) : jusqu'à une date, jusqu'à un fait, pour le chef, et posé par la cuisine avec les mots du cook.
+      corpsDuParking({ what: "the vendor's API key", who: "Alice", followUp: "2026-11-10T10:00:00.000Z" }),
+      corpsDuParking({ what: "the vendor's API key", who: "Alice", followUp: "2026-11-10T10:00:00.000Z", fact: "the key is sent" }),
+      corpsDuParking({ what: "Which layout?", who: "the chef", followUp: "2026-11-10T10:00:00.000Z", fact: "the chef answers" }),
+      corpsDuParking({ what: "Too early", who: "the calendar", followUp: "2026-11-10T10:00:00.000Z" }, { station: "box", mots: "Too early: it opens on 2026-11-10." }),
     ]);
   });
 

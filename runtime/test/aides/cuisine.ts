@@ -14,7 +14,7 @@ import { poserDecision, suivreDecisions, type ReglagesSuivis } from "../../src/d
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
 import type { Humain } from "../../src/aiguillage-humains/aiguillage.ts";
-import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
+import type { Commentaire, GitHub, Issue, IssueOuverte, PR } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
@@ -462,7 +462,7 @@ export type Options = {
   // sans lui, il se croit seul.
   // `surLeRail` : appelé quand le manager rend un ticket prenable (#2796).
   // `roadmapDuDepot` : la roadmap que les bindings du dépôt nomment (#3436).
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; humains?: () => Humain[]; roadmapDuDepot?: () => number | null };
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; freeRoom?: (ouvertes: readonly IssueOuverte[]) => number; humains?: () => Humain[]; roadmapDuDepot?: () => number | null };
   // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
@@ -562,6 +562,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         avertir: (message) => void avertissements.push(message),
         station: options.manager.station ?? null,
         ...(options.manager.surLeRail === undefined ? {} : { surLeRail: options.manager.surLeRail }),
+        ...(options.manager.freeRoom === undefined ? {} : { freeRoom: options.manager.freeRoom }),
         ...(options.manager.humains === undefined ? {} : { humains: options.manager.humains }),
         ...(options.manager.roadmapDuDepot === undefined ? {} : { roadmapDuDepot: options.manager.roadmapDuDepot }),
       })

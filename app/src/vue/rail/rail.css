@@ -1,0 +1,35 @@
+/* Le rail, haut du backlog (ticket 4223) : sous le bandeau Backlog, au-dessus des colonnes, une liste numérotée sur une
+   ligne qui passe à la suivante — le numéro de l'issue, sa priorité, son titre. Rien ne s'y clique. */
+#rail .rail-du-backlog {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-4);
+  padding: var(--pas-2) var(--pas-5);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#rail .rail-du-backlog-titre {
+  flex: none;
+  margin: 0;
+  font-size: var(--taille-corps);
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+#rail .rail-backlog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2) var(--pas-4);
+  margin: 0;
+  padding: 0 0 0 var(--pas-4);
+}
+#rail .rail-backlog-issue {
+  font-size: var(--taille-corps);
+}
+#rail .rail-backlog-numero,
+#rail .rail-backlog-prio,
+#rail .rail-backlog-vide {
+  color: var(--texte-doux);
+}
+#rail .rail-backlog-vide {
+  margin: 0;
+  font-size: var(--taille-corps);
+}

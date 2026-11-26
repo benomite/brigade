@@ -14,7 +14,6 @@ export const ETIQUETTES: readonly Etiquette[] = [
   { name: "product", color: "0E8A16", description: "Issue born from the product owner" },
   { name: "design", color: "D93F0B", description: "Interface work, reserved to the designer" },
   { name: "triage", color: "FBCA04", description: "To be qualified" },
-  { name: "blocked-on-human", color: "B60205", description: "Waits for a human decision" },
   { name: "feature", color: "1D76DB", description: "New functionality" },
   { name: "fix", color: "D73A4A", description: "Correction of a defect" },
   { name: "tech", color: "5319E7", description: "Technical work, no functional impact" },
@@ -25,21 +24,16 @@ export const ETIQUETTES: readonly Etiquette[] = [
   { name: "fire", color: "D93F0B", description: "To be served: the issue enters the rail" },
   ...MODELES.map((modele) => ({ name: `model:${modele}`, color: "5319E7", description: `The cook of this ticket runs on ${modele}` })),
   ...EFFORTS.map((effort) => ({ name: `effort:${effort}`, color: "1D76DB", description: `The cook of this ticket runs at ${effort} effort` })),
-  { name: "decision", color: "FBCA04", description: "Needs a product or design decision before any cook starts" },
   { name: "epic", color: "3E4B9E", description: "Groups other tickets: it is split, never cooked itself" },
   { name: "served-elsewhere", color: "6E7781", description: "This box does not serve the ticket: another box serves it" },
-  { name: "set-aside:failures", color: "6E7781", description: "Set aside by its failure count: its cooks failed too often, no other box serves it" },
-  { name: "tests-written", color: "0E8A16", description: "Its acceptance tests are written and frozen: a cook can take it" },
   { name: "taken", color: "0052CC", description: "A cook holds the ticket" },
   { name: "in-pass", color: "0052CC", description: "The delivery of the ticket is being judged" },
-  { name: "waiting", color: "C5DEF5", description: "Waits for another ticket to be served" },
-  { name: "chef-todo", color: "B60205", description: "A card in the chef's to-do list waits on this ticket" },
-  { name: "product-question", color: "FBCA04", description: "A question for the chef about the product" },
+  { name: "parked", color: "C5DEF5", description: "Waits for someone: who, for what, until when (a date or a fact) — nothing takes it before" },
+  { name: "chef-todo", color: "B60205", description: "Parked for the chef: a card in the chef's to-do list waits on this ticket" },
   { name: "idea", color: "C2E0C6", description: "An idea in reserve, not a request: the manager never reads it" },
   { name: "horizon:1", color: "1D76DB", description: "Direction of the product: autonomy now" },
   { name: "horizon:2", color: "1D76DB", description: "Direction of the product: humans as stations" },
   { name: "horizon:3", color: "1D76DB", description: "Direction of the product: any project run on its own" },
-  { name: "saturation-repair", color: "D73A4A", description: "Repairs the saturation of the machine: the claim gate lets it through while the machine runs short, one at a time" },
   { name: "kitchen-board", color: "BFD4F2", description: "The former board issue of the kitchen: never a card" },
 ];
 
@@ -52,7 +46,8 @@ export const NOMS_DES_LABELS_DU_RAIL: readonly string[] = ETIQUETTES.filter(({ n
 // porte encore l'ancien le voit renommé — GitHub reporte alors le nouveau nom
 // sur chaque issue qui portait l'ancien.
 export const ANCIEN_NOM_DE_SERVED_ELSEWHERE = "hors-cuisine";
-export const LABELS_RENOMMES: Readonly<Record<string, string>> = { [ANCIEN_NOM_DE_SERVED_ELSEWHERE]: "served-elsewhere" };
+// `waiting` est devenu `parked` (#4129) : GitHub porte `parked` sur chaque ticket qui attendait.
+export const LABELS_RENOMMES: Readonly<Record<string, string>> = { [ANCIEN_NOM_DE_SERVED_ELSEWHERE]: "served-elsewhere", waiting: "parked" };
 
 // Un label tel que GitHub le rend : `description` est null quand il n'en a pas.
 export type EtiquetteLue = { name: string; description: string | null };

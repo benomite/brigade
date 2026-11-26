@@ -1,6 +1,7 @@
 // The gate every gesture of an agent goes through (spec 2026-11-23-autonomy-trust-control, C4, #4039). It reads the
 // agent's level (niveaux.ts), and takes the gesture as a function:
-//   - `act`: it does the gesture, then logs it in the agent's gesture log (gestes.ts);
+//   - `act`: it does the gesture, then logs it in the agent's gesture log (gestes.ts). The same gesture held while the
+//     level was `propose` is done now: it is no longer pending (#4247);
 //   - `propose`: it holds it as a pending gesture, not done. The chef's approval does it once, then logs it; a second
 //     approval does nothing;
 //   - `observe`: it logs the gesture the agent would make, as `not done`, and never does it.
@@ -17,13 +18,16 @@ import { join } from "node:path";
 import { ecrireAtomique } from "../../relais.ts";
 import type { Runtime } from "../../runtime.ts";
 import { consignerGeste, gestesDe, OUTCOME, type Outcome } from "./gestes.ts";
+import { notifierLesAbandons, type NotificationDAbandon } from "../../journal-du-jour/notifications.ts";
+import { notifierAuJournal } from "../../journal-du-jour/publication.ts";
 import { magasinDeNiveaux, type MagasinDeNiveaux, type Reglable } from "./niveaux.ts";
 
 // A gesture as its agent says it: its line, its reason, and its outcome once done.
 export type GesteDit = { line: string; reason: string; outcome: Outcome };
 // Who makes the gesture: the name its log is kept under (`closer`, `cook #12`), and what holds its level (`cook`,
-// `manager split-epic`).
-export type AgentDuGeste = { agent: string; reglable: Reglable };
+// `manager split-epic`). `auChef`: the gesture waits for the chef's OK whatever its level but `observe` — an action
+// whose kind the project ranks `chef` (risque/risque.ts, #4230).
+export type AgentDuGeste = { agent: string; reglable: Reglable; auChef?: boolean };
 // What the gate did of a gesture: done, with what it gave; held, under its id; or only logged.
 export type Passage<T> = { etat: "done"; valeur: T } | { etat: "held"; id: number } | { etat: "observed" };
 
@@ -88,19 +92,42 @@ export type OptionsDeLaPorte = {
   // The level store; by default, the one of `repertoire`.
   niveaux?: MagasinDeNiveaux;
   avertir?: (message: string) => void;
+  // Sends the notification of a gesture handed to the chef (#4280): the system gave up and needs them. No other gesture notifies.
+  notifier?: (notification: NotificationDAbandon) => void;
 };
 
-export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinDeNiveaux(repertoire), avertir = (texte) => console.error(texte) }: OptionsDeLaPorte): PorteDesGestes {
+export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinDeNiveaux(repertoire), avertir = (texte) => console.error(texte), notifier = () => {} }: OptionsDeLaPorte): PorteDesGestes {
   // The gestures held in this runtime, by their id: the function and what logs it.
   const tenus = new Map<number, { agent: string; faire: () => Promise<{ valeur: unknown; dit: GesteDit | null }> }>();
 
   // Logs a gesture done; a log that fails is said, the gesture being done.
   const consigner = (agent: string, geste: GesteDit | null) => {
     if (geste === null) return;
+    let consigne;
     try {
-      consignerGeste(repertoire, agent, geste, horloge);
+      consigne = consignerGeste(repertoire, agent, geste, horloge);
     } catch (erreur) {
       throw new Error(`its gesture was done but not logged (${geste.line}) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+    // A notification that fails is said: the gesture is done and logged all the same.
+    try {
+      notifierLesAbandons([consigne], notifier);
+    } catch (erreur) {
+      avertir(`brigade : the ${agent} handed a gesture to the chef, the chef not notified (${geste.line}) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    }
+  };
+
+  // A gesture done on `act` that was held before — its level was `propose` — is out of the pending gestures: nothing
+  // asks the chef's OK for it any more, and an approval finds nothing to do again. A pending file that cannot be read is said, and left as it is.
+  const plusEnAttente = (agent: string, line: string) => {
+    try {
+      const attentes = gestesEnAttente(repertoire);
+      const faits = attentes.filter((une) => une.agent === agent && une.line === line);
+      if (faits.length === 0) return;
+      ecrire(repertoire, attentes.filter((une) => !faits.includes(une)));
+      for (const { id } of faits) tenus.delete(id);
+    } catch (erreur) {
+      avertir(`brigade : pending gestures not read, the ${agent}'s gesture done stays listed (${line}) — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
   };
 
@@ -118,10 +145,12 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
 
   return {
     async passer(qui, geste, faire, consigne = () => geste) {
-      const niveau = niveaux.lire(projet)[qui.reglable];
+      const lu = niveaux.lire(projet)[qui.reglable];
+      const niveau = qui.auChef === true && lu !== "observe" ? "propose" : lu;
       if (niveau === "act") {
         const valeur = await faire();
         consigner(qui.agent, consigne(valeur));
+        plusEnAttente(qui.agent, geste.line);
         return { etat: "done", valeur };
       }
       if (niveau === "observe") {
@@ -170,9 +199,9 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
 // The gate of a runtime's agents: the pending gestures the chef approved, held by this gate, are done at each of the
 // runtime's ticks.
 // Null when the runtime has no state directory.
-export function porteDuRuntime(runtime: Pick<Runtime, "projet" | "repertoireEtat" | "surReveil">, horloge: () => Date = () => new Date()): PorteDesGestes | null {
+export function porteDuRuntime(runtime: Pick<Runtime, "projet" | "repertoireEtat" | "surReveil"> & Partial<Pick<Runtime, "journal">>, horloge: () => Date = () => new Date()): PorteDesGestes | null {
   if (runtime.repertoireEtat === undefined) return null;
-  const porte = porteDesGestes({ repertoire: runtime.repertoireEtat, projet: runtime.projet, horloge });
+  const porte = porteDesGestes({ repertoire: runtime.repertoireEtat, projet: runtime.projet, horloge, ...(runtime.journal === undefined ? {} : { notifier: notifierAuJournal(runtime.journal, runtime.projet) }) });
   runtime.surReveil((cause) => void (cause === "tick" && porte.relever()));
   return porte;
 }

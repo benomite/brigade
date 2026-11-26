@@ -7,7 +7,6 @@ import { adresseDeCapture, capturesLivrees, capturesManquantes, capturesVues, di
 const DEPOT = "acme/brigade";
 const SHA = "0123abcd";
 
-// brigade:guard
 test("un ticket est d'interface quand sa zone touche la vue de l'app", () => {
   assert.equal(estDInterface({ zone: ["app/src/vue"] }), true);
   assert.equal(estDInterface({ zone: ["app/src/vue/vue.js"] }), true);
