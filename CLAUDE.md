@@ -2,6 +2,10 @@
 
 The kitchen serves its tickets on its own. **Every `chef-todo` without a product or design decision is a failure**, to be fixed like a bug, never a normal step. A TODO card asks a human a question: a product choice, a design choice, or a review only the chef can make. It is never something an agent can decide: a technical merge with a green CI, a rebase, a rerun, putting a ticket back on the rail. When in doubt, decide, say what you decided, and move on.
 
+## Brigade's goal: security
+
+**No agent ever combines the three legs of the lethal trifecta** (https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/): access to private data, exposure to untrusted content, and a way to send data out. A model follows instructions wherever they appear, so the only sound defence is to never have the three together; a guardrail that "detects most attacks" is not one. Brigade keeps them apart: every cook runs isolated to its own project (no other project's clone, state or secrets) and behind the network filter (only its project's allowed hosts), and only text from trusted authors (the chef, collaborators with write access, the kitchen's agents) reaches an agent. When a safeguard cannot be set up, the kitchen cooks nothing rather than run without it. **A change that reopens one of the three legs is refused**, like a change that adds a `chef-todo` without a decision: a setting to switch a safeguard off, a new source of outside text, a new way out.
+
 ## Équipe multi-agents (plugin brigade)
 
 The section title and the bold labels of the bindings below stay in French on purpose: `/brigade:init` and the roles look them up by these exact words. The content is English.
