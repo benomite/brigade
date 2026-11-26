@@ -11,6 +11,7 @@
 // le rang du choix ou le texte.
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
 import { LONGUEUR_MAX } from "./discussion.ts";
+import { SORTE_PARKED_CHEF } from "./tableau/parked-chef-github.ts";
 import { formeDuChef, type CarteDuChef } from "./tableau/todo-github.ts";
 import { SORTE_SENSIBLE } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { capturesDeLaValidation, SORTE_DE_VALIDATION } from "./vue/validation-design/validation-design-github.ts";
@@ -46,7 +47,9 @@ export type BriefDeCarte = { demande: string; fait: string[] | null };
 // pourquoi en une ligne ; nulle, il n'en recommande aucun : aucun choix n'est mis en avant. Absente ailleurs : le premier
 // choix est la réponse recommandée (ticket 2922).
 export type RecommandationDeCarte = { rang: number; pourquoi: string };
-export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; recommandation?: RecommandationDeCarte | null; captures?: CapturesDeCarte; envoi?: EnvoiVu; validation?: ValidationDeCarte; revue?: ValidationDeCarte; brief?: BriefDeCarte };
+// `repondre` : le libellé du bouton de la réponse libre, quand ce n'est pas « send » ; `surGithub` : la carte a son bouton
+// « Open on GitHub » — celle d'un ticket que la nouvelle cuisine parque pour le chef (#4474), absents ailleurs.
+export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoixDeCarte[]; prixDuTexte: string; repondre?: string; surGithub?: true; recommandation?: RecommandationDeCarte | null; captures?: CapturesDeCarte; envoi?: EnvoiVu; validation?: ValidationDeCarte; revue?: ValidationDeCarte; brief?: BriefDeCarte };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -80,6 +83,8 @@ const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
   rail: `${POSTEE}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
   wait: `${POSTEE}, and the app parks the ticket for the one the choice names, until a date seven days away, and it leaves your TODO: nothing takes it before they answer or that date comes`,
 };
+// Answer, sur la carte d'un ticket parqué pour le chef par la nouvelle cuisine (#4474).
+const PRIX_PARKED_CHEF = `${POSTEE}, and the app removes \`parked:chef\`: the ticket goes back on the rail, and its cook reads your answer`;
 
 // La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,
 // entière — jamais coupée en son milieu. Le reste du commentaire est derrière « details ». Rien quand il ne dit rien.
@@ -130,6 +135,11 @@ export function carteDuChefDeTodo(carte: CarteDuChef): CarteDeTodo | undefined {
       revue: sensible === undefined ? { illisible: "its issue does not say which pull request it holds: review it on GitHub" } : { pr: sensible.pr, ticket: sensible.ticket },
     };
   }
+  // Un ticket que la nouvelle cuisine parque pour le chef (#4474) : ce qu'elle en dit, un seul geste — Answer, qui poste le
+  // texte du chef et retire `parked:chef` —, et « Open on GitHub ». Aucun choix : le commentaire de la cuisine n'en propose pas.
+  if (sorte === SORTE_PARKED_CHEF) {
+    return { sorte, question, ...(contexte === "" ? {} : { contexte }), choix: [], prixDuTexte: PRIX_PARKED_CHEF, repondre: "Answer", surGithub: true };
+  }
   const situation = situationDe(contexte);
   // Le choix que le manager recommande, par son rang : un libellé qui n'est plus parmi les choix n'en recommande aucun.
   const rang = recommandee == null ? 0 : choix.findIndex(({ texte: libelle }) => libelle === recommandee.texte) + 1;
@@ -147,7 +157,9 @@ export function carteDuChefDeTodo(carte: CarteDuChef): CarteDeTodo | undefined {
 
 // La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.
 export function carteLueDuChef({ sorte, texte }: CarteDuChef): CarteLue | undefined {
-  const { question, choix } = formeDuChef(texte);
+  const { question, choix: lus } = formeDuChef(texte);
+  // La carte d'un ticket parqué par la nouvelle cuisine n'a que sa réponse libre (#4474).
+  const choix = sorte === SORTE_PARKED_CHEF ? [] : lus;
   // La carte « Validate its screen » ne se répond pas : ses deux gestes sont la commande du runtime (vue/validation-design/).
   // La carte « review before merge » non plus (vue/carte-sensible/, ticket 3224).
   return question === null || sorte === SORTE_DE_VALIDATION || sorte === SORTE_SENSIBLE ? undefined : { type: sorte, question, choix, captures: null };

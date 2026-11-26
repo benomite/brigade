@@ -290,6 +290,8 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
   "manager-epic-question": "The manager asked you a question before splitting this epic: it waits for your answer.",
   // Un ticket parqué pour le chef par un label d'attente d'avant parked (#3370, #4129, tableau/mise-de-cote-github.ts, `carteDeLEcart`).
   "manager-parked": "Parked for you by a waiting label of before parked: it waits for your answer.",
+  // Un ticket que la nouvelle cuisine parque pour le chef (`parked:chef`, #4474, tableau/parked-chef-github.ts).
+  "parked-chef": "Parked for you by the kitchen: it goes back on the rail once you answer.",
 };
 const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
 
