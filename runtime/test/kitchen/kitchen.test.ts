@@ -17,9 +17,13 @@ function fakeGh() {
   const issues = new Map<number, FakeIssue>();
   const prs: FakePr[] = [];
   let next = 1;
+  const options = { files: ["feature.txt"], failMerges: 0 };
   const gh: Gh = async (args, input) => {
     const flag = (name: string) => args[args.indexOf(name) + 1] ?? "";
-    if (args[0] === "api" && args.at(-1)?.includes("/comments")) return "[[]]";
+    if (args[0] === "api" && args.at(-1)?.includes("/comments")) {
+      const i = issues.get(Number(/issues\/(\d+)\/comments/.exec(args.at(-1) ?? "")?.[1]));
+      return JSON.stringify([(i?.comments ?? []).map((body) => ({ user: { login: "chef" }, author_association: "OWNER", body }))]);
+    }
     if (args[0] === "api" && args[1]?.startsWith("repos/")) {
       const i = issues.get(Number(args[1].split("/").pop())) as FakeIssue;
       return JSON.stringify({ title: i.title, body: i.body, author_association: "OWNER", labels: i.labels.map((name) => ({ name })) });
@@ -60,11 +64,16 @@ function fakeGh() {
       return `https://github.com/o/r/issues/${number}\n`;
     }
     if (args[0] === "pr" && args[1] === "create") {
+      if (prs.some((p) => p.head === flag("--head") && !p.merged)) throw new Error("a pull request for this branch already exists");
       prs.push({ number: 100 + prs.length, head: flag("--head"), checks: "SUCCESS", merged: false });
       return "";
     }
-    if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ files: [{ path: "feature.txt" }] });
+    if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ files: options.files.map((path) => ({ path })) });
     if (args[0] === "pr" && args[1] === "merge") {
+      if (options.failMerges > 0) {
+        options.failMerges -= 1;
+        throw new Error("gh pr merge: the head branch is not up to date with the base branch");
+      }
       const pr = prs.find((p) => p.number === n) as FakePr;
       pr.merged = true;
       (issues.get(Number(/^cook\/(\d+)-github$/.exec(pr.head)?.[1])) as FakeIssue).closed = true;
@@ -73,7 +82,7 @@ function fakeGh() {
     if (args[0] === "label") return "";
     throw new Error(`fake gh: ${args.join(" ")}`);
   };
-  return { gh, issues, prs, add: (title: string, labels: string[]) => {
+  return { gh, issues, prs, options, add: (title: string, labels: string[]) => {
     const number = next++;
     issues.set(number, { number, title, body: "", labels, comments: [], closed: false });
     return number;
@@ -162,4 +171,73 @@ test("a ticket the manager gives no usable gesture is parked for the chef, not h
   });
   await until(() => fake.issues.get(issue)?.labels.includes("parked:chef") === true, kitchen.turn);
   assert.deepEqual(lines, ["manager called on #1", "#1 parked for the chef — the manager gave no usable gesture"]);
+});
+
+async function riskKitchen() {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const origin = join(root, "origin.git");
+  execFileSync("git", ["init", "-q", "--bare", "-b", "main", origin]);
+  const seed = join(root, "seed");
+  execFileSync("git", ["clone", "-q", origin, seed], { stdio: "pipe" });
+  writeFileSync(join(seed, "README"), "hi");
+  sh(seed, "add", "README");
+  sh(seed, "-c", "user.email=s@s", "-c", "user.name=s", "commit", "-qm", "seed");
+  sh(seed, "push", "-q", "origin", "HEAD:main");
+  const clone = join(root, "clone");
+  execFileSync("git", ["clone", "-q", origin, clone], { stdio: "pipe" });
+  const agent = join(root, "agent.sh");
+  writeFileSync(agent, AGENT, { mode: 0o755 });
+  const fake = fakeGh();
+  const issue = fake.add("Touch the kitchen", ["fire"]);
+  const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: fake.gh,
+    git: gitCli(env),
+    launch: (_kind: Kind, cwd, _write, _calibration, input) => ({ command: agent, args: [], input, cwd, env, secrets: {} }),
+    places: () => 2,
+    riskPaths: () => ["feature"],
+    supervisorEveryMs: Number.MAX_SAFE_INTEGER,
+    log: (line) => lines.push(line),
+  });
+  await until(() => fake.issues.get(issue)?.labels.includes("parked:chef") === true, kitchen.turn);
+  const ticket = fake.issues.get(issue) as FakeIssue;
+  assert.match(ticket.comments.at(-1) ?? "", /^The pass approves PR #100, but it touches a risk zone/);
+  // The chef answers merge on the TODO card: the app posts the answer and lifts parked:chef (app/src/tableau-gestes/reponse-github.ts).
+  ticket.comments.push("<!-- brigade:reponse gesture=resume -->\nmerge");
+  ticket.labels = ticket.labels.filter((label) => label !== "parked:chef");
+  lines.length = 0;
+  return { fake, ticket, kitchen, lines, seed };
+}
+
+test("a chef's merge answer on a PR parked for a risk zone merges it, with no cook and no new pass", async () => {
+  const { fake, ticket, kitchen, lines } = await riskKitchen();
+  await until(() => ticket.closed, kitchen.turn);
+  assert.equal(fake.prs[0]?.merged, true, lines.join("\n"));
+  assert.deepEqual(lines, ["#1 merged (PR #100)"]);
+});
+
+test("a chef's merge answer still holds after the branch is brought up to date and passes again: the ticket is not parked again", async () => {
+  const { fake, ticket, kitchen, lines, seed } = await riskKitchen();
+  writeFileSync(join(seed, "NEWS"), "main moved");
+  sh(seed, "add", "NEWS");
+  sh(seed, "-c", "user.email=s@s", "-c", "user.name=s", "commit", "-qm", "main moves");
+  sh(seed, "push", "-q", "origin", "HEAD:main");
+  fake.options.failMerges = 1;
+  await until(() => ticket.closed, kitchen.turn);
+  assert.equal(fake.prs[0]?.merged, true, lines.join("\n"));
+  assert.equal(ticket.labels.includes("parked:chef"), false);
+  assert.equal(ticket.comments.filter((body) => body.includes("risk zone")).length, 1);
+  assert.deepEqual(lines, [
+    "#1 could not be merged as the chef answered, a cook brings it up to date — gh pr merge: the head branch is not up to date with the base branch",
+    "#1 taken",
+    "#1 delivered",
+    "#1 in review (PR #100)",
+    "#1 merged (PR #100)",
+  ]);
 });
