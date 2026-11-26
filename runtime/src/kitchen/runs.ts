@@ -3,12 +3,12 @@
 // the kitchen. A restarted kitchen lists the same directories and finds the
 // same runs: nothing about them lives in memory.
 import { spawn } from "../sans-invite.ts";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ecrireAtomique, type ConsigneDuRelais, type FinDuRelais } from "../relais.ts";
 
 export type Kind = "cook" | "pass" | "manager" | "supervisor";
-export type RunMeta = { kind: Kind; issue: number | null; pr: number | null; started: number; worktree: string | null };
+export type RunMeta = { kind: Kind; issue: number | null; pr: number | null; started: number; worktree: string | null; given?: number[] };
 export type Run = RunMeta & { name: string; dir: string };
 export type Finished = Run & { end: FinDuRelais; result: string };
 
@@ -79,8 +79,15 @@ export function listRuns(root: string): { running: Run[]; finished: Finished[] }
   return { running, finished };
 }
 
-// Done with a finished run: its directory goes, so the next turn does not see it again.
-export const forget = (run: Run) => rmSync(run.dir, { recursive: true, force: true });
+// Done with a finished run: its directory moves to \`done/\`, so the next turn
+// does not see it again and its stream can still be read. The last 100 stay.
+export function forget(run: Run) {
+  const done = join(run.dir, "..", "..", "done");
+  mkdirSync(done, { recursive: true });
+  renameSync(run.dir, join(done, `${run.started}-${run.name}`));
+  const kept = readdirSync(done).sort();
+  for (const old of kept.slice(0, Math.max(0, kept.length - 100))) rmSync(join(done, old), { recursive: true, force: true });
+}
 
 export type Launch = { command: string; args: string[]; input: string; cwd: string; env: NodeJS.ProcessEnv; secrets: Record<string, string> };
 

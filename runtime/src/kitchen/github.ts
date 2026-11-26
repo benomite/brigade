@@ -84,16 +84,12 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
 // The ticket as an agent may read it: its title and body, and only the
 // comments of trusted authors. Untrusted text never reaches an agent.
 export async function ticketText(gh: Gh, repo: string, issue: number): Promise<string> {
-  const raw = JSON.parse(await gh(["issue", "view", String(issue), "-R", repo, "--json", "title,body,comments,authorAssociation,labels"])) as {
-    title: string;
-    body: string;
-    authorAssociation: string;
-    labels: Array<{ name: string }>;
-    comments: Array<{ author: { login: string } | null; authorAssociation: string; body: string }>;
-  };
-  const trusted = TRUSTED.has(raw.authorAssociation) || raw.labels.some((label) => label.name === ACCEPTED);
-  const comments = raw.comments.filter((one) => TRUSTED.has(one.authorAssociation)).map((one) => `--- ${one.author?.login ?? "?"} ---\n${one.body}`);
-  return [`# #${issue} ${raw.title}`, trusted ? raw.body : "(body withheld: its author is not trusted)", ...(comments.length > 0 ? ["## Comments", ...comments] : [])].join("\n\n");
+  // The REST API, not `gh issue view`: only it says each author's association.
+  const raw = JSON.parse(await gh(["api", `repos/${repo}/issues/${issue}`])) as { title: string; body: string | null; author_association: string; labels: Array<{ name: string }> };
+  const pages = JSON.parse(await gh(["api", "--paginate", "--slurp", `repos/${repo}/issues/${issue}/comments?per_page=100`])) as Array<Array<{ user: { login: string } | null; author_association: string; body: string }>>;
+  const trusted = TRUSTED.has(raw.author_association) || raw.labels.some((label) => label.name === ACCEPTED);
+  const comments = pages.flat().filter((one) => TRUSTED.has(one.author_association)).map((one) => `--- ${one.user?.login ?? "?"} ---\n${one.body}`);
+  return [`# #${issue} ${raw.title}`, trusted ? (raw.body ?? "") : "(body withheld: its author is not trusted)", ...(comments.length > 0 ? ["## Comments", ...comments] : [])].join("\n\n");
 }
 
 export function gestures(gh: Gh, repo: string) {
