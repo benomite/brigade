@@ -104,8 +104,9 @@ export async function inscrireLaStationDeFond(s: Systeme): Promise<Inscription> 
     }
     if (ecrit !== undefined && !ecrit.includes(MARQUE)) return { par: "installeur" };
     const voulu = plistDeLaStation(s);
+    const change = ecrit !== voulu;
     try {
-      if (ecrit !== voulu) {
+      if (change) {
         mkdirSync(dirname(chemin), { recursive: true });
         writeFileSync(chemin, voulu);
       }
@@ -113,9 +114,16 @@ export async function inscrireLaStationDeFond(s: Systeme): Promise<Inscription> 
       return { refus: `the station's login item could not be written (${chemin}): ${erreur instanceof Error ? erreur.message : String(erreur)}` };
     }
     const domaine = `gui/${s.uid}`;
-    // Chargé, il n'est pas rechargé : ce serait arrêter la station qui tourne. Le plist changé se relit à la prochaine
-    // ouverture de session ; un agent qui ne tourne pas est lancé.
+    // Chargé, un plist inchangé n'est pas rechargé : ce serait arrêter la station qui tourne ; un agent qui ne tourne pas
+    // est lancé. Un plist réécrit est rechargé (bootout puis bootstrap, #4400) : launchd garde sinon l'ancienne définition
+    // (un `node` renommé par la mise à jour) jusqu'à la prochaine ouverture de session.
     if ((await s.executer("launchctl", ["print", `${domaine}/${ETIQUETTE}`])).code === 0) {
+      if (change) {
+        const decharge = await s.executer("launchctl", ["bootout", `${domaine}/${ETIQUETTE}`]);
+        if (decharge.code !== 0) return { refus: echec(`launchd did not unload the station's agent ${domaine}/${ETIQUETTE}`, decharge) };
+        const recharge = await s.executer("launchctl", ["bootstrap", domaine, chemin]);
+        return recharge.code === 0 ? { par: "launchd" } : { refus: echec(`launchd refused the station's agent ${chemin}`, recharge) };
+      }
       const lance = await s.executer("launchctl", ["kickstart", `${domaine}/${ETIQUETTE}`]);
       return lance.code === 0 ? { par: "launchd" } : { refus: echec(`launchd did not start the station's agent ${domaine}/${ETIQUETTE}`, lance) };
     }

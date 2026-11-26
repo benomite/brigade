@@ -2554,7 +2554,7 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
 - **It starts at login.** On each opening, the installed app registers it: on a Mac, the launchd agent
   `~/Library/LaunchAgents/brigade.station.plist`; on Windows, the `brigade-station` value of
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs the app's binary with `--station-fond` to start
-  it without a console. A loaded agent is never reloaded, which would stop the running station. The agent or launcher that
+  it without a console. A loaded agent whose plist is unchanged is never reloaded, which would stop the running station; a rewritten plist is reloaded (`launchctl bootout` then `bootstrap`), and a host whose own `node` binary no longer exists exits so launchd restarts it from that plist. The agent or launcher that
   [`installation-station.md`](installation-station.md)'s command installed is left as it is: its station is the one
   that runs. On desktop Linux, and when the app is launched from the repository, nothing is registered: the station
   does not start at login there, only when the app opens, and it then outlives the app
