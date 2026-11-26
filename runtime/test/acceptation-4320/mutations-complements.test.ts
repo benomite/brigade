@@ -111,3 +111,12 @@ test("brancheDuProjet: a sheet that only the default branch of the repository ca
   assert.equal(existsSync(join(clone, CHEMIN_DE_LA_FICHE)), false, "the clone's tree does not hold the sheet");
   assert.deepEqual(brancheDuProjet(clone, "v2"), { branche: "release-9", provenance: "fiche-projet.json", problemes: [] });
 });
+
+test("reecrireBloc: a block that already repeats a `# held-back` line five times is written back with it once", () => {
+  const ligne = "# held-back: brigade";
+  const texte = `${DEBUT}\n${ligne}\n${ligne}\n${ligne}\n${ligne}\n${ligne}\na x main\n${FIN}\n`;
+  const une = reecrireBloc(texte, ["a x main", "a x main"]);
+  assert.equal(une.split("\n").filter((l) => l === ligne).length, 1);
+  assert.equal(une.split("\n").filter((l) => l === "a x main").length, 1);
+  assert.equal(reecrireBloc(une, ["a x main"]), une);
+});
