@@ -8,6 +8,7 @@ import { priseDeLaStation, stationDuDepot, type Lancer, type OptionsDuDepot } fr
 import { DEBUT, FIN, lignesDuBloc, reecrireBloc } from "../../src/projets/bloc.ts";
 import { CHEMIN_DE_LA_FICHE, ecrireFiche, ficheParDefaut } from "../../src/fiche-projet/index.ts";
 import { brancheDuProjet } from "../../src/reglages-projet/en-vigueur.ts";
+import { baseDuClone } from "../../src/projets-station/selection.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
 import { git } from "../outils.ts";
@@ -87,4 +88,51 @@ test("reecrireBloc: a block that already repeats a `# held-back` line five times
   assert.equal(une.split("\n").filter((l) => l === ligne).length, 1);
   assert.equal(une.split("\n").filter((l) => l === "a x main").length, 1);
   assert.equal(reecrireBloc(une, ["a x main"]), une);
+});
+
+test("a failed fetch of the base presses a new turn, and a ticket failure that only names the base or only says fetch is still the ticket's own", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(41);
+  const s = station(t, faux, async () => { throw new Error("git fetch origin main : no route"); }, false);
+  let presses = 0;
+  s.presser = () => { presses += 1; };
+  await s.tour();
+  await s.calme();
+  assert.equal(presses, 1);
+  for (const [issue, texte] of [[42, "disk full while preparing main"], [43, "git fetch origin other : no route"]] as const) {
+    const f = new FauxGitHub();
+    f.feu(issue);
+    const autre = station(t, f, async () => { throw new Error(texte); }, false);
+    await autre.tour();
+    await autre.calme();
+    assert.equal(echecs(f, issue), 1, texte);
+  }
+});
+
+test("a resume that fails with a fetch message naming the base is the ticket's own failure", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(44);
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-4320-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const lancer: Lancer = () => { throw new Error("no cook"); };
+  const depot: OptionsDuDepot["depot"] = {
+    connait: () => true,
+    preparer: async () => { throw new Error("not called"); },
+    reprendre: async () => { throw new Error("git fetch origin main : no route"); },
+    retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 1, changes: () => [], diff: () => "",
+  };
+  const s = stationDuDepot({ nom: "A", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux, "A"), depot, prise: priseDeLaStation,
+    claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1,
+    reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {} });
+  if ("refus" in s) throw new Error("inaccessible");
+  await s.tour();
+  await s.calme();
+  assert.equal(echecs(faux, 44), 1);
+});
+
+test("baseDuClone: a project that declares its branch has none from its clone, an undeclaring one gives its default branch", (t) => {
+  const { clone: declare } = projetSurGit(t, { parDefaut: "main", autres: ["v2"], reglages: { integrationBranch: "v2" } });
+  assert.equal(baseDuClone(declare), null);
+  const { clone: sans } = projetSurGit(t, { parDefaut: "trunk" });
+  assert.equal(baseDuClone(sans), "trunk");
 });
