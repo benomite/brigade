@@ -87,7 +87,7 @@ const boutons = (ou: Faux) => ou.dessous("button").filter(({ dataset }) => datas
 describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () => {
   test("la question, puis un bouton par choix, le premier recommandé ; un clic y répond", () => {
     const { joues, gestes: siens } = gestes();
-    const posee = poserLeTodo(doc, { cartes: [carte(50, { todo: todo(), parque: { ...PARKED, quoi: "Ship it?" } })], ouvrir: () => {}, gestes: siens as never }) as unknown as Faux;
+    const posee = poserLeTodo(doc, { deplie: { ouvert: true }, cartes: [carte(50, { todo: todo(), parque: { ...PARKED, quoi: "Ship it?" } })], ouvrir: () => {}, gestes: siens as never }) as unknown as Faux;
     const [li] = posee.dessous("li");
     assert.ok(li !== undefined);
     assert.deepEqual(li.dessous("p").map(({ className, textContent }) => [className, textContent]), [["demande-du-todo", "Ship it?"]]);
@@ -112,7 +112,7 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
     const { joues, gestes: siens } = gestes();
     const validation = carte(60, { todo: todo({ sorte: "design-validation", choix: [], validation: { pr: 9, ticket: 60 } }) });
     const revue = carte(62, { todo: todo({ sorte: "sensitive-review", choix: [], revue: { pr: 8, ticket: 62 } }) });
-    const posee = poserLeTodo(doc, { cartes: [validation, revue], ouvrir: () => {}, gestes: siens as never }) as unknown as Faux;
+    const posee = poserLeTodo(doc, { deplie: { ouvert: true }, cartes: [validation, revue], ouvrir: () => {}, gestes: siens as never }) as unknown as Faux;
     const [premiere, seconde] = posee.dessous("li");
     assert.deepEqual(boutons(premiere as Faux).map(({ textContent, className }) => [textContent, className]), [["Validate", "recommande"]]);
     assert.deepEqual(boutons(seconde as Faux).map(({ textContent, className }) => [textContent, className]), [["Merge", "recommande"]]);
@@ -127,7 +127,7 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
   test("une carte de WAITING parked pour le chef : « resume » et « it arrived » ; « waiting for… » n'y répond pas", () => {
     const { joues, gestes: siens } = gestes();
     const attente = carte(51, { attendu: false, gestes: ["attente-reprendre", "attente-arrivee"] });
-    const posee = poserLeTodo(doc, { cartes: [attente, carte(52, { gestes: ["attente-poser"] })], ouvrir: () => {}, gestes: siens as never }) as unknown as Faux;
+    const posee = poserLeTodo(doc, { deplie: { ouvert: true }, cartes: [attente, carte(52, { gestes: ["attente-poser"] })], ouvrir: () => {}, gestes: siens as never }) as unknown as Faux;
     const [premiere, seconde] = posee.dessous("li");
     assert.deepEqual(boutons(premiere as Faux).map(({ textContent }) => textContent), ["resume", "it arrived, back to the kitchen"]);
     assert.deepEqual(boutons(seconde as Faux), []);
@@ -137,14 +137,15 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
   });
 
   test("sans gestes — un projet en lecture seule —, la question se lit, aucun bouton ; sans question, aucune ligne", () => {
-    const posee = poserLeTodo(doc, { cartes: [carte(50, { todo: todo(), parque: { ...PARKED, quoi: "Ship it?" } }), carte(53, { titre: undefined })], ouvrir: () => {} }) as unknown as Faux;
+    const posee = poserLeTodo(doc, { deplie: { ouvert: true }, cartes: [carte(50, { todo: todo(), parque: { ...PARKED, quoi: "Ship it?" } }), carte(53, { titre: undefined })], ouvrir: () => {} }) as unknown as Faux;
     const [premiere, seconde] = posee.dessous("li");
     assert.deepEqual(boutons(premiere as Faux), []);
     assert.equal((premiere as Faux).dessous("p")[0]?.textContent, "Ship it?");
     assert.deepEqual((seconde as Faux).dessous("p"), []);
     // Son numéro, son titre s'il en a un, et ce qui la tient parked au survol.
-    assert.deepEqual(posee.dessous("button").map(({ textContent }) => textContent), ["#50 Ticket 50", "#53"]);
-    assert.equal(posee.dessous("button")[1]?.title, "open #53's card — parked — waits for the chef, no date set");
+    const numeros = posee.dessous("li").flatMap((li) => li.dessous("button"));
+    assert.deepEqual(numeros.map(({ textContent }) => textContent), ["#50 Ticket 50", "#53"]);
+    assert.equal(numeros[1]?.title, "open #53's card — parked — waits for the chef, no date set");
   });
 });
 
@@ -164,7 +165,13 @@ async function montrer(lus: Faits): Promise<Jouee> {
   await repos();
   return vue;
 }
-const leTodo = (vue: Jouee): Faux => vue.element("rail").children.find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+// Le TODO est une ligne au-dessus des colonnes (#4354) : un clic la déplie, s'il ne l'est pas déjà.
+const leTodo = (vue: Jouee): Faux => {
+  const avis = vue.element("rail").children.find(({ className }) => className === "avis-du-todo") ?? assert.fail("pas de TODO");
+  const [ligne] = avis.dessous("button");
+  if (ligne?.ariaExpanded !== "true") ligne?.click();
+  return avis.children.find(({ className }) => className === "todo-du-rail") ?? assert.fail("TODO pas déplié");
+};
 const entreeDe = (vue: Jouee, ticket: number): Faux => leTodo(vue).dessous("li").find(({ dataset }) => dataset.ticket === String(ticket)) ?? assert.fail(`pas d'entrée #${ticket}`);
 const appelsDe = (vue: Jouee, geste: string) => vue.appels.filter((appel) => appel.geste === geste).map(({ args }) => args);
 const bon = (vue: Jouee, ticket: number): Faux => vue.element("rail").dessous("li").find(({ className, dataset }) => className.split(" ").includes("bon") && dataset.ticket === String(ticket)) ?? assert.fail(`pas de carte #${ticket}`);

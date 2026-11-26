@@ -71,7 +71,6 @@ const pont = {
   essayer: (projet, ticket) => ipcRenderer.invoke("essayer", projet, ticket),
   arreterEssai: (projet, ticket) => ipcRenderer.invoke("arreterEssai", projet, ticket),
   refus: (projet, id, ticket) => ipcRenderer.invoke("refus", projet, id, ticket),
-  idee: (projet, id, ticket) => ipcRenderer.invoke("idee", projet, id, ticket),
   attente: (projet, id, ticket, saisie) => ipcRenderer.invoke("attente", projet, id, ticket, saisie),
   ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
   passer: () => ipcRenderer.invoke("passer"),

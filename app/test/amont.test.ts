@@ -1,8 +1,8 @@
 // Ce qui est avant le rail (#1836, #697) : un rail vide ne veut pas dire un projet fini. Les issues ouvertes du dépôt sont
 // lues ici comme l'app les lit de GitHub (tableau/lecture.ts, tableau/rail.ts, #2061), sur un faux GitHub : chacune que
 // le rail ne porte pas est rangée d'après ses labels seuls. L'app compte ce que la lecture liste, range chaque issue sous
-// le mot qu'elle porte, et n'y déduit rien. Ce que la vue en pose — le bandeau Backlog au-dessus du rail, ce que dit un
-// rail vide — se joue dans test/backlog-band/ (#3460). L'état du manager vient de son journal, lu par la commande du
+// le mot qu'elle porte, et n'y déduit rien. Ce que la vue en pose — ce que dit un rail vide — se joue dans
+// test/vue/ (le bandeau Backlog au-dessus du rail n'est plus, #4354). L'état du manager vient de son journal, lu par la commande du
 // runtime.
 import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
