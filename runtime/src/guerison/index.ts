@@ -11,7 +11,7 @@
 //   (`../signalement-carte-sans-question.ts`, #3134) ;
 // - un ticket en limbes — jugé décision ou attente par le manager, sans
 //   calibrage, ni décision ouverte, ni attente — remis en carte ou parqué
-//   (`../limbo/reparer.ts`, #4215).
+//   (`../limbo/sur-github.ts`, #4215).
 // La lacune technique que le manager complète seul (#2753) est dans ses
 // instructions, pas ici.
 //
@@ -36,7 +36,7 @@ import { fermerEpiqueFinie } from "./epique-finie.ts";
 import { poserInPassSurLesPrsPretes } from "./pr-prete.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
 import { ouvrirSignalement } from "../signalement-carte-sans-question.ts";
-import { reparerLesLimbesSurGitHub } from "../limbo/reparer.ts";
+import { reparerLesLimbesSurGitHub } from "../limbo/sur-github.ts";
 
 // Ce que la guérison demande au client GitHub de la station, et rien de plus.
 export type GitHubDeLaGuerison = {

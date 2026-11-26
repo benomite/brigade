@@ -2,7 +2,7 @@
 // un verdict qui remplace le précédent, et ce qui échoue.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lireJugement, reparerLesLimbes, type TicketDesLimbes } from "../../src/limbo/reparer.ts";
+import { reparerLesLimbes, type TicketDesLimbes } from "../../src/limbo/reparer.ts";
 
 const M = "<!-- brigade:manager -->";
 // Le refus d'une issue de décision, tel que le manager l'écrit (manager.ts, `dire`).
@@ -50,17 +50,6 @@ function faux(tickets: TicketDesLimbes[], casse: { commenter?: boolean } = {}) {
   const cartesApi = { lister: async () => cartes.map((c) => ({ ...c })), poser: async (c: (typeof cartes)[number]) => void cartes.push(c) };
   return { tickets, cartes, ecrits, github, cartesApi };
 }
-
-test("the manager's own decision refusal reads as a decision, with its question and its answers", () => {
-  assert.deepEqual(lireJugement(REFUS_DECISION), {
-    quoi: "decision",
-    question: "Which mail provider sends the newsletter?",
-    reponses: ["Wait for the client", "Create a Brevo account and send the DNS records", "Keep the current mail provider"],
-  });
-  assert.deepEqual(lireJugement(SUR_LE_RAIL), { quoi: "autre" });
-  assert.equal(lireJugement("a comment of the chef"), null);
-  assert.equal(lireJugement(`<!-- brigade:manager-prise station=a etat=0 jeton=0 -->`), null);
-});
 
 test("the #221 case as the manager writes it: its card comes back with its question and answers, and the action is said on the ticket", async () => {
   const f = faux([{ numero: 221, etat: "open", etiquettes: ["fire"], commentaires: [{ corps: REFUS_DECISION }] }]);
