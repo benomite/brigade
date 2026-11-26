@@ -508,6 +508,9 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
+// Combien de lectures de jobs finis un client garde, les plus anciennes oubliées d'abord.
+const JOBS_GARDES = 200;
+
 export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
@@ -526,6 +529,13 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
   // qui reste ; un 304, que GitHub ne compte pas, sort du compte de la box.
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   let partis = 0;
+  // Ce qu'un job de CI fini a rendu — son journal, ses étapes en échec — ne change plus : lu une fois, gardé par job (#4407).
+  // Le superviseur relisait à chaque réveil les mêmes jobs rouges de la base : ~1900 appels par heure.
+  const jobsLus = new Map<string, string | string[]>();
+  const garderLeJob = (cle: string, valeur: string | string[]) => {
+    if (jobsLus.size >= JOBS_GARDES) jobsLus.delete(jobsLus.keys().next().value as string);
+    jobsLus.set(cle, valeur);
+  };
   const appeler = async (brut: string[]): Promise<Reponse> => {
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
     if (options.plafond !== undefined && partis >= options.plafond) {
@@ -1012,7 +1022,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async journalDuCheck(check) {
       const job = jobDuCheck(check)?.job;
       if (job === undefined) return null;
+      const garde = jobsLus.get(`journal ${job}`);
+      if (garde !== undefined) return garde as string;
       const reponse = await appeler([`repos/${depot}/actions/jobs/${job}/logs`]);
+      // GitHub ne rend le journal d'un job qu'une fois le job fini : il ne change plus.
+      if (reponse.statut === 200) garderLeJob(`journal ${job}`, reponse.corps);
       return reponse.statut === 200 ? reponse.corps : null;
     },
     async annotationsDuCheck(check) {
@@ -1029,10 +1043,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async etapesEnEchec({ name, url }) {
       const job = jobDuCheck({ name, outcome: "red", conclusion: "failure", url: url ?? null })?.job;
       if (job === undefined) return [];
+      const garde = jobsLus.get(`etapes ${job}`);
+      if (garde !== undefined) return garde as string[];
       const reponse = await appeler([`repos/${depot}/actions/jobs/${job}`]);
       if (reponse.statut !== 200) return [];
-      const { steps = [] } = JSON.parse(reponse.corps) as { steps?: Array<{ name?: string; conclusion?: string | null }> };
-      return steps.filter((etape) => etape.conclusion === "failure" && typeof etape.name === "string").map((etape) => etape.name as string);
+      const { status, steps = [] } = JSON.parse(reponse.corps) as { status?: string; steps?: Array<{ name?: string; conclusion?: string | null }> };
+      const etapes = steps.filter((etape) => etape.conclusion === "failure" && typeof etape.name === "string").map((etape) => etape.name as string);
+      if (status === "completed") garderLeJob(`etapes ${job}`, etapes);
+      return etapes;
     },
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;
