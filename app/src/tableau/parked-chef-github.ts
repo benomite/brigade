@@ -13,7 +13,7 @@ export const SORTE_PARKED_CHEF = "parked-chef";
 const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 const DE_LA_CUISINE = /^\s*Parked for the chef\b/;
 // Sans commentaire de la cuisine — le label posé à la main : la carte le dit, et demande quand même.
-export const SANS_POURQUOI = "Parked for the chef, with no kitchen comment that says why: read the issue, then answer.";
+const SANS_POURQUOI = "Parked for the chef, with no kitchen comment that says why: read the issue, then answer.";
 
 type Commentaire = { body?: unknown; created_at?: unknown; author_association?: unknown };
 

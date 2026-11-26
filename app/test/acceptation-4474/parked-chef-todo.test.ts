@@ -14,7 +14,6 @@ import { avecCeQuiAttendLeChef, lireCeQuiAttendLeChef } from "../../src/tableau/
 import { clientGitHub, type Envoi, type ReponseGitHub } from "../../src/tableau/client.ts";
 import { jetonDeGh } from "../../src/tableau/jeton-gh.ts";
 import { lireLeTableauDuDepot } from "../../src/tableau/lecture.ts";
-import { SANS_POURQUOI } from "../../src/tableau/parked-chef-github.ts";
 import { statusDuTableau } from "../../src/tableau/rail.ts";
 import { repondreSurGithub, type ClientDeLaReponse } from "../../src/tableau-gestes/reponse-github.ts";
 import { poserCarteDeTodo, REPOS } from "../../src/vue/carte-todo.js";
@@ -168,6 +167,6 @@ describe("#4474 : une issue `parked:chef` est une carte du TODO, et Answer la re
     const leMonde = monde(t, { commentaires41: [] });
     const [carte] = await leTodo(leMonde.client);
     assert.equal(carte?.ticket, 41);
-    assert.equal(carte?.todo?.question, SANS_POURQUOI);
+    assert.equal(carte?.todo?.question, "Parked for the chef, with no kitchen comment that says why: read the issue, then answer.");
   });
 });
