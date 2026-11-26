@@ -185,9 +185,11 @@ The product rule (#3504): **deterministic checks block, models advise.**
 
 **What blocks**:
 
-- **The gates** on the merge with the base, **the CI** of the judged commit (above), a conflict with
-  the base, an added test already green on the base ("Red on main, green on the branch", below), and
-  a mutation of a changed line the added tests let through ("Mutations caught", below).
+- **The gates** on the merge with the base, **the CI** of the judged commit (above), and a conflict
+  with the base. The pass replays no test of its own and mutates no line: the "Red on main, green on
+  the branch" replay (#3466) and the mutation check (#3727, #3970) were removed by #4398. They caused
+  a third of the send-backs (13 of 40 in a day), and replaying them at every judgment saturated the
+  station's machine.
 - **The review, only in a named category.** Each blocking finding names its category
   (`runtime/src/reviewer.ts`, `CATEGORIES_BLOQUANTES`), and the send-back's reason quotes it by name:
 
@@ -205,95 +207,6 @@ taste, a naming, what the diff does that the ticket did not ask, what it should 
 reviewer says is blocking without a category, or with one outside the list, is advice too. Advice is
 written on the PR, in the pass's verdict (`Advice` lines), and **does not stop the merge**: a review
 red only on advice is green.
-
-### Red on main, green on the branch
-
-A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pass/rouge-sur-main.ts`).
-**"Red on main, green on the branch"** means: each test the delivery adds **fails on the integration
-branch** without the delivery's change, and **passes on the delivery's branch**. A test that already
-passes on the base proves nothing.
-
-**A guard is the exception** (#3852). A test guarding a behavior the base already has — a criterion that says "as
-before" / "unchanged" — is marked `// brigade:guard` on its line or the comment lines right above its case (in a file
-whose cases do not read, anywhere), by the tests cook or the cook. The pass accepts it green on the base, and a guard
-green on both sides covers its criterion as a proving test does. An unmarked test green on the base is still sent
-back, and the send-back says that the second time it names a test, the cook marks it or sets the ticket aside once,
-with the reason in one line between `<bloque>` tags.
-
-**It applies to every delivery whose ticket does not carry `tech`.** A `tech` ticket (a refactor or a
-clean-up with no change of behaviour) is exempt: nothing is replayed, and the pass says so in one line,
-in its log and in its verdict on the PR: « Red on main, green on the branch: not replayed — a `tech`
-ticket is exempt. »
-
-**The added tests** are read from the diff against the base: every case of a new test file, and in a
-test file that existed, the cases (`test("…")`, `it("…")`) the base does not have. Only files
-`*.test.{js,ts,mjs,cjs,mts,cts}` are replayed, by Node's test runner.
-
-**Only they are replayed, never the suite.** While the reviewer reads, the pass makes a throwaway
-checkout of the base (`rouge-sur-main-<ticket>`), copies into it the branch's changed test files and
-the files under its test folders (`test/`, `tests/`, `__tests__/`), and plays each added test file on
-both sides: `node --test --test-isolation=none --test-reporter=tap <file>` from the folder of its nearest
-`package.json` — the file runs in the runner's own process, one Node started instead of two (#3799) —, a
-case added to an existing file selected by its name (`--test-name-pattern`). No setup, install or
-build; under the cloison, with no GitHub token and no project secret; at most 5 minutes per file and
-side. The checkout is thrown away afterwards and nothing is committed: the rule adds no file to the
-repository, and the closer prunes tests as before. The station's log lists each replayed test and
-what it did on each side.
-
-| The replay says | What the pass does |
-|---|---|
-| every added test red on the base, green on the branch | nothing held back: the review decides |
-| an added test **green on the base**, marked as a guard (`// brigade:guard`) | nothing held back: accepted, and the verdict's line counts it as marked as guarding a behavior the base already has |
-| an added test **green on the base**, not marked | **red**: the delivery goes back to its cook by the usual send-back, the reason naming each such test, whatever the review said |
-| an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
-| the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
-
-**The verdict on the PR** — the comment the pass already posts — ends with that line, then **one line
-per acceptance criterion** of the ticket (the bullets of its `Acceptance criteria` section), each
-marked: **covered by a test red on main and green on the branch** (naming it), **judged by the review
-alone** (a visual criterion, a doc), or **covered by nothing**. The reviewer receives the criteria,
-numbered, and says for each which added tests check it and whether it checked it itself by reading;
-only a test the replay proved covers a criterion. An answer that leaves a criterion out is
-unreadable, like any malformed review.
-
-### Mutations caught
-
-The added tests must also catch a change of the code the delivery changes (#3727,
-`runtime/src/passe-mutations/mutations.ts`). Once the replay above is done, and still while the
-reviewer reads, the pass **mutates only the lines the delivery adds or changes** in a JavaScript or
-TypeScript module (never a test, a test helper or the rest of the repository): one mutant per line, the
-first of `===`/`!==`, `==`/`!=`, `&&`/`||`, `<=`/`>=`, ` < `/` > `, `true`/`false`, ` + `/` - ` or a
-unary `!` found outside the line's strings and comments. Each mutant is played against **the added
-tests** — the added tests green on the branch — in a throwaway checkout of the base
-(`mutations-<ticket>-<n>`) where the delivery's changed files are copied; a mutant is caught when one
-of them fails.
-
-The mutants run **4 at a time**, under a **time budget of 2 minutes** for the whole step
-(`BUDGET_DES_MUTATIONS_MS`); when it runs out, the running mutants are stopped, and the line says how
-many were not run.
-
-| The mutation step says | What the pass does |
-|---|---|
-| `Mutation check: Y of Y mutations caught` | nothing held back: the review decides |
-| `Mutation check: X of Y mutations caught`, X < Y | **red**: the delivery goes back to its cook, the reason naming the file and line of each surviving mutation |
-| `0 of 0 mutations caught` — no line of code changed (a doc-only delivery) | nothing sent back |
-| mutants but no added test, no throwaway checkout, or the time budget ran out | said in the verdict; a mutant not run sends nothing back |
-
-The verdict on the PR ends with that line, then one line per acceptance criterion covered by a proved
-test, per test file: `Criterion <n>, <test file>: X of Y mutations caught`, with the surviving lines.
-
-**Before the PR, too** (#3970): a surviving mutation was the heaviest loss of time of the kitchen's
-tickets, each send-back costing a pass, a claim and a new cook. So the station runs the same check
-(same replay, same mutants, same budget) in the cook's worktree as soon as a
-cook ends with a delivery — commits added, no blocking question. When a mutation survives, the station
-relaunches that cook in its worktree, its brief followed by `## Mutations your tests let through`
-and the reason lines the pass would write, each naming its file and line. The relaunched cook's delivery
-is checked again (#3976): with #3970's single relaunch, a mutation the relaunch left alive went on to the
-PR, and the pass sent the delivery back (#3974). So the cook is relaunched again on the lines that still
-survive, at most `RELANCES_DES_MUTATIONS` (2) times. Then the delivery goes on to its PR and the pass as
-before, which runs the check again. A relaunched cook that does not finish, or ends on a blocking
-question, stops the relaunches: the delivery goes on as the last cook that finished left it; a check
-that cannot run holds nothing back (the station warns).
 
 ### The second judge
 

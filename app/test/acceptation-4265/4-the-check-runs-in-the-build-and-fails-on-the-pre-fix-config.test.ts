@@ -69,12 +69,13 @@ const fichiers = (dossier: string): string[] =>
   readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? fichiers(join(dossier, e.name)) : e.isFile() ? [join(dossier, e.name)] : []));
 const sansApp = (chemin: string) => !/\/Resources\/(app|runtime)\//.test(chemin);
 import { defautsDeNom } from "../../packaging/verifier-plist.ts";
+import { PAQUETS } from "../aides/posix.ts";
 
 const executer = (_commande: string, _args: readonly string[]) => ({ status: 0, stdout: "", stderr: "" });
 const construireTout = (racine: string, electron: string, node: string) =>
   construire({ version: "1.0.0", electron, node, ...AUTOUR(racine), sortie: join(racine, "sortie"), atelier: join(racine, "atelier"), executer });
 
-test("the packaging check passes on the fixed package and construire runs it", (t) => {
+test("the packaging check passes on the fixed package and construire runs it", { skip: PAQUETS }, (t) => {
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   assert.deepEqual(defautsDeNom(paquet), []);
@@ -82,7 +83,7 @@ test("the packaging check passes on the fixed package and construire runs it", (
   assert.doesNotThrow(() => construireTout(racine, electron, node));
 });
 
-test("the same check fails on a pre-fix package (helper executable still 'Electron Helper'), and construire refuses to build it", (t) => {
+test("the same check fails on a pre-fix package (helper executable still 'Electron Helper'), and construire refuses to build it", { skip: PAQUETS }, (t) => {
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   const aide = join(paquet, "Contents", "Frameworks");

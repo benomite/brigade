@@ -25,7 +25,6 @@ describe("la dérive, dans `status`, et l'accueil", () => {
   const PERDUS_DERIVE = drift([{ measure: "gates_s", observed: 150, limit: 100 }, { measure: "tokens_perdus", observed: 842_809, limit: 400_000 }].map(direJaugeEn).join(" · "));
   const COUT_SEUL = drift(direJaugeEn({ measure: "tokens_ticket", observed: 1_038_705, limit: 400_000 }));
 
-  // brigade:guard
   test("les tokens perdus au-delà de leur seuil sont la fiabilité ; les autres seuils non", () => {
     assert.deepEqual(deriveDe(["project    parade", COUT_SEUL, PERDUS_DERIVE].join("\n")), [
       "tokens lost over the last 10 merges 842,809 for a threshold of 400,000",

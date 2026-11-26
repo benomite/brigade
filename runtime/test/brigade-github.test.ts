@@ -1114,7 +1114,6 @@ test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
 });
 
-// brigade:guard
 test("places full, a place opens: a `prio:0` repair ticket is claimed before an older ticket without prio (#4102)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10, CALIBRE);
@@ -1400,7 +1399,6 @@ test("a red main: no PR is merged, and the next turns merge nothing either (#221
   assert.equal(faux.prs.filter((pr) => pr.merged && pr.issue === 10).length, 0);
 });
 
-// brigade:guard
 test("merges resume once main is green again (#2214)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10);

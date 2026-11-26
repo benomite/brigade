@@ -83,7 +83,7 @@ import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
 import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
 import { avisDuChefALaBase, faitsDuDossier, type FaitsDeLaCuisine } from "./fiche-projet/fiche.ts";
-import { aDesGates, gatesManquantes, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
+import { aDesGates, gatesManquantes, jouerGates, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
@@ -112,8 +112,6 @@ import { corpsDuRenvoiPourConflit, demandeUnGesteGit } from "./conflit-main/renv
 import { arretSubi, DIT_DES_RETENUES, type GardesDuTour } from "./github-seul/garde-fous/garde-fous.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsReviewer, consigneDeRelecture, lireRelecture, type Lue } from "./reviewer.ts";
-import { BUDGET_DES_MUTATIONS_MS, consigneDesMutations, ligneDesMutations, motifDesMutations, muter, MUTANTS_EN_PARALLELE, RELANCES_DES_MUTATIONS, resumeDesMutations, type Mutations } from "./passe-mutations/mutations.ts";
-import { journalDeLaPreuve, motifDuRenvoi, prouver, RESULTAT_TAP, resumeDeLaPreuve, TECH, vertsSurLaBase, type Preuve } from "./pass/rouge-sur-main.ts";
 import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
@@ -545,8 +543,6 @@ export const RELANCE_DES_GATES_MS = 30 * 60_000;
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
-// Le plafond d'un rejeu des tests qu'une livraison ajoute, par fichier et par côté (#3466).
-const REJEU_MAX_MS = 5 * 60_000;
 
 // Au plus cinq livraisons en pass : tant que le projet en compte autant, aucune
 // station sur l'état GitHub seul ne prend de ticket neuf (#2300). Le pass se
@@ -3446,7 +3442,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       depot.retirer(worktree, reprise ? undefined : branche);
       return { subi: `the project sheet is refused, no cook starts: ${message(erreur)}` };
     }
-    let flux = join(options.flux, `${run}.flux.jsonl`);
+    const flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint, fiche: ficheDuCook });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(lancementDuClaude(argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
@@ -3458,38 +3454,14 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     const lancement = envelopper(cloison, { commande: surLeMoteur.commande, args: surLeMoteur.args }, { cwd: worktree, depot: "ecriture" });
     const aReprendre: Reprise = suivi ?? { worktree, avant, reprise, conflit, reste: resteAFaire };
-    let lance: ReturnType<Lancer> = aReprendre.fin === undefined ? lancerLeCook({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number, suivre: suivi !== null }) : { fin: Promise.resolve(aReprendre.fin), flux: aReprendre.flux ?? flux };
+    const lance: ReturnType<Lancer> = aReprendre.fin === undefined ? lancerLeCook({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number, suivre: suivi !== null }) : { fin: Promise.resolve(aReprendre.fin), flux: aReprendre.flux ?? flux };
     // Le flux de son relais, où la station relancée regarde s'il vit encore.
     if (suivi === null) writeFileSync(repriseDuRun(run), JSON.stringify({ ...aReprendre, flux: lance.flux ?? flux } satisfies Reprise));
-    let fin = await lance.fin;
+    const fin = await lance.fin;
     // La station s'arrête pendant son cook : il lui survit, et la station relancée le suit jusqu'à sa fin (#4401).
-    const survit = { subi: "the station stopped while its cook ran: the cook goes on, and the restarted station follows it" };
-    if (arretee) return survit;
+    if (arretee) return { subi: "the station stopped while its cook ran: the cook goes on, and the restarted station follows it" };
     writeFileSync(repriseDuRun(run), JSON.stringify({ ...aReprendre, fin, flux: lance.flux ?? flux } satisfies Reprise));
-    let conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
-    // Une livraison dont une mutation survit revient à son cook avant sa PR
-    // (#3970), tant qu'une survit et au plus RELANCES_DES_MUTATIONS fois : la
-    // livraison du cook relancé est revérifiée à son tour (#3976). S'il ne finit
-    // pas, la livraison part comme le dernier cook fini l'a laissée.
-    const livre = conclusion === "done" && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null && depot.commits(branche) > 0 && (avant === null || depot.tete?.(branche) !== avant);
-    let survivantes = livre ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
-    for (let relance = 1; relance <= RELANCES_DES_MUTATIONS; relance += 1) {
-      if (survivantes.length === 0) break;
-      avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before its PR: ${survivantes.length} surviving, its cook gets them back`);
-      const fini = { lance, fin, flux };
-      flux = join(options.flux, `${run}-mutations-${relance}.flux.jsonl`);
-      lance = lancerLeCook({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number, suivre: suivi !== null });
-      fin = await lance.fin;
-      if (arretee) return survit;
-      conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
-      if (conclusion !== "done") {
-        avertir(`brigade : #${ticket.number} sur ${nom} — the cook relaunched on its surviving mutations did not finish (${conclusion}): the delivery goes on as it was`);
-        ({ lance, fin, flux } = fini);
-        conclusion = "done";
-        break;
-      }
-      survivantes = relance < RELANCES_DES_MUTATIONS && lireBlocage(lireLeFlux(lance.flux ?? flux).message ?? null) === null ? await survivantesAvantLaPR(ticket, worktree, branche) : [];
-    }
+    const conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);
     if (conclusion !== "done") {
       // Tué par la garde d'inactivité, le cook laisse son travail sur sa
       // branche pour le run suivant (#3649). Sans rien laissé, ou s'il ne se
@@ -3686,14 +3658,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
 
   // La relecture d'une tête dans son worktree : le reviewer, sous la cloison,
   // en lecture seule, sans jeton GitHub ni secret du projet.
-  // `criteres` : combien de critères d'acceptation la consigne lui donne (#3466).
   // `ticket` : celui dont elle relit la livraison, absent pour une PR du dehors (#3656).
-  const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, criteres = 0, ticket?: number): Promise<Lue> => {
+  const relecture = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">, ticket?: number): Promise<Lue> => {
     const flux = join(options.flux, `${run}-${pr.sha.slice(0, 12)}.flux.jsonl`);
     const lancement = { ...envelopper(cloison, { commande: options.claude, args: dansLeBacASableLocal(options.bacASable, argumentsReviewer(current(options.reviewer)), worktree) }, { cwd: worktree, depot: "lecture" }), entree: texte };
     const lance = lancer({ ...lancement, cwd: worktree, env: env(), flux, ...(ticket === undefined ? {} : { ticket }) });
     await lance.fin;
-    const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message, null, criteres);
+    const lue = lireRelecture(lireLeFlux(lance.flux ?? flux).message);
     if ("illisible" in lue) throw new Error(`the review of PR #${pr.number} is unreadable: ${lue.illisible}`);
     return lue.relecture;
   };
@@ -3702,79 +3673,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const relireDans = async (worktree: string, run: string, texte: string, pr: Pick<PRAFusionner, "number" | "sha">): Promise<Jugement> => {
     const lue = await relecture(worktree, run, texte, pr);
     return { verdict: verdictDeLaRelecture(lue), motif: [lue.summary, ...constatsDe(lue)].join("\n") };
-  };
-
-  // Rouge sur main, vert sur la branche (#3466) : les tests que la livraison
-  // ajoute, rejoués seuls sur un checkout jetable de la base et sur sa branche,
-  // par le lanceur de Node, sous la cloison, sans jeton ni secret. Le journal
-  // de la station nomme ce qui a été rejoué.
-  const prouverLaLivraison = async (ticket: TicketLu, worktree: string, fichiers: string[]): Promise<Preuve> => {
-    const { essayer, jeter } = depot;
-    const nomDuCheckout = `rouge-sur-main-${ticket.number}`;
-    const preuve = await prouver(ticket.labels, {
-      fichiers,
-      branche: worktree,
-      base: async () => {
-        if (essayer === undefined || jeter === undefined) throw new Error("this station's clone cannot make a throwaway checkout of the base");
-        // Celui qu'un runtime tué aurait laissé ne retient pas le suivant.
-        jeter(nomDuCheckout);
-        return { worktree: await essayer(nomDuCheckout), jeter: () => jeter(nomDuCheckout) };
-      },
-      jouer: async (lieu, dossier, args) => {
-        // Lancé d'un lanceur de tests, `node` lui parlerait au lieu d'écrire son TAP.
-        const { NODE_TEST_CONTEXT: _contexte, ...envDuRejeu } = sansJeton();
-        const { code, retenues } = await jouerOutil("bash", ["-c", 'cd -- "$1" && shift && exec "$@"', "rejeu", dossier, process.execPath, ...args], { worktree: lieu, ticket: ticket.number, env: envDuRejeu, delaiMs: REJEU_MAX_MS, cloison, signal: abandon.signal }, RESULTAT_TAP);
-        return { code, lignes: retenues };
-      },
-    });
-    const dit = journalDeLaPreuve(preuve, base);
-    if (dit !== null) avertir(`brigade : #${ticket.number} sur ${nom} — ${dit}`);
-    return preuve;
-  };
-
-  // Les mutations attrapées (#3727) : les lignes de code que la livraison
-  // change, mutées une à une dans des checkouts jetables de la base, contre
-  // les tests que la livraison ajoute — en parallèle, sous un budget fixe.
-  const muterLaLivraison = async (ticket: TicketLu, worktree: string, diff: { fichiers: string[]; texte: string }, preuve: Preuve): Promise<Mutations> => {
-    const { essayer, jeter } = depot;
-    const mutations = await muter(preuve, {
-      fichiers: diff.fichiers,
-      diff: diff.texte,
-      branche: worktree,
-      checkout: async (rang) => {
-        if (essayer === undefined || jeter === undefined) throw new Error("this station's clone cannot make a throwaway checkout of the base");
-        const nomDuCheckout = `mutations-${ticket.number}-${rang}`;
-        jeter(nomDuCheckout);
-        return { worktree: await essayer(nomDuCheckout), jeter: () => jeter(nomDuCheckout) };
-      },
-      jouer: async (lieu, dossier, args, signal) => {
-        const { NODE_TEST_CONTEXT: _contexte, ...envDuRejeu } = sansJeton();
-        const { code, retenues } = await jouerOutil("bash", ["-c", 'cd -- "$1" && shift && exec "$@"', "mutant", dossier, process.execPath, ...args], { worktree: lieu, ticket: ticket.number, env: envDuRejeu, delaiMs: BUDGET_DES_MUTATIONS_MS, cloison, signal: AbortSignal.any([abandon.signal, signal]) }, RESULTAT_TAP);
-        return { code, lignes: retenues };
-      },
-      budgetMs: BUDGET_DES_MUTATIONS_MS,
-      enParallele: MUTANTS_EN_PARALLELE,
-    });
-    avertir(`brigade : #${ticket.number} sur ${nom} — ${ligneDesMutations(mutations)}`);
-    return mutations;
-  };
-
-  // Les mutations qui survivent à la livraison d'un cook, vues avant sa PR
-  // (#3970) : la même vérification que la pass, jouée dans son worktree dès
-  // qu'il a fini. Une ligne qui survit lui revient tout de suite, au lieu d'un
-  // renvoi après la pass, une claim plus tard. Rien de joué — pas de checkout
-  // jetable, pas de test ajouté, une panne — ne retient la livraison : la pass
-  // la vérifie de toute façon. Un ticket `tech` n'a aucun test prouvé contre
-  // qui jouer un mutant : rien ne s'y joue.
-  const survivantesAvantLaPR = async (ticket: TicketLu, worktree: string, branche: string): Promise<string[]> => {
-    if (depot.essayer === undefined || ticket.labels.includes(TECH)) return [];
-    try {
-      const diff = { fichiers: depot.changes(branche), texte: depot.diff(branche) };
-      return motifDesMutations(await muterLaLivraison(ticket, worktree, diff, await prouverLaLivraison(ticket, worktree, diff.fichiers)));
-    } catch (erreur) {
-      avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before the PR could not run, the pass runs it: ${message(erreur)}`);
-      return [];
-    }
   };
 
   const juger: Juger = async (ticket, pr) => {
@@ -3792,25 +3690,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // Les règles de la maison, telles que la fiche du projet les dit (#4237). Refusée, la relecture ne part pas.
       const regles = faitsDuDossier(worktree, base).passe.rules;
       const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, regles }), reponse);
-      // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
-      // Les mutants se jouent après la preuve, contre les tests que la livraison ajoute, et pendant la relecture.
-      const prouvant = prouverLaLivraison(ticket, worktree, diff.fichiers).then((preuve) => ({ preuve }));
-      const [prouvee, relue, mutee] = await Promise.allSettled([
-        prouvant,
-        relecture(worktree, run, texte, pr, criteres.length, ticket.number),
-        prouvant.then((prouve) => muterLaLivraison(ticket, worktree, diff, prouve.preuve)),
-      ]);
-      const preuve: Preuve = prouvee.status === "fulfilled" ? prouvee.value.preuve : { injouable: message(prouvee.reason) };
-      const mutations: Mutations = mutee.status === "fulfilled" ? mutee.value : { injouable: message(mutee.reason) };
-      const verts = vertsSurLaBase(preuve);
-      const renvoi = [...motifDuRenvoi(verts, base), ...motifDesMutations(mutations)];
-      // Un test ajouté déjà vert sur la base, ou une mutation qui survit, renvoie la livraison, que la relecture ait pu se lire ou non.
-      if (relue.status === "rejected" && renvoi.length === 0) throw relue.reason;
-      const lue = relue.status === "fulfilled" ? relue.value : null;
-      const resume = [resumeDeLaPreuve(criteres, lue?.criteria ?? null, preuve, base), "", resumeDesMutations(mutations, criteres.length, lue?.criteria ?? null, preuve)].join("\n");
-      if (renvoi.length > 0) return { verdict: "request-changes", motif: [...renvoi, ...(lue === null ? [] : ["", lue.summary, ...constatsDe(lue)]), "", resume].join("\n") };
-      const dite = lue as Lue;
-      return { verdict: verdictDeLaRelecture(dite), motif: [dite.summary, ...constatsDe(dite), "", resume].join("\n") };
+      // La relecture seule juge la livraison, avec la CI de sa PR (#4398).
+      const lue = await relecture(worktree, run, texte, pr, ticket.number);
+      return { verdict: verdictDeLaRelecture(lue), motif: [lue.summary, ...constatsDe(lue)].join("\n") };
     } finally {
       depot.retirer(worktree);
     }

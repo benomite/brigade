@@ -404,7 +404,7 @@ guards (duration counted from the launch); already ended, its stream is read at 
 ticket follows a relay: a ticket taken afresh stops what a previous life left running for it. A relay
 that died without writing its end (the machine rebooted) is not followed: its `reprise.json` is
 dropped, and the ticket takes the fresh path — worktree prepared, base merged, setup played. Then the usual
-steps run — mutation check, gates, push, PR —, as if the station had never stopped. Under the
+steps run — gates, push, PR —, as if the station had never stopped. Under the
 guards, the restarted runtime takes back at its start each cook run the journal still holds open
 whose relay lives or wrote its end (`cook.resumed`), and the resumed ticket's launch under the same
 stream name follows it; a review or a judgement left in flight is stopped, as before. Nothing is committed on the cook's branch by a restart. **The

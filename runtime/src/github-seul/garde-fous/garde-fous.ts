@@ -345,7 +345,7 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
   // reprise de leur ticket les suit, au lieu d'en lancer un autre.
   const repris = new Map<string, CookLance>();
   for (const { run } of garde.survivants?.() ?? []) {
-    const flux = /^(\d+-github(?:-mutations-\d+|-word-\d+)?)-[0-9a-f]{8}(?:-[rs]\d+)?$/.exec(run)?.[1];
+    const flux = /^(\d+-github(?:-word-\d+)?)-[0-9a-f]{8}(?:-[rs]\d+)?$/.exec(run)?.[1];
     const lance = flux === undefined ? null : (garde.reprendre?.(run, juger(engine)) ?? null);
     if (flux !== undefined && lance !== null) repris.set(flux, lance);
   }

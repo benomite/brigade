@@ -7,7 +7,6 @@ import { test } from "node:test";
 
 const AGENTS = new URL("../../../agents/", import.meta.url);
 
-// brigade:guard
 test("every agent instruction file, closer included, keeps a readable frontmatter", () => {
   const fichiers = readdirSync(AGENTS).filter((nom) => nom.endsWith(".md"));
   assert.ok(fichiers.length >= 1, "no agent file");
