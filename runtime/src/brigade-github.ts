@@ -629,6 +629,9 @@ function direLaFin({ conclusion, fin, flux }: { conclusion: string; fin: { code:
 const FENETRE_DES_STATIONS_MS = 2 * 24 * 3600_000;
 const ISSUES_LUES_AU_PLUS = 40;
 
+// Le temps que la station laisse un projet dont la base ne se rapatrie pas, avant de le reprendre.
+const REPIT_BASE_INJOIGNABLE_MS = 10 * 60_000;
+
 export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const { nom, places, base, github, prise, cuisiner, juger, gardes } = options;
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
@@ -871,8 +874,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   let arretee = false;
   // La branche d'intégration que l'origine n'a pas (#2876) : la station ne prend plus rien de ce projet.
   let baseManquante: string | null = null;
-  // Pourquoi le fetch de la base a échoué : dit une fois, et la station ne prend plus rien.
-  let baseInjoignable: string | null = null;
+  // Le fetch de la base a échoué (réseau, jeton, origine) : dit une fois, et la station ne prend plus rien de ce projet
+  // pendant `REPIT_BASE_INJOIGNABLE_MS`. Passé ce délai l'arrêt se lève seul, au tour suivant : une coupure courte
+  // ne met pas fin au projet jusqu'au redémarrage. Si le fetch échoue encore, il est dit de nouveau.
+  let baseInjoignable: { depuis: number; raison: string } | null = null;
   // Les PR dont la fusion n'a pas abouti — GitHub a refusé le merge, ou la
   // mise à jour de la branche est demandée —, et ce qu'elles étaient alors :
   // leur tête, leur version et la base. Elle ne se retente qu'une fois l'une
@@ -1341,8 +1346,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le fetch de la base échoue : comme une base absente, c'est la station, pas le ticket. Il est rendu sans compter, et la station n'en prend plus.
       if ("baseInjoignable" in fait) {
         if (baseInjoignable === null) {
-          baseInjoignable = fait.baseInjoignable;
-          avertir(`brigade : #${issue} sur ${nom} — the base branch \`${base}\` could not be fetched: ${fait.baseInjoignable}; this station takes no more tickets of ${nom} until it is restarted`);
+          baseInjoignable = { depuis: instant(), raison: fait.baseInjoignable };
+          avertir(`brigade : #${issue} sur ${nom} — the base branch \`${base}\` could not be fetched: ${fait.baseInjoignable}; this station takes no more tickets of ${nom} for ${REPIT_BASE_INJOIGNABLE_MS / 60_000} minutes, then tries again`);
         }
         await github.commenter(issue, `Station \`${nom}\`: the fetch of its base branch \`${base}\` failed, so no worktree can be prepared. This is the station's state, not the ticket's: the ticket is given back for another station, and is not counted among its ${ECHECS_MAX} tries.`);
         chrono.rater(issue);
@@ -2405,6 +2410,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
     };
     for (const [rang, ticket] of libres.entries()) {
+      if (baseInjoignable !== null && instant() - baseInjoignable.depuis >= REPIT_BASE_INJOIGNABLE_MS) baseInjoignable = null;
       if (baseManquante !== null || baseInjoignable !== null) break;
       const limite = typeof places === "number" ? places : places();
       if (enVol.size + aRendre.size >= limite) {
@@ -3258,6 +3264,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const absente = /couldn't find remote ref (?:refs\/heads\/)?(\S+)/.exec(message(erreur))?.[1];
       if (absente === base) return { baseAbsente: absente };
       // Le fetch de la base échoue (réseau, jeton, origine) : c'est l'état de la station, pas celui du ticket, et le rejouer ticket après ticket les userait tous.
+      // Seule `preparer` y mène (jamais `reprendre`, dont le fetch est celui de la branche du ticket), et un échec d'une autre sorte reste celui du ticket. L'arrêt se lève seul (`REPIT_BASE_INJOIGNABLE_MS`).
       if (!reprise && /\bfetch\b/.test(message(erreur)) && message(erreur).includes(base)) return { baseInjoignable: message(erreur) };
       return { echec: `its worktree could not be prepared: ${message(erreur)}` };
     }

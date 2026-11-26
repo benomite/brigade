@@ -15,7 +15,7 @@ import { git } from "../outils.ts";
 
 type Preparer = OptionsDuDepot["depot"]["preparer"];
 
-const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: Preparer, connait: boolean) => {
+const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: Preparer, connait: boolean, maintenant?: () => Date) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-4320-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const lancer: Lancer = ({ flux }) => {
@@ -35,7 +35,7 @@ const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: 
   };
   const s = stationDuDepot({ nom: "A", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux, "A"), depot, prise: priseDeLaStation,
     claude: "claude", env: {}, cloison: null, plafonds: { durationMs: 60_000, tokens: 1_000, idleMs: 60_000 }, graceMs: 1,
-    reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {} });
+    reviewer: { model: "sonnet", effort: "medium" }, flux: repertoire, lancer, avertir: () => {}, ...(maintenant === undefined ? {} : { maintenant }) });
   if ("refus" in s) throw new Error("inaccessible");
   return s;
 };
@@ -53,6 +53,20 @@ test("a failed fetch of the base is the station's, not the ticket's: no try is c
   assert.equal(faux.ticket(31).labels.has("taken"), false);
   await tourPresse(t);
   await reprisePropre(t);
+});
+
+test("a station stopped by a failed base fetch takes the project again after its pause, not only at restart", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(51);
+  let instant = Date.parse("2026-01-01T00:00:00Z");
+  let preparations = 0;
+  const s = station(t, faux, async () => { preparations += 1; throw new Error("git fetch origin main : no route"); }, false, () => new Date(instant));
+  for (let i = 0; i < 3; i += 1) { await s.tour(); await s.calme(); }
+  assert.equal(preparations, 1, "stopped at the first failure");
+  instant += 11 * 60_000;
+  await s.tour();
+  await s.calme();
+  assert.equal(preparations, 2, "the pause is over: the project is tried again");
 });
 
 test("reecrireBloc: a project repeated with other spacing and a repeated held-back comment are each written once", () => {
