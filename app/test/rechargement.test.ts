@@ -5,24 +5,24 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBar } from "../src/bar.ts";
+import { pourLaBarre } from "../src/barre.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
-import { BANNIERE } from "../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../src/actions.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE } from "../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { EFFORTS, MODELES } from "../src/projects/projects.ts";
-import { ouvrirTerminaux, RETENU, type Launch } from "../src/terminaux.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
+import { ouvrirTerminaux, RETENU, type Lancement } from "../src/terminaux.ts";
 import { FauxStockage, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
-const PROJECTS = [
+const PROJETS = [
   { nom: "parade", dossier: "/tmp/parade" },
   { nom: "fanfare", dossier: "/tmp/fanfare" },
 ];
 const NON_RATTACHE = "the second was not running when the window reloaded: it could not be reattached — resume it";
 
-type FauxPty = Launch & { tue: boolean };
+type FauxPty = Lancement & { tue: boolean };
 
 // Le process principal : le vrai registre, de faux pty, et ce qu'il dit à la vue affichée — celle d'avant le
 // rechargement, puis celle d'après.
@@ -32,26 +32,26 @@ function principal() {
   const terminaux = ouvrirTerminaux({
     claude: "claude",
     shell: "/bin/zsh",
-    ouvrirPty(launch) {
-      const faux: FauxPty = { ...launch, tue: false };
+    ouvrirPty(lancement) {
+      const faux: FauxPty = { ...lancement, tue: false };
       lances.push(faux);
       return { ecrire: () => {}, redimensionner: () => {}, tuer: () => void (faux.tue = true) };
     },
     surSortie: (id, donnees) => affichee?.dire("surSortie", id, donnees),
     surEtat: (terminal) => affichee?.dire("surEtat", terminal),
   });
-  const project = (name: string) => {
-    const trouve = PROJECTS.find((candidat) => candidat.nom === name);
-    assert.ok(trouve, `pas de projet ${name}`);
+  const projet = (nom: string) => {
+    const trouve = PROJETS.find((candidat) => candidat.nom === nom);
+    assert.ok(trouve, `pas de projet ${nom}`);
     return trouve;
   };
   const demarrage = () => ({
-    configuration: pourLaBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
+    configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
     palette: PALETTE,
     exemple: EXEMPLE,
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: undefined,
@@ -62,7 +62,7 @@ function principal() {
     const vue = await jouerLaVue(
       {
         demarrage,
-        espace: (name) => terminaux.espace(project(name)),
+        espace: (nom) => terminaux.espace(projet(nom)),
         terminauxOuverts: () => terminaux.ouverts(),
         ecrire: (id, donnees) => terminaux.ecrire(id, donnees),
       },
@@ -72,17 +72,17 @@ function principal() {
     return vue;
   }
   // Le pty du second d'un projet, le dernier lancé.
-  const ptyDe = (name: string): FauxPty => {
-    const faux = lances.findLast(({ dossier }) => dossier === project(name).dossier);
-    assert.ok(faux, `aucun pty lancé pour ${name}`);
+  const ptyDe = (nom: string): FauxPty => {
+    const faux = lances.findLast(({ dossier }) => dossier === projet(nom).dossier);
+    assert.ok(faux, `aucun pty lancé pour ${nom}`);
     return faux;
   };
   return { terminaux, lances, fenetre, ptyDe, demarrage };
 }
 
 // Un clic sur le projet, dans la barre — la première case est « Tous les projets ».
-async function ouvrirLeProject(vue: Jouee, name: string): Promise<void> {
-  const rang = PROJECTS.findIndex((candidat) => candidat.nom === name) + 1;
+async function ouvrirLeProjet(vue: Jouee, nom: string): Promise<void> {
+  const rang = PROJETS.findIndex((candidat) => candidat.nom === nom) + 1;
   vue.element("projets").children[rang]?.click();
   await repos();
 }
@@ -95,8 +95,8 @@ describe("la fenêtre rechargée (#3159)", () => {
     const { lances, fenetre, ptyDe } = principal();
     const session = new FauxStockage();
     const avant = await fenetre(session);
-    await ouvrirLeProject(avant, "parade");
-    await ouvrirLeProject(avant, "fanfare");
+    await ouvrirLeProjet(avant, "parade");
+    await ouvrirLeProjet(avant, "fanfare");
     ptyDe("parade").surSortie("parade: the plan is ready\r\n");
     ptyDe("fanfare").surSortie("fanfare: writing the answer, part 1");
     assert.equal(lances.length, 2);
@@ -123,7 +123,7 @@ describe("la fenêtre rechargée (#3159)", () => {
     const { lances, fenetre, ptyDe } = principal();
     const session = new FauxStockage();
     const avant = await fenetre(session);
-    await ouvrirLeProject(avant, "parade");
+    await ouvrirLeProjet(avant, "parade");
     ptyDe("parade").surSortie("parade: earlier conversation\r\n");
     ptyDe("parade").surFin(0);
 
@@ -144,11 +144,11 @@ describe("la fenêtre rechargée (#3159)", () => {
 
   test("les terminaux ouverts illisibles : la vue s'ouvre quand même, sur son écran, et le second revient avec son projet", async () => {
     const { terminaux, lances } = principal();
-    terminaux.espace(PROJECTS[0] as (typeof PROJECTS)[number]);
+    terminaux.espace(PROJETS[0] as (typeof PROJETS)[number]);
     const session = new FauxStockage();
     session.setItem("brigade.ecran", JSON.stringify({ projet: "parade" }));
 
-    const vue = await jouerLaVue({ demarrage: principal().demarrage, espace: () => terminaux.espace(PROJECTS[0] as (typeof PROJECTS)[number]), terminauxOuverts: () => Promise.reject(new Error("ipc")) }, { session });
+    const vue = await jouerLaVue({ demarrage: principal().demarrage, espace: () => terminaux.espace(PROJETS[0] as (typeof PROJETS)[number]), terminauxOuverts: () => Promise.reject(new Error("ipc")) }, { session });
 
     assert.equal(vue.element("projets").children[1]?.ariaCurrent, "true");
     assert.equal(lances.length, 1, "le second n'est pas relancé");
@@ -161,18 +161,18 @@ describe("la fenêtre rechargée (#3159)", () => {
       if (retenu !== undefined) session.setItem("brigade.ecran", retenu);
       const vue = await principal().fenetre(session);
       assert.equal(vue.element("projets").children[0]?.ariaCurrent, "true", String(retenu));
-      assert.equal(vue.appels.filter(({ geste: action }) => action === "espace").length, 0);
+      assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 0);
     }
   });
 });
 
 describe("ce que le registre rend à une vue rechargée (#3159)", () => {
-  const registry = () => {
-    const lances: Launch[] = [];
+  const registre = () => {
+    const lances: Lancement[] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
       shell: "/bin/zsh",
-      ouvrirPty: (launch) => (lances.push(launch), { ecrire: () => {}, redimensionner: () => {}, tuer: () => {} }),
+      ouvrirPty: (lancement) => (lances.push(lancement), { ecrire: () => {}, redimensionner: () => {}, tuer: () => {} }),
       surSortie: () => {},
       surEtat: () => {},
     });
@@ -180,9 +180,9 @@ describe("ce que le registre rend à une vue rechargée (#3159)", () => {
   };
 
   test("chaque terminal ouvert, de chaque projet, tel quel : un second qui tourne n'est ni relancé ni annoté", () => {
-    const { terminaux, lances } = registry();
-    const [parade] = terminaux.espace(PROJECTS[0] as (typeof PROJECTS)[number]);
-    terminaux.espace(PROJECTS[1] as (typeof PROJECTS)[number]);
+    const { terminaux, lances } = registre();
+    const [parade] = terminaux.espace(PROJETS[0] as (typeof PROJETS)[number]);
+    terminaux.espace(PROJETS[1] as (typeof PROJETS)[number]);
     lances[0]?.surSortie("bonjour");
 
     const ouverts = terminaux.ouverts();
@@ -199,16 +199,16 @@ describe("ce que le registre rend à une vue rechargée (#3159)", () => {
   });
 
   test("ce qu'il garde est borné : la fin, à partir d'un début de ligne", () => {
-    const { terminaux, lances } = registry();
-    terminaux.espace(PROJECTS[0] as (typeof PROJECTS)[number]);
-    const line = `${"x".repeat(999)}\n`;
-    for (let rang = 0; rang < (3 * RETENU) / line.length; rang++) lances[0]?.surSortie(line);
+    const { terminaux, lances } = registre();
+    terminaux.espace(PROJETS[0] as (typeof PROJETS)[number]);
+    const ligne = `${"x".repeat(999)}\n`;
+    for (let rang = 0; rang < (3 * RETENU) / ligne.length; rang++) lances[0]?.surSortie(ligne);
     lances[0]?.surSortie("la fin");
 
     const { ecrit } = terminaux.ouverts()[0] ?? { ecrit: "" };
 
     assert.ok(ecrit.length <= RETENU);
     assert.ok(ecrit.startsWith("x".repeat(999)));
-    assert.ok(ecrit.endsWith(`${line}la fin`));
+    assert.ok(ecrit.endsWith(`${ligne}la fin`));
   });
 });

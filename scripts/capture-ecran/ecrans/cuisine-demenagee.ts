@@ -2,7 +2,7 @@
 // appairées — la box, toujours allumée, et ce Mac —, et où il cuit, tel que leurs suivis le disent.
 // L'espace s'ouvre sur sa case de la barre, comme `espace-projet`.
 import type { Terminal } from "../../../app/src/terminaux.ts";
-import { machineProposee, calibrationRecommande, type ProjectVu, type VuDesProjects } from "../../../app/src/projects/projects.ts";
+import { machineProposee, calibrageRecommande, type ProjetVu, type VuDesProjets } from "../../../app/src/projets/projets.ts";
 import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
 import { configuration, cuisine, demarrage, type Donnees, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -16,13 +16,13 @@ const STATIONS: VuDesStations = { a: MAINTENANT, stations: [BOX, MAC] };
 
 const station = (id: string, nom: string) => ({ id, nom, etat: "servi" as const, dit: `served by ${nom}`, autoriser: [] });
 // parade cuit sur la box, ou sur ce Mac : les deux le servent, de la même façon.
-export const SUR_LA_BOX: ProjectVu = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "box", nom: "box" }, stations: [station("box", "box"), station("macbook", "macbook")], servi: null, cuitSur: { id: "box", nom: "box", ici: false }, demenagement: null };
-export const SUR_CE_MAC: ProjectVu = { ...SUR_LA_BOX, suiviPar: { id: "macbook", nom: "macbook" }, stations: [station("macbook", "macbook"), station("box", "box")], cuitSur: { id: "macbook", nom: "macbook", ici: true } };
+export const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "box", nom: "box" }, stations: [station("box", "box"), station("macbook", "macbook")], servi: null, cuitSur: { id: "box", nom: "box", ici: false }, demenagement: null };
+export const SUR_CE_MAC: ProjetVu = { ...SUR_LA_BOX, suiviPar: { id: "macbook", nom: "macbook" }, stations: [station("macbook", "macbook"), station("box", "box")], cuitSur: { id: "macbook", nom: "macbook", ici: true } };
 
 // Les données d'un écran : parade tel que `projet` le dit ; `reponses`, ce que les gestes rendent.
-export function donnees(projet: ProjectVu, reponses: Record<string, unknown> = {}): Donnees {
+export function donnees(projet: ProjetVu, reponses: Record<string, unknown> = {}): Donnees {
   const envois = cuisine(RENDUS);
-  const vu: VuDesProjects = { a: MAINTENANT, projets: [projet], locale: "macbook", recommandee: "box", avertissements: {}, machines: { box: machineProposee(BOX), macbook: machineProposee(MAC) }, calibrage: calibrationRecommande([]) };
+  const vu: VuDesProjets = { a: MAINTENANT, projets: [projet], locale: "macbook", recommandee: "box", avertissements: {}, machines: { box: machineProposee(BOX), macbook: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
   return {
     maintenant: MAINTENANT,
     reponses: { demarrage: { ...demarrage(configuration(PROJETS), (nom) => nom === "parade" && projet.cuitSur?.ici === true), stations: STATIONS, projetsDesStations: vu }, espace: [SECOND], ...reponses },

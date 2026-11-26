@@ -31,7 +31,7 @@ function cree(doc, balise, texte) {
  * @param {Fabrique} doc
  * @param {{ marque: any, dit: string, releve?: string, pourquoi?: string }} ligne
  */
-export function poserLineDuBreaker(doc, { marque, dit, releve, pourquoi }) {
+export function poserLigneDuDisjoncteur(doc, { marque, dit, releve, pourquoi }) {
   const racine = cree(doc, "div");
   racine.className = "ligne-disjoncteur";
   racine.ariaLabel = TITRE;

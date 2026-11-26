@@ -75,7 +75,7 @@ en conflit avec la base sur ce seul fichier — #3303 une fois, #3302 deux fois,
 
 - **Les données** : ce que la box rend (`facts`, `status`, `station`), mot pour mot, dans
   `ecrans/cuisine-figee.ts`. Ce que la vue en reçoit est **calculé par les modules de l'app**
-  (`faits.ts`, `attend.ts`, `alerts.ts`, `bar.ts`…) dans le même ordre que `main.ts`
+  (`faits.ts`, `attend.ts`, `alertes.ts`, `barre.ts`…) dans le même ordre que `main.ts`
   (`cuisine()`, dans `ecrans/commun.ts`) : un changement de ces modules se voit dans la capture.
 - **L'heure** : `2026-10-13T10:04:12Z` (`MAINTENANT`), pour la vue (`Date.now()`, `new Date()`) comme
   pour les modules ; le fuseau est UTC, la langue `en-US`.
@@ -138,7 +138,7 @@ dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 
 
 - **`reponses`** : la réponse de chaque geste invoqué que l'écran fait jouer, par son nom dans le
   pont (`pont.d.ts`) — `demarrage` toujours. Une réponse est la même quels que soient les arguments.
-  Prends-la, autant que possible, à la fonction de l'app qui la calcule (comme `addition.ts` prend
+  Prends-la, autant que possible, à la fonction de l'app qui la calcule (comme `ajout.ts` prend
   `proposerCalibrage` à `proposition.ts`) : elle suivra le code. Une réponse `{ __enAttente: true }` ne vient jamais : l'écran
   montre ce que la vue pose en l'attendant (`ajout-projet-depot-preparation`). Une réponse `{ __rejet: "…" }` rejette avec ce
   message : l'écran montre ce que la vue pose d'un échec (`ajout-projet-depot-echec`). Une réponse

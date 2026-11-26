@@ -1,0 +1,92 @@
+// Pourquoi la file du rail ne part pas, dans l'app (ticket 3433) : la phrase est celle du runtime
+// (runtime/src/attente-du-rail/raison.ts) — l'app n'en écrit aucune. La lecture du rail sur GitHub
+// (vue/rail/github.ts, `avecLeRail`) la pose dans `facts` sous `attenteDuRail` ; trois endroits la disent :
+//   - le rail du projet, en tête (ligne-de-l-attente.js) ;
+//   - chaque carte en file qui ne part pas la prochaine, sa ligne (faits.ts, `ligneEnAttente`) ;
+//   - la file du second (tableau/rail.ts), au-dessus de la ligne `rail` de `status` — les lignes mêmes que
+//     `brigade <project> status` écrit.
+import { attendusDesCartes, expliquerLAttente, lignesDesCartes, type AttenteDuRail, type Raison, type TicketDuRail, type TicketEnWaiting } from "../../../../runtime/src/attente-du-rail/raison.ts";
+import type { Geste, StationsLues } from "../../../../runtime/src/attente-du-rail/stations.ts";
+import type { AlerteDuRail, CauseConnue, SorteDAlerte } from "../../attente-du-rail/alertes.ts";
+
+// Ce que `facts` porte : `attenteDuRail`, la raison, sa phrase et son geste, absente quand rien n'attend ou qu'un cook tourne ;
+// `lignesDesCartes`, la ligne de chaque carte en file qui ne part pas la prochaine, absente sans aucune ; `attendusDesCartes`,
+// les tickets qu'attend chacune, ceux que sa carte ouvre (ticket 3763), absents sans aucun.
+export type LignesDesCartes = Record<number, string>;
+export type AttendusDesCartes = Record<number, number[]>;
+
+const RAISONS: readonly Raison[] = ["aucune-station", "arretee", "hors-ligne", "quota-github", "plafond", "pass", "autre-ticket", "waiting", "normale"];
+const GESTES: readonly Geste[] = ["demarrer-la-station", "ajouter-a-une-station"];
+
+// GitHub ne publie pas le plafond de cooks de la station : le rail de l'app ne peut pas dire la raison 5 (la file se lit sur GitHub),
+// seul `brigade <project> status`, qui tourne sur la station, la dit. L'app ne la devine jamais.
+// `waiting` : les tickets en WAITING, qu'une carte en file peut attendre (ticket 3761).
+export function attenteDuRailDe(depot: string, tickets: readonly TicketDuRail[], stations: StationsLues, maintenant: number, waiting: readonly TicketEnWaiting[] = []): { attenteDuRail?: AttenteDuRail; lignesDesCartes?: LignesDesCartes; attendusDesCartes?: AttendusDesCartes } {
+  const attente = expliquerLAttente({ depot, tickets, stations, plafondAtteint: false, maintenant, waiting });
+  const cartes = lignesDesCartes(tickets, waiting);
+  const attendus = attendusDesCartes(tickets, waiting);
+  return { ...(attente === null ? {} : { attenteDuRail: attente }), ...(Object.keys(cartes).length === 0 ? {} : { lignesDesCartes: cartes }), ...(Object.keys(attendus).length === 0 ? {} : { attendusDesCartes: attendus }) };
+}
+
+// `attenteDuRail`, de la racine de `facts` (faits.ts, `comprendre`) : rien de mal formé ne le pose.
+export function attenteDuRailLue(valeur: unknown): { attenteDuRail?: AttenteDuRail } {
+  if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
+  const { raison, phrase, geste, stations } = valeur as Record<string, unknown>;
+  if (!RAISONS.includes(raison as Raison) || typeof phrase !== "string" || phrase === "") return {};
+  if (geste !== null && !GESTES.includes(geste as Geste)) return {};
+  const noms = Array.isArray(stations) && stations.every((nom) => typeof nom === "string") ? (stations as string[]) : [];
+  return { attenteDuRail: { raison: raison as Raison, phrase, geste: geste as Geste | null, stations: noms } };
+}
+
+// `lignesDesCartes`, de la racine de `facts` : un ticket, sa ligne ; rien de mal formé ne le pose.
+export function lignesDesCartesLues(valeur: unknown): { lignesDesCartes?: LignesDesCartes } {
+  if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
+  const lignes: LignesDesCartes = {};
+  for (const [ticket, ligne] of Object.entries(valeur)) {
+    if (!/^[1-9]\d*$/.test(ticket) || typeof ligne !== "string" || ligne === "") return {};
+    lignes[Number(ticket)] = ligne;
+  }
+  return Object.keys(lignes).length === 0 ? {} : { lignesDesCartes: lignes };
+}
+
+// `attendusDesCartes`, de la racine de `facts` : un ticket, les tickets qu'il attend ; rien de mal formé ne le pose.
+export function attendusDesCartesLus(valeur: unknown): { attendusDesCartes?: AttendusDesCartes } {
+  if (typeof valeur !== "object" || valeur === null || Array.isArray(valeur)) return {};
+  const attendus: AttendusDesCartes = {};
+  for (const [ticket, siens] of Object.entries(valeur)) {
+    if (!/^[1-9]\d*$/.test(ticket) || !Array.isArray(siens) || siens.length === 0 || !siens.every((n) => Number.isInteger(n) && n > 0)) return {};
+    attendus[Number(ticket)] = siens as number[];
+  }
+  return Object.keys(attendus).length === 0 ? {} : { attendusDesCartes: attendus };
+}
+
+const SORTES: readonly SorteDAlerte[] = ["aucune-station", "aucun-cook", "base-rouge", "relance-en-boucle", "tout-mis-de-cote", "cuisine-muette"];
+const texteOuNul = (valeur: unknown): string | null | undefined => (valeur === null ? null : typeof valeur === "string" && valeur !== "" ? valeur : undefined);
+
+// `alertesDuRail`, de la racine de `facts` (ticket 3823, attente-du-rail/alertes.ts) : les alertes du haut du rail.
+// Une alerte mal formée — sans fait daté, sans ticket ni check, ou sans geste ni prise en charge — n'est pas lue : la vue ne
+// montre que ce que le runtime a jugé montrable.
+export function alertesDuRailLues(valeur: unknown): { alertesDuRail?: AlerteDuRail[] } {
+  if (!Array.isArray(valeur)) return {};
+  const lues = valeur.flatMap((brute: unknown): AlerteDuRail[] => {
+    if (typeof brute !== "object" || brute === null || Array.isArray(brute)) return [];
+    const { sorte, phrase, fait, geste, geree, bouton, cause } = brute as Record<string, unknown>;
+    if (!SORTES.includes(sorte as SorteDAlerte) || typeof phrase !== "string" || phrase === "" || typeof fait !== "object" || fait === null) return [];
+    const { depuis, ticket, check } = fait as Record<string, unknown>;
+    if (typeof depuis !== "string" || Number.isNaN(Date.parse(depuis))) return [];
+    const numero = typeof ticket === "number" && Number.isInteger(ticket) && ticket > 0 ? ticket : undefined;
+    const quel = typeof check === "string" && check !== "" ? check : undefined;
+    const lesGestes = { geste: texteOuNul(geste), geree: texteOuNul(geree) };
+    if ((numero === undefined && quel === undefined) || lesGestes.geste === undefined || lesGestes.geree === undefined || (lesGestes.geste === null && lesGestes.geree === null)) return [];
+    return [{
+      sorte: sorte as SorteDAlerte,
+      phrase,
+      fait: { depuis, ...(numero === undefined ? {} : { ticket: numero }), ...(quel === undefined ? {} : { check: quel }) },
+      geste: lesGestes.geste,
+      geree: lesGestes.geree,
+      ...(GESTES.includes(bouton as Geste) ? { bouton: bouton as Geste } : {}),
+      ...(SORTES.includes(cause as SorteDAlerte) && cause !== "cuisine-muette" && cause !== "tout-mis-de-cote" ? { cause: cause as CauseConnue } : {}),
+    }];
+  });
+  return lues.length === 0 ? {} : { alertesDuRail: lues };
+}

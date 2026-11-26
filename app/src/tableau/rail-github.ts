@@ -4,10 +4,10 @@
 // labels et la même PR disent le même état. Ce module en donne les mots, le ticket qu'une PR livre, l'état de la base,
 // et les lectures conditionnelles (`If-None-Match`) : un 304 ne coûte rien au quota, la réponse gardée est reprise.
 import { etatDeLaBase, type EtatDeLaBase, type EtatDuTicket } from "../../../runtime/src/github-etat/etats.ts";
-import type { CallGitHub } from "./client.ts";
+import type { AppelGitHub } from "./client.ts";
 
-// Les mots du rail (facts.ts, `TONS_DE_TICKET`) ; `base rouge` est celui d'un ticket en pass dont la base est rouge.
-export const WORD_DE_L_STATE: Readonly<Record<EtatDuTicket, string>> = { taken: "pris", pass: "en pass", parked: "WAITING", "base-red": "base rouge" };
+// Les mots du rail (faits.ts, `TONS_DE_TICKET`) ; `base rouge` est celui d'un ticket en pass dont la base est rouge.
+export const MOT_DE_L_ETAT: Readonly<Record<EtatDuTicket, string>> = { taken: "pris", pass: "en pass", parked: "WAITING", "base-red": "base rouge" };
 
 type Brut = Record<string, unknown>;
 
@@ -16,7 +16,7 @@ type Brut = Record<string, unknown>;
 export { ticketDeLaPR } from "../../../runtime/src/recap/servis.ts";
 
 // Les checks d'un commit, d'après les *check runs* de GitHub. Une conclusion vide : le check court encore.
-export function stateDeLaBaseGithub(runs: readonly Brut[]): EtatDeLaBase | null {
+export function etatDeLaBaseGithub(runs: readonly Brut[]): EtatDeLaBase | null {
   const rouges = new Set(["failure", "timed_out", "cancelled", "action_required", "startup_failure"]);
   return etatDeLaBase(runs.map((run): { outcome: "green" | "red" | "pending" } => ({ outcome: typeof run.conclusion !== "string" ? "pending" : rouges.has(run.conclusion) ? "red" : "green" })));
 }
@@ -25,13 +25,13 @@ export function stateDeLaBaseGithub(runs: readonly Brut[]): EtatDeLaBase | null 
 // coûte rien au quota — la réponse gardée est reprise.
 export type MemoireDesLectures = Map<string, { etag: string; data: unknown }>;
 
-export function readConditionnelle(appeler: CallGitHub, memoire: MemoireDesLectures): CallGitHub {
+export function lectureConditionnelle(appeler: AppelGitHub, memoire: MemoireDesLectures): AppelGitHub {
   return async (chemin) => {
     const gardee = memoire.get(chemin);
-    const answer = await appeler(chemin, gardee === undefined ? undefined : { "If-None-Match": gardee.etag });
-    if (answer.status === 304 && gardee !== undefined) return { status: 200, data: gardee.data, etag: gardee.etag };
-    if (answer.status === 200 && answer.etag !== undefined) memoire.set(chemin, { etag: answer.etag, data: answer.data });
-    else if (answer.status !== 200) memoire.delete(chemin);
-    return answer;
+    const reponse = await appeler(chemin, gardee === undefined ? undefined : { "If-None-Match": gardee.etag });
+    if (reponse.status === 304 && gardee !== undefined) return { status: 200, data: gardee.data, etag: gardee.etag };
+    if (reponse.status === 200 && reponse.etag !== undefined) memoire.set(chemin, { etag: reponse.etag, data: reponse.data });
+    else if (reponse.status !== 200) memoire.delete(chemin);
+    return reponse;
   };
 }

@@ -1,6 +1,6 @@
 // « Tous les projets » avec deux stations installées qui ne cuisent pas encore (#1758) : l'une hors ligne, l'autre
 // sans projet — chaque pastille grise dit pourquoi, et le geste, sur sa ligne.
-import { type Home, lineDeStation } from "../../../app/src/home.ts";
+import { type Accueil, ligneDeStation } from "../../../app/src/accueil.ts";
 import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -16,7 +16,7 @@ export const ecran: Ecran = {
   hauteur: 900,
   etapes: [],
   donnees: () => {
-    const lignes: Home = { projets: [], stations: STATIONS.stations.map((station) => lineDeStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+    const lignes: Accueil = { projets: [], stations: STATIONS.stations.map((station) => ligneDeStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
     return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil: lignes } }, envois: cuisine(RENDUS) };
   },
 };

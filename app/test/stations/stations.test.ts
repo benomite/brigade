@@ -12,17 +12,17 @@ import { githubDesStations } from "../../src/stations/github.ts";
 import { versionsDansFichier } from "../../src/stations/versions.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
 import { repondre } from "./faux-gh-gists.ts";
-import { duree, lineDe, lineDeVersion, holdStations, type VuDesStations } from "../../src/stations/stations.ts";
+import { duree, ligneDe, ligneDeVersion, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
 import { ceQueFournitCetOrdinateur } from "../../src/stations/fournit.ts";
-import { DESCRIPTION_DU_PHONE, FICHIER_PHONE } from "../../src/phone-connecte.ts";
+import { DESCRIPTION_DU_TELEPHONE, FICHIER_TELEPHONE } from "../../src/telephone-connecte.ts";
 
 const SOURCES = join(import.meta.dirname, "../../src/stations");
 const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
 const CODE = "7KQ2-M9XD";
 
 // Ce qu'une station fraîchement installée publie (runtime/src/appairage/presence.ts).
-const published = (champs: Partial<DocumentStation> = {}) => ({
+const publie = (champs: Partial<DocumentStation> = {}) => ({
   brigade: "station",
   format: 1,
   nom: "box",
@@ -50,42 +50,42 @@ function unGitHub(t: TestContext) {
     const avant = existsSync(fichier(id)) ? gist(id).files : {};
     writeFileSync(fichier(id), JSON.stringify({ id, description: "brigade — station", public: false, updated_at: new Date().toISOString() + Math.random(), files: { ...avant, [FICHIER_STATION]: { filename: FICHIER_STATION, content: JSON.stringify(document) } } }));
   };
-  const calls = () => readFileSync(join(repertoire, "appels"), "utf8").split("\n").filter(Boolean);
-  return { repertoire, gh, station, gist, appels: calls, panne: (oui: boolean) => (oui ? writeFileSync(join(repertoire, "panne"), "") : rmSync(join(repertoire, "panne"), { force: true })) };
+  const appels = () => readFileSync(join(repertoire, "appels"), "utf8").split("\n").filter(Boolean);
+  return { repertoire, gh, station, gist, appels, panne: (oui: boolean) => (oui ? writeFileSync(join(repertoire, "panne"), "") : rmSync(join(repertoire, "panne"), { force: true })) };
 }
 
 function desStations(t: TestContext, github: { gh: string }, maintenant = () => MAINTENANT) {
   const lectures: VuDesStations[] = [];
-  const stations = holdStations({ github: githubDesStations({ gh: github.gh, delaiMs: 30_000 }), surLecture: (vu) => lectures.push(vu), cadenceMs: 3_600_000, maintenant });
+  const stations = tenirStations({ github: githubDesStations({ gh: github.gh, delaiMs: 30_000 }), surLecture: (vu) => lectures.push(vu), cadenceMs: 3_600_000, maintenant });
   t.after(() => stations.fermer());
   return { stations, lectures };
 }
 
 test("une station en ligne : « online · version X · no project » ; ses projets, quand elle en sert", () => {
-  const document = { ...published(), appairage: null } as DocumentStation;
-  assert.deepEqual(lineDe(document, MAINTENANT), { etat: "en-ligne", ligne: "online · version 1.4.0 · no project" });
-  assert.equal(lineDe({ ...document, projets: ["brigade"] }, MAINTENANT).ligne, "online · version 1.4.0 · 1 project: brigade");
-  assert.equal(lineDe({ ...document, projets: ["brigade", "espace"] }, MAINTENANT).ligne, "online · version 1.4.0 · 2 projects: brigade, espace");
+  const document = { ...publie(), appairage: null } as DocumentStation;
+  assert.deepEqual(ligneDe(document, MAINTENANT), { etat: "en-ligne", ligne: "online · version 1.4.0 · no project" });
+  assert.equal(ligneDe({ ...document, projets: ["brigade"] }, MAINTENANT).ligne, "online · version 1.4.0 · 1 project: brigade");
+  assert.equal(ligneDe({ ...document, projets: ["brigade", "espace"] }, MAINTENANT).ligne, "online · version 1.4.0 · 2 projects: brigade, espace");
 });
 
 test("éteinte d'un coup, elle passe hors ligne dès qu'elle a manqué deux signes de vie, et dit depuis combien de temps", () => {
-  const document = { ...published(), appairage: null } as DocumentStation;
+  const document = { ...publie(), appairage: null } as DocumentStation;
   const signe = Date.parse(document.signeDeVie);
-  assert.equal(lineDe(document, signe + 2 * 60_000).etat, "en-ligne");
-  assert.deepEqual(lineDe(document, signe + 2 * 60_000 + 31_000), { etat: "hors-ligne", ligne: "offline for 2 min · version 1.4.0 · no project" });
-  assert.equal(lineDe(document, signe + 3 * 3_600_000 + 5 * 60_000).ligne, "offline for 3 h 05 · version 1.4.0 · no project");
+  assert.equal(ligneDe(document, signe + 2 * 60_000).etat, "en-ligne");
+  assert.deepEqual(ligneDe(document, signe + 2 * 60_000 + 31_000), { etat: "hors-ligne", ligne: "offline for 2 min · version 1.4.0 · no project" });
+  assert.equal(ligneDe(document, signe + 3 * 3_600_000 + 5 * 60_000).ligne, "offline for 3 h 05 · version 1.4.0 · no project");
 });
 
 test("arrêtée proprement, elle est hors ligne tout de suite ; redémarrée, de nouveau en ligne", () => {
-  const arretee = { ...published({ arreteeLe: new Date(MAINTENANT - 10_000).toISOString() }), appairage: null } as DocumentStation;
-  assert.deepEqual(lineDe(arretee, MAINTENANT), { etat: "hors-ligne", ligne: "offline for less than a minute · version 1.4.0 · no project" });
+  const arretee = { ...publie({ arreteeLe: new Date(MAINTENANT - 10_000).toISOString() }), appairage: null } as DocumentStation;
+  assert.deepEqual(ligneDe(arretee, MAINTENANT), { etat: "hors-ligne", ligne: "offline for less than a minute · version 1.4.0 · no project" });
   // Un signe de vie postérieur à l'arrêt : elle est repartie.
-  assert.equal(lineDe({ ...arretee, signeDeVie: new Date(MAINTENANT).toISOString(), arreteeLe: null }, MAINTENANT).etat, "en-ligne");
+  assert.equal(ligneDe({ ...arretee, signeDeVie: new Date(MAINTENANT).toISOString(), arreteeLe: null }, MAINTENANT).etat, "en-ligne");
 });
 
 test("les cœurs que la station publie se lisent ; absents ou mal formés, l'app n'en dit rien", () => {
   const lu = (coeurs: unknown) => {
-    const document = lireDocument(JSON.stringify({ ...published(), coeurs }));
+    const document = lireDocument(JSON.stringify({ ...publie(), coeurs }));
     return "illisible" in document ? assert.fail(document.illisible) : document.coeurs;
   };
   assert.equal(lu(8), 8);
@@ -93,8 +93,8 @@ test("les cœurs que la station publie se lisent ; absents ou mal formés, l'app
 });
 
 test("un téléphone publie `cuisine: false` ; une station qui n'en dit rien, ou dit autre chose, cuisine", () => {
-  const lu = (kitchen: unknown) => {
-    const document = lireDocument(JSON.stringify({ ...published(), cuisine: kitchen }));
+  const lu = (cuisine: unknown) => {
+    const document = lireDocument(JSON.stringify({ ...publie(), cuisine }));
     return "illisible" in document ? assert.fail(document.illisible) : document.cuisine;
   };
   assert.equal(lu(false), false);
@@ -113,7 +113,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
   test("a gist and the list read again unchanged are conditional reads (304, not counted); a change is read in full (#4408)", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     const lus = githubDesStations({ gh: github.gh, delaiMs: 30_000 });
-    github.station("box", published());
+    github.station("box", publie());
     assert.equal((await lus.lister()).length, 1);
     assert.ok((await lus.lire("box"))?.[FICHIER_STATION]);
     const avant = github.appels().length;
@@ -121,26 +121,26 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     assert.ok((await lus.lire("box"))?.[FICHIER_STATION]);
     const relus = github.appels().slice(avant);
     assert.equal(relus.length, 2);
-    assert.ok(relus.every((call) => call.includes("If-None-Match: ")), `every read again is conditional: ${relus.join(" | ")}`);
-    github.station("box", published({ nom: "box-2" }));
+    assert.ok(relus.every((appel) => appel.includes("If-None-Match: ")), `every read again is conditional: ${relus.join(" | ")}`);
+    github.station("box", publie({ nom: "box-2" }));
     const relu = lireDocument((await lus.lire("box"))?.[FICHIER_STATION] ?? "");
     assert.equal(relu !== undefined && "nom" in relu ? relu.nom : null, "box-2");
   });
 
-  // La trace du téléphone connecté (#3303, phone-connecte.ts), lue par le `gh` du poste.
+  // La trace du téléphone connecté (#3303, telephone-connecte.ts), lue par le `gh` du poste.
   test("un gist qui porte la trace du téléphone : connecté ; aucun : non ; un `gh` en panne : lève", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     const lus = githubDesStations({ gh: github.gh, delaiMs: 30_000 });
-    github.station("box", published());
+    github.station("box", publie());
     assert.equal(await lus.telephone?.(), false);
-    writeFileSync(join(github.repertoire, "t.gist.json"), JSON.stringify({ id: "t", description: DESCRIPTION_DU_PHONE, public: false, updated_at: new Date().toISOString(), files: { [FICHIER_PHONE]: { filename: FICHIER_PHONE, content: "{}" } } }));
+    writeFileSync(join(github.repertoire, "t.gist.json"), JSON.stringify({ id: "t", description: DESCRIPTION_DU_TELEPHONE, public: false, updated_at: new Date().toISOString(), files: { [FICHIER_TELEPHONE]: { filename: FICHIER_TELEPHONE, content: "{}" } } }));
     assert.equal(await lus.telephone?.(), true);
     github.panne(true);
     await assert.rejects(lus.telephone?.() ?? Promise.resolve());
   });
   test("le code tapé appaire la station : elle apparaît sur la home, « online · version X · no project »", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("box1", published());
+    github.station("box1", publie());
     // Un autre gist du compte, qui n'est pas une station : ignoré.
     writeFileSync(join(github.repertoire, "notes.gist.json"), JSON.stringify({ id: "notes", description: "", public: false, updated_at: "", files: { "a.md": { filename: "a.md", content: "rien" } } }));
     const { stations, lectures } = desStations(t, github);
@@ -158,64 +158,64 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
 
   test("un code erroné, mal formé ou expiré est refusé en une ligne, et rien n'est écrit sur GitHub", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("box1", published({ appairage: { empreinte: empreinte(CODE), expireLe: new Date(MAINTENANT - 1).toISOString() }, echus: [empreinte("AAAA-BBBB")] }));
+    github.station("box1", publie({ appairage: { empreinte: empreinte(CODE), expireLe: new Date(MAINTENANT - 1).toISOString() }, echus: [empreinte("AAAA-BBBB")] }));
     const { stations } = desStations(t, github);
-    const refusal = [await stations.appairer("ZZZZ-ZZZZ"), await stations.appairer("12-34"), await stations.appairer(CODE), await stations.appairer("aaaa-bbbb"), await stations.appairer(undefined)];
-    for (const rendu of refusal) {
+    const refus = [await stations.appairer("ZZZZ-ZZZZ"), await stations.appairer("12-34"), await stations.appairer(CODE), await stations.appairer("aaaa-bbbb"), await stations.appairer(undefined)];
+    for (const rendu of refus) {
       assert.ok("refus" in rendu, JSON.stringify(rendu));
       assert.doesNotMatch(rendu.refus, /\n/);
     }
-    assert.match(JSON.stringify(refusal[0]), /no station shows this code/);
-    assert.match(JSON.stringify(refusal[1]), /is not a pairing code/);
-    assert.match(JSON.stringify(refusal[2]), /this code has expired: station box shows a new one/);
-    assert.match(JSON.stringify(refusal[3]), /this code has expired/);
-    assert.match(JSON.stringify(refusal[4]), /is not a pairing code/);
+    assert.match(JSON.stringify(refus[0]), /no station shows this code/);
+    assert.match(JSON.stringify(refus[1]), /is not a pairing code/);
+    assert.match(JSON.stringify(refus[2]), /this code has expired: station box shows a new one/);
+    assert.match(JSON.stringify(refus[3]), /this code has expired/);
+    assert.match(JSON.stringify(refus[4]), /is not a pairing code/);
     assert.equal(github.gist("box1").files[FICHIER_APPAIRAGE], undefined);
-    assert.ok(!github.appels().some((call) => call.includes("PATCH")), github.appels().join("\n"));
+    assert.ok(!github.appels().some((appel) => appel.includes("PATCH")), github.appels().join("\n"));
     assert.deepEqual((await stations.relire()).stations, []);
   });
 
   test("la station éteinte passe hors ligne sans quitter la liste ; GitHub muet, la liste reste et le dit", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     let instant = MAINTENANT;
-    github.station("box1", published());
+    github.station("box1", publie());
     const { stations } = desStations(t, github, () => instant);
     assert.ok("appairee" in (await stations.appairer(CODE)));
 
     // Plus aucun signe de vie depuis trois minutes.
     instant += 3 * 60_000;
     assert.deepEqual(
-      (await stations.relire()).stations.map(({ etat: state, ligne: line }) => ({ etat: state, ligne: line })),
+      (await stations.relire()).stations.map(({ etat, ligne }) => ({ etat, ligne })),
       [{ etat: "hors-ligne", ligne: "offline for 3 min · version 1.4.0 · no project" }],
     );
     // Elle revient, appairée : elle ne publie plus de code.
-    github.station("box1", { ...published({ signeDeVie: new Date(instant).toISOString(), projets: ["brigade"] }), appairage: null });
+    github.station("box1", { ...publie({ signeDeVie: new Date(instant).toISOString(), projets: ["brigade"] }), appairage: null });
     assert.equal((await stations.relire()).stations[0]?.ligne, "online · version 1.4.0 · 1 project: brigade");
 
     github.panne(true);
     instant += 10 * 60_000;
     const relue = await stations.relire();
     assert.match(relue.sans ?? "", /^your stations could not be read on GitHub — error connecting to api\.github\.com$/);
-    assert.deepEqual(relue.stations.map(({ nom: name, etat: state, ligne: line }) => ({ nom: name, etat: state, ligne: line })), [{ nom: "box", etat: "hors-ligne", ligne: "offline for 10 min · version 1.4.0 · 1 project: brigade" }]);
+    assert.deepEqual(relue.stations.map(({ nom, etat, ligne }) => ({ nom, etat, ligne })), [{ nom: "box", etat: "hors-ligne", ligne: "offline for 10 min · version 1.4.0 · 1 project: brigade" }]);
     github.panne(false);
     assert.equal((await stations.relire()).sans, undefined);
   });
 
   test("GitHub qui limite les appels du compte : la lecture le dit, avec l'heure où il les rend, lue sans en dépenser un", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("box1", published({ connexionMax: { etat: "connectee", depuis: null } }));
+    github.station("box1", publie({ connexionMax: { etat: "connectee", depuis: null } }));
     const { stations } = desStations(t, github);
     assert.ok("appairee" in (await stations.appairer(CODE)));
     assert.deepEqual(
-      (await stations.relire()).stations.map(({ dit, version, projets: projects, max }) => ({ dit, version, projets: projects, max })),
+      (await stations.relire()).stations.map(({ dit, version, projets, max }) => ({ dit, version, projets, max })),
       [{ dit: "online", version: "1.4.0", projets: [], max: "connectee" }],
     );
 
-    const resumption = Date.parse("2026-10-15T15:16:00Z");
-    writeFileSync(join(github.repertoire, "limite"), String(resumption / 1000));
+    const reprise = Date.parse("2026-10-15T15:16:00Z");
+    writeFileSync(join(github.repertoire, "limite"), String(reprise / 1000));
     const limitee = await stations.relire();
     assert.match(limitee.sans ?? "", /rate limit exceeded/);
-    assert.deepEqual(limitee.limite, { reprise: new Date(resumption).toISOString() });
+    assert.deepEqual(limitee.limite, { reprise: new Date(reprise).toISOString() });
     assert.equal(limitee.stations.length, 1, "la liste d'avant reste");
 
     rmSync(join(github.repertoire, "limite"));
@@ -226,53 +226,53 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
 
   test("l'app ne joint jamais une station : tout passe par `gh api` sur les gists du compte", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("box1", published());
+    github.station("box1", publie());
     const { stations } = desStations(t, github);
     await stations.appairer(CODE);
     await stations.relire();
     assert.ok(github.appels().length > 0);
-    for (const call of github.appels()) assert.match(call, /^api (-X PATCH |-i (-H If-None-Match: \S+ )?)?\/gists(\/[a-z0-9]+|\?per_page=100&page=\d+)( --input -)?$/);
-    for (const name of readdirSync(SOURCES)) {
-      const source = readFileSync(join(SOURCES, name), "utf8");
-      for (const interdit of [/node:(net|http|https|dgram|tls)\b/, /\bfetch\(/, /\bWebSocket\b/]) assert.doesNotMatch(source, interdit, `${name} : ${interdit}`);
+    for (const appel of github.appels()) assert.match(appel, /^api (-X PATCH |-i (-H If-None-Match: \S+ )?)?\/gists(\/[a-z0-9]+|\?per_page=100&page=\d+)( --input -)?$/);
+    for (const nom of readdirSync(SOURCES)) {
+      const source = readFileSync(join(SOURCES, nom), "utf8");
+      for (const interdit of [/node:(net|http|https|dgram|tls)\b/, /\bfetch\(/, /\bWebSocket\b/]) assert.doesNotMatch(source, interdit, `${nom} : ${interdit}`);
     }
   });
 });
 
 test("la ligne de mise à jour : « up to date · on this version for 3 days » ; une mise à jour ratée n'y est pas répétée, une station hors ligne n'est dite à jour de rien", () => {
   const depuis = new Date(MAINTENANT - 3 * 24 * 3_600_000).toISOString();
-  const document = { ...published(), appairage: null, miseAJour: null, connexionMax: null } as DocumentStation;
-  assert.equal(lineDeVersion(document, MAINTENANT, depuis), "up to date · on this version for 3 days");
-  assert.equal(lineDeVersion(document, MAINTENANT), "up to date", "sans date publiée, elle ne dit pas depuis quand");
+  const document = { ...publie(), appairage: null, miseAJour: null, connexionMax: null } as DocumentStation;
+  assert.equal(ligneDeVersion(document, MAINTENANT, depuis), "up to date · on this version for 3 days");
+  assert.equal(ligneDeVersion(document, MAINTENANT), "up to date", "sans date publiée, elle ne dit pas depuis quand");
   const ratee = { ...document, miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: new Date(MAINTENANT).toISOString(), retourRate: false } };
-  const dite = lineDeVersion(ratee, MAINTENANT, depuis);
+  const dite = ligneDeVersion(ratee, MAINTENANT, depuis);
   assert.equal(dite, "on this version for 3 days");
   assert.doesNotMatch(dite, /1\.5\.0|failed|up to date/, "la panne est déjà dite par son propre ticket");
-  assert.equal(lineDeVersion(ratee, MAINTENANT), "");
-  assert.equal(lineDeVersion(document, MAINTENANT + 3_600_000, depuis), "", "hors ligne");
+  assert.equal(ligneDeVersion(ratee, MAINTENANT), "");
+  assert.equal(ligneDeVersion(document, MAINTENANT + 3_600_000, depuis), "", "hors ligne");
 });
 
 describe("les stations retirées, et leur version lue d'un lancement à l'autre", { concurrency: 7 }, () => {
   test("retirer la station : son appairage quitte son gist, elle n'est plus listée ni lue — et se laisse appairer de nouveau", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("box1", published());
-    github.station("box2", published({ nom: "mac", appairage: { empreinte: empreinte("ABCD-EFGH"), expireLe: new Date(MAINTENANT + 10 * 60_000).toISOString() } }));
+    github.station("box1", publie());
+    github.station("box2", publie({ nom: "mac", appairage: { empreinte: empreinte("ABCD-EFGH"), expireLe: new Date(MAINTENANT + 10 * 60_000).toISOString() } }));
     const { stations } = desStations(t, github);
     assert.ok("appairee" in (await stations.appairer(CODE)));
     assert.ok("appairee" in (await stations.appairer("ABCD-EFGH")));
-    assert.deepEqual((await stations.relire()).stations.map(({ nom: name }) => name), ["box", "mac"]);
+    assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["box", "mac"]);
 
     assert.deepEqual(await stations.retirer("inconnue"), { refus: "this station is no longer paired with this app" });
     assert.deepEqual(await stations.retirer("box1"), { retiree: "box" });
-    assert.deepEqual(stations.vu()?.stations.map(({ nom: name }) => name), ["mac"]);
+    assert.deepEqual(stations.vu()?.stations.map(({ nom }) => nom), ["mac"]);
     assert.deepEqual(Object.keys(github.gist("box1").files), [FICHIER_STATION], "seul l'appairage est ôté, l'état de la station reste");
     assert.deepEqual(Object.keys(github.gist("box2").files).sort(), [FICHIER_APPAIRAGE, FICHIER_STATION]);
-    assert.deepEqual((await stations.relire()).stations.map(({ nom: name }) => name), ["mac"], "relue, elle n'est toujours pas là");
+    assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["mac"], "relue, elle n'est toujours pas là");
   });
 
   test("l'appairage d'une station de Mac dit qu'elle fournit `macos`, et ce que l'installation y a détecté (#1757)", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("mac1", published({ nom: "macbook-air-de-benoit", machine: "macOS 15.1" }));
+    github.station("mac1", publie({ nom: "macbook-air-de-benoit", machine: "macOS 15.1" }));
     const { stations } = desStations(t, github);
     const detectees = [
       { capacite: "navigateur-headless", nom: "a browser", detectee: true },
@@ -290,7 +290,7 @@ describe("les stations retirées, et leur version lue d'un lancement à l'autre"
 
   test("une station appairée avant que l'app n'écrive ce qu'elle fournit : son appairage le prend, une fois, l'empreinte gardée (#1757)", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("mac1", published({ nom: "macbook" }));
+    github.station("mac1", publie({ nom: "macbook" }));
     const { stations } = desStations(t, github);
     assert.ok("appairee" in (await stations.appairer(CODE)));
     const avant = JSON.parse(github.gist("mac1").files[FICHIER_APPAIRAGE]?.content ?? "null") as Record<string, unknown>;
@@ -305,7 +305,7 @@ describe("les stations retirées, et leur version lue d'un lancement à l'autre"
 
   test("retirer la station, GitHub injoignable : rien n'est retiré, le refus tient en une ligne et son détail à part", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("box1", published());
+    github.station("box1", publie());
     const { stations } = desStations(t, github);
     assert.ok("appairee" in (await stations.appairer(CODE)));
     github.panne(true);
@@ -314,34 +314,34 @@ describe("les stations retirées, et leur version lue d'un lancement à l'autre"
     assert.equal(rendu.refus, "box was not removed: GitHub could not be written");
     assert.match(rendu.detail ?? "", /api\.github\.com/);
     github.panne(false);
-    assert.deepEqual((await stations.relire()).stations.map(({ nom: name }) => name), ["box"]);
+    assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["box"]);
   });
 
   test("depuis quand la station est sur sa version : l'app le déduit du changement qu'elle voit, et le garde d'un lancement à l'autre", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
-    github.station("box1", published());
+    github.station("box1", publie());
     const dossier = mkdtempSync(join(tmpdir(), "brigade-app-versions-"));
     t.after(() => rmSync(dossier, { recursive: true, force: true }));
     const chemin = join(dossier, "versions-vues.json");
     let instant = MAINTENANT;
     const ouvrir = () => {
-      const stations = holdStations({ github: githubDesStations({ gh: github.gh, delaiMs: 30_000 }), surLecture: () => {}, cadenceMs: 3_600_000, maintenant: () => instant, versions: versionsDansFichier(chemin) });
+      const stations = tenirStations({ github: githubDesStations({ gh: github.gh, delaiMs: 30_000 }), surLecture: () => {}, cadenceMs: 3_600_000, maintenant: () => instant, versions: versionsDansFichier(chemin) });
       t.after(() => stations.fermer());
       return stations;
     };
     const en = (document: object) => github.station("box1", { ...(document as object), appairage: null, signeDeVie: new Date(instant - 5_000).toISOString() });
 
-    const first = ouvrir();
-    assert.ok("appairee" in (await first.appairer(CODE)));
-    en(published());
-    assert.equal((await first.relire()).stations[0]?.versionDit, "up to date", "à sa première lecture, l'app ne sait pas depuis quand : rien d'inventé");
+    const premiere = ouvrir();
+    assert.ok("appairee" in (await premiere.appairer(CODE)));
+    en(publie());
+    assert.equal((await premiere.relire()).stations[0]?.versionDit, "up to date", "à sa première lecture, l'app ne sait pas depuis quand : rien d'inventé");
 
     instant += 2 * 24 * 3_600_000;
-    en(published({ version: "1.5.0" }));
-    assert.equal((await first.relire()).stations[0]?.versionDit, "up to date · on this version for less than a minute", "elle a vu la version changer");
+    en(publie({ version: "1.5.0" }));
+    assert.equal((await premiere.relire()).stations[0]?.versionDit, "up to date · on this version for less than a minute", "elle a vu la version changer");
 
     instant += 3 * 24 * 3_600_000;
-    en(published({ version: "1.5.0" }));
+    en(publie({ version: "1.5.0" }));
     const relancee = ouvrir();
     assert.equal((await relancee.relire()).stations[0]?.versionDit, "up to date · on this version for 3 days", "relancée, elle se souvient");
     assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")).box1, { version: "1.5.0", depuisLe: new Date(MAINTENANT + 2 * 24 * 3_600_000).toISOString() });

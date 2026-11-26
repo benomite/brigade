@@ -18,7 +18,7 @@
 // (`station.ts`, `rendreLesCorriges`), comme pour une case du catalogue.
 //
 // La vue de l'app applique la même règle avant tout envoi
-// (app/src/vue/capacity-free/capacity-free.js) : elle ne lit pas de
+// (app/src/vue/capacite-libre/capacite-libre.js) : elle ne lit pas de
 // TypeScript, et un test l'y tient identique. Les refus sont en anglais :
 // c'est l'app qui les montre. Sans E/S.
 import { capacite, CAPACITE, FORME_DE_CAPACITE_EN } from "../capacites.ts";

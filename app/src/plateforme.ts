@@ -11,7 +11,7 @@ import { CET_ORDINATEUR } from "./vue/lexique.js";
 export const estUnMac = (plateforme: string): boolean => plateforme === "darwin";
 
 // Le nom de ce poste, tel que l'écran le dit : « this computer » sur toutes les plateformes (lexique de l'app, src/vue/lexique.js).
-export const nameDuWorkstation = (): string => CET_ORDINATEUR;
+export const nomDuPoste = (): string => CET_ORDINATEUR;
 
 export type Shell = { commande: string; args: string[] };
 
@@ -28,7 +28,7 @@ export const BASH_DE_GIT = (env: Record<string, string | undefined>): string[] =
 // de connexion. Sous Windows : le `bash` de Git for Windows, que `claude` exige déjà — les
 // commandes que l'app écrit dans un shell sont citées pour un shell POSIX, comme sur le Mac ; sans
 // lui, PowerShell, qui est sur tout Windows.
-export function shellDuWorkstation(plateforme: string, env: Record<string, string | undefined>, existe: (chemin: string) => boolean = existsSync): Shell {
+export function shellDuPoste(plateforme: string, env: Record<string, string | undefined>, existe: (chemin: string) => boolean = existsSync): Shell {
   if (plateforme !== "win32") return { commande: env.SHELL || (estUnMac(plateforme) ? "/bin/zsh" : "/bin/sh"), args: ["-l"] };
   const bash = BASH_DE_GIT(env).find((chemin) => existe(chemin));
   return bash === undefined ? { commande: "powershell.exe", args: ["-NoLogo"] } : { commande: bash, args: ["--login", "-i"] };
@@ -64,4 +64,4 @@ export const enGroupe = (plateforme: string): boolean => plateforme !== "win32";
 
 // Le nom de ce poste-ci, celui où l'app tourne. Lu sans supposer Node : la lecture du téléphone (app/android/web/
 // lecture.ts) charge ce module dans la WebView de l'app Android, où `process` n'existe pas.
-export const ICI = nameDuWorkstation();
+export const ICI = nomDuPoste();

@@ -3,19 +3,19 @@
 // la marque du niveau d'un réglage dit chacun des trois niveaux par une étiquette à elle — celle que `niveauDe` pose.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { lineDeStation } from "../src/home.ts";
+import { ligneDeStation } from "../src/accueil.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBar } from "../src/bar.ts";
+import { pourLaBarre } from "../src/barre.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
-import { BANNIERE } from "../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../src/actions.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE } from "../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { calibrationRecommande, EFFORTS, MODELES } from "../src/projects/projects.ts";
+import { calibrageRecommande, EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { StationVue } from "../src/stations/stations.ts";
 import { NIVEAUX, NIVEAUX_DITS, niveauDe } from "../src/vue/niveaux.js";
-import { niveauSetting } from "../src/vue/station/page/SettingLevel.js";
+import { niveauReglage } from "../src/vue/station/page/NiveauReglage.js";
 import { INDISPONIBLE, LIVREES, PAS_ENCORE, poserPageDeStation, SECTIONS } from "../src/vue/station/page/StationPage.js";
 import { Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
@@ -23,15 +23,15 @@ const doc = { createElement: (balise: string) => new Faux(balise) };
 const STATION = { id: "gist-mac", nom: "mac/claude" };
 const TITRES = ["Identity", "Connections", "Folders and sandbox", "Capabilities", "Cooks", "Engine"];
 
-type Context = { ici: boolean; lectureSeule: boolean; niveau(cle: string): Faux };
+type Contexte = { ici: boolean; lectureSeule: boolean; niveau(cle: string): Faux };
 
 // Un chargeur qui rend, pour chaque section, un élément qui dit ce qu'elle a reçu.
-function temoins(recus: Map<string, Context>) {
+function temoins(recus: Map<string, Contexte>) {
   return async (fichier: string) => ({
-    poserSection(fabrique: typeof doc, context: Context) {
-      recus.set(fichier, context);
+    poserSection(fabrique: typeof doc, contexte: Contexte) {
+      recus.set(fichier, contexte);
       const corps = fabrique.createElement("p");
-      corps.append(context.niveau("cooks"));
+      corps.append(contexte.niveau("cooks"));
       return corps;
     },
   });
@@ -61,14 +61,14 @@ describe("la coque de la page d'une station", () => {
       station: STATION,
       locale: "gist-mac",
       charger: async (fichier) => {
-        if (fichier === "identity") throw new SyntaxError("Unexpected token");
-        if (fichier === "connections") return { poserSection: () => { throw new Error("lecture ratée"); } };
+        if (fichier === "identite") throw new SyntaxError("Unexpected token");
+        if (fichier === "connexions") return { poserSection: () => { throw new Error("lecture ratée"); } };
         if (fichier === "capacites") return {};
         return temoins(new Map())(fichier);
       },
     })) as Faux;
     const corps = page.children.map((section) => section.children[1]);
-    assert.deepEqual(corps.map((line) => line?.className), ["indisponible", "indisponible", "", "indisponible", "", ""]);
+    assert.deepEqual(corps.map((ligne) => ligne?.className), ["indisponible", "indisponible", "", "indisponible", "", ""]);
     assert.equal(corps[0]?.children[0]?.textContent, INDISPONIBLE);
     assert.equal(corps[0]?.children[1]?.children[0]?.ariaLabel, "Unexpected token");
     assert.equal(corps[1]?.children[1]?.children[0]?.ariaLabel, "lecture ratée");
@@ -76,13 +76,13 @@ describe("la coque de la page d'une station", () => {
   });
 
   test("la page d'une autre station passe `lectureSeule` à chaque section ; celle de cet ordinateur, non", async () => {
-    const ailleurs = new Map<string, Context>();
+    const ailleurs = new Map<string, Contexte>();
     await poserPageDeStation(doc, { station: { id: "gist-pc", nom: "pc/claude" }, locale: "gist-mac", charger: temoins(ailleurs) });
     assert.deepEqual([...ailleurs.keys()], SECTIONS.map(({ fichier }) => fichier));
-    for (const context of ailleurs.values()) assert.deepEqual([context.ici, context.lectureSeule], [false, true]);
-    const ici = new Map<string, Context>();
+    for (const contexte of ailleurs.values()) assert.deepEqual([contexte.ici, contexte.lectureSeule], [false, true]);
+    const ici = new Map<string, Contexte>();
     await poserPageDeStation(doc, { station: STATION, locale: "gist-mac", charger: temoins(ici) });
-    for (const context of ici.values()) assert.deepEqual([context.ici, context.lectureSeule], [true, false]);
+    for (const contexte of ici.values()) assert.deepEqual([contexte.ici, contexte.lectureSeule], [true, false]);
   });
 
   test("sans station locale connue, aucune page n'est celle de cet ordinateur", async () => {
@@ -93,8 +93,8 @@ describe("la coque de la page d'une station", () => {
     const page = (await poserPageDeStation(doc, { station: STATION, locale: "gist-mac", charger: temoins(new Map()) })) as Faux;
     assert.deepEqual(page.children.map((section) => section.children[1]?.children[0]?.dataset.niveau), SECTIONS.map(() => "machine"));
     for (const cle of Object.keys(NIVEAUX).filter((une) => NIVEAUX[une] === "project")) {
-      const project = (fichier: string) => (fichier === "cooks" ? Promise.resolve({ poserSection: (_: typeof doc, context: Context) => context.niveau(cle) }) : temoins(new Map())(fichier));
-      const rendue = (await poserPageDeStation(doc, { station: STATION, locale: "gist-mac", charger: project })) as Faux;
+      const projet = (fichier: string) => (fichier === "cooks" ? Promise.resolve({ poserSection: (_: typeof doc, contexte: Contexte) => contexte.niveau(cle) }) : temoins(new Map())(fichier));
+      const rendue = (await poserPageDeStation(doc, { station: STATION, locale: "gist-mac", charger: projet })) as Faux;
       assert.doesNotMatch(rendue.textContent, /\bproject\b(?! setting)/, `${cle} : aucune marque « project »`);
       assert.ok(!rendue.descendants().some((element) => element.dataset.niveau === "project"), cle);
       assert.match(rendue.children[4]?.children[1]?.children[1]?.children[0]?.ariaLabel ?? "", /belongs to the project/);
@@ -108,29 +108,29 @@ const A = "2026-11-06T12:00:00.000Z";
 const MAC: StationVue = { id: "gist-mac", nom: "mac", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
 const PC: StationVue = { ...MAC, id: "gist-pc", nom: "pc", machine: "Windows 11" };
 const demarrage = () => ({
-  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
   stations: { a: A, stations: [MAC, PC] },
-  projetsDesStations: { a: A, projets: [], locale: "gist-mac", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrationRecommande([]) },
-  accueil: { projets: [], stations: [lineDeStation(MAC, 0), lineDeStation(PC, 0)], sante: { ton: "vert" as const, dit: "Max ✓  ·  GitHub ✓", survol: "" } },
+  projetsDesStations: { a: A, projets: [], locale: "gist-mac", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrageRecommande([]) },
+  accueil: { projets: [], stations: [ligneDeStation(MAC, 0), ligneDeStation(PC, 0)], sante: { ton: "vert" as const, dit: "Max ✓  ·  GitHub ✓", survol: "" } },
 });
 
-async function ouvrirLaStation(name: string) {
+async function ouvrirLaStation(nom: string) {
   const vue = await jouerLaVue({ demarrage, espace: () => [] });
   (vue.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
   await repos();
   const boutons = vue.element("accueil-bloc-station").dessous("button");
-  const line =
-    (name === "mac" ? boutons.find(({ textContent }) => textContent.startsWith("Station settings")) : boutons.find(({ className, textContent }) => className === "ligne" && textContent.startsWith(name))) ??
-    assert.fail(`pas de bouton pour « ${name} »`);
-  line.click();
+  const ligne =
+    (nom === "mac" ? boutons.find(({ textContent }) => textContent.startsWith("Station settings")) : boutons.find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom))) ??
+    assert.fail(`pas de bouton pour « ${nom} »`);
+  ligne.click();
   await repos();
   return vue.element("station").dessous("div").find(({ className }) => className === "page-de-station") ?? assert.fail("pas de sections sur la page");
 }
@@ -151,7 +151,7 @@ describe("ouvrir une station dans l'app monte la coque", () => {
 
 describe("la marque du niveau d'un réglage", () => {
   test("chacun des trois niveaux a son étiquette, distincte, et son survol", () => {
-    const marques = (["machine", "project", "you"] as const).map((niveau) => niveauSetting(doc, niveau) as Faux);
+    const marques = (["machine", "project", "you"] as const).map((niveau) => niveauReglage(doc, niveau) as Faux);
     assert.deepEqual(marques.map(({ textContent }) => textContent), ["this computer", "project", "you"]);
     assert.equal(new Set(marques.map(({ textContent }) => textContent)).size, 3);
     for (const [i, niveau] of (["machine", "project", "you"] as const).entries()) {
@@ -164,12 +164,12 @@ describe("la marque du niveau d'un réglage", () => {
   test("`niveauDe` pose la même marque, à partir de la clé du réglage", () => {
     for (const [cle, niveau] of Object.entries(NIVEAUX)) {
       const parCle = niveauDe(doc, cle) as Faux;
-      const parNiveau = niveauSetting(doc, niveau) as Faux;
+      const parNiveau = niveauReglage(doc, niveau) as Faux;
       assert.deepEqual([parCle.className, parCle.dataset, parCle.textContent, parCle.title], [parNiveau.className, parNiveau.dataset, parNiveau.textContent, parNiveau.title]);
     }
   });
 
   test("un niveau inconnu ne se rend pas", () => {
-    assert.throws(() => niveauSetting(doc, "ailleurs" as "you"), /unknown setting level/);
+    assert.throws(() => niveauReglage(doc, "ailleurs" as "you"), /unknown setting level/);
   });
 });

@@ -5,7 +5,7 @@
 // alerte se lit pareil dans tous les projets. La palette s'en tient loin, et une couleur libre qui
 // s'en approche se le voit dire.
 //
-// La palette vit ici, et non dans vue/tokens.css : une couleur de projet est une donnée du fichier
+// La palette vit ici, et non dans vue/jetons.css : une couleur de projet est une donnée du fichier
 // des projets, que le chef peut écrire à la main (`#rrggbb`) — la peau ne fait que la poser.
 //
 // Ce qui se ressemble se mesure (ticket 1106) : l'écart ΔE CIEDE2000 entre deux couleurs telles
@@ -17,8 +17,8 @@ export type Role = (typeof ROLES)[number];
 // Ce que le fichier dit d'un projet : chacune peut manquer — elle est alors tirée (config.ts).
 export type Couleurs = { [R in Role]?: string };
 
-// Les couleurs d'état de la peau, telles que vue/tokens.css les écrit, et le nom qu'un avertissement leur donne.
-export const STATES: readonly { nom: string; valeur: string }[] = [
+// Les couleurs d'état de la peau, telles que vue/jetons.css les écrit, et le nom qu'un avertissement leur donne.
+export const ETATS: readonly { nom: string; valeur: string }[] = [
   { nom: "green", valeur: "#6cc28a" },
   { nom: "yellow", valeur: "#e9c46a" },
   { nom: "red", valeur: "#ee6b5b" },
@@ -109,8 +109,8 @@ export function ecartLab([l1, a1, b1]: readonly number[], [l2, a2, b2]: readonly
 // Une couleur de la palette, pour un projet qui n'en a pas : de préférence une qu'aucun autre
 // projet ne porte, dans aucun rôle ; toutes prises, l'une des moins portées. `prises` : celles des
 // autres projets.
-export function draw(prises: readonly (string | undefined)[], hasard: () => number = Math.random): string {
-  const portees = (valeur: string) => prises.filter((taking) => taking?.toLowerCase() === valeur).length;
+export function tirer(prises: readonly (string | undefined)[], hasard: () => number = Math.random): string {
+  const portees = (valeur: string) => prises.filter((prise) => prise?.toLowerCase() === valeur).length;
   const moins = Math.min(...PALETTE.map(({ valeur }) => portees(valeur)));
   const libres = PALETTE.filter(({ valeur }) => portees(valeur) === moins);
   return (libres[Math.min(libres.length - 1, Math.floor(hasard() * libres.length))] ?? PALETTE[0]!).valeur;
@@ -132,11 +132,11 @@ export function couleursLues(lu: unknown): Couleurs | string | undefined {
 
 // Ce que la vue demande — un rôle, et une couleur de la palette par son nom ou une couleur libre
 // écrite `#rrggbb` — ou pourquoi rien n'est changé.
-export function choice(role: unknown, couleur: unknown): { role: Role; valeur: string } | { refus: string } {
+export function choix(role: unknown, couleur: unknown): { role: Role; valeur: string } | { refus: string } {
   if (!ROLES.includes(role as Role)) return { refus: `“${String(role)}” is not a project color: ${ROLES.join(" or ")}` };
   if (estCouleur(couleur)) return { role: role as Role, valeur: couleur.toLowerCase() };
-  const choisie = PALETTE.find(({ nom: name }) => name === couleur);
-  if (choisie === undefined) return { refus: `“${String(couleur)}” is neither in the palette (${PALETTE.map(({ nom: name }) => name).join(", ")}) nor a color written \`#rrggbb\`` };
+  const choisie = PALETTE.find(({ nom }) => nom === couleur);
+  if (choisie === undefined) return { refus: `“${String(couleur)}” is neither in the palette (${PALETTE.map(({ nom }) => nom).join(", ")}) nor a color written \`#rrggbb\`` };
   return { role: role as Role, valeur: choisie.valeur };
 }
 
@@ -146,14 +146,14 @@ const NOMS_DES_ROLES: Record<Role, string> = { onglet: "tab", accent: "accent" }
 // d'état ou celle d'un autre projet la plus proche, à moins de PROCHES. Une teinte de la palette
 // n'en dit rien — elle est loin des couleurs d'état, et la partager est un choix. La couleur reste :
 // la ligne le dit, elle ne retire rien.
-export function proches(project: { nom: string; couleurs?: Couleurs }, projects: readonly { nom: string; couleurs?: Couleurs }[]): Partial<Record<Role, string>> | undefined {
+export function proches(projet: { nom: string; couleurs?: Couleurs }, projets: readonly { nom: string; couleurs?: Couleurs }[]): Partial<Record<Role, string>> | undefined {
   const voisines = [
-    ...STATES.map(({ nom: name, valeur }) => ({ dit: `${name}, a state color`, valeur })),
-    ...projects.filter(({ nom: name }) => name !== project.nom).flatMap(({ nom: name, couleurs }) => ROLES.flatMap((role) => (couleurs?.[role] === undefined ? [] : [{ dit: `the ${NOMS_DES_ROLES[role]} of ${name}`, valeur: couleurs[role] }]))),
+    ...ETATS.map(({ nom, valeur }) => ({ dit: `${nom}, a state color`, valeur })),
+    ...projets.filter(({ nom }) => nom !== projet.nom).flatMap(({ nom, couleurs }) => ROLES.flatMap((role) => (couleurs?.[role] === undefined ? [] : [{ dit: `the ${NOMS_DES_ROLES[role]} of ${nom}`, valeur: couleurs[role] }]))),
   ];
   const dits: Partial<Record<Role, string>> = {};
   for (const role of ROLES) {
-    const valeur = project.couleurs?.[role];
+    const valeur = projet.couleurs?.[role];
     if (valeur === undefined || PALETTE.some((teinte) => teinte.valeur === valeur)) continue;
     const plus = voisines.map((voisine) => ({ ...voisine, ecart: ecart(valeur, voisine.valeur) })).sort((une, autre) => une.ecart - autre.ecart)[0];
     if (plus !== undefined && plus.ecart < PROCHES) dits[role] = `close to ${plus.dit} — kept anyway`;

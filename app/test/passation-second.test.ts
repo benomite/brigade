@@ -8,10 +8,10 @@ import { describe, test } from "node:test";
 import type { Discussion } from "../src/discussion.ts";
 import { blocsEnTexte, LONGUEUR_DU_MESSAGE, noteDeLaPassation, passation, passerAuSecond } from "../src/passation-second.ts";
 import { rendre } from "../src/markdown.ts";
-import { discussionDe } from "./aides/cards-dites.ts";
+import { discussionDe } from "./aides/fiches-dites.ts";
 
 const RACINE = resolve(import.meta.dirname, "..", "..");
-const PROJECT = { nom: "parade", dossier: "/tmp/parade" };
+const PROJET = { nom: "parade", dossier: "/tmp/parade" };
 const QUESTION = "Should the CSV export carry the run column?";
 const ISSUE: Discussion = discussionDe({
   issue: {
@@ -55,8 +55,8 @@ describe("la passation d'une carte au second (#3133)", () => {
   });
 
   test("une issue sans commentaire utile donne son corps ; fermée, elle le dit ; un message trop long est coupé", () => {
-    const only: Discussion = { titre: "Solo", ouverte: false, messages: [{ auteur: "benomite", at: "2026-11-01 09:00 UTC", blocs: rendre(`Body ${"x".repeat(3000)}`), corps: true }], liens: [] };
-    const message = passation(7, QUESTION, only);
+    const seule: Discussion = { titre: "Solo", ouverte: false, messages: [{ auteur: "benomite", at: "2026-11-01 09:00 UTC", blocs: rendre(`Body ${"x".repeat(3000)}`), corps: true }], liens: [] };
+    const message = passation(7, QUESTION, seule);
     assert.ok(message.includes("Its issue: “Solo” (closed)."), message);
     assert.match(message, /Its description \(benomite, 2026-11-01 09:00 UTC\): “Body x+…”/);
     assert.ok(message.length < LONGUEUR_DU_MESSAGE + 400);
@@ -72,18 +72,18 @@ describe("la passation d'une carte au second (#3133)", () => {
   test("le geste : l'issue lue, la passation écrite dans le second ; une lecture qui lève est dite dans le message", async () => {
     const { ecrits, inscrire } = inscrit();
     const lus: number[] = [];
-    assert.deepEqual(await passerAuSecond(inscrire, async (ticket) => (lus.push(ticket), ISSUE), PROJECT, 41, QUESTION), { ecrit: true });
+    assert.deepEqual(await passerAuSecond(inscrire, async (ticket) => (lus.push(ticket), ISSUE), PROJET, 41, QUESTION), { ecrit: true });
     assert.deepEqual(lus, [41]);
     assert.deepEqual(ecrits, [passation(41, QUESTION, ISSUE)]);
-    await passerAuSecond(inscrire, () => Promise.reject(new Error("gh: command not found")), PROJECT, 44, null);
+    await passerAuSecond(inscrire, () => Promise.reject(new Error("gh: command not found")), PROJET, 44, null);
     assert.ok(ecrits[1]?.includes("no question found on #44") && ecrits[1].includes("could not be read (not read: gh: command not found)"), ecrits[1] ?? "");
   });
 
   test("ni ticket, ni projet qui s'ouvre : rien n'est lu ni écrit, et pourquoi est dit", async () => {
     const { ecrits, inscrire } = inscrit();
     const lire = () => assert.fail("rien n'est lu");
-    assert.deepEqual(await passerAuSecond(inscrire, lire, PROJECT, "41", QUESTION), { refus: "nothing was written: the card names no ticket" });
-    assert.deepEqual(await passerAuSecond(inscrire, lire, { ...PROJECT, refus: "illisible" }, 41, QUESTION), { refus: "nothing was written: “parade” does not open — illisible" });
+    assert.deepEqual(await passerAuSecond(inscrire, lire, PROJET, "41", QUESTION), { refus: "nothing was written: the card names no ticket" });
+    assert.deepEqual(await passerAuSecond(inscrire, lire, { ...PROJET, refus: "illisible" }, 41, QUESTION), { refus: "nothing was written: “parade” does not open — illisible" });
     assert.deepEqual(ecrits, []);
   });
 
@@ -96,8 +96,8 @@ describe("la passation d'une carte au second (#3133)", () => {
   test("le canal du process principal lit l'issue de GitHub et écrit dans le second du projet, et le pont l'expose", () => {
     const main = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
     const canal = /ipcMain\.handle\("passerAuSecond"[\s\S]*?\n\}\);/.exec(main)?.[0] ?? assert.fail("pas de canal « passerAuSecond »");
-    assert.match(canal, /discussionDeGitHub\(settingsGh\(\), await repositoryDuProject\(vise\), numero\)/);
+    assert.match(canal, /discussionDeGitHub\(reglagesGh\(\), await depotDuProjet\(vise\), numero\)/);
     assert.match(canal, /passerAuSecond\(\(message\) => terminaux\.inscrire\(vise, message, noteDeLaPassation\), lire, vise, ticket, question\)/);
-    assert.match(readFileSync(join(RACINE, "app/src/preload.cjs"), "utf8"), /passerAuSecond: \(project, ticket, question\) => ipcRenderer\.invoke\("passerAuSecond", project, ticket, question\)/);
+    assert.match(readFileSync(join(RACINE, "app/src/preload.cjs"), "utf8"), /passerAuSecond: \(projet, ticket, question\) => ipcRenderer\.invoke\("passerAuSecond", projet, ticket, question\)/);
   });
 });

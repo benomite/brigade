@@ -9,13 +9,13 @@ import { fileURLToPath } from "node:url";
 
 const dossier = join(dirname(fileURLToPath(import.meta.url)), "..", "packaging");
 const sources = readdirSync(dossier)
-  .filter((name) => name.endsWith(".test.ts"))
-  .map((name) => readFileSync(join(dossier, name), "utf8"))
+  .filter((nom) => nom.endsWith(".test.ts"))
+  .map((nom) => readFileSync(join(dossier, nom), "utf8"))
   .join("\n");
 
 test("the packaging fixtures build all the Electron helpers", () => {
-  for (const name of ["Electron Helper", "Electron Helper (GPU)", "Electron Helper (Renderer)", "Electron Helper (Plugin)"])
-    assert.ok(sources.includes(name), name);
+  for (const nom of ["Electron Helper", "Electron Helper (GPU)", "Electron Helper (Renderer)", "Electron Helper (Plugin)"])
+    assert.ok(sources.includes(nom), nom);
 });
 
 test("the packaging fixtures use helper plists with a name key that is missing, mismatched or absent", () => {

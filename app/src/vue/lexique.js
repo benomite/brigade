@@ -18,13 +18,13 @@ export const ENREGISTREMENT = "Saving…";
 export const REESSAYER = "Try again";
 
 /** Ajouter un projet (remplace « Add to the app », « Add to the kitchen »). */
-export const AJOUTER_UN_PROJECT = "Add a project";
+export const AJOUTER_UN_PROJET = "Add a project";
 
 /** Passer à la nouvelle version (remplace « Install now »). */
-export const METTRE_A_DAY = "Update now";
+export const METTRE_A_JOUR = "Update now";
 
 /** La passe du closer (remplace « cleanup »). */
-export const PASS_DE_CLOSING = "closing pass";
+export const PASSE_DE_FERMETURE = "closing pass";
 
 /** Une lecture qui n'a pas abouti : « <quoi> not reached. » (remplace « unavailable », « could not reach »). */
 export const NON_ATTEINT = (/** @type {string} */ quoi) => `${quoi.charAt(0).toUpperCase()}${quoi.slice(1)} not reached.`;
@@ -33,7 +33,7 @@ export const NON_ATTEINT = (/** @type {string} */ quoi) => `${quoi.charAt(0).toU
 export const PAS_ENCORE = (/** @type {string} */ chose) => `No ${chose} yet.`;
 
 /** Une lecture en cours : « Reading <quoi>… » (remplace « reading … » en minuscule). */
-export const READ_DE = (/** @type {string} */ quoi) => `Reading ${quoi}…`;
+export const LECTURE_DE = (/** @type {string} */ quoi) => `Reading ${quoi}…`;
 
 /** Une lecture en cours dont l'objet est dit à côté (remplace « reading… »). */
-export const READ = "Reading…";
+export const LECTURE = "Reading…";

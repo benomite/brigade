@@ -1,7 +1,7 @@
 // L'avancement d'un besoin découpé, tel que son issue l'écrit (ticket 3480, épique 3473) : le corps du besoin porte la liste de
 // ses tickets en cases à cocher, une ligne par ticket (`- [ ] #<ticket>`), cochée quand ce ticket est servi — chaque
 // ticket, lui, porte `Part of #<besoin>`. Servis : les lignes cochées ; total : toutes. Un corps sans cette liste n'a pas
-// d'avancement : rien n'est compté, jamais un `0/0`. Lu par tableau/read.ts dans le corps de chaque besoin ; posé par
+// d'avancement : rien n'est compté, jamais un `0/0`. Lu par tableau/lecture.ts dans le corps de chaque besoin ; posé par
 // le bandeau Backlog (avancement.js). Sans E/S.
 import { lignesHorsCode } from "../../../../runtime/src/epique.ts";
 

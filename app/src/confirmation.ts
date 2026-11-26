@@ -1,5 +1,5 @@
 // Ce qu'un geste confirmé dit avant de partir : son prix, en clair. Un geste destructif ou
-// lourd (actions.ts, `CONFIRMES`) ne part qu'après un « oui » du chef, et ce « oui » se donne
+// lourd (gestes.ts, `CONFIRMES`) ne part qu'après un « oui » du chef, et ce « oui » se donne
 // devant ce qu'il coûte — pas devant « es-tu sûr ? » (docs/superpowers/specs/
 // 2026-10-13-app-poste-de-travail-design.md, « Le modèle, en quatre règles », la troisième).
 // La convention est celle du geste de désinstallation : dire ce qu'il va faire. Aucun LLM.
@@ -9,23 +9,23 @@
 // la demande. Chaque « oui » est un geste du socle, qui part dans le second. Ce module ne lance
 // rien, n'écrit dans aucun terminal, et ne fait rien partir : il dit.
 import { AVERTISSEMENT as ALLUMER } from "./allumage.ts";
-import type { Kitchen } from "./box.ts";
-import type { Project } from "./config.ts";
-import type { Facts } from "./facts.ts";
-import { commandDuAction, CONFIRMES } from "./actions.ts";
+import type { Cuisine } from "./box.ts";
+import type { Projet } from "./config.ts";
+import type { Faits } from "./faits.ts";
+import { commandeDuGeste, CONFIRMES } from "./gestes.ts";
 import { nombre } from "./format.ts";
 
 // Un « oui » : le geste du socle qu'il fait partir, ce que son bouton dit, et ce qu'il engage.
-export type Choice = { id: string; libelle: string; dit: string };
+export type Choix = { id: string; libelle: string; dit: string };
 // `titre` : ce que le geste fait. `prix` : ce qu'il coûte, dans les mots de l'app, une phrase par
 // ligne. `lu` : l'heure de la
 // lecture de `faits` dont le prix est tiré — absente, il n'en doit rien. `chiffrer` : le prix
 // se complète de `manager backlog`, que la vue demande à la box dès que la confirmation s'ouvre.
 // `choix` : les « oui » ; `renoncer` : le « non », qui ne fait rien partir.
-export type Confirmation = { titre: string; prix: string[]; lu?: string; chiffrer?: true; choix: Choice[]; renoncer: string };
+export type Confirmation = { titre: string; prix: string[]; lu?: string; chiffrer?: true; choix: Choix[]; renoncer: string };
 
 // Les derniers faits lus d'un projet, et l'heure de leur lecture — ou pourquoi il n'y en a pas.
-export type Lus = { faits: Facts; a: string } | { sans: string };
+export type Lus = { faits: Faits; a: string } | { sans: string };
 
 const s = (combien: number) => (combien > 1 ? "s" : "");
 
@@ -39,14 +39,14 @@ const REPRENDRE = "The “stop” is lifted, and the breaker closed: queued tick
 // Les cooks en vol à cette lecture, d'après `faits` : ce qu'il en donne, et ce qui manque, dit tel.
 function cooksEnVol(lus: Lus): { prix: string[]; lu?: string } {
   if ("sans" in lus) return { prix: [`Cooks in flight are not read: ${lus.sans}. This is not “no cook in flight”.`] };
-  const { faits: facts, a } = lus;
-  if (facts.cooks === undefined) return { prix: ["Cooks in flight are not read: this station's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
-  const tickets = facts.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
+  const { faits, a } = lus;
+  if (faits.cooks === undefined) return { prix: ["Cooks in flight are not read: this station's runtime does not give them in `facts`. This is not “no cook in flight”."], lu: a };
+  const tickets = faits.cooks.map(({ ticket }) => `#${ticket}`).join(", ");
   return {
     prix: [
-      facts.cooks.length === 0
+      faits.cooks.length === 0
         ? "No cook running at this reading — what they would have spent, this station's runtime does not say."
-        : `${facts.cooks.length} cook${s(facts.cooks.length)} running at this reading (${tickets}) — what they spent, this station's runtime does not say in \`facts\`.`,
+        : `${faits.cooks.length} cook${s(faits.cooks.length)} running at this reading (${tickets}) — what they spent, this station's runtime does not say in \`facts\`.`,
     ],
     lu: a,
   };
@@ -58,10 +58,10 @@ const surLeRail = (lus: Lus): string[] => ("sans" in lus ? [] : [`${nombre(lus.f
 // Ce que ce geste confirmé dira avant de partir, pour ce projet — ou pourquoi il ne s'offre
 // pas. Rien pour un geste qui ne se confirme pas, ou que le socle ne connaît pas. `cuisine` : là
 // où celle du projet tourne à cet instant — cet ordinateur.
-export function confirmationDe(id: unknown, project: Project, lus: Lus, kitchen: Kitchen | undefined): Confirmation | { refus: string } | undefined {
+export function confirmationDe(id: unknown, projet: Projet, lus: Lus, cuisine: Cuisine | undefined): Confirmation | { refus: string } | undefined {
   if (typeof id !== "string" || !CONFIRMES.includes(id)) return undefined;
   // Un geste qui n'écrirait rien n'a rien à confirmer : son refus se dit à la place.
-  const ecrit = commandDuAction(id, project, kitchen);
+  const ecrit = commandeDuGeste(id, projet, cuisine);
   if (ecrit === undefined || "refus" in ecrit) return ecrit;
   switch (id) {
     case "stop": {

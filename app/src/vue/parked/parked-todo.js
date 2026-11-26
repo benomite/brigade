@@ -2,7 +2,7 @@
 // Le TODO du chef fait des tickets parked qui l'attendent (ticket 4281, épique 4129 ; spec 2026-11-24-simplified-process,
 // règle 16) : exactement les enregistrements dont « who » est le chef, et aucun autre. Chaque item dit qui, pour quoi et
 // jusqu'à quand, et porte ses boutons : un clic répond — l'action de réponse, une fois, avec le ticket et la réponse
-// choisie —, et l'item quitte le TODO. Rien à taper ni à recopier. C'est le TODO que le rail pose (kitchen.js,
+// choisie —, et l'item quitte le TODO. Rien à taper ni à recopier. C'est le TODO que le rail pose (cuisine.js,
 // `poserLeTodo`, ticket 4261), qui lui donne les boutons de chaque carte.
 // `choices` : les mêmes pour chaque item, ou ceux de son ticket — le recommandé, plein. `open` : son numéro ouvre sa carte,
 // d'un clic (`openTitle` au survol). `control` : le contrôle de park d'un item (park-control.js), derrière « park or
@@ -10,7 +10,7 @@
 // l'item se lit sans bouton.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
-import { button } from "../composants/button/button.js";
+import { bouton } from "../composants/bouton/bouton.js";
 import { waitingFor } from "./records.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -31,10 +31,10 @@ const headOf = (n) => `TODO (${n})`;
 // Qui il attend et jusqu'à quand, sur une ligne ; et pour quoi, quand rien ne le dit au-dessus.
 /** @param {Fabrique} doc @param {ParkedRecord} record */
 function quiEtQuand(doc, { who, what, until }) {
-  const line = doc.createElement("span");
-  line.className = "qui-jusqua";
-  line.textContent = [`waits for ${who}`, ...(what === null ? [NO_WHAT] : []), until === null ? NO_UNTIL : `until ${until}`].join(" · ");
-  return line;
+  const ligne = doc.createElement("span");
+  ligne.className = "qui-jusqua";
+  ligne.textContent = [`waits for ${who}`, ...(what === null ? [NO_WHAT] : []), until === null ? NO_UNTIL : `until ${until}`].join(" · ");
+  return ligne;
 }
 
 /** @param {Fabrique} doc @param {Options} options */
@@ -55,17 +55,17 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
       const item = doc.createElement("li");
       item.className = "entree-du-todo";
       item.dataset.ticket = String(ticket);
-      const name = `#${ticket}${record.title === undefined ? "" : ` ${record.title}`}`;
-      if (open === undefined) item.append(Object.assign(doc.createElement("strong"), { textContent: name }));
-      else item.append(Object.assign(button(doc, name, () => open(ticket), { sorte: "discret" }), { title: openTitle(ticket) }));
+      const nom = `#${ticket}${record.title === undefined ? "" : ` ${record.title}`}`;
+      if (open === undefined) item.append(Object.assign(doc.createElement("strong"), { textContent: nom }));
+      else item.append(Object.assign(bouton(doc, nom, () => open(ticket), { sorte: "discret" }), { title: openTitle(ticket) }));
       if (record.what !== null) item.append(Object.assign(doc.createElement("p"), { className: "demande-du-todo", textContent: record.what }));
       item.append(quiEtQuand(doc, record));
       if (readOnly !== undefined) return item;
       /** @type {readonly Choice[]} */
-      const lesChoice = typeof choices === "function" ? choices(record) : choices.map((texte) => ({ texte }));
+      const lesChoix = typeof choices === "function" ? choices(record) : choices.map((texte) => ({ texte }));
       let repondu = false;
-      const boutons = lesChoice.map(({ texte, recommande }) =>
-        button(
+      const boutons = lesChoix.map(({ texte, recommande }) =>
+        bouton(
           doc,
           texte,
           () => {
@@ -82,7 +82,7 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
       /** @type {any} */
       let pose = control !== undefined && opened.has(ticket) ? control(record) : undefined;
       if (control !== undefined) {
-        const ouvrir = button(
+        const ouvrir = bouton(
           doc,
           OPEN_PARK,
           () => {
@@ -101,10 +101,10 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
         boutons.push(ouvrir);
       }
       if (boutons.length > 0) {
-        const answers = doc.createElement("div");
-        answers.className = "reponses-du-todo";
-        answers.append(...boutons);
-        item.append(answers);
+        const reponses = doc.createElement("div");
+        reponses.className = "reponses-du-todo";
+        reponses.append(...boutons);
+        item.append(reponses);
       }
       if (pose !== undefined) item.append(pose);
       return item;

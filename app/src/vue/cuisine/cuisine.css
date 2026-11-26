@@ -1,0 +1,148 @@
+/* Le plan de la cuisine (cuisine.js, ticket 4238) : la bande du haut, la ligne du TODO du chef au-dessus des colonnes, le
+   rail en tête du backlog et les cartes parked. */
+
+/* La bande du haut (ticket 4354) : sur une ligne, la carte du supervisor et celle du closer — un point, un nom, deux ou trois
+   mots — et au bout la ligne du délai de prise, coupée à sa largeur ; dessous, le détail d'une carte ouverte, puis le message
+   qui demande un geste. */
+#rail .bande-du-haut {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  margin: var(--pas-2) var(--pas-4) 0;
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
+#rail .bande-du-haut:not(:has(button, .ligne-du-delai)) {
+  display: none;
+}
+#rail .cartes-des-agents {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  min-width: 0;
+}
+#rail .carte-d-agent {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-1);
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+#rail .carte-d-agent strong {
+  color: var(--texte);
+}
+#rail .carte-d-agent[aria-expanded="true"] {
+  border-color: var(--accent);
+}
+#rail .ligne-du-delai {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--discret);
+}
+#rail .detail-de-l-agent {
+  margin: 0;
+}
+
+/* Le TODO du chef : une ligne, « 2 wait for you », posée sous les colonnes et montrée juste au-dessus d'elles ; un clic
+   déplie ses entrées dessous (ticket 4354). */
+#rail .colonnes {
+  order: 1;
+}
+#rail .colonnes ~ * {
+  order: 2;
+}
+#rail .colonnes ~ .avis-du-todo {
+  order: 0;
+}
+#rail .avis-du-todo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pas-2);
+  padding: var(--pas-1) var(--pas-4) 0;
+}
+#rail .avis-du-todo .ligne-du-todo {
+  font-weight: 600;
+  color: var(--rouge-clair);
+}
+#rail .todo-du-rail .tete-du-todo {
+  flex: none;
+  align-self: center;
+  font-weight: 600;
+  color: var(--rouge-clair);
+}
+#rail .todo-du-rail .entrees-du-todo {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Une entrée : son ticket, ce qui est demandé au chef, puis ses boutons — sur une ligne tant qu'elle tient (ticket 4261). */
+#rail .entree-du-todo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-2);
+  padding-left: var(--pas-1);
+  border-left: 3px solid var(--rouge);
+}
+#rail .entree-du-todo .demande-du-todo {
+  margin: 0;
+  color: var(--texte);
+}
+#rail .entree-du-todo .reponses-du-todo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1);
+}
+
+/* Le backlog : le rail en tête, ce qui est prêt à cuire ; dessous, ce qui ne l'est pas encore. */
+#rail .colonne h5 {
+  margin: var(--pas-2) 0 var(--pas-1);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--discret);
+}
+#rail .pas-prets {
+  margin-top: var(--pas-3);
+  padding-top: var(--pas-1);
+  border-top: 1px dashed var(--trait);
+}
+
+/* Une carte parked : qui elle attend, jusqu'à quand, en tête de sa ligne. */
+#rail [data-parque] .parque {
+  margin: var(--pas-1) 0 0;
+  padding-left: var(--pas-2);
+  border-left: 3px solid var(--orange);
+  font-size: var(--taille-corps);
+  font-weight: 600;
+}
+
+/* Une lecture hors ligne ou périmée, en tête du rail : son signe, et « read again » à côté. */
+#rail .relisible {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+}
+
+/* À côté du TODO, sous les colonnes : une réponse gardée, et « Awaiting others », replié — ni l'un ni l'autre n'attend le chef. */
+#rail .a-cote-du-todo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-2) var(--pas-4) 0;
+}
+#rail .a-cote-du-todo .replie.autres {
+  padding: var(--pas-2);
+}

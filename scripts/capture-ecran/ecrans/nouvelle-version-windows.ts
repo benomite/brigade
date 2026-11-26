@@ -1,6 +1,6 @@
 // « Tous les projets », l'app installée sous Windows quand une version plus haute est publiée (#1528, #2431) :
 // la ligne en tête, la version qui tourne et la dernière, son lien Download vers l'installeur .exe (SmartScreen au survol).
-import { indiceDe } from "../../../app/src/update/opinion.ts";
+import { indiceDe } from "../../../app/src/mise-a-jour/avis.ts";
 import { type Ecran, MAINTENANT } from "./commun.ts";
 import { ecran as installee } from "./tous-les-projets-installee.ts";
 

@@ -195,7 +195,7 @@ These are the settings the writer of `projet.json` refuses: a project's file nev
 
 The app keeps its own preferences in `~/.config/brigade/app.json`, outside any repository, and in
 a **secret gist of your GitHub account**. Every `you` setting is one of two kinds, and the split is
-the list of device-bound keys in `app/src/settings-perso/partage.ts`: a key on that list stays on
+the list of device-bound keys in `app/src/reglages-perso/partage.ts`: a key on that list stays on
 the machine it was set on; any other key of the file is a preference, and follows you from one
 device to another — including one added later, with no change to this page. The app draws the
 colors and writes them itself; see [`app.md`](app.md), "A project's colors" and "Your preferences

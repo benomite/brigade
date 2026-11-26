@@ -6,7 +6,7 @@ The autonomy figures: how much of what the kitchen serves needs no human. Code:
 
 The figures are computed from GitHub, for the last 7 and 30 days, and the weekly kitchen summary carries the
 ones of its week (`runtime/src/resume-hebdomadaire/`, see `etat-et-mesures.md`). The app reads them through
-`app/src/vue/autonomy/autonomy-github.ts`.
+`app/src/vue/autonomie/autonomie-github.ts`.
 
 Next to them, the same function counts what the pass let through on the same tickets (#3515): the **escaped bugs** and the
 **reverts**, each with the tickets and commit shas that make it (`bugsEchappes`, `reverts`). Their data (`defauts` of a

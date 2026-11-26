@@ -8,17 +8,17 @@ import { assembler, construire, IDENTIFIANT } from "../../packaging/construire.t
 import { PAQUETS } from "../aides/posix.ts";
 
 const MACH_O = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
-const plist = (name: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
+const plist = (nom: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>${name}</string>
+	<string>${nom}</string>
 	<key>CFBundleExecutable</key>
-	<string>${name}</string>
+	<string>${nom}</string>
 ${icone === undefined ? "" : `	<key>CFBundleIconFile</key>\n	<string>${icone}</string>\n`}	<key>CFBundleIdentifier</key>
 	<string>${id}</string>
 	<key>CFBundleName</key>
-	<string>${name}</string>
+	<string>${nom}</string>
 	<key>CFBundleShortVersionString</key>
 	<string>44.7.0</string>
 	<key>CFBundleVersion</key>
@@ -65,7 +65,7 @@ const construit = (): { racine: string; paquet: string } => {
   const { electron, node } = doublure(racine);
   return { racine, paquet: assembler({ version: "1.0.0", electron, node, ...AUTOUR(racine) }, join(racine, "volume")) };
 };
-const cle = (xml: string, name: string) => new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
+const cle = (xml: string, nom: string) => new RegExp(`<key>${nom}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
 const fichiers = (dossier: string): string[] =>
   readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? fichiers(join(dossier, e.name)) : e.isFile() ? [join(dossier, e.name)] : []));
 const sansApp = (chemin: string) => !/\/Resources\/(app|runtime)\//.test(chemin);
@@ -77,21 +77,21 @@ test("the bundled node executable is renamed and signed with the Brigade identit
   assert.equal(nodes.length, 1, `one bundled executable under Resources/, got ${nodes.join(", ")}`);
   assert.doesNotMatch(nodes[0]!.split("/").pop()!, /^node$/i, "the bundled node keeps the plain 'node' name");
 
-  const identity = "Developer ID Application: Brigade (ABCDE12345)";
-  const calls: string[][] = [];
-  const executer = (command: string, args: readonly string[]) => {
-    if (command === "codesign") calls.push([...args]);
+  const identite = "Developer ID Application: Brigade (ABCDE12345)";
+  const appels: string[][] = [];
+  const executer = (commande: string, args: readonly string[]) => {
+    if (commande === "codesign") appels.push([...args]);
     return { status: 0, stdout: "", stderr: "" };
   };
   const atelier = join(racine, "atelier");
   const { electron, node } = { electron: join(racine, "Electron.app"), node: join(racine, "node") };
-  construire({ version: "1.0.0", electron, node, ...AUTOUR(racine), sortie: join(racine, "sortie"), atelier, executer, identite: identity });
-  const name = nodes[0]!.split("/").pop()!;
-  const signes = calls.filter((a) => a.some((x) => x.endsWith(`/${name}`)));
+  construire({ version: "1.0.0", electron, node, ...AUTOUR(racine), sortie: join(racine, "sortie"), atelier, executer, identite });
+  const nom = nodes[0]!.split("/").pop()!;
+  const signes = appels.filter((a) => a.some((x) => x.endsWith(`/${nom}`)));
   assert.ok(signes.length > 0, "the bundled node is signed on its own");
-  for (const call of signes) {
-    assert.equal(call[call.indexOf("--sign") + 1], identity, "signed with the Brigade identity");
-    const i = call.indexOf("--identifier");
-    assert.ok(i >= 0 && call[i + 1]!.startsWith(IDENTIFIANT), "signed under a Brigade identifier, not 'node'");
+  for (const appel of signes) {
+    assert.equal(appel[appel.indexOf("--sign") + 1], identite, "signed with the Brigade identity");
+    const i = appel.indexOf("--identifier");
+    assert.ok(i >= 0 && appel[i + 1]!.startsWith(IDENTIFIANT), "signed under a Brigade identifier, not 'node'");
   }
 });

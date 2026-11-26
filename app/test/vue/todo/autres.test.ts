@@ -2,40 +2,40 @@
 // l'entrée « TODO (N) », hors des colonnes — TODO n'est pas une colonne (#3458) ; dépliées, chacune dit qui elle attend, et
 // s'ouvre et se répond comme une carte de TODO (#3071 : l'assignation ne retient personne). Rien n'attend un autre humain :
 // la section n'est pas là. Le même bloc est sur un écran étroit — le téléphone.
-// La vue est jouée telle qu'elle est (aides/fausse-vue.ts), sur les faits que le process principal range (facts.ts).
+// La vue est jouée telle qu'elle est (aides/fausse-vue.ts), sur les faits que le process principal range (faits.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
-import { pourLaBar } from "../../../src/bar.ts";
+import { pourLaBarre } from "../../../src/barre.ts";
 import { EXEMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
-import { BANNIERE, holdFacts, type Facts } from "../../../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../../../src/actions.ts";
+import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
+import { BANNIERE, tenirFaits, type Faits } from "../../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../../src/projects/projects.ts";
+import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import { rouges } from "../../aides/rouges.ts";
-import { FauxScreen, type Faux, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
+import { FauxEcran, type Faux, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const A = "2026-11-09T10:04:12.000Z";
 const PARADE = "parade";
 const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const demarrage = () => ({
-  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
 
-const CARD = (question: string) => ({ type: "product", question, choix: [{ texte: "Yes.", suite: "resume" }, { texte: "No.", suite: "resume" }], captures: null });
+const CARTE = (question: string) => ({ type: "product", question, choix: [{ texte: "Yes.", suite: "resume" }, { texte: "No.", suite: "resume" }], captures: null });
 
 // #12 attend le compte connecté ; #22, mis de côté sur le rail, attend bob ; #23 attend le chef et carol.
-const FACTS: Facts = {
+const FAITS: Faits = {
   etat: "ouverte",
   lu: "2026-11-09T10:04:11.000Z",
   dernierTick: null,
@@ -47,27 +47,27 @@ const FACTS: Facts = {
   ],
   attend: [{ ticket: 12, titre: "Validation SIRET", url: issue(12) }],
   attendAutres: [
-    { ticket: 22, titre: "Drop the importer", url: issue(22), carte: CARD("Drop the legacy importer?"), qui: ["bob"] },
-    { ticket: 23, titre: "Open the beta", url: issue(23), carte: CARD("Open the beta to everyone?"), qui: ["benomite", "carol"] },
+    { ticket: 22, titre: "Drop the importer", url: issue(22), carte: CARTE("Drop the legacy importer?"), qui: ["bob"] },
+    { ticket: 23, titre: "Open the beta", url: issue(23), carte: CARTE("Open the beta to everyone?"), qui: ["benomite", "carol"] },
   ],
 };
 
-async function ouvrir({ etroit, faits: facts = FACTS }: { etroit: boolean; faits?: Facts }): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [] }, { ecran: new FauxScreen(etroit) });
+async function ouvrir({ etroit, faits = FAITS }: { etroit: boolean; faits?: Faits }): Promise<Jouee> {
+  const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [] }, { ecran: new FauxEcran(etroit) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
-  recevoir(vue, facts);
+  recevoir(vue, faits);
   return vue;
 }
-function recevoir(vue: Jouee, facts: Facts) {
-  const recue = holdFacts(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
+function recevoir(vue: Jouee, faits: Faits) {
+  const recue = tenirFaits(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
 
 // « Awaiting others » n'attend pas le chef : il est à côté de son TODO, sous les colonnes, pas dedans (#4238).
 const todo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "a-cote-du-todo") ?? assert.fail("pas de bloc à côté du TODO");
 const sansTodo = (vue: Jouee) => vue.element("rail").dessous("div").find(({ className }) => className === "a-cote-du-todo");
-const account = (vue: Jouee) => rouges(vue.element("rail")).length;
+const compte = (vue: Jouee) => rouges(vue.element("rail")).length;
 const pliDe = (colonne: Faux) => colonne.children.find((enfant) => enfant.balise === "details");
 const ouvert = (pli: Faux) => (pli as unknown as { open?: boolean }).open === true;
 function deplier(pli: Faux) {
@@ -83,7 +83,7 @@ describe("« Awaiting others » sous les colonnes, hors d'elles (#2985, #3458)",
       const pli = pliDe(colonne) ?? assert.fail("pas de « Awaiting others »");
       const rouges = vue.element("rail").dessous("li").filter((li) => li.dataset.carte === "attente" && !pli.dessous("li").includes(li));
       assert.deepEqual(rouges.map((li) => li.children[0]?.children[0]?.textContent), ["#12"]);
-      assert.equal(account(vue), 1);
+      assert.equal(compte(vue), 1);
       assert.equal(colonne.children.at(-1), pli);
       assert.equal(pli.children[0]?.textContent, "Awaiting others (2)");
       assert.equal(ouvert(pli), false);
@@ -103,7 +103,7 @@ describe("« Awaiting others » sous les colonnes, hors d'elles (#2985, #3458)",
       pli.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent),
       ["#22", "#23"],
     );
-    assert.equal(account(vue), 1);
+    assert.equal(compte(vue), 1);
     assert.equal(pli.dessous("*").some((e) => e.textContent === "awaiting you"), false, "elles n'attendent pas le compte connecté");
   });
 
@@ -112,12 +112,12 @@ describe("« Awaiting others » sous les colonnes, hors d'elles (#2985, #3458)",
       const vue = await ouvrir({ etroit });
       const pli = pliDe(todo(vue)) ?? assert.fail("pas de « Awaiting others »");
       deplier(pli);
-      const slip = pli.dessous("li").find((li) => li.className.split(" ").includes("bon") && li.children[0]?.children[0]?.textContent === "#22") ?? assert.fail("pas de #22");
-      const card = slip.dessous("section").find((c) => c.className === "carte-todo") ?? assert.fail("pas de carte de TODO sur #22");
-      assert.deepEqual(card.dessous("button").filter((b) => b.className === "choix").map((b) => b.textContent), ["Yes.", "No."]);
-      assert.equal(card.dessous("textarea").length, 1);
+      const bon = pli.dessous("li").find((li) => li.className.split(" ").includes("bon") && li.children[0]?.children[0]?.textContent === "#22") ?? assert.fail("pas de #22");
+      const carte = bon.dessous("section").find((c) => c.className === "carte-todo") ?? assert.fail("pas de carte de TODO sur #22");
+      assert.deepEqual(carte.dessous("button").filter((b) => b.className === "choix").map((b) => b.textContent), ["Yes.", "No."]);
+      assert.equal(carte.dessous("textarea").length, 1);
       assert.equal(vue.element("fiche").hidden, true);
-      slip.click();
+      bon.click();
       assert.equal(vue.element("fiche").hidden, false);
     });
   }
@@ -126,21 +126,21 @@ describe("« Awaiting others » sous les colonnes, hors d'elles (#2985, #3458)",
     const vue = await ouvrir({ etroit: false });
     assert.equal(vue.element("rail").textContent.includes("outside the columns"), false);
     const pli = pliDe(todo(vue)) ?? assert.fail("pas de « Awaiting others »");
-    const slips = vue.element("rail").dessous("li").filter((li) => li.className.split(" ").includes("bon") && !pli.dessous("li").includes(li)).map((li) => li.children[0]?.children[0]?.textContent);
-    assert.equal(slips.includes("#22"), false);
+    const bons = vue.element("rail").dessous("li").filter((li) => li.className.split(" ").includes("bon") && !pli.dessous("li").includes(li)).map((li) => li.children[0]?.children[0]?.textContent);
+    assert.equal(bons.includes("#22"), false);
   });
 
   test("déplié, il le reste à la lecture suivante", async () => {
     const vue = await ouvrir({ etroit: false });
     deplier(pliDe(todo(vue)) ?? assert.fail("pas de « Awaiting others »"));
-    recevoir(vue, FACTS);
+    recevoir(vue, FAITS);
     assert.equal(ouvert(pliDe(todo(vue)) ?? assert.fail("pas de « Awaiting others »")), true);
   });
 
   test("rien n'attend un autre humain : pas de « Awaiting others », le bloc absent quand il est vide", async () => {
-    const { attendAutres: _, ...sans } = FACTS;
+    const { attendAutres: _, ...sans } = FAITS;
     assert.equal(sansTodo(await ouvrir({ etroit: false, faits: sans })), undefined);
-    const seuls = await ouvrir({ etroit: true, faits: { ...FACTS, attend: [], compteurs: { ...FACTS.compteurs, attend: 0 } } });
+    const seuls = await ouvrir({ etroit: true, faits: { ...FAITS, attend: [], compteurs: { ...FAITS.compteurs, attend: 0 } } });
     assert.equal(pliDe(todo(seuls))?.children[0]?.textContent, "Awaiting others (2)");
     assert.equal(sansTodo(await ouvrir({ etroit: true, faits: { ...sans, attend: [] } })), undefined);
   });

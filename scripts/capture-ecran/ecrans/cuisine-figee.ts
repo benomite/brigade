@@ -1,25 +1,25 @@
 // Deux projets sur une box, tels qu'elle les rend à 10:04:12 (MAINTENANT) : « parade », dont un
 // cook travaille, une livraison est à la pass et une décision attend le chef ; « cantine », calme.
 // Ce sont des sorties de box, mot pour mot — rien de ce que la vue reçoit n'est écrit ici à la main.
-import type { Project } from "../../../app/src/config.ts";
-import type { Facts } from "../../../app/src/facts.ts";
+import type { Projet } from "../../../app/src/config.ts";
+import type { Faits } from "../../../app/src/faits.ts";
 import type { Rendu } from "./commun.ts";
 
-export const PROJETS: Project[] = [
+export const PROJETS: Projet[] = [
   { nom: "parade", dossier: "/Users/chef/code/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } },
   { nom: "cantine", dossier: "/Users/chef/code/cantine", couleurs: { onglet: "#4fc7b5", accent: "#4fc7b5" } },
 ];
 
 const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 
-const FAITS_PARADE: Facts = {
+const FAITS_PARADE: Faits = {
   etat: "ouverte",
   lu: "2026-10-13T10:04:11.000Z",
   dernierTick: "2026-10-13T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 2 },
   dernierEvenement: { seq: 812, at: "2026-10-13T10:03:58.000Z", type: "merge.done", ticket: 9 },
   rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: issue(14), activite: { fait: "écrit", cible: "app/src/slip.ts", depuis: "2026-10-13T10:02:11.000Z" }, attente: null },
+    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: issue(14), activite: { fait: "écrit", cible: "app/src/bon.ts", depuis: "2026-10-13T10:02:11.000Z" }, attente: null },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: issue(21), activite: null, attente: null },
     { ticket: 22, etat: "en attente", titre: "Un ticket libre", url: issue(22), activite: null, attente: null },
     { ticket: 30, etat: "en pass", titre: "La pass verte", url: issue(30), activite: { fait: "gates en cours", cible: null, depuis: "2026-10-13T10:03:41.000Z" }, attente: null },
@@ -61,7 +61,7 @@ const STATUS_PARADE = [
   "",
 ].join("\n");
 
-const FAITS_CANTINE: Facts = {
+const FAITS_CANTINE: Faits = {
   etat: "ouverte",
   lu: "2026-10-13T10:04:10.000Z",
   dernierTick: "2026-10-13T10:04:05.000Z",

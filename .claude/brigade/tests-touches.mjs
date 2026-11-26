@@ -186,7 +186,7 @@ for (const [f, texte] of textes) {
   // Un nom cité ne compte que dans un test : un helper partagé en cite beaucoup
   // (le `main.ts` qu'il sait lancer), et ferait toucher chaque test par tout.
   // Le chemin d'un import est déjà une arête, résolue : son nom seul, cité, ferait
-  // toucher chaque fichier du même nom — `../src/kitchen.ts` de l'app tirait
+  // toucher chaque fichier du même nom — `../src/cuisine.ts` de l'app tirait
   // `runtime/test/aides/cuisine.ts`, qui sert presque tout le runtime (#1611).
   if (f.endsWith(".test.ts")) for (const [nom] of texte.replace(IMPORT, "").matchAll(CITE)) for (const g of parNom.get(basename(nom)) ?? []) if (g !== f) vers.add(g);
   aretes.set(f, vers);

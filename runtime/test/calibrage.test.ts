@@ -27,6 +27,6 @@ test("ce qui manque à un calibrage se dit en clair, pour le chef", () => {
 });
 
 test("une zone touche la vue de l'app quand elle la nomme, nomme un chemin dessous, ou un dossier qui la contient", () => {
-  for (const zone of [["app/src/vue"], ["app/src/vue/carte.js"], ["app/src"], ["app"], ["runtime/src", "app/src/vue/tokens.css"]]) assert.equal(toucheLaVue(zone), true, zone.join(", "));
+  for (const zone of [["app/src/vue"], ["app/src/vue/carte.js"], ["app/src"], ["app"], ["runtime/src", "app/src/vue/jetons.css"]]) assert.equal(toucheLaVue(zone), true, zone.join(", "));
   for (const zone of [["runtime/src"], ["docs/maquettes/app"], ["scripts/capture-ecran"], ["app/src/service.ts"], ["app/src/vue2"], ["app/test"], []]) assert.equal(toucheLaVue(zone), false, zone.join(", "));
 });

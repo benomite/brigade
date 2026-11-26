@@ -7,15 +7,15 @@ const DEBUTS_DE_REGEX = new Set(["", "(", ",", "=", ":", "[", "!", "&", "|", "?"
 export function chainesDeVue(source: string): Chaine[] {
   const chaines: Chaine[] = [];
   let i = 0;
-  let line = 1;
+  let ligne = 1;
   let dernier = ""; // le dernier signe significatif, pour décider si « / » ouvre une regex
-  let word = ""; // le dernier mot, « return » ou « case » ouvrent une regex / une comparaison
+  let mot = ""; // le dernier mot, « return » ou « case » ouvrent une regex / une comparaison
   const avant = () => source.slice(Math.max(0, i - 24), i).replace(/\s+/g, " ");
 
   function lireGabarit(): void {
     // `i` est juste après le « ` » ouvrant ; chaque morceau fixe est une chaîne, chaque ${…} est relu comme du code.
     let morceau = "";
-    let debut = line;
+    let debut = ligne;
     const poser = () => {
       if (morceau !== "") chaines.push({ texte: morceau, ligne: debut, avant: "" });
       morceau = "";
@@ -28,9 +28,9 @@ export function chainesDeVue(source: string): Chaine[] {
         poser();
         i += 2;
         lireCode(true);
-        debut = line;
+        debut = ligne;
       } else {
-        if (source[i] === "\n") line++;
+        if (source[i] === "\n") ligne++;
         morceau += source[i];
         i++;
       }
@@ -45,7 +45,7 @@ export function chainesDeVue(source: string): Chaine[] {
       const c = source[i] as string;
       const suite = source[i + 1];
       if (c === "\n") {
-        line++;
+        ligne++;
         i++;
       } else if (/\s/.test(c)) {
         i++;
@@ -54,11 +54,11 @@ export function chainesDeVue(source: string): Chaine[] {
       } else if (c === "/" && suite === "*") {
         const fin = source.indexOf("*/", i + 2);
         const coupe = fin === -1 ? source.length : fin + 2;
-        line += source.slice(i, coupe).split("\n").length - 1;
+        ligne += source.slice(i, coupe).split("\n").length - 1;
         i = coupe;
       } else if (c === '"' || c === "'") {
-        const context = avant();
-        const debut = line;
+        const contexte = avant();
+        const debut = ligne;
         let texte = "";
         i++;
         while (i < source.length && source[i] !== c) {
@@ -68,15 +68,15 @@ export function chainesDeVue(source: string): Chaine[] {
           } else texte += source[i++];
         }
         i++;
-        chaines.push({ texte, ligne: debut, avant: context });
+        chaines.push({ texte, ligne: debut, avant: contexte });
         dernier = "a";
-        word = "";
+        mot = "";
       } else if (c === "`") {
         i++;
         lireGabarit();
         dernier = "a";
-        word = "";
-      } else if (c === "/" && (DEBUTS_DE_REGEX.has(dernier) || word === "return" || word === "typeof")) {
+        mot = "";
+      } else if (c === "/" && (DEBUTS_DE_REGEX.has(dernier) || mot === "return" || mot === "typeof")) {
         i++;
         let classe = false;
         while (i < source.length && (source[i] !== "/" || classe) && source[i] !== "\n") {
@@ -88,7 +88,7 @@ export function chainesDeVue(source: string): Chaine[] {
         i++;
         while (/[a-z]/.test(source[i] ?? "")) i++;
         dernier = "a";
-        word = "";
+        mot = "";
       } else if (dansGabarit && c === "}" && profondeur === 0) {
         i++;
         return;
@@ -98,17 +98,17 @@ export function chainesDeVue(source: string): Chaine[] {
         if (/[A-Za-z_$]/.test(c)) {
           let fin = i;
           while (/[\w$]/.test(source[fin] ?? "")) fin++;
-          word = source.slice(i, fin);
+          mot = source.slice(i, fin);
           i = fin;
           dernier = "a";
         } else if (/[0-9]/.test(c)) {
           i++;
           dernier = "a";
-          word = "";
+          mot = "";
         } else {
           if (c === ")" || c === "]") dernier = "a";
           else dernier = c;
-          word = "";
+          mot = "";
           i++;
         }
       }

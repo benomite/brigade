@@ -5,42 +5,42 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBar } from "../src/bar.ts";
+import { pourLaBarre } from "../src/barre.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
-import { BANNIERE } from "../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../src/actions.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE } from "../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { EFFORTS, MODELES } from "../src/projects/projects.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
-const LINE = "this computer's station is not running";
+const LIGNE = "this computer's station is not running";
 const CONFIGURATION = { chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }, { nom: "cantine", dossier: "/tmp/cantine" }] };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
-const served = (project: { nom: string }) => project.nom === "cantine";
-const ici = (name: string) => name === "parade";
+const servi = (projet: { nom: string }) => projet.nom === "cantine";
+const ici = (nom: string) => nom === "parade";
 
 describe("la station de cet ordinateur ne tourne pas : la barre le marque sur les projets qui cuisent ici", () => {
   test("seul un projet qui cuit ici porte « sansStation » — pas celui d'une autre station, pas quand la station tourne", () => {
-    const arretee = pourLaBar(CONFIGURATION, served, ici, () => false).projets;
+    const arretee = pourLaBarre(CONFIGURATION, servi, ici, () => false).projets;
     assert.equal(arretee[0]?.sansStation, true);
     assert.equal(arretee[1]?.sansStation, undefined);
-    const tourne = pourLaBar(CONFIGURATION, served, ici, () => true).projets;
+    const tourne = pourLaBarre(CONFIGURATION, servi, ici, () => true).projets;
     assert.equal(tourne[0]?.sansStation, undefined);
     // Sans rien dire de la station (la barre d'avant), personne n'est marqué.
-    assert.equal(pourLaBar(CONFIGURATION, undefined, ici).projets[0]?.sansStation, undefined);
+    assert.equal(pourLaBarre(CONFIGURATION, undefined, ici).projets[0]?.sansStation, undefined);
   });
 });
 
 const demarrage = (tourne: boolean) => () => ({
-  configuration: pourLaBar(CONFIGURATION, served, ici, () => tourne),
+  configuration: pourLaBarre(CONFIGURATION, servi, ici, () => tourne),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -61,7 +61,7 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     const vue = await ouvrir(false, 1);
 
     assert.equal(centre(vue).hidden, false);
-    assert.equal(centre(vue).textContent, LINE);
+    assert.equal(centre(vue).textContent, LIGNE);
     assert.equal(centre(vue).children.length, 1);
     assert.ok(!vue.poses().some(({ id }) => id === "carte"));
     assert.ok(!vue.poses().some(({ id }) => id === "lu-cuisine" || id === "lecture-cuisine"));
@@ -69,9 +69,9 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
 
   test("la station démarre : la configuration reposée enlève la ligne, et le rail reprend sa place — l'app n'est pas relancée", async () => {
     const vue = await ouvrir(false, 1);
-    assert.equal(centre(vue).textContent, LINE);
+    assert.equal(centre(vue).textContent, LIGNE);
 
-    vue.dire("surConfiguration", pourLaBar(CONFIGURATION, served, ici, () => true), []);
+    vue.dire("surConfiguration", pourLaBarre(CONFIGURATION, servi, ici, () => true), []);
     await repos();
 
     assert.equal(centre(vue).hidden, false);
@@ -83,10 +83,10 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     const vue = await ouvrir(true, 1);
     assert.doesNotMatch(centre(vue).textContent, /not running/);
 
-    vue.dire("surConfiguration", pourLaBar(CONFIGURATION, served, ici, () => false), []);
+    vue.dire("surConfiguration", pourLaBarre(CONFIGURATION, servi, ici, () => false), []);
     await repos();
 
-    assert.equal(centre(vue).textContent, LINE);
+    assert.equal(centre(vue).textContent, LIGNE);
   });
 
   test("un projet servi par une autre station ne porte jamais la ligne, station arrêtée ou non", async () => {

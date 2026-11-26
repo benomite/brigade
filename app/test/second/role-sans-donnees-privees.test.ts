@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { ROLE_DU_SECOND } from "../../src/second/launch.ts";
+import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
 
 const role = readFileSync(ROLE_DU_SECOND, "utf8");
 

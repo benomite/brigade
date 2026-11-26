@@ -3,13 +3,13 @@
 // son closer (#1685) — chacun la rangée de réglage (#2920) : sa valeur, d'où elle vient, de quoi la changer, et la ligne
 // qui dit qu'un changement ouvre une PR. Le chef écrit `develop` dans la branche, sans l'avoir validé : rien n'est
 // proposé tant que le champ n'est pas quitté.
-import { settingsVus } from "../../../app/src/settings-du-project.ts";
+import { reglagesVus } from "../../../app/src/reglages-du-projet.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 // Ce que `setting` rend de la cuisine de parade.
 export const LUS = {
-  vus: settingsVus(
+  vus: reglagesVus(
     JSON.stringify({
       file: ".claude/brigade/projet.json",
       inRepository: true,

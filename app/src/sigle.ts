@@ -12,7 +12,7 @@ export const SIGLE_MAX = 3;
 const signes = (texte: string): string[] => [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(texte)].map(({ segment }) => segment);
 
 // Pourquoi ce sigle écrit n'en est pas un — rien, s'il en est un.
-export function refusalDuSigle(lu: unknown): string | undefined {
+export function refusDuSigle(lu: unknown): string | undefined {
   if (typeof lu !== "string") return `“sigle” must be a string — the short label of its tile, ${SIGLE_MAX} characters at most`;
   const ecrit = lu.trim();
   if (ecrit === "") return "“sigle” is empty — remove it, and the app derives one from the name";
@@ -30,12 +30,12 @@ const haut = (signe: string): string => {
 
 // Les mots d'un nom : ce que séparent ses tirets, ses blancs, sa ponctuation, et le passage d'une
 // minuscule à une capitale (`mirrorLab`).
-function mots(name: string): string[] {
-  return name
+function mots(nom: string): string[] {
+  return nom
     .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
     .split(/[^\p{L}\p{N}]+/u)
-    .filter((word) => word !== "")
-    .map((word) => word.toLowerCase());
+    .filter((mot) => mot !== "")
+    .map((mot) => mot.toLowerCase());
 }
 
 const prefixeCommun = (a: readonly string[], b: readonly string[]): number => {
@@ -51,31 +51,31 @@ type Lu = { nom: string; lettres: string[]; initiales: string[] };
 function candidats({ lettres, initiales }: Lu, separe: number): string[] {
   const vus = new Set<string>();
   const rendus: string[] = [];
-  const garder = (...taken: (string | undefined)[]) => {
-    if (taken.some((signe) => signe === undefined)) return;
-    const sigle = (taken as string[]).map(haut).join("");
+  const garder = (...pris: (string | undefined)[]) => {
+    if (pris.some((signe) => signe === undefined)) return;
+    const sigle = (pris as string[]).map(haut).join("");
     if (sigle === "" || [...sigle].length > SIGLE_MAX || vus.has(sigle)) return;
     vus.add(sigle);
     rendus.push(sigle);
   };
-  const [first] = lettres;
-  if (first === undefined) return rendus;
+  const [premiere] = lettres;
+  if (premiere === undefined) return rendus;
   // Le préféré : les initiales de plusieurs mots ; d'un mot seul, sa première lettre et celle où il se sépare.
   if (initiales.length >= 2) garder(...initiales.slice(0, SIGLE_MAX));
-  if (lettres.length === 1) garder(first);
+  if (lettres.length === 1) garder(premiere);
   // Puis la première lettre et une autre, de celle où le nom se sépare à la fin, puis celles d'avant.
   const places = [...Array(lettres.length).keys()].slice(1);
   const ordre = [...places.filter((place) => place >= separe), ...places.filter((place) => place < separe)];
-  for (const place of ordre) garder(first, lettres[place]);
+  for (const place of ordre) garder(premiere, lettres[place]);
   // Puis trois lettres : la première, et deux autres dans l'ordre du nom.
-  for (const [rang, place] of ordre.entries()) for (const suivante of ordre.slice(rang + 1)) garder(first, ...[place, suivante].sort((a, b) => a - b).map((p) => lettres[p]));
+  for (const [rang, place] of ordre.entries()) for (const suivante of ordre.slice(rang + 1)) garder(premiere, ...[place, suivante].sort((a, b) => a - b).map((p) => lettres[p]));
   return rendus;
 }
 
 // Le dernier recours, quand aucune lettre du nom ne fait un sigle libre : sa première, et un nombre ; puis
 // tout sigle de lettres et de chiffres, du plus court au plus long.
-function* recours(first: string | undefined): Generator<string> {
-  if (first !== undefined) for (let n = 2; n < 100; n++) yield `${haut(first)}${n}`;
+function* recours(premiere: string | undefined): Generator<string> {
+  if (premiere !== undefined) for (let n = 2; n < 100; n++) yield `${haut(premiere)}${n}`;
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   for (const a of alphabet) yield a;
   for (const a of alphabet) for (const b of alphabet) yield `${a}${b}`;
@@ -84,25 +84,25 @@ function* recours(first: string | undefined): Generator<string> {
 
 // Le sigle de chaque projet, par son nom : celui que le chef a écrit, sinon un sigle tiré que n'a aucun
 // autre projet. L'ordre des projets n'y fait rien — les ranger dans la barre ne change pas leurs sigles.
-export function sigles(projects: readonly { nom: string; sigle?: string }[]): Map<string, string> {
+export function sigles(projets: readonly { nom: string; sigle?: string }[]): Map<string, string> {
   const rendus = new Map<string, string>();
   // Deux sigles qui ne diffèrent que par la casse se lisent pareil : ils comptent pour un.
-  const taken = new Set<string>();
-  const prendre = (name: string, sigle: string) => {
-    rendus.set(name, sigle);
-    taken.add(sigle.toUpperCase());
+  const pris = new Set<string>();
+  const prendre = (nom: string, sigle: string) => {
+    rendus.set(nom, sigle);
+    pris.add(sigle.toUpperCase());
   };
-  const free = (sigle: string) => !taken.has(sigle.toUpperCase());
-  for (const { nom: name, sigle } of projects) if (sigle !== undefined && refusalDuSigle(sigle) === undefined) prendre(name, sigle.trim());
+  const libre = (sigle: string) => !pris.has(sigle.toUpperCase());
+  for (const { nom, sigle } of projets) if (sigle !== undefined && refusDuSigle(sigle) === undefined) prendre(nom, sigle.trim());
 
-  const tous: Lu[] = projects
-    .map(({ nom: name }) => {
-      const decoupe = mots(name);
-      const lettres = decoupe.length === 0 ? signes(name.trim()) : [...decoupe.join("")];
-      return { nom: name, lettres, initiales: decoupe.map((word) => [...word][0] ?? "") };
+  const tous: Lu[] = projets
+    .map(({ nom }) => {
+      const decoupe = mots(nom);
+      const lettres = decoupe.length === 0 ? signes(nom.trim()) : [...decoupe.join("")];
+      return { nom, lettres, initiales: decoupe.map((mot) => [...mot][0] ?? "") };
     })
     .sort((a, b) => (a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0));
-  const lus = tous.filter(({ nom: name }) => !rendus.has(name));
+  const lus = tous.filter(({ nom }) => !rendus.has(nom));
   // Un mot seul se sépare des autres noms là où ils cessent de lui ressembler — à sa deuxième lettre, s'ils ne lui
   // ressemblent pas. Les noms dont le chef a écrit le sigle comptent aussi : en écrire un ne change pas les autres cases.
   const listes = lus.map((lu) => {
@@ -113,17 +113,17 @@ export function sigles(projects: readonly { nom: string; sigle?: string }[]): Ma
   const preferes = listes.map((liste) => liste[0]);
   for (const [rang, lu] of lus.entries()) {
     const prefere = preferes[rang];
-    if (prefere !== undefined && free(prefere) && preferes.filter((autre) => autre?.toUpperCase() === prefere.toUpperCase()).length === 1) prendre(lu.nom, prefere);
+    if (prefere !== undefined && libre(prefere) && preferes.filter((autre) => autre?.toUpperCase() === prefere.toUpperCase()).length === 1) prendre(lu.nom, prefere);
   }
   for (const [rang, lu] of lus.entries()) {
     if (rendus.has(lu.nom)) continue;
-    const trouve = (listes[rang] ?? []).find(free);
+    const trouve = (listes[rang] ?? []).find(libre);
     if (trouve !== undefined) {
       prendre(lu.nom, trouve);
       continue;
     }
     for (const sigle of recours(lu.lettres[0])) {
-      if (!free(sigle)) continue;
+      if (!libre(sigle)) continue;
       prendre(lu.nom, sigle);
       break;
     }

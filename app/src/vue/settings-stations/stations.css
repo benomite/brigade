@@ -1,6 +1,0 @@
-/* Les stations contributrices sous Settings (ticket 2936) : une rangée de réglage par station (composants/setting, ticket
-   2920) — son nom, son compte, « refused » si elle l'est, et le bouton du geste ; le refus du dernier geste dessous, en une
-   ligne (composants/line-error). Ni cadre ni titre de plus : le groupe du projet les porte. */
-#etat #stations-contributrices {
-  margin: 0;
-}

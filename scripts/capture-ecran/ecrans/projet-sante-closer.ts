@@ -2,14 +2,14 @@
 // closer sous les plafonds : ses trois dernières passes — une en cours, sa PR à la pass ; une mergée, ses lignes retirées ; une fermée
 // sans merge —, ce que la dernière lui a remis, les deux vérifications que le chef lui a demandées en plus, et ses
 // réglages, dont le calibrage et le plafond de tokens posés dans le dépôt.
-import type { ReadDuCloser } from "../../../app/src/closer-sante.ts";
+import type { LectureDuCloser } from "../../../app/src/closer-sante.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { PLAFONDS_LUS, SECTION, SETTINGS } from "./projet-sante.ts";
 import { NORMAL } from "./projet-temps-commun.ts";
 
 const DEPOT = "https://github.com/chef/parade";
-export const CLOSER_LU: ReadDuCloser = {
+export const CLOSER_LU: LectureDuCloser = {
   passes: {
     liste: [
       {

@@ -18,7 +18,7 @@ const AVEC_BAC: Entrees = {
 
 // brigade:guard
 test("avec bac à sable, l'étape de la machine ne dit rien du mode restreint et garde ses phrases", () => {
-  const machine = (entrees: Entrees) => etatDOnboarding(entrees).etapes.find(({ etape: step }) => step === "machine");
+  const machine = (entrees: Entrees) => etatDOnboarding(entrees).etapes.find(({ etape }) => etape === "machine");
   assert.equal(machine(AVEC_BAC)?.dit, "macbook cooks gadgets.");
   assert.equal(machine({ ...AVEC_BAC, suivi: null })?.dit, "macbook is opening the kitchen of gadgets.");
   assert.equal(etatDOnboarding(AVEC_BAC).decisionAttendue, false);

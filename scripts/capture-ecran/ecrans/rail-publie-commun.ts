@@ -4,7 +4,7 @@
 // `rail-publie*` et `second-*` en sont tirés.
 import type { RailDuProjet } from "../../../runtime/src/appairage/rail-du-projet.ts";
 import { planDuSecond, type OptionsDuSecond } from "../../../runtime/src/second/lancement.ts";
-import type { RailDuProjectLu } from "../../../app/src/facts.ts";
+import type { RailDuProjetLu } from "../../../app/src/faits.ts";
 import type { DitDuSecond, Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { CONNEXION, SANS_GH as STATIONS_SANS_GH } from "./premier-lancement-commun.ts";
@@ -29,15 +29,15 @@ const LISTE: Extract<RailDuProjet, { state: "listed" }> = {
   publishedAt: "2026-10-13T10:02:40.000Z",
   tickets: TICKETS,
 };
-export const LISTE_LUE: RailDuProjectLu = LISTE;
-export const CONNEXION_REQUISE: RailDuProjectLu = {
+export const LISTE_LUE: RailDuProjetLu = LISTE;
+export const CONNEXION_REQUISE: RailDuProjetLu = {
   state: "sign-in-required",
   project: PROJET,
   reason: `This computer is not signed in to GitHub, so brigade cannot read the rail of ${PROJET}, which its station publishes there.`,
   action: CONNEXION,
 };
 // Le rail ne se lit pas : il n'y a pas de `gh` sur ce PC — la phrase du runtime, tirée de l'échec des stations.
-export const SANS_GH: RailDuProjectLu =
+export const SANS_GH: RailDuProjetLu =
   STATIONS_SANS_GH.state === "unavailable"
     ? {
         state: "unavailable",
@@ -88,7 +88,7 @@ export function secondSansGh(): Terminal {
 export const SECOND_PARTI = SECOND;
 
 // L'espace de parade, ouvert par sa case de la barre : son rail tel qu'il se lit, son second tel qu'il part.
-export function espaceDuPC(dit: string, rail: RailDuProjectLu | { __enAttente: true }, second: Terminal): Ecran {
+export function espaceDuPC(dit: string, rail: RailDuProjetLu | { __enAttente: true }, second: Terminal): Ecran {
   return {
     dit,
     largeur: 1440,

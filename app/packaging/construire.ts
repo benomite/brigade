@@ -46,8 +46,8 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { APP_DU_PAQUET, COMMANDS_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
-import { COMMANDS } from "../src/plugin-app.ts";
+import { APP_DU_PAQUET, COMMANDES_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
+import { COMMANDES } from "../src/plugin-app.ts";
 import { defautsDeNom, IDENTIFIANT } from "./verifier-plist.ts";
 
 const REFUS = 2;
@@ -70,9 +70,9 @@ export const COMMANDES_DU_DEPOT = join(RACINE, "commands");
 // Les commandes du plugin de l'app (src/plugin-app.ts), et elles seules, copiées de `commandes`
 // sous les ressources du paquet : l'app installée les pose dans les projets qu'elle ouvre.
 export function porterLesCommandes(ressources: string, commandes = COMMANDES_DU_DEPOT): void {
-  const dans = join(ressources, COMMANDS_DU_PAQUET);
+  const dans = join(ressources, COMMANDES_DU_PAQUET);
   mkdirSync(dans, { recursive: true });
-  for (const nom of COMMANDS) cpSync(join(commandes, nom), join(dans, nom));
+  for (const nom of COMMANDES) cpSync(join(commandes, nom), join(dans, nom));
 }
 
 // Un refus ou un échec de la construction, avec le code qui le dit.

@@ -3,7 +3,7 @@
 // publié son état de quota (`quotaGithub`) : la limite `core`, reprise à 10:11 UTC, sept minutes après la lecture. Trois
 // tickets `fire` attendent en file depuis vingt minutes, deux qu'aucun manager n'a pris. La vue reçoit ce que l'app en
 // tire (app/src/vue/rail/github.ts, `avecLeRail`), rien écrit à la main.
-import type { TableauLu } from "../../../app/src/tableau/read.ts";
+import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
 import { avecLeRail, type RailSurGithub, type SignesDeVie } from "../../../app/src/vue/rail/github.ts";
 import { MAINTENANT, type Rendu } from "./commun.ts";
 import { renduDeParade, signe, ticket } from "./github-seul-commun.ts";
@@ -20,7 +20,7 @@ const RAIL: RailSurGithub = {
   ],
 };
 
-// La lecture d'un projet sur GitHub seul avant son rail (app/src/tableau/read.ts, `vide`).
+// La lecture d'un projet sur GitHub seul avant son rail (app/src/tableau/lecture.ts, `vide`).
 export const VIDE: TableauLu = {
   lu: true,
   depot: "chef/parade",

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ajouterProject, cheminConfiguration, creerConfiguration, EXEMPLE, lireConfiguration, rangerProject, retirerProject } from "../src/config.ts";
+import { ajouterProjet, cheminConfiguration, creerConfiguration, EXEMPLE, lireConfiguration, rangerProjet, retirerProjet } from "../src/config.ts";
 
 function repertoire(t: TestContext): string {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-"));
@@ -87,27 +87,27 @@ describe("la configuration de l'app", () => {
       const racine = repertoire(t);
       const { chemin } = configuration(t, { projets: [] });
 
-      assert.equal(ajouterProject(chemin, { nom: "a", dossier: racine, depot: "chef/a", base: "main" }), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: "a", dossier: racine, depot: "chef/a", base: "main" }), undefined);
 
       assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [{ nom: "a", dossier: racine, depot: "chef/a", base: "main" }] });
     });
 
-    for (const [quoi, declare, refusal] of [
+    for (const [quoi, declare, refus] of [
       ["un dépôt vide", { depot: " " }, /“depot” must be a non-empty string/],
       ["une branche qui n'est pas un texte", { base: 3 }, /“base” must be a non-empty string/],
     ] as const) {
       test(`${quoi} refuse le fichier, et dit pourquoi`, (t) => {
         const { chemin } = configuration(t, { projets: [{ nom: "a", dossier: "/", ...declare }] });
-        assert.match(lireConfiguration(chemin).refus ?? "", refusal);
+        assert.match(lireConfiguration(chemin).refus ?? "", refus);
       });
     }
   });
 
   test("l'exemple ne porte rien à recopier tel quel : chaque valeur à remplacer se voit, et aucune commande n'y est dictée", () => {
-    const [project] = (JSON.parse(EXEMPLE) as { projets: Record<string, string>[] }).projets;
+    const [projet] = (JSON.parse(EXEMPLE) as { projets: Record<string, string>[] }).projets;
 
-    assert.deepEqual(Object.keys(project ?? {}), ["nom", "dossier", "depot", "base"]);
-    for (const valeur of Object.values(project ?? {})) assert.match(valeur, /^<.+>$/);
+    assert.deepEqual(Object.keys(projet ?? {}), ["nom", "dossier", "depot", "base"]);
+    for (const valeur of Object.values(projet ?? {})) assert.match(valeur, /^<.+>$/);
     // Aucune station : un projet s'écrit sans dire qui fait sa cuisine (#983).
     assert.doesNotMatch(EXEMPLE, /\bbox|\bstation/i);
   });
@@ -136,12 +136,12 @@ describe("la configuration de l'app", () => {
     ["une « commande » seule", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^project #1 \(a\): “commande” is no longer read — remove it/],
     ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^two projects are named “a”$/],
   ];
-  for (const [quoi, contenu, refusal] of REFUSES) {
+  for (const [quoi, contenu, refus] of REFUSES) {
     test(`${quoi} : le fichier est refusé en entier, avec sa raison`, (t) => {
       const lue = lireConfiguration(configuration(t, contenu).chemin);
 
       assert.deepEqual(lue.projets, []);
-      assert.match(lue.refus ?? "", refusal);
+      assert.match(lue.refus ?? "", refus);
     });
   }
 
@@ -176,8 +176,8 @@ describe("la configuration de l'app", () => {
       const chemin = join(racine, "app.json");
       creerConfiguration(chemin);
 
-      assert.equal(ajouterProject(chemin, { nom: " brigade ", dossier: racine }), undefined);
-      assert.equal(ajouterProject(chemin, { nom: "parade", dossier: racine }), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: " brigade ", dossier: racine }), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: "parade", dossier: racine }), undefined);
 
       assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), {
         projets: [
@@ -195,7 +195,7 @@ describe("la configuration de l'app", () => {
       const racine = repertoire(t);
       const chemin = join(racine, "config/app.json");
 
-      assert.equal(ajouterProject(chemin, { nom: "brigade", dossier: racine }), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: "brigade", dossier: racine }), undefined);
 
       assert.deepEqual(lireConfiguration(chemin).projets, [{ nom: "brigade", dossier: racine }]);
     });
@@ -204,7 +204,7 @@ describe("la configuration de l'app", () => {
       const racine = repertoire(t);
       const { chemin } = configuration(t, { note: "à moi", projets: [{ nom: "a", dossier: "~/Dev/a", couleur: "rouge" }] });
 
-      assert.equal(ajouterProject(chemin, { nom: "b", dossier: racine }), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: "b", dossier: racine }), undefined);
 
       assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), {
         note: "à moi",
@@ -219,7 +219,7 @@ describe("la configuration de l'app", () => {
       const racine = repertoire(t);
       const { chemin } = configuration(t, "{ projets: ");
 
-      assert.match(ajouterProject(chemin, { nom: "b", dossier: racine }) ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
+      assert.match(ajouterProjet(chemin, { nom: "b", dossier: racine }) ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
 
       assert.equal(readFileSync(chemin, "utf8"), "{ projets: ");
     });
@@ -230,12 +230,12 @@ describe("la configuration de l'app", () => {
       ["du nom d'un autre", { nom: "a", dossier: "/" }, /^two projects are named “a”$/],
       ["dont le dossier n'est pas là", { nom: "b", dossier: "/nulle/part" }, /^folder not found: \/nulle\/part$/],
     ];
-    for (const [quoi, project, refusal] of AJOUTS_REFUSES) {
+    for (const [quoi, projet, refus] of AJOUTS_REFUSES) {
       test(`un projet ${quoi} n'est pas ajouté : le fichier reste tel quel, et la raison est dite`, (t) => {
         const { chemin } = configuration(t, { projets: [{ nom: "a", dossier: "/" }] });
         const avant = readFileSync(chemin, "utf8");
 
-        assert.match(ajouterProject(chemin, project) ?? "", refusal);
+        assert.match(ajouterProjet(chemin, projet) ?? "", refus);
 
         assert.equal(readFileSync(chemin, "utf8"), avant);
       });
@@ -244,7 +244,7 @@ describe("la configuration de l'app", () => {
     test("un ajout refusé sans fichier ne laisse pas un projet à moitié écrit", (t) => {
       const chemin = join(repertoire(t), "app.json");
 
-      assert.match(ajouterProject(chemin, { nom: "", dossier: "/" }) ?? "", /“nom” is missing/);
+      assert.match(ajouterProjet(chemin, { nom: "", dossier: "/" }) ?? "", /“nom” is missing/);
 
       assert.ok(existsSync(chemin));
       assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [] });
@@ -255,16 +255,16 @@ describe("la configuration de l'app", () => {
     test("sa ligne quitte le fichier, et elle seule : les autres projets, ce que l'app n'y lit pas restent", (t) => {
       const { chemin } = configuration(t, { note: "à moi", projets: [{ nom: "a", dossier: "~/Dev/a", couleur: "rouge" }, { nom: "b", dossier: "/b" }, { nom: "c", dossier: "/c" }] });
 
-      assert.equal(retirerProject(chemin, "b"), undefined);
+      assert.equal(retirerProjet(chemin, "b"), undefined);
 
       assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", projets: [{ nom: "a", dossier: "~/Dev/a", couleur: "rouge" }, { nom: "c", dossier: "/c" }] });
-      assert.equal(retirerProject(chemin, "a"), undefined);
+      assert.equal(retirerProjet(chemin, "a"), undefined);
     });
 
     test("un projet dont le dossier n'est plus là se retire comme un autre", (t) => {
       const { chemin } = configuration(t, { projets: [{ nom: "parti", dossier: "/nulle/part" }] });
 
-      assert.equal(retirerProject(chemin, "parti"), undefined);
+      assert.equal(retirerProjet(chemin, "parti"), undefined);
 
       assert.deepEqual(lireConfiguration(chemin), { chemin, projets: [] });
     });
@@ -273,8 +273,8 @@ describe("la configuration de l'app", () => {
       const { chemin } = configuration(t, { projets: [{ nom: "brigade", dossier: "/" }] });
       const avant = readFileSync(chemin, "utf8");
 
-      assert.equal(retirerProject(chemin, "Brigade"), "“Brigade” is not in this file: nothing was changed there");
-      assert.equal(retirerProject(chemin, "brigade "), "“brigade ” is not in this file: nothing was changed there");
+      assert.equal(retirerProjet(chemin, "Brigade"), "“Brigade” is not in this file: nothing was changed there");
+      assert.equal(retirerProjet(chemin, "brigade "), "“brigade ” is not in this file: nothing was changed there");
 
       assert.equal(readFileSync(chemin, "utf8"), avant);
     });
@@ -282,31 +282,31 @@ describe("la configuration de l'app", () => {
     test("l'app ne retire rien d'un fichier qu'elle n'a pas compris, et ne crée pas celui qui manque", (t) => {
       const { racine, chemin } = configuration(t, '{ "projets": [');
 
-      assert.match(retirerProject(chemin, "a") ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
+      assert.match(retirerProjet(chemin, "a") ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
       assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
-      assert.match(retirerProject(join(racine, "absent.json"), "a") ?? "", /^unreadable file: /);
+      assert.match(retirerProjet(join(racine, "absent.json"), "a") ?? "", /^unreadable file: /);
       assert.equal(existsSync(join(racine, "absent.json")), false);
     });
   });
 
   describe("un projet rangé depuis la barre", () => {
-    const noms = (chemin: string) => lireConfiguration(chemin).projets.map(({ nom: name }) => name);
+    const noms = (chemin: string) => lireConfiguration(chemin).projets.map(({ nom }) => nom);
 
     test("il prend la place voulue, et les autres se décalent — vers le haut comme vers le bas", (t) => {
       const { chemin } = configuration(t, { projets: [{ nom: "a", dossier: "/" }, { nom: "b", dossier: "/" }, { nom: "c", dossier: "/" }, { nom: "d", dossier: "/" }] });
 
-      assert.equal(rangerProject(chemin, "c", 0), undefined);
+      assert.equal(rangerProjet(chemin, "c", 0), undefined);
       assert.deepEqual(noms(chemin), ["c", "a", "b", "d"]);
-      assert.equal(rangerProject(chemin, "c", 3), undefined);
+      assert.equal(rangerProjet(chemin, "c", 3), undefined);
       assert.deepEqual(noms(chemin), ["a", "b", "d", "c"]);
-      assert.equal(rangerProject(chemin, "a", 1), undefined);
+      assert.equal(rangerProjet(chemin, "a", 1), undefined);
       assert.deepEqual(noms(chemin), ["b", "a", "d", "c"]);
     });
 
     test("chaque projet garde sa ligne entière, et le reste du fichier ne bouge pas — ce que l'app n'y lit pas compris", (t) => {
       const { chemin } = configuration(t, { note: "à moi", projets: [{ nom: "a", dossier: "~/Dev/a", couleur: "rouge" }, { nom: "b", dossier: "/b", couleurs: { onglet: "#a98cf2" } }] });
 
-      assert.equal(rangerProject(chemin, "b", 0), undefined);
+      assert.equal(rangerProjet(chemin, "b", 0), undefined);
 
       assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", projets: [{ nom: "b", dossier: "/b", couleurs: { onglet: "#a98cf2" } }, { nom: "a", dossier: "~/Dev/a", couleur: "rouge" }] });
     });
@@ -315,7 +315,7 @@ describe("la configuration de l'app", () => {
       const texte = '{"projets":[{"nom":"a","dossier":"/"},{"nom":"b","dossier":"/"}]}';
       const { chemin } = configuration(t, texte);
 
-      assert.equal(rangerProject(chemin, "b", 1), undefined);
+      assert.equal(rangerProjet(chemin, "b", 1), undefined);
 
       assert.equal(readFileSync(chemin, "utf8"), texte);
     });
@@ -324,8 +324,8 @@ describe("la configuration de l'app", () => {
       const { racine, chemin } = configuration(t, { projets: [{ nom: "a", dossier: "/" }, { nom: "b", dossier: "/" }] });
       mkdirSync(join(racine, "c"));
 
-      assert.equal(rangerProject(chemin, "b", 0), undefined);
-      assert.equal(ajouterProject(chemin, { nom: "c", dossier: join(racine, "c") }), undefined);
+      assert.equal(rangerProjet(chemin, "b", 0), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: "c", dossier: join(racine, "c") }), undefined);
 
       assert.deepEqual(noms(chemin), ["b", "a", "c"]);
     });
@@ -334,8 +334,8 @@ describe("la configuration de l'app", () => {
       const { chemin } = configuration(t, { projets: [{ nom: "a", dossier: "/" }, { nom: "b", dossier: "/" }] });
       const avant = readFileSync(chemin, "utf8");
 
-      assert.equal(rangerProject(chemin, "z", 0), "“z” is not in this file: nothing was changed there");
-      for (const rang of [-1, 2, 0.5]) assert.equal(rangerProject(chemin, "a", rang), `there is no place #${rang + 1} among 2 projects: nothing was changed there`);
+      assert.equal(rangerProjet(chemin, "z", 0), "“z” is not in this file: nothing was changed there");
+      for (const rang of [-1, 2, 0.5]) assert.equal(rangerProjet(chemin, "a", rang), `there is no place #${rang + 1} among 2 projects: nothing was changed there`);
 
       assert.equal(readFileSync(chemin, "utf8"), avant);
     });
@@ -343,9 +343,9 @@ describe("la configuration de l'app", () => {
     test("l'app ne range rien dans un fichier qu'elle n'a pas compris, et ne crée pas celui qui manque", (t) => {
       const { racine, chemin } = configuration(t, '{ "projets": [');
 
-      assert.match(rangerProject(chemin, "a", 0) ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
+      assert.match(rangerProjet(chemin, "a", 0) ?? "", /^the app does not write into a file it has not understood — unreadable JSON: /);
       assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
-      assert.match(rangerProject(join(racine, "absent.json"), "a", 0) ?? "", /^unreadable file: /);
+      assert.match(rangerProjet(join(racine, "absent.json"), "a", 0) ?? "", /^unreadable file: /);
       assert.equal(existsSync(join(racine, "absent.json")), false);
     });
   });

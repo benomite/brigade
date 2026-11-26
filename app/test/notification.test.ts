@@ -5,25 +5,25 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { signalDe, type Alert } from "../src/alerts.ts";
+import { signalDe, type Alerte } from "../src/alertes.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBar } from "../src/bar.ts";
-import { EXEMPLE, type Project } from "../src/config.ts";
+import { pourLaBarre } from "../src/barre.ts";
+import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
-import { BANNIERE } from "../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../src/actions.ts";
-import { EFFORTS, MODELES } from "../src/projects/projects.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE } from "../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { memoireDansFichier } from "../src/notification.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
-const DAY = "2026-10-15";
-const heure = (h: string) => `${DAY}T${h}.000Z`;
+const JOUR = "2026-10-15";
+const heure = (h: string) => `${JOUR}T${h}.000Z`;
 
 // Un répertoire à soi, retiré en fin de test.
-function repertoire(t: TestContext, name: string): string {
-  const cree = mkdtempSync(join(tmpdir(), `brigade-app-${name}-`));
+function repertoire(t: TestContext, nom: string): string {
+  const cree = mkdtempSync(join(tmpdir(), `brigade-app-${nom}-`));
   t.after(() => rmSync(cree, { recursive: true, force: true }));
   return cree;
 }
@@ -44,32 +44,32 @@ describe("l'app fermée, puis rouverte", () => {
 
     // Un dossier là où le fichier devrait être : rien n'est écrit, et c'est dit.
     const dits: string[] = [];
-    memoireDansFichier(dossier, (line) => void dits.push(line)).ecrire({ parade: heure("10:35:00") });
+    memoireDansFichier(dossier, (ligne) => void dits.push(ligne)).ecrire({ parade: heure("10:35:00") });
     assert.equal(dits.length, 1);
     assert.match(dits[0] ?? "", /^brigade: the clicked urgent notifications could not be remembered — /);
   });
 });
 
 describe("le clic, dans la vue", () => {
-  const PARADE: Project = { nom: "parade", dossier: "/tmp/parade" };
-  const BALOO: Project = { nom: "baloo", dossier: "/tmp/baloo" };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+  const BALOO: Projet = { nom: "baloo", dossier: "/tmp/baloo" };
   const ouvrir = () =>
     jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [PARADE, BALOO] }, () => true),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, BALOO] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
       }),
       espace: () => [],
     });
-  const URGENTE: Alert = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the box writes it", bouton: "ask the second", appel: { demande: true }, prix: "none" };
-  const ORDINAIRE: Alert = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: "—" };
+  const URGENTE: Alerte = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the box writes it", bouton: "ask the second", appel: { demande: true }, prix: "none" };
+  const ORDINAIRE: Alerte = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: "—" };
 
   test("depuis un autre projet : celui de l'urgence s'ouvre, sa ligne d'urgence en tête, choisie, et son geste prend le clavier et se lance", async () => {
     const vue = await ouvrir();
@@ -82,17 +82,17 @@ describe("le clic, dans la vue", () => {
     await repos();
     assert.equal(vue.dernier("espace")[0], "parade");
     assert.equal(vue.element("espace").textContent, "parade");
-    const [first, seconde] = vue.element("alertes").children;
+    const [premiere, seconde] = vue.element("alertes").children;
     assert.equal(vue.element("alertes").hidden, false);
-    assert.equal(first?.dataset.sujet, "urgence");
-    assert.equal(first.dataset.choisie, "oui");
+    assert.equal(premiere?.dataset.sujet, "urgence");
+    assert.equal(premiere.dataset.choisie, "oui");
     assert.equal(seconde?.dataset.choisie, undefined);
-    const action = first.dessous("button").find((pose) => pose.dataset.geste !== undefined) ?? assert.fail("pas de geste sur la ligne d'urgence");
-    assert.equal(action.textContent, "ask the second");
-    assert.equal(action.disabled, false);
-    assert.ok(action.focalise > 0, "le geste de l'urgence n'a pas pris le clavier");
+    const geste = premiere.dessous("button").find((pose) => pose.dataset.geste !== undefined) ?? assert.fail("pas de geste sur la ligne d'urgence");
+    assert.equal(geste.textContent, "ask the second");
+    assert.equal(geste.disabled, false);
+    assert.ok(geste.focalise > 0, "le geste de l'urgence n'a pas pris le clavier");
 
-    action.click();
+    geste.click();
     await repos();
     assert.deepEqual(vue.dernier("demanderAlerte"), ["parade", "urgence", URGENTE.dit]);
   });
@@ -116,12 +116,12 @@ describe("le clic, dans la vue", () => {
     const vue = await ouvrir();
     vue.element("projets").children[1]?.click();
     await repos();
-    const ouvertures = vue.appels.filter(({ geste: action }) => action === "espace").length;
+    const ouvertures = vue.appels.filter(({ geste }) => geste === "espace").length;
     vue.dire("surAlertes", { projet: "parade", alertes: [URGENTE], signal: signalDe([URGENTE]) });
 
     vue.dire("surUrgence", "parade");
     await repos();
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "espace").length, ouvertures);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, ouvertures);
     assert.equal(vue.element("alertes").children[0]?.dataset.choisie, "oui");
   });
 

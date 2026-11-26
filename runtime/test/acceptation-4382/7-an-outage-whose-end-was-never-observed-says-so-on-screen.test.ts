@@ -1,12 +1,12 @@
 // #4382 criterion 7: 'not recorded' only where no source exists, and the screen says which case it is.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { vueDesPostMortems } from "../../../app/src/projects/post-mortems.ts";
+import { vueDesPostMortems } from "../../../app/src/projets/post-mortems.ts";
 import { Faux } from "../../../app/test/aides/fausse-vue.ts";
 import { A, CHEF, cuisine } from "./cuisine.ts";
 
 // The app's view module is plain JavaScript with no declaration file: its one export is typed here.
-const VUE = "../../../app/src/vue/project/banner-sante/PostMortems.js";
+const VUE = "../../../app/src/vue/projet/bandeau-sante/PostMortems.js";
 const { poserBlocPostMortems } = (await import(VUE)) as { poserBlocPostMortems: (doc: unknown, vue: unknown) => unknown };
 
 // The Settings section of the project, as the app draws it from what `facts` publishes: one line per field.

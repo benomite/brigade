@@ -4,9 +4,9 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterProject, changerBarDeMenus, changerCouleur, changerOrdinaires, changerSigle, colorerProjects, creerConfiguration, lireConfiguration, poserPreferences, preferencesDuFichier, rangerProject, retirerProject, type Configuration, type Declare } from "./config.ts";
+import { ajouterProjet, changerBarreDeMenus, changerCouleur, changerOrdinaires, changerSigle, colorerProjets, creerConfiguration, lireConfiguration, poserPreferences, preferencesDuFichier, rangerProjet, retirerProjet, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./couleurs.ts";
-import type { Preferences } from "./settings-perso/partage.ts";
+import type { Preferences } from "./reglages-perso/partage.ts";
 
 export function suivreConfiguration(options: {
   chemin: string;
@@ -18,12 +18,12 @@ export function suivreConfiguration(options: {
   // Tant que l'app n'a jamais eu le fichier, elle le crée — et le retente à chaque
   // relecture : une création refusée garde sa raison, et aboutit dès qu'elle le peut.
   let pose = false;
-  let standby: FSWatcher | undefined;
+  let veille: FSWatcher | undefined;
 
   function lire(): Configuration {
     if (!pose) {
-      const refusal = creerConfiguration(chemin);
-      if (refusal !== undefined) return { chemin, projets: [], refus: refusal };
+      const refus = creerConfiguration(chemin);
+      if (refus !== undefined) return { chemin, projets: [], refus };
       pose = true;
     }
     veiller();
@@ -35,14 +35,14 @@ export function suivreConfiguration(options: {
   // lien. Un fichier parti entre-temps n'a pas de vrai dossier : la relecture
   // suivante repose la veille.
   function veiller(): void {
-    if (standby !== undefined) return;
+    if (veille !== undefined) return;
     try {
       const vrai = realpathSync(chemin);
-      standby = watch(dirname(vrai), (_, fichier) => {
+      veille = watch(dirname(vrai), (_, fichier) => {
         if (fichier === null || fichier === basename(vrai)) relire();
       });
     } catch {
-      standby = undefined;
+      veille = undefined;
     }
   }
 
@@ -51,7 +51,7 @@ export function suivreConfiguration(options: {
     const suivante: Configuration = lue.refus !== undefined && tenue.refus === undefined ? { ...tenue, nonRelu: lue.refus } : lue;
     // Un éditeur écrit en plusieurs fois, et la veille le dit autant de fois.
     if (JSON.stringify(suivante) === JSON.stringify(tenue)) return;
-    const partis = tenue.projets.filter((avant) => !suivante.projets.some((apres) => apres.nom === avant.nom && apres.dossier === avant.dossier)).map(({ nom: name }) => name);
+    const partis = tenue.projets.filter((avant) => !suivante.projets.some((apres) => apres.nom === avant.nom && apres.dossier === avant.dossier)).map(({ nom }) => nom);
     tenue = suivante;
     options.surChangement(tenue, partis);
   }
@@ -62,42 +62,42 @@ export function suivreConfiguration(options: {
   // Une écriture part de ce que le fichier dit maintenant, pas de ce que la veille en a vu.
   // Un fichier que l'app tient encore sans avoir pu le relire — supprimé, cassé —
   // n'est pas réécrit : ce serait y perdre les projets qu'elle affiche.
-  function ecrire(action: () => string | undefined): string | undefined {
+  function ecrire(geste: () => string | undefined): string | undefined {
     relire();
     if (tenue.nonRelu !== undefined) return nonRelu();
-    const refusal = action();
-    if (refusal === undefined) relire();
-    return refusal;
+    const refus = geste();
+    if (refus === undefined) relire();
+    return refus;
   }
 
   return {
     configuration: (): Configuration => tenue,
     relire,
     // Rend la raison, si le projet n'a pas été ajouté.
-    ajouter: (project: Declare) => ecrire(() => ajouterProject(chemin, project, maison)),
+    ajouter: (projet: Declare) => ecrire(() => ajouterProjet(chemin, projet, maison)),
     // Tire et écrit les couleurs qui manquent aux projets du fichier — rien, s'il n'en manque
     // aucune. Rend la raison, si elles ne l'ont pas été.
-    colorer: (hasard?: () => number) => ecrire(() => colorerProjects(chemin, maison, hasard)),
+    colorer: (hasard?: () => number) => ecrire(() => colorerProjets(chemin, maison, hasard)),
     // Change la couleur d'onglet ou d'accent d'un projet. Rend la raison, si elle ne l'a pas été.
-    changerCouleur: (name: string, role: Role, couleur: string) => ecrire(() => changerCouleur(chemin, name, role, couleur, maison)),
+    changerCouleur: (nom: string, role: Role, couleur: string) => ecrire(() => changerCouleur(chemin, nom, role, couleur, maison)),
     // Change le sigle d'un projet dans la barre — `null` le rend à celui que l'app tire de son nom. Rend la raison, s'il ne l'a pas été.
-    changerSigle: (name: string, sigle: unknown) => ecrire(() => changerSigle(chemin, name, sigle, maison)),
-    // Montre ou retire l'état de la cuisine de la barre des menus (bar-de-menus.ts). Rend la raison, si rien n'a été écrit.
-    changerBarreDeMenus: (actif: unknown) => ecrire(() => changerBarDeMenus(chemin, actif, maison)),
+    changerSigle: (nom: string, sigle: unknown) => ecrire(() => changerSigle(chemin, nom, sigle, maison)),
+    // Montre ou retire l'état de la cuisine de la barre des menus (barre-de-menus.ts). Rend la raison, si rien n'a été écrit.
+    changerBarreDeMenus: (actif: unknown) => ecrire(() => changerBarreDeMenus(chemin, actif, maison)),
     // Règle les tickets ordinaires du Mac pour un projet. Rend la raison, si rien n'a été écrit.
-    changerOrdinaires: (name: string, actif: unknown, limit: unknown) => ecrire(() => changerOrdinaires(chemin, name, actif, limit, maison)),
+    changerOrdinaires: (nom: string, actif: unknown, limite: unknown) => ecrire(() => changerOrdinaires(chemin, nom, actif, limite, maison)),
     // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.
-    retirer: (name: string) => ecrire(() => retirerProject(chemin, name, maison)),
+    retirer: (nom: string) => ecrire(() => retirerProjet(chemin, nom, maison)),
     // Range un projet à la place `rang` de la liste : `surChangement` dit le nouvel ordre, et
     // personne de parti. Rend la raison, s'il ne l'a pas été.
-    ranger: (name: string, rang: number) => ecrire(() => rangerProject(chemin, name, rang, maison)),
+    ranger: (nom: string, rang: number) => ecrire(() => rangerProjet(chemin, nom, rang, maison)),
     // Les préférences personnelles du fichier tel qu'il est, ou pourquoi il n'est pas compris (config.ts).
     preferences: () => preferencesDuFichier(chemin, maison),
-    // Pose les préférences lues dans le gist du chef (settings-perso/) : `surChangement` dit ce qui a
+    // Pose les préférences lues dans le gist du chef (reglages-perso/) : `surChangement` dit ce qui a
     // changé, comme pour un geste. Rend la raison, si elles ne l'ont pas été.
     poserPreferences: (preferences: Preferences) => ecrire(() => poserPreferences(chemin, preferences, maison)),
     fermer(): void {
-      standby?.close();
+      veille?.close();
     },
   };
 }

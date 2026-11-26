@@ -8,35 +8,35 @@
 // La date de la dernière ouverture est tenue dans le stockage de la vue (`localStorage`), comme la trace de la visite
 // guidée. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { button } from "../composants/button/button.js";
-import { lineEmpty } from "../composants/line-empty/line-empty.js";
-import { CET_ORDINATEUR, READ_DE } from "../lexique.js";
-import { WAIT, AUTONOMY, figuresDeLAutonomy, semaineDite } from "../resume-weekly/resume-weekly.js";
+import { bouton } from "../composants/bouton/bouton.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { CET_ORDINATEUR, LECTURE_DE } from "../lexique.js";
+import { ATTENTE, AUTONOMIE, chiffresDeLAutonomie, semaineDite } from "../resume-hebdomadaire/resume-hebdomadaire.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
-/** @typedef {import("../resume-weekly/resume-kitchen.ts").ResumesDuProject} Read */
-/** @typedef {import("../resume-weekly/resume-kitchen.ts").ResumeWeekly} Resume */
-/** @typedef {{ ticket: number, titre?: string }} Wait */
-/** @typedef {{ projet: string, lecture: Read | undefined, attentes: Wait[] }} DuProject */
+/** @typedef {import("../resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet} Lecture */
+/** @typedef {import("../resume-hebdomadaire/resume-cuisine.ts").ResumeHebdomadaire} Resume */
+/** @typedef {{ ticket: number, titre?: string }} Attente */
+/** @typedef {{ projet: string, lecture: Lecture | undefined, attentes: Attente[] }} DuProjet */
 /** @typedef {{ getItem(cle: string): string | null, setItem(cle: string, valeur: string): void }} Stockage */
 
 // La trace, dans le stockage de la vue, de la dernière ouverture de l'app.
 export const CLE_DE_LA_DERNIERE_OUVERTURE = "brigade.derniere-ouverture";
 // Plus de trois jours (72 heures) : à trois jours pile, l'écran ne vient pas.
-export const THRESHOLD_MS = 3 * 24 * 3600 * 1000;
-const DAY_MS = 24 * 3600 * 1000;
+export const SEUIL_MS = 3 * 24 * 3600 * 1000;
+const JOUR_MS = 24 * 3600 * 1000;
 
 export const TITRE = "Since you were away";
-export const SERVED = "Served while you were away";
-export const RIEN_SERVED = "Nothing was served while you were away.";
-export const RIEN_N_AWAITING = "Nothing is waiting for you.";
-export const VOIR_CE_QUI_AWAITING = "See what is waiting for you";
+export const SERVI = "Served while you were away";
+export const RIEN_SERVI = "Nothing was served while you were away.";
+export const RIEN_N_ATTEND = "Nothing is waiting for you.";
+export const VOIR_CE_QUI_ATTEND = "See what is waiting for you";
 export const FERMER = "Close";
 /** @param {number} depuis */
 export const ABSENCE_DEPUIS = (depuis) => `Last opened ${new Date(depuis).toISOString().slice(0, 10)}.`;
 /** @param {number} nombre */
-export const WAIT_DE = (nombre) => `${WAIT} (${nombre})`;
-export const AUCUN_PROJECT = `No project is read on ${CET_ORDINATEUR}.`;
+export const ATTENTE_DE = (nombre) => `${ATTENTE} (${nombre})`;
+export const AUCUN_PROJET = `No project is read on ${CET_ORDINATEUR}.`;
 
 /**
  * Ce que l'ouverture décide : la date de la dernière ouverture (ms), quand l'écran doit venir — l'absence est de plus de
@@ -54,7 +54,7 @@ export function absenceALAperture({ stockage, maintenant = Date.now }) {
   try {
     const trace = stockage.getItem(CLE_DE_LA_DERNIERE_OUVERTURE);
     const lue = trace === null ? Number.NaN : Date.parse(trace);
-    if (Number.isFinite(lue) && ici - lue > THRESHOLD_MS) depuis = lue;
+    if (Number.isFinite(lue) && ici - lue > SEUIL_MS) depuis = lue;
   } catch {
     depuis = undefined;
   }
@@ -69,21 +69,21 @@ export function absenceALAperture({ stockage, maintenant = Date.now }) {
 /**
  * Les résumés d'un projet dont la semaine touche l'absence : celle dont le dernier jour (`weekEnd`, compris) est à
  * l'instant `depuis` ou après.
- * @param {Read | undefined} read @param {number} depuis
+ * @param {Lecture | undefined} lecture @param {number} depuis
  * @returns {Resume[]}
  */
-export function resumesDeLAbsence(read, depuis) {
-  if (read === undefined || !("resumes" in read) || "sans" in read.resumes) return [];
-  return read.resumes.resumes.filter(({ weekEnd }) => Date.parse(weekEnd) + DAY_MS > depuis);
+export function resumesDeLAbsence(lecture, depuis) {
+  if (lecture === undefined || !("resumes" in lecture) || "sans" in lecture.resumes) return [];
+  return lecture.resumes.resumes.filter(({ weekEnd }) => Date.parse(weekEnd) + JOUR_MS > depuis);
 }
 
 /**
  * L'écran. `gestes.fermer(attend)` : `attend` dit si quelque chose attend le chef — le bouton le mène alors à ce qui l'attend.
  * @param {Fabrique} doc
- * @param {{ depuis: number, projets: DuProject[] }} entrees
- * @param {{ fermer: (awaiting: boolean) => void }} actions
+ * @param {{ depuis: number, projets: DuProjet[] }} entrees
+ * @param {{ fermer: (attend: boolean) => void }} gestes
  */
-export function poserAbsence(doc, { depuis, projets: projects }, actions) {
+export function poserAbsence(doc, { depuis, projets }, gestes) {
   const racine = doc.createElement("article");
   racine.className = "absence";
   const titre = doc.createElement("h2");
@@ -92,12 +92,12 @@ export function poserAbsence(doc, { depuis, projets: projects }, actions) {
   dit.className = "attendu";
   dit.textContent = ABSENCE_DEPUIS(depuis);
   racine.append(titre, dit);
-  if (projects.length === 0) racine.append(lineEmpty(doc, AUCUN_PROJECT));
-  for (const project of projects) racine.append(duProject(doc, depuis, project));
-  const awaiting = projects.some(({ attentes }) => attentes.length > 0);
-  const action = button(doc, awaiting ? VOIR_CE_QUI_AWAITING : FERMER, () => actions.fermer(awaiting), { sorte: "recommande" });
-  action.className += " fermer-l-absence";
-  racine.append(action);
+  if (projets.length === 0) racine.append(ligneVide(doc, AUCUN_PROJET));
+  for (const projet of projets) racine.append(duProjet(doc, depuis, projet));
+  const attend = projets.some(({ attentes }) => attentes.length > 0);
+  const geste = bouton(doc, attend ? VOIR_CE_QUI_ATTEND : FERMER, () => gestes.fermer(attend), { sorte: "recommande" });
+  geste.className += " fermer-l-absence";
+  racine.append(geste);
   return racine;
 }
 
@@ -108,45 +108,45 @@ const intertitre = (doc, texte) => {
   return h4;
 };
 
-/** @param {Fabrique} doc @param {string[]} lines @param {string} classe */
-const liste = (doc, lines, classe) => {
+/** @param {Fabrique} doc @param {string[]} lignes @param {string} classe */
+const liste = (doc, lignes, classe) => {
   const ul = doc.createElement("ul");
   ul.className = classe;
-  for (const line of lines) {
+  for (const ligne of lignes) {
     const li = doc.createElement("li");
-    li.textContent = line;
+    li.textContent = ligne;
     ul.append(li);
   }
   return ul;
 };
 
-/** @param {Fabrique} doc @param {number} depuis @param {DuProject} projet */
-function duProject(doc, depuis, { projet: project, lecture: read, attentes }) {
+/** @param {Fabrique} doc @param {number} depuis @param {DuProjet} projet */
+function duProjet(doc, depuis, { projet, lecture, attentes }) {
   const section = doc.createElement("section");
   section.className = "absence-du-projet";
-  section.ariaLabel = project;
-  section.dataset.projet = project;
-  const name = doc.createElement("h3");
-  name.textContent = project;
-  section.append(name, intertitre(doc, SERVED));
-  const resumes = resumesDeLAbsence(read, depuis);
-  if (read === undefined) section.append(lineEmpty(doc, READ_DE("what was served")));
+  section.ariaLabel = projet;
+  section.dataset.projet = projet;
+  const nom = doc.createElement("h3");
+  nom.textContent = projet;
+  section.append(nom, intertitre(doc, SERVI));
+  const resumes = resumesDeLAbsence(lecture, depuis);
+  if (lecture === undefined) section.append(ligneVide(doc, LECTURE_DE("what was served")));
   else {
     // Les lignes viennent telles que le résumé les écrit : aucun mot n'est refait ici.
-    const lines = resumes.flatMap(({ themes }) => themes.flatMap(({ lines }) => lines.map(({ text, ticketNumber }) => `${text} (#${ticketNumber})`)));
-    section.append(lines.length === 0 ? lineEmpty(doc, RIEN_SERVED) : liste(doc, lines, "servis"));
+    const lignes = resumes.flatMap(({ themes }) => themes.flatMap(({ lines }) => lines.map(({ text, ticketNumber }) => `${text} (#${ticketNumber})`)));
+    section.append(lignes.length === 0 ? ligneVide(doc, RIEN_SERVI) : liste(doc, lignes, "servis"));
   }
-  const avecAutonomy = resumes.filter(({ autonomy }) => autonomy !== undefined);
-  if (avecAutonomy.length > 0) {
-    section.append(intertitre(doc, AUTONOMY));
-    for (const resume of avecAutonomy) {
+  const avecAutonomie = resumes.filter(({ autonomy }) => autonomy !== undefined);
+  if (avecAutonomie.length > 0) {
+    section.append(intertitre(doc, AUTONOMIE));
+    for (const resume of avecAutonomie) {
       const semaine = doc.createElement("p");
       semaine.className = "semaine";
       semaine.textContent = semaineDite(resume);
-      section.append(semaine, figuresDeLAutonomy(doc, /** @type {NonNullable<Resume["autonomy"]>} */ (resume.autonomy)));
+      section.append(semaine, chiffresDeLAutonomie(doc, /** @type {NonNullable<Resume["autonomy"]>} */ (resume.autonomy)));
     }
   }
-  section.append(intertitre(doc, WAIT_DE(attentes.length)));
-  section.append(attentes.length === 0 ? lineEmpty(doc, RIEN_N_AWAITING) : liste(doc, attentes.map(({ ticket, titre }) => (titre === undefined ? `#${ticket}` : `#${ticket} ${titre}`)), "attentes"));
+  section.append(intertitre(doc, ATTENTE_DE(attentes.length)));
+  section.append(attentes.length === 0 ? ligneVide(doc, RIEN_N_ATTEND) : liste(doc, attentes.map(({ ticket, titre }) => (titre === undefined ? `#${ticket}` : `#${ticket} ${titre}`)), "attentes"));
   return section;
 }

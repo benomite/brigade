@@ -12,13 +12,13 @@ import { describe, test, type TestContext } from "node:test";
 import { detruire, scriptDeRattachement, type Cible, type Session } from "../src/persistance.ts";
 import { ouvrirPty as vraiPty, ptyDisponible } from "../src/pty.ts";
 import { rappelLu, souvenirsDansFichier, type Rappel, type Souvenirs } from "../src/souvenirs.ts";
-import { ouvrirTerminaux, type Launch, type Pty, type Terminal } from "../src/terminaux.ts";
+import { ouvrirTerminaux, type Lancement, type Pty, type Terminal } from "../src/terminaux.ts";
 import { ICI } from "../src/plateforme.ts";
 
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
-const WORKSTATION: Cible = { lieu: "poste" };
+const POSTE: Cible = { lieu: "poste" };
 
-type FauxPty = Launch & { ecrits: string[]; tue: boolean };
+type FauxPty = Lancement & { ecrits: string[]; tue: boolean };
 
 function enMemoire(depart: Rappel = {}): Souvenirs & { tel(): Rappel } {
   let rappel = structuredClone(depart);
@@ -26,9 +26,9 @@ function enMemoire(depart: Rappel = {}): Souvenirs & { tel(): Rappel } {
 }
 
 // Un registre comme l'app en ouvre un à chaque lancement : ses pty sont faux, ses souvenirs ceux qu'on lui donne.
-function launch(souvenirs: Souvenirs, detruites: Session[] = [], rendu: { detruite: true } | { erreur: string } = { detruite: true }, settings: { windows?: boolean } = {}) {
+function lancement(souvenirs: Souvenirs, detruites: Session[] = [], rendu: { detruite: true } | { erreur: string } = { detruite: true }, reglages: { windows?: boolean } = {}) {
   const lances: FauxPty[] = [];
-  const states: Terminal[] = [];
+  const etats: Terminal[] = [];
   const sorties = new Map<number, string>();
   const terminaux = ouvrirTerminaux({
     claude: "claude",
@@ -37,116 +37,116 @@ function launch(souvenirs: Souvenirs, detruites: Session[] = [], rendu: { detrui
     compte: () => "benoit",
     detruire: (session) => (detruites.push(session), Promise.resolve(rendu)),
     // Ce que main.ts donne sous Windows (plateforme.ts) : le `bash` de Git, et aucune session sur ce poste.
-    ...(settings.windows === true ? { shell: "C:\\Program Files\\Git\\bin\\bash.exe", argsDuShell: ["--login", "-i"], persistantIci: false } : {}),
+    ...(reglages.windows === true ? { shell: "C:\\Program Files\\Git\\bin\\bash.exe", argsDuShell: ["--login", "-i"], persistantIci: false } : {}),
     ouvrirPty(lance) {
       const faux: FauxPty = { ...lance, ecrits: [], tue: false };
       lances.push(faux);
       return { ecrire: (donnees) => void faux.ecrits.push(donnees), redimensionner: () => {}, tuer: () => void (faux.tue = true) };
     },
     surSortie: (id, donnees) => void sorties.set(id, (sorties.get(id) ?? "") + donnees),
-    surEtat: (terminal) => void states.push(terminal),
+    surEtat: (terminal) => void etats.push(terminal),
   });
-  const shells = () => lances.filter(({ commande: command }) => command !== "claude");
+  const shells = () => lances.filter(({ commande }) => commande !== "claude");
   const sortie = (id: number) => sansEchappements(sorties.get(id) ?? "");
-  return { terminaux, lances, shells, etats: states, sortie };
+  return { terminaux, lances, shells, etats, sortie };
 }
 
 describe("un shell persistant, ouvert sur la machine choisie", () => {
   test("sur ce poste, `sh` crée la session du shell ou s'y rattache — et l'app retient chaque shell", () => {
     const souvenirs = enMemoire();
-    const { terminaux, shells } = launch(souvenirs);
+    const { terminaux, shells } = lancement(souvenirs);
     terminaux.espace(BRIGADE);
 
-    const first = terminaux.ouvrir(BRIGADE, WORKSTATION);
-    const second = terminaux.ouvrir(BRIGADE, WORKSTATION);
+    const premier = terminaux.ouvrir(BRIGADE, POSTE);
+    const second = terminaux.ouvrir(BRIGADE, POSTE);
 
     assert.deepEqual(
-      shells().map(({ commande: command, args, dossier }) => [command, args, dossier]),
+      shells().map(({ commande, args, dossier }) => [commande, args, dossier]),
       [
         ["/bin/sh", ["-c", scriptDeRattachement("brigade-brigade-1")], "/projets/brigade"],
         ["/bin/sh", ["-c", scriptDeRattachement("brigade-brigade-2")], "/projets/brigade"],
       ],
     );
-    assert.deepEqual([first.titre, second.titre], ["shell 1", "shell 2"]);
-    assert.equal(first.note, `persistent shell on ${ICI}, in /projets/brigade — session \`brigade-brigade-1\`: closing the app only detaches from it, closing this shell destroys it`);
+    assert.deepEqual([premier.titre, second.titre], ["shell 1", "shell 2"]);
+    assert.equal(premier.note, `persistent shell on ${ICI}, in /projets/brigade — session \`brigade-brigade-1\`: closing the app only detaches from it, closing this shell destroys it`);
     assert.deepEqual(souvenirs.tel(), {
       brigade: {
         dernier: 2,
         shells: [
-          { rang: 1, session: "brigade-brigade-1", cible: WORKSTATION },
-          { rang: 2, session: "brigade-brigade-2", cible: WORKSTATION },
+          { rang: 1, session: "brigade-brigade-1", cible: POSTE },
+          { rang: 2, session: "brigade-brigade-2", cible: POSTE },
         ],
       },
     });
   });
 
   test("sous Windows, sans `tmux` ni `screen`, le shell de ce poste s'ouvre tel quel et finit avec son terminal : rien n'en est retenu, rien n'est à détruire", async () => {
-    const souvenirs = enMemoire({ brigade: { dernier: 1, shells: [{ rang: 1, session: "brigade-brigade-1", cible: WORKSTATION }] } });
+    const souvenirs = enMemoire({ brigade: { dernier: 1, shells: [{ rang: 1, session: "brigade-brigade-1", cible: POSTE }] } });
     const detruites: Session[] = [];
-    const { terminaux, shells } = launch(souvenirs, detruites, { detruite: true }, { windows: true });
+    const { terminaux, shells } = lancement(souvenirs, detruites, { detruite: true }, { windows: true });
     // Un souvenir de ce poste ne se rattache à rien : il n'y a pas de session où revenir.
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ genre }) => genre), ["second"]);
 
-    const ici = terminaux.ouvrir(BRIGADE, WORKSTATION);
+    const ici = terminaux.ouvrir(BRIGADE, POSTE);
 
     assert.deepEqual(
-      shells().map(({ commande: command, args, dossier }) => [command, args, dossier]),
+      shells().map(({ commande, args, dossier }) => [commande, args, dossier]),
       [["C:\\Program Files\\Git\\bin\\bash.exe", ["--login", "-i"], "/projets/brigade"]],
     );
     assert.equal(ici.note, `shell on ${ICI}, in /projets/brigade — not persistent: neither tmux nor screen runs on Windows, this shell ends with its terminal`);
     // Le même bandeau que celui d'un shell persistant de ce poste : où l'on est, avec quel compte.
     assert.equal(ici.bandeau, `${ICI} · benoit`);
-    assert.deepEqual(souvenirs.tel().brigade?.shells.map(({ cible }) => cible), [WORKSTATION]);
+    assert.deepEqual(souvenirs.tel().brigade?.shells.map(({ cible }) => cible), [POSTE]);
     assert.deepEqual(await terminaux.fermerShell(ici.id), { ferme: true });
     assert.deepEqual(detruites, []);
   });
 
   test("le shell qu'un geste ouvre pour y écrire sa commande reste un shell de ce poste, qui finit avec l'app : il n'est pas retenu", () => {
     const souvenirs = enMemoire();
-    const { terminaux, shells } = launch(souvenirs);
+    const { terminaux, shells } = lancement(souvenirs);
     terminaux.espace(BRIGADE);
 
-    const action = terminaux.shell(BRIGADE, "git -C /projets/brigade pull");
+    const geste = terminaux.shell(BRIGADE, "git -C /projets/brigade pull");
 
-    assert.deepEqual(shells().map(({ commande: command, args }) => [command, ...args]), [["/bin/zsh", "-l"]]);
-    assert.equal(action.titre, "shell 1");
+    assert.deepEqual(shells().map(({ commande, args }) => [commande, ...args]), [["/bin/zsh", "-l"]]);
+    assert.equal(geste.titre, "shell 1");
     assert.deepEqual(souvenirs.tel(), {});
     // Le rang reste pris : le shell persistant suivant ne porte pas le même titre.
-    assert.equal(terminaux.ouvrir(BRIGADE, WORKSTATION).titre, "shell 2");
+    assert.equal(terminaux.ouvrir(BRIGADE, POSTE).titre, "shell 2");
   });
 });
 
 describe("fermer l'app, puis la rouvrir : les shells persistants reviennent", () => {
   test("rouvert, l'espace du projet ramène chaque shell, rattaché à sa session, sous le même titre — et un shell neuf prend le rang suivant", () => {
     const souvenirs = enMemoire();
-    const avant = launch(souvenirs);
+    const avant = lancement(souvenirs);
     avant.terminaux.espace(BRIGADE);
-    avant.terminaux.ouvrir(BRIGADE, WORKSTATION);
-    avant.terminaux.ouvrir(BRIGADE, WORKSTATION);
-    const commands = avant.shells().map(({ commande: command, args }) => [command, ...args]);
+    avant.terminaux.ouvrir(BRIGADE, POSTE);
+    avant.terminaux.ouvrir(BRIGADE, POSTE);
+    const commandes = avant.shells().map(({ commande, args }) => [commande, ...args]);
 
     // Fermer l'app tue ses terminaux — les clients des sessions, pas les sessions —, et n'oublie rien.
     avant.terminaux.fermer();
     assert.ok(avant.shells().every(({ tue }) => tue));
     const retenu = souvenirs.tel();
 
-    const apres = launch(souvenirs);
+    const apres = lancement(souvenirs);
     assert.deepEqual(apres.lances, [], "rien n'est lancé avant que l'espace du projet ne s'ouvre");
-    const space = apres.terminaux.espace(BRIGADE);
+    const espace = apres.terminaux.espace(BRIGADE);
 
-    assert.deepEqual(space.map(({ genre, titre }) => [genre, titre]), [["second", "Second"], ["shell", "shell 1"], ["shell", "shell 2"]]);
-    assert.deepEqual(apres.shells().map(({ commande: command, args }) => [command, ...args]), commands);
-    assert.match(space[1]?.note ?? "", new RegExp(`^persistent shell, reattached on ${ICI}, in /projets/brigade — session \`brigade-brigade-1\``));
+    assert.deepEqual(espace.map(({ genre, titre }) => [genre, titre]), [["second", "Second"], ["shell", "shell 1"], ["shell", "shell 2"]]);
+    assert.deepEqual(apres.shells().map(({ commande, args }) => [commande, ...args]), commandes);
+    assert.match(espace[1]?.note ?? "", new RegExp(`^persistent shell, reattached on ${ICI}, in /projets/brigade — session \`brigade-brigade-1\``));
     assert.deepEqual(souvenirs.tel(), retenu);
     // Rouvrir l'espace ne les relance pas une seconde fois.
     apres.terminaux.espace(BRIGADE);
     assert.equal(apres.shells().length, 2);
-    assert.equal(apres.terminaux.ouvrir(BRIGADE, WORKSTATION).titre, "shell 3");
+    assert.equal(apres.terminaux.ouvrir(BRIGADE, POSTE).titre, "shell 3");
   });
 
   test("seul le projet ouvert ramène ses shells : ceux d'un autre attendent son espace", () => {
-    const souvenirs = enMemoire({ parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: WORKSTATION }] } });
-    const { terminaux, shells } = launch(souvenirs);
+    const souvenirs = enMemoire({ parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: POSTE }] } });
+    const { terminaux, shells } = lancement(souvenirs);
 
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ genre }) => genre), ["second"]);
     assert.deepEqual(shells(), []);
@@ -159,31 +159,31 @@ describe("fermer un shell pour de bon", () => {
   test("il quitte l'espace, sa session est détruite, et il ne revient plus à la réouverture", async () => {
     const souvenirs = enMemoire();
     const detruites: Session[] = [];
-    const { terminaux, shells, etats: states } = launch(souvenirs, detruites);
+    const { terminaux, shells, etats } = lancement(souvenirs, detruites);
     terminaux.espace(BRIGADE);
-    const guard = terminaux.ouvrir(BRIGADE, WORKSTATION);
-    const ferme = terminaux.ouvrir(BRIGADE, WORKSTATION);
+    const garde = terminaux.ouvrir(BRIGADE, POSTE);
+    const ferme = terminaux.ouvrir(BRIGADE, POSTE);
 
     assert.deepEqual(await terminaux.fermerShell(ferme.id), { ferme: true });
 
-    assert.deepEqual(detruites, [{ nom: "brigade-brigade-2", cible: WORKSTATION }]);
+    assert.deepEqual(detruites, [{ nom: "brigade-brigade-2", cible: POSTE }]);
     assert.equal(shells()[1]?.tue, true);
-    assert.deepEqual(states.map(({ id, arrete }) => [id, arrete]), [[ferme.id, true]]);
-    assert.deepEqual(terminaux.espace(BRIGADE).map(({ id }) => id).slice(1), [guard.id]);
+    assert.deepEqual(etats.map(({ id, arrete }) => [id, arrete]), [[ferme.id, true]]);
+    assert.deepEqual(terminaux.espace(BRIGADE).map(({ id }) => id).slice(1), [garde.id]);
     assert.deepEqual(souvenirs.tel().brigade?.shells.map(({ session }) => session), ["brigade-brigade-1"]);
 
     terminaux.fermer();
-    const apres = launch(souvenirs);
+    const apres = lancement(souvenirs);
     assert.deepEqual(apres.terminaux.espace(BRIGADE).map(({ titre }) => titre), ["Second", "shell 1"]);
     // Son rang n'est pas rendu : un shell neuf ne retrouve pas sa session.
-    assert.equal(apres.terminaux.ouvrir(BRIGADE, WORKSTATION).titre, "shell 3");
+    assert.equal(apres.terminaux.ouvrir(BRIGADE, POSTE).titre, "shell 3");
   });
 
   test("une session qui n'a pas pu être détruite : le shell est fermé et oublié quand même, et la raison dit où elle reste", async () => {
     const souvenirs = enMemoire();
-    const { terminaux } = launch(souvenirs, [], { erreur: "$ tmux kill-session …\n→ exit code 1" });
+    const { terminaux } = lancement(souvenirs, [], { erreur: "$ tmux kill-session …\n→ exit code 1" });
     terminaux.espace(BRIGADE);
-    const shell = terminaux.ouvrir(BRIGADE, WORKSTATION);
+    const shell = terminaux.ouvrir(BRIGADE, POSTE);
 
     assert.deepEqual(await terminaux.fermerShell(shell.id), {
       refus: `shell 1 is closed, but its session \`brigade-brigade-1\` could not be destroyed on ${ICI}: it is no longer listed, and stays there until it is destroyed — $ tmux kill-session …\n→ exit code 1`,
@@ -192,7 +192,7 @@ describe("fermer un shell pour de bon", () => {
   });
 
   test("le second ne se ferme pas ainsi, ni un shell qui n'est plus là", async () => {
-    const { terminaux } = launch(enMemoire());
+    const { terminaux } = lancement(enMemoire());
     const [second] = terminaux.espace(BRIGADE);
     assert.deepEqual(await terminaux.fermerShell(second?.id ?? 0), { refus: "nothing was closed: this shell is no longer open" });
     assert.deepEqual(await terminaux.fermerShell(99), { refus: "nothing was closed: this shell is no longer open" });
@@ -200,11 +200,11 @@ describe("fermer un shell pour de bon", () => {
 
   test("un shell dont la session finit d'elle-même (le chef y a tapé `exit`) quitte l'espace et l'app l'oublie, quel que soit son code de sortie", () => {
     const souvenirs = enMemoire();
-    const { terminaux, shells } = launch(souvenirs, [], { detruite: true });
+    const { terminaux, shells } = lancement(souvenirs, [], { detruite: true });
     terminaux.espace(BRIGADE);
-    terminaux.ouvrir(BRIGADE, WORKSTATION);
-    terminaux.ouvrir(BRIGADE, WORKSTATION);
-    terminaux.ouvrir(BRIGADE, WORKSTATION);
+    terminaux.ouvrir(BRIGADE, POSTE);
+    terminaux.ouvrir(BRIGADE, POSTE);
+    terminaux.ouvrir(BRIGADE, POSTE);
 
     shells()[0]?.surFin(0);
     shells()[1]?.surFin(255);
@@ -224,7 +224,7 @@ describe("le fichier des souvenirs", () => {
   test("ce qui y est écrit se relit tel quel, et le dossier est créé s'il manque", (t) => {
     const chemin = join(dossier(t), "brigade", "shells.json");
     const souvenirs = souvenirsDansFichier(chemin);
-    const rappel: Rappel = { brigade: { dernier: 4, shells: [{ rang: 2, session: "brigade-brigade-2", cible: WORKSTATION }] } };
+    const rappel: Rappel = { brigade: { dernier: 4, shells: [{ rang: 2, session: "brigade-brigade-2", cible: POSTE }] } };
 
     assert.deepEqual(souvenirs.lire(), {});
     souvenirs.ecrire(rappel);
@@ -257,7 +257,7 @@ describe("le fichier des souvenirs", () => {
     });
     assert.deepEqual(lu, {
       // Le dernier rang n'est jamais en deçà d'un shell retenu.
-      brigade: { dernier: 6, shells: [{ rang: 1, session: "brigade-brigade-1", cible: WORKSTATION }, { rang: 6, session: "brigade-brigade-6", cible: WORKSTATION }] },
+      brigade: { dernier: 6, shells: [{ rang: 1, session: "brigade-brigade-1", cible: POSTE }, { rang: 6, session: "brigade-brigade-6", cible: POSTE }] },
       vide: { dernier: 0, shells: [] },
     });
   });
@@ -265,9 +265,9 @@ describe("le fichier des souvenirs", () => {
 
 // --- Sur un vrai multiplexeur.
 
-const multiplexeur = ["tmux", "screen"].find((tool) => {
+const multiplexeur = ["tmux", "screen"].find((outil) => {
   try {
-    execFileSync("/bin/sh", ["-c", `command -v ${tool}`], { stdio: "ignore" });
+    execFileSync("/bin/sh", ["-c", `command -v ${outil}`], { stdio: "ignore" });
     return true;
   } catch {
     return false;
@@ -286,9 +286,9 @@ const AIDE_PTY = join(import.meta.dirname, "aides/pty.py");
 
 // Attend un fait. Le délai n'est qu'une garde, pour qu'un test cassé finisse par le dire.
 async function jusqua(condition: () => boolean, quoi: () => string): Promise<void> {
-  const limit = Date.now() + 60_000;
+  const limite = Date.now() + 60_000;
   while (!condition()) {
-    if (Date.now() > limit) throw new Error(`jamais arrivé — ${quoi()}`);
+    if (Date.now() > limite) throw new Error(`jamais arrivé — ${quoi()}`);
     await new Promise((resoudre) => setTimeout(resoudre, 5));
   }
 }
@@ -298,15 +298,15 @@ const sansEchappements = (texte: string) => texte.replace(/\x1b\[[0-9;?>=]*[ -/]
 // Un vrai terminal pour ce qu'un registre lance, dans l'environnement du test : node-pty là où il
 // est livré, l'aide en Python ailleurs. Le second, lui, n'est pas lancé : un faux pty le tient.
 function vraisPty(env: Record<string, string>, fins: Promise<void>[]) {
-  return (lance: Launch): Pty => {
+  return (lance: Lancement): Pty => {
     if (lance.commande === "faux-claude") return { ecrire: () => {}, redimensionner: () => {}, tuer: () => {} };
-    const line = ["/usr/bin/env", "-i", ...Object.entries(env).map(([cle, valeur]) => `${cle}=${valeur}`), lance.commande, ...lance.args];
+    const ligne = ["/usr/bin/env", "-i", ...Object.entries(env).map(([cle, valeur]) => `${cle}=${valeur}`), lance.commande, ...lance.args];
     if (ptyDisponible) {
       let finir = () => {};
       fins.push(new Promise((resoudre) => (finir = resoudre)));
-      return vraiPty({ ...lance, commande: line[0] ?? "", args: line.slice(1), surFin: (code) => (finir(), lance.surFin(code)) });
+      return vraiPty({ ...lance, commande: ligne[0] ?? "", args: ligne.slice(1), surFin: (code) => (finir(), lance.surFin(code)) });
     }
-    const enfant = spawn("python3", ["-I", AIDE_PTY, ...line], { cwd: lance.dossier, stdio: ["pipe", "pipe", "inherit"] });
+    const enfant = spawn("python3", ["-I", AIDE_PTY, ...ligne], { cwd: lance.dossier, stdio: ["pipe", "pipe", "inherit"] });
     enfant.stdout.on("data", (donnees: Buffer) => lance.surSortie(donnees.toString("utf8")));
     fins.push(new Promise((resoudre) => enfant.on("exit", (code) => (resoudre(), lance.surFin(code ?? 0)))));
     return { ecrire: (donnees) => void enfant.stdin.write(donnees), redimensionner: () => {}, tuer: () => void enfant.kill() };
@@ -318,7 +318,7 @@ describe(`fermer l'app, la rouvrir : sur ce poste${multiplexeur === undefined ? 
     const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-shells-")));
     const env = { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: racine, SHELL: "/bin/sh", TERM: "xterm-256color", TMUX_TMPDIR: racine, SCREENDIR: racine, LANG: "C" };
     // Un nom de projet à ce test : deux suites de front ne partagent pas une session.
-    const project = { nom: `essai-shells-${process.pid}`, dossier: racine };
+    const projet = { nom: `essai-shells-${process.pid}`, dossier: racine };
     const souvenirs = souvenirsDansFichier(join(racine, "app", "shells.json"));
     const fins: Promise<void>[] = [];
     const ouvertes: Session[] = [];
@@ -344,21 +344,21 @@ describe(`fermer l'app, la rouvrir : sur ce poste${multiplexeur === undefined ? 
 
     // Première ouverture : un shell sur ce poste, et une commande qui reste au premier plan —
     // `cat` ne rend ce qu'il reçoit que s'il tourne encore.
-    const first = app();
-    first.terminaux.espace(project);
-    const shell = first.terminaux.ouvrir(project, WORKSTATION);
-    const session: Session = { nom: `brigade-${project.nom}-1`, cible: WORKSTATION };
+    const premiere = app();
+    premiere.terminaux.espace(projet);
+    const shell = premiere.terminaux.ouvrir(projet, POSTE);
+    const session: Session = { nom: `brigade-${projet.nom}-1`, cible: POSTE };
     ouvertes.push(session);
-    first.terminaux.ecrire(shell.id, "echo AVANT-$((6*7)); cat\r");
-    await jusqua(() => first.sortie().includes("AVANT-42"), first.sortie);
-    first.terminaux.ecrire(shell.id, "ligne-une\r");
-    await jusqua(() => (first.sortie().match(/ligne-une/g) ?? []).length >= 2, first.sortie);
-    first.terminaux.fermer();
+    premiere.terminaux.ecrire(shell.id, "echo AVANT-$((6*7)); cat\r");
+    await jusqua(() => premiere.sortie().includes("AVANT-42"), premiere.sortie);
+    premiere.terminaux.ecrire(shell.id, "ligne-une\r");
+    await jusqua(() => (premiere.sortie().match(/ligne-une/g) ?? []).length >= 2, premiere.sortie);
+    premiere.terminaux.fermer();
     await Promise.all(fins);
 
     // Rouverte : le shell revient de lui-même avec l'espace, et montre ce que la session avait affiché.
     const seconde = app();
-    const [, revenu] = seconde.terminaux.espace(project);
+    const [, revenu] = seconde.terminaux.espace(projet);
     assert.equal(revenu?.titre, "shell 1");
     await jusqua(() => seconde.sortie().includes("AVANT-42") && seconde.sortie().includes("ligne-une"), seconde.sortie);
     // `cat` est toujours là : il rend ce qui lui est tapé.
@@ -380,6 +380,6 @@ describe(`fermer l'app, la rouvrir : sur ce poste${multiplexeur === undefined ? 
     // `screen -X quit` rend la main avant que la session ait fini de partir : on attend qu'elle soit partie.
     await jusqua(() => !existe(), () => `la session ${session.nom} existe encore sur ce poste`);
     const troisieme = app();
-    assert.deepEqual(troisieme.terminaux.espace(project).map(({ genre }) => genre), ["second"]);
+    assert.deepEqual(troisieme.terminaux.espace(projet).map(({ genre }) => genre), ["second"]);
   });
 });

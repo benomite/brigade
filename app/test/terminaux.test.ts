@@ -2,10 +2,10 @@
 // garde, ce qu'il dit. Le vrai pty est éprouvé dans pty.test.ts.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { DIT, settingsFile } from "../src/saisie.ts";
-import { ouvrirTerminaux, type Launch, type Terminal } from "../src/terminaux.ts";
+import { DIT, reglages } from "../src/saisie.ts";
+import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
 import { ICI } from "../src/plateforme.ts";
-import { ROLE_DU_SECOND } from "../src/second/launch.ts";
+import { ROLE_DU_SECOND } from "../src/second/lancement.ts";
 
 const FIL_REPRIS = "thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs with the second's role in its system prompt";
 // Ce que `claude` reçoit pour être le second (second/lancement.ts) : le rôle livré avec l'app, et des réglages vides
@@ -15,26 +15,26 @@ const LE_ROLE = ROLE.join(" ");
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
 
-type FauxPty = Launch & { ecrits: string[]; tailles: [number, number][]; tue: boolean };
+type FauxPty = Lancement & { ecrits: string[]; tailles: [number, number][]; tue: boolean };
 
-function registry() {
+function registre() {
   const lances: FauxPty[] = [];
   const sorties: [number, string][] = [];
-  const states: Terminal[] = [];
+  const etats: Terminal[] = [];
   const terminaux = ouvrirTerminaux({
     claude: "claude",
     shell: "/bin/zsh",
-    ouvrirPty(launch) {
-      const faux: FauxPty = { ...launch, ecrits: [], tailles: [], tue: false };
+    ouvrirPty(lancement) {
+      const faux: FauxPty = { ...lancement, ecrits: [], tailles: [], tue: false };
       lances.push(faux);
       return {
         ecrire: (donnees) => void faux.ecrits.push(donnees),
-        redimensionner: (colonnes, lines) => void faux.tailles.push([colonnes, lines]),
+        redimensionner: (colonnes, lignes) => void faux.tailles.push([colonnes, lignes]),
         tuer: () => void (faux.tue = true),
       };
     },
     surSortie: (id, donnees) => void sorties.push([id, donnees]),
-    surEtat: (terminal) => void states.push(terminal),
+    surEtat: (terminal) => void etats.push(terminal),
   });
   // Le pty lancé au rang donné : le test échoue net s'il n'existe pas.
   const lance = (rang: number): FauxPty => {
@@ -42,8 +42,8 @@ function registry() {
     assert.ok(faux, `aucun pty lancé au rang ${rang}`);
     return faux;
   };
-  const commands = () => lances.map(({ commande: command, args, dossier }) => [command, ...args, dossier].join(" "));
-  return { terminaux, lance, commandes: commands, sorties, etats: states };
+  const commandes = () => lances.map(({ commande, args, dossier }) => [commande, ...args, dossier].join(" "));
+  return { terminaux, lance, commandes, sorties, etats };
 }
 
 const un = <T>(liste: T[]): T => {
@@ -53,11 +53,11 @@ const un = <T>(liste: T[]): T => {
 
 describe("le registre des terminaux", () => {
   test("ouvrir un espace y lance le second, dans le dossier du projet, en reprenant le fil — et il le dit", () => {
-    const { terminaux, commandes: commands } = registry();
+    const { terminaux, commandes } = registre();
 
     const second = un(terminaux.espace(BRIGADE));
 
-    assert.deepEqual(commands(), [`claude --continue ${LE_ROLE} /projets/brigade`]);
+    assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`]);
     assert.deepEqual(second, {
       id: second.id,
       projet: "brigade",
@@ -69,48 +69,48 @@ describe("le registre des terminaux", () => {
   });
 
   test("le second est lancé avec le rôle, pas en `claude` nu : le rôle suit `--continue`, et une session neuve le porte aussi", () => {
-    const { terminaux, lance, commandes: commands } = registry();
+    const { terminaux, lance, commandes } = registre();
     terminaux.espace(BRIGADE);
 
     assert.deepEqual(lance(0).args, ["--continue", ...ROLE]);
     lance(0).surFin(1);
     assert.deepEqual(lance(1).args, ROLE);
-    assert.deepEqual(commands().length, 2);
+    assert.deepEqual(commandes().length, 2);
   });
 
   test("un `claude --continue` qui sort en erreur n'a rien repris : une session neuve part, et la note le dit au lieu de se taire", () => {
-    const { terminaux, lance, commandes: commands, etats: states } = registry();
+    const { terminaux, lance, commandes, etats } = registre();
     const second = un(terminaux.espace(BRIGADE));
 
     lance(0).surFin(1);
 
-    assert.deepEqual(commands(), [`claude --continue ${LE_ROLE} /projets/brigade`, `claude ${LE_ROLE} /projets/brigade`]);
-    const dit = un(states);
+    assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`, `claude ${LE_ROLE} /projets/brigade`]);
+    const dit = un(etats);
     assert.deepEqual([dit.id, dit.arrete, dit.note], [second.id, false, "new session: `claude --continue` exited with code 1, the thread was not resumed — `claude`, with the second's role in its system prompt"]);
     // L'espace rouvert dit la même chose.
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
   });
 
   test("une session neuve qui s'arrête n'est pas relancée d'office : le second est dit arrêté, et une touche le relance en reprenant le fil", () => {
-    const { terminaux, lance, commandes: commands, etats: states } = registry();
+    const { terminaux, lance, commandes, etats } = registre();
     const second = un(terminaux.espace(BRIGADE));
     lance(0).surFin(1);
 
     lance(1).surFin(1);
 
-    assert.equal(commands().length, 2);
-    assert.deepEqual([states.at(-1)?.arrete, states.at(-1)?.note], [true, "the second stopped (code 1) — a keypress restarts it"]);
+    assert.equal(commandes().length, 2);
+    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [true, "the second stopped (code 1) — a keypress restarts it"]);
 
     terminaux.ecrire(second.id, "\r");
 
-    assert.deepEqual(commands().at(-1), `claude --continue ${LE_ROLE} /projets/brigade`);
+    assert.deepEqual(commandes().at(-1), `claude --continue ${LE_ROLE} /projets/brigade`);
     // La touche a relancé : elle n'est pas tapée dans la session qui revient.
     assert.deepEqual(lance(2).ecrits, []);
-    assert.deepEqual([states.at(-1)?.arrete, states.at(-1)?.note], [false, FIL_REPRIS]);
+    assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [false, FIL_REPRIS]);
   });
 
   test("une commande inscrite dans le second y est écrite telle quelle, sans rien qui l'envoie — et la note ne promet que ce qui est tenu", () => {
-    const { terminaux, lance, etats: states } = registry();
+    const { terminaux, lance, etats } = registre();
     const second = un(terminaux.espace(BRIGADE));
     terminaux.shell(BRIGADE);
 
@@ -122,17 +122,17 @@ describe("le registre des terminaux", () => {
     assert.equal(dit.note, "written into the second, without Enter: `!station brigade garde-fous stop` — at `claude`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming");
     // L'espace rouvert dit la même chose ; rien n'est annoncé à part, la vue a reçu la réponse.
     assert.deepEqual(terminaux.espace(BRIGADE)[0], dit);
-    assert.deepEqual(states, []);
+    assert.deepEqual(etats, []);
   });
 
   test("le second arrêté est lancé d'abord, et la commande n'y est pas écrite à l'aveugle : la note dit de recliquer", () => {
-    const { terminaux, lance, commandes: commands } = registry();
+    const { terminaux, lance, commandes } = registre();
     const second = un(terminaux.espace(BRIGADE));
     lance(0).surFin(0);
 
     const dit = terminaux.inscrire(BRIGADE, "!station brigade garde-fous stop");
 
-    assert.deepEqual(commands(), [`claude --continue ${LE_ROLE} /projets/brigade`, `claude --continue ${LE_ROLE} /projets/brigade`]);
+    assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`, `claude --continue ${LE_ROLE} /projets/brigade`]);
     assert.deepEqual(lance(1).ecrits, []);
     assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
     assert.equal(dit.note, "the second was not running: launched (`claude --continue`, with the second's role in its system prompt) — the command is not written into a second that is starting, click again when it is ready");
@@ -143,18 +143,18 @@ describe("le registre des terminaux", () => {
   });
 
   test("un espace jamais ouvert n'a pas de second : le bouton l'ouvre d'abord, de la même façon", () => {
-    const { terminaux, lance, commandes: commands } = registry();
+    const { terminaux, lance, commandes } = registre();
 
     const dit = terminaux.inscrire(BRIGADE, "!station brigade garde-fous stop");
 
-    assert.deepEqual(commands(), [`claude --continue ${LE_ROLE} /projets/brigade`]);
+    assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`]);
     assert.deepEqual(lance(0).ecrits, []);
     assert.match(dit.note, /^the second was not running: launched /);
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
   });
 
   test("une commande qui porterait de quoi partir seule — un retour à la ligne dans un nom, un hôte — n'est pas écrite, et la note le dit", () => {
-    const { terminaux, lance } = registry();
+    const { terminaux, lance } = registre();
     terminaux.espace(BRIGADE);
 
     for (const piege of ["!station\rbrigade status", "!station 'bo\nx' brigade status", "!station\x03 brigade"]) {
@@ -165,32 +165,32 @@ describe("le registre des terminaux", () => {
   });
 
   test("un fil repris que le chef quitte est dit arrêté, sans session neuve", () => {
-    const { terminaux, lance, commandes: commands, etats: states } = registry();
+    const { terminaux, lance, commandes, etats } = registre();
     terminaux.espace(BRIGADE);
 
     lance(0).surFin(0);
 
-    assert.equal(commands().length, 1);
-    assert.deepEqual([un(states).arrete, un(states).note], [true, "the second stopped (code 0) — a keypress restarts it"]);
+    assert.equal(commandes().length, 1);
+    assert.deepEqual([un(etats).arrete, un(etats).note], [true, "the second stopped (code 0) — a keypress restarts it"]);
   });
 
   test("d'autres shells s'ouvrent dans l'espace, dans le dossier du projet, et le second est retrouvé tel qu'il était", () => {
-    const { terminaux, lance, commandes: commands } = registry();
+    const { terminaux, lance, commandes } = registre();
     const second = un(terminaux.espace(BRIGADE));
 
     const shell = terminaux.shell(BRIGADE);
     terminaux.shell(BRIGADE);
 
-    assert.deepEqual(commands().slice(1), ["/bin/zsh -l /projets/brigade", "/bin/zsh -l /projets/brigade"]);
+    assert.deepEqual(commandes().slice(1), ["/bin/zsh -l /projets/brigade", "/bin/zsh -l /projets/brigade"]);
     assert.deepEqual([shell.genre, shell.titre, shell.note], ["shell", "shell 1", `shell on ${ICI}, in /projets/brigade`]);
     // Rouvrir l'espace ne relance rien : le même second, les mêmes shells.
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ id, titre }) => [id, titre]), [[second.id, "Second"], [shell.id, "shell 1"], [shell.id + 1, "shell 2"]]);
-    assert.equal(commands().length, 3);
+    assert.equal(commandes().length, 3);
     assert.equal(lance(0).tue, false);
   });
 
   test("chaque projet a son second : ce qui est tapé, et ce qui sort, ne se croise pas", () => {
-    const { terminaux, lance, commandes: commands, sorties } = registry();
+    const { terminaux, lance, commandes, sorties } = registre();
     const brigade = un(terminaux.espace(BRIGADE));
     const parade = un(terminaux.espace(PARADE));
 
@@ -198,20 +198,20 @@ describe("le registre des terminaux", () => {
     lance(1).surSortie("parade parle");
     lance(0).surSortie("brigade répond");
 
-    assert.deepEqual(commands(), [`claude --continue ${LE_ROLE} /projets/brigade`, `claude --continue ${LE_ROLE} /projets/parade`]);
+    assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`, `claude --continue ${LE_ROLE} /projets/parade`]);
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [["!ls\r"], []]);
     assert.deepEqual(sorties, [[parade.id, "parade parle"], [brigade.id, "brigade répond"]]);
   });
 
   test("un shell qui sort quitte l'espace ; le second et les autres projets n'en savent rien", () => {
-    const { terminaux, lance, etats: states } = registry();
+    const { terminaux, lance, etats } = registre();
     const second = un(terminaux.espace(BRIGADE));
     const shell = terminaux.shell(BRIGADE);
     terminaux.espace(PARADE);
 
     lance(1).surFin(0);
 
-    assert.deepEqual([un(states).id, un(states).arrete], [shell.id, true]);
+    assert.deepEqual([un(etats).id, un(etats).arrete], [shell.id, true]);
     assert.deepEqual(terminaux.espace(BRIGADE).map(({ id }) => id), [second.id]);
     assert.deepEqual([lance(0).tue, lance(2).tue], [false, false]);
     // Écrire dans un shell disparu ne relance rien.
@@ -220,7 +220,7 @@ describe("le registre des terminaux", () => {
   });
 
   test("la taille de la vue va au pty, et un second relancé repart à cette taille", () => {
-    const { terminaux, lance } = registry();
+    const { terminaux, lance } = registre();
     const second = un(terminaux.espace(BRIGADE));
     assert.deepEqual([lance(0).colonnes, lance(0).lignes], [80, 24]);
 
@@ -234,7 +234,7 @@ describe("le registre des terminaux", () => {
   });
 
   test("fermer tue tous les pty, et leur mort ne relance ni ne dit plus rien", () => {
-    const { terminaux, lance, commandes: commands, etats: states } = registry();
+    const { terminaux, lance, commandes, etats } = registre();
     terminaux.espace(BRIGADE);
     terminaux.shell(BRIGADE);
     terminaux.espace(PARADE);
@@ -243,12 +243,12 @@ describe("le registre des terminaux", () => {
     for (const rang of [0, 1, 2]) lance(rang).surFin(129);
 
     assert.deepEqual([lance(0).tue, lance(1).tue, lance(2).tue], [true, true, true]);
-    assert.equal(commands().length, 3);
-    assert.deepEqual(states, []);
+    assert.equal(commandes().length, 3);
+    assert.deepEqual(etats, []);
   });
 
   test("un projet qui quitte la liste perd ses terminaux, et eux seuls : tués, ils ne disent plus rien et ne relancent rien", () => {
-    const { terminaux, lance, commandes: commands, etats: states } = registry();
+    const { terminaux, lance, commandes, etats } = registre();
     const second = un(terminaux.espace(BRIGADE));
     const shell = terminaux.shell(BRIGADE);
     const autre = un(terminaux.espace(PARADE));
@@ -258,94 +258,94 @@ describe("le registre des terminaux", () => {
     assert.deepEqual([lance(0).tue, lance(1).tue, lance(2).tue], [true, true, false]);
     lance(0).surFin(1);
     lance(1).surFin(0);
-    assert.deepEqual(states, []);
-    assert.equal(commands().length, 3);
+    assert.deepEqual(etats, []);
+    assert.equal(commandes().length, 3);
     terminaux.ecrire(second.id, "x");
-    assert.equal(commands().length, 3);
+    assert.equal(commandes().length, 3);
     assert.deepEqual(terminaux.espace(PARADE), [autre]);
   });
 
   test("un projet revenu dans la liste retrouve un second neuf, au premier clic", () => {
-    const { terminaux, commandes: commands } = registry();
+    const { terminaux, commandes } = registre();
     const avant = un(terminaux.espace(BRIGADE));
     terminaux.quitter("brigade");
 
     const apres = un(terminaux.espace({ nom: "brigade", dossier: "/ailleurs" }));
 
     assert.notEqual(apres.id, avant.id);
-    assert.equal(commands().at(-1), `claude --continue ${LE_ROLE} /ailleurs`);
+    assert.equal(commandes().at(-1), `claude --continue ${LE_ROLE} /ailleurs`);
   });
 });
 
 
 describe("ce que la mise en service demande au registre", () => {
   test("une session s'ouvre dans le second sur sa commande — `claude /brigade:init`, une conversation neuve dans le dossier du projet —, et la note le dit", () => {
-    const { terminaux, commandes: commands, lance } = registry();
+    const { terminaux, commandes, lance } = registre();
 
     const second = terminaux.session(BRIGADE, "/brigade:init");
 
-    assert.deepEqual(commands(), ["claude /brigade:init /projets/brigade"]);
+    assert.deepEqual(commandes(), ["claude /brigade:init /projets/brigade"]);
     assert.deepEqual(lance(0).ecrits, []);
     assert.deepEqual([second.genre, second.titre, second.arrete], ["second", "Claude", false]);
     assert.equal(second.note, "session launched on `/brigade:init`: `claude /brigade:init`, a new conversation in this folder — it is not the second: it runs without the second's role");
     // C'est le second de l'espace : l'ouvrir le retrouve, sans rien relancer.
     assert.deepEqual(terminaux.espace(BRIGADE), [second]);
-    assert.equal(commands().length, 1);
+    assert.equal(commandes().length, 1);
   });
 
   test("la session quittée est dite arrêtée, sans rien relancer d'office ; une touche reprend son fil, comme pour tout second", () => {
-    const { terminaux, lance, commandes: commands, etats: states } = registry();
+    const { terminaux, lance, commandes, etats } = registre();
     const second = terminaux.session(BRIGADE, "/brigade:init");
 
     lance(0).surFin(1);
 
-    assert.equal(commands().length, 1);
-    assert.deepEqual([un(states).arrete, un(states).note], [true, "the second stopped (code 1) — a keypress restarts it"]);
+    assert.equal(commandes().length, 1);
+    assert.deepEqual([un(etats).arrete, un(etats).note], [true, "the second stopped (code 1) — a keypress restarts it"]);
     terminaux.ecrire(second.id, "x");
-    assert.equal(commands().at(-1), `claude --continue ${LE_ROLE} /projets/brigade`);
+    assert.equal(commandes().at(-1), `claude --continue ${LE_ROLE} /projets/brigade`);
     // Le rôle est de nouveau établi : l'onglet peut reprendre son nom.
     assert.equal(terminaux.espace(BRIGADE)[0]?.titre, "Second");
   });
 
   test("un second qui tourne déjà n'est pas remplacé : la commande y est écrite, sans rien qui l'envoie", () => {
-    const { terminaux, lance, commandes: commands } = registry();
+    const { terminaux, lance, commandes } = registre();
     const second = un(terminaux.espace(BRIGADE));
 
     const dit = terminaux.session(BRIGADE, "/brigade:init");
 
-    assert.deepEqual(commands(), [`claude --continue ${LE_ROLE} /projets/brigade`]);
+    assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`]);
     assert.deepEqual(lance(0).ecrits, ["/brigade:init"]);
     assert.equal(dit.id, second.id);
     assert.match(dit.note, /^written into the second, without Enter: `\/brigade:init` — /);
   });
 
   test("un second arrêté repart sur la session, au lieu de reprendre son fil", () => {
-    const { terminaux, lance, commandes: commands } = registry();
+    const { terminaux, lance, commandes } = registre();
     const second = un(terminaux.espace(BRIGADE));
     lance(0).surFin(0);
 
     const dit = terminaux.session(BRIGADE, "/brigade:init");
 
-    assert.equal(commands().at(-1), "claude /brigade:init /projets/brigade");
+    assert.equal(commandes().at(-1), "claude /brigade:init /projets/brigade");
     assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
   });
 
   test("une session dont la commande porterait un caractère de contrôle n'est ni lancée ni écrite", () => {
-    const { terminaux, commandes: commands } = registry();
+    const { terminaux, commandes } = registre();
 
     const dit = terminaux.session(BRIGADE, "/brigade:init\r");
 
-    assert.deepEqual(commands(), []);
+    assert.deepEqual(commandes(), []);
     assert.match(dit.note, /^nothing is written: the command carries a control character/);
   });
 
   test("un shell peut s'ouvrir sur une commande : elle y est écrite telle quelle, sans rien qui l'envoie — c'est le chef qui fait Entrée", () => {
-    const { terminaux, lance, commandes: commands } = registry();
+    const { terminaux, lance, commandes } = registre();
     terminaux.espace(BRIGADE);
 
     const shell = terminaux.shell(BRIGADE, "sudo systemctl enable --now brigade@brigade.service");
 
-    assert.equal(commands().at(-1), "/bin/zsh -l /projets/brigade");
+    assert.equal(commandes().at(-1), "/bin/zsh -l /projets/brigade");
     // Dans ce shell, pas dans le second — et ni `\r` ni `\n`.
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [[], ["sudo systemctl enable --now brigade@brigade.service"]]);
     assert.deepEqual([shell.genre, shell.titre], ["shell", "shell 1"]);
@@ -353,7 +353,7 @@ describe("ce que la mise en service demande au registre", () => {
   });
 
   test("une commande qui porterait de quoi partir seule n'est pas écrite dans le shell, et sa note le dit", () => {
-    const { terminaux, lance } = registry();
+    const { terminaux, lance } = registre();
 
     for (const piege of ["sudo\rreboot", "sudo 'bo\nx'", "sudo\x03"]) {
       const shell = terminaux.shell(BRIGADE, piege);
@@ -375,14 +375,14 @@ const INSTALLATION = "!station brigade installation";
 const PAS_PARTIE = ` — the command did not go, and nothing is written: \`${INSTALLATION}\``;
 
 // Un registre dont chaque second dit ses tours à l'app. `tours` : ce que le second du rang donné a dit.
-function registrySuivi(proofDelayMs?: number) {
+function registreSuivi(delaiPreuveMs?: number) {
   const lances: FauxPty[] = [];
   const dits = new Map<number, string>();
   const terminaux = ouvrirTerminaux({
     claude: "claude",
     shell: "/bin/zsh",
-    ouvrirPty(launch) {
-      const faux: FauxPty = { ...launch, ecrits: [], tailles: [], tue: false };
+    ouvrirPty(lancement) {
+      const faux: FauxPty = { ...lancement, ecrits: [], tailles: [], tue: false };
       lances.push(faux);
       return {
         ecrire: (donnees) => void faux.ecrits.push(donnees),
@@ -393,19 +393,19 @@ function registrySuivi(proofDelayMs?: number) {
     surSortie: () => {},
     surEtat: () => {},
     tours: (id) => ({ chemin: `/tmp/brigade-app-essai/second-${id}.tours`, lire: () => dits.get(id) ?? "", vider: () => void dits.set(id, "") }),
-    ...(proofDelayMs === undefined ? {} : { delaiPreuveMs: proofDelayMs }),
+    ...(delaiPreuveMs === undefined ? {} : { delaiPreuveMs }),
   });
   const lance = (rang: number): FauxPty => {
     const faux = lances.at(rang);
     assert.ok(faux, `aucun pty lancé au rang ${rang}`);
     return faux;
   };
-  return { terminaux, lance, dire: (id: number, turns: string) => void dits.set(id, (dits.get(id) ?? "") + turns), dits };
+  return { terminaux, lance, dire: (id: number, tours: string) => void dits.set(id, (dits.get(id) ?? "") + tours), dits };
 }
 
 // Un espace ouvert sur un second libre : son premier tour est fini, il est à son invite.
-function secondFree(proofDelayMs?: number) {
-  const suivi = registrySuivi(proofDelayMs);
+function secondLibre(delaiPreuveMs?: number) {
+  const suivi = registreSuivi(delaiPreuveMs);
   const second = un(suivi.terminaux.espace(BRIGADE));
   suivi.lance(0).surSortie(TRAVAIL);
   suivi.dire(second.id, "tour\nfin\n");
@@ -415,7 +415,7 @@ function secondFree(proofDelayMs?: number) {
 
 describe("un geste direct part vraiment dans le second, et dit quand il ne peut pas", () => {
   test("second libre : la commande est écrite, `claude` se montre en mode shell, l'app fait Entrée — et la note dit ce qui est parti, et où lire sa sortie", async () => {
-    const { terminaux, second, pty } = secondFree();
+    const { terminaux, second, pty } = secondLibre();
 
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
 
@@ -438,10 +438,10 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("second occupé : rien n'est écrit dans sa saisie, et le refus dit en clair qu'il est occupé et que la commande n'est pas partie", async () => {
-    const { terminaux, second, pty, dire: tell } = secondFree();
+    const { terminaux, second, pty, dire } = secondLibre();
     const note = second.note;
     // Le chef lui a parlé : un tour est en cours, son titre tourne.
-    tell(second.id, "tour\n");
+    dire(second.id, "tour\n");
     pty.surSortie(TRAVAIL);
 
     const dit = await terminaux.envoyer(BRIGADE, INSTALLATION);
@@ -452,7 +452,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     assert.equal(un(terminaux.espace(BRIGADE)).note, note);
 
     // Le tour fini, il est libre : le même clic part.
-    tell(second.id, "fin\n");
+    dire(second.id, "fin\n");
     pty.surSortie(REPOS);
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
     pty.surSortie(MODE_SHELL);
@@ -461,35 +461,35 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("prompt rempli non envoyé : un geste avec jugement écrit sa demande dans la saisie, et rien ne la transmet — ni Entrée de l'app, ni mode shell, ni geste direct à sa suite ; seule l'Entrée du chef l'envoie", async () => {
-    const { terminaux, second, pty, dire: tell } = secondFree();
-    const request = "Le ticket #492 de brigade m'attend, et je ne sais pas quoi en faire. Lis l'issue #492, explique-moi ce qu'on attend de moi.";
+    const { terminaux, second, pty, dire } = secondLibre();
+    const demande = "Le ticket #492 de brigade m'attend, et je ne sais pas quoi en faire. Lis l'issue #492, explique-moi ce qu'on attend de moi.";
 
-    const dit = terminaux.inscrire(BRIGADE, request, () => "demande écrite dans le second, sans Entrée");
+    const dit = terminaux.inscrire(BRIGADE, demande, () => "demande écrite dans le second, sans Entrée");
 
-    assert.deepEqual(pty.ecrits, [request]);
+    assert.deepEqual(pty.ecrits, [demande]);
     assert.equal(dit.note, "demande écrite dans le second, sans Entrée");
     // Quoi que le second affiche ensuite — jusqu'à la légende du mode shell —, l'app ne fait pas Entrée.
     for (const sortie of [REPOS, "❯ Le ticket #492 de brigade m'attend", MODE_SHELL, TRAVAIL, REPOS]) pty.surSortie(sortie);
-    assert.deepEqual(pty.ecrits, [request]);
+    assert.deepEqual(pty.ecrits, [demande]);
     assert.ok(pty.ecrits.every((ecrit) => !/[\r\n]/.test(ecrit)));
 
     // Un geste direct ne s'écrit pas à la suite du prompt : il partirait avec lui, comme un message.
     assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.ecrit}${PAS_PARTIE}` });
-    assert.deepEqual(pty.ecrits, [request]);
+    assert.deepEqual(pty.ecrits, [demande]);
 
     // C'est l'Entrée du chef qui transmet — et elle seule a été écrite après la demande.
     terminaux.ecrire(second.id, "\r");
-    assert.deepEqual(pty.ecrits, [request, "\r"]);
-    tell(second.id, "tour\n");
+    assert.deepEqual(pty.ecrits, [demande, "\r"]);
+    dire(second.id, "tour\n");
     pty.surSortie(TRAVAIL);
     assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.occupe}${PAS_PARTIE}` });
   });
 
   test("une commande partie est en route, puis le second est occupé par elle : un second clic ne s'écrit pas derrière — une fois son tour fini, il repart", async () => {
-    const { terminaux, second, pty, dire: tell } = secondFree();
-    const first = terminaux.envoyer(BRIGADE, INSTALLATION);
+    const { terminaux, second, pty, dire } = secondLibre();
+    const premier = terminaux.envoyer(BRIGADE, INSTALLATION);
     pty.surSortie(MODE_SHELL);
-    await first;
+    await premier;
 
     assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.route}${PAS_PARTIE}` });
     pty.surSortie(TRAVAIL);
@@ -497,7 +497,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     assert.deepEqual(pty.ecrits, [INSTALLATION, "\r"]);
 
     // La commande rendue, le second en tire un tour, que `Stop` ferme.
-    tell(second.id, "fin\n");
+    dire(second.id, "fin\n");
     pty.surSortie(REPOS);
     const suivant = terminaux.envoyer(BRIGADE, INSTALLATION);
     pty.surSortie(MODE_SHELL);
@@ -506,8 +506,8 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("devant un dialogue — une permission en plein tour —, le titre est celui du repos mais le tour n'est pas fini : rien n'est écrit, une Entrée y validerait un choix", async () => {
-    const { terminaux, second, pty, dire: tell } = secondFree();
-    tell(second.id, "tour\ntour\n");
+    const { terminaux, second, pty, dire } = secondLibre();
+    dire(second.id, "tour\ntour\n");
     pty.surSortie(TRAVAIL);
     pty.surSortie(REPOS);
 
@@ -516,7 +516,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("le chef a une frappe en cours dans le second : rien n'est écrit à sa suite — après son Entrée et son tour, le geste part", async () => {
-    const { terminaux, second, pty, dire: tell } = secondFree();
+    const { terminaux, second, pty, dire } = secondLibre();
     // Le focus que le terminal de la vue rapporte n'est pas une frappe ; une lettre, si.
     terminaux.ecrire(second.id, "\x1b[I");
     terminaux.ecrire(second.id, "b");
@@ -525,9 +525,9 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     assert.deepEqual(pty.ecrits, ["\x1b[I", "b"]);
 
     terminaux.ecrire(second.id, "\r");
-    tell(second.id, "tour\n");
+    dire(second.id, "tour\n");
     pty.surSortie(TRAVAIL);
-    tell(second.id, "fin\n");
+    dire(second.id, "fin\n");
     pty.surSortie(REPOS);
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
     pty.surSortie(MODE_SHELL);
@@ -536,14 +536,14 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("un second qui démarre n'a fini aucun tour : rien ne part — et sans fichier des tours, aucun second n'est jamais dit libre", async () => {
-    const { terminaux, lance } = registrySuivi();
+    const { terminaux, lance } = registreSuivi();
     terminaux.espace(BRIGADE);
     lance(0).surSortie(REPOS);
 
     assert.deepEqual(await terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.demarre}${PAS_PARTIE}` });
     assert.deepEqual(lance(0).ecrits, []);
 
-    const sans = registry();
+    const sans = registre();
     sans.terminaux.espace(BRIGADE);
     sans.lance(0).surSortie(REPOS);
     assert.deepEqual(await sans.terminaux.envoyer(BRIGADE, INSTALLATION), { refus: `${DIT.demarre}${PAS_PARTIE}` });
@@ -552,7 +552,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
 
   test("`claude` ne se montre pas en mode shell : l'app ne fait pas Entrée, et la note dit que la commande est écrite mais pas partie — puis sa saisie n'est plus dite vide", async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
-    const { terminaux, pty } = secondFree(5_000);
+    const { terminaux, pty } = secondLibre(5_000);
 
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
     // Il redessine sa saisie sans passer en mode shell : la commande s'est écrite à la suite d'autre chose.
@@ -572,7 +572,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("le chef tape avant la preuve : l'app renonce à son Entrée, sans attendre sa garde", async () => {
-    const { terminaux, second, pty } = secondFree();
+    const { terminaux, second, pty } = secondLibre();
 
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
     terminaux.ecrire(second.id, "x");
@@ -585,7 +585,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("le second s'arrête avant la preuve : rien n'est envoyé, et c'est son arrêt que la note dit", async () => {
-    const { terminaux, pty } = secondFree();
+    const { terminaux, pty } = secondLibre();
 
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
     pty.surFin(0);
@@ -596,7 +596,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("le second ne tournait pas : il est lancé, rien n'est écrit dans un second qui démarre, et la note dit que la commande n'est pas partie", async () => {
-    const { terminaux, lance } = registrySuivi();
+    const { terminaux, lance } = registreSuivi();
 
     const dit = await terminaux.envoyer(BRIGADE, INSTALLATION);
 
@@ -608,7 +608,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("une commande qui porterait de quoi partir seule n'est ni écrite ni envoyée", async () => {
-    const { terminaux, pty } = secondFree();
+    const { terminaux, pty } = secondLibre();
 
     for (const piege of ["!station\rreboot", "!station 'bo\nx'", "!station\x03", `${INSTALLATION}\r`]) {
       assert.deepEqual(await terminaux.envoyer(BRIGADE, piege), { refus: "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” of this project in the projects file" });
@@ -617,12 +617,12 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   });
 
   test("le second est lancé avec les crochets qui disent ses tours, dans ses réglages à la suite du rôle — et repart d'un fichier vide ; un shell n'en reçoit pas", () => {
-    const { terminaux, lance, dire: tell, dits } = registrySuivi();
+    const { terminaux, lance, dire, dits } = registreSuivi();
     const second = un(terminaux.espace(BRIGADE));
-    const settings = settingsFile(`/tmp/brigade-app-essai/second-${second.id}.tours`);
+    const settings = reglages(`/tmp/brigade-app-essai/second-${second.id}.tours`);
 
     assert.deepEqual(lance(0).args, ["--continue", "--append-system-prompt-file", ROLE_DU_SECOND, "--settings", settings]);
-    tell(second.id, "tour\nfin\n");
+    dire(second.id, "tour\nfin\n");
 
     // `claude --continue` n'a rien repris : la session neuve porte les mêmes crochets, et ses tours repartent de rien.
     lance(0).surFin(1);
@@ -633,7 +633,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     assert.deepEqual(lance(2).args, ["-l"]);
 
     // Une session ouverte sur une commande de `claude` les porte aussi.
-    const autre = registrySuivi();
+    const autre = registreSuivi();
     autre.terminaux.session(PARADE, "/brigade:init");
     assert.deepEqual(autre.lance(0).args.slice(0, 2), ["/brigade:init", "--settings"]);
   });
@@ -643,8 +643,8 @@ describe("le second reste local, sans multiplexeur, et sa conversation reprend �
   // Un registre comme l'app en ouvre un à chaque lancement : des shells persistants
   // dont l'app se souvient — tout ce qui pourrait attirer le second ailleurs.
   const SOUVENIRS = { parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: { lieu: "poste" } as const }] } };
-  function launch() {
-    const lances: Launch[] = [];
+  function lancement() {
+    const lances: Lancement[] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
       shell: "/bin/zsh",
@@ -661,7 +661,7 @@ describe("le second reste local, sans multiplexeur, et sa conversation reprend �
   const MOTS_DE_MULTIPLEXEUR = /tmux|screen|attach-session|new-session/;
 
   test("la commande de lancement du second est `claude --continue` sur le rôle, dans le dossier du projet : ni tmux, ni screen", () => {
-    const { terminaux, lances } = launch();
+    const { terminaux, lances } = lancement();
 
     terminaux.espace(PARADE);
 
@@ -675,26 +675,26 @@ describe("le second reste local, sans multiplexeur, et sa conversation reprend �
   });
 
   test("son relancement — touche après un arrêt, ou session neuve faute de fil — reste local lui aussi, sans multiplexeur", () => {
-    const { terminaux, lances } = launch();
+    const { terminaux, lances } = lancement();
     terminaux.espace(PARADE);
-    const claudes = () => lances.filter(({ commande: command }) => command === "claude");
+    const claudes = () => lances.filter(({ commande }) => commande === "claude");
     claudes()[0]?.surFin(1);
     claudes()[1]?.surFin(0);
     const [second] = terminaux.espace(PARADE);
     assert.ok(second);
     terminaux.ecrire(second.id, "x");
 
-    const seconds = lances.filter(({ commande: command }) => command === "claude");
+    const seconds = lances.filter(({ commande }) => commande === "claude");
     assert.deepEqual(seconds.map(({ args }) => args), [["--continue", ...ROLE], ROLE, ["--continue", ...ROLE]]);
-    for (const { commande: command, args } of seconds) assert.doesNotMatch([command, ...args].join(" "), MOTS_DE_MULTIPLEXEUR);
+    for (const { commande, args } of seconds) assert.doesNotMatch([commande, ...args].join(" "), MOTS_DE_MULTIPLEXEUR);
   });
 
   test("fermer l'app puis la rouvrir : un registre neuf relance `claude --continue` — il reprend la conversation, il ne se rattache à aucune session", () => {
-    const avant = launch();
+    const avant = lancement();
     avant.terminaux.espace(PARADE);
     avant.terminaux.fermer();
 
-    const apres = launch();
+    const apres = lancement();
     apres.terminaux.espace(PARADE);
 
     assert.deepEqual([apres.lances[0]?.commande, ...(apres.lances[0]?.args ?? [])], ["claude", "--continue", ...ROLE]);

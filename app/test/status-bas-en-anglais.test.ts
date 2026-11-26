@@ -1,17 +1,17 @@
 // Le bas de `status` se lit sous ses deux formes (#939), pour une box dont le runtime n'est pas
-// encore à jour : chaque forme que `slip.ts` lit l'est en français et en anglais,
+// encore à jour : chaque forme que `bon.ts` lit l'est en français et en anglais,
 // et donne le même résultat. Une ligne qui mêle les deux langues dans une forme n'en est aucune.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { porter } from "../src/slip.ts";
+import { porter } from "../src/bon.ts";
 
 const TITRE = "Valider le SIRET";
-const SOURCES = (line: string) => ({ lignes: [line], bloque: false });
+const SOURCES = (ligne: string) => ({ lignes: [ligne], bloque: false });
 // Ce que le bon dit d'une ligne `rail` : l'état et le détail sont ceux d'une langue, le titre est le même.
-const slip = (state: string, priority: string, detail: string) => porter({ etat: state, titre: TITRE }, SOURCES(`${state}  ${priority}  ${detail}  ${TITRE}`));
-const dits = (state: string, detail: string) => Object.fromEntries(slip(state, "prio:2", detail).dit.map(({ libelle, valeur }) => [libelle, valeur]));
+const bon = (etat: string, priorite: string, detail: string) => porter({ etat, titre: TITRE }, SOURCES(`${etat}  ${priorite}  ${detail}  ${TITRE}`));
+const dits = (etat: string, detail: string) => Object.fromEntries(bon(etat, "prio:2", detail).dit.map(({ libelle, valeur }) => [libelle, valeur]));
 
-describe("slip.ts lit le détail d'un ticket en français comme en anglais", () => {
+describe("bon.ts lit le détail d'un ticket en français comme en anglais", () => {
   // [état, détail] français, puis anglais ; le jour est `j` ou `d`.
   const COUPLES: Record<string, [[string, string], [string, string]]> = {
     "pris, bail en cours": [["pris", "par box/claude depuis 40 min, bail encore 10 min"], ["taken", "by box/claude since 40 min, lease 10 min left"]],
@@ -26,15 +26,15 @@ describe("slip.ts lit le détail d'un ticket en français comme en anglais", () 
     "en pass": [["en pass", "depuis 4 min, cuisiné par box/claude"], ["in pass", "since 4 min, cooked by box/claude"]],
     "servi": [["servi", "depuis 2 j, cuisiné par mac/claude"], ["served", "since 2 d, cooked by mac/claude"]],
   };
-  for (const [name, [[stateFr, fr], [stateEn, en]]] of Object.entries(COUPLES)) {
-    test(`${name} : lu des deux façons, le même résultat`, () => {
-      const [lu, luEn] = [slip(stateFr, "prio:2", fr), slip(stateEn, "prio:2", en)];
+  for (const [nom, [[etatFr, fr], [etatEn, en]]] of Object.entries(COUPLES)) {
+    test(`${nom} : lu des deux façons, le même résultat`, () => {
+      const [lu, luEn] = [bon(etatFr, "prio:2", fr), bon(etatEn, "prio:2", en)];
       assert.equal(lu.relais, undefined, "la forme française est découpée");
       assert.equal(luEn.relais, undefined, "la forme anglaise est découpée");
       // Les durées en jours s'écrivent `j` ou `d` : la valeur est celle de la ligne, mot pour mot.
-      assert.deepEqual(Object.keys(dits(stateFr, fr)), Object.keys(dits(stateEn, en)));
+      assert.deepEqual(Object.keys(dits(etatFr, fr)), Object.keys(dits(etatEn, en)));
       assert.deepEqual(luEn.sans, lu.sans);
-      if (!name.includes("jours") && !name.includes("servi")) {
+      if (!nom.includes("jours") && !nom.includes("servi")) {
         assert.deepEqual(luEn.dit.map(({ libelle }) => libelle), lu.dit.map(({ libelle }) => libelle));
       }
     });
@@ -52,7 +52,7 @@ describe("slip.ts lit le détail d'un ticket en français comme en anglais", () 
   });
 
   test("une ligne qui mêle les deux langues n'est pas une forme valide : elle est relayée telle quelle", () => {
-    for (const [state, detail] of [
+    for (const [etat, detail] of [
       ["pris", "by box/claude since 40 min, lease 10 min left"],
       ["taken", "par box/claude depuis 40 min, bail encore 10 min"],
       ["taken", "by box/claude since 40 min, bail encore 10 min"],
@@ -70,8 +70,8 @@ describe("slip.ts lit le détail d'un ticket en français comme en anglais", () 
       ["taken", "by box/claude since 40 j, lease 10 min left"],
       ["pris", "par box/claude depuis 40 d, bail encore 10 min"],
     ] as const) {
-      const lu = slip(state, "prio:2", detail);
-      assert.ok(lu.relais !== undefined, `${state} / ${detail} ne devait pas être découpée`);
+      const lu = bon(etat, "prio:2", detail);
+      assert.ok(lu.relais !== undefined, `${etat} / ${detail} ne devait pas être découpée`);
       assert.deepEqual(lu.dit, []);
     }
   });

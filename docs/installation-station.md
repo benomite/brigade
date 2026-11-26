@@ -9,6 +9,13 @@ On a Mac, the same command installs the station under your account, so that it r
 app is closed: see "On a Mac", at the end. On Windows, one PowerShell command does the same: see
 "On Windows", after it.
 
+**From the app, you do not need this guide.** On a project's Stations tab, under its `Who cooks
+<project>?` choice, or on the `1 of 2: who cooks it` page of a new project, `Add a server` shows the
+command of step 1 with a `copy` button, and one sentence on where to run it. Run it on the server;
+the station registers itself under the GitHub account you sign it in to — use the app's — and the
+panel shows it within a minute (`check again` reads again), then gives it the project in one click
+([app.md](app.md), "Add a server, from the app"). This guide is the detail of what that command does.
+
 **You can get help.** Paste this guide into an assistant (Claude, for example) and
 ask it to walk you through step by step: everything it needs to know is here, and there is only
 one command to type.
@@ -282,6 +289,10 @@ why: fix it, and rerun the same command. A station built by hand installs from i
 `powershell -ExecutionPolicy Bypass -File installer-station.ps1 .\brigade-station-windows.zip`.
 
 ## 7. What comes next — not yet in this guide
+
+From the app, `Add a server` already does both for a server signed in to the app's GitHub account:
+the server appears in its panel once it checks in, and one click gives it the project (see the top of
+this guide).
 
 Two steps then bring the station to you. They are not yet written here: this
 guide will gain them as they arrive.

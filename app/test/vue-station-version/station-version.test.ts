@@ -5,18 +5,18 @@
 // seul, sur un faux document, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), depuis l'accueil.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Home } from "../../src/home.ts";
+import type { Accueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBar } from "../../src/bar.ts";
+import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
-import { BANNIERE } from "../../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
+import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
+import { BANNIERE } from "../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { calibrationRecommande, EFFORTS, MODELES, type VuDesProjects } from "../../src/projects/projects.ts";
+import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
-import { casesDesVersions, caseDIci, INCONNUE, INCONNUE_BOX, INCONNUE_ICI, poserVersionsDesStations, statusLu, TITRE } from "../../src/vue/station-version/station-version.js";
+import { casesDesVersions, caseDIci, INCONNUE, INCONNUE_BOX, INCONNUE_ICI, poserVersionsDesStations, statutLu, TITRE } from "../../src/vue/station-version/station-version.js";
 import { Faux, jouerLaVue, ouvrirToutesLesStations, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -25,7 +25,7 @@ const A = "2026-11-03T20:00:00.000Z";
 const BOX: StationVue = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: ["parade"], max: null, versionDit: "up to date · on this version for 3 days" };
 const MAC: StationVue = { id: "g2", nom: "macbook", machine: "macOS 15", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.3.1", projets: [], max: null, versionDit: "up to date" };
 const EN_RETARD = { stationVersion: "2.3.1", latestStationVersion: "2.4.0", behind: true };
-const A_DAY = { stationVersion: "2.4.0", latestStationVersion: "2.4.0", behind: false };
+const A_JOUR = { stationVersion: "2.4.0", latestStationVersion: "2.4.0", behind: false };
 
 // Ce que les cases disent, dans l'ordre : leur nom, leur phrase, leur ton, et leur survol s'il y en a un.
 const lues = (bloc: Faux) =>
@@ -37,7 +37,7 @@ const lues = (bloc: Faux) =>
       ton: une.dataset.ton,
       survol: une.dessous("button").find(({ className }) => className === "aide")?.ariaLabel,
     }));
-const poser = (status: unknown, stations: StationVue[] | undefined = [BOX, MAC]) => lues(poserVersionsDesStations(doc, casesDesVersions({ stations, locale: "g2", poste: "this computer", statut: status })) as unknown as Faux);
+const poser = (statut: unknown, stations: StationVue[] | undefined = [BOX, MAC]) => lues(poserVersionsDesStations(doc, casesDesVersions({ stations, locale: "g2", poste: "this computer", statut })) as unknown as Faux);
 
 describe("les trois états de la station de cet ordinateur, à côté de la box", () => {
   test("en retard : la case de ce poste le dit, en jaune, et nomme la dernière version", () => {
@@ -48,15 +48,15 @@ describe("les trois états de la station de cet ordinateur, à côté de la box"
   });
 
   test("à jour : la case de ce poste le dit, comme celle de la box", () => {
-    assert.deepEqual(poser(A_DAY), [
+    assert.deepEqual(poser(A_JOUR), [
       { nom: "parade-box", phrase: "version 2.4.0 · up to date", ton: "vert", survol: undefined },
       { nom: "this computer", phrase: "version 2.4.0 · up to date", ton: "vert", survol: undefined },
     ]);
   });
 
   test("sans statut, ou un statut illisible : « version unknown », pourquoi au survol — ni erreur, ni case vide", () => {
-    for (const status of [undefined, null, "2.3.1", {}, { stationVersion: "", behind: false }, { stationVersion: "2.3.1" }, { stationVersion: "2.3.1", behind: "yes" }]) {
-      assert.deepEqual(poser(status)[1], { nom: "this computer", phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI }, JSON.stringify(status));
+    for (const statut of [undefined, null, "2.3.1", {}, { stationVersion: "", behind: false }, { stationVersion: "2.3.1" }, { stationVersion: "2.3.1", behind: "yes" }]) {
+      assert.deepEqual(poser(statut)[1], { nom: "this computer", phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI }, JSON.stringify(statut));
     }
   });
 
@@ -73,50 +73,50 @@ describe("les trois états de la station de cet ordinateur, à côté de la box"
 describe("ce que chaque case lit", () => {
   test("en retard sans dernière version publiée : la case le dit en retard, sans en inventer une", () => {
     assert.equal(caseDIci("this computer", { stationVersion: "2.3.1", latestStationVersion: null, behind: true }).phrase, "version 2.3.1 · behind");
-    assert.deepEqual(statusLu({ stationVersion: " 2.3.1 ", latestStationVersion: "", behind: true }), { stationVersion: "2.3.1", latestStationVersion: null, behind: true });
+    assert.deepEqual(statutLu({ stationVersion: " 2.3.1 ", latestStationVersion: "", behind: true }), { stationVersion: "2.3.1", latestStationVersion: null, behind: true });
   });
 
   test("la box sans « up to date » — hors ligne, ou sa mise à jour échouée — dit sa version, et rien de plus", () => {
-    assert.deepEqual(poser(A_DAY, [{ ...BOX, versionDit: "on this version for 3 days" }, MAC])[0], { nom: "parade-box", phrase: "version 2.4.0", ton: "gris", survol: undefined });
-    assert.deepEqual(poser(A_DAY, [{ ...BOX, versionDit: "" }, MAC])[0]?.phrase, "version 2.4.0");
+    assert.deepEqual(poser(A_JOUR, [{ ...BOX, versionDit: "on this version for 3 days" }, MAC])[0], { nom: "parade-box", phrase: "version 2.4.0", ton: "gris", survol: undefined });
+    assert.deepEqual(poser(A_JOUR, [{ ...BOX, versionDit: "" }, MAC])[0]?.phrase, "version 2.4.0");
   });
 
   test("la station de cet ordinateur, un téléphone et une station illisible ne sont pas des box ; sans box lue, la sienne se dit inconnue", () => {
-    const phone: StationVue = { ...BOX, id: "g3", nom: "pixel", cuisine: false };
+    const telephone: StationVue = { ...BOX, id: "g3", nom: "pixel", cuisine: false };
     const illisible: StationVue = { ...BOX, id: "g4", nom: "g4", etat: "illisible", version: "" };
-    assert.deepEqual(poser(A_DAY, [BOX, MAC, phone, illisible]).map(({ nom: name }) => name), ["parade-box", "this computer"]);
+    assert.deepEqual(poser(A_JOUR, [BOX, MAC, telephone, illisible]).map(({ nom }) => nom), ["parade-box", "this computer"]);
     for (const stations of [undefined, [], [MAC]]) {
-      assert.deepEqual(casesDesVersions({ stations, locale: "g2", poste: "this computer", statut: A_DAY })[0], { nom: "box", phrase: INCONNUE, ton: "gris", survol: INCONNUE_BOX, ici: false });
+      assert.deepEqual(casesDesVersions({ stations, locale: "g2", poste: "this computer", statut: A_JOUR })[0], { nom: "box", phrase: INCONNUE, ton: "gris", survol: INCONNUE_BOX, ici: false });
     }
   });
 });
 
 const demarrage = (stations: VuDesStations) => ({
   poste: { nom: "this computer", mac: true },
-  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
   stations,
-  projetsDesStations: { a: A, projets: [], locale: "g2", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrationRecommande([]) } satisfies VuDesProjects,
-  accueil: { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } } satisfies Home,
+  projetsDesStations: { a: A, projets: [], locale: "g2", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrageRecommande([]) } satisfies VuDesProjets,
+  accueil: { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } } satisfies Accueil,
 });
 
 describe("la vue jouée : sous toutes les stations, sur l'accueil (#3195)", () => {
   test("le statut lu au lancement se pose ; un statut relu le remplace ; un pont qui ne le lit pas laisse la case inconnue", async () => {
-    let status: unknown = EN_RETARD;
-    const jouee = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [], statutDeLaStation: () => status } as Parameters<typeof jouerLaVue>[0]);
+    let statut: unknown = EN_RETARD;
+    const jouee = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [], statutDeLaStation: () => statut } as Parameters<typeof jouerLaVue>[0]);
     await ouvrirToutesLesStations(jouee);
     const bloc = () => jouee.element("toutes-les-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sous la liste des stations");
-    assert.deepEqual(lues(bloc()).map(({ nom: name, phrase }) => `${name}: ${phrase}`), ["parade-box: version 2.4.0 · up to date", "this computer: version 2.3.1 · behind — 2.4.0 is out"]);
-    assert.ok(jouee.appels.some(({ geste: action }) => action === "statutDeLaStation"));
+    assert.deepEqual(lues(bloc()).map(({ nom, phrase }) => `${nom}: ${phrase}`), ["parade-box: version 2.4.0 · up to date", "this computer: version 2.3.1 · behind — 2.4.0 is out"]);
+    assert.ok(jouee.appels.some(({ geste }) => geste === "statutDeLaStation"));
 
-    jouee.dire("surStatutDeLaStation", A_DAY);
+    jouee.dire("surStatutDeLaStation", A_JOUR);
     await repos();
     assert.equal(lues(bloc())[1]?.phrase, "version 2.4.0 · up to date");
 
@@ -125,7 +125,7 @@ describe("la vue jouée : sous toutes les stations, sur l'accueil (#3195)", () =
     await repos();
     assert.deepEqual(lues(bloc()).map(({ phrase }) => phrase), ["version 2.5.0 · up to date", "version 2.4.0 · up to date"]);
 
-    status = undefined;
+    statut = undefined;
     const sans = await jouerLaVue({ demarrage: () => demarrage({ a: A, stations: [BOX, MAC] }), espace: () => [] });
     await ouvrirToutesLesStations(sans);
     const blocSans = sans.element("toutes-les-stations").descendants().find(({ className }) => className === "versions-des-stations") ?? assert.fail("pas de versions sans statut");

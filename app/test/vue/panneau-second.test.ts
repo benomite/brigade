@@ -5,14 +5,14 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBar } from "../../src/bar.ts";
+import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
-import { BANNIERE } from "../../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
+import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
+import { BANNIERE } from "../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
+import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { Terminal } from "../../src/terminaux.ts";
 import {
   borner,
@@ -24,10 +24,10 @@ import {
   panneauDe,
   RESTE_AU_RAIL,
   retenirLePanneau,
-} from "../../src/vue/project/panneau-second/panneau-second.js";
-import { Faux, FauxScreen, FauxStockage, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+} from "../../src/vue/projet/panneau-second/panneau-second.js";
+import { Faux, FauxEcran, FauxStockage, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_space: string, balise: string) => new Faux(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_espace: string, balise: string) => new Faux(balise) };
 
 // Un stockage qui lève à chaque lecture et écriture : un stockage refusé.
 const REFUSE = {
@@ -40,7 +40,7 @@ const REFUSE = {
 };
 
 // Tirer le bord, comme la souris : appuyé à `de`, glissé jusqu'à `a`, lâché là.
-function pull(bord: Faux, de: number, a: number): void {
+function tirer(bord: Faux, de: number, a: number): void {
   bord.declencher("pointerdown", { clientX: de, pointerId: 1 } as object);
   bord.declencher("pointermove", { clientX: (de + a) / 2, pointerId: 1 } as object);
   bord.declencher("pointerup", { clientX: a, pointerId: 1 } as object);
@@ -147,10 +147,10 @@ describe("le bord et le bouton, montés sur la colonne", () => {
     const { panneau, bord, largeur } = monter(stockage, 1600);
     panneau.poser("parade", true);
     assert.equal(largeur(), "360px");
-    pull(bord, 1240, 200);
+    tirer(bord, 1240, 200);
     assert.equal(largeur(), "960px");
     assert.deepEqual(panneauDe(lireLesPanneaux(stockage), "parade"), { largeur: 960, replie: false });
-    pull(bord, 640, 1500);
+    tirer(bord, 640, 1500);
     assert.equal(largeur(), "280px");
     assert.deepEqual(panneauDe(lireLesPanneaux(stockage), "parade"), { largeur: 280, replie: false });
     // Au clavier, le bord tiré d'un pas, borné de même.
@@ -194,7 +194,7 @@ describe("le bord et le bouton, montés sur la colonne", () => {
     const panneau = monterLePanneau({ document: doc as never, colonne: colonne as never, tete: tete as never, stockage, disponible: () => disponible });
     const bord = colonne.children[0] ?? assert.fail("pas de bord");
     panneau.poser("parade", true);
-    pull(bord, 1240, 640);
+    tirer(bord, 1240, 640);
     assert.equal(colonne.style.getPropertyValue("--largeur-du-second"), "960px");
     disponible = 1100;
     panneau.reborner();
@@ -204,32 +204,32 @@ describe("le bord et le bouton, montés sur la colonne", () => {
 });
 
 describe("dans la vue : l'app fermée puis rouverte", () => {
-  const PROJECTS = [
+  const PROJETS = [
     { nom: "parade", dossier: "/tmp/parade" },
     { nom: "fanfare", dossier: "/tmp/fanfare" },
   ];
   const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
   const AUTRE: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
   const demarrage = () => ({
-    configuration: pourLaBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
+    configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
     palette: PALETTE,
     exemple: EXEMPLE,
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: undefined,
   });
   // La place de l'espace : le rail (main) et le panneau, 1600 px à eux deux.
-  async function jouer(stockage: FauxStockage, screen?: FauxScreen): Promise<Jouee> {
-    const vue = await jouerLaVue({ demarrage, espace: (project) => (project === "fanfare" ? [AUTRE] : [SECOND]) }, { stockage, ...(screen === undefined ? {} : { ecran: screen }) });
+  async function jouer(stockage: FauxStockage, ecran?: FauxEcran): Promise<Jouee> {
+    const vue = await jouerLaVue({ demarrage, espace: (projet) => (projet === "fanfare" ? [AUTRE] : [SECOND]) }, { stockage, ...(ecran === undefined ? {} : { ecran }) });
     Object.assign(vue.element("main"), { getBoundingClientRect: () => ({ width: 1240 }) });
     Object.assign(vue.element("second"), { getBoundingClientRect: () => ({ width: 360 }) });
     return vue;
   }
-  async function entrer(vue: Jouee, name: string): Promise<void> {
-    (vue.element("projets").children.at(PROJECTS.findIndex((project) => project.nom === name) + 1) ?? assert.fail(`pas de case pour ${name}`)).click();
+  async function entrer(vue: Jouee, nom: string): Promise<void> {
+    (vue.element("projets").children.at(PROJETS.findIndex((projet) => projet.nom === nom) + 1) ?? assert.fail(`pas de case pour ${nom}`)).click();
     await repos();
   }
   const largeur = (vue: Jouee) => vue.element("second").style.getPropertyValue("--largeur-du-second");
@@ -250,11 +250,11 @@ describe("dans la vue : l'app fermée puis rouverte", () => {
     const stockage = new FauxStockage();
     const avant = await jouer(stockage);
     await entrer(avant, "parade");
-    pull(avant.element("bord-du-second"), 1240, 100);
+    tirer(avant.element("bord-du-second"), 1240, 100);
     assert.equal(largeur(avant), "960px");
     await entrer(avant, "fanfare");
     assert.equal(largeur(avant), "360px");
-    pull(avant.element("bord-du-second"), 1240, 1500);
+    tirer(avant.element("bord-du-second"), 1240, 1500);
     assert.equal(largeur(avant), "280px");
     avant.element("replier-second").click();
     await repos();
@@ -280,7 +280,7 @@ describe("dans la vue : l'app fermée puis rouverte", () => {
   test("sur un écran étroit, le panneau est un onglet : son état replié ne le cache pas", async () => {
     const stockage = new FauxStockage();
     stockage.setItem(CLE_DES_PANNEAUX, JSON.stringify({ parade: { largeur: 500, replie: true } }));
-    const vue = await jouer(stockage, new FauxScreen(true));
+    const vue = await jouer(stockage, new FauxEcran(true));
     await entrer(vue, "parade");
     assert.equal(replie(vue), false);
     assert.equal(vue.element("replier-second").hidden, true);

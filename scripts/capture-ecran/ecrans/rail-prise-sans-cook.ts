@@ -1,16 +1,16 @@
 // Le rail de « parade » quand une carte `taken` n'a aucun cook qui la cuise (#3884) : #14 est prise et son cook cuit — rien de
 // plus sur sa carte —, #15 est prise et aucun cook ne la tient, sans attente chronométrée : sa carte dit « Taken, no cook running ».
-import type { Facts } from "../../../app/src/facts.ts";
+import type { Faits } from "../../../app/src/faits.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
-const PRISE = PARADE.facts.rail.find((ligne) => ligne.ticket === 14) as Facts["rail"][number];
+const PRISE = PARADE.facts.rail.find((ligne) => ligne.ticket === 14) as Faits["rail"][number];
 
 const FACTS = {
   ...PARADE.facts,
   rail: [...PARADE.facts.rail, { ...PRISE, ticket: 15, titre: "La clé de cache du build", url: PRISE.url.replace(/14$/, "15") }],
-} as Facts;
+} as Faits;
 
 const donnees: Ecran["donnees"] = () => ({
   maintenant: MAINTENANT,

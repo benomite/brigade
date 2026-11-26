@@ -1,0 +1,56 @@
+/* Le premier ticket du premier projet du chef, raconté pas à pas (ticket 3302, recit-premier-ticket/) : au-dessus du rail, son
+   titre et « dismiss », puis une ligne par étape vue — le mot de la cuisine en tête, ce qu'il veut dire à côté. */
+#recit-premier-ticket {
+  padding: var(--pas-3) var(--pas-4) 0;
+}
+.recit-premier-ticket {
+  max-width: 52rem;
+  padding: var(--pas-3) var(--pas-4);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+  background: var(--carte);
+}
+.recit-premier-ticket .tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pas-3);
+  margin: 0 0 var(--pas-2);
+  color: var(--texte);
+}
+.recit-premier-ticket .etapes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recit-premier-ticket .etape {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: var(--pas-1) var(--pas-2);
+  align-items: baseline;
+  color: var(--texte-doux);
+}
+.recit-premier-ticket .etape .mot {
+  color: var(--texte);
+}
+.recit-premier-ticket .etape[data-etape="renvoi"] .mot {
+  color: var(--orange);
+}
+.recit-premier-ticket .etape[data-etape="servi"] .mot {
+  color: var(--vert);
+}
+/* La raison d'un renvoi et le lien de la PR, sous ce que la ligne dit. */
+.recit-premier-ticket .etape .raison,
+.recit-premier-ticket .etape .action {
+  grid-column: 2;
+  justify-self: start;
+}
+.recit-premier-ticket .etape .raison {
+  margin: 0;
+  padding-left: var(--pas-2);
+  border-left: 2px solid var(--attend-trait);
+  white-space: pre-line;
+}

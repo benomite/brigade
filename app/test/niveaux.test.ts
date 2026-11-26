@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { CLES, settingsVus } from "../src/settings-du-project.ts";
+import { CLES, reglagesVus } from "../src/reglages-du-projet.ts";
 import { NIVEAUX, NIVEAUX_DITS, niveauDe } from "../src/vue/niveaux.js";
-import { poserUnSetting } from "../src/vue/project/settings.js";
+import { poserUnReglage } from "../src/vue/projet/reglages.js";
 import { Faux } from "./aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -21,7 +21,7 @@ function demandes(): Map<string, string[]> {
       const chemin = join(dossier, entree.name);
       if (entree.isDirectory()) lire(chemin);
       else if (entree.name.endsWith(".js") && entree.name !== "niveaux.js") {
-        for (const [, cleDe, cleSection] of readFileSync(chemin, "utf8").matchAll(/(?:niveauDe\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)|context\.niveau\("([^"]+)"\)/g)) { const cle = cleDe ?? cleSection ?? ""; rendu.set(cle, [...(rendu.get(cle) ?? []), entree.name]); }
+        for (const [, cleDe, cleSection] of readFileSync(chemin, "utf8").matchAll(/(?:niveauDe\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)|contexte\.niveau\("([^"]+)"\)/g)) { const cle = cleDe ?? cleSection ?? ""; rendu.set(cle, [...(rendu.get(cle) ?? []), entree.name]); }
       }
     }
   };
@@ -47,7 +47,7 @@ describe("le niveau de chaque réglage montré", () => {
   });
 
   test("chaque réglage du projet lu par `setting` porte son étiquette sur sa page", () => {
-    const vus = settingsVus(
+    const vus = reglagesVus(
       JSON.stringify({
         file: ".claude/brigade/projet.json",
         inRepository: true,
@@ -60,7 +60,7 @@ describe("le niveau de chaque réglage montré", () => {
     assert.ok(vus);
     assert.deepEqual(vus.reglages.map(({ cle }) => cle), [...CLES]);
     for (const vu of vus.reglages) {
-      const rangee = poserUnSetting(doc, { vu, modeles: vus.modeles, efforts: vus.efforts, etat: undefined, choisir: () => {}, proposer: () => {}, ouvrir: () => {} }) as Faux;
+      const rangee = poserUnReglage(doc, { vu, modeles: vus.modeles, efforts: vus.efforts, etat: undefined, choisir: () => {}, proposer: () => {}, ouvrir: () => {} }) as Faux;
       const etiquettes = [...rangee.descendants()].filter(({ className }) => className === "niveau");
       assert.deepEqual(etiquettes.map(({ textContent }) => textContent), [NIVEAUX_DITS[NIVEAUX[vu.cle] ?? "you"].libelle], vu.cle);
     }

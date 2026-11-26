@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { vueDesPostMortems } from "../../../app/src/projects/post-mortems.ts";
+import { vueDesPostMortems } from "../../../app/src/projets/post-mortems.ts";
 import { lirePostMortems } from "../../src/post-mortems/post-mortems.ts";
 import { A, cuisine } from "./cuisine.ts";
 

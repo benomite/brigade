@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { anciennete, cadenceLue, dureeCourte, HEURES, type CadenceLue } from "../src/cadence.ts";
-import { comprendre, rail, type Facts } from "../src/facts.ts";
+import { comprendre, rail, type Faits } from "../src/faits.ts";
 import { heureHM } from "../src/format.ts";
 
 const LU = "2026-10-21T12:20:00.000Z";
@@ -69,7 +69,7 @@ describe("l'âge d'une carte de Taken et de Pass", () => {
 });
 
 describe("de `facts` au rail", () => {
-  const FACTS = {
+  const FAITS = {
     etat: "ouverte",
     lu: LU,
     dernierTick: LU,
@@ -85,39 +85,39 @@ describe("de `facts` au rail", () => {
     cadence: CADENCE,
   };
   const lus = (brut: unknown) => {
-    const facts = comprendre(JSON.stringify(brut));
-    assert.ok(!("informe" in facts), JSON.stringify(facts));
-    return rail(facts as Facts);
+    const faits = comprendre(JSON.stringify(brut));
+    assert.ok(!("informe" in faits), JSON.stringify(faits));
+    return rail(faits as Faits);
   };
-  const card = (lu: ReturnType<typeof rail>, ticket: number) => lu.colonnes.flatMap(({ cartes: cards }) => cards).find((posee) => posee.ticket === ticket);
+  const carte = (lu: ReturnType<typeof rail>, ticket: number) => lu.colonnes.flatMap(({ cartes }) => cartes).find((posee) => posee.ticket === ticket);
 
   test("chaque carte de Taken et de Pass porte son âge — celle qui traîne tranche", () => {
-    const lu = lus(FACTS);
-    assert.deepEqual(card(lu, 14)?.age, anciennete("pris", "2026-10-21T10:00:00.000Z", LU, CADENCE.medianSeconds));
-    assert.equal(card(lu, 14)?.age?.longue, true);
-    assert.equal(card(lu, 15)?.age?.longue, false);
-    assert.equal(card(lu, 16)?.age, undefined);
+    const lu = lus(FAITS);
+    assert.deepEqual(carte(lu, 14)?.age, anciennete("pris", "2026-10-21T10:00:00.000Z", LU, CADENCE.medianSeconds));
+    assert.equal(carte(lu, 14)?.age?.longue, true);
+    assert.equal(carte(lu, 15)?.age?.longue, false);
+    assert.equal(carte(lu, 16)?.age, undefined);
   });
 
   test("une carte de TODO n'en porte pas, même d'un ticket pris ou en pass : elle n'est ni dans Taken ni dans Pass", () => {
-    const lu = lus({ ...FACTS, attend: [{ ticket: 15, titre: "Ticket 15", url: "https://exemple.test/15" }] });
-    assert.equal(lu.colonnes.find(({ cartes: cards }) => cards.some(({ ticket }) => ticket === 15))?.nom, "Awaiting you");
-    assert.equal(card(lu, 15)?.age, undefined);
-    assert.notEqual(card(lu, 14)?.age, undefined);
+    const lu = lus({ ...FAITS, attend: [{ ticket: 15, titre: "Ticket 15", url: "https://exemple.test/15" }] });
+    assert.equal(lu.colonnes.find(({ cartes }) => cartes.some(({ ticket }) => ticket === 15))?.nom, "Awaiting you");
+    assert.equal(carte(lu, 15)?.age, undefined);
+    assert.notEqual(carte(lu, 14)?.age, undefined);
   });
 
   test("d'un runtime d'avant ces champs : ni âge — le rail se dessine sans", () => {
-    const { cadence: _, ...sans } = FACTS;
-    const lu = lus({ ...sans, rail: FACTS.rail.map(({ depuis: __, ...ticket }) => ticket) });
-    assert.equal(card(lu, 14)?.age, undefined);
+    const { cadence: _, ...sans } = FAITS;
+    const lu = lus({ ...sans, rail: FAITS.rail.map(({ depuis: __, ...ticket }) => ticket) });
+    assert.equal(carte(lu, 14)?.age, undefined);
     // Sans cadence lue, l'âge se dit encore, sans trancher.
     const sansMediane = lus(sans);
-    assert.equal(card(sansMediane, 14)?.age?.longue, false);
+    assert.equal(carte(sansMediane, 14)?.age?.longue, false);
   });
 
   test("une entrée `depuis` qui n'est pas une heure rend le ticket illisible, comme tout champ mal formé", () => {
-    const facts = comprendre(JSON.stringify({ ...FACTS, rail: [{ ...FACTS.rail[0], depuis: "hier" }] }));
-    assert.ok(!("informe" in facts));
-    assert.equal((facts as Facts).rail[0]?.illisible !== undefined, true);
+    const faits = comprendre(JSON.stringify({ ...FAITS, rail: [{ ...FAITS.rail[0], depuis: "hier" }] }));
+    assert.ok(!("informe" in faits));
+    assert.equal((faits as Faits).rail[0]?.illisible !== undefined, true);
   });
 });

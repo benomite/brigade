@@ -32,17 +32,17 @@ function dossierDesTubes(): { dossier: string; ouverts: number } {
   if (tubes !== undefined) return tubes;
   const dossier = mkdtempSync(join(tmpdir(), "brigade-app-gh-"));
   process.on("exit", () => {
-    const queued = readdirSync(dossier).flatMap((name) => {
+    const enAttente = readdirSync(dossier).flatMap((nom) => {
       try {
-        return name.startsWith("appel.") ? [openSync(join(dossier, name, "reponse"), constants.O_WRONLY | constants.O_NONBLOCK)] : [];
+        return nom.startsWith("appel.") ? [openSync(join(dossier, nom, "reponse"), constants.O_WRONLY | constants.O_NONBLOCK)] : [];
       } catch {
         return [];
       }
     });
     rmSync(dossier, { recursive: true, force: true });
-    for (const answer of queued) {
-      writeSync(answer, `${SANS_TEST}\n`);
-      closeSync(answer);
+    for (const reponse of enAttente) {
+      writeSync(reponse, `${SANS_TEST}\n`);
+      closeSync(reponse);
     }
   });
   tubes = { dossier, ouverts: 0 };
@@ -66,21 +66,21 @@ export function ghDuRepertoire(repertoire: string, repondre: Doublure): string {
     }
   });
 
-  const servir = (call: string) => {
+  const servir = (appel: string) => {
     let rendu: Rendu;
     try {
-      const args = readFileSync(join(call, "args"), "utf8").split("\0").slice(0, -1);
-      rendu = repondre(repertoire, args, () => (existsSync(join(call, "entree")) ? readFileSync(join(call, "entree"), "utf8") : ""));
-    } catch (error) {
+      const args = readFileSync(join(appel, "args"), "utf8").split("\0").slice(0, -1);
+      rendu = repondre(repertoire, args, () => (existsSync(join(appel, "entree")) ? readFileSync(join(appel, "entree"), "utf8") : ""));
+    } catch (erreur) {
       // Comme un Node qui meurt d'une exception : code 1, et ce qui l'a tué sur sa sortie d'erreur.
-      rendu = { code: 1, sortie: "", erreurs: `${error instanceof Error ? error.stack : String(error)}\n` };
+      rendu = { code: 1, sortie: "", erreurs: `${erreur instanceof Error ? erreur.stack : String(erreur)}\n` };
     }
     try {
-      writeFileSync(join(call, "sortie"), rendu.sortie);
-      writeFileSync(join(call, "erreurs"), rendu.erreurs);
-      const answer = openSync(join(call, "reponse"), constants.O_WRONLY | constants.O_NONBLOCK);
-      writeSync(answer, `${rendu.code}\n`);
-      closeSync(answer);
+      writeFileSync(join(appel, "sortie"), rendu.sortie);
+      writeFileSync(join(appel, "erreurs"), rendu.erreurs);
+      const reponse = openSync(join(appel, "reponse"), constants.O_WRONLY | constants.O_NONBLOCK);
+      writeSync(reponse, `${rendu.code}\n`);
+      closeSync(reponse);
     } catch {
       // Le `gh` a été tué avant sa réponse : personne ne l'attend plus.
     }

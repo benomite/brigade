@@ -6,7 +6,7 @@
 // qui finit par une PR à merger.
 // Une fois la PR de l'init mergée, rien ne le lui redisait : la même session répondait en assistant quelconque.
 //
-// Deux moments, deux crochets (hook-du-role.ts) :
+// Deux moments, deux crochets (crochet-du-role.ts) :
 // - `debut` (`SessionStart` : ouverture, reprise, compaction) note, pour cette session, si le `CLAUDE.md` du dossier
 //   porte la section — ce que `claude` vient de charger. Rien d'autre : il ne lit pas GitHub.
 // - `prompt` (`UserPromptSubmit`), pour une session née sans la section seulement, lit le `CLAUDE.md` de la branche
@@ -19,22 +19,22 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { repositoryDeLOrigine } from "../addition.ts";
-import type { CallGitHub } from "../tableau/client.ts";
-import type { Cible } from "./hook-de-la-file.ts";
-import { callParGh, contextDeLaFile, DELAY_MS, lireLaFile, type Read } from "./file.ts";
-import { ROLE_DU_SECOND } from "./launch.ts";
-import { blockage } from "./blockage-du-second.ts";
+import { depotDeLOrigine } from "../ajout.ts";
+import type { AppelGitHub } from "../tableau/client.ts";
+import type { Cible } from "./crochet-de-la-file.ts";
+import { appelParGh, contexteDeLaFile, DELAI_MS, lireLaFile, type Lecture } from "./file.ts";
+import { ROLE_DU_SECOND } from "./lancement.ts";
+import { blocage } from "./blocage-du-second.ts";
 
 export const SECTION = "## Équipe multi-agents";
 
 // La section des bindings d'un `CLAUDE.md`, de son titre au titre de même niveau qui suit ; rien quand il n'en a pas.
 export function sectionDesBindings(claudeMd: string): string | undefined {
-  const lines = claudeMd.split(/\r?\n/);
-  const debut = lines.findIndex((line) => line.trimEnd() === SECTION);
+  const lignes = claudeMd.split(/\r?\n/);
+  const debut = lignes.findIndex((ligne) => ligne.trimEnd() === SECTION);
   if (debut < 0) return undefined;
-  const fin = lines.findIndex((line, rang) => rang > debut && /^## /.test(line));
-  return lines.slice(debut, fin < 0 ? undefined : fin).join("\n").trim();
+  const fin = lignes.findIndex((ligne, rang) => rang > debut && /^## /.test(ligne));
+  return lignes.slice(debut, fin < 0 ? undefined : fin).join("\n").trim();
 }
 
 // Ce que `claude` passe au crochet sur son entrée standard — seuls ces deux champs servent.
@@ -71,37 +71,37 @@ export function debut(entree: Entree, notes: string = NOTES()): void {
 }
 
 // Le `CLAUDE.md` de la branche d'intégration, tel que GitHub le tient ; rien quand il ne le rend pas.
-export async function claudeMdDeLaBase(appeler: CallGitHub, repository: string, base?: string): Promise<string | undefined> {
-  const answer = await appeler(`/repos/${repository}/contents/CLAUDE.md${base ? `?ref=${encodeURIComponent(base)}` : ""}`);
-  const contenu = (answer.data as { content?: unknown } | undefined)?.content;
-  return answer.status === 200 && typeof contenu === "string" ? Buffer.from(contenu, "base64").toString("utf8") : undefined;
+export async function claudeMdDeLaBase(appeler: AppelGitHub, depot: string, base?: string): Promise<string | undefined> {
+  const reponse = await appeler(`/repos/${depot}/contents/CLAUDE.md${base ? `?ref=${encodeURIComponent(base)}` : ""}`);
+  const contenu = (reponse.data as { content?: unknown } | undefined)?.content;
+  return reponse.status === 200 && typeof contenu === "string" ? Buffer.from(contenu, "base64").toString("utf8") : undefined;
 }
 
 // Ce que le second reçoit quand la section apparaît : son rôle, ses bindings, la file lue à neuf.
-export function contextDuRole(cible: Cible, role: string, section: string, read: Read): string {
+export function contexteDuRole(cible: Cible, role: string, section: string, lecture: Lecture): string {
   const ou = cible.base ? `its integration branch \`${cible.base}\`` : "its integration branch";
   return [
     `The project was set up for Brigade during this session: the pull request of \`/brigade:init\` is merged, and the \`${SECTION}\` section is now in the \`CLAUDE.md\` of ${ou}. You were the second from the start, and you still are: nothing has to be typed or invoked. The app gives you your role again, with the bindings read on GitHub and the project's queue read now. From this message on, hold this role and answer as the second: relay the queue as on opening.`,
     `Your role, as the app gives it at the start of the session:\n\n${role.trim()}`,
     `The project's bindings, read from \`CLAUDE.md\` on GitHub (your working copy may not have them yet):\n\n${section}`,
-    contextDeLaFile(cible, read, "after the init was merged"),
+    contexteDeLaFile(cible, lecture, "after the init was merged"),
   ].join("\n\n---\n\n");
 }
 
 // Le format que `claude` attend d'un crochet `UserPromptSubmit`.
-export const sortieDuPrompt = (context: string): string => JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: context } });
+export const sortieDuPrompt = (contexte: string): string => JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: contexte } });
 
 // À un message du chef : rien, sauf pour une session née sans la section, dès que la branche d'intégration la porte.
-export async function prompt(entree: Entree, cible: Cible, appeler: CallGitHub, notes: string = NOTES(), role: string = readFileSync(ROLE_DU_SECOND, "utf8")): Promise<string> {
+export async function prompt(entree: Entree, cible: Cible, appeler: AppelGitHub, notes: string = NOTES(), role: string = readFileSync(ROLE_DU_SECOND, "utf8")): Promise<string> {
   if (!entree.session_id || lireNote(notes, entree.session_id) !== "sans") return "";
-  const repository = cible.depot || (await repositoryDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", entree.cwd ?? process.cwd()));
-  if (repository === undefined) return "";
-  const claudeMd = await claudeMdDeLaBase(appeler, repository, cible.base);
+  const depot = cible.depot || (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", entree.cwd ?? process.cwd()));
+  if (depot === undefined) return "";
+  const claudeMd = await claudeMdDeLaBase(appeler, depot, cible.base);
   const section = claudeMd === undefined ? undefined : sectionDesBindings(claudeMd);
   if (section === undefined) return "";
-  const read = await lireLaFile(appeler, repository);
+  const lecture = await lireLaFile(appeler, depot);
   noter(notes, entree.session_id, "avec");
-  return sortieDuPrompt(contextDuRole({ ...cible, depot: repository }, role, section, read));
+  return sortieDuPrompt(contexteDuRole({ ...cible, depot }, role, section, lecture));
 }
 
 const lireEntree = (): Entree => {
@@ -114,17 +114,17 @@ const lireEntree = (): Entree => {
 
 // Joué par `claude` : `node role-apres-init.ts <debut|prompt> <nom> <depot> <base> <gh>`.
 if (import.meta.main) {
-  const [moment, name, repository, base, gh] = process.argv.slice(2);
+  const [moment, nom, depot, base, gh] = process.argv.slice(2);
   try {
     const entree = lireEntree();
-    const cible: Cible = { nom: name ?? "", ...(repository ? { depot: repository } : {}), ...(base ? { base } : {}) };
+    const cible: Cible = { nom: nom ?? "", ...(depot ? { depot } : {}), ...(base ? { base } : {}) };
     if (moment === "debut") debut(entree);
     else if (moment === "vue") {
-      const sortie = blockage(entree, cible);
+      const sortie = blocage(entree, cible);
       if (sortie !== "") process.stdout.write(`${sortie}\n`);
     }
     else if (moment === "prompt") {
-      const sortie = await prompt(entree, cible, callParGh(gh || "gh", DELAY_MS));
+      const sortie = await prompt(entree, cible, appelParGh(gh || "gh", DELAI_MS));
       if (sortie !== "") process.stdout.write(`${sortie}\n`);
     }
   } catch {}

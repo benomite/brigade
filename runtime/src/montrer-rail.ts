@@ -14,7 +14,7 @@
 // `choose` et `answer` écrivent la réponse sur l'issue et font avancer le
 // ticket dans le même appel (reponse-carte.ts).
 // La priorité d'un ticket n'a pas de geste ici : c'est le label `prio:` de son
-// issue, que l'app change elle-même sur GitHub (app/src/priority.ts).
+// issue, que l'app change elle-même sur GitHub (app/src/priorite.ts).
 // Chacun dit son prix, accompli sur la sortie, refusé sur la sortie d'erreur
 // (code 1) avec sa raison. Il pose le label sur l'issue, sous le `gh` du compte du
 // service, puis écrit au journal ce que le sondage y aurait écrit.

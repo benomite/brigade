@@ -8,11 +8,11 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { crochetsDuRole } from "../../src/second/hook-du-role.ts";
-import { ROLE_DU_SECOND } from "../../src/second/launch.ts";
+import { crochetsDuRole } from "../../src/second/crochet-du-role.ts";
+import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
 import { debut, prompt, sectionDesBindings } from "../../src/second/role-apres-init.ts";
-import type { CallGitHub } from "../../src/tableau/client.ts";
-import { ouvrirTerminaux, type Launch } from "../../src/terminaux.ts";
+import type { AppelGitHub } from "../../src/tableau/client.ts";
+import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "..", "..", "..");
 const SCRIPT = join(RACINE, "app", "src", "second", "role-apres-init.ts");
@@ -24,15 +24,15 @@ function dossier(t: TestContext): string {
   return d;
 }
 
-const REPOSITORY = "benomite/baloo";
+const DEPOT = "benomite/baloo";
 const SANS = "# baloo\n\nA small app.\n";
 const AVEC = `${SANS}\n## Équipe multi-agents\n\n- **Branche d'intégration** : \`main\`\n- **Gates** : \`.claude/brigade/gates.sh <WT>\`\n\n## Other\n\nnot the bindings\n`;
-const CHEF = [{ number: 20, title: "Ticket 20", html_url: `https://github.com/${REPOSITORY}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "chef-todo" }] }];
+const CHEF = [{ number: 20, title: "Ticket 20", html_url: `https://github.com/${DEPOT}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "chef-todo" }] }];
 const TODO = [{ body: "<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", author_association: "OWNER", created_at: "2026-11-05T10:00:00Z" }];
 
 // GitHub tel que le projet le tient : le `CLAUDE.md` de la branche d'intégration (`base.claudeMd`, absent : 404), une carte
 // `chef-todo` qui attend le chef. Chaque chemin demandé est noté.
-function github(base: { claudeMd?: string }, demandes: string[]): CallGitHub {
+function github(base: { claudeMd?: string }, demandes: string[]): AppelGitHub {
   return async (chemin) => {
     demandes.push(chemin);
     if (chemin.includes("/contents/CLAUDE.md")) return base.claudeMd === undefined ? { status: 404, data: { message: "Not Found" } } : { status: 200, data: { content: Buffer.from(base.claudeMd).toString("base64"), encoding: "base64" } };
@@ -49,18 +49,18 @@ describe("le rôle du second, redit après l'init", () => {
   });
 
   test("dès que CLAUDE.md porte la section sur la branche d'intégration, le prompt suivant de la session Second porte le rôle et la file — une fois", async (t) => {
-    const project = dossier(t);
+    const projet = dossier(t);
     const notes = dossier(t);
-    writeFileSync(join(project, "CLAUDE.md"), SANS);
-    const entree = { session_id: "second-1", cwd: project };
-    const cible = { nom: "baloo", depot: REPOSITORY, base: "main" };
+    writeFileSync(join(projet, "CLAUDE.md"), SANS);
+    const entree = { session_id: "second-1", cwd: projet };
+    const cible = { nom: "baloo", depot: DEPOT, base: "main" };
     const base: { claudeMd?: string } = {};
     const demandes: string[] = [];
     debut(entree, notes);
 
     // `/brigade:init` tourne, sa PR n'est pas mergée : rien n'est ajouté au prompt.
     assert.equal(await prompt(entree, cible, github(base, demandes), notes), "");
-    assert.deepEqual(demandes, [`/repos/${REPOSITORY}/contents/CLAUDE.md?ref=main`]);
+    assert.deepEqual(demandes, [`/repos/${DEPOT}/contents/CLAUDE.md?ref=main`]);
     base.claudeMd = SANS;
     assert.equal(await prompt(entree, cible, github(base, demandes), notes), "");
 
@@ -68,13 +68,13 @@ describe("le rôle du second, redit après l'init", () => {
     base.claudeMd = AVEC;
     const sortie = JSON.parse(await prompt(entree, cible, github(base, demandes), notes)) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } };
     assert.equal(sortie.hookSpecificOutput.hookEventName, "UserPromptSubmit");
-    const context = sortie.hookSpecificOutput.additionalContext;
-    assert.ok(context.includes(readFileSync(ROLE_DU_SECOND, "utf8").trim()), "le texte du rôle, entier");
-    assert.ok(context.includes("- **Branche d'intégration** : `main`"), "les bindings");
-    assert.doesNotMatch(context, /not the bindings/);
-    assert.match(context, /^awaiting/m);
-    assert.match(context, /#20/);
-    assert.match(context, /^end awaiting/m);
+    const contexte = sortie.hookSpecificOutput.additionalContext;
+    assert.ok(contexte.includes(readFileSync(ROLE_DU_SECOND, "utf8").trim()), "le texte du rôle, entier");
+    assert.ok(contexte.includes("- **Branche d'intégration** : `main`"), "les bindings");
+    assert.doesNotMatch(contexte, /not the bindings/);
+    assert.match(contexte, /^awaiting/m);
+    assert.match(contexte, /#20/);
+    assert.match(contexte, /^end awaiting/m);
     assert.ok(demandes.some((chemin) => chemin.includes("labels=chef-todo")), "la file est lue à ce prompt");
 
     // Redit une fois : les prompts suivants ne lisent plus rien.
@@ -84,17 +84,17 @@ describe("le rôle du second, redit après l'init", () => {
   });
 
   test("une session née avec la section : ses prompts ne lisent rien et n'ajoutent rien", async (t) => {
-    const project = dossier(t);
+    const projet = dossier(t);
     const notes = dossier(t);
-    writeFileSync(join(project, "CLAUDE.md"), AVEC);
+    writeFileSync(join(projet, "CLAUDE.md"), AVEC);
     const demandes: string[] = [];
-    debut({ session_id: "second-2", cwd: project }, notes);
-    assert.equal(await prompt({ session_id: "second-2", cwd: project }, { nom: "baloo", depot: REPOSITORY }, github({ claudeMd: AVEC }, demandes), notes), "");
+    debut({ session_id: "second-2", cwd: projet }, notes);
+    assert.equal(await prompt({ session_id: "second-2", cwd: projet }, { nom: "baloo", depot: DEPOT }, github({ claudeMd: AVEC }, demandes), notes), "");
     assert.deepEqual(demandes, []);
   });
 
   test("le lancement de l'onglet Second déclare les deux crochets, avec la branche d'intégration du projet", () => {
-    const lances: Launch[] = [];
+    const lances: Lancement[] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
       shell: "/bin/zsh",
@@ -106,24 +106,24 @@ describe("le rôle du second, redit après l'init", () => {
       surSortie: () => {},
       surEtat: () => {},
     });
-    terminaux.espace({ nom: "baloo", dossier: "/projets/baloo", depot: REPOSITORY, base: "main" });
+    terminaux.espace({ nom: "baloo", dossier: "/projets/baloo", depot: DEPOT, base: "main" });
     const args = lances.at(0)?.args ?? assert.fail("aucun lancement");
     const { hooks } = JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as { hooks: Record<string, { matcher?: string; hooks: { command: string }[] }[]> };
-    const commands = (event: string) => (hooks[event] ?? []).flatMap((c) => c.hooks.map((h) => h.command));
-    assert.ok(commands("UserPromptSubmit").some((c) => /role-apres-init\.ts' 'prompt' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
-    assert.ok(commands("SessionStart").some((c) => /role-apres-init\.ts' 'debut' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
+    const commandes = (evenement: string) => (hooks[evenement] ?? []).flatMap((c) => c.hooks.map((h) => h.command));
+    assert.ok(commandes("UserPromptSubmit").some((c) => /role-apres-init\.ts' 'prompt' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
+    assert.ok(commandes("SessionStart").some((c) => /role-apres-init\.ts' 'debut' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
     assert.deepEqual(crochetsDuRole({ node: "node", gh: "gh", cible: { nom: "baloo" } }).SessionStart?.[0]?.matcher, "startup|resume|compact");
   });
 
   test("joué par `claude` : l'entrée du crochet sur stdin, le gh du poste, la sortie au format du contexte additionnel", { skip: SANS_SH }, (t) => {
-    const project = dossier(t);
+    const projet = dossier(t);
     const d = dossier(t);
     writeFileSync(join(d, "claude.json"), JSON.stringify({ content: Buffer.from(AVEC).toString("base64"), encoding: "base64" }));
     const gh = join(d, "gh");
     writeFileSync(gh, `#!/bin/sh\necho "$@" >> '${join(d, "recu")}'\ncase "$2" in\n  *contents/CLAUDE.md*) /bin/cat '${join(d, "claude.json")}' ;;\n  *) echo '[]' ;;\nesac\n`);
     chmodSync(gh, 0o755);
     const jouer = (moment: string) =>
-      spawnSync(process.execPath, [SCRIPT, moment, "baloo", REPOSITORY, "main", gh], { encoding: "utf8", cwd: project, input: JSON.stringify({ session_id: "second-3", cwd: project }), env: { PATH: d, HOME: d, TMPDIR: d } });
+      spawnSync(process.execPath, [SCRIPT, moment, "baloo", DEPOT, "main", gh], { encoding: "utf8", cwd: projet, input: JSON.stringify({ session_id: "second-3", cwd: projet }), env: { PATH: d, HOME: d, TMPDIR: d } });
     const ouverture = jouer("debut");
     assert.equal(ouverture.status, 0);
     assert.equal(ouverture.stdout, "");
@@ -153,13 +153,13 @@ const TEXTES: [string, string][] = [
 ];
 
 describe("ni brigade:po, ni rôle V1, ni offre de modèle ou d'effort", () => {
-  for (const [name, texte] of TEXTES) {
-    test(name, () => {
+  for (const [nom, texte] of TEXTES) {
+    test(nom, () => {
       assert.doesNotMatch(texte, /brigade:po\b/);
       assert.doesNotMatch(texte, /\/brigade:(?:manager|dev|designer|sync|ask)\b/);
       assert.doesNotMatch(texte, /\b(?:model|effort):(?:opus|sonnet|haiku|fable|low|medium|high|xhigh|max)\b/);
       // Une phrase qui parle de modèle ou d'effort dit qu'ils sont au manager, et rien d'autre.
-      for (const phrase of texte.split(/(?<=[.;!?])\s+|\n/)) if (/\b(?:model|modèle|effort)s?\b/i.test(phrase)) assert.match(phrase, /manager/, `${name} : « ${phrase.trim()} »`);
+      for (const phrase of texte.split(/(?<=[.;!?])\s+|\n/)) if (/\b(?:model|modèle|effort)s?\b/i.test(phrase)) assert.match(phrase, /manager/, `${nom} : « ${phrase.trim()} »`);
     });
   }
   test("le rôle dit que modèle et effort sont au manager", () => {

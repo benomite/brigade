@@ -144,7 +144,7 @@ written, and states its price (`— cost: …`; refused: standard error, code 1)
 ### A ticket's priority is its `prio:` label
 
 The box has no command for it: change the issue's `prio:<n>` label on GitHub, or from the ticket's
-sheet in the app (`app/src/priority.ts`, `docs/app.md`, "Changing a ticket's priority"); the box
+sheet in the app (`app/src/priorite.ts`, `docs/app.md`, "Changing a ticket's priority"); the box
 reads it at its next poll.
 
 ### Answering a TODO card
@@ -189,7 +189,7 @@ is written on the issue, on any GitHub project.
 
 No box command sets or lifts it (#4262): the chef's app and the second park and unpark a ticket the
 same way, on its issue, on any project, through the same two functions — `parquer`
-(`app/src/vue/wait/wait-github.ts`) and `deparquer` (`app/src/actions-github.ts`). The app
+(`app/src/vue/attente/attente-github.ts`) and `deparquer` (`app/src/gestes-github.ts`). The app
 plays them from **waiting for…** on a card, **resume** and **it arrived, back to the kitchen**; the
 second with the parking command the app gives it at each session start (`app/src/second/parking.ts`):
 `park <owner>/<repo>#<n> --who <who> --what <what> --until <YYYY-MM-DD>` and

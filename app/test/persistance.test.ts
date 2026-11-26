@@ -13,29 +13,29 @@ import { describe, test, type TestContext } from "node:test";
 import {
   destruction,
   detruire,
-  nameDeSession,
-  NAME_DE_SESSION,
+  nomDeSession,
+  NOM_DE_SESSION,
   rattachement,
-  SETTINGS_SCREEN,
-  SETTINGS_TMUX,
+  REGLAGES_SCREEN,
+  REGLAGES_TMUX,
   SANS_MULTIPLEXEUR,
   scriptDeDestruction,
   scriptDeRattachement,
   type Cible,
-  type Command,
+  type Commande,
   type Session,
 } from "../src/persistance.ts";
 import { ouvrirPty, ptyDisponible } from "../src/pty.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
-const WORKSTATION: Cible = { lieu: "poste" };
+const POSTE: Cible = { lieu: "poste" };
 const AIDE_PTY = join(import.meta.dirname, "aides/pty.py");
 
 // Attend un fait. Le délai n'est qu'une garde, pour qu'un test cassé finisse par le dire.
 async function jusqua(condition: () => boolean, quoi: () => string): Promise<void> {
-  const limit = Date.now() + 60_000;
+  const limite = Date.now() + 60_000;
   while (!condition()) {
-    if (Date.now() > limit) throw new Error(`jamais arrivé — ${quoi()}`);
+    if (Date.now() > limite) throw new Error(`jamais arrivé — ${quoi()}`);
     await new Promise((resoudre) => setTimeout(resoudre, 5));
   }
 }
@@ -44,14 +44,14 @@ const sansEchappements = (texte: string) => texte.replace(/\x1b\[[0-9;?>=]*[ -/]
 
 describe("le nom d'une session", () => {
   test("il dit le projet et le rang, et se porte sans guillemets", () => {
-    assert.equal(nameDeSession("parade", 3), "brigade-parade-3");
-    assert.match(nameDeSession("Mon Projet", 1), NAME_DE_SESSION);
+    assert.equal(nomDeSession("parade", 3), "brigade-parade-3");
+    assert.match(nomDeSession("Mon Projet", 1), NOM_DE_SESSION);
   });
 
   test("deux projets dont les noms s'écrivent pareil ne partagent pas une session", () => {
-    assert.notEqual(nameDeSession("a b", 1), nameDeSession("a-b", 1));
-    assert.notEqual(nameDeSession("A-b", 1), nameDeSession("a-b", 1));
-    assert.match(nameDeSession("a b", 1), /^brigade-a-b-[0-9a-f]{8}-1$/);
+    assert.notEqual(nomDeSession("a b", 1), nomDeSession("a-b", 1));
+    assert.notEqual(nomDeSession("A-b", 1), nomDeSession("a-b", 1));
+    assert.match(nomDeSession("a b", 1), /^brigade-a-b-[0-9a-f]{8}-1$/);
   });
 
   test("un nom qui ne se porte pas tel quel n'est jamais écrit dans un script", () => {
@@ -62,14 +62,14 @@ describe("le nom d'une session", () => {
 
 describe("la commande d'un shell persistant", () => {
   test("sur le poste, `sh` lit le script : il crée la session ou s'y rattache", () => {
-    const { commande: command, args } = rattachement({ nom: "brigade-parade-1", cible: WORKSTATION });
-    assert.equal(command, "/bin/sh");
+    const { commande, args } = rattachement({ nom: "brigade-parade-1", cible: POSTE });
+    assert.equal(commande, "/bin/sh");
     assert.deepEqual(args, ["-c", scriptDeRattachement("brigade-parade-1")]);
   });
 
   test("la destruction passe aussi par `sh`, sans terminal", () => {
-    const { commande: command, args } = destruction({ nom: "brigade-parade-1", cible: WORKSTATION });
-    assert.equal(command, "/bin/sh");
+    const { commande, args } = destruction({ nom: "brigade-parade-1", cible: POSTE });
+    assert.equal(commande, "/bin/sh");
     assert.deepEqual(args, ["-c", scriptDeDestruction("brigade-parade-1")]);
   });
 
@@ -91,18 +91,18 @@ function joue(t: TestContext, faux: "tmux" | "screen" | "aucun"): { appels: stri
     chmodSync(join(racine, faux), 0o755);
   }
   const sortie = execFileSync("/bin/sh", ["-c", scriptDeRattachement("brigade-essai-1")], { cwd: racine, encoding: "utf8", env: { PATH: racine, HOME: racine, SHELL: "/bin/true" } });
-  let calls: string[] = [];
+  let appels: string[] = [];
   try {
-    calls = readFileSync(join(racine, "appels"), "utf8").trimEnd().split("\n");
+    appels = readFileSync(join(racine, "appels"), "utf8").trimEnd().split("\n");
   } catch {}
-  return { appels: calls, sortie };
+  return { appels, sortie };
 }
 
 describe("la configuration appliquée à la session", () => {
   test("avec `tmux` : ni souris, ni préfixe, ni barre — et rien qui active un mode de copie", { skip: SANS_POSIX }, (t) => {
-    const { appels: calls } = joue(t, "tmux");
-    const racine = calls.find((call) => call.startsWith("tmux -u new-session"))?.match(/-c (\S+)$/)?.[1];
-    assert.deepEqual(calls, [
+    const { appels } = joue(t, "tmux");
+    const racine = appels.find((appel) => appel.startsWith("tmux -u new-session"))?.match(/-c (\S+)$/)?.[1];
+    assert.deepEqual(appels, [
       "tmux -u has-session -t =brigade-essai-1",
       `tmux -u new-session -d -s brigade-essai-1 -c ${racine}`,
       "tmux -u set-option -t =brigade-essai-1 mouse off",
@@ -111,13 +111,13 @@ describe("la configuration appliquée à la session", () => {
       "tmux -u set-option -t =brigade-essai-1 status off",
       "tmux -u attach-session -t =brigade-essai-1",
     ]);
-    assert.deepEqual(SETTINGS_TMUX, ["mouse off", "prefix None", "prefix2 None", "status off"]);
-    assert.ok(!calls.some((call) => /mouse on|copy-mode|set-clipboard|mode-keys/.test(call)), calls.join("\n"));
+    assert.deepEqual(REGLAGES_TMUX, ["mouse off", "prefix None", "prefix2 None", "status off"]);
+    assert.ok(!appels.some((appel) => /mouse on|copy-mode|set-clipboard|mode-keys/.test(appel)), appels.join("\n"));
   });
 
   test("avec `screen`, quand `tmux` manque : aucun suivi de la souris, et Ctrl-A reste au shell", { skip: SANS_POSIX }, (t) => {
-    const { appels: calls } = joue(t, "screen");
-    assert.deepEqual(calls, [
+    const { appels } = joue(t, "screen");
+    assert.deepEqual(appels, [
       "screen -ls",
       "screen -U -dmS brigade-essai-1",
       "screen -S brigade-essai-1 -X defmousetrack off",
@@ -125,21 +125,21 @@ describe("la configuration appliquée à la session", () => {
       "screen -S brigade-essai-1 -X escape ",
       "screen -U -x brigade-essai-1",
     ]);
-    assert.deepEqual(SETTINGS_SCREEN, ["defmousetrack off", "mousetrack off", 'escape ""']);
-    assert.ok(!calls.some((call) => /mousetrack on|copy/.test(call)), calls.join("\n"));
+    assert.deepEqual(REGLAGES_SCREEN, ["defmousetrack off", "mousetrack off", 'escape ""']);
+    assert.ok(!appels.some((appel) => /mousetrack on|copy/.test(appel)), appels.join("\n"));
   });
 
   test("sans aucun des deux : le shell s'ouvre quand même, et dit qu'il ne survivra pas à son terminal", { skip: SANS_POSIX }, (t) => {
-    const { appels: calls, sortie } = joue(t, "aucun");
-    assert.deepEqual(calls, []);
+    const { appels, sortie } = joue(t, "aucun");
+    assert.deepEqual(appels, []);
     assert.equal(sortie, `${SANS_MULTIPLEXEUR}\n`);
   });
 });
 
 // Le multiplexeur que ce poste a — celui que le script prendra.
-const multiplexeur = ["tmux", "screen"].find((tool) => {
+const multiplexeur = ["tmux", "screen"].find((outil) => {
   try {
-    execFileSync("/bin/sh", ["-c", `command -v ${tool}`], { stdio: "ignore" });
+    execFileSync("/bin/sh", ["-c", `command -v ${outil}`], { stdio: "ignore" });
     return true;
   } catch {
     return false;
@@ -160,12 +160,12 @@ type Vue = { sortie(): string; ecrire(donnees: string): void; fermer(): Promise<
 
 // Un vrai terminal, sur la commande d'un shell persistant : node-pty là où il est
 // livré, l'aide en Python ailleurs. Son environnement est celui du test, passé par `env`.
-function brancher(t: TestContext, { commande: command, args }: Command, dossier: string, env: Record<string, string>): Vue {
-  const line = ["/usr/bin/env", "-i", ...Object.entries(env).map(([cle, valeur]) => `${cle}=${valeur}`), command, ...args];
+function brancher(t: TestContext, { commande, args }: Commande, dossier: string, env: Record<string, string>): Vue {
+  const ligne = ["/usr/bin/env", "-i", ...Object.entries(env).map(([cle, valeur]) => `${cle}=${valeur}`), commande, ...args];
   let sortie = "";
   let fini = false;
   if (ptyDisponible) {
-    const pty = ouvrirPty({ commande: line[0] ?? "", args: line.slice(1), dossier, colonnes: 80, lignes: 24, surSortie: (donnees) => void (sortie += donnees), surFin: () => void (fini = true) });
+    const pty = ouvrirPty({ commande: ligne[0] ?? "", args: ligne.slice(1), dossier, colonnes: 80, lignes: 24, surSortie: (donnees) => void (sortie += donnees), surFin: () => void (fini = true) });
     const fermer = async () => {
       if (!fini) pty.tuer();
       await jusqua(() => fini, () => sortie);
@@ -173,7 +173,7 @@ function brancher(t: TestContext, { commande: command, args }: Command, dossier:
     t.after(fermer);
     return { sortie: () => sortie, ecrire: pty.ecrire, fermer };
   }
-  const enfant = spawn("python3", ["-I", AIDE_PTY, ...line], { cwd: dossier, stdio: ["pipe", "pipe", "inherit"] });
+  const enfant = spawn("python3", ["-I", AIDE_PTY, ...ligne], { cwd: dossier, stdio: ["pipe", "pipe", "inherit"] });
   enfant.stdout.on("data", (donnees: Buffer) => void (sortie += donnees.toString("utf8")));
   enfant.on("exit", () => void (fini = true));
   const fermer = async () => {
@@ -187,10 +187,10 @@ function brancher(t: TestContext, { commande: command, args }: Command, dossier:
 let essais = 0;
 
 // Ce poste, isolé : les sockets des sessions, le `HOME` et le dossier du test.
-function workstation(t: TestContext) {
+function poste(t: TestContext) {
   const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-persistance-")));
   const env = { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: racine, SHELL: "/bin/sh", TERM: "xterm-256color", TMUX_TMPDIR: racine, SCREENDIR: racine, LANG: "C" };
-  const session: Session = { nom: nameDeSession(`essai-${process.pid}`, ++essais), cible: WORKSTATION };
+  const session: Session = { nom: nomDeSession(`essai-${process.pid}`, ++essais), cible: POSTE };
   t.after(async () => {
     await detruire(session, { env });
     rmSync(racine, { recursive: true, force: true });
@@ -200,15 +200,15 @@ function workstation(t: TestContext) {
 
 describe(`une session persistante sur ce poste${multiplexeur === undefined ? "" : `, par ${multiplexeur}`}`, { skip: SAUTE, concurrency: 4 }, () => {
   test("fermer le terminal ne fait que s'en détacher : rattaché, la commande lancée avant tourne toujours, et ce qu'elle avait affiché est là", async (t) => {
-    const { ouvrir } = workstation(t);
+    const { ouvrir } = poste(t);
 
-    const first = ouvrir();
+    const premier = ouvrir();
     // `cat` reste au premier plan : il ne rend ce qu'il reçoit que s'il tourne encore.
-    first.ecrire("echo AVANT-$((6*7)); cat\r");
-    await jusqua(() => sansEchappements(first.sortie()).includes("AVANT-42"), () => first.sortie());
-    first.ecrire("ligne-une\r");
-    await jusqua(() => (sansEchappements(first.sortie()).match(/ligne-une/g) ?? []).length >= 2, () => first.sortie());
-    await first.fermer();
+    premier.ecrire("echo AVANT-$((6*7)); cat\r");
+    await jusqua(() => sansEchappements(premier.sortie()).includes("AVANT-42"), () => premier.sortie());
+    premier.ecrire("ligne-une\r");
+    await jusqua(() => (sansEchappements(premier.sortie()).match(/ligne-une/g) ?? []).length >= 2, () => premier.sortie());
+    await premier.fermer();
 
     const second = ouvrir();
     // L'historique : le terminal rattaché montre ce que la session avait affiché.
@@ -219,15 +219,15 @@ describe(`une session persistante sur ce poste${multiplexeur === undefined ? "" 
   });
 
   test("détruite, la session n'est plus : le rattachement suivant en crée une neuve, vide", async (t) => {
-    const { ouvrir, session, env } = workstation(t);
+    const { ouvrir, session, env } = poste(t);
 
-    const first = ouvrir();
-    first.ecrire("echo ANCIENNE-$((6*7)); cat\r");
-    await jusqua(() => sansEchappements(first.sortie()).includes("ANCIENNE-42"), () => first.sortie());
+    const premier = ouvrir();
+    premier.ecrire("echo ANCIENNE-$((6*7)); cat\r");
+    await jusqua(() => sansEchappements(premier.sortie()).includes("ANCIENNE-42"), () => premier.sortie());
 
     assert.deepEqual(await detruire(session, { env }), { detruite: true });
     // Détruite, la session emporte son terminal : il prend fin de lui-même.
-    await first.fermer();
+    await premier.fermer();
 
     const second = ouvrir();
     second.ecrire("echo NEUVE-$((1+1))\r");
@@ -236,7 +236,7 @@ describe(`une session persistante sur ce poste${multiplexeur === undefined ? "" 
   });
 
   test("détruire une session qui n'existe pas n'est pas un échec : il n'y avait rien à détruire", async (t) => {
-    const { session, env } = workstation(t);
+    const { session, env } = poste(t);
     assert.deepEqual(await detruire(session, { env }), { detruite: true });
   });
 });

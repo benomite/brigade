@@ -8,7 +8,7 @@
 //   changed=true|false
 //   tag=app-v<version>     (only when changed=true)
 import { readFileSync } from "node:fs";
-import { comparerVersions, estUneVersion, ETIQUETTE } from "../../app/src/update/flux.ts";
+import { comparerVersions, estUneVersion, ETIQUETTE } from "../../app/src/mise-a-jour/flux.ts";
 
 // The version published when no app-v tag exists yet.
 export const VERSION_DE_DEPART = "1.0.0";

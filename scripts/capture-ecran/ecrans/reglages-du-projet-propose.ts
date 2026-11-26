@@ -1,7 +1,7 @@
 // Les réglages de « parade », le plafond `sonnet / high` proposé (#1309) : choisir `sonnet` dans sa liste le propose
 // aussitôt, sans bouton (#2920). La PR est ouverte sur son dépôt, dite sous la rangée avec de quoi l'ouvrir ; la valeur
 // en vigueur ne change pas — elle vaut une fois la PR mergée.
-import { PROPOSE } from "../../../app/src/settings-du-project.ts";
+import { PROPOSE } from "../../../app/src/reglages-du-projet.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { LUS, OUVRIR, PLAFOND } from "./reglages-du-projet.ts";

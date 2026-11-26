@@ -59,7 +59,7 @@ path of the body for that tick: it holds too much, it never lets two cooks leave
 **A ticket holds its zone, not its zone's companions** (#3250). From #2963 to #3250, a ticket also held
 the files outside its zone that at least half of the base's recent commits touching it also write
 (`compagnons.ts`). On this repository, every app zone read on 2026-11-11 had `app/src/vue/vue.js` and
-`docs/app.md` among them, `app/src/trial.ts` included, so any two app tickets held each other until the
+`docs/app.md` among them, `app/src/essai.ts` included, so any two app tickets held each other until the
 first was merged. That day, #3189, #3195 and #3198 were first claimed 5, 1 and 2 min after the merge of
 #3185, #3189 and #3195, and #3185, #3187, #3189, #3195 and #3198 lost 883 min waiting for a claim; #3189 and
 #3185 shared no file with the tickets ahead of them except those shared ones. The same day, #3212, #3215,

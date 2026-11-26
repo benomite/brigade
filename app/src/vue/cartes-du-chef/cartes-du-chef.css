@@ -1,0 +1,194 @@
+/* Les cartes qui attendent le chef, à la largeur d'un téléphone (ticket 2915, maquette Phone.dc.html) : l'en-tête, la liste,
+   la carte ouverte, l'envoi. Les boutons sont ceux de composants/bouton (44 px à cette largeur) ; ici, leur place seulement. */
+#cartes-du-chef {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--fond);
+}
+#cartes-du-chef[hidden] {
+  display: none;
+}
+#cartes-du-chef .entete-des-cartes {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-3);
+  padding: var(--pas-4) var(--pas-4) var(--pas-3);
+  background: var(--bandeau);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#cartes-du-chef .entete-des-cartes h2 {
+  margin: 0;
+  font-size: var(--taille-titre);
+  font-weight: 700;
+}
+#cartes-du-chef .retour-aux-cartes {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-left: calc(-1 * var(--pas-3));
+  padding: 0;
+  font-size: var(--taille-titre);
+  line-height: 1;
+  color: var(--texte);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+#cartes-du-chef .nombre-de-cartes {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 var(--pas-3);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  color: var(--rouge-clair);
+  background: var(--attend);
+  border: 1px solid var(--attend-trait);
+  border-radius: var(--rayon-pastille);
+}
+#cartes-du-chef .corps-des-cartes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+  padding: var(--pas-4);
+  min-width: 0;
+}
+#cartes-du-chef .corps-des-cartes[data-vu="carte"] {
+  gap: var(--pas-3);
+}
+#cartes-du-chef .corps-des-cartes[data-vu="envoyee"] {
+  align-items: flex-start;
+  gap: var(--pas-3);
+  padding: var(--pas-6) var(--pas-4);
+}
+#cartes-du-chef h1 {
+  margin: 0;
+  font-size: var(--taille-titre);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+#cartes-du-chef .mot-des-cartes {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  line-height: 1.45;
+  color: var(--texte-doux);
+}
+#cartes-du-chef .ailleurs {
+  margin: var(--pas-2) 0 0;
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+/* Une carte de la liste : un seul bouton, toute la carte se touche. */
+#cartes-du-chef .carte-a-ouvrir {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--pas-3);
+  font-family: var(--police-interface);
+  text-align: left;
+  color: var(--texte);
+  background: var(--attend);
+  border: 1px solid var(--attend-trait);
+  border-radius: var(--rayon-carte);
+  cursor: pointer;
+}
+#cartes-du-chef .haut-de-carte {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--pas-2);
+  width: 100%;
+  font-size: var(--taille-meta);
+  color: var(--texte-doux);
+}
+#cartes-du-chef .numero-de-carte {
+  font-family: var(--police-mono);
+  font-size: var(--taille-corps);
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+#cartes-du-chef .haut-de-carte .numero-de-carte {
+  font-size: var(--taille-meta);
+  color: var(--texte);
+}
+#cartes-du-chef .question-de-carte {
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+#cartes-du-chef .genre-de-carte {
+  font-size: var(--taille-corps);
+  color: var(--texte-doux);
+}
+/* Un choix : toute la largeur, son texte entier ; la réponse recommandée porte sa ligne dessous. */
+#cartes-du-chef .choix-du-chef {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  min-height: 52px;
+  padding: var(--pas-3) var(--pas-4);
+  font-size: var(--taille-intertitre);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+#cartes-du-chef .recommandee {
+  font-size: var(--taille-meta);
+  font-weight: 500;
+}
+#cartes-du-chef .saisie-du-chef {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: var(--pas-3);
+  font: inherit;
+  font-size: var(--taille-intertitre);
+  color: var(--texte);
+  background: var(--case);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  resize: none;
+}
+#cartes-du-chef .saisie-du-chef:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#cartes-du-chef .envoi-du-chef {
+  align-self: flex-end;
+  min-width: 44px;
+}
+#cartes-du-chef .corps-des-cartes[data-vu="envoyee"] .envoi-du-chef {
+  align-self: flex-start;
+}
+/* La coche d'envoi est dessinée en bordure : aucune police n'a à la porter. */
+#cartes-du-chef .coche-d-envoi {
+  position: relative;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  border: 2.5px solid var(--vert);
+  border-radius: var(--rayon-pastille);
+}
+#cartes-du-chef .coche-d-envoi::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 6px;
+  width: 8px;
+  height: 16px;
+  border: solid var(--vert);
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}

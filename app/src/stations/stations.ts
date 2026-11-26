@@ -8,23 +8,23 @@
 // parmi les gists de station du compte, celui qui publie l'empreinte de ce
 // code, et y écrit l'appairage — la station le lit à son signe de vie suivant.
 // Un code mal formé, inconnu ou échu est refusé en une ligne, et rien n'est écrit.
-import type { PublishedConnection } from "../outages/states.ts";
-import { capacitiesLues } from "../projects/request.ts";
-import { outagesDe, type Outage } from "../outages/outages.ts";
+import type { ConnexionPubliee } from "../pannes/etats.ts";
+import { capacitesLues } from "../projets/demande.ts";
+import { pannesDe, type Panne } from "../pannes/pannes.ts";
 import { documentDAppairage, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireAppairage, lireDocument, normaliser, type DocumentAppairage, type DocumentStation } from "./document.ts";
 import { suivreLesVersions, type VersionsVues } from "./versions.ts";
 import type { GistDeStation, GitHubDesStations } from "./github.ts";
 
-export type StateDeStation = "en-ligne" | "hors-ligne" | "illisible";
+export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
 // Une station telle que la home la montre. `id` : son gist. `pannes` : chacune en une ligne, avec
-// son bouton (outages/outages.ts) — sans celles que le chef a écartées. `cuisine` : faux d'un téléphone, qui ne fait tourner aucun cook ; `coeurs` : ceux de sa machine,
-// quand elle les publie. Et, pour la liste de l'accueil (home.ts), ce que la ligne dit déjà, en
+// son bouton (pannes/pannes.ts) — sans celles que le chef a écartées. `cuisine` : faux d'un téléphone, qui ne fait tourner aucun cook ; `coeurs` : ceux de sa machine,
+// quand elle les publie. Et, pour la liste de l'accueil (accueil.ts), ce que la ligne dit déjà, en
 // morceaux : `dit`, son état en quelques mots
 // (« online », « offline for 12 min ») ; sa `version` ; les `projets` qu'elle porte ; sa connexion Max
 // telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
 // mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire. `fournit` : ce que son appairage
 // dit qu'elle fournit (document.ts, #1757) — absent quand il n'en dit rien.
-export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: StateDeStation; ligne: string; pannes: Outage[]; dit: string; version: string; projets: string[]; max: PublishedConnection["etat"] | null; maxDepuis?: string | null; versionDit?: string };
+export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; maxDepuis?: string | null; versionDit?: string };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.
@@ -39,7 +39,7 @@ export const CADENCE_MS = 30_000;
 // La station est dite hors ligne quand elle a manqué deux signes de vie : à
 // la minute près, sans qu'un signe en retard de quelques secondes ne la fasse
 // clignoter.
-export const outsideLineApres = (cadenceMs: number) => 2 * cadenceMs + 30_000;
+export const horsLigneApres = (cadenceMs: number) => 2 * cadenceMs + 30_000;
 
 // Une durée, telle que la ligne la dit.
 export function duree(ms: number): string {
@@ -51,37 +51,37 @@ export function duree(ms: number): string {
   return `${Math.floor(heures / 24)} days`;
 }
 
-export const projectsDe = (projects: readonly string[]) => (projects.length === 0 ? "no project" : `${projects.length} project${projects.length > 1 ? "s" : ""}: ${projects.join(", ")}`);
+export const projetsDe = (projets: readonly string[]) => (projets.length === 0 ? "no project" : `${projets.length} project${projets.length > 1 ? "s" : ""}: ${projets.join(", ")}`);
 
 // L'état d'une station, à cet instant, en quelques mots : « online », ou depuis quand elle ne l'est plus.
-export function stateDe(document: DocumentStation, maintenant: number): { etat: StateDeStation; dit: string } {
+export function etatDe(document: DocumentStation, maintenant: number): { etat: EtatDeStation; dit: string } {
   const signe = Date.parse(document.signeDeVie);
   const arretee = document.arreteeLe === null ? null : Date.parse(document.arreteeLe);
-  const depuis = arretee !== null && arretee >= signe ? arretee : maintenant - signe > outsideLineApres(document.cadenceMs) ? signe : null;
+  const depuis = arretee !== null && arretee >= signe ? arretee : maintenant - signe > horsLigneApres(document.cadenceMs) ? signe : null;
   return depuis === null ? { etat: "en-ligne", dit: "online" } : { etat: "hors-ligne", dit: `offline for ${duree(maintenant - depuis)}` };
 }
 
 // La ligne de mise à jour de la page d'une station : « up to date · on this version for 3 days ».
 // Une station hors ligne n'est dite à jour de rien ; une mise à jour ratée est déjà dite par sa
-// panne (outages.ts) : la ligne ne la répète pas, et ne dit pas « up to date » par-dessus.
+// panne (pannes.ts) : la ligne ne la répète pas, et ne dit pas « up to date » par-dessus.
 // `depuisLe` : l'instant où l'app a vu la station passer à cette version (`versions.ts`) — la
 // station ne publie pas cette date ; sans elle, la ligne ne dit pas depuis quand.
-export function lineDeVersion(document: DocumentStation, maintenant: number, depuisLe: string | null = null): string {
-  if (stateDe(document, maintenant).etat !== "en-ligne") return "";
+export function ligneDeVersion(document: DocumentStation, maintenant: number, depuisLe: string | null = null): string {
+  if (etatDe(document, maintenant).etat !== "en-ligne") return "";
   const depuis = depuisLe === null ? "" : `on this version for ${duree(maintenant - Date.parse(depuisLe))}`;
   return document.miseAJour === null ? ["up to date", depuis].filter((morceau) => morceau !== "").join(" · ") : depuis;
 }
 
 // La ligne d'une station, à cet instant.
-export function lineDe(document: DocumentStation, maintenant: number): { etat: StateDeStation; ligne: string } {
-  const { etat: state, dit } = stateDe(document, maintenant);
-  return { etat: state, ligne: `${dit} · version ${document.version} · ${projectsDe(document.projets)}` };
+export function ligneDe(document: DocumentStation, maintenant: number): { etat: EtatDeStation; ligne: string } {
+  const { etat, dit } = etatDe(document, maintenant);
+  return { etat, ligne: `${dit} · version ${document.version} · ${projetsDe(document.projets)}` };
 }
 
 // Ce que `gh` répond quand GitHub limite les appels du compte (« API rate limit exceeded… »).
-export const LIMIT = /rate limit/i;
+export const LIMITE = /rate limit/i;
 
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 export type OptionsStations = {
   github: GitHubDesStations;
@@ -108,7 +108,7 @@ export type Stations = {
   fermer(): void;
 };
 
-export function holdStations(options: OptionsStations): Stations {
+export function tenirStations(options: OptionsStations): Stations {
   const { github } = options;
   const maintenant = options.maintenant ?? Date.now;
   // Ce que chaque gist appairé disait à sa dernière lecture, et quand GitHub l'a changé.
@@ -119,7 +119,7 @@ export function holdStations(options: OptionsStations): Stations {
   const ecartees = new Set<string>();
   const versions = suivreLesVersions(options.versions);
 
-  const show = (sans?: string, limit?: VuDesStations["limite"]): VuDesStations => {
+  const montrer = (sans?: string, limite?: VuDesStations["limite"]): VuDesStations => {
     const instant = maintenant();
     const stations = [...lus].map(([id, { document, appairage }]): StationVue =>
       "illisible" in document
@@ -131,19 +131,19 @@ export function holdStations(options: OptionsStations): Stations {
             ...(document.cuisine === false ? { cuisine: false as const } : {}),
             ...(document.coeurs === undefined ? {} : { coeurs: document.coeurs }),
             ...(appairage?.fournit === undefined ? {} : { fournit: appairage.fournit }),
-            ...lineDe(document, instant),
-            pannes: outagesDe(document, instant).filter(({ cle }) => !ecartees.has(`${id} ${cle}`)),
-            dit: stateDe(document, instant).dit,
+            ...ligneDe(document, instant),
+            pannes: pannesDe(document, instant).filter(({ cle }) => !ecartees.has(`${id} ${cle}`)),
+            dit: etatDe(document, instant).dit,
             version: document.version,
             projets: document.projets,
             // Une station qui se tait ne dit plus sa connexion : ce qu'elle en a publié avant n'est plus sûr.
-            max: stateDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
-            maxDepuis: stateDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.depuis ?? null) : null,
-            versionDit: lineDeVersion(document, instant, versions.vue(id, document.version, instant)),
+            max: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
+            maxDepuis: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.depuis ?? null) : null,
+            versionDit: ligneDeVersion(document, instant, versions.vue(id, document.version, instant)),
           },
     );
     stations.sort((a, b) => a.nom.localeCompare(b.nom) || a.id.localeCompare(b.id));
-    vu = { a: new Date(instant).toISOString(), stations, ...(sans === undefined ? {} : { sans }), ...(limit === undefined ? {} : { limite: limit }) };
+    vu = { a: new Date(instant).toISOString(), stations, ...(sans === undefined ? {} : { sans }), ...(limite === undefined ? {} : { limite }) };
     options.surLecture(vu);
     return vu;
   };
@@ -163,12 +163,12 @@ export function holdStations(options: OptionsStations): Stations {
       const relus = await Promise.all(appairees.map(async (gist) => [gist.id, await lireGist(gist)] as const));
       lus.clear();
       for (const [id, lu] of relus) if (lu !== undefined) lus.set(id, lu);
-      return show();
-    } catch (error) {
-      const sans = `your stations could not be read on GitHub — ${message(error)}`;
+      return montrer();
+    } catch (erreur) {
+      const sans = `your stations could not be read on GitHub — ${message(erreur)}`;
       // GitHub limite les appels du compte : l'heure où il les rend se lit sans en dépenser un.
-      if (!LIMIT.test(sans)) return show(sans);
-      return show(sans, { reprise: (await github.reprise?.().catch(() => null)) ?? null });
+      if (!LIMITE.test(sans)) return montrer(sans);
+      return montrer(sans, { reprise: (await github.reprise?.().catch(() => null)) ?? null });
     }
   };
 
@@ -182,7 +182,7 @@ export function holdStations(options: OptionsStations): Stations {
     const code = normaliser(dit);
     if (code === null) return { refus: `“${dit.slice(0, 20)}” is not a pairing code: the station shows 8 letters and digits, like 7KQ2-M9XD` };
     const cherchee = empreinte(code);
-    let name: string;
+    let nom: string;
     try {
       const candidats = (await github.lister()).filter(({ appairee }) => !appairee);
       const documents = await Promise.all(
@@ -196,22 +196,22 @@ export function holdStations(options: OptionsStations): Stations {
       const trouvee = documents.find((lu) => lu?.document.appairage?.empreinte === cherchee || lu?.document.echus.includes(cherchee) === true);
       if (trouvee === undefined) return { refus: "no station shows this code: check it on the station, it is 8 letters and digits" };
       const { appairage } = trouvee.document;
-      name = trouvee.document.nom;
-      if (appairage?.empreinte !== cherchee || Date.parse(appairage.expireLe) <= instant) return { refus: `this code has expired: station ${name} shows a new one in its log — type that one` };
+      nom = trouvee.document.nom;
+      if (appairage?.empreinte !== cherchee || Date.parse(appairage.expireLe) <= instant) return { refus: `this code has expired: station ${nom} shows a new one in its log — type that one` };
       await github.ecrire(trouvee.id, { [FICHIER_APPAIRAGE]: documentDAppairage({ appaireeLe: new Date(instant).toISOString(), empreinte: cherchee, fournit: [...fournit] }) });
-    } catch (error) {
-      return { refus: "nothing was paired: GitHub could not be read or written", detail: message(error) };
+    } catch (erreur) {
+      return { refus: "nothing was paired: GitHub could not be read or written", detail: message(erreur) };
     }
     // La home la montre tout de suite : une lecture partie avant l'écriture ne la verrait pas.
     await enCours;
     await relire();
-    return { appairee: name };
+    return { appairee: nom };
   };
 
-  const holdCeQuElleFournit = async (id: string, fournit: readonly string[]): Promise<boolean> => {
+  const tenirCeQuElleFournit = async (id: string, fournit: readonly string[]): Promise<boolean> => {
     const lu = lus.get(id);
     const appairage = lu?.appairage ?? null;
-    const voulu = capacitiesLues(fournit);
+    const voulu = capacitesLues(fournit);
     if (appairage === null || (appairage.fournit ?? []).join("+") === voulu.join("+")) return false;
     await github.ecrire(id, { [FICHIER_APPAIRAGE]: documentDAppairage({ ...appairage, fournit: voulu }) });
     await enCours;
@@ -224,30 +224,30 @@ export function holdStations(options: OptionsStations): Stations {
     if (station === undefined) return { refus: "this station is no longer paired with this app" };
     try {
       await github.supprimer(station.id, FICHIER_APPAIRAGE);
-    } catch (error) {
-      return { refus: `${station.nom} was not removed: GitHub could not be written`, detail: message(error) };
+    } catch (erreur) {
+      return { refus: `${station.nom} was not removed: GitHub could not be written`, detail: message(erreur) };
     }
     // L'accueil ne la montre plus tout de suite : une lecture partie avant la suppression la verrait encore.
     await enCours;
     lus.delete(station.id);
-    show(vu?.sans, vu?.limite);
+    montrer(vu?.sans, vu?.limite);
     await relire();
     return { retiree: station.nom };
   };
 
   void relire();
-  const standby = setInterval(() => void relire(), options.cadenceMs ?? CADENCE_MS);
+  const veille = setInterval(() => void relire(), options.cadenceMs ?? CADENCE_MS);
 
   return {
     vu: () => vu,
     relire,
     appairer,
-    tenirCeQuElleFournit: holdCeQuElleFournit,
+    tenirCeQuElleFournit,
     ecarter(id, cle) {
       ecartees.add(`${id} ${cle}`);
-      return vu === undefined ? undefined : show(vu.sans, vu.limite);
+      return vu === undefined ? undefined : montrer(vu.sans, vu.limite);
     },
     retirer,
-    fermer: () => clearInterval(standby),
+    fermer: () => clearInterval(veille),
   };
 }

@@ -5,7 +5,7 @@
 // Ce que chaque position fait est dans `interrupteur.ts`. Une commande s'écrit
 // dans le journal ; le runtime qui tourne la voit à son prochain réveil, une
 // seconde au plus, sans redémarrage. Toute la sortie est en anglais ; l'app
-// lit la même ligne dans `status` (app/src/alerts.ts).
+// lit la même ligne dans `status` (app/src/alertes.ts).
 import { existsSync } from "node:fs";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { commanderInterrupteur, direInterrupteur, InterrupteurRefuse } from "./interrupteur.ts";

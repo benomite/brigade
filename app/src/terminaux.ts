@@ -8,27 +8,27 @@
 // rattaché à sa session. Seule sa fermeture par le chef la détruit. Le shell qu'un geste ouvre
 // pour y écrire sa commande, lui, est un shell de ce poste qui finit avec l'app — comme, sous
 // Windows, celui que « + shell » ouvre sur ce poste : il n'y a pas de session où le tenir.
-import { accountDe, texteBanner } from "./banner.ts";
-import type { Project } from "./config.ts";
+import { compteDe, texteBandeau } from "./bandeau.ts";
+import type { Projet } from "./config.ts";
 import { ICI, SANS_SESSION } from "./plateforme.ts";
-import { detruire as detruireSession, nameDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
-import { crochetsDesTurns, DIT, PROOF, settingsFile, suivreSaisie, type Saisie, type Turns } from "./saisie.ts";
-import { crochetsDeLaFile } from "./second/hook-de-la-file.ts";
-import { crochetsDuRole } from "./second/hook-du-role.ts";
-import { crochetsDuParking } from "./second/hook-du-parking.ts";
-import { crochetsDuRefusal } from "./second/refusal.ts";
-import { argumentsDuSecond, settingsDuSecond, type Crochets } from "./second/launch.ts";
+import { detruire as detruireSession, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
+import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
+import { crochetsDeLaFile } from "./second/crochet-de-la-file.ts";
+import { crochetsDuRole } from "./second/crochet-du-role.ts";
+import { crochetsDuParking } from "./second/crochet-du-parking.ts";
+import { crochetsDuRefus } from "./second/refus.ts";
+import { argumentsDuSecond, reglagesDuSecond, type Crochets } from "./second/lancement.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
 import type { OutilVu } from "../../runtime/src/second/outils.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 
 export type Pty = {
   ecrire(donnees: string): void;
-  redimensionner(colonnes: number, lines: number): void;
+  redimensionner(colonnes: number, lignes: number): void;
   tuer(): void;
 };
 
-export type Launch = {
+export type Lancement = {
   commande: string;
   args: string[];
   dossier: string;
@@ -44,9 +44,9 @@ export type Launch = {
 
 // Un outil qui manque au second (runtime/src/second/outils.ts, #1433) : son nom, pourquoi le second en a besoin, la
 // phrase qui dit comment l'obtenir sur ce poste, et la page qui l'explique.
-export type ToolManquant = { tool: string; reason: string; install: string; link: string };
+export type OutilManquant = { tool: string; reason: string; install: string; link: string };
 // Ce que le plan du second dit de lui, en une phrase, et chaque outil qui manque (#1435).
-export type DitDuSecond = { reason: string; tools: ToolManquant[] };
+export type DitDuSecond = { reason: string; tools: OutilManquant[] };
 
 // Ce que la vue montre d'un terminal. `note` est ce que l'app en dit — c'est là
 // que se lit « fil repris » ou « session neuve ».
@@ -83,7 +83,7 @@ export const RETENU = 1_000_000;
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
 
 // Les outils que le plan dit absents, avec ce qui les obtient — rien d'autre de ce qu'il a vu.
-const manquants = (tools: readonly OutilVu[]): ToolManquant[] =>
+const manquants = (tools: readonly OutilVu[]): OutilManquant[] =>
   tools.flatMap((vu) => (vu.present ? [] : [{ tool: vu.tool, reason: vu.reason, install: vu.install, link: vu.link }]));
 
 // `saisie` : ce que l'app sait de la saisie d'un second qui tourne (saisie.ts).
@@ -108,21 +108,21 @@ type Tenu = Terminal & {
 
 // Ce qui ne s'écrit jamais dans un terminal à la place du chef : un retour à la
 // ligne enverrait la commande, et tout autre caractère de contrôle y est une touche.
-// Qui prépare une commande (actions.ts) la refuse par la même règle, avant d'ouvrir un shell.
+// Qui prépare une commande (gestes.ts) la refuse par la même règle, avant d'ouvrir un shell.
 export const CONTROLE = /[\x00-\x1f\x7f]/;
 export const SANS_ECRIRE = "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” of this project in the projects file";
 
 // Ce qu'une vue rechargée rejoue : la fin de ce qui a été écrit, à partir d'un début de ligne quand elle a été coupée —
 // une séquence d'échappement tranchée en deux n'y laisse pas sa moitié.
-function depuisUneLine(ecrit: string): string {
+function depuisUneLigne(ecrit: string): string {
   if (ecrit.length <= RETENU) return ecrit;
   const fin = ecrit.slice(-RETENU);
-  const line = fin.indexOf("\n");
-  return line === -1 ? fin : fin.slice(line + 1);
+  const ligne = fin.indexOf("\n");
+  return ligne === -1 ? fin : fin.slice(ligne + 1);
 }
 
 export function ouvrirTerminaux(options: {
-  ouvrirPty(launch: Launch): Pty;
+  ouvrirPty(lancement: Lancement): Pty;
   claude: string;
   // Le shell de ce poste, et ses arguments — `-l` par défaut : un shell de connexion (plateforme.ts).
   shell: string;
@@ -134,7 +134,7 @@ export function ouvrirTerminaux(options: {
   // Un terminal a changé : sa note, ou il s'est arrêté.
   surEtat(terminal: Terminal): void;
   // Le fichier où ce second dira ses tours (saisie.ts). Sans lui, aucun second n'est jamais dit libre : aucun geste direct ne part.
-  tours?(id: number): Turns;
+  tours?(id: number): Tours;
   // Ce que l'app laisse à `claude` pour se montrer en mode shell avant qu'elle renonce à son Entrée : une garde, large.
   delaiPreuveMs?: number;
   // Ce que l'app se rappelle des shells persistants. Sans lui, aucun ne revient à la réouverture.
@@ -162,24 +162,24 @@ export function ouvrirTerminaux(options: {
 
   const detruire = options.detruire ?? ((session: Session) => detruireSession(session));
 
-  const montre = ({ id, projet: project, genre, titre, note, arrete, bandeau: banner, demandeEcrite: requestEcrite, nonParti, empeche, manque, aReprendre }: Tenu): Terminal => ({
+  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite, nonParti, empeche, manque, aReprendre }: Tenu): Terminal => ({
     id,
-    projet: project,
+    projet,
     genre,
     titre,
     note,
     arrete,
-    ...(banner === undefined ? {} : { bandeau: banner }),
-    ...(requestEcrite === undefined ? {} : { demandeEcrite: requestEcrite }),
+    ...(bandeau === undefined ? {} : { bandeau }),
+    ...(demandeEcrite === undefined ? {} : { demandeEcrite }),
     ...(nonParti === undefined ? {} : { nonParti }),
     ...(empeche === undefined ? {} : { empeche }),
     ...(manque === undefined ? {} : { manque }),
     ...(aReprendre === undefined ? {} : { aReprendre }),
   });
-  const de = (project: string) => [...tenus.values()].filter((tenu) => tenu.projet === project);
+  const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
-  function hold(project: Project, genre: Terminal["genre"], titre: string): Tenu {
-    const tenu: Tenu = { id: ++dernier, projet: project.nom, genre, titre, note: "", arrete: false, dossier: project.dossier, cible: { nom: project.nom, ...(project.depot === undefined ? {} : { depot: project.depot }), ...(project.base === undefined ? {} : { base: project.base }) }, colonnes: 80, lignes: 24, lances: 0, ecrit: "" };
+  function tenir(projet: Projet, genre: Terminal["genre"], titre: string): Tenu {
+    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.depot === undefined ? {} : { depot: projet.depot }), ...(projet.base === undefined ? {} : { base: projet.base }) }, colonnes: 80, lignes: 24, lances: 0, ecrit: "" };
     tenus.set(tenu.id, tenu);
     return tenu;
   }
@@ -195,45 +195,45 @@ export function ouvrirTerminaux(options: {
   }
 
   // `args` : ce que le programme reçoit — ou, pour le second, ce qu'en fait son lancement avec les crochets
-  // de ses tours (second/launch.ts).
-  function lancer(tenu: Tenu, command: string, args: string[] | ((crochets: Crochets) => string[]), surFin: (code: number) => void): void {
+  // de ses tours (second/lancement.ts).
+  function lancer(tenu: Tenu, commande: string, args: string[] | ((crochets: Crochets) => string[]), surFin: (code: number) => void): void {
     tenu.arrete = false;
     delete tenu.empeche;
     delete tenu.manque;
     delete tenu.aReprendre;
     // Un second dit ses tours à l'app par ses crochets, dans un fichier qui repart vide avec lui —
     // les réglages suivent ce qui est lancé.
-    const turns = tenu.genre === "second" ? options.tours?.(tenu.id) : undefined;
+    const tours = tenu.genre === "second" ? options.tours?.(tenu.id) : undefined;
     const tous =
-      typeof args === "function" ? args(turns === undefined ? {} : crochetsDesTurns(turns.chemin)) : turns === undefined ? args : [...args, "--settings", settingsFile(turns.chemin)];
+      typeof args === "function" ? args(tours === undefined ? {} : crochetsDesTours(tours.chemin)) : tours === undefined ? args : [...args, "--settings", reglages(tours.chemin)];
     // Le second part comme le runtime le dit (#1433) : le `claude` que le PATH donne, et sous Windows ce qui le
     // lance — ou il ne part pas, et dit pourquoi. Un outil qui manque sans l'empêcher de partir est dit à côté.
-    let launch: Pick<Launch, "commande" | "args" | "verbatim" | "env"> = { commande: command, args: tous };
+    let lancement: Pick<Lancement, "commande" | "args" | "verbatim" | "env"> = { commande, args: tous };
     if (tenu.genre === "second" && options.planDuSecond !== undefined) {
       const plan = options.planDuSecond(tenu.dossier, tous);
       if (plan.state !== "ready") return empecher(tenu, plan.reason, plan.tools);
-      launch = { commande: plan.launch.command, args: plan.launch.args, verbatim: plan.launch.verbatim, env: plan.launch.env };
+      lancement = { commande: plan.launch.command, args: plan.launch.args, verbatim: plan.launch.verbatim, env: plan.launch.env };
       if (plan.missing.length > 0) tenu.manque = { reason: plan.reason ?? "", tools: manquants(plan.tools) };
     }
-    turns?.vider();
-    const saisie = tenu.genre === "second" ? suivreSaisie(() => turns?.lire() ?? "") : undefined;
+    tours?.vider();
+    const saisie = tenu.genre === "second" ? suivreSaisie(() => tours?.lire() ?? "") : undefined;
     tenu.saisie = saisie;
     const lance = ++tenu.lances;
     try {
-      tenu.pty = ouvrir(tenu, launch, saisie, lance, surFin);
-    } catch (error) {
+      tenu.pty = ouvrir(tenu, lancement, saisie, lance, surFin);
+    } catch (erreur) {
       // Un lancement refusé — un programme introuvable, un pty qui ne s'ouvre pas — se dit : jamais un onglet muet.
-      const pourquoi = String(error instanceof Error ? error.message : error).replace(/[.\s]+$/, "");
-      if (tenu.genre === "second") return empecher(tenu, `The second cannot start: launching ${launch.commande} failed (${pourquoi}).`);
+      const pourquoi = String(erreur instanceof Error ? erreur.message : erreur).replace(/[.\s]+$/, "");
+      if (tenu.genre === "second") return empecher(tenu, `The second cannot start: launching ${lancement.commande} failed (${pourquoi}).`);
       tenu.pty = undefined;
       tenu.arrete = true;
-      tenu.note = `this shell could not start: launching ${launch.commande} failed (${pourquoi})`;
+      tenu.note = `this shell could not start: launching ${lancement.commande} failed (${pourquoi})`;
     }
   }
 
-  function ouvrir(tenu: Tenu, launch: Pick<Launch, "commande" | "args" | "verbatim" | "env">, saisie: Saisie | undefined, lance: number, surFin: (code: number) => void): Pty {
+  function ouvrir(tenu: Tenu, lancement: Pick<Lancement, "commande" | "args" | "verbatim" | "env">, saisie: Saisie | undefined, lance: number, surFin: (code: number) => void): Pty {
     return options.ouvrirPty({
-      ...launch,
+      ...lancement,
       dossier: tenu.dossier,
       colonnes: tenu.colonnes,
       lignes: tenu.lignes,
@@ -257,11 +257,11 @@ export function ouvrirTerminaux(options: {
     });
   }
 
-  const secondDe = (project: Project) => de(project.nom).find(({ genre }) => genre === "second") ?? hold(project, "second", TITRE_SECOND);
+  const secondDe = (projet: Projet) => de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", TITRE_SECOND);
   const arrete = (code: number) => `the second stopped (code ${code}) — a keypress restarts it`;
 
   // Le rôle du second, ajouté au prompt système de chaque `claude` que l'onglet lance comme second —
-  // reprise comme session neuve (second/launch.ts). Sans lui l'onglet ne serait qu'un `claude` nu
+  // reprise comme session neuve (second/lancement.ts). Sans lui l'onglet ne serait qu'un `claude` nu
   // qui s'appelle Second.
   const ROLE = "with the second's role in its system prompt";
   // Un onglet nommé Second est un onglet où le rôle est établi.
@@ -275,26 +275,26 @@ export function ouvrirTerminaux(options: {
   // reprendre — quand `claude --continue` sort en erreur : une session neuve
   // part alors, une seule fois, avec le rôle, et sa note le dit.
   // La file du projet, lue à chaque début de session et après chaque compaction (second/file.ts, déclaré par
-  // second/hook-de-la-file.ts).
+  // second/crochet-de-la-file.ts).
   const laFile = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDeLaFile({ node: options.node, gh: options.gh ?? "gh", cible: tenu.cible }));
 
   // Le rôle redit au prompt qui suit le merge de l'init, quand la session est née sans les bindings
-  // (second/role-apres-init.ts, déclaré par second/hook-du-role.ts).
+  // (second/role-apres-init.ts, déclaré par second/crochet-du-role.ts).
   const leRole = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDuRole({ node: options.node, gh: options.gh ?? "gh", cible: tenu.cible }));
 
   // La commande qui parque et déparque un ticket comme les boutons de l'app, donnée à chaque début de session
-  // (second/parking.ts, déclarée par second/hook-du-parking.ts, #4262).
+  // (second/parking.ts, déclarée par second/crochet-du-parking.ts, #4262).
   const leParking = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDuParking({ node: options.node, cible: tenu.cible }));
 
-  // Ce que le second ne fait jamais — merger, lire les secrets du chef — refusé avant l'appel (second/refusal.ts).
-  const lesRefusal = (): Crochets => (options.node === undefined ? {} : crochetsDuRefusal({ node: options.node }));
+  // Ce que le second ne fait jamais — merger, lire les secrets du chef — refusé avant l'appel (second/refus.ts).
+  const lesRefus = (): Crochets => (options.node === undefined ? {} : crochetsDuRefus({ node: options.node }));
 
-  function lancerSecond(tenu: Tenu, resumption: boolean): void {
+  function lancerSecond(tenu: Tenu, reprise: boolean): void {
     tenu.titre = TITRE_SECOND;
-    if (resumption) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
+    if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
     else tenu.note = `new session: \`claude\`, ${ROLE}`;
-    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise: resumption, reglages: settingsDuSecond(crochets, laFile(tenu), lesRefusal(), leRole(tenu), leParking(tenu)) }), (code) => {
-      if (resumption && code !== 0) {
+    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu), lesRefus(), leRole(tenu), leParking(tenu)) }), (code) => {
+      if (reprise && code !== 0) {
         lancerSecond(tenu, false);
         if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude\`, ${ROLE}`;
       } else {
@@ -312,11 +312,11 @@ export function ouvrirTerminaux(options: {
   // Un second qui ne tourne pas est lancé d'abord, et rien n'y est écrit : ce
   // qui démarre prendrait la commande pour des touches.
   // `dit` : ce que la note rend de ce qui est écrit, quand ce n'est pas une commande
-  // (request.ts), selon que le second était devant un dialogue.
-  function inscrire(project: Project, command: string, dit?: (devantUnDialogue: boolean) => string): Terminal {
-    const second = secondDe(project);
+  // (demande.ts), selon que le second était devant un dialogue.
+  function inscrire(projet: Projet, commande: string, dit?: (devantUnDialogue: boolean) => string): Terminal {
+    const second = secondDe(projet);
     delete second.nonParti;
-    if (CONTROLE.test(command)) {
+    if (CONTROLE.test(commande)) {
       second.note = SANS_ECRIRE;
       second.nonParti = true;
       delete second.demandeEcrite;
@@ -328,14 +328,14 @@ export function ouvrirTerminaux(options: {
       if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue\`, ${ROLE}) — the command is not written into a second that is starting, click again when it is ready`;
     } else {
       // Devant un dialogue : le second attend une réponse, et ces caractères y seraient des touches.
-      const state = second.saisie?.etat();
-      const devantUnDialogue = state !== undefined && !state.libre && state.dit === DIT.attend;
-      second.pty.ecrire(command);
+      const etat = second.saisie?.etat();
+      const devantUnDialogue = etat !== undefined && !etat.libre && etat.dit === DIT.attend;
+      second.pty.ecrire(commande);
       // La saisie n'est plus vide : un geste direct ne s'y écrira pas à la suite.
       second.saisie?.entamer();
       if (dit !== undefined) second.demandeEcrite = true;
       else delete second.demandeEcrite;
-      second.note = dit?.(devantUnDialogue) ?? `written into the second, without Enter: \`${command}\` — at \`claude\`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming`;
+      second.note = dit?.(devantUnDialogue) ?? `written into the second, without Enter: \`${commande}\` — at \`claude\`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming`;
     }
     return montre(second);
   }
@@ -347,9 +347,9 @@ export function ouvrirTerminaux(options: {
   // partirait seule, plus tard. Et l'Entrée n'est faite que sur preuve : `claude` s'est montré en
   // mode shell, c'est donc bien sa commande, seule, qui est dans sa saisie. Sans preuve, la
   // commande reste écrite, et la note dit que rien n'est parti.
-  function envoyer(project: Project, command: string): Promise<Terminal | { refus: string }> {
-    if (CONTROLE.test(command)) return Promise.resolve({ refus: SANS_ECRIRE });
-    const second = secondDe(project);
+  function envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> {
+    if (CONTROLE.test(commande)) return Promise.resolve({ refus: SANS_ECRIRE });
+    const second = secondDe(projet);
     delete second.nonParti;
     const { pty, saisie } = second;
     if (pty === undefined || saisie === undefined) {
@@ -358,35 +358,35 @@ export function ouvrirTerminaux(options: {
       if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue\`, ${ROLE}) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn`;
       return Promise.resolve(montre(second));
     }
-    const state = saisie.etat();
-    if (!state.libre) return Promise.resolve({ refus: `${state.dit} — the command did not go, and nothing is written: \`${command}\`` });
+    const etat = saisie.etat();
+    if (!etat.libre) return Promise.resolve({ refus: `${etat.dit} — the command did not go, and nothing is written: \`${commande}\`` });
     return new Promise((rendre) => {
-      const guard = setTimeout(saisie.renoncer, options.delaiPreuveMs ?? 5_000);
-      saisie.ecrit((proof) => {
-        clearTimeout(guard);
+      const garde = setTimeout(saisie.renoncer, options.delaiPreuveMs ?? 5_000);
+      saisie.ecrit((preuve) => {
+        clearTimeout(garde);
         // Le second arrêté entre-temps a sa propre note, et plus de saisie.
         if (second.pty !== pty) {
           second.nonParti = true;
           return rendre(montre(second));
         }
-        if (proof) {
+        if (preuve) {
           pty.ecrire("\r");
           saisie.parti();
-          second.note = `sent to the second: \`${command}\` — \`claude\` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too`;
+          second.note = `sent to the second: \`${commande}\` — \`claude\` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too`;
         } else {
           second.nonParti = true;
-          second.note = `written into the second, but not sent: \`${command}\` — \`claude\` did not show itself in shell mode (“${PROOF}”), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there`;
+          second.note = `written into the second, but not sent: \`${commande}\` — \`claude\` did not show itself in shell mode (“${PREUVE}”), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there`;
         }
         rendre(montre(second));
       });
-      pty.ecrire(command);
+      pty.ecrire(commande);
     });
   }
 
   // Un shell de ce poste, sans session : il finit avec l'app, ou quand le chef y tape `exit`.
-  function shellIci(project: Project, note: string): Tenu {
-    const rang = rangNeuf(project.nom);
-    const tenu = hold(project, "shell", `shell ${rang}`);
+  function shellIci(projet: Projet, note: string): Tenu {
+    const rang = rangNeuf(projet.nom);
+    const tenu = tenir(projet, "shell", `shell ${rang}`);
     tenu.note = note;
     lancer(tenu, options.shell, [...argsDuShell], () => {
       tenu.arrete = true;
@@ -401,26 +401,26 @@ export function ouvrirTerminaux(options: {
 
   // Un rang neuf dans le projet : ni celui d'un shell ouvert depuis le lancement, ni celui d'un
   // shell dont l'app se souvient — deux onglets n'ont pas le même titre, deux shells pas la même session.
-  function rangNeuf(project: string): number {
-    const rang = Math.max(shellsOuverts.get(project) ?? 0, rappel()[project]?.dernier ?? 0) + 1;
-    shellsOuverts.set(project, rang);
+  function rangNeuf(projet: string): number {
+    const rang = Math.max(shellsOuverts.get(projet) ?? 0, rappel()[projet]?.dernier ?? 0) + 1;
+    shellsOuverts.set(projet, rang);
     return rang;
   }
 
-  function retenir(project: string, souvenir: Souvenir): void {
+  function retenir(projet: string, souvenir: Souvenir): void {
     if (options.souvenirs === undefined) return;
     const tout = rappel();
-    const avant = tout[project] ?? { dernier: 0, shells: [] };
-    tout[project] = { dernier: Math.max(avant.dernier, souvenir.rang), shells: [...avant.shells.filter(({ rang }) => rang !== souvenir.rang), souvenir] };
+    const avant = tout[projet] ?? { dernier: 0, shells: [] };
+    tout[projet] = { dernier: Math.max(avant.dernier, souvenir.rang), shells: [...avant.shells.filter(({ rang }) => rang !== souvenir.rang), souvenir] };
     options.souvenirs.ecrire(tout);
   }
 
-  function oublier(project: string, rang: number): void {
+  function oublier(projet: string, rang: number): void {
     if (options.souvenirs === undefined) return;
     const tout = rappel();
-    const avant = tout[project];
+    const avant = tout[projet];
     if (avant === undefined || !avant.shells.some((shell) => shell.rang === rang)) return;
-    tout[project] = { ...avant, shells: avant.shells.filter((shell) => shell.rang !== rang) };
+    tout[projet] = { ...avant, shells: avant.shells.filter((shell) => shell.rang !== rang) };
     options.souvenirs.ecrire(tout);
   }
 
@@ -429,13 +429,13 @@ export function ouvrirTerminaux(options: {
 
   // Lance le shell dans sa session — la même commande la crée ou s'y rattache. Il finit quand sa
   // session finit (le chef y a tapé `exit`) : il quitte l'espace, et l'app l'oublie.
-  function rattacher(project: Project, persistant: NonNullable<Tenu["persistant"]>, comment: string): Tenu {
+  function rattacher(projet: Projet, persistant: NonNullable<Tenu["persistant"]>, comment: string): Tenu {
     const { session } = persistant;
-    const tenu = hold(project, "shell", titreDe(persistant.rang));
+    const tenu = tenir(projet, "shell", titreDe(persistant.rang));
     tenu.persistant = persistant;
-    tenu.ici = texteBanner(session.cible, (options.compte ?? accountDe)(session.cible));
+    tenu.ici = texteBandeau(session.cible, (options.compte ?? compteDe)(session.cible));
     tenu.bandeau = tenu.ici;
-    tenu.note = `${comment} on ${ouEst(project.dossier)} — session \`${session.nom}\`: closing the app only detaches from it, closing this shell destroys it`;
+    tenu.note = `${comment} on ${ouEst(projet.dossier)} — session \`${session.nom}\`: closing the app only detaches from it, closing this shell destroys it`;
     attacher(tenu);
     return tenu;
   }
@@ -444,8 +444,8 @@ export function ouvrirTerminaux(options: {
     const persistant = tenu.persistant;
     if (persistant === undefined) return;
     const { rang, session } = persistant;
-    const { commande: command, args } = rattachement(session);
-    lancer(tenu, command, args, () => {
+    const { commande, args } = rattachement(session);
+    lancer(tenu, commande, args, () => {
       tenu.arrete = true;
       tenus.delete(tenu.id);
       oublier(tenu.projet, rang);
@@ -459,20 +459,20 @@ export function ouvrirTerminaux(options: {
   }
 
   // Les shells dont l'app se souvient pour ce projet, rattachés à leur session, dans l'ordre de leurs rangs.
-  function revenir(project: Project): void {
-    const souvenus = [...(rappel()[project.nom]?.shells ?? [])].sort((a, b) => a.rang - b.rang);
-    for (const { rang, session, cible } of souvenus) if (persistantIci) rattacher(project, { rang, session: { nom: session, cible } }, "persistent shell, reattached");
+  function revenir(projet: Projet): void {
+    const souvenus = [...(rappel()[projet.nom]?.shells ?? [])].sort((a, b) => a.rang - b.rang);
+    for (const { rang, session, cible } of souvenus) if (persistantIci) rattacher(projet, { rang, session: { nom: session, cible } }, "persistent shell, reattached");
   }
 
   return {
     // Les terminaux d'un projet. Le premier appel lance son second, et ramène les shells
     // persistants que l'app avait à sa dernière fermeture ; les suivants les retrouvent tels qu'ils sont.
-    espace(project: Project): Terminal[] {
-      if (de(project.nom).length === 0) {
-        lancerSecond(hold(project, "second", TITRE_SECOND), true);
-        revenir(project);
+    espace(projet: Projet): Terminal[] {
+      if (de(projet.nom).length === 0) {
+        lancerSecond(tenir(projet, "second", TITRE_SECOND), true);
+        revenir(projet);
       }
-      return de(project.nom).map(montre);
+      return de(projet.nom).map(montre);
     },
 
     // Tous les terminaux ouverts, de tous les projets, pour une vue qui se recharge (#3159) : chacun y retrouve son onglet,
@@ -486,7 +486,7 @@ export function ouvrirTerminaux(options: {
           tenu.aReprendre = true;
           tenu.note = "the second was not running when the window reloaded: it could not be reattached — resume it";
         }
-        return { terminal: montre(tenu), ecrit: depuisUneLine(tenu.ecrit) };
+        return { terminal: montre(tenu), ecrit: depuisUneLigne(tenu.ecrit) };
       });
     },
 
@@ -497,17 +497,17 @@ export function ouvrirTerminaux(options: {
     },
 
     // Un shell persistant, sur la machine choisie : une session neuve, que l'app retient.
-    ouvrir(project: Project, cible: Cible): Terminal {
+    ouvrir(projet: Projet, cible: Cible): Terminal {
       // Sans session sur ce poste (Windows) : un shell qui finit avec son terminal, sous le même bandeau qu'ailleurs.
       if (cible.lieu === "poste" && !persistantIci) {
-        const tenu = shellIci(project, `shell on ${ICI}, in ${project.dossier} — ${SANS_SESSION}`);
-        tenu.bandeau = texteBanner(cible, (options.compte ?? accountDe)(cible));
+        const tenu = shellIci(projet, `shell on ${ICI}, in ${projet.dossier} — ${SANS_SESSION}`);
+        tenu.bandeau = texteBandeau(cible, (options.compte ?? compteDe)(cible));
         return montre(tenu);
       }
-      const rang = rangNeuf(project.nom);
-      const session = { nom: nameDeSession(project.nom, rang), cible };
-      retenir(project.nom, { rang, session: session.nom, cible });
-      return montre(rattacher(project, { rang, session }, "persistent shell"));
+      const rang = rangNeuf(projet.nom);
+      const session = { nom: nomDeSession(projet.nom, rang), cible };
+      retenir(projet.nom, { rang, session: session.nom, cible });
+      return montre(rattacher(projet, { rang, session }, "persistent shell"));
     },
 
     // Le chef ferme un shell : il quitte l'espace tout de suite, l'app l'oublie, et sa session est
@@ -531,8 +531,8 @@ export function ouvrirTerminaux(options: {
     // `ecrit` : une commande à écrire dans ce shell, sans rien qui l'envoie — pour un
     // geste qui réclame un vrai terminal, ce que le `!` du second ne donne pas. Un shell
     // de connexion garde ce qui lui arrive avant son invite : la commande l'y attend.
-    shell(project: Project, ecrit?: string): Terminal {
-      const tenu = shellIci(project, `shell on ${ICI}, in ${project.dossier}`);
+    shell(projet: Projet, ecrit?: string): Terminal {
+      const tenu = shellIci(projet, `shell on ${ICI}, in ${projet.dossier}`);
       if (ecrit !== undefined && CONTROLE.test(ecrit)) tenu.note = SANS_ECRIRE;
       else if (ecrit !== undefined) {
         tenu.pty?.ecrire(ecrit);
@@ -544,12 +544,12 @@ export function ouvrirTerminaux(options: {
     // Une session du second ouverte sur une commande de `claude` — `/brigade:init`,
     // pour amorcer le dépôt : une conversation neuve, pas le fil repris. Un second
     // qui tourne déjà n'est pas remplacé : la commande y est écrite, comme par un bouton.
-    session(project: Project, command: string): Terminal {
-      const second = secondDe(project);
-      if (second.pty !== undefined || CONTROLE.test(command)) return inscrire(project, command);
+    session(projet: Projet, commande: string): Terminal {
+      const second = secondDe(projet);
+      if (second.pty !== undefined || CONTROLE.test(commande)) return inscrire(projet, commande);
       second.titre = TITRE_AUTRE;
-      second.note = `session launched on \`${command}\`: \`claude ${command}\`, a new conversation in this folder — it is not the second: it runs without the second's role`;
-      lancer(second, options.claude, [command], (code) => {
+      second.note = `session launched on \`${commande}\`: \`claude ${commande}\`, a new conversation in this folder — it is not the second: it runs without the second's role`;
+      lancer(second, options.claude, [commande], (code) => {
         second.arrete = true;
         second.note = arrete(code);
       });
@@ -579,18 +579,18 @@ export function ouvrirTerminaux(options: {
 
     envoyer,
 
-    redimensionner(id: number, colonnes: number, lines: number): void {
+    redimensionner(id: number, colonnes: number, lignes: number): void {
       const tenu = tenus.get(id);
       if (tenu === undefined) return;
       // Gardée même sans pty : un second relancé repart à la taille de sa vue.
       tenu.colonnes = colonnes;
-      tenu.lignes = lines;
-      tenu.pty?.redimensionner(colonnes, lines);
+      tenu.lignes = lignes;
+      tenu.pty?.redimensionner(colonnes, lignes);
     },
 
     // Le projet a quitté la liste : ses terminaux sont arrêtés. Rend leurs numéros.
-    quitter(project: string): number[] {
-      return de(project).map((tenu) => {
+    quitter(projet: string): number[] {
+      return de(projet).map((tenu) => {
         tenus.delete(tenu.id);
         arreter(tenu);
         return tenu.id;

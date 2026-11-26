@@ -15,9 +15,9 @@ test("CLAUDE.md keeps its French labels and its Interface binding names the proj
   for (const repere of ["**Acteurs**", "**Interface**", "**Branche d'intégration**", "**Zones de fichiers**", "**Doc vivante**"]) {
     assert.ok(claude.includes(repere), repere);
   }
-  const interfaceLine = claude.split("\n").find((l) => l.startsWith("- **Interface**")) ?? "";
-  assert.match(interfaceLine, /\btools?\b/i);
-  assert.doesNotMatch(interfaceLine, /design cook|#837/i);
+  const interfaceLigne = claude.split("\n").find((l) => l.startsWith("- **Interface**")) ?? "";
+  assert.match(interfaceLigne, /\btools?\b/i);
+  assert.doesNotMatch(interfaceLigne, /design cook|#837/i);
 });
 
 test("the pages the docs rewrite touches still exist", () => {

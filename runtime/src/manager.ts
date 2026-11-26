@@ -436,7 +436,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const question = dernierJugement(numero)?.question;
     return typeof question === "string" && question !== "" ? question : null;
   };
-  // Les lignes de la carte qui suivent sa question (#3434), dans la forme que l'app lit (tableau/mise-de-side-github.ts,
+  // Les lignes de la carte qui suivent sa question (#3434), dans la forme que l'app lit (tableau/mise-de-cote-github.ts,
   // `carteDeLEcart`) : un bouton par réponse — `- [resume] <réponse>`, qui la poste et rend l'issue au manager ; `close`
   // pour celle qui la ferme —, et, quand la question attend un tiers, `- [wait] Wait for <qui>` d'abord, que l'app joue
   // en parquant l'issue pour lui. Puis la recommandation : la réponse recommandée et pourquoi, en une ligne — parquer
@@ -506,7 +506,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           ...(connue.missing === null ? [] : ["", `**What would make it workable.** ${connue.missing}`]),
           "",
           // Une issue qui attend le chef est une carte de son TODO (#3429) : la question en est la dernière ligne qui
-          // finit par « ? » (app : tableau/mise-de-side-github.ts, `carteDeLEcart`).
+          // finit par « ? » (app : tableau/mise-de-cote-github.ts, `carteDeLEcart`).
           ...(auChef
             ? [
                 awaits === null

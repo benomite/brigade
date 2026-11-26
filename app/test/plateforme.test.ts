@@ -5,28 +5,28 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { arreterLArbre, BASH_DE_GIT, enGroupe, nameDuWorkstation, persistantSur, shellDuWorkstation } from "../src/plateforme.ts";
+import { arreterLArbre, BASH_DE_GIT, enGroupe, nomDuPoste, persistantSur, shellDuPoste } from "../src/plateforme.ts";
 
 const WINDOWS = { ProgramW6432: "C:\\Program Files", ProgramFiles: "C:\\Program Files", "ProgramFiles(x86)": "C:\\Program Files (x86)", LOCALAPPDATA: "C:\\Users\\chef\\AppData\\Local" };
 
 describe("ce poste, d'une plateforme à l'autre", () => {
   test("son nom à l'écran : « this computer » sur toutes les plateformes (le lexique de l'app)", () => {
-    assert.equal(nameDuWorkstation(), "this computer");
+    assert.equal(nomDuPoste(), "this computer");
   });
 
   test("sur un Mac ou un Linux, son shell est celui du chef, en shell de connexion — `zsh` sur un Mac qui n'en dit rien", () => {
-    assert.deepEqual(shellDuWorkstation("darwin", { SHELL: "/opt/homebrew/bin/fish" }), { commande: "/opt/homebrew/bin/fish", args: ["-l"] });
-    assert.deepEqual(shellDuWorkstation("darwin", {}), { commande: "/bin/zsh", args: ["-l"] });
-    assert.deepEqual(shellDuWorkstation("linux", {}), { commande: "/bin/sh", args: ["-l"] });
+    assert.deepEqual(shellDuPoste("darwin", { SHELL: "/opt/homebrew/bin/fish" }), { commande: "/opt/homebrew/bin/fish", args: ["-l"] });
+    assert.deepEqual(shellDuPoste("darwin", {}), { commande: "/bin/zsh", args: ["-l"] });
+    assert.deepEqual(shellDuPoste("linux", {}), { commande: "/bin/sh", args: ["-l"] });
   });
 
   test("sous Windows, le `bash` de Git — celui que `claude` prend, le sien d'abord —, sinon PowerShell", () => {
     const bash = join("C:\\Program Files", "Git", "bin", "bash.exe");
-    assert.deepEqual(shellDuWorkstation("win32", WINDOWS, (chemin) => chemin === bash), { commande: bash, args: ["--login", "-i"] });
-    assert.deepEqual(shellDuWorkstation("win32", { ...WINDOWS, CLAUDE_CODE_GIT_BASH_PATH: "D:\\Git\\bin\\bash.exe" }, () => true), { commande: "D:\\Git\\bin\\bash.exe", args: ["--login", "-i"] });
-    assert.deepEqual(shellDuWorkstation("win32", WINDOWS, () => false), { commande: "powershell.exe", args: ["-NoLogo"] });
+    assert.deepEqual(shellDuPoste("win32", WINDOWS, (chemin) => chemin === bash), { commande: bash, args: ["--login", "-i"] });
+    assert.deepEqual(shellDuPoste("win32", { ...WINDOWS, CLAUDE_CODE_GIT_BASH_PATH: "D:\\Git\\bin\\bash.exe" }, () => true), { commande: "D:\\Git\\bin\\bash.exe", args: ["--login", "-i"] });
+    assert.deepEqual(shellDuPoste("win32", WINDOWS, () => false), { commande: "powershell.exe", args: ["-NoLogo"] });
     // `SHELL` ne dit rien sous Windows : un `bash` de Git lancé d'un terminal l'aurait posé.
-    assert.deepEqual(shellDuWorkstation("win32", { ...WINDOWS, SHELL: "/usr/bin/bash" }, () => false), { commande: "powershell.exe", args: ["-NoLogo"] });
+    assert.deepEqual(shellDuPoste("win32", { ...WINDOWS, SHELL: "/usr/bin/bash" }, () => false), { commande: "powershell.exe", args: ["-NoLogo"] });
     assert.equal(BASH_DE_GIT(WINDOWS).at(-1), join("C:\\Users\\chef\\AppData\\Local", "Programs", "Git", "bin", "bash.exe"));
   });
 

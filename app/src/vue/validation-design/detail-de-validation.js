@@ -13,13 +13,13 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, les images déjà posées, l'affichage tenu par la
 // vue (qu'il change au zoom sans reposer le détail) et ce que chaque geste appelle, et rend un élément.
 
-import { button } from "../composants/button/button.js";
-import { poserLesActions, LIEN } from "./validation-design.js";
+import { bouton } from "../composants/bouton/bouton.js";
+import { poserLesGestes, LIEN } from "./validation-design.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
-/** @typedef {import("../../card-todo.ts").CardDeTodo} CardDeTodo */
+/** @typedef {import("../../carte-todo.ts").CarteDeTodo} CarteDeTodo */
 /** @typedef {import("../../captures.ts").Moment} Moment */
-/** @typedef {import("./validation-design.js").State} State */
+/** @typedef {import("./validation-design.js").Etat} Etat */
 
 // La vue partagée par l'avant et l'après d'un écran : `echelle` (1, l'image entière dans son cadre) et le point de l'image
 // au centre du cadre (`x`, `y`, en fraction de l'image). Les deux images reçoivent la même : elles montrent le même endroit,
@@ -27,29 +27,29 @@ import { poserLesActions, LIEN } from "./validation-design.js";
 /** @typedef {{ echelle: number, x: number, y: number }} Vue */
 // Ce que la vue tient du détail ouvert, d'une pose à l'autre : `superposees`, l'avant et l'après l'un sur l'autre ;
 // `rang`, l'écran du ticket montré ; `montre`, par écran, celle que l'on voit alors ; `seule`, la capture ouverte seule ; `vues`, la vue de chaque écran.
-/** @typedef {{ superposees: boolean, rang: number, montre: Map<string, Moment>, seule?: { ecran: string, moment: Moment }, vues: Map<string, Vue> }} Display */
+/** @typedef {{ superposees: boolean, rang: number, montre: Map<string, Moment>, seule?: { ecran: string, moment: Moment }, vues: Map<string, Vue> }} Affichage */
 
 export const FERMER = "Close";
 export const ZOOMER = "Zoom in";
 export const DEZOOMER = "Zoom out";
 export const AJUSTER = "Fit";
 export const SUPERPOSER = "One over the other";
-export const SIDE_A_SIDE = "Side by side";
+export const COTE_A_COTE = "Side by side";
 export const PLEINE_TAILLE = "Full size";
 export const RETOUR = "Back to before and after";
 /** @param {Moment} moment */
-export const SHOW = (moment) => (moment === "avant" ? "Show before" : "Show after");
+export const MONTRER = (moment) => (moment === "avant" ? "Show before" : "Show after");
 /** @param {number} ticket */
 export const SUIVANTE = (ticket) => `Next validation (#${ticket})`;
 
 /** @param {number} rang @param {number} total */
-export const SCREEN_N_SUR = (rang, total) => `Screen ${rang + 1} of ${total}`;
-export const SCREEN_PRECEDENT = "Previous screen";
-export const SCREEN_SUIVANT = "Next screen";
+export const ECRAN_N_SUR = (rang, total) => `Screen ${rang + 1} of ${total}`;
+export const ECRAN_PRECEDENT = "Previous screen";
+export const ECRAN_SUIVANT = "Next screen";
 
-export const REQUEST = "What was asked";
+export const DEMANDE = "What was asked";
 export const FAIT = "What was done";
-export const SANS_REQUEST = "this card does not say what its ticket asked — open its pull request";
+export const SANS_DEMANDE = "this card does not say what its ticket asked — open its pull request";
 export const SANS_RESUME = "No summary of what was done is available: the cook wrote none for this delivery.";
 
 export const ECHELLE_MAX = 8;
@@ -57,8 +57,8 @@ export const ECHELLE_MAX = 8;
 export const ENTIERE = { echelle: 1, x: 0.5, y: 0.5 };
 const PAS = 1.5;
 
-/** @returns {Display} */
-export const displayNeuf = () => ({ superposees: false, rang: 0, montre: new Map(), vues: new Map() });
+/** @returns {Affichage} */
+export const affichageNeuf = () => ({ superposees: false, rang: 0, montre: new Map(), vues: new Map() });
 
 /** @param {number} valeur @param {number} bas @param {number} haut */
 const borne = (valeur, bas, haut) => Math.min(haut, Math.max(bas, valeur));
@@ -90,12 +90,12 @@ export const transformDe = ({ echelle, x, y }) => `scale(${echelle}) translate($
 
 // Passer à l'écran d'à côté (`pas` : 1 ou -1) : le rang reste dans la liste. Rend vrai si l'écran a changé. L'écran ouvert seul
 // ne change pas : « Back to before and after » d'abord.
-/** @param {Display} display @param {number} total @param {number} pas */
-export function changerD(display, total, pas) {
-  if (display.seule !== undefined) return false;
-  const rang = borne(display.rang + pas, 0, Math.max(0, total - 1));
-  const change = rang !== display.rang;
-  display.rang = rang;
+/** @param {Affichage} affichage @param {number} total @param {number} pas */
+export function changerD(affichage, total, pas) {
+  if (affichage.seule !== undefined) return false;
+  const rang = borne(affichage.rang + pas, 0, Math.max(0, total - 1));
+  const change = rang !== affichage.rang;
+  affichage.rang = rang;
   return change;
 }
 
@@ -112,68 +112,68 @@ function cree(doc, balise, classe, texte) {
 /**
  * @param {Fabrique} doc
  * @param {number} ticket
- * @param {CardDeTodo} card
- * @param {State} state
- * @param {Display} display
- * @param {{ images: (screen: string, moment: Moment) => any, commentaire: string, cle: string, lectureSeule?: boolean, grand?: boolean, suivante?: number }} posees
- * @param {{ fermer: () => void, reposer: () => void, suivante: () => void, valider: () => void, renvoyer: (comment: string) => void, ecrire: (texte: string) => void, ouvrirPr: () => void }} actions
+ * @param {CarteDeTodo} carte
+ * @param {Etat} etat
+ * @param {Affichage} affichage
+ * @param {{ images: (ecran: string, moment: Moment) => any, commentaire: string, cle: string, lectureSeule?: boolean, grand?: boolean, suivante?: number }} posees
+ * @param {{ fermer: () => void, reposer: () => void, suivante: () => void, valider: () => void, renvoyer: (commentaire: string) => void, ecrire: (texte: string) => void, ouvrirPr: () => void }} gestes
  */
-export function poserDetailDeValidation(doc, ticket, card, state, display, { images, commentaire: comment, cle, lectureSeule: readOnly = false, grand = false, suivante }, actions) {
+export function poserDetailDeValidation(doc, ticket, carte, etat, affichage, { images, commentaire, cle, lectureSeule = false, grand = false, suivante }, gestes) {
   const racine = cree(doc, "div", "detail-de-validation");
   racine.ariaLabel = `the screen #${ticket} asks you to validate, in large`;
   const tete = cree(doc, "header", "tete-du-detail");
-  tete.append(cree(doc, "p", "question-carte", card.question ?? ""));
+  tete.append(cree(doc, "p", "question-carte", carte.question ?? ""));
   const enTete = cree(doc, "div", "gestes-du-detail");
-  const { validation, captures } = card;
-  const screens = captures?.ecrans ?? [];
-  display.rang = borne(display.rang, 0, Math.max(0, screens.length - 1));
-  if (screens.length > 1 && display.seule === undefined) {
-    const place = cree(doc, "span", "rang-de-l-ecran", SCREEN_N_SUR(display.rang, screens.length));
+  const { validation, captures } = carte;
+  const ecrans = captures?.ecrans ?? [];
+  affichage.rang = borne(affichage.rang, 0, Math.max(0, ecrans.length - 1));
+  if (ecrans.length > 1 && affichage.seule === undefined) {
+    const place = cree(doc, "span", "rang-de-l-ecran", ECRAN_N_SUR(affichage.rang, ecrans.length));
     place.ariaLive = "polite";
-    const precedent = button(doc, SCREEN_PRECEDENT, () => void (changerD(display, screens.length, -1) && actions.reposer()));
+    const precedent = bouton(doc, ECRAN_PRECEDENT, () => void (changerD(affichage, ecrans.length, -1) && gestes.reposer()));
     precedent.title = "shows the previous screen of the ticket (left arrow)";
-    precedent.disabled = display.rang === 0;
-    const suivant = button(doc, SCREEN_SUIVANT, () => void (changerD(display, screens.length, 1) && actions.reposer()));
+    precedent.disabled = affichage.rang === 0;
+    const suivant = bouton(doc, ECRAN_SUIVANT, () => void (changerD(affichage, ecrans.length, 1) && gestes.reposer()));
     suivant.title = "shows the next screen of the ticket (right arrow)";
-    suivant.disabled = display.rang === screens.length - 1;
+    suivant.disabled = affichage.rang === ecrans.length - 1;
     enTete.append(place, precedent, suivant);
   }
-  if (screens.length > 0 && display.seule === undefined) {
-    const bascule = button(doc, display.superposees ? SIDE_A_SIDE : SUPERPOSER, () => {
-      display.superposees = !display.superposees;
-      actions.reposer();
+  if (ecrans.length > 0 && affichage.seule === undefined) {
+    const bascule = bouton(doc, affichage.superposees ? COTE_A_COTE : SUPERPOSER, () => {
+      affichage.superposees = !affichage.superposees;
+      gestes.reposer();
     });
-    bascule.ariaPressed = String(display.superposees);
-    bascule.title = display.superposees ? "shows before and after side by side" : "shows before and after one over the other, to switch between them in place";
+    bascule.ariaPressed = String(affichage.superposees);
+    bascule.title = affichage.superposees ? "shows before and after side by side" : "shows before and after one over the other, to switch between them in place";
     enTete.append(bascule);
   }
   if (suivante !== undefined) {
-    const prochaine = button(doc, SUIVANTE(suivante), actions.suivante);
+    const prochaine = bouton(doc, SUIVANTE(suivante), gestes.suivante);
     prochaine.title = `opens the next design validation that waits for you, #${suivante}`;
     enTete.append(prochaine);
   }
-  const fermer = button(doc, FERMER, actions.fermer, { sorte: "discret" });
+  const fermer = bouton(doc, FERMER, gestes.fermer, { sorte: "discret" });
   fermer.className = `${fermer.className} fermer`.trim();
   enTete.append(fermer);
   tete.append(enTete);
   racine.append(tete);
-  if (card.brief !== undefined) racine.append(poserBrief(doc, card.brief));
+  if (carte.brief !== undefined) racine.append(poserBrief(doc, carte.brief));
 
   const zone = cree(doc, "div", "ecrans-du-detail");
   if (captures?.incomplete !== undefined) {
-    const line = cree(doc, "p", "captures-manquantes", captures.incomplete.ligne);
-    line.title = captures.incomplete.detail;
-    zone.append(line);
+    const ligne = cree(doc, "p", "captures-manquantes", captures.incomplete.ligne);
+    ligne.title = captures.incomplete.detail;
+    zone.append(ligne);
   }
-  const only = display.seule;
-  if (only !== undefined) {
-    const capture = screens.find(({ ecran: screen }) => screen === only.ecran)?.[only.moment];
-    if (capture !== undefined) zone.append(renderScreen(doc, only.ecran, [{ moment: only.moment, legende: capture.legende }], display, images, actions, { seule: true }));
+  const seule = affichage.seule;
+  if (seule !== undefined) {
+    const capture = ecrans.find(({ ecran }) => ecran === seule.ecran)?.[seule.moment];
+    if (capture !== undefined) zone.append(poserEcran(doc, seule.ecran, [{ moment: seule.moment, legende: capture.legende }], affichage, images, gestes, { seule: true }));
   } else {
-    const montre = screens[display.rang];
+    const montre = ecrans[affichage.rang];
     if (montre !== undefined) {
       const paire = [montre.avant, montre.apres].map(({ moment, legende }) => ({ moment, legende }));
-      zone.append(renderScreen(doc, montre.ecran, paire, display, images, actions, { seule: false }));
+      zone.append(poserEcran(doc, montre.ecran, paire, affichage, images, gestes, { seule: false }));
     }
   }
   racine.append(zone);
@@ -182,11 +182,11 @@ export function poserDetailDeValidation(doc, ticket, card, state, display, { ima
   if (validation === undefined || "illisible" in validation) {
     pied.append(cree(doc, "p", "validation-illisible", validation?.illisible ?? "this card does not say which pull request it validates"));
   } else {
-    const lien = button(doc, LIEN(validation.ticket), actions.ouvrirPr, { sorte: "discret" });
+    const lien = bouton(doc, LIEN(validation.ticket), gestes.ouvrirPr, { sorte: "discret" });
     lien.className = `${lien.className} lien-de-la-pr`.trim();
     lien.title = "opens the pull request on GitHub";
     pied.append(lien);
-    if (!readOnly) pied.append(...poserLesActions(doc, validation, state, { commentaire: comment, cle, grand }, actions));
+    if (!lectureSeule) pied.append(...poserLesGestes(doc, validation, etat, { commentaire, cle, grand }, gestes));
   }
   racine.append(pied);
   return racine;
@@ -194,14 +194,14 @@ export function poserDetailDeValidation(doc, ticket, card, state, display, { ima
 
 // Le brief, en deux parties titrées : ce que le ticket demandait, coupé à deux lignes (en entier au survol), et ce que le
 // cook a changé à l'écran, un point par ligne — ou qu'il n'en a rien dit.
-/** @param {Fabrique} doc @param {import("../../card-todo.ts").BriefDeCard} brief */
-function poserBrief(doc, { demande: request, fait }) {
+/** @param {Fabrique} doc @param {import("../../carte-todo.ts").BriefDeCarte} brief */
+function poserBrief(doc, { demande, fait }) {
   const bloc = cree(doc, "section", "brief-du-detail");
   bloc.ariaLabel = "what the ticket asked and what was done on the screen";
   const demandee = cree(doc, "div", "partie-du-brief");
-  const texte = cree(doc, "p", "demande-du-ticket", request === "" ? SANS_REQUEST : request);
-  if (request !== "") texte.title = request;
-  demandee.append(cree(doc, "h3", undefined, REQUEST), texte);
+  const texte = cree(doc, "p", "demande-du-ticket", demande === "" ? SANS_DEMANDE : demande);
+  if (demande !== "") texte.title = demande;
+  demandee.append(cree(doc, "h3", undefined, DEMANDE), texte);
   const faite = cree(doc, "div", "partie-du-brief");
   faite.append(cree(doc, "h3", undefined, FAIT));
   if (fait === null) faite.append(cree(doc, "p", "sans-resume", SANS_RESUME));
@@ -217,39 +217,39 @@ function poserBrief(doc, { demande: request, fait }) {
 // Un écran : ses captures (l'avant et l'après, ou celle ouverte seule), qui partagent la vue de l'écran, et sa barre — zoomer,
 // dézoomer, ajuster ; l'une sur l'autre, la bascule ; seule, le retour.
 /**
- * @param {Fabrique} doc @param {string} screen @param {{ moment: Moment, legende: string }[]} captures @param {Display} display
- * @param {(screen: string, moment: Moment) => any} images
+ * @param {Fabrique} doc @param {string} ecran @param {{ moment: Moment, legende: string }[]} captures @param {Affichage} affichage
+ * @param {(ecran: string, moment: Moment) => any} images
  * @param {{ reposer: () => void }} gestes
  * @param {{ seule: boolean }} options
  */
-function renderScreen(doc, screen, captures, display, images, { reposer }, { seule: only }) {
+function poserEcran(doc, ecran, captures, affichage, images, { reposer }, { seule }) {
   const bloc = cree(doc, "section", "ecran-du-detail");
-  bloc.ariaLabel = screen === "" ? "the screen" : `the screen ${screen}`;
+  bloc.ariaLabel = ecran === "" ? "the screen" : `the screen ${ecran}`;
   /** @type {any[]} */
   const zoomables = [];
   const appliquer = () => {
-    const vue = display.vues.get(screen) ?? ENTIERE;
+    const vue = affichage.vues.get(ecran) ?? ENTIERE;
     for (const image of zoomables) image.style.setProperty("transform", transformDe(vue));
   };
   /** @param {Vue} vue */
   const changer = (vue) => {
-    display.vues.set(screen, bornee(vue));
+    affichage.vues.set(ecran, bornee(vue));
     appliquer();
   };
-  const vue = () => display.vues.get(screen) ?? ENTIERE;
+  const vue = () => affichage.vues.get(ecran) ?? ENTIERE;
 
-  const bar = cree(doc, "div", "barre-de-zoom");
-  bar.append(
-    button(doc, DEZOOMER, () => changer(zoomer(vue(), 1 / PAS)), { sorte: "discret" }),
-    button(doc, ZOOMER, () => changer(zoomer(vue(), PAS)), { sorte: "discret" }),
-    button(doc, AJUSTER, () => changer(ENTIERE), { sorte: "discret" }),
+  const barre = cree(doc, "div", "barre-de-zoom");
+  barre.append(
+    bouton(doc, DEZOOMER, () => changer(zoomer(vue(), 1 / PAS)), { sorte: "discret" }),
+    bouton(doc, ZOOMER, () => changer(zoomer(vue(), PAS)), { sorte: "discret" }),
+    bouton(doc, AJUSTER, () => changer(ENTIERE), { sorte: "discret" }),
   );
 
-  const superposees = !only && display.superposees;
-  const paire = cree(doc, "div", superposees ? "paire superposees" : only ? "paire seule" : "paire");
+  const superposees = !seule && affichage.superposees;
+  const paire = cree(doc, "div", superposees ? "paire superposees" : seule ? "paire seule" : "paire");
   if (superposees) {
     // L'une sur l'autre : un seul cadre, les deux images dedans ; la bascule montre l'autre sur place, sans rien reposer.
-    const montree = () => display.montre.get(screen) ?? "avant";
+    const montree = () => affichage.montre.get(ecran) ?? "avant";
     const figure = cree(doc, "figure", "capture-zoomable");
     const cadre = cadreZoomable(doc, vue, changer);
     const titre = cree(doc, "figcaption");
@@ -257,44 +257,44 @@ function renderScreen(doc, screen, captures, display, images, { reposer }, { seu
     /** @type {Map<Moment, any>} */
     const poses = new Map();
     for (const { moment } of captures) {
-      const image = images(screen, moment);
+      const image = images(ecran, moment);
       image.dataset.moment = moment;
       poses.set(moment, image);
       zoomables.push(image);
       cadre.append(image);
     }
     const autre = () => (montree() === "avant" ? "apres" : "avant");
-    const bascule = button(doc, SHOW(autre()), () => {
-      display.montre.set(screen, autre());
-      show();
+    const bascule = bouton(doc, MONTRER(autre()), () => {
+      affichage.montre.set(ecran, autre());
+      montrer();
     });
-    const show = () => {
+    const montrer = () => {
       for (const [moment, image] of poses) image.hidden = moment !== montree();
       legende.textContent = captures.find(({ moment }) => moment === montree())?.legende ?? "";
-      bascule.textContent = SHOW(autre());
+      bascule.textContent = MONTRER(autre());
       bascule.title = `shows ${autre() === "avant" ? "before" : "after"} in place, at the same spot`;
     };
-    show();
+    montrer();
     titre.append(legende);
     figure.append(cadre, titre);
-    bar.append(bascule);
+    barre.append(bascule);
     paire.append(figure);
   } else {
     for (const { moment, legende } of captures) {
       const figure = cree(doc, "figure", "capture-zoomable");
       figure.dataset.moment = moment;
       const cadre = cadreZoomable(doc, vue, changer);
-      const image = images(screen, moment);
+      const image = images(ecran, moment);
       zoomables.push(image);
       cadre.append(image);
       const titre = cree(doc, "figcaption");
       titre.append(cree(doc, "span", "legende", legende));
-      if (!only) {
-        const pleine = button(
+      if (!seule) {
+        const pleine = bouton(
           doc,
           PLEINE_TAILLE,
           () => {
-            display.seule = { ecran: screen, moment };
+            affichage.seule = { ecran, moment };
             reposer();
           },
           { sorte: "discret" },
@@ -306,15 +306,15 @@ function renderScreen(doc, screen, captures, display, images, { reposer }, { seu
       paire.append(figure);
     }
   }
-  if (only) {
-    const retour = button(doc, RETOUR, () => {
-      delete display.seule;
+  if (seule) {
+    const retour = bouton(doc, RETOUR, () => {
+      delete affichage.seule;
       reposer();
     });
-    bar.append(retour);
+    barre.append(retour);
   }
   appliquer();
-  bloc.append(bar, paire);
+  bloc.append(barre, paire);
   return bloc;
 }
 
@@ -330,29 +330,29 @@ function cadreZoomable(doc, vue, changer) {
   };
   cadre.addEventListener(
     "wheel",
-    /** @param {WheelEvent} event */ (event) => {
-      event.preventDefault();
-      const point = dans(event);
+    /** @param {WheelEvent} evenement */ (evenement) => {
+      evenement.preventDefault();
+      const point = dans(evenement);
       if (point === undefined) return;
-      changer(zoomer(vue(), Math.exp(-event.deltaY * 0.002), point.x, point.y));
+      changer(zoomer(vue(), Math.exp(-evenement.deltaY * 0.002), point.x, point.y));
     },
     { passive: false },
   );
   /** @type {Map<number, { x: number, y: number }>} */
   const pointeurs = new Map();
-  cadre.addEventListener("pointerdown", /** @param {PointerEvent} event */ (event) => {
-    const point = dans(event);
+  cadre.addEventListener("pointerdown", /** @param {PointerEvent} evenement */ (evenement) => {
+    const point = dans(evenement);
     if (point === undefined) return;
-    event.preventDefault();
-    cadre.setPointerCapture?.(event.pointerId);
-    pointeurs.set(event.pointerId, point);
+    evenement.preventDefault();
+    cadre.setPointerCapture?.(evenement.pointerId);
+    pointeurs.set(evenement.pointerId, point);
   });
-  cadre.addEventListener("pointermove", /** @param {PointerEvent} event */ (event) => {
-    const avant = pointeurs.get(event.pointerId);
-    const point = dans(event);
+  cadre.addEventListener("pointermove", /** @param {PointerEvent} evenement */ (evenement) => {
+    const avant = pointeurs.get(evenement.pointerId);
+    const point = dans(evenement);
     if (avant === undefined || point === undefined) return;
-    const autres = [...pointeurs].filter(([id]) => id !== event.pointerId).map(([, autre]) => autre);
-    pointeurs.set(event.pointerId, point);
+    const autres = [...pointeurs].filter(([id]) => id !== evenement.pointerId).map(([, autre]) => autre);
+    pointeurs.set(evenement.pointerId, point);
     const [autre] = autres;
     if (autre === undefined) return changer(deplacer(vue(), point.x - avant.x, point.y - avant.y));
     // Deux doigts : l'écart qui grandit zoome autour de leur milieu, et le milieu qui bouge emmène l'image avec lui.
@@ -362,12 +362,12 @@ function cadreZoomable(doc, vue, changer) {
     const ancien = { x: (avant.x + autre.x) / 2, y: (avant.y + autre.y) / 2 };
     changer(deplacer(zoomer(vue(), ecart(point) / ecart(avant), ancien.x, ancien.y), milieu.x - ancien.x, milieu.y - ancien.y));
   });
-  const lacher = (/** @type {PointerEvent} */ event) => void pointeurs.delete(event.pointerId);
+  const lacher = (/** @type {PointerEvent} */ evenement) => void pointeurs.delete(evenement.pointerId);
   cadre.addEventListener("pointerup", lacher);
   cadre.addEventListener("pointercancel", lacher);
   // Un double clic zoome là où il tombe ; zoomé, il rend l'image entière.
-  cadre.addEventListener("dblclick", /** @param {MouseEvent} event */ (event) => {
-    const point = dans(event);
+  cadre.addEventListener("dblclick", /** @param {MouseEvent} evenement */ (evenement) => {
+    const point = dans(evenement);
     if (point === undefined) return;
     changer(vue().echelle > 1 ? ENTIERE : zoomer(vue(), PAS * PAS, point.x, point.y));
   });

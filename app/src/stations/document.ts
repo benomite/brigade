@@ -9,11 +9,11 @@
 // c'est l'app de sa machine qui l'appaire — elle seule voit la machine : un Mac
 // fournit `macos`, plus ce que l'installation y détecte (fournit.ts).
 // L'app le reprend dans la demande de chaque projet où la station est ajoutée
-// (projects/projects.ts) : c'est là que la station principale du projet le lit.
+// (projets/projets.ts) : c'est là que la station principale du projet le lit.
 // Une station appairée d'ailleurs, ou avant #1757, n'en dit rien.
 import { createHash } from "node:crypto";
-import { lireStatesPublies, type StatesPublies } from "../outages/states.ts";
-import { capacitiesLues } from "../projects/request.ts";
+import { lireEtatsPublies, type EtatsPublies } from "../pannes/etats.ts";
+import { capacitesLues } from "../projets/demande.ts";
 
 export const FICHIER_STATION = "brigade-station.json";
 export const FICHIER_APPAIRAGE = "brigade-appairage.json";
@@ -21,7 +21,7 @@ export const FICHIER_APPAIRAGE = "brigade-appairage.json";
 export type DocumentStation = {
   nom: string;
   machine: string;
-  // Les cœurs de sa machine : l'app en tire le nombre de cooks qu'elle propose (projects/projects.ts).
+  // Les cœurs de sa machine : l'app en tire le nombre de cooks qu'elle propose (projets/projets.ts).
   // Absents d'une station qui ne les publie pas encore.
   coeurs?: number;
   // Faux : elle ne fait tourner aucun cook — un téléphone (#1158). Une station qui ne le publie pas cuisine.
@@ -37,8 +37,8 @@ export type DocumentStation = {
   appairage: { empreinte: string; expireLe: string } | null;
   // Les empreintes de ses derniers codes échus.
   echus: string[];
-  // Sa mise à jour revenue en arrière et sa connexion Max : ses pannes (outages/).
-} & StatesPublies;
+  // Sa mise à jour revenue en arrière et sa connexion Max : ses pannes (pannes/).
+} & EtatsPublies;
 
 // Les huit signes d'un code, dans l'alphabet de Crockford.
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -70,23 +70,23 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     return { illisible: "its state on GitHub is not JSON" };
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "station") return { illisible: "its state on GitHub is not a brigade station's" };
-  const { nom: name, machine, coeurs, cuisine: kitchen, version, projets: projects, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
-  if (!texte(name) || !texte(machine) || !texte(version) || !date(signeDeVie)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
-  if (!Array.isArray(projects) || !projects.every(texte)) return { illisible: "its state on GitHub does not list its projects" };
+  const { nom, machine, coeurs, cuisine, version, projets, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
+  if (!texte(nom) || !texte(machine) || !texte(version) || !date(signeDeVie)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
+  if (!Array.isArray(projets) || !projets.every(texte)) return { illisible: "its state on GitHub does not list its projects" };
   const code = appairage as { empreinte?: unknown; expireLe?: unknown } | null | undefined;
   return {
-    nom: name,
+    nom,
     machine,
     ...(typeof coeurs === "number" && Number.isSafeInteger(coeurs) && coeurs > 0 ? { coeurs } : {}),
-    ...(kitchen === false ? { cuisine: false as const } : {}),
+    ...(cuisine === false ? { cuisine: false as const } : {}),
     version,
-    projets: projects,
+    projets,
     signeDeVie,
     cadenceMs: typeof cadenceMs === "number" && cadenceMs > 0 ? cadenceMs : 60_000,
     arreteeLe: date(arreteeLe) ? arreteeLe : null,
     appairage: code !== null && typeof code === "object" && texte(code.empreinte) && date(code.expireLe) ? { empreinte: code.empreinte, expireLe: code.expireLe } : null,
     echus: Array.isArray(echus) ? echus.filter(texte) : [],
-    ...lireStatesPublies(lu),
+    ...lireEtatsPublies(lu),
   };
 }
 
@@ -94,7 +94,7 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
 export type DocumentAppairage = { appaireeLe: string; empreinte: string; fournit?: string[] };
 
 export function documentDAppairage(appairage: DocumentAppairage): string {
-  const fournit = capacitiesLues(appairage.fournit);
+  const fournit = capacitesLues(appairage.fournit);
   return `${JSON.stringify({ appaireeLe: appairage.appaireeLe, empreinte: appairage.empreinte, ...(fournit.length === 0 ? {} : { fournit }) }, null, 2)}\n`;
 }
 
@@ -104,8 +104,8 @@ export function lireAppairage(brut: string | undefined): DocumentAppairage | nul
   try {
     const { appaireeLe, empreinte, fournit } = (JSON.parse(brut) ?? {}) as Record<string, unknown>;
     if (!date(appaireeLe) || !texte(empreinte)) return null;
-    const capacities = capacitiesLues(fournit);
-    return { appaireeLe, empreinte, ...(capacities.length === 0 ? {} : { fournit: capacities }) };
+    const capacites = capacitesLues(fournit);
+    return { appaireeLe, empreinte, ...(capacites.length === 0 ? {} : { fournit: capacites }) };
   } catch {
     return null;
   }

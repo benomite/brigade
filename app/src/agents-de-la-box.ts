@@ -9,7 +9,7 @@
 // réglage refusé —; une commande qui échoue sans raison lisible, ou une sortie qui ne se lit pas, rend 502 et le dit :
 // jamais une liste vide à la place d'une lecture ratée.
 import { cite, type Lu, type Rendu } from "./box.ts";
-import { detailDe, sansLaCommand } from "./settings-du-project.ts";
+import { detailDe, sansLaCommande } from "./reglages-du-projet.ts";
 
 import { SCHEMA_DES_AGENTS } from "./vue/agents/source.js";
 
@@ -20,19 +20,19 @@ export const SCHEMA_PRIVILEGIE = { scheme: SCHEMA_DES_AGENTS, privileges: { supp
 const AUTEUR = "chef";
 
 // `corps` : le texte de la demande, tel que la page l'a envoyé — vide pour une lecture.
-type Request = { methode: string; url: string; corps: string };
-type Answer = { statut: number; corps: unknown };
-type Lancer = (lu: Lu, command: string) => Promise<Rendu>;
+type Demande = { methode: string; url: string; corps: string };
+type Reponse = { statut: number; corps: unknown };
+type Lancer = (lu: Lu, commande: string) => Promise<Rendu>;
 
 // Un agent, une clé de réglage : des mots sans blanc ni apostrophe, rien d'autre ne part sur la box.
 const ID = /^[a-z][a-z0-9-]*$/;
 const CLE = /^[A-Za-z][A-Za-z0-9_.-]*$/;
-const ACTIONS = /^\/api\/agents\/([^/]+)\/gestures$/;
-const SETTINGS = /^\/api\/agents\/([^/]+)\/settings$/;
+const GESTES = /^\/api\/agents\/([^/]+)\/gestures$/;
+const REGLAGES = /^\/api\/agents\/([^/]+)\/settings$/;
 // Le refus de `agents` : `brigade: <statut>: <raison>` sur sa sortie d'erreur.
-const REFUSAL = /^brigade: ([1-5][0-9]{2}): (.+)$/;
+const REFUS = /^brigade: ([1-5][0-9]{2}): (.+)$/;
 
-const raison = (status: number, texte: string): Answer => ({ statut: status, corps: { reason: texte } });
+const raison = (statut: number, texte: string): Reponse => ({ statut, corps: { reason: texte } });
 
 function lireLeCorps(texte: string): unknown {
   try {
@@ -41,16 +41,16 @@ function lireLeCorps(texte: string): unknown {
     return undefined;
   }
 }
-const derniereLine = (texte: string): unknown => lireLeCorps(texte.trim().split("\n").at(-1) ?? "");
+const derniereLigne = (texte: string): unknown => lireLeCorps(texte.trim().split("\n").at(-1) ?? "");
 
 // La commande d'une demande, ou la réponse qui la refuse sans rien lancer.
-function commandDe({ methode, url, corps }: Request, chemin: string): string | Answer {
+function commandeDe({ methode, url, corps }: Demande, chemin: string): string | Reponse {
   if (chemin === "/api/agents") return methode === "GET" ? "agents" : raison(405, `${methode} is not served on ${chemin}`);
-  const [, actions] = ACTIONS.exec(chemin) ?? [];
-  const [, settings] = SETTINGS.exec(chemin) ?? [];
-  const id = decodeURIComponent(actions ?? settings ?? "");
+  const [, gestes] = GESTES.exec(chemin) ?? [];
+  const [, reglages] = REGLAGES.exec(chemin) ?? [];
+  const id = decodeURIComponent(gestes ?? reglages ?? "");
   if (!ID.test(id)) return raison(404, `${url} is not an agent's path`);
-  if (actions !== undefined) return methode === "GET" ? `agents ${cite(`/api/agents/${id}/gestures`)}` : raison(405, `${methode} is not served on ${chemin}`);
+  if (gestes !== undefined) return methode === "GET" ? `agents ${cite(`/api/agents/${id}/gestures`)}` : raison(405, `${methode} is not served on ${chemin}`);
   if (methode === "GET") return `agent-settings ${id}`;
   if (methode !== "PUT") return raison(405, `${methode} is not served on ${chemin}`);
   const { key, value } = (lireLeCorps(corps) ?? {}) as { key?: unknown; value?: unknown };
@@ -60,27 +60,27 @@ function commandDe({ methode, url, corps }: Request, chemin: string): string | A
 }
 
 // Ce que rend une commande lancée : sa réponse, son refus avec sa raison, ou 502.
-function answerDe(rendu: Rendu, command: string): Answer {
-  const lu = derniereLine(rendu.sortie);
-  if (rendu.erreur === null) return lu === undefined ? raison(502, `the answer of \`${command.split(" ")[0]}\` could not be read: ${rendu.sortie.trim().slice(0, 200)}`) : { statut: 200, corps: lu };
-  if (sansLaCommand(rendu)) return raison(502, "this station's runtime does not serve the agents yet — update it");
+function reponseDe(rendu: Rendu, commande: string): Reponse {
+  const lu = derniereLigne(rendu.sortie);
+  if (rendu.erreur === null) return lu === undefined ? raison(502, `the answer of \`${commande.split(" ")[0]}\` could not be read: ${rendu.sortie.trim().slice(0, 200)}`) : { statut: 200, corps: lu };
+  if (sansLaCommande(rendu)) return raison(502, "this station's runtime does not serve the agents yet — update it");
   const dite = (lu as { reason?: unknown } | undefined)?.reason;
   if (typeof dite === "string") return raison(400, dite);
-  const [, status, texte] = REFUSAL.exec(rendu.erreurs.trim().split("\n").at(-1) ?? "") ?? [];
-  if (texte !== undefined) return raison(Number(status), texte);
-  return raison(502, `\`${command.split(" ")[0]}\` failed on this computer's station: ${detailDe(rendu).slice(0, 400)}`);
+  const [, statut, texte] = REFUS.exec(rendu.erreurs.trim().split("\n").at(-1) ?? "") ?? [];
+  if (texte !== undefined) return raison(Number(statut), texte);
+  return raison(502, `\`${commande.split(" ")[0]}\` failed on this computer's station: ${detailDe(rendu).slice(0, 400)}`);
 }
 
 // La réponse à une demande de la vue. `cuisine(projet)` : le projet que l'app connaît sous ce nom (`vise`), et où sa
 // cuisine tourne (`lu`) — `undefined` pour un projet qui ne cuit pas sur cet ordinateur (main.ts, `cuisineDuProjet`).
-export async function repondreAuxAgents(request: Request, kitchen: (project: string) => { vise: unknown; lu: Lu | undefined }, lancer: Lancer): Promise<Answer> {
-  const adresse = URL.parse(request.url);
-  if (adresse === null) return raison(404, `${request.url} is not an agent's path`);
-  const project = adresse.searchParams.get("project") ?? "";
-  const { vise, lu } = kitchen(project);
-  if (vise === undefined) return raison(404, `“${project}” is no longer in the projects file`);
-  if (lu === undefined) return raison(503, `${project} does not cook on this computer: its agents are read where its kitchen runs`);
-  const command = commandDe(request, adresse.pathname);
-  if (typeof command !== "string") return command;
-  return answerDe(await lancer(lu, command), command);
+export async function repondreAuxAgents(demande: Demande, cuisine: (projet: string) => { vise: unknown; lu: Lu | undefined }, lancer: Lancer): Promise<Reponse> {
+  const adresse = URL.parse(demande.url);
+  if (adresse === null) return raison(404, `${demande.url} is not an agent's path`);
+  const projet = adresse.searchParams.get("project") ?? "";
+  const { vise, lu } = cuisine(projet);
+  if (vise === undefined) return raison(404, `“${projet}” is no longer in the projects file`);
+  if (lu === undefined) return raison(503, `${projet} does not cook on this computer: its agents are read where its kitchen runs`);
+  const commande = commandeDe(demande, adresse.pathname);
+  if (typeof commande !== "string") return commande;
+  return reponseDe(await lancer(lu, commande), commande);
 }

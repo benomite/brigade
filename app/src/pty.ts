@@ -4,7 +4,7 @@
 import { accessSync, chmodSync, constants, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import type { Launch, Pty } from "./terminaux.ts";
+import type { Lancement, Pty } from "./terminaux.ts";
 
 const requerir = createRequire(import.meta.url);
 const PRECOMPILE = join(dirname(requerir.resolve("node-pty/package.json")), "prebuilds", `${process.platform}-${process.arch}`);
@@ -34,8 +34,8 @@ export function aideUtilisable(
   if (!fs.existe(aide)) return true;
   try {
     fs.chmod(aide);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EROFS") throw error;
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "EROFS") throw erreur;
     return fs.executable(aide);
   }
   return true;
@@ -51,25 +51,25 @@ export const ptyDisponible = existsSync(PRECOMPILE);
 const environnement = (): Record<string, string> =>
   Object.fromEntries(Object.entries(process.env).filter((paire): paire is [string, string] => paire[1] !== undefined && !paire[0].startsWith("npm_")));
 
-export function ouvrirPty(launch: Launch): Pty {
+export function ouvrirPty(lancement: Lancement): Pty {
   // node-pty charge son binaire dès qu'il est importé, et lève là où il n'en a
   // pas : il n'est donc chargé qu'ici, à l'usage. Ce module, lui, se charge
   // partout — c'est ce qui laisse `ptyDisponible` répondre sur Linux.
   const { spawn } = requerir("node-pty") as typeof import("node-pty");
   // Une ligne déjà écrite pour Windows (le plan du second, #1433) part telle quelle : node-pty la prend en une chaîne.
-  const pty = spawn(launch.commande, launch.verbatim === true ? launch.args.join(" ") : launch.args, {
+  const pty = spawn(lancement.commande, lancement.verbatim === true ? lancement.args.join(" ") : lancement.args, {
     name: "xterm-256color",
-    cwd: launch.dossier,
-    cols: launch.colonnes,
-    rows: launch.lignes,
-    env: { ...environnement(), ...launch.env },
+    cwd: lancement.dossier,
+    cols: lancement.colonnes,
+    rows: lancement.lignes,
+    env: { ...environnement(), ...lancement.env },
   });
-  pty.onData(launch.surSortie);
+  pty.onData(lancement.surSortie);
   // Tué par un signal, un process n'a pas de code : celui du shell (128 + signal).
-  pty.onExit(({ exitCode, signal }) => launch.surFin(exitCode || (signal ? 128 + signal : 0)));
+  pty.onExit(({ exitCode, signal }) => lancement.surFin(exitCode || (signal ? 128 + signal : 0)));
   return {
     ecrire: (donnees) => pty.write(donnees),
-    redimensionner: (colonnes, lines) => pty.resize(colonnes, lines),
+    redimensionner: (colonnes, lignes) => pty.resize(colonnes, lignes),
     tuer: () => pty.kill(),
   };
 }

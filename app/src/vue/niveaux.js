@@ -5,13 +5,13 @@
 // pose l'étiquette par `niveauDe`, qui lève sur un réglage que la table ne connaît pas : un réglage montré sans
 // niveau ne se rend pas, et le test le voit. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
-import { NIVEAUX_DITS, niveauSetting } from "./station/page/SettingLevel.js";
+import { NIVEAUX_DITS, niveauReglage } from "./station/page/NiveauReglage.js";
 
-// Les mots de chaque niveau, et sa marque, sont ceux de la marque partagée (station/page/SettingLevel.js).
+// Les mots de chaque niveau, et sa marque, sont ceux de la marque partagée (station/page/NiveauReglage.js).
 export { NIVEAUX_DITS };
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
-/** @typedef {import("./station/page/SettingLevel.js").Niveau} Niveau */
+/** @typedef {import("./station/page/NiveauReglage.js").Niveau} Niveau */
 
 // Chaque réglage montré, et son niveau.
 /** @type {Readonly<Record<string, Niveau>>} */
@@ -46,7 +46,7 @@ export const NIVEAUX = {
   // Ce que la station donne à chaque projet qu'elle sert (ticket 2645) : sa part de cooks.
   "station-part-de-cooks": "machine",
   github: "machine",
-  // Le moteur de ses cooks, son secours et sa clé d'API (ticket 3746, engine/).
+  // Le moteur de ses cooks, son secours et sa clé d'API (ticket 3746, moteur/).
   moteur: "machine",
   // Toi : les couleurs de chaque projet, le sigle de sa case dans la barre, et l'état de la cuisine dans la barre des
   // menus (ticket 3269). L'app n'a aucune autre préférence d'affichage (ni thème, ni densité, ni taille de police) : quand
@@ -61,5 +61,5 @@ export const NIVEAUX = {
 export function niveauDe(doc, cle) {
   const niveau = NIVEAUX[cle];
   if (niveau === undefined) throw new Error(`setting "${cle}" has no level in niveaux.js`);
-  return niveauSetting(doc, niveau);
+  return niveauReglage(doc, niveau);
 }

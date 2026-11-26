@@ -4,9 +4,9 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Tableau } from "../../src/facts.ts";
-import type { VueDuProject } from "../../src/second/context-du-blockage.ts";
-import { deposerLaVue } from "../../src/second/vue-du-project.ts";
+import type { Tableau } from "../../src/faits.ts";
+import type { VueDuProjet } from "../../src/second/contexte-du-blocage.ts";
+import { deposerLaVue } from "../../src/second/vue-du-projet.ts";
 
 const base = { attendu: false, attend: [], fiche: {}, ouvrable: true, dit: [] };
 // Main est verte : ni `baseRouge`, ni alerte de base ; #4047 est en WAITING, la station a arrêté sa boucle de relances.
@@ -27,7 +27,7 @@ test("main verte : aucune carte ne dit « base rouge » ; boucle déjà arrêté
   const vues = mkdtempSync(join(tmpdir(), "vue-4195-"));
   try {
     deposerLaVue("espace", tableau, vues);
-    const vue = JSON.parse(readFileSync(join(vues, "espace.json"), "utf8")) as VueDuProject;
+    const vue = JSON.parse(readFileSync(join(vues, "espace.json"), "utf8")) as VueDuProjet;
     const dit = JSON.stringify(vue.rail);
     assert.doesNotMatch(dit, /base rouge|waits for main to be green/i);
     assert.ok(!vue.banners.some((b) => b.label === "FAULT #4047"), "the stopped loop must not be a FAULT banner");

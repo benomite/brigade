@@ -9,19 +9,19 @@ import { defautsDeNom } from "../../packaging/verifier-plist.ts";
 
 const MACH_O = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
 const entete = `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n`;
-const line = (cle: string, valeur: string) => `\t<key>${cle}</key>\n\t<string>${valeur}</string>\n`;
-const plist = (lines: string) => `${entete}${lines}</dict>\n</plist>\n`;
-const appPlist = plist(line("CFBundleDisplayName", "Electron") + line("CFBundleExecutable", "Electron") + line("CFBundleIconFile", "electron.icns") + line("CFBundleIdentifier", "com.github.Electron") + line("CFBundleName", "Electron") + line("CFBundleShortVersionString", "44.7.0") + line("CFBundleVersion", "44.7.0"));
+const ligne = (cle: string, valeur: string) => `\t<key>${cle}</key>\n\t<string>${valeur}</string>\n`;
+const plist = (lignes: string) => `${entete}${lignes}</dict>\n</plist>\n`;
+const appPlist = plist(ligne("CFBundleDisplayName", "Electron") + ligne("CFBundleExecutable", "Electron") + ligne("CFBundleIconFile", "electron.icns") + ligne("CFBundleIdentifier", "com.github.Electron") + ligne("CFBundleName", "Electron") + ligne("CFBundleShortVersionString", "44.7.0") + ligne("CFBundleVersion", "44.7.0"));
 
 // Les plists d aide tels que ceux d Electron 44.7.0 : sans CFBundleDisplayName, avec un nom qui ne
 // colle pas, ou sans aucune des deux clés dans la forme attendue.
 const aidePlist = (suffixe: string, cas: number) => {
-  const name = `Electron Helper${suffixe}`;
-  const id = line("CFBundleIdentifier", `com.github.Electron.helper${suffixe === "" ? "" : ".GPU"}`);
-  const reste = line("CFBundleExecutable", name) + id + line("CFBundleShortVersionString", "44.7.0") + line("CFBundleVersion", "44.7.0");
-  if (cas === 0) return plist(line("CFBundleName", name) + reste);
-  if (cas === 1) return plist(line("CFBundleDisplayName", "Electron Helper") + line("CFBundleName", name) + reste);
-  return plist(line("CFBundleDisplayName", "Helper") + line("CFBundleName", "Helper") + reste);
+  const nom = `Electron Helper${suffixe}`;
+  const id = ligne("CFBundleIdentifier", `com.github.Electron.helper${suffixe === "" ? "" : ".GPU"}`);
+  const reste = ligne("CFBundleExecutable", nom) + id + ligne("CFBundleShortVersionString", "44.7.0") + ligne("CFBundleVersion", "44.7.0");
+  if (cas === 0) return plist(ligne("CFBundleName", nom) + reste);
+  if (cas === 1) return plist(ligne("CFBundleDisplayName", "Electron Helper") + ligne("CFBundleName", nom) + reste);
+  return plist(ligne("CFBundleDisplayName", "Helper") + ligne("CFBundleName", "Helper") + reste);
 };
 
 function construit(): { racine: string; paquet: string } {

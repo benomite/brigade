@@ -1,18 +1,18 @@
 // Sur le rail (#1811) : l'âge des cartes de Taken et de Pass, et leurs essais — l'histogramme des 24 heures a quitté la
 // tête du rail avec la bande de chiffres (#3013). La vue jouée telle qu'elle est, devant un faux
-// document (aides/fausse-vue.ts), sur ce que le process principal range des faits de la box (facts.ts).
+// document (aides/fausse-vue.ts), sur ce que le process principal range des faits de la box (faits.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBar } from "../../src/bar.ts";
+import { pourLaBarre } from "../../src/barre.ts";
 import { HEURES, type CadenceLue } from "../../src/cadence.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
-import { BANNIERE, holdFacts, type Facts } from "../../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
+import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
+import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
+import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { poserAge, poserEssais } from "../../src/vue/cadence.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
@@ -25,7 +25,7 @@ const CADENCE: CadenceLue = {
   medianSeconds: { taken: 1800, pass: 600 },
 };
 
-const FACTS: Facts = {
+const FAITS: Faits = {
   etat: "ouverte",
   lu: LU,
   dernierTick: LU,
@@ -42,12 +42,12 @@ const FACTS: Facts = {
 };
 
 const demarrage = () => ({
-  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -59,11 +59,11 @@ async function ouvrir(): Promise<Jouee> {
   await repos();
   return vue;
 }
-function recevoir(vue: Jouee, facts: unknown = FACTS) {
-  const recue = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
+function recevoir(vue: Jouee, faits: unknown = FAITS) {
+  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
 }
-const slip = (vue: Jouee, ticket: number) => vue.element("rail").dessous("li").find((pose) => pose.className === "bon" && pose.textContent.includes(`#${ticket}`));
+const bon = (vue: Jouee, ticket: number) => vue.element("rail").dessous("li").find((pose) => pose.className === "bon" && pose.textContent.includes(`#${ticket}`));
 const age = (pose: Faux | undefined) => pose?.dessous("span").find((posee) => posee.className === "age");
 
 describe("l'âge des cartes de Taken et de Pass", () => {
@@ -71,10 +71,10 @@ describe("l'âge des cartes de Taken et de Pass", () => {
     const vue = await ouvrir();
     recevoir(vue);
     await ouvrirOnglet(vue, "Rail");
-    const taken = age(slip(vue, 15)) ?? assert.fail("pas d'âge sur #15");
-    assert.equal(taken.textContent, "15 min");
-    assert.match(taken.title, /^in Taken for 15 min, since \d\d:\d\d — usually 30 min/);
-    const enPass = age(slip(vue, 16)) ?? assert.fail("pas d'âge sur #16");
+    const pris = age(bon(vue, 15)) ?? assert.fail("pas d'âge sur #15");
+    assert.equal(pris.textContent, "15 min");
+    assert.match(pris.title, /^in Taken for 15 min, since \d\d:\d\d — usually 30 min/);
+    const enPass = age(bon(vue, 16)) ?? assert.fail("pas d'âge sur #16");
     assert.equal(enPass.textContent, "5 min");
     assert.match(enPass.title, /^in Pass for 5 min/);
   });
@@ -83,35 +83,35 @@ describe("l'âge des cartes de Taken et de Pass", () => {
     const vue = await ouvrir();
     recevoir(vue);
     await ouvrirOnglet(vue, "Rail");
-    const traine = slip(vue, 14) ?? assert.fail("pas de carte #14");
+    const traine = bon(vue, 14) ?? assert.fail("pas de carte #14");
     assert.equal(traine.dataset.traine, "");
     assert.equal(age(traine)?.dataset.longue, "");
     assert.equal(age(traine)?.textContent, "2 h");
     for (const ticket of [15, 16]) {
-      assert.equal(slip(vue, ticket)?.dataset.traine, undefined);
-      assert.equal(age(slip(vue, ticket))?.dataset.longue, undefined);
+      assert.equal(bon(vue, ticket)?.dataset.traine, undefined);
+      assert.equal(age(bon(vue, ticket))?.dataset.longue, undefined);
     }
   });
 });
 
 describe("les essais d'une carte, un point chacun", () => {
-  const trial = (depuis: string, jusqua: string | null, stop: string | null) => ({ depuis, jusqua, arret: stop, enCours: jusqua === null });
+  const essai = (depuis: string, jusqua: string | null, arret: string | null) => ({ depuis, jusqua, arret, enCours: jusqua === null });
   const TROIS = [
-    trial("2026-10-21T11:30:00.000Z", "2026-10-21T11:47:00.000Z", "tokens"),
-    trial("2026-10-21T11:47:10.000Z", "2026-10-21T12:02:00.000Z", "idle"),
-    trial("2026-10-21T12:02:10.000Z", null, null),
+    essai("2026-10-21T11:30:00.000Z", "2026-10-21T11:47:00.000Z", "tokens"),
+    essai("2026-10-21T11:47:10.000Z", "2026-10-21T12:02:00.000Z", "idle"),
+    essai("2026-10-21T12:02:10.000Z", null, null),
   ];
-  const facts = (rail: unknown[]) => ({ ...FACTS, rail, cadence: { ...CADENCE, medianSeconds: { taken: 1200, pass: 600 } } });
+  const faits = (rail: unknown[]) => ({ ...FAITS, rail, cadence: { ...CADENCE, medianSeconds: { taken: 1200, pass: 600 } } });
   const points = (pose: Faux | undefined) => pose?.dessous("span").filter((posee) => posee.className === "essai") ?? [];
 
   test("un ticket pris depuis cinquante minutes sur trois essais : `50 min` et la couleur lente, trois points", async () => {
     const vue = await ouvrir();
-    recevoir(vue, facts([{ ticket: 34, etat: "pris", titre: "Ticket 34", url: "https://exemple.test/34", depuis: "2026-10-21T11:30:00.000Z", essais: TROIS, activite: null }]));
+    recevoir(vue, faits([{ ticket: 34, etat: "pris", titre: "Ticket 34", url: "https://exemple.test/34", depuis: "2026-10-21T11:30:00.000Z", essais: TROIS, activite: null }]));
     await ouvrirOnglet(vue, "Rail");
-    const card = slip(vue, 34) ?? assert.fail("pas de carte #34");
-    assert.equal(age(card)?.textContent, "50 min");
-    assert.equal(age(card)?.dataset.longue, "");
-    const ronds = points(card);
+    const carte = bon(vue, 34) ?? assert.fail("pas de carte #34");
+    assert.equal(age(carte)?.textContent, "50 min");
+    assert.equal(age(carte)?.dataset.longue, "");
+    const ronds = points(carte);
     assert.equal(ronds.length, 3);
     assert.deepEqual(ronds.map((rond) => rond.dataset.enCours), [undefined, undefined, ""]);
     assert.equal(ronds[0]?.title, "attempt 1 of 3 — stopped after 17 min: tokens");
@@ -121,27 +121,27 @@ describe("les essais d'une carte, un point chacun", () => {
 
   test("un seul essai : aucun point, mais l'âge", async () => {
     const vue = await ouvrir();
-    recevoir(vue, facts([{ ticket: 35, etat: "pris", titre: "Ticket 35", url: "https://exemple.test/35", depuis: "2026-10-21T12:05:00.000Z", essais: [trial("2026-10-21T12:05:00.000Z", null, null)], activite: null }]));
+    recevoir(vue, faits([{ ticket: 35, etat: "pris", titre: "Ticket 35", url: "https://exemple.test/35", depuis: "2026-10-21T12:05:00.000Z", essais: [essai("2026-10-21T12:05:00.000Z", null, null)], activite: null }]));
     await ouvrirOnglet(vue, "Rail");
-    const card = slip(vue, 35) ?? assert.fail("pas de carte #35");
-    assert.equal(age(card)?.textContent, "15 min");
-    assert.equal(points(card).length, 0);
+    const carte = bon(vue, 35) ?? assert.fail("pas de carte #35");
+    assert.equal(age(carte)?.textContent, "15 min");
+    assert.equal(points(carte).length, 0);
   });
 
   test("la même chose sur une carte de Pass", async () => {
     const vue = await ouvrir();
-    recevoir(vue, facts([{ ticket: 36, etat: "en pass", titre: "Ticket 36", url: "https://exemple.test/36", depuis: "2026-10-21T12:15:00.000Z", essais: TROIS.slice(0, 2).map((e, i) => (i === 1 ? { ...e, enCours: true, jusqua: null, arret: null } : e)), activite: null }]));
+    recevoir(vue, faits([{ ticket: 36, etat: "en pass", titre: "Ticket 36", url: "https://exemple.test/36", depuis: "2026-10-21T12:15:00.000Z", essais: TROIS.slice(0, 2).map((e, i) => (i === 1 ? { ...e, enCours: true, jusqua: null, arret: null } : e)), activite: null }]));
     await ouvrirOnglet(vue, "Rail");
-    const card = slip(vue, 36) ?? assert.fail("pas de carte #36");
-    assert.equal(age(card)?.textContent, "5 min");
-    assert.equal(points(card).length, 2);
+    const carte = bon(vue, 36) ?? assert.fail("pas de carte #36");
+    assert.equal(age(carte)?.textContent, "5 min");
+    assert.equal(points(carte).length, 2);
   });
 
   test("un runtime d'avant `essais` : l'âge seul", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     await ouvrirOnglet(vue, "Rail");
-    assert.equal(points(slip(vue, 15)).length, 0);
+    assert.equal(points(bon(vue, 15)).length, 0);
   });
 });
 

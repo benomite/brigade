@@ -12,8 +12,8 @@ test("the station-only process and the app both raise the icon through app/src/t
   assert.ok(existsSync(join(SRC, "tray")), "app/src/tray/ exists");
   const deTray = (texte: string) => /from\s+["'](\.\.?\/)+tray\/[^"']+["']|import\(\s*["'](\.\.?\/)+tray\/[^"']+["']\s*\)/.test(texte);
   assert.ok(deTray(lire("main.ts")), "main.ts uses src/tray/");
-  const entree = lire("tray-background/entree.ts");
-  const background = existsSync(join(SRC, "tray-background", "processus.ts")) ? lire("tray-background/processus.ts") : "";
-  assert.ok(deTray(entree) || deTray(background), "the station-only icon process uses src/tray/");
-  assert.doesNotMatch(background, /new\s+Tray\s*\(/, "the station-only process does not create a second tray of its own");
+  const entree = lire("tray-fond/entree.ts");
+  const fond = existsSync(join(SRC, "tray-fond", "processus.ts")) ? lire("tray-fond/processus.ts") : "";
+  assert.ok(deTray(entree) || deTray(fond), "the station-only icon process uses src/tray/");
+  assert.doesNotMatch(fond, /new\s+Tray\s*\(/, "the station-only process does not create a second tray of its own");
 });

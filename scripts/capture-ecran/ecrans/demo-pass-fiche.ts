@@ -1,8 +1,8 @@
 // Scène 5 de la démo (ticket 2875), côté app : la fiche de #21, servi, ouverte par sa carte dans la colonne Served de
 // « parade » — son histoire, de l'arrivée sur le rail au merge de la pass, et son coût.
-import { actionsDeCard } from "../../../app/src/card-actions.ts";
+import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
 import { situationDe } from "../../../app/src/histoire.ts";
-import { discussionDe, type HistoireBrute, histoireDe } from "../../../app/test/aides/cards-dites.ts";
+import { discussionDe, type HistoireBrute, histoireDe } from "../../../app/test/aides/fiches-dites.ts";
 import { carteDe, type Ecran } from "./commun.ts";
 import { donneesDe, OUVRIR_PARADE, SERVI } from "./demo-commun.ts";
 
@@ -36,6 +36,6 @@ export const ecran: Ecran = {
   etapes: [OUVRIR_PARADE, { cliquer: "#rail .colonne[data-defile] li.bon:first-child" }],
   donnees: () => {
     const carte = carteDe(SERVI, "parade", 21);
-    return donneesDe(SERVI, { situation: situationDe(carte), gestesDeFiche: actionsDeCard(carte), lireHistoire: histoireDe(HISTOIRE), lireDiscussion: discussionDe(ISSUE) });
+    return donneesDe(SERVI, { situation: situationDe(carte), gestesDeFiche: gestesDeCarte(carte), lireHistoire: histoireDe(HISTOIRE), lireDiscussion: discussionDe(ISSUE) });
   },
 };

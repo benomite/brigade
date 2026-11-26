@@ -1,7 +1,7 @@
 // #4382 criterion 1: the chef comments on the tracked object 10 minutes after the red starts: the post-mortem's chef-report date is the comment's own date.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { vueDesPostMortems } from "../../../app/src/projects/post-mortems.ts";
+import { vueDesPostMortems } from "../../../app/src/projets/post-mortems.ts";
 import { lirePostMortems } from "../../src/post-mortems/post-mortems.ts";
 import { A, CHEF, cuisine, rangees } from "./cuisine.ts";
 

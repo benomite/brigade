@@ -1,7 +1,7 @@
 // Les réglages de « parade », une branche d'intégration refusée par le runtime (#1309) : un chemin de la machine ne
 // s'écrit pas dans le dépôt. Écrite et validée, la branche est proposée aussitôt (#2920) ; le refus se dit sous la
 // rangée, et le champ revient à la valeur en vigueur — inchangée.
-import { phraseDuRuntime } from "../../../app/src/settings-du-project.ts";
+import { phraseDuRuntime } from "../../../app/src/reglages-du-projet.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { BRANCHE, LUS, OUVRIR } from "./reglages-du-projet.ts";

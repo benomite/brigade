@@ -20,55 +20,55 @@ export type Canal = {
 
 // Ce que la vue signale : le chef a répondu à la proposition `id`, d'un clic sur un choix, d'un geste confirmé et
 // lancé (#1521, sans valeur), ou en tapant dans le terminal du second.
-export type AnswerDuChef = { id: string; by: "click"; value: string } | { id: string; by: "click" } | { id: string; by: "text" };
+export type ReponseDuChef = { id: string; by: "click"; value: string } | { id: string; by: "click" } | { id: string; by: "text" };
 
 export type Propositions = {
   // Les projets du fichier, tels qu'ils sont maintenant : chacun qui s'ouvre est suivi, les autres ne le sont plus.
-  suivre(projects: readonly { nom: string; dossier: string; refus?: string }[]): void;
+  suivre(projets: readonly { nom: string; dossier: string; refus?: string }[]): void;
   // La proposition en cours de chaque projet qui en a une.
   vu(): Record<string, Proposition>;
-  repondre(project: string, answer: AnswerDuChef): Repondue;
+  repondre(projet: string, reponse: ReponseDuChef): Repondue;
   arreter(): void;
 };
 
-export function holdLesPropositions({ canal, surProposition }: { canal: Canal; surProposition: (project: string, proposition: Proposition | null) => void }): Propositions {
+export function tenirLesPropositions({ canal, surProposition }: { canal: Canal; surProposition: (projet: string, proposition: Proposition | null) => void }): Propositions {
   const suivis = new Map<string, { dossier: string; chemin: string; suivi: Suivi }>();
-  const oublier = (name: string) => {
-    const tenu = suivis.get(name);
+  const oublier = (nom: string) => {
+    const tenu = suivis.get(nom);
     if (tenu === undefined) return;
-    suivis.delete(name);
+    suivis.delete(nom);
     tenu.suivi.arreter();
-    if (tenu.suivi.actuelle() !== null) surProposition(name, null);
+    if (tenu.suivi.actuelle() !== null) surProposition(nom, null);
   };
   return {
-    suivre(projects) {
-      const ouverts = new Map(projects.filter(({ refus: refusal }) => refusal === undefined).map(({ nom: name, dossier }) => [name, dossier]));
-      for (const [name, { dossier }] of suivis) if (ouverts.get(name) !== dossier) oublier(name);
-      for (const [name, dossier] of ouverts) {
-        if (suivis.has(name)) continue;
+    suivre(projets) {
+      const ouverts = new Map(projets.filter(({ refus }) => refus === undefined).map(({ nom, dossier }) => [nom, dossier]));
+      for (const [nom, { dossier }] of suivis) if (ouverts.get(nom) !== dossier) oublier(nom);
+      for (const [nom, dossier] of ouverts) {
+        if (suivis.has(nom)) continue;
         const chemin = canal.fichierDeProposition(dossier);
         // Le suivi rend la proposition en cours dès qu'il commence : la vue ne reçoit que ce qui en change.
-        let first = true;
+        let premiere = true;
         const suivi = canal.suivreLaProposition(chemin, (proposition) => {
-          if (first && proposition === null) return;
-          surProposition(name, proposition);
+          if (premiere && proposition === null) return;
+          surProposition(nom, proposition);
         });
-        first = false;
-        suivis.set(name, { dossier, chemin, suivi });
+        premiere = false;
+        suivis.set(nom, { dossier, chemin, suivi });
       }
     },
     vu() {
       const tenues: Record<string, Proposition> = {};
-      for (const [name, { suivi }] of suivis) {
+      for (const [nom, { suivi }] of suivis) {
         const proposition = suivi.actuelle();
-        if (proposition !== null) tenues[name] = proposition;
+        if (proposition !== null) tenues[nom] = proposition;
       }
       return tenues;
     },
-    repondre(project, answer) {
-      const tenu = suivis.get(project);
+    repondre(projet, reponse) {
+      const tenu = suivis.get(projet);
       if (tenu === undefined) return { state: "refused", reason: "nothing to answer: this project's second is not followed", current: null };
-      return canal.repondre(tenu.chemin, answer);
+      return canal.repondre(tenu.chemin, reponse);
     },
     arreter() {
       for (const { suivi } of suivis.values()) suivi.arreter();

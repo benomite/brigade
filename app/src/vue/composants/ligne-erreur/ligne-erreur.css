@@ -1,0 +1,43 @@
+/* La ligne d'erreur (ticket 2919, posée par ligne-erreur.js) : une ligne, dite en mots, à l'encre rouge claire ; son détail
+   est dans le survol qui la suit. Aucune autre règle de la vue ne dessine une erreur ; un écran ne pose que sa place. Ce qui
+   la fait dire pareil partout (encre, corps, mise en ligne) est `!important` : la règle d'un écran, plus précise, ne la change pas. */
+[data-ligne="erreur"] {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  gap: var(--pas-2);
+  min-width: 0;
+  margin: 0;
+  font-family: var(--police-interface) !important;
+  font-size: var(--taille-corps) !important;
+  color: var(--rouge-clair) !important;
+}
+[data-ligne="erreur"]:empty {
+  display: none;
+}
+[data-ligne="erreur"] > span:first-child {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-ligne="erreur"]:not(:empty)::before {
+  content: "!";
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  font-size: var(--taille-meta);
+  font-weight: 700;
+  color: var(--rouge);
+  border: 1.5px solid var(--rouge);
+  border-radius: var(--rayon-pastille);
+}
+/* Sur le papier clair d'un bon, l'encre rouge claire ne se lit pas : la ligne y prend le rouge plein, sans le trait de coupe
+   ni le retrait des paragraphes du bon. */
+.bon [data-ligne="erreur"] {
+  padding-top: 0;
+  color: var(--rouge) !important;
+  border-top: 0;
+}

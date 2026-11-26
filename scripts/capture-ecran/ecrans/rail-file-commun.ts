@@ -2,7 +2,7 @@
 // l'ordre où le runtime les sert — #21 et #23 en `prio:1`, #22 et #24 en `prio:2` —, chaque carte avec sa priorité. #21,
 // en tête, ne part pas : #14 tient sa zone, et `facts` le dit (`rail[].raison`, #1346). Ce que la box rend, mot pour
 // mot. Ce fichier n'est pas un écran.
-import type { Facts } from "../../../app/src/facts.ts";
+import type { Faits } from "../../../app/src/faits.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -22,7 +22,7 @@ export const FACTS = {
     EN_FILE(24, "Les prix en euros"),
     ...APRES,
   ],
-} as Facts;
+} as Faits;
 
 export const STATUS = [
   "project    parade",

@@ -14,7 +14,7 @@ import { boxDe } from "./monde.ts";
 
 const APP = join(import.meta.dirname, "..", "..");
 const BOX = boxDe("parade");
-const REPOSITORY = "chef/parade";
+const DEPOT = "chef/parade";
 const rendu = (sortie: string, code: number | null = null, erreurs = ""): Rendu => ({
   lance: "$ node geste.ts parade recap chef/parade",
   erreur: code === null ? null : (Object.assign(new Error(`exit ${code}`), { code }) as ExecFileException),
@@ -23,51 +23,51 @@ const rendu = (sortie: string, code: number | null = null, erreurs = ""): Rendu 
 });
 function lanceur(rendre: Rendu) {
   const lancees: string[] = [];
-  return { lancees, lancer: async (_: Lu, command: string) => (lancees.push(command), rendre) };
+  return { lancees, lancer: async (_: Lu, commande: string) => (lancees.push(commande), rendre) };
 }
 const RECAP = {
-  repository: REPOSITORY,
+  repository: DEPOT,
   since: "2026-11-10T00:00:00.000Z",
   until: "2026-11-10T10:00:00.000Z",
-  served: [{ ticket: 12, title: "Ticket 12", url: `https://github.com/${REPOSITORY}/issues/12`, pr: 41, prUrl: `https://github.com/${REPOSITORY}/pull/41`, servedAt: "2026-11-10T09:00:00Z" }],
-  sentBack: [{ ticket: 20, url: `https://github.com/${REPOSITORY}/issues/20`, kind: "sent-back", reason: "the CI is red", at: "2026-11-10T03:00:00Z" }],
+  served: [{ ticket: 12, title: "Ticket 12", url: `https://github.com/${DEPOT}/issues/12`, pr: 41, prUrl: `https://github.com/${DEPOT}/pull/41`, servedAt: "2026-11-10T09:00:00Z" }],
+  sentBack: [{ ticket: 20, url: `https://github.com/${DEPOT}/issues/20`, kind: "sent-back", reason: "the CI is red", at: "2026-11-10T03:00:00Z" }],
   stops: [{ at: "2026-11-10T04:00:00.000Z", ticket: null, guardrail: "breaker", line: "The kitchen was stopped by the breaker, after 3 failures in a row." }],
 };
 
 describe("the recap, by the `recap` command", () => {
   test("the read names the project's repository, and gives the recap", async () => {
     const { lancees, lancer } = lanceur(rendu(`${JSON.stringify(RECAP)}\n`));
-    assert.deepEqual(await lireLeRecap("parade", BOX, REPOSITORY, lancer), { recap: RECAP });
+    assert.deepEqual(await lireLeRecap("parade", BOX, DEPOT, lancer), { recap: RECAP });
     assert.deepEqual(lancees, ["recap chef/parade"]);
   });
 
   test("what does not read is said, its detail on hover — never an empty recap", async () => {
-    assert.deepEqual(await lireLeRecap("parade", undefined, REPOSITORY, lanceur(rendu("")).lancer), { sans: "recap unavailable: parade has no station — it is read where its kitchen runs" });
-    const sansRepository = lanceur(rendu(""));
-    assert.deepEqual(await lireLeRecap("parade", BOX, "parade", sansRepository.lancer), { sans: "recap unavailable: the GitHub repository of parade is not known" });
-    assert.deepEqual(sansRepository.lancees, []);
-    const vieux = await lireLeRecap("parade", BOX, REPOSITORY, lanceur(rendu("", 66, "brigade: “recap” is not a runtime command")).lancer);
+    assert.deepEqual(await lireLeRecap("parade", undefined, DEPOT, lanceur(rendu("")).lancer), { sans: "recap unavailable: parade has no station — it is read where its kitchen runs" });
+    const sansDepot = lanceur(rendu(""));
+    assert.deepEqual(await lireLeRecap("parade", BOX, "parade", sansDepot.lancer), { sans: "recap unavailable: the GitHub repository of parade is not known" });
+    assert.deepEqual(sansDepot.lancees, []);
+    const vieux = await lireLeRecap("parade", BOX, DEPOT, lanceur(rendu("", 66, "brigade: “recap” is not a runtime command")).lancer);
     assert.ok("sans" in vieux);
     assert.equal(vieux.sans, "recap unavailable: this station's runtime does not give it yet — update it");
-    const refuse = await lireLeRecap("parade", BOX, REPOSITORY, lanceur(rendu("", 1, "brigade: the recap is not read — gh api repos/chef/parade/pulls : HTTP 502")).lancer);
+    const refuse = await lireLeRecap("parade", BOX, DEPOT, lanceur(rendu("", 1, "brigade: the recap is not read — gh api repos/chef/parade/pulls : HTTP 502")).lancer);
     assert.ok("sans" in refuse);
     assert.equal(refuse.sans, "recap unavailable");
     assert.match(refuse.detail ?? "", /HTTP 502/);
     for (const brut of ["not json", JSON.stringify({ ...RECAP, served: [{ ...RECAP.served[0], prUrl: "javascript:alert(1)" }] }), JSON.stringify({ ...RECAP, stops: undefined })]) {
-      assert.ok("sans" in (await lireLeRecap("parade", BOX, REPOSITORY, lanceur(rendu(brut)).lancer)), brut);
+      assert.ok("sans" in (await lireLeRecap("parade", BOX, DEPOT, lanceur(rendu(brut)).lancer)), brut);
     }
   });
 
   test("marked seen up to `until`: the runtime's marker after it, or the line of its refusal", async () => {
     const vu = lanceur(rendu('{"ok":true,"seenUntil":"2026-11-10T10:00:00.000Z"}'));
-    assert.deepEqual(await marquerLeRecap("parade", BOX, REPOSITORY, RECAP.until, vu.lancer), { seenUntil: "2026-11-10T10:00:00.000Z" });
+    assert.deepEqual(await marquerLeRecap("parade", BOX, DEPOT, RECAP.until, vu.lancer), { seenUntil: "2026-11-10T10:00:00.000Z" });
     assert.deepEqual(vu.lancees, ["recap chef/parade seen 2026-11-10T10:00:00.000Z"]);
-    const refusal = await marquerLeRecap("parade", BOX, REPOSITORY, RECAP.until, lanceur(rendu('{"ok":false,"message":"the recap is not marked seen — recap.json is not JSON"}', 1)).lancer);
-    assert.ok("refus" in refusal);
-    assert.equal(refusal.refus, "the recap is not marked seen — recap.json is not JSON");
-    assert.ok("refus" in (await marquerLeRecap("parade", BOX, REPOSITORY, RECAP.until, lanceur(rendu("garbage")).lancer)));
+    const refus = await marquerLeRecap("parade", BOX, DEPOT, RECAP.until, lanceur(rendu('{"ok":false,"message":"the recap is not marked seen — recap.json is not JSON"}', 1)).lancer);
+    assert.ok("refus" in refus);
+    assert.equal(refus.refus, "the recap is not marked seen — recap.json is not JSON");
+    assert.ok("refus" in (await marquerLeRecap("parade", BOX, DEPOT, RECAP.until, lanceur(rendu("garbage")).lancer)));
     const pasUnInstant = lanceur(rendu(""));
-    assert.deepEqual(await marquerLeRecap("parade", BOX, REPOSITORY, "now; rm -rf /", pasUnInstant.lancer), { refus: "nothing was marked: this is not an instant" });
+    assert.deepEqual(await marquerLeRecap("parade", BOX, DEPOT, "now; rm -rf /", pasUnInstant.lancer), { refus: "nothing was marked: this is not an instant" });
     assert.deepEqual(pasUnInstant.lancees, []);
   });
 });
@@ -80,14 +80,14 @@ function pontDe(canaux: Record<string, (...args: unknown[]) => unknown>): Pont {
     ipcRenderer: { invoke: (canal: string, ...args: unknown[]) => canaux[canal]!(...args), on: () => {} },
   };
   const source = readFileSync(join(APP, "src", "preload.cjs"), "utf8");
-  (runInThisContext(`(function (require) {${source}\n})`) as (require: (name: string) => unknown) => void)(() => electron);
+  (runInThisContext(`(function (require) {${source}\n})`) as (require: (nom: string) => unknown) => void)(() => electron);
   return expose!;
 }
 
 describe("the recap's wiring", () => {
   test("the preload carries the read, the mark and the pull request's opening, and the main process handles each", async () => {
     const recus: unknown[][] = [];
-    const canal = (name: string, rendu: unknown) => (...args: unknown[]) => (recus.push([name, ...args]), rendu);
+    const canal = (nom: string, rendu: unknown) => (...args: unknown[]) => (recus.push([nom, ...args]), rendu);
     const pont = pontDe({ lireLeRecap: canal("lireLeRecap", { recap: RECAP }), marquerLeRecap: canal("marquerLeRecap", { seenUntil: RECAP.until }), ouvrirLaPRDuRecap: canal("ouvrirLaPRDuRecap", true) });
     assert.deepEqual(await pont.lireLeRecap?.("parade"), { recap: RECAP });
     assert.deepEqual(await pont.marquerLeRecap?.("parade", RECAP.until), { seenUntil: RECAP.until });

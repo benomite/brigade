@@ -4,21 +4,21 @@
 // quand la file ne la nomme plus. Ni réseau, ni GitHub : les lectures sont écrites par chaque test.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { mettreAPart } from "../src/awaiting.ts";
-import { rail, holdFacts, type Facts } from "../src/facts.ts";
+import { mettreAPart } from "../src/attend.ts";
+import { rail, tenirFaits, type Faits } from "../src/faits.ts";
 import type { Lue, Question } from "../src/question.ts";
-import { PAR_TOI, RELIRE_MS, holdRepondues } from "../src/repondues.ts";
+import { PAR_TOI, RELIRE_MS, tenirRepondues } from "../src/repondues.ts";
 
 const ISSUE = "https://github.com/benomite/brigade/issues/30";
 const QUESTION = `${ISSUE}#issuecomment-2`;
 const A = "2026-10-15T10:00:00.000Z";
 const question = (champs: Partial<Question> = {}): Lue => ({ a: A, question: { url: QUESTION, auteur: "brigade-manager", a: "2026-10-15T08:00:00Z", texte: "(a) oui (b) non ?", resume: "(a) oui (b) non ?", choix: [], depuis: [], ...champs } });
-const answer = { auteur: "benomite", a: "2026-10-15T09:00:00Z", url: `${ISSUE}#issuecomment-3`, corps: "b" };
-const repondue = (champs: Partial<Question> = {}) => question({ depuis: [answer], repondue: answer, ...champs });
+const reponse = { auteur: "benomite", a: "2026-10-15T09:00:00Z", url: `${ISSUE}#issuecomment-3`, corps: "b" };
+const repondue = (champs: Partial<Question> = {}) => question({ depuis: [reponse], repondue: reponse, ...champs });
 
 describe("ce qui est su des questions répondues", () => {
   test("lue répondue sur l'issue : retenue, avec qui y a répondu et quand ; lue sans réponse, une autre question ou plus de question : lâchée", () => {
-    const tenues = holdRepondues(() => 0);
+    const tenues = tenirRepondues(() => 0);
     assert.equal(tenues.lue("parade", 30, repondue()), true);
     assert.deepEqual(tenues.de("parade"), new Map([[30, { question: QUESTION, par: "benomite", a: "2026-10-15T09:00:00Z" }]]));
     // La même lecture ne change rien au rail.
@@ -35,14 +35,14 @@ describe("ce qui est su des questions répondues", () => {
   });
 
   test("une issue qui n'a pas pu être lue ne change rien : ce n'est ni répondu, ni pas répondu", () => {
-    const tenues = holdRepondues(() => 0);
+    const tenues = tenirRepondues(() => 0);
     tenues.lue("parade", 30, repondue());
     assert.equal(tenues.lue("parade", 30, { a: A, sans: "$ gh issue view … → exit code 4" }), false);
     assert.equal(tenues.de("parade").size, 1);
   });
 
   test("postée depuis la fiche : retenue aussitôt, à ton nom — et une relecture qui ne la montre pas encore ne la lâche pas, sauf sur une autre question", () => {
-    const tenues = holdRepondues(() => Date.parse("2026-10-15T10:05:00Z"));
+    const tenues = tenirRepondues(() => Date.parse("2026-10-15T10:05:00Z"));
     assert.equal(tenues.postee("parade", 30, QUESTION), true);
     assert.deepEqual(tenues.de("parade").get(30), { question: QUESTION, par: PAR_TOI, a: "2026-10-15T10:05:00.000Z" });
     // GitHub ne montre pas encore le commentaire : elle reste.
@@ -60,7 +60,7 @@ describe("ce qui est su des questions répondues", () => {
 
   test("ce que la file ne nomme plus est lâché ; ce qu'elle nomme est relu au plus toutes les deux minutes ; sans file lue, rien n'est lâché", () => {
     let maintenant = 0;
-    const tenues = holdRepondues(() => maintenant);
+    const tenues = tenirRepondues(() => maintenant);
     tenues.lue("parade", 30, repondue());
     tenues.lue("parade", 31, repondue());
     assert.deepEqual(tenues.garder("parade", new Set([30, 31])), []);
@@ -78,7 +78,7 @@ describe("ce qui est su des questions répondues", () => {
 
 // Le rail d'un projet dont l'épique #30 attend une réponse à la question du manager, le #12 une
 // livraison à merger, et le #50 est retenu par `blocked-on-human` après une question.
-const FACTS: Facts = {
+const FAITS: Faits = {
   etat: "ouverte",
   lu: "2026-10-15T10:04:11.000Z",
   dernierTick: "2026-10-15T10:04:02.000Z",
@@ -103,52 +103,52 @@ const BLOC = {
   ].join("\n"),
   a: "2026-10-15T10:04:20.000Z",
 };
-const colonne = (dessine: ReturnType<typeof rail>, name: string) => dessine.colonnes.find((candidate) => candidate.nom === name) ?? assert.fail(`pas de colonne ${name}`);
+const colonne = (dessine: ReturnType<typeof rail>, nom: string) => dessine.colonnes.find((candidate) => candidate.nom === nom) ?? assert.fail(`pas de colonne ${nom}`);
 const REPONDUES = new Map([[30, { question: QUESTION, par: "you", a: "2026-10-15T10:05:00.000Z" }]]);
 
 describe("le rail d'une question répondue", () => {
   test("sans réponse, la question du manager est dans TODO, et sa carte dit qu'elle porte une question — comme celle que la question retient ; pas la livraison", () => {
-    const todo = colonne(rail(FACTS, BLOC), "Awaiting you");
-    assert.deepEqual(todo.cartes.map(({ ticket, question: carries }) => [ticket, carries]), [[30, true], [12, undefined], [50, true]]);
+    const todo = colonne(rail(FAITS, BLOC), "Awaiting you");
+    assert.deepEqual(todo.cartes.map(({ ticket, question: porte }) => [ticket, porte]), [[30, true], [12, undefined], [50, true]]);
   });
 
   // Ticket 4260 : la ligne du bloc d'une issue que le manager parque pour le chef avec sa question nomme `chef-todo` ; sa carte
   // dit la question, comme celle d'une épique avant son découpage. Une autre ligne, non.
   test("une issue que le manager a parquée pour le chef (`chef-todo`, sa ligne du bloc) : sa carte dit qu'elle porte une question", () => {
-    const todo = colonne(rail(FACTS, BLOC), "Awaiting you");
+    const todo = colonne(rail(FAITS, BLOC), "Awaiting you");
     assert.equal(todo.cartes.find(({ ticket }) => ticket === 50)?.question, true);
     assert.equal(todo.cartes.find(({ ticket }) => ticket === 12)?.question, undefined);
   });
 
   test("répondue, elle quitte TODO pour WAITING — elle attend le manager — et y dit qui a répondu, quand, et ce qui viendra", () => {
-    const dessine = rail(FACTS, BLOC, undefined, REPONDUES);
+    const dessine = rail(FAITS, BLOC, undefined, REPONDUES);
     const todo = colonne(dessine, "Awaiting you");
     const waiting = colonne(dessine, "Waiting");
     assert.deepEqual([todo.compte, todo.cartes.map(({ ticket }) => ticket)], ["2", [12, 50]]);
     assert.deepEqual([waiting.compte, waiting.cartes.map(({ ticket }) => ticket)], ["1", [30]]);
-    const card = waiting.cartes[0];
-    assert.equal(card?.ligne, "answered by you · the manager's turn");
-    assert.equal(card?.attendu, false);
-    assert.deepEqual(card?.attend, []);
-    assert.deepEqual(card?.repondue, { par: "you", a: "2026-10-15T10:05:00.000Z" });
-    assert.deepEqual(card?.dit.map(({ libelle }) => libelle), ["answered by", "answered at", "next"]);
-    assert.equal(card?.gestes, undefined);
-    assert.equal(card?.ouvrable, true);
+    const carte = waiting.cartes[0];
+    assert.equal(carte?.ligne, "answered by you · the manager's turn");
+    assert.equal(carte?.attendu, false);
+    assert.deepEqual(carte?.attend, []);
+    assert.deepEqual(carte?.repondue, { par: "you", a: "2026-10-15T10:05:00.000Z" });
+    assert.deepEqual(carte?.dit.map(({ libelle }) => libelle), ["answered by", "answered at", "next"]);
+    assert.equal(carte?.gestes, undefined);
+    assert.equal(carte?.ouvrable, true);
   });
 
   test("répondre ne lève pas une retenue, ni ne merge une livraison : ces cartes restent dans TODO, même dites répondues", () => {
     const toutes = new Map([...REPONDUES, [12, REPONDUES.get(30)!], [50, REPONDUES.get(30)!]]);
-    assert.deepEqual(colonne(rail(FACTS, BLOC, undefined, toutes), "Awaiting you").cartes.map(({ ticket }) => ticket), [12, 50]);
+    assert.deepEqual(colonne(rail(FAITS, BLOC, undefined, toutes), "Awaiting you").cartes.map(({ ticket }) => ticket), [12, 50]);
   });
 
   test("une seule carte par ticket : répondue, elle n'est rangée nulle part ailleurs que dans WAITING, même si le rail la porte", () => {
-    const surLeRail = { ...FACTS, rail: [...FACTS.rail, { ticket: 30, etat: "en attente", titre: "L'épique", url: ISSUE, activite: null }] };
+    const surLeRail = { ...FAITS, rail: [...FAITS.rail, { ticket: 30, etat: "en attente", titre: "L'épique", url: ISSUE, activite: null }] };
     const dessine = rail(surLeRail, BLOC, undefined, REPONDUES);
-    assert.equal([...dessine.colonnes.flatMap(({ cartes: cards }) => cards), ...dessine.hors].filter(({ ticket }) => ticket === 30).length, 1);
+    assert.equal([...dessine.colonnes.flatMap(({ cartes }) => cartes), ...dessine.hors].filter(({ ticket }) => ticket === 30).length, 1);
   });
 
   test("d'un runtime d'avant `decision`, la question avant découpage se lit sur sa ligne du bloc, dans ses deux langues", () => {
-    const sansDecision = { ...FACTS, attend: FACTS.attend?.map(({ decision: _decision, ...reste }) => reste) };
+    const sansDecision = { ...FAITS, attend: FAITS.attend?.map(({ decision: _decision, ...reste }) => reste) };
     assert.deepEqual(colonne(rail(sansDecision, BLOC, undefined, REPONDUES), "Waiting").cartes.map(({ ticket }) => ticket), [30]);
     const enFrancais = { ...BLOC, bloc: "attend     1 décision\n  #30  depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue\nfin attend\n" };
     assert.deepEqual(colonne(rail(sansDecision, enFrancais, undefined, REPONDUES), "Waiting").cartes.map(({ ticket }) => ticket), [30]);
@@ -156,16 +156,16 @@ describe("le rail d'une question répondue", () => {
 });
 
 describe("le process principal redessine le rail d'une question répondue, sans attendre une lecture", () => {
-  const recevoir = (tenus: ReturnType<typeof holdFacts>) => {
-    tenus.recevoir({ projet: "parade", demande: 3, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FACTS) }] });
+  const recevoir = (tenus: ReturnType<typeof tenirFaits>) => {
+    tenus.recevoir({ projet: "parade", demande: 3, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
     return tenus.attendre(mettreAPart({ projet: "parade", demande: 3, a: A, sorties: [{ commande: "status", texte: BLOC.bloc }] }));
   };
-  const enWaiting = (recue: ReturnType<ReturnType<typeof holdFacts>["redessiner"]>) =>
+  const enWaiting = (recue: ReturnType<ReturnType<typeof tenirFaits>["redessiner"]>) =>
     recue !== undefined && "tableau" in recue ? colonne(recue.tableau.rail, "Waiting").cartes.map(({ ticket }) => ticket) : assert.fail("rien de dessiné");
 
   test("posée, la réponse range la carte dans WAITING au redessin ; lâchée, elle revient dans TODO", () => {
-    const repondues = holdRepondues(() => 0);
-    const tenus = holdFacts((project) => repondues.de(project));
+    const repondues = tenirRepondues(() => 0);
+    const tenus = tenirFaits((projet) => repondues.de(projet));
     assert.equal(tenus.redessiner("parade"), undefined);
     recevoir(tenus);
     assert.deepEqual(enWaiting(tenus.redessiner("parade")), []);
@@ -179,7 +179,7 @@ describe("le process principal redessine le rail d'une question répondue, sans 
   });
 
   test("les tickets que la file nomme : ceux du bloc et ceux de `faits` — rien de connu tant que ni l'un ni l'autre n'est lu", () => {
-    const tenus = holdFacts();
+    const tenus = tenirFaits();
     assert.equal(tenus.nommes("parade"), undefined);
     recevoir(tenus);
     assert.deepEqual(tenus.nommes("parade"), new Set([30, 12, 50]));

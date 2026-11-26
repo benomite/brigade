@@ -2,16 +2,16 @@
 // commentaires de deux projets, une mémoire qui survit au « redémarrage », et un faux système de notifications.
 import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
-import { cardRepondue, identifiantDe, sonder, type Memoire, type Notifiees, type Notification, type Notifieur } from "../src/notifications-todo.ts";
-import type { CallGitHub, AnswerGitHub } from "../src/tableau/client.ts";
+import { carteRepondue, identifiantDe, sonder, type Memoire, type Notifiees, type Notification, type Notifieur } from "../src/notifications-todo.ts";
+import type { AppelGitHub, ReponseGitHub } from "../src/tableau/client.ts";
 
 type Issue = { labels: string[]; commentaires: string[] };
-const PROJECTS = [
+const PROJETS = [
   { nom: "parade", depot: "chef/parade" },
   { nom: "atelier", depot: "chef/atelier" },
 ];
-const card = (question: string) => `<!-- brigade:todo kind=product-question -->\n${question}\n- [resume] Yes\n- [drop] No`;
-const toDo = (question: string): Issue => ({ labels: ["chef-todo"], commentaires: ["chatter", card(question)] });
+const carte = (question: string) => `<!-- brigade:todo kind=product-question -->\n${question}\n- [resume] Yes\n- [drop] No`;
+const toDo = (question: string): Issue => ({ labels: ["chef-todo"], commentaires: ["chatter", carte(question)] });
 
 let monde: Record<string, Record<number, Issue>>;
 let injoignable: Set<string>;
@@ -21,14 +21,14 @@ let retirees: number[];
 let enregistre: Notifiees;
 
 // Un faux GitHub : les issues ouvertes au label demandé, leurs commentaires, leurs événements.
-const github: CallGitHub = async (chemin) => {
-  const ok = (data: unknown): AnswerGitHub => ({ status: 200, data });
-  const repository = /\/repos\/([^/]+\/[^/]+)\//.exec(chemin)?.[1] ?? "";
-  if (injoignable.has(repository)) return { status: 502, data: {} };
-  const issues = monde[repository] ?? {};
+const github: AppelGitHub = async (chemin) => {
+  const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
+  const depot = /\/repos\/([^/]+\/[^/]+)\//.exec(chemin)?.[1] ?? "";
+  if (injoignable.has(depot)) return { status: 502, data: {} };
+  const issues = monde[depot] ?? {};
   const label = /\/issues\?.*\blabels=([^&]+)/.exec(chemin)?.[1];
   if (label !== undefined) {
-    return ok(Object.entries(issues).filter(([, i]) => i.labels.includes(label)).map(([n, i]) => ({ number: Number(n), title: `Ticket ${n}`, html_url: `https://github.com/${repository}/issues/${n}`, created_at: "2026-11-01T00:00:00Z", labels: i.labels.map((name) => ({ name })) })));
+    return ok(Object.entries(issues).filter(([, i]) => i.labels.includes(label)).map(([n, i]) => ({ number: Number(n), title: `Ticket ${n}`, html_url: `https://github.com/${depot}/issues/${n}`, created_at: "2026-11-01T00:00:00Z", labels: i.labels.map((name) => ({ name })) })));
   }
   const [, numero, quoi] = /\/issues\/(\d+)\/(comments|events)/.exec(chemin) ?? [];
   if (numero !== undefined && quoi === "comments") return ok((issues[Number(numero)]?.commentaires ?? []).map((body, i) => ({ body, created_at: `2026-11-05T0${i}:00:00Z`, author_association: "OWNER" })));
@@ -40,7 +40,7 @@ const notifier: Notifieur = {
   montrer: (n) => void (montrees.push(n), notifications.set(n.id, n)),
   retirer: (id) => void (retirees.push(id), notifications.delete(id)),
 };
-const sonde = () => sonder({ appeler: github, memoire, notifier, projets: async () => PROJECTS });
+const sonde = () => sonder({ appeler: github, memoire, notifier, projets: async () => PROJETS });
 
 beforeEach(() => {
   monde = { "chef/parade": { 1: { labels: ["fire"], commentaires: [] } }, "chef/atelier": {} };
@@ -104,9 +104,9 @@ describe("la notification d'une carte de TODO", () => {
     monde["chef/parade"]![40] = toDo("Keep the old export?");
     monde["chef/parade"]![41] = toDo("Another one?");
     await sonde();
-    assert.equal(await cardRepondue({ memoire, notifier }, "parade", 40), 1);
+    assert.equal(await carteRepondue({ memoire, notifier }, "parade", 40), 1);
     assert.deepEqual([...notifications.values()].map((n) => n.ticket), [41]);
-    assert.equal(await cardRepondue({ memoire, notifier }, "parade", 40), 0);
+    assert.equal(await carteRepondue({ memoire, notifier }, "parade", 40), 0);
   });
 
   test("la réponse donnée sur GitHub retire la notification au sondage suivant", async () => {

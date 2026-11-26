@@ -12,7 +12,7 @@ export const PR_DU_TICKET = (ticket) => `PR of #${ticket}`;
  * `pr`, toute PR que le texte nomme est celle du ticket : un texte qui ne parle que de sa livraison (la raison d'un renvoi).
  * @param {string} texte @param {number} ticket @param {number} [pr]
  */
-export function tellLaPrParSonTicket(texte, ticket, pr) {
+export function direLaPrParSonTicket(texte, ticket, pr) {
   const numero = pr === undefined ? "\\d+" : String(pr);
   const nommee = new RegExp(`(\\b[Tt]he\\s+)?\\b(?:PR|[Pp]ull request) #${numero}(?!\\d)`, "g");
   return texte.replace(nommee, (/** @type {string} */ _tout, /** @type {string | undefined} */ _the, /** @type {number} */ rang) => {

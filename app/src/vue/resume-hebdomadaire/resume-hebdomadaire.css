@@ -1,0 +1,114 @@
+/* La page des résumés hebdomadaires (ticket 3263) : en tête ce qu'elle montre, puis une carte par projet — le jour du
+   résumé en rangée de réglage, les semaines lues en boutons, le résumé choisi : ses thèmes en intertitres, chaque ligne
+   suivie du numéro de son ticket, l'autonomie, ce qui attend le chef, et la publication. Seules des variables de
+   jetons.css portent une taille, un espacement ou une couleur. */
+.resumes-hebdomadaires {
+  display: grid;
+  gap: var(--pas-4);
+  max-width: 960px;
+}
+.resumes-hebdomadaires h2 {
+  margin: 0;
+  font-size: var(--taille-titre);
+}
+.resumes-hebdomadaires .attendu {
+  margin: 0;
+  color: var(--texte-doux);
+}
+.resumes-hebdomadaires .resume-du-projet {
+  display: grid;
+  gap: var(--pas-3);
+  padding: var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.resumes-hebdomadaires .resume-du-projet > h3 {
+  margin: 0;
+  font-size: var(--taille-intertitre);
+  font-weight: 600;
+  color: var(--texte);
+}
+.resumes-hebdomadaires .semaines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1);
+}
+.resumes-hebdomadaires .semaines [aria-pressed="true"] {
+  color: var(--texte);
+  border-color: var(--trait);
+  background: var(--case);
+}
+.resumes-hebdomadaires .resume {
+  display: grid;
+  gap: var(--pas-2);
+  padding-top: var(--pas-3);
+  border-top: 1px solid var(--trait-doux);
+}
+.resumes-hebdomadaires .resume .semaine {
+  margin: 0;
+  color: var(--discret);
+}
+.resumes-hebdomadaires h4 {
+  margin: var(--pas-2) 0 0;
+  font-size: var(--taille-corps);
+  font-weight: 600;
+}
+.resumes-hebdomadaires .resume ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.resumes-hebdomadaires .resume li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pas-2);
+  color: var(--texte-doux);
+}
+.resumes-hebdomadaires .resume li::before {
+  content: "–";
+  color: var(--discret);
+}
+.resumes-hebdomadaires .resume .ticket {
+  flex: none;
+  font-family: var(--police-mono);
+  font-size: var(--taille-meta);
+}
+.resumes-hebdomadaires .autonomie .nom {
+  min-width: 180px;
+  color: var(--discret);
+}
+.resumes-hebdomadaires .autonomie .valeur {
+  color: var(--texte);
+}
+.resumes-hebdomadaires .publication {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2);
+  margin-top: var(--pas-2);
+}
+.resumes-hebdomadaires .publication p {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: 0;
+}
+.resumes-hebdomadaires .publication .publiee {
+  color: var(--vert);
+}
+.resumes-hebdomadaires .publication .tag {
+  width: 160px;
+}
+/* La page, à la place de l'accueil comme celle des coûts : le retour à l'accueil, puis le bloc. */
+#resumes {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+}
+#resumes .retour {
+  align-self: flex-start;
+}

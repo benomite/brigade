@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lireDemande } from "../../src/projets/demande.ts";
 
-// Tel que l'app l'écrit (app/src/projects/request.ts).
+// Tel que l'app l'écrit (app/src/projets/demande.ts).
 const SHOP = {
   nom: "shop",
   depot: "acme/shop",

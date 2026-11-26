@@ -2,7 +2,7 @@
 // mise à jour quand elle a raté et que la station est revenue en arrière
 // (mise-a-jour/etat.ts), et la connexion Max de la machine (connexion-max/).
 // L'app les lit sur GitHub et les dit en une ligne, avec un bouton, sur la
-// ligne de la station (app/src/outages/). Rien d'autre ne part : ni le motif
+// ligne de la station (app/src/pannes/). Rien d'autre ne part : ni le motif
 // d'un échec, ni la raison d'une perte, ni le geste qu'un terminal ferait.
 import type { ConnexionMax } from "../connexion-max/connexion.ts";
 import type { EtatMiseAJour } from "../mise-a-jour/etat.ts";

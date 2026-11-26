@@ -2,7 +2,7 @@
 // `brigade <project> status`, la ligne `waits for #N — read from …`, jamais une carte libre ; un ticket que rien ne retient
 // n'en a aucune. La phrase au-dessus de la file compte les attentes de la fiche et des arrêts :
 // une file dont chaque ticket est retenu, par quelque source que ce soit, attend un autre ticket. Le rail de l'app dit la
-// même ligne : app/test/wait-du-rail/jamais-awaiting-none-retenu.test.ts. `npm run rail` (montrer-rail.ts), le rail du
+// même ligne : app/test/attente-du-rail/jamais-awaiting-none-retenu.test.ts. `npm run rail` (montrer-rail.ts), le rail du
 // journal, dit l'attente de la fiche, la seule qu'il applique, avec sa source, et garde `awaiting: nothing` d'un ticket libre.
 import assert from "node:assert/strict";
 import { test } from "node:test";

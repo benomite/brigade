@@ -9,18 +9,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBar } from "../src/bar.ts";
-import { changerOrdinaires, EXEMPLE, lireConfiguration, type Project } from "../src/config.ts";
+import { pourLaBarre } from "../src/barre.ts";
+import { changerOrdinaires, EXEMPLE, lireConfiguration, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
-import { BANNIERE } from "../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../src/actions.ts";
-import { EFFORTS, MODELES } from "../src/projects/projects.ts";
+import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
+import { BANNIERE } from "../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
+import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { blocDesOrdinaires, explanation, sansSandbox, type FactsStation } from "../src/ordinaires.ts";
+import { blocDesOrdinaires, explication, sansBacASable, type StationDesFaits } from "../src/ordinaires.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jouerLaVue, ouvrirRead, repos } from "./aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 function fichier(t: TestContext, contenu: unknown): { racine: string; chemin: string } {
   const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
@@ -32,16 +32,16 @@ function fichier(t: TestContext, contenu: unknown): { racine: string; chemin: st
 const lu = (chemin: string) => JSON.parse(readFileSync(chemin, "utf8")) as { projets: Record<string, unknown>[] };
 
 const MAC = {};
-const station = (sandbox: FactsStation["bacASable"]): FactsStation => ({ station: "mac/claude", distante: true, plafond: 2, ordinaires: true, bacASable: sandbox, prendOrdinaires: sandbox?.disponible === true });
+const station = (bacASable: StationDesFaits["bacASable"]): StationDesFaits => ({ station: "mac/claude", distante: true, plafond: 2, ordinaires: true, bacASable, prendOrdinaires: bacASable?.disponible === true });
 const INDISPONIBLE = { disponible: false, raison: "Seatbelt (/usr/bin/sandbox-exec) is missing", version: null, depuis: "2026-10-16T10:00:00Z" };
-const EXPLANATION = explanation("this computer");
+const EXPLICATION = explication("this computer");
 const DISPONIBLE = { disponible: true, raison: null, version: "2.1.0", depuis: "2026-10-16T10:00:00Z" };
 
 describe("le bloc des tickets ordinaires", () => {
   test("il existe pour un Mac dont la station cuit le projet, avec son réglage et la ligne d'explication", () => {
-    assert.deepEqual(blocDesOrdinaires({ ...MAC }, "darwin", undefined, true), { reglable: true, actif: false, limite: null, explication: EXPLANATION });
-    assert.deepEqual(blocDesOrdinaires({ ...MAC, ordinaires: true, limiteCooks: 3 }, "darwin", [station(DISPONIBLE)], true), { reglable: true, actif: true, limite: 3, explication: EXPLANATION });
-    assert.equal(EXPLANATION, "Cooks on this computer run in Claude Code's sandbox: they write only in their own worktree, and reach only the network hosts on the project's list.");
+    assert.deepEqual(blocDesOrdinaires({ ...MAC }, "darwin", undefined, true), { reglable: true, actif: false, limite: null, explication: EXPLICATION });
+    assert.deepEqual(blocDesOrdinaires({ ...MAC, ordinaires: true, limiteCooks: 3 }, "darwin", [station(DISPONIBLE)], true), { reglable: true, actif: true, limite: 3, explication: EXPLICATION });
+    assert.equal(EXPLICATION, "Cooks on this computer run in Claude Code's sandbox: they write only in their own worktree, and reach only the network hosts on the project's list.");
   });
 
   test("hors d'un Mac, il n'est pas réglable : il dit, au nom de ce poste, qu'il ne prend aucun ticket ordinaire, et pourquoi — option cochée ou non", () => {
@@ -53,8 +53,8 @@ describe("le bloc des tickets ordinaires", () => {
         explication: "This computer takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's sandbox, which the station sets up only on macOS.",
       });
     }
-    assert.equal(blocDesOrdinaires({ ...MAC }, "linux", undefined, true)?.explication, sansSandbox("this computer"));
-    assert.match(sansSandbox("this computer"), /^This computer takes no ordinary ticket/);
+    assert.equal(blocDesOrdinaires({ ...MAC }, "linux", undefined, true)?.explication, sansBacASable("this computer"));
+    assert.match(sansBacASable("this computer"), /^This computer takes no ordinary ticket/);
   });
 
   test("il n'existe pas pour un projet que la station de ce poste ne cuit pas, quelle que soit la plateforme", () => {
@@ -93,7 +93,7 @@ describe("les tickets ordinaires dans le fichier des projets", () => {
     const { racine, chemin } = fichier(t, { projets: [{ nom: "a", dossier: "/" }] });
     const avant = readFileSync(chemin, "utf8");
     assert.match(changerOrdinaires(chemin, "a", "oui", 2, racine) ?? "", /^nothing was written: .*true or false/);
-    for (const limit of [0, -1, 1.5, "2", Number.NaN]) assert.match(changerOrdinaires(chemin, "a", true, limit, racine) ?? "", /^nothing was written: .*whole number/, String(limit));
+    for (const limite of [0, -1, 1.5, "2", Number.NaN]) assert.match(changerOrdinaires(chemin, "a", true, limite, racine) ?? "", /^nothing was written: .*whole number/, String(limite));
     assert.equal(changerOrdinaires(chemin, "z", true, 2, racine), "“z” is not in this file: nothing was changed there");
     assert.equal(readFileSync(chemin, "utf8"), avant);
   });
@@ -107,7 +107,7 @@ describe("les tickets ordinaires dans le fichier des projets", () => {
 
   test("suivi, le fichier dit tout de suite le réglage écrit", (t) => {
     const { racine, chemin } = fichier(t, { projets: [{ nom: "a", dossier: "/" }] });
-    const dits: Project[][] = [];
+    const dits: Projet[][] = [];
     const suivie = suivreConfiguration({ chemin, maison: racine, surChangement: (configuration) => void dits.push(configuration.projets) });
     t.after(() => suivie.fermer());
     assert.equal(suivie.changerOrdinaires("a", true, 2), undefined);
@@ -117,19 +117,19 @@ describe("les tickets ordinaires dans le fichier des projets", () => {
 });
 
 describe("les tickets ordinaires dans la vue", () => {
-  const PARADE: Project = { nom: "parade", dossier: "/tmp/parade" };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
   const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 
-  const jouer = (project: Project, bloc: ReturnType<typeof blocDesOrdinaires>, regler: (...args: unknown[]) => string | undefined = () => undefined, workstation?: { nom: string; mac: boolean }) =>
+  const jouer = (projet: Projet, bloc: ReturnType<typeof blocDesOrdinaires>, regler: (...args: unknown[]) => string | undefined = () => undefined, poste?: { nom: string; mac: boolean }) =>
     jouerLaVue({
       demarrage: () => ({
-        ...(workstation === undefined ? {} : { poste: workstation }),
-        configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [project] }, () => true, () => true),
+        ...(poste === undefined ? {} : { poste }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [projet] }, () => true, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -141,49 +141,49 @@ describe("les tickets ordinaires dans la vue", () => {
   const ouvrir = async (vue: Awaited<ReturnType<typeof jouer>>) => {
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case")).click();
     await repos();
-    await ouvrirRead(vue, "Settings");
+    await ouvrirLecture(vue, "Settings");
   };
   const champs = (bloc: Faux) => bloc.dessous("input");
-  // L'option est l'interrupteur de l'app (composants/switch) ; la limite est le seul champ.
-  const toggle = (bloc: Faux) => bloc.dessous("button").find(({ role }) => role === "switch");
+  // L'option est l'interrupteur de l'app (composants/interrupteur) ; la limite est le seul champ.
+  const interrupteur = (bloc: Faux) => bloc.dessous("button").find(({ role }) => role === "switch");
 
   // Les lignes du bloc : le nom de chaque réglage, sans son étiquette de niveau (« this computer », que la rangée pose à
-  // côté de son nom — composants/setting), et sa valeur.
-  const nameDe = (name: Faux | undefined) => name?.textContent.slice(0, name.textContent.length - (name.children.find(({ className }) => className === "niveau")?.textContent.length ?? 0));
-  const lines = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "reglage").map((line) => [nameDe(line.children[0]), line.children[1]?.children[0]?.textContent]);
-  const refusal = (bloc: Faux) => bloc.dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent);
+  // côté de son nom — composants/reglage), et sa valeur.
+  const nomDe = (nom: Faux | undefined) => nom?.textContent.slice(0, nom.textContent.length - (nom.children.find(({ className }) => className === "niveau")?.textContent.length ?? 0));
+  const lignes = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "reglage").map((ligne) => [nomDe(ligne.children[0]), ligne.children[1]?.children[0]?.textContent]);
+  const refus = (bloc: Faux) => bloc.dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent);
 
   test("dans Settings, sous cette machine : deux lignes — les prendre, et combien de cooks à la fois —, l'explication au survol", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true, limiteCooks: 2 }, "darwin", undefined, true));
     await ouvrir(vue);
     const bloc = vue.element("ordinaires");
     assert.equal(bloc.hidden, false);
-    const [limit] = champs(bloc);
-    const option = toggle(bloc);
+    const [limite] = champs(bloc);
+    const option = interrupteur(bloc);
     assert.equal(option?.ariaChecked, "true");
-    assert.equal(limit?.value, "2");
-    assert.deepEqual(lines(bloc), [["ordinary tickets", "taken"], ["cooks at once", "2"]]);
+    assert.equal(limite?.value, "2");
+    assert.deepEqual(lignes(bloc), [["ordinary tickets", "taken"], ["cooks at once", "2"]]);
     // Ni titre ni paragraphe : l'explication est au survol de la valeur.
     assert.deepEqual(bloc.dessous("h3"), []);
-    assert.ok(bloc.dessous("button").some(({ ariaLabel }) => ariaLabel === EXPLANATION));
-    assert.deepEqual(refusal(bloc), []);
-    assert.equal(limit?.ariaLabel, "Cooks this computer runs at once");
+    assert.ok(bloc.dessous("button").some(({ ariaLabel }) => ariaLabel === EXPLICATION));
+    assert.deepEqual(refus(bloc), []);
+    assert.equal(limite?.ariaLabel, "Cooks this computer runs at once");
     assert.equal(option?.ariaLabel, "Take the ordinary tickets on this computer");
   });
 
   test("régler l'option ou la limite l'envoie au process principal, qui l'écrit", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined, true));
     await ouvrir(vue);
-    const [limit] = champs(vue.element("ordinaires"));
-    const option = toggle(vue.element("ordinaires"));
+    const [limite] = champs(vue.element("ordinaires"));
+    const option = interrupteur(vue.element("ordinaires"));
     assert.equal(option?.ariaChecked, "false");
-    assert.equal(limit?.value, "");
-    if (option === undefined || limit === undefined) return assert.fail("pas de champs");
+    assert.equal(limite?.value, "");
+    if (option === undefined || limite === undefined) return assert.fail("pas de champs");
     option.click();
     await repos();
     assert.deepEqual(vue.dernier("reglerOrdinaires"), ["parade", true, null]);
-    limit.value = "4";
-    limit.declencher("change");
+    limite.value = "4";
+    limite.declencher("change");
     await repos();
     assert.deepEqual(vue.dernier("reglerOrdinaires"), ["parade", true, 4]);
   });
@@ -191,17 +191,17 @@ describe("les tickets ordinaires dans la vue", () => {
   test("un réglage refusé dit pourquoi, sous sa ligne", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined, true), () => "nothing was written: EACCES");
     await ouvrir(vue);
-    const option = toggle(vue.element("ordinaires"));
+    const option = interrupteur(vue.element("ordinaires"));
     if (option === undefined) return assert.fail("pas d'interrupteur");
     option.click();
     await repos();
-    assert.deepEqual(refusal(vue.element("ordinaires")), ["nothing was written: EACCES"]);
+    assert.deepEqual(refus(vue.element("ordinaires")), ["nothing was written: EACCES"]);
   });
 
   test("bac à sable indisponible : le message est à côté de l'option, avec la raison, et dit que le Mac ne prend pas de ticket ordinaire", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "darwin", [station(INDISPONIBLE)], true));
     await ouvrir(vue);
-    const dits = refusal(vue.element("ordinaires"));
+    const dits = refus(vue.element("ordinaires"));
     assert.equal(dits.length, 1);
     assert.match(dits[0] ?? "", /sandbox is unavailable.*Seatbelt \(\/usr\/bin\/sandbox-exec\) is missing.*takes no ordinary ticket/);
   });

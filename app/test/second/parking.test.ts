@@ -1,44 +1,44 @@
 // #4262 — le second et l'app parquent et déparquent un ticket de la même façon : les deux mêmes fonctions, écrites sur
 // l'issue, sur tout projet — ici BOBL-tech/mirrorlab, pas brigade —, sans commande ni shell de la box. Le second les joue
-// par la commande de parking (second/parking.ts), que l'app lui donne à chaque début de session (hook-du-parking.ts).
+// par la commande de parking (second/parking.ts), que l'app lui donne à chaque début de session (crochet-du-parking.ts).
 // Joué sur un faux GitHub qui tient les labels et les commentaires de ses issues.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { join, sep } from "node:path";
 import { describe, test } from "node:test";
 import { attenteDeLIssue } from "../../../runtime/src/attente-github/marque.ts";
-import type { ClientDeLaPriority } from "../../src/priority.ts";
-import { crochetsDuParking } from "../../src/second/hook-du-parking.ts";
-import { context, principal } from "../../src/second/action-de-parking.ts";
-import type { TableauLu } from "../../src/tableau/read.ts";
-import { ouvrirTerminaux, type Launch } from "../../src/terminaux.ts";
-import { jouerLWait, tiersDesCommentaires } from "../../src/vue/wait/wait-github.ts";
+import type { ClientDeLaPriorite } from "../../src/priorite.ts";
+import { crochetsDuParking } from "../../src/second/crochet-du-parking.ts";
+import { contexte, principal } from "../../src/second/geste-de-parking.ts";
+import type { TableauLu } from "../../src/tableau/lecture.ts";
+import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
+import { jouerLAttente, tiersDesCommentaires } from "../../src/vue/attente/attente-github.ts";
 
-const REPOSITORY = "BOBL-tech/mirrorlab";
+const DEPOT = "BOBL-tech/mirrorlab";
 const TICKET = 614;
 const AUJOURDHUI = new Date(2026, 10, 9, 15, 5);
-const DAY = "2026-11-20";
+const JOUR = "2026-11-20";
 const SCRIPT = join(import.meta.dirname, "../../src/second/parking.ts");
-// Le script tel que la commande le cite : sous Windows, ses `\\` deviennent des `/`, que le `bash` de Git lit (cite1, hook-de-la-file.ts).
+// Le script tel que la commande le cite : sous Windows, ses `\\` deviennent des `/`, que le `bash` de Git lit (cite1, crochet-de-la-file.ts).
 const SCRIPT_CITE = sep === "\\" ? SCRIPT.replaceAll("\\", "/") : SCRIPT;
 
-type Answer = { status: number; data: unknown };
+type Reponse = { status: number; data: unknown };
 // Le GitHub d'un projet : l'issue 614, une carte de TODO. `panne` : ce qu'il rend à la place, pour une écriture.
-function github(outage: (ecriture: string) => Answer | undefined = () => undefined) {
+function github(panne: (ecriture: string) => Reponse | undefined = () => undefined) {
   const issues = new Map([[TICKET, { labels: ["fire", "chef-todo"], commentaires: [] as string[] }]]);
   const ecrites: string[] = [];
-  const client: ClientDeLaPriority = {
+  const client: ClientDeLaPriorite = {
     lire: async () => ({ status: 404, data: { message: "Not Found" } }),
     ecrire: async (methode, chemin, corps) => {
       ecrites.push(`${methode} ${chemin}`);
-      const enOutage = outage(`${methode} ${chemin}`);
-      if (enOutage !== undefined) return enOutage;
-      const [, repository, numero, reste = ""] = /^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)(.*)$/.exec(chemin) ?? [];
-      const issue = repository === REPOSITORY ? issues.get(Number(numero)) : undefined;
+      const enPanne = panne(`${methode} ${chemin}`);
+      if (enPanne !== undefined) return enPanne;
+      const [, depot, numero, reste = ""] = /^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)(.*)$/.exec(chemin) ?? [];
+      const issue = depot === DEPOT ? issues.get(Number(numero)) : undefined;
       if (issue === undefined) return { status: 404, data: { message: "Not Found" } };
       if (methode === "POST" && reste === "/comments") {
         issue.commentaires.push((corps as { body: string }).body);
-        return { status: 201, data: { html_url: `https://github.com/${REPOSITORY}/issues/${numero}#issuecomment-${issue.commentaires.length}` } };
+        return { status: 201, data: { html_url: `https://github.com/${DEPOT}/issues/${numero}#issuecomment-${issue.commentaires.length}` } };
       }
       if (methode === "POST" && reste === "/labels") {
         for (const label of (corps as { labels: string[] }).labels) if (!issue.labels.includes(label)) issue.labels.push(label);
@@ -54,30 +54,30 @@ function github(outage: (ecriture: string) => Answer | undefined = () => undefin
       return { status: 404, data: { message: "Not Found" } };
     },
   };
-  const state = () => structuredClone(issues.get(TICKET));
-  return { client, ecrites, etat: state };
+  const etat = () => structuredClone(issues.get(TICKET));
+  return { client, ecrites, etat };
 }
 
 // La dernière lecture du rail par l'app : le ticket y est, sur le dépôt du projet.
-const LU = { depot: REPOSITORY, faits: { rail: [{ ticket: TICKET }], attend: [], attendAutres: [] } } as unknown as TableauLu;
-const parLApp = (client: ClientDeLaPriority, id: string, saisie?: unknown) => jouerLWait({ id, ticket: TICKET, saisie, aujourdhui: AUJOURDHUI, lu: () => LU, client });
-async function parLeSecond(client: ClientDeLaPriority, ...args: string[]) {
+const LU = { depot: DEPOT, faits: { rail: [{ ticket: TICKET }], attend: [], attendAutres: [] } } as unknown as TableauLu;
+const parLApp = (client: ClientDeLaPriorite, id: string, saisie?: unknown) => jouerLAttente({ id, ticket: TICKET, saisie, aujourdhui: AUJOURDHUI, lu: () => LU, client });
+async function parLeSecond(client: ClientDeLaPriorite, ...args: string[]) {
   const [dit, redit]: [string[], string[]] = [[], []];
-  const code = await principal(args, { client, aujourdhui: AUJOURDHUI, dire: (line) => void dit.push(line), redire: (line) => void redit.push(line) });
+  const code = await principal(args, { client, aujourdhui: AUJOURDHUI, dire: (ligne) => void dit.push(ligne), redire: (ligne) => void redit.push(ligne) });
   return { code, dit: dit.join("\n"), redit: redit.join("\n") };
 }
 // Ce que la commande dit d'une forme qui n'en est pas une.
 const USAGE = "usage: parking.ts park <owner>/<repo>#<issue> --who <who it waits for> --what <what it waits for> --until <YYYY-MM-DD>\n       parking.ts unpark <owner>/<repo>#<issue>";
-const PARQUER = ["park", `${REPOSITORY}#${TICKET}`, "--who", "the client", "--what", "the signed quote", "--until", DAY];
+const PARQUER = ["park", `${DEPOT}#${TICKET}`, "--who", "the client", "--what", "the signed quote", "--until", JOUR];
 
 describe("le second et l'app parquent et déparquent un ticket dans le même état, sur un projet qui n'est pas brigade", () => {
   test("parqué : le même label et le même commentaire, que la station et l'app relisent — qui, pour quoi, jusqu'à quand", async () => {
     const app = github();
     const second = github();
-    assert.ok("fait" in (await parLApp(app.client, "attente-poser", { quoi: "the signed quote", qui: "the client", relance: DAY })));
+    assert.ok("fait" in (await parLApp(app.client, "attente-poser", { quoi: "the signed quote", qui: "the client", relance: JOUR })));
     const lance = await parLeSecond(second.client, ...PARQUER);
     assert.deepEqual([lance.code, lance.redit], [0, ""]);
-    assert.equal(lance.dit, `in WAITING on GitHub: #${TICKET} awaits the client, follow-up on ${DAY} — https://github.com/${REPOSITORY}/issues/${TICKET}#issuecomment-1`);
+    assert.equal(lance.dit, `in WAITING on GitHub: #${TICKET} awaits the client, follow-up on ${JOUR} — https://github.com/${DEPOT}/issues/${TICKET}#issuecomment-1`);
     assert.deepEqual(second.ecrites, app.ecrites);
     assert.deepEqual(second.etat(), app.etat());
 
@@ -96,9 +96,9 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
       const second = github();
       for (const { client } of [app, second]) assert.equal((await parLeSecond(client, ...PARQUER)).code, 0);
       assert.ok("fait" in (await parLApp(app.client, id)));
-      const lance = await parLeSecond(second.client, "unpark", `${REPOSITORY}#${TICKET}`);
+      const lance = await parLeSecond(second.client, "unpark", `${DEPOT}#${TICKET}`);
       assert.deepEqual([lance.code, lance.redit], [0, ""]);
-      assert.equal(lance.dit, `back to the kitchen on GitHub: #${TICKET} no longer carries \`parked\` — it resumes exactly where it was — https://github.com/${REPOSITORY}/issues/${TICKET}`);
+      assert.equal(lance.dit, `back to the kitchen on GitHub: #${TICKET} no longer carries \`parked\` — it resumes exactly where it was — https://github.com/${DEPOT}/issues/${TICKET}`);
       assert.deepEqual(second.ecrites, app.ecrites);
       assert.deepEqual(second.etat(), app.etat());
       assert.deepEqual(second.etat()?.labels, ["fire", "chef-todo"]);
@@ -109,15 +109,15 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
 describe("la commande de parking : ce qu'elle refuse, et ce que GitHub refuse", () => {
   test("une commande mal formée : l'usage, le code 2, et rien n'est écrit", async () => {
     const { client, ecrites } = github();
-    const cible = `${REPOSITORY}#${TICKET}`;
+    const cible = `${DEPOT}#${TICKET}`;
     for (const args of [
       [],
       ["park"],
-      ["park", "614", "--who", "a", "--what", "b", "--until", DAY],
+      ["park", "614", "--who", "a", "--what", "b", "--until", JOUR],
       ["park", cible, "--who", "a", "--what", "b"],
       ["park", cible, "--who", "a", "--what", "b", "--until"],
-      ["park", cible, "--who", "a", "--who", "b", "--what", "c", "--until", DAY],
-      ["park", cible, "--who", "a", "--what", "b", "--until", DAY, "--from", "c"],
+      ["park", cible, "--who", "a", "--who", "b", "--what", "c", "--until", JOUR],
+      ["park", cible, "--who", "a", "--what", "b", "--until", JOUR, "--from", "c"],
       ["unpark", cible, "--who", "a"],
       ["unpark", "mirrorlab#614"],
       ["resume", cible],
@@ -129,12 +129,12 @@ describe("la commande de parking : ce qu'elle refuse, et ce que GitHub refuse", 
 
   test("une date qui n'est pas à venir, ou sans quoi : refusée par la lecture de l'app, le code 1, et rien n'est écrit", async () => {
     const { client, ecrites } = github();
-    assert.deepEqual(await parLeSecond(client, "park", `${REPOSITORY}#${TICKET}`, "--who", "the client", "--what", "the signed quote", "--until", "2026-11-09"), {
+    assert.deepEqual(await parLeSecond(client, "park", `${DEPOT}#${TICKET}`, "--who", "the client", "--what", "the signed quote", "--until", "2026-11-09"), {
       code: 1,
       dit: "",
       redit: "nothing is written: the follow-up date 2026-11-09 is not after today — a follow-up is to come",
     });
-    assert.equal((await parLeSecond(client, "park", `${REPOSITORY}#${TICKET}`, "--who", "the client", "--what", " ", "--until", DAY)).redit, "nothing is written: say what it waits for, in your words");
+    assert.equal((await parLeSecond(client, "park", `${DEPOT}#${TICKET}`, "--who", "the client", "--what", " ", "--until", JOUR)).redit, "nothing is written: say what it waits for, in your words");
     assert.deepEqual(ecrites, []);
   });
 
@@ -149,7 +149,7 @@ describe("la commande de parking : ce qu'elle refuse, et ce que GitHub refuse", 
 
     const retraitRefuse = github((ecriture) => (ecriture.startsWith("DELETE") ? { status: 500, data: { message: "Server Error" } } : undefined));
     assert.equal((await parLeSecond(retraitRefuse.client, ...PARQUER)).code, 0);
-    const lance = await parLeSecond(retraitRefuse.client, "unpark", `${REPOSITORY}#${TICKET}`);
+    const lance = await parLeSecond(retraitRefuse.client, "unpark", `${DEPOT}#${TICKET}`);
     assert.equal(lance.code, 1);
     assert.match(lance.redit, /^nothing was changed: GitHub did not remove `parked` from #614 — /);
     assert.ok(retraitRefuse.etat()?.labels.includes("parked"));
@@ -158,41 +158,41 @@ describe("la commande de parking : ce qu'elle refuse, et ce que GitHub refuse", 
 
 describe("la commande donnée au second à chaque début de session", () => {
   test("elle nomme `park` et `unpark` sur le dépôt du projet, avec le `node` et le chemin de ce poste, cités pour le shell", () => {
-    const dite = context(REPOSITORY, "/Applications/Brigade app/node", "/Applications/Brigade app/src/second/parking.ts", "/");
-    assert.ok(dite.includes(`  '/Applications/Brigade app/node' '/Applications/Brigade app/src/second/parking.ts' park ${REPOSITORY}#<n> --who '<who>' --what '<what>' --until <YYYY-MM-DD>\n`), dite);
-    assert.ok(dite.includes(`  '/Applications/Brigade app/node' '/Applications/Brigade app/src/second/parking.ts' unpark ${REPOSITORY}#<n>\n`), dite);
+    const dite = contexte(DEPOT, "/Applications/Brigade app/node", "/Applications/Brigade app/src/second/parking.ts", "/");
+    assert.ok(dite.includes(`  '/Applications/Brigade app/node' '/Applications/Brigade app/src/second/parking.ts' park ${DEPOT}#<n> --who '<who>' --what '<what>' --until <YYYY-MM-DD>\n`), dite);
+    assert.ok(dite.includes(`  '/Applications/Brigade app/node' '/Applications/Brigade app/src/second/parking.ts' unpark ${DEPOT}#<n>\n`), dite);
     assert.match(dite, /with no box command/);
-    assert.match(context("", "node", "parking.ts", "/"), / park <owner>\/<repo>#<n> /);
+    assert.match(contexte("", "node", "parking.ts", "/"), / park <owner>\/<repo>#<n> /);
     // Sous Windows, le `bash` de Git lit `C:/…`.
-    assert.match(context(REPOSITORY, "C:\\Brigade\\node.exe", "C:\\Brigade\\parking.ts", "\\"), /^ {2}'C:\/Brigade\/node\.exe' 'C:\/Brigade\/parking\.ts' park /m);
+    assert.match(contexte(DEPOT, "C:\\Brigade\\node.exe", "C:\\Brigade\\parking.ts", "\\"), /^ {2}'C:\/Brigade\/node\.exe' 'C:\/Brigade\/parking\.ts' park /m);
   });
 
   test("le crochet du début de session — ouverture, reprise, compaction — la donne, joué pour de bon par `node`", () => {
-    const [hook] = crochetsDuParking({ node: "/usr/bin/node", cible: { nom: "mirrorlab", depot: REPOSITORY } }).SessionStart ?? [];
-    assert.equal(hook?.matcher, "startup|resume|compact");
-    assert.equal(hook?.hooks[0]?.command, `'/usr/bin/node' '${SCRIPT_CITE}' 'context' '${REPOSITORY}'`);
-    const sortie = JSON.parse(execFileSync(process.execPath, [SCRIPT, "context", REPOSITORY], { encoding: "utf8" })) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } };
+    const [crochet] = crochetsDuParking({ node: "/usr/bin/node", cible: { nom: "mirrorlab", depot: DEPOT } }).SessionStart ?? [];
+    assert.equal(crochet?.matcher, "startup|resume|compact");
+    assert.equal(crochet?.hooks[0]?.command, `'/usr/bin/node' '${SCRIPT_CITE}' 'context' '${DEPOT}'`);
+    const sortie = JSON.parse(execFileSync(process.execPath, [SCRIPT, "context", DEPOT], { encoding: "utf8" })) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } };
     assert.equal(sortie.hookSpecificOutput.hookEventName, "SessionStart");
-    assert.ok(sortie.hookSpecificOutput.additionalContext.includes(`'${SCRIPT_CITE}' park ${REPOSITORY}#<n> --who`), sortie.hookSpecificOutput.additionalContext);
+    assert.ok(sortie.hookSpecificOutput.additionalContext.includes(`'${SCRIPT_CITE}' park ${DEPOT}#<n> --who`), sortie.hookSpecificOutput.additionalContext);
   });
 
   test("le lancement du second le porte dans ses réglages", () => {
-    const lances: Launch[] = [];
+    const lances: Lancement[] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
       shell: "/bin/zsh",
       node: "/usr/bin/node",
-      ouvrirPty(launch) {
-        lances.push(launch);
+      ouvrirPty(lancement) {
+        lances.push(lancement);
         return { ecrire: () => {}, redimensionner: () => {}, tuer: () => {} };
       },
       surSortie: () => {},
       surEtat: () => {},
     });
-    terminaux.espace({ nom: "mirrorlab", dossier: "/projets/mirrorlab", depot: REPOSITORY });
+    terminaux.espace({ nom: "mirrorlab", dossier: "/projets/mirrorlab", depot: DEPOT });
     const args = lances.at(0)?.args ?? assert.fail("aucun lancement");
-    const settings = JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as { hooks: { SessionStart: { hooks: { command: string }[] }[] } };
-    const commands = settings.hooks.SessionStart.flatMap(({ hooks }) => hooks.map(({ command }) => command));
-    assert.ok(commands.includes(`'/usr/bin/node' '${SCRIPT_CITE}' 'context' '${REPOSITORY}'`), commands.join("\n"));
+    const reglages = JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as { hooks: { SessionStart: { hooks: { command: string }[] }[] } };
+    const commandes = reglages.hooks.SessionStart.flatMap(({ hooks }) => hooks.map(({ command }) => command));
+    assert.ok(commandes.includes(`'/usr/bin/node' '${SCRIPT_CITE}' 'context' '${DEPOT}'`), commandes.join("\n"));
   });
 });

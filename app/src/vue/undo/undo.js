@@ -7,8 +7,8 @@
 // pourquoi, le détail au survol. Seule une carte de ticket servi, dont la PR est mergée, porte le bouton.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément et le geste, et rend des éléments.
 
-import { buttonAction } from "../briques.js";
-import { lineError } from "../composants/line-error/line-error.js";
+import { boutonAction } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 
@@ -21,10 +21,10 @@ import { lineError } from "../composants/line-error/line-error.js";
  * @typedef {{ etape: "repos" }
  *   | { etape: "envoi" }
  *   | { etape: "refus", dit: string, detail: string }
- *   | { etape: "fait", dit: string }} State
+ *   | { etape: "fait", dit: string }} Etat
  */
 
-/** @type {State} */
+/** @type {Etat} */
 export const REPOS = { etape: "repos" };
 
 // Les mots du glossaire (docs/glossary.md) : ticket, pass, served, kitchen.
@@ -36,7 +36,7 @@ export const PRIX = (ticket) =>
 export const SANS_PONT = "nothing was undone: this app does not play the kitchen's command — undo it from the desktop app";
 
 // L'étape qui suit ce que le process principal a rendu.
-/** @param {import("./undo-github.ts").RenduDAnnulation | undefined} rendu @returns {State} */
+/** @param {import("./undo-github.ts").RenduDAnnulation | undefined} rendu @returns {Etat} */
 export function apresRendu(rendu) {
   if (rendu === undefined) return { etape: "refus", dit: "nothing was undone: this project is not known to the app", detail: "" };
   if ("refus" in rendu) return { etape: "refus", dit: rendu.refus, detail: rendu.detail };
@@ -44,19 +44,19 @@ export function apresRendu(rendu) {
 }
 
 // Le bouton « undo » de la carte du ticket servi `ticket`, dans son état — ou, fait, la ligne de ce qui s'est passé.
-/** @param {Fabrique} doc @param {number} ticket @param {State} state @param {() => void} annuler @returns {any[]} */
-export function poserAnnulation(doc, ticket, state, annuler) {
-  if (state.etape === "fait") {
-    const line = doc.createElement("p");
-    line.className = "annule";
-    line.textContent = state.dit;
-    return [line];
+/** @param {Fabrique} doc @param {number} ticket @param {Etat} etat @param {() => void} annuler @returns {any[]} */
+export function poserAnnulation(doc, ticket, etat, annuler) {
+  if (etat.etape === "fait") {
+    const ligne = doc.createElement("p");
+    ligne.className = "annule";
+    ligne.textContent = etat.dit;
+    return [ligne];
   }
-  const action = buttonAction(doc, state.etape === "envoi" ? EN_ANNULATION : ANNULER, annuler, { prix: PRIX(ticket) });
-  const button = action.children?.[0];
-  if (button !== undefined) {
-    button.className = `${button.className} annuler-servi`.trim();
-    button.disabled = state.etape === "envoi";
+  const action = boutonAction(doc, etat.etape === "envoi" ? EN_ANNULATION : ANNULER, annuler, { prix: PRIX(ticket) });
+  const bouton = action.children?.[0];
+  if (bouton !== undefined) {
+    bouton.className = `${bouton.className} annuler-servi`.trim();
+    bouton.disabled = etat.etape === "envoi";
   }
-  return [action, ...(state.etape === "refus" ? [lineError(doc, state.dit, state.detail, { classe: "refus" })] : [])];
+  return [action, ...(etat.etape === "refus" ? [ligneErreur(doc, etat.dit, etat.detail, { classe: "refus" })] : [])];
 }

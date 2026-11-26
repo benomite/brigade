@@ -11,7 +11,7 @@ import { ANDROID } from "../../packaging/android.ts";
 import { POINT_FIXE, verifier } from "../../packaging/android-stable.ts";
 import { APP } from "../../packaging/construire.ts";
 
-const COMMAND = join(APP, "packaging", "android-stable.ts");
+const COMMANDE = join(APP, "packaging", "android-stable.ts");
 const FICHIERS = ["capacitor.config.json", "natif/app/build.gradle", "natif/app/src/main/AndroidManifest.xml", "natif/app/src/main/res/xml/file_paths.xml", "natif/app/src/main/res/values/strings.xml"];
 
 // Une copie des fichiers lus, et de quoi les modifier.
@@ -37,7 +37,7 @@ function copie(t: TestContext) {
 }
 
 test("le dépôt est stable : la commande sort 0 et dit l'identifiant, la versionCode et la source de la clé", () => {
-  const fait = spawnSync(process.execPath, [COMMAND], { encoding: "utf8" });
+  const fait = spawnSync(process.execPath, [COMMANDE], { encoding: "utf8" });
   assert.equal(fait.status, 0, fait.stderr);
   assert.match(fait.stdout, /application id com\.github\.benomite\.brigade/);
   assert.match(fait.stdout, /version code \d+/);
@@ -47,12 +47,12 @@ test("le dépôt est stable : la commande sort 0 et dit l'identifiant, la versio
 test("une versionCode plus basse ou égale à la précédente fait échouer, en nommant la versionCode", (t) => {
   const code = Number(/versionCode (\d+)/.exec(readFileSync(join(ANDROID, "natif/app/build.gradle"), "utf8"))?.[1]);
   for (const precedente of [code, code + 5]) {
-    const fait = spawnSync(process.execPath, [COMMAND, "--previous-version-code", String(precedente)], { encoding: "utf8" });
+    const fait = spawnSync(process.execPath, [COMMANDE, "--previous-version-code", String(precedente)], { encoding: "utf8" });
     assert.equal(fait.status, 1);
     assert.match(fait.stderr, /version code/);
   }
-  assert.equal(spawnSync(process.execPath, [COMMAND, "--previous-version-code", String(code - 1)], { encoding: "utf8" }).status, 0);
-  assert.equal(spawnSync(process.execPath, [COMMAND, "--previous-version-code", "x"], { encoding: "utf8" }).status, 2);
+  assert.equal(spawnSync(process.execPath, [COMMANDE, "--previous-version-code", String(code - 1)], { encoding: "utf8" }).status, 0);
+  assert.equal(spawnSync(process.execPath, [COMMANDE, "--previous-version-code", "x"], { encoding: "utf8" }).status, 2);
   assert.deepEqual(copie(t).verifier(0), []);
 });
 

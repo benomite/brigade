@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { etatDOnboarding, type Entrees } from "../../../runtime/src/onboarding/etat.ts";
-import { lireOnboarding } from "../../src/projects/request.ts";
-import { poserJourney } from "../../src/vue/onboarding/journey.js";
+import { lireOnboarding } from "../../src/projets/demande.ts";
+import { poserParcours } from "../../src/vue/onboarding/parcours.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -24,11 +24,11 @@ const SANS_BAC: Entrees = {
   dejaServi: false,
 };
 
-function screen(entrees: Entrees): string {
+function ecran(entrees: Entrees): string {
   const onboarding = etatDOnboarding(entrees);
   const suivi = JSON.stringify({ brigade: "projets-suivi", format: 1, a: "2026-10-13T10:00:00.000Z", projets: [], onboarding: { mirrorlab: onboarding } });
   const lu = lireOnboarding(suivi).mirrorlab ?? assert.fail("onboarding illisible");
-  const section = poserJourney(doc, { projet: "mirrorlab", onboarding: lu, maintenant: MAINTENANT, ouvrir: () => {}, ecarter: () => {}, continuerSansBac: () => {}, autreStation: () => {} }) as Faux;
+  const section = poserParcours(doc, { projet: "mirrorlab", onboarding: lu, maintenant: MAINTENANT, ouvrir: () => {}, ecarter: () => {}, continuerSansBac: () => {}, autreStation: () => {} }) as Faux;
   return section.textContent;
 }
 
@@ -44,9 +44,9 @@ function dit(texte: string, ou: string) {
 
 test("avant et après la décision du chef, l'écran de l'app et la ligne de la station disent « restricted mode: no sandbox », le couvert et le non-couvert", () => {
   const apres = { ...SANS_BAC, decision: { station: "box" } };
-  for (const [name, entrees] of [["décision attendue", SANS_BAC], ["décision prise", apres]] as const) {
-    const line = etatDOnboarding(entrees).etapes.find(({ etape: step }) => step === "machine")?.dit ?? "";
-    dit(`${line} ${etatDOnboarding(entrees).etapes.find(({ etape: step }) => step === "machine")?.geste?.quoi ?? ""}`, `ligne de la station, ${name}`);
-    dit(screen(entrees), `écran de l'app, ${name}`);
+  for (const [nom, entrees] of [["décision attendue", SANS_BAC], ["décision prise", apres]] as const) {
+    const ligne = etatDOnboarding(entrees).etapes.find(({ etape }) => etape === "machine")?.dit ?? "";
+    dit(`${ligne} ${etatDOnboarding(entrees).etapes.find(({ etape }) => etape === "machine")?.geste?.quoi ?? ""}`, `ligne de la station, ${nom}`);
+    dit(ecran(entrees), `écran de l'app, ${nom}`);
   }
 });

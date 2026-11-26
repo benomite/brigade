@@ -7,41 +7,41 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Project } from "../src/config.ts";
-import { RETIRER, holdRetraits } from "../src/retrait.ts";
+import type { Projet } from "../src/config.ts";
+import { RETIRER, tenirRetraits } from "../src/retrait.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
 
 // Un essai : le fichier des projets, suivi comme dans l'app, et les retraits, branchés comme dans main.ts.
-function trial(t: TestContext) {
+function essai(t: TestContext) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-retrait-"));
   for (const dossier of ["calculus", "parade"]) mkdirSync(join(racine, dossier));
   const chemin = join(racine, "app.json");
-  const calculus: Project = { nom: "calculus", dossier: join(racine, "calculus") };
-  const parade: Project = { nom: "parade", dossier: join(racine, "parade") };
+  const calculus: Projet = { nom: "calculus", dossier: join(racine, "calculus") };
+  const parade: Projet = { nom: "parade", dossier: join(racine, "parade") };
   writeFileSync(chemin, JSON.stringify({ projets: [calculus, parade] }));
   const partis: string[] = [];
   const suivi = suivreConfiguration({ chemin, surChangement: (_, quittes) => void partis.push(...quittes) });
   const desinstalles: string[] = [];
-  const retraits = holdRetraits({ chemin, retirer: suivi.retirer, desinstaller: ({ dossier }) => void desinstalles.push(dossier) });
+  const retraits = tenirRetraits({ chemin, retirer: suivi.retirer, desinstaller: ({ dossier }) => void desinstalles.push(dossier) });
   t.after(() => {
     suivi.fermer();
     rmSync(racine, { recursive: true, force: true });
   });
-  const declares = () => (JSON.parse(readFileSync(chemin, "utf8")) as { projets: { nom: string }[] }).projets.map(({ nom: name }) => name);
+  const declares = () => (JSON.parse(readFileSync(chemin, "utf8")) as { projets: { nom: string }[] }).projets.map(({ nom }) => nom);
   return { chemin, suivi, retraits, calculus, parade, partis, declares, desinstalles };
 }
 
 describe("le geste de retrait d'un projet", () => {
   test("un seul geste est proposé, et son libellé dit ce qu'il touche — et ce qu'il laisse en place", (t) => {
-    const { retraits, calculus, chemin } = trial(t);
+    const { retraits, calculus, chemin } = essai(t);
 
-    const { retirer, projet: project, titre } = retraits.etat(calculus);
+    const { retirer, projet, titre } = retraits.etat(calculus);
 
-    assert.equal(project, "calculus");
+    assert.equal(projet, "calculus");
     assert.equal(titre, "Remove this project from the app");
     assert.equal(retirer.libelle, "Remove from the app");
     assert.equal(retirer.libelle, RETIRER);
-    assert.ok(retirer.lignes.some((line) => line.includes(chemin)));
+    assert.ok(retirer.lignes.some((ligne) => ligne.includes(chemin)));
     assert.match(retirer.lignes.join("\n"), /Nothing is sent to its station: the project stays installed there.*with its log intact/);
     assert.match(retirer.lignes.join("\n"), /uninstalls the app's plugin \(\/brigade:dev, \/brigade:ask, \/brigade:init\) from its folder's local Claude Code settings — nothing else/);
     assert.match(retirer.lignes.join("\n"), /a brigade plugin you installed yourself stays/);
@@ -50,14 +50,14 @@ describe("le geste de retrait d'un projet", () => {
 
 describe("retirer de l'app", () => {
   test("le projet quitte le fichier et la barre, et l'avis dit que sa station n'a rien reçu", (t) => {
-    const { retraits, calculus, suivi, partis, declares, desinstalles } = trial(t);
+    const { retraits, calculus, suivi, partis, declares, desinstalles } = essai(t);
 
     const rendu = retraits.retirerDeLApp(calculus);
 
     assert.deepEqual(declares(), ["parade"]);
     // Le plugin de l'app quitte le dossier du projet retiré, et de lui seul (plugin-app.ts).
     assert.deepEqual(desinstalles, [calculus.dossier]);
-    assert.deepEqual(suivi.configuration().projets.map(({ nom: name }) => name), ["parade"]);
+    assert.deepEqual(suivi.configuration().projets.map(({ nom }) => nom), ["parade"]);
     assert.deepEqual(partis, ["calculus"]);
     assert.ok("avis" in rendu);
     assert.equal(rendu.avis.titre, "“calculus” is removed from the app.");
@@ -65,7 +65,7 @@ describe("retirer de l'app", () => {
   });
 
   test("un autre projet se retire de même, et les autres restent", (t) => {
-    const { retraits, parade, declares } = trial(t);
+    const { retraits, parade, declares } = essai(t);
 
     const rendu = retraits.retirerDeLApp(parade);
 
@@ -74,7 +74,7 @@ describe("retirer de l'app", () => {
   });
 
   test("un fichier que l'app n'a pas pu relire n'est pas réécrit : le projet n'est pas retiré, et la raison est dite", (t) => {
-    const { retraits, calculus, chemin, suivi, desinstalles } = trial(t);
+    const { retraits, calculus, chemin, suivi, desinstalles } = essai(t);
     writeFileSync(chemin, '{ "projets": [');
 
     const rendu = retraits.retirerDeLApp(calculus);
@@ -82,7 +82,7 @@ describe("retirer de l'app", () => {
     assert.ok("refus" in rendu);
     assert.match(rendu.refus, /^Not removed — the app does not write to a file it could not re-read — unreadable JSON: /);
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
-    assert.deepEqual(suivi.configuration().projets.map(({ nom: name }) => name), ["calculus", "parade"]);
+    assert.deepEqual(suivi.configuration().projets.map(({ nom }) => nom), ["calculus", "parade"]);
     // Pas retiré, il garde le plugin de l'app.
     assert.deepEqual(desinstalles, []);
   });

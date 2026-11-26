@@ -9,63 +9,63 @@
 // qui attend dans TODO, de la vue — les cartes rouges du rail rangé (todo/todo.js), que l'entrée « TODO (N) » compte.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { button } from "../composants/button/button.js";
-import { lineError } from "../composants/line-error/line-error.js";
-import { lineEmpty } from "../composants/line-empty/line-empty.js";
-import { READ_DE, NON_ATTEINT } from "../lexique.js";
-import { estRed, rangerLeRail } from "../todo/todo.js";
-import { tellLaPrParSonTicket, PR_DU_TICKET } from "../pr-du-ticket.js";
+import { bouton } from "../composants/bouton/bouton.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { LECTURE_DE, NON_ATTEINT } from "../lexique.js";
+import { estRouge, rangerLeRail } from "../todo/todo.js";
+import { direLaPrParSonTicket, PR_DU_TICKET } from "../pr-du-ticket.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
-/** @typedef {import("./recap-box.ts").ReadDuRecap} Read */
+/** @typedef {import("./recap-box.ts").LectureDuRecap} Lecture */
 /** @typedef {import("./recap-box.ts").Recap} Recap */
 /** @typedef {{ ticket: number, texte: string }} DansTodo */
-/** @typedef {{ projet: string, lecture: Read | undefined, todo: DansTodo[] | undefined }} DuProject */
+/** @typedef {{ projet: string, lecture: Lecture | undefined, todo: DansTodo[] | undefined }} DuProjet */
 
 const TITRE = "Since you last looked";
-const SERVED = "Served";
+const SERVIS = "Served";
 const RENVOYES = "Sent back or refused by the pass";
 const ARRETS = "Stopped by a guardrail";
 const RIEN = "Nothing happened since you last looked.";
 const RIEN_DANS_TODO = "Nothing is waiting for you in TODO.";
 const INDISPONIBLE = NON_ATTEINT("recap");
-const AWAITING_DANS_TODO = "Waiting for you in TODO";
+const ATTEND_DANS_TODO = "Waiting for you in TODO";
 /** @param {number} nombre */
-const DANS_TODO = (nombre) => `${AWAITING_DANS_TODO} (${nombre})`;
+const DANS_TODO = (nombre) => `${ATTEND_DANS_TODO} (${nombre})`;
 const SURVOL_DE_LA_PR = "its gates, CI and review, on GitHub";
 /** @param {string} instant */
 const DEPUIS = (instant) => `Since ${new Date(instant).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}.`;
 /** @param {Recap["sentBack"][number]} renvoi */
 // La PR que la raison nomme est la livraison du ticket : elle se dit par lui (pr-du-ticket.js, ticket 3716).
-const LINE_DU_SEND_BACK = ({ ticket, kind, reason }) => `#${ticket} ${kind === "refused" ? "refused" : "sent back to a cook"}: ${tellLaPrParSonTicket(reason.replace(/`([^`]*)`/g, "$1"), ticket)}`;
+const LIGNE_DU_RENVOI = ({ ticket, kind, reason }) => `#${ticket} ${kind === "refused" ? "refused" : "sent back to a cook"}: ${direLaPrParSonTicket(reason.replace(/`([^`]*)`/g, "$1"), ticket)}`;
 
 /**
  * Ce qui attend le chef dans TODO, tel que TODO le montre : les cartes rouges du rail rangé, dans l'ordre de leurs
  * colonnes — celles que compte « TODO (N) ». `undefined` tant que le rail n'est pas lu.
- * @param {readonly import("../../facts.ts").Colonne[] | undefined} colonnes
+ * @param {readonly import("../../faits.ts").Colonne[] | undefined} colonnes
  * @returns {DansTodo[] | undefined}
  */
-export function ceQuiAwaitingDansTodo(colonnes) {
+export function ceQuiAttendDansTodo(colonnes) {
   if (colonnes === undefined) return undefined;
-  const { colonnes: rangees, compte: account } = rangerLeRail(colonnes);
-  if (account === "?") return undefined;
-  return rangees.flatMap(({ cartes: cards }) => cards.filter(estRed).map((card) => ({ ticket: card.ticket, texte: card.todo?.question ?? card.titre ?? card.ligne ?? "" })));
+  const { colonnes: rangees, compte } = rangerLeRail(colonnes);
+  if (compte === "?") return undefined;
+  return rangees.flatMap(({ cartes }) => cartes.filter(estRouge).map((carte) => ({ ticket: carte.ticket, texte: carte.todo?.question ?? carte.titre ?? carte.ligne ?? "" })));
 }
 
 /**
  * Le bloc de l'accueil : un récapitulatif par projet. `gestes.ouvrir(url)` ouvre la PR d'un ticket servi.
  * @param {Fabrique} doc
- * @param {DuProject[]} projects
- * @param {{ ouvrir: (url: string) => void }} actions
+ * @param {DuProjet[]} projets
+ * @param {{ ouvrir: (url: string) => void }} gestes
  */
-export function poserLeRecap(doc, projects, actions) {
+export function poserLeRecap(doc, projets, gestes) {
   const racine = doc.createElement("section");
   racine.id = "accueil-recap";
   racine.className = "bloc-de-l-accueil recap";
   racine.ariaLabel = TITRE;
   const titre = doc.createElement("h2");
   titre.textContent = TITRE;
-  racine.append(titre, ...projects.map((project) => duProject(doc, project, actions)));
+  racine.append(titre, ...projets.map((projet) => duProjet(doc, projet, gestes)));
   return racine;
 }
 
@@ -76,16 +76,16 @@ const intertitre = (doc, texte) => {
   return h4;
 };
 
-/** @param {Fabrique} doc @param {string} classe @param {any[]} lines */
-const liste = (doc, classe, lines) => {
+/** @param {Fabrique} doc @param {string} classe @param {any[]} lignes */
+const liste = (doc, classe, lignes) => {
   const ul = doc.createElement("ul");
   ul.className = classe;
-  ul.append(...lines);
+  ul.append(...lignes);
   return ul;
 };
 
 /** @param {Fabrique} doc @param {string} texte */
-const lineOf = (doc, texte) => {
+const ligne = (doc, texte) => {
   const li = doc.createElement("li");
   const dit = doc.createElement("span");
   dit.textContent = texte;
@@ -93,19 +93,19 @@ const lineOf = (doc, texte) => {
   return li;
 };
 
-/** @param {Fabrique} doc @param {DuProject} projet @param {{ ouvrir: (url: string) => void }} gestes */
-function duProject(doc, { projet: project, lecture: read, todo }, { ouvrir }) {
+/** @param {Fabrique} doc @param {DuProjet} projet @param {{ ouvrir: (url: string) => void }} gestes */
+function duProjet(doc, { projet, lecture, todo }, { ouvrir }) {
   const section = doc.createElement("section");
   section.className = "recap-du-projet";
-  section.ariaLabel = project;
-  section.dataset.projet = project;
-  const name = doc.createElement("h3");
-  name.textContent = project;
-  section.append(name);
-  if (read === undefined) section.append(lineEmpty(doc, READ_DE("the recap")));
-  else if ("sans" in read) section.append(lineError(doc, INDISPONIBLE, [read.sans, read.detail ?? ""].filter(Boolean).join("\n")));
+  section.ariaLabel = projet;
+  section.dataset.projet = projet;
+  const nom = doc.createElement("h3");
+  nom.textContent = projet;
+  section.append(nom);
+  if (lecture === undefined) section.append(ligneVide(doc, LECTURE_DE("the recap")));
+  else if ("sans" in lecture) section.append(ligneErreur(doc, INDISPONIBLE, [lecture.sans, lecture.detail ?? ""].filter(Boolean).join("\n")));
   else {
-    const { since, served, sentBack, stops } = read.recap;
+    const { since, served, sentBack, stops } = lecture.recap;
     const depuis = doc.createElement("p");
     depuis.className = "depuis";
     depuis.textContent = DEPUIS(since);
@@ -118,13 +118,13 @@ function duProject(doc, { projet: project, lecture: read, todo }, { ouvrir }) {
     }
     if (served.length > 0) {
       section.append(
-        intertitre(doc, SERVED),
+        intertitre(doc, SERVIS),
         liste(
           doc,
           "servis",
           served.map(({ ticket, title, prUrl }) => {
-            const li = lineOf(doc, `#${ticket} ${title}`);
-            const lien = button(doc, PR_DU_TICKET(ticket), () => ouvrir(prUrl), { sorte: "discret" });
+            const li = ligne(doc, `#${ticket} ${title}`);
+            const lien = bouton(doc, PR_DU_TICKET(ticket), () => ouvrir(prUrl), { sorte: "discret" });
             lien.className += " pr";
             lien.title = `${SURVOL_DE_LA_PR} — ${prUrl}`;
             li.dataset.ticket = String(ticket);
@@ -134,10 +134,10 @@ function duProject(doc, { projet: project, lecture: read, todo }, { ouvrir }) {
         ),
       );
     }
-    if (sentBack.length > 0) section.append(intertitre(doc, RENVOYES), liste(doc, "renvoyes", sentBack.map((sendBack) => lineOf(doc, LINE_DU_SEND_BACK(sendBack)))));
-    if (stops.length > 0) section.append(intertitre(doc, ARRETS), liste(doc, "arrets", stops.map(({ line }) => lineOf(doc, line))));
+    if (sentBack.length > 0) section.append(intertitre(doc, RENVOYES), liste(doc, "renvoyes", sentBack.map((renvoi) => ligne(doc, LIGNE_DU_RENVOI(renvoi)))));
+    if (stops.length > 0) section.append(intertitre(doc, ARRETS), liste(doc, "arrets", stops.map(({ line }) => ligne(doc, line))));
   }
-  if (todo === undefined) section.append(intertitre(doc, AWAITING_DANS_TODO), lineEmpty(doc, READ_DE("TODO")));
-  else section.append(intertitre(doc, DANS_TODO(todo.length)), todo.length === 0 ? lineEmpty(doc, RIEN_DANS_TODO) : liste(doc, "dans-todo", todo.map(({ ticket, texte }) => lineOf(doc, `#${ticket} ${texte}`.trim()))));
+  if (todo === undefined) section.append(intertitre(doc, ATTEND_DANS_TODO), ligneVide(doc, LECTURE_DE("TODO")));
+  else section.append(intertitre(doc, DANS_TODO(todo.length)), todo.length === 0 ? ligneVide(doc, RIEN_DANS_TODO) : liste(doc, "dans-todo", todo.map(({ ticket, texte }) => ligne(doc, `#${ticket} ${texte}`.trim()))));
   return section;
 }

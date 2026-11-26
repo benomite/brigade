@@ -7,7 +7,7 @@ import { parkGesture } from "../../../src/vue/parked/park-gesture.js";
 const viaUnPont = (rendu: unknown) => {
   const calls: unknown[][] = [];
   const suites = { lues: 0 };
-  const action = parkGesture(
+  const geste = parkGesture(
     async (...a) => {
       calls.push(a);
       if (rendu instanceof Error) throw rendu;
@@ -15,7 +15,7 @@ const viaUnPont = (rendu: unknown) => {
     },
     { lire: () => void (suites.lues += 1) },
   );
-  return { geste: action, calls, suites };
+  return { geste, calls, suites };
 };
 const NO_KITCHEN = "nothing sent: this app does not play the kitchen's gestures for this project";
 const UNREAD = "nothing sent: the app did not say what happened";
@@ -23,9 +23,9 @@ const cible = (project: string) => ({ project, ticket: 7, step: "Cooks" });
 
 test("park sets the wait from the form, unpark sends the ticket back to the kitchen, for any project", async () => {
   for (const project of ["parade", "atelier"]) {
-    const { geste: action, calls } = viaUnPont({ fait: "done" });
-    await action(cible(project), { action: "park", who: "Camille", what: "the keys", until: "2026-12-01" });
-    await action(cible(project), { action: "unpark" });
+    const { geste, calls } = viaUnPont({ fait: "done" });
+    await geste(cible(project), { action: "park", who: "Camille", what: "the keys", until: "2026-12-01" });
+    await geste(cible(project), { action: "unpark" });
     assert.deepEqual(calls, [
       [project, "attente-poser", 7, { quoi: "the keys", qui: "Camille", relance: "2026-12-01" }],
       [project, "attente-arrivee", 7],

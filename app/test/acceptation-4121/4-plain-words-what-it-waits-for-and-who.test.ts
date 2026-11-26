@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { ROLE_DU_SECOND } from "../../src/second/launch.ts";
-import { contextDuBlockage } from "../../src/second/context-du-blockage.ts";
+import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
+import { contexteDuBlocage } from "../../src/second/contexte-du-blocage.ts";
 
 const QUESTION = "pourquoi on est bloqués ?";
 const VUE = {
@@ -24,12 +24,12 @@ const VUE = {
 };
 
 test("for #221 and each banner the context gives what it really waits for and who it waits on", () => {
-  const context = contextDuBlockage(QUESTION, VUE);
+  const contexte = contexteDuBlocage(QUESTION, VUE);
   for (const banniere of VUE.banners) {
-    assert.ok(context.includes(banniere.waitsFor), `says what ${banniere.label} waits for`);
-    assert.ok(context.includes(banniere.waitsOn), `says who ${banniere.label} waits on`);
+    assert.ok(contexte.includes(banniere.waitsFor), `says what ${banniere.label} waits for`);
+    assert.ok(contexte.includes(banniere.waitsOn), `says who ${banniere.label} waits on`);
   }
-  assert.ok(context.includes(VUE.rail[0]!.real), "says what #221 really waits for");
-  assert.ok(context.includes(VUE.rail[0]!.waitsOn), "says who #221 waits on");
+  assert.ok(contexte.includes(VUE.rail[0]!.real), "says what #221 really waits for");
+  assert.ok(contexte.includes(VUE.rail[0]!.waitsOn), "says who #221 waits on");
   assert.match(readFileSync(ROLE_DU_SECOND, "utf8"), /plain words[^\n]*(waits? (for|on)|who)/i);
 });

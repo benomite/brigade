@@ -14,10 +14,10 @@ const FIELDS = [
 ];
 type Gesture = Parameters<typeof parkControl>[1]["gesture"];
 const poser = (gesture: Gesture, form = {}) => parkControl(doc, { project: "parade", ticket: 41, step: "Cooks", gesture, form }) as unknown as Faux;
-const champ = (c: Faux, name: string) => c.dessous("input").find(({ dataset }) => dataset.field === name)!;
+const champ = (c: Faux, nom: string) => c.dessous("input").find(({ dataset }) => dataset.field === nom)!;
 const presser = (c: Faux, action: string) => c.dessous("button").find(({ dataset }) => dataset.action === action)!.click();
 const raison = (c: Faux) => c.dessous("p").find(({ className }) => className === "park-reason")!;
-const remplir = (c: Faux, valeurs: Record<string, string>) => Object.entries(valeurs).forEach(([name, v]) => void (champ(c, name).value = v));
+const remplir = (c: Faux, valeurs: Record<string, string>) => Object.entries(valeurs).forEach(([nom, v]) => void (champ(c, nom).value = v));
 
 for (const { field, missing } of FIELDS) {
   test(`without ${field}, the reason on screen says ${field} is missing`, () => {

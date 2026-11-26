@@ -36,7 +36,7 @@ const REGLES: Regle[] = [
 ];
 
 // Les mots retenus : une vue les importe, elle n'en écrit pas de copie. « Add a project » reste libre dans index.html (du HTML ne s'importe pas).
-const RETENUS = [lexique.CET_ORDINATEUR, lexique.PASS_DE_CLOSING, lexique.METTRE_A_DAY, lexique.REESSAYER, lexique.AJOUTER_UN_PROJECT, lexique.ENREGISTREMENT, lexique.ANNULER];
+const RETENUS = [lexique.CET_ORDINATEUR, lexique.PASSE_DE_FERMETURE, lexique.METTRE_A_JOUR, lexique.REESSAYER, lexique.AJOUTER_UN_PROJET, lexique.ENREGISTREMENT, lexique.ANNULER];
 
 /** Les mots remplacés qui se lisent encore dans les chaînes de la vue, un par ligne : « fichier:ligne règle « texte » ». */
 export function retours(chemin: string, source: string): string[] {
@@ -45,8 +45,8 @@ export function retours(chemin: string, source: string): string[] {
     for (const regle of REGLES) {
       if (regle.remplace.test(chaine.texte) && regle.sauf?.(chaine) !== true) dits.push(`${relative(VUE, chemin)}:${chaine.ligne} ${regle.chose} — « ${chaine.texte} » (use ${regle.mot} from lexique.js)`);
     }
-    for (const word of RETENUS) {
-      if (chaine.texte.includes(word)) dits.push(`${relative(VUE, chemin)}:${chaine.ligne} « ${word} » copied in « ${chaine.texte} » (import it from lexique.js)`);
+    for (const mot of RETENUS) {
+      if (chaine.texte.includes(mot)) dits.push(`${relative(VUE, chemin)}:${chaine.ligne} « ${mot} » copied in « ${chaine.texte} » (import it from lexique.js)`);
     }
   }
   return dits;

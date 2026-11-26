@@ -11,7 +11,7 @@ import { LIENS } from "./aides/posix.ts";
 
 function suivi(t: TestContext, contenu?: unknown) {
   const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
-  for (const name of ["a", "b", "c"]) mkdirSync(join(racine, name));
+  for (const nom of ["a", "b", "c"]) mkdirSync(join(racine, nom));
   const chemin = join(racine, "config/app.json");
   if (contenu !== undefined) {
     mkdirSync(join(racine, "config"));
@@ -23,18 +23,18 @@ function suivi(t: TestContext, contenu?: unknown) {
     suivie.fermer();
     rmSync(racine, { recursive: true, force: true });
   });
-  const project = (name: string) => ({ nom: name, dossier: join(racine, name) });
-  const noms = () => suivie.configuration().projets.map(({ nom: name }) => name);
-  return { racine, chemin, suivie, dits, projet: project, noms };
+  const projet = (nom: string) => ({ nom, dossier: join(racine, nom) });
+  const noms = () => suivie.configuration().projets.map(({ nom }) => nom);
+  return { racine, chemin, suivie, dits, projet, noms };
 }
 
 // Écrit jusqu'à ce que le suivi l'ait dit : une veille à peine posée peut manquer
 // la toute première écriture (FSEvents démarre à son heure), jamais les suivantes.
 // Le délai n'est qu'une garde, pour qu'un test cassé finisse par le dire.
 async function ecrireJusqua(ecrire: () => void, condition: () => boolean, quoi: () => string): Promise<void> {
-  const limit = Date.now() + 60_000;
+  const limite = Date.now() + 60_000;
   while (!condition()) {
-    if (Date.now() > limit) throw new Error(`jamais arrivé — ${quoi()}`);
+    if (Date.now() > limite) throw new Error(`jamais arrivé — ${quoi()}`);
     ecrire();
     await new Promise((resoudre) => setTimeout(resoudre, 5));
   }
@@ -69,23 +69,23 @@ describe("le fichier des projets, suivi", () => {
   });
 
   test("le fichier est relu quand il change : la liste suit, sans que rien ne soit relancé", async (t) => {
-    const { chemin, dits, projet: project, noms } = suivi(t, { projets: [] });
+    const { chemin, dits, projet, noms } = suivi(t, { projets: [] });
 
-    await ecrireJusqua(() => writeFileSync(chemin, JSON.stringify({ projets: [project("a")] })), () => noms().join() === "a", () => JSON.stringify(dits));
-    await ecrireJusqua(() => writeFileSync(chemin, JSON.stringify({ projets: [project("a"), project("b")] })), () => noms().join() === "a,b", () => JSON.stringify(dits));
+    await ecrireJusqua(() => writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] })), () => noms().join() === "a", () => JSON.stringify(dits));
+    await ecrireJusqua(() => writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b")] })), () => noms().join() === "a,b", () => JSON.stringify(dits));
 
-    assert.deepEqual(dits.at(-1), { configuration: { chemin, projets: [project("a"), project("b")] }, partis: [] });
+    assert.deepEqual(dits.at(-1), { configuration: { chemin, projets: [projet("a"), projet("b")] }, partis: [] });
   });
 
   test("un éditeur qui remplace le fichier au lieu de l'écrire est suivi pareil", async (t) => {
-    const { chemin, dits, projet: project, noms } = suivi(t, { projets: [] });
+    const { chemin, dits, projet, noms } = suivi(t, { projets: [] });
 
     const remplacer = (contenu: unknown) => () => {
       writeFileSync(`${chemin}.neuf`, JSON.stringify(contenu));
       renameSync(`${chemin}.neuf`, chemin);
     };
-    await ecrireJusqua(remplacer({ projets: [project("a")] }), () => noms().join() === "a", () => JSON.stringify(dits));
-    await ecrireJusqua(remplacer({ projets: [project("b")] }), () => noms().join() === "b", () => JSON.stringify(dits));
+    await ecrireJusqua(remplacer({ projets: [projet("a")] }), () => noms().join() === "a", () => JSON.stringify(dits));
+    await ecrireJusqua(remplacer({ projets: [projet("b")] }), () => noms().join() === "b", () => JSON.stringify(dits));
   });
 
   test("un fichier atteint par un lien est suivi là où il est vraiment", async (t) => {
@@ -106,7 +106,7 @@ describe("le fichier des projets, suivi", () => {
   });
 
   test("un fichier lu à moitié ne fait rien disparaître : les projets d'avant restent, et le chemin et la raison sont dits", (t) => {
-    const { chemin, suivie, dits, projet: project } = suivi(t, { projets: [{ nom: "a", dossier: "/" }] });
+    const { chemin, suivie, dits, projet } = suivi(t, { projets: [{ nom: "a", dossier: "/" }] });
     const avant = suivie.configuration().projets;
 
     writeFileSync(chemin, '{ "projets": [');
@@ -118,39 +118,39 @@ describe("le fichier des projets, suivi", () => {
     assert.equal(suivie.configuration().refus, undefined);
     assert.match(suivie.configuration().nonRelu ?? "", /^unreadable JSON: /);
 
-    writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "a", dossier: "/" }, project("b")] }));
+    writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "a", dossier: "/" }, projet("b")] }));
     suivie.relire();
 
-    assert.deepEqual(suivie.configuration(), { chemin, projets: [{ nom: "a", dossier: "/" }, project("b")] });
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [{ nom: "a", dossier: "/" }, projet("b")] });
     assert.deepEqual(dits.at(-1)?.partis, []);
   });
 
   test("un fichier supprimé ne fait rien disparaître non plus, et n'est pas recréé dans le dos du chef", (t) => {
-    const { chemin, suivie, projet: project } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a")] }));
+    const { chemin, suivie, projet } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
     suivie.relire();
 
     rmSync(chemin);
     suivie.relire();
 
-    assert.deepEqual(suivie.configuration(), { chemin, projets: [project("a")], nonRelu: "this file does not exist" });
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [projet("a")], nonRelu: "this file does not exist" });
   });
 
   test("un fichier refusé au lancement, puis réparé, donne ses projets sans relancer", (t) => {
-    const { chemin, suivie, projet: project } = suivi(t, "{ projets: ");
+    const { chemin, suivie, projet } = suivi(t, "{ projets: ");
 
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a")] }));
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
     suivie.relire();
 
-    assert.deepEqual(suivie.configuration(), { chemin, projets: [project("a")] });
+    assert.deepEqual(suivie.configuration(), { chemin, projets: [projet("a")] });
   });
 
   test("une relecture qui ne change rien ne dit rien", (t) => {
-    const { chemin, suivie, dits, projet: project } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a")] }));
+    const { chemin, suivie, dits, projet } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
     suivie.relire();
 
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a")] }, null, 2));
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }, null, 2));
     suivie.relire();
     suivie.relire();
 
@@ -158,74 +158,74 @@ describe("le fichier des projets, suivi", () => {
   });
 
   test("un projet retiré du fichier, ou dont le dossier a changé, est dit parti — les autres non", (t) => {
-    const { racine, chemin, suivie, dits, projet: project } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a"), project("b"), project("c")] }));
+    const { racine, chemin, suivie, dits, projet } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b"), projet("c")] }));
     suivie.relire();
 
-    writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "b", dossier: join(racine, "c") }, project("c")] }));
+    writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "b", dossier: join(racine, "c") }, projet("c")] }));
     suivie.relire();
 
     assert.deepEqual(dits.at(-1)?.partis, ["a", "b"]);
   });
 
   test("un projet ajouté depuis l'app est dans la liste aussitôt, sans attendre la veille du fichier", (t) => {
-    const { suivie, dits, projet: project, noms } = suivi(t);
+    const { suivie, dits, projet, noms } = suivi(t);
 
-    assert.equal(suivie.ajouter(project("a")), undefined);
+    assert.equal(suivie.ajouter(projet("a")), undefined);
 
     assert.deepEqual(noms(), ["a"]);
     assert.equal(dits.length, 1);
   });
 
   test("un ajout refusé dit pourquoi, et ne change rien", (t) => {
-    const { suivie, dits, projet: project } = suivi(t, { projets: [{ nom: "a", dossier: "/" }] });
+    const { suivie, dits, projet } = suivi(t, { projets: [{ nom: "a", dossier: "/" }] });
 
-    assert.equal(suivie.ajouter(project("a")), "two projects are named “a”");
+    assert.equal(suivie.ajouter(projet("a")), "two projects are named “a”");
 
     assert.equal(dits.length, 0);
   });
 
   test("un fichier supprimé en cours de route n'est pas réécrit par un ajout : les autres projets ne partent pas, et la raison est dite", (t) => {
-    const { chemin, suivie, dits, projet: project, noms } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a"), project("b")] }));
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b")] }));
     suivie.relire();
 
     rmSync(chemin);
-    const refusal = suivie.ajouter(project("c"));
+    const refus = suivie.ajouter(projet("c"));
 
-    assert.equal(refusal, "the app does not write to a file it could not re-read — this file does not exist");
+    assert.equal(refus, "the app does not write to a file it could not re-read — this file does not exist");
     assert.equal(existsSync(chemin), false);
     assert.deepEqual(noms(), ["a", "b"]);
     assert.deepEqual(dits.flatMap(({ partis }) => partis), []);
   });
 
   test("un fichier devenu illisible n'est pas réécrit par un ajout non plus", (t) => {
-    const { chemin, suivie, projet: project, noms } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a")] }));
+    const { chemin, suivie, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
     suivie.relire();
 
     writeFileSync(chemin, '{ "projets": [');
 
-    assert.match(suivie.ajouter(project("b")) ?? "", /^the app does not write to a file it could not re-read — unreadable JSON: /);
+    assert.match(suivie.ajouter(projet("b")) ?? "", /^the app does not write to a file it could not re-read — unreadable JSON: /);
     assert.equal(readFileSync(chemin, "utf8"), '{ "projets": [');
     assert.deepEqual(noms(), ["a"]);
   });
 
   test("un projet retiré depuis l'app quitte la liste aussitôt, et il est dit parti — les autres non, et le fichier n'a plus sa ligne", (t) => {
-    const { chemin, suivie, dits, projet: project, noms } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a"), project("b")] }));
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b")] }));
     suivie.relire();
 
     assert.equal(suivie.retirer("a"), undefined);
 
     assert.deepEqual(noms(), ["b"]);
     assert.deepEqual(dits.at(-1)?.partis, ["a"]);
-    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [project("b")] });
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [projet("b")] });
   });
 
   test("un retrait refusé dit pourquoi, et ne change rien : un nom inconnu, ou un fichier que l'app n'a pas pu relire", (t) => {
-    const { chemin, suivie, dits, projet: project, noms } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a")] }));
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a")] }));
     suivie.relire();
     const dites = dits.length;
 
@@ -239,20 +239,20 @@ describe("le fichier des projets, suivi", () => {
   });
 
   test("un projet rangé prend sa place dans la liste aussitôt, sans que personne ne soit dit parti", (t) => {
-    const { chemin, suivie, dits, projet: project, noms } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a"), project("b"), project("c")] }));
+    const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b"), projet("c")] }));
     suivie.relire();
 
     assert.equal(suivie.ranger("c", 0), undefined);
 
     assert.deepEqual(noms(), ["c", "a", "b"]);
     assert.deepEqual(dits.at(-1)?.partis, []);
-    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [project("c"), project("a"), project("b")] });
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [projet("c"), projet("a"), projet("b")] });
   });
 
   test("un rangement refusé dit pourquoi, et ne change rien : un fichier que l'app n'a pas pu relire", (t) => {
-    const { chemin, suivie, projet: project, noms } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ projets: [project("a"), project("b")] }));
+    const { chemin, suivie, projet, noms } = suivi(t, { projets: [] });
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b")] }));
     suivie.relire();
     writeFileSync(chemin, '{ "projets": [');
 

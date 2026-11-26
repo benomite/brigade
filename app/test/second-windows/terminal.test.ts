@@ -8,22 +8,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ouvrirPty, ptyDisponible } from "../../src/pty.ts";
-import { ouvrirTerminaux, type Launch } from "../../src/terminaux.ts";
+import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
 import { aProposer, propositionLue, Refus } from "../../../runtime/src/second-propositions/proposition.ts";
 import { AVEC_GUILLEMETS, A } from "./aides.ts";
 
 const PARADE = { nom: "parade", dossier: "C:\\Users\\chef\\parade" };
 
-function registryWindows() {
+function registreWindows() {
   const ecrits: string[] = [];
-  const lances: Launch[] = [];
+  const lances: Lancement[] = [];
   const terminaux = ouvrirTerminaux({
     claude: "claude",
     shell: "powershell.exe",
     argsDuShell: ["-NoLogo"],
     persistantIci: false,
-    ouvrirPty(launch) {
-      lances.push(launch);
+    ouvrirPty(lancement) {
+      lances.push(lancement);
       return { ecrire: (donnees) => void ecrits.push(donnees), redimensionner: () => {}, tuer: () => {} };
     },
     surSortie: () => {},
@@ -33,25 +33,25 @@ function registryWindows() {
 }
 
 // Une ligne `brigade …` et sa forme lancée sous `!`, telles que le second les publie.
-const LINE_BRIGADE = `cd ~/parade && brigade parade pass 1480 --merge --comment 'ok!  merged'`;
-const BRIGADE_SOUS_BANG = `! ${LINE_BRIGADE}`;
+const LIGNE_BRIGADE = `cd ~/parade && brigade parade pass 1480 --merge --comment 'ok!  merged'`;
+const BRIGADE_SOUS_BANG = `! ${LIGNE_BRIGADE}`;
 
 describe("le registre, réglé comme sous Windows", () => {
   test("ce que la vue écrit dans le second — la commande, puis `\\r` — arrive au pty octet pour octet, en deux écritures, sans `\\n`", () => {
-    const { terminaux, ecrits } = registryWindows();
+    const { terminaux, ecrits } = registreWindows();
     const [second] = terminaux.espace(PARADE);
     assert.ok(second);
-    for (const command of [AVEC_GUILLEMETS, LINE_BRIGADE, BRIGADE_SOUS_BANG]) {
+    for (const commande of [AVEC_GUILLEMETS, LIGNE_BRIGADE, BRIGADE_SOUS_BANG]) {
       ecrits.length = 0;
-      terminaux.ecrire(second.id, command);
+      terminaux.ecrire(second.id, commande);
       terminaux.ecrire(second.id, "\r");
-      assert.deepEqual(ecrits, [command, "\r"]);
-      assert.equal(ecrits.join(""), `${command}\r`);
+      assert.deepEqual(ecrits, [commande, "\r"]);
+      assert.equal(ecrits.join(""), `${commande}\r`);
     }
   });
 
   test("le second d'un poste Windows n'est pas lancé par un shell : `claude` est lancé seul, et un « + shell » est PowerShell, sans session", () => {
-    const { terminaux, lances } = registryWindows();
+    const { terminaux, lances } = registreWindows();
     terminaux.espace(PARADE);
     assert.equal(lances[0]?.commande, "claude");
     terminaux.shell(PARADE);
@@ -63,7 +63,7 @@ describe("le canal du second, pour une commande qui vient de Windows", () => {
   const publiee = (command: string) => aProposer({ kind: "gesture", command });
 
   test("guillemets, espaces doublés, `!`, `%VAR%`, `\\` de chemin et lignes `brigade …` sont gardés tels quels", () => {
-    for (const command of [AVEC_GUILLEMETS, LINE_BRIGADE, BRIGADE_SOUS_BANG]) {
+    for (const command of [AVEC_GUILLEMETS, LIGNE_BRIGADE, BRIGADE_SOUS_BANG]) {
       assert.deepEqual(publiee(command), { kind: "gesture", command });
       assert.equal(propositionLue({ kind: "gesture", command, id: "g", at: A })?.kind === "gesture" && (propositionLue({ kind: "gesture", command, id: "g", at: A }) as { command: string }).command, command);
     }
@@ -112,24 +112,24 @@ describe("sur un vrai ConPTY", { skip: SAUTE }, () => {
     });
     const script = join(dossier, "lecteur.cjs");
     writeFileSync(script, LECTEUR);
-    for (const command of [AVEC_GUILLEMETS, BRIGADE_SOUS_BANG]) {
+    for (const commande of [AVEC_GUILLEMETS, BRIGADE_SOUS_BANG]) {
       let sortie = "";
       let fin = false;
       const pty = ouvrirPty({ commande: process.execPath, args: [script], dossier: tmpdir(), colonnes: 200, lignes: 40, surSortie: (donnees) => void (sortie += donnees), surFin: () => void (fin = true) });
       ptys.push({ tuer: pty.tuer, fini: () => fin });
       const attendre = async (condition: () => boolean) => {
-        const limit = Date.now() + 60_000;
+        const limite = Date.now() + 60_000;
         while (!condition()) {
-          if (Date.now() > limit) throw new Error(`jamais arrivé — ${sortie}`);
+          if (Date.now() > limite) throw new Error(`jamais arrivé — ${sortie}`);
           await new Promise((resoudre) => setTimeout(resoudre, 5));
         }
       };
       await attendre(() => sortie.includes("ready"));
-      pty.ecrire(command);
+      pty.ecrire(commande);
       pty.ecrire("\r");
       await attendre(() => /hex:[0-9a-f]*:fin/.test(sortie));
       const recu = Buffer.from(/hex:([0-9a-f]*):fin/.exec(sortie)?.[1] ?? "", "hex").toString("utf8");
-      assert.equal(recu, `${command}\r`);
+      assert.equal(recu, `${commande}\r`);
       // Le lecteur sort de lui-même après sa réponse : on attend sa fin plutôt que de tuer un process peut-être sorti.
       await attendre(() => fin);
     }

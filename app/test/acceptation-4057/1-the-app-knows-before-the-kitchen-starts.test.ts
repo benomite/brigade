@@ -5,39 +5,39 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { CopieLocale } from "../../../runtime/src/projets/copie-locale.ts";
-import { ouvrirDUneStation } from "../../src/first-launch.ts";
+import { ouvrirDUneStation } from "../../src/premier-lancement.ts";
 import { suivreConfiguration } from "../../src/suivi.ts";
 
-type Connection = "connectee" | "perdue" | "inconnue";
+type Connexion = "connectee" | "perdue" | "inconnue";
 
 // The first run of the app: an empty projects file, a first project opened from the first-launch screen. `claude` says
 // what Claude Code answers on this machine (`connexionClaude`), and `journal` keeps the order of what happens.
-function leFirstLaunch(t: TestContext, claude: () => Connection) {
+function lePremierLancement(t: TestContext, claude: () => Connexion) {
   const dossier = mkdtempSync(join(tmpdir(), "brigade-app-4057-"));
   t.after(() => rmSync(dossier, { recursive: true, force: true }));
   const suivi = suivreConfiguration({ chemin: join(dossier, "app.json"), maison: dossier, surChangement: () => {} });
   t.after(() => suivi.fermer());
   const copie = join(dossier, "projects", "parade");
-  const log: string[] = [];
+  const journal: string[] = [];
   const ouvrir = ouvrirDUneStation({
     ouvrirLaCopie: async (): Promise<CopieLocale> => {
-      log.push("kitchen");
+      journal.push("kitchen");
       mkdirSync(copie, { recursive: true });
       return { state: "open", project: "parade", repository: "benomite/parade", folder: copie, cloned: true };
     },
     lireLaBase: async () => "main",
     configuration: suivi.configuration,
-    ajouter: (project) => (log.push("added"), suivi.ajouter(project)),
+    ajouter: (projet) => (journal.push("added"), suivi.ajouter(projet)),
     progres: () => {},
-    connexionClaude: async () => (log.push("asked"), claude()),
+    connexionClaude: async () => (journal.push("asked"), claude()),
   } as Parameters<typeof ouvrirDUneStation>[0]);
-  return { journal: log, ouvrir: () => ouvrir("parade", "benomite/parade") as Promise<{ state: string }> };
+  return { journal, ouvrir: () => ouvrir("parade", "benomite/parade") as Promise<{ state: string }> };
 }
 
 test("on first run the app asks whether Claude Code is logged in before the kitchen of the first project starts", async (t) => {
-  const { journal: log, ouvrir } = leFirstLaunch(t, () => "connectee");
+  const { journal, ouvrir } = lePremierLancement(t, () => "connectee");
   await ouvrir();
-  assert.equal(log[0], "asked");
-  assert.ok(log.includes("kitchen"), "the kitchen started");
-  assert.ok(log.indexOf("asked") < log.indexOf("kitchen"), `asked before the kitchen starts: ${log.join(", ")}`);
+  assert.equal(journal[0], "asked");
+  assert.ok(journal.includes("kitchen"), "the kitchen started");
+  assert.ok(journal.indexOf("asked") < journal.indexOf("kitchen"), `asked before the kitchen starts: ${journal.join(", ")}`);
 });

@@ -1,5 +1,5 @@
 // Ce qui est avant le rail (#1836, #697) : un rail vide ne veut pas dire un projet fini. Les issues ouvertes du dépôt sont
-// lues ici comme l'app les lit de GitHub (tableau/read.ts, tableau/rail.ts, #2061), sur un faux GitHub : chacune que
+// lues ici comme l'app les lit de GitHub (tableau/lecture.ts, tableau/rail.ts, #2061), sur un faux GitHub : chacune que
 // le rail ne porte pas est rangée d'après ses labels seuls. L'app compte ce que la lecture liste, range chaque issue sous
 // le mot qu'elle porte, et n'y déduit rien. Ce que la vue en pose — ce que dit un rail vide — se joue dans
 // test/vue/ (le bandeau Backlog au-dessus du rail n'est plus, #4354). L'état du manager vient de son journal, lu par la commande du
@@ -14,12 +14,12 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
 import { DEPOT } from "../../runtime/test/outils.ts";
-import { COMMAND, comprendre, GROUPES, grouper, holdAmont, voir, type Vu } from "../src/amont.ts";
-import type { Read } from "../src/box.ts";
-import { COMMAND as COMMAND_MANAGER } from "../src/manager.ts";
-import type { CallGitHub } from "../src/tableau/client.ts";
-import { lireLeTableauDuRepository } from "../src/tableau/read.ts";
-import { readDuTableau } from "../src/tableau/rail.ts";
+import { COMMANDE, comprendre, GROUPES, grouper, tenirAmont, voir, type Vu } from "../src/amont.ts";
+import type { Lecture } from "../src/box.ts";
+import { COMMANDE as COMMANDE_MANAGER } from "../src/manager.ts";
+import type { AppelGitHub } from "../src/tableau/client.ts";
+import { lireLeTableauDuDepot } from "../src/tableau/lecture.ts";
+import { lectureDuTableau } from "../src/tableau/rail.ts";
 
 const PARADE = "parade";
 const A = "2026-10-15T09:12:04.000Z";
@@ -36,7 +36,7 @@ const ouverte = (number: number, labels: string[] = [], autres: { title?: string
 });
 
 // Un GitHub dont ce sont les issues ouvertes : celles au label `fire` sont le rail, les autres sont avant lui.
-const github = (issues: Ouverte[]): CallGitHub => async (chemin) => {
+const github = (issues: Ouverte[]): AppelGitHub => async (chemin) => {
   if (chemin.includes("/issues?") && chemin.includes("labels=fire")) return { status: 200, data: issues.filter(({ labels }) => labels.some(({ name }) => name === "fire")) };
   if (chemin.includes("/issues?")) return { status: 200, data: issues };
   if (chemin.includes("/pulls?")) return { status: 200, data: [] };
@@ -45,40 +45,40 @@ const github = (issues: Ouverte[]): CallGitHub => async (chemin) => {
 
 // Ce que l'app lit de GitHub pour ces issues ouvertes, rendu dans la forme de `manager upstream` ; et `manager` — l'état
 // du manager, lu de son journal par la commande du runtime —, tel quel.
-function kitchen(t: TestContext) {
+function cuisine(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-amont-"));
   let minute = 0;
-  const log = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 15, 9, ++minute)) });
+  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 15, 9, ++minute)) });
   t.after(() => {
-    log.fermer();
+    journal.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const noter = (fait: Fait, ticket: number | null, author = "manager") => void log.ajouter({ project: "brigade", ticket, author, ...fait });
-  const amont = async (issues: Ouverte[]): Promise<Read> => {
-    const lu = await lireLeTableauDuRepository({ depot: DEPOT, appeler: github(issues), maintenant: () => new Date(A) });
-    return readDuTableau(lu, PARADE, 3, [COMMAND]);
+  const noter = (fait: Fait, ticket: number | null, author = "manager") => void journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const amont = async (issues: Ouverte[]): Promise<Lecture> => {
+    const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: github(issues), maintenant: () => new Date(A) });
+    return lectureDuTableau(lu, PARADE, 3, [COMMANDE]);
   };
   const manager = (): string => {
-    const lines: string[] = [];
-    void principal({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return `${lines.join("\n")}\n`;
+    const lignes: string[] = [];
+    void principal({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
+    return `${lignes.join("\n")}\n`;
   };
   return { noter, amont, manager };
 }
 
-const read = (texte: string): Read => ({ projet: PARADE, demande: 3, a: A, sorties: [{ commande: COMMAND, texte }] });
-const readManager = (texte: string): Read => ({ projet: PARADE, demande: 3, a: A, sorties: [{ commande: COMMAND_MANAGER, texte }] });
+const lecture = (texte: string): Lecture => ({ projet: PARADE, demande: 3, a: A, sorties: [{ commande: COMMANDE, texte }] });
+const lectureManager = (texte: string): Lecture => ({ projet: PARADE, demande: 3, a: A, sorties: [{ commande: COMMANDE_MANAGER, texte }] });
 
 // Ce qui est lu : le test échoue net si rien n'a été compté.
-function account(vu: Vu) {
+function compte(vu: Vu) {
   assert.ok("compte" in vu, `rien n'a été compté : ${"sans" in vu ? vu.sans : ""}`);
   return vu;
 }
 
 // Un dépôt de référence : un nombre connu d'issues dans chacun des quatre états que les labels disent, deux sur le rail,
 // une PR.
-async function unRepository(t: TestContext, autres: Ouverte[] = []) {
-  const { amont, manager, noter } = kitchen(t);
+async function unDepot(t: TestContext, autres: Ouverte[] = []) {
+  const { amont, manager, noter } = cuisine(t);
   const sortie = await amont([
     ouverte(10, ["fire", "model:haiku", "effort:low"]),
     ouverte(11, ["model:opus", "effort:high", "prio:2"], { title: "Prêt sans feu" }),
@@ -101,14 +101,14 @@ const SURVOL = "8 issues before the rail — 3 not read yet · 2 epic, not split
 
 describe("ce qui est avant le rail, lu sur GitHub", () => {
   test("un dépôt de référence : chaque état compte exactement ses issues — ni le rail, ni les PR —, dans l'ordre de la barre", async (t) => {
-    const { sortie } = await unRepository(t);
+    const { sortie } = await unDepot(t);
 
-    const vu = account(voir(sortie));
+    const vu = compte(voir(sortie));
 
     assert.equal(vu.compte, 8);
     assert.equal(vu.lu, A);
     assert.deepEqual(
-      vu.groupes.map(({ etat: state, nom: name, issues }) => [state, name, issues.map(({ ticket }) => ticket)]),
+      vu.groupes.map(({ etat, nom, issues }) => [etat, nom, issues.map(({ ticket }) => ticket)]),
       [
         ["non-lue", "not read yet", [14, 20, 21]],
         ["epique", "epic, not split yet", [16, 17]],
@@ -135,12 +135,12 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
   });
 
   test("une issue que la cuisine a ouverte sur elle-même n'est pas un besoin : ni comptée, ni rangée, mais dite à part (#3523)", async (t) => {
-    const { sortie } = await unRepository(t, [
+    const { sortie } = await unDepot(t, [
       ouverte(35, ["bug"], { title: "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)" }),
       ouverte(36, [], { title: "The kitchen of the street is idle" }),
     ]);
 
-    const vu = account(voir(sortie));
+    const vu = compte(voir(sortie));
 
     assert.equal(vu.compte, 9, "8 besoins de référence, et #36, un besoin comme un autre");
     assert.deepEqual(vu.groupes.flatMap(({ issues }) => issues.map(({ ticket }) => ticket)).filter((ticket) => ticket >= 34), [36]);
@@ -149,17 +149,17 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     ]);
     assert.equal(vu.survol.startsWith("9 issues before the rail"), true);
     // Sans alerte, aucune clé.
-    assert.equal("alertes" in account(voir((await unRepository(t)).sortie)), false);
+    assert.equal("alertes" in compte(voir((await unDepot(t)).sortie)), false);
   });
 
   test("les cinq états viennent dans l'ordre du bandeau, puis les deux d'un besoin découpé ; un mot que l'app ne connaît pas se pose après eux, tel quel", () => {
-    const une = (ticket: number, state: string) => ({ ticket, titre: `#${ticket}`, url: `https://github.com/${DEPOT}/issues/${ticket}`, priorite: null, etat: state, dit: state });
+    const une = (ticket: number, etat: string) => ({ ticket, titre: `#${ticket}`, url: `https://github.com/${DEPOT}/issues/${ticket}`, priorite: null, etat, dit: etat });
 
     const groupes = grouper([une(1, "mise-de-cote"), une(2, "inconnu"), une(3, "non-lue"), une(4, "prete"), une(5, "epique"), une(6, "non-lue"), une(7, "incomplete")]);
 
-    assert.deepEqual(GROUPES.map(({ etat: state }) => state), ["non-lue", "incomplete", "epique", "prete", "mise-de-cote", "decoupee", "servie", "idee"]);
+    assert.deepEqual(GROUPES.map(({ etat }) => etat), ["non-lue", "incomplete", "epique", "prete", "mise-de-cote", "decoupee", "servie", "idee"]);
     assert.deepEqual(
-      groupes.map(({ etat: state, issues }) => [state, issues.map(({ ticket }) => ticket)]),
+      groupes.map(({ etat, issues }) => [etat, issues.map(({ ticket }) => ticket)]),
       [
         ["non-lue", [3, 6]],
         ["incomplete", [7]],
@@ -172,8 +172,8 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
   });
 
   test("rail vide : l'app dit ce qui est avant lui et ce que le manager en fait, d'après son état lu — ou qu'il n'y a rien", async (t) => {
-    const { sortie, manager, noter } = await unRepository(t);
-    const amonts = holdAmont();
+    const { sortie, manager, noter } = await unDepot(t);
+    const amonts = tenirAmont();
 
     // L'état du manager pas encore lu : l'app ne devine pas s'il les lit.
     assert.equal(
@@ -181,29 +181,29 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
       "nothing on the rail — 8 issues before it (3 not read yet · 2 epic, not split yet · 1 ready, not fired · 2 set aside) — the manager's state was not read: whether it is reading them is not known",
     );
     // Jamais allumé : éteint.
-    assert.match(amonts.manager(readManager(manager()))?.vide ?? "", / — the manager is off: it reads none of them, and nothing new enters the rail until you turn it on$/);
+    assert.match(amonts.manager(lectureManager(manager()))?.vide ?? "", / — the manager is off: it reads none of them, and nothing new enters the rail until you turn it on$/);
     noter({ type: "manager.enabled", payload: {} }, null, "chef");
-    assert.match(amonts.manager(readManager(manager()))?.vide ?? "", / — the manager is on: it reads them at each wake-up, judges what it has not read and splits the epics$/);
+    assert.match(amonts.manager(lectureManager(manager()))?.vide ?? "", / — the manager is on: it reads them at each wake-up, judges what it has not read and splits the epics$/);
 
     // Rien avant le rail non plus.
-    const { amont } = kitchen(t);
+    const { amont } = cuisine(t);
     const rien = voir(await amont([]));
     assert.equal(rien.vide, "nothing on the rail, nothing before it");
-    assert.equal(account(rien).compte, 0);
-    assert.equal(account(rien).survol, "nothing before the rail: every open issue of the repository is on it");
+    assert.equal(compte(rien).compte, 0);
+    assert.equal(compte(rien).survol, "nothing before the rail: every open issue of the repository is on it");
   });
 
   test("les issues ouvertes qui ne se lisent pas, le rail si : ni nombre, ni « pas lu » — rien n'est dit (#1770)", async () => {
     const appeler = github([ouverte(10, ["fire"]), ouverte(20)]);
-    const lu = await lireLeTableauDuRepository({ depot: DEPOT, appeler: async (chemin, entetes) => (chemin.includes("/issues?") && !chemin.includes("labels=fire") ? { status: 403, data: {} } : appeler(chemin, entetes)), maintenant: () => new Date(A) });
-    const vu = voir(readDuTableau(lu, PARADE, 3, [COMMAND]));
+    const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: async (chemin, entetes) => (chemin.includes("/issues?") && !chemin.includes("labels=fire") ? { status: 403, data: {} } : appeler(chemin, entetes)), maintenant: () => new Date(A) });
+    const vu = voir(lectureDuTableau(lu, PARADE, 3, [COMMANDE]));
     assert.ok("nonPublie" in vu, JSON.stringify(vu));
     assert.ok(!("compte" in vu) && !("sans" in vu));
     assert.equal(vu.vide, "nothing on the rail");
   });
 
   test("une lecture ratée ne donne jamais de nombre, et dit pourquoi — ce n'est pas « rien avant le rail »", async () => {
-    const failure = (error: string, atteinte: boolean, cas: null = null): Read => ({ projet: PARADE, demande: 3, a: A, erreur: error, atteinte, cas });
+    const echec = (erreur: string, atteinte: boolean, cas: null = null): Lecture => ({ projet: PARADE, demande: 3, a: A, erreur, atteinte, cas });
     const sans = (vu: Vu) => {
       assert.ok(!("compte" in vu), "un nombre a été donné");
       assert.ok("sans" in vu, "la lecture ratée doit dire pourquoi");
@@ -213,20 +213,20 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     };
 
     // GitHub ne se lit pas : sa raison, en une phrase.
-    assert.match(sans(voir({ ...failure("GitHub refused to read the rail of acme/brigade (HTTP 403).", true), duTableau: true })), /^what is before the rail was not read: GitHub refused to read the rail of acme\/brigade \(HTTP 403\)\. This/);
+    assert.match(sans(voir({ ...echec("GitHub refused to read the rail of acme/brigade (HTTP 403).", true), duTableau: true })), /^what is before the rail was not read: GitHub refused to read the rail of acme\/brigade \(HTTP 403\)\. This/);
     // Le même refus, lu tel que l'app le lit.
-    const refusal = await lireLeTableauDuRepository({ depot: DEPOT, appeler: async () => ({ status: 403, data: {} }), maintenant: () => new Date(A) });
-    assert.match(sans(voir(readDuTableau(refusal, PARADE, 3, [COMMAND]))), /^what is before the rail was not read: GitHub refused to read the rail of acme\/brigade \(HTTP 403\)\. This/);
+    const refus = await lireLeTableauDuDepot({ depot: DEPOT, appeler: async () => ({ status: 403, data: {} }), maintenant: () => new Date(A) });
+    assert.match(sans(voir(lectureDuTableau(refus, PARADE, 3, [COMMANDE]))), /^what is before the rail was not read: GitHub refused to read the rail of acme\/brigade \(HTTP 403\)\. This/);
     // Une sortie qui n'a pas la forme : ni complétée, ni comptée.
-    assert.match(sans(voir(read(""))), /in what GitHub gave: the command returned nothing/);
-    assert.match(sans(voir(read("12 issues"))), /it is not JSON/);
-    assert.match(sans(voir(read(JSON.stringify({ lu: A, depot: DEPOT, issues: [{ ticket: 3, titre: "t", url: "u", priorite: null, etat: "non-lue" }] })))), /“issues\[0\]\.dit” is not a string/);
+    assert.match(sans(voir(lecture(""))), /in what GitHub gave: the command returned nothing/);
+    assert.match(sans(voir(lecture("12 issues"))), /it is not JSON/);
+    assert.match(sans(voir(lecture(JSON.stringify({ lu: A, depot: DEPOT, issues: [{ ticket: 3, titre: "t", url: "u", priorite: null, etat: "non-lue" }] })))), /“issues\[0\]\.dit” is not a string/);
   });
 
   test("la commande que la lecture de GitHub remplace est celle que docs/runtime/ documente, dans le dépôt et sur la box", () => {
     const doc = docRuntime(join(import.meta.dirname, "../.."));
 
-    assert.equal(COMMAND, "manager upstream");
+    assert.equal(COMMANDE, "manager upstream");
     assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime/ ne cite pas `manager -- upstream`");
     assert.ok(doc.includes("`brigade <projet> manager [return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager upstream`");
   });
@@ -239,9 +239,9 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
   });
 
   test("l'adresse d'une issue reste au process principal : celle que la lecture a donnée, en https seulement, du projet lu", () => {
-    const amonts = holdAmont();
+    const amonts = tenirAmont();
     const issue = (ticket: number, url: string) => ({ ticket, titre: "t", url, priorite: null, etat: "non-lue", dit: "d" });
-    amonts.recevoir(read(JSON.stringify({ lu: A, depot: DEPOT, issues: [issue(3, "https://github.com/x/y/issues/3"), issue(4, "http://ailleurs/4")] })));
+    amonts.recevoir(lecture(JSON.stringify({ lu: A, depot: DEPOT, issues: [issue(3, "https://github.com/x/y/issues/3"), issue(4, "http://ailleurs/4")] })));
 
     assert.equal(amonts.adresse(PARADE, 3), "https://github.com/x/y/issues/3");
     assert.equal(amonts.adresse(PARADE, 4), undefined);

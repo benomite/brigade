@@ -5,21 +5,21 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBar } from "../../src/bar.ts";
-import { EXEMPLE, type Project } from "../../src/config.ts";
+import { pourLaBarre } from "../../src/barre.ts";
+import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
-import { BANNIERE } from "../../src/facts.ts";
-import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
-import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
+import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
+import { BANNIERE } from "../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { figures, fenetresDe, NON_COMMUNIQUE, poserTete } from "../../src/vue/cost/tete.js";
+import { chiffres, fenetresDe, NON_COMMUNIQUE, poserTete } from "../../src/vue/cost/tete.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
 // Un nombre tel que le runtime l'écrit (fr-FR) : séparé d'espaces fines insécables.
-const n = (figures: string) => figures.replaceAll(" ", " ");
+const n = (chiffres: string) => chiffres.replaceAll(" ", " ");
 
 // Ce que `station` rend, mot pour mot (runtime/src/montrer-station.ts) : ses lignes, puis le bloc `consommé`.
 const station = (cinq: string, vingtQuatre: string) =>
@@ -33,8 +33,8 @@ const station = (cinq: string, vingtQuatre: string) =>
     "décisions du chef     `station -- <geste> <valeur>` pour en poser une",
     `  seuil-ticket        non posée — 5 h : ${n("999 999")} tokens n'est pas une fenêtre`,
   ].join("\n");
-const lu = (project: string, texte: string) => ({ projet: project, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
-const injoignable = (project: string) => ({ projet: project, demande: 0, a: A, erreur: "spawn node ENOENT", atteinte: false, cas: null });
+const lu = (projet: string, texte: string) => ({ projet, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
+const injoignable = (projet: string) => ({ projet, demande: 0, a: A, erreur: "spawn node ENOENT", atteinte: false, cas: null });
 
 const PARADE_LU = station(`6 lancements, dont 2 relectures · 214 tours · ${n("1 284 530")} tokens`, `19 lancements · 802 tours · ${n("4 912 044")} tokens`);
 const CANTINE_LU = station(`1 lancement · 3 tours · ${n("320 000")} tokens`, "rien");
@@ -62,10 +62,10 @@ describe("ce que `station` dit de chaque fenêtre", () => {
 });
 
 describe("les trois chiffres", () => {
-  const projects = [{ nom: "parade" }, { nom: "cantine" }];
+  const projets = [{ nom: "parade" }, { nom: "cantine" }];
 
   test("chaque fenêtre est la somme des projets, et la part de chacun en est le pourcentage", () => {
-    const [cinq, vingtQuatre, sept] = figures(projects, new Map([["parade", lu("parade", PARADE_LU)], ["cantine", lu("cantine", CANTINE_LU)]]));
+    const [cinq, vingtQuatre, sept] = chiffres(projets, new Map([["parade", lu("parade", PARADE_LU)], ["cantine", lu("cantine", CANTINE_LU)]]));
     assert.deepEqual(cinq, {
       dit: "5 h",
       total: 1_604_530,
@@ -78,11 +78,11 @@ describe("les trois chiffres", () => {
     assert.equal(vingtQuatre?.total, 4_912_044);
     assert.deepEqual(vingtQuatre?.parts.map(({ part }) => part), [100, 0]);
     // La box ne donne pas 7 jours : ni la somme, ni la part de personne.
-    assert.deepEqual(sept, { dit: "7 d", total: null, partiel: false, parts: projects.map((project) => ({ projet: project, tokens: null, part: undefined })) });
+    assert.deepEqual(sept, { dit: "7 d", total: null, partiel: false, parts: projets.map((projet) => ({ projet, tokens: null, part: undefined })) });
   });
 
   test("une box injoignable : son projet n'est pas communiqué, la somme des autres est partielle et ne donne pas de part", () => {
-    const [cinq] = figures(projects, new Map<string, unknown>([["parade", lu("parade", PARADE_LU)], ["cantine", injoignable("cantine")]]) as never);
+    const [cinq] = chiffres(projets, new Map<string, unknown>([["parade", lu("parade", PARADE_LU)], ["cantine", injoignable("cantine")]]) as never);
     assert.deepEqual(cinq, {
       dit: "5 h",
       total: 1_284_530,
@@ -95,7 +95,7 @@ describe("les trois chiffres", () => {
   });
 
   test("une box pas encore lue est en lecture, pas « non communiquée »", () => {
-    const [cinq] = figures(projects, new Map());
+    const [cinq] = chiffres(projets, new Map());
     assert.equal(cinq?.total, undefined);
     assert.deepEqual(cinq?.parts.map(({ tokens }) => tokens), [undefined, undefined]);
   });
@@ -112,7 +112,7 @@ describe("la tête posée", () => {
     assert.deepEqual([cinq, vingtQuatre, sept].map((bloc) => bloc?.dessous("h3")[0]?.textContent), ["5 h", "24 h", "7 d"]);
     assert.equal(cinq?.dessous("p")[0]?.textContent, "1,604,530");
     assert.deepEqual(
-      cinq?.dessous("li").map((line) => line.children.map(({ textContent }) => textContent)),
+      cinq?.dessous("li").map((ligne) => ligne.children.map(({ textContent }) => textContent)),
       [
         ["", "parade", "1,284,530", "80 %"],
         ["", "cantine", "320,000", "20 %"],
@@ -126,11 +126,11 @@ describe("la tête posée", () => {
     const total = sept?.dessous("p")[0];
     assert.equal(total?.textContent, NON_COMMUNIQUE);
     assert.equal(total?.className, "total sans");
-    assert.deepEqual(sept?.dessous("li").map((line) => line.children[2]?.textContent), [NON_COMMUNIQUE, NON_COMMUNIQUE]);
+    assert.deepEqual(sept?.dessous("li").map((ligne) => ligne.children[2]?.textContent), [NON_COMMUNIQUE, NON_COMMUNIQUE]);
     // Une box injoignable, de même : sa part dit « not communicated », la somme des autres est au moins ce qu'elle dit.
     const [cinq] = blocs(tete(new Map<string, unknown>([["parade", lu("parade", PARADE_LU)], ["cantine", injoignable("cantine")]])));
     assert.equal(cinq?.dessous("p")[0]?.textContent, "≥ 1,284,530");
-    assert.deepEqual(cinq?.dessous("li").map((line) => line.children.slice(1).map(({ textContent }) => textContent)), [["parade", "1,284,530", ""], ["cantine", NON_COMMUNIQUE, ""]]);
+    assert.deepEqual(cinq?.dessous("li").map((ligne) => ligne.children.slice(1).map(({ textContent }) => textContent)), [["parade", "1,284,530", ""], ["cantine", NON_COMMUNIQUE, ""]]);
     // Rien de ce que le lancement a répondu n'est écrit.
     assert.doesNotMatch(tete(new Map([["cantine", injoignable("cantine")]])).textContent, /ENOENT|spawn/);
   });
@@ -150,19 +150,19 @@ describe("la tête posée", () => {
 });
 
 describe("la page des coûts de l'app, dans la vue (#1022)", () => {
-  const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
-  const CANTINE: Project = { nom: "cantine", dossier: "/tmp/cantine" };
-  const LOCAL: Project = { nom: "local", dossier: "/tmp/local" };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
+  const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine" };
+  const LOCAL: Projet = { nom: "local", dossier: "/tmp/local" };
 
   async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE, LOCAL] }, (project) => project.nom !== "local"),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE, LOCAL] }, (projet) => projet.nom !== "local"),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -175,29 +175,29 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
 
   test("sa ligne, sous Health, l'ouvre à la place de l'accueil, et sa tête additionne `station` de chaque box", async () => {
     const vue = await ouvrirLaPage();
-    const cost = vue.element("cout");
-    assert.equal(cost.hidden, false);
+    const cout = vue.element("cout");
+    assert.equal(cout.hidden, false);
     // Aucun espace de projet n'est ouvert : la page est à la place de l'accueil, « T » reste l'entrée affichée.
     assert.equal(vue.element("tous").hidden, false);
     assert.equal(vue.element("main").hidden, true);
     assert.equal(vue.element("entree-tous").ariaCurrent, "true");
     // Le seul espace ouvert est celui du projet dont Health porte la ligne « Cost » (#2638) : la page n'en ouvre aucun.
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "espace").length, 1);
-    const request = vue.dernier("onglet")[2] as number;
+    assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 1);
+    const demande = vue.dernier("onglet")[2] as number;
     // Sa lecture n'est celle d'aucun projet : le process principal lit `station` sur chaque box.
     assert.deepEqual(vue.dernier("onglet").slice(0, 2), [undefined, "couts"]);
     // Avant toute lecture, les chiffres sont en lecture.
-    assert.equal(cost.dessous("p")[0]?.textContent, "Reading…");
+    assert.equal(cout.dessous("p")[0]?.textContent, "Reading…");
 
-    vue.dire("surContenu", { ...lu("cantine", CANTINE_LU), demande: request }, undefined);
-    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: request }, undefined);
+    vue.dire("surContenu", { ...lu("cantine", CANTINE_LU), demande }, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande }, undefined);
     await repos();
-    const totaux = cost.dessous("p").filter(({ className }) => className.startsWith("total")).map(({ textContent }) => textContent);
+    const totaux = cout.dessous("p").filter(({ className }) => className.startsWith("total")).map(({ textContent }) => textContent);
     assert.deepEqual(totaux, ["1,604,530", "4,912,044", NON_COMMUNIQUE]);
     // Un projet que la station ne lit pas n'a rien lancé : il n'a pas de ligne.
-    assert.doesNotMatch(cost.textContent, /local/);
+    assert.doesNotMatch(cout.textContent, /local/);
     // Le quota du compte renvoie à `/usage`.
-    assert.match(cost.textContent, /Max account quota: \/usage/);
+    assert.match(cout.textContent, /Max account quota: \/usage/);
   });
 
   test("un clic sur le nom d'un projet ouvre son espace", async () => {
@@ -216,8 +216,8 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
   test("une lecture d'une demande passée n'entre pas dans les chiffres ; revenir à l'accueil arrête sa lecture", async () => {
     const vue = await ouvrirLaPage();
     const page = vue.element("cout");
-    const request = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: request - 1 }, undefined);
+    const demande = vue.dernier("onglet")[2] as number;
+    vue.dire("surContenu", { ...lu("parade", PARADE_LU), demande: demande - 1 }, undefined);
     await repos();
     assert.equal(page.dessous("p")[0]?.textContent, "Reading…");
 

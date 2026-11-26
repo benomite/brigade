@@ -1,6 +1,6 @@
 // La pause de quota GitHub du compte (ticket 3482, épique 3475) : quand le quota GitHub du compte est épuisé, les stations
 // tournent mais ne peuvent plus écrire leur signe de vie. Ce n'est pas une panne : rien n'est à faire, elles reprennent
-// seules. La pause se dit une fois pour tout le compte, en tête de l'app (line-de-la-pause.js) ; chaque projet dit
+// seules. La pause se dit une fois pour tout le compte, en tête de l'app (ligne-de-la-pause.js) ; chaque projet dit
 // seulement qu'il est en pause pour la même raison, jamais « offline » ni « Start it on its computer ».
 //
 // Le contrat (publié par le runtime, ticket du même épique) : l'état de chaque station porte `quotaGithub` =
@@ -14,17 +14,17 @@
 // Rien n'y est cru sur parole : un `quotaGithub` mal formé n'est pas une pause — la station se juge comme avant.
 import { enregistrementLu, type RetenueParGitHub } from "../../../../runtime/src/enregistrement-station/contrat.ts";
 
-export type LimitDuQuota = "core" | "ecriture";
-export type QuotaGithub = { limite: LimitDuQuota; pauseJusqua: string | null; utilise: number | null; maximum: number | null };
+export type LimiteDuQuota = "core" | "ecriture";
+export type QuotaGithub = { limite: LimiteDuQuota; pauseJusqua: string | null; utilise: number | null; maximum: number | null };
 // La pause du compte : la limite atteinte, et la reprise — nulle quand aucune station ne la sait.
-export type PauseDuAccount = { limite: LimitDuQuota; jusqua: string | null };
+export type PauseDuCompte = { limite: LimiteDuQuota; jusqua: string | null };
 
 // Ce que les signes de vie portent, du contrat : son dernier signe, son arrêt, et son quota.
 export type Signe = { lastSeen: string; stoppedAt: string | null; heldBy?: RetenueParGitHub | null; quotaGithub?: QuotaGithub };
 
-const LIMITES: readonly LimitDuQuota[] = ["core", "ecriture"];
+const LIMITES: readonly LimiteDuQuota[] = ["core", "ecriture"];
 // La limite du contrat de l'enregistrement (`github-limite.ts`, `SORTES_DE_LIMITE`) qui dit la même chose.
-const RETENUE: Record<LimitDuQuota, string> = { core: "primary", ecriture: "secondary-writes" };
+const RETENUE: Record<LimiteDuQuota, string> = { core: "primary", ecriture: "secondary-writes" };
 
 const objet = (valeur: unknown): Record<string, unknown> | null => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : null);
 const date = (valeur: unknown): valeur is string => typeof valeur === "string" && !Number.isNaN(Date.parse(valeur));
@@ -33,9 +33,9 @@ const nombre = (valeur: unknown): number | null => (typeof valeur === "number" &
 // `quotaGithub` d'une station, ou null : absent, ou mal formé — une limite inconnue, une reprise illisible.
 export function quotaGithubLu(brut: unknown): QuotaGithub | null {
   const lu = objet(brut);
-  if (lu === null || !LIMITES.includes(lu.limite as LimitDuQuota)) return null;
+  if (lu === null || !LIMITES.includes(lu.limite as LimiteDuQuota)) return null;
   if (lu.pauseJusqua !== null && !date(lu.pauseJusqua)) return null;
-  return { limite: lu.limite as LimitDuQuota, pauseJusqua: lu.pauseJusqua, utilise: nombre(lu.utilise), maximum: nombre(lu.maximum) };
+  return { limite: lu.limite as LimiteDuQuota, pauseJusqua: lu.pauseJusqua, utilise: nombre(lu.utilise), maximum: nombre(lu.maximum) };
 }
 
 // La station est-elle en pause à cet instant : sa reprise est à venir ; ou elle ne la sait pas, et son quota ne dit pas
@@ -53,7 +53,7 @@ const enPauseParmi = <S extends Signe>(signes: readonly S[], maintenant: number)
 
 // La pause du compte, ou null : aucune station ne la dit. Elle dure jusqu'à la reprise la plus tardive ; une station qui
 // ne la sait pas la rend inconnue. La limite est celle de la station qui reprend le plus tard.
-export function pauseDuAccount(signes: readonly Signe[], maintenant: number): PauseDuAccount | null {
+export function pauseDuCompte(signes: readonly Signe[], maintenant: number): PauseDuCompte | null {
   const enPauses = enPauseParmi(signes, maintenant);
   if (enPauses.length === 0) return null;
   const inconnue = enPauses.find(({ quota }) => quota.pauseJusqua === null);
@@ -73,8 +73,8 @@ export function avecLaPause<S extends Signe>(signes: readonly S[], maintenant: n
   });
 }
 
-// La station de cet ordinateur, que l'app voit tourner (son process, workstation/station.ts), n'est pas tue, même quand le quota
-// GitHub l'empêche d'écrire son signe de vie : son dernier signe est cet instant. `id` : son gist (outages/login.ts,
+// La station de cet ordinateur, que l'app voit tourner (son process, poste/station.ts), n'est pas tue, même quand le quota
+// GitHub l'empêche d'écrire son signe de vie : son dernier signe est cet instant. `id` : son gist (pannes/login.ts,
 // `gistLocal`), nul quand elle ne tourne pas ici — rien ne change alors.
 export function avecLaStationLocale<S extends Signe & { id?: string }>(signes: readonly S[], id: string | null, maintenant: number): S[] {
   if (id === null) return [...signes];
@@ -82,7 +82,7 @@ export function avecLaStationLocale<S extends Signe & { id?: string }>(signes: r
   return signes.map((signe) => (signe.id === id && Date.parse(signe.lastSeen) < maintenant ? { ...signe, lastSeen: instant } : signe));
 }
 
-// Les présences qui disent une station du compte en ligne (stations-du-account.ts, `avecLeurEtat`), et celle de la station de
+// Les présences qui disent une station du compte en ligne (stations-du-compte.ts, `avecLeurEtat`), et celle de la station de
 // cet ordinateur quand l'app la voit tourner : son nom, celui de son enregistrement.
 export type Presence = { nom: string; etat: string };
 export function avecLaPresenceLocale(presences: readonly Presence[], stations: readonly { id: string; name: string }[], id: string | null): Presence[] {
@@ -90,7 +90,7 @@ export function avecLaPresenceLocale(presences: readonly Presence[], stations: r
   return ici === undefined ? [...presences] : [...presences, { nom: ici.name, etat: "en-ligne" }];
 }
 
-// Le téléphone (read-github-phone.ts) lit l'enregistrement de chaque station dans son gist, tel quel : son signe de
+// Le téléphone (lecture-github-telephone.ts) lit l'enregistrement de chaque station dans son gist, tel quel : son signe de
 // vie et son quota GitHub, ou null quand il ne se lit pas — il ne dit alors aucune pause.
 export function signeDeLEnregistrement(brut: string | undefined): Signe | null {
   if (brut === undefined) return null;
@@ -100,10 +100,10 @@ export function signeDeLEnregistrement(brut: string | undefined): Signe | null {
   return { lastSeen: lu.lastSeen, stoppedAt: lu.stoppedAt, ...(quotaGithub === null ? {} : { quotaGithub }) };
 }
 
-// `pauseQuota`, de la racine de `facts` (facts.ts, `comprendre`) : rien de mal formé ne le pose.
-export function pauseQuotaLue(valeur: unknown): { pauseQuota?: PauseDuAccount } {
+// `pauseQuota`, de la racine de `facts` (faits.ts, `comprendre`) : rien de mal formé ne le pose.
+export function pauseQuotaLue(valeur: unknown): { pauseQuota?: PauseDuCompte } {
   const lu = objet(valeur);
-  if (lu === null || !LIMITES.includes(lu.limite as LimitDuQuota)) return {};
+  if (lu === null || !LIMITES.includes(lu.limite as LimiteDuQuota)) return {};
   if (lu.jusqua !== null && !date(lu.jusqua)) return {};
-  return { pauseQuota: { limite: lu.limite as LimitDuQuota, jusqua: lu.jusqua } };
+  return { pauseQuota: { limite: lu.limite as LimiteDuQuota, jusqua: lu.jusqua } };
 }

@@ -3,9 +3,9 @@
 // recommandé dont le prix n'est que dans le survol, une confirmation qui ne dit un prix que si elle coûte.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { buttonAction, survol } from "../src/vue/briques.js";
-import { confirmationDeAction } from "../src/vue/composants/confirmation/confirmation.js";
-import { lineError } from "../src/vue/composants/line-error/line-error.js";
+import { boutonAction, survol } from "../src/vue/briques.js";
+import { confirmationDeGeste } from "../src/vue/composants/confirmation/confirmation.js";
+import { ligneErreur } from "../src/vue/composants/ligne-erreur/ligne-erreur.js";
 import { Faux } from "./aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -39,20 +39,20 @@ describe("le survol", () => {
 describe("la lecture indisponible", () => {
   test("une ligne courte en clair ; le détail technique n'est dans le texte visible que survolé", () => {
     const detail = "connect to host box port 22: Connection refused";
-    const read = lineError(doc, "historique indisponible", detail) as Faux;
-    assert.equal(read.children[0]?.textContent, "historique indisponible");
-    assert.equal(read.textContent.includes("Connection refused"), false);
-    read.children[1]!.children[0]!.declencher("focus");
-    assert.ok(read.textContent.includes(detail));
+    const lecture = ligneErreur(doc, "historique indisponible", detail) as Faux;
+    assert.equal(lecture.children[0]?.textContent, "historique indisponible");
+    assert.equal(lecture.textContent.includes("Connection refused"), false);
+    lecture.children[1]!.children[0]!.declencher("focus");
+    assert.ok(lecture.textContent.includes(detail));
   });
 
   test("sans détail, pas de survol", () => {
-    assert.equal((lineError(doc, "historique indisponible", "") as Faux).childElementCount, 1);
+    assert.equal((ligneErreur(doc, "historique indisponible", "") as Faux).childElementCount, 1);
   });
 });
 
 describe("le bouton d'action", () => {
-  const rendu = (options?: Parameters<typeof buttonAction>[3]) => buttonAction(doc, "resume", () => {}, options) as Faux;
+  const rendu = (options?: Parameters<typeof boutonAction>[3]) => boutonAction(doc, "resume", () => {}, options) as Faux;
 
   test("recommandé, il se distingue des autres", () => {
     assert.equal(rendu({ recommande: true }).children[0]?.className, "recommande");
@@ -73,17 +73,17 @@ describe("le bouton d'action", () => {
 });
 
 describe("la confirmation de geste", () => {
-  const rendu = (prix?: string | number | null) => confirmationDeAction(doc, { titre: "stop the kitchen", prix, oui: "yes", non: "no" }, { oui: () => {}, non: () => {} }) as Faux;
-  const lines = (confirmation: Faux) => confirmation.children.filter(({ className }) => className === "prix");
+  const rendu = (prix?: string | number | null) => confirmationDeGeste(doc, { titre: "stop the kitchen", prix, oui: "yes", non: "no" }, { oui: () => {}, non: () => {} }) as Faux;
+  const lignes = (confirmation: Faux) => confirmation.children.filter(({ className }) => className === "prix");
 
   test("un geste qui coûte affiche son prix, en une seule ligne", () => {
     const confirmation = rendu("3 cooks running\nand their work is lost");
-    assert.equal(lines(confirmation).length, 1);
-    assert.equal(lines(confirmation)[0]?.textContent, "3 cooks running and their work is lost");
+    assert.equal(lignes(confirmation).length, 1);
+    assert.equal(lignes(confirmation)[0]?.textContent, "3 cooks running and their work is lost");
   });
 
   test("un geste sans coût n'affiche aucune ligne de prix", () => {
-    for (const prix of [undefined, null, 0, ""]) assert.equal(lines(rendu(prix)).length, 0, String(prix));
+    for (const prix of [undefined, null, 0, ""]) assert.equal(lignes(rendu(prix)).length, 0, String(prix));
   });
 
   test("les deux réponses y sont, « oui » en recommandé", () => {

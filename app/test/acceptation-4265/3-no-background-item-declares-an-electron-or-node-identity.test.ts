@@ -8,17 +8,17 @@ import { assembler, construire, IDENTIFIANT } from "../../packaging/construire.t
 import { PAQUETS } from "../aides/posix.ts";
 
 const MACH_O = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
-const plist = (name: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
+const plist = (nom: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>${name}</string>
+	<string>${nom}</string>
 	<key>CFBundleExecutable</key>
-	<string>${name}</string>
+	<string>${nom}</string>
 ${icone === undefined ? "" : `	<key>CFBundleIconFile</key>\n	<string>${icone}</string>\n`}	<key>CFBundleIdentifier</key>
 	<string>${id}</string>
 	<key>CFBundleName</key>
-	<string>${name}</string>
+	<string>${nom}</string>
 	<key>CFBundleShortVersionString</key>
 	<string>44.7.0</string>
 	<key>CFBundleVersion</key>
@@ -65,7 +65,7 @@ const construit = (): { racine: string; paquet: string } => {
   const { electron, node } = doublure(racine);
   return { racine, paquet: assembler({ version: "1.0.0", electron, node, ...AUTOUR(racine) }, join(racine, "volume")) };
 };
-const cle = (xml: string, name: string) => new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
+const cle = (xml: string, nom: string) => new RegExp(`<key>${nom}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
 const fichiers = (dossier: string): string[] =>
   readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? fichiers(join(dossier, e.name)) : e.isFile() ? [join(dossier, e.name)] : []));
 const sansApp = (chemin: string) => !/\/Resources\/(app|runtime)\//.test(chemin);
@@ -93,9 +93,9 @@ test("no launchd plist of the built app names Electron or Node.js Foundation, an
 test("the app source registers its background items (launchd labels, login item) under Brigade names only", { skip: PAQUETS }, () => {
   const defauts: string[] = [];
   for (const chemin of fichiers(SRC).filter((f) => /\.(ts|js|cjs|mjs)$/.test(f))) {
-    const lines = readFileSync(chemin, "utf8").split("\n");
-    lines.forEach((line, i) => {
-      if (/LaunchAgents|setLoginItemSettings|SMAppService|launchctl/.test(line) && /electron|node\.js foundation/i.test(line)) defauts.push(`${chemin}:${i + 1}`);
+    const lignes = readFileSync(chemin, "utf8").split("\n");
+    lignes.forEach((ligne, i) => {
+      if (/LaunchAgents|setLoginItemSettings|SMAppService|launchctl/.test(ligne) && /electron|node\.js foundation/i.test(ligne)) defauts.push(`${chemin}:${i + 1}`);
     });
   }
   assert.deepEqual(defauts, []);
