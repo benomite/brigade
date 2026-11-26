@@ -6,7 +6,7 @@
 //      réserve aucune zone de fichiers (zones.ts) ;
 //   2. le même échec sur le même commit n'est ni jugé ni relancé deux fois
 //      (meme-echec.ts) ;
-//   3. un ticket mis de côté, parqué ou en WAITING a une raison nommée et une
+//   3. un ticket mis de côté ou parqué a une raison nommée et une
 //      date pour le revoir (mis-de-cote.ts) ;
 //   4. un check rouge sur la base est relancé une fois avant toute autre chose
 //      (base-rouge.ts).
@@ -46,7 +46,7 @@ export type Invariant = (tour: TourDesInvariants) => Promise<void>;
 
 // `cle` : ce qui distingue cette casse d'une autre du même invariant sur le
 // même ticket ; une casse déjà dite sur le ticket ne se répare ni ne se redit.
-// `entete` : ce qui ouvre le commentaire, avant la marque (la marque de WAITING
+// `entete` : ce qui ouvre le commentaire, avant la marque (la marque du parking
 // que ses lecteurs relisent en tête). `geste` rend ce qu'il a fait, ou nul
 // quand il n'y avait rien qu'il puisse faire : rien n'est dit.
 export type Reparation = { invariant: 1 | 2 | 3 | 4; ticket: number | null; cle: string; casse: string; geste: () => Promise<string | null>; entete?: string };

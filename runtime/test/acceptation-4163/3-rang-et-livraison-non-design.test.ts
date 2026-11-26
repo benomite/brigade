@@ -7,7 +7,7 @@ import { retenirLeDesign } from "../../src/validation-design/validation-design.t
 
 // brigade:guard
 test("an unreadable ticket is named by its 1-based rank in the split", () => {
-  const bon = { titre: "T", contexte: "c", criteres: ["a"], attend: [], zone: ["docs/"], capacites: [], modele: "sonnet", effort: "low", calibrage: "x" };
+  const bon = { titre: "T", contexte: "c", criteres: ["a"], attend: [], zone: ["docs/"], capacites: [], modele: "sonnet", effort: "low", temps_attendu: 5, calibrage: "x" };
   const lu = lireDecoupage(JSON.stringify({ reponse: "tickets", motif: "m", ordre: "o", tickets: [bon, "pas un objet"] }));
   assert.ok("illisible" in lu);
   assert.match(lu.illisible, /^ticket 2: not an object/);

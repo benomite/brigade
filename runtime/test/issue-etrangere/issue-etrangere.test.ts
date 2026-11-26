@@ -81,7 +81,7 @@ describe("l'issue d'un auteur sans l'écriture", { concurrency: 4 }, () => {
     assert.deepEqual("issues" in sondage ? sondage.issues.map((lue) => lue.number) : null, [31]);
     assert.equal(c.journal.duTicket(30).some((e) => e.type === "manager.judged" || e.type === "ticket.arrived"), false);
     // L'issue d'un membre : jugée, lancée et calibrée, sans tri ni carte.
-    assert.deepEqual(c.labels(31), ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(c.labels(31), ["model:haiku", "effort:low", "fire"]);
     assert.deepEqual(c.tris(31), []);
     assert.deepEqual(c.cartes(31), []);
   });
@@ -100,9 +100,9 @@ describe("l'issue d'un auteur sans l'écriture", { concurrency: 4 }, () => {
     c.repondre(30, "On the rail", "NONE", "lea");
     // Puis le manager la juge, comme l'issue d'un inconnu qu'un membre a priorisée.
     await jusqua(() => c.labels(30).includes("fire"));
-    assert.deepEqual(c.labels(30), ["prio:2", "fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(c.labels(30), ["prio:2", "model:haiku", "effort:low", "fire"]);
     assert.ok(c.gh.commentaires.some(([n, corps]) => n === 30 && corps.startsWith("<!-- brigade:triage-applied geste=rail label=prio:2 -->\n**On the rail**: `prio:2` put on #30, as @lea answered")));
-    assert.deepEqual(c.gh.labellisations.filter(([n]) => n === 30), [[30, [CHEF_TODO]], [30, ["prio:2"]], [30, ["fire", "model:haiku", "effort:low"]]]);
+    assert.deepEqual(c.gh.labellisations.filter(([n]) => n === 30), [[30, [CHEF_TODO]], [30, ["prio:2"]], [30, ["model:haiku", "effort:low"]], [30, ["fire"]]]);
     assert.equal(c.tris(30).length, 1);
   });
 

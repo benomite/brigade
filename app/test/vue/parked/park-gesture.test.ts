@@ -6,19 +6,19 @@ import { parkGesture } from "../../../src/vue/parked/park-gesture.js";
 
 const viaUnPont = (rendu: unknown) => {
   const calls: unknown[][] = [];
-  const suites = { lues: 0, gardes: [] as unknown[][] };
+  const suites = { lues: 0 };
   const geste = parkGesture(
     async (...a) => {
       calls.push(a);
       if (rendu instanceof Error) throw rendu;
       return rendu;
     },
-    { lire: () => void (suites.lues += 1), garder: (...a) => void suites.gardes.push(a) },
+    { lire: () => void (suites.lues += 1) },
   );
   return { geste, calls, suites };
 };
 const NO_KITCHEN = "nothing sent: this app does not play the kitchen's gestures for this project";
-const SENT_TO_SECOND = "sent: its command runs in the second";
+const UNREAD = "nothing sent: the app did not say what happened";
 const cible = (project: string) => ({ project, ticket: 7, step: "Cooks" });
 
 test("park sets the wait from the form, unpark sends the ticket back to the kitchen, for any project", async () => {
@@ -33,16 +33,17 @@ test("park sets the wait from the form, unpark sends the ticket back to the kitc
   }
 });
 
-test("what the bridge renders is said: nothing, a refusal, a fact (the kitchen read again), a terminal (kept), an error", async () => {
+test("what the bridge renders is said: nothing, a refusal, a fact (the kitchen read again), an unread shape, an error", async () => {
   for (const rien of [undefined, null]) assert.deepEqual(await viaUnPont(rien).geste(cible("parade"), { action: "unpark" }), { refus: NO_KITCHEN, detail: "" });
   assert.deepEqual(await viaUnPont({ refus: "no" }).geste(cible("parade"), { action: "unpark" }), { refus: "no", detail: "" });
   assert.deepEqual(await viaUnPont({ refus: "no", detail: "why" }).geste(cible("parade"), { action: "unpark" }), { refus: "no", detail: "why" });
   const fait = viaUnPont({ fait: "posted" });
   assert.deepEqual(await fait.geste(cible("parade"), { action: "unpark" }), { fait: "posted" });
-  assert.deepEqual([fait.suites.lues, fait.suites.gardes.length], [1, 0]);
-  const terminal = { id: 3, projet: "parade", genre: "second" };
-  const second = viaUnPont(terminal);
-  assert.deepEqual(await second.geste(cible("parade"), { action: "unpark" }), { fait: SENT_TO_SECOND });
-  assert.deepEqual([second.suites.lues, second.suites.gardes], [0, [["parade", terminal]]]);
+  assert.equal(fait.suites.lues, 1);
+  // Ni fait ni refus — une forme que le pont ne rend plus (un terminal du second, avant le ticket 4262) : rien n'est dit parti.
+  const autre = viaUnPont({ id: 3, projet: "parade", genre: "second" });
+  assert.deepEqual(await autre.geste(cible("parade"), { action: "unpark" }), { refus: UNREAD, detail: "" });
+  assert.equal(autre.suites.lues, 0);
+  assert.deepEqual(await viaUnPont("odd").geste(cible("parade"), { action: "unpark" }), { refus: UNREAD, detail: "odd" });
   assert.deepEqual(await viaUnPont(new Error("bridge down")).geste(cible("parade"), { action: "unpark" }), { refus: "nothing sent: bridge down", detail: "" });
 });

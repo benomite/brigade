@@ -2,6 +2,7 @@
 // chef voit, tirés du tableau que l'app dessine — rien n'y est recalculé : un état lu est dit tel quel — et déposés, un
 // fichier par projet, là où le crochet du second (blocage-du-second.ts) les lit.
 import { mkdirSync, writeFileSync } from "node:fs";
+import { statutDeLArret } from "../../../runtime/src/arret-cuisine/arret-cuisine.ts";
 import { MOTS_DU_GESTE } from "../../../runtime/src/attente-du-rail/stations.ts";
 import type { Carte, Tableau } from "../faits.ts";
 import type { BandeauDeLaVue, CarteDeLaVue, VueDuProjet } from "./contexte-du-blocage.ts";
@@ -12,9 +13,10 @@ const LE_CHEF = "the chef";
 // Le bandeau STOPPED : ce que l'arrêt attend, et qui — d'après la cause que le runtime a nommée.
 function bandeauDArret(arret: NonNullable<Tableau["arretCuisine"]>): BandeauDeLaVue {
   const { cause } = arret;
-  if (cause.kind === "frozen-zone") return { label: "STOPPED", waitsFor: `frozen ticket #${cause.ticket} holds the file zone ${cause.zone}`, waitsOn: `whoever serves #${cause.ticket}, or the chef who sets it free` };
-  if (cause.kind === "main-red") return { label: "STOPPED", waitsFor: "main is red", waitsOn: "the repair of main" };
-  return { label: "STOPPED", waitsFor: "the cause is unknown", waitsOn: LE_CHEF };
+  if (cause.kind === "frozen-zone") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: `whoever serves #${cause.ticket}, or the chef who sets it free` };
+  if (cause.kind === "zone-held") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: `whoever serves PR ${cause.pr}, or the chef who merges or closes it` };
+  if (cause.kind === "main-red") return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: "the repair of main" };
+  return { label: "STOPPED", waitsFor: statutDeLArret(arret), waitsOn: LE_CHEF };
 }
 
 // Qui est vraiment attendu d'une carte : le chef seulement quand elle lui demande quelque chose.

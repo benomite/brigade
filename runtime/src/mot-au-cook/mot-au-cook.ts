@@ -12,7 +12,7 @@
 // est refusé : rien n'est posté, rien n'est mis en file.
 
 // L'état du ticket, dans les mots du glossaire. `undefined` : inconnu.
-export type EtatDuTicket = "taken" | "in pass" | "served" | "waiting" | "queued" | undefined;
+export type EtatDuTicket = "taken" | "in pass" | "served" | "parked" | "queued" | undefined;
 
 // `reason` : sur un refus seulement, en une ligne.
 export type Reponse = { ok: boolean; reason?: string };
@@ -66,8 +66,8 @@ function raisonDuRefus(ticket: number, etat: EtatDuTicket): string | null {
       return `#${ticket} is in pass: no cook is cooking it, the pass judges its delivery`;
     case "served":
       return `#${ticket} is closed (served or dropped): no cook is cooking it`;
-    case "waiting":
-      return `#${ticket} is waiting on a third party: no cook is cooking it`;
+    case "parked":
+      return `#${ticket} is parked: it waits for someone, and no cook takes it before`;
     case "queued":
       return `#${ticket} is not taken: no cook is cooking it yet`;
     default:

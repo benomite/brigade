@@ -60,6 +60,7 @@ import { chiffresDuClone } from "../chiffres-du-projet.ts";
 import { resumeServi } from "../mesures/resume-servi.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { resumerLaPasse } from "../temps-ticket/passe.ts";
+import { delaisDuClone } from "../delais/lecture.ts";
 import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
 import { blocageDuClone, clonerEnReparant, ID_BLOCAGE_CLONE } from "../installation/clone/clone.ts";
@@ -69,7 +70,7 @@ import type { Sonde } from "../installation/besoins/fourni.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts";
-import { lignesDuBloc, nomsHorsDuBloc, nomsMisDeCote, reecrireBloc } from "./bloc.ts";
+import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type Demande, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
@@ -357,8 +358,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     const texte = lireTexte(fichier);
     const avant = lignesDuBloc(texte);
     const aLaMain = new Set(nomsHorsDuBloc(texte));
-    // Les projets que l'app a mis de côté : cette station ne les sert pas, la ligne reste en commentaire.
-    const misDeCote = new Set(nomsMisDeCote(texte));
     const lignes: string[] = [];
     const suivis = new Map<string, SuiviDuProjet>();
     // Ce que la station dit de plus d'un projet qu'elle sert encore, et où en
@@ -402,10 +401,6 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
           lignes.push(ligne);
           motifs.set(projet.nom, motif);
         } else suivis.set(projet.nom, { ...suiviDu(projet, "secondaire", motif), bascule: bascules.get(projet.nom) ?? null });
-        continue;
-      }
-      if (misDeCote.has(projet.nom)) {
-        suivis.set(projet.nom, suiviDu(projet, "refuse", `${projet.nom} is held back on this station (another station serves it): its line stays a comment, this station does not serve it`));
         continue;
       }
       if (aLaMain.has(projet.nom)) {
@@ -557,7 +552,11 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const lus = lesTempsDesTickets(cloneServi);
       // Et le temps de chaque phase de la pass sur 7 jours (#3512), null sans livraison mesurée.
       const temps = { ...lus, resume: resumeServi(lus.enregistrements, lus.lostTimeMaxMin, maintenant()), chiffres: chiffresDuClone(cloneServi), passe: resumerLaPasse(lus.enregistrements, maintenant()) };
-      return { ...dit, ...(delai === null ? {} : { delai }), temps, ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
+      // Les délais des dernières 24 heures, lus dans le même clone (#4309) : ce que `status --json` rend, publié dès qu'un
+      // ticket y est mergé, pour la vue de la cuisine de l'app ; un fichier illisible publie sa raison, jamais « aucun ».
+      const delais = delaisDuClone(cloneServi, new Date(maintenant()));
+      const avecDelais = "illisible" in delais || delais.fusionnes > 0;
+      return { ...dit, ...(delai === null ? {} : { delai }), temps, ...(avecDelais ? { delais } : {}), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     // Un besoin que le chef laisse au setup du projet : la station ouvre sur
     // le projet le ticket qui le lui demande, une fois, et son choix le dit.

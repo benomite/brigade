@@ -3,16 +3,20 @@
 // GitHub : le faux `claude` est un cook qui finit sur un `<bloque>`, ou le
 // manager consulté, reconnu à la marque de sa consigne.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../src/github-etat/etats.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { lireAvis, MARQUE_DE_DECISION, MARQUE_DE_LA_CONSULTATION, MARQUE_DE_REPONSE } from "../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
 import { MARQUE_D_ECHEC } from "../src/qualite-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "./faux-github.ts";
+
+// Une carte du chef, sans la marque de carte de TODO qui l'ouvre depuis #4129.
+const sansMarque = (corps: string) => corps.replace(/^<!-- brigade:todo kind=blocked -->\n/, "");
 
 const TICKET = 75;
 const CORPS = "## Context\n\nTake real captures of the app at phone width.";
@@ -82,7 +86,7 @@ test("a blocked cook never sets blocked-on-human itself: its question goes to th
 
 test("a technical question: the manager answers it on the issue with its decision, and the ticket is re-queued from its branch, with no blocked-on-human", async (t) => {
   const { ticket, cooks, du, commentaires } = await bloque(t, { tours: 2 });
-  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(ticket.labels.has(CHEF_TODO), false);
   assert.equal(ticket.labels.has("fire"), true, "the ticket stays on the rail");
   assert.equal(cooks(), 2, "a second cook took the ticket back at the next turn");
   const [premiere] = du(MARQUE_DE_REPONSE);
@@ -94,9 +98,9 @@ test("a technical question: the manager answers it on the issue with its decisio
 test("a product or a design question: only then blocked-on-human, and the comment carries the question on one line", async (t) => {
   for (const [issue, nom] of [["produit", "product"], ["design", "design"]] as const) {
     const { ticket, commentaires } = await bloque(t, { manager: () => JSON.stringify({ issue, question: "Which of the two\nlayouts does the chef want?", question_en: QUESTION }) });
-    assert.equal(ticket.labels.has(A_LA_MAIN), true);
+    assert.equal(ticket.labels.has(CHEF_TODO), true);
     assert.equal(ticket.labels.has(LABEL_TAKEN), false);
-    const carte = commentaires.find((corps) => corps.startsWith("**Question for the chef"));
+    const carte = commentaires.map(sansMarque).find((corps) => corps.startsWith("**Question for the chef"));
     assert.equal(carte?.split("\n")[0], `**Question for the chef (${nom}):** Which of the two layouts does the chef want?`);
     assert.match(carte ?? "", new RegExp(`the cook stopped, blocked[\\s\\S]*> ${QUESTION.replace("?", "\\?")}`));
   }
@@ -105,8 +109,8 @@ test("a product or a design question: only then blocked-on-human, and the commen
 test("nothing to decide but a gesture only the chef can make: the card names the exact gesture, never the cook's text alone", async (t) => {
   const geste = "Run `gh auth refresh -s project` under the station's account";
   const { ticket, commentaires } = await bloque(t, { manager: () => JSON.stringify({ issue: "geste", geste }) });
-  assert.equal(ticket.labels.has(A_LA_MAIN), true);
-  const carte = commentaires.find((corps) => corps.startsWith("**Gesture for the chef:**"));
+  assert.equal(ticket.labels.has(CHEF_TODO), true);
+  const carte = commentaires.map(sansMarque).find((corps) => corps.startsWith("**Gesture for the chef:**"));
   assert.equal(carte?.split("\n")[0], `**Gesture for the chef:** ${geste}`);
   assert.ok(commentaires.every((corps) => !corps.startsWith("Station")), "no comment relays the cook's question alone");
 });
@@ -117,7 +121,7 @@ test("the same technical block twice: the third goes back to the manager with bo
   assert.equal(consultations.length, 4);
   const troisieme = consultations[2] ?? "";
   assert.match(troisieme, /Tu as déjà répondu 2 fois[\s\S]*<reponse n="1">[\s\S]*answer 1:[\s\S]*<reponse n="2">[\s\S]*answer 2:/);
-  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(ticket.labels.has(CHEF_TODO), false);
   assert.equal(ticket.corps.split(MARQUE_DE_DECISION).length, 2, "the decision is written once");
   assert.match(ticket.corps, /## Manager's decision \(added by the station\)[\s\S]*decision 3:/);
   assert.equal(du(MARQUE_DE_REPONSE).length, 3);
@@ -136,34 +140,34 @@ test("a decision the station cannot write into the body re-queues nothing: the b
     },
   });
   assert.equal(consultations.length, 1);
-  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(ticket.labels.has(CHEF_TODO), false);
   assert.equal(ticket.corps, CORPS);
   assert.match(du(MARQUE_D_ECHEC)[0] ?? "", /the manager's decision on the cook's block could not be written into the ticket: HTTP 502/);
 });
 
 test("a manager that cannot answer — an unreadable answer — sends nothing to the chef: the ticket waits, then a failed cook after repeated tries; no manager on this station is not such a wait", async (t) => {
   const illisible = await bloque(t, { manager: () => "I am not sure." });
-  assert.equal(illisible.ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(illisible.ticket.labels.has(CHEF_TODO), false);
   assert.equal(illisible.ticket.labels.has(LABEL_TAKEN), false);
   assert.match(illisible.du("<!-- brigade:attente")[0] ?? "", /^<!-- brigade:attente until=\d+ manager -->\nStation `box`: the cook stopped, blocked, and the manager could not answer its question — no JSON object in the answer/);
 
   // Sans manager sur la station, la question est postée pour le manager d'une autre station (#3938) : test/manager/question-sans-manager.test.ts.
   const sans = await bloque(t, { manager: null });
   assert.equal(sans.consultations.length, 0);
-  assert.equal(sans.ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(sans.ticket.labels.has(CHEF_TODO), false);
   assert.equal(sans.du("<!-- brigade:question-au-manager station=box -->").length, 1);
   assert.equal(sans.du("<!-- brigade:attente").filter((corps) => / manager -->/.test(corps)).length, 0, "a missing manager is not a manager's wait: the tally of failed tries never counts it");
 
   const passees = [1, 2].map(() => "<!-- brigade:attente until=1 manager -->\nStation `box`: the manager could not answer");
   const usee = await bloque(t, { manager: () => "", commentaires: passees });
-  assert.equal(usee.ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(usee.ticket.labels.has(CHEF_TODO), false);
   assert.match(usee.du(MARQUE_D_ECHEC)[0] ?? "", /the manager could not answer it, 3 times \(no answer\)/);
 });
 
 test("comments the station cannot read to count the manager's answers: nothing goes to the chef, the ticket waits", async (t) => {
   const { ticket, consultations, avertissements } = await bloque(t, { commentairesIllisibles: true });
   assert.equal(consultations.length, 0);
-  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(ticket.labels.has(CHEF_TODO), false);
   assert.ok(avertissements.some((a) => a.includes("the issue's comments could not be read to count the manager's previous answers")), avertissements.join("\n"));
 });
 
@@ -185,8 +189,8 @@ const QUESTION_EN = "Which capture tool should I use, and on which public ticket
 
 test("a cook's French question is quoted in English on the chef's card, as the manager translated it", async (t) => {
   const { ticket, commentaires } = await bloque(t, { question: QUESTION_FR, manager: () => JSON.stringify({ issue: "produit", question: "Which layout does the chef want?", question_en: QUESTION_EN }) });
-  assert.equal(ticket.labels.has(A_LA_MAIN), true);
-  const carte = commentaires.find((corps) => corps.startsWith("**Question for the chef")) ?? "";
+  assert.equal(ticket.labels.has(CHEF_TODO), true);
+  const carte = commentaires.map(sansMarque).find((corps) => corps.startsWith("**Question for the chef")) ?? "";
   assert.ok(carte.includes(`The cook's question:\n\n> ${QUESTION_EN}`), carte);
   assert.ok(commentaires.every((corps) => !corps.includes(QUESTION_FR)), "the French question is posted nowhere");
 });
@@ -200,8 +204,8 @@ test("a cook's French question answered as technical is quoted in English in the
 
 test("a manager answer with no English version of the cook's question: the card still goes to the chef, and the French question is not quoted", async (t) => {
   const { ticket, commentaires } = await bloque(t, { question: QUESTION_FR, manager: () => JSON.stringify({ issue: "design", question: "Is this screen right?" }) });
-  assert.equal(ticket.labels.has(A_LA_MAIN), true);
-  const carte = commentaires.find((corps) => corps.startsWith("**Question for the chef")) ?? "";
+  assert.equal(ticket.labels.has(CHEF_TODO), true);
+  const carte = commentaires.map(sansMarque).find((corps) => corps.startsWith("**Question for the chef")) ?? "";
   assert.match(carte, /The cook's question not quoted: the manager gave no English version of it\./);
   assert.ok(commentaires.every((corps) => !corps.includes(QUESTION_FR)));
 });

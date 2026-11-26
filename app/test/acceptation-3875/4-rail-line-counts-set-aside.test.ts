@@ -47,7 +47,8 @@ async function lire(label: string) {
   return { rail, lu: avecLeRail(VIDE, rail, SIGNES) };
 }
 
-for (const label of ["set-aside:failures", "out-of-kitchen"]) {
+// `set-aside:failures` n'est plus une mise de côté : un ticket que ses échecs arrêtent est parqué (#4260).
+for (const label of ["out-of-kitchen"]) {
   test(`the rail line counts a ticket carrying ${label} as set aside, not queued`, async () => {
     const { lu } = await lire(label);
     const ligne = lu.cuisine.rubriques.find(({ titre }) => titre === "rail")?.lignes[0] ?? assert.fail("no rail line");

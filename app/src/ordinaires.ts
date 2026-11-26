@@ -8,7 +8,7 @@ import { estUnMac, nomDuPoste } from "./plateforme.ts";
 
 // Ce que `facts` dit d'une station (runtime/src/etat.ts, `stations`) — ce que l'app en lit.
 // `bacASable` : nul, la station n'en a rien dit.
-// `cuisson` : ce que la station fait du projet — `cooking`, `stopped`, `saturated`, `refused` (#1183) ;
+// `cuisson` : ce que la station fait du projet — `cooking`, `stopped`, `refused` (#1183) ;
 // `arreteeDepuis` : le chef l'a arrêtée, depuis quand — nul, ce n'est pas lui, ou elle cuit ; `refus` : pourquoi
 // la station de la machine refuse le projet ; `cooks` : ses cooks en cours. Les quatre sont absents d'un
 // runtime d'avant ce champ (cuisson.ts).

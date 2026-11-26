@@ -11,10 +11,11 @@
 /** @typedef {(projet: string, id: string, ticket: number, saisie?: { quoi: string, qui: string, relance: string }) => Promise<unknown>} Attente */
 
 const NO_KITCHEN = "nothing sent: this app does not play the kitchen's gestures for this project";
-const SENT_TO_SECOND = "sent: its command runs in the second";
+const UNREAD = "nothing sent: the app did not say what happened";
 
-/** @param {Attente} attente @param {{ lire: () => void, garder: (projet: string, terminal: any) => void }} suites */
-export function parkGesture(attente, { lire, garder }) {
+// Le geste s'écrit sur l'issue, jamais par une commande de la box (main.ts, ticket 4262) : le pont rend un fait ou un refus.
+/** @param {Attente} attente @param {{ lire: () => void }} suites */
+export function parkGesture(attente, { lire }) {
   /** @param {Target} target @param {Ask} ask @returns {Promise<{ fait: string } | { refus: string, detail: string }>} */
   return async ({ project, ticket }, ask) => {
     /** @type {any} */
@@ -25,12 +26,10 @@ export function parkGesture(attente, { lire, garder }) {
       return { refus: `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`, detail: "" };
     }
     if (rendu === undefined || rendu === null) return { refus: NO_KITCHEN, detail: "" };
+    if (typeof rendu !== "object") return { refus: UNREAD, detail: String(rendu) };
     if ("refus" in rendu) return { refus: rendu.refus, detail: rendu.detail ?? "" };
-    if ("fait" in rendu) {
-      lire();
-      return { fait: rendu.fait };
-    }
-    garder(project, rendu);
-    return { fait: SENT_TO_SECOND };
+    if (!("fait" in rendu)) return { refus: UNREAD, detail: "" };
+    lire();
+    return { fait: rendu.fait };
   };
 }
