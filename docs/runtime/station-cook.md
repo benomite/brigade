@@ -136,7 +136,7 @@ redirection…) whose target resolves outside them — absolute paths, `..` and 
 Its `gh` stays on its ticket: reads in its repository pass; writes pass only on its issue, on its
 branch's PR (`gh pr …` with no number, or naming its branch) and on its branch; admin and settings
 endpoints, deletions, merges, another repository and another ticket's issue, PR or branch are refused.
-The shell check is best-effort, not a sandbox: it only reads the commands it knows, so other writers
+The shell check is best-effort, not a sandbox. It is also the boundary of a cook with no sandbox: see [restricted mode](bac-a-sable.md#when-the-machine-has-no-sandbox-restricted-mode). This is the reference list of its gaps. It only reads the commands it knows, so other writers
 (`sed -i`, `perl -i`, `git -C`, `python -c`, `node -e`, `curl -o`…) pass unchecked. A `mv` gets the
 root check on its sources only: moving a file into the worktree root, or into `/tmp`, passes.
 Each refusal tells the cook why. What passes gets no decision, so no permission prompt is added. The
@@ -345,35 +345,6 @@ the entry point — and is blocking. Blocking review was still the first send-ba
 cooked after all the rules above: its first commit rewrote the idle-kitchen integration test that filed
 an inertia bug from the station into the `waiting` case that files none, so the ticket's positive case
 was tested from the station no more, and its second commit added it back next to the new one.
-
-The same instruction tells the cook that the pass replays each test its diff adds — a new test file, or
-a new case in a file that existed — alone on the base, without its change ("Red on main, green on the
-branch", [`pass.md`](pass.md)): a test that already passes there proves nothing about its ticket, and
-sends the delivery back naming it, whatever the review says; only a `tech` ticket is exempt. Before
-committing, the cook plays each new test as the pass will: in a throwaway checkout of the base
-(`git worktree add --detach <throwaway folder> origin/<base>`, never `git stash`, whose stack every
-worktree of the repo shares), it copies its test files and their helpers, sees the test fail there,
-throws the checkout away (`git worktree remove --force`), and sees the test pass on its branch; it
-rewrites a test that passes on both sides, or removes it from its delivery: no reply on the PR nor free
-comment lifts that send-back (#3694: 13 of the 16 blocking reviews over 20 merged tickets were this
-rule, ten of them #3632's, whose cook kept such a test with a guard comment). Only a test whose
-ticket's criteria say the behavior stays "as before" / "unchanged" stays, marked `// brigade:guard` on
-the line above its case: the pass accepts it green on the base (#3852). Blocking review
-was still the first send-back reason after #3466 brought the rule to the pass (#3628: 5 over 20 merged
-tickets), and 4 of those 5 were this rule — #3528 twice, #3559, #3600 —, which the cook's instructions
-did not name: the cook played its test on its branch only.
-
-The same instruction tells the cook that the pass then mutates, one by one, the lines of code its diff
-adds or changes ("Mutations caught", [`pass.md`](pass.md)) — each by the first of `===`/`!==`,
-`==`/`!=`, `&&`/`||`, `<=`/`>`, `>=`/`<`, ` < `/` >= `, ` > `/` <= `, `true`/`false`, ` + `/` - ` or a
-removed unary `!` it finds outside the line's strings and comments — and replays the tests the
-delivery adds against each mutant: a mutation that survives sends the delivery back naming its line,
-whatever the review says. Before committing, the cook does it itself: on each line of code its diff
-adds or changes that carries one of these mutations, it applies it by hand, plays its added tests and
-the frozen tests, sees one of them fail, and puts the line back. A surviving mutation calls for a test
-case that tells the line from its mutant, or for removing a line nothing asks for. Blocking review was
-still the first send-back reason after the mutations came to the pass (#3880: 33 over 20 merged
-tickets), and 24 of those 33 were a surviving mutation, which the cook's instructions did not name.
 
 The same instruction tells the cook to list, before writing, every place each criterion applies to,
 and to serve it in each: a criterion that says "every", "all", "never" or "no" covers each message,

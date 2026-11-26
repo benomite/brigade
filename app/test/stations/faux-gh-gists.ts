@@ -9,6 +9,7 @@
 //
 // `repondre` est la doublure elle-même, que `gh` en process (../aides/gh-du-repertoire.ts)
 // fait jouer dans le process du test ; lancé par son chemin, ce fichier la joue dans le sien.
+import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -68,6 +69,15 @@ function jouer(repertoire: string, args: readonly string[], lue: () => string): 
     renameSync(brouillon, fichier(gist.id));
   };
   const rendre = (objet: unknown) => `${JSON.stringify(objet)}\n`;
+  // Une lecture avec `-i`, comme GitHub : ses en-têtes et son ETag ; sous `If-None-Match` qui le porte encore, un 304
+  // sans corps, sur lequel `gh` sort en erreur en écrivant tout de même la réponse.
+  const lecture = (corps: string): string => {
+    if (!args.includes("-i")) return corps;
+    const etag = `W/"${createHash("sha1").update(corps).digest("hex")}"`;
+    const condition = args.find((arg) => arg.startsWith("If-None-Match: "))?.slice("If-None-Match: ".length);
+    if (condition === etag) throw new Sortie({ code: 1, sortie: `HTTP/2.0 304 Not Modified\r\nEtag: ${etag}\r\n\r\n`, erreurs: "gh: HTTP 304\n" });
+    return `HTTP/2.0 200 OK\r\nEtag: ${etag}\r\n\r\n${corps}`;
+  };
   const fichiers = (files: Record<string, { content: string } | null> = {}) => Object.fromEntries(Object.entries(files).flatMap(([nom, fichier]) => (fichier === null ? [] : [[nom, { filename: nom, content: fichier.content }]])));
 
   const [, , id] = /^\/gists(\/([^/?]+))?(\?.*)?$/.exec(chemin) ?? [];
@@ -88,7 +98,7 @@ function jouer(repertoire: string, args: readonly string[], lue: () => string): 
     ecrire({ ...gist, updated_at: new Date().toISOString() });
     return rendre(gist);
   } else if (methode === "GET" && id !== undefined) {
-    return rendre(lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)"));
+    return lecture(rendre(lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)")));
   } else if (methode === "GET") {
     // La liste ne porte pas le contenu des fichiers, comme celle de GitHub.
     const parametres = new URLSearchParams(chemin.split("?")[1] ?? "");
@@ -99,7 +109,7 @@ function jouer(repertoire: string, args: readonly string[], lue: () => string): 
       .sort()
       .map((nom) => JSON.parse(readFileSync(join(repertoire, nom), "utf8")) as Gist)
       .map(({ files, ...gist }) => ({ ...gist, files: Object.fromEntries(Object.keys(files).map((nom) => [nom, { filename: nom }])) }));
-    return rendre(tous.slice((page - 1) * parPage, page * parPage));
+    return lecture(rendre(tous.slice((page - 1) * parPage, page * parPage)));
   }
   return sortir(1, `faux gh : ${methode} ${chemin} n'est pas doublé`);
 }

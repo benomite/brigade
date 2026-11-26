@@ -59,6 +59,33 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
       enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
     });
 
+  // Une lecture sous condition (#4408) : relue, elle part avec l'ETag de la dernière, et GitHub répond 304 — un appel
+  // qu'il ne compte pas — tant que rien n'a changé. L'app relisait toutes les 30 s chaque gist de station, morte ou
+  // vive, et leur liste : ~1 100 appels comptés par heure sur le quota du compte. `gh` sort en erreur sur un 304, mais
+  // écrit la réponse : son statut se lit dans la sortie.
+  const gardees = new Map<string, { etag: string; corps: string }>();
+  const lire = (chemin: string): Promise<string> =>
+    new Promise((resoudre, rejeter) => {
+      const gardee = gardees.get(chemin);
+      const condition = gardee === undefined ? [] : ["-H", `If-None-Match: ${gardee.etag}`];
+      execFile(reglages.gh, ["api", "-i", ...condition, chemin], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
+        const fin = sortie.search(/\r?\n\r?\n/);
+        const tete = fin === -1 ? sortie : sortie.slice(0, fin);
+        const statut = Number(/^HTTP\/[\d.]+ (\d{3})/.exec(tete)?.[1]);
+        if (statut === 304 && gardee !== undefined) return resoudre(gardee.corps);
+        if (erreur === null) {
+          const corps = fin === -1 ? "" : sortie.slice(fin).replace(/^\r?\n\r?\n/, "");
+          const etag = /^etag:\s*(.+?)\s*$/im.exec(tete)?.[1];
+          if (etag === undefined) gardees.delete(chemin);
+          else gardees.set(chemin, { etag, corps });
+          return resoudre(corps);
+        }
+        const portee = erreurs.match(PORTEE)?.[0].trim();
+        if (ABSENT.test(erreurs) && portee === undefined) return rejeter(new Absent());
+        rejeter(new Error(portee ?? echec(reglages, erreur, erreurs)));
+      });
+    });
+
   const patcher = async (id: string, files: Record<string, { content: string } | null>) => {
     try {
       await appeler(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files });
@@ -72,7 +99,7 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
     async lister() {
       const gists: GistDeStation[] = [];
       for (let page = 1; page <= PAGES_MAX; page++) {
-        const lus = JSON.parse(await appeler([`/gists?per_page=${PAR_PAGE}&page=${page}`])) as Array<{ id?: unknown; updated_at?: unknown; files?: Record<string, unknown> }>;
+        const lus = JSON.parse(await lire(`/gists?per_page=${PAR_PAGE}&page=${page}`)) as Array<{ id?: unknown; updated_at?: unknown; files?: Record<string, unknown> }>;
         if (!Array.isArray(lus)) throw new Error("the list of your gists is not what GitHub returns");
         for (const { id, updated_at, files } of lus) {
           if (typeof id !== "string" || files === undefined || !(FICHIER_STATION in files)) continue;
@@ -84,7 +111,7 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
     },
     async telephone() {
       for (let page = 1; page <= PAGES_MAX; page++) {
-        const lus = JSON.parse(await appeler([`/gists?per_page=${PAR_PAGE}&page=${page}`])) as unknown[];
+        const lus = JSON.parse(await lire(`/gists?per_page=${PAR_PAGE}&page=${page}`)) as unknown[];
         if (!Array.isArray(lus)) throw new Error("the list of your gists is not what GitHub returns");
         if (lus.some(porteLaTrace)) return true;
         if (lus.length < PAR_PAGE) return false;
@@ -94,7 +121,7 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
     async lire(id) {
       let sortie: string;
       try {
-        sortie = await appeler([`/gists/${encodeURIComponent(id)}`]);
+        sortie = await lire(`/gists/${encodeURIComponent(id)}`);
       } catch (erreur) {
         if (erreur instanceof Absent) return null;
         throw erreur;

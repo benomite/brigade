@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { assembler, construire, IDENTIFIANT } from "../../packaging/construire.ts";
+import { PAQUETS } from "../aides/posix.ts";
 
 const MACH_O = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
 const plist = (nom: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
@@ -69,7 +70,7 @@ const fichiers = (dossier: string): string[] =>
   readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? fichiers(join(dossier, e.name)) : e.isFile() ? [join(dossier, e.name)] : []));
 const sansApp = (chemin: string) => !/\/Resources\/(app|runtime)\//.test(chemin);
 
-test("the bundled node executable is renamed and signed with the Brigade identity and a Brigade identifier", (t) => {
+test("the bundled node executable is renamed and signed with the Brigade identity and a Brigade identifier", { skip: PAQUETS }, (t) => {
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   const nodes = fichiers(join(paquet, "Contents", "Resources")).filter((f) => sansApp(f) && readFileSync(f).subarray(0, 4).equals(MACH_O.subarray(0, 4)));

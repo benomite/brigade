@@ -131,6 +131,10 @@ const pont = {
   marquerUneExplication: (projet, mot) => ipcRenderer.invoke("marquerUneExplication", projet, mot),
   remontrerLesExplications: (projet) => ipcRenderer.invoke("remontrerLesExplications", projet),
   envoyerUnMot: (projet, entree) => ipcRenderer.invoke("envoyerUnMot", projet, entree), // le mot au cook (ticket 4048, mot-au-cook/)
+  // Le savoir-faire du projet, sous Know-how (ticket 4241) : lu, et chaque entrée réécrite ou retirée (savoir-faire/savoir-faire-box.ts).
+  lireLeSavoirFaire: (projet) => ipcRenderer.invoke("lireLeSavoirFaire", projet),
+  modifierLeSavoirFaire: (projet, id, texte) => ipcRenderer.invoke("modifierLeSavoirFaire", projet, id, texte),
+  retirerDuSavoirFaire: (projet, id) => ipcRenderer.invoke("retirerDuSavoirFaire", projet, id),
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : lu, dit montré, et la PR d'un ticket servi ouverte (recap/recap-box.ts).
   lireLeRecap: (projet) => ipcRenderer.invoke("lireLeRecap", projet),
   marquerLeRecap: (projet, until) => ipcRenderer.invoke("marquerLeRecap", projet, until),
@@ -166,6 +170,8 @@ const pont = {
   seConnecterAClaude: () => ipcRenderer.invoke("seConnecterAClaude"),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   outilsManquants: (outils) => ipcRenderer.invoke("outilsManquants", outils),
+  // Installe `gh` ou `claude` d'un clic (ticket 4350), depuis l'écran de l'outil manquant : rend done, ou failed et sa raison.
+  installerOutil: (outil) => ipcRenderer.invoke("installerOutil", outil),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
   // Démarre la station de cet ordinateur, depuis l'alerte d'un projet dont elle est arrêtée (ticket 3637).

@@ -96,7 +96,6 @@ const SOUS_LA_TETE = (lignes: readonly string[]) => {
 
 describe("la même ligne dans `status` et dans la file du second", { skip: SANS_POSIX }, () => {
   // L'app garde sa ligne telle qu'avant (#3945 : « do not rework their behavior ») ; seul `status` de la station la quitte.
-  // brigade:guard
   test("huit tickets qu'aucun manager n'a pris, leur station arrêtée : la file du second, le status de l'app et le rail disent la même phrase", async (t) => {
     const repertoire = dossier(t);
     const instant = Date.now();

@@ -59,7 +59,6 @@ const cartes = (commentaires: string[]) => commentaires.filter((c) => /^\*\*(?:G
 const BESOIN = "I need an OpenRouter API key and the preprod database URL in the station's local environment file; only the chef can add them.";
 const GESTE_SECRET = "add the OpenRouter API key and the preprod database URL to the station's local environment file";
 
-// brigade:guard
 test("a cook blocked on a real git gesture on its own branch gets no card for the chef", async (t) => {
   const s = station(t, { besoin: "I stopped on a conflict of my branch with the base.", geste: "merge origin/main into the branch and resolve the conflicts" });
   for (let i = 0; i < 2; i++) await s.tour();

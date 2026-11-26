@@ -36,7 +36,6 @@ async function ouvrirAvec(extra: object): Promise<Jouee> {
   return vue;
 }
 
-// brigade:guard
 test("without threads or digest, the project view reads as before: its rail cards, no logbook, no digest card", async () => {
   const vue = await ouvrirAvec({});
   assert.ok(vue.element("rail").textContent.includes("Ticket 10"));
