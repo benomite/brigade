@@ -116,7 +116,7 @@ test("a saved head the next cook delivers as it is, on the tree whose gates were
   assert.equal(cuissons, 2, "the next cook was launched");
   assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "the same red tree is not pushed");
   assert.equal(readFileSync(trace, "utf8"), "gates\n", "same tree, same verdict: the gates are not played again");
-  assert.ok([...faux.commentaires.values()].flat().some((c) => /FAIL {2}the button test is red \(the same tree as its previous delivery: the gates were not played again\)/.test(c.body)));
+  assert.ok([...faux.commentaires.values()].flat().some((c) => /the cook had nothing new to deliver.*FAIL {2}the button test is red.*the gates were not played again/.test(c.body)));
 });
 
 test("a delivery cut before its push, found only in the clone, plays the gates: red, it is not pushed nor sent to the pass, and a cook resumes it with what they say (#2577)", async (t) => {

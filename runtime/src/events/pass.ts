@@ -21,6 +21,9 @@ export type Gates = {
   // Les lignes `FAIL` de leur sortie — celle du plafond de durée mise à part —,
   // et sa fin.
   failures: string[];
+  // Pour chaque ligne `FAIL`, dans le même ordre : les lignes d'erreur qui la précèdent dans leur sortie, depuis la
+  // `FAIL` d'avant, sans les lignes `ok` (#4218). Absent : elles n'en disent pas.
+  failureLines?: string[][];
   tail: string;
   // Leur plafond de durée franchi, qu'il soit leur seul rouge ou non. Absent :
   // il ne l'est pas, ou elles n'en déclarent pas.

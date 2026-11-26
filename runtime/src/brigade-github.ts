@@ -3042,7 +3042,11 @@ export function verdictDesGates(gates: Gates, delaiMs: number): VerdictDesGates 
   const vert = gates.outcome === "green";
   const resume = vert ? "" : gates.outcome === "timeout" ? `stopped after ${Math.round(delaiMs / 1000)} s` : (gates.failures[0] ?? `exit code ${gates.code ?? "none"}`);
   if (vert) return { vert, resume, detail: "" };
-  const echecs = gates.failures.map((ligne) => `- \`${ligne.replace(/`/g, "'")}\``);
+  // Chaque gate en échec avec ses propres lignes d'erreur : son nom, puis ce qu'elle a dit avant de le dire (#4218).
+  const echecs = gates.failures.flatMap((ligne, rang) => {
+    const propres = gates.failureLines?.[rang] ?? [];
+    return [`- \`${ligne.replace(/`/g, "'")}\``, ...(propres.length === 0 ? [] : ["", "  ```", ...propres.map((l) => `  ${l.replace(/```/g, "'''")}`), "  ```", ""])];
+  });
   const fin = gates.tail === "" ? [] : ["", "The end of their output:", "", "```", gates.tail.replace(/```/g, "'''"), "```"];
   return { vert, resume, detail: [gates.outcome === "timeout" ? `They were stopped after ${Math.round(delaiMs / 1000)} s.` : `They exited with code ${gates.code ?? "none"}.`, ...(echecs.length === 0 ? [] : ["", ...echecs]), ...fin].join("\n") };
 }
@@ -3230,13 +3234,15 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // qui le livre sans y rien changer n'a pas à les rejouer — même arbre, même
   // verdict —, ce qui coûtait une suite entière de plus. Un arbre qui ne se lit
   // pas les rejoue.
-  const arbresRouges = new Map<number, { arbre: string; echec: string; detail: string }>();
-  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string; detail?: string } | { subi: string; charge?: boolean } | null> => {
+  const arbresRouges = new Map<number, { arbre: string; resume: string; detail: string }>();
+  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string; detail?: string; fini?: true } | { subi: string; charge?: boolean } | null> => {
     if (!aDesGates(worktree) || (await gatesQuiNeJugentPas(worktree, ticket, lireFondations)) !== null) return null;
     const lu = await depot.lancerGit?.(["rev-parse", "HEAD^{tree}"], worktree);
     const arbre = lu?.code === 0 ? lu.stdout.trim() : null;
     const dejaRouge = arbresRouges.get(ticket.number);
-    if (arbre !== null && dejaRouge?.arbre === arbre) return { echec: `${dejaRouge.echec} (the same tree as its previous delivery: the gates were not played again)`, detail: dejaRouge.detail };
+    // Le même arbre que la livraison aux gates rouges : le cook n'a rien de neuf à livrer, ce n'est pas un nouvel essai (#4218).
+    // Le ticket s'arrête là-dessus, avec ce que les gates avaient dit ; elles ne sont pas rejouées.
+    if (arbre !== null && dejaRouge?.arbre === arbre) return { echec: `the cook had nothing new to deliver: its delivery is the same tree as its previous one, whose gates are red (${dejaRouge.resume}), so the gates were not played again`, detail: dejaRouge.detail, fini: true };
     const secrets = lireSecrets(worktree, options.gates?.secrets ?? null);
     if (!secrets.pret) return { echec: `its gates could not run before the push, so its delivery was not pushed: the secrets the project declares cannot be given to them — ${secrets.problemes.join("; ")}` };
     const delaiMs = options.gates?.delaiMs ?? delaiDesGatesMs(options.env);
@@ -3271,7 +3277,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       gates,
       lireCharge,
       // L'essai raté se compte au retour du cook, sur `echec`, comme avant.
-      essais: { ajouter: () => void (arbre !== null && arbresRouges.set(ticket.number, { arbre, echec, detail })) },
+      essais: { ajouter: () => void (arbre !== null && arbresRouges.set(ticket.number, { arbre, resume, detail })) },
       journal: { ecrire: () => undefined },
       rail: { remettre: () => void (sousCharge = true) },
     });
