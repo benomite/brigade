@@ -19,7 +19,9 @@ import { dirname, isAbsolute, join } from "node:path";
 import { lireALaBase } from "../depot.ts";
 import { BRANCHE_PRINCIPALE_PAR_DEFAUT, CHEMIN_DE_LA_FICHE, ficheParDefaut } from "./defauts.ts";
 
-export type Etape = { name: string; gates: string[] };
+// `kind` : la sorte de tickets à qui l'étape appartient (#4278) ; sans elle,
+// l'étape est celle des autres tickets — une seule, comme avant.
+export type Etape = { name: string; gates: string[]; kind?: string };
 export type FicheProjet = {
   work: string;
   stages: Etape[];
@@ -53,6 +55,7 @@ export class FicheInvalide extends Error {
   }
 }
 
+const CLES_D_ETAPE = ["name", "gates", "kind"];
 const BRANCHE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 const nomme = (item: string) => {
@@ -72,17 +75,19 @@ function textes(item: string, valeur: unknown): string[] {
 
 function etapes(valeur: unknown): Etape[] {
   if (!Array.isArray(valeur) || valeur.length === 0) throw new FicheInvalide("stages", `${nomme("stages")} must be a list of at least one stage \`{name, gates}\``);
-  return valeur.map((etape, i) => {
+  const liste = valeur.map((etape, i): Etape => {
     const item = `stages.${i}`;
     if (!estObjet(etape)) throw new FicheInvalide(item, `${nomme(item)} must be an object \`{name, gates}\``);
-    const inconnue = Object.keys(etape).find((cle) => cle !== "name" && cle !== "gates");
-    if (inconnue !== undefined) throw new FicheInvalide(`${item}.${inconnue}`, `${nomme(item)}: \`${inconnue}\` is not part of a stage: expected \`name\` and \`gates\``);
+    const inconnue = Object.keys(etape).find((cle) => !CLES_D_ETAPE.includes(cle));
+    if (inconnue !== undefined) throw new FicheInvalide(`${item}.${inconnue}`, `${nomme(item)}: \`${inconnue}\` is not part of a stage: expected \`name\` and \`gates\`, and \`kind\` for a stage of one kind of tickets`);
     const gates = textes(`${item}.gates`, etape.gates);
     if (gates.length === 0) throw new FicheInvalide(`${item}.gates`, `${nomme(`${item}.gates`)} must name at least one script: a stage nothing judges is never served`);
     const horsDuDepot = gates.findIndex((script) => isAbsolute(script) || script.split(/[\\/]/).includes(".."));
     if (horsDuDepot !== -1) throw new FicheInvalide(`${item}.gates.${horsDuDepot}`, `${nomme(`${item}.gates.${horsDuDepot}`)} must be a path inside the repository`);
-    return { name: texte(`${item}.name`, etape.name), gates };
+    return { name: texte(`${item}.name`, etape.name), gates, ...("kind" in etape ? { kind: texte(`${item}.kind`, etape.kind) } : {}) };
   });
+  if (liste.every((etape) => "kind" in etape)) throw new FicheInvalide("stages", `${nomme("stages")} must have at least one stage without \`kind\`: the one stage of the tickets of any other kind`);
+  return liste;
 }
 
 function servi(valeur: unknown): { branch: string } {
@@ -162,7 +167,7 @@ export type FaitsDeLaCuisine = {
 
 export function faitsDeLaFiche(fiche: FicheProjet): FaitsDeLaCuisine {
   return {
-    cook: { work: fiche.work, stages: fiche.stages.map(({ name }) => name), tools: fiche.tools },
+    cook: { work: fiche.work, stages: fiche.stages.flatMap(({ name, kind }) => (kind === undefined ? [name] : [])), tools: fiche.tools },
     passe: { rules: fiche.rules, gates: fiche.stages.flatMap(({ gates }) => gates) },
     servi: { branch: fiche.served.branch },
     avisDuChef: { risks: fiche.risks, humans: fiche.humans },

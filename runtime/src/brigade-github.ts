@@ -145,6 +145,7 @@ import { estLeCommitDesTests, LABEL_TESTS_ECRITS } from "./tests-acceptation/eta
 import { lireLaCharge } from "./rouge-de-charge/classeur.ts";
 import { enregistrerGatesRouges, rejouerQuandCalme } from "./rouge-de-charge/crochet.ts";
 import { consigneDesPreuves, consigneDesTestsGeles, lireLesFiches } from "./tests-acceptation/fiche.ts";
+import { etapeDuCook, etapesALaBase, passerALEtapeSuivante } from "./etapes/sur-le-ticket.ts";
 import { EN_ECRITURE, porteDesTests, type PorteDesTests } from "./tests-acceptation/porte.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
@@ -2043,7 +2044,14 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         let mergee = false;
         // Retenue pour la validation de son écran (#3184) : pas un refus de GitHub.
         let retenue = false;
+        // Accepté à une étape qui n'est pas sa dernière, le ticket passe à la suivante au lieu de se merger (#4278).
+        let etapeSuivante = false;
         try {
+          const etapes = etapesALaBase(clone, base, ticket.labels);
+          if (await passerALEtapeSuivante(github, { ticket: ticket.number, pr, etapes, station: nom, acceptee: false })) {
+            renvoyes.add(ticket.number);
+            return;
+          }
           const rendu = await relire(pr, {
             github,
             station: nom,
@@ -2127,6 +2135,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       retenue = true;
                       return { fait: false, motif: sensible };
                     }
+                    if (await passerALEtapeSuivante(github, { ticket: ticket.number, pr: { number: numero, sha }, etapes, station: nom, acceptee: true })) {
+                      etapeSuivante = true;
+                      return { fait: false, motif: "its stage is accepted, the next one goes to a cook" };
+                    }
                     chrono.marquer(ticket.number, "merge");
                     // Le merge est le geste de la pass : il passe par la porte de son niveau (#4039).
                     const mergerParLaPorte = async (): Promise<Merge> => {
@@ -2169,6 +2181,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                 { ciDesPR: ciDesPR(sienne) },
               ),
             );
+            if (etapeSuivante) {
+              renvoyes.add(ticket.number);
+              return;
+            }
             const attendue = fusion.issue === "ci-attendue" || fusion.issue === "gates-a-jouer";
             if (attendue || fusion.issue === "mise-a-jour") chrono.marquer(ticket.number, "ci");
             if (fusion.issue === "mergee") {
@@ -3500,15 +3516,19 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       else avertir(`brigade : #${ticket.number} sur ${nom} — \`${SCRIPT_SETUP}\` failed (${setup.depasse ? `stopped after ${Math.round(options.setup.delaiMs / 1000)} s` : `exit code ${setup.code ?? "none"}`}): the cook starts in its worktree as is`);
     }
     // Le travail du cook, tel que la fiche du projet le dit (#4237). Refusée, aucun cook ne part.
+    // Et l'étape qu'il fait, si le ticket en a plusieurs (#4278) : sa marque, posée sur l'issue au départ de la première.
     let ficheDuCook: FaitsDeLaCuisine["cook"];
+    let etape: string | null;
     try {
       ficheDuCook = faitsDuDossier(worktree, base).cook;
+      etape = await etapeDuCook(options.github, ticket.number, etapesALaBase(options.clone, base, ticket.labels));
     } catch (erreur) {
+      if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
       depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
       return { subi: `the project sheet is refused, no cook starts: ${message(erreur)}` };
     }
     let flux = join(options.flux, `${run}.flux.jsonl`);
-    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint, fiche: ficheDuCook });
+    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint, fiche: ficheDuCook, etape });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     // Sur le moteur de la station (#3744) : `claude` tel quel, à la clé d'API, ou Codex.

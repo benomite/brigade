@@ -270,15 +270,23 @@ export function blocDeLaFiche(cook: FaitsDeLaCuisine["cook"] | undefined): strin
   return [`La fiche du projet (\`${CHEMIN_DE_LA_FICHE}\`) dit ton travail : ${cook.work}. Ses étapes : ${cook.stages.join(" → ")}. Ses outils : ${cook.tools.join(", ")}.`, ""];
 }
 
+// L'étape du ticket que ce cook fait, quand le ticket en a plusieurs (#4278) :
+// sa marque, telle que l'issue la montre.
+export function blocDeLEtape(etape: string | null | undefined): string[] {
+  if (etape === null || etape === undefined) return [];
+  return [`Ce ticket a des étapes, et tu fais la courante, elle seule : ${etape}. La pass relit ta livraison avant que la suivante ne démarre ; les étapes déjà acceptées sont sur ta branche.`, ""];
+}
+
 // Le profil du cook, en dur au jalon 1. `lecons` : celles du projet qu'il
 // reçoit (`apprentissage/injection.ts`). `carnet` : celui du profil sous
 // lequel il part, s'il en a un (`profils/preference.ts`).
-export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; joint?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string; fiche?: FaitsDeLaCuisine["cook"] }): string {
+export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; joint?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string; fiche?: FaitsDeLaCuisine["cook"]; etape?: string | null }): string {
   const { ticket, titre, depot, base } = mission;
   return [
     `Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
     ...blocDeLaFiche(mission.fiche),
+    ...blocDeLEtape(mission.etape),
     ...blocDesLecons(mission.lecons),
     ...blocDuCarnet(mission.carnet),
     ...blocDesGates(mission.gates),
