@@ -2,7 +2,7 @@
 // s'en dit : lequel ne retient rien, et la fin utile de son journal de job.
 import type { Check } from "./events/pass.ts";
 
-export type CheckDeLaBase = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url">>;
+export type CheckDeLaBase = Pick<Check, "outcome"> & Partial<Pick<Check, "name" | "url" | "startedAt">>;
 
 // Les checks Windows (jobs de runtime-windows et app-windows : « windows tests
 // (n/8) », « windows app tests ») sont informatifs (#2087) : rouges sur main, ils
