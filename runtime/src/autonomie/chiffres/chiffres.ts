@@ -3,7 +3,7 @@
 // - served without a human: the share of the tickets merged in the period
 //   whose path from `fire` to merge never asked the chef anything — no TODO
 //   card (`chef-todo`, a `brigade:todo` comment, a design held for the chef's
-//   validation) and no `blocked-on-human`;
+//   validation) and no waiting label for the chef of before parked (#4260);
 // - lead time: the median time from `fire` to merge;
 // - send-back rate: the share of those deliveries the pass sent back at least
 //   once (a `brigade:renvoi` comment) — sent back twice counts once.
@@ -31,19 +31,18 @@
 //   counted.
 // Each lists what makes its number: the bug and the tickets it cites, the
 // revert's sha and the tickets of the commits it reverts.
+import { LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../../github-etat/etats.ts";
 import { mediane } from "../../temps-ticket/synthese.ts";
 
 // The marks the stations write, with the constants of their writers:
 // `MARQUE_DE_RENVOI` (qualite-github.ts), `CHEF_TODO` and `marqueur`
-// (github-seul/carte-todo/carte-todo.ts), `A_LA_MAIN` (brigade-github.ts) — the
-// test compares them —, and the trace of a card posted as an issue apart before
+// (github-seul/carte-todo/carte-todo.ts) — the test compares them —, and the trace of a card posted as an issue apart before
 // #3615 (validation-design/validation-design.ts). A validation asked on the
 // ticket itself (#3615) is a `brigade:todo` comment whose mark carries
 // attributes after its kind: `MARQUE_DE_CARTE` reads it too.
 // Restated rather than imported: those modules pull the kitchen's rail, which
 // the app does not load.
 export const FIRE = "fire";
-export const BLOCKED_ON_HUMAN = "blocked-on-human";
 export const CHEF_TODO = "chef-todo";
 export const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
 export const MARQUE_DE_CARTE = /^\s*<!--\s*brigade:todo\s+kind=[A-Za-z0-9_-]+(?:\s+[a-z]+=[^\s>]+)*\s*-->/;
@@ -134,8 +133,8 @@ export function premiereLigne(corps: string): string | null {
 
 // What a ticket asked the chef between its `fire` and its merge: each TODO
 // card's text, each design held for the chef's validation, and, for each
-// `blocked-on-human`, the comment the station writes just before setting it
-// (blocages-sans-question.ts, `poserALaMain`). A `chef-todo` set with no card
+// waiting label for the chef of before parked, the comment written just before
+// it was set. A `chef-todo` set with no card
 // comment in the window is a question whose text is not on the ticket.
 function questionsDuParcours(evenements: readonly Evenement[], commentaires: readonly Commentaire[], fire: number, merge: number): (string | null)[] {
   const dans = (le: number) => le >= fire && le <= merge;
@@ -143,7 +142,7 @@ function questionsDuParcours(evenements: readonly Evenement[], commentaires: rea
   const questions: { le: number; question: string | null }[] = marquees.map(({ corps, le }) => ({ le, question: premiereLigne(corps) }));
   for (const { type, label, le } of evenements) {
     if (type !== "labeled" || !dans(le)) continue;
-    if (label === BLOCKED_ON_HUMAN) {
+    if (LABELS_D_AVANT_PARKED_POUR_LE_CHEF.includes(label)) {
       const dite = commentaires.filter((un) => un.le >= fire && un.le <= le && !un.corps.trimStart().startsWith("<!--")).at(-1);
       questions.push({ le, question: dite === undefined ? null : premiereLigne(dite.corps) });
     } else if (label === CHEF_TODO && !marquees.some((un) => MARQUE_DE_CARTE.test(un.corps))) questions.push({ le, question: null });

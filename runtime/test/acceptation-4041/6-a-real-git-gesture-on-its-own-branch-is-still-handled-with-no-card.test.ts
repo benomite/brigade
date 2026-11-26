@@ -4,11 +4,12 @@ import { basename, join } from "node:path";
 import { writeFileSync } from "node:fs";
 import { test, type TestContext } from "node:test";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import type { GitHub } from "../../src/github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { BASE, depotGit, ENV_GIT, repertoireTemporaire } from "../outils.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 
 const TICKET = 894;
 const CALIBRE = ["fire", "model:opus", "effort:medium"];
@@ -58,10 +59,9 @@ const cartes = (commentaires: string[]) => commentaires.filter((c) => /^\*\*(?:G
 const BESOIN = "I need an OpenRouter API key and the preprod database URL in the station's local environment file; only the chef can add them.";
 const GESTE_SECRET = "add the OpenRouter API key and the preprod database URL to the station's local environment file";
 
-// brigade:guard
 test("a cook blocked on a real git gesture on its own branch gets no card for the chef", async (t) => {
   const s = station(t, { besoin: "I stopped on a conflict of my branch with the base.", geste: "merge origin/main into the branch and resolve the conflicts" });
   for (let i = 0; i < 2; i++) await s.tour();
   assert.deepEqual(cartes(s.commentaires()), [], s.commentaires().join("\n---\n"));
-  assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false);
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false);
 });

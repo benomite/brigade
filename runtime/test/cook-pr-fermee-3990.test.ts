@@ -36,7 +36,6 @@ async function cuisiner(t: TestContext, passages: number, merged: boolean, prIll
   return { faux, corps, avertis };
 }
 
-// brigade:guard
 test("a branch whose PR was merged is not put back in pass: a cook that adds nothing counts as before", async (t) => {
   const { faux, corps } = await cuisiner(t, 1, true);
   assert.equal(faux.ticket(TICKET).labels.has(LABEL_IN_PASS), false);
@@ -44,7 +43,6 @@ test("a branch whose PR was merged is not put back in pass: a cook that adds not
 });
 
 // The cook's own read of its branch's PR is the third call; the others come from the tour before it.
-// brigade:guard
 test("a PR that cannot be read does not put the branch back in pass: a cook that adds nothing counts as before", async (t) => {
   const { faux, corps } = await cuisiner(t, 1, false, true);
   assert.equal(faux.ticket(TICKET).labels.has(LABEL_IN_PASS), false);

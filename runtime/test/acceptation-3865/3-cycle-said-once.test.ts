@@ -34,7 +34,6 @@ function station(t: TestContext, avant: (faux: FauxGitHub) => void) {
   return { faux, tour, sauts };
 }
 
-// brigade:guard
 test("#18 and #28 depend on each other: not both held, and the cycle is said once with both numbers", async (t) => {
   const s = station(t, (faux) => {
     faux.feu(18, CALIBRE, "Depends on #28");

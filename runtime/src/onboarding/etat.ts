@@ -21,6 +21,7 @@ import type { Phase } from "../projections/pass.ts";
 import type { Etat as EtatDuRail } from "../projections/rail.ts";
 import type { SuiviDuProjet } from "../projets/demande.ts";
 import { decisionAttendue, type DecisionSansBacASable } from "./attente.ts";
+import { DIT_MODE_RESTREINT } from "./mode-restreint.ts";
 
 export const ETAPES = ["depot", "machine", "preparation", "premier-ticket"] as const;
 export type Etape = (typeof ETAPES)[number];
@@ -190,7 +191,7 @@ function etapeMachine(entrees: Entrees): Vue {
       geste: { quoi: `Choose the station that cooks ${projet}.`, ou: "In the app, on the project's page.", liens: [] },
     };
   }
-  const sansBac = sansBacASable === true ? `: its cooks run without a sandbox, they read everything the station's account reads` : "";
+  const fin = sansBacASable === true ? ` in ${DIT_MODE_RESTREINT}` : ".";
   // Un accès refusé est dit par l'étape du dépôt : la cuisine attend qu'il soit levé.
   if (suivi?.acces !== undefined) return { faite: false, dit: `${station} opens the kitchen of ${projet} once it may fetch from and push to its repository.`, geste: null };
   // De même pour un clone en échec.
@@ -199,12 +200,12 @@ function etapeMachine(entrees: Entrees): Vue {
   if (decisionAttendue(entrees)) {
     return {
       faite: false,
-      dit: `${station} has no sandbox: its cooks would read everything the station's account reads. Nothing is launched for ${projet} until you choose.`,
+      dit: `${station} has no sandbox: if you continue, its cooks run in ${DIT_MODE_RESTREINT} Nothing is launched for ${projet} until you choose.`,
       geste: { quoi: `Continue without a sandbox on ${station}, or choose another station for ${projet}.`, ou: "In the app, on the project's page.", liens: [] },
     };
   }
-  if (suivi?.etat === "servi") return { faite: true, dit: `${station} cooks ${projet}${sansBac}.`, geste: null };
-  return { faite: false, dit: `${station} is opening the kitchen of ${projet}${sansBac}.`, geste: null };
+  if (suivi?.etat === "servi") return { faite: true, dit: `${station} cooks ${projet}${fin}`, geste: null };
+  return { faite: false, dit: `${station} is opening the kitchen of ${projet}${fin}`, geste: null };
 }
 
 // Tant que la préparation n'est pas faite, ce que son setup a d'échoué se dit

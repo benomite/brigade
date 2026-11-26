@@ -6,7 +6,7 @@
 //   tentative de fusion, conflits non commités ;
 // - quand le cook s'arrête sur le refus d'une commande git (`blocage-technique.ts`,
 //   #2952), la station reprend la main (`reprise-conflit-refus.ts`, #2951) :
-//   jamais un second renvoi, jamais une carte pour le chef, jamais `blocked-on-human`.
+//   jamais un second renvoi, jamais une carte pour le chef, jamais parqué pour lui.
 import { classerArret as classerLArretTechnique } from "./blocage-technique.ts";
 import { integrerLaBase, type IntegrationBase, type LanceurGit } from "./integration-base.ts";
 import { reprendreApresRefus } from "./reprise-conflit-refus.ts";

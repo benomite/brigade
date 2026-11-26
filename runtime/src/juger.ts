@@ -36,7 +36,7 @@ export type Decision = {
   // Les réponses à cette question, dans ses mots (#3434) : chacune un bouton de la carte — vide quand la réponse du
   // jugement n'en porte aucune qui se lise. `recommended` : celle qu'il recommande, et pourquoi en une ligne — nulle quand
   // rien ne la fonde. `awaits` : qui la question attend quand ce n'est pas le chef (le client…) — la carte propose alors
-  // WAITING —, nul sinon. Absents de toute autre nature, et des jugements d'avant #3434.
+  // de la parquer pour lui —, nul sinon. Absents de toute autre nature, et des jugements d'avant #3434.
   answers?: string[];
   recommended?: { answer: string; why: string } | null;
   awaits?: string | null;
@@ -122,6 +122,11 @@ export function consigneDeJugement(mission: { depot: string; issue: IssueAJuger;
     "- `incomplete` — une unité de travail, mais il lui manque de quoi partir : on ne sait pas quoi livrer, ou pas comment vérifier que c'est fait.",
     "",
     "Dans le doute entre `ticket` et autre chose, ce n'est pas un `ticket` : un cook lancé à tort brûle le quota du chef.",
+    "",
+    "## La taille d'un ticket",
+    "",
+    "Un ticket qui porte plus d'un livrable indépendant, ou dont le travail du cook dépasse environ 30 minutes, se découpe en tickets séparés : ne le qualifie pas `ticket`, qualifie-le `epic` et dis dans `manque` comment le découper.",
+    "Chaque ticket issu du découpage a ses propres critères d'acceptation, et chacun de ces critères se vérifie seul, isolément des autres tickets.",
     "",
     "## Le calibrage d'un ticket",
     "",

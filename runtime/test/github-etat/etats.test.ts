@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING, type IssueLue } from "../../src/github-etat/etats.ts";
+import { CHEF_TODO, estParque, etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_PARKED, LABEL_TAKEN, type IssueLue } from "../../src/github-etat/etats.ts";
 
 const PR_OUVERTE = { state: "open", merged: false } as const;
 const ouverte = (labels: string[], pr: IssueLue["pr"] = null): IssueLue => ({ state: "open", labels: ["fire", ...labels], pr });
@@ -22,10 +22,16 @@ test("in pass : le label `in-pass` et sa PR ouverte, la base verte, en cours ou 
   for (const base of ["green", "pending", null] as const) assert.equal(etatDuTicket(ouverte([LABEL_IN_PASS], PR_OUVERTE), base), "pass", String(base));
 });
 
-test("WAITING : le label `waiting`, et il l'emporte sur `taken` comme sur `in-pass`", () => {
-  assert.equal(etatDuTicket(ouverte([LABEL_WAITING])), "waiting");
-  assert.equal(etatDuTicket(ouverte([LABEL_TAKEN, LABEL_WAITING])), "waiting");
-  assert.equal(etatDuTicket(ouverte([LABEL_IN_PASS, LABEL_WAITING], PR_OUVERTE), "red"), "waiting");
+test("parked : le label `parked`, et il l'emporte sur `taken` comme sur `in-pass`", () => {
+  assert.equal(etatDuTicket(ouverte([LABEL_PARKED])), "parked");
+  assert.equal(etatDuTicket(ouverte([LABEL_TAKEN, LABEL_PARKED])), "parked");
+  assert.equal(etatDuTicket(ouverte([LABEL_IN_PASS, LABEL_PARKED], PR_OUVERTE), "red"), "parked");
+});
+
+test("parked : `chef-todo` seul parque le ticket pour le chef, qui garde son état — la pass lit sa réponse sur la carte", () => {
+  assert.equal(estParque([CHEF_TODO]), true);
+  assert.equal(etatDuTicket(ouverte([CHEF_TODO])), null);
+  assert.equal(etatDuTicket(ouverte([LABEL_IN_PASS, CHEF_TODO], PR_OUVERTE), "red"), "base-red");
 });
 
 test("base red : en pass, et le dernier commit de la base est rouge", () => {
@@ -59,7 +65,7 @@ test("deux stations qui lisent les mêmes données de GitHub disent le même ét
   const cas: [DonneesGitHub, string | null][] = [
     [{ issue: { state: "open", labels: ["fire", LABEL_TAKEN] }, pr: null, checksDeLaBase: [{ outcome: "green" }] }, "taken"],
     [{ issue: { state: "open", labels: ["fire", LABEL_IN_PASS] }, pr: PR_OUVERTE, checksDeLaBase: [{ outcome: "green" }] }, "pass"],
-    [{ issue: { state: "open", labels: ["fire", LABEL_WAITING] }, pr: null, checksDeLaBase: [] }, "waiting"],
+    [{ issue: { state: "open", labels: ["fire", LABEL_PARKED] }, pr: null, checksDeLaBase: [] }, "parked"],
     [{ issue: { state: "open", labels: ["fire", LABEL_IN_PASS] }, pr: PR_OUVERTE, checksDeLaBase: [{ outcome: "green" }, { outcome: "red" }] }, "base-red"],
   ];
   for (const [donnees, attendu] of cas) {
@@ -87,7 +93,7 @@ test("`in-pass` sans PR ouverte à juger n'a pas d'état : ni pass, ni un autre 
 });
 
 test("une issue fermée n'a aucun des quatre états, quels que soient ses labels", () => {
-  assert.equal(etatDuTicket({ state: "closed", labels: [LABEL_TAKEN, LABEL_IN_PASS, LABEL_WAITING], pr: PR_OUVERTE }, "red"), null);
+  assert.equal(etatDuTicket({ state: "closed", labels: [LABEL_TAKEN, LABEL_IN_PASS, LABEL_PARKED], pr: PR_OUVERTE }, "red"), null);
 });
 
 test("etats.ts n'importe rien de la boîte aux lettres, du relais ni du journal : que des types du client GitHub", () => {
@@ -96,5 +102,9 @@ test("etats.ts n'importe rien de la boîte aux lettres, du relais ni du journal 
   assert.deepEqual(imports, [
     { type: true, module: "../events/pass.ts" },
     { type: true, module: "../github.ts" },
+    { type: false, module: "../attente-github/marque.ts" },
   ]);
+  // Le label `parked` vient de la marque du parking, qui n'importe elle-même que des types du client GitHub.
+  const marque = readFileSync(join(import.meta.dirname, "../../src/attente-github/marque.ts"), "utf8");
+  assert.deepEqual([...marque.matchAll(/^import\b.*?from "([^"]+)";$/gms)].map(([ligne, module]) => ({ type: /^import type\b/.test(ligne), module })), [{ type: true, module: "../github.ts" }]);
 });

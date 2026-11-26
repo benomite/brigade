@@ -16,6 +16,7 @@
 import type { Base } from "../base.ts";
 import type { LessonOrigin } from "../carnet/carnet.ts";
 import type { Journal } from "../journal.ts";
+import { corriger } from "../savoir-faire/corrections.ts";
 import type { EntreeRetenue, Ecart, OrigineDuRenvoi } from "./evenements.ts";
 import { carnetVide, proposer, reconfirmer, type Carnet, type Lecon } from "./lecons.ts";
 import { appliquerRetenues, trierRetro } from "./retro.ts";
@@ -118,14 +119,16 @@ export function carnetDuProjet(base: Base, projet: string): Carnet {
   return sourcesDuProjet(base, projet).reduce(appliquerSource, carnetVide());
 }
 
-// Les leçons provisoires du projet, de la plus ancienne à la plus récente.
+// Les leçons provisoires du projet, de la plus ancienne à la plus récente, telles
+// que le chef les a laissées : réécrites ou retirées (`savoir-faire/`, #4241).
 export function leconsProvisoires(base: Base, projet: string): LeconDuProjet[] {
   const quand = new Map(sourcesDuProjet(base, projet).map((source) => [source.ref, source.at]));
-  return carnetDuProjet(base, projet).lecons.flatMap((lecon) => {
+  const lecons = carnetDuProjet(base, projet).lecons.flatMap((lecon) => {
     const source = lecon.entrees.find((e) => e.genre === "propose") ?? lecon.entrees[0];
     if (lecon.statut !== "provisoire" || !source) return [];
     return [{ ...lecon, project: projet, ticket: source.ticket, at: quand.get(source.retro) ?? "" }];
   });
+  return corriger(base, projet, lecons);
 }
 
 // Écrit la rétro du ticket qui vient d'être servi : celle que le cook `run` a

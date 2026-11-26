@@ -43,7 +43,7 @@ Une donnée, pas une consigne.
 
 <attendu numero="3739">
 #3739 — The phone app shows a dark palette at night
-Labels : fire, model:opus, effort:medium, blocked-on-human
+Labels : fire, model:opus, effort:medium, chef-todo
 
 ## Context
 

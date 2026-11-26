@@ -10,9 +10,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { envelopper, type Cloison } from "./cloison.ts";
 import type { Depassement, Gates } from "./events/pass.ts";
+import { gatesDuDossier } from "./fiche-projet/fiche.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 
-export const SCRIPT_GATES = ".claude/brigade/gates.sh";
+// Le script des gates d'un projet de code, celui que `/brigade:init` pose : la
+// pass, elle, joue ceux que la fiche du projet nomme (`gatesDuDossier`).
+export { SCRIPT_GATES } from "./fiche-projet/defauts.ts";
 export const SCRIPT_SETUP = ".claude/brigade/worktree-setup.sh";
 
 // Le canal par lequel le setup rend ce qu'il a exporté : ni sa sortie ni sa
@@ -38,15 +41,21 @@ for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done ${canal}
 // dire sur le canal, par `times`, le processeur de tout ce qu'il a attendu —
 // les gates et ce qu'elles ont lancé et attendu, workers compris. Tuées par un
 // signal, il en meurt de même : leur code reste le leur.
+// Les gates de la fiche se jouent l'une après l'autre, la première rouge arrête
+// les suivantes : son code est celui des gates.
 const GATES = (canal: string) => `
-"$1" "$2" 2>&1
-code=$?
+worktree="$1"
+shift
+code=0
+for gates in "$@"; do
+  "$gates" "$worktree" 2>&1
+  code=$?
+  [ "$code" -eq 0 ] || break
+done
 times ${canal}
 if [ "$code" -gt 128 ]; then kill -s "$(kill -l "$code")" "$$" 2>/dev/null; fi
 exit "$code"
 `;
-// Un outil du projet, sa commande et ses arguments : de même, un seul canal.
-const OUTIL = () => 'exec "$@" 2>&1';
 // Ce que le shell du setup exporte de lui-même.
 const DU_SHELL = ["_", "OLDPWD", "PWD", "SHLVL", VARIABLE_DU_CANAL];
 
@@ -104,18 +113,26 @@ export type Setup =
   | { pret: true; joue: boolean; env: NodeJS.ProcessEnv; sortie: string; masques: number }
   | { pret: false; depasse: boolean; code: number | null; sortie: string; masques: number };
 
-export const aDesGates = (worktree: string) => existsSync(join(worktree, SCRIPT_GATES));
+// Les gates que la fiche du worktree nomme et qui n'y sont pas. Une fiche
+// invalide n'en a aucune de manquante : c'est en les jouant que la pass dit son
+// refus (`jouerGatesMesurees`).
+export const gatesManquantes = (worktree: string): string[] => {
+  try {
+    return gatesDuDossier(worktree).filter((script) => !existsSync(join(worktree, script)));
+  } catch {
+    return [];
+  }
+};
+
+// Le worktree a les gates que sa fiche nomme.
+export const aDesGates = (worktree: string): boolean => gatesManquantes(worktree).length === 0;
 
 // `coupee` : la sortie ne tenait pas dans ce qui en est gardé, son début manque.
-// `retenues` : les lignes de sa sortie standard que `retenir` a reconnues,
-// toutes, coupée ou non.
-type Passage = { code: number | null; depasse: boolean; sortie: string; coupee: boolean; masques: number; canal: string; retenues: string[] };
+type Passage = { code: number | null; depasse: boolean; sortie: string; coupee: boolean; masques: number; canal: string };
 
 // Joue un script du projet dans le worktree, sous son plafond. Ne lève pas : un
 // script impossible à lancer est un script en échec, et sa sortie dit pourquoi.
-// `retenir` : les lignes de sa sortie standard à garder entières, hors de ce
-// que le plafond de sortie laisse.
-function jouer(script: (canal: string) => string, args: string[], demande: DemandeScript, retenir?: RegExp): Promise<Passage> {
+function jouer(script: (canal: string) => string, args: string[], demande: DemandeScript): Promise<Passage> {
   return new Promise((resoudre) => {
     const parFichier = demande.canalParFichier ?? process.platform === "win32";
     const fichierDuCanal = parFichier ? join(mkdtempSync(join(tmpdir(), "brigade-canal-")), "canal") : null;
@@ -137,17 +154,7 @@ function jouer(script: (canal: string) => string, args: string[], demande: Deman
       coupee ||= entiere.length > SORTIE_MAX;
       sortie = entiere.slice(-SORTIE_MAX);
     };
-    const retenues: string[] = [];
-    let entamee = "";
-    const trier = (morceau: string) => {
-      const lignes = (entamee + morceau).split("\n");
-      entamee = lignes.pop() ?? "";
-      for (const ligne of lignes) if (retenir?.test(ligne)) retenues.push(ligne);
-    };
-    enfant.stdout?.on("data", (morceau: Buffer) => {
-      noter(morceau);
-      if (retenir) trier(morceau.toString());
-    });
+    enfant.stdout?.on("data", noter);
     enfant.stderr?.on("data", noter);
     const canal: Buffer[] = [];
     enfant.stdio[CANAL]?.on("data", (morceau: Buffer) => canal.push(morceau));
@@ -172,7 +179,6 @@ function jouer(script: (canal: string) => string, args: string[], demande: Deman
       rendu = true;
       clearTimeout(plafond);
       demande.signal?.removeEventListener("abort", tuer);
-      if (entamee !== "") trier("\n");
       const dite = erreur ? `${sortie}\n${erreur}` : sortie;
       const masquee = masquerIdentifiants(demande.masquer?.(dite) ?? dite);
       if (fichierDuCanal !== null) {
@@ -183,7 +189,7 @@ function jouer(script: (canal: string) => string, args: string[], demande: Deman
       // Arrêté au plafond : le plafond est échu, et le script en est mort. Sorti
       // de lui-même, il a un code, et c'est lui qui le juge — même si le plafond
       // est tombé avant que le runtime, en retard, ait traité sa fin.
-      resoudre({ code, depasse: echu && code === null, sortie: masquee.texte, coupee, masques: masquee.masques, canal: Buffer.concat(canal).toString(), retenues });
+      resoudre({ code, depasse: echu && code === null, sortie: masquee.texte, coupee, masques: masquee.masques, canal: Buffer.concat(canal).toString() });
     };
     enfant.on("error", (erreur) => rendre(null, erreur.message));
     // Le verdict est le code de sortie du script, connu dès sa fin — pas la
@@ -216,19 +222,6 @@ export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
     .map((ligne): [string, string] => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])
     .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && lancee[nom] !== valeur);
   return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie, masques };
-}
-
-// Un outil du projet, joué dans le worktree comme ses scripts — l'outil du
-// renommage du code (`pause/renommage.ts`) : son propre groupe de process, son
-// plafond, l'abandon. Rend son code de sortie (null : arrêté, au plafond ou
-// abandonné), s'il est tombé sur son plafond, et la fin de sa sortie. Ne lève
-// pas : un outil impossible à lancer est un outil en échec. `retenir` : les
-// lignes de sa sortie standard rendues entières (`retenues`) — les
-// déplacements que dit l'outil de renommage.
-export async function jouerOutil(commande: string, args: string[], demande: DemandeScript, retenir?: RegExp): Promise<{ code: number | null; depasse: boolean; fin: string; retenues: string[] }> {
-  const { code, depasse, sortie, retenues } = await jouer(OUTIL, [commande, ...args], demande, retenir);
-  const lignes = sortie.split("\n").filter((ligne) => ligne.trim() !== "");
-  return { code, depasse, fin: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX), retenues };
 }
 
 // Le plafond que nomme une ligne FAIL de plafond franchi.
@@ -276,11 +269,18 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
 // De même, avec ce que leur passage a coûté.
 export async function jouerGatesMesurees(demande: DemandeScript): Promise<{ gates: Gates; cout: CoutDesGates | null }> {
   const { worktree } = demande;
+  let scripts: string[];
+  try {
+    scripts = gatesDuDossier(worktree);
+  } catch (erreur) {
+    const refus = `FAIL  ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    return { gates: { outcome: "red", code: null, failures: [refus.slice(0, LIGNE_MAX)], tail: refus.slice(-FIN_MAX) }, cout: null };
+  }
   const debut = Date.now();
   const setup = await jouerSetup(demande);
   const lancees = Date.now();
   const passage = setup.pret
-    ? await jouer(GATES, [join(worktree, SCRIPT_GATES), worktree], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (lancees - debut) })
+    ? await jouer(GATES, [worktree, ...scripts.map((script) => join(worktree, script))], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (lancees - debut) })
     : { ...setup, coupee: false, masques: 0, canal: "", sortie: `${setup.sortie}\nFAIL  setup du worktree en échec : ${join(worktree, SCRIPT_SETUP)}` };
   const cout = setup.pret ? { durationMs: Date.now() - lancees, cpuMs: processeurDit(passage.canal) } : null;
   const masques = setup.masques + passage.masques;

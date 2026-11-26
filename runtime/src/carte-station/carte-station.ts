@@ -6,10 +6,12 @@
 // le serveur Postgres, par exemple : une seule carte par station et par
 // prérequis le nomme, quel que soit le nombre de tickets que son absence bloque.
 //
-// La carte est une issue `blocked-on-human` qui porte une marque cachée (station
-// et prérequis) : la station la cherche avant d'en ouvrir une. Une carte fermée par le chef se rouvre si le
+// La carte est une issue parquée pour le chef (`chef-todo`, #4129) qui porte une marque
+// cachée (station et prérequis) : la station la cherche avant d'en ouvrir une. Sa question est un commentaire de carte,
+// que l'app montre dans le TODO du chef avec son bouton. Une carte fermée par le chef se rouvre si le
 // prérequis manque encore.
 import { DE_CONFIANCE } from "../alimenter.ts";
+import { CHEF_TODO, corpsDeCarte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { IssueOuverte } from "../github.ts";
 
 export const MARQUE_CARTE_STATION = "<!-- brigade:carte-station";
@@ -20,6 +22,7 @@ const FENETRE_MS = 365 * 86_400_000;
 export type GitHubDeLaStation = {
   issuesDepuis(instant: string): Promise<(Pick<IssueOuverte, "number" | "body" | "association"> & Partial<Pick<IssueOuverte, "state">>)[]>;
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
+  commenter(numero: number, corps: string): Promise<void>;
 };
 
 export type SorteDeGeste = "install" | "service" | "base";
@@ -65,9 +68,14 @@ export function carteDeLaStation(station: string, serveur: { cle: string; nom: s
       "",
       "_Opened by the station, one card per station and prerequisite._",
     ].join("\n"),
-    labels: ["blocked-on-human"],
+    labels: [CHEF_TODO],
   };
 }
+
+// La question de la carte, telle que le TODO du chef la montre : le prérequis, et son bouton — fermer la carte, les
+// tickets qui l'attendaient reprennent.
+export const questionDeLaStation = (station: string, serveur: { nom: string }): string =>
+  [`Is the ${serveur.nom} installed and running on station \`${station}\`?`, "", "- [close] It is installed: close this card"].join("\n");
 
 export type Pose = { carte: number; ouverte: boolean } | { echec: string };
 
@@ -94,11 +102,17 @@ export async function poserLaCarteDeLaStation(
   } catch (erreur) {
     return { echec: `the issues could not be read to find the card of ${station} for the ${serveur.nom}: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
+  let carte: number;
   try {
-    const carte = await github.creerIssue(carteDeLaStation(station, serveur));
-    deja.set(cle, carte);
-    return { carte, ouverte: true };
+    carte = await github.creerIssue(carteDeLaStation(station, serveur));
   } catch (erreur) {
     return { echec: `the card of ${station} for the ${serveur.nom} could not be opened: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
+  deja.set(cle, carte);
+  try {
+    await github.commenter(carte, corpsDeCarte({ sorte: "blocked", texte: questionDeLaStation(station, serveur) }));
+  } catch (erreur) {
+    return { echec: `the card of ${station} for the ${serveur.nom} is opened (#${carte}), but its question could not be posted — the chef's TODO does not show it: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
+  }
+  return { carte, ouverte: true };
 }

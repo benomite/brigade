@@ -12,7 +12,6 @@ const merge = (ticket: number, rouges: number): Parcours => ({
   attempts: Array.from({ length: rouges + 1 }, (_, i) => ({ run: `run-${ticket}-${i}`, at: a("10"), outcome: "ok", verdict: i === rouges ? ("green" as const) : ("red" as const) })),
 });
 
-// brigade:guard
 test("the first-try rate and the lost time are computed from the same data", () => {
   const renvois = mesurerRenvois([merge(1, 0), merge(2, 0), merge(3, 1), merge(4, 2)], 10);
   assert.equal(renvois.premierCoup, 1 / 2);

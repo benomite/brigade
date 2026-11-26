@@ -14,7 +14,7 @@ import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { depuis1826, depuis1834, depuis1862, depuis1893, depuis1894, depuis1971, depuis2037, depuis3945, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
+import { depuis1826, depuis1834, depuis1862, depuis1893, depuis1894, depuis1971, depuis2037, depuis3945, depuis4280, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -104,7 +104,7 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
 
   assert.deepEqual(bas.slice(0, bas.indexOf("latest events")), [
     "rail       3 taken · 2 in pass · 7 queued · 1 BLOCKED · 4 86 · 1 WAITING · 1 served",
-    "  #30  queued  prio:0  machine saturated — withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 4 min  Réparer la base",
+    "  #30  queued  prio:0  withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 4 min  Réparer la base",
     "  #17  in pass  prio:1  since 3 d, cooked by box/claude  Ticket 17",
     "  #19  queued  prio:1  withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — #21 was closed without being served: no longer awaited — since 2 h 04  Ticket 19",
     "  #23  taken  prio:1  by box/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left  Ticket 23",
@@ -126,7 +126,6 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "  #41  served  -  since 2 min, cooked by box/claude  Served",
     "",
     "cooks      3 running — box/claude: 2 at most — declared — 1 STUCK: #23",
-    "           MACHINE SATURATED for 2 min on CPU — load of 16.2 for at most 15: box/claude takes no more tickets as long as it lasts",
     "           box/claude WITHHOLDING for 2 min — gradual ramp-up, cooks that have just left weigh in advance: the servable tickets wait",
     "           ARBITER UNREACHABLE for 2 min — connection refused: box/claude launches only one cook at a time, with no arbitration, until it is back",
     "  #23  STUCK  23-bb  sonnet / medium  2 min of 1 h 00 · turns and tokens: no reading yet · no progress since 5 min",
@@ -185,9 +184,9 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
   const courant = JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE)));
   // Le jugement du manager en cours sur #9 tourne sur la box (#1971).
-  const avant = depuis3945(depuis1971(depuis2037(depuis1844(depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")))))))), courant), [
+  const avant = depuis4280(depuis3945(depuis1971(depuis2037(depuis1844(depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")))))))), courant), [
     { role: "manager", station: "box/claude", ticket: 9, fait: "qualifying the issue", depuis: "2026-10-12T10:02:00.000Z" },
-  ]));
+  ])));
   assert.deepEqual(courant, avant);
 });
 

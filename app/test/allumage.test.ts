@@ -1,6 +1,6 @@
 // Ce qu'engage l'allumage du manager, dit au geste « allumer » : l'avertissement
 // de docs/runtime/, et deux nombres — les issues ouvertes, et celles qui
-// portent `blocked-on-human`. Les nombres lus ici sont écrits par la commande du
+// sont parquées (#4260). Les nombres lus ici sont écrits par la commande du
 // runtime elle-même (runtime/src/manager-cli.ts, `backlog`), jouée dans ce
 // process sur un backlog connu, dicté par un faux `gh` : la forme que l'app lit
 // est tenue contre celle que le runtime écrit. Elle arrive par un faux `node` de
@@ -39,16 +39,16 @@ const issue = (number: number, labels: string[], pr = false) => ({
   ...(pr ? { pull_request: {} } : {}),
 });
 
-// Le backlog connu : sept issues ouvertes, dont trois portent `blocked-on-human` — et une PR,
+// Le backlog connu : sept issues ouvertes, dont trois parquées — et une PR,
 // que l'API rend parmi elles et qui n'en est pas une.
 const CONNU = [
   issue(10, []),
-  issue(11, ["blocked-on-human"]),
+  issue(11, ["parked"]),
   issue(12, ["fire", "model:haiku", "effort:low"]),
-  issue(13, ["epic", "blocked-on-human"]),
-  issue(14, ["question"]),
-  issue(15, ["blocked-on-human"], true),
-  issue(16, ["prio:1", "blocked-on-human"]),
+  issue(13, ["epic", "chef-todo"]),
+  issue(14, ["idea"]),
+  issue(15, ["parked"], true),
+  issue(16, ["prio:1", "parked"]),
   issue(17, ["served-elsewhere"]),
 ];
 
@@ -86,10 +86,10 @@ function station(t: TestContext, corps: string) {
 const dit = (texte: string) => `cat <<'FIN'\n${texte}FIN`;
 
 describe("l'avertissement de l'allumage", () => {
-  test("il est dit en anglais, et reprend celui de docs/runtime/ : ce que l'allumage engage et `blocked-on-human`", () => {
+  test("il est dit en anglais, et reprend celui de docs/runtime/ : ce que l'allumage engage et le parking", () => {
     assert.equal(
       AVERTISSEMENT,
-      "Once on, the manager judges the whole open backlog, whatever it judges executable goes to the kitchen right away, and green deliveries are merged. Before switching the project on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.",
+      "Once on, the manager judges the whole open backlog, whatever it judges executable goes to the kitchen right away, and green deliveries are merged. Before switching the project on, park whatever must not go: a parked issue is never judged, a parked epic is never split.",
     );
   });
 
@@ -109,26 +109,26 @@ describe("l'avertissement de l'allumage", () => {
 });
 
 describe("les deux nombres : `manager backlog`, lancée une fois par la station de ce poste", () => {
-  test("sur un backlog connu, ce sont les siens : sept issues ouvertes, dont trois `blocked-on-human` — la PR n'en est pas une", { skip: SANS_POSIX }, async (t) => {
+  test("sur un backlog connu, ce sont les siens : sept issues ouvertes, dont trois parquées — la PR n'en est pas une", { skip: SANS_POSIX }, async (t) => {
     const sortie = await runtime(t, CONNU);
     const { reglages, lu } = station(t, dit(sortie));
 
     const compte = await compter(reglages, lu);
 
     assert.deepEqual(backlogDe(sortie), { ouvertes: 7, retenues: 3 });
-    assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "it will judge 4 of the 7 open issues — 3 carry `blocked-on-human`" });
+    assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "it will judge 4 of the 7 open issues — 3 are parked" });
     assert.ok(!Number.isNaN(Date.parse(compte.a)));
   });
 
   test("une seule issue, aucune : les nombres sont lus quand même, et la phrase dit qu'il ne jugera rien", { skip: SANS_POSIX }, async (t) => {
-    const une = await runtime(t, [issue(11, ["blocked-on-human"])]);
+    const une = await runtime(t, [issue(11, ["parked"])]);
     const aucune = await runtime(t, []);
 
     assert.deepEqual(backlogDe(une), { ouvertes: 1, retenues: 1 });
     assert.deepEqual(backlogDe(aucune), { ouvertes: 0, retenues: 0 });
     const unique = station(t, dit(une));
     const compte = await compter(unique.reglages, unique.lu);
-    assert.equal("dit" in compte && compte.dit, "it will judge no issue: the only open issue carries `blocked-on-human`");
+    assert.equal("dit" in compte && compte.dit, "it will judge no issue: the only open issue is parked");
     const nulle = station(t, dit(aucune));
     const vide = await compter(nulle.reglages, nulle.lu);
     assert.equal("dit" in vide && vide.dit, "it will judge no issue: none is open");
