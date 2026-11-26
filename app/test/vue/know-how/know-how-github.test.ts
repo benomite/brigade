@@ -166,6 +166,20 @@ describe("changing an entry by a pull request", () => {
     assert.equal(prs[0]?.title, "brigade: remove a know-how entry");
   });
 
+  test("a file saved with CRLF line endings: an edit and a removal change that one line, every other line and its CRLF kept", async () => {
+    const crlf = SAVOIR.replaceAll("\n", "\r\n");
+    const edite = github(crlf);
+    await proposerLeChangement(edite.client, DEPOT, "main", { kind: "edit", line: 7, text: "Never push a dirty tree", avant: "Never run the pass with a dirty tree" });
+    const lignes = crlf.split("\n");
+    lignes[7] = "- Never push a dirty tree (#205)\r";
+    assert.equal(edite.proposee(), lignes.join("\n"));
+    const retire = github(crlf);
+    await proposerLeChangement(retire.client, DEPOT, "main", { kind: "remove", line: 3, avant: "Tests live next to the code" });
+    const sans = crlf.split("\n");
+    sans.splice(3, 1);
+    assert.equal(retire.proposee(), sans.join("\n"));
+  });
+
   test("the screen's change says the pull request it opened, and what kind of change it proposes", async () => {
     assert.deepEqual(await changerLeSavoir({ ...projet(github().client), changement: { kind: "remove", line: 3 } }), {
       propose: PROPOSE,
