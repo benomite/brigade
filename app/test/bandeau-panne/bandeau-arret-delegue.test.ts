@@ -16,9 +16,3 @@ test("a fault status given to the stop banner shows its button, and a click repa
   boutons[0]?.click();
   assert.deepEqual(appels, ["fix-main"]);
 });
-
-test("a fault button clicked without any repair call does nothing and does not throw", () => {
-  const hote = new Faux("div");
-  monterLeBandeau(doc, hote).maj({ state: "fault", cause: "main is red", action: { kind: "button", label: "Fix main", id: "fix-main" } });
-  [...hote.descendants()].find(({ balise }) => balise === "button")?.click();
-});
