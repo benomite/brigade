@@ -27,7 +27,7 @@ export function signesDe(lu: StationsDuCompte): SignesDeVie {
   };
 }
 
-export function tenirLesSignesDeVie(options: { lire: () => Promise<StationsDuCompte>; maintenant?: () => number; pasMs?: number }) {
+export function holdLesSignesDeVie(options: { lire: () => Promise<StationsDuCompte>; maintenant?: () => number; pasMs?: number }) {
   const maintenant = options.maintenant ?? Date.now;
   const pas = options.pasMs ?? PAS_DES_SIGNES_MS;
   let dernier: { signes: SignesDeVie; a: number } | null = null;
@@ -43,7 +43,7 @@ export function tenirLesSignesDeVie(options: { lire: () => Promise<StationsDuCom
       if (dernier !== null && maintenant() - dernier.a < pas) return Promise.resolve(dernier.signes);
       enCours ??= options
         .lire()
-        .then(signesDe, (erreur: unknown) => ({ illisible: `your stations could not be read on GitHub: ${erreur instanceof Error ? erreur.message : String(erreur)}` }))
+        .then(signesDe, (error: unknown) => ({ illisible: `your stations could not be read on GitHub: ${error instanceof Error ? error.message : String(error)}` }))
         .then((signes) => {
           garder(signes, maintenant());
           return (dernier as { signes: SignesDeVie }).signes;

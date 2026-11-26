@@ -8,15 +8,15 @@
 // communique pas sa série, et la courbe ne se dessine pas vide : sa zone dit « not communicated ».
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, HTML ou SVG, et rend des éléments.
 
-import { LECTURE, lignesDuConsomme, NON_COMMUNIQUE, tokensLus } from "./tete.js";
-import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { READ, consumedLines, NON_COMMUNIQUE, tokensLus } from "./tete.js";
+import { lineEmpty } from "../composants/line-empty/line-empty.js";
 
-/** @typedef {import("./tete.js").Lecture} Lecture */
-/** @typedef {import("./tete.js").ProjetDuCout} ProjetDuCout */
-/** @typedef {{ createElement(balise: string): any, createElementNS(espace: string, balise: string): any }} Fabrique */
+/** @typedef {import("./tete.js").Read} Read */
+/** @typedef {import("./tete.js").ProjectDuCost} ProjectDuCost */
+/** @typedef {{ createElement(balise: string): any, createElementNS(namespace: string, balise: string): any }} Fabrique */
 // `points` : un nombre par jour de `jours`, `null` pour un jour que la série ne dit pas. La série
 // entière est `undefined` quand la box n'a pas encore été lue, `null` quand elle ne l'a pas communiquée.
-/** @typedef {{ projet: ProjetDuCout, points: (number | null)[] | null | undefined }} Serie */
+/** @typedef {{ projet: ProjectDuCost, points: (number | null)[] | null | undefined }} Serie */
 /** @typedef {{ jours: string[], series: Serie[] }} Courbe */
 
 export const TITRE = "tokens per day";
@@ -29,28 +29,28 @@ const SVG = "http://www.w3.org/2000/svg";
 const LARGEUR = 1000;
 const HAUTEUR = 100;
 
-const JOUR = /^(\d{4}-\d{2}-\d{2}) ?: (.*)$/;
+const DAY = /^(\d{4}-\d{2}-\d{2}) ?: (.*)$/;
 
 // Les tokens de chaque jour que `station` communique, par date (AAAA-MM-JJ).
 /** @param {string} texte @returns {Map<string, number>} */
 export function joursDe(texte) {
   /** @type {Map<string, number>} */
   const lus = new Map();
-  for (const valeur of lignesDuConsomme(texte)) {
-    const jour = JOUR.exec(valeur);
-    if (jour === null) continue;
-    const tokens = tokensLus(/** @type {string} */ (jour[2]).trim());
-    if (tokens !== undefined) lus.set(/** @type {string} */ (jour[1]), tokens);
+  for (const valeur of consumedLines(texte)) {
+    const day = DAY.exec(valeur);
+    if (day === null) continue;
+    const tokens = tokensLus(/** @type {string} */ (day[2]).trim());
+    if (tokens !== undefined) lus.set(/** @type {string} */ (day[1]), tokens);
   }
   return lus;
 }
 
 // Les jours d'un projet : non lus, non communiqués, ou ce que `station` a rendu.
-/** @param {Lecture | undefined} lecture @returns {Map<string, number> | null | undefined} */
-function joursDuProjet(lecture) {
-  if (lecture === undefined) return undefined;
-  if (!("sorties" in lecture)) return null;
-  const station = lecture.sorties.find(({ commande }) => commande === "station");
+/** @param {Read | undefined} read @returns {Map<string, number> | null | undefined} */
+function joursDuProject(read) {
+  if (read === undefined) return undefined;
+  if (!("sorties" in read)) return null;
+  const station = read.sorties.find(({ commande: command }) => command === "station");
   const jours = station === undefined ? new Map() : joursDe(station.texte);
   return jours.size === 0 ? null : jours;
 }
@@ -58,20 +58,20 @@ function joursDuProjet(lecture) {
 // Les séries par projet, alignées sur les mêmes jours : les derniers que l'une des boxes dit, au
 // plus `JOURS`, du plus ancien au plus récent. Un jour qu'une série ne dit pas y reste un trou,
 // jamais un zéro : « rien » est un zéro, que la box écrit.
-/** @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures @returns {Courbe} */
-export function series(projets, lectures) {
-  const lus = projets.map((projet) => ({ projet, jours: joursDuProjet(lectures.get(projet.nom)) }));
+/** @param {ProjectDuCost[]} projects @param {Map<string, Read>} lectures @returns {Courbe} */
+export function series(projects, lectures) {
+  const lus = projects.map((project) => ({ projet: project, jours: joursDuProject(lectures.get(project.nom)) }));
   const jours = [...new Set(lus.flatMap(({ jours }) => (jours ? [...jours.keys()] : [])))].sort().slice(-JOURS);
   return {
     jours,
-    series: lus.map(({ projet, jours: dits }) => ({ projet, points: dits ? jours.map((jour) => dits.get(jour) ?? null) : dits })),
+    series: lus.map(({ projet: project, jours: dits }) => ({ projet: project, points: dits ? jours.map((day) => dits.get(day) ?? null) : dits })),
   };
 }
 
 const nombre = (/** @type {number} */ valeur) => valeur.toLocaleString("en-US");
 const bref = (/** @type {number} */ valeur) => valeur.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
 // « Oct 16 » : le jour tel que la box l'a daté, sans fuseau.
-const jourDit = (/** @type {string} */ jour) => new Date(`${jour}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const dayDit = (/** @type {string} */ day) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 // Chaque classe est posée en clair, `className = "…"` : la peau ne vise que des classes que la vue
 // pose, et son test les lit ainsi (peau.test.ts). Les éléments du SVG n'en portent pas : la peau
@@ -85,7 +85,7 @@ function cree(doc, balise, texte) {
 /** @param {Fabrique} doc @param {string} balise @param {Record<string, string>} attributs */
 function trace(doc, balise, attributs) {
   const pose = doc.createElementNS(SVG, balise);
-  for (const [nom, valeur] of Object.entries(attributs)) pose.setAttribute(nom, valeur);
+  for (const [name, valeur] of Object.entries(attributs)) pose.setAttribute(name, valeur);
   return pose;
 }
 
@@ -99,7 +99,7 @@ const ordonnee = (/** @type {number} */ valeur, /** @type {number} */ haut) => H
 function poserTrace(doc, { jours, series: lues }, haut) {
   const svg = trace(doc, "svg", { viewBox: `0 0 ${LARGEUR} ${HAUTEUR}`, preserveAspectRatio: "none", "aria-hidden": "true" });
   for (const y of [0, HAUTEUR]) svg.append(trace(doc, "line", { x1: "0", x2: String(LARGEUR), y1: String(y), y2: String(y), "vector-effect": "non-scaling-stroke" }));
-  for (const { projet, points } of lues) {
+  for (const { projet: project, points } of lues) {
     if (!points) continue;
     /** @type {string[][]} */
     const troncons = [[]];
@@ -111,17 +111,17 @@ function poserTrace(doc, { jours, series: lues }, haut) {
       /** @type {string[]} */ (troncons.at(-1)).push(point);
       dits.push(`M${point}h0`);
     });
-    const ligne = trace(doc, "path", { d: troncons.filter((troncon) => troncon.length > 1).map((troncon) => `M${troncon.join("L")}`).join(""), "vector-effect": "non-scaling-stroke" });
+    const line = trace(doc, "path", { d: troncons.filter((troncon) => troncon.length > 1).map((troncon) => `M${troncon.join("L")}`).join(""), "vector-effect": "non-scaling-stroke" });
     const marques = trace(doc, "path", { d: dits.join(""), "vector-effect": "non-scaling-stroke", "data-points": "" });
-    for (const pose of [ligne, marques]) if (projet.teinte !== undefined) pose.style.setProperty("--teinte", projet.teinte);
-    svg.append(ligne, marques);
+    for (const pose of [line, marques]) if (project.teinte !== undefined) pose.style.setProperty("--teinte", project.teinte);
+    svg.append(line, marques);
   }
   const pas = LARGEUR / jours.length;
-  jours.forEach((jour, i) => {
+  jours.forEach((day, i) => {
     const colonne = trace(doc, "rect", { x: String(Math.max(0, abscisse(i, jours.length) - pas / 2)), y: "0", width: String(pas), height: String(HAUTEUR) });
-    const ditsDuJour = lues.flatMap(({ projet, points }) => (points ? [`${projet.nom} ${points[i] === null ? NON_COMMUNIQUE : nombre(/** @type {number} */ (points[i]))}`] : []));
+    const ditsDuDay = lues.flatMap(({ projet: project, points }) => (points ? [`${project.nom} ${points[i] === null ? NON_COMMUNIQUE : nombre(/** @type {number} */ (points[i]))}`] : []));
     const survol = doc.createElementNS(SVG, "title");
-    survol.textContent = `${jourDit(jour)} — ${ditsDuJour.join(" · ")}`;
+    survol.textContent = `${dayDit(day)} — ${ditsDuDay.join(" · ")}`;
     colonne.append(survol);
     svg.append(colonne);
   });
@@ -133,34 +133,34 @@ function poserTrace(doc, { jours, series: lues }, haut) {
 function poserLegende(doc, lues) {
   const legende = cree(doc, "ul");
   legende.className = "legende";
-  for (const { projet, points } of lues) {
+  for (const { projet: project, points } of lues) {
     const teinte = cree(doc, "span");
     teinte.className = "teinte";
-    if (projet.teinte !== undefined) teinte.style.setProperty("--teinte", projet.teinte);
-    const nom = cree(doc, "span", projet.nom);
-    nom.className = "projet";
-    const ligne = cree(doc, "li");
-    ligne.append(teinte, nom);
+    if (project.teinte !== undefined) teinte.style.setProperty("--teinte", project.teinte);
+    const name = cree(doc, "span", project.nom);
+    name.className = "projet";
+    const line = cree(doc, "li");
+    line.append(teinte, name);
     if (!points) {
-      const manque = ligneVide(doc, points === undefined ? LECTURE : NON_COMMUNIQUE, { classe: "sans", balise: "span" });
-      ligne.append(manque);
+      const manque = lineEmpty(doc, points === undefined ? READ : NON_COMMUNIQUE, { classe: "sans", balise: "span" });
+      line.append(manque);
     }
-    legende.append(ligne);
+    legende.append(line);
   }
   return legende;
 }
 
 // La courbe entière : son titre, puis le tracé et sa légende — ou, tant qu'aucune box ne donne sa
 // série, ce qu'il en est à la place du tracé.
-/** @param {Fabrique} doc @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures */
-export function poserCourbe(doc, projets, lectures) {
-  const courbe = series(projets, lectures);
+/** @param {Fabrique} doc @param {ProjectDuCost[]} projects @param {Map<string, Read>} lectures */
+export function poserCourbe(doc, projects, lectures) {
+  const courbe = series(projects, lectures);
   const bloc = cree(doc, "div");
   bloc.className = "courbe-cout";
   bloc.append(cree(doc, "h2", TITRE));
   const dessinees = courbe.series.filter(({ points }) => points);
   if (dessinees.length === 0) {
-    const manque = ligneVide(doc, courbe.series.some(({ points }) => points === undefined) ? LECTURE : NON_COMMUNIQUE, { classe: "sans" });
+    const manque = lineEmpty(doc, courbe.series.some(({ points }) => points === undefined) ? READ : NON_COMMUNIQUE, { classe: "sans" });
     bloc.append(manque);
     return bloc;
   }
@@ -173,8 +173,8 @@ export function poserCourbe(doc, projets, lectures) {
   // Chaque jour sous son point : sa place est celle du point, en pourcentage de la largeur.
   const jours = cree(doc, "div");
   jours.className = "jours";
-  courbe.jours.forEach((jour, i) => {
-    const dit = cree(doc, "span", jourDit(jour));
+  courbe.jours.forEach((day, i) => {
+    const dit = cree(doc, "span", dayDit(day));
     dit.style.setProperty("left", `${(abscisse(i, courbe.jours.length) / LARGEUR) * 100}%`);
     jours.append(dit);
   });

@@ -1,6 +1,6 @@
 // @ts-check
 // L'onglet Stations d'un projet, posé (ticket 3195, épique 3194) : un seul composant, qui répond à trois questions.
-//   1. Qui le cuit, et est-ce que ça marche : une ligne en tête, dans exactement un de cinq états (etat.js, `hautDe`) —
+//   1. Qui le cuit, et est-ce que ça marche : une ligne en tête, dans exactement un de cinq états (state.js, `hautDe`) —
 //      verte seulement quand une station en ligne le cuit ou attend son prochain ticket. Hors ligne, elle dit que rien ne
 //      cuit, comment ramener la station, et offre de déménager vers cet ordinateur d'un clic ; personne, combien de tickets
 //      `fire` attendent, « Cook it on this computer » — recommandé, quand cet ordinateur ne le sert pas encore (ticket 3399)
@@ -9,28 +9,28 @@
 //   2. Une carte par station qui sert le projet, elles seules : son nom, ce qu'elle est en clair, son état à l'instant, ce
 //      qu'elle tient du projet (les tickets de ses cooks, ou « idle »), ses deux gestes — « Move to another station »,
 //      « Stop cooking here » — et « Details », replié, qui porte ses réglages et ses lectures, chacun avec son contrôle.
-//   3. Comment le changer : le choix de station (choix.js), ouvert sous la ligne du haut — qui le cuit, ou où déménager.
+//   3. Comment le changer : le choix de station (choice.js), ouvert sous la ligne du haut — qui le cuit, ou où déménager.
 //      Quand une station le sert déjà, « Add a station » ouvre le même choix pour en ajouter une (ticket 3402).
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), ce qu'elle a lu et les gestes.
 
-import { boutonAction, replie, survol } from "../briques.js";
-import { confirmationDeGeste } from "../composants/confirmation/confirmation.js";
-import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
-import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
-import { marque } from "../composants/pastille/pastille.js";
-import { ANNULER, CET_ORDINATEUR, ENREGISTREMENT, LECTURE_DE, OUI } from "../lexique.js";
-import { lignesDeCooks } from "../stations-de-cuisson.js";
+import { buttonAction, replie, survol } from "../briques.js";
+import { confirmationDeAction } from "../composants/confirmation/confirmation.js";
+import { lineError } from "../composants/line-error/line-error.js";
+import { lineEmpty } from "../composants/line-empty/line-empty.js";
+import { marque } from "../composants/pill/pill.js";
+import { ANNULER, CET_ORDINATEUR, ENREGISTREMENT, READ_DE, OUI } from "../lexique.js";
+import { linesDeCooks } from "../stations-de-cooking.js";
 import { poserLeQuota } from "../stations-quota/stations-quota.js";
-import { poserLesChoix } from "./choix.js";
-import { BLOQUE, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./etat.js";
-import { ligneDeVeille, veilleTenue } from "../veille-machine/veille-machine.js";
-import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
+import { poserLesChoice } from "./choice.js";
+import { BLOCKED, CHOISIR, CUIRE_ICI, phraseDuHaut, VERS_ICI } from "./state.js";
+import { lineDeStandby, standbyTenue } from "../standby-machine/standby-machine.js";
+import { linesDuEngine } from "../engine/CardEngine.js";
 
-/** @typedef {import("../composants/poele/poele.js").Fabrique} Fabrique */
-/** @typedef {import("./etat.js").Haut} Haut */
-/** @typedef {import("./etat.js").Servante} Servante */
-/** @typedef {import("./etat.js").Sorte} Sorte */
-/** @typedef {import("./choix.js").Choix} Choix */
+/** @typedef {import("../composants/pan/pan.js").Fabrique} Fabrique */
+/** @typedef {import("./state.js").Haut} Haut */
+/** @typedef {import("./state.js").Servante} Servante */
+/** @typedef {import("./state.js").Sorte} Sorte */
+/** @typedef {import("./choice.js").Choice} Choice */
 /**
  * Ce que l'onglet montre.
  *   `projet`      son nom ; `poste` : le nom que l'écran donne à cet ordinateur (« this Mac »).
@@ -66,7 +66,7 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *   cuireIci?: boolean,
  *   servantes: readonly Servante[],
  *   enCuisson?: boolean,
- *   choix?: { titre: string, choix: readonly Choix[], deplacement: boolean, enCours?: string, refus?: { ligne: string, detail: string } },
+ *   choix?: { titre: string, choix: readonly Choice[], deplacement: boolean, enCours?: string, refus?: { ligne: string, detail: string } },
  *   dit?: { texte: string, refus: boolean, detail?: string },
  *   deplacable: { offert: boolean, pourquoi: string },
  *   arret?: { id: string, enCours: boolean },
@@ -75,7 +75,7 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *   lecture?: boolean,
  *   quiCuit?: boolean,
  *   quota?: import("../stations-quota/stations-quota.js").QuotaGithub,
- *   veille?: import("../veille-machine/veille-machine.js").Veille,
+ *   veille?: import("../standby-machine/standby-machine.js").Standby,
  *   moteurIci?: string,
  * }} VuDeLOnglet
  */
@@ -85,50 +85,50 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *   deplacer(): void,
  *   versIci(): void,
  *   cuireIci(): void,
- *   choisir(choix: Choix): void,
+ *   choisir(choice: Choice): void,
  *   annuler(): void,
  *   arreter(id: string): void,
  *   confirmerArret(id: string): void,
  *   renoncerArret(): void,
  *   basculer(id: string, ouvert: boolean): void,
- * }} GestesDeLOnglet
+ * }} ActionsDeLOnglet
  */
 
-export const LECTURE = LECTURE_DE("your stations on GitHub");
+export const READ = READ_DE("your stations on GitHub");
 export const DEPLACER = "Move to another station";
 export const ARRETER = "Stop cooking here";
 export const DETAILS = "Details";
 export const DETAILS_RESUME = "folders, sandbox, Claude connection, cooks at once, ordinary tickets";
 export const AU_REPOS = "idle";
 // Ce qu'est chaque station, en clair.
-/** @type {(poste: string) => Record<Sorte, string>} */
-export const CE_QU_ELLE_EST = (poste) => ({
-  ici: `${poste}: cooks while the app is open`,
+/** @type {(workstation: string) => Record<Sorte, string>} */
+export const CE_QU_ELLE_EST = (workstation) => ({
+  ici: `${workstation}: cooks while the app is open`,
   box: "always-on box: cooks while your computer sleeps",
   ordinateur: "another computer: cooks while Brigade is open on it",
 });
 // Son état, au mot de sa pilule.
-export const EN_LIGNE = "online";
+export const EN_LINE = "online";
 export const DEMARRE = "starting";
 // Le choix ouvert, son titre.
-/** @param {string} projet */
-export const QUI_CUIT = (projet) => `Who cooks ${projet}?`;
+/** @param {string} project */
+export const QUI_CUIT = (project) => `Who cooks ${project}?`;
 // Ajouter une station quand une autre le cuit déjà : le même choix, son titre (ticket 3402).
 export const AJOUTER = "Add a station";
-/** @param {string} projet */
-export const QUI_D_AUTRE = (projet) => `Which station also cooks ${projet}?`;
+/** @param {string} project */
+export const QUI_D_AUTRE = (project) => `Which station also cooks ${project}?`;
 // Le choix ouvert sans aucune station à proposer : chacune le sert déjà, ou aucune n'est connue.
-export const AUCUN_CHOIX = "No other station can take it: each of yours already cooks it.";
-/** @param {string} projet @param {string} de */
-export const OU_DEPLACER = (projet, de) => `Move ${projet}'s kitchen from ${de} to:`;
+export const AUCUN_CHOICE = "No other station can take it: each of yours already cooks it.";
+/** @param {string} project @param {string} de */
+export const OU_DEPLACER = (project, de) => `Move ${project}'s kitchen from ${de} to:`;
 // Ce que coûte un déménagement, dit sous son choix (le prix de la confirmation d'un geste qui coûte).
 export const PRIX_DU_DEPLACEMENT = "Its cooks in flight stop and their tickets go back to the rail; its whole journal follows it.";
 // « Stop cooking here » : ce qu'il fait, en une ligne.
-/** @param {string} projet @param {string} station */
-export const ARRET = (projet, station) => `Stop cooking ${projet} on ${station}?`;
-/** @param {string} projet @param {string} station */
-export const PRIX_DE_L_ARRET = (projet, station) => `${station} takes no more of ${projet}'s tickets; its cooks in flight finish.`;
-export const OUI_ARRET = OUI("stop cooking here");
+/** @param {string} project @param {string} station */
+export const STOP = (project, station) => `Stop cooking ${project} on ${station}?`;
+/** @param {string} project @param {string} station */
+export const PRIX_DE_L_STOP = (project, station) => `${station} takes no more of ${project}'s tickets; its cooks in flight finish.`;
+export const OUI_STOP = OUI("stop cooking here");
 
 // Chaque classe est posée en clair, `className = "…"` : la peau ne vise que des classes que la vue pose (peau.test.ts).
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -143,77 +143,77 @@ function cree(doc, balise, texte) {
 export const tonDuHaut = (haut) => (haut.vert ? "vert" : haut.etat === "deplacement" || haut.etat === "redemarre" ? "jaune" : haut.etat === "hors-ligne" ? "rouge" : "gris");
 
 // La ligne du haut : sa pastille, sa phrase, et ses gestes.
-/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {GestesDeLOnglet} gestes */
-function ligneDuHaut(doc, vu, gestes) {
+/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {ActionsDeLOnglet} actions */
+function lineDuHaut(doc, vu, actions) {
   const { haut } = vu;
-  const ligne = cree(doc, "div");
-  ligne.className = "haut-des-stations";
-  ligne.dataset.etat = haut.etat;
-  ligne.dataset.ton = tonDuHaut(haut);
-  ligne.ariaLive = "polite";
+  const line = cree(doc, "div");
+  line.className = "haut-des-stations";
+  line.dataset.etat = haut.etat;
+  line.dataset.ton = tonDuHaut(haut);
+  line.ariaLive = "polite";
   const phrase = cree(doc, "p");
   phrase.className = "phrase";
   phrase.append(marque(doc, tonDuHaut(haut)), cree(doc, "strong", phraseDuHaut(haut)));
   if ((haut.etat === "hors-ligne" || haut.etat === "eteint") && vu.ramener !== undefined && vu.ramener !== "") phrase.append(survol(doc, vu.ramener));
-  ligne.append(phrase);
+  line.append(phrase);
   if (haut.etat === "deplacement" && haut.bloque !== null) {
-    const bloque = cree(doc, "p", BLOQUE(haut.bloque));
-    bloque.className = "bloque";
-    ligne.append(bloque);
+    const blocked = cree(doc, "p", BLOCKED(haut.bloque));
+    blocked.className = "bloque";
+    line.append(blocked);
   }
   // Les gestes : le cuire ici d'un clic, ou choisir qui le cuit ; ou, rien ne cuisant, le déménager ici d'un clic — vers une
   // autre station, c'est le geste de sa carte. Un choix ouvert les remplace.
-  if (vu.choix !== undefined || vu.lecture === true) return ligne;
+  if (vu.choix !== undefined || vu.lecture === true) return line;
   const ici = haut.etat === "personne" && vu.cuireIci === true;
   const boutons = [
-    ...(ici ? [boutonAction(doc, CUIRE_ICI, gestes.cuireIci, { recommande: true })] : []),
-    ...((haut.etat === "personne" || (haut.etat === "eteint" && !haut.servi)) && vu.quiCuit === true ? [boutonAction(doc, CHOISIR, gestes.choisirQuiCuit, { recommande: !ici })] : []),
-    ...(haut.etat === "hors-ligne" && vu.versIci === true ? [boutonAction(doc, VERS_ICI, gestes.versIci, { recommande: true })] : []),
-    ...((haut.etat === "cuit" || haut.etat === "hors-ligne" || (haut.etat === "eteint" && haut.servi)) && vu.quiCuit === true ? [boutonAction(doc, AJOUTER, gestes.choisirQuiCuit)] : []),
+    ...(ici ? [buttonAction(doc, CUIRE_ICI, actions.cuireIci, { recommande: true })] : []),
+    ...((haut.etat === "personne" || (haut.etat === "eteint" && !haut.servi)) && vu.quiCuit === true ? [buttonAction(doc, CHOISIR, actions.choisirQuiCuit, { recommande: !ici })] : []),
+    ...(haut.etat === "hors-ligne" && vu.versIci === true ? [buttonAction(doc, VERS_ICI, actions.versIci, { recommande: true })] : []),
+    ...((haut.etat === "cuit" || haut.etat === "hors-ligne" || (haut.etat === "eteint" && haut.servi)) && vu.quiCuit === true ? [buttonAction(doc, AJOUTER, actions.choisirQuiCuit)] : []),
   ];
   if (boutons.length > 0) {
     const pied = cree(doc, "p");
     pied.className = "gestes";
     pied.append(...boutons);
-    ligne.append(pied);
+    line.append(pied);
   }
-  return ligne;
+  return line;
 }
 
 // « Move to another station » : offert, il ouvre le choix ; sinon il attend, et dit pourquoi au survol.
-/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {GestesDeLOnglet} gestes */
-function boutonDeDeplacement(doc, { deplacable }, gestes) {
-  const action = boutonAction(doc, DEPLACER, gestes.deplacer);
-  const bouton = action.children?.[0];
-  if (bouton !== undefined && !deplacable.offert) {
-    bouton.disabled = true;
-    bouton.title = deplacable.pourquoi;
+/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {ActionsDeLOnglet} actions */
+function buttonDeDeplacement(doc, { deplacable }, actions) {
+  const action = buttonAction(doc, DEPLACER, actions.deplacer);
+  const button = action.children?.[0];
+  if (button !== undefined && !deplacable.offert) {
+    button.disabled = true;
+    button.title = deplacable.pourquoi;
   }
   return action;
 }
 
-// Le choix ouvert : son titre, la liste (choix.js), et « Cancel » — un déménagement dit aussi son prix.
-/** @param {Fabrique} doc @param {NonNullable<VuDeLOnglet["choix"]>} choix @param {GestesDeLOnglet} gestes */
-function leChoix(doc, choix, gestes) {
+// Le choix ouvert : son titre, la liste (choice.js), et « Cancel » — un déménagement dit aussi son prix.
+/** @param {Fabrique} doc @param {NonNullable<VuDeLOnglet["choix"]>} choice @param {ActionsDeLOnglet} actions */
+function leChoice(doc, choice, actions) {
   const racine = cree(doc, "section");
   racine.className = "choix-des-stations";
-  racine.ariaLabel = choix.titre;
-  const attendu = cree(doc, "p", choix.titre);
+  racine.ariaLabel = choice.titre;
+  const attendu = cree(doc, "p", choice.titre);
   attendu.className = "attendu";
   racine.append(attendu);
-  const etat = { choix: choix.choix, ...(choix.enCours === undefined ? {} : { enCours: choix.enCours }), ...(choix.refus === undefined ? {} : { refus: choix.refus }) };
-  racine.append(...poserLesChoix(doc, etat, gestes.choisir));
-  if (choix.choix.length === 0) racine.append(ligneVide(doc, AUCUN_CHOIX, { classe: "aucun-choix" }));
-  if (choix.deplacement) {
+  const state = { choix: choice.choix, ...(choice.enCours === undefined ? {} : { enCours: choice.enCours }), ...(choice.refus === undefined ? {} : { refus: choice.refus }) };
+  racine.append(...poserLesChoice(doc, state, actions.choisir));
+  if (choice.choix.length === 0) racine.append(lineEmpty(doc, AUCUN_CHOICE, { classe: "aucun-choix" }));
+  if (choice.deplacement) {
     const prix = cree(doc, "p", PRIX_DU_DEPLACEMENT);
     prix.className = "prix";
     racine.append(prix);
   }
   const pied = cree(doc, "p");
   pied.className = "gestes";
-  const annuler = boutonAction(doc, ANNULER, gestes.annuler);
-  const bouton = annuler.children?.[0];
-  if (bouton !== undefined) bouton.disabled = choix.enCours !== undefined;
+  const annuler = buttonAction(doc, ANNULER, actions.annuler);
+  const button = annuler.children?.[0];
+  if (button !== undefined) button.disabled = choice.enCours !== undefined;
   pied.append(annuler);
   racine.append(pied);
   return racine;
@@ -221,17 +221,17 @@ function leChoix(doc, choix, gestes) {
 
 // L'état d'une station, à l'instant : sa pilule, son ton — vert seulement en ligne.
 /** @param {Servante} station */
-export const etatDit = ({ etat, dit }) =>
-  etat === "en-ligne" ? { mot: EN_LIGNE, ton: "vert" } : etat === "demarre" ? { mot: DEMARRE, ton: "jaune" } : etat === "redemarre" ? { mot: dit, ton: "jaune" } : { mot: dit, ton: etat === "illisible" ? "gris" : "rouge" };
+export const stateDit = ({ etat: state, dit }) =>
+  state === "en-ligne" ? { mot: EN_LINE, ton: "vert" } : state === "demarre" ? { mot: DEMARRE, ton: "jaune" } : state === "redemarre" ? { mot: dit, ton: "jaune" } : { mot: dit, ton: state === "illisible" ? "gris" : "rouge" };
 
 // La clé d'une station de l'onglet : son gist, sinon son nom — une station que le projet nomme sans que l'app la connaisse.
 // Ses gestes et son « Details » la retrouvent par elle.
 /** @param {Pick<Servante, "id" | "nom">} station */
-export const cleDe = ({ id, nom }) => (id === "" ? nom : id);
+export const cleDe = ({ id, nom: name }) => (id === "" ? name : id);
 
 // Une carte : la station qui sert le projet.
-/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {Servante} station @param {GestesDeLOnglet} gestes */
-function carte(doc, vu, station, gestes) {
+/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {Servante} station @param {ActionsDeLOnglet} actions */
+function card(doc, vu, station, actions) {
   const racine = cree(doc, "section");
   racine.className = "carte-de-station";
   const cle = cleDe(station);
@@ -240,45 +240,45 @@ function carte(doc, vu, station, gestes) {
   racine.ariaLabel = station.nom;
   // Son nom — « this computer » pour celle de cet ordinateur, son nom d'hôte après —, ce qu'elle est, et son état.
   const tete = cree(doc, "header");
-  const nom = cree(doc, "h4");
+  const name = cree(doc, "h4");
   const appele = cree(doc, "strong", station.ici ? CET_ORDINATEUR : station.nom);
   if (!station.ici) appele.className = "mono";
-  nom.append(appele);
+  name.append(appele);
   if (station.ici) {
     const hote = cree(doc, "span", station.nom);
     hote.className = "hote mono";
-    nom.append(hote);
+    name.append(hote);
   }
-  const { mot, ton } = etatDit(station);
-  const etat = cree(doc, "span");
-  etat.className = "pilule etat";
-  etat.dataset.ton = ton;
-  etat.append(marque(doc, ton), cree(doc, "strong", mot));
+  const { mot: word, ton } = stateDit(station);
+  const state = cree(doc, "span");
+  state.className = "pilule etat";
+  state.dataset.ton = ton;
+  state.append(marque(doc, ton), cree(doc, "strong", word));
   // Ce qui la retient encore — sa machine pleine, la limite de GitHub, son refus — se dit à côté.
   if (station.note !== undefined && station.note !== "") {
     const note = cree(doc, "small", station.note);
     note.className = "note";
-    etat.append(note);
+    state.append(note);
   }
-  tete.append(nom, etat);
+  tete.append(name, state);
   const ceQuElleEst = cree(doc, "p", CE_QU_ELLE_EST(vu.poste)[station.sorte]);
   ceQuElleEst.className = "ce-qu-elle-est";
   racine.append(tete, ceQuElleEst);
   // Son moteur, et quand ses cooks cuisent sur le secours, sur lequel et jusqu'à quand (moteur/, ticket 3746).
-  racine.append(...lignesDuMoteur(doc, { ...(station.moteur === undefined ? {} : { statut: station.moteur }), ...(station.ici && vu.moteurIci !== undefined ? { choisi: vu.moteurIci } : {}) }));
+  racine.append(...linesDuEngine(doc, { ...(station.moteur === undefined ? {} : { statut: station.moteur }), ...(station.ici && vu.moteurIci !== undefined ? { choisi: vu.moteurIci } : {}) }));
   // Ce qu'elle n'a pas pu cuire — les dépendances qui ne s'installent pas — se dit en une ligne : le chef sait quoi réparer ou décocher.
   if (station.lacks !== undefined) {
     const manque = cree(doc, "p", `Could not run a ticket: ${station.lacks}`);
     manque.className = "manque";
     racine.append(manque);
   }
-  if (station.ici && veilleTenue(vu.veille)) racine.append(ligneDeVeille(doc));
+  if (station.ici && standbyTenue(vu.veille)) racine.append(lineDeStandby(doc));
   // Ce qu'elle tient du projet : les tickets de ses cooks, ce qu'elle fait tourner d'autre ; rien, elle est au repos.
   const tient = station.cooks.length + station.agents.length > 0;
   racine.append(
     tient
-      ? lignesDeCooks(doc, station.cooks, station.agents, vu.enCuisson === true && station.etat === "en-ligne")
-      : ligneVide(doc, AU_REPOS, { classe: "au-repos" }),
+      ? linesDeCooks(doc, station.cooks, station.agents, vu.enCuisson === true && station.etat === "en-ligne")
+      : lineEmpty(doc, AU_REPOS, { classe: "au-repos" }),
   );
   // Ses gestes, ou la confirmation de son arrêt — puis, confirmé, qu'il s'écrit. La station où la cuisine déménage n'en a
   // pas tant qu'elle démarre : la ligne du haut suit le déménagement.
@@ -288,52 +288,52 @@ function carte(doc, vu, station, gestes) {
     racine.append(enCours);
   } else if (vu.arret?.id === cle) {
     racine.append(
-      confirmationDeGeste(
+      confirmationDeAction(
         doc,
-        { titre: ARRET(vu.projet, station.nom), phrase: PRIX_DE_L_ARRET(vu.projet, station.nom), oui: OUI_ARRET, non: ANNULER },
-        { oui: () => gestes.confirmerArret(cle), non: gestes.renoncerArret },
+        { titre: STOP(vu.projet, station.nom), phrase: PRIX_DE_L_STOP(vu.projet, station.nom), oui: OUI_STOP, non: ANNULER },
+        { oui: () => actions.confirmerArret(cle), non: actions.renoncerArret },
       ),
     );
   } else if (vu.choix === undefined && vu.lecture !== true && station.etat !== "demarre") {
     const pied = cree(doc, "p");
     pied.className = "gestes";
-    pied.append(boutonDeDeplacement(doc, vu, gestes), boutonAction(doc, ARRETER, () => gestes.arreter(cle), { sorte: "discret" }));
+    pied.append(buttonDeDeplacement(doc, vu, actions), buttonAction(doc, ARRETER, () => actions.arreter(cle), { sorte: "discret" }));
     racine.append(pied);
   }
   // « Details », replié tant que le chef ne l'ouvre pas : ses réglages et ses lectures, chacun avec son contrôle.
-  const lignes = vu.details.get(cle) ?? [];
-  if (lignes.length > 0) {
+  const lines = vu.details.get(cle) ?? [];
+  if (lines.length > 0) {
     const contenu = cree(doc, "div");
     contenu.className = "details-de-station";
-    contenu.append(...lignes);
-    racine.append(replie(doc, { titre: DETAILS, resume: DETAILS_RESUME, ouvert: vu.ouverts.has(cle), basculer: (ouvert) => gestes.basculer(cle, ouvert) }, [contenu]));
+    contenu.append(...lines);
+    racine.append(replie(doc, { titre: DETAILS, resume: DETAILS_RESUME, ouvert: vu.ouverts.has(cle), basculer: (ouvert) => actions.basculer(cle, ouvert) }, [contenu]));
   }
   return racine;
 }
 
-/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {GestesDeLOnglet} gestes */
-export function poserLOngletDesStations(doc, vu, gestes) {
+/** @param {Fabrique} doc @param {VuDeLOnglet} vu @param {ActionsDeLOnglet} actions */
+export function poserLOngletDesStations(doc, vu, actions) {
   const racine = cree(doc, "section");
   racine.className = "onglet-des-stations";
   racine.dataset.bloc = "stations-tab";
   racine.ariaLabel = "Stations";
   if (!vu.lues) {
-    racine.append(ligneVide(doc, LECTURE, { classe: "lecture" }));
+    racine.append(lineEmpty(doc, READ, { classe: "lecture" }));
     return racine;
   }
-  racine.append(ligneDuHaut(doc, vu, gestes));
+  racine.append(lineDuHaut(doc, vu, actions));
   if (vu.quota !== undefined) racine.append(poserLeQuota(doc, vu.quota));
   if (vu.dit !== undefined && vu.dit.texte !== "") {
     const dit = cree(doc, "p", vu.dit.texte);
     dit.className = "dit-des-stations";
-    racine.append(vu.dit.refus ? ligneErreur(doc, vu.dit.texte, vu.dit.detail ?? "", { classe: "dit-des-stations" }) : dit);
+    racine.append(vu.dit.refus ? lineError(doc, vu.dit.texte, vu.dit.detail ?? "", { classe: "dit-des-stations" }) : dit);
   }
-  if (vu.choix !== undefined) racine.append(leChoix(doc, vu.choix, gestes));
+  if (vu.choix !== undefined) racine.append(leChoice(doc, vu.choix, actions));
   if (vu.servantes.length > 0) {
-    const cartes = cree(doc, "div");
-    cartes.className = "cartes-des-stations";
-    cartes.append(...vu.servantes.map((station) => carte(doc, vu, station, gestes)));
-    racine.append(cartes);
+    const cards = cree(doc, "div");
+    cards.className = "cartes-des-stations";
+    cards.append(...vu.servantes.map((station) => card(doc, vu, station, actions)));
+    racine.append(cards);
   }
   return racine;
 }

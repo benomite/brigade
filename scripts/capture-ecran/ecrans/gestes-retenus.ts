@@ -1,7 +1,7 @@
 // Les gestes retenus de « parade » (#4273) : son rail est vide, et deux découpages d'épique attendent l'OK du chef. La vue
 // les reçoit du pont (`gestesRetenus`, app/src/held/) : une carte par geste — son résumé, sa raison, Approve — à côté du
 // TODO, et le rail vide dit « 2 splits wait for your OK ».
-import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
+import type { TableauLu } from "../../../app/src/tableau/read.ts";
 import { avecLeRail } from "../../../app/src/vue/rail/github.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";

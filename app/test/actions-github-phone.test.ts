@@ -1,0 +1,568 @@
+// Les gestes du chef depuis le téléphone, écrits sur GitHub même (#2502) : répondre à une carte de TODO, reprendre
+// (« back to the kitchen », « it arrived »), mettre en suspens (« remove from the rail ») et les gestes de WAITING
+// (« waiting for… », « resume », #3075) font sur GitHub ce que le même geste fait du desktop. Chaque geste est joué deux fois, sur deux copies du même faux GitHub : par la chaîne du desktop
+// — les fonctions que main.ts appelle, avec le client qu'il compose (`clientDesLabels`, porté par `fetch`) —, puis par le
+// téléphone, porté par un faux HTTP natif de Capacitor ; les demandes que chaque GitHub a reçues, et ce qu'il en garde,
+// sont comparées. Puis les mêmes gestes passent par le pont de l'APK tel que la construction le pose (www/android/pont.js) :
+// connecté à GitHub, il lit le rail et TODO de parade sur ce faux GitHub, puis y écrit chaque geste du chef. Aucune
+// station n'existe ici : seul GitHub répond, et l'adresse d'une station appairée avant #2500 n'est jamais demandée.
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { LABELS_D_AVANT_PARKED } from "../../runtime/src/github-etat/etats.ts";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, describe, test } from "node:test";
+import { pathToFileURL } from "node:url";
+import vm from "node:vm";
+import { demarrageDuPont, poserLaVue, poserLesModules } from "../packaging/android.ts";
+import { APP } from "../packaging/construire.ts";
+import type { Answer } from "../src/card-todo.ts";
+import { ecritureParCapacitor, ouvrirLesActionsGitHub, type RequestNative, type AnswerNative } from "../src/actions-github-phone.ts";
+import { retirerLeLabel, SANS_FAIT } from "../src/actions-github.ts";
+import { clientDeLaPriority, envoyerParFetch } from "../src/priority.ts";
+import { clientGitHub, corpsLu, parFetch, type Envoi } from "../src/tableau/client.ts";
+import type { TableauLu } from "../src/tableau/read.ts";
+import { cardDuComment, formeDuChef, type CardDuChef } from "../src/tableau/todo-github.ts";
+import { repondreSurGithub } from "../src/tableau-actions/answer-github.ts";
+import { waitSurGithub } from "../src/vue/wait/wait-github.ts";
+import { repos } from "./aides/fausse-vue.ts";
+
+const REPOSITORY = "chef/parade";
+const PROJECT = "parade";
+const JETON = "gho_du_chef";
+const API = "https://api.github.com/";
+
+// Deux questions du chef, chacune sous `served-elsewhere` et `chef-todo` : #40 se reprend ou se laisse, #41 a sa PR ouverte,
+// #1560, à merger.
+const QUESTION_40 = ["<!-- brigade:todo kind=product-question -->", "Keep the old export?", "- [resume] Yes, keep it", "- [drop] No, drop it"].join("\n");
+const QUESTION_41 = ["<!-- brigade:todo kind=product-question -->", "Does the export keep the old column order?", "- [merge] Yes, merge PR #1560 as delivered", "- [close] No, we drop the export"].join("\n");
+const CHEFS = new Map<number, CardDuChef>([
+  [40, cardDuComment(QUESTION_40) ?? assert.fail("#40 carries a chef's card")],
+  [41, cardDuComment(QUESTION_41) ?? assert.fail("#41 carries a chef's card")],
+]);
+// La réponse que la vue envoie d'un clic sur le choix `rang` de la carte de `ticket`.
+const clic = (ticket: number, rang: number): Answer => ({ question: formeDuChef((CHEFS.get(ticket) as CardDuChef).texte).question, choix: rang });
+
+// La dernière lecture du rail de parade : #22 sur son rail, #31 revenu de WAITING, #40 et #41 dans TODO.
+const LU: TableauLu = {
+  lu: true,
+  depot: REPOSITORY,
+  luLe: "2026-11-06T10:00:00.000Z",
+  cuisine: { rubriques: [] },
+  faits: { rail: [{ ticket: 22, etat: "en attente" }, { ticket: 31, etat: "en attente" }], attend: [{ ticket: 40 }, { ticket: 41 }] },
+  file: [],
+  bilans: [],
+  lignesDuRail: [],
+  activites: [],
+};
+
+type Issue = { labels: Set<string>; state: string; commentaires: string[] };
+type Recue = { methode: string; url: string; entetes: Record<string, string>; corps?: unknown };
+type Outage = (recue: Recue) => { status: number; data: unknown } | "injoignable" | undefined;
+
+// Un faux GitHub qui tient son monde — les issues de parade, leurs labels, leurs commentaires, la PR #1560 — et note
+// chaque demande reçue, telle qu'elle est arrivée. `panne` : ce qu'il rend à la place de sa réponse, ou ne rien rendre.
+function github(outage: Outage = () => undefined) {
+  const issues = new Map<number, Issue>([
+    [22, { labels: new Set(["fire"]), state: "open", commentaires: [] }],
+    [31, { labels: new Set(["fire", "parked"]), state: "open", commentaires: [] }],
+    [40, { labels: new Set(["fire", "served-elsewhere", "chef-todo"]), state: "open", commentaires: [QUESTION_40] }],
+    [41, { labels: new Set(["fire", "served-elsewhere", "chef-todo"]), state: "open", commentaires: [QUESTION_41] }],
+  ]);
+  const pr = { numero: 1560, state: "open", merged: false, ref: "cook/41-export", body: "Closes #41" };
+  const recues: Recue[] = [];
+  const prJson = () => ({ number: pr.numero, state: pr.state, merged: pr.merged, head: { ref: pr.ref }, body: pr.body });
+  function repondre(recue: Recue): { status: number; data: unknown } {
+    recues.push(recue);
+    // Ce qui n'est pas l'API de GitHub ne répond pas, comme une station qui n'existe pas.
+    if (!recue.url.startsWith(API)) throw new Error(`failed to connect to ${recue.url}`);
+    const outageLue = outage(recue);
+    if (outageLue === "injoignable") throw new Error("Unable to resolve host \"api.github.com\": No address associated with hostname");
+    if (outageLue !== undefined) return outageLue;
+    // Ce que le téléphone lit : le gist où une station garde les projets du chef, puis le rail et TODO de parade.
+    // La trace de ce téléphone, déjà posée (#3303, phone-connecte.ts) : la lecture n'écrit rien d'autre que le geste.
+    if (recue.methode === "GET" && recue.url.startsWith(`${API}gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(recue.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }, { id: "t1", files: { "brigade-telephone.json": { filename: "brigade-telephone.json" } } }] : [] };
+    if (recue.methode === "GET" && recue.url === `${API}gists/g1`) return { status: 200, data: { id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json", content: PROJECTS_DU_GIST } } } };
+    const chemin = recue.url.slice(`${API}repos/${REPOSITORY}`.length);
+    const page = Number(/[?&]page=(\d+)/.exec(chemin)?.[1] ?? "1");
+    if (recue.methode === "GET" && chemin.startsWith("/issues?")) {
+      const label = /[?&]labels=([^&]+)/.exec(chemin)?.[1];
+      const ouvertes = [...issues].filter(([, issue]) => issue.state === "open" && (label === undefined || issue.labels.has(decodeURIComponent(label))));
+      return { status: 200, data: page > 1 ? [] : ouvertes.map(([numero, issue]) => ({ number: numero, title: `Ticket ${numero}`, html_url: `https://github.com/${REPOSITORY}/issues/${numero}`, created_at: "2026-11-05T00:00:00Z", labels: [...issue.labels].map((name) => ({ name })) })) };
+    }
+    const lu = /^\/issues\/(\d+)\/(comments|events)\?/.exec(chemin);
+    if (recue.methode === "GET" && lu !== null) {
+      const commentaires = lu[2] === "comments" && page === 1 ? (issues.get(Number(lu[1]))?.commentaires ?? []) : [];
+      return { status: 200, data: commentaires.map((body, rang) => ({ id: Number(lu[1]) * 100 + rang, body, created_at: `2026-11-06T0${rang}:00:00Z`, author_association: "OWNER" })) };
+    }
+    if (recue.methode === "GET" && chemin.startsWith("/pulls?")) return { status: 200, data: pr.state === "open" ? [prJson()] : [] };
+    if (recue.methode === "GET" && chemin === `/pulls/${pr.numero}`) return { status: 200, data: prJson() };
+    if (recue.methode === "PUT" && chemin === `/pulls/${pr.numero}/merge`) {
+      Object.assign(pr, { state: "closed", merged: true });
+      return { status: 200, data: { merged: true } };
+    }
+    const [, numero, reste] = /^\/issues\/(\d+)(.*)$/.exec(chemin) ?? [];
+    const issue = issues.get(Number(numero));
+    if (issue === undefined) return { status: 404, data: { message: "Not Found" } };
+    if (recue.methode === "POST" && reste === "/comments") {
+      issue.commentaires.push((recue.corps as { body: string }).body);
+      const id = 900 + issue.commentaires.length;
+      return { status: 201, data: { id, html_url: `https://github.com/${REPOSITORY}/issues/${numero}#issuecomment-${id}` } };
+    }
+    if (recue.methode === "POST" && reste === "/labels") {
+      for (const pose of (recue.corps as { labels: string[] }).labels) issue.labels.add(pose);
+      return { status: 200, data: [...issue.labels].map((name) => ({ name })) };
+    }
+    const label = /^\/labels\/(.+)$/.exec(reste ?? "")?.[1];
+    if (recue.methode === "DELETE" && label !== undefined) return issue.labels.delete(decodeURIComponent(label)) ? { status: 200, data: [...issue.labels].map((name) => ({ name })) } : { status: 404, data: { message: "Label does not exist" } };
+    if (recue.methode === "PATCH" && reste === "") {
+      issue.state = (recue.corps as { state: string }).state;
+      return { status: 200, data: {} };
+    }
+    return { status: 404, data: { message: "Not Found" } };
+  }
+
+  // Le `fetch` du desktop : il reçoit l'adresse, la méthode, les en-têtes et le corps écrit en JSON.
+  const fetch = (async (adresse: string | URL | Request, init?: RequestInit) => {
+    const { status, data } = repondre({ methode: init?.method ?? "GET", url: String(adresse), entetes: { ...(init?.headers as Record<string, string>) }, ...(typeof init?.body === "string" ? { corps: corpsLu(init.body) } : {}) });
+    return new Response(JSON.stringify(data), { status });
+  }) as typeof globalThis.fetch;
+  // Le HTTP natif de Capacitor sur le téléphone : il reçoit le corps en objet, et rend la réponse lue en JSON.
+  const capacitor = async (request: RequestNative | { url: string; method: "GET"; headers: Record<string, string> }): Promise<AnswerNative> => {
+    const { status, data } = repondre({ methode: request.method, url: request.url, entetes: { ...request.headers }, ...("data" in request && request.data !== undefined ? { corps: request.data } : {}) });
+    return { status, data, headers: { "content-type": "application/json; charset=utf-8" } };
+  };
+  const state = () => ({ issues: Object.fromEntries([...issues].map(([numero, issue]) => [numero, { labels: [...issue.labels].sort(), state: issue.state, commentaires: issue.commentaires }])), pr: { ...pr } });
+  return { recues, fetch, capacitor, etat: state };
+}
+
+const jeton = async () => JETON;
+const PROJECTS_DU_GIST = JSON.stringify({ brigade: "projets", format: 1, projets: [{ nom: PROJECT, depot: REPOSITORY, base: "main", principale: true, cooks: 2, manager: { modele: "opus", effort: "high" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: null }] });
+
+// La chaîne du desktop pour ce GitHub : le client que main.ts compose (`clientDesLabels`) — le `GET` des lectures et les
+// écritures par `fetch`, avec le jeton du chef.
+function desktop(monde: ReturnType<typeof github>) {
+  return clientDeLaPriority({ jeton, appeler: clientGitHub({ jeton, envoyer: parFetch({ fetch: monde.fetch }) }), envoyer: envoyerParFetch({ fetch: monde.fetch }) });
+}
+
+// Les gestes du téléphone pour ce GitHub : le jeton du coffre, les lectures et les écritures par le HTTP natif, et ce que
+// sa dernière lecture de GitHub dit de parade. `ecrits` : les projets que le téléphone relit après une écriture prise.
+function phone(monde: ReturnType<typeof github>) {
+  const ecrits: string[] = [];
+  const read: Envoi = async (adresse, entetes) => {
+    const { status, data } = await monde.capacitor({ url: adresse, method: "GET", headers: entetes });
+    return { status, data };
+  };
+  const actions = ouvrirLesActionsGitHub({
+    jeton,
+    appeler: clientGitHub({ jeton, envoyer: read }),
+    envoyer: ecritureParCapacitor(monde.capacitor),
+    depot: (project) => (project === PROJECT ? REPOSITORY : undefined),
+    dernier: (project) => (project === PROJECT ? LU : undefined),
+    chef: (project, ticket) => (project === PROJECT && typeof ticket === "number" ? CHEFS.get(ticket) : undefined),
+    ecrit: (project) => void ecrits.push(project),
+  });
+  return { gestes: actions, ecrits };
+}
+
+// Le même geste, du desktop puis du téléphone, chacun sur son GitHub neuf : les deux GitHub ont reçu les mêmes demandes
+// — méthode, adresse, en-têtes, corps —, et en gardent le même état. Rend ce que chacun en a dit, et le GitHub du téléphone.
+async function deuxFois<R>(duDesktop: (client: ReturnType<typeof desktop>) => Promise<R>, duPhone: (actions: ReturnType<typeof phone>["gestes"]) => Promise<R>) {
+  const auDesktop = github();
+  const dit = await duDesktop(desktop(auDesktop));
+  const auPhone = github();
+  const { gestes: actions, ecrits } = phone(auPhone);
+  const ditAuPhone = await duPhone(actions);
+  assert.deepEqual(auPhone.recues, auDesktop.recues, "the phone sends GitHub the desktop's requests");
+  assert.deepEqual(auPhone.etat(), auDesktop.etat(), "GitHub ends up as the desktop's gesture leaves it");
+  assert.deepEqual(ditAuPhone, dit, "the phone says what the desktop says");
+  return { recues: auPhone.recues, etat: auPhone.etat(), dit: ditAuPhone, ecrits };
+}
+// Déparquer : `parked` retiré, puis chaque label d'attente d'avant parked (runtime/src/github-etat/etats.ts) — un ticket que
+// l'un d'eux parque reprend aussi.
+const DEPARQUE = (ticket: number) => ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+const resume = (recues: Recue[]) => recues.map(({ methode, url, corps }) => `${methode} ${url.slice(API.length - 1)}${corps === undefined ? "" : ` ${JSON.stringify(corps)}`}`);
+const ENTETES = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${JETON}` };
+
+describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le même geste", () => {
+  test("répondre à une carte de TODO (resume) : le commentaire marqué posté, `served-elsewhere` et `chef-todo` retirés", async () => {
+    const { recues, etat: state, dit, ecrits } = await deuxFois(
+      (client) => repondreSurGithub({ depot: REPOSITORY, ticket: 40, chef: CHEFS.get(40), reponse: clic(40, 1), client }),
+      (actions) => actions.repondreCarte(PROJECT, 40, clic(40, 1)),
+    );
+    assert.deepEqual(resume(recues), [
+      `POST /repos/${REPOSITORY}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
+      `DELETE /repos/${REPOSITORY}/issues/40/labels/served-elsewhere`,
+      `DELETE /repos/${REPOSITORY}/issues/40/labels/chef-todo`,
+      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
+      // — l'issue ne les porte pas, GitHub répond 404.
+      ...DEPARQUE(40),
+    ]);
+    assert.deepEqual(state.issues[40]?.labels, ["fire"]);
+    assert.deepEqual(dit, { repondue: true, dit: "answer posted on #40 (resume): `served-elsewhere` and `chef-todo` removed", commentaire: 902 });
+    assert.deepEqual(ecrits, [PROJECT], "the phone reads GitHub again, and the card leaves TODO");
+  });
+
+  test("répondre à une carte de TODO (merge) : la PR lue sur GitHub, mergée, puis `chef-todo` retiré", async () => {
+    const { recues, etat: state } = await deuxFois(
+      (client) => repondreSurGithub({ depot: REPOSITORY, ticket: 41, chef: CHEFS.get(41), reponse: clic(41, 1), client }),
+      (actions) => actions.repondreCarte(PROJECT, 41, clic(41, 1)),
+    );
+    assert.deepEqual(resume(recues), [
+      `GET /repos/${REPOSITORY}/pulls/1560`,
+      `POST /repos/${REPOSITORY}/issues/41/comments {"body":"<!-- brigade:reponse gesture=merge -->\\nYes, merge PR #1560 as delivered"}`,
+      `PUT /repos/${REPOSITORY}/pulls/1560/merge {"merge_method":"merge"}`,
+      `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`,
+      // Mergée, la livraison n'attend plus personne : `parked` et les labels d'avant parked — l'issue ne les porte pas, 404.
+      ...DEPARQUE(41),
+    ]);
+    assert.equal(state.pr.merged, true);
+  });
+
+  test("reprendre — « back to the kitchen » sur la fiche : `parked` retiré, et chaque label d'attente d'avant parked", async () => {
+    const { recues, etat: state, dit, ecrits } = await deuxFois(
+      (client) => retirerLeLabel(LU, "cuisine", 31, client),
+      (actions) => actions.geste(PROJECT, "cuisine", 31),
+    );
+    assert.deepEqual(resume(recues), DEPARQUE(31));
+    assert.deepEqual(state.issues[31]?.labels, ["fire"]);
+    assert.deepEqual(dit, { fait: "back to the kitchen on GitHub: #31 no longer carries `parked` — it resumes exactly where it was", detail: `https://github.com/${REPOSITORY}/issues/31` });
+    assert.deepEqual(ecrits, [PROJECT]);
+  });
+
+  test("reprendre — « it arrived, back to the kitchen » sur une carte de WAITING : ce que le desktop en écrit", async () => {
+    const { recues } = await deuxFois(
+      (client) => retirerLeLabel(LU, "cuisine", 31, client),
+      (actions) => actions.attente(PROJECT, "attente-arrivee", 31),
+    );
+    assert.deepEqual(resume(recues), DEPARQUE(31));
+  });
+
+  // #3075 : le téléphone ne joint aucun runtime ; « waiting for… » et « resume » s'écrivent sur l'issue comme le desktop les
+  // écrit, sur tout projet (vue/wait/wait-github.ts). Le commentaire de parking (#4129) ne dit plus l'instant de la
+  // mise en attente : les deux GitHub reçoivent les mêmes demandes, au caractère près.
+  test("« waiting for… » : le commentaire de parking posté, puis `parked` posé — ce que le desktop écrit", async () => {
+    const saisie = { quoi: "the signed quote", qui: "the client", relance: "2099-01-02" };
+    const auDesktop = github();
+    const dit = await waitSurGithub({ id: "attente-poser", ticket: 22, saisie, aujourdhui: new Date(), lu: LU, client: desktop(auDesktop) });
+    const auPhone = github();
+    const { gestes: actions, ecrits } = phone(auPhone);
+    const ditAuPhone = await actions.attente(PROJECT, "attente-poser", 22, saisie);
+    assert.deepEqual(resume(auPhone.recues), resume(auDesktop.recues));
+    assert.deepEqual(ditAuPhone, dit);
+    assert.deepEqual(
+      auPhone.recues.map(({ methode, url }) => `${methode} ${url.slice(API.length - 1)}`),
+      [`POST /repos/${REPOSITORY}/issues/22/comments`, `POST /repos/${REPOSITORY}/issues/22/labels`],
+    );
+    const state = auPhone.etat().issues[22];
+    assert.deepEqual(state?.labels, ["fire", "parked"]);
+    assert.match(state?.commentaires[0] ?? "", /^<!-- brigade:parked \{"what":"the signed quote","who":"the client","followUp":"[^"]+"\} -->\n\*\*PARKED: waits for the client\.\*\* the signed quote\n/);
+    assert.deepEqual(dit, { fait: "in WAITING on GitHub: #22 awaits the client, follow-up on 2099-01-02", detail: `https://github.com/${REPOSITORY}/issues/22#issuecomment-901` });
+    assert.deepEqual(ecrits, [PROJECT]);
+  });
+
+  test("« resume » sur une carte de WAITING : `parked` retiré, et la phrase dit qu'il revient où il était — plus rien d'une station", async () => {
+    const { recues, etat: state, dit, ecrits } = await deuxFois(
+      async (client) => waitSurGithub({ id: "attente-reprendre", ticket: 31, saisie: undefined, aujourdhui: new Date(), lu: LU, client }),
+      (actions) => actions.attente(PROJECT, "attente-reprendre", 31),
+    );
+    assert.deepEqual(resume(recues), DEPARQUE(31));
+    assert.deepEqual(state.issues[31]?.labels, ["fire"]);
+    assert.deepEqual(dit, { fait: "resumed on GitHub: #31 no longer carries `parked` — it resumes exactly where it was", detail: `https://github.com/${REPOSITORY}/issues/31` });
+    assert.deepEqual(ecrits, [PROJECT]);
+    assert.ok(!JSON.stringify(dit).includes("station"));
+  });
+
+  test("« waiting for… » sans ce qu'il attend : refusé avant GitHub, la phrase le dit, rien n'est écrit", async () => {
+    const monde = github();
+    const { gestes: actions, ecrits } = phone(monde);
+    assert.deepEqual(await actions.attente(PROJECT, "attente-poser", 22, { quoi: "  ", qui: "the client", relance: "2099-01-02" }), { refus: "nothing is written: say what it waits for, in your words", detail: "" });
+    assert.deepEqual(monde.recues, []);
+    assert.deepEqual(ecrits, []);
+  });
+
+  test("mettre en suspens — « remove from the rail » : `fire` retiré, aucune station ne le prend plus", async () => {
+    const { recues, etat: state, dit, ecrits } = await deuxFois(
+      (client) => retirerLeLabel(LU, "retirer", 22, client),
+      (actions) => actions.geste(PROJECT, "retirer", 22),
+    );
+    assert.deepEqual(resume(recues), [`DELETE /repos/${REPOSITORY}/issues/22/labels/fire`]);
+    assert.deepEqual(state.issues[22]?.labels, []);
+    assert.deepEqual(dit, { fait: "taken off the rail on GitHub: #22 no longer carries `fire` — no station takes it", detail: `https://github.com/${REPOSITORY}/issues/22` });
+    assert.deepEqual(ecrits, [PROJECT]);
+  });
+
+  test("la fiche propose sur le téléphone les gestes qu'il écrit sur GitHub, avec le prix du desktop", () => {
+    const { gestes: actions } = phone(github());
+    assert.deepEqual(actions.gestesDeFiche({ ticket: 22, etat: "en attente", ouvrable: true, attendu: false }).map(({ id }) => id), ["retirer"]);
+    // Revenu de WAITING, il attend le chef : le renvoyer en cuisine d'abord, ou le retirer du rail.
+    const revenu = actions.gestesDeFiche({ ticket: 31, etat: "en attente", ouvrable: true, attendu: true, decision: { quoi: "repris", motif: null, cause: null, pr: null } });
+    assert.deepEqual(revenu.map(({ id, recommande }) => (recommande ? `${id}*` : id)), ["cuisine*", "retirer"]);
+  });
+});
+
+describe("sans station joignable, les trois gestes passent par GitHub seul", () => {
+  test("chaque demande part à api.github.com, avec la session GitHub du chef — aucune autre adresse n'est demandée", async () => {
+    const monde = github();
+    const { gestes: actions } = phone(monde);
+    assert.ok("repondue" in (await actions.repondreCarte(PROJECT, 40, clic(40, 1))));
+    assert.ok("fait" in (await actions.geste(PROJECT, "cuisine", 31)));
+    assert.ok("fait" in (await actions.geste(PROJECT, "retirer", 22)));
+    // La réponse : son commentaire, `served-elsewhere`, `chef-todo`, `parked` et les labels d'avant parked retirés (#4129) ; puis
+    // `parked` et les labels d'avant parked, puis `fire`.
+    assert.equal(monde.recues.length, 1 + 2 + DEPARQUE(40).length + DEPARQUE(31).length + 1);
+    for (const { url, entetes } of monde.recues) {
+      assert.ok(url.startsWith(API), `${url} is GitHub's API`);
+      assert.deepEqual(entetes, url.includes("/comments") ? { ...ENTETES, "Content-Type": "application/json" } : ENTETES);
+    }
+  });
+
+  test("merger n'est plus un geste de la fiche, comme du desktop : rien ne part", async () => {
+    const monde = github();
+    assert.match((await phone(monde).gestes.geste(PROJECT, "merger", 22) as { refus: string }).refus, /^nothing was sent: this phone does not play this action/);
+    assert.deepEqual(monde.recues, []);
+  });
+
+  test("ce que le téléphone ne lit pas ne part pas : un ticket hors du dernier rail, une carte sans carte du chef, un projet inconnu", async () => {
+    const monde = github();
+    const { gestes: actions, ecrits } = phone(monde);
+    assert.deepEqual(await actions.geste(PROJECT, "retirer", 99), { refus: "nothing was written: #99 is not on the latest rail read — read it again", detail: "" });
+    assert.deepEqual(await actions.geste("ailleurs", "cuisine", 31), { refus: "nothing was written: the rail of this project has not been read yet — read it again", detail: "" });
+    assert.deepEqual(await actions.repondreCarte(PROJECT, 22, clic(40, 1)), { refus: SANS_FAIT.carte, detail: "" });
+    assert.ok("refus" in (await actions.attente(PROJECT, "attente-poser", 22)));
+    assert.deepEqual(monde.recues, []);
+    assert.deepEqual(ecrits, []);
+  });
+});
+
+describe("une écriture que GitHub ne prend pas se dit, et rien n'est montré fait", () => {
+  const refuse = (quand: (recue: Recue) => boolean): Outage => (recue) => (quand(recue) ? { status: 403, data: { message: "Resource not accessible by integration" } } : undefined);
+
+  test("reprendre ou mettre en suspens, refusé par GitHub : la ligne le dit, GitHub au survol, et le rail n'est pas relu", async () => {
+    const { gestes: actions, ecrits } = phone(github(refuse(() => true)));
+    const dit = await actions.geste(PROJECT, "retirer", 22);
+    assert.ok("refus" in dit);
+    assert.equal(dit.refus, "nothing was changed: GitHub did not remove `fire` from #22");
+    assert.match(dit.detail, /403.*Resource not accessible by integration/);
+    assert.ok("refus" in (await actions.geste(PROJECT, "cuisine", 31)));
+    assert.deepEqual(ecrits, []);
+  });
+
+  test("GitHub injoignable : rien n'est changé, et le téléphone dit ce que le réseau a dit", async () => {
+    const monde = github(() => "injoignable");
+    const { gestes: actions, ecrits } = phone(monde);
+    const dit = await actions.geste(PROJECT, "cuisine", 31);
+    assert.deepEqual(dit, { refus: "nothing was changed: GitHub did not remove `parked` from #31", detail: 'Unable to resolve host "api.github.com": No address associated with hostname' });
+    const repondue = await actions.repondreCarte(PROJECT, 40, clic(40, 1));
+    assert.ok("refus" in repondue);
+    assert.equal(repondue.refus, "nothing was sent: your answer was not posted on #40");
+    assert.deepEqual(monde.etat().issues[31]?.labels, ["fire", "parked"]);
+    assert.deepEqual(ecrits, []);
+  });
+
+  test("la réponse que GitHub ne prend pas : elle n'est pas dite répondue, et la carte reste dans TODO", async () => {
+    const monde = github(refuse(({ methode }) => methode === "POST"));
+    const { gestes: actions, ecrits } = phone(monde);
+    const dit = await actions.repondreCarte(PROJECT, 40, clic(40, 1));
+    assert.ok(!("repondue" in dit));
+    assert.equal(dit.refus, "nothing was sent: your answer was not posted on #40");
+    assert.match(dit.detail, /Resource not accessible by integration/);
+    assert.deepEqual(resume(monde.recues), [`POST /repos/${REPOSITORY}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`]);
+    assert.deepEqual(monde.etat().issues[40]?.labels, ["chef-todo", "fire", "served-elsewhere"]);
+    assert.deepEqual(ecrits, []);
+  });
+
+  test("la réponse postée dont GitHub refuse le geste : dite à jouer sur GitHub, pas répondue", async () => {
+    const monde = github(refuse(({ methode, url }) => methode === "DELETE" && url.endsWith("/labels/chef-todo")));
+    const { gestes: actions, ecrits } = phone(monde);
+    const dit = await actions.repondreCarte(PROJECT, 40, clic(40, 1));
+    assert.ok(!("repondue" in dit));
+    assert.equal(dit.refus, "your answer is posted on #40, but its gesture (resume) was not played — play it on GitHub");
+    assert.deepEqual(ecrits, []);
+  });
+});
+
+describe("dans la WebView", () => {
+  // La WebView n'a rien de Node : le module, et tout ce qu'il importe, posé comme la construction de l'APK pose la lecture
+  // du téléphone (packaging/android.ts, `poserLesModules`), se charge dans un Node privé de `process`.
+  test("le module posé se charge sans rien de Node", (t) => {
+    const www = mkdtempSync(join(tmpdir(), "gestes-github-telephone-"));
+    t.after(() => rmSync(www, { recursive: true, force: true }));
+    poserLesModules(www, APP, join(APP, "src", "actions-github-phone.ts"));
+    const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "gestes-github-telephone.js")).href], { encoding: "utf8" });
+    assert.equal(charge.stdout.trim(), "ecritureParCapacitor ouvrirLesGestesGitHub", charge.stderr);
+  });
+});
+
+// Le téléphone tel que l'APK le porte : la vue et le pont posés par la construction (packaging/android.ts, `poserLaVue`),
+// le pont joué comme dans la WebView, et les modules qu'il charge à côté de la vue. Le coffre garde le jeton du chef
+// (#2500) ; le HTTP natif de Capacitor est le faux GitHub de ce fichier. Le stockage garde aussi un appairage d'avant
+// #2500, avec l'adresse de sa station : elle ne répond pas, et n'est jamais demandée.
+const POSEE = mkdtempSync(join(tmpdir(), "gestes-github-telephone-apk-"));
+after(() => rmSync(POSEE, { recursive: true, force: true }));
+let posee: Promise<string> | undefined;
+const laVuePosee = () =>
+  (posee ??= demarrageDuPont().then((demarrage) => {
+    poserLaVue(demarrage, join(POSEE, "www"));
+    return join(POSEE, "www");
+  }));
+type CallNatif = { plugin: string; methode: string; options: Record<string, unknown> };
+
+// Le pont sur ce GitHub, une fois le rail et TODO de parade lus : la barre posée et « All projects » affiché, comme la vue
+// les demande à l'ouverture.
+async function pontDeLAPK(monde: ReturnType<typeof github>) {
+  const natifs: CallNatif[] = [];
+  const stockage = new Map([["brigade.github", "chef"]]);
+  const window: Record<string, unknown> = {
+    location: { href: pathToFileURL(join(await laVuePosee(), "src", "vue", "index.html")).href },
+    localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
+    // La lecture suivante, dans trente secondes : jamais courue.
+    setTimeout: () => 0,
+    clearTimeout: () => undefined,
+    Capacitor: {
+      nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => {
+        // Les options viennent du contexte du pont : gardées en JSON, comme elles passent au natif.
+        const passees = JSON.parse(JSON.stringify(options)) as Record<string, unknown>;
+        natifs.push({ plugin, methode, options: passees });
+        if (plugin === "Coffre" && methode === "lire") return { valeur: JETON };
+        if (plugin !== "CapacitorHttp" || methode !== "request") return assert.fail(`unexpected call: ${plugin}.${methode}`);
+        return monde.capacitor(passees as RequestNative);
+      },
+    },
+  };
+  vm.runInNewContext(readFileSync(join(await laVuePosee(), "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
+  const pont = window.brigade as Record<string, (...args: unknown[]) => Promise<unknown>>;
+  const dessins: { projet?: string; tableau?: { rail: { attendLu?: string } } }[] = [];
+  pont.surFaits!((recue: unknown) => void dessins.push(JSON.parse(JSON.stringify(recue))));
+  let projects: unknown;
+  pont.surConfiguration!((configuration: unknown) => void (projects = configuration));
+  await pont.demarrage!();
+  void pont.faits!(1);
+  void pont.tous!(2);
+  // La liste lue, la vue redemande la barre et l'écran : le rail et TODO de chacun se lisent.
+  await jusqua(() => projects !== undefined);
+  void pont.faits!(3);
+  void pont.tous!(4);
+  await jusqua(() => dessins.some(({ projet: project, tableau }) => project === PROJECT && tableau?.rail.attendLu !== undefined));
+  await auRepos();
+  return { pont, natifs, dessins };
+}
+// Attend un fait : le pont et le faux GitHub répondent sans horloge — il est là quand la file des promesses est vide.
+async function jusqua(fait: () => boolean): Promise<void> {
+  for (let tour = 0; tour < 500 && !fait(); tour++) await repos();
+  assert.ok(fait(), "the fact never came");
+}
+const auRepos = async () => {
+  for (let tour = 0; tour < 20; tour++) await repos();
+};
+// Ce que le téléphone lit de GitHub — les gists, le rail, TODO et le chef du projet, à qui ses cartes sont partagées
+// (#2985), lu de son fichier ou, sans lui, du propriétaire du dépôt (#3052), et le `CLAUDE.md` qui nomme la roadmap du
+// Backlog (#3589) —, mis à part : il reste ce que le geste y a écrit, et ce qu'il a lu pour l'écrire.
+const READ = /^https:\/\/api\.github\.com\/(gists[/?]|repos\/[^/]+\/[^/]+(\/(issues\?|pulls\?|issues\/\d+\/(comments|events)\?|contents\/(\.claude\/brigade\/projet\.json|CLAUDE\.md)$)|$))/;
+// Le rail relu après le geste lit aussi chaque PR seule, pour sa taille (#4051) : ces lectures-là, venues après la dernière
+// écriture, ne sont pas du geste — celles qui le précèdent (le merge lit sa PR) en sont.
+const duAction = (recues: Recue[]) => {
+  const derniere = recues.findLastIndex(({ methode }) => methode !== "GET");
+  return recues.filter(({ methode, url }, rang) => !(methode === "GET" && (READ.test(url) || (rang > derniere && /\/pulls\/\d+$/.test(url)))));
+};
+const json = (valeur: unknown) => JSON.parse(JSON.stringify(valeur));
+
+// Le geste du desktop, puis le même par le pont de l'APK, chacun sur son GitHub neuf : ce que le pont y écrit est ce que
+// le desktop y écrit — méthode, adresse, en-têtes, corps —, GitHub en garde le même état, la vue reçoit la même phrase.
+async function parLePont<R>(duDesktop: (client: ReturnType<typeof desktop>) => Promise<R>, name: string, ...args: unknown[]) {
+  const auDesktop = github();
+  const dit = await duDesktop(desktop(auDesktop));
+  const auPhone = github();
+  const { pont, natifs } = await pontDeLAPK(auPhone);
+  const avant = auPhone.recues.length;
+  const ditAuPhone = json(await pont[name]!(...args));
+  await auRepos();
+  const ecrites = duAction(auPhone.recues.slice(avant));
+  assert.deepEqual(ecrites, auDesktop.recues, "the phone's bridge sends GitHub the desktop's requests");
+  assert.deepEqual(auPhone.etat(), auDesktop.etat(), "GitHub ends up as the desktop's gesture leaves it");
+  assert.deepEqual(ditAuPhone, json(dit), "the phone says what the desktop says");
+  // Aucune station : chaque appel du HTTP natif va à l'API de GitHub, avec le jeton du coffre.
+  const http = natifs.filter(({ plugin }) => plugin === "CapacitorHttp");
+  assert.deepEqual(http.filter(({ options }) => !String(options.url).startsWith(API)), []);
+  assert.ok(http.every(({ options }) => (options.headers as Record<string, string>).Authorization === `Bearer ${JETON}`));
+  // Une écriture que GitHub a prise relance la lecture : le rail relu la montre.
+  const relues = auPhone.recues.slice(avant).filter(({ methode, url }) => methode === "GET" && READ.test(url));
+  return { ecrites, dit: ditAuPhone, relues };
+}
+
+describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur GitHub comme du desktop", () => {
+  test("répondre à une carte de TODO : la réponse postée sur l'issue, `served-elsewhere` et `chef-todo` retirés — puis GitHub relu", async () => {
+    const { ecrites, dit, relues } = await parLePont((client) => repondreSurGithub({ depot: REPOSITORY, ticket: 40, chef: CHEFS.get(40), reponse: clic(40, 1), client }), "repondreCarte", PROJECT, 40, clic(40, 1));
+    assert.deepEqual(resume(ecrites), [
+      `POST /repos/${REPOSITORY}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
+      `DELETE /repos/${REPOSITORY}/issues/40/labels/served-elsewhere`,
+      `DELETE /repos/${REPOSITORY}/issues/40/labels/chef-todo`,
+      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
+      // — l'issue ne les porte pas, GitHub répond 404.
+      ...DEPARQUE(40),
+    ]);
+    assert.ok("repondue" in dit);
+    assert.ok(relues.length > 0);
+  });
+
+  test("répondre à une carte de TODO par un merge : la PR lue, mergée, puis `chef-todo` retiré", async () => {
+    const { ecrites } = await parLePont((client) => repondreSurGithub({ depot: REPOSITORY, ticket: 41, chef: CHEFS.get(41), reponse: clic(41, 1), client }), "repondreCarte", PROJECT, 41, clic(41, 1));
+    assert.deepEqual(resume(ecrites).map((line) => line.split(" {")[0]), [`GET /repos/${REPOSITORY}/pulls/1560`, `POST /repos/${REPOSITORY}/issues/41/comments`, `PUT /repos/${REPOSITORY}/pulls/1560/merge`, `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`, ...DEPARQUE(41)]);
+  });
+
+  test("reprendre — « back to the kitchen » sur la fiche : `parked` retiré", async () => {
+    const { ecrites, dit } = await parLePont((client) => retirerLeLabel(LU, "cuisine", 31, client), "gesteDeFiche", PROJECT, "cuisine", 31);
+    assert.deepEqual(resume(ecrites), DEPARQUE(31));
+    assert.ok("fait" in dit);
+  });
+
+  test("reprendre — « it arrived, back to the kitchen » sur une carte de WAITING : `parked` retiré", async () => {
+    const { ecrites } = await parLePont((client) => retirerLeLabel(LU, "cuisine", 31, client), "attente", PROJECT, "attente-arrivee", 31);
+    assert.deepEqual(resume(ecrites), DEPARQUE(31));
+  });
+
+  test("« resume » sur une carte de WAITING : `parked` retiré", async () => {
+    const { ecrites, dit } = await parLePont((client) => waitSurGithub({ id: "attente-reprendre", ticket: 31, saisie: undefined, aujourdhui: new Date(), lu: LU, client }), "attente", PROJECT, "attente-reprendre", 31);
+    assert.deepEqual(resume(ecrites), DEPARQUE(31));
+    assert.ok("fait" in dit);
+  });
+
+  test("« waiting for… » : ce que le chef a rempli passe le pont, et part sur l'issue — le commentaire, puis `parked`", async () => {
+    const monde = github();
+    const { pont } = await pontDeLAPK(monde);
+    const avant = monde.recues.length;
+    const dit = json(await pont.attente!(PROJECT, "attente-poser", 22, { quoi: "the signed quote", qui: "the client", relance: "2099-01-02" }));
+    await auRepos();
+    assert.deepEqual(dit.fait, "in WAITING on GitHub: #22 awaits the client, follow-up on 2099-01-02");
+    assert.deepEqual(duAction(monde.recues.slice(avant)).map(({ methode, url }) => `${methode} ${url.slice(API.length - 1)}`), [`POST /repos/${REPOSITORY}/issues/22/comments`, `POST /repos/${REPOSITORY}/issues/22/labels`]);
+    assert.deepEqual(monde.etat().issues[22]?.labels, ["fire", "parked"]);
+  });
+
+  test("mettre en suspens — « remove from the rail » : `fire` retiré", async () => {
+    const { ecrites, dit } = await parLePont((client) => retirerLeLabel(LU, "retirer", 22, client), "gesteDeFiche", PROJECT, "retirer", 22);
+    assert.deepEqual(resume(ecrites), [`DELETE /repos/${REPOSITORY}/issues/22/labels/fire`]);
+    assert.ok("fait" in dit);
+  });
+
+  test("la fiche, sur le téléphone, propose les gestes qu'il écrit sur GitHub — rien d'une station", async () => {
+    const { pont } = await pontDeLAPK(github());
+    assert.deepEqual(json(await pont.gestesDeFiche!({ ticket: 22, etat: "en attente", ouvrable: true, attendu: false })).map(({ id }: { id: string }) => id), ["retirer"]);
+    assert.match(json(await pont.gesteDeFiche!(PROJECT, "merger", 22)).refus, /^nothing was sent: this phone does not play this action/);
+  });
+
+  test("une écriture que GitHub refuse : le pont rend la phrase, GitHub au survol ; rien n'est relu, rien n'est montré fait", async () => {
+    const monde = github((recue) => (recue.methode === "GET" ? undefined : { status: 403, data: { message: "Resource not accessible by integration" } }));
+    const { pont } = await pontDeLAPK(monde);
+    const avant = monde.recues.length;
+    const dit = json(await pont.gesteDeFiche!(PROJECT, "retirer", 22));
+    assert.equal(dit.refus, "nothing was changed: GitHub did not remove `fire` from #22");
+    assert.match(dit.detail, /403.*Resource not accessible by integration/);
+    const repondue = json(await pont.repondreCarte!(PROJECT, 40, clic(40, 1)));
+    assert.ok(!("repondue" in repondue));
+    assert.equal(repondue.refus, "nothing was sent: your answer was not posted on #40");
+    await auRepos();
+    assert.deepEqual(resume(monde.recues.slice(avant)).map((line) => line.split(" {")[0]), [`DELETE /repos/${REPOSITORY}/issues/22/labels/fire`, `POST /repos/${REPOSITORY}/issues/40/comments`]);
+    assert.deepEqual(monde.etat().issues[22]?.labels, ["fire"]);
+  });
+});

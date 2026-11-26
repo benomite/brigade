@@ -3,13 +3,13 @@
 import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions, type NativeImage } from "electron";
-import { avecPastille } from "../barre-de-menus.ts";
+import { avecPill } from "../bar-de-menus.ts";
 import { cheminConfiguration } from "../config.ts";
 import { estUnMac } from "../plateforme.ts";
-import { lireLaCommande, memeProcess, prendreLaPlace } from "../tray-fond/instance.ts";
-import { ARGUMENT } from "../tray-fond/systeme.ts";
+import { lireLaCommand, memeProcess, prendreLaPlace } from "../tray-background/instance.ts";
+import { ARGUMENT } from "../tray-background/systeme.ts";
 
-export const ICONE_DE_LA_BARRE = join(import.meta.dirname, "..", "icones", "barre-de-menus.png");
+export const ICONE_DE_LA_BAR = join(import.meta.dirname, "..", "icones", "bar-de-menus.png");
 
 // L'icône avec la pastille de `questions`, à chaque échelle qu'elle porte (16 px, et 32 px pour un écran à 200 %).
 export function pastillee(image: NativeImage, questions: number): NativeImage {
@@ -19,7 +19,7 @@ export function pastillee(image: NativeImage, questions: number): NativeImage {
     const { width, height } = image.getSize(scaleFactor);
     const bitmap = image.toBitmap({ scaleFactor });
     if (width !== height || bitmap.length !== width * height * 4) continue;
-    peinte.addRepresentation({ scaleFactor, width, height, buffer: avecPastille(bitmap, width, questions) });
+    peinte.addRepresentation({ scaleFactor, width, height, buffer: avecPill(bitmap, width, questions) });
   }
   return peinte.isEmpty() ? image : peinte;
 }
@@ -31,7 +31,7 @@ const verrouDeLIcone = () => join(dirname(cheminConfiguration()), "icone.pid");
 
 // Le pid rendu par le système à un autre process ne tient pas la place (#4071). L'app et l'icône de fond sont le même binaire,
 // l'une sans argument, l'autre avec `--tray-fond` : on compare leurs lignes de commande sans cet argument.
-const sansLArgumentDuFond = (pid: number): string | undefined => lireLaCommande(pid)?.replace(new RegExp(`\\s+${ARGUMENT}(?=\\s|$)`, "g"), "");
+const sansLArgumentDuBackground = (pid: number): string | undefined => lireLaCommand(pid)?.replace(new RegExp(`\\s+${ARGUMENT}(?=\\s|$)`, "g"), "");
 
 // La place de l'icône est tenue par un autre process : celui-ci n'en pose pas.
 export class PlaceTenue extends Error {
@@ -41,7 +41,7 @@ export class PlaceTenue extends Error {
 }
 
 export type IconeUnique = {
-  // Ce que dit l'icône : sa ligne — « 0 cooking · 0 for you », avec l'état de la station (ligne.ts) — au survol, à côté de
+  // Ce que dit l'icône : sa ligne — « 0 cooking · 0 for you », avec l'état de la station (line.ts) — au survol, à côté de
   // l'icône sur un Mac, et le nombre de questions peint dessus ailleurs.
   ligne(image: NativeImage, infos: { infobulle: string; ligne: string; questions: number }): void;
   menu(entrees: readonly MenuItemConstructorOptions[]): void;
@@ -53,15 +53,15 @@ export type IconeUnique = {
 export function creerLIcone(image: NativeImage, plateforme: string): IconeUnique {
   if (image.isEmpty()) throw new Error("its icon could not be read");
   const fichier = verrouDeLIcone();
-  const tenant = prendreLaPlace(fichier, process.pid, (pid) => memeProcess(pid, process.pid, sansLArgumentDuFond));
+  const tenant = prendreLaPlace(fichier, process.pid, (pid) => memeProcess(pid, process.pid, sansLArgumentDuBackground));
   if (tenant !== undefined) throw new PlaceTenue(tenant);
   const icone = new Tray(image);
   // Sous Windows, le clic gauche n'ouvre pas le menu de lui-même : sur un Mac, si.
   if (!estUnMac(plateforme)) icone.on("click", () => icone.popUpContextMenu());
   return {
-    ligne: (image, { infobulle, ligne, questions }) => {
-      icone.setToolTip(`${infobulle} — ${ligne}`);
-      if (estUnMac(plateforme)) icone.setTitle(` ${ligne}`);
+    ligne: (image, { infobulle, ligne: line, questions }) => {
+      icone.setToolTip(`${infobulle} — ${line}`);
+      if (estUnMac(plateforme)) icone.setTitle(` ${line}`);
       else icone.setImage(pastillee(image, questions));
     },
     menu: (entrees) => icone.setContextMenu(Menu.buildFromTemplate([...entrees])),
@@ -77,11 +77,11 @@ export function creerLIcone(image: NativeImage, plateforme: string): IconeUnique
 }
 
 // Comme `creerLIcone`, mais une place tenue par un autre process n'est pas une erreur : rien n'est posé, et `undefined` le dit.
-export function creerSiLibre(image: NativeImage, plateforme: string): IconeUnique | undefined {
+export function creerSiFree(image: NativeImage, plateforme: string): IconeUnique | undefined {
   try {
     return creerLIcone(image, plateforme);
-  } catch (erreur) {
-    if (erreur instanceof PlaceTenue) return undefined;
-    throw erreur;
+  } catch (error) {
+    if (error instanceof PlaceTenue) return undefined;
+    throw error;
   }
 }

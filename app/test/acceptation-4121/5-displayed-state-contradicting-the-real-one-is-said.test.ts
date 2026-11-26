@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
-import { contexteDuBlocage } from "../../src/second/contexte-du-blocage.ts";
+import { ROLE_DU_SECOND } from "../../src/second/launch.ts";
+import { contextDuBlockage } from "../../src/second/context-du-blockage.ts";
 
 const QUESTION = "pourquoi on est bloqués ?";
 const VUE = {
@@ -24,9 +24,9 @@ const VUE = {
 };
 
 test("the contradiction is said in one line, then the true state follows", () => {
-  const lignes = contexteDuBlocage(QUESTION, VUE).split("\n");
-  const rang = lignes.findIndex((l) => /#221/.test(l) && /ready/.test(l) && /(contradict|not actually|but)/i.test(l) && /cannot start|unable to start/i.test(l));
+  const lines = contextDuBlockage(QUESTION, VUE).split("\n");
+  const rang = lines.findIndex((l) => /#221/.test(l) && /ready/.test(l) && /(contradict|not actually|but)/i.test(l) && /cannot start|unable to start/i.test(l));
   assert.ok(rang >= 0, "one line says #221 is shown ready but cannot start");
-  assert.ok(lignes.slice(rang + 1).some((l) => l.includes(VUE.rail[0]!.real)), "the true state follows");
+  assert.ok(lines.slice(rang + 1).some((l) => l.includes(VUE.rail[0]!.real)), "the true state follows");
   assert.match(readFileSync(ROLE_DU_SECOND, "utf8"), /displayed state[^\n]*(contradict|differs)[^\n]*one line/i);
 });

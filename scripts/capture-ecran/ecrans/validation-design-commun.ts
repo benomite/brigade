@@ -2,9 +2,9 @@
 // verte de #58 (PR #60) que la pass retient pour le chef (runtime/src/validation-design/), posée en issue #61 au label
 // `chef-todo` — le commentaire de sa sorte (`design-validation`) porte la question et le lien de la PR, le corps de l'issue
 // porte son marqueur et les captures avant et après, comme le runtime les écrit. La vue reçoit ce que l'app en tire
-// (app/src/tableau/attente-du-chef.ts, `avecLAttenteDuChef`), la carte lue du corps par `validationDuCorps`. L'image de chaque capture est la même image figée.
+// (app/src/tableau/wait-du-chef.ts, `avecLAttenteDuChef`), la carte lue du corps par `validationDuCorps`. L'image de chaque capture est la même image figée.
 import { readFileSync } from "node:fs";
-import { avecLAttenteDuChef, type AttenteDuChef } from "../../../app/src/tableau/attente-du-chef.ts";
+import { avecLWaitDuChef, type WaitDuChef } from "../../../app/src/tableau/wait-du-chef.ts";
 import { avecLeRail } from "../../../app/src/vue/rail/github.ts";
 import { validationDuCorps } from "../../../app/src/vue/validation-design/validation-design-github.ts";
 import { configuration, cuisine, demarrage, type Donnees, MAINTENANT } from "./commun.ts";
@@ -46,7 +46,7 @@ export const CORPS = [
   "",
 ].join("\n");
 
-export const CARTE: AttenteDuChef = {
+export const CARTE: WaitDuChef = {
   ticket: 61,
   titre: "Validate its screen",
   url: `https://github.com/${DEPOT}/issues/61`,
@@ -60,8 +60,8 @@ const IMAGE = `data:image/png;base64,${readFileSync(new URL("../../../docs/captu
 
 export const OUVRIR_PARADE = { cliquer: '#projets > button[title^="parade — "]' };
 
-export const donnees = (carte: AttenteDuChef = CARTE): Donnees => {
-  const lu = avecLAttenteDuChef(avecLeRail(TABLEAU_FIGE, SUR_GITHUB, SIGNES), { attentes: [carte], illisibles: [] });
+export const donnees = (carte: WaitDuChef = CARTE): Donnees => {
+  const lu = avecLWaitDuChef(avecLeRail(TABLEAU_FIGE, SUR_GITHUB, SIGNES), { attentes: [carte], illisibles: [] });
   return {
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], lireCapture: { image: IMAGE } },

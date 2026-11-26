@@ -527,9 +527,9 @@ The code that gave one station the kitchen of a project is removed from the runt
 - the claim relay through the stations' gists, and the Kitchen board: its writer, its gestures and mentions, its
   single-writer guard (`tableau/`, `board-single-writer.ts`). The board issue (#1683) is no longer written; it can be
   closed. The app no longer reads it either: its rail view, TODO, backlog and the second's queue read the project's
-  issues, labels and PRs (`app/src/tableau/lecture.ts`), and the gestures it posted there are gone — the ones that
+  issues, labels and PRs (`app/src/tableau/read.ts`), and the gestures it posted there are gone — the ones that
   have a fact on GitHub write it (`fire` or `waiting` removed, a comment on the ticket's issue,
-  `app/src/gestes-github.ts`), the others say where to do it ([app](../app.md));
+  `app/src/actions-github.ts`), the others say where to do it ([app](../app.md));
 - the rail feeding from GitHub (`alimenter.ts` keeps only the repository settings and `prio:`), the lease API of the
   log's rail (`rail.ts` keeps only its words), and the old pass (`pass.ts`) with the PR deliveries that relied on it:
   the lessons notebook, the rename of a pause, the settings PR, the correction PR;

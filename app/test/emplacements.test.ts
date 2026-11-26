@@ -8,7 +8,7 @@ import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { cheminConfiguration } from "../src/config.ts";
 import { CHEMINS_CONNUS, cheminDe, emplacementsDe, estInstallee, lireCheminDuShell } from "../src/emplacements.ts";
-import { PRINCIPAL, roleDe } from "../src/poste/role.ts";
+import { PRINCIPAL, roleDe } from "../src/workstation/role.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
@@ -16,16 +16,16 @@ const APP = join(SRC, "..");
 const RUNTIME = join(APP, "..", "runtime");
 // Le `Contents/Resources` d'une app installée, et celui de l'Electron du dépôt, qui joue `npm start`.
 const RESSOURCES = "/Applications/Brigade.app/Contents/Resources";
-const ELECTRON_DU_DEPOT = join(APP, "node_modules", "electron", "dist", "Electron.app", "Contents", "Resources");
+const ELECTRON_DU_REPOSITORY = join(APP, "node_modules", "electron", "dist", "Electron.app", "Contents", "Resources");
 
 test("depuis le dépôt : le runtime à côté de l'app dans son clone, le `node` de `npm start`, et le clone de l'app", () => {
-  const emplacements = emplacementsDe({ ressources: ELECTRON_DU_DEPOT, src: SRC, env: { npm_node_execpath: "/usr/local/bin/node" } });
+  const emplacements = emplacementsDe({ ressources: ELECTRON_DU_REPOSITORY, src: SRC, env: { npm_node_execpath: "/usr/local/bin/node" } });
   assert.deepEqual(emplacements, { facon: "depot", runtime: RUNTIME, node: "/usr/local/bin/node", clone: APP, commandes: join(APP, "..", "commands") });
   // La station s'y trouve, et c'est celle du dépôt.
   assert.deepEqual(roleDe({ plateforme: "darwin", runtime: emplacements.runtime, env: {} }), { role: "station", principal: join(RUNTIME, PRINCIPAL) });
   // Lancée autrement que par npm, le `node` du PATH ; BRIGADE_NODE_BIN passe devant tout.
-  assert.equal(emplacementsDe({ ressources: ELECTRON_DU_DEPOT, src: SRC, env: {} }).node, "node");
-  assert.equal(emplacementsDe({ ressources: ELECTRON_DU_DEPOT, src: SRC, env: { npm_node_execpath: "/usr/local/bin/node", BRIGADE_NODE_BIN: "/essai/node" } }).node, "/essai/node");
+  assert.equal(emplacementsDe({ ressources: ELECTRON_DU_REPOSITORY, src: SRC, env: {} }).node, "node");
+  assert.equal(emplacementsDe({ ressources: ELECTRON_DU_REPOSITORY, src: SRC, env: { npm_node_execpath: "/usr/local/bin/node", BRIGADE_NODE_BIN: "/essai/node" } }).node, "/essai/node");
 });
 
 test("installée : le runtime et le `node` de son paquet, jamais ceux de la machine — et pas de clone", () => {
@@ -38,7 +38,7 @@ test("installée : le runtime et le `node` de son paquet, jamais ceux de la mach
 
 test("installée, c'est que ses sources sont celles du paquet qui la joue — liens résolus, comme dans un dossier où macOS la déplace", (t) => {
   assert.equal(estInstallee({ ressources: RESSOURCES, src: join(RESSOURCES, "app", "src") }), true);
-  assert.equal(estInstallee({ ressources: ELECTRON_DU_DEPOT, src: SRC }), false);
+  assert.equal(estInstallee({ ressources: ELECTRON_DU_REPOSITORY, src: SRC }), false);
   // Un Electron installé qui jouerait les sources d'un clone : c'est le clone qui compte.
   assert.equal(estInstallee({ ressources: RESSOURCES, src: SRC }), false);
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-installee-"));
@@ -55,7 +55,7 @@ test("installée, le paquet sans son runtime : l'app est un poste, et dit lequel
 });
 
 test("depuis le dépôt, le PATH reste celui du terminal qui a lancé l'app : le shell du chef n'est pas lu", () => {
-  const emplacements = emplacementsDe({ ressources: ELECTRON_DU_DEPOT, src: SRC, env: {} });
+  const emplacements = emplacementsDe({ ressources: ELECTRON_DU_REPOSITORY, src: SRC, env: {} });
   let lu = false;
   assert.equal(cheminDe({ emplacements, env: { PATH: "/usr/bin" }, maison: "/Users/chef", plateforme: "darwin", duShell: () => ((lu = true), "/opt/homebrew/bin") }), undefined);
   assert.equal(lu, false);
@@ -113,6 +113,6 @@ test("un shell qui échoue, qui n'existe pas ou qui ne rend rien dans le délai 
 test("le fichier des projets et le répertoire de la station ne dépendent pas de la façon dont l'app est lancée", () => {
   // Installée ou non, l'app lit `~/.config/brigade/` tel quel (config.ts) : rien ici n'en décide.
   assert.equal(cheminConfiguration({}, "/Users/chef"), join("/Users/chef", ".config", "brigade", "app.json"));
-  const source = readFileSync(join(SRC, "emplacements.ts"), "utf8").split("\n").filter((ligne) => !ligne.trimStart().startsWith("//")).join("\n");
+  const source = readFileSync(join(SRC, "emplacements.ts"), "utf8").split("\n").filter((line) => !line.trimStart().startsWith("//")).join("\n");
   assert.doesNotMatch(source, /\.config|cheminConfiguration|BRIGADE_STATION_DIR|homedir/);
 });

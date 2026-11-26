@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { nomDeLAppImage } from "../../../app/packaging/linux.ts";
-import { lireMetadonnees } from "../../../app/src/mise-a-jour/flux.ts";
+import { lireMetadonnees } from "../../../app/src/update/flux.ts";
 import { fichiers, notes, paquetsDeLApp, paquetsDeLaStation, renommer } from "../paquets.ts";
 
 const script = fileURLToPath(new URL("../paquets.ts", import.meta.url));

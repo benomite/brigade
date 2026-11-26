@@ -1,8 +1,8 @@
 // L'espace de « parade », la vue du rail seule (#1695), et la fiche de #12 ouverte : sa livraison verte attend un merge
 // à la main, la décision est connue — la fiche offre ses gestes, « merge the PR » et « remove from the rail ».
-import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
+import { actionsDeCard } from "../../../app/src/card-actions.ts";
 import { situationDe } from "../../../app/src/histoire.ts";
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import type { Terminal } from "../../../app/src/terminaux.ts";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -13,7 +13,7 @@ const PARADE = RENDUS.parade as Rendu;
 const FAITS = {
   ...PARADE.facts,
   attend: PARADE.facts.attend.map((ligne) => (ligne.ticket === 12 ? { ...ligne, decision: { quoi: "merge", motif: "review-required", cause: null, pr: "https://github.com/chef/parade/pull/31" } } : ligne)),
-} as Faits;
+} as Facts;
 const RENDU: Rendu = { ...PARADE, facts: FAITS };
 
 export const ecran: Ecran = {
@@ -26,7 +26,7 @@ export const ecran: Ecran = {
     const carte = carteDe(RENDU, "parade", 12);
     return {
       maintenant: MAINTENANT,
-      reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], situation: situationDe(carte), gestesDeFiche: gestesDeCarte(carte) },
+      reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], situation: situationDe(carte), gestesDeFiche: actionsDeCard(carte) },
       envois: cuisine({ ...RENDUS, parade: RENDU }),
     };
   },

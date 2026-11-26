@@ -1,9 +1,9 @@
 // La fiche d'un ticket, ouverte par sa carte sur le rail : #14, que le cook de parade tient. Ce
 // qu'elle demande au pont est calculé par les modules de l'app, à partir de faits bruts
-// (app/test/aides/fiches-dites.ts).
-import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
+// (app/test/aides/cards-dites.ts).
+import { actionsDeCard } from "../../../app/src/card-actions.ts";
 import { situationDe } from "../../../app/src/histoire.ts";
-import { discussionDe, type HistoireBrute, histoireDe } from "../../../app/test/aides/fiches-dites.ts";
+import { discussionDe, type HistoireBrute, histoireDe } from "../../../app/test/aides/cards-dites.ts";
 import type { Terminal } from "../../../app/src/terminaux.ts";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -38,7 +38,7 @@ export const donneesDeLaFiche = (corps: string): Ecran["donnees"] => () => {
       demarrage: demarrage(configuration(PROJETS)),
       espace: [SECOND],
       situation: situationDe(carte),
-      gestesDeFiche: gestesDeCarte(carte),
+      gestesDeFiche: actionsDeCard(carte),
       lireHistoire: histoireDe(PASS),
       lireDiscussion: discussionDe(issueDe(corps)),
     },

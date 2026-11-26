@@ -6,7 +6,7 @@
 // sous le formulaire. `form` : ce que le chef a tapé, gardé d'un rendu à l'autre.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
-import { bouton } from "../composants/bouton/bouton.js";
+import { button } from "../composants/button/button.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {{ project: string, ticket: number, step: string | null }} Target */
@@ -31,24 +31,24 @@ export function parkControl(doc, { project, ticket, step, gesture, form = {} }) 
   cadre.className = "park-control";
   cadre.ariaLabel = `park or unpark #${ticket}`;
   const champs = FIELDS.map(({ field, label, placeholder }) => {
-    const ligne = doc.createElement("label");
-    const nom = doc.createElement("span");
-    nom.textContent = label;
+    const line = doc.createElement("label");
+    const name = doc.createElement("span");
+    name.textContent = label;
     const saisie = doc.createElement("input");
     saisie.type = "text";
     saisie.dataset.field = field;
     saisie.placeholder = placeholder;
     saisie.value = form[field] ?? "";
     saisie.addEventListener("input", () => void (form[field] = saisie.value));
-    ligne.append(nom, saisie);
-    return { field, saisie, ligne };
+    line.append(name, saisie);
+    return { field, saisie, ligne: line };
   });
   const dit = doc.createElement("p");
   dit.className = "park-reason";
   dit.role = "status";
   let enRoute = false;
   /** @param {string} texte @param {string} [detail] */
-  const dire = (texte, detail = "") => {
+  const tell = (texte, detail = "") => {
     dit.textContent = texte;
     dit.title = detail;
   };
@@ -56,34 +56,34 @@ export function parkControl(doc, { project, ticket, step, gesture, form = {} }) 
   const envoyer = async (ask) => {
     if (enRoute) return;
     enRoute = true;
-    dire(SENDING);
+    tell(SENDING);
     try {
       const rendu = await gesture({ project, ticket, step }, ask);
-      if (rendu === undefined || rendu === null) dire("");
-      else if ("refus" in rendu) dire(rendu.refus, rendu.detail);
-      else dire(rendu.fait);
-    } catch (erreur) {
-      dire(`nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      if (rendu === undefined || rendu === null) tell("");
+      else if ("refus" in rendu) tell(rendu.refus, rendu.detail);
+      else tell(rendu.fait);
+    } catch (error) {
+      tell(`nothing sent: ${error instanceof Error ? error.message : String(error)}`);
     }
     enRoute = false;
   };
-  const garer = bouton(
+  const garer = button(
     doc,
     PARK,
     () => {
       const [who = "", what = "", until = ""] = champs.map(({ saisie }) => String(saisie.value).trim());
       const manque = FIELDS.find(({ field }) => ({ who, what, until })[field] === "");
-      if (manque !== undefined) return dire(manque.missing);
+      if (manque !== undefined) return tell(manque.missing);
       void envoyer({ action: "park", who, what, until });
     },
     { sorte: "recommande" },
   );
   garer.dataset.action = "park";
-  const degarer = bouton(doc, UNPARK, () => void envoyer({ action: "unpark" }));
+  const degarer = button(doc, UNPARK, () => void envoyer({ action: "unpark" }));
   degarer.dataset.action = "unpark";
   const boutons = doc.createElement("div");
   boutons.className = "park-buttons";
   boutons.append(garer, degarer);
-  cadre.append(...champs.map(({ ligne }) => ligne), boutons, dit);
+  cadre.append(...champs.map(({ ligne: line }) => line), boutons, dit);
   return cadre;
 }

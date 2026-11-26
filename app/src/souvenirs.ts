@@ -8,12 +8,12 @@
 // un shell ne revient pas, et sa session reste sur sa machine.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { NOM_DE_SESSION, type Cible } from "./persistance.ts";
+import { NAME_DE_SESSION, type Cible } from "./persistance.ts";
 
 export type Souvenir = { rang: number; session: string; cible: Cible };
 // `dernier` : le dernier rang donné dans ce projet — un shell fermé ne rend pas le sien.
-export type DuProjet = { dernier: number; shells: Souvenir[] };
-export type Rappel = Record<string, DuProjet>;
+export type DuProject = { dernier: number; shells: Souvenir[] };
+export type Rappel = Record<string, DuProject>;
 export type Souvenirs = { lire(): Rappel; ecrire(rappel: Rappel): void };
 
 const texte = (lu: unknown): lu is string => typeof lu === "string" && lu !== "";
@@ -27,24 +27,24 @@ function cibleLue(lu: unknown): Cible | undefined {
 
 // Le rappel tel qu'il est écrit, sans ce qui ne s'y lit pas.
 export function rappelLu(lu: unknown): Rappel {
-  const projets = (lu ?? {}) as { projets?: unknown };
-  if (typeof projets.projets !== "object" || projets.projets === null) return {};
+  const projects = (lu ?? {}) as { projets?: unknown };
+  if (typeof projects.projets !== "object" || projects.projets === null) return {};
   const rappel: Rappel = {};
-  for (const [nom, brut] of Object.entries(projets.projets)) {
+  for (const [name, brut] of Object.entries(projects.projets)) {
     const { dernier, shells } = (brut ?? {}) as { dernier?: unknown; shells?: unknown };
     const lus: Souvenir[] = [];
     for (const shell of Array.isArray(shells) ? shells : []) {
       const { rang: r, session, cible } = (shell ?? {}) as { rang?: unknown; session?: unknown; cible?: unknown };
       const lue = cibleLue(cible);
-      if (rang(r) && texte(session) && NOM_DE_SESSION.test(session) && lue !== undefined && !lus.some((autre) => autre.rang === r)) lus.push({ rang: r, session, cible: lue });
+      if (rang(r) && texte(session) && NAME_DE_SESSION.test(session) && lue !== undefined && !lus.some((autre) => autre.rang === r)) lus.push({ rang: r, session, cible: lue });
     }
     const plusHaut = Math.max(0, ...lus.map(({ rang: r }) => r));
-    rappel[nom] = { dernier: rang(dernier) ? Math.max(dernier, plusHaut) : plusHaut, shells: lus };
+    rappel[name] = { dernier: rang(dernier) ? Math.max(dernier, plusHaut) : plusHaut, shells: lus };
   }
   return rappel;
 }
 
-export function souvenirsDansFichier(chemin: string, dire: (ligne: string) => void = (ligne) => console.error(ligne)): Souvenirs {
+export function souvenirsDansFichier(chemin: string, tell: (line: string) => void = (line) => console.error(line)): Souvenirs {
   return {
     lire() {
       try {
@@ -59,8 +59,8 @@ export function souvenirsDansFichier(chemin: string, dire: (ligne: string) => vo
         // Écrit à côté, puis mis à sa place : un fichier lu n'est jamais à moitié écrit.
         writeFileSync(`${chemin}.neuf`, `${JSON.stringify({ projets: rappel }, null, 2)}\n`);
         renameSync(`${chemin}.neuf`, chemin);
-      } catch (erreur) {
-        dire(`brigade: the open shells could not be remembered — they will not come back when the app reopens: ${(erreur as Error).message}`);
+      } catch (error) {
+        tell(`brigade: the open shells could not be remembered — they will not come back when the app reopens: ${(error as Error).message}`);
       }
     },
   };

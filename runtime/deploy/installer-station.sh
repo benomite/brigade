@@ -349,7 +349,7 @@ mac() {
   fi
 
   # Ce que launchd lance : la station, quand l'app ne la tient pas déjà. Elle
-  # prend le répertoire comme l'app le prend (`app.pid`, app/src/poste/station.ts)
+  # prend le répertoire comme l'app le prend (`app.pid`, app/src/workstation/station.ts)
   # et garde son pid jusqu'au bout (`exec`) : l'app ouverte ensuite la voit
   # tenue, et n'en lance pas une deuxième.
   cat >"$travail/lancer-station" <<'LANCER'

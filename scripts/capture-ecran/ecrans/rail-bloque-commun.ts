@@ -2,7 +2,7 @@
 // ni prise du manager, ni `model:` ni `effort:` — depuis la veille à 20:00 UTC, quatorze heures avant la lecture. Sa
 // seule station, box/claude, s'est arrêtée juste avant. La vue reçoit ce que l'app en tire (app/src/vue/rail/github.ts,
 // `avecLeRail`) — `facts` et `status` passés par le code de l'app, rien écrit à la main.
-import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
+import type { TableauLu } from "../../../app/src/tableau/read.ts";
 import { avecLeRail, type RailSurGithub } from "../../../app/src/vue/rail/github.ts";
 import { MAINTENANT, type Rendu } from "./commun.ts";
 import { renduDeParade, signe, ticket } from "./github-seul-commun.ts";
@@ -20,7 +20,7 @@ export const RAIL_BLOQUE: RailSurGithub = {
 // box/claude : vue pour la dernière fois à 19:58 UTC, arrêtée à 19:59.
 export const BOX_ARRETEE = { ...signe("box", "2026-10-12T19:58:00.000Z"), stoppedAt: "2026-10-12T19:59:00.000Z" };
 
-// La lecture d'un projet sur GitHub seul avant son rail (app/src/tableau/lecture.ts, `vide`) : rien d'autre que GitHub.
+// La lecture d'un projet sur GitHub seul avant son rail (app/src/tableau/read.ts, `vide`) : rien d'autre que GitHub.
 const VIDE: TableauLu = {
   lu: true,
   depot: "chef/parade",

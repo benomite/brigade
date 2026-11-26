@@ -30,30 +30,30 @@ class Sortie extends Error {
 export function repondre(repertoire: string, args: readonly string[], entree: () => string): Rendu {
   try {
     return { code: 0, sortie: jouer(repertoire, args, entree), erreurs: "" };
-  } catch (erreur) {
-    if (erreur instanceof Sortie) return erreur.rendu;
-    throw erreur;
+  } catch (error) {
+    if (error instanceof Sortie) return error.rendu;
+    throw error;
   }
 }
 
 function jouer(repertoire: string, args: readonly string[], lue: () => string): string {
   appendFileSync(join(repertoire, "appels"), `${args.join(" ")}\n`);
 
-  const sortir = (code: number, erreur: string): never => {
-    throw new Sortie({ code, sortie: "", erreurs: `${erreur}\n` });
+  const sortir = (code: number, error: string): never => {
+    throw new Sortie({ code, sortie: "", erreurs: `${error}\n` });
   };
   if (existsSync(join(repertoire, "panne"))) sortir(1, "error connecting to api.github.com");
   // Un fichier `limite` la fait répondre comme un GitHub qui limite les appels du compte : il porte
   // l'heure où il les rend, en secondes — que `/rate_limit` dit, sans compter pour la limite.
-  const limite = join(repertoire, "limite");
-  if (existsSync(limite) && args.includes("/rate_limit")) {
-    return `${JSON.stringify({ resources: { core: { limit: 5000, remaining: 0, reset: Number(readFileSync(limite, "utf8")) } } })}\n`;
+  const limit = join(repertoire, "limite");
+  if (existsSync(limit) && args.includes("/rate_limit")) {
+    return `${JSON.stringify({ resources: { core: { limit: 5000, remaining: 0, reset: Number(readFileSync(limit, "utf8")) } } })}\n`;
   }
-  if (existsSync(limite)) sortir(1, "gh: API rate limit exceeded for user ID 1. (HTTP 403)");
+  if (existsSync(limit)) sortir(1, "gh: API rate limit exceeded for user ID 1. (HTTP 403)");
   if (args[0] !== "api") sortir(1, `faux gh : seul \`gh api\` est doublé (${args.join(" ")})`);
 
-  const option = (nom: string) => {
-    const rang = args.indexOf(nom);
+  const option = (name: string) => {
+    const rang = args.indexOf(name);
     return rang === -1 ? undefined : args[rang + 1];
   };
   const methode = option("-X") ?? "GET";
@@ -71,21 +71,21 @@ function jouer(repertoire: string, args: readonly string[], lue: () => string): 
   const rendre = (objet: unknown) => `${JSON.stringify(objet)}\n`;
   // Une lecture avec `-i`, comme GitHub : ses en-têtes et son ETag ; sous `If-None-Match` qui le porte encore, un 304
   // sans corps, sur lequel `gh` sort en erreur en écrivant tout de même la réponse.
-  const lecture = (corps: string): string => {
+  const read = (corps: string): string => {
     if (!args.includes("-i")) return corps;
     const etag = `W/"${createHash("sha1").update(corps).digest("hex")}"`;
     const condition = args.find((arg) => arg.startsWith("If-None-Match: "))?.slice("If-None-Match: ".length);
     if (condition === etag) throw new Sortie({ code: 1, sortie: `HTTP/2.0 304 Not Modified\r\nEtag: ${etag}\r\n\r\n`, erreurs: "gh: HTTP 304\n" });
     return `HTTP/2.0 200 OK\r\nEtag: ${etag}\r\n\r\n${corps}`;
   };
-  const fichiers = (files: Record<string, { content: string } | null> = {}) => Object.fromEntries(Object.entries(files).flatMap(([nom, fichier]) => (fichier === null ? [] : [[nom, { filename: nom, content: fichier.content }]])));
+  const fichiers = (files: Record<string, { content: string } | null> = {}) => Object.fromEntries(Object.entries(files).flatMap(([name, fichier]) => (fichier === null ? [] : [[name, { filename: name, content: fichier.content }]])));
 
   const [, , id] = /^\/gists(\/([^/?]+))?(\?.*)?$/.exec(chemin) ?? [];
   if (!chemin.startsWith("/gists")) sortir(1, `gh: Not Found (HTTP 404)`);
 
   if (methode === "POST" && id === undefined) {
     const corps = entree();
-    const nouveau = `g${readdirSync(repertoire).filter((nom) => nom.endsWith(".gist.json")).length + 1}x${process.pid}`;
+    const nouveau = `g${readdirSync(repertoire).filter((name) => name.endsWith(".gist.json")).length + 1}x${process.pid}`;
     const gist: Gist = { id: nouveau, description: corps.description ?? "", public: corps.public ?? false, updated_at: new Date().toISOString(), files: fichiers(corps.files) };
     ecrire(gist);
     return rendre(gist);
@@ -93,23 +93,23 @@ function jouer(repertoire: string, args: readonly string[], lue: () => string): 
     const gist = lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)");
     // Un fichier à `null` est retiré du gist, comme GitHub le fait.
     const demandes = entree().files ?? {};
-    for (const [nom, contenu] of Object.entries(demandes)) if (contenu === null) delete gist.files[nom];
+    for (const [name, contenu] of Object.entries(demandes)) if (contenu === null) delete gist.files[name];
     Object.assign(gist.files, fichiers(demandes));
     ecrire({ ...gist, updated_at: new Date().toISOString() });
     return rendre(gist);
   } else if (methode === "GET" && id !== undefined) {
-    return lecture(rendre(lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)")));
+    return read(rendre(lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)")));
   } else if (methode === "GET") {
     // La liste ne porte pas le contenu des fichiers, comme celle de GitHub.
     const parametres = new URLSearchParams(chemin.split("?")[1] ?? "");
     const parPage = Number(parametres.get("per_page") ?? 30);
     const page = Number(parametres.get("page") ?? 1);
     const tous = readdirSync(repertoire)
-      .filter((nom) => nom.endsWith(".gist.json"))
+      .filter((name) => name.endsWith(".gist.json"))
       .sort()
-      .map((nom) => JSON.parse(readFileSync(join(repertoire, nom), "utf8")) as Gist)
-      .map(({ files, ...gist }) => ({ ...gist, files: Object.fromEntries(Object.keys(files).map((nom) => [nom, { filename: nom }])) }));
-    return lecture(rendre(tous.slice((page - 1) * parPage, page * parPage)));
+      .map((name) => JSON.parse(readFileSync(join(repertoire, name), "utf8")) as Gist)
+      .map(({ files, ...gist }) => ({ ...gist, files: Object.fromEntries(Object.keys(files).map((name) => [name, { filename: name }])) }));
+    return read(rendre(tous.slice((page - 1) * parPage, page * parPage)));
   }
   return sortir(1, `faux gh : ${methode} ${chemin} n'est pas doublé`);
 }

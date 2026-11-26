@@ -33,11 +33,11 @@ test("assembler then the plist check rename every helper folder and executable t
   );
   writeFileSync(join(contenu, "MacOS", "Electron"), MACH_O);
   writeFileSync(join(contenu, "Resources", "electron.icns"), "icns");
-  for (const [nom, cles] of Object.entries(AUXILIAIRES)) {
-    const aide = join(contenu, "Frameworks", `${nom}.app`, "Contents");
+  for (const [name, cles] of Object.entries(AUXILIAIRES)) {
+    const aide = join(contenu, "Frameworks", `${name}.app`, "Contents");
     mkdirSync(join(aide, "MacOS"), { recursive: true });
-    writeFileSync(join(aide, "Info.plist"), plist({ ...cles, CFBundleExecutable: nom, CFBundleIdentifier: "com.github.Electron.helper" }));
-    writeFileSync(join(aide, "MacOS", nom), MACH_O);
+    writeFileSync(join(aide, "Info.plist"), plist({ ...cles, CFBundleExecutable: name, CFBundleIdentifier: "com.github.Electron.helper" }));
+    writeFileSync(join(aide, "MacOS", name), MACH_O);
   }
   const node = join(racine, "node");
   writeFileSync(node, MACH_O);
@@ -47,5 +47,5 @@ test("assembler then the plist check rename every helper folder and executable t
   assert.deepEqual(defautsDeNom(paquet), []);
   const frameworks = join(paquet, "Contents", "Frameworks");
   assert.deepEqual(readdirSync(frameworks).sort(), Object.keys(AUXILIAIRES).map((n) => `${n.replace(/^Electron/, "Brigade")}.app`).sort());
-  for (const nom of Object.keys(AUXILIAIRES).map((n) => n.replace(/^Electron/, "Brigade"))) assert.deepEqual(readdirSync(join(frameworks, `${nom}.app`, "Contents", "MacOS")), [nom]);
+  for (const name of Object.keys(AUXILIAIRES).map((n) => n.replace(/^Electron/, "Brigade"))) assert.deepEqual(readdirSync(join(frameworks, `${name}.app`, "Contents", "MacOS")), [name]);
 });

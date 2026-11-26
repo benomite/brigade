@@ -1,7 +1,7 @@
 // Le rail de « parade » quand un ticket attend un tiers et qu'un autre en est revenu (#1740) : #23 dans WAITING — il
 // attend la validation écrite du client —, #22 dans TODO, revenu de WAITING et repris par le chef. Ce que la box rend,
 // mot pour mot. Ce fichier n'est pas un écran.
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import type { Terminal } from "../../../app/src/terminaux.ts";
 import type { Rendu } from "./commun.ts";
 import { RENDUS } from "./cuisine-figee.ts";
@@ -28,7 +28,7 @@ export const FACTS = {
     ...APRES,
   ],
   attend: [...PARADE.facts.attend, { ticket: 22, titre: "Un ticket libre", url: ISSUE(22), decision: { quoi: "repris", motif: null, cause: null, pr: null } }],
-} as Faits;
+} as Facts;
 
 export const STATUS = [
   "project    parade",

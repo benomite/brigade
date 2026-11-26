@@ -7,7 +7,7 @@ import { lireConfiguration } from "../../src/config.ts";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { coutDeLaSemaine, plusChers, poserChers } from "../../src/vue/cost/chers.js";
+import { costDeLaSemaine, plusChers, poserChers } from "../../src/vue/cost/chers.js";
 import { debutDeSemaine, INDISPONIBLE, partDite, quotaLu } from "../../src/vue/cost/part.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
@@ -27,8 +27,8 @@ const textes = (b: Faux, balise: string, classe: string) => b.dessous(balise).fi
 describe("la part du quota d'un ticket", () => {
   test("quota 10 000 000, un modèle de poids 1, 200 000 tokens : « 2.0% » à côté de « 200,000 »", () => {
     const b = bloc(lectures(cook(7, "2026-11-10T09:00:00.000Z", "sonnet", 200_000)), QUOTA);
-    const ligne = b.dessous("button")[0] as Faux;
-    assert.deepEqual(ligne.dessous("span").map((s: Faux) => s.textContent).slice(1), ["#7", "titre", "200,000", "2.0%", "1 attempt"]);
+    const line = b.dessous("button")[0] as Faux;
+    assert.deepEqual(line.dessous("span").map((s: Faux) => s.textContent).slice(1), ["#7", "titre", "200,000", "2.0%", "1 attempt"]);
   });
 
   test("deux modèles de poids différents : 100 000 à 1.0 et 100 000 à 5.0 donnent 6.0%", () => {
@@ -61,7 +61,7 @@ describe("le coût de la semaine en cours", () => {
       cook(8, "2026-11-11T09:00:00.000Z", "opus", 100_000),
       cook(9, "2026-11-08T23:59:59.000Z", "sonnet", 5_000_000),
     );
-    assert.deepEqual(coutDeLaSemaine([PARADE], l, quotaLu(QUOTA), MAINTENANT), { ponderes: 700_000, minimum: false });
+    assert.deepEqual(costDeLaSemaine([PARADE], l, quotaLu(QUOTA), MAINTENANT), { ponderes: 700_000, minimum: false });
     assert.deepEqual(textes(bloc(l, QUOTA), "p", "part-semaine"), ["this week, all projects: 7.0% of the weekly quota"]);
   });
 
@@ -96,8 +96,8 @@ describe("le réglage `quotaMax` du fichier des projets", () => {
     return lireConfiguration(chemin);
   };
   test("il arrive tel quel à la vue, et sa lecture donne le quota, la semaine et les poids", () => {
-    const { quotaMax, refus } = lire({ projets: [], quotaMax: { tokens: 10_000_000, semaine: { jour: "friday", heure: 6 }, poids: { opus: 5, sonnet: "x" } } });
-    assert.equal(refus, undefined);
+    const { quotaMax, refus: refusal } = lire({ projets: [], quotaMax: { tokens: 10_000_000, semaine: { jour: "friday", heure: 6 }, poids: { opus: 5, sonnet: "x" } } });
+    assert.equal(refusal, undefined);
     const quota = quotaLu(quotaMax);
     assert.deepEqual([quota.tokens, quota.jour, quota.heure, [...quota.poids]], [10_000_000, 5, 6, [["opus", 5]]]);
   });

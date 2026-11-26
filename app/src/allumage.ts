@@ -8,16 +8,16 @@
 // Rien n'y est deviné : une sortie sans la ligne `backlog`, une box pas jointe,
 // un runtime qui ne connaît pas la commande — ce n'est jamais « aucune issue ».
 // **L'avertissement est le prix de la confirmation** : « allumer » est un geste
-// confirmé (gestes.ts), et sa confirmation dit cet avertissement, puis ces deux
+// confirmé (actions.ts), et sa confirmation dit cet avertissement, puis ces deux
 // nombres, demandés à la box dès qu'elle s'ouvre (confirmation.ts) — rien ne part
 // avant le « oui » du chef, et ce « oui » n'attend pas les nombres. Ce module
 // n'écrit dans aucun terminal.
-import { echecDe, lancerLa, type Lu, type Reglages } from "./box.ts";
-import { titreDEchec } from "./faits.ts";
+import { failureDe, lancerLa, type Lu, type Settings } from "./box.ts";
+import { titreDFailure } from "./facts.ts";
 
-// Le geste du socle (gestes.ts) qui engage, et la lecture qui le chiffre.
-export const GESTE = "projet-allumer";
-export const COMMANDE = "manager backlog";
+// Le geste du socle (actions.ts) qui engage, et la lecture qui le chiffre.
+export const ACTION = "projet-allumer";
+export const COMMAND = "manager backlog";
 
 // docs/runtime/manager.md, « Le manager » : son avertissement, sans sa mise en gras, dit en anglais
 // côté app (la doc, elle, est en français).
@@ -27,8 +27,8 @@ export const AVERTISSEMENT =
 // Ce que la confirmation pose dès qu'elle s'ouvre, avant que la box ait répondu : la vue
 // les nomme, elle n'en écrit aucun.
 export const ALLUMAGE = {
-  geste: GESTE,
-  commande: COMMANDE,
+  geste: ACTION,
+  commande: COMMAND,
   enCours: "this project's open issues, and those parked: reading from the station…",
   parti: "the two numbers were not read: the app could not ask this project's station for them. This is not “no issue”: look at the backlog yourself before saying yes",
 } as const;
@@ -38,19 +38,19 @@ export type Backlog = { ouvertes: number; retenues: number };
 // La ligne `backlog` : `<n> open issue(s), of which <m> is/are parked — <suite>`. Une box d'avant #4260 la disait
 // `<n> open issue(s), of which <m> carry/carries `<label>` — <suite>`, et d'avant #951 `<n> issue(s) ouverte(s), dont
 // <m> porte(nt) `<label>` — <suite>` : son label d'attente d'alors.
-const LIGNE = /^backlog {2,}(\d+) open issues?, of which (\d+) (?:is|are) parked/;
-const LIGNES_D_AVANT = [/^backlog {2,}(\d+) open issues?, of which (\d+) carr(?:y|ies) `[a-z-]+`/, /^backlog {2,}(\d+) issues? ouvertes?, dont (\d+) porte(?:nt)? `[a-z-]+`/];
+const LINE = /^backlog {2,}(\d+) open issues?, of which (\d+) (?:is|are) parked/;
+const LINES_D_AVANT = [/^backlog {2,}(\d+) open issues?, of which (\d+) carr(?:y|ies) `[a-z-]+`/, /^backlog {2,}(\d+) issues? ouvertes?, dont (\d+) porte(?:nt)? `[a-z-]+`/];
 
 // Ce que cette sortie de `manager backlog` compte — ou en quoi elle n'en a pas la forme.
 export function backlogDe(sortie: string): Backlog | { informe: string } {
-  const lignes = sortie.split("\n").filter((ligne) => ligne === "backlog" || ligne.startsWith("backlog "));
-  const [ligne] = lignes;
-  if (ligne === undefined) return { informe: "it has no `backlog` line" };
-  if (lignes.length > 1) return { informe: "it has more than one `backlog` line" };
-  const [, lues, portees] = [LIGNE, ...LIGNES_D_AVANT].map((forme) => forme.exec(ligne)).find((lu) => lu !== null) ?? [];
+  const lines = sortie.split("\n").filter((line) => line === "backlog" || line.startsWith("backlog "));
+  const [line] = lines;
+  if (line === undefined) return { informe: "it has no `backlog` line" };
+  if (lines.length > 1) return { informe: "it has more than one `backlog` line" };
+  const [, lues, portees] = [LINE, ...LINES_D_AVANT].map((forme) => forme.exec(line)).find((lu) => lu !== null) ?? [];
   const [ouvertes, retenues] = [Number(lues), Number(portees)];
-  if (lues === undefined || portees === undefined || !Number.isSafeInteger(ouvertes) || !Number.isSafeInteger(retenues)) return { informe: `its \`backlog\` line does not give the two numbers in the expected form: “${ligne}”` };
-  if (retenues > ouvertes) return { informe: `its \`backlog\` line counts more parked issues than open issues: “${ligne}”` };
+  if (lues === undefined || portees === undefined || !Number.isSafeInteger(ouvertes) || !Number.isSafeInteger(retenues)) return { informe: `its \`backlog\` line does not give the two numbers in the expected form: “${line}”` };
+  if (retenues > ouvertes) return { informe: `its \`backlog\` line counts more parked issues than open issues: “${line}”` };
   return { ouvertes, retenues };
 }
 
@@ -59,11 +59,11 @@ export function backlogDe(sortie: string): Backlog | { informe: string } {
 // les issues ouvertes, moins celles qui sont parquées, qu'il ne juge jamais (#906, #4260).
 // `sans` : pourquoi ils ne sont pas posés — ce n'est jamais « aucune issue » ; `obtenu` : ce que
 // l'app a eu à leur place, tel quel.
-export type Compte = { projet: string; a: string } & ((Backlog & { dit: string }) | { sans: string; obtenu: string });
+export type Account = { projet: string; a: string } & ((Backlog & { dit: string }) | { sans: string; obtenu: string });
 
 const issues = (combien: number) => `${combien} open issue${combien > 1 ? "s" : ""}`;
 // La phrase des deux nombres : exportée pour l'outil de capture, qui la pose comme la box la ferait dire.
-export function dire({ ouvertes, retenues }: Backlog): string {
+export function tell({ ouvertes, retenues }: Backlog): string {
   if (ouvertes === 0) return "it will judge no issue: none is open";
   if (retenues === 0) return `it will judge the ${issues(ouvertes)}`;
   if (retenues === ouvertes) return `it will judge no issue: ${ouvertes > 1 ? `all ${issues(ouvertes)} are` : "the only open issue is"} parked`;
@@ -77,22 +77,22 @@ const PAS_AUCUNE = "This is not “no issue”: look at the backlog yourself bef
 // d'exception. Ses codes sont ceux d'une commande du runtime : 0, les nombres ; 1, GitHub n'a
 // pas été lu ; 2, elle a été refusée — par un runtime d'avant elle, qui ne connaît pas `backlog`.
 // Tout autre vient du geste.
-export async function compter(reglages: Reglages, servi: Lu): Promise<Compte> {
-  const rendu = await lancerLa(reglages, servi, COMMANDE);
-  const [projet, a] = [servi.nom, new Date().toISOString()];
-  const { erreur } = rendu;
-  if (erreur === null) {
+export async function compter(settings: Settings, served: Lu): Promise<Account> {
+  const rendu = await lancerLa(settings, served, COMMAND);
+  const [project, a] = [served.nom, new Date().toISOString()];
+  const { erreur: error } = rendu;
+  if (error === null) {
     const backlog = backlogDe(rendu.sortie);
-    if ("informe" in backlog) return { projet, a, sans: `${PAS_LUS} in what the station returned: ${backlog.informe}. ${PAS_AUCUNE}`, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}` };
-    return { projet, a, ...backlog, dit: dire(backlog) };
+    if ("informe" in backlog) return { projet: project, a, sans: `${PAS_LUS} in what the station returned: ${backlog.informe}. ${PAS_AUCUNE}`, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}` };
+    return { projet: project, a, ...backlog, dit: tell(backlog) };
   }
-  const echec = echecDe({ ...rendu, erreur }, reglages.delaiMs);
-  const refusee = erreur.killed !== true && erreur.code === 2;
-  const sansGitHub = erreur.killed !== true && erreur.code === 1;
+  const failure = failureDe({ ...rendu, erreur: error }, settings.delaiMs);
+  const refusee = error.killed !== true && error.code === 2;
+  const sansGitHub = error.killed !== true && error.code === 1;
   const pourquoi = refusee
     ? "the station's runtime refused `manager backlog` (code 2) — if it is older than this app, it does not know this reading yet: update brigade on the station"
     : sansGitHub
       ? "the station answered, but `manager backlog` did not read GitHub (code 1) — what it says is below"
-      : `${titreDEchec(echec, "REACHED, BUT `manager backlog` DID NOT ANSWER")} — what the app got is below`;
-  return { projet, a, sans: `${PAS_LUS}: ${pourquoi}. ${PAS_AUCUNE}`, obtenu: echec.erreur };
+      : `${titreDFailure(failure, "REACHED, BUT `manager backlog` DID NOT ANSWER")} — what the app got is below`;
+  return { projet: project, a, sans: `${PAS_LUS}: ${pourquoi}. ${PAS_AUCUNE}`, obtenu: failure.erreur };
 }

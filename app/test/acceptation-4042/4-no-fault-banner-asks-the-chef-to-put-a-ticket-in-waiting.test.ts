@@ -3,22 +3,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
-import { comprendre, type Faits } from "../../src/faits.ts";
-import type { TableauLu } from "../../src/tableau/lecture.ts";
-import { ligneDesAlertesDuRail } from "../../src/vue/attente-du-rail/ligne-des-alertes.js";
+import { comprendre, type Facts } from "../../src/facts.ts";
+import type { TableauLu } from "../../src/tableau/read.ts";
+import { lineDesAlertsDuRail } from "../../src/vue/wait-du-rail/line-des-alerts.js";
 import { avecLeRail, type TicketSurGithub } from "../../src/vue/rail/github.ts";
 import { Faux } from "../aides/fausse-vue.ts";
 
-const DEPOT = "chef/secondes";
+const REPOSITORY = "chef/secondes";
 const LU = "2026-11-23T12:00:00.000Z";
 const T0 = Date.parse(LU);
 const iso = (ms: number) => new Date(ms).toISOString();
 const IL_Y_A_26_H = iso(T0 - 26 * 3_600_000);
 const doc = { createElement: (balise: string) => new Faux(balise) };
-const station = (autres: Partial<StationDuCompte> = {}): StationDuCompte => ({ name: "parade-box", lastSeen: iso(T0 - 30_000), stoppedAt: null, refreshMs: 120_000, selection: [DEPOT], ...autres });
-const VIDE: TableauLu = {
+const station = (autres: Partial<StationDuCompte> = {}): StationDuCompte => ({ name: "parade-box", lastSeen: iso(T0 - 30_000), stoppedAt: null, refreshMs: 120_000, selection: [REPOSITORY], ...autres });
+const EMPTY: TableauLu = {
   lu: true,
-  depot: DEPOT,
+  depot: REPOSITORY,
   luLe: LU,
   cuisine: { rubriques: [] },
   faits: { etat: "ouverte", lu: LU, dernierTick: null, dernierEvenement: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: [] },
@@ -27,23 +27,23 @@ const VIDE: TableauLu = {
   lignesDuRail: [],
   activites: [],
 };
-const ticket = (numero: number, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: `Ticket ${numero}`, url: `https://github.com/${DEPOT}/issues/${numero}`, etat: "en attente", priorite: null, creeLe: IL_Y_A_26_H, pr: null, prise: null, entreLe: iso(T0 - 3_600_000), ...autres });
+const ticket = (numero: number, autres: Partial<TicketSurGithub> = {}): TicketSurGithub => ({ ticket: numero, titre: `Ticket ${numero}`, url: `https://github.com/${REPOSITORY}/issues/${numero}`, etat: "en attente", priorite: null, creeLe: IL_Y_A_26_H, pr: null, prise: null, entreLe: iso(T0 - 3_600_000), ...autres });
 const BOUCLE = { fois: 1198, depuis: IL_Y_A_26_H };
-const faitsDe = (tickets: TicketSurGithub[], stations: StationDuCompte[] = [station()]) => comprendre(JSON.stringify(avecLeRail(VIDE, { lu: LU, tickets }, { lus: stations }).faits)) as Faits;
+const factsDe = (tickets: TicketSurGithub[], stations: StationDuCompte[] = [station()]) => comprendre(JSON.stringify(avecLeRail(EMPTY, { lu: LU, tickets }, { lus: stations }).faits)) as Facts;
 // Le texte du bandeau FAULT que la vue dessine : sa marque, sa phrase, ce que la cuisine fait, ses boutons, et son survol.
-const bandeau = (faits: Faits): string => {
-  const [ligne] = ligneDesAlertesDuRail(doc, faits.alertesDuRail, null) as unknown as Faux[];
-  assert.ok(ligne, "pas de bandeau FAULT");
-  return [...ligne.children.map((enfant) => enfant.textContent), ligne.title].join(" ");
+const banner = (facts: Facts): string => {
+  const [line] = lineDesAlertsDuRail(doc, facts.alertesDuRail, null) as unknown as Faux[];
+  assert.ok(line, "pas de bandeau FAULT");
+  return [...line.children.map((enfant) => enfant.textContent), line.title].join(" ");
 };
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { alertesDuRail, type EntreeDesAlertes } from "../../src/attente-du-rail/alertes.ts";
+import { alertsDuRail, type EntreeDesAlerts } from "../../src/wait-du-rail/alerts.ts";
 import { fileURLToPath } from "node:url";
 
-const entree = (surcharge: Partial<EntreeDesAlertes> = {}): EntreeDesAlertes => ({
-  depot: DEPOT,
+const entree = (surcharge: Partial<EntreeDesAlerts> = {}): EntreeDesAlerts => ({
+  depot: REPOSITORY,
   maintenant: T0,
   tickets: [{ ticket: 4, etat: "queued", entreLe: iso(T0 - 3_600_000), depend: [] }],
   stations: { lues: [station()] },
@@ -57,7 +57,7 @@ const entree = (surcharge: Partial<EntreeDesAlertes> = {}): EntreeDesAlertes => 
   ...surcharge,
 });
 
-const fichiers = (dossier: string): string[] => readdirSync(dossier).flatMap((nom) => (statSync(join(dossier, nom)).isDirectory() ? (nom === "node_modules" ? [] : fichiers(join(dossier, nom))) : /\.(ts|js)$/.test(nom) ? [join(dossier, nom)] : []));
+const fichiers = (dossier: string): string[] => readdirSync(dossier).flatMap((name) => (statSync(join(dossier, name)).isDirectory() ? (name === "node_modules" ? [] : fichiers(join(dossier, name))) : /\.(ts|js)$/.test(name) ? [join(dossier, name)] : []));
 
 test("aucun texte de bandeau FAULT de la vue projet ne demande au chef de mettre un ticket en WAITING", () => {
   const cas = [
@@ -67,8 +67,8 @@ test("aucun texte de bandeau FAULT de la vue projet ne demande au chef de mettre
     entree({ relances: [{ ticket: 3813, fois: 1198, depuis: iso(T0 - 7_200_000) }] }),
     entree({ tickets: [], misDeCoteParEchecs: [{ ticket: 9, depuis: iso(T0 - 7_200_000), raison: null }] }),
   ];
-  for (const alerte of cas.flatMap((un) => alertesDuRail(un))) {
-    for (const texte of [alerte.phrase, alerte.geste ?? "", alerte.geree ?? ""]) assert.doesNotMatch(texte, /\b(Put|Set|Place|Move)\b[^.]*\bin WAITING\b/, `${alerte.sorte} : ${texte}`);
+  for (const alert of cas.flatMap((un) => alertsDuRail(un))) {
+    for (const texte of [alert.phrase, alert.geste ?? "", alert.geree ?? ""]) assert.doesNotMatch(texte, /\b(Put|Set|Place|Move)\b[^.]*\bin WAITING\b/, `${alert.sorte} : ${texte}`);
   }
   // Et aucune phrase de ce genre n'est écrite dans les sources de l'app qui composent ces bandeaux.
   for (const fichier of fichiers(fileURLToPath(new URL("../../src", import.meta.url)))) {

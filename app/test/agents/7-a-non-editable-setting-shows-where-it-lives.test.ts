@@ -6,23 +6,23 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
+import { pourLaBar } from "../../src/bar.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE } from "../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { jouerLaVue, repos, type Faux, type Jouee, type Reponses } from "../aides/fausse-vue.ts";
+import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
+import { jouerLaVue, repos, type Faux, type Jouee, type Answers } from "../aides/fausse-vue.ts";
 
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -30,8 +30,8 @@ const demarrage = () => ({
 
 type Champ = { key: string; label: string; kind: string; value: unknown; source: string; editable: boolean; livesIn: string | null; changedAt: string | null; changedBy: string | null };
 type Agent = { id: string; name: string; role: string; state: "idle" | "working" | "broken"; workingOn: number | null; nextRun: string; figures: { label: string; value: string; meaning: string }[]; settings: unknown };
-type Geste = { at: string; summary: string; reason: string; issue: number | null };
-type Appel = { methode: string; chemin: string; corps: unknown };
+type Action = { at: string; summary: string; reason: string; issue: number | null };
+type Call = { methode: string; chemin: string; corps: unknown };
 
 const champ = (key: string, plus: Partial<Champ> = {}): Champ => ({ key, label: `label of ${key}`, kind: "text", value: "v", source: "runtime", editable: true, livesIn: null, changedAt: null, changedBy: null, ...plus });
 const agent = (id: string, plus: Partial<Agent> = {}): Agent => ({
@@ -51,31 +51,31 @@ const agent = (id: string, plus: Partial<Agent> = {}): Agent => ({
 
 // Le faux du contrat du runtime (GET /api/agents, GET|PUT /api/agents/:id/settings, GET /api/agents/:id/gestures), posé en
 // `fetch` : l'URL est lue par son chemin, d'où que la vue prenne sa base. Chaque appel est gardé.
-function fauxRuntime(agents: Agent[], { reglages = {}, gestes = {}, put }: { reglages?: Record<string, Champ[]>; gestes?: Record<string, Geste[]>; put?: (id: string, corps: { key: string; value: unknown }) => { status: number; corps: unknown } } = {}): Appel[] {
-  const appels: Appel[] = [];
-  const reponse = (status: number, corps: unknown) => new Response(JSON.stringify(corps), { status, headers: { "content-type": "application/json" } });
+function fauxRuntime(agents: Agent[], { reglages: settings = {}, gestes: actions = {}, put }: { reglages?: Record<string, Champ[]>; gestes?: Record<string, Action[]>; put?: (id: string, corps: { key: string; value: unknown }) => { status: number; corps: unknown } } = {}): Call[] {
+  const calls: Call[] = [];
+  const answer = (status: number, corps: unknown) => new Response(JSON.stringify(corps), { status, headers: { "content-type": "application/json" } });
   Object.assign(globalThis, {
     fetch: async (entree: unknown, options: { method?: string; body?: string } = {}) => {
       const url = new URL(typeof entree === "string" ? entree : entree instanceof URL ? entree.href : (entree as { url: string }).url, "http://runtime.test");
       const methode = (options.method ?? "GET").toUpperCase();
       const corps = options.body === undefined ? undefined : JSON.parse(options.body);
-      appels.push({ methode, chemin: url.pathname, corps });
-      if (url.pathname === "/api/agents" && methode === "GET") return reponse(200, agents);
+      calls.push({ methode, chemin: url.pathname, corps });
+      if (url.pathname === "/api/agents" && methode === "GET") return answer(200, agents);
       const [, id, quoi] = /^\/api\/agents\/([^/]+)\/(settings|gestures)$/.exec(url.pathname) ?? [];
-      if (id === undefined) return reponse(404, { error: "unknown" });
-      if (quoi === "gestures") return reponse(200, gestes[id] ?? []);
+      if (id === undefined) return answer(404, { error: "unknown" });
+      if (quoi === "gestures") return answer(200, actions[id] ?? []);
       if (methode === "PUT") {
         const rendu = put?.(id, corps) ?? { status: 400, corps: { reason: "no" } };
-        return reponse(rendu.status, rendu.corps);
+        return answer(rendu.status, rendu.corps);
       }
-      return reponse(200, { fields: reglages[id] ?? [] });
+      return answer(200, { fields: settings[id] ?? [] });
     },
   });
-  return appels;
+  return calls;
 }
 
-async function ouvrir(reponses: Partial<Reponses> = {}): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }], ...reponses } as never);
+async function ouvrir(answers: Partial<Answers> = {}): Promise<Jouee> {
+  const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }], ...answers } as never);
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;
@@ -104,19 +104,19 @@ const plusPetit = (vue: Jouee, ...textes: string[]): Faux => {
   assert.ok(trouves.length > 0, `rien de montré ne porte ${JSON.stringify(textes)}`);
   return trouves.reduce((petit, pose) => (pose.textContent.length < petit.textContent.length ? pose : petit));
 };
-const carte = (vue: Jouee, a: Agent): Faux => plusPetit(vue, a.name, a.role);
+const card = (vue: Jouee, a: Agent): Faux => plusPetit(vue, a.name, a.role);
 // Un clic sur un agent : sur son nom, puis sur ce qui le porte, jusqu'à ce que ses gestes aient été demandés.
-async function cliquerSurLAgent(vue: Jouee, appels: Appel[], a: Agent): Promise<void> {
+async function cliquerSurLAgent(vue: Jouee, calls: Call[], a: Agent): Promise<void> {
   const chemin: Faux[] = [];
   for (let pose: Faux | null = plusPetit(vue, a.name); pose !== null && !pose.hidden; pose = pose.parentElement) chemin.push(pose);
   for (const pose of chemin) {
     pose.click();
     for (let i = 0; i < 3; i++) await repos();
-    if (appels.some(({ chemin: demande }) => demande === `/api/agents/${a.id}/gestures`)) return;
+    if (calls.some(({ chemin: request }) => request === `/api/agents/${a.id}/gestures`)) return;
   }
 }
 const aLaRangee = (vue: Jouee, a: Agent, cle: Champ): Faux => {
-  const dans = carte(vue, a);
+  const dans = card(vue, a);
   const trouvees = [dans, ...dans.descendants()].filter((pose) => pose.textContent.includes(cle.label) && (cle.editable ? pose.dessous("input").length + pose.dessous("select").length > 0 : true));
   assert.ok(trouvees.length > 0, `pas de rangée « ${cle.label} » sur la carte`);
   return trouvees.reduce((petit, pose) => (pose.textContent.length < petit.textContent.length ? pose : petit));
@@ -126,15 +126,15 @@ const aLaRangee = (vue: Jouee, a: Agent, cle: Champ): Faux => {
 test("a non-editable setting shows its livesIn text and has no input", async () => {
   const a = agent("a1");
   const fige = champ("home", { label: "state folder", value: "/srv/brigade", editable: false, livesIn: "BRIGADE_STATE_DIR in the station's environment" });
-  const libre = champ("maxTurns", { label: "turn limit", kind: "number", value: 10 });
-  fauxRuntime([a], { reglages: { a1: [fige, libre] } });
+  const free = champ("maxTurns", { label: "turn limit", kind: "number", value: 10 });
+  fauxRuntime([a], { reglages: { a1: [fige, free] } });
   const vue = await ouvrir();
   await ouvrirAgents(vue);
   const rangee = aLaRangee(vue, a, fige);
   assert.ok(rangee.textContent.includes("BRIGADE_STATE_DIR in the station's environment"), "il dit où il vit");
   assert.deepEqual([...rangee.dessous("input"), ...rangee.dessous("select"), ...rangee.dessous("textarea")], [], "aucun champ");
   assert.ok(!rangee.textContent.includes("turn limit"), "la rangée est la sienne seule");
-  const modifiable = aLaRangee(vue, a, libre);
+  const modifiable = aLaRangee(vue, a, free);
   assert.ok(modifiable.dessous("input").length + modifiable.dessous("select").length > 0, "un réglage modifiable, lui, a son champ");
   assert.ok(!modifiable.textContent.includes("BRIGADE_STATE_DIR"), "livesIn n'est dit que du non modifiable");
 });

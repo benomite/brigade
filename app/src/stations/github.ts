@@ -3,10 +3,10 @@
 // station directement, par aucun chemin : elle lit sur GitHub ce que chacune y a
 // écrit, et y écrit l'appairage.
 import { execFile, type ExecFileException } from "node:child_process";
-import { porteLaTrace } from "../telephone-connecte.ts";
+import { doorLaTrace } from "../phone-connecte.ts";
 import { FICHIER_APPAIRAGE, FICHIER_STATION } from "./document.ts";
 
-export type Reglages = { gh: string; delaiMs: number };
+export type Settings = { gh: string; delaiMs: number };
 
 // Un gist de station, tel que la liste du compte le montre : sans son contenu.
 export type GistDeStation = { id: string; misAJour: string; appairee: boolean };
@@ -22,7 +22,7 @@ export type GitHubDesStations = {
   ecrire(id: string, fichiers: Fichiers): Promise<void>;
   // Retire ce fichier du gist, sans toucher aux autres.
   supprimer(id: string, fichier: string): Promise<void>;
-  // Vrai : un gist du compte porte la trace d'un téléphone connecté (#3303, telephone-connecte.ts). Lève quand la liste ne se lit pas.
+  // Vrai : un gist du compte porte la trace d'un téléphone connecté (#3303, phone-connecte.ts). Lève quand la liste ne se lit pas.
   telephone?(): Promise<boolean>;
   // Quand GitHub rend les appels du compte, une fois sa limite atteinte — lu sans en dépenser un —, ou null s'il ne le dit pas.
   reprise?(): Promise<string | null>;
@@ -38,21 +38,21 @@ const PORTEE = /[^\n]*needs the "[\w:]+" scope[^\n]*/;
 class Absent extends Error {}
 
 // Ce qu'un `gh` en échec a dit, en une ligne.
-function echec(reglages: Reglages, erreur: ExecFileException, erreurs: string): string {
-  if (erreur.code === "ENOENT") return `\`${reglages.gh}\` is not on this computer: the app reads its stations on GitHub with your own \`gh\``;
-  if (erreur.killed === true) return `GitHub gave no answer within ${Math.round(reglages.delaiMs / 1000)} s`;
-  return erreurs.trim().split("\n").at(-1) || erreur.message;
+function failure(settings: Settings, error: ExecFileException, erreurs: string): string {
+  if (error.code === "ENOENT") return `\`${settings.gh}\` is not on this computer: the app reads its stations on GitHub with your own \`gh\``;
+  if (error.killed === true) return `GitHub gave no answer within ${Math.round(settings.delaiMs / 1000)} s`;
+  return erreurs.trim().split("\n").at(-1) || error.message;
 }
 
-export function githubDesStations(reglages: Reglages): GitHubDesStations {
+export function githubDesStations(settings: Settings): GitHubDesStations {
   const appeler = (args: string[], entree?: unknown): Promise<string> =>
     new Promise((resoudre, rejeter) => {
-      const enfant = execFile(reglages.gh, ["api", ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
-        if (erreur === null) return resoudre(sortie);
+      const enfant = execFile(settings.gh, ["api", ...args], { windowsHide: true, timeout: settings.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (error, sortie, erreurs) => {
+        if (error === null) return resoudre(sortie);
         // Un 404 qui dit la permission qui manque (« needs the "gist" scope ») n'est pas un gist disparu : sa phrase reste.
         const portee = erreurs.match(PORTEE)?.[0].trim();
         if (ABSENT.test(erreurs) && portee === undefined) return rejeter(new Absent());
-        rejeter(new Error(portee ?? echec(reglages, erreur, erreurs)));
+        rejeter(new Error(portee ?? failure(settings, error, erreurs)));
       });
       // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
       enfant.stdin?.on("error", () => {});
@@ -68,12 +68,12 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
     new Promise((resoudre, rejeter) => {
       const gardee = gardees.get(chemin);
       const condition = gardee === undefined ? [] : ["-H", `If-None-Match: ${gardee.etag}`];
-      execFile(reglages.gh, ["api", "-i", ...condition, chemin], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
+      execFile(settings.gh, ["api", "-i", ...condition, chemin], { windowsHide: true, timeout: settings.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (error, sortie, erreurs) => {
         const fin = sortie.search(/\r?\n\r?\n/);
         const tete = fin === -1 ? sortie : sortie.slice(0, fin);
-        const statut = Number(/^HTTP\/[\d.]+ (\d{3})/.exec(tete)?.[1]);
-        if (statut === 304 && gardee !== undefined) return resoudre(gardee.corps);
-        if (erreur === null) {
+        const status = Number(/^HTTP\/[\d.]+ (\d{3})/.exec(tete)?.[1]);
+        if (status === 304 && gardee !== undefined) return resoudre(gardee.corps);
+        if (error === null) {
           const corps = fin === -1 ? "" : sortie.slice(fin).replace(/^\r?\n\r?\n/, "");
           const etag = /^etag:\s*(.+?)\s*$/im.exec(tete)?.[1];
           if (etag === undefined) gardees.delete(chemin);
@@ -82,16 +82,16 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
         }
         const portee = erreurs.match(PORTEE)?.[0].trim();
         if (ABSENT.test(erreurs) && portee === undefined) return rejeter(new Absent());
-        rejeter(new Error(portee ?? echec(reglages, erreur, erreurs)));
+        rejeter(new Error(portee ?? failure(settings, error, erreurs)));
       });
     });
 
   const patcher = async (id: string, files: Record<string, { content: string } | null>) => {
     try {
       await appeler(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files });
-    } catch (erreur) {
-      if (erreur instanceof Absent) throw new Error("this station's gist is no longer on GitHub");
-      throw erreur;
+    } catch (error) {
+      if (error instanceof Absent) throw new Error("this station's gist is no longer on GitHub");
+      throw error;
     }
   };
 
@@ -113,7 +113,7 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
       for (let page = 1; page <= PAGES_MAX; page++) {
         const lus = JSON.parse(await lire(`/gists?per_page=${PAR_PAGE}&page=${page}`)) as unknown[];
         if (!Array.isArray(lus)) throw new Error("the list of your gists is not what GitHub returns");
-        if (lus.some(porteLaTrace)) return true;
+        if (lus.some(doorLaTrace)) return true;
         if (lus.length < PAR_PAGE) return false;
       }
       return false;
@@ -122,12 +122,12 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
       let sortie: string;
       try {
         sortie = await lire(`/gists/${encodeURIComponent(id)}`);
-      } catch (erreur) {
-        if (erreur instanceof Absent) return null;
-        throw erreur;
+      } catch (error) {
+        if (error instanceof Absent) return null;
+        throw error;
       }
       const files = (JSON.parse(sortie) as { files?: Record<string, { content?: unknown } | null> }).files ?? {};
-      return Object.fromEntries(Object.entries(files).flatMap(([nom, fichier]) => (typeof fichier?.content === "string" ? [[nom, fichier.content]] : [])));
+      return Object.fromEntries(Object.entries(files).flatMap(([name, fichier]) => (typeof fichier?.content === "string" ? [[name, fichier.content]] : [])));
     },
     async reprise() {
       const lu = JSON.parse(await appeler(["/rate_limit"])) as { resources?: { core?: { reset?: unknown; remaining?: unknown } } };
@@ -135,7 +135,7 @@ export function githubDesStations(reglages: Reglages): GitHubDesStations {
       return typeof reset === "number" && Number.isFinite(reset) ? new Date(reset * 1000).toISOString() : null;
     },
     async ecrire(id, fichiers) {
-      await patcher(id, Object.fromEntries(Object.entries(fichiers).map(([nom, content]) => [nom, { content }])));
+      await patcher(id, Object.fromEntries(Object.entries(fichiers).map(([name, content]) => [name, { content }])));
     },
     async supprimer(id, fichier) {
       await patcher(id, { [fichier]: null });

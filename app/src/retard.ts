@@ -22,13 +22,13 @@ import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Projet } from "./config.ts";
-import { depotDe } from "./ajout.ts";
+import type { Project } from "./config.ts";
+import { repositoryDe } from "./addition.ts";
 import { CONTROLE, type Terminal } from "./terminaux.ts";
 
 // `delaiMs` : passé ce délai, une commande de `git` est arrêtée — l'origine se joint par le
 // réseau. `jetable` : où se pose le dossier d'objets jetable ; le dossier temporaire du poste, sinon.
-export type Reglages = { git: string; delaiMs: number; jetable?: string };
+export type Settings = { git: string; delaiMs: number; jetable?: string };
 
 // Ce qu'une lecture a obtenu d'un clone. `suivie` : la branche de l'origine que la sienne
 // suit, celle que `git pull` irait chercher. `tete` : le commit sur lequel il est.
@@ -41,9 +41,9 @@ export const sansJeton = (texte: string) => texte.replace(/:\/\/[^/@\s'"]+@/g, "
 
 // Ce par quoi deux clones sont ceux d'un même dépôt : le dépôt GitHub de leur origine, quelle
 // que soit l'écriture de l'adresse — sinon l'adresse elle-même.
-export function identite(origine: string): string {
+export function identity(origine: string): string {
   const adresse = origine.trim();
-  return depotDe(adresse)?.toLowerCase() ?? adresse.replace(/\/+$/, "").replace(/\.git$/, "");
+  return repositoryDe(adresse)?.toLowerCase() ?? adresse.replace(/\/+$/, "").replace(/\.git$/, "");
 }
 
 type Rendu = { sortie: string } | { dit: string };
@@ -52,12 +52,12 @@ type Rendu = { sortie: string } | { dit: string };
 // terminal, ni par une fenêtre (`GIT_ASKPASS` vide, `SSH_ASKPASS_REQUIRE`) : la lecture part
 // à chaque retour à la fenêtre, et une origine qui demande un mot de passe est une origine qui
 // n'a pas répondu. Ce que le trousseau du poste sait déjà sert tel quel.
-export function git(reglages: Reglages, dossier: string, args: readonly string[], signal?: AbortSignal, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
+export function git(settings: Settings, dossier: string, args: readonly string[], signal?: AbortSignal, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
   return new Promise((resoudre) => {
-    execFile(reglages.git, ["-C", dossier, ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 1024 * 1024, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS_REQUIRE: "never", GIT_OPTIONAL_LOCKS: "0", ...env } }, (erreur, sortie, erreurs) => {
-      if (erreur === null) return resoudre({ sortie: sortie.replace(/\n+$/, "") });
-      const ecrit = erreurs.split("\n").find((ligne) => ligne.trim() !== "")?.trim();
-      resoudre({ dit: sansJeton(erreur.killed ? `stopped after ${reglages.delaiMs / 1000} s, no response` : (ecrit ?? erreur.message)) });
+    execFile(settings.git, ["-C", dossier, ...args], { windowsHide: true, timeout: settings.delaiMs, maxBuffer: 1024 * 1024, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS_REQUIRE: "never", GIT_OPTIONAL_LOCKS: "0", ...env } }, (error, sortie, erreurs) => {
+      if (error === null) return resoudre({ sortie: sortie.replace(/\n+$/, "") });
+      const ecrit = erreurs.split("\n").find((line) => line.trim() !== "")?.trim();
+      resoudre({ dit: sansJeton(error.killed ? `stopped after ${settings.delaiMs / 1000} s, no response` : (ecrit ?? error.message)) });
     });
   });
 }
@@ -69,79 +69,79 @@ const alternat = (chemin: string) => (/^"|:/.test(chemin) ? `"${chemin.replace(/
 // La branche de l'origine que suit le clone où est ce dossier — celle que `git pull` irait
 // chercher —, et le commit sur lequel il est. Rien n'est écrit ; ce qui ne se lit pas est une raison.
 export type Amont = { racine: string; tete: string; branche: string; distant: string; reference: string; suivie: string } | { racine?: string; tete?: string; raison: string };
-export async function lireAmont(reglages: Reglages, dossier: string, signal?: AbortSignal): Promise<Amont> {
-  const sommet = await git(reglages, dossier, ["rev-parse", "--show-toplevel"], signal);
+export async function lireAmont(settings: Settings, dossier: string, signal?: AbortSignal): Promise<Amont> {
+  const sommet = await git(settings, dossier, ["rev-parse", "--show-toplevel"], signal);
   if ("dit" in sommet) return { raison: `${dossier} is not in a git clone the app can read (\`git rev-parse --show-toplevel\`: ${sommet.dit})` };
   const racine = sommet.sortie;
-  const commit = await git(reglages, racine, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], signal);
+  const commit = await git(settings, racine, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], signal);
   if ("dit" in commit) return { racine, raison: `the clone ${racine} has no commit to compare with those of its origin` };
   const tete = commit.sortie;
-  const courante = await git(reglages, racine, ["symbolic-ref", "--quiet", "--short", "HEAD"], signal);
+  const courante = await git(settings, racine, ["symbolic-ref", "--quiet", "--short", "HEAD"], signal);
   if ("dit" in courante) return { racine, tete, raison: `the clone ${racine} is on no branch (detached HEAD): nothing says which branch of its origin it follows` };
-  const branche = courante.sortie;
-  const amont = await git(reglages, racine, ["for-each-ref", "--format=%(upstream:remotename)%09%(upstream:remoteref)%09%(upstream:short)", `refs/heads/${branche}`], signal);
+  const branch = courante.sortie;
+  const amont = await git(settings, racine, ["for-each-ref", "--format=%(upstream:remotename)%09%(upstream:remoteref)%09%(upstream:short)", `refs/heads/${branch}`], signal);
   const [distant = "", reference = "", suivie = ""] = "dit" in amont ? [] : (amont.sortie.split("\n")[0] ?? "").split("\t");
   // « . » : elle suit une autre branche du clone, pas une branche de l'origine.
-  if (distant === "" || distant === "." || reference === "") return { racine, tete, raison: `in the clone ${racine}, the branch “${branche}” follows no branch of an origin: there is nothing to compare it with` };
-  return { racine, tete, branche, distant, reference, suivie };
+  if (distant === "" || distant === "." || reference === "") return { racine, tete, raison: `in the clone ${racine}, the branch “${branch}” follows no branch of an origin: there is nothing to compare it with` };
+  return { racine, tete, branche: branch, distant, reference, suivie };
 }
 
 // Le commit de la branche suivie, tel que l'origine le dit maintenant — sans rien rapatrier.
-export async function annonceDe(reglages: Reglages, amont: { distant: string; reference: string; suivie: string }, racine: string, signal?: AbortSignal): Promise<{ la: string } | { raison: string }> {
+export async function annonceDe(settings: Settings, amont: { distant: string; reference: string; suivie: string }, racine: string, signal?: AbortSignal): Promise<{ la: string } | { raison: string }> {
   const { distant, reference, suivie } = amont;
-  const annonce = await git(reglages, racine, ["ls-remote", distant, reference], signal);
+  const annonce = await git(settings, racine, ["ls-remote", distant, reference], signal);
   if ("dit" in annonce) return { raison: `the origin did not answer (\`git ls-remote ${distant} ${reference}\`): ${annonce.dit}` };
-  const [, la] = /^([0-9a-f]{40,64})\t/.exec(annonce.sortie.split("\n").find((ligne) => ligne.endsWith(`\t${reference}`)) ?? "") ?? [];
+  const [, la] = /^([0-9a-f]{40,64})\t/.exec(annonce.sortie.split("\n").find((line) => line.endsWith(`\t${reference}`)) ?? "") ?? [];
   return la === undefined ? { raison: `“${suivie}” no longer exists on the origin: the clone ${racine} has nothing left to follow` } : { la };
 }
 
 // Lit le retard du clone où est ce dossier, sur la branche de l'origine qu'il suit. Rien
 // n'est écrit dans le clone ; ce qui ne se lit pas est une raison, jamais un zéro.
-export async function lireRetard(reglages: Reglages, dossier: string, signal?: AbortSignal): Promise<Lu> {
-  const amont = await lireAmont(reglages, dossier, signal);
+export async function lireRetard(settings: Settings, dossier: string, signal?: AbortSignal): Promise<Lu> {
+  const amont = await lireAmont(settings, dossier, signal);
   if ("raison" in amont) return amont;
-  const { racine, tete, branche, distant, reference, suivie } = amont;
-  const annonce = await annonceDe(reglages, amont, racine, signal);
+  const { racine, tete, branche: branch, distant, reference, suivie } = amont;
+  const annonce = await annonceDe(settings, amont, racine, signal);
   if ("raison" in annonce) return { racine, tete, raison: annonce.raison };
   const { la } = annonce;
-  if (la === tete) return { racine, branche, suivie, tete, retard: 0, avance: 0 };
+  if (la === tete) return { racine, branche: branch, suivie, tete, retard: 0, avance: 0 };
 
   const compter = async (env?: NodeJS.ProcessEnv): Promise<Lu> => {
-    const compte = await git(reglages, racine, ["rev-list", "--left-right", "--count", `${tete}...${la}`], signal, env);
-    const [, avance, retard] = /^(\d+)\t(\d+)$/.exec("dit" in compte ? "" : compte.sortie) ?? [];
-    if (avance === undefined || retard === undefined) return { racine, tete, raison: `the commits between the clone ${racine} and “${suivie}” could not be counted (\`git rev-list\`)${"dit" in compte ? `: ${compte.dit}` : ""}` };
-    return { racine, branche, suivie, tete, retard: Number(retard), avance: Number(avance) };
+    const account = await git(settings, racine, ["rev-list", "--left-right", "--count", `${tete}...${la}`], signal, env);
+    const [, avance, retard] = /^(\d+)\t(\d+)$/.exec("dit" in account ? "" : account.sortie) ?? [];
+    if (avance === undefined || retard === undefined) return { racine, tete, raison: `the commits between the clone ${racine} and “${suivie}” could not be counted (\`git rev-list\`)${"dit" in account ? `: ${account.dit}` : ""}` };
+    return { racine, branche: branch, suivie, tete, retard: Number(retard), avance: Number(avance) };
   };
   // Le clone a déjà ce commit — il a rapatrié sans s'y mettre, ou il est en avance : rien à rapatrier.
-  if (!("dit" in (await git(reglages, racine, ["cat-file", "-e", `${la}^{commit}`], signal)))) return compter();
+  if (!("dit" in (await git(settings, racine, ["cat-file", "-e", `${la}^{commit}`], signal)))) return compter();
 
   // Sinon ce qui manque est rapatrié à côté, pas dans le clone : ses objets sont lus, aucun n'y est posé.
   const manque = (dit: string): Lu => ({ racine, tete, raison: `the origin has commits the clone ${racine} does not have, and they could not be counted (fetched outside the clone, by \`git fetch ${distant} ${reference}\`): ${dit}` });
-  const objets = await git(reglages, racine, ["rev-parse", "--git-path", "objects"], signal);
+  const objets = await git(settings, racine, ["rev-parse", "--git-path", "objects"], signal);
   if ("dit" in objets) return manque(objets.dit);
   let jetable: string | undefined;
   try {
-    jetable = await mkdtemp(join(reglages.jetable ?? tmpdir(), "brigade-retard-"));
+    jetable = await mkdtemp(join(settings.jetable ?? tmpdir(), "brigade-retard-"));
     const env = { GIT_OBJECT_DIRECTORY: jetable, GIT_ALTERNATE_OBJECT_DIRECTORIES: alternat(resolve(racine, objets.sortie)) };
     // Ni FETCH_HEAD, ni étiquette, ni branche suivie mise à jour au passage (`--refmap=`), ni
     // élagage, ni ménage — quoi que la configuration du chef demande à ses propres `git fetch`.
-    const rapatrie = await git(reglages, racine, ["fetch", "--quiet", "--no-write-fetch-head", "--no-tags", "--no-prune", "--no-prune-tags", "--no-recurse-submodules", "--no-auto-maintenance", "--refmap=", distant, reference], signal, env);
+    const rapatrie = await git(settings, racine, ["fetch", "--quiet", "--no-write-fetch-head", "--no-tags", "--no-prune", "--no-prune-tags", "--no-recurse-submodules", "--no-auto-maintenance", "--refmap=", distant, reference], signal, env);
     return "dit" in rapatrie ? manque(rapatrie.dit) : await compter(env);
-  } catch (erreur) {
-    return manque(erreur instanceof Error ? erreur.message : String(erreur));
+  } catch (error) {
+    return manque(error instanceof Error ? error.message : String(error));
   } finally {
     if (jetable !== undefined) await rm(jetable, { recursive: true, force: true }).catch(() => {});
   }
 }
 
 // L'état d'un clone, tel que la vue le pose : un mot par couleur.
-export type Etat = "a-jour" | "en-retard" | "a-relancer" | "pas-lu";
+export type State = "a-jour" | "en-retard" | "a-relancer" | "pas-lu";
 // Un clone lu. `id` : « app » pour le code de l'app, la racine du clone pour celui d'un
 // projet — c'est par lui que la vue demande la commande. `tete` : son état en une ligne,
 // sans l'heure. `commande` : ce qui met à jour le clone d'un projet, montré et écrit à la
 // demande ; rien, tant qu'il n'est pas en retard. `bouton` : pour le code de l'app, en retard
 // ou à relancer, ce que fait le clic — elle passe à la nouvelle version, sans terminal.
-export type Clone = { id: string; etat: Etat; tete: string; lignes: string[]; commande?: string; bouton?: string };
+export type Clone = { id: string; etat: State; tete: string; lignes: string[]; commande?: string; bouton?: string };
 // Ce qui se pose en tête de « Tous les projets ». `a` : l'instant de la lecture.
 // `alerte` : ce que la barre en dit quel que soit l'écran — rien, tant que rien n'est périmé.
 export type Vu = { a: string; clones: Clone[]; alerte?: string };
@@ -150,14 +150,14 @@ export const APP = "app";
 
 const commits = (nombre: number) => `${nombre} commit${nombre > 1 ? "s" : ""}`;
 const court = (commit: string) => commit.slice(0, 7);
-const nommes = (noms: readonly string[]) => noms.map((nom) => `“${nom}”`).join(", ");
+const nommes = (noms: readonly string[]) => noms.map((name) => `“${name}”`).join(", ");
 // Un chemin tel que le shell du poste le rendra à `git` : entier, sans rien en exécuter.
 const chemin = (texte: string) => (/^[A-Za-z0-9@%+=:,./_-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
 // La commande du chef. Elle nomme son clone : où qu'elle soit écrite, c'est lui qu'elle met à jour.
-const miseAJour = (racine: string) => `git -C ${chemin(racine)} pull`;
+const update = (racine: string) => `git -C ${chemin(racine)} pull`;
 const A_TOI = "Updating this clone is your action, at the moment you choose:";
 // Ce que fait le clic, sur la ligne de l'app.
-const METTRE_A_JOUR = "update and relaunch the app";
+const METTRE_A_DAY = "update and relaunch the app";
 const RELANCER = "relaunch the app";
 const SINON = "Without a click, it switches to the new version the next time it is opened.";
 
@@ -169,7 +169,7 @@ type Dit = { clone: Clone; alerte?: string };
 // Ce que l'app dit de son propre code. `relance` : son clone n'est plus sur le commit de son
 // lancement — de combien de commits, quand ils se comptent. `memes` : les projets dont le
 // dossier est ce clone.
-function direApp(lu: Lu, relance: { lance: string; plus: number | undefined } | undefined, memes: readonly string[]): Dit {
+function tellApp(lu: Lu, relance: { lance: string; plus: number | undefined } | undefined, memes: readonly string[]): Dit {
   const aussi = memes.length === 0 ? [] : [`It is also the clone of the project${memes.length > 1 ? "s" : ""} ${nommes(memes)}: its second reads the same code there.`];
   const relancer =
     relance === undefined || lu.tete === undefined
@@ -195,11 +195,11 @@ function direApp(lu: Lu, relance: { lance: string; plus: number | undefined } | 
           `Its clone: ${lu.racine}, on the branch ${lu.branche}.`,
           ...enAvance,
           // Des commits à lui : le clone ne peut pas simplement avancer, et fusionner reste au chef.
-          lu.avance === 0 ? `One click updates it and relaunches it on the new version — no terminal, nothing to copy. ${SINON}` : `It cannot simply move forward, so it does not update itself. ${A_TOI} \`${miseAJour(lu.racine)}\`, then relaunch it: it only changes code when it launches.`,
+          lu.avance === 0 ? `One click updates it and relaunches it on the new version — no terminal, nothing to copy. ${SINON}` : `It cannot simply move forward, so it does not update itself. ${A_TOI} \`${update(lu.racine)}\`, then relaunch it: it only changes code when it launches.`,
           ...relancer,
           ...aussi,
         ],
-        ...(lu.avance === 0 ? { bouton: METTRE_A_JOUR } : { commande: miseAJour(lu.racine) }),
+        ...(lu.avance === 0 ? { bouton: METTRE_A_DAY } : { commande: update(lu.racine) }),
       },
       alerte: `this app's code is ${commits(lu.retard)} behind ${lu.suivie}`,
     };
@@ -209,12 +209,12 @@ function direApp(lu: Lu, relance: { lance: string; plus: number | undefined } | 
 }
 
 // Ce qu'elle dit du clone d'un projet qui est un clone de brigade, sans être celui de l'app.
-function direProjet(racine: string, noms: readonly string[], lu: Lu): Dit {
+function tellProject(racine: string, noms: readonly string[], lu: Lu): Dit {
   const [de, DE] = noms.length > 1 ? ["of the projects", "OF THE PROJECTS"] : ["of the project", "OF THE PROJECT"];
   if ("raison" in lu) return { clone: { id: racine, etat: "pas-lu", tete: `how far the clone ${de} ${nommes(noms)} is behind its origin was not read`, lignes: [lu.raison, "So nothing says this clone is up to date."] } };
   const enAvance = lu.avance === 0 ? [] : [`It also has ${commits(lu.avance)} that ${lu.suivie} does not have.`];
   if (lu.retard === 0) return { clone: { id: racine, etat: "a-jour", tete: `the clone ${de} ${nommes(noms)} is up to date with ${lu.suivie}`, lignes: enAvance } };
-  const commande = miseAJour(lu.racine);
+  const command = update(lu.racine);
   return {
     clone: {
       id: racine,
@@ -224,9 +224,9 @@ function direProjet(racine: string, noms: readonly string[], lu: Lu): Dit {
         "It is a brigade clone, like this app's: what its second reads there — the roles, the docs, the code — may be out of date.",
         `Its clone: ${lu.racine}, on the branch ${lu.branche}.`,
         ...enAvance,
-        `${A_TOI} \`${commande}\`.`,
+        `${A_TOI} \`${command}\`.`,
       ],
-      commande,
+      commande: command,
     },
     alerte: `the clone ${de} ${nommes(noms)} is ${commits(lu.retard)} behind ${lu.suivie}`,
   };
@@ -237,8 +237,8 @@ function direProjet(racine: string, noms: readonly string[], lu: Lu): Dit {
 // pas (emplacements.ts) : rien ne se dit alors de son code, ni des clones de brigade, qui se
 // reconnaissent à l'origine du sien. `relire` lit — au démarrage, au retour à la fenêtre, quand
 // les projets changent — et rien ne lit entre deux.
-export function tenirRetards(options: { reglages: Reglages; app: string | undefined; projets(): readonly Projet[]; surLecture(vu: Vu): void }) {
-  const { reglages } = options;
+export function holdRetards(options: { reglages: Settings; app: string | undefined; projets(): readonly Project[]; surLecture(vu: Vu): void }) {
+  const { reglages: settings } = options;
   // Le commit sur lequel l'app a été lancée : celui de sa première lecture. `null` : il ne s'y est pas lu.
   let lance: string | null | undefined;
   let tenu: Vu | undefined;
@@ -247,24 +247,24 @@ export function tenirRetards(options: { reglages: Reglages; app: string | undefi
   let enCours: Promise<void> | undefined;
   let encore = false;
   let ferme = false;
-  const arret = new AbortController();
+  const stop = new AbortController();
 
   const racineDe = async (dossier: string) => {
-    const sommet = await git(reglages, dossier, ["rev-parse", "--show-toplevel"], arret.signal);
+    const sommet = await git(settings, dossier, ["rev-parse", "--show-toplevel"], stop.signal);
     return "dit" in sommet ? undefined : sommet.sortie;
   };
   const origineDe = async (racine: string) => {
-    const origine = await git(reglages, racine, ["remote", "get-url", "origin"], arret.signal);
-    return "dit" in origine || origine.sortie === "" ? undefined : identite(origine.sortie);
+    const origine = await git(settings, racine, ["remote", "get-url", "origin"], stop.signal);
+    return "dit" in origine || origine.sortie === "" ? undefined : identity(origine.sortie);
   };
 
   async function lire(): Promise<void> {
     const a = new Date().toISOString();
-    const app = options.app === undefined ? undefined : await lireRetard(reglages, options.app, arret.signal);
+    const app = options.app === undefined ? undefined : await lireRetard(settings, options.app, stop.signal);
     if (lance === undefined) lance = app?.tete ?? null;
     let relance: { lance: string; plus: number | undefined } | undefined;
     if (typeof lance === "string" && app?.racine !== undefined && app.tete !== undefined && app.tete !== lance) {
-      const plus = await git(reglages, app.racine, ["rev-list", "--count", `${lance}..${app.tete}`], arret.signal);
+      const plus = await git(settings, app.racine, ["rev-list", "--count", `${lance}..${app.tete}`], stop.signal);
       relance = { lance, plus: "dit" in plus || !/^\d+$/.test(plus.sortie) ? undefined : Number(plus.sortie) };
     }
 
@@ -273,22 +273,22 @@ export function tenirRetards(options: { reglages: Reglages; app: string | undefi
     const origine = app?.racine === undefined ? undefined : await origineDe(app.racine);
     const memes: string[] = [];
     const autres = new Map<string, string[]>();
-    for (const projet of options.projets()) {
-      if (projet.refus !== undefined) continue;
-      const racine = await racineDe(projet.dossier);
+    for (const project of options.projets()) {
+      if (project.refus !== undefined) continue;
+      const racine = await racineDe(project.dossier);
       if (racine === undefined) continue;
-      if (racine === app?.racine) memes.push(projet.nom);
-      else if (autres.has(racine)) autres.get(racine)?.push(projet.nom);
-      else if (origine !== undefined && (await origineDe(racine)) === origine) autres.set(racine, [projet.nom]);
+      if (racine === app?.racine) memes.push(project.nom);
+      else if (autres.has(racine)) autres.get(racine)?.push(project.nom);
+      else if (origine !== undefined && (await origineDe(racine)) === origine) autres.set(racine, [project.nom]);
     }
 
-    const dits = app === undefined ? [] : [direApp(app, relance, memes)];
-    for (const [racine, noms] of autres) dits.push(direProjet(racine, noms, await lireRetard(reglages, racine, arret.signal)));
+    const dits = app === undefined ? [] : [tellApp(app, relance, memes)];
+    for (const [racine, noms] of autres) dits.push(tellProject(racine, noms, await lireRetard(settings, racine, stop.signal)));
     if (ferme) return;
     const clones = dits.map(({ clone }) => clone);
-    const alerte = dits.find((dit) => dit.alerte !== undefined)?.alerte;
-    ecrits = new Map(clones.flatMap(({ id, commande }) => (commande === undefined ? [] : [[id, { commande, projets: id === APP ? memes : (autres.get(id) ?? []) }]])));
-    tenu = { a, clones, ...(alerte === undefined ? {} : { alerte }) };
+    const alert = dits.find((dit) => dit.alerte !== undefined)?.alerte;
+    ecrits = new Map(clones.flatMap(({ id, commande: command }) => (command === undefined ? [] : [[id, { commande: command, projets: id === APP ? memes : (autres.get(id) ?? []) }]])));
+    tenu = { a, clones, ...(alert === undefined ? {} : { alerte: alert }) };
     options.surLecture(tenu);
   }
 
@@ -319,20 +319,20 @@ export function tenirRetards(options: { reglages: Reglages; app: string | undefi
     // n'est écrit. La vue nomme le clone, jamais une commande ; rien, pour un clone qui n'est
     // pas en retard. Un shell de l'app vit dans l'espace d'un projet : celui dont c'est le
     // dossier, sinon le premier qui s'ouvre — la commande nomme son clone.
-    ecrire(terminaux: { shell(projet: Projet, ecrit: string): Terminal }, id: unknown): Terminal | { refus: string } | undefined {
+    ecrire(terminaux: { shell(project: Project, ecrit: string): Terminal }, id: unknown): Terminal | { refus: string } | undefined {
       const ecrit = typeof id === "string" ? ecrits.get(id) : undefined;
       if (ecrit === undefined) return undefined;
       if (CONTROLE.test(ecrit.commande)) return { refus: "nothing is written: this clone's path has a control character, and a line break would have sent the command" };
-      const ouvrables = options.projets().filter((projet) => projet.refus === undefined);
-      const espace = ouvrables.find((projet) => ecrit.projets.includes(projet.nom)) ?? ouvrables[0];
-      if (espace === undefined) return { refus: `nothing is written: no project opens here, and an app shell lives in a project's space — copy the command: \`${ecrit.commande}\`` };
-      return terminaux.shell(espace, ecrit.commande);
+      const ouvrables = options.projets().filter((project) => project.refus === undefined);
+      const space = ouvrables.find((project) => ecrit.projets.includes(project.nom)) ?? ouvrables[0];
+      if (space === undefined) return { refus: `nothing is written: no project opens here, and an app shell lives in a project's space — copy the command: \`${ecrit.commande}\`` };
+      return terminaux.shell(space, ecrit.commande);
     },
 
     // L'app se ferme : ce qui se lisait encore est arrêté, et ne dit plus rien.
     fermer(): void {
       ferme = true;
-      arret.abort();
+      stop.abort();
     },
   };
 }

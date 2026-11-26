@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { comparerVersions, estUneVersion } from "../../../app/src/mise-a-jour/flux.ts";
+import { comparerVersions, estUneVersion } from "../../../app/src/update/flux.ts";
 import { decider, touchLApp, versionSuivante, VERSION_DE_DEPART } from "../decider.ts";
 
 const script = fileURLToPath(new URL("../decider.ts", import.meta.url));

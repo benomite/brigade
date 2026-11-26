@@ -3,8 +3,8 @@
 // tailnet, ni box jointe : il suffit que l'app soit connectée à GitHub.
 //
 // Ce module rend cette lecture sous la forme de ce que le rail lisait jusqu'ici sur la box — une lecture de la veille
-// (box.ts, `Lecture`) dont chaque sortie est celle de la commande qu'elle remplace — pour que ce qui la reçoit (faits.ts,
-// attend.ts, bon.ts, alertes.ts, accueil.ts, amont.ts) dessine le même rail sans rien changer :
+// (box.ts, `Lecture`) dont chaque sortie est celle de la commande qu'elle remplace — pour que ce qui la reçoit (facts.ts,
+// awaiting.ts, slip.ts, alerts.ts, home.ts, amont.ts) dessine le même rail sans rien changer :
 //   - `facts`   l'objet `faits` de la lecture ;
 //   - `status`  ses rubriques, le bloc `awaiting` de ce qui attend le chef, et la ligne `rail` suivie de la ligne de
 //               chaque ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box ;
@@ -18,33 +18,33 @@
 // lire. Ses lectures passent par `tenirLecturesDuTableau`, qui ne demande à GitHub qu'une lecture à la fois par projet,
 // reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer de commande.
 import { setTimeout as attendre } from "node:timers/promises";
-import { FRAICHEUR_MAX_D_UNE_LECTURE_MS, INTERVALLE_DE_LA_VEILLE_MS } from "../vue/servi/fraicheur.ts";
-import type { LectureDuTableauDuDepot, LigneDeLaFile, RubriqueDuTableau, TableauLu } from "./lecture.ts";
-import { lignesDeLaFile, type RailBloqueLu } from "../vue/rail-bloque/rail-bloque.ts";
+import { FRAICHEUR_MAX_D_UNE_READ_MS, INTERVALLE_DE_LA_STANDBY_MS } from "../vue/served/fraicheur.ts";
+import type { ReadDuTableauDuRepository, LineDeLaFile, RubriqueDuTableau, TableauLu } from "./read.ts";
+import { linesDeLaFile, type RailBlockedLu } from "../vue/rail-blocked/rail-blocked.ts";
 import { lignesDeStatus } from "../../../runtime/src/attente-du-rail/raison.ts";
 import type { AttenteDuRail } from "../../../runtime/src/attente-du-rail/raison.ts";
-import type { LignesDesCartes } from "../vue/attente-du-rail/attente-du-rail.ts";
+import type { LinesDesCards } from "../vue/wait-du-rail/wait-du-rail.ts";
 
-// Les commandes que la lecture remplace, comme la veille des box les nomme (faits.ts, `COMMANDE` ; amont.ts) : la vue
+// Les commandes que la lecture remplace, comme la veille des box les nomme (facts.ts, `COMMANDE` ; amont.ts) : la vue
 // du rail les demande, la lecture en rend la sortie.
-export const FAITS = "facts";
+export const FACTS = "facts";
 export const STATUS = "status";
 export const AMONT = "manager upstream";
 
 // Une lecture, de la forme de celle de la veille des box (box.ts, `Lecture`) : des sorties, ou l'échec de la lecture de
 // GitHub — `duTableau` la distingue d'une commande en échec, et `erreur` est sa raison en une phrase.
 export type SortieDuTableau = { commande: string; texte: string };
-// `horsLigne` : GitHub n'a pas été joint (lecture.ts) — l'app est hors ligne, rien n'est en panne (#1818).
-export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true };
+// `horsLigne` : GitHub n'a pas été joint (read.ts) — l'app est hors ligne, rien n'est en panne (#1818).
+export type FailureDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true };
 // `publieLe` : l'heure où l'état montré a été lu sur GitHub — l'âge du rail (#2054).
-export type LectureDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[]; publieLe?: string } | EchecDuTableau);
+export type ReadDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[]; publieLe?: string } | FailureDuTableau);
 // Une commande demandée : son texte — ou ce qui le compose d'après les sorties d'avant (box.ts, `Commande`), que la
 // lecture ne rend pas.
-export type CommandeDemandee = string | ((...lues: never[]) => string);
+export type CommandDemandee = string | ((...lues: never[]) => string);
 
 // Les titres de `status` sur onze colonnes (runtime/src/etat.ts, `ligne`).
 const TITRE = 11;
-const ligne = (titre: string, valeur: string) => `${titre.padEnd(TITRE)}${valeur}`;
+const line = (titre: string, valeur: string) => `${titre.padEnd(TITRE)}${valeur}`;
 // Le bord du bloc `awaiting` (runtime/src/attend.ts, `TETE_AWAITING`, `FIN_AWAITING`).
 const TETE_AWAITING = "awaiting";
 const FIN_AWAITING = "end awaiting";
@@ -61,27 +61,27 @@ export function dureeEn(ms: number): string {
 }
 
 // Les lignes d'une rubrique, comme `status` les écrit : la première sur la ligne de son titre, les suivantes en retrait
-// — la forme que bon.ts et attend.ts relisent.
-const lignesDeRubrique = ({ titre, lignes }: RubriqueDuTableau): string[] =>
-  lignes.map((texte, rang) => (rang === 0 ? (titre === "" ? texte : ligne(titre, texte)) : `${" ".repeat(TITRE)}${texte}`));
+// — la forme que slip.ts et awaiting.ts relisent.
+const linesDeRubrique = ({ titre, lignes: lines }: RubriqueDuTableau): string[] =>
+  lines.map((texte, rang) => (rang === 0 ? (titre === "" ? texte : line(titre, texte)) : `${" ".repeat(TITRE)}${texte}`));
 
 // Le bloc `awaiting` de `status` (runtime/src/attend.ts, `decrireAttentes`) : sa tête, une ligne par attente — son nom,
 // depuis combien de temps, ce qui attend et le geste, son titre —, puis ce qui n'est pas une décision. Les durées se
-// comptent jusqu'à la lecture (`lu`). Ce qui attend le chef lu de GitHub (attente-du-chef.ts, #2460) passe par lui :
+// comptent jusqu'à la lecture (`lu`). Ce qui attend le chef lu de GitHub (wait-du-chef.ts, #2460) passe par lui :
 // l'app et le second en lisent le même bloc. `railBloque` : le rail bloqué (#3358), sa ligne sous la tête.
-export function blocAwaiting({ file, bilans, lu, depot = "", railBloque }: { file: readonly LigneDeLaFile[]; bilans: readonly string[]; lu: string; depot?: string; railBloque?: RailBloqueLu }): string[] {
+export function blocAwaiting({ file, bilans, lu, depot: repository = "", railBloque: railBlocked }: { file: readonly LineDeLaFile[]; bilans: readonly string[]; lu: string; depot?: string; railBloque?: RailBlockedLu }): string[] {
   const depuis = (instant: string) => dureeEn(Date.parse(lu) - Date.parse(instant));
-  const [premiere] = file;
+  const [first] = file;
   const tete =
-    premiere === undefined
+    first === undefined
       ? "nothing awaits the chef"
       : file.length === 1
-        ? `1 decision awaits the chef — for ${depuis(premiere.depuis)}`
-        : `${file.length} decisions await the chef — the oldest for ${depuis(premiere.depuis)}`;
+        ? `1 decision awaits the chef — for ${depuis(first.depuis)}`
+        : `${file.length} decisions await the chef — the oldest for ${depuis(first.depuis)}`;
   return [
-    ligne(TETE_AWAITING, tete),
-    ...lignesDeLaFile(depot, railBloque),
-    ...file.map(({ nom, depuis: instant, ligne: dit, titre }) => `  ${nom}  for ${depuis(instant)}  ${dit}${titre === null ? "" : `  ${titre}`}`),
+    line(TETE_AWAITING, tete),
+    ...linesDeLaFile(repository, railBlocked),
+    ...file.map(({ nom: name, depuis: instant, ligne: dit, titre }) => `  ${name}  for ${depuis(instant)}  ${dit}${titre === null ? "" : `  ${titre}`}`),
     ...bilans.map((bilan) => `  ${bilan}`),
     FIN_AWAITING,
     "",
@@ -98,15 +98,15 @@ export function statusDuTableau(lu: Pick<TableauLu, "file" | "bilans" | "cuisine
   const apres = rangDuRail === -1 ? [] : rubriques.slice(rangDuRail + 1);
   const rail = rangDuRail === -1 ? { titre: "rail", lignes: [`${lu.lignesDuRail.length} on the rail`] } : (rubriques[rangDuRail] as RubriqueDuTableau);
   return [
-    ...avant.flatMap(lignesDeRubrique),
+    ...avant.flatMap(linesDeRubrique),
     "",
-    ...blocAwaiting({ file: lu.file, bilans: lu.bilans, lu: lu.luLe, depot: lu.depot, railBloque: lu.faits?.railBloque as RailBloqueLu | undefined }),
+    ...blocAwaiting({ file: lu.file, bilans: lu.bilans, lu: lu.luLe, depot: lu.depot, railBloque: lu.faits?.railBloque as RailBlockedLu | undefined }),
     // Pourquoi la file ne part pas (#3433), au-dessus d'elle : les lignes mêmes que `brigade <project> status` écrit.
-    ...lignesDeStatus((lu.faits?.attenteDuRail as AttenteDuRail | undefined)?.phrase ?? null, (lu.faits?.lignesDesCartes as LignesDesCartes | undefined) ?? {}),
-    ligne("rail", rail.lignes[0] ?? ""),
+    ...lignesDeStatus((lu.faits?.attenteDuRail as AttenteDuRail | undefined)?.phrase ?? null, (lu.faits?.lignesDesCartes as LinesDesCards | undefined) ?? {}),
+    line("rail", rail.lignes[0] ?? ""),
     ...lu.lignesDuRail.map(({ ligne: sienne }) => sienne),
     "",
-    ...apres.flatMap(lignesDeRubrique),
+    ...apres.flatMap(linesDeRubrique),
     "",
   ].join("\n");
 }
@@ -120,53 +120,53 @@ export function amontDuTableau(lu: Pick<TableauLu, "depot" | "avantLeRail">): st
 }
 
 // La sortie d'une commande demandée, tirée de la lecture — ou pourquoi elle ne s'en tire pas, en une phrase.
-export function sortieDuTableau(lu: TableauLu, commande: CommandeDemandee): { texte: string } | { raison: string; pasPublie?: true } {
-  if (commande === FAITS) return { texte: JSON.stringify(lu.faits) };
-  if (commande === STATUS) return { texte: statusDuTableau(lu) };
-  if (commande === AMONT) {
+export function sortieDuTableau(lu: TableauLu, command: CommandDemandee): { texte: string } | { raison: string; pasPublie?: true } {
+  if (command === FACTS) return { texte: JSON.stringify(lu.faits) };
+  if (command === STATUS) return { texte: statusDuTableau(lu) };
+  if (command === AMONT) {
     const texte = amontDuTableau(lu);
     if (texte !== undefined) return { texte };
   }
-  const nom = typeof commande === "string" ? `\`${commande}\`` : "this reading";
-  return { raison: `${nom.charAt(0).toUpperCase()}${nom.slice(1)} is not read from GitHub for ${lu.depot}: only the station's log carries it.`, pasPublie: true };
+  const name = typeof command === "string" ? `\`${command}\`` : "this reading";
+  return { raison: `${name.charAt(0).toUpperCase()}${name.slice(1)} is not read from GitHub for ${lu.depot}: only the station's log carries it.`, pasPublie: true };
 }
 
 // La lecture de la veille que celle de GitHub donne, pour ces commandes, dans leur ordre : la première qui ne s'en tire
 // pas fait l'échec, comme la première commande qui échoue sur une box.
-export function lectureDuTableau(lu: LectureDuTableauDuDepot, projet: string, demande: number, commandes: readonly CommandeDemandee[]): LectureDuRail {
-  const echec = (erreur: string, pasPublie?: true, horsLigne?: true): LectureDuRail => ({ projet, demande, a: lu.luLe, erreur, atteinte: true, cas: null, duTableau: true, ...(pasPublie === undefined ? {} : { pasPublie }), ...(horsLigne === undefined ? {} : { horsLigne }) });
-  if (!lu.lu) return echec(lu.raison, undefined, lu.horsLigne);
+export function readDuTableau(lu: ReadDuTableauDuRepository, project: string, request: number, commands: readonly CommandDemandee[]): ReadDuRail {
+  const failure = (error: string, pasPublished?: true, outsideLine?: true): ReadDuRail => ({ projet: project, demande: request, a: lu.luLe, erreur: error, atteinte: true, cas: null, duTableau: true, ...(pasPublished === undefined ? {} : { pasPublie: pasPublished }), ...(outsideLine === undefined ? {} : { horsLigne: outsideLine }) });
+  if (!lu.lu) return failure(lu.raison, undefined, lu.horsLigne);
   const sorties: SortieDuTableau[] = [];
-  for (const commande of commandes) {
-    const sortie = sortieDuTableau(lu, commande);
-    if ("raison" in sortie) return echec(sortie.raison, sortie.pasPublie);
-    sorties.push({ commande: commande as string, texte: sortie.texte });
+  for (const command of commands) {
+    const sortie = sortieDuTableau(lu, command);
+    if ("raison" in sortie) return failure(sortie.raison, sortie.pasPublie);
+    sorties.push({ commande: command as string, texte: sortie.texte });
   }
-  return { projet, demande, a: lu.luLe, sorties, publieLe: lu.luLe };
+  return { projet: project, demande: request, a: lu.luLe, sorties, publieLe: lu.luLe };
 }
 
 // Les lectures des projets sur GitHub : une seule à la fois par projet, reprise par qui la demande tant qu'elle a moins
 // de `fraicheurMs` — les veilles du rail, des faits et de l'amont, lancées ensemble, n'en font qu'une. La dernière
-// lecture réussie de chaque projet est gardée : c'est elle que visent les gestes du rail (gestes-github.ts).
-export function tenirLecturesDuTableau<P extends { nom: string }>(options: { lire: (projet: P) => Promise<LectureDuTableauDuDepot>; fraicheurMs: number; maintenant?: () => number }) {
+// lecture réussie de chaque projet est gardée : c'est elle que visent les gestes du rail (actions-github.ts).
+export function holdLecturesDuTableau<P extends { nom: string }>(options: { lire: (project: P) => Promise<ReadDuTableauDuRepository>; fraicheurMs: number; maintenant?: () => number }) {
   const maintenant = options.maintenant ?? Date.now;
-  const fraicheurMs = Math.min(options.fraicheurMs, FRAICHEUR_MAX_D_UNE_LECTURE_MS);
-  const lues = new Map<string, { a: number; lecture: Promise<LectureDuTableauDuDepot> }>();
+  const fraicheurMs = Math.min(options.fraicheurMs, FRAICHEUR_MAX_D_UNE_READ_MS);
+  const lues = new Map<string, { a: number; lecture: Promise<ReadDuTableauDuRepository> }>();
   const reussies = new Map<string, TableauLu>();
   return {
-    lire(projet: P): Promise<LectureDuTableauDuDepot> {
-      const tenue = lues.get(projet.nom);
+    lire(project: P): Promise<ReadDuTableauDuRepository> {
+      const tenue = lues.get(project.nom);
       if (tenue !== undefined && maintenant() - tenue.a < fraicheurMs) return tenue.lecture;
-      const lecture = options.lire(projet).then((lu) => {
-        if (lu.lu) reussies.set(projet.nom, lu);
+      const read = options.lire(project).then((lu) => {
+        if (lu.lu) reussies.set(project.nom, lu);
         return lu;
       });
-      lues.set(projet.nom, { a: maintenant(), lecture });
-      return lecture;
+      lues.set(project.nom, { a: maintenant(), lecture: read });
+      return read;
     },
     // La dernière lecture réussie de ce projet ; rien s'il n'a jamais été lu.
-    dernier(nom: unknown): TableauLu | undefined {
-      return typeof nom === "string" ? reussies.get(nom) : undefined;
+    dernier(name: unknown): TableauLu | undefined {
+      return typeof name === "string" ? reussies.get(name) : undefined;
     },
     // La prochaine lecture va à GitHub, sans reprendre la dernière : « read again », ou un geste posté.
     oublier(): void {
@@ -178,26 +178,26 @@ export function tenirLecturesDuTableau<P extends { nom: string }>(options: { lir
 // La veille du rail sur GitHub : l'usage de celle des box (box.ts, `ouvrirVeille`) — ce qui est affiché, les
 // commandes à y lire, la demande à laquelle chaque lecture répond. Chaque projet est lu tout de suite,
 // puis à chaque intervalle. `lisible` : un projet dont la vue lit le rail (absent : tous).
-export function ouvrirVeilleDuTableau<P extends { nom: string }>(options: {
-  lire: (projet: P) => Promise<LectureDuTableauDuDepot>;
+export function ouvrirStandbyDuTableau<P extends { nom: string }>(options: {
+  lire: (project: P) => Promise<ReadDuTableauDuRepository>;
   // Absent, la veille du rail de l'app : `INTERVALLE_DE_LA_VEILLE_MS`.
   intervalleMs?: number;
   // L'attente entre deux lectures : celle de Node, sauf aux tests, qui lisent l'intervalle demandé sans l'attendre.
   attendre?: typeof attendre;
-  lisible?: (projet: P) => boolean;
-  surLecture(lecture: LectureDuRail): void;
+  lisible?: (project: P) => boolean;
+  surLecture(read: ReadDuRail): void;
 }) {
   let tour: AbortController | undefined;
 
-  async function suivre(projet: P, commandes: readonly CommandeDemandee[], demande: number, signal: AbortSignal): Promise<void> {
+  async function suivre(project: P, commands: readonly CommandDemandee[], request: number, signal: AbortSignal): Promise<void> {
     for (;;) {
-      if (options.lisible?.(projet) ?? true) {
-        // `lire` ne lève pas (lecture.ts) ; un pont qui lèverait quand même rend un échec, pas une veille arrêtée.
-        const lu = await options.lire(projet).catch((erreur: unknown): LectureDuTableauDuDepot => ({ lu: false, depot: projet.nom, luLe: new Date().toISOString(), raison: `The rail was not read: ${erreur instanceof Error ? erreur.message : String(erreur)}` }));
+      if (options.lisible?.(project) ?? true) {
+        // `lire` ne lève pas (read.ts) ; un pont qui lèverait quand même rend un échec, pas une veille arrêtée.
+        const lu = await options.lire(project).catch((error: unknown): ReadDuTableauDuRepository => ({ lu: false, depot: project.nom, luLe: new Date().toISOString(), raison: `The rail was not read: ${error instanceof Error ? error.message : String(error)}` }));
         if (signal.aborted) return;
-        options.surLecture(lectureDuTableau(lu, projet.nom, demande, commandes));
+        options.surLecture(readDuTableau(lu, project.nom, request, commands));
       }
-      await (options.attendre ?? attendre)(options.intervalleMs ?? INTERVALLE_DE_LA_VEILLE_MS, undefined, { signal }).catch(() => {});
+      await (options.attendre ?? attendre)(options.intervalleMs ?? INTERVALLE_DE_LA_STANDBY_MS, undefined, { signal }).catch(() => {});
       if (signal.aborted) return;
     }
   }
@@ -207,10 +207,10 @@ export function ouvrirVeilleDuTableau<P extends { nom: string }>(options: {
   }
 
   return {
-    regarder(projets: readonly P[], commandes: readonly CommandeDemandee[], demande: number): void {
+    regarder(projects: readonly P[], commands: readonly CommandDemandee[], request: number): void {
       arreter();
       const { signal } = (tour = new AbortController());
-      for (const projet of projets) void suivre(projet, commandes, demande, signal);
+      for (const project of projects) void suivre(project, commands, request, signal);
     },
     fermer: arreter,
   };

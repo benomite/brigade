@@ -9,13 +9,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ETIQUETTES } from "../../runtime/src/etiquettes.ts";
-import { lancerVraiment, tenirLePluginApp, type Lancer } from "../src/plugin-app.ts";
+import { lancerVraiment, holdLePluginApp, type Lancer } from "../src/plugin-app.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
-const COMMANDES_DU_DEPOT = join(import.meta.dirname, "..", "..", "commands");
+const COMMANDS_DU_REPOSITORY = join(import.meta.dirname, "..", "..", "commands");
 const URL_DE_LA_PR = "https://github.com/benomite/calculus/pull/1";
 
-function essai(t: TestContext) {
+function trial(t: TestContext) {
   const racine = realpathSync(mkdtempSync(join(tmpdir(), "brigade-plugin-init-")));
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   const env = {
@@ -55,38 +55,38 @@ function essai(t: TestContext) {
   git("-C", dossier, "push", "-q", "-u", "origin", "main");
 
   // L'app ouvre le projet : son plugin y est posé, devant un `claude` doublure qui accepte tout.
-  const lancer: Lancer = async (commande, args, ici) => {
-    if (commande !== "claude-doublure") return lancerVraiment(env, 10_000)(commande, args, ici);
+  const lancer: Lancer = async (command, args, ici) => {
+    if (command !== "claude-doublure") return lancerVraiment(env, 10_000)(command, args, ici);
     return args[1] === "list" ? { code: 0, sortie: "[]", erreur: "" } : { code: 0, sortie: "✔ done", erreur: "" };
   };
   const marketplace = join(racine, "config", "plugin-app");
-  const ouvrir = () => tenirLePluginApp({ lancer, claude: "claude-doublure", marketplace, commandes: COMMANDES_DU_DEPOT, versionDeLApp: "1.2.3", dire: () => {} }).suivre([{ nom: "calculus", dossier }]);
+  const ouvrir = () => holdLePluginApp({ lancer, claude: "claude-doublure", marketplace, commandes: COMMANDS_DU_REPOSITORY, versionDeLApp: "1.2.3", dire: () => {} }).suivre([{ nom: "calculus", dossier }]);
 
   // Ce que `/brigade:init` joue : le script que la commande posée nomme, depuis le dossier du projet.
   const initialiser = (...args: string[]) => {
-    const commande = readFileSync(join(marketplace, "commands", "init.md"), "utf8");
-    const script = /pr-de-setup\.ts" "([^"]+)"/.exec(commande)?.[1];
+    const command = readFileSync(join(marketplace, "commands", "init.md"), "utf8");
+    const script = /pr-de-setup\.ts" "([^"]+)"/.exec(command)?.[1];
     assert.ok(script !== undefined && script.startsWith(marketplace), `the command names its script: ${script}`);
     return execFileSync("bash", [script, ...args], { cwd: dossier, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   };
-  const appelsDeGh = () => readFileSync(env.GH_LOG, "utf8").trim().split("\n");
-  const labelsDuDepot = (...noms: string[]) => writeFileSync(env.GH_LABELS, noms.map((n) => `${n}\n`).join(""));
-  return { git, origin, dossier, ouvrir, initialiser, appelsDeGh, labelsDuDepot };
+  const callsDeGh = () => readFileSync(env.GH_LOG, "utf8").trim().split("\n");
+  const labelsDuRepository = (...noms: string[]) => writeFileSync(env.GH_LABELS, noms.map((n) => `${n}\n`).join(""));
+  return { git, origin, dossier, ouvrir, initialiser, appelsDeGh: callsDeGh, labelsDuDepot: labelsDuRepository };
 }
 
 test("un dépôt neuf ouvert par l'app se prépare par /brigade:init : les labels posés, les bindings et les gates dans une PR, rien dans le dossier de l'utilisateur", { skip: SANS_POSIX }, async (t) => {
-  const { git, origin, dossier, ouvrir, initialiser, appelsDeGh } = essai(t);
+  const { git, origin, dossier, ouvrir, initialiser, appelsDeGh: callsDeGh } = trial(t);
   await ouvrir();
 
   const sortie = initialiser("--test", "true", "--install", "true", "--zones", "`src/`");
 
   assert.equal(sortie.trim().split("\n").at(-1), `pr ${URL_DE_LA_PR}`);
   // Tous les labels du catalogue du runtime, avec leur description anglaise.
-  const creations = appelsDeGh().filter((appel) => appel.startsWith("label create "));
-  assert.deepEqual(creations.map((appel) => /^label create (\S+) /.exec(appel)?.[1]), ETIQUETTES.map(({ name }) => name));
+  const creations = callsDeGh().filter((call) => call.startsWith("label create "));
+  assert.deepEqual(creations.map((call) => /^label create (\S+) /.exec(call)?.[1]), ETIQUETTES.map(({ name }) => name));
   for (const { name, color, description } of ETIQUETTES) assert.ok(creations.includes(`label create ${name} --color ${color} --description ${description}`), name);
-  assert.deepEqual(appelsDeGh().filter((appel) => appel.startsWith("label edit ")), []);
-  assert.match(appelsDeGh().find((a) => a.startsWith("pr create")) ?? "", /^pr create --base main --head brigade\/init /);
+  assert.deepEqual(callsDeGh().filter((call) => call.startsWith("label edit ")), []);
+  assert.match(callsDeGh().find((a) => a.startsWith("pr create")) ?? "", /^pr create --base main --head brigade\/init /);
 
   // La branche poussée porte le bloc, après ce que `CLAUDE.md` disait déjà, et les deux scripts exécutables.
   const claudeMd = git("--git-dir", origin, "show", "brigade/init:CLAUDE.md");
@@ -109,48 +109,48 @@ test("un dépôt neuf ouvert par l'app se prépare par /brigade:init : les label
   assert.equal(git("-C", dossier, "worktree", "list").trim().split("\n").length, 1);
 
   // Les gates écrites se jouent, vertes, dans un worktree de la branche.
-  const essaiDesGates = join(dossier, "..", "essai-des-gates");
+  const trialDesGates = join(dossier, "..", "essai-des-gates");
   git("-C", dossier, "fetch", "-q", "origin", "brigade/init");
-  git("-C", dossier, "worktree", "add", "-q", essaiDesGates, "origin/brigade/init");
-  execFileSync(join(essaiDesGates, ".claude", "brigade", "gates.sh"), [essaiDesGates]);
+  git("-C", dossier, "worktree", "add", "-q", trialDesGates, "origin/brigade/init");
+  execFileSync(join(trialDesGates, ".claude", "brigade", "gates.sh"), [trialDesGates]);
 });
 
 test("/brigade:init renomme l'ancien label hors-cuisine en served-elsewhere, sans rien supprimer", { skip: SANS_POSIX }, async (t) => {
-  const { ouvrir, initialiser, appelsDeGh, labelsDuDepot } = essai(t);
+  const { ouvrir, initialiser, appelsDeGh: callsDeGh, labelsDuDepot: labelsDuRepository } = trial(t);
   await ouvrir();
-  labelsDuDepot("hors-cuisine", "fire");
+  labelsDuRepository("hors-cuisine", "fire");
 
   initialiser("--test", "true");
 
-  const appels = appelsDeGh();
-  assert.ok(appels.includes("label edit hors-cuisine --name served-elsewhere"));
-  assert.equal(appels.filter((a) => a.startsWith("label delete")).length, 0);
+  const calls = callsDeGh();
+  assert.ok(calls.includes("label edit hors-cuisine --name served-elsewhere"));
+  assert.equal(calls.filter((a) => a.startsWith("label delete")).length, 0);
 });
 
 test("/brigade:init rejoué sur un dépôt qui porte déjà served-elsewhere ne le supprime ni ne le renomme", { skip: SANS_POSIX }, async (t) => {
-  const { ouvrir, initialiser, appelsDeGh, labelsDuDepot } = essai(t);
+  const { ouvrir, initialiser, appelsDeGh: callsDeGh, labelsDuDepot: labelsDuRepository } = trial(t);
   await ouvrir();
-  labelsDuDepot("served-elsewhere", "fire");
+  labelsDuRepository("served-elsewhere", "fire");
 
   initialiser("--test", "true");
 
-  const appels = appelsDeGh();
-  assert.equal(appels.filter((a) => a.startsWith("label delete") || a.includes("--name")).length, 0);
+  const calls = callsDeGh();
+  assert.equal(calls.filter((a) => a.startsWith("label delete") || a.includes("--name")).length, 0);
 });
 
 test("/brigade:init corrige la description d'un label déjà là (repli label edit)", { skip: SANS_POSIX }, async (t) => {
-  const { ouvrir, initialiser, appelsDeGh, labelsDuDepot } = essai(t);
+  const { ouvrir, initialiser, appelsDeGh: callsDeGh, labelsDuDepot: labelsDuRepository } = trial(t);
   await ouvrir();
-  labelsDuDepot("fix");
+  labelsDuRepository("fix");
 
   initialiser("--test", "true");
 
   const fix = ETIQUETTES.find(({ name }) => name === "fix");
-  assert.ok(appelsDeGh().includes(`label edit fix --description ${fix?.description}`));
+  assert.ok(callsDeGh().includes(`label edit fix --description ${fix?.description}`));
 });
 
 test("rejoué une fois la PR mergée, /brigade:init ne propose rien : la branche d'intégration porte déjà tout", { skip: SANS_POSIX }, async (t) => {
-  const { git, origin, dossier, ouvrir, initialiser, appelsDeGh } = essai(t);
+  const { git, origin, dossier, ouvrir, initialiser, appelsDeGh: callsDeGh } = trial(t);
   await ouvrir();
   initialiser("--test", "true");
   git("--git-dir", origin, "update-ref", "refs/heads/main", "brigade/init");
@@ -158,15 +158,15 @@ test("rejoué une fois la PR mergée, /brigade:init ne propose rien : la branche
   const sortie = initialiser("--test", "true");
 
   assert.equal(sortie.trim(), "unchanged");
-  assert.equal(appelsDeGh().filter((appel) => appel.startsWith("pr create")).length, 1);
+  assert.equal(callsDeGh().filter((call) => call.startsWith("pr create")).length, 1);
   assert.equal(git("-C", dossier, "worktree", "list").trim().split("\n").length, 1);
 });
 
 test("sans commande de test, /brigade:init n'écrit rien : une gate qui ne lance rien serait un faux vert", { skip: SANS_POSIX }, async (t) => {
-  const { origin, ouvrir, initialiser, git } = essai(t);
+  const { origin, ouvrir, initialiser, git } = trial(t);
   await ouvrir();
 
-  assert.throws(() => initialiser(), (erreur: { status?: number; stderr?: string }) => erreur.status === 64 && /--test is required/.test(erreur.stderr ?? ""));
+  assert.throws(() => initialiser(), (error: { status?: number; stderr?: string }) => error.status === 64 && /--test is required/.test(error.stderr ?? ""));
   assert.equal(git("--git-dir", origin, "branch", "--list", "brigade/init"), "");
 });
 

@@ -8,9 +8,9 @@
 // Ce que la file dit d'une fiabilité qui a dérivé : ses lignes `drift` (runtime/src/etat.ts) — les tokens
 // perdus au-delà de leur seuil —, sans le geste qui les
 // suit. Les autres seuils franchis (gates, ticket le plus cher) ne sont pas la fiabilité des cooks.
-export function deriveDe(status: string): string[] {
-  return [...status.matchAll(/^drift {6}(.*)$/gm)].flatMap(([, ligne = ""]) => {
-    const dite = ligne.replace(/ — `[^`]*`$/, "");
+export function driftOf(status: string): string[] {
+  return [...status.matchAll(/^drift {6}(.*)$/gm)].flatMap(([, line = ""]) => {
+    const dite = line.replace(/ — `[^`]*`$/, "");
     return dite.split(" · ").filter((jauge) => /^tokens lost over the last/.test(jauge));
   });
 }

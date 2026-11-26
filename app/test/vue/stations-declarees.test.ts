@@ -6,17 +6,17 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE, type Projet } from "../../src/config.ts";
+import { pourLaBar } from "../../src/bar.ts";
+import { EXEMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE, holdFacts, type Facts } from "../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
 import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
-import { plafondDit } from "../../src/vue/stations-declarees.js";
-import { ARRETER, OUI_ARRET } from "../../src/vue/stations-tab/stations-tab.js";
+import { capDit } from "../../src/vue/stations-declarees.js";
+import { ARRETER, OUI_STOP } from "../../src/vue/stations-tab/stations-tab.js";
 import { ANNULER } from "../../src/vue/lexique.js";
 import type { StationVoulue } from "../../src/service.ts";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
@@ -24,7 +24,7 @@ import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/faus
 const A = "2026-10-23T10:04:12.000Z";
 const PARADE = "parade";
 
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-23T10:04:11.000Z",
   dernierTick: "2026-10-23T10:04:02.000Z",
@@ -64,60 +64,60 @@ const guide = (stations: StationsLues | undefined): Guide => ({
   ...(stations === undefined ? {} : { controle: { a: A, stations } }),
 });
 
-const PROJET: Projet = { nom: PARADE, dossier: "/tmp/parade" };
+const PROJECT: Project = { nom: PARADE, dossier: "/tmp/parade" };
 
-const demarrage = (projet: Projet) => () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [projet] }, () => true),
+const demarrage = (project: Project) => () => ({
+  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [project] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
 
-async function ouvrir(stations: StationsLues | undefined, projet: Projet = PROJET): Promise<Jouee> {
+async function ouvrir(stations: StationsLues | undefined, project: Project = PROJECT): Promise<Jouee> {
   const vue = await jouerLaVue({
-    demarrage: demarrage(projet),
+    demarrage: demarrage(project),
     espace: () => [],
     service: () => guide(stations),
     lireCapture: () => ({ image: "data:image/png;base64,iVBORw0KGgo=" }),
-    changerUneStation: (_: string, nom: string, voulu: StationVoulue) => ({ fait: "retiree" in voulu ? `${nom} no longer serves ${PARADE}` : `${nom} saved` }),
+    changerUneStation: (_: string, name: string, voulu: StationVoulue) => ({ fait: "retiree" in voulu ? `${name} no longer serves ${PARADE}` : `${name} saved` }),
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
-  const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
+  const recue = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FACTS, stations: [] }) }] });
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
   await ouvrirOnglet(vue, "Stations");
   return vue;
 }
 
 // Les cartes de l'onglet : le nom de chacune, ce qu'elle est, et dans « Details » son plafond et ses capacités.
-const cartes = (vue: Jouee) => vue.element("rail").dessous("section").filter(({ className }) => className === "carte-de-station");
-const carte = (vue: Jouee, nom: string) => cartes(vue).find(({ dataset }) => dataset.station === nom) ?? assert.fail(`pas de carte ${nom}`);
+const cards = (vue: Jouee) => vue.element("rail").dessous("section").filter(({ className }) => className === "carte-de-station");
+const card = (vue: Jouee, name: string) => cards(vue).find(({ dataset }) => dataset.station === name) ?? assert.fail(`pas de carte ${name}`);
 const rangee = (pose: Faux, cle: string) => pose.dessous("div").find(({ className, dataset }) => className === "reglage" && dataset.cle === cle);
 const lu = (vue: Jouee) =>
-  cartes(vue).map((pose) => ({
+  cards(vue).map((pose) => ({
     nom: pose.dataset.station,
     est: pose.dessous("p").find(({ className }) => className === "ce-qu-elle-est")?.textContent,
     plafond: rangee(pose, "cooks")?.children[1]?.children[0]?.textContent,
     capacites: rangee(pose, "capacites")?.children[1]?.children[0]?.textContent,
   }));
-const bouton = (pose: Faux, texte: string) => pose.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
+const button = (pose: Faux, texte: string) => pose.dessous("button").find(({ textContent }) => textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 
 describe("chaque station que le projet déclare, sur l'onglet Stations", () => {
   test("une station de la box et deux d'autres postes : une carte chacune, ce qu'elle est, et dans « Details » son plafond et ses capacités", async () => {
     const vue = await ouvrir(DECLAREES);
     assert.deepEqual(lu(vue), [
-      { nom: "box/claude", est: "always-on box: cooks while your computer sleeps", plafond: plafondDit(3), capacites: "code, raisonnement" },
-      { nom: "mac/claude", est: "another computer: cooks while Brigade is open on it", plafond: plafondDit(1), capacites: "navigateur-headless, chrome-connecté" },
-      { nom: "pc/claude", est: "another computer: cooks while Brigade is open on it", plafond: plafondDit(2), capacites: "code" },
+      { nom: "box/claude", est: "always-on box: cooks while your computer sleeps", plafond: capDit(3), capacites: "code, raisonnement" },
+      { nom: "mac/claude", est: "another computer: cooks while Brigade is open on it", plafond: capDit(1), capacites: "navigateur-headless, chrome-connecté" },
+      { nom: "pc/claude", est: "another computer: cooks while Brigade is open on it", plafond: capDit(2), capacites: "code" },
     ]);
     // Aucune ne s'est encore annoncée : aucune n'est dite en ligne, et la ligne du haut le dit sans vert.
-    assert.deepEqual(cartes(vue).map(({ dataset }) => dataset.etat), ["illisible", "illisible", "illisible"]);
-    assert.match(cartes(vue)[0]?.textContent ?? "", /not signed in yet/);
+    assert.deepEqual(cards(vue).map(({ dataset }) => dataset.etat), ["illisible", "illisible", "illisible"]);
+    assert.match(cards(vue)[0]?.textContent ?? "", /not signed in yet/);
   });
 
   test("tant que l'installation n'a rien lu, aucune station déclarée n'est posée ; le contrôle suivant pose les stations, sans rouvrir l'espace", async () => {
@@ -125,7 +125,7 @@ describe("chaque station que le projet déclare, sur l'onglet Stations", () => {
     assert.deepEqual(lu(vue), []);
     vue.dire("surGuide", guide(DECLAREES));
     await repos();
-    assert.deepEqual(lu(vue).map(({ nom }) => nom), ["box/claude", "mac/claude", "pc/claude"]);
+    assert.deepEqual(lu(vue).map(({ nom: name }) => name), ["box/claude", "mac/claude", "pc/claude"]);
     // Une installation relue sans contrôle ne les efface pas.
     vue.dire("surGuide", guide(undefined));
     await repos();
@@ -134,19 +134,19 @@ describe("chaque station que le projet déclare, sur l'onglet Stations", () => {
 
   test("« Stop cooking here » est sur la carte de la station ; sa confirmation s'ouvre dessous, « Cancel » la referme, « yes » la retire", async () => {
     const vue = await ouvrir(DECLAREES);
-    bouton(carte(vue, "mac/claude"), ARRETER).click();
+    button(card(vue, "mac/claude"), ARRETER).click();
     await repos();
-    const confirmation = () => carte(vue, "mac/claude").children.find(({ className }) => className === "confirmation");
+    const confirmation = () => card(vue, "mac/claude").children.find(({ className }) => className === "confirmation");
     assert.match(confirmation()?.dessous("p")[0]?.textContent ?? "", /^Stop cooking parade on mac\/claude\?$/);
     assert.equal(confirmation()?.dessous("p").filter(({ className }) => className === "prix").length, 1);
-    assert.equal(carte(vue, "pc/claude").children.some(({ className }) => className === "confirmation"), false);
-    bouton(confirmation() ?? assert.fail("pas de confirmation"), ANNULER).click();
+    assert.equal(card(vue, "pc/claude").children.some(({ className }) => className === "confirmation"), false);
+    button(confirmation() ?? assert.fail("pas de confirmation"), ANNULER).click();
     await repos();
     assert.equal(confirmation(), undefined);
-    assert.equal(vue.appels.some(({ geste }) => geste === "changerUneStation"), false);
-    bouton(carte(vue, "mac/claude"), ARRETER).click();
+    assert.equal(vue.appels.some(({ geste: action }) => action === "changerUneStation"), false);
+    button(card(vue, "mac/claude"), ARRETER).click();
     await repos();
-    bouton(confirmation() ?? assert.fail("pas de confirmation"), OUI_ARRET).click();
+    button(confirmation() ?? assert.fail("pas de confirmation"), OUI_STOP).click();
     await repos();
     assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "mac/claude", { retiree: true }]);
   });

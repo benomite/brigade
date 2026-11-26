@@ -3,17 +3,17 @@
 // TODO. Ce que la lecture de GitHub publie (`avantLeRail`) est écrit
 // ici mot pour mot ; ce que la vue en reçoit est calculé par l'app, comme main.ts le fait du tableau lu (tableau/rail.ts,
 // amont.ts).
-import type { Faits } from "../../../app/src/faits.ts";
-import { COMMANDE, tenirAmont } from "../../../app/src/amont.ts";
-import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
-import { lectureDuTableau } from "../../../app/src/tableau/rail.ts";
+import type { Facts } from "../../../app/src/facts.ts";
+import { COMMAND, holdAmont } from "../../../app/src/amont.ts";
+import type { TableauLu } from "../../../app/src/tableau/read.ts";
+import { readDuTableau } from "../../../app/src/tableau/rail.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 const LU = "2026-10-13T10:03:58.000Z";
 // Les faits de la cuisine figée, avec l'entrée de chaque ticket dans son état et l'histogramme des 24 heures (`cadence`).
-const FAITS = PARADE.facts as Faits;
+const FAITS = PARADE.facts as Facts;
 // L'entrée de chaque ticket dans son état, à l'horloge de la box — celle que `status` dit « since ».
 const DEPUIS: Record<number, string> = {
   14: "2026-10-13T09:52:11.000Z",
@@ -37,7 +37,7 @@ const FACTS = {
   attend: [...(FAITS.attend ?? []), { ticket: 51, titre: "Garder les tickets un an ?", url: "https://github.com/chef/parade/issues/51" }],
   rail: FAITS.rail.map((ticket) => ({ ...ticket, depuis: DEPUIS[ticket.ticket] })),
   cadence: { hours, medianSeconds: { taken: 300, pass: 720 } },
-} as Faits;
+} as Facts;
 
 // Ce qui est avant le rail de « parade », tel que la lecture de GitHub le publie, dans l'ordre où le manager les lit :
 // quinze besoins ouverts, dont trois idées — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
@@ -77,7 +77,7 @@ const tableau = (avantLeRail: typeof AVANT_LE_RAIL) => ({ lu: true, depot: "chef
 // de cet écran, ou celui qu'un autre lui donne.
 export function donnees(avantLeRail: typeof AVANT_LE_RAIL = AVANT_LE_RAIL): Donnees {
   const envois = cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } });
-  const vu = tenirAmont().recevoir(lectureDuTableau(tableau(avantLeRail), "parade", 0, [COMMANDE]));
+  const vu = holdAmont().recevoir(readDuTableau(tableau(avantLeRail), "parade", 0, [COMMAND]));
   return {
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },

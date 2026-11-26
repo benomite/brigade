@@ -8,34 +8,34 @@
 // succès rejette, avec la raison que le runtime donne, ou son statut.
 // La vue appelle chaque méthode par l'objet `source`, à chaque usage : un test y pose un faux.
 
-/** @typedef {"idle" | "working" | "broken"} Etat */
+/** @typedef {"idle" | "working" | "broken"} State */
 /** @typedef {{ label: string, value: string, meaning: string }} Chiffre */
-/** @typedef {{ id: string, name: string, role: string, state: Etat, workingOn: number | null, nextRun: string, figures: Chiffre[] }} Agent */
+/** @typedef {{ id: string, name: string, role: string, state: State, workingOn: number | null, nextRun: string, figures: Chiffre[] }} Agent */
 /** @typedef {{ key: string, label: string, kind: string, value: unknown, source: string, editable: boolean, livesIn: string | null, changedAt: string | null, changedBy: string | null }} Champ */
-/** @typedef {{ at: string, summary: string, reason: string, issue: number | null }} Geste */
+/** @typedef {{ at: string, summary: string, reason: string, issue: number | null }} Action */
 
 export const SCHEMA_DES_AGENTS = "brigade-agents";
 export const BASE_DES_AGENTS = `${SCHEMA_DES_AGENTS}://box`;
 const RACINE = "/api/agents";
 
-/** @param {string} projet @param {string} chemin @param {{ method?: string, body?: string, headers?: Record<string, string> }} [options] @returns {Promise<unknown>} */
-async function demander(projet, chemin, options) {
-  const reponse = await fetch(`${BASE_DES_AGENTS}${chemin}?project=${encodeURIComponent(projet)}`, options);
-  const lu = await reponse.json().catch(() => undefined);
-  if (reponse.ok) return lu;
+/** @param {string} project @param {string} chemin @param {{ method?: string, body?: string, headers?: Record<string, string> }} [options] @returns {Promise<unknown>} */
+async function demander(project, chemin, options) {
+  const answer = await fetch(`${BASE_DES_AGENTS}${chemin}?project=${encodeURIComponent(project)}`, options);
+  const lu = await answer.json().catch(() => undefined);
+  if (answer.ok) return lu;
   const raison = /** @type {{ reason?: unknown } | undefined} */ (lu)?.reason;
-  throw new Error(typeof raison === "string" ? raison : `the runtime answered ${reponse.status}`);
+  throw new Error(typeof raison === "string" ? raison : `the runtime answered ${answer.status}`);
 }
 
 const deLAgent = (/** @type {string} */ id) => `${RACINE}/${encodeURIComponent(id)}`;
 
 export const source = {
-  /** @param {string} projet */
-  lire: (projet) => demander(projet, RACINE),
-  /** @param {string} projet @param {string} id */
-  reglages: (projet, id) => demander(projet, `${deLAgent(id)}/settings`),
-  /** @param {string} projet @param {string} id @param {string} key @param {unknown} value */
-  changer: (projet, id, key, value) => demander(projet, `${deLAgent(id)}/settings`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, value }) }),
-  /** @param {string} projet @param {string} id */
-  gestes: (projet, id) => demander(projet, `${deLAgent(id)}/gestures`),
+  /** @param {string} project */
+  lire: (project) => demander(project, RACINE),
+  /** @param {string} project @param {string} id */
+  reglages: (project, id) => demander(project, `${deLAgent(id)}/settings`),
+  /** @param {string} project @param {string} id @param {string} key @param {unknown} value */
+  changer: (project, id, key, value) => demander(project, `${deLAgent(id)}/settings`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, value }) }),
+  /** @param {string} project @param {string} id */
+  gestes: (project, id) => demander(project, `${deLAgent(id)}/gestures`),
 };

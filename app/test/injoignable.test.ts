@@ -3,39 +3,39 @@
 // dernière lecture, et les tickets `fire` se lisent sur GitHub, sans la box.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { causeDuSilence, LECTURES_POUR_INJOIGNABLE, signalDe, tenirBandes } from "../src/alertes.ts";
-import type { Lecture } from "../src/box.ts";
+import { causeDuSilence, LECTURES_POUR_INJOIGNABLE, signalDe, holdBandes } from "../src/alerts.ts";
+import type { Read } from "../src/box.ts";
 import { ticketsDe } from "../src/feu.ts";
 
-const muette = (message: string, a: string): Lecture => ({ projet: "parade", demande: 1, a, erreur: `$ brigade parade facts\n${message}\n→ exit code 1`, atteinte: false, cas: null });
+const muette = (message: string, a: string): Read => ({ projet: "parade", demande: 1, a, erreur: `$ brigade parade facts\n${message}\n→ exit code 1`, atteinte: false, cas: null });
 const SILENCE = "connect to host box port 22: Connection timed out during banner exchange";
-const MANAGER_OK: Lecture = { projet: "parade", demande: 1, a: "2026-10-15T10:00:00.000Z", sorties: [{ commande: "manager", texte: "manager    ALLUMÉ\n" }] };
+const MANAGER_OK: Read = { projet: "parade", demande: 1, a: "2026-10-15T10:00:00.000Z", sorties: [{ commande: "manager", texte: "manager    ALLUMÉ\n" }] };
 
 describe("box injoignable (#728)", () => {
   test("une seule lecture ratée ne suffit pas, deux disent une seule ligne qui couvre les états non lus", () => {
-    const bandes = tenirBandes();
+    const bandes = holdBandes();
     bandes.ouvrir(["parade"]);
     assert.equal(LECTURES_POUR_INJOIGNABLE, 2);
-    const premiere = bandes.faits(muette(SILENCE, "2026-10-15T10:00:00.000Z"));
-    assert.ok(premiere.alertes.every(({ sujet }) => sujet !== "injoignable"));
+    const first = bandes.faits(muette(SILENCE, "2026-10-15T10:00:00.000Z"));
+    assert.ok(first.alertes.every(({ sujet }) => sujet !== "injoignable"));
     // Le manager et `status` ratés dans la même minute ne comptent pas pour des lectures de plus.
     bandes.manager(muette(SILENCE, "2026-10-15T10:00:01.000Z"));
     assert.ok(bandes.status({ projet: "parade", demande: 1, a: "2026-10-15T10:00:02.000Z", erreur: "$ brigade parade status\n→ exit code 1", atteinte: false, cas: null }).alertes.every(({ sujet }) => sujet !== "injoignable"));
     const bande = bandes.faits(muette(SILENCE, "2026-10-15T10:01:30.000Z"));
     assert.equal(bande.alertes.length, 1);
-    const [ligne] = bande.alertes;
-    assert.equal(ligne?.sujet, "injoignable");
-    assert.match(ligne?.dit ?? "", /^station unreachable since \d\d:\d\d, 1 min ago — the state of the kitchen has been unknown since then$/);
-    assert.match(ligne?.pourquoi ?? "", /^no answer/);
-    assert.deepEqual(ligne?.consignes, ["check that the machine is on and reachable", "restart it if it no longer answers", "then try again"]);
-    assert.match(ligne?.geste ?? "", /try again/);
-    assert.match(ligne?.geste ?? "", /machine at its host/);
-    assert.deepEqual(ligne?.appel, { relire: true });
+    const [line] = bande.alertes;
+    assert.equal(line?.sujet, "injoignable");
+    assert.match(line?.dit ?? "", /^station unreachable since \d\d:\d\d, 1 min ago — the state of the kitchen has been unknown since then$/);
+    assert.match(line?.pourquoi ?? "", /^no answer/);
+    assert.deepEqual(line?.consignes, ["check that the machine is on and reachable", "restart it if it no longer answers", "then try again"]);
+    assert.match(line?.geste ?? "", /try again/);
+    assert.match(line?.geste ?? "", /machine at its host/);
+    assert.deepEqual(line?.appel, { relire: true });
     assert.equal(bande.signal?.etat, "injoignable");
   });
 
   test("elle disparaît dès que la box répond, et le compte repart de zéro", () => {
-    const bandes = tenirBandes();
+    const bandes = holdBandes();
     bandes.faits(muette(SILENCE, "2026-10-15T10:00:00.000Z"));
     assert.equal(bandes.faits(muette(SILENCE, "2026-10-15T10:00:30.000Z")).signal?.etat, "injoignable");
     // Une lecture du manager qui aboutit : la box répond.

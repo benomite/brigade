@@ -2,7 +2,7 @@
 // publie sa présence, et s'est aussi enregistrée sous le compte GitHub. parade-box fait la cuisine de cinq projets, mais
 // rien ne lui est choisi dans l'app ; macbook-air-de-benoit ne fait la cuisine d'aucun, mais un dépôt lui est choisi ;
 // nas n'est qu'enregistrée. Avant #1778, la section les listait deux fois, et les deux lectures se contredisaient.
-import { type Accueil, ligneDeStation } from "../../../app/src/accueil.ts";
+import { type Home, lineDeStation } from "../../../app/src/home.ts";
 import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
 import * as contrat from "../../../runtime/src/enregistrement-station/contrat.ts";
 import { stationDuGist, type StationEnregistree, type StationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
@@ -41,7 +41,7 @@ export function stationsDuChef(dit: string, etapes: Etape[] = [], depots: { depo
     hauteur: 900,
     etapes,
     donnees: () => {
-      const accueil: Accueil = { projets: [], stations: STATIONS.stations.map((station) => ligneDeStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+      const accueil: Home = { projets: [], stations: STATIONS.stations.map((station) => lineDeStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
       return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil }, stationsDuCompte: DU_COMPTE, depotsDuChef: depots }, envois: cuisine(RENDUS) };
     },
   };

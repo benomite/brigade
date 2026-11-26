@@ -5,9 +5,9 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { PRINCIPAL } from "../../src/poste/role.ts";
-import { tenantDeLaStation } from "../../src/poste/station.ts";
-import { lancerLeFond, lireEtatDuFond } from "../../src/station-fond/fond.ts";
+import { PRINCIPAL } from "../../src/workstation/role.ts";
+import { tenantDeLaStation } from "../../src/workstation/station.ts";
+import { lancerLeBackground, lireStateDuBackground } from "../../src/station-background/background.ts";
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 
 const APP = join(import.meta.dirname, "..", "..");
@@ -82,7 +82,7 @@ export const shell = souple("shell");
 export const Tray = souple("Tray");
 export default { app };
 `;
-const CROCHET = `import { register } from "node:module";
+const HOOK = `import { register } from "node:module";
 import { pathToFileURL } from "node:url";
 register("data:text/javascript," + encodeURIComponent('export async function resolve(s, c, n) { if (s === "electron") return { url: ' + JSON.stringify(pathToFileURL(process.env.FAKE_ELECTRON).href) + ', shortCircuit: true }; return n(s, c); }'));
 Object.defineProperty(process, "resourcesPath", { value: process.env.FAKE_RESOURCES });
@@ -97,7 +97,7 @@ const vivant = (pid: number) => {
   }
 };
 
-type Evenement = { evenement: string; t: number; [cle: string]: unknown };
+type Event = { evenement: string; t: number; [cle: string]: unknown };
 
 // Un Mac où l'icône de fond (`--tray-fond`, du même paquet que l'app) tourne, et — avec `station` — la station de fond, son
 // hôte réel et son cook. `ouvrirLApp` y ouvre l'app installée, point d'entrée réel sous l'Electron doublé.
@@ -111,7 +111,7 @@ async function unMac(t: TestContext, options: { station?: boolean } = {}) {
   mkdirSync(join(machine, "modules", "node-pty"), { recursive: true });
   writeFileSync(join(machine, "modules", "node-pty", "package.json"), `${JSON.stringify({ name: "node-pty", version: "0.0.0" })}\n`);
   for (const dossier of ["maison", "donnees"]) mkdirSync(join(machine, dossier));
-  writeFileSync(join(machine, "crochet.mjs"), CROCHET);
+  writeFileSync(join(machine, "crochet.mjs"), HOOK);
   writeFileSync(join(machine, "faux-electron.mjs"), FAUX_ELECTRON);
   const racine = join(machine, "station");
   const embarque = join(ressources, "runtime", PRINCIPAL);
@@ -127,8 +127,8 @@ async function unMac(t: TestContext, options: { station?: boolean } = {}) {
     if (station.cook > 0 && vivant(station.cook)) process.kill(station.cook, "SIGKILL");
   });
   if (options.station) {
-    lancerLeFond({ node: process.execPath, embarque, racine, env: { ...process.env } });
-    await jusqua(() => tenantDeLaStation(racine) !== undefined && existsSync(join(racine, "worktree", "travail.txt")) && lireEtatDuFond(racine) !== null, 5_000);
+    lancerLeBackground({ node: process.execPath, embarque, racine, env: { ...process.env } });
+    await jusqua(() => tenantDeLaStation(racine) !== undefined && existsSync(join(racine, "worktree", "travail.txt")) && lireStateDuBackground(racine) !== null, 5_000);
     station.hote = tenantDeLaStation(racine) ?? assert.fail("the station host did not start");
     station.cook = Number(readFileSync(join(racine, "cook.pid"), "utf8"));
     assert.ok(vivant(station.hote) && vivant(station.cook), "the station host and its cook run before the app opens");
@@ -138,10 +138,10 @@ async function unMac(t: TestContext, options: { station?: boolean } = {}) {
   // quittée porte encore — celui d'un process vivant, qui n'est plus l'app (le pid a été rendu à un autre).
   async function ouvrirLApp(env: Record<string, string> = {}, pidLaisse?: number) {
     if (pidLaisse !== undefined) writeFileSync(join(machine, "donnees", "app.pid"), String(pidLaisse));
-    const evenements: Evenement[] = [];
+    const events: Event[] = [];
     let sortie = "";
     let erreurs = "";
-    const app = spawn(process.execPath, ["--import", join(machine, "crochet.mjs"), join(APP, "src", "tray-fond", "entree.ts")], {
+    const app = spawn(process.execPath, ["--import", join(machine, "crochet.mjs"), join(APP, "src", "tray-background", "entree.ts")], {
       cwd: APP,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
@@ -163,18 +163,18 @@ async function unMac(t: TestContext, options: { station?: boolean } = {}) {
     app.once("close", () => (fini = true));
     app.stdout.on("data", (morceau: Buffer) => {
       sortie += morceau.toString();
-      const lignes = sortie.split("\n");
-      sortie = lignes.pop() ?? "";
-      for (const ligne of lignes) if (ligne.startsWith("@@")) evenements.push(JSON.parse(ligne.slice(2)) as Evenement);
+      const lines = sortie.split("\n");
+      sortie = lines.pop() ?? "";
+      for (const line of lines) if (line.startsWith("@@")) events.push(JSON.parse(line.slice(2)) as Event);
     });
     app.stderr.on("data", (morceau: Buffer) => (erreurs += morceau.toString()));
     const montree = () => {
-      const creee = evenements.find((e) => e.evenement === "fenetre-creee");
-      return creee !== undefined && (creee.visible === true || evenements.some((e) => e.evenement === "fenetre-montree"));
+      const creee = events.find((e) => e.evenement === "fenetre-creee");
+      return creee !== undefined && (creee.visible === true || events.some((e) => e.evenement === "fenetre-montree"));
     };
     await jusqua(() => montree() || fini, 10_000);
     return {
-      evenements,
+      evenements: events,
       montree: montree(),
       erreurs: () => erreurs,
       // L'app quittée : elle part sans rien nettoyer de plus que ce qu'elle nettoie d'elle-même.
@@ -195,7 +195,7 @@ function stationIntacte(ordi: Awaited<ReturnType<typeof unMac>>) {
   assert.equal(Number(readFileSync(join(ordi.racine, "cook.pid"), "utf8")), ordi.cook, "no cook was re-created");
   assert.ok(vivant(ordi.cook), "the cook still runs");
   assert.equal(readFileSync(join(ordi.racine, "worktree", "travail.txt"), "utf8"), "travail non commité");
-  assert.notEqual(lireEtatDuFond(ordi.racine)?.etat, "arretee");
+  assert.notEqual(lireStateDuBackground(ordi.racine)?.etat, "arretee");
 }
 
 test("getting the window back leaves the station host and its cook running, untouched", { skip: SOUS_POSIX }, async (t) => {

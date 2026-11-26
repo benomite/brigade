@@ -6,9 +6,9 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, utimesSync, writeFile
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { PRINCIPAL } from "../../src/poste/role.ts";
-import { tenantDeLaStation } from "../../src/poste/station.ts";
-import { lancerLeFond, lireEtatDuFond } from "../../src/station-fond/fond.ts";
+import { PRINCIPAL } from "../../src/workstation/role.ts";
+import { tenantDeLaStation } from "../../src/workstation/station.ts";
+import { lancerLeBackground, lireStateDuBackground } from "../../src/station-background/background.ts";
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 
 const APP = join(import.meta.dirname, "..", "..");
@@ -29,7 +29,7 @@ process.on("SIGTERM", () => { writeFileSync(join(dossier, "station-arretee"), "x
 
 // Electron, doublé : le test ne lance aucun Electron. Chaque chose que l'app fait de lui est dite sur la sortie standard.
 const FAUX_ELECTRON = "import { EventEmitter } from \"node:events\";\nimport { readFileSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nconst dit = (e) => process.stdout.write(`@@${JSON.stringify({ ...e, t: Date.now() })}\\n`);\nconst souple = (nom) => new Proxy(function () {}, { get: (_, p) => (p === \"then\" ? undefined : p === Symbol.toPrimitive ? () => nom : souple(`${nom}.${String(p)}`)), apply: () => souple(`${nom}()`), construct: () => souple(`new ${nom}`) });\nconst donnees = process.env.FAKE_USER_DATA;\nclass App extends EventEmitter {\n  isPackaged = true;\n  getPath() { return donnees; }\n  setPath(_, v) { this.dossier = v; }\n  getVersion() { return process.env.FAKE_APP_VERSION ?? \"1.0.286\"; }\n  getName() { return \"Brigade\"; }\n  requestSingleInstanceLock() {\n    // Le verrou de l'icône de fond : tenu tant que son process vit. Perdu, Electron passe la main à celui qui le tient.\n    const verrou = join(process.env.FAKE_LOCK_DIR, \"SingletonLock\");\n    let tenu = false;\n    try { process.kill(Number(readFileSync(verrou, \"utf8\")), 0); tenu = true; } catch {}\n    dit({ evenement: \"verrou\", obtenu: !tenu });\n    if (tenu) writeFileSync(join(process.env.FAKE_LOCK_DIR, \"second-instance\"), \"x\");\n    else writeFileSync(verrou, String(process.pid));\n    return !tenu;\n  }\n  whenReady() { return Promise.resolve(); }\n  quit() { dit({ evenement: \"quit\" }); setTimeout(() => process.exit(0), 10); }\n  exit(c) { dit({ evenement: \"exit\", code: c }); process.exit(c); }\n  relaunch() {}\n  setAppUserModelId() {}\n  focus() {}\n  dock = souple(\"dock\");\n  commandLine = souple(\"commandLine\");\n}\nexport const app = new App();\nconst fenetres = [];\nexport class BrowserWindow extends EventEmitter {\n  constructor(options = {}) {\n    super();\n    this.visible = options.show !== false;\n    fenetres.push(this);\n    dit({ evenement: \"fenetre-creee\", visible: this.visible });\n    this.webContents = souple(\"webContents\");\n  }\n  static getAllWindows() { return fenetres.slice(); }\n  loadFile() { dit({ evenement: \"fenetre-chargee\" }); return Promise.resolve(); }\n  loadURL() { return Promise.resolve(); }\n  show() { this.visible = true; dit({ evenement: \"fenetre-montree\" }); }\n  hide() { this.visible = false; }\n  isVisible() { return this.visible; }\n  isMinimized() { return false; }\n  isDestroyed() { return false; }\n  restore() {}\n  focus() {}\n  setMenu() {}\n  setBounds() {}\n}\nexport const dialog = souple(\"dialog\");\nexport const ipcMain = souple(\"ipcMain\");\nexport const Menu = souple(\"Menu\");\nexport const nativeImage = souple(\"nativeImage\");\nexport const Notification = souple(\"Notification\");\nexport const powerMonitor = souple(\"powerMonitor\");\nexport const protocol = souple(\"protocol\");\nexport const shell = souple(\"shell\");\nexport const Tray = souple(\"Tray\");\nexport default { app };\n";
-const CROCHET = `import { register } from "node:module";
+const HOOK = `import { register } from "node:module";
 import { pathToFileURL } from "node:url";
 register("data:text/javascript," + encodeURIComponent('export async function resolve(s, c, n) { if (s === "electron") return { url: ' + JSON.stringify(pathToFileURL(process.env.FAKE_ELECTRON).href) + ', shortCircuit: true }; return n(s, c); }'));
 Object.defineProperty(process, "resourcesPath", { value: process.env.FAKE_RESOURCES });
@@ -44,7 +44,7 @@ const vivant = (pid: number) => {
   }
 };
 
-type Evenement = { evenement: string; t: number; [cle: string]: unknown };
+type Event = { evenement: string; t: number; [cle: string]: unknown };
 
 // Un Mac où la station de fond tourne — son hôte réel, son cook, son worktree — et l'icône de fond `--tray-fond`, qui tient
 // le verrou d'instance unique. L'app installée y est ouverte par `ouvrirLApp`.
@@ -58,7 +58,7 @@ async function unMac(t: TestContext, options: { versionDeLHote?: string } = {}) 
   mkdirSync(join(machine, "modules", "node-pty"), { recursive: true });
   writeFileSync(join(machine, "modules", "node-pty", "package.json"), `${JSON.stringify({ name: "node-pty", version: "0.0.0" })}\n`);
   for (const dossier of ["maison", "donnees", "verrou"]) mkdirSync(join(machine, dossier));
-  writeFileSync(join(machine, "crochet.mjs"), CROCHET);
+  writeFileSync(join(machine, "crochet.mjs"), HOOK);
   writeFileSync(join(machine, "faux-electron.mjs"), FAUX_ELECTRON);
   const racine = join(machine, "station");
   const embarque = join(ressources, "runtime", PRINCIPAL);
@@ -67,7 +67,7 @@ async function unMac(t: TestContext, options: { versionDeLHote?: string } = {}) 
   const icone = spawn(process.execPath, ["-e", "setInterval(() => {}, 60_000)", "--", "--tray-fond"], { stdio: "ignore" });
   writeFileSync(join(machine, "verrou", "SingletonLock"), String(icone.pid));
   // La station de fond, lancée comme l'app la lance, puis laissée seule : elle survit à toute app.
-  lancerLeFond({ node: process.execPath, embarque, racine, env: { ...process.env, ...(options.versionDeLHote === undefined ? {} : { BRIGADE_APP_VERSION: options.versionDeLHote }) } });
+  lancerLeBackground({ node: process.execPath, embarque, racine, env: { ...process.env, ...(options.versionDeLHote === undefined ? {} : { BRIGADE_APP_VERSION: options.versionDeLHote }) } });
   const ouverts: ChildProcess[] = [];
   t.after(async () => {
     for (const app of ouverts) app.kill("SIGKILL");
@@ -78,17 +78,17 @@ async function unMac(t: TestContext, options: { versionDeLHote?: string } = {}) 
     const cook = Number(readFileSync(join(racine, "cook.pid"), { encoding: "utf8", flag: "a+" }));
     if (cook > 0 && vivant(cook)) process.kill(cook, "SIGKILL");
   });
-  await jusqua(() => tenantDeLaStation(racine) !== undefined && existsSync(join(racine, "worktree", "travail.txt")) && lireEtatDuFond(racine) !== null, 5_000);
+  await jusqua(() => tenantDeLaStation(racine) !== undefined && existsSync(join(racine, "worktree", "travail.txt")) && lireStateDuBackground(racine) !== null, 5_000);
   const hote = tenantDeLaStation(racine) ?? assert.fail("the station host did not start");
   const cook = Number(readFileSync(join(racine, "cook.pid"), "utf8"));
   assert.ok(vivant(icone.pid ?? 0) && vivant(hote) && vivant(cook), "the icon process, the host and its cook run before the app opens");
 
   // L'app, ouverte : son point d'entrée, sous un Electron doublé. Rend ce qu'elle a fait dans les cinq secondes qui comptent.
   async function ouvrirLApp(version = "1.0.286") {
-    const evenements: Evenement[] = [];
+    const events: Event[] = [];
     let sortie = "";
     let erreurs = "";
-    const app = spawn(process.execPath, ["--import", join(machine, "crochet.mjs"), join(APP, "src", "tray-fond", "entree.ts")], {
+    const app = spawn(process.execPath, ["--import", join(machine, "crochet.mjs"), join(APP, "src", "tray-background", "entree.ts")], {
       cwd: APP,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
@@ -111,21 +111,21 @@ async function unMac(t: TestContext, options: { versionDeLHote?: string } = {}) 
     app.once("close", () => (fini = true));
     app.stdout.on("data", (morceau: Buffer) => {
       sortie += morceau.toString();
-      const lignes = sortie.split("\n");
-      sortie = lignes.pop() ?? "";
-      for (const ligne of lignes) if (ligne.startsWith("@@")) evenements.push(JSON.parse(ligne.slice(2)) as Evenement);
+      const lines = sortie.split("\n");
+      sortie = lines.pop() ?? "";
+      for (const line of lines) if (line.startsWith("@@")) events.push(JSON.parse(line.slice(2)) as Event);
     });
     app.stderr.on("data", (morceau: Buffer) => (erreurs += morceau.toString()));
     const montree = () => {
-      const creee = evenements.find((e) => e.evenement === "fenetre-creee");
-      return creee !== undefined && (creee.visible === true || evenements.some((e) => e.evenement === "fenetre-montree"));
+      const creee = events.find((e) => e.evenement === "fenetre-creee");
+      return creee !== undefined && (creee.visible === true || events.some((e) => e.evenement === "fenetre-montree"));
     };
     // Un fait attendu : la fenêtre montrée, ou l'app partie sans elle.
     await jusqua(() => montree() || fini, 10_000);
-    const debut = evenements[0]?.t ?? 0;
-    const fenetre = evenements.find((e) => e.evenement === "fenetre-creee" || e.evenement === "fenetre-montree");
+    const debut = events[0]?.t ?? 0;
+    const fenetre = events.find((e) => e.evenement === "fenetre-creee" || e.evenement === "fenetre-montree");
     return {
-      evenements,
+      evenements: events,
       montree: montree(),
       // De la première chose que l'app fait d'Electron à sa fenêtre montrée.
       delaiMs: fenetre === undefined ? Infinity : fenetre.t - debut,
@@ -149,7 +149,7 @@ function stationIntacte(ordi: Awaited<ReturnType<typeof unMac>>) {
   assert.equal(Number(readFileSync(join(ordi.racine, "cook.pid"), "utf8")), ordi.cook, "no cook was re-created");
   assert.ok(vivant(ordi.cook), "the cook still runs");
   assert.equal(readFileSync(join(ordi.racine, "worktree", "travail.txt"), "utf8"), "travail non commité");
-  assert.notEqual(lireEtatDuFond(ordi.racine)?.etat, "arretee");
+  assert.notEqual(lireStateDuBackground(ordi.racine)?.etat, "arretee");
 }
 
 test("quand l'icône de fond tient le verrou d'instance unique, l'app ouverte montre quand même sa fenêtre principale", { skip: SOUS_POSIX }, async (t) => {

@@ -8,44 +8,44 @@ import type { Lu, Rendu } from "../../src/box.ts";
 import { repondreAuxAgents, SCHEMA_DES_AGENTS, SCHEMA_PRIVILEGIE } from "../../src/agents-de-la-box.ts";
 import { BASE_DES_AGENTS, source } from "../../src/vue/agents/source.js";
 
-type Demande = Parameters<typeof repondreAuxAgents>[0];
+type Request = Parameters<typeof repondreAuxAgents>[0];
 const LU: Lu = { nom: "parade", cuisine: { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } } };
 const AGENTS = [{ id: "closer", name: "closer", role: "Removes dead code.", state: "idle", workingOn: null, nextRun: "in 3 h", figures: [], settings: null }];
-const rendu = (sortie: string, erreur: Partial<ExecFileException> | null = null, erreurs = ""): Rendu => ({ lance: "$ node geste.ts parade …", erreur: erreur as ExecFileException | null, sortie, erreurs });
-const url = (chemin: string, projet = "parade") => `${BASE_DES_AGENTS}${chemin}?project=${encodeURIComponent(projet)}`;
+const rendu = (sortie: string, error: Partial<ExecFileException> | null = null, erreurs = ""): Rendu => ({ lance: "$ node geste.ts parade …", erreur: error as ExecFileException | null, sortie, erreurs });
+const url = (chemin: string, project = "parade") => `${BASE_DES_AGENTS}${chemin}?project=${encodeURIComponent(project)}`;
 
 // Le relais joué contre une station qui rend `reponse` : ce qu'il répond, et chaque commande lancée, avec son projet.
 type Corps = { corps?: unknown };
 // Le projet que l'app connaît, et où sa cuisine tourne : parade, sur cet ordinateur.
-const ICI = (projet: string) => ({ vise: projet === "parade" ? {} : undefined, lu: projet === "parade" ? LU : undefined });
-async function relayer({ corps, ...demande }: Partial<Omit<Demande, "corps">> & Corps & { url: string }, reponse: Rendu = rendu("{}"), cuisine: (projet: string) => { vise: unknown; lu: Lu | undefined } = ICI) {
+const ICI = (project: string) => ({ vise: project === "parade" ? {} : undefined, lu: project === "parade" ? LU : undefined });
+async function relayer({ corps, ...request }: Partial<Omit<Request, "corps">> & Corps & { url: string }, answer: Rendu = rendu("{}"), kitchen: (project: string) => { vise: unknown; lu: Lu | undefined } = ICI) {
   const lancees: string[] = [];
   const texte = corps === undefined ? "" : typeof corps === "string" ? corps : JSON.stringify(corps);
-  const rendue = await repondreAuxAgents({ methode: "GET", corps: texte, ...demande }, cuisine, async (lu, commande) => (lancees.push(`${lu.nom}: ${commande}`), reponse));
+  const rendue = await repondreAuxAgents({ methode: "GET", corps: texte, ...request }, kitchen, async (lu, command) => (lancees.push(`${lu.nom}: ${command}`), answer));
   return { ...rendue, lancees };
 }
 
 describe("each path of the contract is a runtime command, launched where the project's kitchen runs", () => {
   test("GET /api/agents runs `agents` and answers its JSON", async () => {
-    const { statut, corps, lancees } = await relayer({ url: url("/api/agents") }, rendu(`${JSON.stringify(AGENTS)}\n`));
-    assert.deepEqual([statut, corps, lancees], [200, AGENTS, ["parade: agents"]]);
+    const { statut: status, corps, lancees } = await relayer({ url: url("/api/agents") }, rendu(`${JSON.stringify(AGENTS)}\n`));
+    assert.deepEqual([status, corps, lancees], [200, AGENTS, ["parade: agents"]]);
   });
 
   test("GET /api/agents/:id/gestures runs `agents` on that path", async () => {
-    const gestes = [{ at: "2026-11-25T08:00:00Z", summary: "removed 3 lines", reason: "unused", issue: 12 }];
-    const { statut, corps, lancees } = await relayer({ url: url("/api/agents/closer/gestures") }, rendu(JSON.stringify(gestes)));
-    assert.deepEqual([statut, corps, lancees], [200, gestes, ["parade: agents '/api/agents/closer/gestures'"]]);
+    const actions = [{ at: "2026-11-25T08:00:00Z", summary: "removed 3 lines", reason: "unused", issue: 12 }];
+    const { statut: status, corps, lancees } = await relayer({ url: url("/api/agents/closer/gestures") }, rendu(JSON.stringify(actions)));
+    assert.deepEqual([status, corps, lancees], [200, actions, ["parade: agents '/api/agents/closer/gestures'"]]);
   });
 
   test("GET /api/agents/:id/settings runs `agent-settings <id>`", async () => {
-    const { statut, corps, lancees } = await relayer({ url: url("/api/agents/closer/settings") }, rendu('{"fields":[]}'));
-    assert.deepEqual([statut, corps, lancees], [200, { fields: [] }, ["parade: agent-settings closer"]]);
+    const { statut: status, corps, lancees } = await relayer({ url: url("/api/agents/closer/settings") }, rendu('{"fields":[]}'));
+    assert.deepEqual([status, corps, lancees], [200, { fields: [] }, ["parade: agent-settings closer"]]);
   });
 
   test("PUT /api/agents/:id/settings runs `agent-settings <id> set <key> <value> --by chef` and answers the updated field", async () => {
     const champ = { key: "model", value: "sonnet", changedAt: "2026-11-25T09:00:00Z", changedBy: "chef" };
-    const { statut, corps, lancees } = await relayer({ methode: "PUT", url: url("/api/agents/closer/settings"), corps: { key: "model", value: "sonnet" } }, rendu(JSON.stringify(champ)));
-    assert.deepEqual([statut, corps, lancees], [200, champ, ["parade: agent-settings closer set model sonnet --by chef"]]);
+    const { statut: status, corps, lancees } = await relayer({ methode: "PUT", url: url("/api/agents/closer/settings"), corps: { key: "model", value: "sonnet" } }, rendu(JSON.stringify(champ)));
+    assert.deepEqual([status, corps, lancees], [200, champ, ["parade: agent-settings closer set model sonnet --by chef"]]);
     const texte = await relayer({ methode: "PUT", url: url("/api/agents/closer/settings"), corps: { key: "note", value: "it's late" } });
     assert.deepEqual(texte.lancees, ["parade: agent-settings closer set note 'it'\\''s late' --by chef"]);
     const vrai = await relayer({ methode: "PUT", url: url("/api/agents/closer/settings"), corps: { key: "paused", value: true } });
@@ -54,7 +54,7 @@ describe("each path of the contract is a runtime command, launched where the pro
 
   test("the project named in the address is the one whose box answers", async () => {
     const autre: Lu = { ...LU, nom: "atelier" };
-    const { lancees } = await relayer({ url: url("/api/agents", "atelier") }, rendu("[]"), (projet) => ({ vise: {}, lu: projet === "atelier" ? autre : LU }));
+    const { lancees } = await relayer({ url: url("/api/agents", "atelier") }, rendu("[]"), (project) => ({ vise: {}, lu: project === "atelier" ? autre : LU }));
     assert.deepEqual(lancees, ["atelier: agents"]);
   });
 });
@@ -65,22 +65,22 @@ test("the scheme is declared so that the page's fetch can ask it", () => {
 
 describe("a refusal keeps its reason, and nothing unreadable becomes an answer", () => {
   test("a refused change answers 400 with the runtime's reason", async () => {
-    const { statut, corps } = await relayer({ methode: "PUT", url: url("/api/agents/closer/settings"), corps: { key: "effort", value: "huge" } }, rendu('{"reason":"effort must be one of low, medium, high"}\n', { code: 1 }));
-    assert.deepEqual([statut, corps], [400, { reason: "effort must be one of low, medium, high" }]);
+    const { statut: status, corps } = await relayer({ methode: "PUT", url: url("/api/agents/closer/settings"), corps: { key: "effort", value: "huge" } }, rendu('{"reason":"effort must be one of low, medium, high"}\n', { code: 1 }));
+    assert.deepEqual([status, corps], [400, { reason: "effort must be one of low, medium, high" }]);
   });
 
   test("`agents` that refuses a path keeps its status and reason", async () => {
-    const { statut, corps } = await relayer({ url: url("/api/agents/ghost/gestures") }, rendu("", { code: 1 }, "brigade: 404: no agent is called ghost\n"));
-    assert.deepEqual([statut, corps], [404, { reason: "no agent is called ghost" }]);
+    const { statut: status, corps } = await relayer({ url: url("/api/agents/ghost/gestures") }, rendu("", { code: 1 }, "brigade: 404: no agent is called ghost\n"));
+    assert.deepEqual([status, corps], [404, { reason: "no agent is called ghost" }]);
   });
 
   test("an answer that is not JSON, or a failure with no reason, is 502 and says so", async () => {
     const illisible = await relayer({ url: url("/api/agents") }, rendu("not json"));
     assert.equal(illisible.statut, 502);
     assert.match(String((illisible.corps as { reason: string }).reason), /could not be read: not json/);
-    const echec = await relayer({ url: url("/api/agents") }, rendu("", { code: 3 }, "boom"));
-    assert.equal(echec.statut, 502);
-    assert.match(String((echec.corps as { reason: string }).reason), /`agents` failed on this computer's station: .*boom/s);
+    const failure = await relayer({ url: url("/api/agents") }, rendu("", { code: 3 }, "boom"));
+    assert.equal(failure.statut, 502);
+    assert.match(String((failure.corps as { reason: string }).reason), /`agents` failed on this computer's station: .*boom/s);
     const ancien = await relayer({ url: url("/api/agents") }, rendu("", { code: 66 }, "brigade: agents is not a runtime command"));
     assert.deepEqual([ancien.statut, ancien.corps], [502, { reason: "this station's runtime does not serve the agents yet — update it" }]);
   });
@@ -108,9 +108,9 @@ describe("a refusal keeps its reason, and nothing unreadable becomes an answer",
       [{ methode: "PUT", url: url("/api/agents/closer/settings"), corps: { key: "model", value: { a: 1 } } }, 400],
       [{ methode: "PUT", url: url("/api/agents/closer/settings") }, 400],
     ];
-    for (const [demande, attendu] of cas) {
-      const { statut, lancees } = await relayer(demande);
-      assert.deepEqual([statut, lancees], [attendu, []], `${demande.methode ?? "GET"} ${demande.url}`);
+    for (const [request, attendu] of cas) {
+      const { statut: status, lancees } = await relayer(request);
+      assert.deepEqual([status, lancees], [attendu, []], `${request.methode ?? "GET"} ${request.url}`);
     }
   });
 });
@@ -120,18 +120,18 @@ describe("the view's source reaches the box through this relay", () => {
   afterEach(() => void (globalThis.fetch = fetchDOrigine));
 
   // Le `fetch` de la page tel que main.ts le sert sur `brigade-agents:` : la demande au relais, sa réponse en Response.
-  function brancher(reponse: (commande: string) => Rendu): string[] {
+  function brancher(answer: (command: string) => Rendu): string[] {
     const lancees: string[] = [];
     globalThis.fetch = (async (entree: string, options: { method?: string; body?: string } = {}) => {
       assert.ok(entree.startsWith(`${SCHEMA_DES_AGENTS}:`), entree);
-      const { statut, corps } = await repondreAuxAgents({ methode: options.method ?? "GET", url: entree, corps: options.body ?? "" }, ICI, async (lu, commande) => (lancees.push(`${lu.nom}: ${commande}`), reponse(commande)));
-      return new Response(JSON.stringify(corps), { status: statut });
+      const { statut: status, corps } = await repondreAuxAgents({ methode: options.method ?? "GET", url: entree, corps: options.body ?? "" }, ICI, async (lu, command) => (lancees.push(`${lu.nom}: ${command}`), answer(command)));
+      return new Response(JSON.stringify(corps), { status: status });
     }) as typeof fetch;
     return lancees;
   }
 
   test("reading, changing and the gestures of the project shown", async () => {
-    const lancees = brancher((commande) => rendu(commande === "agents" ? JSON.stringify(AGENTS) : commande.includes(" set ") ? '{"key":"paused","value":true,"changedBy":"chef"}' : "[]"));
+    const lancees = brancher((command) => rendu(command === "agents" ? JSON.stringify(AGENTS) : command.includes(" set ") ? '{"key":"paused","value":true,"changedBy":"chef"}' : "[]"));
     assert.deepEqual(await source.lire("parade"), AGENTS);
     assert.deepEqual(await source.changer("parade", "closer", "paused", true), { key: "paused", value: true, changedBy: "chef" });
     assert.deepEqual(await source.gestes("parade", "closer"), []);

@@ -17,14 +17,14 @@ test("the pull request template has empty Before and After mermaid blocks and a 
   assert.ok(avant !== undefined, "no 'Before' heading before the 'After' one");
   assert.ok(apres !== undefined, "no 'After' heading");
 
-  for (const [nom, section] of [["Before", avant], ["After", apres]] as const) {
+  for (const [name, section] of [["Before", avant], ["After", apres]] as const) {
     const blocs = [...section.matchAll(/^```mermaid[ \t]*\n([\s\S]*?)^```[ \t]*$/gm)];
-    assert.equal(blocs.length, 1, `'${nom}' must hold exactly one mermaid block`);
-    assert.equal((blocs[0]?.[1] ?? "").trim(), "", `the mermaid block under '${nom}' must be empty`);
-    const commentaire = [...section.matchAll(/<!--([\s\S]*?)-->/g)].map((m) => m[1] ?? "");
+    assert.equal(blocs.length, 1, `'${name}' must hold exactly one mermaid block`);
+    assert.equal((blocs[0]?.[1] ?? "").trim(), "", `the mermaid block under '${name}' must be empty`);
+    const comment = [...section.matchAll(/<!--([\s\S]*?)-->/g)].map((m) => m[1] ?? "");
     assert.ok(
-      commentaire.some((c) => /delete/i.test(c) && /both/i.test(c) && /diagram/i.test(c)),
-      `'${nom}' needs a comment saying to delete both blocks when the ticket has no diagram`,
+      comment.some((c) => /delete/i.test(c) && /both/i.test(c) && /diagram/i.test(c)),
+      `'${name}' needs a comment saying to delete both blocks when the ticket has no diagram`,
     );
   }
 });

@@ -16,7 +16,7 @@ import { leverBlocageDans, poserBlocageDans } from "../../src/installation/bloca
 import { ouvrirJournal } from "../../src/journal.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { retenirLaFiche } from "../../src/delais/lecture.ts";
-import { lireSuivi } from "../../../app/src/projets/demande.ts";
+import { lireSuivi } from "../../../app/src/projects/request.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
 import type { Onboarding } from "../../src/onboarding/etat.ts";
 import { ENQUETE_MUETTE, PAGE_DES_JETONS_FINS, type Enquete } from "../../src/projets/echec-du-clone.ts";

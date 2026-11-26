@@ -2,7 +2,7 @@
 // l'allume, le geste de l'interrupteur (`switch on`) ; allumé, ni la ligne ni le bouton. L'onglet Stations ne dit jamais
 // « cooks this project » d'un projet éteint : sa ligne du haut dit qu'il est éteint ; allumé, elle dit qui le cuit, comme
 // avant. Les deux suivent la bande dès qu'elle dit le projet allumé, sans rien recharger. L'état vient de la bande
-// (alertes.ts), lue dans ce que `manager` écrit : la commande du runtime, jouée ici sur un vrai journal.
+// (alerts.ts), lue dans ce que `manager` écrit : la commande du runtime, jouée ici sur un vrai journal.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,53 +11,53 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
 import { principal as manager } from "../../../runtime/src/manager-cli.ts";
-import type { Accueil } from "../../src/accueil.ts";
-import { MANAGER_ETEINT, tenirBandes, type Bande } from "../../src/alertes.ts";
-import { ALLUMAGE, dire } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import type { Lecture } from "../../src/box.ts";
-import { EXEMPLE, type Projet } from "../../src/config.ts";
+import type { Home } from "../../src/home.ts";
+import { MANAGER_ETEINT, holdBandes, type Bande } from "../../src/alerts.ts";
+import { ALLUMAGE, tell } from "../../src/allumage.ts";
+import { pourLaBar } from "../../src/bar.ts";
+import type { Read } from "../../src/box.ts";
+import { EXEMPLE, type Project } from "../../src/config.ts";
 import { confirmationDe } from "../../src/confirmation.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE, holdFacts, type Facts } from "../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import type { Panne } from "../../src/pannes/pannes.ts";
-import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
+import type { Outage } from "../../src/outages/outages.ts";
+import { calibrationRecommande, EFFORTS, machineProposee, MODELES, type ProjectVu, type VuDesProjects } from "../../src/projects/projects.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
-import { ETEINT, hautDe, phraseDuHaut, type Servante } from "../../src/vue/stations-tab/etat.js";
+import { ETEINT, hautDe, phraseDuHaut, type Servante } from "../../src/vue/stations-tab/state.js";
 import { AJOUTER } from "../../src/vue/stations-tab/stations-tab.js";
-import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, type Answers, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-13T10:00:01.000Z";
-const CUISINE = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
-const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande, texte }] });
+const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
+const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
+const read = (command: string, texte: string): Read => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande: command, texte }] });
 
 // `manager`, jouée sur un journal où le chef a allumé, ou éteint, le projet à 9 h 25 : sa sortie, telle quelle.
 function sortieDeManager(t: TestContext, allume: boolean): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-manager-eteint-"));
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date("2026-10-13T09:25:00.000Z") });
+  const log = ouvrirJournal(repertoire, { maintenant: () => new Date("2026-10-13T09:25:00.000Z") });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
   const fait: Fait = { type: allume ? "project.switched-on" : "project.switched-off", payload: {} };
-  journal.ajouter({ project: "parade", ticket: null, author: "chef", ...fait });
-  const lignes: string[] = [];
-  void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
-  return `${lignes.join("\n")}\n`;
+  log.ajouter({ project: "parade", ticket: null, author: "chef", ...fait });
+  const lines: string[] = [];
+  void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
+  return `${lines.join("\n")}\n`;
 }
 
 // La bande que le process principal dirait, `manager` lu — ou pas encore.
 function bandeLue(sortie?: string): Bande {
-  const bandes = tenirBandes({ etablir: 1, minimum: 0 });
+  const bandes = holdBandes({ etablir: 1, minimum: 0 });
   const [ouverte] = bandes.ouvrir(["parade"]);
-  return sortie === undefined ? (ouverte ?? assert.fail("pas de bande")) : bandes.manager(lecture("manager", sortie));
+  return sortie === undefined ? (ouverte ?? assert.fail("pas de bande")) : bandes.manager(read("manager", sortie));
 }
 
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "ouverte",
   lu: A,
   dernierTick: A,
@@ -69,34 +69,34 @@ const FAITS: Faits = {
 };
 
 // La box sert parade, en ligne ; ce Mac ne le sert pas.
-const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", pannes: [] as Panne[], dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
-const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", pannes: [] as Panne[], dit: "online", version: "2.4.0", projets: [], max: "connectee" };
-const ACCUEIL: Accueil = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
-const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "gbox", nom: "parade-box" }, stations: [{ id: "gbox", nom: "parade-box", etat: "servi", dit: "", autoriser: [] }], servi: null, cuitSur: { id: "gbox", nom: "parade-box", ici: false }, demenagement: null };
-const VU: VuDesProjets = { a: A, projets: [SUR_LA_BOX], locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
+const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
+const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "2.4.0", projets: [], max: "connectee" };
+const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+const SUR_LA_BOX: ProjectVu = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "gbox", nom: "parade-box" }, stations: [{ id: "gbox", nom: "parade-box", etat: "servi", dit: "", autoriser: [] }], servi: null, cuitSur: { id: "gbox", nom: "parade-box", ici: false }, demenagement: null };
+const VU: VuDesProjects = { a: A, projets: [SUR_LA_BOX], locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrationRecommande([]) };
 
-async function ouvrir(reponses: Reponses = {}, stations: StationVue[] = [BOX, MAC]): Promise<Jouee> {
+async function ouvrir(answers: Answers = {}, stations: StationVue[] = [BOX, MAC]): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
+      configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
       stations: { a: A, stations } satisfies VuDesStations,
-      accueil: ACCUEIL,
+      accueil: HOME,
       projetsDesStations: VU,
     }),
     espace: () => [],
-    ...reponses,
+    ...answers,
   });
   vue.element("projets").children[1]?.click();
   await repos();
-  const recue = tenirFaits().recevoir(lecture("facts", JSON.stringify(FAITS)));
+  const recue = holdFacts().recevoir(read("facts", JSON.stringify(FACTS)));
   vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
   await repos();
   return vue;
@@ -106,7 +106,7 @@ const ALLUMER = "switch the project on…";
 const teteDuRail = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("p").find(({ className }) => className === "arret-manager");
 const allumer = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("button").find(({ textContent }) => textContent === ALLUMER);
 const bascule = (vue: Jouee): Faux => vue.element("interrupteur-projet").dessous("button").find(({ className }) => className === "bascule") ?? assert.fail("pas d'interrupteur");
-const gestesPartis = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args);
+const actionsPartis = (vue: Jouee) => vue.appels.filter(({ geste: action }) => action === "geste").map(({ args }) => args);
 const onglet = (vue: Jouee) => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "stations-tab") ?? assert.fail("pas d'onglet des stations");
 const haut = (vue: Jouee) => onglet(vue).children.find(({ className }) => className === "haut-des-stations") ?? assert.fail("pas de ligne du haut");
 const phrase = (vue: Jouee) => haut(vue).dessous("p").find(({ className }) => className === "phrase")?.dessous("strong")[0]?.textContent ?? "";
@@ -118,8 +118,8 @@ describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'al
     await repos();
     const tete = teteDuRail(vue) ?? assert.fail("la vue du projet ne dit pas le projet éteint");
     assert.equal(tete.dessous("strong")[0]?.textContent, MANAGER_ETEINT);
-    const bouton = allumer(vue) ?? assert.fail("pas de bouton qui allume le projet");
-    assert.ok(tete.dessous("button").includes(bouton), "le bouton n'est pas sur la ligne qui dit le projet éteint");
+    const button = allumer(vue) ?? assert.fail("pas de bouton qui allume le projet");
+    assert.ok(tete.dessous("button").includes(button), "le bouton n'est pas sur la ligne qui dit le projet éteint");
     assert.equal(vue.element("rail").dessous("p").filter(({ className }) => className === "arret-manager").length, 1);
     // La ligne `manager` de la box, mot pour mot, au survol de la ligne.
     assert.match(tete.title, /^OFF since 2026-10-13T09:25:00\.000Z \(by chef\)/);
@@ -142,8 +142,8 @@ describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'al
   test("le bouton l'allume : sa confirmation s'ouvre sous la ligne, « yes » fait partir `switch on`, et la vue passe à allumé sans rien recharger", async (t) => {
     const backlog = { ouvertes: 3, retenues: 0 };
     const vue = await ouvrir({
-      confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE),
-      compter: () => ({ projet: "parade", a: A, ...backlog, dit: dire(backlog) }),
+      confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, KITCHEN),
+      compter: () => ({ projet: "parade", a: A, ...backlog, dit: tell(backlog) }),
       geste: () => undefined,
     });
     vue.dire("surAlertes", bandeLue(sortieDeManager(t, false)));
@@ -153,12 +153,12 @@ describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'al
     await repos();
     // Le geste de l'interrupteur, le même : rien ne part avant le « oui ».
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "projet-allumer"]);
-    assert.deepEqual(gestesPartis(vue), []);
+    assert.deepEqual(actionsPartis(vue), []);
     const ouverte = vue.element("rail").dessous("section").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation sous la ligne");
     assert.match(ouverte.textContent, /it will judge the 3 open issues/);
     (ouverte.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
     await repos();
-    assert.deepEqual(gestesPartis(vue), [["parade", "projet-allumer", true]]);
+    assert.deepEqual(actionsPartis(vue), [["parade", "projet-allumer", true]]);
 
     // La bande relue dit le projet allumé : la ligne et le bouton partent, l'interrupteur dit « project on ».
     vue.dire("surAlertes", bandeLue(sortieDeManager(t, true)));
@@ -212,7 +212,7 @@ describe("l'onglet Stations, le projet éteint : jamais « cooks this project »
   });
 
   test("la ligne du haut : éteint l'emporte sur cuit, hors ligne et personne ; un déménagement en route l'emporte sur éteint", () => {
-    const servante = (etat: Servante["etat"]): Servante => ({ id: "gbox", nom: "parade-box", ici: false, sorte: "box", etat, dit: etat === "en-ligne" ? "online" : "offline for 3 h", cooks: [], agents: [] });
+    const servante = (state: Servante["etat"]): Servante => ({ id: "gbox", nom: "parade-box", ici: false, sorte: "box", etat: state, dit: state === "en-ligne" ? "online" : "offline for 3 h", cooks: [], agents: [] });
     const eteint = { dit: MANAGER_ETEINT, releve: "OFF since …" };
     for (const servantes of [[servante("en-ligne")], [servante("hors-ligne")], []]) {
       const sans = hautDe({ servantes, deplacement: null, maintenant: 0 });

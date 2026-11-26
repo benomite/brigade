@@ -1,0 +1,231 @@
+// Les plafonds de durée d'un projet, réglés depuis Kitchen > Health (#2490) : l'app lit `drift.*` de
+// `.claude/brigade/projet.json` sur la branche d'intégration de son dépôt, sur GitHub, et en propose un changement par une
+// pull request (#2920). Le fichier proposé est de ceux que le runtime lit — c'est sa valeur qu'il applique, une fois mergé.
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { reglagesDuTexte, SEUILS_DU_PROJET, seuilsDuProjet } from "../../runtime/src/reglages-projet/reglages.ts";
+import { changerLeCap, FICHIER, lireLesCaps, CAPS, valeurProposee } from "../src/caps-duree.ts";
+import { PROPOSE } from "../src/settings-du-project.ts";
+import type { ClientDeLaPriority } from "../src/priority.ts";
+import type { AnswerGitHub } from "../src/tableau/client.ts";
+
+const REPOSITORY = "chef/parade";
+const CONTENU = `/repos/${REPOSITORY}/contents/${FICHIER}`;
+const PROJECT = { version: 1, integrationBranch: "main", defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, drift: { ticketTokens: 900 } };
+
+// Un GitHub en mémoire, ses branches : `main` porte le fichier (ou rien), une branche créée part de la tête d'une autre et
+// en copie les fichiers, le `sha` d'un fichier change à chaque écriture ; les PR ouvertes sont gardées. Chaque demande est
+// notée — et, pour une étape nommée, la réponse qu'il rend à la place.
+type Step = "lecture" | "depot" | "tete" | "branche" | "fichier" | "pr" | "retrait";
+function github(fichier: unknown | null, refusal: Partial<Record<Step, AnswerGitHub>> = {}) {
+  const branches = new Map<string, { texte: string | null; sha: number }>([["main", { texte: fichier === null ? null : `${JSON.stringify(fichier, null, 2)}\n`, sha: 1 }]]);
+  const demandes: string[] = [];
+  const ecrits: Record<string, unknown>[] = [];
+  const crees: Record<string, unknown>[] = [];
+  const prs: Record<string, unknown>[] = [];
+  const retirees: string[] = [];
+  const client: ClientDeLaPriority = {
+    lire: async (chemin) => {
+      demandes.push(`GET ${chemin}`);
+      if (chemin.startsWith(CONTENU)) {
+        if (refusal.lecture !== undefined) return refusal.lecture;
+        const ref = new URL(chemin, "https://api.github.com").searchParams.get("ref") ?? "main";
+        const sur = branches.get(ref);
+        if (sur === undefined || sur.texte === null) return { status: 404, data: { message: "Not Found" } };
+        return { status: 200, data: { content: Buffer.from(sur.texte).toString("base64"), sha: `sha${sur.sha}` } };
+      }
+      if (chemin === `/repos/${REPOSITORY}`) return refusal.depot ?? { status: 200, data: { default_branch: "main" } };
+      const tete = /\/git\/ref\/heads\/(.+)$/.exec(chemin)?.[1];
+      if (tete !== undefined) return refusal.tete ?? (branches.has(tete) ? { status: 200, data: { object: { sha: `tete-${tete}` } } } : { status: 404, data: { message: "Not Found" } });
+      return { status: 404, data: { message: "Not Found" } };
+    },
+    ecrire: async (methode, chemin, corps) => {
+      demandes.push(`${methode} ${chemin}`);
+      const recu = corps as Record<string, unknown>;
+      const retiree = methode === "DELETE" ? /\/git\/refs\/heads\/(.+)$/.exec(chemin)?.[1] : undefined;
+      if (retiree !== undefined) {
+        if (refusal.retrait !== undefined) return refusal.retrait;
+        if (!branches.delete(retiree)) return { status: 422, data: { message: "Reference does not exist" } };
+        retirees.push(retiree);
+        return { status: 204, data: null };
+      }
+      if (chemin === `/repos/${REPOSITORY}/git/refs`) {
+        if (refusal.branche !== undefined) return refusal.branche;
+        crees.push(recu);
+        const depart = [...branches.entries()].find(([name]) => recu.sha === `tete-${name}`)?.[1] ?? assert.fail(`une branche créée d'aucune tête : ${String(recu.sha)}`);
+        branches.set(String(recu.ref).replace("refs/heads/", ""), { ...depart });
+        return { status: 201, data: {} };
+      }
+      if (chemin === CONTENU) {
+        if (refusal.fichier !== undefined) return refusal.fichier;
+        ecrits.push(recu);
+        const sur = branches.get(String(recu.branch ?? "main")) ?? assert.fail("une écriture sur une branche inconnue");
+        if (sur.texte !== null && recu.sha !== `sha${sur.sha}`) return { status: 409, data: { message: "sha does not match" } };
+        const cree = sur.texte === null;
+        sur.texte = Buffer.from(recu.content as string, "base64").toString("utf8");
+        sur.sha++;
+        return { status: cree ? 201 : 200, data: { content: { sha: `sha${sur.sha}` } } };
+      }
+      if (chemin === `/repos/${REPOSITORY}/pulls`) {
+        if (refusal.pr !== undefined) return refusal.pr;
+        prs.push(recu);
+        return { status: 201, data: { number: 40 + prs.length, html_url: `https://github.com/${REPOSITORY}/pull/${40 + prs.length}` } };
+      }
+      return { status: 404, data: { message: "Not Found" } };
+    },
+  };
+  // `texte(branche)` : le fichier sur une branche — `main` par défaut, la branche de la dernière PR avec `"pr"`.
+  const texte = (branch = "main") => branches.get(branch === "pr" ? String(prs.at(-1)?.head) : branch)?.texte ?? null;
+  return { client, demandes, ecrits, crees, prs, retirees, branches, texte };
+}
+
+const valeur = (read: Awaited<ReturnType<typeof lireLesCaps>>, cle: string) => ("plafonds" in read ? read.plafonds.find((cap) => cap.cle === cle)?.valeur : assert.fail(`non lus : ${JSON.stringify(read)}`));
+
+describe("les plafonds de durée, dans le dépôt du projet", () => {
+  test("l'app connaît exactement les seuils `drift.*` du runtime, entiers là où il n'en lit que d'entiers", () => {
+    const runtime = SEUILS_DU_PROJET.drift as Record<string, { entier: boolean }>;
+    assert.deepEqual(CAPS.map(({ cle }) => cle).sort(), Object.keys(runtime).sort());
+    for (const { cle, entier } of CAPS) assert.equal(entier, runtime[cle]?.entier, cle);
+  });
+
+  test("lus sur la branche d'intégration : ce que le dépôt déclare, null pour le reste ; les durées en tête", async () => {
+    const { client, demandes } = github(PROJECT);
+    const lue = await lireLesCaps({ depot: REPOSITORY, branche: "main", client });
+    assert.deepEqual(demandes, [`GET ${CONTENU}?ref=main`]);
+    assert.equal(valeur(lue, "ticketTokens"), 900);
+    assert.equal(valeur(lue, "gatesSeconds"), null);
+    assert.deepEqual(
+      ("plafonds" in lue ? lue.plafonds : []).filter(({ duree }) => duree).map(({ cle, defaut }) => [cle, defaut]),
+      [
+        ["gatesSeconds", 100],
+      ],
+    );
+  });
+
+  test("un dépôt sans le fichier n'en déclare aucun ; un GitHub qui refuse se dit en une ligne, le détail à part", async () => {
+    assert.equal(valeur(await lireLesCaps({ depot: REPOSITORY, branche: "main", client: github(null).client }), "gatesSeconds"), null);
+    const refusee = await lireLesCaps({ depot: REPOSITORY, branche: "main", client: github(PROJECT, { lecture: { status: 401, data: { message: "Bad credentials" } } }).client });
+    assert.deepEqual(refusee, { sans: "duration caps unavailable", detail: "GitHub refused the app's GitHub sign-in (HTTP 401): Bad credentials — sign in to GitHub again" });
+  });
+
+  test("un plafond changé est proposé par une PR : une branche neuve partie de la tête de main, le fichier écrit sur elle, la PR vers main ; main n'a pas bougé", async () => {
+    const repository = github(PROJECT);
+    const rendu = await changerLeCap({ depot: REPOSITORY, branche: "main", cle: "gatesSeconds", saisie: "150", client: repository.client });
+
+    assert.deepEqual(rendu, { propose: PROPOSE, pr: `https://github.com/${REPOSITORY}/pull/41`, numero: 41, cle: "gatesSeconds", valeur: 150 });
+    assert.deepEqual(repository.demandes, [`GET ${CONTENU}?ref=main`, `GET /repos/${REPOSITORY}/git/ref/heads/main`, `POST /repos/${REPOSITORY}/git/refs`, `PUT ${CONTENU}`, `POST /repos/${REPOSITORY}/pulls`]);
+    const [creee] = repository.crees;
+    assert.equal(creee?.sha, "tete-main", "la branche part de la tête de la branche d'intégration");
+    const neuve = String(creee?.ref).replace("refs/heads/", "");
+    assert.match(neuve, /^brigade\/setting-set-drift-gatesseconds-to-150-/);
+    const [ecrit] = repository.ecrits;
+    assert.equal(ecrit?.branch, neuve, "le fichier s'écrit sur la branche neuve, jamais sur main");
+    assert.equal(ecrit?.sha, "sha1", "le fichier lu juste avant est celui qui est remplacé");
+    assert.equal(ecrit?.message, "brigade: set drift.gatesSeconds to 150 (from the app, Kitchen > Health)");
+    const [pr] = repository.prs;
+    assert.deepEqual([pr?.head, pr?.base, pr?.title], [neuve, "main", "brigade: set drift.gatesSeconds to 150"]);
+    // main n'a pas bougé : la valeur en vigueur reste celle d'avant, jusqu'au merge.
+    assert.equal(valeur(await lireLesCaps({ depot: REPOSITORY, branche: "main", client: repository.client }), "gatesSeconds"), null);
+    assert.equal(repository.texte(), `${JSON.stringify(PROJECT, null, 2)}\n`);
+    // Le fichier proposé garde le reste, et le runtime le lit : son seuil, une fois mergé, est celui proposé.
+    const texte = repository.texte("pr") ?? assert.fail("pas de fichier proposé");
+    assert.deepEqual(JSON.parse(texte).defaultCalibrations, PROJECT.defaultCalibrations);
+    assert.deepEqual(seuilsDuProjet(reglagesDuTexte(texte)).drift, { ticketTokens: 900, gatesSeconds: 150 });
+  });
+
+  test("vide, le retrait du plafond est proposé ; la valeur déjà là n'ouvre rien", async () => {
+    const repository = github(PROJECT);
+    assert.deepEqual(await changerLeCap({ depot: REPOSITORY, branche: "main", cle: "ticketTokens", saisie: "900", client: repository.client }), { fait: "unchanged: the repository already says so", cle: "ticketTokens", valeur: 900 });
+    assert.equal(repository.ecrits.length, 0);
+    assert.equal(repository.prs.length, 0);
+    const rendu = await changerLeCap({ depot: REPOSITORY, branche: "main", cle: "ticketTokens", saisie: "", client: repository.client });
+    assert.ok("propose" in rendu && rendu.valeur === null);
+    const texte = repository.texte("pr") ?? assert.fail("pas de fichier proposé");
+    assert.equal(JSON.parse(texte).drift, undefined, "plus aucun seuil : la famille sort du fichier");
+    assert.deepEqual(seuilsDuProjet(reglagesDuTexte(texte)), {});
+    assert.equal(repository.prs[0]?.title, "brigade: remove drift.ticketTokens");
+  });
+
+  test("sans fichier, il est créé avec ce que le runtime exige — seulement quand la branche est connue", async () => {
+    const repository = github(null);
+    await changerLeCap({ depot: REPOSITORY, branche: "main", cle: "gatesSeconds", saisie: "45.5", client: repository.client });
+    assert.equal(repository.ecrits[0]?.sha, undefined);
+    assert.deepEqual(reglagesDuTexte(repository.texte("pr") ?? assert.fail("pas de fichier")), { integrationBranch: "main", drift: { gatesSeconds: 45.5 } });
+
+    const sansBranch = github(null);
+    const rendu = await changerLeCap({ depot: REPOSITORY, branche: null, cle: "gatesSeconds", saisie: "45", client: sansBranch.client });
+    assert.ok("refus" in rendu);
+    assert.equal(sansBranch.ecrits.length, 0);
+    assert.equal(sansBranch.prs.length, 0);
+  });
+
+  test("la branche d'intégration inconnue : la PR part de la branche par défaut du dépôt, et va vers elle", async () => {
+    const repository = github(PROJECT);
+    const rendu = await changerLeCap({ depot: REPOSITORY, branche: null, cle: "gatesSeconds", saisie: "150", client: repository.client });
+    assert.ok("propose" in rendu, JSON.stringify(rendu));
+    assert.deepEqual(repository.demandes.slice(0, 3), [`GET ${CONTENU}`, `GET /repos/${REPOSITORY}`, `GET /repos/${REPOSITORY}/git/ref/heads/main`]);
+    assert.equal(repository.crees[0]?.sha, "tete-main");
+    assert.equal(repository.prs[0]?.base, "main");
+  });
+
+  test("une valeur que le runtime refuserait n'écrit rien, et se dit", async () => {
+    for (const [cle, saisie] of [
+      ["ticketTokens", "12.5"],
+      ["gatesSeconds", "0"],
+      ["gatesSeconds", "-3"],
+      ["gatesSeconds", "vite"],
+      ["lostTimeMaxMin", "3"],
+    ] as const) {
+      const repository = github(PROJECT);
+      const rendu = await changerLeCap({ depot: REPOSITORY, branche: "main", cle, saisie, client: repository.client });
+      assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was changed"), `${cle} = ${saisie}`);
+      assert.equal(repository.ecrits.length, 0, `${cle} = ${saisie}`);
+    }
+    assert.deepEqual(valeurProposee("ticketTokens", "12.5"), { refus: "costliest ticket must be a whole number greater than zero" });
+  });
+
+  test("chaque étape que GitHub refuse : rien n'est proposé, rien ne se dit fait, et le détail est gardé pour le survol", async () => {
+    const non = (message: string): AnswerGitHub => ({ status: 422, data: { message } });
+    const cas: [Step, string | null, string][] = [
+      ["tete", "main", "the reading of main"],
+      ["depot", null, `the reading of ${REPOSITORY}`],
+      ["branche", "main", "the branch brigade/setting-"],
+      ["fichier", "main", `the change of ${FICHIER}`],
+      ["pr", "main", "the pull request of brigade/setting-"],
+    ];
+    for (const [step, branch, quoi] of cas) {
+      const repository = github(PROJECT, { [step]: non("Refused here") });
+      const rendu = await changerLeCap({ depot: REPOSITORY, branche: branch, cle: "gatesSeconds", saisie: "150", client: repository.client });
+      assert.ok("refus" in rendu, step);
+      assert.equal(rendu.refus, `nothing was proposed: GitHub did not open the pull request of ${FICHIER}`, step);
+      assert.ok(rendu.detail?.startsWith(`GitHub refused ${quoi}`) && rendu.detail.includes("(HTTP 422): Refused here"), `${step}: ${rendu.detail}`);
+      assert.equal(repository.texte(), `${JSON.stringify(PROJECT, null, 2)}\n`, `${step} : main n'a pas bougé`);
+      if (step !== "pr") assert.equal(repository.prs.length, 0, step);
+      // La branche créée avant l'échec est retirée : le dépôt n'a plus que main.
+      assert.deepEqual([...repository.branches.keys()], ["main"], `${step} : aucune branche orpheline`);
+      assert.equal(repository.retirees.length, step === "fichier" || step === "pr" ? 1 : 0, step);
+    }
+    // La lecture du fichier refusée : rien n'a changé, avant même la branche.
+    const illisible = github(PROJECT, { lecture: { status: 403, data: { message: "Resource not accessible" } } });
+    const rendu = await changerLeCap({ depot: REPOSITORY, branche: "main", cle: "gatesSeconds", saisie: "150", client: illisible.client });
+    assert.deepEqual(rendu, { refus: `nothing was changed: ${FICHIER} was not read on GitHub`, detail: `GitHub refused the reading of ${FICHIER} (HTTP 403): Resource not accessible` });
+    assert.equal(illisible.crees.length, 0);
+  });
+
+  test("une PR refusée dont la branche ne se retire pas : l'échec reste dit, et la branche restée s'y ajoute", async () => {
+    const repository = github(PROJECT, { pr: { status: 422, data: { message: "Refused here" } }, retrait: { status: 403, data: { message: "Forbidden" } } });
+    const rendu = await changerLeCap({ depot: REPOSITORY, branche: "main", cle: "gatesSeconds", saisie: "150", client: repository.client });
+    assert.ok("refus" in rendu);
+    assert.equal(rendu.refus, `nothing was proposed: GitHub did not open the pull request of ${FICHIER}`);
+    const neuve = String(repository.crees[0]?.ref).replace("refs/heads/", "");
+    assert.equal(rendu.detail, `GitHub refused the pull request of ${neuve} (HTTP 422): Refused here; GitHub refused the removal of ${neuve} (HTTP 403): Forbidden, it stays on ${REPOSITORY}`);
+    assert.equal(repository.demandes.at(-1), `DELETE /repos/${REPOSITORY}/git/refs/heads/${neuve}`);
+  });
+
+  test("une PR ouverte garde sa branche", async () => {
+    const repository = github(PROJECT);
+    await changerLeCap({ depot: REPOSITORY, branche: "main", cle: "gatesSeconds", saisie: "150", client: repository.client });
+    assert.deepEqual(repository.retirees, []);
+    assert.equal(repository.branches.size, 2);
+  });
+});

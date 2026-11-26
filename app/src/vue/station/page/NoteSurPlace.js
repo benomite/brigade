@@ -4,7 +4,7 @@
 // sections posent à côté d'un réglage : le geste quand la page est celle de cet ordinateur, ou quand le réglage se change
 // à distance ; la note sinon. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
-import { boutonAction } from "../../briques.js";
+import { buttonAction } from "../../briques.js";
 import { CET_ORDINATEUR } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
@@ -29,8 +29,8 @@ export function noteSurPlace(doc) {
  * @param {{ lectureSeule: boolean }} contexte
  * @param {{ libelle: string, geste?: () => void, aDistance?: boolean, recommande?: boolean }} reglage
  */
-export function gesteOuNote(doc, { lectureSeule }, { libelle, geste, aDistance = false, recommande = false }) {
-  if (lectureSeule && !aDistance) return noteSurPlace(doc);
-  if (geste === undefined) return undefined;
-  return boutonAction(doc, libelle, geste, { recommande });
+export function actionOuNote(doc, { lectureSeule: readOnly }, { libelle, geste: action, aDistance = false, recommande = false }) {
+  if (readOnly && !aDistance) return noteSurPlace(doc);
+  if (action === undefined) return undefined;
+  return buttonAction(doc, libelle, action, { recommande });
 }

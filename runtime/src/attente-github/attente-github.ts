@@ -5,7 +5,7 @@
 // `corpsDuParking`). Ouvert à toute étape : au backlog, en cuisson (`taken`), en pass (`in-pass`) ; ces labels restent,
 // et le ticket reprend exactement où il était. Parqué pour le chef, il prend `chef-todo` (et non `parked`) et sa carte :
 // il est dans son TODO. Le chef et le second le parquent et le déparquent depuis l'app, sans commande de la box
-// (app/src/vue/attente/attente-github.ts, `parquer` ; app/src/gestes-github.ts, `deparquer` ; #4262).
+// (app/src/vue/wait/wait-github.ts, `parquer` ; app/src/actions-github.ts, `deparquer` ; #4262).
 // Ce qu'une issue attend se relit dans le dernier commentaire marqué `<!-- brigade:parked … -->` d'un auteur du dépôt :
 // tout le monde peut commenter une issue publique. Une issue au label `parked` sans ce commentaire est parquée sans rien
 // inventer : la ligne dit que l'issue ne le dit pas.

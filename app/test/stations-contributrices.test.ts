@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import type { ExecFileException } from "node:child_process";
 import { describe, test } from "node:test";
 import type { Lu, Rendu } from "../src/box.ts";
-import { commandeDesStations, ecrireLesStations, lireLesStations } from "../src/stations-contributrices.ts";
+import { commandDesStations, ecrireLesStations, lireLesStations } from "../src/stations-contributrices.ts";
 
 const BOX: Lu = { nom: "parade", cuisine: { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } } };
 const rendu = (sortie: string, code: number | null = null, erreurs = ""): Rendu => ({
@@ -16,7 +16,7 @@ const rendu = (sortie: string, code: number | null = null, erreurs = ""): Rendu 
 });
 function lanceur(rendre: Rendu) {
   const lancees: string[] = [];
-  return { lancees, lancer: async (_: Lu, commande: string) => (lancees.push(commande), rendre) };
+  return { lancees, lancer: async (_: Lu, command: string) => (lancees.push(command), rendre) };
 }
 
 describe("les stations contributrices, par la commande `contributor-stations`", () => {
@@ -41,9 +41,9 @@ describe("les stations contributrices, par la commande `contributor-stations`", 
   });
 
   test("refuser ou réaccepter part avec le nom de la station ; un nom qui ne s'écrit pas ne part pas", async () => {
-    assert.deepEqual(commandeDesStations({ refuse: "bob-pc/claude" }), { commande: "contributor-stations refuse bob-pc/claude" });
-    assert.deepEqual(commandeDesStations({ accept: "bob-pc/claude" }), { commande: "contributor-stations accept bob-pc/claude" });
-    for (const mauvais of ["", "bob pc", "x; rm -rf /", 7, undefined]) assert.deepEqual(commandeDesStations({ refuse: mauvais }), { refus: "nothing was sent: this is not a station name" });
+    assert.deepEqual(commandDesStations({ refuse: "bob-pc/claude" }), { commande: "contributor-stations refuse bob-pc/claude" });
+    assert.deepEqual(commandDesStations({ accept: "bob-pc/claude" }), { commande: "contributor-stations accept bob-pc/claude" });
+    for (const mauvais of ["", "bob pc", "x; rm -rf /", 7, undefined]) assert.deepEqual(commandDesStations({ refuse: mauvais }), { refus: "nothing was sent: this is not a station name" });
     const { lancees, lancer } = lanceur(rendu('{"ok":true}\n'));
     assert.deepEqual(await ecrireLesStations("parade", BOX, { refuse: "bad name" }, lancer), { refus: "nothing was sent: this is not a station name" });
     assert.deepEqual(lancees, []);
@@ -52,8 +52,8 @@ describe("les stations contributrices, par la commande `contributor-stations`", 
   });
 
   test("un refus du runtime se dit en sa première ligne ; une réponse illisible, un runtime trop vieux ou un projet sans station se disent", async () => {
-    const refus = await ecrireLesStations("parade", BOX, { accept: "bob-pc/claude" }, lanceur(rendu('{"ok":false,"message":"only the `chef` may refuse\\nsecond line"}\n', 1)).lancer);
-    assert.equal((refus as { refus: string }).refus, "only the chef may refuse");
+    const refusal = await ecrireLesStations("parade", BOX, { accept: "bob-pc/claude" }, lanceur(rendu('{"ok":false,"message":"only the `chef` may refuse\\nsecond line"}\n', 1)).lancer);
+    assert.equal((refusal as { refus: string }).refus, "only the chef may refuse");
     assert.match((await ecrireLesStations("parade", BOX, { accept: "x" }, lanceur(rendu("???\n", 1)).lancer) as { refus: string }).refus, /could not be read/);
     assert.match((await ecrireLesStations("parade", BOX, { accept: "x" }, lanceur(rendu("", 66, "is not a runtime command")).lancer) as { refus: string }).refus, /update it/);
     assert.match((await ecrireLesStations("parade", undefined, { accept: "x" }, async () => assert.fail("rien à lancer")) as { refus: string }).refus, /has no station/);

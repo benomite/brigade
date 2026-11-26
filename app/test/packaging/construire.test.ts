@@ -29,7 +29,7 @@ import {
 } from "../../packaging/construire.ts";
 import { emplacementsDe, estInstallee } from "../../src/emplacements.ts";
 import { defautsDeNom } from "../../packaging/verifier-plist.ts";
-import { roleDe } from "../../src/poste/role.ts";
+import { roleDe } from "../../src/workstation/role.ts";
 import { PAQUETS } from "../aides/posix.ts";
 
 const CONSTRUIRE = join(APP, "packaging", "construire.ts");
@@ -112,12 +112,12 @@ const AUXILIAIRES_ELECTRON: Record<string, string[]> = {
 };
 
 function poserAuxiliaires(electron: string): void {
-  for (const [nom, noms] of Object.entries(AUXILIAIRES_ELECTRON)) {
-    const aide = join(electron, "Contents", "Frameworks", `${nom}.app`, "Contents");
+  for (const [name, noms] of Object.entries(AUXILIAIRES_ELECTRON)) {
+    const aide = join(electron, "Contents", "Frameworks", `${name}.app`, "Contents");
     mkdirSync(join(aide, "MacOS"), { recursive: true });
-    const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n${[`<key>CFBundleExecutable</key>\n\t<string>${nom}</string>`, ...noms, `<key>CFBundleIdentifier</key>\n\t<string>com.github.Electron.helper</string>`].map((l) => `\t${l}\n`).join("")}</dict>\n</plist>\n`;
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n${[`<key>CFBundleExecutable</key>\n\t<string>${name}</string>`, ...noms, `<key>CFBundleIdentifier</key>\n\t<string>com.github.Electron.helper</string>`].map((l) => `\t${l}\n`).join("")}</dict>\n</plist>\n`;
     writeFileSync(join(aide, "Info.plist"), plist);
-    writeFileSync(join(aide, "MacOS", nom), MACH_O_ARM64);
+    writeFileSync(join(aide, "MacOS", name), MACH_O_ARM64);
   }
 }
 
@@ -129,20 +129,20 @@ function fauxNode(racine: string): string {
 
 // Des doublures de `otool`, `codesign` et `hdiutil` : chaque appel relevé ; `hdiutil` écrit le
 // .dmg et relève ce que son volume porte.
-function outils(otool = "node:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1345.0.0)\n") {
-  const appels: string[][] = [];
+function tools(otool = "node:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1345.0.0)\n") {
+  const calls: string[][] = [];
   let volume: string[] | undefined;
-  const executer: Executer = (commande, args) => {
-    appels.push([commande, ...args]);
-    if (commande === "otool") return { status: 0, stdout: otool, stderr: "" };
-    if (commande === "hdiutil") {
+  const executer: Executer = (command, args) => {
+    calls.push([command, ...args]);
+    if (command === "otool") return { status: 0, stdout: otool, stderr: "" };
+    if (command === "hdiutil") {
       const source = args[args.indexOf("-srcfolder") + 1] ?? "";
       volume = readdirSync(source).sort();
       writeFileSync(args.at(-1) ?? "", "dmg");
     }
     return { status: 0, stdout: "", stderr: "" };
   };
-  return { executer, appels, volume: () => volume };
+  return { executer, appels: calls, volume: () => volume };
 }
 
 test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app installée y trouve sa station", { skip: PAQUETS }, (t) => {
@@ -159,7 +159,7 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.ok(!existsSync(join(ressources, "app", "node_modules", "typescript")));
   const declare = JSON.parse(readFileSync(join(ressources, "app", "package.json"), "utf8"));
   // L'entrée du binaire aiguille vers l'app ou, avec `--tray-fond`, vers l'icône de la station de fond (#3631).
-  assert.equal(declare.main, "src/tray-fond/entree.ts");
+  assert.equal(declare.main, "src/tray-background/entree.ts");
   assert.ok(existsSync(join(ressources, "app", declare.main)));
   assert.equal(declare.type, "module");
   assert.equal(declare.productName, "Brigade");
@@ -197,7 +197,7 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.deepEqual(roleDe({ plateforme: "darwin", runtime: emplacements.runtime, env: {} }), { role: "station", principal: join(ressources, "runtime", "src", "station", "main.ts") });
   // Les commandes du plugin de l'app (src/plugin-app.ts) : `dev.md` et `ask.md` de `commands/`, et rien d'autre.
   assert.deepEqual(readdirSync(emplacements.commandes).sort(), ["ask.md", "dev.md"]);
-  for (const nom of ["dev.md", "ask.md"]) assert.equal(readFileSync(join(emplacements.commandes, nom), "utf8"), readFileSync(join(APP, "..", "commands", nom), "utf8"));
+  for (const name of ["dev.md", "ask.md"]) assert.equal(readFileSync(join(emplacements.commandes, name), "utf8"), readFileSync(join(APP, "..", "commands", name), "utf8"));
 });
 
 test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l'app la lance, et elle refuse faute de répertoire", (t) => {
@@ -207,17 +207,17 @@ test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l
   const emplacements = emplacementsDe({ ressources, src: join(ressources, "app", "src"), env: {} });
   const role = roleDe({ plateforme: "darwin", runtime: emplacements.runtime, env: {} });
   assert.equal(role.role, "station");
-  // Lancée comme l'app la lance (poste/station.ts) — mais par ce `node`-ci : celui du paquet est une doublure.
+  // Lancée comme l'app la lance (workstation/station.ts) — mais par ce `node`-ci : celui du paquet est une doublure.
   // Son refus vient après l'import de tout ce qu'elle importe : le runtime du paquet est complet.
   const { BRIGADE_STATION_DIR: _, ...env } = process.env;
-  const lance = spawnSync(process.execPath, [join(ressources, "app", "src", "poste", "enveloppe.ts"), role.role === "station" ? role.principal : ""], { cwd: emplacements.runtime, env, encoding: "utf8", input: "" });
+  const lance = spawnSync(process.execPath, [join(ressources, "app", "src", "workstation", "enveloppe.ts"), role.role === "station" ? role.principal : ""], { cwd: emplacements.runtime, env, encoding: "utf8", input: "" });
   assert.equal(lance.status, 2, lance.stderr);
   assert.match(lance.stderr, /refus de démarrer la station — BRIGADE_STATION_DIR n'est pas défini/);
 });
 
 test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le lien vers Applications", { skip: PAQUETS }, (t) => {
   const racine = dossier(t);
-  const { executer, appels, volume } = outils();
+  const { executer, appels: calls, volume } = tools();
   const sortie = join(racine, "construit");
   const dmg = construire({ version: "0.20261019.151600+g76f93fe", electron: fauxElectron(racine), node: fauxNode(racine), sortie, atelier: join(racine, "atelier"), executer });
 
@@ -227,7 +227,7 @@ test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le
   assert.equal(readlinkSync(join(racine, "atelier", "volume", "Applications")), "/Applications");
   const paquet = join(racine, "atelier", "volume", "Brigade.app");
   const pty = join(paquet, "Contents", "Resources", "app", "node_modules", "node-pty", "prebuilds", "darwin-arm64");
-  assert.deepEqual(appels, [
+  assert.deepEqual(calls, [
     ["otool", "-L", join(racine, "node")],
     ["codesign", "--force", "--sign", "-", join(pty, "pty.node")],
     ["codesign", "--force", "--sign", "-", join(pty, "spawn-helper")],
@@ -240,23 +240,23 @@ test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le
 
 test("signé Developer ID et notarisé : du plus profond au paquet, l'app agrafée avant le .dmg, qui l'est à son tour", { skip: PAQUETS }, (t) => {
   const racine = dossier(t);
-  const { executer: base, appels } = outils();
-  const executer: Executer = (commande, args) => (commande === "xcrun" && args[0] === "notarytool" ? (appels.push([commande, ...args]), { status: 0, stdout: "  status: Accepted\n", stderr: "" }) : base(commande, args));
+  const { executer: base, appels: calls } = tools();
+  const executer: Executer = (command, args) => (command === "xcrun" && args[0] === "notarytool" ? (calls.push([command, ...args]), { status: 0, stdout: "  status: Accepted\n", stderr: "" }) : base(command, args));
   const sortie = join(racine, "construit");
   const dmg = construire({ version: "1.2.3", electron: fauxElectron(racine), node: fauxNode(racine), sortie, atelier: join(racine, "atelier"), executer, identite: "Developer ID Application: Test (ABCDE12345)", profilNotarisation: "brigade-notary" });
   const paquet = join(racine, "atelier", "volume", "Brigade.app");
-  const signes = appels.filter((a) => a[0] === "codesign" && a.includes("--entitlements")).map((a) => a.at(-1));
+  const signes = calls.filter((a) => a[0] === "codesign" && a.includes("--entitlements")).map((a) => a.at(-1));
   assert.deepEqual(signes, aSigner(paquet));
   assert.equal(signes.at(-1), paquet);
   assert.ok(signes.some((c) => c?.endsWith("node/bin/brigade-node")), "le node porté est signé");
-  for (const a of appels.filter((a) => a[0] === "codesign" && a.includes("--entitlements")))
+  for (const a of calls.filter((a) => a[0] === "codesign" && a.includes("--entitlements")))
     assert.deepEqual(a.slice(0, -1).filter((m) => m !== "--identifier" && m !== `${IDENTIFIANT}.node`), ["codesign", "--force", "--sign", "Developer ID Application: Test (ABCDE12345)", "--options", "runtime", "--timestamp", "--entitlements", DROITS]);
-  const duNode = appels.find((a) => a.at(-1)?.endsWith("node/bin/brigade-node") && a.includes("--entitlements"));
+  const duNode = calls.find((a) => a.at(-1)?.endsWith("node/bin/brigade-node") && a.includes("--entitlements"));
   assert.equal(duNode?.[duNode.indexOf("--identifier") + 1], `${IDENTIFIANT}.node`, "le node porté est signé sous un identifiant de Brigade");
-  const ordre = appels.map((a) => a.filter((m) => !m.startsWith("/")).join(" "));
+  const ordre = calls.map((a) => a.filter((m) => !m.startsWith("/")).join(" "));
   const posdeApp = ordre.indexOf("codesign --verify --deep --strict");
   assert.ok(posdeApp > 0);
-  assert.deepEqual(appels.slice(posdeApp + 1).map((a) => a.slice(0, 3).join(" ")), [
+  assert.deepEqual(calls.slice(posdeApp + 1).map((a) => a.slice(0, 3).join(" ")), [
     "ditto -c -k",
     "xcrun notarytool submit",
     "xcrun stapler staple",
@@ -265,15 +265,15 @@ test("signé Developer ID et notarisé : du plus profond au paquet, l'app agraf�
     "xcrun notarytool submit",
     "xcrun stapler staple",
   ]);
-  assert.deepEqual(appels.at(-1), ["xcrun", "stapler", "staple", dmg]);
+  assert.deepEqual(calls.at(-1), ["xcrun", "stapler", "staple", dmg]);
 });
 
 test("Apple qui refuse la notarisation fait échouer la construction ; notariser sans identité est refusé", (t) => {
   const racine = dossier(t);
-  const { executer: base } = outils();
-  const refus: Executer = (commande, args) => (commande === "xcrun" && args[0] === "notarytool" ? { status: 0, stdout: "  status: Invalid\n", stderr: "" } : base(commande, args));
+  const { executer: base } = tools();
+  const refusal: Executer = (command, args) => (command === "xcrun" && args[0] === "notarytool" ? { status: 0, stdout: "  status: Invalid\n", stderr: "" } : base(command, args));
   const options = { version: "1.2.3", electron: fauxElectron(racine), node: fauxNode(racine), sortie: join(racine, "construit"), atelier: join(racine, "atelier") };
-  assert.throws(() => construire({ ...options, executer: refus, identite: "id", profilNotarisation: "p" }), { code: 1, message: /Apple did not accept/ });
+  assert.throws(() => construire({ ...options, executer: refusal, identite: "id", profilNotarisation: "p" }), { code: 1, message: /Apple did not accept/ });
   assert.throws(() => construire({ ...options, atelier: join(racine, "b"), executer: base, profilNotarisation: "p" }), { code: 2, message: /needs a Developer ID identity/ });
 });
 
@@ -291,8 +291,8 @@ test("un `node` qui n'est pas pour un Mac arm64, ou qui lie les bibliothèques d
   const linux = join(racine, "node-linux");
   writeFileSync(linux, Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]));
   const sortie = join(racine, "construit");
-  assert.throws(() => construire({ version: "1.0.0", electron: fauxElectron(racine), node: linux, sortie, atelier: join(racine, "a"), executer: outils().executer }), { code: 2, message: /is not a macOS arm64 binary/ });
-  const homebrew = outils("node:\n\t/opt/homebrew/opt/libuv/lib/libuv.1.dylib (compatibility version 2.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n");
+  assert.throws(() => construire({ version: "1.0.0", electron: fauxElectron(racine), node: linux, sortie, atelier: join(racine, "a"), executer: tools().executer }), { code: 2, message: /is not a macOS arm64 binary/ });
+  const homebrew = tools("node:\n\t/opt/homebrew/opt/libuv/lib/libuv.1.dylib (compatibility version 2.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n");
   assert.throws(() => construire({ version: "1.0.0", electron: join(racine, "Electron.app"), node: fauxNode(racine), sortie, atelier: join(racine, "b"), executer: homebrew.executer }), {
     code: 2,
     message: /links libraries a bare Mac does not have \(\/opt\/homebrew\/opt\/libuv\/lib\/libuv\.1\.dylib\)/,
@@ -317,7 +317,7 @@ test("l'Info.plist d'Electron passe au nom de l'app ; l'exécutable aussi : macO
   assert.match(plist, /<\/dict>\n<\/plist>\n$/);
 });
 
-const plistAide = (...lignes: string[]) => `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n${lignes.map((l) => `\t${l}\n`).join("")}</dict>\n</plist>\n`;
+const plistAide = (...lines: string[]) => `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n${lines.map((l) => `\t${l}\n`).join("")}</dict>\n</plist>\n`;
 const chaine = (cle: string, valeur: string) => `<key>${cle}</key>\n\t<string>${valeur}</string>`;
 
 // Un paquet dont le seul auxiliaire porte ce plist (réécrit), vu par verifier-plist.
@@ -372,10 +372,10 @@ test("assembler sur les cinq auxiliaires d'Electron : dossiers et exécutables r
   const renomme = (n: string) => n.replace(/^Electron/, "Brigade");
   const attendus = Object.keys(AUXILIAIRES_ELECTRON).map((n) => `${renomme(n)}.app`);
   assert.deepEqual(readdirSync(frameworks).filter((n) => n.endsWith(".app")).sort(), attendus.sort());
-  for (const nom of Object.keys(AUXILIAIRES_ELECTRON).map(renomme)) {
-    assert.deepEqual(readdirSync(join(frameworks, `${nom}.app`, "Contents", "MacOS")), [nom]);
-    const plist = readFileSync(join(frameworks, `${nom}.app`, "Contents", "Info.plist"), "utf8");
-    assert.equal(valeurDe(plist, "CFBundleExecutable"), nom);
+  for (const name of Object.keys(AUXILIAIRES_ELECTRON).map(renomme)) {
+    assert.deepEqual(readdirSync(join(frameworks, `${name}.app`, "Contents", "MacOS")), [name]);
+    const plist = readFileSync(join(frameworks, `${name}.app`, "Contents", "Info.plist"), "utf8");
+    assert.equal(valeurDe(plist, "CFBundleExecutable"), name);
     assert.match(valeurDe(plist, "CFBundleName") ?? "", /^Brigade Helper/);
     assert.match(valeurDe(plist, "CFBundleDisplayName") ?? "", /^Brigade Helper/);
   }
@@ -387,7 +387,7 @@ test("ce qui n'est pas un plist est refusé avec un message clair", () => {
 });
 
 test("la version : celle du commit construit, et ce qu'un Mac en garde", () => {
-  const executer: Executer = (commande, args) => (commande === "git" && args.includes("--format=%cd+g%h") ? { status: 0, stdout: "20261019.151600+g76f93fe\n", stderr: "" } : { status: 1, stdout: "", stderr: "?" });
+  const executer: Executer = (command, args) => (command === "git" && args.includes("--format=%cd+g%h") ? { status: 0, stdout: "20261019.151600+g76f93fe\n", stderr: "" } : { status: 1, stdout: "", stderr: "?" });
   assert.equal(versionDuCommit(executer, "/depot"), "0.20261019.151600+g76f93fe");
   assert.throws(() => versionDuCommit(() => ({ status: 128, stdout: "", stderr: "fatal: not a git repository" }), "/depot"), { code: 2, message: /not a git repository\) — give it with --version/ });
   assert.equal(versionCourte("0.20261019.151600+g76f93fe"), "0.20261019.151600");

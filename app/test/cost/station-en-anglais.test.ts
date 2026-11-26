@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { cooksDe } from "../../src/vue/cost/chers.js";
 import { joursDe } from "../../src/vue/cost/courbe.js";
 import { perdusDe } from "../../src/vue/cost/perdus.js";
-import { seuilsDe } from "../../src/vue/cost/seuils.js";
+import { thresholdsDe } from "../../src/vue/cost/thresholds.js";
 import { fenetresDe } from "../../src/vue/cost/tete.js";
 
 const EN = [
@@ -27,7 +27,7 @@ const EN = [
 test("les cooks, les tokens perdus, les seuils, les fenêtres et les jours se lisent aussi dans la sortie anglaise", () => {
   assert.deepEqual(cooksDe(EN), [{ ticket: 30, tokens: 412806 }, { ticket: 31, tokens: 1200 }, { ticket: 32, tokens: null }]);
   assert.deepEqual(perdusDe(EN)?.map(({ ticket, tokens, cause }) => [ticket, tokens, cause]), [[31, 1200, "red attempt"], [32, null, "interrupted"]]);
-  assert.deepEqual(seuilsDe(EN), { ticket: 800000, perdus: null });
+  assert.deepEqual(thresholdsDe(EN), { ticket: 800000, perdus: null });
   assert.deepEqual([...fenetresDe(EN)], [[5, 1284530], [24, 0]]);
   assert.deepEqual([...joursDe(EN)], [["2026-10-16", 4912044]]);
 });

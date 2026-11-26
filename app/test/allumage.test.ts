@@ -14,18 +14,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { principal } from "../../runtime/src/manager-cli.ts";
-import { ALLUMAGE, AVERTISSEMENT, backlogDe, COMMANDE, compter, GESTE } from "../src/allumage.ts";
+import { ALLUMAGE, AVERTISSEMENT, backlogDe, COMMAND, compter, ACTION } from "../src/allumage.ts";
 import { confirmationDe } from "../src/confirmation.ts";
-import { ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
-import { GESTE as GESTE_DE_LA_STATION, type Cuisine, type Lu } from "../src/box.ts";
+import { ecrireAction, ACTIONS, SANS_OUI } from "../src/actions.ts";
+import { ACTION as ACTION_DE_LA_STATION, type Kitchen, type Lu } from "../src/box.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = docRuntime(RACINE);
-const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
+const KITCHEN: Kitchen = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
-const DEPOT = "benomite/parade";
+const REPOSITORY = "benomite/parade";
 
 // Une issue ouverte, telle que l'API de GitHub la rend dans sa liste.
 const issue = (number: number, labels: string[], pr = false) => ({
@@ -34,7 +34,7 @@ const issue = (number: number, labels: string[], pr = false) => ({
   state: "open",
   created_at: "2026-10-01T00:00:00Z",
   updated_at: "2026-10-08T09:00:00Z",
-  html_url: `https://github.com/${DEPOT}/issues/${number}`,
+  html_url: `https://github.com/${REPOSITORY}/issues/${number}`,
   labels: labels.map((name) => ({ name })),
   ...(pr ? { pull_request: {} } : {}),
 });
@@ -66,9 +66,9 @@ async function runtime(t: TestContext, backlog: readonly object[]): Promise<stri
   writeFileSync(join(racine, "corps"), JSON.stringify(backlog));
   writeFileSync(gh, `#!/bin/sh\nprintf 'HTTP/2.0 200\\r\\nContent-Type: application/json\\r\\n\\r\\n'\ncat '${racine}/corps'\n`);
   chmodSync(gh, 0o755);
-  const lignes: string[] = [];
-  await principal({ args: ["backlog"], env: { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
-  return `${lignes.join("\n")}\n`;
+  const lines: string[] = [];
+  await principal({ args: ["backlog"], env: { BRIGADE_GITHUB_REPO: REPOSITORY, BRIGADE_GH_BIN: gh }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
+  return `${lines.join("\n")}\n`;
 }
 
 // Un faux `node` de la station : un script sh, où `$D` est le répertoire du test. Il note ce qu'il reçoit.
@@ -77,10 +77,10 @@ function station(t: TestContext, corps: string) {
   const node = join(racine, "node");
   writeFileSync(node, `#!/bin/sh\nD='${racine}'\necho "$*" >>"$D/appels"\n${corps}\n`);
   chmodSync(node, 0o755);
-  const appels = () => (existsSync(join(racine, "appels")) ? readFileSync(join(racine, "appels"), "utf8") : "");
-  const cuisine: Cuisine = { locale: { node, runtime: racine, racine, env: {} } };
-  const lu: Lu = { nom: "parade", cuisine };
-  return { racine, reglages: { delaiMs: 60_000 }, cuisine, lu, appels };
+  const calls = () => (existsSync(join(racine, "appels")) ? readFileSync(join(racine, "appels"), "utf8") : "");
+  const kitchen: Kitchen = { locale: { node, runtime: racine, racine, env: {} } };
+  const lu: Lu = { nom: "parade", cuisine: kitchen };
+  return { racine, reglages: { delaiMs: 60_000 }, cuisine: kitchen, lu, appels: calls };
 }
 // Ce que le faux node écrit, tel quel, sur sa sortie standard.
 const dit = (texte: string) => `cat <<'FIN'\n${texte}FIN`;
@@ -94,30 +94,30 @@ describe("l'avertissement de l'allumage", () => {
   });
 
   test("il se pose au geste « allumer » du socle, et à lui seul : éteindre n'engage rien, et ne se confirme pas", () => {
-    assert.equal(GESTE, "projet-allumer");
-    assert.equal(ALLUMAGE.geste, GESTE);
-    assert.deepEqual(confirmationDe(GESTE, PARADE, { sans: "pas lus" }, CUISINE), {
+    assert.equal(ACTION, "projet-allumer");
+    assert.equal(ALLUMAGE.geste, ACTION);
+    assert.deepEqual(confirmationDe(ACTION, PARADE, { sans: "pas lus" }, KITCHEN), {
       titre: "switch the project on",
       prix: [AVERTISSEMENT],
       chiffrer: true,
-      choix: [{ id: GESTE, libelle: "yes, switch the project on", dit: "what the manager judges executable is taken up right away, and green deliveries are merged" }],
+      choix: [{ id: ACTION, libelle: "yes, switch the project on", dit: "what the manager judges executable is taken up right away, and green deliveries are merged" }],
       renoncer: "no, leave it off",
     });
-    assert.equal(confirmationDe("projet-eteindre", PARADE, { sans: "pas lus" }, CUISINE), undefined);
-    assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "switch on");
+    assert.equal(confirmationDe("projet-eteindre", PARADE, { sans: "pas lus" }, KITCHEN), undefined);
+    assert.equal(ACTIONS.find(({ id }) => id === ACTION)?.commande, "switch on");
   });
 });
 
 describe("les deux nombres : `manager backlog`, lancée une fois par la station de ce poste", () => {
   test("sur un backlog connu, ce sont les siens : sept issues ouvertes, dont trois parquées — la PR n'en est pas une", { skip: SANS_POSIX }, async (t) => {
     const sortie = await runtime(t, CONNU);
-    const { reglages, lu } = station(t, dit(sortie));
+    const { reglages: settings, lu } = station(t, dit(sortie));
 
-    const compte = await compter(reglages, lu);
+    const account = await compter(settings, lu);
 
     assert.deepEqual(backlogDe(sortie), { ouvertes: 7, retenues: 3 });
-    assert.deepEqual({ ...compte, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "it will judge 4 of the 7 open issues — 3 are parked" });
-    assert.ok(!Number.isNaN(Date.parse(compte.a)));
+    assert.deepEqual({ ...account, a: "" }, { projet: "parade", a: "", ouvertes: 7, retenues: 3, dit: "it will judge 4 of the 7 open issues — 3 are parked" });
+    assert.ok(!Number.isNaN(Date.parse(account.a)));
   });
 
   test("une seule issue, aucune : les nombres sont lus quand même, et la phrase dit qu'il ne jugera rien", { skip: SANS_POSIX }, async (t) => {
@@ -127,20 +127,20 @@ describe("les deux nombres : `manager backlog`, lancée une fois par la station 
     assert.deepEqual(backlogDe(une), { ouvertes: 1, retenues: 1 });
     assert.deepEqual(backlogDe(aucune), { ouvertes: 0, retenues: 0 });
     const unique = station(t, dit(une));
-    const compte = await compter(unique.reglages, unique.lu);
-    assert.equal("dit" in compte && compte.dit, "it will judge no issue: the only open issue is parked");
+    const account = await compter(unique.reglages, unique.lu);
+    assert.equal("dit" in account && account.dit, "it will judge no issue: the only open issue is parked");
     const nulle = station(t, dit(aucune));
-    const vide = await compter(nulle.reglages, nulle.lu);
-    assert.equal("dit" in vide && vide.dit, "it will judge no issue: none is open");
+    const empty = await compter(nulle.reglages, nulle.lu);
+    assert.equal("dit" in empty && empty.dit, "it will judge no issue: none is open");
   });
 
   test("ce qui part est le geste de la station, comme la veille le lance — une commande que la doc cite, et rien de plus", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, lu, appels, racine } = station(t, dit(await runtime(t, CONNU)));
+    const { reglages: settings, lu, appels: calls, racine } = station(t, dit(await runtime(t, CONNU)));
 
-    await compter(reglages, lu);
+    await compter(settings, lu);
 
-    assert.equal(COMMANDE, "manager backlog");
-    assert.equal(appels(), `${join(racine, "src", "station", "geste.ts")} parade manager backlog\n`);
+    assert.equal(COMMAND, "manager backlog");
+    assert.equal(calls(), `${join(racine, "src", "station", "geste.ts")} parade manager backlog\n`);
     assert.ok(doc.includes("`brigade <projet> manager [return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager backlog`");
     assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime/ ne cite pas `manager -- backlog`");
   });
@@ -164,33 +164,33 @@ describe("les deux nombres : `manager backlog`, lancée une fois par la station 
   });
 
   test("la station répond autre chose que la ligne : les nombres ne sont pas lus, et ce qu'elle a rendu est gardé tel quel", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, lu, racine } = station(t, dit("Bienvenue sur la station.\n"));
+    const { reglages: settings, lu, racine } = station(t, dit("Bienvenue sur la station.\n"));
 
-    const compte = await compter(reglages, lu);
+    const account = await compter(settings, lu);
 
-    assert.ok("sans" in compte);
-    assert.equal(compte.sans, "the two numbers were not read in what the station returned: it has no `backlog` line. This is not “no issue”: look at the backlog yourself before saying yes");
-    assert.equal(compte.obtenu, `$ ${join(racine, "node")} ${join(racine, "src", "station", "geste.ts")} parade manager backlog\nBienvenue sur la station.\n`);
+    assert.ok("sans" in account);
+    assert.equal(account.sans, "the two numbers were not read in what the station returned: it has no `backlog` line. This is not “no issue”: look at the backlog yourself before saying yes");
+    assert.equal(account.obtenu, `$ ${join(racine, "node")} ${join(racine, "src", "station", "geste.ts")} parade manager backlog\nBienvenue sur la station.\n`);
   });
 
   test("un runtime d'avant cette lecture la refuse (code 2) : l'app le dit, et dit quoi faire", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, lu } = station(t, `echo "brigade : usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre | rendre <n° d'issue>]" >&2\nexit 2`);
+    const { reglages: settings, lu } = station(t, `echo "brigade : usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre | rendre <n° d'issue>]" >&2\nexit 2`);
 
-    const compte = await compter(reglages, lu);
+    const account = await compter(settings, lu);
 
-    assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read: the station's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the station\. This is not “no issue”/);
-    assert.match(compte.obtenu, /brigade : usage : .*\n→ exit code 2$/s);
+    assert.ok("sans" in account);
+    assert.match(account.sans, /^the two numbers were not read: the station's runtime refused `manager backlog` \(code 2\) — if it is older than this app, it does not know this reading yet: update brigade on the station\. This is not “no issue”/);
+    assert.match(account.obtenu, /brigade : usage : .*\n→ exit code 2$/s);
   });
 
   test("la box n'a pas lu GitHub (code 1) : aucun nombre, et ce que le runtime en dit est gardé", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, lu } = station(t, `echo "brigade : le backlog de ${DEPOT} n'a pas été lu : gh api repos/${DEPOT}/issues : gh: connexion impossible — ce n'est pas « aucune issue »" >&2\nexit 1`);
+    const { reglages: settings, lu } = station(t, `echo "brigade : le backlog de ${REPOSITORY} n'a pas été lu : gh api repos/${REPOSITORY}/issues : gh: connexion impossible — ce n'est pas « aucune issue »" >&2\nexit 1`);
 
-    const compte = await compter(reglages, lu);
+    const account = await compter(settings, lu);
 
-    assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read: the station answered, but `manager backlog` did not read GitHub \(code 1\)/);
-    assert.match(compte.obtenu, /gh: connexion impossible/);
+    assert.ok("sans" in account);
+    assert.match(account.sans, /^the two numbers were not read: the station answered, but `manager backlog` did not read GitHub \(code 1\)/);
+    assert.match(account.obtenu, /gh: connexion impossible/);
   });
 
   for (const [code, titre] of [
@@ -199,30 +199,30 @@ describe("les deux nombres : `manager backlog`, lancée une fois par la station 
     [3, "REACHED, BUT `manager backlog` DID NOT ANSWER"],
   ] as const) {
     test(`le geste sort en ${code} : « ${titre} », et aucun nombre`, { skip: SANS_POSIX }, async (t) => {
-      const { reglages, lu } = station(t, `echo "refus ${code}" >&2\nexit ${code}`);
+      const { reglages: settings, lu } = station(t, `echo "refus ${code}" >&2\nexit ${code}`);
 
-      const compte = await compter(reglages, lu);
+      const account = await compter(settings, lu);
 
-      assert.ok("sans" in compte);
-      assert.ok(compte.sans.startsWith(`the two numbers were not read: ${titre} — what the app got is below. This is not “no issue”`), compte.sans);
-      assert.match(compte.obtenu, new RegExp(`refus ${code}\\n\\n→ exit code ${code}$`));
+      assert.ok("sans" in account);
+      assert.ok(account.sans.startsWith(`the two numbers were not read: ${titre} — what the app got is below. This is not “no issue”`), account.sans);
+      assert.match(account.obtenu, new RegExp(`refus ${code}\\n\\n→ exit code ${code}$`));
     });
   }
 
   test("un `node` qui ne se lance pas : aucun nombre, et la station n'est pas dite jointe", async (t) => {
-    const { racine, reglages, lu } = station(t, "");
+    const { racine, reglages: settings, lu } = station(t, "");
 
-    const compte = await compter(reglages, { ...lu, cuisine: { locale: { ...lu.cuisine.locale, node: join(racine, "absent") } } });
+    const account = await compter(settings, { ...lu, cuisine: { locale: { ...lu.cuisine.locale, node: join(racine, "absent") } } });
 
-    assert.ok("sans" in compte);
-    assert.match(compte.sans, /^the two numbers were not read: NOT REACHED — /);
+    assert.ok("sans" in account);
+    assert.match(account.sans, /^the two numbers were not read: NOT REACHED — /);
   });
 });
 
 describe("le geste « allumer », avec son avertissement", () => {
   test("sans son « oui », rien ne part ni ne s'écrit ; avec, il passe par le second — et n'attend rien de la station pour partir", async (t) => {
     // Une station qui ne répondrait jamais : le geste ne la joint pas, c'est la lecture des nombres qui le fait, à côté.
-    const { appels, cuisine } = station(t, "exit 255");
+    const { appels: calls, cuisine: kitchen } = station(t, "exit 255");
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
@@ -237,16 +237,16 @@ describe("le geste « allumer », avec son avertissement", () => {
     });
     terminaux.espace(PARADE);
 
-    assert.deepEqual(ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, cuisine), { refus: SANS_OUI });
+    assert.deepEqual(ecrireAction(terminaux, ALLUMAGE.geste, PARADE, undefined, kitchen), { refus: SANS_OUI });
     assert.deepEqual(ecrits, [[]]);
 
     // Avec son « oui » : le second vient de démarrer, il n'est pas dit libre — rien n'est écrit, et aucun shell ne s'ouvre.
-    const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, true, cuisine);
+    const rendu = await ecrireAction(terminaux, ALLUMAGE.geste, PARADE, true, kitchen);
     assert.ok(rendu !== undefined && "refus" in rendu);
-    const geste = GESTE_DE_LA_STATION.replace(/[\\/.]/g, "\\$&");
-    assert.match(rendu.refus, new RegExp(`the command did not go, and nothing is written: \`!\\(cd '.*' && BRIGADE_STATION_DIR='.*' '.*' ${geste} parade switch on\\)\`$`));
+    const action = ACTION_DE_LA_STATION.replace(/[\\/.]/g, "\\$&");
+    assert.match(rendu.refus, new RegExp(`the command did not go, and nothing is written: \`!\\(cd '.*' && BRIGADE_STATION_DIR='.*' '.*' ${action} parade switch on\\)\`$`));
     assert.deepEqual(ecrits, [[]]);
-    assert.equal(appels(), "");
+    assert.equal(calls(), "");
   });
 
   test("ce que l'app en dit avant les nombres ne pose pas de question : la confirmation dit, le « oui » décide", () => {

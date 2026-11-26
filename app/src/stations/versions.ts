@@ -12,7 +12,7 @@ export type VersionVue = { version: string; depuisLe: string | null };
 export type VersionsVues = { lire(): Record<string, VersionVue>; ecrire(vues: Record<string, VersionVue>): void };
 
 // Le tout dans un fichier. Absent ou illisible, il ne retient rien : au pire, un « depuis » n'est plus dit.
-export function versionsDansFichier(chemin: string, dire: (ligne: string) => void = (ligne) => console.error(ligne)): VersionsVues {
+export function versionsDansFichier(chemin: string, tell: (line: string) => void = (line) => console.error(line)): VersionsVues {
   return {
     lire() {
       try {
@@ -33,8 +33,8 @@ export function versionsDansFichier(chemin: string, dire: (ligne: string) => voi
         mkdirSync(dirname(chemin), { recursive: true });
         writeFileSync(`${chemin}.neuf`, `${JSON.stringify(vues, null, 2)}\n`);
         renameSync(`${chemin}.neuf`, chemin);
-      } catch (erreur) {
-        dire(`brigade: the versions seen on your stations could not be remembered — ${(erreur as Error).message}`);
+      } catch (error) {
+        tell(`brigade: the versions seen on your stations could not be remembered — ${(error as Error).message}`);
       }
     },
   };

@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
-import { contexteDuBlocage } from "../../src/second/contexte-du-blocage.ts";
+import { ROLE_DU_SECOND } from "../../src/second/launch.ts";
+import { contextDuBlockage } from "../../src/second/context-du-blockage.ts";
 
 const QUESTION = "pourquoi on est bloqués ?";
 const VUE = {
@@ -24,12 +24,12 @@ const VUE = {
 };
 
 test("first mention of #221, its title, STOPPED and FAULT #221 precedes the first mention of #1078", () => {
-  const contexte = contexteDuBlocage(QUESTION, VUE);
-  const premier1078 = contexte.indexOf("#1078");
+  const context = contextDuBlockage(QUESTION, VUE);
+  const first1078 = context.indexOf("#1078");
   for (const motif of ["#221", "Espace: sync the board", "STOPPED", "FAULT #221"]) {
-    const rang = contexte.indexOf(motif);
+    const rang = context.indexOf(motif);
     assert.ok(rang >= 0, `${motif} is in the context`);
-    assert.ok(premier1078 < 0 || rang < premier1078, `${motif} comes before #1078`);
+    assert.ok(first1078 < 0 || rang < first1078, `${motif} comes before #1078`);
   }
   // the role tells the second to answer in that order
   const role = readFileSync(ROLE_DU_SECOND, "utf8");

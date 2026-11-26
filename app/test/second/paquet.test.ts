@@ -9,7 +9,7 @@ import { test, type TestContext } from "node:test";
 import { APP, assembler as assemblerPourMac } from "../../packaging/construire.ts";
 import { assembler as assemblerPourLinux } from "../../packaging/linux.ts";
 import { assembler as assemblerPourWindows } from "../../packaging/windows.ts";
-import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
+import { ROLE_DU_SECOND } from "../../src/second/launch.ts";
 import { PAQUETS } from "../aides/posix.ts";
 
 // Où le rôle se range dans l'app : sous `src/`, comme dans le dépôt.

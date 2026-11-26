@@ -9,29 +9,29 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
+import { pourLaBar } from "../../src/bar.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE, holdFacts, type Dessinable, type Facts } from "../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
 import type { Terminal } from "../../src/terminaux.ts";
 import { validationDuCorps } from "../../src/vue/validation-design/validation-design-github.ts";
 import {
   AJUSTER,
-  COTE_A_COTE,
-  DEMANDE,
+  SIDE_A_SIDE,
+  REQUEST,
   deplacer,
   ECHELLE_MAX,
   ENTIERE,
   FAIT,
-  ECRAN_N_SUR,
-  ECRAN_PRECEDENT,
-  ECRAN_SUIVANT,
+  SCREEN_N_SUR,
+  SCREEN_PRECEDENT,
+  SCREEN_SUIVANT,
   FERMER,
-  MONTRER,
+  SHOW,
   PLEINE_TAILLE,
   RETOUR,
   SANS_RESUME,
@@ -42,64 +42,64 @@ import {
   zoomer,
 } from "../../src/vue/validation-design/detail-de-validation.js";
 import { CONFIRMATION_MS, RENVOYE, RENVOYER, VALIDE, VALIDER } from "../../src/vue/validation-design/validation-design.js";
-import { carteDuTicket, Faux, FauxEcran, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { cardDuTicket, Faux, FauxScreen, type Jouee, jouerLaVue, type Answers, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-11-11T12:04:12.000Z";
-const DEPOT = "chef/parade";
+const REPOSITORY = "chef/parade";
 const SHA = "3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345";
 const question = (ticket: number, pr: number) => `Does the screen of #${ticket} look right? Validate it and PR #${pr} is merged; send it back with what to change and a cook takes it up again.`;
 const corps = (ticket: number, pr: number, brief: readonly string[] = []) =>
   [
     `<!-- brigade:validation-design pr=${pr} ticket=${ticket} sha=${SHA} -->`,
     ...brief,
-    `| ![rail — avant](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/${ticket}/rail-avant.png?raw=true) | ![rail — après](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/${ticket}/rail-apres.png?raw=true) |`,
+    `| ![rail — avant](https://github.com/${REPOSITORY}/blob/${SHA}/docs/captures/${ticket}/rail-avant.png?raw=true) | ![rail — après](https://github.com/${REPOSITORY}/blob/${SHA}/docs/captures/${ticket}/rail-apres.png?raw=true) |`,
   ].join("\n");
-const attente = (carte: number, ticket: number, pr: number, brief: readonly string[] = []) => ({
-  ticket: carte,
+const wait = (card: number, ticket: number, pr: number, brief: readonly string[] = []) => ({
+  ticket: card,
   titre: "Validate its screen",
-  url: `https://github.com/${DEPOT}/issues/${carte}`,
-  chef: { sorte: "design-validation", texte: `${question(ticket, pr)}\n\nPull request: https://github.com/${DEPOT}/pull/${pr}`, design: validationDuCorps(DEPOT, corps(ticket, pr, brief)) },
+  url: `https://github.com/${REPOSITORY}/issues/${card}`,
+  chef: { sorte: "design-validation", texte: `${question(ticket, pr)}\n\nPull request: https://github.com/${REPOSITORY}/pull/${pr}`, design: validationDuCorps(REPOSITORY, corps(ticket, pr, brief)) },
 });
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 const IMAGE = { image: "data:image/png;base64,iVBORw0KGgo=" };
 
-const demarrage = (telephone: boolean) => () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+const demarrage = (phone: boolean) => () => ({
+  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
-  ...(telephone ? { telephone: { github: { compte: "chef" } } } : {}),
+  ...(phone ? { telephone: { github: { compte: "chef" } } } : {}),
 });
 
 // Une carte (#61, la PR #60 de #58), ou deux (et #65, la PR #64 de #59).
-const faits = (deux: boolean, brief: readonly string[] = []): Faits => {
-  const attend = [attente(61, 58, 60, brief), ...(deux ? [attente(65, 59, 64)] : [])];
+const facts = (deux: boolean, brief: readonly string[] = []): Facts => {
+  const awaiting = [wait(61, 58, 60, brief), ...(deux ? [wait(65, 59, 64)] : [])];
   return {
     etat: "ouverte",
     lu: "2026-11-11T12:04:11.000Z",
     dernierTick: "2026-11-11T12:04:11.000Z",
-    compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: attend.length, livres24h: 0 },
+    compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: awaiting.length, livres24h: 0 },
     dernierEvenement: null,
     rail: [],
     cooks: [],
-    attend,
-  } as unknown as Faits;
+    attend: awaiting,
+  } as unknown as Facts;
 };
-const dessinable = (deux: boolean, brief: readonly string[] = []): Dessinable => tenirFaits(() => new Map()).recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits(deux, brief)) }] });
+const dessinable = (deux: boolean, brief: readonly string[] = []): Dessinable => holdFacts(() => new Map()).recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts(deux, brief)) }] });
 function lire(vue: Jouee, deux: boolean, brief: readonly string[] = []): void {
-  const demandes = vue.appels.filter(({ geste }) => geste === "faits" || geste === "relireBox");
+  const demandes = vue.appels.filter(({ geste: action }) => action === "faits" || action === "relireBox");
   vue.dire("surFaits", { ...dessinable(deux, brief), demande: demandes.at(-1)?.args[0] as number });
 }
 
 // La question telle que la carte la dit : sa PR par son ticket (ticket 3716).
 const questionDite = (ticket: number, pr: number) => question(ticket, pr).replace(`PR #${pr}`, `the PR of #${ticket}`);
-const laCarte = (ou: Faux) => ou.dessous("section").find(({ className }) => className.includes("carte-validation")) ?? assert.fail("pas de carte de validation");
-const bouton = (ou: Faux, libelle: string) => ou.dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`);
+const laCard = (ou: Faux) => ou.dessous("section").find(({ className }) => className.includes("carte-validation")) ?? assert.fail("pas de carte de validation");
+const button = (ou: Faux, libelle: string) => ou.dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`);
 const sans = (ou: Faux, libelle: string) => assert.ok(!ou.dessous("button").some(({ textContent }) => textContent === libelle), `pas de « ${libelle} »`);
 const detail = (vue: Jouee) => vue.element("detail-de-validation");
 const images = (ou: Faux) => ou.dessous("img") as unknown as Array<Faux & { alt: string; src: string }>;
@@ -107,27 +107,27 @@ const transforms = (ou: Faux) => images(ou).map((image) => image.style.getProper
 const cadres = (ou: Faux) => ou.dessous("div").filter(({ className }) => className === "cadre");
 
 // Le large : le projet ouvert, la carte dans TODO ; un clic sur sa capture avant ouvre le détail.
-async function ouvrirLarge(deux = false, reponses: Reponses = {}, brief: readonly string[] = []): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: demarrage(false), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], lireCapture: () => IMAGE, ...reponses } as never);
+async function ouvrirLarge(deux = false, answers: Answers = {}, brief: readonly string[] = []): Promise<Jouee> {
+  const vue = await jouerLaVue({ demarrage: demarrage(false), espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], lireCapture: () => IMAGE, ...answers } as never);
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   lire(vue, deux, brief);
   await repos();
-  const carte = laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte dans TODO"));
+  const card = laCard(cardDuTicket(vue, 61) ?? assert.fail("pas de carte dans TODO"));
   assert.equal(detail(vue).hidden, true, "fermé avant le clic");
-  carte.declencher("click", { target: images(carte)[0] ?? assert.fail("pas de capture") });
+  card.declencher("click", { target: images(card)[0] ?? assert.fail("pas de capture") });
   await repos();
   return vue;
 }
 // Le téléphone : la carte ouverte depuis la liste, puis un clic sur elle.
-async function ouvrirAuTelephone(deux = false, reponses: Reponses = {}, brief: readonly string[] = []): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: demarrage(true), espace: () => [], machines: () => [], lireCapture: () => IMAGE, ...reponses } as never, { ecran: new FauxEcran(true) });
+async function ouvrirAuPhone(deux = false, answers: Answers = {}, brief: readonly string[] = []): Promise<Jouee> {
+  const vue = await jouerLaVue({ demarrage: demarrage(true), espace: () => [], machines: () => [], lireCapture: () => IMAGE, ...answers } as never, { ecran: new FauxScreen(true) });
   lire(vue, deux, brief);
   await repos();
   (vue.element("cartes-du-chef").dessous("button").find(({ className }) => className === "carte-a-ouvrir") ?? assert.fail("pas de carte dans la liste")).click();
   await repos();
-  const carte = laCarte(vue.element("cartes-du-chef"));
-  carte.declencher("click", { target: carte });
+  const card = laCard(vue.element("cartes-du-chef"));
+  card.declencher("click", { target: card });
   await repos();
   return vue;
 }
@@ -158,11 +158,11 @@ describe("le zoom d'une capture", () => {
   });
 });
 
-for (const [ecran, ouvrir] of [
+for (const [screen, ouvrir] of [
   ["sur un écran large, depuis TODO", ouvrirLarge],
-  ["sur le téléphone, depuis la carte ouverte", ouvrirAuTelephone],
+  ["sur le téléphone, depuis la carte ouverte", ouvrirAuPhone],
 ] as const) {
-  describe(`le détail en grand, ${ecran}`, () => {
+  describe(`le détail en grand, ${screen}`, () => {
     test("un clic sur la carte l'ouvre : la question, l'avant et l'après côte à côte, le lien de la PR et les deux gestes", async () => {
       const vue = await ouvrir();
       const ici = detail(vue);
@@ -171,10 +171,10 @@ for (const [ecran, ouvrir] of [
       assert.deepEqual(images(ici).map(({ alt }) => alt), ["rail — before", "rail — after"]);
       assert.ok(images(ici).every(({ src }) => src === IMAGE.image));
       assert.equal(cadres(ici).length, 2, "côte à côte, chacune son cadre");
-      bouton(ici, "PR of #58").click();
+      button(ici, "PR of #58").click();
       assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 61]);
-      assert.equal(bouton(ici, VALIDER).className, "recommande");
-      assert.equal(bouton(ici, RENVOYER).disabled, true);
+      assert.equal(button(ici, VALIDER).className, "recommande");
+      assert.equal(button(ici, RENVOYER).disabled, true);
       sans(ici, SUIVANTE(65));
       assert.equal(vue.element("fiche").hidden, true, "la fiche du ticket ne s'ouvre pas");
     });
@@ -186,21 +186,21 @@ for (const [ecran, ouvrir] of [
       const ordre = racine.children.map(({ className }) => className);
       assert.ok(ordre.indexOf("brief-du-detail") !== -1 && ordre.indexOf("brief-du-detail") < ordre.indexOf("ecrans-du-detail"), ordre.join(", "));
       const brief = briefDe(ici);
-      assert.deepEqual(brief.dessous("h3").map(({ textContent }) => textContent), [DEMANDE, FAIT]);
+      assert.deepEqual(brief.dessous("h3").map(({ textContent }) => textContent), [REQUEST, FAIT]);
       assert.deepEqual(brief.dessous("p").map(({ textContent }) => textContent), [DEMANDEE]);
       assert.deepEqual(brief.dessous("li").map(({ textContent }) => textContent), ["the rail shows the count", "cards show their question on one line"]);
       assert.equal(brief.dessous("p").some(({ textContent }) => textContent === SANS_RESUME), false);
-      bouton(ici, "PR of #58").click();
+      button(ici, "PR of #58").click();
       assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 61]);
-      bouton(ici, VALIDER);
-      bouton(ici, RENVOYER);
+      button(ici, VALIDER);
+      button(ici, RENVOYER);
       assert.equal(images(ici).length, 2);
     });
 
     test("une carte sans résumé de ce qui a été fait — posée avant le ticket 3330 — le dit, et montre encore ce qui était demandé", async () => {
       const vue = await ouvrir(false, {}, ["Ticket: #58 — Export the journal as CSV", "Pull request: https://github.com/chef/parade/pull/60"]);
       const brief = briefDe(detail(vue));
-      assert.deepEqual(brief.dessous("h3").map(({ textContent }) => textContent), [DEMANDE, FAIT]);
+      assert.deepEqual(brief.dessous("h3").map(({ textContent }) => textContent), [REQUEST, FAIT]);
       assert.deepEqual(brief.dessous("p").map(({ textContent }) => textContent), ["Export the journal as CSV", SANS_RESUME]);
       assert.deepEqual(brief.dessous("li"), []);
     });
@@ -222,7 +222,7 @@ for (const [ecran, ouvrir] of [
       const [avant, apres] = transforms(ici);
       assert.equal(avant, transformDe(ENTIERE));
       assert.equal(apres, avant);
-      bouton(ici, ZOOMER).click();
+      button(ici, ZOOMER).click();
       const zoomees = transforms(ici);
       assert.notEqual(zoomees[0], transformDe(ENTIERE));
       assert.equal(zoomees[1], zoomees[0]);
@@ -240,7 +240,7 @@ for (const [ecran, ouvrir] of [
       const glissees = transforms(ici);
       assert.notDeepEqual(glissees, molette);
       assert.equal(glissees[0], glissees[1]);
-      bouton(ici, AJUSTER).click();
+      button(ici, AJUSTER).click();
       assert.deepEqual(transforms(ici), [transformDe(ENTIERE), transformDe(ENTIERE)]);
     });
 
@@ -260,20 +260,20 @@ for (const [ecran, ouvrir] of [
 
     test("« One over the other » les pose l'une sur l'autre ; la bascule montre l'autre sur place, zoomée de même", async () => {
       const vue = await ouvrir();
-      bouton(detail(vue), SUPERPOSER).click();
+      button(detail(vue), SUPERPOSER).click();
       const ici = detail(vue);
       assert.equal(cadres(ici).length, 1, "un seul cadre");
-      bouton(ici, ZOOMER).click();
+      button(ici, ZOOMER).click();
       const zoom = transforms(ici)[0];
       assert.deepEqual(images(ici).map(({ hidden }) => hidden), [false, true], "l'avant d'abord");
-      const bascule = bouton(ici, MONTRER("apres"));
+      const bascule = button(ici, SHOW("apres"));
       bascule.click();
       assert.deepEqual(images(ici).map(({ hidden }) => hidden), [true, false], "l'après, au même endroit");
-      assert.equal(bascule.textContent, MONTRER("avant"));
+      assert.equal(bascule.textContent, SHOW("avant"));
       assert.deepEqual(transforms(ici), [zoom, zoom]);
       bascule.click();
       assert.deepEqual(images(ici).map(({ hidden }) => hidden), [false, true]);
-      bouton(detail(vue), COTE_A_COTE).click();
+      button(detail(vue), SIDE_A_SIDE).click();
       assert.equal(cadres(detail(vue)).length, 2);
     });
 
@@ -287,7 +287,7 @@ for (const [ecran, ouvrir] of [
       assert.equal(detail(vue).hidden, false, "Échap rend d'abord les deux");
       assert.equal(images(detail(vue)).length, 2);
       detail(vue).dessous("button").find(({ textContent }) => textContent === PLEINE_TAILLE)?.click();
-      bouton(detail(vue), RETOUR).click();
+      button(detail(vue), RETOUR).click();
       assert.equal(images(detail(vue)).length, 2);
       detail(vue).declencher("keydown", { key: "Escape" });
       assert.equal(detail(vue).hidden, true, "puis Échap le ferme");
@@ -298,25 +298,25 @@ for (const [ecran, ouvrir] of [
       const champ = detail(vue).dessous("textarea")[0] ?? assert.fail("pas de champ");
       champ.value = "The button is cut off.";
       champ.declencher("input");
-      assert.equal(bouton(detail(vue), RENVOYER).disabled, false);
-      bouton(detail(vue), FERMER).click();
+      assert.equal(button(detail(vue), RENVOYER).disabled, false);
+      button(detail(vue), FERMER).click();
       assert.equal(detail(vue).hidden, true);
-      const carte = laCarte(ecran.startsWith("sur le téléphone") ? vue.element("cartes-du-chef") : (carteDuTicket(vue, 61) ?? assert.fail("pas de carte")));
-      assert.equal(carte.dessous("textarea")[0]?.value, "The button is cut off.");
+      const card = laCard(screen.startsWith("sur le téléphone") ? vue.element("cartes-du-chef") : (cardDuTicket(vue, 61) ?? assert.fail("pas de carte")));
+      assert.equal(card.dessous("textarea")[0]?.value, "The button is cut off.");
     });
 
     test("« Validate » depuis le détail : le geste part, le détail le confirme, puis se ferme et la carte quitte TODO", async (t) => {
       t.mock.timers.enable({ apis: ["setTimeout"] });
       const vue = await ouvrir(false, { gesteDeValidation: () => ({ fait: "chef/parade#60 validated" }) });
-      bouton(detail(vue), VALIDER).click();
+      button(detail(vue), VALIDER).click();
       await repos();
       assert.deepEqual(vue.dernier("gesteDeValidation"), ["parade", 61, { geste: "valider" }]);
       assert.equal(detail(vue).hidden, false, "le détail reste, avec sa confirmation");
-      assert.equal(bouton(detail(vue), VALIDE).disabled, true);
+      assert.equal(button(detail(vue), VALIDE).disabled, true);
       t.mock.timers.tick(CONFIRMATION_MS);
       await repos();
       assert.equal(detail(vue).hidden, true);
-      assert.equal(carteDuTicket(vue, 61), undefined);
+      assert.equal(cardDuTicket(vue, 61), undefined);
       assert.ok(!vue.element("cartes-du-chef").dessous("button").some(({ className }) => className === "carte-a-ouvrir"));
     });
 
@@ -326,7 +326,7 @@ for (const [ecran, ouvrir] of [
       const champ = detail(refuse).dessous("textarea")[0] ?? assert.fail("pas de champ");
       champ.value = "The button is cut off.";
       champ.declencher("input");
-      bouton(detail(refuse), RENVOYER).click();
+      button(detail(refuse), RENVOYER).click();
       await repos();
       assert.deepEqual(refuse.dernier("gesteDeValidation"), ["parade", 61, { geste: "renvoyer", commentaire: "The button is cut off." }]);
       assert.equal(detail(refuse).hidden, false);
@@ -337,60 +337,60 @@ for (const [ecran, ouvrir] of [
       const saisie = detail(fait).dessous("textarea")[0] ?? assert.fail("pas de champ");
       saisie.value = "The button is cut off.";
       saisie.declencher("input");
-      bouton(detail(fait), RENVOYER).click();
+      button(detail(fait), RENVOYER).click();
       await repos();
-      assert.equal(bouton(detail(fait), RENVOYE).disabled, true, "« back to the kitchen ✓ » avant de partir");
+      assert.equal(button(detail(fait), RENVOYE).disabled, true, "« back to the kitchen ✓ » avant de partir");
       t.mock.timers.tick(CONFIRMATION_MS);
       await repos();
       assert.equal(detail(fait).hidden, true);
-      assert.equal(carteDuTicket(fait, 61), undefined);
+      assert.equal(cardDuTicket(fait, 61), undefined);
     });
 
     test("plusieurs écrans (ticket 3350) : un seul à la fois, « Screen 2 of 3 », précédent et suivant au clic et aux flèches ; le brief, les captures et les gestes restent", async () => {
-      const autre = (nom: string) => `| ![${nom} — avant](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/${nom}-avant.png?raw=true) | ![${nom} — après](https://github.com/${DEPOT}/blob/${SHA}/docs/captures/58/${nom}-apres.png?raw=true) |`;
+      const autre = (name: string) => `| ![${name} — avant](https://github.com/${REPOSITORY}/blob/${SHA}/docs/captures/58/${name}-avant.png?raw=true) | ![${name} — après](https://github.com/${REPOSITORY}/blob/${SHA}/docs/captures/58/${name}-apres.png?raw=true) |`;
       const vue = await ouvrir(false, {}, [...BRIEF, autre("todo"), autre("rail-bis")]);
       const ici = detail(vue);
       const rang = () => ici.dessous("span").find(({ className }) => className === "rang-de-l-ecran")?.textContent;
-      const nomsDesEcrans = () => ici.dessous("section").filter(({ className }) => className === "ecran-du-detail").map(({ ariaLabel }) => ariaLabel);
-      assert.equal(rang(), ECRAN_N_SUR(0, 3));
+      const nomsDesScreens = () => ici.dessous("section").filter(({ className }) => className === "ecran-du-detail").map(({ ariaLabel }) => ariaLabel);
+      assert.equal(rang(), SCREEN_N_SUR(0, 3));
       assert.equal(rang(), "Screen 1 of 3");
-      assert.equal(nomsDesEcrans().length, 1, "un seul écran posé");
-      assert.equal(bouton(ici, ECRAN_PRECEDENT).disabled, true);
-      bouton(ici, ECRAN_SUIVANT).click();
+      assert.equal(nomsDesScreens().length, 1, "un seul écran posé");
+      assert.equal(button(ici, SCREEN_PRECEDENT).disabled, true);
+      button(ici, SCREEN_SUIVANT).click();
       assert.equal(rang(), "Screen 2 of 3");
-      assert.equal(nomsDesEcrans().length, 1);
-      const deuxieme = nomsDesEcrans()[0];
+      assert.equal(nomsDesScreens().length, 1);
+      const deuxieme = nomsDesScreens()[0];
       ici.declencher("keydown", { key: "ArrowRight" });
       assert.equal(rang(), "Screen 3 of 3");
-      assert.notEqual(nomsDesEcrans()[0], deuxieme);
-      assert.equal(bouton(ici, ECRAN_SUIVANT).disabled, true);
+      assert.notEqual(nomsDesScreens()[0], deuxieme);
+      assert.equal(button(ici, SCREEN_SUIVANT).disabled, true);
       ici.declencher("keydown", { key: "ArrowRight" });
       assert.equal(rang(), "Screen 3 of 3", "pas au-delà du dernier");
       ici.declencher("keydown", { key: "ArrowLeft" });
       assert.equal(rang(), "Screen 2 of 3");
-      assert.equal(nomsDesEcrans()[0], deuxieme);
+      assert.equal(nomsDesScreens()[0], deuxieme);
       ici.declencher("keydown", { key: "ArrowLeft", target: ici.dessous("textarea")[0] });
       assert.equal(rang(), "Screen 2 of 3", "dans le champ du commentaire, les flèches ne changent pas d'écran");
       assert.equal(images(ici).length, 2);
       assert.ok(briefDe(ici));
-      bouton(ici, VALIDER);
-      bouton(ici, RENVOYER);
-      bouton(ici, "PR of #58");
+      button(ici, VALIDER);
+      button(ici, RENVOYER);
+      button(ici, "PR of #58");
     });
 
     test("un seul écran : ni indicateur ni boutons de passage", async () => {
       const ici = detail(await ouvrir());
-      sans(ici, ECRAN_SUIVANT);
+      sans(ici, SCREEN_SUIVANT);
       assert.equal(ici.dessous("span").some(({ className }) => className === "rang-de-l-ecran"), false);
     });
 
     test("deux cartes attendent : « Next validation » ouvre la suivante sans repasser par TODO, puis revient à la première", async () => {
       const vue = await ouvrir(true);
-      bouton(detail(vue), SUIVANTE(65)).click();
+      button(detail(vue), SUIVANTE(65)).click();
       assert.ok(detail(vue).dessous("p").some(({ textContent }) => textContent === questionDite(59, 64)));
-      bouton(detail(vue), "PR of #59").click();
+      button(detail(vue), "PR of #59").click();
       assert.deepEqual(vue.dernier("ouvrirPr"), ["parade", 65]);
-      bouton(detail(vue), SUIVANTE(61)).click();
+      button(detail(vue), SUIVANTE(61)).click();
       assert.ok(detail(vue).dessous("p").some(({ textContent }) => textContent === questionDite(58, 60)));
     });
   });
@@ -404,13 +404,13 @@ describe("la frappe dans le détail (ticket 3348)", () => {
     try {
       lire(vue, false, []);
       await repos();
-      const carte = laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte dans TODO"));
-      assert.equal(carte.dessous("textarea")[0]?.focalise, 0, "la carte cachée n'a pas pris le clavier");
+      const card = laCard(cardDuTicket(vue, 61) ?? assert.fail("pas de carte dans TODO"));
+      assert.equal(card.dessous("textarea")[0]?.focalise, 0, "la carte cachée n'a pas pris le clavier");
       champ.value = "The button is cut off.";
       champ.declencher("input");
       (document as unknown as { activeElement: unknown }).activeElement = undefined;
-      bouton(detail(vue), FERMER).click();
-      assert.equal(laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte")).dessous("textarea")[0]?.value, "The button is cut off.");
+      button(detail(vue), FERMER).click();
+      assert.equal(laCard(cardDuTicket(vue, 61) ?? assert.fail("pas de carte")).dessous("textarea")[0]?.value, "The button is cut off.");
     } finally {
       (document as unknown as { activeElement: unknown }).activeElement = undefined;
     }
@@ -424,17 +424,17 @@ describe("sur la carte", () => {
     await repos();
     lire(vue, false);
     await repos();
-    const carte = laCarte(carteDuTicket(vue, 61) ?? assert.fail("pas de carte"));
-    carte.declencher("click", { target: carte.dessous("textarea")[0] ?? assert.fail("pas de champ") });
-    carte.declencher("click", { target: bouton(carte, "PR of #58") });
+    const card = laCard(cardDuTicket(vue, 61) ?? assert.fail("pas de carte"));
+    card.declencher("click", { target: card.dessous("textarea")[0] ?? assert.fail("pas de champ") });
+    card.declencher("click", { target: button(card, "PR of #58") });
     assert.equal(detail(vue).hidden, true);
-    carte.dessous("div").find(({ className }) => className === "captures-de-validation")?.declencher("keydown", { key: "Enter" });
+    card.dessous("div").find(({ className }) => className === "captures-de-validation")?.declencher("keydown", { key: "Enter" });
     assert.equal(detail(vue).hidden, false, "Entrée sur ses captures l'ouvre");
   });
 
   test("sur le téléphone, ses gestes sont à la taille du pouce", async () => {
-    const vue = await ouvrirAuTelephone();
-    assert.equal(bouton(detail(vue), VALIDER).dataset.taille, "grand");
-    assert.equal(bouton(detail(vue), RENVOYER).dataset.taille, "grand");
+    const vue = await ouvrirAuPhone();
+    assert.equal(button(detail(vue), VALIDER).dataset.taille, "grand");
+    assert.equal(button(detail(vue), RENVOYER).dataset.taille, "grand");
   });
 });

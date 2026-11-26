@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 import { garderLeClavier } from "../src/vue/garder-le-clavier.js";
 
 function champ(champ: string, cle: string | undefined, selection = { debut: 0, fin: 0, sens: "none" }) {
-  const pris: unknown[][] = [];
+  const taken: unknown[][] = [];
   const el = {
     dataset: { champ, ...(cle === undefined ? {} : { cle }) },
     selectionStart: selection.debut,
@@ -12,9 +12,9 @@ function champ(champ: string, cle: string | undefined, selection = { debut: 0, f
     selectionDirection: selection.sens,
     focuse: false,
     focus() { this.focuse = true; },
-    setSelectionRange(...args: unknown[]) { pris.push(args); },
+    setSelectionRange(...args: unknown[]) { taken.push(args); },
   };
-  return { el, pris };
+  return { el, pris: taken };
 }
 const zone = (...enfants: any[]) => ({ contains: (x: unknown) => enfants.includes(x), querySelectorAll: () => enfants });
 

@@ -1,14 +1,14 @@
 // @ts-check
 // Les briques communes de la vue : ce que l'app dit moins, et dit pareil partout. Une explication
 // ne s'écrit pas à plat dans l'écran, elle se montre au survol ou au focus clavier d'une icône
-// d'aide ; une lecture qui manque tient en une ligne (composants/ligne-erreur), son détail technique dans le survol ;
+// d'aide ; une lecture qui manque tient en une ligne (composants/line-error), son détail technique dans le survol ;
 // un bouton recommandé se distingue des autres, et son prix, s'il en a un, est dans son survol ;
 // la confirmation d'un geste est dans composants/confirmation.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien
 // et les tests un faux. Il ne pose rien dans la page, et ne câble aucun écran : il rend des éléments. Ses boutons sont
-// ceux de la famille unique (composants/bouton, ticket 2916).
+// ceux de la famille unique (composants/button, ticket 2916).
 
-import { bouton } from "./composants/bouton/bouton.js";
+import { button } from "./composants/button/button.js";
 
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
@@ -27,11 +27,11 @@ export function prixDit(prix) {
  * @param {{ question: string | null, choix: { texte: string }[], recommandation?: { rang: number, pourquoi: string } | null }} carte
  * @returns {{ rang: number, texte: string, pourquoi: string | null } | null}
  */
-export function recommandationDe({ question, choix, recommandation }) {
+export function recommandationDe({ question, choix: choice, recommandation }) {
   if (question === null || recommandation === null) return null;
   const rang = recommandation === undefined ? 1 : recommandation.rang;
-  const pris = choix[rang - 1];
-  return pris === undefined ? null : { rang, texte: pris.texte, pourquoi: recommandation?.pourquoi ?? null };
+  const taken = choice[rang - 1];
+  return taken === undefined ? null : { rang, texte: taken.texte, pourquoi: recommandation?.pourquoi ?? null };
 }
 
 // Le survol : un déclencheur (une icône « ? » par défaut) et, à côté, le texte — posé quand le
@@ -52,7 +52,7 @@ export function survol(doc, texte, declencheur) {
   racine.append(cible);
   /** @type {any} */
   let bulle;
-  const montrer = () => {
+  const show = () => {
     if (bulle !== undefined) return;
     bulle = doc.createElement("span");
     bulle.className = "bulle";
@@ -64,13 +64,13 @@ export function survol(doc, texte, declencheur) {
     bulle?.remove();
     bulle = undefined;
   };
-  for (const [evenement, geste] of /** @type {const} */ ([["mouseenter", montrer], ["focus", montrer], ["mouseleave", cacher], ["blur", cacher]])) {
-    racine.addEventListener(evenement, geste);
-    cible.addEventListener(evenement, geste);
+  for (const [event, action] of /** @type {const} */ ([["mouseenter", show], ["focus", show], ["mouseleave", cacher], ["blur", cacher]])) {
+    racine.addEventListener(event, action);
+    cible.addEventListener(event, action);
   }
   // Échap ferme, comme pour tout survol.
-  racine.addEventListener("keydown", (/** @type {{ key?: string }} */ evenement) => {
-    if (evenement.key === "Escape") cacher();
+  racine.addEventListener("keydown", (/** @type {{ key?: string }} */ event) => {
+    if (event.key === "Escape") cacher();
   });
   return racine;
 }
@@ -78,14 +78,14 @@ export function survol(doc, texte, declencheur) {
 // Un bouton d'action. `recommande` le distingue des autres (la sorte recommandée de la famille, et `aria-` de rien
 // d'autre : c'est une question de peau) ; `sorte` en choisit une autre (discret, danger). `prix` : nul ou absent, il
 // n'y a ni survol ni icône ; sinon le prix est dans le survol, pas écrit sous le bouton. `coupe` : son libellé tient sur
-// une ligne, coupé, entier au survol (la famille, `bouton.js`).
-/** @param {Fabrique} doc @param {string} libelle @param {() => void} geste @param {{ recommande?: boolean, sorte?: import("./composants/bouton/bouton.js").Sorte, grand?: boolean, coupe?: boolean, prix?: number | string | null }} [options] */
-export function boutonAction(doc, libelle, geste, { recommande = false, sorte, grand = false, coupe = false, prix } = {}) {
+// une ligne, coupé, entier au survol (la famille, `button.js`).
+/** @param {Fabrique} doc @param {string} libelle @param {() => void} action @param {{ recommande?: boolean, sorte?: import("./composants/button/button.js").Sorte, grand?: boolean, coupe?: boolean, prix?: number | string | null }} [options] */
+export function buttonAction(doc, libelle, action, { recommande = false, sorte, grand = false, coupe = false, prix } = {}) {
   const groupe = doc.createElement("span");
   groupe.className = "action";
-  groupe.append(bouton(doc, libelle, geste, { sorte: recommande ? "recommande" : sorte, grand, coupe }));
-  const cout = prixDit(prix);
-  if (cout !== "") groupe.append(survol(doc, cout));
+  groupe.append(button(doc, libelle, action, { sorte: recommande ? "recommande" : sorte, grand, coupe }));
+  const cost = prixDit(prix);
+  if (cost !== "") groupe.append(survol(doc, cost));
   return groupe;
 }
 
@@ -93,16 +93,16 @@ export function boutonAction(doc, libelle, geste, { recommande = false, sorte, g
 // qui le dit en plus. `mono` : son nom est un mot de la machine, écrit tel qu'il se déclare (`navigateur-headless`).
 // `changer` reçoit l'état de la case à chaque clic.
 /** @param {Fabrique} doc @param {{ nom: string, dit: string, cochee: boolean, mono?: boolean }} quoi @param {(cochee: boolean) => void} changer */
-export function caseACocher(doc, { nom, dit, cochee, mono = false }, changer) {
+export function caseACocher(doc, { nom: name, dit, cochee, mono = false }, changer) {
   const racine = doc.createElement("label");
   racine.className = "capacite";
   const coche = doc.createElement("input");
   coche.type = "checkbox";
   coche.checked = cochee;
-  coche.ariaLabel = nom;
+  coche.ariaLabel = name;
   coche.addEventListener("change", () => changer(coche.checked === true));
   const appele = doc.createElement("span");
-  appele.textContent = nom;
+  appele.textContent = name;
   if (mono) appele.className = "mono";
   racine.append(coche, appele);
   if (dit !== "") {
@@ -133,7 +133,7 @@ export function replie(doc, { titre, resume, aide, ouvert = false, basculer }, c
 // Un bloc qui n'a rien à dire — tout à zéro, rien en cours — tient en une ligne, pas un tableau (ticket 1456) : son
 // titre, et ce qu'il dirait, en mots.
 /** @param {Fabrique} doc @param {string} titre @param {string} dit */
-export function uneLigne(doc, titre, dit) {
+export function uneLine(doc, titre, dit) {
   const racine = doc.createElement("p");
   racine.className = "une-ligne";
   racine.append(...titreEtResume(doc, titre, dit));
@@ -142,10 +142,10 @@ export function uneLigne(doc, titre, dit) {
 
 /** @param {Fabrique} doc @param {string} titre @param {string} resume */
 function titreEtResume(doc, titre, resume) {
-  const nom = doc.createElement("strong");
-  nom.textContent = titre;
+  const name = doc.createElement("strong");
+  name.textContent = titre;
   const dit = doc.createElement("span");
   dit.className = "resume";
   dit.textContent = resume;
-  return [nom, dit];
+  return [name, dit];
 }

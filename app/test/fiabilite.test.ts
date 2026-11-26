@@ -4,49 +4,49 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { direJaugeEn } from "../../runtime/src/mesures.ts";
-import { ligneDeProjet, type FaitsLus } from "../src/accueil.ts";
-import type { Faits } from "../src/faits.ts";
-import { deriveDe } from "../src/fiabilite.ts";
+import { lineDeProject, type ReadFacts } from "../src/home.ts";
+import type { Facts } from "../src/facts.ts";
+import { driftOf } from "../src/fiabilite.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBarre } from "../src/barre.ts";
+import { pourLaBar } from "../src/bar.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
-import { EFFORTS, MODELES } from "../src/projets/projets.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../src/actions.ts";
+import { EFFORTS, MODELES } from "../src/projects/projects.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-19T10:00:00.000Z";
 
 describe("la dérive, dans `status`, et l'accueil", () => {
-  const drift = (ligne: string) => `${"drift".padEnd(11)}${ligne} — \`brigade parade measures\``;
-  const PERDUS_DERIVE = drift([{ measure: "gates_s", observed: 150, limit: 100 }, { measure: "tokens_perdus", observed: 842_809, limit: 400_000 }].map(direJaugeEn).join(" · "));
-  const COUT_SEUL = drift(direJaugeEn({ measure: "tokens_ticket", observed: 1_038_705, limit: 400_000 }));
+  const drift = (line: string) => `${"drift".padEnd(11)}${line} — \`brigade parade measures\``;
+  const LOST_DRIFT = drift([{ measure: "gates_s", observed: 150, limit: 100 }, { measure: "tokens_perdus", observed: 842_809, limit: 400_000 }].map(direJaugeEn).join(" · "));
+  const COST_ONLY = drift(direJaugeEn({ measure: "tokens_ticket", observed: 1_038_705, limit: 400_000 }));
 
   test("les tokens perdus au-delà de leur seuil sont la fiabilité ; les autres seuils non", () => {
-    assert.deepEqual(deriveDe(["project    parade", COUT_SEUL, PERDUS_DERIVE].join("\n")), [
+    assert.deepEqual(driftOf(["project    parade", COST_ONLY, LOST_DRIFT].join("\n")), [
       "tokens lost over the last 10 merges 842,809 for a threshold of 400,000",
     ]);
-    assert.deepEqual(deriveDe(["project    parade", COUT_SEUL].join("\n")), []);
+    assert.deepEqual(driftOf(["project    parade", COST_ONLY].join("\n")), []);
   });
 
-  const FAITS: Faits = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
-  const lus: FaitsLus = { a: A, faits: FAITS };
-  const PROJET = { nom: "parade", servi: true };
+  const FACTS: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
+  const lus: ReadFacts = { a: A, faits: FACTS };
+  const PROJECT = { nom: "parade", servi: true };
 
   test("la ligne d'un projet dont la fiabilité a dérivé le dit d'un mot, et le détail au survol ; sa pastille ne change pas", () => {
-    const ligne = ligneDeProjet(PROJET, lus, { texte: ["project    parade", PERDUS_DERIVE].join("\n") });
-    assert.equal(ligne.dit, "nothing cooking, nothing waits for you · drifting");
-    assert.equal(ligne.ton, "vert");
-    assert.match(ligne.survol, /reliability drifting: tokens lost over the last 10 merges 842,809 for a threshold of 400,000/);
-    assert.doesNotMatch(ligne.survol, /`/);
+    const line = lineDeProject(PROJECT, lus, { texte: ["project    parade", LOST_DRIFT].join("\n") });
+    assert.equal(line.dit, "nothing cooking, nothing waits for you · drifting");
+    assert.equal(line.ton, "vert");
+    assert.match(line.survol, /reliability drifting: tokens lost over the last 10 merges 842,809 for a threshold of 400,000/);
+    assert.doesNotMatch(line.survol, /`/);
   });
 
   test("sans dérive, ou sans `status` lu, rien n'est dit", () => {
-    assert.equal(ligneDeProjet(PROJET, lus, { texte: ["project    parade", COUT_SEUL].join("\n") }).dit, "nothing cooking, nothing waits for you");
-    assert.equal(ligneDeProjet(PROJET, lus, undefined).dit, "nothing cooking, nothing waits for you");
+    assert.equal(lineDeProject(PROJECT, lus, { texte: ["project    parade", COST_ONLY].join("\n") }).dit, "nothing cooking, nothing waits for you");
+    assert.equal(lineDeProject(PROJECT, lus, undefined).dit, "nothing cooking, nothing waits for you");
   });
 });
 
@@ -54,12 +54,12 @@ describe("la fiabilité des cooks n'est plus une page de Settings ni de la vue (
   test("Settings n'a plus de page Reliability : ni sous-pages (#1700), ni section de fiabilité", async () => {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+        configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,

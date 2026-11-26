@@ -60,27 +60,27 @@ function zipDe(entrees: { nom: string; contenu?: Buffer; methode?: 0 | 8; crc?: 
   const locaux: Buffer[] = [];
   const centraux: Buffer[] = [];
   let position = 0;
-  for (const { nom, contenu = Buffer.alloc(0), methode = 8, crc } of entrees) {
+  for (const { nom: name, contenu = Buffer.alloc(0), methode = 8, crc } of entrees) {
     const donnees = methode === 8 ? deflateRawSync(contenu) : contenu;
-    const nomBrut = Buffer.from(nom, "utf8");
+    const nameBrut = Buffer.from(name, "utf8");
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(methode, 8);
     local.writeUInt32LE(crc ?? crc32(contenu), 14);
     local.writeUInt32LE(donnees.length, 18);
     local.writeUInt32LE(contenu.length, 22);
-    local.writeUInt16LE(nomBrut.length, 26);
+    local.writeUInt16LE(nameBrut.length, 26);
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(methode, 10);
     central.writeUInt32LE(crc ?? crc32(contenu), 16);
     central.writeUInt32LE(donnees.length, 20);
     central.writeUInt32LE(contenu.length, 24);
-    central.writeUInt16LE(nomBrut.length, 28);
+    central.writeUInt16LE(nameBrut.length, 28);
     central.writeUInt32LE(position, 42);
-    locaux.push(local, nomBrut, donnees);
-    centraux.push(central, nomBrut);
-    position += local.length + nomBrut.length + donnees.length;
+    locaux.push(local, nameBrut, donnees);
+    centraux.push(central, nameBrut);
+    position += local.length + nameBrut.length + donnees.length;
   }
   const repertoire = Buffer.concat(centraux);
   const fin = Buffer.alloc(22);
@@ -226,19 +226,19 @@ test("scriptNsis : installé pour le compte, un raccourci au menu Démarrer, un 
   const arbre = assembler({ version: "1.2.3+gabc", electron, node, app, runtime }, join(racine, "Brigade"));
   const installeur = join(racine, "sortie", nomDeLInstalleur("1.2.3+gabc"));
   const script = scriptNsis({ version: "1.2.3+gabc", arbre, installeur });
-  const lignes = script.split("\n").map((ligne) => ligne.trim());
+  const lines = script.split("\n").map((line) => line.trim());
   const [installation, desinstallation] = script.split('Section "Uninstall"');
   assert.ok(installation !== undefined && desinstallation !== undefined);
 
-  assert.ok(lignes.includes("RequestExecutionLevel user"), "ni administrateur ni UAC");
-  assert.ok(lignes.includes('InstallDir "$LOCALAPPDATA\\Programs\\Brigade"'));
-  assert.ok(lignes.includes(`OutFile "${installeur}"`));
-  assert.ok(lignes.includes(`File /r "${join(arbre, "*")}"`));
-  assert.ok(lignes.includes(`WriteUninstaller "$INSTDIR\\${DESINSTALLEUR}"`));
-  assert.ok(lignes.includes(`CreateShortcut "$SMPROGRAMS\\Brigade.lnk" "$INSTDIR\\${EXE}" "" "$INSTDIR\\${ICONE}" 0`));
-  assert.ok(lignes.includes(`WinShell::SetLnkAUMI "$SMPROGRAMS\\Brigade.lnk" "$INSTDIR\\${EXE}"`), "l'AppUserModelID de l'app : process.execPath");
-  assert.ok(lignes.includes(`WriteRegStr HKCU "${CLE_DE_DESINSTALLATION}" "DisplayVersion" "1.2.3+gabc"`));
-  assert.ok(lignes.includes(`WriteRegStr HKCU "${CLE_DE_DESINSTALLATION}" "QuietUninstallString" '"$INSTDIR\\${DESINSTALLEUR}" /S'`));
+  assert.ok(lines.includes("RequestExecutionLevel user"), "ni administrateur ni UAC");
+  assert.ok(lines.includes('InstallDir "$LOCALAPPDATA\\Programs\\Brigade"'));
+  assert.ok(lines.includes(`OutFile "${installeur}"`));
+  assert.ok(lines.includes(`File /r "${join(arbre, "*")}"`));
+  assert.ok(lines.includes(`WriteUninstaller "$INSTDIR\\${DESINSTALLEUR}"`));
+  assert.ok(lines.includes(`CreateShortcut "$SMPROGRAMS\\Brigade.lnk" "$INSTDIR\\${EXE}" "" "$INSTDIR\\${ICONE}" 0`));
+  assert.ok(lines.includes(`WinShell::SetLnkAUMI "$SMPROGRAMS\\Brigade.lnk" "$INSTDIR\\${EXE}"`), "l'AppUserModelID de l'app : process.execPath");
+  assert.ok(lines.includes(`WriteRegStr HKCU "${CLE_DE_DESINSTALLATION}" "DisplayVersion" "1.2.3+gabc"`));
+  assert.ok(lines.includes(`WriteRegStr HKCU "${CLE_DE_DESINSTALLATION}" "QuietUninstallString" '"$INSTDIR\\${DESINSTALLEUR}" /S'`));
 
   // Ce qui est retiré : chaque entrée posée, par son nom — avant de poser une nouvelle version comme à la désinstallation.
   for (const partie of [installation, desinstallation]) {
@@ -274,10 +274,10 @@ test("makensisDe : le makensis du paquet pour la machine qui construit, et ses f
 test("construire : un seul installeur, au nom de sa version, sous la sortie", (t) => {
   const { racine, electron, app, runtime, node } = sources(t);
   const nsis = paquetNsis(racine);
-  const appels: { commande: string; args: readonly string[]; nsisdir: string | undefined }[] = [];
+  const calls: { commande: string; args: readonly string[]; nsisdir: string | undefined }[] = [];
   // Le faux makensis écrit le fichier que nomme l'OutFile du script.
-  const executer: Executer = (commande, args, env) => {
-    appels.push({ commande, args, nsisdir: env?.NSISDIR });
+  const executer: Executer = (command, args, env) => {
+    calls.push({ commande: command, args, nsisdir: env?.NSISDIR });
     const script = readFileSync(args.at(-1) ?? "", "utf8");
     const sortie = /^OutFile "(.*)"$/m.exec(script)?.[1] ?? "";
     ecrire(sortie, enTetePe(0x014c));
@@ -287,9 +287,9 @@ test("construire : un seul installeur, au nom de sa version, sous la sortie", (t
   const installeur = construire({ version: "1.2.3+gabc", electron, node, app, runtime, nsis, sortie, atelier: join(racine, "atelier"), executer });
   assert.equal(installeur, join(sortie, "Brigade-1.2.3+gabc-x64-setup.exe"));
   assert.deepEqual(readdirSync(sortie), ["Brigade-1.2.3+gabc-x64-setup.exe"]);
-  assert.equal(appels.length, 1);
-  assert.equal(appels[0]?.commande, makensisDe(nsis).commande);
-  assert.equal(appels[0]?.nsisdir, join(nsis, "windows"));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.commande, makensisDe(nsis).commande);
+  assert.equal(calls[0]?.nsisdir, join(nsis, "windows"));
 });
 
 test("construire : un makensis qui échoue fait échouer la construction, en disant pourquoi", (t) => {
@@ -297,7 +297,7 @@ test("construire : un makensis qui échoue fait échouer la construction, en dis
   const executer: Executer = () => ({ status: 1, stdout: "", stderr: "Error in script on line 12" });
   assert.throws(
     () => construire({ version: "1.2.3", electron, node, app, runtime, nsis: paquetNsis(racine), sortie: join(racine, "construit"), atelier: join(racine, "atelier"), executer }),
-    (erreur: Error & { code?: number }) => erreur.code === 1 && /makensis failed .*Error in script on line 12/.test(erreur.message),
+    (error: Error & { code?: number }) => error.code === 1 && /makensis failed .*Error in script on line 12/.test(error.message),
   );
 });
 
@@ -307,7 +307,7 @@ test("construire : refuse un node qui n'est pas un exécutable Windows x64", (t)
   ecrire(node, "#!/bin/sh\n");
   assert.throws(
     () => construire({ version: "1.2.3", electron, node, app, runtime, nsis: paquetNsis(racine), sortie: join(racine, "construit"), atelier: join(racine, "atelier"), executer: executerVraiment }),
-    (erreur: Error & { code?: number }) => erreur.code === 2 && /not a Windows x64 executable/.test(erreur.message),
+    (error: Error & { code?: number }) => error.code === 2 && /not a Windows x64 executable/.test(error.message),
   );
   assert.equal(existsSync(join(racine, "construit")), false);
 });
@@ -332,8 +332,8 @@ test("la commande refuse une option ou une version invalide, et un node à porte
 });
 
 test("cheminSansNode : le PATH de l'essai, sans aucun dossier qui porte un node.exe", () => {
-  const [systeme, nodejs, outils] = [join("Windows", "System32"), join("Program Files", "nodejs"), "outils"];
-  assert.equal(cheminSansNode([systeme, nodejs, "", outils].join(delimiter), (fichier) => fichier === join(nodejs, "node.exe")), [systeme, outils].join(delimiter));
+  const [systeme, nodejs, tools] = [join("Windows", "System32"), join("Program Files", "nodejs"), "outils"];
+  assert.equal(cheminSansNode([systeme, nodejs, "", tools].join(delimiter), (fichier) => fichier === join(nodejs, "node.exe")), [systeme, tools].join(delimiter));
 });
 
 test("le vrai makensis compile le script de l'installeur", { skip: process.env.BRIGADE_NSIS ? false : "BRIGADE_NSIS (an extracted NSIS bundle) is not set" }, (t) => {

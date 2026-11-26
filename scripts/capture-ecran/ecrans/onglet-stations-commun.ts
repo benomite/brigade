@@ -1,7 +1,7 @@
 // L'onglet Stations de « parade » (#2487) : ses deux stations — la box cuit #14, le Mac, distant, arrêté par le chef y
 // finit #15 —, puis « Add a station ». Le Mac de l'écran a sa station, qui ne sert pas encore parade (`projetsServis`) ;
 // le compte du chef a deux stations appairées : parade-box, à qui parade est choisi, et atelier, à qui rien ne l'est.
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import * as contrat from "../../../runtime/src/enregistrement-station/contrat.ts";
 import { stationDuGist, type StationEnregistree, type StationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT, type Rendu } from "./commun.ts";
@@ -15,7 +15,7 @@ const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticke
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
 const COOK_15 = { ticket: 15, titre: "La carte des desserts", station: "mac/claude" };
 const station = { plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, arreteeDepuis: null, refus: null } as const;
-const FACTS: Faits = {
+const FACTS: Facts = {
   ...PARADE.facts,
   compteurs: { ...PARADE.facts.compteurs, auTravail: 2 },
   rail: [
@@ -28,7 +28,7 @@ const FACTS: Faits = {
     { ...station, station: "box/claude", distante: false, cuisson: "cooking", cooks: [COOK_14] },
     { ...station, station: "mac/claude", distante: true, cuisson: "stopped", arreteeDepuis: "2026-10-13T09:52:00.000Z", cooks: [COOK_15] },
   ],
-} as Faits;
+} as Facts;
 
 function lue(id: string, name: string, machine: string, repositories: string[]): StationEnregistree {
   const station = stationDuGist(
@@ -54,7 +54,7 @@ export function ongletStations(dit: string, etapes: Etape[] = [], quotaGithub?: 
     donnees: () => ({
       maintenant: MAINTENANT,
       reponses: { demarrage: demarrage(configuration([{ ...PROJETS[0]!, depot: "chef/parade" }, PROJETS[1]!])), espace: [], projetsServis: { depots: [] }, stationsDuCompte: COMPTE },
-      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: quotaGithub === undefined ? FACTS : ({ ...FACTS, quotaGithub } as Faits) } }),
+      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: quotaGithub === undefined ? FACTS : ({ ...FACTS, quotaGithub } as Facts) } }),
     }),
   };
 }

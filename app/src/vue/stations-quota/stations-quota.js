@@ -8,14 +8,14 @@
 // chiffre inventé. Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js).
 
 import { replie } from "../briques.js";
-import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { lineEmpty } from "../composants/line-empty/line-empty.js";
 
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
-/** @typedef {{ station: string, projet: string, typeAppel: string, nombre: number }} Appel */
-/** @typedef {{ limite: string, pauseJusqua?: string | null, utilise: number, maximum: number, renouvellement?: string | null, parStationEtProjet: readonly Appel[] }} QuotaGithub */
+/** @typedef {{ station: string, projet: string, typeAppel: string, nombre: number }} Call */
+/** @typedef {{ limite: string, pauseJusqua?: string | null, utilise: number, maximum: number, renouvellement?: string | null, parStationEtProjet: readonly Call[] }} QuotaGithub */
 
 // Au-delà de cette part utilisée, l'affichage prévient.
-export const SEUIL_D_ALERTE = 0.8;
+export const THRESHOLD_D_ALERT = 0.8;
 export const TITRE = "GitHub quota";
 export const SANS_DONNEES = "No GitHub calls recorded over the last hour.";
 export const ILLISIBLE = "GitHub quota unreadable";
@@ -31,7 +31,7 @@ const instant = (/** @type {unknown} */ v) => (typeof v === "string" && !Number.
 
 // Ce que le quota dit, d'après `quotaGithub` : la part utilisée (0 à 1), le ton, la ligne — ou rien qui se lise.
 /** @param {QuotaGithub} quota */
-export function lectureDuQuota(quota) {
+export function readDuQuota(quota) {
   const { utilise, maximum } = quota;
   if (!nombreFini(utilise) || !nombreFini(maximum) || maximum <= 0 || utilise < 0) return { lisible: false };
   const part = Math.min(utilise / maximum, 1);
@@ -40,16 +40,16 @@ export function lectureDuQuota(quota) {
   return {
     lisible: true,
     part,
-    ton: utilise / maximum >= SEUIL_D_ALERTE ? "alerte" : "normal",
+    ton: utilise / maximum >= THRESHOLD_D_ALERT ? "alerte" : "normal",
     ligne: `${utilise} / ${maximum} calls used${quoi}`,
     renouvellement: renouvellement === undefined ? "renewal time unknown" : `renews around ${heureHM(renouvellement)}`,
   };
 }
 
 // Les appels de la dernière heure, du plus gros utilisateur au plus petit — les lignes qui ne se lisent pas sont omises.
-/** @param {readonly Appel[]} appels */
-export function lignesDeLUsage(appels) {
-  return appels
+/** @param {readonly Call[]} calls */
+export function linesDeLUsage(calls) {
+  return calls
     .filter((a) => typeof a === "object" && a !== null && nombreFini(a.nombre) && a.nombre > 0 && typeof a.station === "string" && typeof a.projet === "string")
     .toSorted((a, b) => b.nombre - a.nombre)
     .map((a) => `${a.station}, ${a.projet}: ${a.nombre} ${a.typeAppel}`);
@@ -71,33 +71,33 @@ export function poserLeQuota(doc, quota) {
   const racine = cree(doc, "section");
   racine.className = "quota-github";
   racine.ariaLabel = TITRE;
-  const affiche = lectureDuQuota(quota);
+  const affiche = readDuQuota(quota);
   if (!affiche.lisible) {
     racine.dataset.ton = "illisible";
-    racine.append(ligneVide(doc, ILLISIBLE, { classe: "quota-illisible" }));
+    racine.append(lineEmpty(doc, ILLISIBLE, { classe: "quota-illisible" }));
     return racine;
   }
   racine.dataset.ton = affiche.ton;
   const tete = cree(doc, "p");
   tete.className = "quota-ligne";
   tete.append(cree(doc, "strong", TITRE), cree(doc, "span", `${affiche.ligne} — ${affiche.renouvellement}`));
-  const barre = cree(doc, "div");
-  barre.className = "quota-barre";
-  barre.role = "meter";
-  barre.ariaLabel = `${quota.utilise} of ${quota.maximum} GitHub calls used`;
+  const bar = cree(doc, "div");
+  bar.className = "quota-barre";
+  bar.role = "meter";
+  bar.ariaLabel = `${quota.utilise} of ${quota.maximum} GitHub calls used`;
   const rempli = cree(doc, "div");
   rempli.className = "quota-rempli";
   rempli.style.setProperty("--part", `${Math.round((affiche.part ?? 0) * 100)}%`);
-  barre.append(rempli);
-  const lignes = lignesDeLUsage(Array.isArray(quota.parStationEtProjet) ? quota.parStationEtProjet : []);
+  bar.append(rempli);
+  const lines = linesDeLUsage(Array.isArray(quota.parStationEtProjet) ? quota.parStationEtProjet : []);
   const contenu = cree(doc, "div");
   contenu.className = "quota-usage";
-  if (lignes.length === 0) contenu.append(ligneVide(doc, SANS_DONNEES, { classe: "quota-sans-donnees" }));
+  if (lines.length === 0) contenu.append(lineEmpty(doc, SANS_DONNEES, { classe: "quota-sans-donnees" }));
   else {
     const liste = cree(doc, "ul");
-    for (const ligne of lignes) liste.append(cree(doc, "li", ligne));
+    for (const line of lines) liste.append(cree(doc, "li", line));
     contenu.append(liste);
   }
-  racine.append(tete, barre, replie(doc, { titre: DETAIL, resume: DETAIL_RESUME, ouvert: detailOuvert, basculer: (ouvert) => void (detailOuvert = ouvert) }, [contenu]));
+  racine.append(tete, bar, replie(doc, { titre: DETAIL, resume: DETAIL_RESUME, ouvert: detailOuvert, basculer: (ouvert) => void (detailOuvert = ouvert) }, [contenu]));
   return racine;
 }

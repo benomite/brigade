@@ -13,21 +13,21 @@
 // lui passe que ce projet et sa propre lecture de `station`.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { FERMER_LA_LISTE, OUVRIR_LA_LISTE, poserAlerte, seuilsDesProjets } from "./seuils.js";
-import { LECTURE, NON_COMMUNIQUE, tokensLus } from "./tete.js";
-import { bouton } from "../composants/bouton/bouton.js";
-import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { FERMER_LA_LISTE, OUVRIR_LA_LISTE, poserAlert, thresholdsDesProjects } from "./thresholds.js";
+import { READ, NON_COMMUNIQUE, tokensLus } from "./tete.js";
+import { button } from "../composants/button/button.js";
+import { lineEmpty } from "../composants/line-empty/line-empty.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
-/** @typedef {import("./tete.js").Lecture} Lecture */
-/** @typedef {import("./tete.js").ProjetDuCout} ProjetDuCout */
+/** @typedef {import("./tete.js").Read} Read */
+/** @typedef {import("./tete.js").ProjectDuCost} ProjectDuCost */
 /** @typedef {"red attempt" | "interrupted"} Cause */
 /** @typedef {{ ticket: number, run: string, tokens: number | null, cause: Cause }} CookPerdu */
-/** @typedef {CookPerdu & { projet: ProjetDuCout }} Perdu */
+/** @typedef {CookPerdu & { projet: ProjectDuCost }} Perdu */
 /** @typedef {{ total: number | null | undefined, minimum: boolean, partiel: boolean, lignes: Perdu[] }} Perdus */
 
 export const TITRE = "lost tokens";
-export const ROUGE = "red attempt";
+export const RED = "red attempt";
 export const INTERROMPU = "interrupted";
 export const FERMER = "close";
 
@@ -40,23 +40,23 @@ const CHAMPS = / {2,}/;
 // s'arrête à la première ligne qui n'est plus en retrait.
 /** @param {string} texte @returns {CookPerdu[] | null} */
 export function perdusDe(texte) {
-  const lignes = texte.split("\n");
-  const debut = lignes.findIndex((ligne) => /^(derniers|latest) cooks/.test(ligne));
+  const lines = texte.split("\n");
+  const debut = lines.findIndex((line) => /^(derniers|latest) cooks/.test(line));
   if (debut === -1) return null;
   /** @type {CookPerdu[]} */
   const perdus = [];
-  for (const ligne of lignes.slice(debut + 1)) {
-    if (!/^\s/.test(ligne)) break;
+  for (const line of lines.slice(debut + 1)) {
+    if (!/^\s/.test(line)) break;
     // date, #ticket, run, calibrage, fin, puis (tours · tokens · durée) et la PR, quand le cook les a.
-    const [, ticket, run, , fin, consomme] = ligne.trim().split(CHAMPS);
+    const [, ticket, run, , fin, consumed] = line.trim().split(CHAMPS);
     const numero = /^#(\d+)$/.exec(ticket ?? "");
     if (numero === null || fin === undefined || fin === "fini" || fin === "done") continue;
-    const dit = consomme === undefined ? undefined : /^\d+ (?:tours?|turns?) · (.*) tokens? · /.exec(consomme)?.[1];
+    const dit = consumed === undefined ? undefined : /^\d+ (?:tours?|turns?) · (.*) tokens? · /.exec(consumed)?.[1];
     perdus.push({
       ticket: Number(numero[1]),
       run: run ?? "",
       tokens: dit === undefined ? null : (tokensLus(`${dit} tokens`) ?? null),
-      cause: FINS_ROUGES.includes(fin) ? ROUGE : INTERROMPU,
+      cause: FINS_ROUGES.includes(fin) ? RED : INTERROMPU,
     });
   }
   return perdus;
@@ -66,30 +66,30 @@ export function perdusDe(texte) {
 // communique pas ses cooks n'ajoute rien et rend la somme partielle (« ≥ ») ; si aucune ne les
 // communique, le total est `null` — ou `undefined` tant qu'une box n'est pas lue. Un cook perdu qui
 // ne déclare pas ses tokens rend la somme minimale.
-/** @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures @returns {Perdus} */
-export function perdus(projets, lectures) {
+/** @param {ProjectDuCost[]} projects @param {Map<string, Read>} lectures @returns {Perdus} */
+export function perdus(projects, lectures) {
   /** @type {Perdu[]} */
-  const lignes = [];
+  const lines = [];
   let communiques = 0;
   let nonLus = 0;
-  for (const projet of projets) {
-    const lecture = lectures.get(projet.nom);
-    if (lecture === undefined) {
+  for (const project of projects) {
+    const read = lectures.get(project.nom);
+    if (read === undefined) {
       nonLus++;
       continue;
     }
-    const station = "sorties" in lecture ? lecture.sorties.find(({ commande }) => commande === "station") : undefined;
+    const station = "sorties" in read ? read.sorties.find(({ commande: command }) => command === "station") : undefined;
     const lus = station === undefined ? null : perdusDe(station.texte);
     if (lus === null) continue;
     communiques++;
-    lignes.push(...lus.map((cook) => ({ ...cook, projet })));
+    lines.push(...lus.map((cook) => ({ ...cook, projet: project })));
   }
-  const total = communiques > 0 ? lignes.reduce((somme, { tokens }) => somme + (tokens ?? 0), 0) : nonLus > 0 ? undefined : null;
+  const total = communiques > 0 ? lines.reduce((somme, { tokens }) => somme + (tokens ?? 0), 0) : nonLus > 0 ? undefined : null;
   return {
     total,
-    minimum: lignes.some(({ tokens }) => tokens === null),
-    partiel: communiques > 0 && communiques < projets.length,
-    lignes: lignes.sort((a, b) => (b.tokens ?? -1) - (a.tokens ?? -1) || b.ticket - a.ticket),
+    minimum: lines.some(({ tokens }) => tokens === null),
+    partiel: communiques > 0 && communiques < projects.length,
+    lignes: lines.sort((a, b) => (b.tokens ?? -1) - (a.tokens ?? -1) || b.ticket - a.ticket),
   };
 }
 
@@ -108,69 +108,69 @@ function cree(doc, balise, texte) {
 // la liste. `ouvert` dit si elle l'est, `bascule` la déploie ou la replie ; `titres` dit le titre
 // d'un ticket sur le rail de son projet, s'il y est. Avec `ouvrir`, chaque ligne est un bouton qui
 // ouvre la fiche de son ticket.
-/** @param {Fabrique} doc @param {ProjetDuCout[]} projets @param {Map<string, Lecture>} lectures
- *  @param {(projet: string, ticket: number) => string | undefined} titres
+/** @param {Fabrique} doc @param {ProjectDuCost[]} projects @param {Map<string, Read>} lectures
+ *  @param {(project: string, ticket: number) => string | undefined} titres
  *  @param {boolean} ouvert @param {() => void} bascule
- *  @param {(projet: string, ticket: number, bouton: any) => void} [ouvrir] */
-export function poserPerdus(doc, projets, lectures, titres, ouvert, bascule, ouvrir) {
+ *  @param {(project: string, ticket: number, button: any) => void} [ouvrir] */
+export function poserPerdus(doc, projects, lectures, titres, ouvert, bascule, ouvrir) {
   const bloc = cree(doc, "div");
   bloc.className = "perdus-cout";
-  const { total, minimum, partiel, lignes } = perdus(projets, lectures);
-  const dit = total === undefined ? LECTURE : total === null ? NON_COMMUNIQUE : `${partiel || minimum ? "≥ " : ""}${nombre(total)}`;
+  const { total, minimum, partiel, lignes: lines } = perdus(projects, lectures);
+  const dit = total === undefined ? READ : total === null ? NON_COMMUNIQUE : `${partiel || minimum ? "≥ " : ""}${nombre(total)}`;
   // Avec des lignes, le chiffre est un bouton de la famille, discret, qui déplie la liste : son chiffre est un `span` à lui.
-  const sansChiffre = lignes.length === 0 && typeof total !== "number";
-  const chiffre = lignes.length > 0 ? bouton(doc, "", undefined, { sorte: "discret" }) : sansChiffre ? ligneVide(doc, dit, { classe: "perdus-total sans" }) : cree(doc, "p", dit);
-  if (lignes.length > 0) {
+  const sansChiffre = lines.length === 0 && typeof total !== "number";
+  const chiffre = lines.length > 0 ? button(doc, "", undefined, { sorte: "discret" }) : sansChiffre ? lineEmpty(doc, dit, { classe: "perdus-total sans" }) : cree(doc, "p", dit);
+  if (lines.length > 0) {
     const nombreDit = cree(doc, "span", dit);
     nombreDit.className = "chiffre-perdu";
     chiffre.append(nombreDit);
   }
   if (!sansChiffre) chiffre.className = "perdus-total";
-  // Au-dessus du seuil de son projet (seuils.js), le chiffre est mis en évidence et une ligne dit le geste.
-  const seuils = seuilsDesProjets(projets, lectures);
-  const sommes = new Map(projets.map(({ nom }) => [nom, 0]));
-  for (const { projet, tokens } of lignes) sommes.set(projet.nom, (sommes.get(projet.nom) ?? 0) + (tokens ?? 0));
-  const connus = projets.filter(({ nom }) => seuils.get(nom)?.perdus != null);
-  const depassant = connus.find(({ nom }) => (sommes.get(nom) ?? 0) > /** @type {number} */ (seuils.get(nom)?.perdus));
-  const depasse = depassant === undefined ? undefined : { projet: depassant.nom, seuil: /** @type {number} */ (seuils.get(depassant.nom)?.perdus) };
+  // Au-dessus du seuil de son projet (thresholds.js), le chiffre est mis en évidence et une ligne dit le geste.
+  const thresholds = thresholdsDesProjects(projects, lectures);
+  const sommes = new Map(projects.map(({ nom: name }) => [name, 0]));
+  for (const { projet: project, tokens } of lines) sommes.set(project.nom, (sommes.get(project.nom) ?? 0) + (tokens ?? 0));
+  const connus = projects.filter(({ nom: name }) => thresholds.get(name)?.perdus != null);
+  const depassant = connus.find(({ nom: name }) => (sommes.get(name) ?? 0) > /** @type {number} */ (thresholds.get(name)?.perdus));
+  const depasse = depassant === undefined ? undefined : { projet: depassant.nom, seuil: /** @type {number} */ (thresholds.get(depassant.nom)?.perdus) };
   if (depasse !== undefined) chiffre.className = "perdus-total depasse";
   bloc.append(cree(doc, "h2", TITRE), chiffre);
-  const alerte = typeof total === "number" ? poserAlerte(doc, depasse, connus.length > 0, ouvert ? FERMER_LA_LISTE : OUVRIR_LA_LISTE, bascule) : null;
-  if (alerte !== null) bloc.append(alerte);
-  if (lignes.length === 0) return bloc;
+  const alert = typeof total === "number" ? poserAlert(doc, depasse, connus.length > 0, ouvert ? FERMER_LA_LISTE : OUVRIR_LA_LISTE, bascule) : null;
+  if (alert !== null) bloc.append(alert);
+  if (lines.length === 0) return bloc;
   chiffre.ariaExpanded = String(ouvert);
   chiffre.addEventListener("click", bascule);
   if (!ouvert) return bloc;
   const liste = cree(doc, "ol");
   liste.className = "perdus";
-  for (const { projet, ticket, tokens, cause } of lignes) {
+  for (const { projet: project, ticket, tokens, cause } of lines) {
     const teinte = cree(doc, "span");
     teinte.className = "teinte";
-    if (projet.teinte !== undefined) teinte.style.setProperty("--teinte", projet.teinte);
+    if (project.teinte !== undefined) teinte.style.setProperty("--teinte", project.teinte);
     const numero = cree(doc, "span", `#${ticket}`);
     numero.className = "numero mono";
-    const titre = titres(projet.nom, ticket);
+    const titre = titres(project.nom, ticket);
     const nomme = titre !== undefined && titre !== "";
     const intitule = cree(doc, "span", nomme ? titre : NON_COMMUNIQUE);
     intitule.className = nomme ? "titre" : "titre sans";
-    const cout = cree(doc, "span", tokens === null ? NON_COMMUNIQUE : nombre(tokens));
-    cout.className = tokens === null ? "tokens sans" : "tokens";
+    const cost = cree(doc, "span", tokens === null ? NON_COMMUNIQUE : nombre(tokens));
+    cost.className = tokens === null ? "tokens sans" : "tokens";
     const pourquoi = cree(doc, "span", cause);
     pourquoi.className = "cause";
-    const ligne = cree(doc, "li");
-    if (ouvrir === undefined) ligne.append(teinte, numero, intitule, cout, pourquoi);
+    const line = cree(doc, "li");
+    if (ouvrir === undefined) line.append(teinte, numero, intitule, cost, pourquoi);
     else {
-      const geste = cree(doc, "button");
-      geste.className = "ticket-perdu";
-      geste.title = `open the sheet of #${ticket} · ${projet.nom}`;
-      geste.append(teinte, numero, intitule, cout, pourquoi);
-      geste.addEventListener("click", () => ouvrir(projet.nom, ticket, geste));
-      ligne.className = "ouvrable";
-      ligne.append(geste);
+      const action = cree(doc, "button");
+      action.className = "ticket-perdu";
+      action.title = `open the sheet of #${ticket} · ${project.nom}`;
+      action.append(teinte, numero, intitule, cost, pourquoi);
+      action.addEventListener("click", () => ouvrir(project.nom, ticket, action));
+      line.className = "ouvrable";
+      line.append(action);
     }
-    liste.append(ligne);
+    liste.append(line);
   }
-  const fermer = bouton(doc, FERMER, bascule, { sorte: "discret" });
+  const fermer = button(doc, FERMER, bascule, { sorte: "discret" });
   fermer.className = "perdus-fermer";
   bloc.append(liste, fermer);
   return bloc;

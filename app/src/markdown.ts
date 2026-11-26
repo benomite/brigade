@@ -7,13 +7,13 @@
 // Seule une adresse http(s) devient un lien ; les autres restent du texte.
 
 // Ce qui se lit dans une ligne : du texte, du code, de l'emphase, un lien, un retour à la ligne.
-export type Mot =
+export type Word =
   | { texte: string }
   | { code: string }
-  | { gras: Mot[] }
-  | { italique: Mot[] }
-  | { barre: Mot[] }
-  | { lien: string; contenu: Mot[] }
+  | { gras: Word[] }
+  | { italique: Word[] }
+  | { barre: Word[] }
+  | { lien: string; contenu: Word[] }
   | { saut: true };
 
 // Un bloc : un titre (son niveau, 1 à 6), un paragraphe, du code (sa langue, si elle est dite), une
@@ -21,14 +21,14 @@ export type Mot =
 // un tableau (son en-tête, puis ses lignes, chaque case ses mots), un repli `<details>`.
 // `coche` : une case de liste de tâches, cochée ou non.
 export type Bloc =
-  | { titre: number; contenu: Mot[] }
-  | { paragraphe: Mot[] }
+  | { titre: number; contenu: Word[] }
+  | { paragraphe: Word[] }
   | { code: string; langue?: string }
   | { citation: Bloc[] }
   | { liste: { coche?: boolean; blocs: Bloc[] }[]; debut?: number }
   | { trait: true }
-  | { tableau: { tete: Mot[][]; lignes: Mot[][][] } }
-  | { replie: { resume: Mot[]; blocs: Bloc[] } };
+  | { tableau: { tete: Word[][]; lignes: Word[][][] } }
+  | { replie: { resume: Word[]; blocs: Bloc[] } };
 
 // Au-delà, une imbrication se lit en texte : une issue ne fait pas tomber la vue.
 const PROFONDEUR = 16;
@@ -46,7 +46,7 @@ const SEPARATION = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*
 
 // Les commentaires HTML, hors des blocs de code : invisibles sur GitHub, ils ne se montrent pas ici.
 function sansCommentaires(texte: string): string {
-  const lignes = texte.replace(/\r\n?/g, "\n").split("\n");
+  const lines = texte.replace(/\r\n?/g, "\n").split("\n");
   const morceaux: string[] = [];
   let prose: string[] = [];
   let cloture: string | undefined;
@@ -54,100 +54,100 @@ function sansCommentaires(texte: string): string {
     if (prose.length > 0) morceaux.push(prose.join("\n").replace(/<!--[\s\S]*?-->/g, ""));
     prose = [];
   };
-  for (const ligne of lignes) {
+  for (const line of lines) {
     if (cloture === undefined) {
-      const ouvre = CLOTURE.exec(ligne)?.[1];
-      if (ouvre === undefined) prose.push(ligne);
+      const ouvre = CLOTURE.exec(line)?.[1];
+      if (ouvre === undefined) prose.push(line);
       else {
         verser();
         cloture = ouvre;
-        morceaux.push(ligne);
+        morceaux.push(line);
       }
     } else {
-      morceaux.push(ligne);
-      if (ferme(ligne, cloture)) cloture = undefined;
+      morceaux.push(line);
+      if (ferme(line, cloture)) cloture = undefined;
     }
   }
   verser();
   return morceaux.join("\n");
 }
 
-const ferme = (ligne: string, cloture: string) => new RegExp(`^ {0,3}${cloture[0] === "`" ? "`" : "~"}{${cloture.length},}[ \\t]*$`).test(ligne);
-const vide = (ligne: string) => ligne.trim() === "";
-const indentation = (ligne: string) => (/^[ \t]*/.exec(ligne)?.[0] ?? "").replace(/\t/g, "    ").length;
+const ferme = (line: string, cloture: string) => new RegExp(`^ {0,3}${cloture[0] === "`" ? "`" : "~"}{${cloture.length},}[ \\t]*$`).test(line);
+const empty = (line: string) => line.trim() === "";
+const indentation = (line: string) => (/^[ \t]*/.exec(line)?.[0] ?? "").replace(/\t/g, "    ").length;
 // Retire `n` colonnes d'indentation, une tabulation valant quatre.
-function desindenter(ligne: string, n: number): string {
+function desindenter(line: string, n: number): string {
   let colonnes = 0;
   let i = 0;
-  while (i < ligne.length && colonnes < n && (ligne[i] === " " || ligne[i] === "\t")) {
-    colonnes += ligne[i] === "\t" ? 4 : 1;
+  while (i < line.length && colonnes < n && (line[i] === " " || line[i] === "\t")) {
+    colonnes += line[i] === "\t" ? 4 : 1;
     i++;
   }
-  return ligne.slice(i);
+  return line.slice(i);
 }
 
 // Une ligne qui ouvre un autre bloc arrête un paragraphe.
-const ouvreUnBloc = (ligne: string) => CLOTURE.test(ligne) || TITRE.test(ligne) || TRAIT.test(ligne) || CITATION.test(ligne) || PUCE.test(ligne) || OUVRE_DETAILS.test(ligne);
+const ouvreUnBloc = (line: string) => CLOTURE.test(line) || TITRE.test(line) || TRAIT.test(line) || CITATION.test(line) || PUCE.test(line) || OUVRE_DETAILS.test(line);
 
-const cases = (ligne: string): string[] => {
-  const coupee = ligne.trim().replace(/^\|/, "").replace(/(?<!\\)\|$/, "");
+const cases = (line: string): string[] => {
+  const coupee = line.trim().replace(/^\|/, "").replace(/(?<!\\)\|$/, "");
   return coupee.split(/(?<!\\)\|/).map((cellule) => cellule.trim().replace(/\\\|/g, "|"));
 };
 
-function lireBlocs(lignes: readonly string[], profondeur: number): Bloc[] {
+function lireBlocs(lines: readonly string[], profondeur: number): Bloc[] {
   const blocs: Bloc[] = [];
   let i = 0;
-  while (i < lignes.length) {
-    const ligne = lignes[i] ?? "";
-    if (vide(ligne)) {
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    if (empty(line)) {
       i++;
       continue;
     }
     // Trop profond : le reste se lit en texte, tel qu'il est écrit.
     if (profondeur > PROFONDEUR) {
-      blocs.push({ paragraphe: [{ texte: lignes.slice(i).join("\n") }] });
+      blocs.push({ paragraphe: [{ texte: lines.slice(i).join("\n") }] });
       break;
     }
 
-    const cloture = CLOTURE.exec(ligne);
+    const cloture = CLOTURE.exec(line);
     if (cloture !== null) {
       const [, ouvre = "```", langue = ""] = cloture;
-      const marge = indentation(ligne);
+      const marge = indentation(line);
       const code: string[] = [];
       i++;
-      while (i < lignes.length && !ferme(lignes[i] ?? "", ouvre)) code.push(desindenter(lignes[i++] ?? "", marge));
+      while (i < lines.length && !ferme(lines[i] ?? "", ouvre)) code.push(desindenter(lines[i++] ?? "", marge));
       i++;
       blocs.push({ code: code.join("\n"), ...(langue === "" ? {} : { langue }) });
       continue;
     }
 
-    const titre = TITRE.exec(ligne);
+    const titre = TITRE.exec(line);
     if (titre !== null) {
       blocs.push({ titre: (titre[1] ?? "#").length, contenu: lireMots(titre[2] ?? "") });
       i++;
       continue;
     }
 
-    if (TRAIT.test(ligne)) {
+    if (TRAIT.test(line)) {
       blocs.push({ trait: true });
       i++;
       continue;
     }
 
-    if (CITATION.test(ligne)) {
+    if (CITATION.test(line)) {
       const citees: string[] = [];
-      while (i < lignes.length && CITATION.test(lignes[i] ?? "")) citees.push(CITATION.exec(lignes[i++] ?? "")?.[1] ?? "");
+      while (i < lines.length && CITATION.test(lines[i] ?? "")) citees.push(CITATION.exec(lines[i++] ?? "")?.[1] ?? "");
       blocs.push({ citation: lireBlocs(citees, profondeur + 1) });
       continue;
     }
 
-    if (OUVRE_DETAILS.test(ligne)) {
+    if (OUVRE_DETAILS.test(line)) {
       // Jusqu'au `</details>` qui le ferme, les replis imbriqués comptés.
       const dedans: string[] = [];
       let niveau = 0;
       let j = i;
-      for (; j < lignes.length; j++) {
-        const courante = lignes[j] ?? "";
+      for (; j < lines.length; j++) {
+        const courante = lines[j] ?? "";
         niveau += (courante.match(/<details\b/gi) ?? []).length - (courante.match(/<\/details>/gi) ?? []).length;
         dedans.push(courante);
         if (niveau <= 0) break;
@@ -161,60 +161,60 @@ function lireBlocs(lignes: readonly string[], profondeur: number): Bloc[] {
       continue;
     }
 
-    const puce = PUCE.exec(ligne);
+    const puce = PUCE.exec(line);
     if (puce !== null) {
       const ordonnee = /\d/.test(puce[2] ?? "");
       const elements: { coche?: boolean; blocs: Bloc[] }[] = [];
       const debut = ordonnee ? Number.parseInt(puce[2] ?? "1", 10) : undefined;
-      while (i < lignes.length) {
-        const courante = PUCE.exec(lignes[i] ?? "");
+      while (i < lines.length) {
+        const courante = PUCE.exec(lines[i] ?? "");
         // Une autre sorte de liste en commence une autre.
         if (courante === null || /\d/.test(courante[2] ?? "") !== ordonnee) break;
         const marge = (courante[1] ?? "").length + (courante[2] ?? "").length + Math.min(Math.max((courante[3] ?? "").length, 1), 4);
         const contenu = [courante[4] ?? ""];
         i++;
-        while (i < lignes.length) {
-          const suivante = lignes[i] ?? "";
-          if (vide(suivante)) {
+        while (i < lines.length) {
+          const suivante = lines[i] ?? "";
+          if (empty(suivante)) {
             // Un blanc, puis une ligne en retrait : l'élément continue.
-            const apres = lignes.slice(i).findIndex((candidate) => !vide(candidate));
-            const reprise = apres === -1 ? undefined : lignes[i + apres];
-            if (reprise === undefined || indentation(reprise) < marge) break;
+            const apres = lines.slice(i).findIndex((candidate) => !empty(candidate));
+            const resumption = apres === -1 ? undefined : lines[i + apres];
+            if (resumption === undefined || indentation(resumption) < marge) break;
             contenu.push("");
             i++;
             continue;
           }
           if (indentation(suivante) >= marge) contenu.push(desindenter(suivante, marge));
           // Une ligne sans retrait qui n'ouvre rien prolonge le paragraphe de l'élément.
-          else if (!ouvreUnBloc(suivante) && !vide(contenu.at(-1) ?? "")) contenu.push(suivante.trimStart());
+          else if (!ouvreUnBloc(suivante) && !empty(contenu.at(-1) ?? "")) contenu.push(suivante.trimStart());
           else break;
           i++;
         }
-        const [premiere = "", ...reste] = contenu;
-        const tache = TACHE.exec(premiere);
+        const [first = "", ...reste] = contenu;
+        const tache = TACHE.exec(first);
         const coche = tache === null ? {} : { coche: tache[1] !== " " };
-        elements.push({ ...coche, blocs: lireBlocs([tache === null ? premiere : premiere.slice(tache[0].length), ...reste], profondeur + 1) });
+        elements.push({ ...coche, blocs: lireBlocs([tache === null ? first : first.slice(tache[0].length), ...reste], profondeur + 1) });
         // Un blanc entre deux éléments n'arrête pas la liste.
-        while (i < lignes.length && vide(lignes[i] ?? "") && PUCE.test(lignes.slice(i).find((candidate) => !vide(candidate)) ?? "")) i++;
+        while (i < lines.length && empty(lines[i] ?? "") && PUCE.test(lines.slice(i).find((candidate) => !empty(candidate)) ?? "")) i++;
       }
       blocs.push({ liste: elements, ...(debut === undefined ? {} : { debut }) });
       continue;
     }
 
     // Un tableau : une ligne de cases, puis sa ligne de séparation.
-    const separation = lignes[i + 1];
-    if (ligne.includes("|") && separation !== undefined && separation.includes("-") && SEPARATION.test(separation)) {
-      const tete = cases(ligne).map(lireMots);
-      const rangs: Mot[][][] = [];
+    const separation = lines[i + 1];
+    if (line.includes("|") && separation !== undefined && separation.includes("-") && SEPARATION.test(separation)) {
+      const tete = cases(line).map(lireMots);
+      const rangs: Word[][][] = [];
       i += 2;
-      while (i < lignes.length && !vide(lignes[i] ?? "") && (lignes[i] ?? "").includes("|")) rangs.push(cases(lignes[i++] ?? "").map(lireMots));
+      while (i < lines.length && !empty(lines[i] ?? "") && (lines[i] ?? "").includes("|")) rangs.push(cases(lines[i++] ?? "").map(lireMots));
       blocs.push({ tableau: { tete, lignes: rangs } });
       continue;
     }
 
-    const paragraphe = [ligne.trimStart()];
+    const paragraphe = [line.trimStart()];
     i++;
-    while (i < lignes.length && !vide(lignes[i] ?? "") && !ouvreUnBloc(lignes[i] ?? "")) paragraphe.push((lignes[i++] ?? "").trimStart());
+    while (i < lines.length && !empty(lines[i] ?? "") && !ouvreUnBloc(lines[i] ?? "")) paragraphe.push((lines[i++] ?? "").trimStart());
     blocs.push({ paragraphe: lireMots(paragraphe.join("\n").trimEnd()) });
   }
   return blocs;
@@ -272,13 +272,13 @@ function emphaseA(texte: string, i: number): { sorte: "gras" | "italique" | "bar
   return undefined;
 }
 
-function lireMotsA(texte: string, profondeur: number): Mot[] {
-  const mots: Mot[] = [];
+function lireMotsA(texte: string, profondeur: number): Word[] {
+  const mots: Word[] = [];
   let courant = "";
-  const ajouter = (mot: Mot) => {
+  const ajouter = (word: Word) => {
     if (courant !== "") mots.push({ texte: courant });
     courant = "";
-    mots.push(mot);
+    mots.push(word);
   };
   let i = 0;
   while (i < texte.length) {
@@ -337,9 +337,9 @@ function lireMotsA(texte: string, profondeur: number): Mot[] {
         if (lisible(lien.url)) ajouter({ lien: lien.url, contenu });
         // Une adresse qui n'est pas http(s) ne s'ouvre pas : il reste ce que le lien dit.
         else
-          for (const mot of contenu) {
-            if ("texte" in mot) courant += mot.texte;
-            else ajouter(mot);
+          for (const word of contenu) {
+            if ("texte" in word) courant += word.texte;
+            else ajouter(word);
           }
         i = lien.fin;
         continue;
@@ -372,15 +372,15 @@ function lireMotsA(texte: string, profondeur: number): Mot[] {
   }
   if (courant !== "") mots.push({ texte: courant });
   // Deux textes voisins n'en font qu'un.
-  return mots.reduce<Mot[]>((fusionnes, mot) => {
+  return mots.reduce<Word[]>((fusionnes, word) => {
     const avant = fusionnes.at(-1);
-    if (avant !== undefined && "texte" in avant && "texte" in mot) fusionnes[fusionnes.length - 1] = { texte: avant.texte + mot.texte };
-    else fusionnes.push(mot);
+    if (avant !== undefined && "texte" in avant && "texte" in word) fusionnes[fusionnes.length - 1] = { texte: avant.texte + word.texte };
+    else fusionnes.push(word);
     return fusionnes;
   }, []);
 }
 
-export const lireMots = (texte: string): Mot[] => lireMotsA(texte, 0);
+export const lireMots = (texte: string): Word[] => lireMotsA(texte, 0);
 
 // Le texte d'une issue ou d'un commentaire, en blocs. Vide — ou fait des seuls marqueurs du
 // runtime —, il n'en a aucun.
@@ -391,10 +391,10 @@ export function rendre(texte: string): Bloc[] {
 // Les adresses que ces blocs ouvrent, une fois chacune : celles qu'un clic de la vue peut ouvrir.
 export function liensDe(blocs: readonly Bloc[]): string[] {
   const vues = new Set<string>();
-  const mots = (liste: readonly Mot[]): void => {
-    for (const mot of liste) {
-      if ("lien" in mot) vues.add(mot.lien);
-      const dedans = "gras" in mot ? mot.gras : "italique" in mot ? mot.italique : "barre" in mot ? mot.barre : "lien" in mot ? mot.contenu : [];
+  const mots = (liste: readonly Word[]): void => {
+    for (const word of liste) {
+      if ("lien" in word) vues.add(word.lien);
+      const dedans = "gras" in word ? word.gras : "italique" in word ? word.italique : "barre" in word ? word.barre : "lien" in word ? word.contenu : [];
       mots(dedans);
     }
   };

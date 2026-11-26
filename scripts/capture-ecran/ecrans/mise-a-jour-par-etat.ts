@@ -2,7 +2,7 @@
 // vue sur un Mac et sur un PC sous Windows : seul le nom du poste change, tel que main.ts le rend
 // (`poste`). N'exporte pas `ecran` : ce n'est pas un écran, mais ce que chaque écran
 // `mise-a-jour-<état>-<poste>` reprend.
-import type { EtatDeMiseAJour } from "../../../app/src/mise-a-jour/etat.ts";
+import type { StateDeUpdate } from "../../../app/src/update/state.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { ecran as installee, SANS_CLONE } from "./tous-les-projets-installee.ts";
@@ -17,7 +17,7 @@ export const ETATS = {
   telechargement: { etat: "telechargement", version: VERSION, nouvelle: NOUVELLE, recus: 62_914_560, taille: 157_286_400 },
   prete: { etat: "prete", version: VERSION, nouvelle: NOUVELLE },
   erreur: { etat: "erreur", version: VERSION, nouvelle: NOUVELLE, raison: `the update ${NOUVELLE} could not be downloaded: its sha512 is not the published one` },
-} satisfies Record<string, EtatDeMiseAJour>;
+} satisfies Record<string, StateDeUpdate>;
 
 const POSTES = { mac: { nom: "this Mac", mac: true }, pc: { nom: "this PC", mac: false } };
 

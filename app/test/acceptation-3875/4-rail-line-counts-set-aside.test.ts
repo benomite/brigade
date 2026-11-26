@@ -3,20 +3,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { StationDuCompte } from "../../../runtime/src/attente-du-rail/stations.ts";
-import type { Faits } from "../../src/faits.ts";
-import type { AppelGitHub } from "../../src/tableau/client.ts";
-import type { TableauLu } from "../../src/tableau/lecture.ts";
+import type { Facts } from "../../src/facts.ts";
+import type { CallGitHub } from "../../src/tableau/client.ts";
+import type { TableauLu } from "../../src/tableau/read.ts";
 import { avecLeRail, lireLeRailSurGithub, type SignesDeVie } from "../../src/vue/rail/github.ts";
 
-const DEPOT = "BOBL-tech/espace";
+const REPOSITORY = "BOBL-tech/espace";
 const MAINTENANT = new Date("2026-11-19T12:00:00.000Z");
-const MIS_DE_COTE_LE = "2026-11-16T11:17:00Z";
+const MIS_DE_SIDE_LE = "2026-11-16T11:17:00Z";
 const RAISON = "the cook's guard refuses gh workflow run";
-const station: StationDuCompte = { name: "parade-box", lastSeen: "2026-11-19T11:59:30.000Z", stoppedAt: null, refreshMs: 120_000, selection: [DEPOT] };
+const station: StationDuCompte = { name: "parade-box", lastSeen: "2026-11-19T11:59:30.000Z", stoppedAt: null, refreshMs: 120_000, selection: [REPOSITORY] };
 const SIGNES: SignesDeVie = { lus: [station] };
-const VIDE: TableauLu = {
+const EMPTY: TableauLu = {
   lu: true,
-  depot: DEPOT,
+  depot: REPOSITORY,
   luLe: MAINTENANT.toISOString(),
   cuisine: { rubriques: [] },
   faits: { etat: "ouverte", lu: MAINTENANT.toISOString(), dernierTick: null, dernierEvenement: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: [] },
@@ -27,15 +27,15 @@ const VIDE: TableauLu = {
 };
 
 // #1029 porte `fire` depuis le 2026-11-10 et `label` ; la station a dit pourquoi, en le mettant de côté, le 2026-11-16 à 11:17.
-function github(label: string): AppelGitHub {
+function github(label: string): CallGitHub {
   const ok = (data: unknown) => ({ status: 200, data });
   return async (chemin) => {
     if (chemin.includes("/issues?")) {
-      return ok([{ number: 1029, title: "Ticket 1029", html_url: `https://github.com/${DEPOT}/issues/1029`, created_at: "2026-11-10T09:00:00Z", labels: [{ name: "fire" }, { name: label }] }]);
+      return ok([{ number: 1029, title: "Ticket 1029", html_url: `https://github.com/${REPOSITORY}/issues/1029`, created_at: "2026-11-10T09:00:00Z", labels: [{ name: "fire" }, { name: label }] }]);
     }
     if (chemin.includes("/pulls?")) return ok([]);
     if (chemin.includes("/issues/1029/comments")) {
-      return ok([{ id: 1, body: `Station \`parade-box/claude\`: ${RAISON}. Set aside by its failures (${label}).`, author_association: "OWNER", created_at: MIS_DE_COTE_LE }]);
+      return ok([{ id: 1, body: `Station \`parade-box/claude\`: ${RAISON}. Set aside by its failures (${label}).`, author_association: "OWNER", created_at: MIS_DE_SIDE_LE }]);
     }
     if (chemin.includes("/issues/1029/events")) return ok([{ event: "labeled", label: { name: "fire" }, created_at: "2026-11-10T09:05:00Z" }]);
     return { status: 404, data: {} };
@@ -43,16 +43,16 @@ function github(label: string): AppelGitHub {
 }
 
 async function lire(label: string) {
-  const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler: github(label), maintenant: () => MAINTENANT });
-  return { rail, lu: avecLeRail(VIDE, rail, SIGNES) };
+  const rail = await lireLeRailSurGithub({ depot: REPOSITORY, appeler: github(label), maintenant: () => MAINTENANT });
+  return { rail, lu: avecLeRail(EMPTY, rail, SIGNES) };
 }
 
 // `set-aside:failures` n'est plus une mise de côté : un ticket que ses échecs arrêtent est parqué (#4260).
 for (const label of ["out-of-kitchen"]) {
   test(`the rail line counts a ticket carrying ${label} as set aside, not queued`, async () => {
     const { lu } = await lire(label);
-    const ligne = lu.cuisine.rubriques.find(({ titre }) => titre === "rail")?.lignes[0] ?? assert.fail("no rail line");
-    assert.match(ligne, /1 set aside/);
-    assert.doesNotMatch(ligne, /queued/);
+    const line = lu.cuisine.rubriques.find(({ titre }) => titre === "rail")?.lignes[0] ?? assert.fail("no rail line");
+    assert.match(line, /1 set aside/);
+    assert.doesNotMatch(line, /queued/);
   });
 }

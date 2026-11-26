@@ -7,17 +7,17 @@ import { test } from "node:test";
 import { assembler, construire, IDENTIFIANT } from "../../packaging/construire.ts";
 
 const MACH_O = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
-const plist = (nom: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
+const plist = (name: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>${nom}</string>
+	<string>${name}</string>
 	<key>CFBundleExecutable</key>
-	<string>${nom}</string>
+	<string>${name}</string>
 ${icone === undefined ? "" : `	<key>CFBundleIconFile</key>\n	<string>${icone}</string>\n`}	<key>CFBundleIdentifier</key>
 	<string>${id}</string>
 	<key>CFBundleName</key>
-	<string>${nom}</string>
+	<string>${name}</string>
 	<key>CFBundleShortVersionString</key>
 	<string>44.7.0</string>
 	<key>CFBundleVersion</key>
@@ -64,14 +64,14 @@ const construit = (): { racine: string; paquet: string } => {
   const { electron, node } = doublure(racine);
   return { racine, paquet: assembler({ version: "1.0.0", electron, node, ...AUTOUR(racine) }, join(racine, "volume")) };
 };
-const cle = (xml: string, nom: string) => new RegExp(`<key>${nom}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
+const cle = (xml: string, name: string) => new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
 const fichiers = (dossier: string): string[] =>
   readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? fichiers(join(dossier, e.name)) : e.isFile() ? [join(dossier, e.name)] : []));
 const sansApp = (chemin: string) => !/\/Resources\/(app|runtime)\//.test(chemin);
 import { defautsDeNom } from "../../packaging/verifier-plist.ts";
 import { PAQUETS } from "../aides/posix.ts";
 
-const executer = (_commande: string, _args: readonly string[]) => ({ status: 0, stdout: "", stderr: "" });
+const executer = (_command: string, _args: readonly string[]) => ({ status: 0, stdout: "", stderr: "" });
 const construireTout = (racine: string, electron: string, node: string) =>
   construire({ version: "1.0.0", electron, node, ...AUTOUR(racine), sortie: join(racine, "sortie"), atelier: join(racine, "atelier"), executer });
 
@@ -87,8 +87,8 @@ test("the same check fails on a pre-fix package (helper executable still 'Electr
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   const aide = join(paquet, "Contents", "Frameworks");
-  const nom = readdirSync(aide).find((n) => n.endsWith(".app"))!;
-  const chemin = join(aide, nom, "Contents", "Info.plist");
+  const name = readdirSync(aide).find((n) => n.endsWith(".app"))!;
+  const chemin = join(aide, name, "Contents", "Info.plist");
   const xml = readFileSync(chemin, "utf8").replace(/(<key>CFBundleExecutable<\/key>\s*<string>)[^<]*/, "$1Electron Helper");
   writeFileSync(chemin, xml);
   assert.notDeepEqual(defautsDeNom(paquet), [], "the check names the Electron executable");

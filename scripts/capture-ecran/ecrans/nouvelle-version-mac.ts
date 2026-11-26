@@ -1,7 +1,7 @@
 // « Tous les projets », l'app installée sur un Mac quand une version plus haute est publiée (#1528, #2431) : la
 // ligne en tête — « Brigade 1.4.0 is running — 1.5.0 is out — Download », le lien direct du .dmg, qui dit au survol
 // comment ouvrir l'app non signée la première fois. Rien ne l'écarte.
-import { indiceDe } from "../../../app/src/mise-a-jour/avis.ts";
+import { indiceDe } from "../../../app/src/update/opinion.ts";
 import { type Ecran, MAINTENANT } from "./commun.ts";
 import { ecran as installee } from "./tous-les-projets-installee.ts";
 

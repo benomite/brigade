@@ -1,12 +1,12 @@
 // Le rail de « parade » quand ses cartes disent ce que la cuisine en fait (#3923) : #14, prise pour la troisième fois, dont le
 // cook lance les tests depuis 20 s ; #15, prise, dont le runtime ne sait encore rien ; #30, en pass, dont la CI tourne depuis 45 s.
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 // Le rail figé de parade, dans son ordre : #14 pris, #21 et #22 en attente, #30 et #12 en pass.
-const [prise, enFile, libre, enPass] = PARADE.facts.rail as [Faits["rail"][number], Faits["rail"][number], Faits["rail"][number], Faits["rail"][number]];
+const [prise, enFile, libre, enPass] = PARADE.facts.rail as [Facts["rail"][number], Facts["rail"][number], Facts["rail"][number], Facts["rail"][number]];
 // Un essai : fini à `jusqua`, ou celui qui cuit encore quand `jusqua` est nul.
 const essai = (depuis: string, jusqua: string | null) => ({ depuis, jusqua, arret: jusqua === null ? null : "idle", enCours: jusqua === null });
 
@@ -26,7 +26,7 @@ const FACTS = {
   ],
   cooks: [...(PARADE.facts.cooks ?? []), { ticket: 15, titre: "La clé de cache du build", station: "box/claude" }],
   attend: [],
-} as Faits;
+} as Facts;
 
 const donnees: Ecran["donnees"] = () => ({
   maintenant: MAINTENANT,

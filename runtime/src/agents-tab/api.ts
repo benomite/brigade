@@ -19,7 +19,7 @@ import { REGISTRE, type AgentDuRegistre } from "./registre.ts";
 
 export type Sources = {
   maintenant: Date;
-  // The directory of the gesture log (gestes.ts): the runtime's state directory.
+  // The directory of the gesture log (actions.ts): the runtime's state directory.
   repertoireDesGestes?: string;
   // The runs going on, by agent id; `ticket`: the one it works on, null for a run on no ticket.
   enCours?: ReadonlyArray<{ id: string; ticket: number | null }>;

@@ -1,10 +1,10 @@
-// Frozen acceptance test (#4239). Criterion 5: both changes are delivered through the project's normal change path (a pull request, as `proposerLeFichier` of plafonds-duree.ts does), not written silently in place.
+// Frozen acceptance test (#4239). Criterion 5: both changes are delivered through the project's normal change path (a pull request, as `proposerLeFichier` of caps-duree.ts does), not written silently in place.
 // Contract, in `app/src/vue/know-how/know-how-github.ts`:
 //   proposerLeChangement(client, depot, branche, { kind: "edit"; line: number; text: string } | { kind: "remove"; line: number }): Promise<{ pr: string; numero: number }>
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { proposerLeChangement } from "../../src/vue/know-how/know-how-github.ts";
-import type { ClientDeLaPriorite } from "../../src/priorite.ts";
+import type { ClientDeLaPriority } from "../../src/priority.ts";
 
 // The fixture file (line 0 is the title, line 4 the second Conventions entry).
 const SAVOIR = ["# Know-how", "", "## Conventions", "- Tests live next to the code (#101)", "- Identifiers are in French (#102)", "", "## Pitfalls", "- Never run the pass with a dirty tree (#205)", "", "## Tools", "- Use `gh api` for rate limits (#310)", "- A tool nobody ticketed", ""].join("\n");
@@ -15,7 +15,7 @@ function github() {
   const branches = new Map<string, string>([["main", SAVOIR]]);
   const demandes: string[] = [];
   const prs: Record<string, unknown>[] = [];
-  const client: ClientDeLaPriorite = {
+  const client: ClientDeLaPriority = {
     lire: async (chemin) => {
       demandes.push(`GET ${chemin}`);
       if (chemin.includes("/git/ref/heads/")) return { status: 200, data: { object: { sha: "tete" } } };
@@ -45,21 +45,21 @@ function github() {
   return { client, branches, demandes, prs };
 }
 
-for (const [nom, changement, attendu] of [
+for (const [name, changement, attendu] of [
   ["an edit", { kind: "edit", line: 4, text: "Identifiers are in English" }, "- Identifiers are in English (#102)"],
   ["a removal", { kind: "remove", line: 4 }, null],
 ] as const) {
-  test(`${nom} opens a pull request and leaves the base branch untouched`, async () => {
+  test(`${name} opens a pull request and leaves the base branch untouched`, async () => {
     const { client, branches, demandes, prs } = github();
     const rendu = await proposerLeChangement(client, "chef/parade", "main", changement);
     assert.equal(rendu.numero, 77);
     assert.equal(prs.length, 1);
     assert.equal(prs[0]?.base, "main");
     assert.equal(branches.get("main"), SAVOIR, "main must not be written in place");
-    const branche = [...branches.keys()].find((b) => b !== "main");
-    assert.ok(branche, "the change lands on a new branch");
+    const branch = [...branches.keys()].find((b) => b !== "main");
+    assert.ok(branch, "the change lands on a new branch");
     const avant = SAVOIR.split("\n");
-    const apres = (branches.get(branche) ?? "").split("\n");
+    const apres = (branches.get(branch) ?? "").split("\n");
     if (attendu === null) assert.equal(apres.length, avant.length - 1);
     else assert.equal(apres[4], attendu);
     assert.ok(demandes.some((d) => d.startsWith("POST") && d.endsWith("/pulls")));

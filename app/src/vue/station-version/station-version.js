@@ -15,13 +15,13 @@ import { PAS_ENCORE } from "../lexique.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 // Le statut de la station de cet ordinateur, tel que le runtime l'expose (ticket 2189).
-/** @typedef {{ stationVersion: string, latestStationVersion?: string | null, behind: boolean }} StatutDeLaStation */
+/** @typedef {{ stationVersion: string, latestStationVersion?: string | null, behind: boolean }} StatusDeLaStation */
 // Une station d'ailleurs, telle que l'app la lit sur GitHub (stations/stations.ts, `StationVue`) : ce qu'il en faut ici.
 /** @typedef {{ id: string, nom: string, version: string, versionDit?: string, cuisine?: false, etat: string }} StationLue */
 /** @typedef {{ nom: string, phrase: string, ton: "vert" | "jaune" | "gris", survol?: string, ici: boolean }} Case */
 
 export const TITRE = "Station version";
-export const A_JOUR = "up to date";
+export const A_DAY = "up to date";
 export const INCONNUE = "version unknown";
 export const INCONNUE_ICI = "This computer's station has not said its version yet: it shows here as soon as the station publishes it.";
 export const INCONNUE_BOX = `${PAS_ENCORE("box read on GitHub")} Its version shows here with your stations.`;
@@ -36,43 +36,43 @@ const versionDite = (version) => `version ${version}`;
 const FORMES = { vert: "disque", jaune: "losange", gris: "anneau" };
 
 // Le statut lu, s'il tient le contrat ; sinon rien — il se dit inconnu.
-/** @param {unknown} statut @returns {StatutDeLaStation | undefined} */
-export function statutLu(statut) {
-  if (typeof statut !== "object" || statut === null) return undefined;
-  const { stationVersion, latestStationVersion, behind } = /** @type {Record<string, unknown>} */ (statut);
+/** @param {unknown} status @returns {StatusDeLaStation | undefined} */
+export function statusLu(status) {
+  if (typeof status !== "object" || status === null) return undefined;
+  const { stationVersion, latestStationVersion, behind } = /** @type {Record<string, unknown>} */ (status);
   if (typeof stationVersion !== "string" || stationVersion.trim() === "" || typeof behind !== "boolean") return undefined;
   const derniere = typeof latestStationVersion === "string" && latestStationVersion.trim() !== "" ? latestStationVersion.trim() : null;
   return { stationVersion: stationVersion.trim(), latestStationVersion: derniere, behind };
 }
 
 // La case de cet ordinateur : en retard, à jour, ou inconnue. `nom` : ce poste, tel que l'app le nomme (« this Mac »).
-/** @param {string} nom @param {unknown} statut @returns {Case} */
-export function caseDIci(nom, statut) {
-  const lu = statutLu(statut);
-  if (lu === undefined) return { nom, phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI, ici: true };
-  if (!lu.behind) return { nom, phrase: `${versionDite(lu.stationVersion)} · ${A_JOUR}`, ton: "vert", ici: true };
+/** @param {string} name @param {unknown} status @returns {Case} */
+export function caseDIci(name, status) {
+  const lu = statusLu(status);
+  if (lu === undefined) return { nom: name, phrase: INCONNUE, ton: "gris", survol: INCONNUE_ICI, ici: true };
+  if (!lu.behind) return { nom: name, phrase: `${versionDite(lu.stationVersion)} · ${A_DAY}`, ton: "vert", ici: true };
   const retard = lu.latestStationVersion === null ? "behind" : `behind — ${lu.latestStationVersion} is out`;
-  return { nom, phrase: `${versionDite(lu.stationVersion)} · ${retard}`, ton: "jaune", ici: true };
+  return { nom: name, phrase: `${versionDite(lu.stationVersion)} · ${retard}`, ton: "jaune", ici: true };
 }
 
 // La case d'une box : sa version, et « up to date » quand sa ligne de mise à jour le dit.
 /** @param {StationLue} station @returns {Case} */
 export function caseDeLaBox(station) {
   if (station.version === "") return { nom: station.nom, phrase: INCONNUE, ton: "gris", survol: INCONNUE_BOX, ici: false };
-  const aJour = (station.versionDit ?? "").startsWith(A_JOUR);
-  return { nom: station.nom, phrase: aJour ? `${versionDite(station.version)} · ${A_JOUR}` : versionDite(station.version), ton: aJour ? "vert" : "gris", ici: false };
+  const aDay = (station.versionDit ?? "").startsWith(A_DAY);
+  return { nom: station.nom, phrase: aDay ? `${versionDite(station.version)} · ${A_DAY}` : versionDite(station.version), ton: aDay ? "vert" : "gris", ici: false };
 }
 
 // Les box : les stations lues qui cuisent, sauf celle de cet ordinateur (`locale`) et celles qui ne se lisent pas.
 /** @param {readonly StationLue[]} stations @param {string | null} locale @returns {StationLue[]} */
-export const boxesDe = (stations, locale) => stations.filter(({ id, cuisine, etat }) => id !== locale && cuisine !== false && etat !== "illisible");
+export const boxesDe = (stations, locale) => stations.filter(({ id, cuisine: kitchen, etat: state }) => id !== locale && kitchen !== false && state !== "illisible");
 
 // Les cases, la box d'abord, puis cet ordinateur. Sans box lue, une case « box » la dit inconnue : les deux versions
 // sont toujours côte à côte.
 /** @param {{ stations: readonly StationLue[] | undefined, locale: string | null, poste: string, statut: unknown }} lu @returns {Case[]} */
-export function casesDesVersions({ stations, locale, poste, statut }) {
+export function casesDesVersions({ stations, locale, poste: workstation, statut: status }) {
   const boxes = boxesDe(stations ?? [], locale).map(caseDeLaBox);
-  return [...(boxes.length === 0 ? [{ nom: BOX, phrase: INCONNUE, ton: /** @type {const} */ ("gris"), survol: INCONNUE_BOX, ici: false }] : boxes), caseDIci(poste, statut)];
+  return [...(boxes.length === 0 ? [{ nom: BOX, phrase: INCONNUE, ton: /** @type {const} */ ("gris"), survol: INCONNUE_BOX, ici: false }] : boxes), caseDIci(workstation, status)];
 }
 
 // Le bloc : son titre, puis ses cases côte à côte.
@@ -94,18 +94,18 @@ function poserUneCase(doc, une) {
   racine.className = "version-d-une-station";
   racine.dataset.ton = une.ton;
   if (une.ici) racine.dataset.ici = "oui";
-  const pastille = doc.createElement("span");
-  pastille.className = "pastille";
-  pastille.dataset.ton = une.ton;
-  pastille.dataset.forme = FORMES[une.ton];
-  pastille.title = une.phrase;
-  const nom = doc.createElement("strong");
+  const pill = doc.createElement("span");
+  pill.className = "pastille";
+  pill.dataset.ton = une.ton;
+  pill.dataset.forme = FORMES[une.ton];
+  pill.title = une.phrase;
+  const name = doc.createElement("strong");
   // Le nom d'une station est un mot de la machine ; ce poste se dit en mots (« this Mac »), comme partout dans l'app.
-  if (!une.ici) nom.className = "mono";
-  nom.textContent = une.nom;
+  if (!une.ici) name.className = "mono";
+  name.textContent = une.nom;
   const phrase = doc.createElement("span");
   phrase.className = "phrase";
   phrase.textContent = une.phrase;
-  racine.append(pastille, nom, phrase, ...(une.survol === undefined ? [] : [survol(doc, une.survol)]));
+  racine.append(pill, name, phrase, ...(une.survol === undefined ? [] : [survol(doc, une.survol)]));
   return racine;
 }

@@ -12,15 +12,15 @@ const headOf = (n: number) => `TODO (${n})`;
 const [NO_WHAT, NO_UNTIL, OPEN_PARK] = ["for what: not given", "no date set", "park or unpark…"];
 const items = (todo: Faux) => todo.dessous("li").filter(({ dataset }) => dataset.ticket !== undefined);
 const tete = (todo: Faux) => todo.dessous("p").find(({ className }) => className === "tete-du-todo")?.textContent;
-const ligne = (item: Faux) => item.dessous("span").find(({ className }) => className === "qui-jusqua")?.textContent;
+const line = (item: Faux) => item.dessous("span").find(({ className }) => className === "qui-jusqua")?.textContent;
 
 test("the head counts the items, and an answered item leaves the count; a second click sends nothing more", () => {
   const calls: unknown[][] = [];
   const todo = parkedTodo(doc, { records: [rec(1), rec(2), rec(3, { who: "Camille" })], chef: "chef", choices: ["go"], answer: (...a: unknown[]) => void calls.push(a) }) as unknown as Faux;
   assert.equal(tete(todo), headOf(2));
-  const bouton = items(todo)[0]!.dessous("button")[0]!;
-  bouton.click();
-  bouton.click();
+  const button = items(todo)[0]!.dessous("button")[0]!;
+  button.click();
+  button.click();
   assert.deepEqual(calls, [[1, "go"]]);
   assert.equal(tete(todo), headOf(1));
 });
@@ -28,12 +28,12 @@ test("the head counts the items, and an answered item leaves the count; a second
 test("an item says who it waits for and until when, and what is not known; for what is the line above", () => {
   const todo = parkedTodo(doc, { records: [rec(4), rec(5, { what: null, until: null }), rec(6, { who: "Camille" })], chef: "chef", choices: [], answer: () => {} }) as unknown as Faux;
   const [quatre, cinq] = items(todo);
-  assert.equal(ligne(quatre!), "waits for chef · until 2026-12-01");
+  assert.equal(line(quatre!), "waits for chef · until 2026-12-01");
   assert.deepEqual(quatre!.dessous("p").map(({ className, textContent }) => [className, textContent]), [["demande-du-todo", "thing 4"]]);
-  assert.equal(ligne(cinq!), `waits for chef · ${NO_WHAT} · ${NO_UNTIL}`);
+  assert.equal(line(cinq!), `waits for chef · ${NO_WHAT} · ${NO_UNTIL}`);
   assert.deepEqual(cinq!.dessous("p"), []);
   const autre = parkedTodo(doc, { records: [rec(6, { who: "Camille" })], chef: "Camille", choices: [], answer: () => {} }) as unknown as Faux;
-  assert.equal(ligne(items(autre)[0]!), "waits for Camille · until 2026-12-01");
+  assert.equal(line(items(autre)[0]!), "waits for Camille · until 2026-12-01");
 });
 
 test("each item can have its own buttons, the recommended one filled; without any, no row of buttons", () => {

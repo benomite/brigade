@@ -19,8 +19,8 @@ type Noeud = Faux | string;
 // `target` : là où le clic est tombé — rien ne remonte d'un élément à son parent, le test le dit.
 type Toucher = { clientX: number; clientY: number };
 // `clientX`, `clientY`, `pointerId`, `deltaY` : un pointeur, un doigt, la molette (le détail en grand d'une validation, #3212).
-type Evenement = { touches?: Toucher[]; changedTouches?: Toucher[]; key?: string; clientX?: number; clientY?: number; pointerId?: number; deltaY?: number; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
-type Ecoute = (evenement: Evenement) => unknown;
+type Event = { touches?: Toucher[]; changedTouches?: Toucher[]; key?: string; clientX?: number; clientY?: number; pointerId?: number; deltaY?: number; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
+type Ecoute = (event: Event) => unknown;
 
 // Un élément : ses enfants, son texte, ses écoutes. Ce que la vue y pose d'autre — `title`,
 // `ariaLabel`, `role` — s'y pose comme sur n'importe quel objet.
@@ -87,11 +87,11 @@ export class Faux {
   }
   get classList() {
     const classes = () => this.className.split(" ").filter(Boolean);
-    const poser = (nom: string, voulue: boolean) => void (this.className = [...classes().filter((classe) => classe !== nom), ...(voulue ? [nom] : [])].join(" "));
+    const poser = (name: string, voulue: boolean) => void (this.className = [...classes().filter((classe) => classe !== name), ...(voulue ? [name] : [])].join(" "));
     return {
-      contains: (nom: string) => classes().includes(nom),
-      add: (nom: string) => poser(nom, true),
-      toggle: (nom: string, voulue = !classes().includes(nom)) => poser(nom, voulue),
+      contains: (name: string) => classes().includes(name),
+      add: (name: string) => poser(name, true),
+      toggle: (name: string, voulue = !classes().includes(name)) => poser(name, voulue),
     };
   }
 
@@ -135,26 +135,26 @@ export class Faux {
     this.#ecoutes.set(type, [...(this.#ecoutes.get(type) ?? []), ecoute]);
   }
   // Ce que les écoutes ont rendu : une promesse, pour celles qui attendent le pont.
-  declencher(type: string, evenement: Partial<Evenement> = {}): unknown[] {
-    return (this.#ecoutes.get(type) ?? []).map((ecoute) => ecoute({ preventDefault: () => {}, stopPropagation: () => {}, ...evenement }));
+  declencher(type: string, event: Partial<Event> = {}): unknown[] {
+    return (this.#ecoutes.get(type) ?? []).map((ecoute) => ecoute({ preventDefault: () => {}, stopPropagation: () => {}, ...event }));
   }
   click(): void {
     if (!this.disabled) this.declencher("click");
   }
   // Un attribut posé par son nom — ce que la vue écrit d'un élément SVG, qui n'a pas de propriétés pour cela.
   #valeurs = new Map<string, string>();
-  setAttribute(nom: string, valeur: string): void {
-    this.#valeurs.set(nom, valeur);
+  setAttribute(name: string, valeur: string): void {
+    this.#valeurs.set(name, valeur);
   }
-  getAttribute(nom: string): string | null {
-    return this.#valeurs.get(nom) ?? null;
+  getAttribute(name: string): string | null {
+    return this.#valeurs.get(name) ?? null;
   }
-  hasAttribute(nom: string): boolean {
-    return this.#attributs.has(nom);
+  hasAttribute(name: string): boolean {
+    return this.#attributs.has(name);
   }
-  toggleAttribute(nom: string, voulu = !this.#attributs.has(nom)): void {
-    if (voulu) this.#attributs.add(nom);
-    else this.#attributs.delete(nom);
+  toggleAttribute(name: string, voulu = !this.#attributs.has(name)): void {
+    if (voulu) this.#attributs.add(name);
+    else this.#attributs.delete(name);
   }
   // Combien de fois il a pris le clavier.
   focalise = 0;
@@ -219,14 +219,14 @@ export class FauxTransfert {
 // Le style d'un élément : rien que ses propriétés posées une à une, sans cascade.
 export class FauxStyle {
   readonly #proprietes = new Map<string, string>();
-  setProperty(nom: string, valeur: string): void {
-    this.#proprietes.set(nom, valeur);
+  setProperty(name: string, valeur: string): void {
+    this.#proprietes.set(name, valeur);
   }
-  removeProperty(nom: string): void {
-    this.#proprietes.delete(nom);
+  removeProperty(name: string): void {
+    this.#proprietes.delete(name);
   }
-  getPropertyValue(nom: string): string {
-    return this.#proprietes.get(nom) ?? "";
+  getPropertyValue(name: string): string {
+    return this.#proprietes.get(name) ?? "";
   }
   get color(): string {
     return this.getPropertyValue("color");
@@ -283,17 +283,17 @@ export class FauxXterm {
   dispose(): void {}
 }
 
-// Les variables que jetons.css pose sur la racine : le terminal y lit les siennes.
-export function jetonsDe(css: string): Map<string, string> {
+// Les variables que tokens.css pose sur la racine : le terminal y lit les siennes.
+export function tokensOf(css: string): Map<string, string> {
   const racine = /:root\s*\{([^}]*)\}/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""))?.[1] ?? "";
-  return new Map([...racine.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
+  return new Map([...racine.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, name = "", valeur = ""]) => [name, valeur.trim()]));
 }
 
 type Ecoutes = { [G in keyof Pont as G extends `sur${string}` ? G : never]: Pont[G] };
-type Gestes = Omit<Pont, keyof Ecoutes>;
+type Actions = Omit<Pont, keyof Ecoutes>;
 // Ce que le faux pont répond, geste par geste — tout de suite, ou quand ce qu'il a lancé a fini. Un geste sans réponse
 // rend `undefined`.
-export type Reponses = { [G in keyof Gestes]?: (...args: Parameters<NonNullable<Gestes[G]>>) => Awaited<ReturnType<NonNullable<Gestes[G]>>> | Promise<Awaited<ReturnType<NonNullable<Gestes[G]>>>> };
+export type Answers = { [G in keyof Actions]?: (...args: Parameters<NonNullable<Actions[G]>>) => Awaited<ReturnType<NonNullable<Actions[G]>>> | Promise<Awaited<ReturnType<NonNullable<Actions[G]>>>> };
 
 export type Jouee = {
   // Un élément de la page, par son `id` — posé par index.html, ou par la vue.
@@ -305,7 +305,7 @@ export type Jouee = {
   // Ce que la vue a demandé au pont, dans l'ordre.
   appels: { geste: string; args: unknown[] }[];
   // Le dernier appel d'un geste : ses arguments.
-  dernier(geste: keyof Gestes): unknown[];
+  dernier(action: keyof Actions): unknown[];
   xterms: FauxXterm[];
   // Les polices que la vue a fait charger avant d'ouvrir un terminal.
   polices: string[];
@@ -325,7 +325,7 @@ export class FauxStockage {
 
 // La largeur de l'écran, telle que la vue la demande (`window.matchMedia`, #1186) : étroit ou non, et la requête posée.
 // `changer` fait comme un téléphone qu'on tourne : la requête change de réponse, et la vue en est avertie.
-export class FauxEcran {
+export class FauxScreen {
   matches: boolean;
   readonly requetes: string[] = [];
   readonly #ecoutes: (() => void)[] = [];
@@ -379,9 +379,9 @@ function laVueJouable(): { texte: string; modules: string[] } {
 // Charge une vue neuve — son module entier, jusqu'à son premier affichage. Sans stockage, la vue n'en a pas ; sans
 // écran, elle n'a pas de `matchMedia` : elle est large. `session` : le stockage de la session de la fenêtre
 // (`window.sessionStorage`) — passé à deux vues jouées l'une après l'autre, c'est la fenêtre rechargée (#3159).
-export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>, { stockage, ecran, session }: { stockage?: FauxStockage; ecran?: FauxEcran; session?: FauxStockage } = {}): Promise<Jouee> {
+export async function jouerLaVue(answers: Answers & Required<Pick<Answers, "demarrage">>, { stockage, ecran: screen, session }: { stockage?: FauxStockage; ecran?: FauxScreen; session?: FauxStockage } = {}): Promise<Jouee> {
   const html = readFileSync(join(VUE, "index.html"), "utf8");
-  const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
+  const tokens = tokensOf(readFileSync(join(VUE, "tokens.css"), "utf8"));
 
   // Les éléments que la page porte et que la vue prend par leur nom : ceux qui ont un `id`, et
   // `main`. Leur place dans la page n'est pas rejouée.
@@ -403,7 +403,7 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
     return null;
   };
 
-  const appels: Jouee["appels"] = [];
+  const calls: Jouee["appels"] = [];
   const ecoutes = new Map<string, (...args: unknown[]) => void>();
   const xterms: FauxXterm[] = [];
   const polices: string[] = [];
@@ -411,11 +411,11 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
     {},
     {
       get:
-        (_, geste: string) =>
+        (_, action: string) =>
         (...args: unknown[]) => {
-          if (geste.startsWith("sur")) return void ecoutes.set(geste, args[0] as (...recus: unknown[]) => void);
-          appels.push({ geste, args });
-          const repondre = (reponses as Record<string, ((...recus: unknown[]) => unknown) | undefined>)[geste];
+          if (action.startsWith("sur")) return void ecoutes.set(action, args[0] as (...recus: unknown[]) => void);
+          calls.push({ geste: action, args });
+          const repondre = (answers as Record<string, ((...recus: unknown[]) => unknown) | undefined>)[action];
           return Promise.resolve(repondre?.(...args));
         },
     },
@@ -426,7 +426,7 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
       brigade: pont,
       ...(stockage === undefined ? {} : { localStorage: stockage }),
       ...(session === undefined ? {} : { sessionStorage: session }),
-      ...(ecran === undefined ? {} : { matchMedia: (requete: string) => (ecran.requetes.push(requete), ecran) }),
+      ...(screen === undefined ? {} : { matchMedia: (requete: string) => (screen.requetes.push(requete), screen) }),
     },
     document: {
       documentElement: new Faux("html"),
@@ -435,9 +435,9 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
       querySelector: (selecteur: string) => (selecteur === "main" ? principal : null),
       createElement: (balise: string) => new Faux(balise),
       // Le tracé de la page des coûts (cost/courbe.js) : un élément SVG s'y pose comme un autre.
-      createElementNS: (_espace: string, balise: string) => new Faux(balise),
+      createElementNS: (_namespace: string, balise: string) => new Faux(balise),
     },
-    getComputedStyle: () => ({ getPropertyValue: (nom: string) => jetons.get(nom) ?? "" }),
+    getComputedStyle: () => ({ getPropertyValue: (name: string) => tokens.get(name) ?? "" }),
     ResizeObserver: class {
       observe(): void {}
     },
@@ -478,11 +478,11 @@ export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "d
       if (recevoir === undefined) throw new Error(`la vue n'écoute pas « ${ecoute} »`);
       recevoir(...args);
     },
-    appels,
-    dernier(geste) {
-      const appel = appels.findLast((fait) => fait.geste === geste);
-      if (appel === undefined) throw new Error(`la vue n'a pas appelé « ${geste} »`);
-      return appel.args;
+    appels: calls,
+    dernier(action) {
+      const call = calls.findLast((fait) => fait.geste === action);
+      if (call === undefined) throw new Error(`la vue n'a pas appelé « ${action} »`);
+      return call.args;
     },
     xterms,
     polices,
@@ -504,7 +504,7 @@ export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Stations"): Prom
 
 // La carte d'un ticket, sur l'onglet montré (toutes les colonnes sont sur Rail) :
 // cherchée sur l'onglet montré, puis sur l'autre, montré d'un clic comme le chef le ferait.
-export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
+export function cardDuTicket(vue: Jouee, numero: number): Faux | undefined {
   const trouve = () => vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`);
   const ici = trouve();
   if (ici !== undefined) return ici;
@@ -515,10 +515,10 @@ export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
 // Ouvre une lecture comme le chef le fait depuis l'écran principal : Settings — une seule
 // page, qui ne lit rien (#1700) ; Log, par le geste « journal ». Rend l'élément
 // cliqué en dernier. Les pages Rail, Manager et General de Settings n'existent plus : les demander lève.
-export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
-  const cliquer = async (ou: Faux | undefined, nom: string): Promise<Faux> => {
-    const pose = ou?.children.find((candidat) => candidat.textContent === nom) ?? ou?.dessous("button").find((candidat) => candidat.textContent === nom);
-    if (pose === undefined) throw new Error(`pas de « ${nom} »`);
+export async function ouvrirRead(vue: Jouee, titre: string): Promise<Faux> {
+  const cliquer = async (ou: Faux | undefined, name: string): Promise<Faux> => {
+    const pose = ou?.children.find((candidat) => candidat.textContent === name) ?? ou?.dessous("button").find((candidat) => candidat.textContent === name);
+    if (pose === undefined) throw new Error(`pas de « ${name} »`);
     pose.click();
     await repos();
     return pose;
@@ -530,19 +530,19 @@ export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
 // Les lignes de tous les projets, « Cost » et « Closer », sont en bas du bandeau de santé de chaque projet (#2638, #2921), une
 // section de Settings (#3014) : le premier projet de la barre s'ouvre, puis Settings, comme le chef le fait. Rend la ligne qui
 // porte ce nom.
-async function ligneDeTousLesProjets(vue: Jouee, nom: string): Promise<Faux> {
+async function lineDeTousLesProjects(vue: Jouee, name: string): Promise<Faux> {
   vue.element("projets").children[1]?.click();
   await repos();
-  await ouvrirLecture(vue, "Settings");
-  const ligne = vue.element("de-tous-les-projets").dessous("button").find(({ ariaLabel }) => ariaLabel === nom);
-  if (ligne === undefined) throw new Error(`pas de ligne « ${nom} » dans le bandeau de santé`);
-  return ligne;
+  await ouvrirRead(vue, "Settings");
+  const line = vue.element("de-tous-les-projets").dessous("button").find(({ ariaLabel }) => ariaLabel === name);
+  if (line === undefined) throw new Error(`pas de ligne « ${name} » dans le bandeau de santé`);
+  return line;
 }
 
 // Ouvre la page des coûts de tous les projets comme le chef le fait (#1022) : par sa ligne « Cost », sous Health (#2638).
 // Rend la page.
 export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
-  (await ligneDeTousLesProjets(vue, "the cost of all projects")).click();
+  (await lineDeTousLesProjects(vue, "the cost of all projects")).click();
   await repos();
   return vue.element("cout");
 }

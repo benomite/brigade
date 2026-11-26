@@ -252,11 +252,11 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
 // Settings —, et où l'app le pose, mot pour mot : un nom absent d'ici est un
 // bouton inventé.
 const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
-  "log in": ["pannes/pannes.ts", 'libelle: "log in"'],
-  "resume the kitchen": ["cuisine.ts", 'libelle: "resume the kitchen"'],
+  "log in": ["outages/outages.ts", 'libelle: "log in"'],
+  "resume the kitchen": ["kitchen.ts", 'libelle: "resume the kitchen"'],
   Kitchen: ["vue/vue.js", 'rangeeDeReglage("Kitchen"'],
-  "Closer’s calibration": ["reglages-du-projet.ts", `closer: "Closer’s calibration"`],
-  "Closer’s start threshold (cooks in flight)": ["reglages-du-projet.ts", `"closer-cooks": "Closer’s start threshold (cooks in flight)"`],
+  "Closer’s calibration": ["settings-du-project.ts", `closer: "Closer’s calibration"`],
+  "Closer’s start threshold (cooks in flight)": ["settings-du-project.ts", `"closer-cooks": "Closer’s start threshold (cooks in flight)"`],
   "project off": ["vue/vue.js", '"project off"'],
 };
 const NOMMES_DE_L_APP = [/the `([^`]+)` (?:button|switch)\b/g, /on the `([^`]+)` line of the project's Settings/g];

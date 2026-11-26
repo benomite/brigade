@@ -15,7 +15,7 @@ import { APP, Arret, IDENTIFIANT, NOM, type Executer } from "../../packaging/con
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 import { PAQUETS } from "../aides/posix.ts";
 
-const COMMANDE = join(APP, "packaging", "android.ts");
+const COMMAND = join(APP, "packaging", "android.ts");
 
 function dossier(t: TestContext): string {
   const cree = mkdtempSync(join(tmpdir(), "brigade-app-apk-"));
@@ -24,8 +24,8 @@ function dossier(t: TestContext): string {
 }
 
 // Un `java` qui répond comme un JDK de cette version, ou aucun.
-const java = (sortie: string | undefined): Executer => (commande) =>
-  sortie === undefined ? { status: null, stdout: "", stderr: `spawnSync ${commande} ENOENT` } : { status: 0, stdout: "", stderr: sortie };
+const java = (sortie: string | undefined): Executer => (command) =>
+  sortie === undefined ? { status: null, stdout: "", stderr: `spawnSync ${command} ENOENT` } : { status: 0, stdout: "", stderr: sortie };
 const JDK_21 = 'openjdk version "21.0.5" 2024-10-15\nOpenJDK Runtime Environment Temurin-21.0.5+11 (build 21.0.5+11-LTS)';
 
 // Une machine : ses variables, son `java`, et les chemins qui y existent.
@@ -33,23 +33,23 @@ function machine(env: NodeJS.ProcessEnv, executer: Executer, chemins: readonly s
   return { env, node: "26.11.1", executer, existe: (chemin) => chemins.includes(chemin) };
 }
 
-const refus = (faire: () => unknown): string => {
+const refusal = (faire: () => unknown): string => {
   try {
     faire();
-  } catch (erreur) {
-    assert.ok(erreur instanceof Arret);
-    assert.equal(erreur.code, 2);
-    return erreur.message;
+  } catch (error) {
+    assert.ok(error instanceof Arret);
+    assert.equal(error.code, 2);
+    return error.message;
   }
   return assert.fail("no refusal");
 };
 
 test("sans SDK Android ni JDK, la commande refuse (code 2) en nommant ce qui manque, sans pile d'appels ni rien écrire", (t) => {
   const ici = dossier(t);
-  const vide = join(ici, "bin");
-  mkdirSync(vide);
+  const empty = join(ici, "bin");
+  mkdirSync(empty);
   const sortie = join(ici, "construit");
-  const fait = spawnSync(process.execPath, [COMMANDE, "--sortie", sortie], { encoding: "utf8", env: { PATH: vide, HOME: ici, ...CACHE_DE_COMPILATION } });
+  const fait = spawnSync(process.execPath, [COMMAND, "--sortie", sortie], { encoding: "utf8", env: { PATH: empty, HOME: ici, ...CACHE_DE_COMPILATION } });
   assert.equal(fait.status, 2, fait.stderr);
   assert.match(fait.stderr, /^brigade: APK not built — missing prerequisites:/);
   assert.match(fait.stderr, /the Android SDK: ANDROID_HOME is not set/);
@@ -59,7 +59,7 @@ test("sans SDK Android ni JDK, la commande refuse (code 2) en nommant ce qui man
 });
 
 test("une option inconnue est refusée avec l'usage", () => {
-  const fait = spawnSync(process.execPath, [COMMANDE, "--autre"], { encoding: "utf8" });
+  const fait = spawnSync(process.execPath, [COMMAND, "--autre"], { encoding: "utf8" });
   assert.equal(fait.status, 2);
   assert.match(fait.stderr, /usage: android\.ts \[--version <v>\] \[--sortie <folder>\]/);
 });
@@ -73,15 +73,15 @@ test("les prérequis : chacun nommé quand il manque, avec de quoi le poser", { 
   // ANDROID_SDK_ROOT vaut ANDROID_HOME ; JAVA_HOME est pris avant le PATH.
   assert.deepEqual(verifierPrerequis(machine({ ANDROID_SDK_ROOT: sdk, JAVA_HOME: "/jdk" }, java(JDK_21), [...avecPlateforme, "/jdk/bin/java"])), { java: "/jdk/bin/java", sdk });
 
-  assert.match(refus(() => verifierPrerequis(machine({}, java(JDK_21)))), /the Android SDK: ANDROID_HOME is not set — install the Android SDK \(with `sdkmanager "platforms;android-\d+"`\)/);
-  assert.match(refus(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java(JDK_21)))), /ANDROID_HOME is \/opt\/android-sdk, which does not exist/);
-  assert.match(refus(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java(JDK_21), [sdk]))), new RegExp(`the Android SDK platform ${plateforme}: .* install it with \`sdkmanager "platforms;android-${plateforme}"\``));
-  assert.match(refus(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java(undefined), avecPlateforme))), /a JDK 21: no `java` found/);
-  assert.match(refus(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java('openjdk version "17.0.12" 2024-07-16'), avecPlateforme))), /java is Java 17, the build needs Java 21 to 24/);
-  assert.match(refus(() => verifierPrerequis(machine({ ANDROID_HOME: sdk, JAVA_HOME: "/jdk" }, java(JDK_21), avecPlateforme))), /JAVA_HOME is \/jdk, and there is no \/jdk\/bin\/java/);
-  assert.match(refus(() => verifierPrerequis({ ...machine({ ANDROID_HOME: sdk }, java(JDK_21), avecPlateforme), node: "24.1.0" })), /Node 26: this node is v24\.1\.0/);
+  assert.match(refusal(() => verifierPrerequis(machine({}, java(JDK_21)))), /the Android SDK: ANDROID_HOME is not set — install the Android SDK \(with `sdkmanager "platforms;android-\d+"`\)/);
+  assert.match(refusal(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java(JDK_21)))), /ANDROID_HOME is \/opt\/android-sdk, which does not exist/);
+  assert.match(refusal(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java(JDK_21), [sdk]))), new RegExp(`the Android SDK platform ${plateforme}: .* install it with \`sdkmanager "platforms;android-${plateforme}"\``));
+  assert.match(refusal(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java(undefined), avecPlateforme))), /a JDK 21: no `java` found/);
+  assert.match(refusal(() => verifierPrerequis(machine({ ANDROID_HOME: sdk }, java('openjdk version "17.0.12" 2024-07-16'), avecPlateforme))), /java is Java 17, the build needs Java 21 to 24/);
+  assert.match(refusal(() => verifierPrerequis(machine({ ANDROID_HOME: sdk, JAVA_HOME: "/jdk" }, java(JDK_21), avecPlateforme))), /JAVA_HOME is \/jdk, and there is no \/jdk\/bin\/java/);
+  assert.match(refusal(() => verifierPrerequis({ ...machine({ ANDROID_HOME: sdk }, java(JDK_21), avecPlateforme), node: "24.1.0" })), /Node 26: this node is v24\.1\.0/);
   // Tout ce qui manque est dit d'un coup.
-  assert.match(refus(() => verifierPrerequis(machine({}, java(undefined)))), /missing prerequisites:\n  - a JDK 21: .*\n  - the Android SDK: /);
+  assert.match(refusal(() => verifierPrerequis(machine({}, java(undefined)))), /missing prerequisites:\n  - a JDK 21: .*\n  - the Android SDK: /);
 });
 
 test("la version d'un JDK, d'après `java -version`", () => {
@@ -110,7 +110,7 @@ test("les versions sont épinglées : Capacitor, Gradle et sa somme, Android Gra
   const paquet = JSON.parse(readFileSync(join(ANDROID, "package.json"), "utf8"));
   for (const version of Object.values<string>({ ...paquet.dependencies, ...paquet.devDependencies })) assert.match(version, /^\d+\.\d+\.\d+$/);
   const verrou = JSON.parse(readFileSync(join(ANDROID, "package-lock.json"), "utf8"));
-  for (const nom of ["@capacitor/android", "@capacitor/core", "@capacitor/cli"]) assert.equal(verrou.packages[`node_modules/${nom}`].version, paquet.dependencies[nom] ?? paquet.devDependencies[nom]);
+  for (const name of ["@capacitor/android", "@capacitor/core", "@capacitor/cli"]) assert.equal(verrou.packages[`node_modules/${name}`].version, paquet.dependencies[name] ?? paquet.devDependencies[name]);
   const wrapper = readFileSync(join(NATIF, "gradle", "wrapper", "gradle-wrapper.properties"), "utf8");
   assert.match(wrapper, /distributionUrl=.*gradle-\d+\.\d+(\.\d+)?-bin\.zip/);
   assert.match(wrapper, /distributionSha256Sum=[0-9a-f]{64}/);
@@ -121,7 +121,7 @@ test("aucun fichier d'app/src/ n'est recopié dans app/android/ : le dépôt n'y
   const blobs = (chemin: string) => {
     const lu = spawnSync("git", ["-C", APP, "ls-files", "-s", "--", chemin], { encoding: "utf8" });
     assert.equal(lu.status, 0, lu.stderr);
-    return lu.stdout.split("\n").filter(Boolean).map((ligne) => ({ blob: ligne.split(/\s+/)[1] ?? "", chemin: ligne.split("\t")[1] ?? "" }));
+    return lu.stdout.split("\n").filter(Boolean).map((line) => ({ blob: line.split(/\s+/)[1] ?? "", chemin: line.split("\t")[1] ?? "" }));
   };
   const deLApp = new Set(blobs("src").map(({ blob }) => blob));
   const recopies = blobs("android").filter(({ blob }) => deLApp.has(blob));
@@ -139,9 +139,9 @@ test("la vue posée pour Capacitor est celle d'app/src/vue/, et ce qu'elle charg
   assert.deepEqual(readFileSync(join(www, "src", "vue", "vue.js")), readFileSync(join(APP, "src", "vue", "vue.js")));
   // Chaque chemin de la vue hors de son dossier tient, relatif à elle, comme dans l'app.
   const html = readFileSync(entree, "utf8");
-  const horsDeLaVue = [...html.matchAll(/(?:href|src)="([^"]+)"|"@[^"]+":\s*"([^"]+)"/g)].map((trouve) => trouve[1] ?? trouve[2] ?? "");
-  assert.ok(horsDeLaVue.length > 0);
-  for (const chemin of horsDeLaVue) assert.ok(existsSync(resolve(dirname(entree), chemin)), chemin);
+  const outsideDeLaVue = [...html.matchAll(/(?:href|src)="([^"]+)"|"@[^"]+":\s*"([^"]+)"/g)].map((trouve) => trouve[1] ?? trouve[2] ?? "");
+  assert.ok(outsideDeLaVue.length > 0);
+  for (const chemin of outsideDeLaVue) assert.ok(existsSync(resolve(dirname(entree), chemin)), chemin);
   assert.deepEqual(dependancesDeLaVue(html), ["node_modules/@xterm/addon-fit/lib/addon-fit.mjs", "node_modules/@xterm/xterm/css/xterm.css", "node_modules/@xterm/xterm/lib/xterm.mjs", "node_modules/mermaid/dist/mermaid.min.js"]);
   assert.ok(existsSync(join(www, "android", "pont.js")));
 });
@@ -161,9 +161,9 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
   assert.deepEqual(Object.fromEntries(Object.entries(recu).filter(([cle]) => cle !== "configuration" && cle !== "telephone")), JSON.parse(JSON.stringify(demarrage)));
   assert.equal(pont.then, undefined);
   // Chaque geste que preload.cjs offre au desktop existe : un abonnement ne reçoit rien, un geste ne rend rien.
-  const gestes = [...readFileSync(join(APP, "src", "preload.cjs"), "utf8").matchAll(/^ {2}([a-zA-Z]+): /gm)].map((trouve) => trouve[1] ?? "");
-  assert.ok(gestes.length > 50);
-  for (const geste of gestes) assert.equal(typeof pont[geste], "function", geste);
+  const actions = [...readFileSync(join(APP, "src", "preload.cjs"), "utf8").matchAll(/^ {2}([a-zA-Z]+): /gm)].map((trouve) => trouve[1] ?? "");
+  assert.ok(actions.length > 50);
+  for (const action of actions) assert.equal(typeof pont[action], "function", action);
   assert.equal(pont.surConfiguration!(() => assert.fail("nothing is received")), undefined);
   assert.equal(await pont.verifier!("projet"), undefined);
 });
@@ -171,9 +171,9 @@ test("le pont d'attente : la vue s'ouvre sans projet, chaque geste répond sans 
 // Le pont joué comme dans la WebView (#1161) : son stockage, et le pont natif de Capacitor (`nativePromise`), dont
 // chaque appel est noté et reçoit la réponse de `natif` — ce que CapacitorHttp rendrait du guichet ou de GitHub, ce que
 // rendrait le coffre, ou ce que lève un réseau qui ne joint rien.
-type AppelNatif = { plugin: string; methode: string; options: Record<string, unknown> };
-async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage = new Map<string, string>()) {
-  const appels: AppelNatif[] = [];
+type CallNatif = { plugin: string; methode: string; options: Record<string, unknown> };
+async function pontDuPhone(natif: (call: CallNatif) => unknown, stockage = new Map<string, string>()) {
+  const calls: CallNatif[] = [];
   const window: Record<string, unknown> = {
     localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
     // Le pas d'attente de la connexion à GitHub, que les tests rendent nul.
@@ -181,7 +181,7 @@ async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage =
     Capacitor: {
       nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => {
         // Les options viennent du contexte du pont : on les garde en JSON, comme elles passent au natif.
-        appels.push({ plugin, methode, options: JSON.parse(JSON.stringify(options)) });
+        calls.push({ plugin, methode, options: JSON.parse(JSON.stringify(options)) });
         return natif({ plugin, methode, options });
       },
     },
@@ -192,7 +192,7 @@ async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage =
   vm.runInNewContext(readFileSync(join(www, "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
   const pont = window.brigade as Record<string, (...args: unknown[]) => Promise<unknown>>;
   const json = async (promesse: Promise<unknown>) => JSON.parse(JSON.stringify(await promesse));
-  return { pont, appels, stockage, json, window };
+  return { pont, appels: calls, stockage, json, window };
 }
 // La vue posée pour Capacitor, une fois pour ce fichier, et effacée après lui.
 const POSEE = mkdtempSync(join(tmpdir(), "brigade-app-apk-"));
@@ -209,25 +209,25 @@ function laVuePosee(): Promise<string> {
 // que `jetons` dit à son tour — le dernier se répète —, le compte qu'ouvre le jeton, et le coffre et le navigateur du
 // téléphone, qui répondent sans rien dire. Le pas d'attente est nul : le pont ne patiente pas pour de faux.
 const CODE_DE_GITHUB = { status: 200, headers: {}, data: { device_code: "dc_123", user_code: "A1B2-C3D4", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 0 } };
-function github(jetons: unknown[], { code = CODE_DE_GITHUB as unknown, compte = { status: 200, headers: {}, data: { login: "benomite" } } as unknown } = {}) {
+function github(tokens: unknown[], { code = CODE_DE_GITHUB as unknown, compte: account = { status: 200, headers: {}, data: { login: "benomite" } } as unknown } = {}) {
   let question = 0;
-  return ({ plugin, methode, options }: AppelNatif) => {
+  return ({ plugin, methode, options }: CallNatif) => {
     if (plugin === "Pont" || (plugin === "Coffre" && methode === "garder")) return {};
     if (plugin === "Coffre") return {};
     if (options.url === "https://github.com/login/device/code") return typeof code === "function" ? code() : code;
-    if (options.url === "https://github.com/login/oauth/access_token") return jetons[Math.min(question++, jetons.length - 1)];
-    if (options.url === "https://api.github.com/user") return compte;
+    if (options.url === "https://github.com/login/oauth/access_token") return tokens[Math.min(question++, tokens.length - 1)];
+    if (options.url === "https://api.github.com/user") return account;
     return assert.fail(`unexpected call: ${plugin}.${methode} ${JSON.stringify(options)}`);
   };
 }
-const EN_ATTENTE = { status: 200, headers: {}, data: { error: "authorization_pending", error_description: "The authorization request is still pending." } };
+const QUEUED = { status: 200, headers: {}, data: { error: "authorization_pending", error_description: "The authorization request is still pending." } };
 const JETON = { status: 200, headers: {}, data: { access_token: "gho_secret", token_type: "bearer", scope: "gist,read:org,repo" } };
 // La fin du login, qui arrive par `surConnexionGitHub`.
 const laFin = (pont: Record<string, (...args: unknown[]) => unknown>) => new Promise<unknown>((rendre) => void pont.surConnexionGitHub!((fin: unknown) => rendre(JSON.parse(JSON.stringify(fin)))));
 
 test("le pont connecte le téléphone à GitHub : le code et sa page rendus, la page ouverte, puis, le code tapé, le jeton au coffre et le compte gardé", async () => {
   const lent = { status: 200, headers: {}, data: { error: "slow_down", interval: 0 } };
-  const { pont, appels, stockage, json } = await pontDuTelephone(github([EN_ATTENTE, lent, JETON]));
+  const { pont, appels: calls, stockage, json } = await pontDuPhone(github([QUEUED, lent, JETON]));
   const fin = laFin(pont);
   assert.deepEqual(await json(pont.seConnecterAGitHub!()), { code: "A1B2-C3D4", page: "https://github.com/login/device" });
   // Un second geste pendant que le premier attend le chef rend le même code, sans rien redemander.
@@ -235,7 +235,7 @@ test("le pont connecte le téléphone à GitHub : le code et sa page rendus, la 
   assert.deepEqual(await fin, { connecte: true, compte: "benomite" });
   const versGitHub = { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, connectTimeout: 10_000, readTimeout: 10_000 };
   const question = { plugin: "CapacitorHttp", methode: "request", options: { url: "https://github.com/login/oauth/access_token", ...versGitHub, data: { client_id: "178c6fc778ccc68e1d6a", device_code: "dc_123", grant_type: "urn:ietf:params:oauth:grant-type:device_code" } } };
-  assert.deepEqual(appels, [
+  assert.deepEqual(calls, [
     { plugin: "CapacitorHttp", methode: "request", options: { url: "https://github.com/login/device/code", ...versGitHub, data: { client_id: "178c6fc778ccc68e1d6a", scope: "repo read:org gist" } } },
     { plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/login/device" } },
     question,
@@ -250,22 +250,22 @@ test("le pont connecte le téléphone à GitHub : le code et sa page rendus, la 
 
 test("au lancement, le pont dit le téléphone connecté quand le coffre garde son jeton — et rien sur une installation neuve", async () => {
   const stockage = new Map([["brigade.github", "benomite"]]);
-  const coffre = (valeur: string | undefined) => ({ plugin, methode, options }: AppelNatif) => {
+  const coffre = (valeur: string | undefined) => ({ plugin, methode, options }: CallNatif) => {
     assert.deepEqual([plugin, methode, JSON.parse(JSON.stringify(options))], ["Coffre", "lire", { cle: "github" }]);
     return valeur === undefined ? {} : { valeur };
   };
-  const relance = await pontDuTelephone(coffre("gho_secret"), stockage);
+  const relance = await pontDuPhone(coffre("gho_secret"), stockage);
   assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { github: { compte: "benomite" } });
-  const neuve = await pontDuTelephone(coffre(undefined));
+  const neuve = await pontDuPhone(coffre(undefined));
   assert.deepEqual((await neuve.json(neuve.pont.demarrage!())).telephone, {});
   // Le compte que GitHub n'a pas dit : connecté quand même, sous un compte nul.
-  const muet = await pontDuTelephone(coffre("gho_secret"));
+  const muet = await pontDuPhone(coffre("gho_secret"));
   assert.deepEqual((await muet.json(muet.pont.demarrage!())).telephone, { github: { compte: null } });
 });
 
 test("refusée ou expirée sur GitHub, la connexion finit en le disant, rien n'est gardé, et un nouveau geste repart de zéro", async () => {
-  const refus = { status: 200, headers: {}, data: { error: "access_denied", error_description: "The user has denied your application access." } };
-  const annule = await pontDuTelephone(github([EN_ATTENTE, refus]));
+  const refusal = { status: 200, headers: {}, data: { error: "access_denied", error_description: "The user has denied your application access." } };
+  const annule = await pontDuPhone(github([QUEUED, refusal]));
   let fin = laFin(annule.pont);
   assert.ok("code" in (await annule.json(annule.pont.seConnecterAGitHub!())));
   assert.deepEqual(await fin, { refus: "The sign-in was cancelled on GitHub: this phone is not signed in.", detail: "github.com answered 200 — access_denied — The user has denied your application access." });
@@ -278,13 +278,13 @@ test("refusée ou expirée sur GitHub, la connexion finit en le disant, rien n'e
   assert.equal(annule.appels[0]?.options.url, "https://github.com/login/device/code");
   await fin;
 
-  const expire = await pontDuTelephone(github([{ status: 200, headers: {}, data: { error: "expired_token", error_description: "The device_code has expired." } }]));
+  const expire = await pontDuPhone(github([{ status: 200, headers: {}, data: { error: "expired_token", error_description: "The device_code has expired." } }]));
   fin = laFin(expire.pont);
   await expire.pont.seConnecterAGitHub!();
   assert.deepEqual(await fin, { refus: "The code expired before it was typed on GitHub: sign in again.", detail: "github.com answered 200 — expired_token — The device_code has expired." });
 
   // Le coffre qui refuse d'écrire : le téléphone n'est pas connecté, et le dit.
-  const sansCoffre = await pontDuTelephone((appel) => (appel.plugin === "Coffre" ? Promise.reject(new Error("the phone's keystore refused to encrypt")) : github([JETON])(appel)));
+  const sansCoffre = await pontDuPhone((call) => (call.plugin === "Coffre" ? Promise.reject(new Error("the phone's keystore refused to encrypt")) : github([JETON])(call)));
   fin = laFin(sansCoffre.pont);
   await sansCoffre.pont.seConnecterAGitHub!();
   assert.deepEqual(await fin, { refus: "This phone could not keep its GitHub sign-in: sign in again.", detail: "the phone's keystore refused to encrypt" });
@@ -292,9 +292,9 @@ test("refusée ou expirée sur GitHub, la connexion finit en le disant, rien n'e
 });
 
 test("GitHub injoignable, ou qui refuse de donner un code : le geste le dit aussitôt, sans rien ouvrir", async () => {
-  const horsLigne = await pontDuTelephone(() => Promise.reject(new Error('Unable to resolve host "github.com": No address associated with hostname')));
-  assert.deepEqual(await horsLigne.json(horsLigne.pont.seConnecterAGitHub!()), { refus: "This phone could not reach GitHub: check its connection, then try again.", detail: 'Unable to resolve host "github.com": No address associated with hostname' });
-  const ferme = await pontDuTelephone(github([], { code: { status: 400, headers: {}, data: JSON.stringify({ error: "device_flow_disabled", error_description: "Device Flow must be explicitly enabled for this App" }) } }));
+  const outsideLine = await pontDuPhone(() => Promise.reject(new Error('Unable to resolve host "github.com": No address associated with hostname')));
+  assert.deepEqual(await outsideLine.json(outsideLine.pont.seConnecterAGitHub!()), { refus: "This phone could not reach GitHub: check its connection, then try again.", detail: 'Unable to resolve host "github.com": No address associated with hostname' });
+  const ferme = await pontDuPhone(github([], { code: { status: 400, headers: {}, data: JSON.stringify({ error: "device_flow_disabled", error_description: "Device Flow must be explicitly enabled for this App" }) } }));
   assert.deepEqual(await ferme.json(ferme.pont.seConnecterAGitHub!()), { refus: "GitHub did not start the sign-in: try again.", detail: "github.com answered 400 — device_flow_disabled — Device Flow must be explicitly enabled for this App" });
   assert.equal(ferme.appels.some(({ plugin }) => plugin === "Pont"), false);
   // Refusé, le geste suivant redemande.
@@ -303,11 +303,11 @@ test("GitHub injoignable, ou qui refuse de donner un code : le geste le dit auss
 });
 
 test("le pont rouvre la page de GitHub où taper le code dans le navigateur du téléphone — et nulle autre", async () => {
-  const { pont, appels } = await pontDuTelephone(() => ({}));
+  const { pont, appels: calls } = await pontDuPhone(() => ({}));
   assert.equal(await pont.ouvrirLaPage!("https://github.com/login/device"), true);
-  assert.deepEqual(appels, [{ plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/login/device" } }]);
+  assert.deepEqual(calls, [{ plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/login/device" } }]);
   assert.equal(await pont.ouvrirLaPage!("https://example.com/login/device"), false);
-  assert.equal(appels.length, 1);
+  assert.equal(calls.length, 1);
 });
 
 // Les modules que le pont charge à côté de la vue posée pour Capacitor — la lecture de GitHub (#2501,

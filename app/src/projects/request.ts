@@ -1,0 +1,394 @@
+// Ce que l'app demande à une station, et ce que la station en dit — le format
+// est celui de la station (runtime/src/projets/demande.ts). Deux fichiers de
+// plus dans le gist de chaque station appairée (stations/document.ts) :
+//   - `brigade-projets.json`, écrit par l'app seule : les projets que le chef
+//     demande à cette station, et si elle en est la principale — celle qui fait
+//     tourner son manager et sa pass ;
+//   - `brigade-projets-suivi.json`, écrit par la station seule : où en est
+//     chacun — servi, à autoriser sur GitHub (avec les pages où le faire), en
+//     préparation, refusé (et pourquoi), ou secondaire — et où il cuit (`cuitSur`, `ici`), et où en
+//     est son déménagement (`bascule`) ; et, pour chaque projet dont elle est la principale, où en
+//     est son onboarding (`onboarding`, #1110).
+// Un déménagement de sa cuisine (runtime/src/demenagement/) ajoute à la demande `remise`, sur la
+// station qu'il quitte, et `reprise`, sur celle qui le reprend : l'app les relit et les réécrit tels
+// quels — sans eux, le déménagement en cours ne serait plus qu'un changement de principale.
+// `fournit` : ce que la machine de la station sait faire en plus de coder, coché par le chef à son
+// ajout (#1307), et ce que l'appairage de la station dit qu'elle fournit (#1757, stations/document.ts) ; la station
+// le déclare à son journal, jamais dans le dépôt. Relu et réécrit tel quel.
+// Aucune liaison directe entre l'app et la station : c'est tout ce qu'elles se disent.
+
+export const FICHIER_PROJECTS = "brigade-projets.json";
+export const FICHIER_SUIVI = "brigade-projets-suivi.json";
+export const FORMAT = 1;
+
+export type Calibre = { modele: string; effort: string };
+
+// Le fil entre l'app et les stations garde sa clé historique `principale` : la station dont le gist porte le suivi du
+// projet (son onboarding, son refus, ses choix). L'app ne le lit et ne l'écrit que par ces deux gestes.
+export const doorLeSuivi = (project: Pick<ProjectRequest, "principale">): boolean => project.principale;
+export const avecLeSuivi = (project: Omit<ProjectRequest, "principale">, suivi: boolean): ProjectRequest => ({ ...project, principale: suivi });
+
+export type ProjectRequest = {
+  nom: string;
+  depot: string;
+  base: string;
+  principale: boolean;
+  cooks: number;
+  manager: Calibre;
+  reviewer: Calibre;
+  // Quand le chef a ouvert le parcours, et quand il l'a validé.
+  ouvertLe: string | null;
+  demandeLe: string | null;
+  // Le déménagement en cours, vu de la station qu'il quitte (`remise`) ou de celle qui le reprend
+  // (`reprise`) : l'autre station, son gist, l'instant de la demande. Écrits par le runtime seul.
+  remise?: { vers: string; gist: string; demandeLe: string };
+  reprise?: { de: string; gist: string; demandeLe: string };
+  // Les capacités de la machine de cette station, en plus de coder (`navigateur-headless`, `android`…).
+  fournit?: string[];
+  // L'issue que le chef retient pour chaque besoin qui manque à la principale (#1400), par identifiant de choix :
+  // `{ "need:postgres": "provide-here" }`. La station la pose à son journal à sa lecture suivante (#1398).
+  choix?: Selections;
+};
+
+export type StateDuProject = "servi" | "a-autoriser" | "en-preparation" | "refuse" | "secondaire";
+// Où en est un déménagement, vu d'une station (runtime/src/projets/demande.ts) : demandé, accepté
+// par celle qui le reprend, refusé par elle, remis par celle qu'il quitte, reçu — fini.
+export type StepDeBascule = "demandee" | "acceptee" | "refusee" | "remise" | "recue";
+export type Bascule = { de: string; vers: string; demandeLe: string; etape: StepDeBascule };
+// `cuitSur` : la station où il cuit, telle que celle-ci la connaît ; `ici` : il cuit sur celle-ci, et
+// c'est l'ordinateur du chef. Une station d'avant le déménagement (#1094) n'en dit rien.
+// `acces` : le dépôt refuse à la station de le récupérer ou d'y pousser, avec le geste qui le lève
+// (#1117, runtime/src/projets/acces.ts) ; `worktree` : sa cuisine ne parvient pas à préparer un
+// worktree, avec la raison et l'heure du prochain essai (#1118, runtime/src/echec-du-worktree.ts).
+// Absents quand la station n'en dit rien.
+// `depot`, `base`, `cooks` : ce que la station sert du projet — son dépôt, sa branche d'intégration et son
+// plafond de cooks —, d'où l'app reprend ce qu'une station de plus doit servir ; nuls quand elle n'en dit rien.
+export type AccesBlocked = { bloque: "fetch" | "push"; raison: string; geste: string };
+export type FailureDuWorktree = { ticket: number; raison: string; prochainEssai: string | null; acces: AccesBlocked | null };
+// `clone` : la station ne parvient pas à cloner le dépôt (#1390, runtime/src/projets/echec-du-clone.ts) —
+// la cause en une phrase, le geste, où le faire, ses pages GitHub, le compte GitHub de la station, ce que
+// gh et git ont dit (`detail`, que la page ne montre que derrière « details ») et l'écart entre deux essais,
+// en secondes. Absent quand le clone n'échoue pas, ou d'une station d'avant #1390.
+export type FailureDuClone = { cause: string; raison: string; geste: string; ou: string; liens: string[]; compte: string | null; detail: string; reessaieToutesLes: number };
+// `refus` : pourquoi la station ne sert pas le projet, pour le chef (#1177, runtime/src/projets/refus.ts) —
+// un code stable, une phrase, et ce que le chef fait. Absent quand rien n'est refusé. Et, du remède qui le
+// lève (#1203, runtime/src/remedes/registre.ts), son descripteur (`remedy`) : ce que le bouton fera, en une
+// phrase, s'il retire ou efface quelque chose, son identifiant — ou pourquoi il n'y a pas de bouton
+// (`noRemedy`). Une station d'avant #1203 n'en dit rien : ni l'un ni l'autre.
+export type DescripteurDeRemede = { id: string; description: string; destructive: boolean };
+export type Refusal = { code: string; message: string; action: string; remedy?: DescripteurDeRemede; noRemedy?: string };
+// `blocages` : ce qui bloque le projet, de son ajout à son service (#1394, runtime/src/installation/blocages/) —
+// pour chacun, une clé stable, ce qui est bloqué et pourquoi en une phrase chacun, et, s'il y a lieu, le geste que
+// l'app sait faire (`action`, son identifiant), la page de GitHub où le faire hors de l'app (`link`) et ce qu'une
+// commande a dit (`detail`, que la page ne montre que replié). Absent quand rien ne bloque, ou d'une station d'avant #1394.
+export type Blockage = { id: string; message: string; cause: string; action?: string; link?: string; detail?: string };
+// `choix` : ce qui manque à la principale pour les tests du projet, un choix par besoin (#1398,
+// runtime/src/installation/besoins/) — sa clé (`need:<besoin>`, celle du blocage qui l'attend), le besoin, ce qui
+// manque et pourquoi en une phrase chacun, ses issues (chacune son libellé et ce qui en suit), et s'il attend le
+// chef (`pending`) ou s'il est tranché (`chosen`, l'issue retenue). Absent quand rien ne manque, ou d'une station
+// d'avant #1398.
+// `recommended` : posé (vrai) par la station seulement quand elle conseille cette issue (#1534).
+export type OptionDeChoice = { id: string; label: string; consequence: string; recommended?: true };
+export type Choice = { id: string; need: string; message: string; cause: string; options: OptionDeChoice[] } & ({ status: "pending" } | { status: "chosen"; selected: string; selectedAt: string });
+// Ce que le chef retient, par identifiant de choix.
+export type Selections = Record<string, string>;
+// Le temps de l'ajout du projet à son premier ticket servi (#1401, runtime/src/installation/delai/) : `ajouteLe` (ISO),
+// `serviLe` (ISO, ou null tant qu'aucun ticket n'est servi) et `duree` (millisecondes, figée, ou null).
+export type Delay = { ajouteLe: string; serviLe: string | null; duree: number | null };
+// Les temps des derniers tickets mesurés du projet, tels que sa principale les lit dans `.claude/brigade/` (#2346,
+// runtime/src/temps-ticket/) : les enregistrements (secondes entières ; la vue écarte les illisibles) et le seuil du temps
+// perdu par ticket en minutes (`lostTimeMaxMin`, #2670 : la médiane du temps perdu des tickets récents ; le temps total n'a pas de plafond).
+// `resume` : le résumé que la mesure écrit dans `temps-tickets.json` (#2659), relayé tel quel — la vue ne le recalcule pas.
+// `passe` : le temps de chaque phase de la pass sur 7 jours (#3512, runtime/src/temps-ticket/passe.ts), relayé tel quel.
+// `chiffres` : les quatre chiffres du projet que la station publie (#2672, runtime/src/chiffres-du-projet.ts), relayés tels quels.
+export type TimePublished = { enregistrements: unknown[]; lostTimeMaxMin: number; resume?: unknown; chiffres?: unknown; passe?: unknown };
+// `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
+// tient (#1756, l'ancien runtime/src/projets/secondaires.ts, retiré par #2713 : plus publiées) — déclarées à son journal, chacune par son gist, avec ce qu'elle
+// fournit, si elle est atteinte, et pourquoi en une phrase — pas atteinte, le geste du chef qui y remédie (`geste`, #1758). Seule la principale les publie ; absentes sans elles.
+export type SecondaireTenue = { nom: string; station: string; gist: string; cooks: number; fournit: string[]; atteinte: boolean; dit: string; geste?: string };
+// `rejoindre` : le chef a ajouté le projet à cette station alors qu'une autre le servait déjà (#1789,
+// l'ancien runtime/src/projets/rejoindre.ts, retiré par #2713 : plus écrit) — elle en a rejoint la cuisine, celle que `principale` fait tourner, ou elle refuse
+// en une phrase (`phrase`), sans en ouvrir une seconde. Absent quand aucune autre station ne le sert.
+export type Rejoindre = { issue: "rejointe"; principale: string } | { issue: "refusee"; phrase: string };
+export type SuiviDuProject = { nom: string; etat: StateDuProject; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBlocked | null; refus: Refusal | null; worktree: FailureDuWorktree | null; clone?: FailureDuClone; blocages?: Blockage[]; delai?: Delay; temps?: TimePublished; choix?: Choice[]; secondaires?: SecondaireTenue[]; rejoindre?: Rejoindre; depot: string | null; base: string | null; cooks: number | null };
+
+const STATES: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
+const STEPS: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
+const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
+const date = (valeur: unknown): string | null => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
+const nameDeStation = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "" && valeur.length <= 100;
+// Une capacité, telle que la station la lit (runtime/src/capacites.ts, `CAPACITE`).
+export const CAPACITY = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
+// Les capacités lisibles, chacune une fois : la station ignore les autres.
+export const capacitiesLues = (lues: unknown): string[] =>
+  Array.isArray(lues) ? [...new Set(lues.filter((lue): lue is string => texte(lue) && lue.length <= 60 && CAPACITY.test(lue.trim())).map((lue) => lue.trim().normalize("NFC")))] : [];
+const gist = (valeur: unknown): valeur is string => texte(valeur) && /^[A-Za-z0-9]{1,64}$/.test(valeur);
+const lireAcces = (lu: unknown): AccesBlocked | null => {
+  const { bloque: blocked, raison, geste: action } = (lu ?? {}) as Record<string, unknown>;
+  return (blocked === "fetch" || blocked === "push") && texte(raison) && raison.trim() !== "" && texte(action) && action.trim() !== "" ? { bloque: blocked, raison, geste: action } : null;
+};
+const lireRemede = (lu: unknown): DescripteurDeRemede | null => {
+  const { id, description, destructive } = (lu ?? {}) as Record<string, unknown>;
+  return texte(id) && /^[a-z][a-z0-9-]*$/.test(id) && texte(description) && description.trim() !== "" && typeof destructive === "boolean" ? { id, description, destructive } : null;
+};
+const lireRefusal = (lu: unknown): Refusal | null => {
+  const { code, message, action, remedy, noRemedy } = (lu ?? {}) as Record<string, unknown>;
+  if (!texte(code) || !texte(message) || message.trim() === "" || !texte(action) || action.trim() === "") return null;
+  const remede = lireRemede(remedy);
+  if (remede !== null) return { code, message, action, remedy: remede };
+  return texte(noRemedy) && noRemedy.trim() !== "" ? { code, message, action, noRemedy } : { code, message, action };
+};
+const lireFailure = (lu: unknown): FailureDuWorktree | null => {
+  const { ticket, raison, prochainEssai: prochainTrial, acces } = (lu ?? {}) as Record<string, unknown>;
+  if (typeof ticket !== "number" || !Number.isInteger(ticket) || ticket <= 0 || !texte(raison) || raison.trim() === "") return null;
+  return { ticket, raison, prochainEssai: date(prochainTrial), acces: lireAcces(acces) };
+};
+const lireClone = (lu: unknown): FailureDuClone | null => {
+  const { cause, raison, geste: action, ou, liens, compte: account, detail, reessaieToutesLes } = (lu ?? {}) as Record<string, unknown>;
+  if (!texte(cause) || !texte(raison) || raison.trim() === "" || !texte(action) || action.trim() === "") return null;
+  return {
+    cause,
+    raison,
+    geste: action,
+    ou: texte(ou) ? ou : "",
+    // Seules des pages de GitHub s'ouvrent d'un geste.
+    liens: Array.isArray(liens) ? liens.filter((url): url is string => texte(url) && /^https:\/\/github\.com\//.test(url)) : [],
+    compte: texte(account) && account.trim() !== "" ? account : null,
+    detail: texte(detail) ? detail : "",
+    reessaieToutesLes: typeof reessaieToutesLes === "number" && Number.isFinite(reessaieToutesLes) && reessaieToutesLes > 0 ? reessaieToutesLes : 30,
+  };
+};
+// Un blocage illisible — sans clé, sans message ou sans cause — n'est pas montré. Comme partout dans l'app, seule
+// une page de GitHub s'ouvre d'un geste : un autre lien est oublié, le blocage reste.
+const lireUnBlockage = (lu: unknown): Blockage[] => {
+  const { id, message, cause, action, link, detail } = (lu ?? {}) as Record<string, unknown>;
+  if (!texte(id) || id.trim() === "" || !texte(message) || message.trim() === "" || !texte(cause) || cause.trim() === "") return [];
+  return [
+    {
+      id,
+      message,
+      cause,
+      ...(texte(action) && /^[a-z0-9][a-z0-9.:_-]{0,79}$/.test(action) ? { action } : {}),
+      ...(texte(link) && /^https:\/\/github\.com\/\S*$/.test(link) ? { link } : {}),
+      ...(texte(detail) && detail.trim() !== "" ? { detail } : {}),
+    },
+  ];
+};
+// Un choix illisible — sans clé, sans phrase, sans issue lisible — n'est pas montré ; une issue illisible non plus.
+const phrase = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "";
+const lireUneOption = (lu: unknown): OptionDeChoice[] => {
+  const { id, label, consequence, recommended } = (lu ?? {}) as Record<string, unknown>;
+  return phrase(id) && phrase(label) && phrase(consequence) ? [{ id, label, consequence, ...(recommended === true ? { recommended } : {}) }] : [];
+};
+const lireUnChoice = (lu: unknown): Choice[] => {
+  const { id, need, message, cause, options, status, selected, selectedAt } = (lu ?? {}) as Record<string, unknown>;
+  const issues = Array.isArray(options) ? options.flatMap(lireUneOption) : [];
+  if (!phrase(id) || !phrase(need) || !phrase(message) || !phrase(cause) || issues.length === 0) return [];
+  if (status === "pending") return [{ id, need, message, cause, options: issues, status }];
+  if (status === "chosen" && phrase(selected)) return [{ id, need, message, cause, options: issues, status, selected, selectedAt: date(selectedAt) ?? "" }];
+  return [];
+};
+// Les sélections que l'app a écrites, relues telles quelles : une clé et une issue, en texte.
+const lireSelections = (lu: unknown): Selections => (lu === null || typeof lu !== "object" || Array.isArray(lu) ? {} : Object.fromEntries(Object.entries(lu as Record<string, unknown>).filter((entree): entree is [string, string] => phrase(entree[0]) && phrase(entree[1]))));
+const calibre = (lu: unknown): Calibre => {
+  const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
+  return { modele: texte(modele) ? modele : "", effort: texte(effort) ? effort : "" };
+};
+
+// Le fichier que l'app écrit dans le gist d'une station.
+export function documentDeRequest(projects: readonly ProjectRequest[]): string {
+  return `${JSON.stringify({ brigade: "projets", format: FORMAT, projets: projects }, null, 2)}\n`;
+}
+
+// Ce que l'app a écrit dans le gist d'une station, relu. Absent : rien de
+// demandé. Illisible : null — l'app ne le réécrit pas sans le dire.
+export function lireRequest(brut: string | undefined): ProjectRequest[] | null {
+  if (brut === undefined) return [];
+  let lu: { brigade?: unknown; projets?: unknown };
+  try {
+    lu = JSON.parse(brut) as typeof lu;
+  } catch {
+    return null;
+  }
+  if (lu === null || typeof lu !== "object" || lu.brigade !== "projets" || !Array.isArray(lu.projets)) return null;
+  return (lu.projets as unknown[]).flatMap((brut) => {
+    const { nom: name, depot: repository, base, principale, cooks, fournit, manager, reviewer, ouvertLe, demandeLe: requestLe, remise, reprise: resumption, choix: choice } = (brut ?? {}) as Record<string, unknown>;
+    if (!texte(name) || !texte(repository) || !texte(base)) return [];
+    const capacities = capacitiesLues(fournit);
+    const laRemise = (remise ?? {}) as Record<string, unknown>;
+    const laResumption = (resumption ?? {}) as Record<string, unknown>;
+    const selections = lireSelections(choice);
+    return [
+      {
+        nom: name,
+        depot: repository,
+        base,
+        principale: principale === true,
+        cooks: typeof cooks === "number" ? cooks : 0,
+        manager: calibre(manager),
+        reviewer: calibre(reviewer),
+        ouvertLe: date(ouvertLe),
+        demandeLe: date(requestLe),
+        ...(nameDeStation(laRemise.vers) && gist(laRemise.gist) && date(laRemise.demandeLe) !== null ? { remise: { vers: laRemise.vers, gist: laRemise.gist, demandeLe: laRemise.demandeLe as string } } : {}),
+        ...(nameDeStation(laResumption.de) && gist(laResumption.gist) && date(laResumption.demandeLe) !== null ? { reprise: { de: laResumption.de, gist: laResumption.gist, demandeLe: laResumption.demandeLe as string } } : {}),
+        ...(capacities.length === 0 ? {} : { fournit: capacities }),
+        // Réécrites telles quelles par tout autre geste : sans elles, la station oublierait ce que le chef a choisi.
+        ...(Object.keys(selections).length === 0 ? {} : { choix: selections }),
+      },
+    ];
+  });
+}
+
+// Une station secondaire illisible — sans gist, sans nom, sans phrase — n'est pas montrée.
+const lireUneSecondaire = (lue: unknown): SecondaireTenue[] => {
+  const { nom: name, station, gist: sien, cooks, fournit, atteinte, dit, geste: action } = (lue ?? {}) as Record<string, unknown>;
+  if (!nameDeStation(name) || !texte(station) || !gist(sien) || typeof atteinte !== "boolean" || !phrase(dit)) return [];
+  return [{ nom: name, station, gist: sien, cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : 0, fournit: capacitiesLues(fournit), atteinte, dit, ...(phrase(action) ? { geste: action } : {}) }];
+};
+
+// Une cuisine rejointe sans le nom de sa principale, ou un refus sans sa phrase, n'est pas montré.
+const lireRejoindre = (lu: unknown): Rejoindre | null => {
+  const { issue, principale, phrase: dite } = (lu ?? {}) as Record<string, unknown>;
+  if (issue === "rejointe" && nameDeStation(principale)) return { issue, principale };
+  if (issue === "refusee" && phrase(dite)) return { issue, phrase: dite };
+  return null;
+};
+
+// Le délai publié d'un projet : l'instant d'ajout, et, servi, l'instant et la durée figée. Illisible : rien.
+function lireDelay(lu: unknown): Delay | null {
+  const { ajouteLe, serviLe: servedAt, duree } = (lu ?? {}) as Record<string, unknown>;
+  const ajoute = date(ajouteLe);
+  if (ajoute === null) return null;
+  const served = date(servedAt);
+  return served !== null && typeof duree === "number" && Number.isFinite(duree) && duree >= 0 ? { ajouteLe: ajoute, serviLe: served, duree } : { ajouteLe: ajoute, serviLe: null, duree: null };
+}
+
+// Les temps publiés d'un projet. Absents ou illisibles : rien — la vue dit alors que la station ne les publie pas.
+function lireTime(lu: unknown): TimePublished | null {
+  const { enregistrements, lostTimeMaxMin, resume, chiffres: figures, passe: pass } = (lu ?? {}) as Record<string, unknown>;
+  const avecFigures = Array.isArray(figures);
+  const avecResume = typeof resume === "object" && resume !== null;
+  const avecPass = typeof pass === "object" && pass !== null;
+  if (!Array.isArray(enregistrements) && !avecResume && !avecFigures && !avecPass) return null;
+  return {
+    enregistrements: Array.isArray(enregistrements) ? enregistrements : [],
+    lostTimeMaxMin: typeof lostTimeMaxMin === "number" && Number.isFinite(lostTimeMaxMin) && lostTimeMaxMin > 0 ? lostTimeMaxMin : 2,
+    ...(avecResume ? { resume } : {}),
+    ...(avecFigures ? { chiffres: figures } : {}),
+    ...(avecPass ? { passe: pass } : {}),
+  };
+}
+
+// Ce que la station a écrit de ses projets demandés. Absent ou illisible : rien encore.
+export function lireSuivi(brut: string | undefined): SuiviDuProject[] {
+  if (brut === undefined) return [];
+  try {
+    const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
+    if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
+    return (lu.projets as unknown[]).flatMap((brut) => {
+      const { nom: name, etat: state, dit, autoriser, serviLe: servedAt, cuitSur, ici, bascule, acces, refus: refusal, worktree, clone, blocages: blockages, delai: delay, temps: time, choix: choice, secondaires, rejoindre, depot: repository, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      if (!texte(name) || !texte(state) || !STATES.includes(state)) return [];
+      const failureDuClone = lireClone(clone);
+      const lesBlockages = Array.isArray(blockages) ? blockages.flatMap(lireUnBlockage) : [];
+      const leDelay = lireDelay(delay);
+      const lesTime = lireTime(time);
+      const lesChoice = Array.isArray(choice) ? choice.flatMap(lireUnChoice) : [];
+      const lesSecondaires = Array.isArray(secondaires) ? secondaires.flatMap(lireUneSecondaire) : [];
+      const laJonction = lireRejoindre(rejoindre);
+      return [
+        {
+          nom: name,
+          etat: state as StateDuProject,
+          dit: texte(dit) ? dit : "",
+          autoriser: Array.isArray(autoriser) ? autoriser.filter((url): url is string => texte(url) && /^https:\/\/github\.com\//.test(url)) : [],
+          serviLe: date(servedAt),
+          cuitSur: nameDeStation(cuitSur) ? cuitSur : null,
+          ici: ici === true,
+          bascule: lireBascule(bascule),
+          acces: lireAcces(acces),
+          refus: lireRefusal(refusal),
+          worktree: lireFailure(worktree),
+          ...(failureDuClone === null ? {} : { clone: failureDuClone }),
+          ...(lesBlockages.length === 0 ? {} : { blocages: lesBlockages }),
+          ...(leDelay === null ? {} : { delai: leDelay }),
+          ...(lesTime === null ? {} : { temps: lesTime }),
+          ...(lesChoice.length === 0 ? {} : { choix: lesChoice }),
+          ...(lesSecondaires.length === 0 ? {} : { secondaires: lesSecondaires }),
+          ...(laJonction === null ? {} : { rejoindre: laJonction }),
+          depot: texte(repository) && repository.trim() !== "" ? repository.trim() : null,
+          base: texte(base) && base.trim() !== "" ? base.trim() : null,
+          cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : null,
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
+// Où en est un projet neuf, de son ajout à son premier ticket (#1110, runtime/src/onboarding/etat.ts,
+// `Onboarding`) : la station principale l'écrit dans son suivi, sous `onboarding`, par nom de projet.
+// Quatre étapes dans l'ordre, chacune faite, courante ou à venir, avec sa phrase et, courante, le
+// geste attendu du chef ; le ticket qui prépare le dépôt, son état, et, en échec, pourquoi et quand
+// il repart. L'app n'en ouvre que des pages de GitHub.
+export type StateDStep = "faite" | "courante" | "a-venir";
+export type ActionDOnboarding = { quoi: string; ou: string; liens: string[] };
+export type StepDOnboarding = { etape: string; titre: string; etat: StateDStep; dit: string; geste: ActionDOnboarding | null };
+export type StateDePreparation = "en-cours" | "en-echec" | "a-relire" | "suspendu" | "faite" | "abandonne";
+export type PreparationDuRepository = { ticket: number; url: string; etat: StateDePreparation; raison: string | null; prochainEssai: string | null; pr: string | null };
+export type Onboarding = { etat: "en-cours" | "pret"; termine: boolean; courante: string | null; etapes: StepDOnboarding[]; preparation: PreparationDuRepository | null; sansBacASable: boolean | null; decisionAttendue: boolean };
+
+const STATES_D_STEP: readonly string[] = ["faite", "courante", "a-venir"];
+const STATES_DE_PREPARATION: readonly string[] = ["en-cours", "en-echec", "a-relire", "suspendu", "faite", "abandonne"];
+const pageGitHub = (valeur: unknown): valeur is string => texte(valeur) && /^https:\/\/github\.com\//.test(valeur);
+
+function lireAction(lu: unknown): ActionDOnboarding | null {
+  if (lu === null || typeof lu !== "object") return null;
+  const { quoi, ou, liens } = lu as Record<string, unknown>;
+  if (!texte(quoi) || quoi.trim() === "") return null;
+  return { quoi, ou: texte(ou) ? ou : "", liens: Array.isArray(liens) ? liens.filter(pageGitHub) : [] };
+}
+
+function lirePreparation(lue: unknown): PreparationDuRepository | null {
+  if (lue === null || typeof lue !== "object") return null;
+  const { ticket, url, etat: state, raison, prochainEssai: prochainTrial, pr } = lue as Record<string, unknown>;
+  if (typeof ticket !== "number" || !Number.isInteger(ticket) || ticket <= 0 || !pageGitHub(url) || !texte(state) || !STATES_DE_PREPARATION.includes(state)) return null;
+  return { ticket, url, etat: state as StateDePreparation, raison: texte(raison) && raison !== "" ? raison : null, prochainEssai: date(prochainTrial), pr: pageGitHub(pr) ? pr : null };
+}
+
+function lireUnOnboarding(lu: unknown): Onboarding | null {
+  if (lu === null || typeof lu !== "object") return null;
+  const { etat: state, termine, courante, etapes: steps, preparation, sansBacASable: sansSandbox, decisionAttendue } = lu as Record<string, unknown>;
+  if ((state !== "en-cours" && state !== "pret") || !Array.isArray(steps)) return null;
+  const lues = steps.flatMap((brute): StepDOnboarding[] => {
+    const { etape: step, titre, etat: sien, dit, geste: action } = (brute ?? {}) as Record<string, unknown>;
+    if (!texte(step) || !texte(titre) || !texte(sien) || !STATES_D_STEP.includes(sien)) return [];
+    return [{ etape: step, titre, etat: sien as StateDStep, dit: texte(dit) ? dit : "", geste: lireAction(action) }];
+  });
+  if (lues.length === 0) return null;
+  return { etat: state as Onboarding["etat"], termine: termine === true, courante: texte(courante) ? courante : null, etapes: lues, preparation: lirePreparation(preparation), sansBacASable: typeof sansSandbox === "boolean" ? sansSandbox : null, decisionAttendue: decisionAttendue === true };
+}
+
+// L'onboarding de chaque projet dont la station est la principale, par son nom. Absent, illisible,
+// ou d'une station d'avant #1110 : rien.
+export function lireOnboarding(brut: string | undefined): Record<string, Onboarding> {
+  if (brut === undefined) return {};
+  try {
+    const lu = JSON.parse(brut) as { brigade?: unknown; onboarding?: unknown };
+    if (lu?.brigade !== "projets-suivi" || lu.onboarding === null || typeof lu.onboarding !== "object" || Array.isArray(lu.onboarding)) return {};
+    return Object.fromEntries(
+      Object.entries(lu.onboarding as Record<string, unknown>).flatMap(([name, un]): [string, Onboarding][] => {
+        const onboarding = lireUnOnboarding(un);
+        return onboarding === null ? [] : [[name, onboarding]];
+      }),
+    );
+  } catch {
+    return {};
+  }
+}
+
+// Ce qu'une station dit d'un déménagement, ou null.
+export function lireBascule(lue: unknown): Bascule | null {
+  const { de, vers, demandeLe: requestLe, etape: step } = (lue ?? {}) as Record<string, unknown>;
+  return nameDeStation(de) && nameDeStation(vers) && date(requestLe) !== null && texte(step) && STEPS.includes(step) ? { de, vers, demandeLe: requestLe as string, etape: step as StepDeBascule } : null;
+}

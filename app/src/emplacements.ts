@@ -51,7 +51,7 @@ export const APP_DU_PAQUET = "app";
 export const RUNTIME_DU_PAQUET = "runtime";
 export const NODE_DU_PAQUET = join("node", "bin", "brigade-node");
 // Les commandes du plugin de l'app (plugin-app.ts), copiées de `commands/` du dépôt.
-export const COMMANDES_DU_PAQUET = join("plugin", "commands");
+export const COMMANDS_DU_PAQUET = join("plugin", "commands");
 
 // L'app est installée quand ses sources sont celles du paquet qui la joue : `Resources/app/src`.
 // Depuis le dépôt, Electron est celui de `app/node_modules`, et les sources sont à côté. Ce n'est
@@ -76,7 +76,7 @@ export function emplacementsDe(options: OptionsEmplacements): Emplacements {
       // Une doublure pour les essais, comme depuis le dépôt ; sinon celui du paquet, jamais celui de la machine.
       node: env.BRIGADE_NODE_BIN || join(options.ressources, NODE_DU_PAQUET),
       clone: undefined,
-      commandes: join(options.ressources, COMMANDES_DU_PAQUET),
+      commandes: join(options.ressources, COMMANDS_DU_PAQUET),
     };
   }
   return {
@@ -127,10 +127,10 @@ const FIN = "__brigade_path_fin__";
 // sous Windows, une app reçoit le PATH du compte, il n'y a pas de shell de connexion à lire (`-l`, et `-i` pour ce
 // que son `.zshrc` ajoute) — ou rien : un shell absent, qui échoue, ou qui n'a rien rendu dans le
 // délai. Il est lu une fois, au lancement de l'app : rien de ce qu'il dit d'autre n'est gardé.
-export function lireCheminDuShell(shell: string, delaiMs: number, env: Record<string, string | undefined> = process.env): string | undefined {
+export function lireCheminDuShell(shell: string, delayMs: number, env: Record<string, string | undefined> = process.env): string | undefined {
   const lu = spawnSync(shell, ["-ilc", `printf '%s%s%s' '${DEBUT}' "$PATH" '${FIN}'`], {
     encoding: "utf8",
-    timeout: delaiMs,
+    timeout: delayMs,
     stdio: ["ignore", "pipe", "ignore"],
     // oh-my-zsh ne propose pas sa mise à jour à un shell que personne ne lit.
     env: { ...env, DISABLE_AUTO_UPDATE: "true" },

@@ -111,15 +111,15 @@ What the app says and draws differently from one screen to another, read from th
 
 | What is named | The words, and where | Capture |
 |---|---|---|
-| The computer the app runs on | « this computer » (`identites-github.js`, `projets-servis/projets-servis.js`, `accueil/station/BlocDeLaStation.js`), « this machine » (`station/page/NiveauReglage.js`, `station/page/sections/capacites-et-cuisiniers.js`), « this Mac » (the same two files and `vue.js`); the same page says « this computer » in `station/page/NoteSurPlace.js` and « that machine » in the same sentence | `stations-reglages.png`, `reglages-mac.png`, `stations-station-locale.png`, `ajout-station.png` |
+| The computer the app runs on | « this computer » (`identities-github.js`, `projets-servis/projets-servis.js`, `accueil/station/BlocDeLaStation.js`), « this machine » (`station/page/NiveauReglage.js`, `station/page/sections/capacites-et-cuisiniers.js`), « this Mac » (the same two files and `vue.js`); the same page says « this computer » in `station/page/NoteSurPlace.js` and « that machine » in the same sentence | `stations-reglages.png`, `reglages-mac.png`, `stations-station-locale.png`, `ajout-station.png` |
 | Giving up an open action | « Cancel » (`stations-declarees.js`), « cancel » (`second/geste.js`, `vue.js` for the ticket confirmations) (« Cancel the cleanup » went with the closer's launch, #2921) | `second-geste-confirmation.png`, `cooks-github-stations.png` |
 | Saving a form | Gone with #2920: no settings screen has a « Save » button any more — each setting is a row of `composants/reglage` that applies as soon as its control changes | `stations-reglages.png`, `onglet-stations.png`, `cooks-specialisations.png` |
 | Trying again after a failure | « Retry » (`page-projet/depot-non-prepare.js`), « Try again » (`accueil/station/BlocDeLaStation.js`) | `depot-non-prepare.png`, `stations-station-locale-perdue.png` |
 | Adding a project | « Add a project » on the sidebar footer (`vue.js:8816`), on the screen title (`parcours-projet/ajout.js`) and in `accueil/projets/projets.js` | `ajout.png`, `barre-des-projets.png` |
 | Moving to the new version of the app | « Install now » (`mise-a-jour/bandeau.js`), « Update now » (`station/page/sections/identite.js`) | `mise-a-jour-prete-mac.png`, `nouvelle-version-mac.png` |
 | The cleanup run by the closer | « cleanup » (`closer/lancement/lancement.js`, `closer/derive/derive.js`, `closer/bilan/bilan.js`), « closing pass » (`projet/bandeau-sante/Closer.js`), « closer » for the cook that runs it | `closer.png`, `closer-attente.png`, `projet-sante-closer.png` |
-| Nothing was read | « unavailable » (`premier-lancement.js`, `rail-publie.js`, `stations-du-compte.js`, `station/page/sections/connexions.js`), « could not reach » (`identites-github.js`, `projets-servis/projets-servis.js`), « not reached » (`stations-de-cuisson.js`), « failed » (`activite-du-cook.js`, `cost/perdus.js`, `onboarding/parcours.js`) | `rail-publie-indisponible.png`, `premier-lancement-indisponible.png`, `cooks-box-hors-fichier.png` |
-| « No data yet » lines | Sentence form with a capital and a full stop (`parcours-projet/etape-projet.js`: « No repository matches. »); sentence form with no stop (`projet/cuisine/cuisiniers/Cahier.js`: « No lesson in the notebook yet »); lower-case fragments (`apprentissage.js`: « no lesson yet », « no profile yet »; `projet/bandeau-sante/TempsDeLaPasse.js`: « no measure yet ») | `cooks-cahier-vide.png`, `closer-sans.png`, `projet-temps-vide.png`, `fiabilite.png` |
+| Nothing was read | « unavailable » (`first-launch.js`, `rail-published.js`, `stations-du-account.js`, `station/page/sections/connexions.js`), « could not reach » (`identities-github.js`, `projets-servis/projets-servis.js`), « not reached » (`stations-de-cooking.js`), « failed » (`activity-du-cook.js`, `cost/perdus.js`, `onboarding/parcours.js`) | `rail-publie-indisponible.png`, `premier-lancement-indisponible.png`, `cooks-box-hors-fichier.png` |
+| « No data yet » lines | Sentence form with a capital and a full stop (`parcours-projet/etape-projet.js`: « No repository matches. »); sentence form with no stop (`projet/cuisine/cuisiniers/Cahier.js`: « No lesson in the notebook yet »); lower-case fragments (`learning.js`: « no lesson yet », « no profile yet »; `projet/bandeau-sante/TempsDeLaPasse.js`: « no measure yet ») | `cooks-cahier-vide.png`, `closer-sans.png`, `projet-temps-vide.png`, `fiabilite.png` |
 | A running read | A capitalised sentence ending in « … » (`parcours-projet/compte.js`: « Reading the GitHub account of this computer… »); a lower-case fragment ending in « … » (`accueil/station/BlocDeLaStation.js`: « reading this computer's station… », `closer/lancement/lancement.js`: « reading what a cleanup costs… ») | `premier-lancement-clonage.png`, `stations-station-locale.png`, `closer-attente.png` |
 | Answers of a confirmation | « yes, launch it » / « no » (`closer/lancement/lancement.js`); « run it » / « cancel » (`second/geste.js`); « yes, <the gesture's label> » / « cancel » (`vue.js:3722`); « yes, close the issue » / « cancel » (`vue.js:4281`) | `second-geste-confirmation.png`, `closer-attente.png`, `fiche.png` |
 
@@ -153,16 +153,16 @@ Buttons of the class `recommande` are drawn in two ways: a border in `--accent` 
 
 | Marker | Where it is defined | Shape | Capture |
 |---|---|---|---|
-| `.pilule`, `[data-pastille]` — the six ticket states (#2917) | `app/src/vue/composants/pastille/pastille.css` | padding 4px 10px, radius 999px, border `--trait` | `stations-station-locale.png`, `cooks-github-stations.png` |
+| `.pilule`, `[data-pastille]` — the six ticket states (#2917) | `app/src/vue/composants/pill/pill.css` | padding 4px 10px, radius 999px, border `--trait` | `stations-station-locale.png`, `cooks-github-stations.png` |
 | `.etiquette` of a voucher | `vue.css:3852` | padding 0 6px, 11px, radius 8px, border `--bon-trait` | `rail-etiquettes.png` |
 | `.age` of a voucher | `vue.css:4291` | padding 0 6px, 11px, radius 999px, border `--bon-trait` | `rail-file.png` |
 | `.prio` of a voucher | `vue.css:4342` | padding 0 6px, 10px, radius 999px, border `--bon-trait` | `rail-file.png` |
 | `.signal` on the project bar | `vue.css:2549` | `min-width` 14px, 10px, radius 7px | `barre-des-projets.png` |
 | `.urgent` of the alerts | `vue.css:4956` | radius 3px | `espace-projet.png` |
 | `.marque` of the rail breakdown | `vue.css:2938` | radius 3px | `rail-file.png` |
-| `.pastille` | `app/src/vue/composants/pastille/pastille.css` | 10px circle (50%), or a square, diamond, ring, pause or triangle form by `data-forme` | `espace-projet-etats-github.png` |
+| `.pastille` | `app/src/vue/composants/pill/pill.css` | 10px circle (50%), or a square, diamond, ring, pause or triangle form by `data-forme` | `espace-projet-etats-github.png` |
 
-The `data-forme` shapes (losange, carré, pause, triangle) are drawn once, for `.pastille`, in `pastille.css` (#2917): the column titles and the state of a card on the rail are the pill of `pastille.js`, one variant per ticket state (queued, taken, pass, awaiting, waiting, served).
+The `data-forme` shapes (losange, carré, pause, triangle) are drawn once, for `.pastille`, in `pill.css` (#2917): the column titles and the state of a card on the rail are the pill of `pill.js`, one variant per ticket state (queued, taken, pass, awaiting, waiting, served).
 
 #### Cards
 
@@ -173,11 +173,11 @@ Cards that draw a block on a dark background (`--carte`, `--case`) differ by bor
 - Radius `--rayon-bouton` instead: `#rail .closer-bilan .retraits li` (`5922`), `.confiance .machine` and `.capacite` (`912`, `995`), `#station .projets-de-la-station .capacite` (`6642`). Captures: `closer-finie.png`, `ajout-station.png`.
 - The warm « waiting » background `--attend` with `--rayon-carte` and border `--attend-trait` (`.attend`, `vue.css:2015`); with `--rayon-bouton` and a `--rouge` border (`#rail .panne-du-rail`, `#rail .ligne-disjoncteur`, `vue.css:2914`, `2940`); with `--rayon-bouton` and a `--trait` border (`.avis-depot`, `vue.css:7870`). Captures: `espace-projet.png`, `depot-non-prepare.png`.
 - A card with a left border of 4px in `--accent` and no radius (`#fiche .question`, `vue.css:4618`). Capture: `fiche.png`.
-- The voucher (`.bon`, `app/src/vue/composants/bon/bon.css`, #2918) on `--bon`, radius `--rayon-bon`; the awaiting card — red, first in the column of its stage, since #3458 (it was the card of the « Awaiting you » column) (`.bon[data-carte="attente"]`, `composants/carte-attente/carte-attente.css`) on `--attend`, radius `--rayon-carte`. Captures: `rail-file.png`, `todo-cartes-assignees.png`.
+- The voucher (`.bon`, `app/src/vue/composants/slip/slip.css`, #2918) on `--bon`, radius `--rayon-bon`; the awaiting card — red, first in the column of its stage, since #3458 (it was the card of the « Awaiting you » column) (`.bon[data-carte="attente"]`, `composants/carte-attente/carte-attente.css`) on `--attend`, radius `--rayon-carte`. Captures: `rail-file.png`, `todo-cartes-assignees.png`.
 
 #### Empty states
 
-> Since #2919 the lines below are one component: `app/src/vue/composants/ligne-vide/` draws every empty state (a single line, `data-ligne="vide"`), `composants/ligne-erreur/` every error (a single line, its detail on hover, `data-ligne="erreur"`) and `composants/confirmation/` every inline confirmation. The class names stay in the markup as hooks only; `vue.css` holds no rule for them. The table is the state before.
+> Since #2919 the lines below are one component: `app/src/vue/composants/line-empty/` draws every empty state (a single line, `data-ligne="vide"`), `composants/ligne-erreur/` every error (a single line, its detail on hover, `data-ligne="erreur"`) and `composants/confirmation/` every inline confirmation. The class names stay in the markup as hooks only; `vue.css` holds no rule for them. The table is the state before.
 
 The rules below each draw a « nothing here » line, under ten different class names (`.vide`, `.sans`, `.aucun`, `.aucune`, `.aucun-cook`, `.sans-geste`, `.sans-faits`, `.rien-ne-cuit`, `.rien-appris`, `.specialisations-aucune`); the list is not exhaustive. What they draw:
 
@@ -202,9 +202,9 @@ The rules below each draw a « nothing here » line, under ten different class n
 
 ### Colors, sizes and spacings outside the tokens
 
-`app/src/vue/jetons.css` is the only file that defines tokens. Its header says it holds « les couleurs et les polices de l'app, et rien d'autre », and it defines: seven backgrounds, three strokes, four text colors, `--accent`, `--teinte`, seven state colors, the `--attend*` and `--bon*` colors, `--ombre`, two fonts, and three radii (`--rayon-carte` 10px, `--rayon-bouton` 8px, `--rayon-bon` 4px).
+`app/src/vue/tokens.css` is the only file that defines tokens. Its header says it holds « les couleurs et les polices de l'app, et rien d'autre », and it defines: seven backgrounds, three strokes, four text colors, `--accent`, `--teinte`, seven state colors, the `--attend*` and `--bon*` colors, `--ombre`, two fonts, and three radii (`--rayon-carte` 10px, `--rayon-bouton` 8px, `--rayon-bon` 4px).
 
-**Colors.** A search of `vue.css`, `autonomie/autonomie.css` and the `.js`/`.ts` files of `app/src/vue/` for hexadecimal, `rgb()` and `hsl()` values outside `jetons.css` finds none. Colors set from code come from `--teinte` and `--accent` (`vue.js:2617`, `2636`, `2644`, `8780`; `cost/courbe.js:115`), which `jetons.css` names as the two values that come from the projects file.
+**Colors.** A search of `vue.css`, `autonomie/autonomie.css` and the `.js`/`.ts` files of `app/src/vue/` for hexadecimal, `rgb()` and `hsl()` values outside `tokens.css` finds none. Colors set from code come from `--teinte` and `--accent` (`vue.js:2617`, `2636`, `2644`, `8780`; `cost/courbe.js:115`), which `tokens.css` names as the two values that come from the projects file.
 
 **Radii.** These values of `border-radius` are literals in `vue.css`, not one of the three radius tokens:
 
@@ -219,7 +219,7 @@ The rules below each draw a « nothing here » line, under ten different class n
 | 1px | nine shape marks (`vue.css:1965`, `1969`, `2492`, `2496`, `3046`, `3758`, `3762`, `4266`, `4270`) | `--rayon-bon` (4px) | `espace-projet-etats-github.png`, `rail-backlog.png` |
 | 999px | the toggle (`vue.css:287`, `297`), `.pilule` (2522), `#rail .bon .age`, `.prio` and `.etat-ticket.attendu` (4298, 4349, 4330) | none of the three | `reglages-pc.png`, `rail-file.png` |
 
-**Font sizes.** `jetons.css` defines the two fonts and no size. `vue.css` and `autonomie/autonomie.css` use these `font-size` values (counts of declarations): 12px (155), 11px (33), 13px (33), 14px (26), 15px (12), 18px (9), 22px (4), 26px (3), 16px (3), 10px (2), and once each 9px, 12.5px, 17px, 20px, `0.92em` and `inherit`. The values outside that run of integers:
+**Font sizes.** `tokens.css` defines the two fonts and no size. `vue.css` and `autonomie/autonomie.css` use these `font-size` values (counts of declarations): 12px (155), 11px (33), 13px (33), 14px (26), 15px (12), 18px (9), 22px (4), 26px (3), 16px (3), 10px (2), and once each 9px, 12.5px, 17px, 20px, `0.92em` and `inherit`. The values outside that run of integers:
 
 | Value | Where (`vue.css`) | Capture |
 |---|---|---|
@@ -232,7 +232,7 @@ The rules below each draw a « nothing here » line, under ten different class n
 | 22px | `#temps-ticket-du-projet .temps-valeur` (453), `.perdus-cout .perdus-total` (5223) | `projet-temps-normal.png`, `cout.png` |
 | 26px | `.tete-cout .total` (1237), `#rail .tete-fiabilite .total` (5375) | `cout.png`, `fiabilite.png` |
 
-**Spacings.** `jetons.css` defines no spacing token (no `--espace*` or similar; it holds colors, fonts and radii), so there is no token to name. In `vue.css` and `autonomie/autonomie.css`, `padding` is declared 326 times with 97 distinct values, `gap` 317 times with 32 distinct values and `margin` 273 times with 38 distinct values. The most frequent `gap` values in `vue.css`: 8px (85), 6px (63), 10px (36), 4px (30), 12px (15), `4px 8px` (13), 2px (12). The most frequent `padding` values: `3px 10px` (15), `8px 12px` (11), `3px 12px` (11), `8px 16px` (9), `0 6px` (9), `4px 12px` (7), `10px 14px` (7). The `padding` of the buttons, with the line where each is declared in `vue.css`:
+**Spacings.** `tokens.css` defines no spacing token (no `--espace*` or similar; it holds colors, fonts and radii), so there is no token to name. In `vue.css` and `autonomie/autonomie.css`, `padding` is declared 326 times with 97 distinct values, `gap` 317 times with 32 distinct values and `margin` 273 times with 38 distinct values. The most frequent `gap` values in `vue.css`: 8px (85), 6px (63), 10px (36), 4px (30), 12px (15), `4px 8px` (13), 2px (12). The most frequent `padding` values: `3px 10px` (15), `8px 12px` (11), `3px 12px` (11), `8px 16px` (9), `0 6px` (9), `4px 12px` (7), `10px 14px` (7). The `padding` of the buttons, with the line where each is declared in `vue.css`:
 
 | Button (selector) | `padding` | Line |
 |---|---|---|
@@ -252,18 +252,18 @@ The rules below each draw a « nothing here » line, under ten different class n
 
 Captures: see the table of buttons above.
 
-**Other departures from `jetons.css`.**
+**Other departures from `tokens.css`.**
 
 - The header of the state colors says « une couleur par mot des listes fermées (faits.ts), jamais sur un autre ». `--jaune` colors the no-data lines of `#etat .projets-servis .aucun` (`vue.css:2347`) and `.carte .sans-faits` (`2608`); `--orange` colors the fourth segment of `#temps-ticket-du-projet .temps-part` (`474`), next to `--bleu`, `--jaune`, `--vert` and `--gris` for the other four (`vue.css:466-475`). Capture: `projet-temps-normal.png`.
-- `--orange` and `--accent` both hold `#f2994a` in `jetons.css`.
-- `--ton`, a variable of the stylesheet, is declared six times in `vue.css`, not in `jetons.css`.
+- `--orange` and `--accent` both hold `#f2994a` in `tokens.css`.
+- `--ton`, a variable of the stylesheet, is declared six times in `vue.css`, not in `tokens.css`.
 
 ### Gestures living in different places from one screen to another
 
 | Gesture | Where it lives, screen by screen | Capture |
 |---|---|---|
 | Removing something | A station: « Stop cooking here » on its card of the Stations tab, then a confirmation (`stations-tab/stations-tab.js`, #3195). A station on a project: unticking the project, then a confirmation (`projet/stations/ReglagesStation.js`). A project: a row of Settings, « Remove this project from the app's sidebar » (`vue.js:2609`). A cleanup check: a « remove » button on the line in the `Caps, closer and all projects` section of Settings (`projet/bandeau-sante/Closer.js:239`). A ticket: « close issue #N on GitHub? » in the fiche (`vue.js:4281`) | `cooks-github-stations.png`, `stations-reglages.png`, `reglages-du-projet.png`, `projet-sante-closer.png`, `fiche.png` |
-| Confirming | An inline block under the gesture with a title, one line of price and two answers (`confirmationDeGeste`, `briques.js:94`) for a station removal, the cleanup, the second's command, a ticket gesture, a ticket closing and the repository remedy. No confirmation for an answer to a TODO card (`carte-todo.js`: a click on a choice is the answer) or for the other rows of Settings | `second-geste-confirmation.png`, `closer-attente.png`, `projet-refuse-confirmer.png`, `todo-cartes-assignees.png` |
+| Confirming | An inline block under the gesture with a title, one line of price and two answers (`confirmationDeGeste`, `briques.js:94`) for a station removal, the cleanup, the second's command, a ticket gesture, a ticket closing and the repository remedy. No confirmation for an answer to a TODO card (`card-todo.js`: a click on a choice is the answer) or for the other rows of Settings | `second-geste-confirmation.png`, `closer-attente.png`, `projet-refuse-confirmer.png`, `todo-cartes-assignees.png` |
 | Changing a setting | One row on every screen since #2920 (`rangeeDeReglage`, `composants/reglage/reglage.js`): its control applies as soon as it changes, with no « Save »; a setting kept in the project's repository says on its row that a change opens a pull request, and the row then shows the pull request it opened (`ditDuReglage`) | `reglages-pc.png`, `stations-reglages.png`, `projet-sante.png` |
 | Switching on or off | The project switch sits at the head of the project space (`.interrupteur-de-tete`, `vue.css:287`) and the same `.bascule` is drawn in settings rows (`composants/reglage/reglage.css`); the kitchen stop is a row of Settings (`#arreter-cuisine`, `vue.css:3057`) | `espace-projet.png`, `reglages-pc.png` |
 | Adding | A project: a « + » on the sidebar footer (`vue.js:8816`) and a form (`index.html`). A station: « Choose who cooks it » on the Stations tab and the add-project path's « who cooks it », one station choice since #3195 (`stations-tab/choix.js`, the state in `projet/stations/AjoutStation.js`). A specialization and a cleanup check: a button in the block with its own « cancel » (`Specialisations.js:177`, `Closer.js:267`) | `barre-des-projets.png`, `onglet-stations-ajout.png`, `cooks-specialisation-ajout.png`, `projet-sante-closer-ajout.png` |

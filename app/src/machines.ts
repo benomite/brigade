@@ -6,11 +6,11 @@ import { ICI } from "./plateforme.ts";
 // `id` : ce que la vue rend pour choisir. `titre` : ce qu'elle montre.
 export type Machine = { id: string; titre: string; cible: Cible };
 
-export const POSTE = "poste";
+export const WORKSTATION = "poste";
 
 // Les machines proposées : ce poste.
 export function machinesDe(): Machine[] {
-  return [{ id: POSTE, titre: ICI, cible: { lieu: "poste" } }];
+  return [{ id: WORKSTATION, titre: ICI, cible: { lieu: "poste" } }];
 }
 
 // La machine que la vue a choisie, parmi celles proposées maintenant — rien, pour une autre.

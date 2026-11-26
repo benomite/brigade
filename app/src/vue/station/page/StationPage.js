@@ -11,9 +11,9 @@
 // Aucun réglage du projet n'y paraît (ils sont sur l'onglet Stations du projet, ticket 2484) : `contexte.niveau(cle)`
 // refuse une clé de niveau « project ». Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
-import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
+import { lineError } from "../../composants/line-error/line-error.js";
 import { NIVEAUX } from "../../niveaux.js";
-import { niveauReglage } from "./NiveauReglage.js";
+import { niveauSetting } from "./SettingLevel.js";
 import { NON_ATTEINT } from "../../lexique.js";
 
 /** @typedef {import("../../briques.js").Fabrique} Fabrique */
@@ -24,10 +24,10 @@ import { NON_ATTEINT } from "../../lexique.js";
 /**
  * Ce que chaque section reçoit : la station, si elle est celle de cet ordinateur, si elle se montre sans se régler, et
  * la marque du niveau d'un réglage, par sa clé de niveaux.js.
- * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: Port, connexions?: import("./sections/connexions.js").Connexions }} Contexte
+ * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: Port, connexions?: import("./sections/connections.js").Connections }} Context
  */
-/** @typedef {import("./sections/dossiers-et-bac-a-sable.js").Port} Port */
-/** @typedef {{ poserSection(doc: Fabrique, contexte: Contexte): any }} Section */
+/** @typedef {import("./sections/dossiers-et-sandbox.js").Port} Port */
+/** @typedef {{ poserSection(doc: Fabrique, context: Context): any }} Section */
 /** @typedef {(fichier: string) => Promise<Partial<Section>> | undefined} Charger */
 
 // Les sections, dans leur ordre sur la page : leur fichier sous `sections/` et leur titre.
@@ -45,7 +45,7 @@ export const SECTIONS = /** @type {const} */ ([
 export const LIVREES = new Set(["dossiers-et-bac-a-sable", "connexions", "moteur"]);
 // Une section livrée hors de `sections/` : son module, par son nom (le moteur, ticket 3746, sous `moteur/`).
 /** @type {Readonly<Record<string, string>>} */
-const AILLEURS = { moteur: "../../moteur/SectionDuMoteur.js" };
+const AILLEURS = { moteur: "../../engine/EngineSection.js" };
 
 export const PAS_ENCORE = "not shown yet";
 export const INDISPONIBLE = NON_ATTEINT("this section");
@@ -60,32 +60,32 @@ export function estCetOrdinateur(station, locale) {
 const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(AILLEURS[fichier] ?? `./sections/${fichier}.js`) : undefined);
 
 // La page entière : un élément par section, dans l'ordre de SECTIONS, posé quand toutes sont rendues.
-/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: Port, connexions?: import("./sections/connexions.js").Connexions }} ouverte */
-export async function poserPageDeStation(doc, { station, locale, charger = depuisSections, reglages, connexions }) {
+/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: Port, connexions?: import("./sections/connections.js").Connections }} ouverte */
+export async function poserPageDeStation(doc, { station, locale, charger = depuisSections, reglages: settings, connexions: connections }) {
   const ici = estCetOrdinateur(station, locale);
-  /** @type {Contexte} */
-  const contexte = {
+  /** @type {Context} */
+  const context = {
     station,
     ici,
     lectureSeule: !ici,
-    reglages,
-    connexions,
+    reglages: settings,
+    connexions: connections,
     niveau(cle) {
       const niveau = NIVEAUX[cle];
       if (niveau === undefined) throw new Error(`setting "${cle}" has no level in niveaux.js`);
       if (niveau === "project") throw new Error(`setting "${cle}" belongs to the project: the station page shows none`);
-      return niveauReglage(doc, niveau);
+      return niveauSetting(doc, niveau);
     },
   };
   const page = doc.createElement("div");
   page.className = "page-de-station";
   page.dataset.ici = String(ici);
-  page.append(...(await Promise.all(SECTIONS.map((section) => poserUneSection(doc, section, contexte, charger)))));
+  page.append(...(await Promise.all(SECTIONS.map((section) => poserUneSection(doc, section, context, charger)))));
   return page;
 }
 
-/** @param {Fabrique} doc @param {(typeof SECTIONS)[number]} section @param {Contexte} contexte @param {Charger} charger */
-async function poserUneSection(doc, { fichier, titre }, contexte, charger) {
+/** @param {Fabrique} doc @param {(typeof SECTIONS)[number]} section @param {Context} context @param {Charger} charger */
+async function poserUneSection(doc, { fichier, titre }, context, charger) {
   const racine = doc.createElement("section");
   racine.className = "section-de-station";
   racine.dataset.section = fichier;
@@ -95,17 +95,17 @@ async function poserUneSection(doc, { fichier, titre }, contexte, charger) {
   try {
     const chargee = charger(fichier);
     if (chargee === undefined) {
-      const vide = doc.createElement("p");
-      vide.className = "a-venir";
-      vide.textContent = PAS_ENCORE;
-      racine.append(vide);
+      const empty = doc.createElement("p");
+      empty.className = "a-venir";
+      empty.textContent = PAS_ENCORE;
+      racine.append(empty);
       return racine;
     }
     const module = await chargee;
     if (typeof module?.poserSection !== "function") throw new Error(`sections/${fichier}.js exports no poserSection`);
-    racine.append(await module.poserSection(doc, contexte));
-  } catch (erreur) {
-    racine.append(ligneErreur(doc, INDISPONIBLE, erreur instanceof Error ? erreur.message : String(erreur)));
+    racine.append(await module.poserSection(doc, context));
+  } catch (error) {
+    racine.append(lineError(doc, INDISPONIBLE, error instanceof Error ? error.message : String(error)));
   }
   return racine;
 }

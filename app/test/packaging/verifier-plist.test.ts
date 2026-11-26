@@ -7,8 +7,8 @@ import { test, type TestContext } from "node:test";
 import { defautsDeNom } from "../../packaging/verifier-plist.ts";
 import { PAQUETS } from "../aides/posix.ts";
 
-const plist = (nom: string, affiche = nom, executable = nom, identifiant = "com.github.benomite.brigade") =>
-  `<dict><key>CFBundleName</key><string>${nom}</string><key>CFBundleDisplayName</key><string>${affiche}</string><key>CFBundleExecutable</key><string>${executable}</string><key>CFBundleIdentifier</key><string>${identifiant}</string></dict>`;
+const plist = (name: string, affiche = name, executable = name, identifiant = "com.github.benomite.brigade") =>
+  `<dict><key>CFBundleName</key><string>${name}</string><key>CFBundleDisplayName</key><string>${affiche}</string><key>CFBundleExecutable</key><string>${executable}</string><key>CFBundleIdentifier</key><string>${identifiant}</string></dict>`;
 
 function paquet(t: TestContext, app: string, auxiliaire: string): string {
   const racine = mkdtempSync(join(tmpdir(), "brigade-verifier-plist-"));
@@ -40,7 +40,7 @@ test("un auxiliaire qui dit encore Electron est un défaut", { skip: PAQUETS }, 
 });
 
 test("un paquet illisible est un défaut, pas un succès", { skip: PAQUETS }, (t) => {
-  const vide = mkdtempSync(join(tmpdir(), "brigade-verifier-plist-"));
-  t.after(() => rmSync(vide, { recursive: true, force: true }));
-  assert.ok(defautsDeNom(vide).length >= 2);
+  const empty = mkdtempSync(join(tmpdir(), "brigade-verifier-plist-"));
+  t.after(() => rmSync(empty, { recursive: true, force: true }));
+  assert.ok(defautsDeNom(empty).length >= 2);
 });

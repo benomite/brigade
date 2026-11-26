@@ -5,22 +5,22 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE, type Projet } from "../../src/config.ts";
+import { pourLaBar } from "../../src/bar.ts";
+import { EXEMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE } from "../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
+import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { JOURS, joursDe, poserCourbe, series, TITRE } from "../../src/vue/cost/courbe.js";
-import { fenetresDe, LECTURE, NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
+import { fenetresDe, READ, NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, repos } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_espace: string, balise: string) => new Faux(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise), createElementNS: (_space: string, balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
 // Un nombre tel que le runtime l'écrit (fr-FR) : séparé d'espaces fines insécables.
-const n = (chiffres: string) => chiffres.replaceAll(" ", " ");
+const n = (figures: string) => figures.replaceAll(" ", " ");
 
 // Ce que `station` rend aujourd'hui (runtime/src/montrer-station.ts) : le bloc `consommé`, en cours, 5 h
 // et 24 h — et, quand la box communique ses jours, une ligne par jour dans le même bloc.
@@ -31,13 +31,13 @@ const station = (jours: string[] = []) =>
     `consommé              en cours : 1 lancement · 4 tours · ${n("12 000")} tokens`,
     `                      5 h : 1 lancement · 3 tours · ${n("320 000")} tokens`,
     "                      24 h : rien",
-    ...jours.map((jour) => `                      ${jour}`),
+    ...jours.map((day) => `                      ${day}`),
     "                      ce que ce projet a lancé, pas la consommation du compte : /usage la donne",
     "décisions du chef     `station -- <geste> <valeur>` pour en poser une",
     "  seuil-ticket        non posée — 2026-10-01 : 9 tokens n'est pas un jour du bloc",
   ].join("\n");
-const lu = (projet: string, texte: string) => ({ projet, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
-const injoignable = (projet: string) => ({ projet, demande: 0, a: A, erreur: "connection refused", atteinte: false, cas: null });
+const lu = (project: string, texte: string) => ({ projet: project, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
+const injoignable = (project: string) => ({ projet: project, demande: 0, a: A, erreur: "connection refused", atteinte: false, cas: null });
 
 const PARADE_JOURS = station([`2026-10-14 : 6 lancements · 214 tours · ${n("1 284 530")} tokens`, "2026-10-15 : rien", `2026-10-16 : 19 lancements, dont 5 relectures · 802 tours · ${n("4 912 044")} tokens`]);
 const CANTINE_JOURS = station([`2026-10-15 : 1 lancement · 1 tour · 1 token`, `2026-10-16 : 2 lancements · 61 tours · ${n("318 772")} tokens`]);
@@ -65,10 +65,10 @@ describe("ce que `station` dit de chaque jour", () => {
 });
 
 describe("les séries par projet", () => {
-  const projets = [{ nom: "parade", teinte: "#f2994a" }, { nom: "cantine" }];
+  const projects = [{ nom: "parade", teinte: "#f2994a" }, { nom: "cantine" }];
 
   test("une série par projet, alignées sur les mêmes jours, du plus ancien au plus récent ; un jour qu'un projet ne dit pas est un trou", () => {
-    assert.deepEqual(series(projets, new Map([["cantine", lu("cantine", CANTINE_JOURS)], ["parade", lu("parade", PARADE_JOURS)]])), {
+    assert.deepEqual(series(projects, new Map([["cantine", lu("cantine", CANTINE_JOURS)], ["parade", lu("parade", PARADE_JOURS)]])), {
       jours: ["2026-10-14", "2026-10-15", "2026-10-16"],
       series: [
         { projet: { nom: "parade", teinte: "#f2994a" }, points: [1_284_530, 0, 4_912_044] },
@@ -79,8 +79,8 @@ describe("les séries par projet", () => {
 
   test("une box qui ne dit pas ses jours, ou injoignable, ne communique pas sa série ; une box pas encore lue est en lecture", () => {
     const lues = new Map<string, unknown>([["parade", lu("parade", station())], ["cantine", injoignable("cantine")]]);
-    assert.deepEqual(series(projets, lues as never), { jours: [], series: [{ projet: projets[0], points: null }, { projet: projets[1], points: null }] });
-    assert.deepEqual(series(projets, new Map([["parade", lu("parade", PARADE_JOURS)]])).series.map(({ points }) => points), [[1_284_530, 0, 4_912_044], undefined]);
+    assert.deepEqual(series(projects, lues as never), { jours: [], series: [{ projet: projects[0], points: null }, { projet: projects[1], points: null }] });
+    assert.deepEqual(series(projects, new Map([["parade", lu("parade", PARADE_JOURS)]])).series.map(({ points }) => points), [[1_284_530, 0, 4_912_044], undefined]);
   });
 
   test(`les ${JOURS} derniers jours, au plus`, () => {
@@ -94,9 +94,9 @@ describe("les séries par projet", () => {
 });
 
 describe("la courbe posée", () => {
-  const projets = [{ nom: "parade", teinte: "#f2994a" }, { nom: "cantine" }];
-  const poser = (lectures: Map<string, unknown>) => poserCourbe(doc, projets, lectures as never) as Faux;
-  const legende = (pose: Faux) => pose.dessous("li").map((ligne) => ligne.children.slice(1).map(({ textContent }) => textContent));
+  const projects = [{ nom: "parade", teinte: "#f2994a" }, { nom: "cantine" }];
+  const poser = (lectures: Map<string, unknown>) => poserCourbe(doc, projects, lectures as never) as Faux;
+  const legende = (pose: Faux) => pose.dessous("li").map((line) => line.children.slice(1).map(({ textContent }) => textContent));
 
   test("un titre court, une ligne par projet dans le tracé, à la teinte de sa pastille, et une légende qui nomme chacun", () => {
     const pose = poser(new Map([["parade", lu("parade", PARADE_JOURS)], ["cantine", lu("cantine", CANTINE_JOURS)]]));
@@ -126,10 +126,10 @@ describe("la courbe posée", () => {
 
   test("un trou coupe la ligne ; un jour seul entre deux trous reste un point", () => {
     const pose = poser(new Map([["parade", lu("parade", station(["2026-10-12 : 10 tokens", "2026-10-14 : 20 tokens", "2026-10-15 : 20 tokens"]))], ["cantine", lu("cantine", station(["2026-10-13 : 20 tokens"]))]]));
-    const [ligne, points, ligneCantine, pointsCantine] = pose.dessous("path");
-    assert.equal(ligne?.getAttribute("d"), "M666.6666666666666 0L1000 0");
+    const [line, points, lineCantine, pointsCantine] = pose.dessous("path");
+    assert.equal(line?.getAttribute("d"), "M666.6666666666666 0L1000 0");
     assert.equal(points?.getAttribute("d"), "M0 50h0M666.6666666666666 0h0M1000 0h0");
-    assert.equal(ligneCantine?.getAttribute("d"), "");
+    assert.equal(lineCantine?.getAttribute("d"), "");
     assert.equal(pointsCantine?.getAttribute("d"), "M333.3333333333333 0h0");
   });
 
@@ -147,8 +147,8 @@ describe("la courbe posée", () => {
       assert.equal(pose.dessous("svg").length, 0);
     }
     // Avant toute lecture, la zone est en lecture — pas « not communicated ».
-    assert.equal(poser(new Map()).children[1]?.textContent, LECTURE);
-    assert.equal(poser(new Map([["parade", lu("parade", station())]])).children[1]?.textContent, LECTURE);
+    assert.equal(poser(new Map()).children[1]?.textContent, READ);
+    assert.equal(poser(new Map([["parade", lu("parade", station())]])).children[1]?.textContent, READ);
   });
 
   test("aucune phrase d'explication : rien de posé à plat ne dépasse quelques mots", () => {
@@ -161,18 +161,18 @@ describe("la courbe posée", () => {
 });
 
 describe("la courbe, sur la page des coûts de l'app", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
-  const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine" };
+  const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
+  const CANTINE: Project = { nom: "cantine", dossier: "/tmp/cantine" };
 
   async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true),
+        configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -188,17 +188,17 @@ describe("la courbe, sur la page des coûts de l'app", () => {
     const vue = await ouvrirLaPage();
     const blocs = vue.element("cout").children.at(-1) ?? assert.fail("pas de blocs");
     assert.deepEqual(blocs.children.map(({ className }) => className), ["tete-cout", "chiffres-autonomie", "perdus-cout", "chers-cout", "courbe-cout"]);
-    assert.equal(courbe(vue).dessous("p")[0]?.textContent, LECTURE);
-    const demande = vue.dernier("onglet")[2] as number;
+    assert.equal(courbe(vue).dessous("p")[0]?.textContent, READ);
+    const request = vue.dernier("onglet")[2] as number;
 
-    vue.dire("surContenu", { ...lu("parade", station()), demande }, undefined);
-    vue.dire("surContenu", { ...lu("cantine", station()), demande }, undefined);
+    vue.dire("surContenu", { ...lu("parade", station()), demande: request }, undefined);
+    vue.dire("surContenu", { ...lu("cantine", station()), demande: request }, undefined);
     await repos();
     assert.equal(courbe(vue).dessous("p")[0]?.textContent, NON_COMMUNIQUE);
     assert.equal(courbe(vue).dessous("svg").length, 0);
 
-    vue.dire("surContenu", { ...lu("parade", PARADE_JOURS), demande }, undefined);
-    vue.dire("surContenu", { ...lu("cantine", CANTINE_JOURS), demande }, undefined);
+    vue.dire("surContenu", { ...lu("parade", PARADE_JOURS), demande: request }, undefined);
+    vue.dire("surContenu", { ...lu("cantine", CANTINE_JOURS), demande: request }, undefined);
     await repos();
     assert.equal(courbe(vue).dessous("path").length, 4);
     assert.deepEqual(courbe(vue).dessous("li").map(({ textContent }) => textContent), ["parade", "cantine"]);

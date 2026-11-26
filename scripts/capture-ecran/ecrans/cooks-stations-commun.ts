@@ -1,8 +1,8 @@
 // L'onglet Cooks de « parade » et ses stations, tels que la box les rendait : quatre stations — la box cuit #14, le Mac
 // arrêté par le chef y finit #15, l'atelier saturé cuit encore #16, le PC refuse le projet (#1270) —, et ce que chaque
 // station déclarée fournit, par le contrôle de l'installation (#1509, service.ts, `installation stations --json`).
-import type { Faits } from "../../../app/src/faits.ts";
-import { commandeDeDemarrage, type Guide, type StationsLues } from "../../../app/src/service.ts";
+import type { Facts } from "../../../app/src/facts.ts";
+import { commandDeDemarrage, type Guide, type StationsLues } from "../../../app/src/service.ts";
 import { MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -19,7 +19,7 @@ const REFUS = {
   action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself.",
   noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you.",
 };
-export const FACTS: Faits = {
+export const FACTS: Facts = {
   ...PARADE.facts,
   compteurs: { ...PARADE.facts.compteurs, auTravail: 3 },
   rail: [
@@ -35,7 +35,7 @@ export const FACTS: Faits = {
     { ...station, station: "atelier/claude", distante: false, cuisson: "saturated", cooks: [COOK_16] },
     { ...station, station: "pc/claude", distante: true, cuisson: "refused", refus: REFUS, cooks: [] },
   ],
-} as Faits;
+} as Facts;
 
 export const DECLAREES: StationsLues = {
   proposees: [{ nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"] }],
@@ -57,7 +57,7 @@ export const guide = (stations: StationsLues): Guide => ({
   etapes: [],
   courante: null,
   annonces: { etat: "lues", liste: [] },
-  demarrage: commandeDeDemarrage(PROJETS[0]!),
+  demarrage: commandDeDemarrage(PROJETS[0]!),
   termine: true,
   controle: { a: MAINTENANT, stations },
 });

@@ -223,7 +223,7 @@ test("`prise.ts` ne lit et n'écrit que par le client de GitHub : il n'importe n
   const imports = [...source.matchAll(/^import .* from "(.+)";$/gm)].map((ligne) => ligne[1]);
   // `alimenter.ts` ne lui donne que la liste de ceux dont un commentaire fait foi.
   assert.deepEqual(imports, ["../alimenter.ts", "../github.ts"]);
-  for (const module of imports) assert.doesNotMatch(module, /relais|boite|journal/);
+  for (const module of imports) assert.doesNotMatch(module, /relais|boite|log/);
   assert.doesNotMatch(source, /from "node:/);
 });
 

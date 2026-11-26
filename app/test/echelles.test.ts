@@ -1,4 +1,4 @@
-// Les échelles de la peau (#2909) : cinq tailles de texte, six pas d'espacement et les arrondis, posés dans jetons.css
+// Les échelles de la peau (#2909) : cinq tailles de texte, six pas d'espacement et les arrondis, posés dans tokens.css
 // et nulle part ailleurs. Une feuille de la vue ne donne une taille, un espacement ou un arrondi que par l'un de ces
 // jetons : un nombre suivi d'une unité (`12px`, `0.4rem`) y est une valeur hors de l'échelle. Restent permis le zéro nu,
 // `auto`, les pourcentages, les `em` (relatifs au texte autour) et ce qui ne compte que des jetons (`calc(-1 * var(--pas-3))`).
@@ -6,13 +6,13 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { jetonsDe } from "./aides/fausse-vue.ts";
+import { tokensOf } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const lire = (fichier: string) => readFileSync(join(VUE, fichier), "utf8");
 
-// Les feuilles de la vue, sous-dossiers compris — sauf jetons.css, le seul endroit où une valeur s'écrit.
-const feuilles = (readdirSync(VUE, { recursive: true }) as string[]).filter((fichier) => fichier.endsWith(".css") && fichier !== "jetons.css").sort();
+// Les feuilles de la vue, sous-dossiers compris — sauf tokens.css, le seul endroit où une valeur s'écrit.
+const feuilles = (readdirSync(VUE, { recursive: true }) as string[]).filter((fichier) => fichier.endsWith(".css") && fichier !== "tokens.css").sort();
 
 const PROPRIETES = /(?<![\w-])(font-size|padding(?:-[a-z-]+)?|gap|row-gap|column-gap|margin(?:-[a-z-]+)?|border(?:-[a-z]+)*-radius)\s*:\s*([^;}]*)/g;
 // Un nombre non nul suivi d'une unité de longueur absolue ou relative à la racine ou à la fenêtre.
@@ -21,23 +21,23 @@ const NUL = /^-?(?:0*\.)?0+[a-z]*$/i;
 
 // Chaque littéral d'une feuille, avec sa ligne : les commentaires sont blanchis, leurs retours à la ligne gardés.
 function litteraux(fichier: string, css: string): string[] {
-  const sansCommentaires = css.replace(/\/\*[\s\S]*?\*\//g, (commentaire) => commentaire.replace(/[^\n]/g, " "));
+  const sansCommentaires = css.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "));
   const trouves: string[] = [];
   for (const declaration of sansCommentaires.matchAll(PROPRIETES)) {
     const [, propriete = "", valeur = ""] = declaration;
-    const ligne = sansCommentaires.slice(0, declaration.index).split("\n").length;
+    const line = sansCommentaires.slice(0, declaration.index).split("\n").length;
     for (const [litteral] of valeur.matchAll(LITTERAL)) {
-      if (!NUL.test(litteral)) trouves.push(`${fichier}:${ligne} — ${propriete}: ${litteral}`);
+      if (!NUL.test(litteral)) trouves.push(`${fichier}:${line} — ${propriete}: ${litteral}`);
     }
   }
   return trouves;
 }
 
 describe("les échelles : tailles, pas et arrondis sont des jetons", () => {
-  const jetons = jetonsDe(lire("jetons.css"));
-  const famille = (prefixe: string) => Object.fromEntries([...jetons].filter(([nom]) => nom.startsWith(prefixe)));
+  const tokens = tokensOf(lire("tokens.css"));
+  const famille = (prefixe: string) => Object.fromEntries([...tokens].filter(([name]) => name.startsWith(prefixe)));
 
-  test("jetons.css pose cinq tailles de texte : 11, 13, 15, 20 et 28", () => {
+  test("tokens.css pose cinq tailles de texte : 11, 13, 15, 20 et 28", () => {
     assert.deepEqual(famille("--taille-"), {
       "--taille-meta": "11px",
       "--taille-corps": "13px",
@@ -47,18 +47,18 @@ describe("les échelles : tailles, pas et arrondis sont des jetons", () => {
     });
   });
 
-  test("jetons.css pose six pas d'espacement, de 4 à 32", () => {
+  test("tokens.css pose six pas d'espacement, de 4 à 32", () => {
     assert.deepEqual(famille("--pas-"), { "--pas-1": "4px", "--pas-2": "8px", "--pas-3": "12px", "--pas-4": "16px", "--pas-5": "24px", "--pas-6": "32px" });
   });
 
-  test("jetons.css pose les arrondis 10, 8 et 4, et le rond complet de la pastille", () => {
+  test("tokens.css pose les arrondis 10, 8 et 4, et le rond complet de la pastille", () => {
     assert.deepEqual(famille("--rayon-"), { "--rayon-carte": "10px", "--rayon-bouton": "8px", "--rayon-bon": "4px", "--rayon-pastille": "999px" });
   });
 
   test("aucune feuille de la vue n'écrit une taille, un espacement ou un arrondi en dur", () => {
-    assert.ok(feuilles.includes("vue.css") && feuilles.includes(join("autonomie", "autonomie.css")), feuilles.join(", "));
+    assert.ok(feuilles.includes("vue.css") && feuilles.includes(join("autonomy", "autonomy.css")), feuilles.join(", "));
     const trouves = feuilles.flatMap((fichier) => litteraux(fichier, lire(fichier)));
-    assert.deepEqual(trouves, [], `des littéraux à remplacer par un jeton de jetons.css :\n${trouves.join("\n")}`);
+    assert.deepEqual(trouves, [], `des littéraux à remplacer par un jeton de tokens.css :\n${trouves.join("\n")}`);
   });
 
   test("un littéral réintroduit est trouvé, avec son fichier et sa ligne ; remplacé par un jeton, il ne l'est plus", () => {

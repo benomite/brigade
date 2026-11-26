@@ -8,7 +8,7 @@ The canvas: https://claude.ai/artifact/AgM5UQ7NdNk2smuoKzem7L. These files are a
 
 | File | What it sets |
 |---|---|
-| `Main.dc.html` | **Foundations.** The colors of `app/src/vue/jetons.css` (unchanged), a type scale of 5 sizes (11 · 13 · 15 · 20 · 28), 6 spacing steps (4 to 32), 3 radii (10 · 8 · 4) plus the pill's full round, and **the lexicon**, one word per thing. |
+| `Main.dc.html` | **Foundations.** The colors of `app/src/vue/tokens.css` (unchanged), a type scale of 5 sizes (11 · 13 · 15 · 20 · 28), 6 spacing steps (4 to 32), 3 radii (10 · 8 · 4) plus the pill's full round, and **the lexicon**, one word per thing. |
 | `Components.dc.html` | **One of each brick**, replacing the variants listed in the inventory. One button family (recommended, secondary, quiet, danger; 32 px, 44 px on the phone), one state pill per state, the ticket voucher, the "awaiting you" card, the inline confirmation, the one-line empty state and error, and the settings row that applies on change. |
 | `Home.dc.html` | **Home.** The projects, and this computer's station (#2497). |
 | `Project.dc.html` | **Project space.** Three tabs (Rail · Stations · Settings), the health strip above the rail, the rail in six columns, and the second's panel. |

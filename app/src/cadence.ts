@@ -4,7 +4,7 @@
 //    plus de deux fois la médiane des tickets passés par cette colonne —, elle tranche par sa couleur. Son âge exact
 //    est au survol. L'histogramme des 24 heures a quitté la tête du rail avec la bande de chiffres (#3013).
 // Ce module calcule ce que la vue pose : la vue n'y compte rien.
-import { duree } from "./faits.ts";
+import { duree } from "./facts.ts";
 import { heureHM } from "./format.ts";
 
 // La forme lue : `hours`, vingt-quatre heures piles, la plus ancienne d'abord ; `medianSeconds`, le temps ordinaire
@@ -18,7 +18,7 @@ export type Anciennete = { court: string; dit: string; longue: boolean };
 
 // Un essai du séjour d'un ticket pris, tel que le runtime le donne (#1893) : sa prise, la fin de son cook (nulle tant
 // qu'il tourne), pourquoi il s'est arrêté (nul pour l'essai courant).
-export type EssaiLu = { depuis: string; jusqua: string | null; arret: string | null; enCours: boolean };
+export type TrialLu = { depuis: string; jusqua: string | null; arret: string | null; enCours: boolean };
 // Un point de la carte, un par essai : `enCours`, le dernier, celui qui cuit ; `dit`, ce qu'il dit au survol.
 export type Point = { enCours: boolean; dit: string };
 
@@ -26,7 +26,7 @@ export const HEURES = 24;
 // Bien plus longtemps que d'ordinaire : plus de deux fois la médiane.
 export const FOIS_LA_MEDIANE = 2;
 
-const compte = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0;
+const account = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0;
 const secondes = (valeur: unknown): valeur is number | null => valeur === null || (typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0);
 
 // Le champ `cadence` d'un `facts`. Un champ qui n'a pas cette forme n'est pas lu — le rail se dessine sans, comme pour
@@ -39,7 +39,7 @@ export function cadenceLue(brut: unknown): CadenceLue | undefined {
   for (const heure of hours) {
     if (typeof heure !== "object" || heure === null) return undefined;
     const { at, served, failed } = heure as Record<string, unknown>;
-    if (typeof at !== "string" || Number.isNaN(Date.parse(at)) || !compte(served) || !compte(failed)) return undefined;
+    if (typeof at !== "string" || Number.isNaN(Date.parse(at)) || !account(served) || !account(failed)) return undefined;
     lues.push({ at, served, failed });
   }
   const { taken, pass } = medianSeconds as Record<string, unknown>;
@@ -60,9 +60,9 @@ const COLONNES = { pris: { nom: "Taken", mediane: "taken" }, "en pass": { nom: "
 // L'âge d'une carte de Taken (`pris`) ou de Pass (`en pass`), entre deux heures de la box — son entrée dans la colonne,
 // la lecture. Rien pour un autre état, ni pour un ticket dont la box ne dit pas l'entrée. Sans médiane, la carte ne
 // tranche pas : la cuisine ne sait pas encore ce qui est ordinaire, et le survol le dit.
-export function anciennete(etat: string, depuis: string | undefined, lu: string, medianes: CadenceLue["medianSeconds"] | undefined): Anciennete | undefined {
-  if (depuis === undefined || !(etat === "pris" || etat === "en pass")) return undefined;
-  const colonne = COLONNES[etat];
+export function anciennete(state: string, depuis: string | undefined, lu: string, medianes: CadenceLue["medianSeconds"] | undefined): Anciennete | undefined {
+  if (depuis === undefined || !(state === "pris" || state === "en pass")) return undefined;
+  const colonne = COLONNES[state];
   const age = Math.max(0, Date.parse(lu) - Date.parse(depuis));
   const mediane = medianes?.[colonne.mediane] ?? null;
   const longue = mediane !== null && age > FOIS_LA_MEDIANE * mediane * 1000;
@@ -74,28 +74,28 @@ export function anciennete(etat: string, depuis: string | undefined, lu: string,
 }
 
 // Le champ `essais` d'un ticket du rail (#1893), le plus ancien d'abord.
-export function essaisLus(brut: unknown, champ: string): EssaiLu[] {
+export function essaisLus(brut: unknown, champ: string): TrialLu[] {
   if (!Array.isArray(brut)) throw new Error(`${champ}: expected a list`);
-  return brut.map((essai: unknown, rang) => {
-    const lu = (typeof essai === "object" && essai !== null ? essai : {}) as Record<string, unknown>;
-    const { depuis, jusqua, arret, enCours } = lu;
+  return brut.map((trial: unknown, rang) => {
+    const lu = (typeof trial === "object" && trial !== null ? trial : {}) as Record<string, unknown>;
+    const { depuis, jusqua, arret: stop, enCours } = lu;
     const heure = (valeur: unknown) => typeof valeur === "string" && !Number.isNaN(Date.parse(valeur));
-    if (!heure(depuis) || !(jusqua === null || heure(jusqua)) || !(arret === null || typeof arret === "string") || typeof enCours !== "boolean") {
+    if (!heure(depuis) || !(jusqua === null || heure(jusqua)) || !(stop === null || typeof stop === "string") || typeof enCours !== "boolean") {
       throw new Error(`${champ}[${rang}]: expected an attempt`);
     }
-    return { depuis: depuis as string, jusqua: jusqua as string | null, arret: arret as string | null, enCours };
+    return { depuis: depuis as string, jusqua: jusqua as string | null, arret: stop as string | null, enCours };
   });
 }
 
 // Les points d'une carte : un par essai, dès qu'il y en a plus d'un — un seul essai n'en montre aucun. Un essai fini dit,
 // au survol, son rang, combien de temps il a cuit et pourquoi il s'est arrêté (le mot du runtime : `turns`, `idle`,
 // `failed`, `interrupted`…) ; le courant dit qu'il cuit.
-export function points(essais: EssaiLu[] | undefined): Point[] | undefined {
+export function points(essais: TrialLu[] | undefined): Point[] | undefined {
   if (essais === undefined || essais.length < 2) return undefined;
-  return essais.map((essai, rang) => {
-    const nom = `attempt ${rang + 1} of ${essais.length}`;
-    if (essai.enCours || essai.jusqua === null) return { enCours: true, dit: `${nom} — cooking now` };
-    const cuit = duree(Math.max(0, Date.parse(essai.jusqua) - Date.parse(essai.depuis)));
-    return { enCours: false, dit: `${nom} — stopped after ${cuit}: ${essai.arret ?? "unknown reason"}` };
+  return essais.map((trial, rang) => {
+    const name = `attempt ${rang + 1} of ${essais.length}`;
+    if (trial.enCours || trial.jusqua === null) return { enCours: true, dit: `${name} — cooking now` };
+    const cuit = duree(Math.max(0, Date.parse(trial.jusqua) - Date.parse(trial.depuis)));
+    return { enCours: false, dit: `${name} — stopped after ${cuit}: ${trial.arret ?? "unknown reason"}` };
   });
 }

@@ -29,10 +29,10 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 
 // Ce que `claude` affiche sous sa saisie quand elle est en mode shell.
-export const PREUVE = "! for shell mode";
+export const PROOF = "! for shell mode";
 
 // Le fichier où le second écrit ses tours, une ligne par crochet.
-export type Tours = { chemin: string; lire(): string; vider(): void };
+export type Turns = { chemin: string; lire(): string; vider(): void };
 
 const TOUR = "tour";
 const FIN = "fin";
@@ -41,22 +41,22 @@ const FIN = "fin";
 // qu'un mot dans le fichier des tours — rien sur leur sortie, que `claude` lirait.
 // Sous Windows, `claude` joue ses crochets par le `bash` de Git, qui lit `C:/…` : le chemin y part
 // avec des barres obliques.
-export function reglages(chemin: string, separateur: string = sep): string {
-  return JSON.stringify({ hooks: crochetsDesTours(chemin, separateur) });
+export function settingsFile(chemin: string, separateur: string = sep): string {
+  return JSON.stringify({ hooks: crochetsDesTurns(chemin, separateur) });
 }
 
-// Ces trois crochets, seuls : le second les reçoit dans ses réglages, avec les autres (second/lancement.ts).
-export function crochetsDesTours(chemin: string, separateur: string = sep) {
+// Ces trois crochets, seuls : le second les reçoit dans ses réglages, avec les autres (second/launch.ts).
+export function crochetsDesTurns(chemin: string, separateur: string = sep) {
   const lu = separateur === "\\" ? chemin.replaceAll("\\", "/") : chemin;
-  const crochet = (mot: string) => [{ hooks: [{ type: "command" as const, command: `printf '${mot}\\n' >> '${lu.replaceAll("'", `'\\''`)}'` }] }];
-  return { UserPromptSubmit: crochet(TOUR), PreToolUse: crochet(TOUR), Stop: crochet(FIN) };
+  const hook = (word: string) => [{ hooks: [{ type: "command" as const, command: `printf '${word}\\n' >> '${lu.replaceAll("'", `'\\''`)}'` }] }];
+  return { UserPromptSubmit: hook(TOUR), PreToolUse: hook(TOUR), Stop: hook(FIN) };
 }
 
 // Les fichiers des tours, un par second, dans un dossier temporaire que l'app retire en fermant.
-export function ouvrirTours(racine: string = tmpdir()) {
+export function openTurns(racine: string = tmpdir()) {
   const dossier = mkdtempSync(join(racine, "brigade-app-"));
   return {
-    de(id: number): Tours {
+    de(id: number): Turns {
       const chemin = join(dossier, `second-${id}.tours`);
       return {
         chemin,
@@ -87,7 +87,7 @@ export const DIT = {
   ecrit: "the second's input is not reported empty: the app wrote into it without sending, and does not know whether it went out or was cleared — send or clear what is there; with empty input, an Enter in the second tells the app",
 } as const;
 
-export type Etat = { libre: true } | { libre: false; dit: string };
+export type State = { libre: true } | { libre: false; dit: string };
 
 export type Saisie = ReturnType<typeof suivreSaisie>;
 
@@ -101,10 +101,10 @@ const auTravail = (titre: string | undefined) => titre !== undefined && TRAVAIL.
 
 // Ce que le terminal de la vue répond à `claude` de lui-même, par le même chemin que les touches :
 // le focus pris ou rendu, la place du curseur, ce qu'il est, ses couleurs. Le chef n'a rien tapé.
-const REPONSES = /^(?:\x1b\[[IO]|\x1b\[[?>]?[\d;]*(?:[Rcnt]|\$y)|\x1b\[\?[\d;]*u|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1bP[^\x1b]*\x1b\\)+$/;
+const ANSWERS = /^(?:\x1b\[[IO]|\x1b\[[?>]?[\d;]*(?:[Rcnt]|\$y)|\x1b\[\?[\d;]*u|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1bP[^\x1b]*\x1b\\)+$/;
 
 // `lireTours` : ce que le second a écrit de ses tours depuis son lancement.
-export function suivreSaisie(lireTours: () => string) {
+export function suivreSaisie(readTurns: () => string) {
   let titre: string | undefined;
   let reste = "";
   // Qui a laissé la saisie entamée : le chef, par une touche qui n'est pas Entrée ; l'app, par un texte écrit sans l'envoyer.
@@ -112,17 +112,17 @@ export function suivreSaisie(lireTours: () => string) {
   // L'app a fait Entrée, et `claude` ne s'est pas encore montré au travail : les tours qu'il avait dits jusque-là.
   let route: number | undefined;
   // L'app a écrit une commande, et attend la preuve du mode shell : ce qui est sorti depuis, et qui prévenir.
-  let attente: { vu: string; surIssue(preuve: boolean): void } | undefined;
+  let wait: { vu: string; surIssue(proof: boolean): void } | undefined;
 
-  const tours = () => lireTours().trimEnd().split("\n");
+  const turns = () => readTurns().trimEnd().split("\n");
 
-  function conclure(preuve: boolean): void {
-    const attendue = attente;
+  function conclure(proof: boolean): void {
+    const attendue = wait;
     if (attendue === undefined) return;
-    attente = undefined;
+    wait = undefined;
     // Sans preuve, la commande est quelque part dans ce que le second montre : sa saisie n'est plus dite vide.
-    if (!preuve) entamee ??= "app";
-    attendue.surIssue(preuve);
+    if (!proof) entamee ??= "app";
+    attendue.surIssue(proof);
   }
 
   return {
@@ -135,14 +135,14 @@ export function suivreSaisie(lireTours: () => string) {
         if (auTravail(titre)) route = undefined;
       }
       reste = TITRE_OUVERT.exec(lu.slice(-512))?.[0] ?? "";
-      if (attente === undefined) return;
-      attente.vu = (attente.vu + donnees).slice(-4096);
-      if (attente.vu.includes(PREUVE)) conclure(true);
+      if (wait === undefined) return;
+      wait.vu = (wait.vu + donnees).slice(-4096);
+      if (wait.vu.includes(PROOF)) conclure(true);
     },
 
     // Ce que la vue écrit dans le second : les touches du chef — et les réponses de son terminal, qui n'en sont pas.
     frappe(donnees: string): void {
-      if (REPONSES.test(donnees)) return;
+      if (ANSWERS.test(donnees)) return;
       // Le chef a repris la main avant la preuve : l'Entrée de l'app n'est plus à faire.
       conclure(false);
       // Une Entrée seule envoie la saisie, ou ne fait rien d'une saisie vide : elle est vide après.
@@ -155,8 +155,8 @@ export function suivreSaisie(lireTours: () => string) {
     },
 
     // L'app va écrire une commande `!…`, sans Entrée : `surIssue` dit si `claude` s'est montré en mode shell.
-    ecrit(surIssue: (preuve: boolean) => void): void {
-      attente = { vu: "", surIssue };
+    ecrit(surIssue: (proof: boolean) => void): void {
+      wait = { vu: "", surIssue };
     },
 
     // La preuve n'est pas venue : l'app renonce à son Entrée.
@@ -164,22 +164,22 @@ export function suivreSaisie(lireTours: () => string) {
 
     // L'app a fait Entrée sur sa commande.
     parti(): void {
-      route = tours().length;
+      route = turns().length;
     },
 
-    etat(): Etat {
-      const dits = tours();
+    etat(): State {
+      const dits = turns();
       const dernier = dits.at(-1);
       // Un tour s'est dit depuis l'Entrée de l'app : sa commande a tourné, même si le titre n'en a rien montré.
       if (route !== undefined && dits.length > route) route = undefined;
-      const refus = (dit: string): Etat => ({ libre: false, dit });
-      if (dernier !== TOUR && dernier !== FIN) return refus(DIT.demarre);
-      if (auTravail(titre)) return refus(DIT.occupe);
-      if (titre === undefined) return refus(DIT.sansTitre);
-      if (!titre.startsWith(REPOS)) return refus(DIT.titre(titre));
-      if (dernier === TOUR) return refus(DIT.attend);
-      if (route !== undefined || attente !== undefined) return refus(DIT.route);
-      if (entamee !== undefined) return refus(entamee === "chef" ? DIT.frappe : DIT.ecrit);
+      const refusal = (dit: string): State => ({ libre: false, dit });
+      if (dernier !== TOUR && dernier !== FIN) return refusal(DIT.demarre);
+      if (auTravail(titre)) return refusal(DIT.occupe);
+      if (titre === undefined) return refusal(DIT.sansTitre);
+      if (!titre.startsWith(REPOS)) return refusal(DIT.titre(titre));
+      if (dernier === TOUR) return refusal(DIT.attend);
+      if (route !== undefined || wait !== undefined) return refusal(DIT.route);
+      if (entamee !== undefined) return refusal(entamee === "chef" ? DIT.frappe : DIT.ecrit);
       return { libre: true };
     },
   };

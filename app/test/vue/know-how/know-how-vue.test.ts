@@ -5,23 +5,23 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
-import { pourLaBarre } from "../../../src/barre.ts";
+import { pourLaBar } from "../../../src/bar.ts";
 import { EXEMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
-import { BANNIERE } from "../../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../../src/gestes.ts";
+import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
+import { BANNIERE } from "../../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../../src/actions.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
-import { PROPOSE } from "../../../src/reglages-du-projet.ts";
-import type { ChangementDuSavoir, LectureDuSavoir, RenduDuSavoir } from "../../../src/vue/know-how/know-how-github.ts";
-import { tenirLeSavoir } from "../../../src/vue/know-how/know-how.js";
-import { Faux, jouerLaVue, ouvrirLecture, repos, type Jouee } from "../../aides/fausse-vue.ts";
+import { EFFORTS, MODELES } from "../../../src/projects/projects.ts";
+import { PROPOSE } from "../../../src/settings-du-project.ts";
+import type { ChangementDuSavoir, ReadDuSavoir, RenduDuSavoir } from "../../../src/vue/know-how/know-how-github.ts";
+import { holdLeSavoir } from "../../../src/vue/know-how/know-how.js";
+import { Faux, jouerLaVue, ouvrirRead, repos, type Jouee } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const PR = "https://github.com/chef/parade/pull/77";
 
-const LECTURE: LectureDuSavoir = {
+const READ: ReadDuSavoir = {
   depot: "chef/parade",
   branche: "main",
   vide: false,
@@ -33,22 +33,22 @@ const LECTURE: LectureDuSavoir = {
     { section: "Tools", text: "A tool nobody ticketed", ticket: null, line: 11 },
   ],
 };
-const VIDE_LU: LectureDuSavoir = { depot: "chef/parade", branche: "main", vide: true, entries: [] };
+const EMPTY_LU: ReadDuSavoir = { depot: "chef/parade", branche: "main", vide: true, entries: [] };
 
 const sections = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "section-du-savoir");
 const entrees = (bloc: Faux) => bloc.dessous("li").filter(({ className }) => className === "entree-du-savoir");
-const entree = (bloc: Faux, ligne: number) => entrees(bloc).find(({ dataset }) => dataset.ligne === String(ligne)) ?? assert.fail(`no entry at line ${ligne}`);
-const boutonDe = (racine: Faux, libelle: string) => racine.dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`no ${libelle}`);
+const entree = (bloc: Faux, line: number) => entrees(bloc).find(({ dataset }) => dataset.ligne === String(line)) ?? assert.fail(`no entry at line ${line}`);
+const buttonDe = (racine: Faux, libelle: string) => racine.dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`no ${libelle}`);
 const champDe = (racine: Faux) => racine.dessous("input")[0] ?? assert.fail("no field");
 // What each entry shows: its text — or its field —, then its ticket.
 const lu = (bloc: Faux) => sections(bloc).map((partie) => [partie.dataset.section, partie.dessous("h4")[0]?.textContent, entrees(partie).map((li) => li.children.slice(0, 2).map((pose) => pose.textContent))]);
 
 const EN_COURS = "opening the pull request…";
 // The block as Settings draws it: held by `tenirLeSavoir`, the reading done; `changer` answers each change sent.
-async function tenir(lecture: LectureDuSavoir | undefined, changer: (c: ChangementDuSavoir) => Promise<RenduDuSavoir | undefined> = async () => undefined) {
+async function hold(read: ReadDuSavoir | undefined, changer: (c: ChangementDuSavoir) => Promise<RenduDuSavoir | undefined> = async () => undefined) {
   const envoyes: ChangementDuSavoir[] = [];
   const ouvertes: string[] = [];
-  const tenu = tenirLeSavoir(doc, { lire: async () => lecture, changer: (c) => (envoyes.push(c), changer(c)), ouvrir: (url) => void ouvertes.push(url), reposer: () => {}, maintenant: () => 0 });
+  const tenu = holdLeSavoir(doc, { lire: async () => read, changer: (c) => (envoyes.push(c), changer(c)), ouvrir: (url) => void ouvertes.push(url), reposer: () => {}, maintenant: () => 0 });
   tenu.poser();
   await repos();
   return { poser: (): Faux => tenu.poser(), envoyes, ouvertes };
@@ -57,7 +57,7 @@ const jamais = () => new Promise<never>(() => {});
 
 describe("the know-how block", () => {
   test("every entry, grouped by section, with its source ticket — `no source ticket` for a line without one", async () => {
-    const bloc = (await tenir(LECTURE)).poser();
+    const bloc = (await hold(READ)).poser();
     assert.equal(bloc.dataset.bloc, "know-how");
     assert.match(bloc.dessous("h3")[0]?.textContent ?? "", /^Project know-how/);
     assert.deepEqual(lu(bloc), [
@@ -92,8 +92,8 @@ describe("the know-how block", () => {
 
   test("the file's three sections first, whatever their order in it; then any other, and the entries outside any section", async () => {
     const bloc = (
-      await tenir({
-        ...LECTURE,
+      await hold({
+        ...READ,
         entries: [
           { section: "", text: "Loose", ticket: 1, line: 0 },
           { section: "Tools", text: "A tool", ticket: 2, line: 2 },
@@ -110,32 +110,32 @@ describe("the know-how block", () => {
   });
 
   test("a missing or empty file is one empty line, not an error and not a list", async () => {
-    const bloc = (await tenir(VIDE_LU)).poser();
-    const vide = bloc.dessous("p").filter(({ dataset }) => dataset.ligne === "vide");
-    assert.equal(vide.length, 1);
-    assert.match(vide[0]?.textContent ?? "", /^No project know-how yet\. \.brigade\/know-how\.md is missing or has no entry\./);
+    const bloc = (await hold(EMPTY_LU)).poser();
+    const empty = bloc.dessous("p").filter(({ dataset }) => dataset.ligne === "vide");
+    assert.equal(empty.length, 1);
+    assert.match(empty[0]?.textContent ?? "", /^No project know-how yet\. \.brigade\/know-how\.md is missing or has no entry\./);
     assert.deepEqual(sections(bloc), []);
     assert.deepEqual(bloc.dessous("button").filter(({ textContent }) => /^(Edit|Remove)$/.test(textContent)), []);
     assert.equal([...bloc.descendants()].filter(({ className }) => /erreur/.test(className)).length, 0);
   });
 
   test("unread, a line says it reads; unreadable, the error line says why", async () => {
-    const lecture = tenirLeSavoir(doc, { lire: jamais, changer: jamais, ouvrir: () => {}, reposer: () => {} });
-    assert.match((lecture.poser() as Faux).textContent, /Reading the project know-how…/);
-    const sans = (await tenir({ sans: "The project know-how not reached.", detail: "HTTP 500" })).poser();
+    const read = holdLeSavoir(doc, { lire: jamais, changer: jamais, ouvrir: () => {}, reposer: () => {} });
+    assert.match((read.poser() as Faux).textContent, /Reading the project know-how…/);
+    const sans = (await hold({ sans: "The project know-how not reached.", detail: "HTTP 500" })).poser();
     assert.match(sans.textContent, /The project know-how not reached\./);
     assert.deepEqual(sections(sans), []);
   });
 
   test("Edit opens the field with the entry's text; its `change` proposes the new text, with the line and the text it replaces", async () => {
-    const { poser, envoyes } = await tenir(LECTURE, jamais);
-    boutonDe(entree(poser(), 7), "Edit").click();
+    const { poser, envoyes } = await hold(READ, jamais);
+    buttonDe(entree(poser(), 7), "Edit").click();
     const bloc = poser();
-    const ligne = entree(bloc, 7);
-    const champ = champDe(ligne);
+    const line = entree(bloc, 7);
+    const champ = champDe(line);
     assert.equal(champ.value, "Never run the pass with a dirty tree");
     assert.equal((champ as Faux & { spellcheck?: boolean }).spellcheck, false);
-    assert.equal(ligne.dessous("button").length, 0, "no Save, no Edit while the field is open");
+    assert.equal(line.dessous("button").length, 0, "no Save, no Edit while the field is open");
     assert.equal(champDe(bloc), champ, "one field: the other entries stay as they are");
     champ.value = "  Never run the pass on a dirty worktree ";
     champ.declencher("input");
@@ -145,39 +145,39 @@ describe("the know-how block", () => {
   });
 
   test("the field left as it was, emptied, or Escape closes it and proposes nothing; Enter alone does not", async () => {
-    for (const [valeur, evenement, cle] of [
+    for (const [valeur, event, cle] of [
       [" Identifiers are in French", "change", undefined],
       ["   ", "change", undefined],
       ["Changed", "keydown", "Escape"],
     ] as const) {
-      const { poser, envoyes } = await tenir(LECTURE);
-      boutonDe(entree(poser(), 4), "Edit").click();
+      const { poser, envoyes } = await hold(READ);
+      buttonDe(entree(poser(), 4), "Edit").click();
       const champ = champDe(entree(poser(), 4));
       champ.value = valeur;
-      champ.declencher(evenement, cle === undefined ? {} : ({ key: cle } as object));
+      champ.declencher(event, cle === undefined ? {} : ({ key: cle } as object));
       assert.equal(entree(poser(), 4).dessous("input").length, 0, JSON.stringify(valeur));
       assert.deepEqual(envoyes, []);
     }
-    const { poser } = await tenir(LECTURE);
-    boutonDe(entree(poser(), 4), "Edit").click();
+    const { poser } = await hold(READ);
+    buttonDe(entree(poser(), 4), "Edit").click();
     champDe(entree(poser(), 4)).declencher("keydown", { key: "Enter" } as object);
     assert.equal(entree(poser(), 4).dessous("input").length, 1);
   });
 
   test("Remove proposes the removal of that line; while a change is on its way, its row waits and sends nothing", async () => {
-    const { poser, envoyes } = await tenir(LECTURE, jamais);
-    boutonDe(entree(poser(), 11), "Remove").click();
+    const { poser, envoyes } = await hold(READ, jamais);
+    buttonDe(entree(poser(), 11), "Remove").click();
     assert.deepEqual(envoyes, [{ kind: "remove", line: 11, avant: "A tool nobody ticketed" }]);
-    const ligne = entree(poser(), 11);
-    assert.match(ligne.textContent, new RegExp(EN_COURS));
+    const line = entree(poser(), 11);
+    assert.match(line.textContent, new RegExp(EN_COURS));
     for (const libelle of ["Edit", "Remove"]) {
-      const clic = boutonDe(ligne, libelle);
+      const clic = buttonDe(line, libelle);
       assert.equal(clic.disabled, true, libelle);
       clic.declencher("click");
     }
     assert.equal(envoyes.length, 1);
-    assert.equal(boutonDe(entree(poser(), 10), "Remove").disabled, false, "the other rows stay free");
-    boutonDe(entree(poser(), 10), "Edit").click();
+    assert.equal(buttonDe(entree(poser(), 10), "Remove").disabled, false, "the other rows stay free");
+    buttonDe(entree(poser(), 10), "Edit").click();
     const champ = champDe(entree(poser(), 10));
     champ.value = "Use the rate limit API";
     champ.declencher("change");
@@ -186,20 +186,20 @@ describe("the know-how block", () => {
   });
 
   test("the pull request opened is said under its row, and opens; a refusal is said there", async () => {
-    const { poser, ouvertes } = await tenir(LECTURE, async (c) =>
+    const { poser, ouvertes } = await hold(READ, async (c) =>
       c.line === 7 ? { refus: "nothing was proposed: the entry already says so", detail: "" } : { propose: PROPOSE, kind: c.kind, pr: PR, numero: c.line === 3 ? 77 : 78 },
     );
-    boutonDe(entree(poser(), 3), "Edit").click();
+    buttonDe(entree(poser(), 3), "Edit").click();
     const champ = champDe(entree(poser(), 3));
     champ.value = "Tests live beside the code";
     champ.declencher("change");
-    boutonDe(entree(poser(), 4), "Remove").click();
-    boutonDe(entree(poser(), 7), "Remove").click();
+    buttonDe(entree(poser(), 4), "Remove").click();
+    buttonDe(entree(poser(), 7), "Remove").click();
     await repos();
     const bloc = poser();
     assert.match(entree(bloc, 3).textContent, /the new text proposed in/);
     assert.match(entree(bloc, 4).textContent, /the removal proposed in/);
-    boutonDe(entree(bloc, 3), "pull request #77").click();
+    buttonDe(entree(bloc, 3), "pull request #77").click();
     assert.deepEqual(ouvertes, [PR]);
     assert.match(entree(bloc, 7).textContent, /nothing was proposed: the entry already says so/);
   });
@@ -209,9 +209,9 @@ describe("the know-how held between two drawings", () => {
   test("read when shown, at most once a minute; a reading that fails or gives nothing says so", async () => {
     let maintenant = 1_000_000;
     const lectures: number[] = [];
-    let reponse: () => Promise<LectureDuSavoir | undefined> = async () => LECTURE;
+    let answer: () => Promise<ReadDuSavoir | undefined> = async () => READ;
     const gardes: unknown[] = [];
-    const tenu = tenirLeSavoir(doc, { lire: () => (lectures.push(maintenant), reponse()), changer: async () => undefined, ouvrir: () => {}, reposer: (garder) => gardes.push(garder), maintenant: () => maintenant });
+    const tenu = holdLeSavoir(doc, { lire: () => (lectures.push(maintenant), answer()), changer: async () => undefined, ouvrir: () => {}, reposer: (garder) => gardes.push(garder), maintenant: () => maintenant });
     assert.match(tenu.poser().textContent, /Reading the project know-how…/);
     await repos();
     assert.deepEqual(gardes, [true], "a reading does not draw over a field being typed in");
@@ -220,7 +220,7 @@ describe("the know-how held between two drawings", () => {
     tenu.poser();
     assert.equal(lectures.length, 1);
     maintenant += 1;
-    reponse = async () => {
+    answer = async () => {
       throw new Error("the bridge broke");
     };
     tenu.poser();
@@ -228,7 +228,7 @@ describe("the know-how held between two drawings", () => {
     assert.equal(lectures.length, 2);
     assert.match(tenu.poser().textContent, /The project know-how not reached\./);
     maintenant += 60_001;
-    reponse = async () => undefined;
+    answer = async () => undefined;
     tenu.poser();
     await repos();
     assert.match(tenu.poser().textContent, /The project know-how not reached\./);
@@ -238,7 +238,7 @@ describe("the know-how held between two drawings", () => {
   test("a reading still on its way is not asked again", async () => {
     let maintenant = 0;
     const lectures: number[] = [];
-    const tenu = tenirLeSavoir(doc, { lire: () => (lectures.push(maintenant), new Promise(() => {})), changer: async () => undefined, ouvrir: () => {}, reposer: () => {}, maintenant: () => maintenant });
+    const tenu = holdLeSavoir(doc, { lire: () => (lectures.push(maintenant), new Promise(() => {})), changer: async () => undefined, ouvrir: () => {}, reposer: () => {}, maintenant: () => maintenant });
     tenu.poser();
     maintenant += 120_000;
     tenu.poser();
@@ -250,10 +250,10 @@ describe("the know-how held between two drawings", () => {
     const envoyes: ChangementDuSavoir[] = [];
     let rendu: RenduDuSavoir | undefined = { propose: PROPOSE, kind: "edit", pr: PR, numero: 77 };
     let reposes = 0;
-    const tenu = tenirLeSavoir(doc, { lire: async () => LECTURE, changer: async (c) => (envoyes.push(c), rendu), ouvrir: () => {}, reposer: () => void (reposes += 1), maintenant: () => 0 });
+    const tenu = holdLeSavoir(doc, { lire: async () => READ, changer: async (c) => (envoyes.push(c), rendu), ouvrir: () => {}, reposer: () => void (reposes += 1), maintenant: () => 0 });
     tenu.poser();
     await repos();
-    boutonDe(entree(tenu.poser(), 7), "Edit").click();
+    buttonDe(entree(tenu.poser(), 7), "Edit").click();
     let champ = champDe(entree(tenu.poser(), 7));
     assert.equal(champ.value, "Never run the pass with a dirty tree");
     champ.value = "Never run the pass on a dirty worktree";
@@ -268,7 +268,7 @@ describe("the know-how held between two drawings", () => {
     assert.match(apres.textContent, /pull request #77/);
 
     rendu = { refus: "nothing was proposed: GitHub refused", detail: "HTTP 422" };
-    boutonDe(entree(tenu.poser(), 4), "Edit").click();
+    buttonDe(entree(tenu.poser(), 4), "Edit").click();
     champ = champDe(entree(tenu.poser(), 4));
     champ.value = "Identifiers are in English";
     champ.declencher("input");
@@ -279,15 +279,15 @@ describe("the know-how held between two drawings", () => {
     assert.match(refuse.textContent, /nothing was proposed: GitHub refused/);
 
     rendu = undefined;
-    boutonDe(entree(tenu.poser(), 11), "Remove").click();
+    buttonDe(entree(tenu.poser(), 11), "Remove").click();
     await repos();
     assert.match(entree(tenu.poser(), 11).textContent, /nothing was proposed: nothing was sent/);
     assert.ok(reposes > 0);
   });
 
   test("a change the bridge throws on is said under its row; Escape closes an edit", async () => {
-    const tenu = tenirLeSavoir(doc, {
-      lire: async () => LECTURE,
+    const tenu = holdLeSavoir(doc, {
+      lire: async () => READ,
       changer: async () => {
         throw new Error("no bridge");
       },
@@ -297,28 +297,28 @@ describe("the know-how held between two drawings", () => {
     });
     tenu.poser();
     await repos();
-    boutonDe(entree(tenu.poser(), 3), "Remove").click();
+    buttonDe(entree(tenu.poser(), 3), "Remove").click();
     await repos();
     assert.match(entree(tenu.poser(), 3).textContent, /nothing was proposed: nothing was sent/);
-    boutonDe(entree(tenu.poser(), 4), "Edit").click();
+    buttonDe(entree(tenu.poser(), 4), "Edit").click();
     champDe(entree(tenu.poser(), 4)).declencher("keydown", { key: "Escape" } as object);
     assert.equal(entree(tenu.poser(), 4).dessous("input").length, 0);
   });
 
   test("a new reading forgets what was said of the old lines, but not of a change on its way", async () => {
-    let lecture: LectureDuSavoir = LECTURE;
+    let read: ReadDuSavoir = READ;
     let maintenant = 0;
-    const tenu = tenirLeSavoir(doc, { lire: async () => lecture, changer: async () => ({ refus: "nothing was proposed: x" }), ouvrir: () => {}, reposer: () => {}, maintenant: () => maintenant });
+    const tenu = holdLeSavoir(doc, { lire: async () => read, changer: async () => ({ refus: "nothing was proposed: x" }), ouvrir: () => {}, reposer: () => {}, maintenant: () => maintenant });
     tenu.poser();
     await repos();
-    boutonDe(entree(tenu.poser(), 3), "Remove").click();
+    buttonDe(entree(tenu.poser(), 3), "Remove").click();
     await repos();
     assert.match(entree(tenu.poser(), 3).textContent, /nothing was proposed: x/);
     maintenant += 60_001;
     tenu.poser();
     await repos();
     assert.match(entree(tenu.poser(), 3).textContent, /nothing was proposed: x/, "the same reading keeps it");
-    lecture = { ...LECTURE, entries: LECTURE.entries.slice(1).map((e) => ({ ...e, line: e.line - 1 })) };
+    read = { ...READ, entries: READ.entries.slice(1).map((e) => ({ ...e, line: e.line - 1 })) };
     maintenant += 60_001;
     tenu.poser();
     await repos();
@@ -327,32 +327,32 @@ describe("the know-how held between two drawings", () => {
 });
 
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
 
-async function jouer(lecture: LectureDuSavoir): Promise<{ vue: Jouee; envoyes: unknown[][] }> {
+async function jouer(read: ReadDuSavoir): Promise<{ vue: Jouee; envoyes: unknown[][] }> {
   const envoyes: unknown[][] = [];
   const vue = await jouerLaVue({
     demarrage,
     espace: () => [],
     machines: () => [],
-    savoirDuProjet: async () => lecture,
-    changerLeSavoir: async (projet, changement): Promise<RenduDuSavoir> => {
-      envoyes.push([projet, changement]);
+    savoirDuProjet: async () => read,
+    changerLeSavoir: async (project, changement): Promise<RenduDuSavoir> => {
+      envoyes.push([project, changement]);
       return { propose: PROPOSE, kind: changement.kind, pr: PR, numero: 77 };
     },
   });
   (vue.element("projets").children.at(1) ?? assert.fail("no tile for parade")).click();
   await repos();
-  await ouvrirLecture(vue, "Settings");
+  await ouvrirRead(vue, "Settings");
   await repos();
   return { vue, envoyes };
 }
@@ -360,7 +360,7 @@ const blocDe = (vue: Jouee) => vue.element("bandeau-sante").dessous("section").f
 
 describe("the know-how, in the view", () => {
   test("Settings reads the project's know-how from the main process and lists every entry with its section and ticket", async () => {
-    const { vue } = await jouer(LECTURE);
+    const { vue } = await jouer(READ);
     assert.deepEqual(vue.dernier("savoirDuProjet"), ["parade"]);
     assert.deepEqual(lu(blocDe(vue)).map(([section]) => section), ["Conventions", "Pitfalls", "Tools"]);
     assert.equal(entrees(blocDe(vue)).length, 5);
@@ -368,18 +368,18 @@ describe("the know-how, in the view", () => {
   });
 
   test("an empty file shows the empty line in Settings", async () => {
-    const { vue } = await jouer(VIDE_LU);
+    const { vue } = await jouer(EMPTY_LU);
     assert.match(blocDe(vue).textContent, /No project know-how yet\. \.brigade\/know-how\.md is missing or has no entry\./);
     assert.equal(entrees(blocDe(vue)).length, 0);
   });
 
   test("Remove and an edit go to the main process, and the row says the pull request; no Save button anywhere", async () => {
-    const { vue, envoyes } = await jouer(LECTURE);
-    boutonDe(entree(blocDe(vue), 4), "Remove").click();
+    const { vue, envoyes } = await jouer(READ);
+    buttonDe(entree(blocDe(vue), 4), "Remove").click();
     await repos();
     assert.deepEqual(envoyes, [["parade", { kind: "remove", line: 4, avant: "Identifiers are in French" }]]);
     assert.match(entree(blocDe(vue), 4).textContent, /pull request #77/);
-    boutonDe(entree(blocDe(vue), 7), "Edit").click();
+    buttonDe(entree(blocDe(vue), 7), "Edit").click();
     const champ = champDe(entree(blocDe(vue), 7));
     champ.value = "Never run the pass on a dirty worktree";
     champ.declencher("change");

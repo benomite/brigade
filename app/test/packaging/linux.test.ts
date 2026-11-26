@@ -80,7 +80,7 @@ function sources(t: TestContext) {
 const MODE_EXECUTABLE = process.platform === "win32" ? 0o666 : 0o755;
 
 // Une doublure qui ne joue rien : aucune commande n'est attendue.
-const rienALancer: Executer = (commande, args) => assert.fail(`nothing should run, not ${commande} ${args.join(" ")}`);
+const rienALancer: Executer = (command, args) => assert.fail(`nothing should run, not ${command} ${args.join(" ")}`);
 
 test("estElfX64 : un binaire Linux pour x86-64, et rien d'autre", () => {
   assert.equal(estElfX64(enTeteElf(0x3e)), true);
@@ -111,7 +111,7 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
   assert.match(APPRUN, /^#!\/bin\/sh\n/);
   assert.match(APPRUN, /exec "\$ICI\/brigade" --no-sandbox "\$@"/);
   const bureau = readFileSync(join(appdir, "brigade.desktop"), "utf8");
-  for (const ligne of ["[Desktop Entry]", "Type=Application", "Name=Brigade", "Exec=brigade %U", "Icon=brigade", "X-AppImage-Version=1.2.3+gabc"]) assert.ok(bureau.split("\n").includes(ligne), ligne);
+  for (const line of ["[Desktop Entry]", "Type=Application", "Name=Brigade", "Exec=brigade %U", "Icon=brigade", "X-AppImage-Version=1.2.3+gabc"]) assert.ok(bureau.split("\n").includes(line), line);
   assert.deepEqual(readFileSync(join(appdir, "brigade.png")), readFileSync(join(APP, "packaging", "icones", "Brigade-1024.png")));
   assert.equal(lstatSync(join(appdir, ".DirIcon")).isSymbolicLink(), true);
   assert.equal(readlinkSync(join(appdir, ".DirIcon")), "brigade.png");
@@ -156,10 +156,10 @@ test("l'app de l'AppImage se sait installée, et lance le runtime et le node du 
 
 test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arbre de l'app", (t) => {
   const { racine, electron, app, runtime, node } = sources(t);
-  const appels: { commande: string; args: readonly string[]; cwd: string | undefined }[] = [];
+  const calls: { commande: string; args: readonly string[]; cwd: string | undefined }[] = [];
   // Le faux `npm rebuild` écrit ce que node-gyp écrit : build/Release/pty.node, et ses restes.
-  const executer: Executer = (commande, args, options) => {
-    appels.push({ commande, args, cwd: options?.cwd });
+  const executer: Executer = (command, args, options) => {
+    calls.push({ commande: command, args, cwd: options?.cwd });
     const pty = join(options?.cwd ?? "", "node_modules", "node-pty");
     assert.equal(existsSync(join(pty, "build", "Release", "pty.node")), false, "un build/ de la machine du clone ne passe pas pour le sien");
     ecrire(join(pty, "build", "Release", "pty.node"), enTeteElf(0x3e));
@@ -169,7 +169,7 @@ test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arb
   };
   const appdir = assembler({ version: "1.2.3", electron, node, app, runtime, executer }, join(racine, "Brigade.AppDir"));
   const dansApp = join(appdir, "resources", "app");
-  assert.deepEqual(appels, [{ commande: "npm", args: ["rebuild", "node-pty", "--foreground-scripts", "--no-audit", "--no-fund"], cwd: dansApp }]);
+  assert.deepEqual(calls, [{ commande: "npm", args: ["rebuild", "node-pty", "--foreground-scripts", "--no-audit", "--no-fund"], cwd: dansApp }]);
   const pty = join(dansApp, "node_modules", "node-pty");
   assert.deepEqual(readFileSync(join(pty, PTY_LINUX)), enTeteElf(0x3e));
   assert.deepEqual(readdirSync(join(pty, "prebuilds")), ["linux-x64"]);
@@ -181,11 +181,11 @@ test("assembler : une compilation de node-pty qui échoue, ou qui n'écrit rien 
   const echoue: Executer = () => ({ status: 1, stdout: "", stderr: "gyp ERR! stack Error: not found: make" });
   assert.throws(
     () => assembler({ version: "1.2.3", electron, node, app, runtime, executer: echoue }, join(racine, "a")),
-    (erreur: Error & { code?: number }) => erreur.code === 1 && /node-pty could not be compiled for linux-x64 .*not found: make/.test(erreur.message),
+    (error: Error & { code?: number }) => error.code === 1 && /node-pty could not be compiled for linux-x64 .*not found: make/.test(error.message),
   );
   const rien: Executer = () => ({ status: 0, stdout: "", stderr: "" });
   assert.throws(() => assembler({ version: "1.2.3", electron, node, app, runtime, executer: rien }, join(racine, "b")), /succeeded but wrote no .*pty\.node/);
-  const arm: Executer = (_commande, _args, options) => {
+  const arm: Executer = (_command, _args, options) => {
     ecrire(join(options?.cwd ?? "", "node_modules", "node-pty", "build", "Release", "pty.node"), enTeteElf(0xb7));
     return { status: 0, stdout: "", stderr: "" };
   };
@@ -199,10 +199,10 @@ test("assembler : refuse un Electron qui n'est pas celui de Linux", (t) => {
 
 test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le runtime d'AppImage suivi du squashfs de l'AppDir", (t) => {
   const { racine, electron, app, runtime, node, ptyCompile, runtimeAppImage } = sources(t);
-  const appels: { commande: string; args: readonly string[] }[] = [];
+  const calls: { commande: string; args: readonly string[] }[] = [];
   // Le faux mksquashfs écrit, à la place du squashfs, la liste de ce qu'il a reçu.
-  const executer: Executer = (commande, args) => {
-    appels.push({ commande, args });
+  const executer: Executer = (command, args) => {
+    calls.push({ commande: command, args });
     const [appdir, squashfs] = args;
     ecrire(squashfs ?? "", `squashfs de ${readdirSync(appdir ?? "").sort().join(",")}`);
     return { status: 0, stdout: "", stderr: "" };
@@ -211,9 +211,9 @@ test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le run
   const appimage = construire({ version: "1.2.3", electron, node, pty: ptyCompile, app, runtime, runtimeAppImage, sortie, atelier: join(racine, "atelier"), executer });
   assert.equal(appimage, join(sortie, "brigade-1.2.3-linux-x64.AppImage"));
   assert.deepEqual(readdirSync(sortie), ["brigade-1.2.3-linux-x64.AppImage"]);
-  assert.equal(appels.length, 1);
-  assert.equal(appels[0]?.commande, "mksquashfs");
-  assert.deepEqual(appels[0]?.args.slice(2), ["-root-owned", "-noappend", "-comp", "zstd", "-quiet"]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.commande, "mksquashfs");
+  assert.deepEqual(calls[0]?.args.slice(2), ["-root-owned", "-noappend", "-comp", "zstd", "-quiet"]);
   const ecrit = readFileSync(appimage);
   const debut = readFileSync(runtimeAppImage);
   assert.deepEqual(ecrit.subarray(0, debut.length), debut, "le runtime d'AppImage en tête");
@@ -227,7 +227,7 @@ test("construire : un mksquashfs absent ou qui échoue fait échouer la construc
   const absent: Executer = () => ({ status: null, stdout: "", stderr: "spawnSync mksquashfs ENOENT" });
   assert.throws(
     () => construire({ ...options, atelier: join(racine, "a"), executer: absent }),
-    (erreur: Error & { code?: number }) => erreur.code === 1 && /mksquashfs could not be run — install squashfs-tools/.test(erreur.message),
+    (error: Error & { code?: number }) => error.code === 1 && /mksquashfs could not be run — install squashfs-tools/.test(error.message),
   );
   const echoue: Executer = () => ({ status: 1, stdout: "", stderr: "FATAL ERROR: compressor zstd not supported" });
   assert.throws(() => construire({ ...options, atelier: join(racine, "b"), executer: echoue }), /mksquashfs failed: FATAL ERROR: compressor zstd/);
@@ -246,7 +246,7 @@ test("construire : refuse un node, un pty.node ou un runtime d'AppImage qui n'es
   ] as const)
     assert.throws(
       () => construire({ ...options, ...donne }),
-      (erreur: Error & { code?: number }) => erreur.code === 2 && erreur.message.startsWith(`${quoi} (${pasLinux}) is not a Linux x64 binary`),
+      (error: Error & { code?: number }) => error.code === 2 && error.message.startsWith(`${quoi} (${pasLinux}) is not a Linux x64 binary`),
     );
   assert.equal(existsSync(join(racine, "construit")), false);
 });
@@ -277,6 +277,6 @@ test("la commande refuse une option ou une version invalide, et un node à porte
 });
 
 test("cheminSansNode : le PATH de l'essai Linux, sans aucun dossier qui porte un node", () => {
-  const [systeme, nodejs, outils] = ["/usr/bin", "/opt/node/bin", "/opt/outils"];
-  assert.equal(cheminSansNode([systeme, nodejs, "", outils].join(delimiter), (fichier) => fichier === join(nodejs, "node"), "node"), [systeme, outils].join(delimiter));
+  const [systeme, nodejs, tools] = ["/usr/bin", "/opt/node/bin", "/opt/outils"];
+  assert.equal(cheminSansNode([systeme, nodejs, "", tools].join(delimiter), (fichier) => fichier === join(nodejs, "node"), "node"), [systeme, tools].join(delimiter));
 });

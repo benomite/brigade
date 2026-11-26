@@ -10,22 +10,22 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE, type Projet } from "../../src/config.ts";
+import { pourLaBar } from "../../src/bar.ts";
+import { EXEMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE } from "../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
+import { EFFORTS, MODELES } from "../../src/projects/projects.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { COMBIEN, cooksDe, plusChers, poserChers } from "../../src/vue/cost/chers.js";
-import { INTERROMPU, perdus, perdusDe, poserPerdus, ROUGE } from "../../src/vue/cost/perdus.js";
+import { INTERROMPU, perdus, perdusDe, poserPerdus, RED } from "../../src/vue/cost/perdus.js";
 import { NON_COMMUNIQUE } from "../../src/vue/cost/tete.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirLesCouts, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-17T10:00:00.000Z";
-const n = (chiffres: string) => chiffres.replaceAll(" ", " ");
+const n = (figures: string) => figures.replaceAll(" ", " ");
 
 // Un cook de « derniers cooks », mot pour mot (runtime/src/montrer-station.ts) ; sans tokens, un cook qui n'a rien déclaré.
 const cook = (ticket: number, fin: string, tokens?: string) =>
@@ -41,19 +41,19 @@ const station = (...cooks: string[]) =>
     `consommé              en cours : 1 lancement · 4 tours · ${n("12 000")} tokens`,
     "décisions du chef     `station -- <geste> <valeur>` pour en poser une",
   ].join("\n");
-const lu = (projet: string, texte: string) => ({ projet, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
+const lu = (project: string, texte: string) => ({ projet: project, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
 const PARADE = { nom: "parade" };
 const CANTINE = { nom: "cantine" };
 // La vue jouée, ces projets ouverts dans la barre.
-const jouer = (projets: Projet[]) =>
+const jouer = (projects: Project[]) =>
   jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }, () => true),
+      configuration: pourLaBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -65,10 +65,10 @@ describe("les cooks perdus que `station` liste", () => {
   test("un essai rouge ou un cook interrompu ; pas un cook fini, ni le cook en cours, ni le bloc suivant", () => {
     const texte = station(cook(30, "fini", "412 806"), cook(7, "échoué", "641 207"), cook(14, "interrompu (runtime arrêté)", "88 530"), cook(5, "arrêté par « stop »"), cook(6, "refusé par le modèle", "1 000"));
     assert.deepEqual(perdusDe(texte)?.map(({ ticket, tokens, cause }) => [ticket, tokens, cause]), [
-      [7, 641_207, ROUGE],
+      [7, 641_207, RED],
       [14, 88_530, INTERROMPU],
       [5, null, INTERROMPU],
-      [6, 1_000, ROUGE],
+      [6, 1_000, RED],
     ]);
   });
 
@@ -84,10 +84,10 @@ describe("le total perdu", () => {
       ["parade", lu("parade", station(cook(30, "fini", "412 806"), cook(7, "échoué", "641 207"), cook(14, "86 (quota épuisé)", "88 530")))],
       ["cantine", lu("cantine", station(cook(3, "échoué", "142 096")))],
     ]);
-    const { total, minimum, partiel, lignes } = perdus([PARADE, CANTINE], lectures);
+    const { total, minimum, partiel, lignes: lines } = perdus([PARADE, CANTINE], lectures);
     assert.equal(total, 641_207 + 88_530 + 142_096);
     assert.deepEqual([minimum, partiel], [false, false]);
-    assert.deepEqual(lignes.map(({ projet, ticket }) => [projet.nom, ticket]), [["parade", 7], ["cantine", 3], ["parade", 14]]);
+    assert.deepEqual(lines.map(({ projet: project, ticket }) => [project.nom, ticket]), [["parade", 7], ["cantine", 3], ["parade", 14]]);
   });
 
   test("zéro quand la box liste ses cooks et qu'aucun n'est perdu", () => {
@@ -104,15 +104,15 @@ describe("le total perdu", () => {
   });
 
   test("aucune box ne communique : null ; une box pas encore lue : undefined", () => {
-    const erreur = { projet: "parade", demande: 0, a: A, erreur: "refused", atteinte: false, cas: null } as any;
-    assert.equal(perdus([PARADE], new Map([["parade", erreur]])).total, null);
+    const error = { projet: "parade", demande: 0, a: A, erreur: "refused", atteinte: false, cas: null } as any;
+    assert.equal(perdus([PARADE], new Map([["parade", error]])).total, null);
     assert.equal(perdus([PARADE], new Map()).total, undefined);
   });
 });
 
 describe("le bloc", () => {
   const lectures = new Map([["parade", lu("parade", station(cook(7, "échoué", "641 207"), cook(14, "interrompu (runtime arrêté)", "88 530")))]]);
-  const pose = (ouvert: boolean, bascule = () => {}) => poserPerdus(doc, [PARADE], lectures, (_projet, ticket) => (ticket === 7 ? "Le titre" : undefined), ouvert, bascule);
+  const pose = (ouvert: boolean, bascule = () => {}) => poserPerdus(doc, [PARADE], lectures, (_project, ticket) => (ticket === 7 ? "Le titre" : undefined), ouvert, bascule);
 
   test("replié : le chiffre seul, sans liste ; un clic le bascule", () => {
     let clics = 0;
@@ -130,7 +130,7 @@ describe("le bloc", () => {
     const bloc = pose(true, () => clics++);
     assert.equal(bloc.dessous("button")[0]?.ariaExpanded, "true");
     assert.deepEqual(bloc.dessous("li").map((l: Faux) => l.dessous("span").map((s: Faux) => s.textContent).slice(1)), [
-      ["#7", "Le titre", "641,207", ROUGE],
+      ["#7", "Le titre", "641,207", RED],
       ["#14", NON_COMMUNIQUE, "88,530", INTERROMPU],
     ]);
     const fermer = bloc.dessous("button").at(-1) ?? assert.fail("pas de bouton de fermeture");
@@ -178,7 +178,7 @@ describe("les tickets les plus chers", () => {
       ["cantine", lu("cantine", station(fini(9, "5"), fini(9)))],
     ]);
     const chers = plusChers([PARADE, CANTINE], lectures);
-    assert.deepEqual(chers.map(({ projet, ticket, tokens, minimum }) => [projet.nom, ticket, tokens, minimum]), [
+    assert.deepEqual(chers.map(({ projet: project, ticket, tokens, minimum }) => [project.nom, ticket, tokens, minimum]), [
       ["parade", 8, 10, false],
       ["cantine", 9, 5, true],
       ["parade", 7, null, true],
@@ -196,58 +196,58 @@ describe("les tickets les plus chers", () => {
   test("le bloc : une ligne par ticket, numéro, titre, tokens, essais ; « not communicated » pour ce qui manque ; un clic ouvre la fiche", () => {
     const lectures = new Map([["parade", lu("parade", station(fini(30, "412 806"), fini(30, "1 000"), fini(12)))]]);
     const ouverts: [string, number][] = [];
-    const bloc = poserChers(doc, [PARADE], lectures, (_projet, ticket) => (ticket === 30 ? "Le titre" : undefined), (projet, ticket) => ouverts.push([projet, ticket]));
-    const lignes = bloc.dessous("button");
-    assert.deepEqual(lignes.map((l: Faux) => l.dessous("span").map((s: Faux) => s.textContent).slice(1)), [
+    const bloc = poserChers(doc, [PARADE], lectures, (_project, ticket) => (ticket === 30 ? "Le titre" : undefined), (project, ticket) => ouverts.push([project, ticket]));
+    const lines = bloc.dessous("button");
+    assert.deepEqual(lines.map((l: Faux) => l.dessous("span").map((s: Faux) => s.textContent).slice(1)), [
       ["#30", "Le titre", "413,806", "2 attempts"],
       ["#12", NON_COMMUNIQUE, NON_COMMUNIQUE, "1 attempt"],
     ]);
-    lignes[0]?.click();
+    lines[0]?.click();
     assert.deepEqual(ouverts, [["parade", 30]]);
   });
 });
 describe("la page des coûts de l'app jouée (#1022)", () => {
-  const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade" };
+  const PROJECT: Project = { nom: "parade", dossier: "/tmp/parade" };
 
   async function ouvrirLaPage(): Promise<Jouee> {
-    const vue = await jouer([PROJET]);
+    const vue = await jouer([PROJECT]);
     await ouvrirLesCouts(vue);
     return vue;
   }
 
   test("un clic sur le chiffre déploie la liste, un second la replie ; le bouton de fermeture aussi", async () => {
     const vue = await ouvrirLaPage();
-    const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"), cook(14, "interrompu (runtime arrêté)", "88 530"))), demande }, undefined);
+    const request = vue.dernier("onglet")[2] as number;
+    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"), cook(14, "interrompu (runtime arrêté)", "88 530"))), demande: request }, undefined);
     await repos();
-    const lignes = () => vue.element("cout").dessous("li").filter((l: Faux) => l.dessous("span").some((s: Faux) => s.className === "cause"));
+    const lines = () => vue.element("cout").dessous("li").filter((l: Faux) => l.dessous("span").some((s: Faux) => s.className === "cause"));
     const chiffre = () => vue.element("cout").dessous("button").find((b: Faux) => b.className === "perdus-total") ?? assert.fail("pas de chiffre");
     assert.equal(chiffre().textContent, "729,737");
-    assert.equal(lignes().length, 0);
+    assert.equal(lines().length, 0);
     chiffre().click();
     await repos();
-    assert.equal(lignes().length, 2);
+    assert.equal(lines().length, 2);
     chiffre().click();
     await repos();
-    assert.equal(lignes().length, 0);
+    assert.equal(lines().length, 0);
     chiffre().click();
     await repos();
-    assert.equal(lignes().length, 2);
+    assert.equal(lines().length, 2);
     (vue.element("cout").dessous("button").find((b: Faux) => b.className === "perdus-fermer") ?? assert.fail("pas de fermeture")).click();
     await repos();
-    assert.equal(lignes().length, 0);
+    assert.equal(lines().length, 0);
   });
 
   test("une ligne de la liste ouvre son projet, puis la fiche de son ticket", async () => {
     const vue = await ouvrirLaPage();
-    const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"))), demande }, undefined);
+    const request = vue.dernier("onglet")[2] as number;
+    vue.dire("surContenu", { ...lu("parade", station(cook(7, "échoué", "641 207"))), demande: request }, undefined);
     await repos();
     (vue.element("cout").dessous("button").find((b: Faux) => b.className === "perdus-total") ?? assert.fail("pas de chiffre")).click();
     await repos();
-    const ligne = vue.element("cout").dessous("button").find((b: Faux) => b.className === "ticket-perdu") ?? assert.fail("pas de ligne cliquable");
-    assert.equal(ligne.title, "open the sheet of #7 · parade");
-    ligne.click();
+    const line = vue.element("cout").dessous("button").find((b: Faux) => b.className === "ticket-perdu") ?? assert.fail("pas de ligne cliquable");
+    assert.equal(line.title, "open the sheet of #7 · parade");
+    line.click();
     await repos();
     assert.deepEqual(vue.dernier("espace"), ["parade"]);
     assert.equal(vue.element("fiche").hidden, false);
@@ -256,13 +256,13 @@ describe("la page des coûts de l'app jouée (#1022)", () => {
 
   test("cliquer une ligne ouvre son projet, puis la fiche de son ticket, par-dessus le rail", async () => {
     const vue = await ouvrirLaPage();
-    const demande = vue.dernier("onglet")[2] as number;
-    vue.dire("surContenu", { ...lu("parade", station(fini(30, "412 806"), fini(12, "9"))), demande }, undefined);
+    const request = vue.dernier("onglet")[2] as number;
+    vue.dire("surContenu", { ...lu("parade", station(fini(30, "412 806"), fini(12, "9"))), demande: request }, undefined);
     await repos();
-    const lignes = vue.element("cout").dessous("button").filter(({ className }) => className.startsWith("ticket-cher"));
-    assert.equal(lignes.length, 2);
+    const lines = vue.element("cout").dessous("button").filter(({ className }) => className.startsWith("ticket-cher"));
+    assert.equal(lines.length, 2);
     assert.equal(vue.element("fiche").hidden, true);
-    lignes[0]?.click();
+    lines[0]?.click();
     await repos();
     assert.deepEqual(vue.dernier("espace"), ["parade"]);
     assert.equal(vue.element("espace").textContent, "parade");

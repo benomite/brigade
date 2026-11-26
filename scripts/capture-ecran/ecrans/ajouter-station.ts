@@ -2,7 +2,7 @@
 // rien d'autre (#1307) : « Add a station », ce Mac choisi d'office, et ce qui est à lui seul, posé dès le premier
 // rendu — ses cooks, le dossier des espaces de travail de sa station, ses capacités, les détectées cochées. Ni dépôt
 // ni branche : la première station les sert, ou le clone du projet les dit.
-import type { DefautsDeLaMachine } from "../../../app/src/projets/projets.ts";
+import type { DefautsDeLaMachine } from "../../../app/src/projects/projects.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 

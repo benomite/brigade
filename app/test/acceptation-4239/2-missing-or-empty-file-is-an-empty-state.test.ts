@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { lireLeSavoir } from "../../src/vue/know-how/know-how-github.ts";
-import type { ClientDeLaPriorite } from "../../src/priorite.ts";
+import type { ClientDeLaPriority } from "../../src/priority.ts";
 
-const clientDe = (reponse: { status: number; data: unknown }): ClientDeLaPriorite => ({ lire: async () => reponse, ecrire: async () => ({ status: 500, data: {} }) });
+const clientDe = (answer: { status: number; data: unknown }): ClientDeLaPriority => ({ lire: async () => answer, ecrire: async () => ({ status: 500, data: {} }) });
 const fichier = (texte: string) => ({ status: 200, data: { type: "file", content: Buffer.from(texte).toString("base64"), sha: "s1" } });
 
 test("a missing file (404) is an empty state, not an error", async () => {

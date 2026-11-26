@@ -1,7 +1,7 @@
 # The station process, replaced on its own (#2190)
 
-On a computer, the background station (`app/src/station-fond/hote.ts`, #3630) runs this computer's station
-(`app/src/poste/station.ts`). The supervisor here (`superviseur.ts`, `tenirProcessDeStation`) holds that process and can replace it with
+On a computer, the background station (`app/src/station-background/hote.ts`, #3630) runs this computer's station
+(`app/src/workstation/station.ts`). The supervisor here (`supervisor.ts`, `tenirProcessDeStation`) holds that process and can replace it with
 another station release, with no reinstall, no Gatekeeper prompt and no app restart. The window,
 the Second tabs, the shells and their `claude` sessions are processes of the app, not of the
 station: a restart neither stops nor reattaches them.
@@ -37,7 +37,7 @@ station: a restart neither stops nor reattaches them.
 
 ## Wired in the background station (#2287, #3630)
 
-`app/src/station-fond/hote.ts` — no longer `app/src/main.ts`, which only attaches to it — holds the computer's
+`app/src/station-background/hote.ts` — no longer `app/src/main.ts`, which only attaches to it — holds the computer's
 station with `tenirProcessDeStation`. It starts it with
 `BRIGADE_MISE_A_JOUR_SOURCE=github:benomite/brigade` (unless the environment already says another
 source) and `BRIGADE_STATION_RELANCE=app` (`environnementDeLaStation`), and its releases folder is
@@ -60,8 +60,8 @@ running, its cooks too (#3630). On Windows the installer replaces the `node` the
 the closing app stops the background station there, and the reopened app starts it again.
 
 A station left running by an app from before the background station, closed for its update, carries
-`survit-a-l-app` in the station directory (`app/src/mise-a-jour-fond/survie.ts`): the wrapper
-(`poste/enveloppe.ts`) ignored its closed input. The background station reads the pid in `en-service` and
+`survit-a-l-app` in the station directory (`app/src/update-background/survie.ts`): the wrapper
+(`workstation/enveloppe.ts`) ignored its closed input. The background station reads the pid in `en-service` and
 takes that station back instead of starting a second one, and stops it with a `SIGTERM` when it stops.
 
 A station update (runtime `station-update/`) is the other half: from the moment a release is ready the

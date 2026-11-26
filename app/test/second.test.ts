@@ -8,43 +8,43 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBarre } from "../src/barre.ts";
-import { EXEMPLE, type Projet } from "../src/config.ts";
+import { pourLaBar } from "../src/bar.ts";
+import { EXEMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe } from "../src/confirmation.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
-import { EFFORTS, MODELES } from "../src/projets/projets.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE } from "../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../src/actions.ts";
+import { EFFORTS, MODELES } from "../src/projects/projects.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { type Faux, type Jouee, jouerLaVue, type Answers, ouvrirRead, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
-const CUISINE = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
-const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare" };
+const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
+const PARADE: Project = { nom: "parade", dossier: "/tmp/parade" };
+const FANFARE: Project = { nom: "fanfare", dossier: "/tmp/fanfare" };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const AUTRE: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false };
 
-async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANFARE], poste?: { nom: string; mac: boolean }): Promise<Jouee> {
+async function ouvrir(answers: Answers = {}, projects: Project[] = [PARADE, FANFARE], workstation?: { nom: string; mac: boolean }): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      ...(poste === undefined ? {} : { poste }),
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }, () => true),
+      ...(workstation === undefined ? {} : { poste: workstation }),
+      configuration: pourLaBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
     }),
-    espace: (projet) => (projet === "fanfare" ? [AUTRE] : [SECOND]),
+    espace: (project) => (project === "fanfare" ? [AUTRE] : [SECOND]),
     machines: () => [{ id: "poste", titre: "this computer" }],
     shell: () => SHELL,
-    ...reponses,
+    ...answers,
   });
   await entrer(vue, 1);
   return vue;
@@ -55,7 +55,7 @@ const entrer = async (vue: Jouee, rang: number) => {
   await repos();
 };
 // Une ligne de la bande dont le bouton est un geste confirmé du socle : « resume the kitchen ».
-const avecUneAlerte = async (vue: Jouee) => {
+const avecUneAlert = async (vue: Jouee) => {
   vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped", geste: "resume the kitchen", bouton: "resume the kitchen", appel: { geste: "reprendre" }, prix: "queued tickets start again" }] } as never);
   await repos();
 };
@@ -122,7 +122,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     };
 
     // Settings se pose par-dessus le centre : le terminal ne bouge pas.
-    await ouvrirLecture(vue, "Settings");
+    await ouvrirRead(vue, "Settings");
     tenu();
     // Un shell s'ouvre à droite, à côté du second : il a son cadre à lui, montré à la place de
     // celui du second, qui reste posé, caché, avec ce qu'il avait reçu. La page ouverte ne bouge pas.
@@ -143,14 +143,14 @@ describe("le second est une colonne à droite, pas une page", () => {
     // Et l'inverse : le shell revient tel quel, sans en ouvrir un autre.
     await cliquer(vue, vue.element("terminaux"), "shell 1");
     assert.deepEqual(montre(vue), ["shell 1"]);
-    assert.equal(vue.appels.filter(({ geste }) => geste === "shell").length, 1);
+    assert.equal(vue.appels.filter(({ geste: action }) => action === "shell").length, 1);
     await cliquer(vue, vue.element("terminaux"), "second · claude");
     tenu();
     // Ce qui lui arrive pendant ce temps s'y écrit à la suite.
     vue.dire("surSortie", SECOND.id, "suite\r\n");
     assert.deepEqual(terminal?.ecrits, ["> une conversation en cours\r\n", "suite\r\n"]);
     // L'espace n'a été ouvert qu'une fois : changer de vue ne relance rien.
-    assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 1);
+    assert.equal(vue.appels.filter(({ geste: action }) => action === "espace").length, 1);
   });
 
   test("Shift+Entrée revient à la ligne, dans le second comme dans un shell : Entrée, elle, reste envoyée", async () => {
@@ -159,7 +159,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     vue.dire("surSortie", SHELL.id, "$ ");
     const [second, shell] = vue.xterms;
-    const ecrits = () => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
+    const ecrits = () => vue.appels.filter(({ geste: action }) => action === "ecrire").map(({ args }) => args);
     const touche = (key: string, shiftKey: boolean, type = "keydown") => ({ key, shiftKey, type });
     assert.equal(second?.filtre?.(touche("Enter", true)), false);
     assert.equal(shell?.filtre?.(touche("Enter", true)), false);
@@ -176,7 +176,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     vue.dire("surSortie", SHELL.id, "$ ");
     const [second, shell] = vue.xterms;
-    const ecrits = () => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
+    const ecrits = () => vue.appels.filter(({ geste: action }) => action === "ecrire").map(({ args }) => args);
     const t = (key: string, mods: { shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }, type = "keydown") => ({ key, shiftKey: false, type, ...mods });
     const cas: [string, object, string][] = [
       ["ArrowLeft", { altKey: true }, "\x1bb"],
@@ -207,7 +207,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     Object.defineProperty(globalThis.navigator, "clipboard", { value: { writeText: async (texte: string) => void copies.push(texte) }, configurable: true });
     t.after(() => Reflect.deleteProperty(globalThis.navigator, "clipboard"));
     const ctrl = (key: string, shiftKey = false, type = "keydown") => ({ key, shiftKey, ctrlKey: true, type });
-    const ecrits = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
+    const ecrits = (vue: Jouee) => vue.appels.filter(({ geste: action }) => action === "ecrire").map(({ args }) => args);
 
     const pc = await ouvrir({}, [PARADE, FANFARE], { nom: "this computer", mac: false });
     const [second] = pc.xterms;
@@ -300,7 +300,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     assert.deepEqual(machines.children.map((pose) => pose.textContent), ["open a shell on", ...MACHINES.map(({ titre }) => titre), "Cancel"]);
     assert.deepEqual(vue.dernier("machines"), ["parade"]);
     // Rien ne s'ouvre avant le choix.
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "shell"), []);
+    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "shell"), []);
     await cliquer(vue, machines, "box parade-box — station box/claude");
 
     assert.deepEqual(vue.dernier("shell"), ["parade", "box"]);
@@ -315,7 +315,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.equal(machines.hidden, true);
-    assert.equal(vue.appels.filter(({ geste }) => geste === "shell").length, 1);
+    assert.equal(vue.appels.filter(({ geste: action }) => action === "shell").length, 1);
   });
 
   test("là où il n'y a que ce poste, rien n'est à choisir : le shell s'y ouvre", async () => {
@@ -344,14 +344,14 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
   });
 
   test("une session qui n'a pas pu être détruite : la note du terminal dit où elle reste", async () => {
-    const refus = "shell 1 · parade-box is closed, but its session `brigade-parade-1` could not be destroyed: it is no longer listed, and stays there until it is destroyed";
-    const vue = await ouvrir({ fermerShell: () => ({ refus }) });
+    const refusal = "shell 1 · parade-box is closed, but its session `brigade-parade-1` could not be destroyed: it is no longer listed, and stays there until it is destroyed";
+    const vue = await ouvrir({ fermerShell: () => ({ refus: refusal }) });
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     vue.element("fermer-shell").click();
     await repos();
     vue.dire("surEtat", { ...SHELL, arrete: true });
     await repos();
-    assert.equal(vue.element("note-second").textContent, refus);
+    assert.equal(vue.element("note-second").textContent, refusal);
   });
 
   test("un shell dont on sort ferme son onglet, et le second reprend sa place à droite", async () => {
@@ -367,8 +367,8 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
 
   test("un geste qui part dans le second le montre, si un shell le cachait — la note est la sienne", async () => {
     const ecrit = { ...SECOND, note: "parti dans le second : `!station parade guardrails resume`" };
-    const vue = await ouvrir({ confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE), geste: () => ecrit });
-    await avecUneAlerte(vue);
+    const vue = await ouvrir({ confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, KITCHEN), geste: () => ecrit });
+    await avecUneAlert(vue);
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
 
@@ -392,14 +392,14 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
 describe("un clic à gauche écrit dans le second sans que le centre change", () => {
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
     const parti = { ...SECOND, note: "parti dans le second : `!station parade guardrails resume`" };
-    const vue = await ouvrir({ confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, CUISINE), geste: () => parti });
-    await avecUneAlerte(vue);
+    const vue = await ouvrir({ confirmer: (_, id) => confirmationDe(id, PARADE, { sans: "pas lus" }, KITCHEN), geste: () => parti });
+    await avecUneAlert(vue);
 
     // Le bouton de la ligne de la bande : son clic ouvre la confirmation, sous la ligne.
     await basculer(vue);
 
     assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre"]);
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
+    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "geste"), []);
     const ouverte = vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
     assert.match(ouverte.textContent, /resume the kitchen/);
     assert.equal(vue.element("note-second").textContent, "fil repris");
@@ -407,13 +407,13 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
     // « non » la referme : rien ne part.
     await cliquer(vue, ouverte, "no, leave it stopped");
     assert.equal(vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation"), undefined);
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
+    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "geste"), []);
 
     // Rouverte, son « oui » le fait partir dans le second ; Settings reste ouvert.
     await basculer(vue);
     await cliquer(vue, vue.element("alertes"), "yes, resume the kitchen");
     assert.deepEqual(
-      vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
+      vue.appels.filter(({ geste: action }) => action === "geste").map(({ args }) => args),
       [["parade", "reprendre", true]],
     );
     assert.equal(vue.element("note-second").textContent, parti.note);

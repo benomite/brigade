@@ -1,0 +1,224 @@
+// Ce qu'un bon du rail porte, outre son numéro, son état et son titre : ce que la
+// file dit déjà du ticket — ce que la cuisine en fait en ce moment, qui le tient,
+// depuis quand, son bail, ce qu'il brûle, ce qui le bloque. Rien n'y est compté ni déduit : chaque valeur est un morceau
+// de ce que la box a écrit. Deux lectures y entrent :
+//   - `faits`, la forme : la station du cook en cours (`cooks`), et où elle cuit (`stations`) ;
+//   - `status`, du texte : la ligne du ticket sous la ligne `rail`, que le runtime
+//     écrit ainsi (runtime/src/etat.ts, `decrireEtat` et `detail`) —
+//       `  #<ticket>  <état>  <priorité>  <détail>  <titre>`
+//     Le détail n'est découpé que s'il a, pour l'état que `faits` donne, la forme
+//     écrite là. Sinon la ligne est relayée entière, mot pour mot, et rien n'en
+//     est tiré : un texte reformulé ne devient jamais une valeur fausse.
+// Ce que la file ne dit pas est écrit comme tel, chose par chose : un bon ne se
+// tait sur rien, et n'invente rien à la place.
+
+// `exact` : ce qui se recopie tel quel — une station.
+export type Fait = { libelle: string; valeur: string; exact?: true };
+// `dit` : ce que la file dit du ticket. `sans` : ce qu'elle n'en dit pas, parmi
+// les cinq choses qu'un bon porte, et pourquoi — absent quand elle les dit toutes.
+// `relais` : ce que `status` écrit du ticket sous sa ligne `rail`, mot pour mot,
+// quand l'app n'a pas su le découper.
+export type Door = { dit: Fait[]; sans?: string; relais?: string; parque?: Parque };
+// Une carte parked (#4238, spec 2026-11-24-simplified-process, règle 13) : qui elle attend — un tiers, ou ce qui la retient
+// —, pour quoi (`quoi`, quand il se dit), jusqu'à quand (nul : aucune date), et `chef` quand c'est le chef qu'elle attend :
+// elle est dans son TODO, et rien d'autre ne l'est (#4261).
+export type Parque = { qui: string; quoi?: string; jusqua: string | null; chef?: boolean };
+// Qui attend le chef : c'est ce « qui » d'un ticket parked qui le met dans son TODO.
+export const LE_CHEF = "the chef";
+// Le ticket parked pour `qui`, pour `quoi`, jusqu'à `jusqua` : au chef seulement, il va dans son TODO.
+export const parqueDe = (qui: string, quoi: string | undefined, jusqua: string | null): Parque => ({ qui, ...(quoi === undefined ? {} : { quoi }), jusqua, ...(qui === LE_CHEF ? { chef: true } : {}) });
+
+// Ce dont un bon se compose, pour un ticket.
+// `lignes` : les siennes sous la ligne `rail` de `status` — absentes, cette ligne
+// n'a pas été lue ; vides, elle l'a été et ne dit rien de lui.
+// `stations` : celles de ses cooks en cours, d'après `faits` — absentes, le
+// runtime ne donne pas les cooks.
+// `bloque` : le bloc `attend` dit ce qui l'arrête, et le bon le porte à part.
+// `enCeMoment` : ce que la cuisine fait du ticket, tel que `faits` le donne et que
+// l'app l'écrit (facts.ts, `direEnCeMoment`) — absent, le bon ne porte pas cette ligne.
+// `attente` : pour un ticket mis de côté, la raison en clair que le runtime donne
+// dans `faits` — elle remplace sa ligne brute de `status`, qui n'est plus relayée.
+// `revenu` : pour un ticket revenu de WAITING, le motif que le runtime en donne dans `faits`.
+// `lieux` : où cuit chaque station que `faits` donne (`lieuDe`) — absents, le runtime ne
+// donne pas les stations.
+export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; bloque: boolean; enCeMoment?: string; attente?: string; revenu?: string; lieux?: ReadonlyMap<string, string> };
+
+// Où cuit un ticket en cours : sur la box, ou sur le Mac du chef — une station distante, qui
+// tire son travail depuis son poste. C'est ce que `faits` dit de la station qui le tient
+// (`stations[].distante`), rien d'autre : une station qu'il ne donne pas n'est nulle part.
+export const SUR_LA_BOX = "main station";
+export const SUR_LE_MAC = "Mac";
+export const lieuDe = ({ distante: remote }: { distante: boolean }): string => (remote ? SUR_LE_MAC : SUR_LA_BOX);
+
+const TETE_DE_TICKET = /^ {2}#(\d+) {2}(.*)$/;
+
+// Les lignes de chaque ticket sous la ligne `rail` de `status`, sans leur tête —
+// rien, si la sortie n'a pas cette ligne, ou en a plusieurs. Seules les lignes en
+// retrait qui la suivent en sont : un numéro plus bas, sous `cooks` ou `serveurs`,
+// n'est pas une ligne du rail.
+export function linesDuRail(status: string): Map<number, string[]> | undefined {
+  const lines = status.split("\n");
+  const tetes = lines.flatMap((line, rang) => (/^rail\s/.test(line) ? [rang] : []));
+  const [tete] = tetes;
+  if (tete === undefined || tetes.length !== 1) return undefined;
+  const lues = new Map<number, string[]>();
+  for (let rang = tete + 1; lines[rang]?.startsWith("  ") === true; rang++) {
+    const [, numero, suite] = TETE_DE_TICKET.exec(lines[rang] as string) ?? [];
+    const ticket = Number(numero);
+    if (numero === undefined || suite === undefined || !Number.isSafeInteger(ticket)) continue;
+    lues.set(ticket, [...(lues.get(ticket) ?? []), suite]);
+  }
+  return lues;
+}
+
+// Une durée, telle que `status` l'écrit (runtime/src/etat.ts, `duree`) : `j` pour les jours en
+// français, `d` en anglais.
+const duree = (jours: string) => String.raw`\d+ (?:s|min|${jours}|h \d\d)`;
+const DUREE = duree("j");
+// En anglais, `status` écrit la durée ; le rail lu sur GitHub (vue/rail/github.ts) écrit l'heure à la place
+// (`2026-10-12 10:00 UTC`).
+const HEURE_EN = String.raw`\d{4}-\d\d-\d\d \d\d:\d\d UTC`;
+const DUREE_EN = `(?:${duree("d")}|${HEURE_EN})`;
+type Lu = { tient?: string; depuis: string; bail?: string; bloque?: string; cuisine?: string };
+// Le détail d'une ligne, par état : la forme que le runtime écrit pour lui, et ce
+// qu'elle donne. Un état qui n'est pas ici — `86`, un mot inconnu — n'en a pas.
+// Chaque forme existe dans les deux langues, état compris : une ligne qui mêle les deux
+// (un état français, un détail anglais) n'est la forme d'aucune des deux.
+const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExecArray): Lu }[] = [
+  {
+    // `par <station> depuis <durée>, [COINCE : ][sans progrès depuis <durée>, ]bail encore <durée>` — ou `bail échu depuis`.
+    etats: ["pris"],
+    forme: new RegExp(`^par (\\S.*?) depuis (${DUREE}), ((?:COINC[EÉ] : )?(?:sans progrès depuis ${DUREE}, )?bail (?:encore|échu depuis) ${DUREE})$`),
+    lire: ([, tient = "", depuis = "", lease = ""]) => ({ tient, depuis, bail: lease }),
+  },
+  {
+    // `by <station> since <duration>, [STUCK: ][no progress since <duration>, ]lease <duration> left` — or `lease expired since`.
+    // Sans bail, sur GitHub seul (vue/rail/github.ts, #2220) : une prise tient jusqu'à son lâcher.
+    etats: ["taken"],
+    forme: new RegExp(`^by (\\S.*?) since (${DUREE_EN})(?:, ((?:STUCK: )?(?:no progress since ${DUREE_EN}, )?lease (?:${DUREE_EN} left|expired since ${DUREE_EN})))?$`),
+    lire: ([, tient = "", depuis = "", lease]) => ({ tient, depuis, ...(lease === undefined ? {} : { bail: lease }) }),
+  },
+  {
+    // `[<ce qui le retient> — ]depuis <durée>`.
+    etats: ["en attente", "tests écrits", "BLOQUÉ"],
+    forme: new RegExp(`^(?:(\\S.*) — )?depuis (${DUREE})$`),
+    lire: ([, blocked, depuis = ""]) => ({ depuis, ...(blocked === undefined ? {} : { bloque: blocked }) }),
+  },
+  {
+    // `[<what holds it> — ]since <duration>`.
+    etats: ["queued", "tests written", "BLOCKED"],
+    forme: new RegExp(`^(?:(\\S.*) — )?since (${DUREE_EN})$`),
+    lire: ([, blocked, depuis = ""]) => ({ depuis, ...(blocked === undefined ? {} : { bloque: blocked }) }),
+  },
+  {
+    // `depuis <durée>, cuisiné par <station>`.
+    etats: ["en pass", "servi"],
+    forme: new RegExp(`^depuis (${DUREE}), cuisiné par (\\S.*)$`),
+    lire: ([, depuis = "", kitchen = ""]) => ({ depuis, cuisine: kitchen }),
+  },
+  {
+    // `since <duration>, cooked by <station>`.
+    etats: ["in pass", "served"],
+    forme: new RegExp(`^since (${DUREE_EN}), cooked by (\\S.*)$`),
+    lire: ([, depuis = "", kitchen = ""]) => ({ depuis, cuisine: kitchen }),
+  },
+];
+
+// L'état que `faits` donne est en français ; `status` l'écrit en anglais depuis #940
+// (docs/glossary.md, §4), en français avant : la ligne commence par l'un ou l'autre.
+// C'est aussi la seule table des mots que l'app affiche pour un état (`motDEtat`) : celui
+// d'une carte du rail, celui de la cuisine d'un projet, `86` (un ticket mis de côté) — la vue
+// et le rail publié n'en gardent aucune copie. Les valeurs de `faits` ne changent pas.
+export const MOTS_DE_CARD: Readonly<Record<string, string>> = { pris: "taken", "en attente": "queued", "tests écrits": "tests written", "en pass": "in pass", servi: "served", BLOQUÉ: "BLOCKED", "86": "set aside", WAITING: "waiting", "base rouge": "base red" };
+export const MOTS_DE_KITCHEN: Readonly<Record<string, string>> = { ouverte: "open", retenue: "held", arrêtée: "stopped", éteinte: "off" };
+const EN_ANGLAIS: Readonly<Record<string, string>> = { ...MOTS_DE_CARD, ...MOTS_DE_KITCHEN };
+// Le mot affiché pour un état : l'anglais de la table, ou l'état tel quel quand il n'y est pas
+// (un mot inconnu de la box, déjà en anglais) — rien n'est inventé.
+export const wordDState = (state: string): string => EN_ANGLAIS[state] ?? state;
+
+// Ce qui est entre l'état et le titre d'une ligne — l'un et l'autre viennent de
+// `faits`, et la bornent : la priorité, puis le détail. Rien, si elle n'est pas
+// celle que le runtime écrit pour cet état et ce titre. `etat` : le mot que la
+// ligne écrit, dans sa langue — c'est lui qui choisit la forme du détail.
+function milieu(line: string, state: string, titre: string): { etat: string; priorite: string; detail: string } | undefined {
+  for (const ecrit of [state, ...(EN_ANGLAIS[state] === undefined ? [] : [EN_ANGLAIS[state]])]) {
+    const [tete, pied] = [`${ecrit}  `, `  ${titre}`];
+    if (line.length < tete.length + pied.length || !line.startsWith(tete) || !line.endsWith(pied)) continue;
+    const [, priority, detail] = /^(-|prio:\S+) {2}(.*)$/.exec(line.slice(tete.length, line.length - pied.length)) ?? [];
+    if (priority !== undefined && detail !== undefined) return { etat: ecrit, priorite: priority, detail };
+  }
+  return undefined;
+}
+
+// La priorité que la ligne d'un ticket écrit, telle quelle : `prio:<n>`, ou `-`
+// quand son issue ne porte aucun `prio:` — rien, si la ligne ne se lit pas.
+export const priority = (line: string, state: string, titre: string): string | undefined => milieu(line, state, titre)?.priorite;
+
+// Ce que la ligne d'un ticket dit de lui — ou rien, si elle n'est pas celle que
+// le runtime écrit pour cet état et ce titre.
+function decouper(line: string, state: string, titre: string): Lu | undefined {
+  const lu = milieu(line, state, titre);
+  const detail = lu?.detail;
+  const lue = FORMES.find(({ etats: states }) => states.includes(lu?.etat ?? state));
+  const trouve = detail === undefined ? null : (lue?.forme.exec(detail) ?? null);
+  return lue === undefined || trouve === null ? undefined : lue.lire(trouve);
+}
+
+// Les cinq choses qu'un bon porte, dans l'ordre où elles se lisent : le libellé
+// de chacune quand la file la dit, et comment elle se nomme quand elle ne la dit pas.
+const CHOSES = [
+  { cle: "tient", libelle: "taken by", tu: "who holds it" },
+  { cle: "depuis", libelle: "since", tu: "since when" },
+  { cle: "bail", libelle: "lease", tu: "its lease" },
+  { cle: "brule", libelle: "burns", tu: "what it burns" },
+  { cle: "bloque", libelle: "blocked by", tu: "what blocks it" },
+] as const;
+
+// Le bon d'un ticket : ce que la file en dit, ce qu'elle n'en dit pas, et sa
+// ligne de `status` telle quelle quand elle n'a pas pu être découpée. `etat` et
+// `titre` : ceux que `faits` donne — absents, le ticket n'est pas sur le rail.
+export function porter({ etat: state, titre }: { etat?: string; titre?: string }, { lignes: lines, stations, bloque: blocked, enCeMoment, attente: wait, revenu, lieux }: Sources): Door {
+  // Un ticket n'a qu'une ligne sur le rail : deux ne disent pas laquelle croire.
+  const [line] = lines ?? [];
+  const lu = line === undefined || lines?.length !== 1 || state === undefined || titre === undefined ? undefined : decouper(line, state, titre);
+  const illisible = wait === undefined && lines !== undefined && lines.length > 0 && lu === undefined;
+  const dites: Record<(typeof CHOSES)[number]["cle"], Omit<Fait, "libelle"> | undefined> = {
+    // La station que `faits` donne d'abord : c'est la forme. À défaut, celle de la ligne.
+    tient: stations !== undefined && stations.length > 0 ? { valeur: stations.join(", "), exact: true } : lu?.tient === undefined ? undefined : { valeur: lu.tient, exact: true },
+    depuis: lu === undefined ? undefined : { valeur: lu.depuis },
+    bail: lu?.bail === undefined ? undefined : { valeur: lu.bail },
+    // Ce qu'il brûle, la file ne le dit pas : ni la forme, ni sa ligne sous `rail`.
+    brule: undefined,
+    bloque: lu?.bloque === undefined ? undefined : { valeur: lu.bloque },
+  };
+  // Où il cuit, d'après la station qui le tient : dit seulement quand `faits` les situe toutes.
+  const tenants = stations !== undefined && stations.length > 0 ? stations : lu?.tient === undefined ? [] : [lu.tient];
+  const ou = tenants.map((station) => lieux?.get(station));
+  const cuit = ou.length > 0 && ou.every((lieu) => lieu !== undefined) ? [...new Set(ou)].join(", ") : undefined;
+  // Ce que le bloc `attend` dit de lui est posé sur le bon, à part : c'est ce qui le bloque.
+  const tues = CHOSES.filter(({ cle }) => dites[cle] === undefined && !(cle === "bloque" && blocked)).map(({ tu }) => tu);
+  const pourquoi = illisible
+    ? "not given by `facts`, and not read by the app in what `status` writes about this ticket, relayed below as is"
+    : lines === undefined
+      ? "not given by `facts`, and the `rail` line of `status` was not read"
+      : "not given by the queue";
+  return {
+    dit: [
+      // Ce qui bouge le plus souvent se lit d'abord : ce que la cuisine en fait en ce moment.
+      ...(enCeMoment === undefined ? [] : [{ libelle: "right now", valeur: enCeMoment }]),
+      // Un ticket mis de côté : sa raison en une ligne, jamais la ligne brute du runtime.
+      ...(wait === undefined ? [] : [{ libelle: "set aside", valeur: wait }]),
+      // Revenu de WAITING : le motif, mot pour mot — jamais déduit par l'app.
+      ...(revenu === undefined ? [] : [{ libelle: "came back", valeur: revenu }]),
+      ...CHOSES.flatMap(({ cle, libelle }) => [
+        ...(dites[cle] === undefined ? [] : [{ libelle, ...dites[cle] }]),
+        // Où il cuit se lit sous qui le tient.
+        ...(cle === "tient" && cuit !== undefined ? [{ libelle: "cooks on", valeur: cuit }] : []),
+      ]),
+      // Qui l'a cuisiné n'est pas qui le tient : dit sous son nom, en plus des cinq.
+      ...(lu?.cuisine === undefined ? [] : [{ libelle: "cooked by", valeur: lu.cuisine, exact: true as const }]),
+    ],
+    ...(tues.length === 0 ? {} : { sans: `${pourquoi} : ${tues.join(" · ")}` }),
+    ...(illisible ? { relais: (lines ?? []).join("\n") } : {}),
+  };
+}

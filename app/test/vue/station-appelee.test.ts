@@ -8,28 +8,28 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { besoinNomme } from "../../../runtime/src/installation/besoins/catalogue.ts";
 import { choixPour } from "../../../runtime/src/installation/besoins/besoins.ts";
-import type { Accueil } from "../../src/accueil.ts";
+import type { Home } from "../../src/home.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE, type Projet } from "../../src/config.ts";
+import { pourLaBar } from "../../src/bar.ts";
+import { EXEMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNIERE, holdFacts, type Facts } from "../../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../../src/actions.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import type { Panne } from "../../src/pannes/pannes.ts";
-import { lireSuivi } from "../../src/projets/demande.ts";
-import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
+import type { Outage } from "../../src/outages/outages.ts";
+import { lireSuivi } from "../../src/projects/request.ts";
+import { calibrationRecommande, EFFORTS, machineProposee, MODELES, type ProjectVu, type VuDesProjects } from "../../src/projects/projects.ts";
 import { lireStations, type Guide } from "../../src/service.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { capaciteDuBesoin } from "../../src/vue/stations-declarees.js";
+import { capacityDuNeed } from "../../src/vue/stations-declarees.js";
 import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-23T10:04:12.000Z";
-const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Panne[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
-const ACCUEIL: Accueil = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 // La cuisine de ce poste tourne avec pc/claude, qui ne fournit que du code.
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
+const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 
 const DECLAREES =
   lireStations(
@@ -56,7 +56,7 @@ const guide = (stations: typeof DECLAREES | undefined): Guide => ({
   ...(stations === undefined ? {} : { controle: { a: A, stations } }),
 });
 
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-23T10:04:11.000Z",
   dernierTick: "2026-10-23T10:04:02.000Z",
@@ -67,12 +67,12 @@ const FAITS: Faits = {
   attend: [],
 };
 
-const besoin = (id: string) => besoinNomme(id) ?? assert.fail(`aucun besoin « ${id} » au catalogue`);
-const enAttente = (id: string) => ({ ...choixPour({ besoin: besoin(id), preuves: ["the repository asks for it"] }, { projet: "parade", station: "box", ailleurs: [] }), status: "pending" as const });
+const need = (id: string) => besoinNomme(id) ?? assert.fail(`aucun besoin « ${id} » au catalogue`);
+const queued = (id: string) => ({ ...choixPour({ besoin: need(id), preuves: ["the repository asks for it"] }, { projet: "parade", station: "box", ailleurs: [] }), status: "pending" as const });
 
-const vue = (choix: object[]): VuDesProjets => {
-  const lu = lireSuivi(JSON.stringify({ brigade: "projets-suivi", projets: [{ nom: "parade", etat: "servi", choix }] }))[0];
-  const projet: ProjetVu = {
+const vue = (choice: object[]): VuDesProjects => {
+  const lu = lireSuivi(JSON.stringify({ brigade: "projets-suivi", projets: [{ nom: "parade", etat: "servi", choix: choice }] }))[0];
+  const project: ProjectVu = {
     nom: "parade",
     depot: "benomite/parade",
     base: "main",
@@ -81,27 +81,27 @@ const vue = (choix: object[]): VuDesProjets => {
     cuitSur: { id: "g1", nom: "box", ici: false },
     ...(lu?.choix === undefined ? {} : { choix: lu.choix }),
   };
-  return { a: A, projets: [projet], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX) }, calibrage: calibrageRecommande([]) };
+  return { a: A, projets: [project], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX) }, calibrage: calibrationRecommande([]) };
 };
 
 const DEFAUTS = { cooks: 4, cooksDit: "from this computer's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
 
-async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLAREES) {
+async function laPage(choice: object[], stations: typeof DECLAREES | null = DECLAREES) {
   const envoyes: unknown[][] = [];
   const jouee = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true, () => true),
+      configuration: pourLaBar({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
       stations: { a: A, stations: [BOX] } satisfies VuDesStations,
-      accueil: ACCUEIL,
-      projetsDesStations: vue(choix),
+      accueil: HOME,
+      projetsDesStations: vue(choice),
     }),
     espace: () => [],
     service: () => guide(stations ?? undefined),
@@ -114,29 +114,29 @@ async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLA
   (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
   for (let tour = 0; tour < 5; tour++) await repos();
   // Les lignes de station (et leur formulaire) se posent d'après la lecture de la cuisine : `facts` y porte ses stations.
-  const recue = tenirFaits().recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
+  const recue = holdFacts().recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FACTS, stations: [] }) }] });
   jouee.dire("surFaits", { ...recue, demande: jouee.dernier("faits")[0] as number });
   for (let tour = 0; tour < 5; tour++) await repos();
   return { jouee, envoyes };
 }
 
 const cliquerSurAilleurs = async (jouee: Awaited<ReturnType<typeof laPage>>["jouee"], id: string) => {
-  const carte = jouee.element("choix-du-projet").dessous("section").find((pose) => pose.dataset.choix === `need:${id}`) ?? assert.fail(`pas de carte « ${id} »`);
-  (carte.dessous("button").find((pose) => pose.textContent === "Cook it on a station that has it") ?? assert.fail("pas de bouton")).click();
+  const card = jouee.element("choix-du-projet").dessous("section").find((pose) => pose.dataset.choix === `need:${id}`) ?? assert.fail(`pas de carte « ${id} »`);
+  (card.dessous("button").find((pose) => pose.textContent === "Cook it on a station that has it") ?? assert.fail("pas de bouton")).click();
   for (let tour = 0; tour < 5; tour++) await repos();
 };
 // Les réglages de la station, dans « Details » de sa carte sur Stations (#3195) — ouvert, il porte la capacité offerte ;
 // replié, ils ne sont pas ouverts.
 const formulaire = (jouee: Awaited<ReturnType<typeof laPage>>["jouee"]) => {
-  const carte = jouee.element("rail").dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === "pc/claude");
-  return carte !== undefined && (carte.dessous("details")[0] as unknown as { open?: boolean } | undefined)?.open === true ? carte.dessous("section").find(({ className }) => className === "station-reglee") : undefined;
+  const card = jouee.element("rail").dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === "pc/claude");
+  return card !== undefined && (card.dessous("details")[0] as unknown as { open?: boolean } | undefined)?.open === true ? card.dessous("section").find(({ className }) => className === "station-reglee") : undefined;
 };
 const cochees = (forme: Faux) => forme.dessous("input").filter(({ type, checked, ariaLabel }) => type === "checkbox" && checked).map(({ ariaLabel }) => ariaLabel);
-const caseDe = (forme: Faux, capacite: string) => forme.dessous("input").find(({ type, ariaLabel }) => type === "checkbox" && ariaLabel === capacite) ?? assert.fail(`pas de case « ${capacite} »`);
+const caseDe = (forme: Faux, capacity: string) => forme.dessous("input").find(({ type, ariaLabel }) => type === "checkbox" && ariaLabel === capacity) ?? assert.fail(`pas de case « ${capacity} »`);
 
 describe("« Cook it on a station that has it » ouvre, sur Stations, les réglages de la station de ce poste", () => {
   test("un navigateur qui manque : le formulaire de pc/claude, navigateur-headless offert à côté de code, et rien n'est écrit avant qu'il soit coché", async () => {
-    const { jouee, envoyes } = await laPage([enAttente("browser")]);
+    const { jouee, envoyes } = await laPage([queued("browser")]);
     assert.equal(formulaire(jouee), undefined);
     await cliquerSurAilleurs(jouee, "browser");
     const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
@@ -157,7 +157,7 @@ describe("« Cook it on a station that has it » ouvre, sur Stations, les régla
   });
 
   test("un autre besoin, Docker : docker est offert, code reste coché, et la case de Docker est celle du catalogue du poste", async () => {
-    const { jouee } = await laPage([enAttente("docker")]);
+    const { jouee } = await laPage([queued("docker")]);
     await cliquerSurAilleurs(jouee, "docker");
     const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
     assert.equal(forme.dataset.station, "pc/claude");
@@ -167,7 +167,7 @@ describe("« Cook it on a station that has it » ouvre, sur Stations, les régla
   });
 
   test("une capacité qu'aucune case n'offrait : elle est offerte une seule fois, décochée", async () => {
-    const { jouee } = await laPage([enAttente("postgres")]);
+    const { jouee } = await laPage([queued("postgres")]);
     await cliquerSurAilleurs(jouee, "postgres");
     const forme = formulaire(jouee) ?? assert.fail("fermé");
     assert.deepEqual(cochees(forme), ["code"]);
@@ -175,14 +175,14 @@ describe("« Cook it on a station that has it » ouvre, sur Stations, les régla
   });
 
   test("aucune station lue : rien ne s'ouvre, une ligne sous la carte le dit", async () => {
-    const { jouee } = await laPage([enAttente("browser")], null);
+    const { jouee } = await laPage([queued("browser")], null);
     await cliquerSurAilleurs(jouee, "browser");
     assert.equal(formulaire(jouee), undefined);
     assert.match(jouee.element("choix-du-projet").dessous("p").find(({ className }) => className === "refus-du-choix")?.textContent ?? "", /No station of the project read yet/);
   });
 
   test("la capacité d'un besoin : celle que le runtime déclare en premier au catalogue", () => {
-    for (const id of ["browser", "postgres", "mysql", "redis", "docker"]) assert.equal(capaciteDuBesoin(id), besoin(id).fourni.capacites[0], id);
-    assert.equal(capaciteDuBesoin("inconnu"), "inconnu");
+    for (const id of ["browser", "postgres", "mysql", "redis", "docker"]) assert.equal(capacityDuNeed(id), need(id).fourni.capacites[0], id);
+    assert.equal(capacityDuNeed("inconnu"), "inconnu");
   });
 });

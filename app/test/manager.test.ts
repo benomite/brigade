@@ -16,32 +16,32 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
-import { GESTE, type Lecture } from "../src/box.ts";
-import { CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
-import { COMMANDE, managerDe, voir, type Manager } from "../src/manager.ts";
-import { commandeDe, ONGLETS } from "../src/onglets.ts";
+import { ACTION, type Read } from "../src/box.ts";
+import { CONFIRMES, DIRECTS, ecrireAction, ACTIONS, SANS_OUI } from "../src/actions.ts";
+import { COMMAND, managerDe, voir, type Manager } from "../src/manager.ts";
+import { commandDe, ONGLETS } from "../src/onglets.ts";
 import { DIT } from "../src/saisie.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
-const CUISINE = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
+const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
 
 // Un journal, et `manager` jouée dessus comme le geste de la box la joue : sa sortie, telle quelle.
 // Chaque fait y est écrit une minute après le précédent, à partir de 9 h 01.
-function cuisine(t: TestContext) {
+function kitchen(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-manager-"));
   let minute = 0;
-  const journal = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 13, 9, ++minute)) });
+  const log = ouvrirJournal(repertoire, { maintenant: () => new Date(Date.UTC(2026, 9, 13, 9, ++minute)) });
   t.after(() => {
-    journal.fermer();
+    log.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const noter = (fait: Fait, ticket: number | null, author = "manager") => void journal.ajouter({ project: "brigade", ticket, author, ...fait });
+  const noter = (fait: Fait, ticket: number | null, author = "manager") => void log.ajouter({ project: "brigade", ticket, author, ...fait });
   const sortie = (): string => {
-    const lignes: string[] = [];
-    void principal({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
-    return `${lignes.join("\n")}\n`;
+    const lines: string[] = [];
+    void principal({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
+    return `${lines.join("\n")}\n`;
   };
   return { noter, sortie };
 }
@@ -57,18 +57,18 @@ const allumer = { type: "manager.enabled", payload: {} } as const;
 const eteindre = { type: "manager.disabled", payload: {} } as const;
 const AUCUNE = { dit: "none", lignes: [], illisibles: [] };
 
-const lecture = (texte: string): Lecture => ({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sorties: [{ commande: COMMANDE, texte }] });
+const read = (texte: string): Read => ({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sorties: [{ commande: COMMAND, texte }] });
 
 describe("l'état du manager, lu dans la sortie de `manager`", () => {
   test("un manager allumé : il l'est, depuis quand, par qui — et ce que le runtime en dit, mot pour mot", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
 
     assert.deepEqual(lu(sortie()).interrupteur, { allume: true, mot: "ON", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "it judges the open issues, sets `fire` and the calibration" });
   });
 
   test("un manager éteint : il l'est, depuis quand, par qui — ce qu'il a posé reste posé, et c'est le runtime qui le dit", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter(eteindre, null, "benoit");
 
@@ -76,13 +76,13 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("un manager jamais allumé est éteint, sans date ni auteur : l'app n'en invente pas", (t) => {
-    const { sortie } = cuisine(t);
+    const { sortie } = kitchen(t);
 
     assert.deepEqual(lu(sortie()).interrupteur, { allume: false, mot: "OFF", dit: "never turned on: no issue is judged, `fire` and the calibration are set by hand" });
   });
 
   test("une sortie sans décision : ni décision ni issue écartée, et c'est le mot du runtime qui le dit — « none »", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
 
     const manager = lu(sortie());
@@ -93,7 +93,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("ses dernières décisions, la plus récente d'abord : l'instant, le ticket, et ce qu'il en a fait, mot pour mot", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter({ type: "manager.judged", payload: { run: "juge-30-a", fingerprint: "e1", verdict: "fire", kind: "ticket", reason: "Un livrable, un test.", missing: null, model: "haiku", effort: "low", calibration: "Mécanique." } }, 30);
     noter({ type: "manager.labeled", payload: { labels: ["fire", "effort:low"] } }, 30);
@@ -112,7 +112,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("ce qu'il a écarté : chaque écart avec son motif, et ce qui rend l'issue au manager quand le runtime le dit", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
     noter({ type: "manager.set-aside", payload: { reason: "parked", fired: false } }, 31);
@@ -142,7 +142,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 
   test("une issue rendue au manager et pas encore rejugée se lit parmi les écartées, telle que le runtime la dit", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 30);
     noter({ type: "manager.handed-back", payload: {} }, 30, "chef");
 
@@ -235,11 +235,11 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
 
 describe("ce que l'app pose de la lecture du manager — l'amont la lit (amont.ts)", () => {
   test("lu : l'interrupteur, les décisions et les écartées, avec l'heure de la lecture — la vue n'y calcule rien", (t) => {
-    const { noter, sortie } = cuisine(t);
+    const { noter, sortie } = kitchen(t);
     noter(allumer, null, "chef");
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
 
-    assert.deepEqual(voir(lecture(sortie())), {
+    assert.deepEqual(voir(read(sortie())), {
       projet: "parade",
       demande: 4,
       a: "2026-10-13T10:00:00.000Z",
@@ -250,9 +250,9 @@ describe("ce que l'app pose de la lecture du manager — l'amont la lit (amont.t
   });
 
   test("sans décision ni écart, chaque liste dit ce que le runtime en dit, à la place de ses lignes", (t) => {
-    const { sortie } = cuisine(t);
+    const { sortie } = kitchen(t);
 
-    const vu = voir(lecture(sortie()));
+    const vu = voir(read(sortie()));
 
     assert.ok("interrupteur" in vu);
     // Éteint n'est pas une alerte : c'est l'état d'un manager que personne n'a allumé.
@@ -262,7 +262,7 @@ describe("ce que l'app pose de la lecture du manager — l'amont la lit (amont.t
   });
 
   test("une section que la sortie n'a pas se dit « pas lue », jamais « aucune »", () => {
-    const vu = voir(lecture("manager               ÉTEINT — jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main\n"));
+    const vu = voir(read("manager               ÉTEINT — jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main\n"));
 
     assert.ok("interrupteur" in vu);
     assert.deepEqual(vu.decisions, { lignes: [], illisibles: [], vide: "not read: the output has no `latest decisions` line. This is not “none” — it is shown below, in full" });
@@ -276,7 +276,7 @@ describe("ce que l'app pose de la lecture du manager — l'amont la lit (amont.t
   });
 
   test("une sortie qui n'a pas la forme ne dit rien du manager non plus, et l'app dit en quoi", () => {
-    assert.deepEqual(voir(lecture("usage : brigade <projet> <commande> [arguments…]\n")), {
+    assert.deepEqual(voir(read("usage : brigade <projet> <commande> [arguments…]\n")), {
       projet: "parade",
       demande: 4,
       a: "2026-10-13T10:00:00.000Z",
@@ -291,16 +291,16 @@ describe("la lecture du manager et ses deux gestes", () => {
   test("la lecture lance `manager`, un script du runtime, sans argument : rien n'y est allumé ni éteint — et Manager n'est plus un onglet (#1700)", () => {
     const { scripts } = JSON.parse(readFileSync(join(RACINE, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
-    assert.equal(COMMANDE, "manager");
-    assert.ok(COMMANDE in scripts);
-    assert.equal(commandeDe("manager"), undefined);
+    assert.equal(COMMAND, "manager");
+    assert.ok(COMMAND in scripts);
+    assert.equal(commandDe("manager"), undefined);
     assert.equal(ONGLETS.some(({ id, titre }) => id === "manager" || titre === "Manager"), false);
   });
 
   test("le manager n'a plus de geste à lui : l'interrupteur du projet l'allume et l'éteint avec le reste (#1406)", () => {
-    assert.equal(GESTES.some(({ id, commande }) => id.startsWith("manager-") || /^manager (?:on|off)$/.test(commande)), false);
+    assert.equal(ACTIONS.some(({ id, commande: command }) => id.startsWith("manager-") || /^manager (?:on|off)$/.test(command)), false);
     assert.deepEqual(
-      GESTES.filter(({ id }) => id.startsWith("projet-")).map(({ id, commande }) => [id, commande]),
+      ACTIONS.filter(({ id }) => id.startsWith("projet-")).map(({ id, commande: command }) => [id, command]),
       [
         ["projet-allumer", "switch on"],
         ["projet-eteindre", "switch off"],
@@ -325,17 +325,17 @@ describe("la lecture du manager et ses deux gestes", () => {
     terminaux.espace(PARADE);
 
     assert.deepEqual(["projet-allumer", "projet-eteindre"].map((id) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "direct"]);
-    assert.deepEqual(ecrireGeste(terminaux, "projet-allumer", PARADE, false, CUISINE), { refus: SANS_OUI });
+    assert.deepEqual(ecrireAction(terminaux, "projet-allumer", PARADE, false, KITCHEN), { refus: SANS_OUI });
 
-    const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "projet-allumer", PARADE, true, CUISINE), ecrireGeste(terminaux, "projet-eteindre", PARADE, false, CUISINE)]);
+    const [allumer, eteindre] = await Promise.all([ecrireAction(terminaux, "projet-allumer", PARADE, true, KITCHEN), ecrireAction(terminaux, "projet-eteindre", PARADE, false, KITCHEN)]);
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande de la doc.
-    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${GESTE} parade switch on)\`` });
-    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${GESTE} parade switch off)\`` });
+    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${ACTION} parade switch on)\`` });
+    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${ACTION} parade switch off)\`` });
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : sur la box (« Driving it »), dans sa forme de poste — ce qui part —, et dans le dépôt (« The project switch »).
     assert.ok(doc.includes("`brigade <projet> switch [on \\| off]`"), "docs/runtime/, « Driving it », ne cite plus la commande de l'interrupteur");
-    for (const mot of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run switch -- ${mot}`), `docs/runtime/, « The project switch », ne cite plus \`switch -- ${mot}\``);
+    for (const word of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run switch -- ${word}`), `docs/runtime/, « The project switch », ne cite plus \`switch -- ${word}\``);
   });
 
   test("le module ne lance rien : il lit une sortie que la veille a déjà rendue", () => {

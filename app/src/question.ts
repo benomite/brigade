@@ -2,7 +2,7 @@
 // l'app lit son issue et, si le manager y a posé une question, la montre mot pour mot — ses
 // choix (a / b / c) en boutons, un champ pour répondre en une phrase. Ce que le chef choisit
 // ou écrit part sur l'issue, en commentaire, à son nom. Ni LLM, ni reformulation : le texte est
-// celui du commentaire, et la réponse celle du chef. La demande au second (demande.ts) reste à
+// celui du commentaire, et la réponse celle du chef. La demande au second (request.ts) reste à
 // côté, pour les questions qui méritent une explication.
 // L'app ne passe pas par la box pour cela : aucun geste de la box ne lit les commentaires d'une
 // issue ni n'y écrit. Elle lance le `gh` du poste — celui du chef, connecté à son compte, que le
@@ -10,10 +10,10 @@
 // Rien ne part sans le clic du chef — ni réponse d'office, ni choix par défaut —, et rien ne part
 // sur une question qui n'est plus celle qu'il a lue : l'issue est relue juste avant d'écrire.
 import { execFile, type ExecFileException } from "node:child_process";
-import { choixDe, corpsDuChoix, type Choix } from "./choix-de-question.ts";
+import { choiceDe, corpsDuChoice, type Choice } from "./choice-de-question.ts";
 import { nombre } from "./format.ts";
 
-export { choixDe, corpsDuChoix, type Choix };
+export { choiceDe, corpsDuChoice, type Choice };
 
 // Ce qui marque, parmi les commentaires du manager, une question posée au chef : les deux
 // marqueurs qu'il écrit en tête (runtime/src/juger.ts, `MARQUEUR_MANAGER` ; runtime/src/decouper.ts,
@@ -26,17 +26,17 @@ export const MARQUEUR_QUESTION = "<!-- brigade:question -->";
 const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 // Le `gh` du poste, et le délai passé lequel il est arrêté.
-export type Reglages = { gh: string; delaiMs: number };
+export type Settings = { gh: string; delaiMs: number };
 
 // Un commentaire de l'issue, tel que `gh` le rend : qui, quand, son adresse, son texte.
-export type Commentaire = { auteur: string; association: string; a: string; url: string; corps: string };
+export type Comment = { auteur: string; association: string; a: string; url: string; corps: string };
 // Ce qui a été écrit sur l'issue sous la question : qui, quand, son adresse, son texte sans marqueurs.
 export type Ecrit = { auteur: string; a: string; url: string; corps: string };
 // La question : le commentaire du manager, sans ses marqueurs — rien d'autre n'en est retiré —,
 // ses choix s'il en propose, et ce qui a été écrit sur l'issue depuis. `repondue` : le premier de
 // ces commentaires que le manager lira comme une réponse (#503) — de quelqu'un qui a la main sur le
 // dépôt, et qui n'est pas de lui ; absente, personne n'y a encore répondu.
-export type Question = { url: string; auteur: string; a: string; texte: string; resume: string; choix: Choix[]; depuis: Ecrit[]; repondue?: Ecrit };
+export type Question = { url: string; auteur: string; a: string; texte: string; resume: string; choix: Choice[]; depuis: Ecrit[]; repondue?: Ecrit };
 // Ce que la lecture de l'issue donne. `aucune` : l'issue est lue, le manager n'y pose pas de
 // question — l'entrée garde son geste à elle. `sans` : l'issue n'a pas été lue, et pourquoi.
 export type Lue = { a: string } & ({ question: Question } | { aucune: true } | { sans: string });
@@ -44,7 +44,7 @@ export type Lue = { a: string } & ({ question: Question } | { aucune: true } | {
 // d'un choix, ou la phrase du chef. Le texte d'un choix vient de l'issue, jamais de la vue.
 // `vu` : l'adresse du dernier commentaire écrit sous la question que la vue montrait — absente ou
 // vide, elle n'en montrait aucun (#503).
-export type Reponse = { question: string; vu?: string } & ({ choix: string } | { texte: string });
+export type Answer = { question: string; vu?: string } & ({ choix: string } | { texte: string });
 // Ce qu'il en est advenu. `poste` : le commentaire est sur l'issue — `corps` : ce qui a été écrit,
 // `adresse` : la sienne, quand `gh` l'a dite. `refus` : rien n'est parti, et pourquoi ; `lue` : la
 // question telle que l'issue la porte maintenant, quand elle a changé sous les yeux du chef.
@@ -57,14 +57,14 @@ const MARQUEUR = /^\s*<!--[\s\S]*?-->\s*$/;
 const sansMarqueurs = (corps: string) =>
   corps
     .split("\n")
-    .filter((ligne) => !MARQUEUR.test(ligne))
+    .filter((line) => !MARQUEUR.test(line))
     .join("\n")
     .replace(/^(?:[ \t]*\r?\n)+/, "")
     .trimEnd();
 
 // La dernière question du manager parmi ces commentaires, dans l'ordre de l'issue, et ce qui a
 // été écrit après elle. Aucune : il n'en pose pas sur cette issue.
-export function questionDe(commentaires: readonly Commentaire[]): Question | undefined {
+export function questionDe(commentaires: readonly Comment[]): Question | undefined {
   const rang = commentaires.findLastIndex(({ corps, association }) => DE_CONFIANCE.includes(association) && corps.includes(MARQUEUR_MANAGER) && corps.includes(MARQUEUR_QUESTION));
   const posee = commentaires[rang];
   if (posee === undefined) return undefined;
@@ -79,7 +79,7 @@ export function questionDe(commentaires: readonly Commentaire[]): Question | und
     a: posee.a,
     texte,
     resume: resumeDe(texte),
-    choix: choixDe(texte),
+    choix: choiceDe(texte),
     depuis,
     ...(repondue === undefined ? {} : { repondue }),
   };
@@ -88,10 +88,10 @@ export function questionDe(commentaires: readonly Commentaire[]): Question | und
 // Ce que `gh` a rendu, brut.
 type Rendu = { erreur: ExecFileException | null; sortie: string; erreurs: string };
 // `gh` lancé une fois. Sans terminal, il ne demande rien : `GH_PROMPT_DISABLED`.
-export function lancer(reglages: Reglages, args: string[], entree?: string): Promise<Rendu> {
+export function lancer(settings: Settings, args: string[], entree?: string): Promise<Rendu> {
   return new Promise((resoudre) => {
-    const enfant = execFile(reglages.gh, args, { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) =>
-      resoudre({ erreur, sortie, erreurs }),
+    const enfant = execFile(settings.gh, args, { windowsHide: true, timeout: settings.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (error, sortie, erreurs) =>
+      resoudre({ erreur: error, sortie, erreurs }),
     );
     // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
     enfant.stdin?.on("error", () => {});
@@ -100,16 +100,16 @@ export function lancer(reglages: Reglages, args: string[], entree?: string): Pro
 }
 
 // Ce qu'un `gh` en échec a dit, et la ligne lancée.
-export function echec(reglages: Reglages, args: string[], { erreur, sortie, erreurs }: Rendu & { erreur: ExecFileException }): string {
-  const lance = `$ ${reglages.gh} ${args.join(" ")}`;
-  if (erreur.code === "ENOENT") return `${lance} — \`${reglages.gh}\` is not on this computer: the app reads and answers the issue with your own \`gh\``;
-  const suite = erreur.killed === true ? `no answer within ${nombre(reglages.delaiMs / 1000)} s: gh stopped` : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
+export function failure(settings: Settings, args: string[], { erreur: error, sortie, erreurs }: Rendu & { erreur: ExecFileException }): string {
+  const lance = `$ ${settings.gh} ${args.join(" ")}`;
+  if (error.code === "ENOENT") return `${lance} — \`${settings.gh}\` is not on this computer: the app reads and answers the issue with your own \`gh\``;
+  const suite = error.killed === true ? `no answer within ${nombre(settings.delaiMs / 1000)} s: gh stopped` : typeof error.code === "number" ? `exit code ${error.code}` : error.message;
   const dit = `${erreurs}${sortie}`.trim();
   return `${lance}${dit === "" ? "" : `\n${dit}`}\n→ ${suite}`;
 }
 
 // Les commentaires de l'issue, tels que `gh` les rend — ou en quoi sa sortie n'en a pas la forme.
-function commentairesDe(sortie: string): Commentaire[] | string {
+function commentairesDe(sortie: string): Comment[] | string {
   let lu: unknown;
   try {
     lu = JSON.parse(sortie);
@@ -118,35 +118,35 @@ function commentairesDe(sortie: string): Commentaire[] | string {
   }
   const commentaires = (lu as { comments?: unknown } | null)?.comments;
   if (!Array.isArray(commentaires)) return "its output has no `comments` list";
-  const pris: Commentaire[] = [];
+  const taken: Comment[] = [];
   for (const brut of commentaires as unknown[]) {
     const { author, authorAssociation, createdAt, url, body } = (brut ?? {}) as Record<string, unknown>;
     const auteur = (author as { login?: unknown } | null)?.login;
     if (typeof body !== "string" || typeof createdAt !== "string" || typeof url !== "string") return "a comment lacks its `body`, `createdAt` or `url`";
-    pris.push({ auteur: typeof auteur === "string" ? auteur : "ghost", association: typeof authorAssociation === "string" ? authorAssociation : "NONE", a: createdAt, url, corps: body });
+    taken.push({ auteur: typeof auteur === "string" ? auteur : "ghost", association: typeof authorAssociation === "string" ? authorAssociation : "NONE", a: createdAt, url, corps: body });
   }
-  return pris;
+  return taken;
 }
 
 // L'issue à cette adresse, lue par `gh` : la question du manager qu'elle porte, s'il y en a une.
-export async function lireQuestion(reglages: Reglages, adresse: string, maintenant = () => new Date()): Promise<Lue> {
+export async function lireQuestion(settings: Settings, adresse: string, maintenant = () => new Date()): Promise<Lue> {
   const args = ["issue", "view", adresse, "--json", "comments"];
-  const rendu = await lancer(reglages, args);
+  const rendu = await lancer(settings, args);
   const a = maintenant().toISOString();
-  const { erreur } = rendu;
-  if (erreur !== null) return { a, sans: echec(reglages, args, { ...rendu, erreur }) };
+  const { erreur: error } = rendu;
+  if (error !== null) return { a, sans: failure(settings, args, { ...rendu, erreur: error }) };
   const commentaires = commentairesDe(rendu.sortie);
-  if (typeof commentaires === "string") return { a, sans: `$ ${reglages.gh} ${args.join(" ")} — ${commentaires}` };
+  if (typeof commentaires === "string") return { a, sans: `$ ${settings.gh} ${args.join(" ")} — ${commentaires}` };
   const question = questionDe(commentaires);
   return question === undefined ? { a, aucune: true } : { a, question };
 }
 
 // Ce que le chef répond, lu tel que la vue l'envoie — ou pourquoi rien ne part.
-function reponseDe(reponse: unknown): Reponse | { refus: string } {
-  const { question, choix, texte, vu } = (reponse ?? {}) as Record<string, unknown>;
+function answerDe(answer: unknown): Answer | { refus: string } {
+  const { question, choix: choice, texte, vu } = (answer ?? {}) as Record<string, unknown>;
   if (typeof question !== "string" || question === "") return { refus: "nothing was posted: the view did not say which question it answers" };
   const deja = typeof vu === "string" && vu !== "" ? { vu } : {};
-  if (typeof choix === "string" && choix !== "") return { question, ...deja, choix };
+  if (typeof choice === "string" && choice !== "") return { question, ...deja, choix: choice };
   if (typeof texte === "string") return texte.trim() === "" ? { refus: "nothing was posted: the answer is empty — choose, or write a sentence" } : { question, ...deja, texte: texte.trim() };
   return { refus: "nothing was posted: the view sent neither a choice nor a sentence" };
 }
@@ -161,27 +161,27 @@ function nouveauxDe(question: Question, vu: string | undefined): Ecrit[] {
 // Répond à la question de l'issue à cette adresse : relue d'abord — ce qui part répond à la
 // question que le chef a lue, et à elle seule, telle qu'il l'a lue : rien n'a été écrit dessous
 // depuis (#503) —, puis le commentaire, par `gh issue comment`.
-export async function repondre(reglages: Reglages, adresse: string, envoyee: unknown): Promise<Rendue> {
-  const reponse = reponseDe(envoyee);
-  if ("refus" in reponse) return { poste: false, refus: reponse.refus };
-  const lue = await lireQuestion(reglages, adresse);
+export async function repondre(settings: Settings, adresse: string, envoyee: unknown): Promise<Rendue> {
+  const answer = answerDe(envoyee);
+  if ("refus" in answer) return { poste: false, refus: answer.refus };
+  const lue = await lireQuestion(settings, adresse);
   if ("sans" in lue) return { poste: false, refus: `nothing was posted: the issue was not read again before writing — ${lue.sans}`, lue };
-  if (!("question" in lue) || lue.question.url !== reponse.question) return { poste: false, refus: "nothing was posted: the question on the issue is no longer the one you read — here it is as it stands", lue };
+  if (!("question" in lue) || lue.question.url !== answer.question) return { poste: false, refus: "nothing was posted: the question on the issue is no longer the one you read — here it is as it stands", lue };
   // Répondue ailleurs pendant que le chef lisait — sur GitHub, par le second — : il le lit avant que rien ne parte.
-  const nouveaux = nouveauxDe(lue.question, reponse.vu);
+  const nouveaux = nouveauxDe(lue.question, answer.vu);
   const repondue = lue.question.repondue;
   if (repondue !== undefined && nouveaux.includes(repondue)) return { poste: false, refus: `nothing was posted: ${repondue.auteur} answered the question on the issue since you read it — here is what was written; post yours only if it adds something`, lue };
   if (nouveaux.length > 0) return { poste: false, refus: "nothing was posted: something was written under the question on the issue since you read it — here it is; post again if your answer still stands", lue };
   let corps: string;
-  if ("choix" in reponse) {
-    const choisi = lue.question.choix.find(({ lettre }) => lettre === reponse.choix);
-    if (choisi === undefined) return { poste: false, refus: `nothing was posted: the question offers no choice “${reponse.choix}”`, lue };
-    corps = corpsDuChoix(choisi);
-  } else corps = reponse.texte;
+  if ("choix" in answer) {
+    const choisi = lue.question.choix.find(({ lettre }) => lettre === answer.choix);
+    if (choisi === undefined) return { poste: false, refus: `nothing was posted: the question offers no choice “${answer.choix}”`, lue };
+    corps = corpsDuChoice(choisi);
+  } else corps = answer.texte;
   const args = ["issue", "comment", adresse, "--body-file", "-"];
-  const rendu = await lancer(reglages, args, corps);
-  const { erreur } = rendu;
-  if (erreur !== null) return { poste: false, refus: `nothing was posted — ${echec(reglages, args, { ...rendu, erreur })}` };
+  const rendu = await lancer(settings, args, corps);
+  const { erreur: error } = rendu;
+  if (error !== null) return { poste: false, refus: `nothing was posted — ${failure(settings, args, { ...rendu, erreur: error })}` };
   const dite = rendu.sortie.trim().split("\n").at(-1) ?? "";
   return { poste: true, corps, ...(URL.parse(dite)?.protocol === "https:" ? { adresse: dite } : {}) };
 }
@@ -189,30 +189,30 @@ export async function repondre(reglages: Reglages, adresse: string, envoyee: unk
 // Le titre d'une issue, lu par le `gh` du poste : ce que la box ne donne pas pour un ticket qui
 // n'est pas sur son rail, et que le chef ne devrait pas avoir à aller chercher sur GitHub.
 export type Titre = { titre: string } | { sans: string };
-export async function titreDe(reglages: Reglages, adresse: string): Promise<Titre> {
+export async function titreDe(settings: Settings, adresse: string): Promise<Titre> {
   const args = ["issue", "view", adresse, "--json", "title"];
-  const rendu = await lancer(reglages, args);
-  const { erreur } = rendu;
-  if (erreur !== null) return { sans: echec(reglages, args, { ...rendu, erreur }) };
+  const rendu = await lancer(settings, args);
+  const { erreur: error } = rendu;
+  if (error !== null) return { sans: failure(settings, args, { ...rendu, erreur: error }) };
   let titre: unknown;
   try {
     titre = (JSON.parse(rendu.sortie) as { title?: unknown } | null)?.title;
   } catch {
-    return { sans: `$ ${reglages.gh} ${args.join(" ")} — its output is not JSON` };
+    return { sans: `$ ${settings.gh} ${args.join(" ")} — its output is not JSON` };
   }
-  return typeof titre === "string" && titre.trim() !== "" ? { titre: titre.trim() } : { sans: `$ ${reglages.gh} ${args.join(" ")} — its output has no \`title\`` };
+  return typeof titre === "string" && titre.trim() !== "" ? { titre: titre.trim() } : { sans: `$ ${settings.gh} ${args.join(" ")} — its output has no \`title\`` };
 }
 
 // La question en une ou deux lignes, prise dans les mots du manager : la première ligne qui pose
 // une question (`?`), sinon les deux premières lignes écrites — chacune rognée, jamais reformulée.
-const LIGNE_MAX = 160;
-const rogner = (ligne: string) => (ligne.length > LIGNE_MAX ? `${ligne.slice(0, LIGNE_MAX - 1).trimEnd()}…` : ligne);
+const LINE_MAX = 160;
+const rogner = (line: string) => (line.length > LINE_MAX ? `${line.slice(0, LINE_MAX - 1).trimEnd()}…` : line);
 export function resumeDe(texte: string): string {
-  const lignes = texte
+  const lines = texte
     .split("\n")
-    .map((ligne) => ligne.replace(/^[ \t]*(?:#+|>|[-*+])?[ \t]*/, "").replace(/\*\*|__/g, "").trim())
-    .filter((ligne) => ligne !== "" && !/^_.*_$/.test(ligne));
-  const posee = lignes.find((ligne) => ligne.includes("?"));
-  return (posee === undefined ? lignes.slice(0, 2) : [posee]).map(rogner).join("\n");
+    .map((line) => line.replace(/^[ \t]*(?:#+|>|[-*+])?[ \t]*/, "").replace(/\*\*|__/g, "").trim())
+    .filter((line) => line !== "" && !/^_.*_$/.test(line));
+  const posee = lines.find((line) => line.includes("?"));
+  return (posee === undefined ? lines.slice(0, 2) : [posee]).map(rogner).join("\n");
 }
 

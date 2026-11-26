@@ -5,41 +5,41 @@
 // La vue est jouée telle qu'elle est, devant un faux document et un faux écran (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Faits as FaitsDuRuntime } from "../../runtime/src/etat.ts";
+import type { Faits as FactsDuRuntime } from "../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
-import { pourLaBarre } from "../src/barre.ts";
+import { pourLaBar } from "../src/bar.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
+import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
+import { BANNIERE, holdFacts, type Dessinable, type Facts } from "../src/facts.ts";
+import { CONFIRMES, DIRECTS } from "../src/actions.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../src/projets/projets.ts";
+import { calibrationRecommande, EFFORTS, MODELES, type VuDesProjects } from "../src/projects/projects.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { AU_REPOS } from "../src/vue/stations-tab/stations-tab.js";
-import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
+import { FauxScreen, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
-const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade" }];
+const PROJECTS = [{ nom: PARADE, dossier: "/tmp/parade" }];
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
+  configuration: pourLaBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: KITCHEN_ACTIONS, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
 
-type DuRuntime = FaitsDuRuntime["stations"][number];
+type DuRuntime = FactsDuRuntime["stations"][number];
 // Une station telle que le runtime la rend dans `facts` (runtime/src/etat.ts, #1183) : avec son plafond, ses tickets
 // ordinaires et son bac à sable — ce qui se règle, et qu'un écran étroit ne montre pas.
-const station = (nom: string, plus: Partial<DuRuntime> = {}): DuRuntime => ({
-  station: nom,
+const station = (name: string, plus: Partial<DuRuntime> = {}): DuRuntime => ({
+  station: name,
   distante: false,
   plafond: 2,
   ordinaires: true,
@@ -54,22 +54,22 @@ const station = (nom: string, plus: Partial<DuRuntime> = {}): DuRuntime => ({
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
 const COOK_15 = { ticket: 15, titre: "La carte des desserts", station: "mac/claude" };
 // #14 cuit sur la box ; le Mac, distant, est arrêté par le chef et #15 y finit ; l'atelier refuse le projet.
-const REFUS = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
+const REFUSAL = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
 const ACCES = { bloque: "fetch" as const, raison: "parade-box cannot fetch from benomite/parade: github.com asks for a username (git: fatal: could not read Username).", geste: "Run `gh auth setup-git` on parade-box." };
-const projetsDesStations = (): VuDesProjets => ({
+const projectsDesStations = (): VuDesProjects => ({
   a: A,
   projets: [{ nom: PARADE, depot: "benomite/parade", base: "main", suiviPar: { id: "g1", nom: "parade-box" }, stations: [{ id: "g1", nom: "parade-box", etat: "servi", dit: "", autoriser: [] }], servi: null, acces: ACCES, refus: null, worktree: null }],
   recommandee: "g1",
   avertissements: {},
   machines: {},
-  calibrage: calibrageRecommande([]),
+  calibrage: calibrationRecommande([]),
 });
 const STATIONS: DuRuntime[] = [
   station("box/claude", { cooks: [COOK_14] }),
   station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: "2026-10-20T10:01:11.000Z", cooks: [COOK_15] }),
-  station("atelier/claude", { cuisson: "refused", refus: REFUS }),
+  station("atelier/claude", { cuisson: "refused", refus: REFUSAL }),
 ];
-const FAITS: Faits = {
+const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-20T10:04:11.000Z",
   dernierTick: "2026-10-20T10:04:02.000Z",
@@ -86,26 +86,26 @@ const FAITS: Faits = {
 };
 
 function dessinable(stations: DuRuntime[]): Dessinable {
-  const faits = { ...FAITS, stations };
-  return tenirFaits(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
+  const facts = { ...FACTS, stations };
+  return holdFacts(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
 }
 
 // L'espace de parade, ses faits lus, sur un écran étroit ou large.
 async function ouvrir({ etroit = true, stockage }: { etroit?: boolean; stockage?: FauxStockage } = {}) {
-  const ecran = new FauxEcran(etroit);
+  const screen = new FauxScreen(etroit);
   const vue = await jouerLaVue(
     {
       demarrage,
       espace: () => [SECOND],
       machines: () => [{ id: "poste", titre: "this computer" }],
     },
-    { stockage, ecran },
+    { stockage, ecran: screen },
   );
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
   vue.dire("surFaits", { ...dessinable(STATIONS), demande: vue.dernier("faits")[0] as number });
   await repos();
-  return { vue, ecran };
+  return { vue, ecran: screen };
 }
 
 const onglets = (vue: Jouee) => vue.element("onglets-du-projet").children;
@@ -119,20 +119,20 @@ async function taper(vue: Jouee, titre: string): Promise<void> {
 // Ce qui est à l'écran du projet : le centre, ou le second — jamais les deux sur un écran étroit.
 const vu = (vue: Jouee) => ({ centre: !vue.element("centre").hidden, second: !vue.element("second").hidden });
 // Les cartes des stations de l'onglet Stations (#3195) : son état, ce qu'elle tient.
-const lignes = (vue: Jouee) => vue.element("rail").dessous("section").filter((carte) => carte.className === "carte-de-station");
-const ligne = (vue: Jouee, nom: string) => lignes(vue).find((carte) => carte.dataset.station === nom) ?? assert.fail(`pas de carte pour ${nom}`);
-const etatDe = (pose: Faux) => pose.dessous("span").find((span) => span.className === "pilule etat")?.textContent;
+const lines = (vue: Jouee) => vue.element("rail").dessous("section").filter((card) => card.className === "carte-de-station");
+const line = (vue: Jouee, name: string) => lines(vue).find((card) => card.dataset.station === name) ?? assert.fail(`pas de carte pour ${name}`);
+const stateDe = (pose: Faux) => pose.dessous("span").find((span) => span.className === "pilule etat")?.textContent;
 const cooksDe = (pose: Faux) => (pose.dessous("ul")[0]?.children ?? pose.dessous("p").filter(({ className }) => className === "au-repos")).map((li) => li.textContent);
 // Les gestes posés sous un élément : ses boutons, sauf l'icône d'aide qui porte un survol.
-const gestes = (pose: Faux) => pose.dessous("button").filter((bouton) => bouton.className !== "aide");
+const actions = (pose: Faux) => pose.dessous("button").filter((button) => button.className !== "aide");
 // Un élément de la vue, par son `id`, posé dans l'onglet montré.
 const dansLeRail = (vue: Jouee, id: string) => [...vue.element("rail").descendants()].some((pose) => pose.id === id);
 const colonnes = (vue: Jouee) => vue.element("rail").dessous("section").filter((pose) => pose.className === "colonne").map((colonne) => colonne.children[0]?.children[0]?.textContent);
 
 describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("Rail, Stations et Second, et chacun se montre d'un tap : le second à la place du centre, jamais à côté", async () => {
-    const { vue, ecran } = await ouvrir();
-    assert.ok(ecran.requetes.length > 0, "la vue demande la largeur de l'écran");
+    const { vue, ecran: screen } = await ouvrir();
+    assert.ok(screen.requetes.length > 0, "la vue demande la largeur de l'écran");
     assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
@@ -179,7 +179,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
     assert.deepEqual(terminal?.ecrits, ["> une conversation en cours\r\n", "suite\r\n"]);
     assert.equal(cadre?.hidden, false);
     // L'espace n'est pas rouvert pour autant.
-    assert.equal(vue.appels.filter(({ geste }) => geste === "espace").length, 1);
+    assert.equal(vue.appels.filter(({ geste: action }) => action === "espace").length, 1);
   });
 
   test("une page ouverte par-dessus — Settings — couvre la conversation comme elle couvre Rail, et la referme rend la conversation", async () => {
@@ -211,11 +211,11 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("Rail y est celui d'un écran large : ses colonnes, et la ligne qui ouvre Stations", async () => {
     const { vue } = await ouvrir();
     assert.deepEqual(colonnes(vue), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
-    vue.dire("surProjetsDesStations", projetsDesStations());
+    vue.dire("surProjetsDesStations", projectsDesStations());
     await repos();
-    const alerte = vue.element("rail").dessous("p").find((p) => p.className === "alerte-de-cuisine") ?? assert.fail("pas de ligne d'alerte");
-    assert.match(alerte.textContent, /parade-box cannot fetch from benomite\/parade/);
-    (alerte.dessous("button")[0] ?? assert.fail("pas de lien")).click();
+    const alert = vue.element("rail").dessous("p").find((p) => p.className === "alerte-de-cuisine") ?? assert.fail("pas de ligne d'alerte");
+    assert.match(alert.textContent, /parade-box cannot fetch from benomite\/parade/);
+    (alert.dessous("button")[0] ?? assert.fail("pas de lien")).click();
     await repos();
     assert.deepEqual(montre(vue), ["Stations"]);
   });
@@ -225,14 +225,14 @@ describe("l'onglet Stations d'un écran étroit, en lecture seule", () => {
   test("chaque station a sa carte, son état et ses cooks, et aucun geste", async () => {
     const { vue } = await ouvrir();
     await taper(vue, "Stations");
-    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["online", "stopped by you, for 3 min · 1 cook finishing", "refusing itThis computer cannot run the project's cooks in Claude Code's sandbox."]);
-    assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
-    assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
-    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [AU_REPOS]);
+    assert.deepEqual(lines(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
+    assert.deepEqual(lines(vue).map(stateDe), ["online", "stopped by you, for 3 min · 1 cook finishing", "refusing itThis computer cannot run the project's cooks in Claude Code's sandbox."]);
+    assert.deepEqual(cooksDe(line(vue, "box/claude")), ["#14Le journal en ajout seul"]);
+    assert.deepEqual(cooksDe(line(vue, "mac/claude")), ["#15La carte des desserts"]);
+    assert.deepEqual(cooksDe(line(vue, "atelier/claude")), [AU_REPOS]);
     // Rien ne se clique sur une carte de station, et « Details » n'y est pas.
-    assert.deepEqual(lignes(vue).map((li) => gestes(li).length), [0, 0, 0]);
-    assert.deepEqual(lignes(vue).flatMap((li) => li.dessous("details")), []);
+    assert.deepEqual(lines(vue).map((li) => actions(li).length), [0, 0, 0]);
+    assert.deepEqual(lines(vue).flatMap((li) => li.dessous("details")), []);
     // Ni la carte du projet, ni Taken et Pass — leurs fiches ont leurs gestes —, ni les serveurs de livraison.
     assert.deepEqual(colonnes(vue), []);
     assert.equal(dansLeRail(vue, "carte"), false);
@@ -249,7 +249,7 @@ describe("l'onglet Stations d'un écran étroit, en lecture seule", () => {
     assert.equal(dansLeRail(vue, "gestes-cuisine"), false);
     await repos();
     const texte = vue.element("rail").textContent;
-    for (const reglage of [/cap/i, /at most/, /quota/, /move the kitchen/, /Set the cooks/, /ordinary/i]) assert.doesNotMatch(texte, reglage);
+    for (const setting of [/cap/i, /at most/, /quota/, /move the kitchen/, /Set the cooks/, /ordinary/i]) assert.doesNotMatch(texte, setting);
   });
 });
 
@@ -264,17 +264,17 @@ describe("sur un écran large, rien ne change", () => {
     // La carte du projet est fondue dans le bloc de ses stations (#1456) ; l'onglet est un seul composant (#3195).
     assert.equal(dansLeRail(vue, "carte"), false);
     assert.ok(vue.element("rail").children.some(({ dataset }) => dataset.bloc === "stations-tab"));
-    assert.deepEqual(lignes(vue).flatMap((li) => gestes(li)).filter((bouton) => /^(stop|start) cooking$/.test(bouton.textContent)), []);
+    assert.deepEqual(lines(vue).flatMap((li) => actions(li)).filter((button) => /^(stop|start) cooking$/.test(button.textContent)), []);
   });
 
   test("la fenêtre qui se rétrécit passe à trois onglets, et qui s'élargit revient à deux, le second à droite", async () => {
-    const { vue, ecran } = await ouvrir({ etroit: false });
-    ecran.changer(true);
+    const { vue, ecran: screen } = await ouvrir({ etroit: false });
+    screen.changer(true);
     await repos();
     assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
     await taper(vue, "Second");
-    ecran.changer(false);
+    screen.changer(false);
     await repos();
     assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(montre(vue), ["Rail"]);

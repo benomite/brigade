@@ -6,20 +6,20 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { Faux } from "../aides/fausse-vue.ts";
 // @ts-ignore — the screen does not exist yet
-import { ouvrirFicheProjet } from "../../src/vue/fiche-projet/fiche-projet.js";
+import { ouvrirCardProject } from "../../src/vue/card-project/card-project.js";
 
 // Contract used by the four acceptance tests of #4240: `ouvrirFicheProjet(doc, { lire, ecrire })` resolves to the root element of
 // the screen. `lire(path)` and `ecrire(path, text)` read and write a file of the project, the path relative to its folder. Each of
 // the eight items is a field with `dataset.item` = its key and a `value` (or text); the save button has `dataset.geste = "enregistrer"`.
-const FICHE = ".brigade/fiche-projet.json";
+const CARD = ".brigade/fiche-projet.json";
 const CLES = ["work", "stages", "tools", "rules", "risks", "served", "recurring", "humans"];
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
-function projet(fiche?: unknown) {
+function project(card?: unknown) {
   const dossier = mkdtempSync(join(tmpdir(), "fiche-projet-4240-"));
-  if (fiche !== undefined) {
+  if (card !== undefined) {
     mkdirSync(join(dossier, ".brigade"), { recursive: true });
-    writeFileSync(join(dossier, FICHE), JSON.stringify(fiche));
+    writeFileSync(join(dossier, CARD), JSON.stringify(card));
   }
   const ecritures: string[] = [];
   const lire = (chemin: string) => readFile(join(dossier, chemin), "utf8");
@@ -28,7 +28,7 @@ function projet(fiche?: unknown) {
     mkdirSync(dirname(join(dossier, chemin)), { recursive: true });
     await writeFile(join(dossier, chemin), texte);
   };
-  return { dossier, ecritures, ouvrir: () => ouvrirFicheProjet(doc, { lire, ecrire }) as Promise<Faux>, nettoyer: () => rmSync(dossier, { recursive: true, force: true }) };
+  return { dossier, ecritures, ouvrir: () => ouvrirCardProject(doc, { lire, ecrire }) as Promise<Faux>, nettoyer: () => rmSync(dossier, { recursive: true, force: true }) };
 }
 
 // All the text a screen shows: text of every element and value of every field.
@@ -36,11 +36,11 @@ function dit(element: Faux): string {
   return [element.textContent, element.value, ...element.children.map(dit)].join("\n");
 }
 const trouver = (element: Faux, accepte: (e: Faux) => boolean): Faux | undefined => (accepte(element) ? element : element.children.map((e) => trouver(e, accepte)).find((e) => e !== undefined));
-const champ = (ecran: Faux, cle: string) => trouver(ecran, (e) => e.dataset.item === cle);
-const enregistrer = (ecran: Faux) => trouver(ecran, (e) => e.dataset.geste === "enregistrer");
+const champ = (screen: Faux, cle: string) => trouver(screen, (e) => e.dataset.item === cle);
+const enregistrer = (screen: Faux) => trouver(screen, (e) => e.dataset.geste === "enregistrer");
 const repos = () => new Promise<void>((fait) => setImmediate(fait));
 
-const FICHE_PLEINE = {
+const CARD_PLEINE = {
   work: "an episode",
   stages: ["script", "storyboard", "voice", "render"],
   tools: ["the Labo Pop engine"],
@@ -52,18 +52,18 @@ const FICHE_PLEINE = {
 };
 
 test("edit one item and save: the file holds the new value, and the screen shows it after a reload", async () => {
-  const p = projet(FICHE_PLEINE);
+  const p = project(CARD_PLEINE);
   try {
-    const ecran = await p.ouvrir();
-    champ(ecran, "work")!.value = "a podcast";
-    enregistrer(ecran)!.click();
+    const screen = await p.ouvrir();
+    champ(screen, "work")!.value = "a podcast";
+    enregistrer(screen)!.click();
     // The save is disabled while the file is written: wait for it to come back rather than a fixed number of turns,
     // which a loaded CI runner can outlast (#4309 send-back).
-    for (let tours = 0; enregistrer(ecran)!.disabled && tours < 1000; tours++) await repos();
-    assert.equal(enregistrer(ecran)!.disabled, false, "the save ends");
-    const fichier = JSON.parse(readFileSync(join(p.dossier, FICHE), "utf8"));
+    for (let turns = 0; enregistrer(screen)!.disabled && turns < 1000; turns++) await repos();
+    assert.equal(enregistrer(screen)!.disabled, false, "the save ends");
+    const fichier = JSON.parse(readFileSync(join(p.dossier, CARD), "utf8"));
     assert.equal(fichier.work, "a podcast");
-    assert.equal(fichier.served, FICHE_PLEINE.served);
+    assert.equal(fichier.served, CARD_PLEINE.served);
     assert.deepEqual(Object.keys(fichier).sort(), [...CLES].sort());
     const rouvert = await p.ouvrir();
     assert.ok(dit(rouvert).includes("a podcast"));

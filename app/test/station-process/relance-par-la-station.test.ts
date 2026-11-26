@@ -6,9 +6,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { LIGNE_DE_RELANCE as LIGNE_DU_RUNTIME, ligneDeRelance } from "../../../runtime/src/station-update/mettre-a-jour.ts";
-import { PRINCIPAL } from "../../src/poste/role.ts";
-import { environnementDeLaStation, LIGNE_DE_RELANCE, principalDe, tenirProcessDeStation, type Issue } from "../../src/station-process/superviseur.ts";
+import { LIGNE_DE_RELANCE as LINE_DU_RUNTIME, ligneDeRelance } from "../../../runtime/src/station-update/mettre-a-jour.ts";
+import { PRINCIPAL } from "../../src/workstation/role.ts";
+import { environnementDeLaStation, LINE_DE_RELANCE, principalDe, holdProcessDeStation, type Issue } from "../../src/station-process/supervisor.ts";
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
 
@@ -16,7 +16,7 @@ const RELEASE = "0.20261104.120000+gabcdef0";
 
 // Une station d'essai : elle dit sa version dans `en-service`, ses deux variables, et — si on le lui demande —
 // la ligne de relance de la vraie.
-const station = (ligne: string | null) => `import { readFileSync, renameSync, writeFileSync } from "node:fs";
+const station = (line: string | null) => `import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 const racine = process.env.BRIGADE_STATION_DIR;
 const { version } = JSON.parse(readFileSync(join(import.meta.dirname, "../../package.json"), "utf8"));
@@ -24,7 +24,7 @@ const fichier = join(racine, "en-service");
 writeFileSync(fichier + "." + process.pid, JSON.stringify({ version, pid: process.pid, depuis: new Date().toISOString(), servis: [], refuses: {} }));
 renameSync(fichier + "." + process.pid, fichier);
 console.log("variables " + version + " : " + process.env.BRIGADE_MISE_A_JOUR_SOURCE + " " + process.env.BRIGADE_STATION_RELANCE);
-${ligne === null ? "" : `console.log(${JSON.stringify(ligne)});`}
+${line === null ? "" : `console.log(${JSON.stringify(line)});`}
 const veille = setInterval(() => {}, 60_000);
 process.on("SIGTERM", () => { clearInterval(veille); process.exit(0); });
 `;
@@ -44,17 +44,17 @@ function unOrdinateur(t: TestContext) {
   return { racine, versions, dossierDuRuntime, embarque, paquet: join(machine, "paquet", "runtime") };
 }
 
-function tenir(t: TestContext, ordi: ReturnType<typeof unOrdinateur>, env: Record<string, string | undefined>) {
-  const lignes: string[] = [];
+function hold(t: TestContext, ordi: ReturnType<typeof unOrdinateur>, env: Record<string, string | undefined>) {
+  const lines: string[] = [];
   const issues: Issue[] = [];
-  const tenue = tenirProcessDeStation({
+  const tenue = holdProcessDeStation({
     node: process.execPath,
     embarque: ordi.embarque,
     versions: ordi.versions,
     dossierDuRuntime: ordi.dossierDuRuntime,
     racine: ordi.racine,
     env: environnementDeLaStation({ PATH: process.env.PATH, ...CACHE_DE_COMPILATION, ...env }),
-    dire: (ligne) => void lignes.push(ligne),
+    dire: (line) => void lines.push(line),
     appairer: () => assert.fail("une station d'essai n'affiche aucun code"),
     pasMs: 20,
     veilleMs: 20,
@@ -62,11 +62,11 @@ function tenir(t: TestContext, ordi: ReturnType<typeof unOrdinateur>, env: Recor
     surIssue: (issue) => void issues.push(issue),
   });
   t.after(() => tenue.arreter());
-  return { tenue, issues, dit: () => lignes.join("\n") };
+  return { tenue, issues, dit: () => lines.join("\n") };
 }
 
 test("l'app et le runtime s'accordent sur la ligne de relance", () => {
-  assert.equal(LIGNE_DE_RELANCE.source, LIGNE_DU_RUNTIME.source);
+  assert.equal(LINE_DE_RELANCE.source, LINE_DU_RUNTIME.source);
 });
 
 test("l'app donne à la station sa source de mise à jour et la relance par l'app — une source déjà dite est gardée, la relance ne se change pas", () => {
@@ -81,7 +81,7 @@ test("la station écrit sa demande de relance : l'app ne relance que son process
   // La fausse release, telle que la mise à jour de la station la pose.
   poser(ordi.dossierDuRuntime(RELEASE), RELEASE, station(null));
 
-  const { tenue, issues, dit } = tenir(t, ordi, {});
+  const { tenue, issues, dit } = hold(t, ordi, {});
   await jusqua(() => issues.length > 0);
 
   assert.equal(issues[0]?.quoi, "passee");
@@ -98,7 +98,7 @@ test("la station écrit sa demande de relance : l'app ne relance que son process
 test("un point d'entrée que l'app ne tient pas n'est pas lancé", { skip: SANS_POSIX }, async (t) => {
   const ordi = unOrdinateur(t);
   poser(ordi.paquet, "1.0.91", station(ligneDeRelance({ version: RELEASE, runtime: "/tmp", main: "/tmp/ailleurs/main.ts", from: "1.0.91", at: "2026-11-04T10:00:00.000Z" })));
-  const { tenue, issues, dit } = tenir(t, ordi, {});
+  const { tenue, issues, dit } = hold(t, ordi, {});
   await jusqua(() => dit().includes("from an entry point the app does not hold"));
   assert.equal(issues.length, 0);
   assert.equal(tenue.version(), "1.0.91");
