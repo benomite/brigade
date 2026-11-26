@@ -1,32 +1,65 @@
-// #4219, criterion 4: the chef answers on the card with each of the four routes; the issue ends in the state of that
-// answer, with no copy-paste into the second's tab.
+// #4219, criterion 4: the chef answers on the card with each of the four routes — on hold for the third party, split,
+// back to the kitchen, closed —; one click in the app, and the issue ends in the state of that answer, with no other
+// step and no copy-paste into the second's tab.
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { cartesEnTodo } from "../../src/carte-todo.ts";
-import { repondreALaCarte } from "../../src/reponse-carte.ts";
-import { chef, cuisine, issue } from "../aides/cuisine.ts";
+import { test, type TestContext } from "node:test";
+import { issue } from "../aides/cuisine.ts";
 import { jusqua } from "../outils.ts";
+import { decision } from "./aide.ts";
 
-const ROUTES = ["wait", "split", "resume", "close"] as const;
-
-for (const route of ROUTES) {
-  test(`the answer routed "${route}" leaves the issue in the state of that answer`, async (t) => {
-    const c = cuisine(t, { manager: { jugement: "juge-decision-tiers" }, issues: [issue(30, [])] });
-    chef(c.repertoire, "manager.enabled");
-    await jusqua(() => cartesEnTodo(c.journal.base).some((carte) => carte.ticket === 30), 10_000);
-
-    const carte = cartesEnTodo(c.journal.base).find((x) => x.ticket === 30);
-    const rang = (carte?.choix.findIndex((choix) => (choix.suite as string) === route) ?? -1) + 1;
-    assert.ok(rang > 0, `the card offers an answer routed "${route}"`);
-    const resultat = await repondreALaCarte(c.journal, c.gh.github, "brigade", 30, { choix: rang });
-    assert.equal(resultat.done, true);
-
-    const labels = c.gh.lire(30)?.labels ?? [];
-    assert.equal(cartesEnTodo(c.journal.base).some((x) => x.ticket === 30), false);
-    assert.ok(!labels.includes("decision"), "the `decision` label is gone");
-    if (route === "wait") assert.ok(labels.includes("waiting"), "on hold for the third party");
-    if (route === "split") assert.ok(labels.includes("epic") && !labels.includes("fire"), "split: an epic, not cooked itself");
-    if (route === "resume") assert.ok(!labels.includes("waiting") && c.gh.lire(30)?.state === "open", "back to the kitchen");
-    if (route === "close") assert.equal(c.gh.lire(30)?.state, "closed");
-  });
+async function avecLaCarte(t: TestContext, suite: string[]) {
+  const c = decision(t, { manager: { suite: ["juge-decision-routes", ...suite] }, issues: [issue(30, [])] });
+  await jusqua(() => c.aLaCarte(30));
+  const carte = await c.carte(30);
+  assert.deepEqual(
+    carte?.choix.map(({ texte, suite: geste }) => [texte, geste]),
+    [
+      ["Wait for AF, the client", "wait"],
+      ["Split it into tickets", "resume"],
+      ["Ship it as one ticket", "resume"],
+      ["Close it: out of scope", "close"],
+    ],
+  );
+  return c;
 }
+
+test("the answer routed on hold leaves the issue parked for the third party", async (t) => {
+  const c = await avecLaCarte(t, []);
+  const rendu = await c.repondre(30, "Wait for AF, the client");
+  assert.ok("repondue" in rendu, JSON.stringify(rendu));
+
+  assert.equal(await c.aLaCarte(30), false);
+  assert.deepEqual(c.labels(30), ["parked"]);
+  assert.ok(c.gh.commentaires.some(([n, corps]) => n === 30 && corps.startsWith("<!-- brigade:parked ") && corps.includes("AF, the client")), "the hold names who it waits for");
+});
+
+test("the answer routed split makes the issue an epic that the manager splits", async (t) => {
+  const c = await avecLaCarte(t, ["decoupe-tickets"]);
+  const rendu = await c.repondre(30, "Split it into tickets");
+  assert.ok("repondue" in rendu, JSON.stringify(rendu));
+
+  await jusqua(() => c.dits(30).some((dit) => /epic split into/.test(dit)));
+  assert.equal(await c.aLaCarte(30), false);
+  assert.ok(c.labels(30).includes("epic"));
+  assert.deepEqual(c.gh.creations, [501, 502, 503]);
+});
+
+test("the answer routed back to the kitchen gives the issue back to the manager, who puts it on the rail", async (t) => {
+  const c = await avecLaCarte(t, ["juge-ticket"]);
+  const rendu = await c.repondre(30, "Ship it as one ticket");
+  assert.ok("repondue" in rendu, JSON.stringify(rendu));
+
+  await jusqua(() => c.labels(30).includes("fire"));
+  assert.equal(await c.aLaCarte(30), false);
+  assert.ok(c.labels(30).some((l) => l.startsWith("model:")) && c.labels(30).some((l) => l.startsWith("effort:")), "calibrated");
+  assert.equal(c.gh.lire(30)?.state, "open");
+});
+
+test("the answer routed closed closes the issue", async (t) => {
+  const c = await avecLaCarte(t, []);
+  const rendu = await c.repondre(30, "Close it: out of scope");
+  assert.ok("repondue" in rendu, JSON.stringify(rendu));
+
+  assert.equal(c.gh.lire(30)?.state, "closed");
+  assert.equal(await c.aLaCarte(30), false);
+});

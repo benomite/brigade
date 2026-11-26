@@ -506,6 +506,13 @@ FIN
 {"nature":"decision","motif":"It waits for the client to say whether the respondent is recontacted after the beta.","manque":"The client's answer.","question":"Does AF want direct automatic recontact of the Respondent after the beta?","reponses":["Yes: recontact automatically","Close it: out of scope"],"recommandee":null,"pourquoi":null,"attend":"AF, the client"}
 FIN
       ;;
+    # Une décision dont la carte offre les quatre routes (#4219) : attendre le tiers, découper, rendre à la cuisine, fermer.
+    juge-decision-routes)
+      assistant
+      resultat <<'FIN'
+{"nature":"decision","motif":"It waits for the client to say how the respondent recontact ships.","manque":"The client's answer.","question":"How does the respondent recontact ship?","reponses":["Split it into tickets","Ship it as one ticket","Close it: out of scope"],"recommandee":null,"pourquoi":null,"attend":"AF, the client"}
+FIN
+      ;;
     # Le tri de l'issue d'un auteur sans l'écriture (#2934).
     trie-ticket)
       assistant

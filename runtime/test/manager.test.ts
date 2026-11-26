@@ -285,9 +285,10 @@ describe("le manager", { concurrency: 8 }, () => {
     const [dit = ""] = dits(30);
     // La question, puis un bouton par réponse dans ses mots — celle qui ferme l'issue la ferme —, puis la recommandée : la
     // forme que la carte TODO lit (app : tableau/mise-de-cote-github.ts, `carteDeLEcart`). Aucun « Back to the kitchen ».
+    // La recommandée en tête des boutons (#4219).
     assert.match(
       dit,
-      /\nDo you grant the deploy role write access to the backup bucket\?\n- \[resume\] Grant it, read-only elsewhere\n- \[resume\] Refuse: backups stay read-only\n- \[close\] Close it: out of scope\n\n\*\*Recommended:\*\* Refuse: backups stay read-only — The read-only rule is what the backups rest on\.\n/,
+      /\nDo you grant the deploy role write access to the backup bucket\?\n- \[resume\] Refuse: backups stay read-only\n- \[resume\] Grant it, read-only elsewhere\n- \[close\] Close it: out of scope\n\n\*\*Recommended:\*\* Refuse: backups stay read-only — The read-only rule is what the backups rest on\.\n/,
     );
     assert.doesNotMatch(dit, /Back to the kitchen|WAITING/);
     assert.deepEqual(charge(faits(30)[0])?.recommended, { answer: "Refuse: backups stay read-only", why: "The read-only rule is what the backups rest on." });

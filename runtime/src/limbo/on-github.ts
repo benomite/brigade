@@ -4,13 +4,11 @@
 import { DE_CONFIANCE, LABEL_PARKED } from "../attente-github/marque.ts";
 import { estParque } from "../github-etat/etats.ts";
 import { poserCarte, type GitHubDesCartes } from "../github-seul/carte-todo/carte-todo.ts";
+import { ligneDeReponse } from "../decision/reponses.ts";
 import { isCalibrated, reparerLesLimbes, type LimboTicket } from "./reparer.ts";
 
 // Ce que la réparation demande au client GitHub de la station.
 export type LimboTurnGitHub = GitHubDesCartes;
-
-// La ligne d'une réponse sur la carte, dans la forme que l'app lit (manager.ts, `lignesDeLaCarte`).
-const ligneDeReponse = (reponse: string) => `- [${/^close it\b/i.test(reponse) ? "close" : /^wait for\b/i.test(reponse) ? "wait" : "resume"}] ${reponse}`;
 
 /**
  * La réparation sur GitHub, pour les tickets du tour. Seuls ceux qui peuvent être en limbes — ouverts, sans calibrage,

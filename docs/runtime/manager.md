@@ -217,8 +217,11 @@ answer.
 the answers to it (`reponses`, two to four, in the question's own words), the one it recommends with why in
 one line (`recommandee`, `pourquoi`), and who the question waits on when it is not you (`attend`: the
 client, another team, a named person). The refusal comment writes, under the question, one
-`- [resume] <answer>` line per answer (`- [close]` for the one starting with `Close it`), then
-`**Recommended:** <answer> — <why>`. A recommendation that is not one of the answers word for word, or has no
+`- [resume] <answer>` line per answer (`- [close]` for the one starting with `Close it`), the recommended
+answer first (#4219), then `**Recommended:** <answer> — <why>`. An answer starting with `Split it` is a `resume`
+button too: answered, the manager does not judge the issue again, it sets `epic` and splits it (#4219,
+`runtime/src/decision/reponses.ts`). So each answer routes the issue with one click: on hold for the third party
+(`wait`), split, back to the kitchen (`resume`), or closed (`close`). A recommendation that is not one of the answers word for word, or has no
 why, is dropped: the card then recommends nothing, never a default. A question that waits on someone else
 says so instead of `Yours to settle` (`Not yours to answer: it waits on <who>`), and its first choice is
 `- [wait] Wait for <who>`, the one recommended: the app parks the issue for them. A card with no answer

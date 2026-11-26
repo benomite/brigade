@@ -181,8 +181,11 @@ base, the stale-branch pruning).
   open, has no calibration, no `chef-todo` card, no `decision` label and is not parked is read again: its latest
   manager judgment, from the repository, is the source of truth, whatever happened to its labels since. Judged a
   decision for the chef (`**Manager — not a workable ticket: a decision issue.**` or `a question`), and not answered
-  yet (`<!-- brigade:reponse`), its `product-question` card comes back with the judgment's question and answers. Judged
-  on hold, with `fire`, it is parked (`parked`, and the parking comment with the manager's reason). Each repair is said
+  yet (`<!-- brigade:reponse`), its `product-question` card comes back with the judgment's question and answers, the
+  recommended one first (#4219). Judged on hold, with `fire`, it is parked (`parked`, and the parking comment with the
+  manager's reason). Refused for another reason — an incomplete ticket, a stalled one: no stored decision —, with `fire`,
+  it is parked the same way, with the reason of the refusal (#4219); an epic is left to the manager, who splits it. This
+  runs in each project's station, so every project is repaired. Each repair is said
   in a comment marked `<!-- brigade:limbo -->`. A repaired ticket carries its card or its hold, so the next turn writes
   nothing (`runtime/src/limbo/reparer.ts`, `runtime/src/limbo/on-github.ts`).
 - **No step writes acceptance tests before the cook** (#4229, epic #4132). The cook writes its tests with its work, in the

@@ -44,6 +44,7 @@ import { ENTETE_REPONSE } from "./reponse-carte.ts";
 import { argumentsJuge, consigneDeJugement, empreinte, estAuChef, lireDecision, MARQUEUR_MANAGER, NATURES_AU_CHEF, type Decision } from "./juger.ts";
 import { CHEF_TODO, estParque, LABEL_PARKED } from "./github-etat/etats.ts";
 import { poserCarte } from "./github-seul/carte-todo/carte-todo.ts";
+import { ligneDeReponse, ordonnerLesReponses, reponseQuiDecoupe } from "./decision/reponses.ts";
 import { BOUTONS_DE_LA_CARTE } from "./blocages-sans-question.ts";
 import { decoupageDe, epiquesEnAttente, ticketDEpique } from "./projections/splits.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
@@ -431,7 +432,12 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
 
   // Le dernier jugement de l'issue, tel qu'au journal : la question qu'il pose au chef (#3429) — `undefined` pour un
   // jugement d'avant elle, qui n'en demandait aucune.
-  const dernierJugement = (numero: number) => journal.duTicket(numero).findLast((evenement) => evenement.type === "manager.judged")?.payload as Partial<Pick<Decision, "question" | "answers" | "recommended" | "awaits">> | undefined;
+  const dernierJugement = (numero: number) => journal.duTicket(numero).findLast((evenement) => evenement.type === "manager.judged")?.payload as Partial<Pick<Decision, "verdict" | "kind" | "question" | "answers" | "recommended" | "awaits">> | undefined;
+  // Le dernier jugement de l'issue est une décision posée au chef (#4219) : sa carte est la décision stockée.
+  const decisionAuChef = (numero: number): boolean => {
+    const jugement = dernierJugement(numero);
+    return jugement?.verdict === "refused" && estAuChef(jugement.kind ?? null);
+  };
   const questionDuVerdict = (numero: number): string | null => {
     const question = dernierJugement(numero)?.question;
     return typeof question === "string" && question !== "" ? question : null;
@@ -449,7 +455,8 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     const recommande = attendre !== null ? { answer: attendre, why: "the answer is theirs to give, not yours" } : (jugement?.recommended ?? null);
     return [
       ...(attendre === null ? [] : [`- [wait] ${attendre}`]),
-      ...answers.map((reponse) => `- [${/^close it\b/i.test(reponse) ? "close" : "resume"}] ${reponse}`),
+      // La recommandée d'abord (#4219) ; une réponse « Split it » est un bouton `resume`, que le manager route (decision/).
+      ...ordonnerLesReponses(answers, jugement?.recommended?.answer ?? null).map(ligneDeReponse),
       ...(recommande === null ? [] : ["", `**Recommended:** ${recommande.answer} — ${recommande.why}`]),
     ];
   };
@@ -983,6 +990,16 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         if (arrete || !managerAllume(base)) return "arret";
         if (!(await roadmap.traiter(issue, await commentaires(issue), ouvertesDuTour))) return "reste";
       }
+    } else if (tri.quoi === "juger" && decisionAuChef(issue.number) && reponseQuiDecoupe(await commentaires(issue)) !== null) {
+      // Le chef a répondu à la carte de sa décision par un découpage (#4219) : l'issue devient une épique, que le manager
+      // découpe, sans la rejuger.
+      try {
+        await github.labelliser(issue.number, [LABEL_EPIQUE]);
+      } catch (erreur) {
+        if (!arrete) avertir(`brigade : \`${LABEL_EPIQUE}\` non posé sur l'issue #${issue.number}, que le chef a fait découper — repris au tour suivant — ${message(erreur)}`);
+        return "reste";
+      }
+      epique = true;
     } else if (tri.quoi === "juger") {
       const corps = await commentaires(issue);
       const etat = empreinte(issue, corps);

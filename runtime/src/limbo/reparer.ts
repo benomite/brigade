@@ -4,6 +4,7 @@
 // partait. La réparation lit le jugement du manager, seule source de vérité, quoi qu'il soit arrivé aux labels depuis :
 // - jugé décision pour le chef, sans décision ouverte : sa carte de TODO, avec les réponses du jugement, revient ;
 // - jugé en attente : le ticket se parque, la raison du manager dite en commentaire.
+// - refusé pour une autre raison, sans décision stockée (#4219), avec `fire` : de même, avec la raison de son refus.
 // Un ticket calibré, qui a une décision ouverte (le label `decision`, une carte) ou qui est déjà parqué, n'est pas
 // touché ; un jugement auquel le chef a déjà répondu (`<!-- brigade:reponse`) attend que le manager le rejuge. Chaque
 // geste se dit sur le ticket (`<!-- brigade:limbo -->`). La réparation est idempotente : un ticket réparé a sa carte ou
@@ -14,6 +15,7 @@
 // (guerison/index.ts).
 import { corpsDuParking } from "../attente-github/marque.ts";
 import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
+import { ordonnerLesReponses, raisonDuRefus, recommandeeDuRefus } from "../decision/reponses.ts";
 import { estParque } from "../github-etat/etats.ts";
 import { MARQUEUR_MANAGER } from "../juger.ts";
 
@@ -78,9 +80,15 @@ function lireJugement(corps: string): Jugement | null {
   }
   const entete = lignes.find((ligne) => ligne !== "");
   if (entete === undefined || !entete.startsWith("**Manager — ")) return null;
-  if (!/^\*\*Manager — not a workable ticket: (a decision issue|a question)\.\*\*/.test(entete)) return { quoi: "autre" };
+  if (!/^\*\*Manager — not a workable ticket: (a decision issue|a question)\.\*\*/.test(entete)) {
+    // Un autre refus, sans décision stockée : sa raison met le ticket en attente (#4219).
+    const raison = raisonDuRefus(lignes);
+    return raison === null ? { quoi: "autre" } : { quoi: "attente", raison, qui: null };
+  }
   const premiere = lignes.findIndex((ligne) => /^- \[(resume|close|wait)\] /.test(ligne));
-  const reponses = premiere < 0 ? [] : lignes.slice(premiere).filter((ligne) => /^- \[(resume|close|wait)\] /.test(ligne)).map((ligne) => ligne.replace(/^- \[[a-z]+\] /, "").trim());
+  const lues = premiere < 0 ? [] : lignes.slice(premiere).filter((ligne) => /^- \[(resume|close|wait)\] /.test(ligne)).map((ligne) => ligne.replace(/^- \[[a-z]+\] /, "").trim());
+  // La recommandée d'abord, comme sur la carte que le manager pose (#4219), même d'un refus écrit avant.
+  const reponses = ordonnerLesReponses(lues, recommandeeDuRefus(lignes));
   const question = premiere < 0 ? null : (lignes.slice(0, premiere).findLast((ligne) => ligne.endsWith("?")) ?? null);
   return { quoi: "decision", question, reponses };
 }
