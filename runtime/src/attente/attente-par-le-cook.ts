@@ -9,13 +9,15 @@
 //   - `mettreEnAttenteParLaCuisine` : le geste du parking (attente-github/attente-github.ts, `poserLAttente`) ;
 //   - `parquerSesEchecs` : ses cooks ont échoué trop de fois, la station arrête sa boucle de relances — il attend le
 //     superviseur, qui reçoit son dossier (manager/supervision.ts) ;
-//   - `ramenerALaRelance` : à chaque tour de station, un ticket parqué jusqu'à une date passée reprend exactement où il
-//     était — `parked` retiré, rien d'autre —, sans geste de personne. Un ticket parqué jusqu'à un fait, ou pour le chef,
-//     n'en sort pas à une date : un humain dit le fait arrivé, ou le chef répond.
+//   - `ramenerALaRelance` : à chaque tour de station, un ticket parqué jusqu'à une date passée, ou sur lequel un fait
+//     nouveau est ajouté (#4217), reprend exactement où il était — `parked` retiré, rien d'autre —, sans geste de personne.
+//     Un ticket parqué jusqu'à un fait, ou pour le chef, n'en sort pas à une date : un humain dit le fait arrivé, ou le
+//     chef répond.
 import { attenteDeLIssue, corpsDuParking, direRelance, poserLAttente, type AttenteGitHub } from "../attente-github/attente-github.ts";
 import { reprendALaDate } from "../attente-github/marque.ts";
 import { RELANCE_PAR_DEFAUT_MS } from "../attente.ts";
 import { LABEL_PARKED } from "../github-etat/etats.ts";
+import { faitNouveau } from "../claim-hold/retenue.ts";
 import type { Commentaire, GitHub } from "../github.ts";
 
 // Ce que dit un cook qui ne peut pas le faire avant une date.
@@ -103,7 +105,7 @@ export async function parquerSesEchecs(
 // Un ticket du tour, tel que le retour le lit.
 type TicketEnAttente = { number: number; labels: string[] };
 
-// Les tickets parqués jusqu'à une date passée reprennent exactement où ils étaient : `parked` retiré — ni `fire` posé,
+// Les tickets parqués jusqu'à une date passée, ou sur lesquels un fait nouveau est ajouté, reprennent exactement où ils étaient : `parked` retiré — ni `fire` posé,
 // ni un autre label touché —, un commentaire qui le dit. Rend les tickets repris. Des commentaires illisibles le
 // laissent parqué, et le disent (`avertir`) : le tour suivant relit. `leve` : le tour le relit sans `parked`.
 export async function ramenerALaRelance(
@@ -117,16 +119,27 @@ export async function ramenerALaRelance(
     // pour un autre jusqu'à une date y revient, à cette date : elle reprend où elle était, dans TODO.
     if (!labels.includes(LABEL_PARKED)) continue;
     let attente: AttenteGitHub | null;
+    let commentaires: Pick<Commentaire, "body" | "association">[];
     try {
-      attente = attenteDeLIssue(await github.commentaires(numero));
+      commentaires = await github.commentaires(numero);
+      attente = attenteDeLIssue(commentaires);
     } catch (erreur) {
       avertir(`brigade : #${numero} sur ${station} — parked, its comments could not be read to check its date: it stays parked, read again next turn — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       continue;
     }
-    if (attente === null || !reprendALaDate(attente, maintenant)) continue;
+    if (attente === null) continue;
+    const aLaDate = reprendALaDate(attente, maintenant);
+    // Un fait nouveau sur le ticket fait aussi tomber sa retenue (#4217, claim-hold/retenue.ts) : un commentaire du dépôt,
+    // posté après la marque qui le parque, que la cuisine n'a pas marqué.
+    if (!aLaDate && !faitNouveau(commentaires)) continue;
     await github.delabelliser(numero, LABEL_PARKED);
-    await github.commenter(numero, `**Unparked — its date is reached**: this ticket was waiting for ${attente.who} (“${attente.what}”) until ${direRelance(attente.followUp)}. Station \`${station}\` lets it resume exactly where it was. If it still cannot be done, its cook says so and it is parked again.`);
-    avertir(`brigade : #${numero} sur ${station} — parked until ${direRelance(attente.followUp)}, now reached: it resumes where it was`);
+    if (aLaDate) {
+      await github.commenter(numero, `**Unparked — its date is reached**: this ticket was waiting for ${attente.who} (“${attente.what}”) until ${direRelance(attente.followUp)}. Station \`${station}\` lets it resume exactly where it was. If it still cannot be done, its cook says so and it is parked again.`);
+      avertir(`brigade : #${numero} sur ${station} — parked until ${direRelance(attente.followUp)}, now reached: it resumes where it was`);
+    } else {
+      await github.commenter(numero, `**Unparked — a new fact is on the ticket**: this ticket was waiting for ${attente.who} (“${attente.what}”), and a comment was added after it was parked. Station \`${station}\` lets it resume exactly where it was. If it still cannot be done, its cook says so and it is parked again.`);
+      avertir(`brigade : #${numero} sur ${station} — parked, a new fact is on the ticket: it resumes where it was`);
+    }
     leve?.(numero);
     rentres.push(numero);
   }

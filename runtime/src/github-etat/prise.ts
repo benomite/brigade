@@ -18,6 +18,7 @@
 // gagnante, ne compte pas, et le prochain lâcher l'annule avec les autres.
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { LABEL, type Issue } from "../github.ts";
+import { LABELS_DE_LA_RETENUE, retenueALaPrise } from "../claim-hold/retenue.ts";
 
 // Le label que porte un ticket pris : l'issue dit au chef qu'une station le tient.
 export const PRIS = "taken";
@@ -53,9 +54,11 @@ export type Tenant = { station: string; commentaire: number; createdAt: string }
 
 // `prise` : cette station tient le ticket. `tenant` : qui le tient, elle ou une
 // autre ; nul si personne — sa prise n'est pas encore lisible, par exemple.
-export type Resultat = { prise: boolean; tenant: Tenant | null };
+// `retenu` : la prise est refusée, le ticket est retenu (claim-hold/retenue.ts), et pourquoi.
+export type Resultat = { prise: boolean; tenant: Tenant | null; retenu?: string };
 
-export type Contexte = { github: GitHubDeLaPrise; station: string };
+// `maintenant` : l'heure à laquelle la date de relance d'un ticket parqué se lit.
+export type Contexte = { github: GitHubDeLaPrise; station: string; maintenant?: () => Date };
 
 export const corpsDePrise = (station: string) => `<!-- brigade:prise station=${station} -->\nTaken by station \`${station}\`.`;
 export const corpsDeLacher = (station: string) => `<!-- brigade:lache station=${station} -->\nReleased by station \`${station}\`.`;
@@ -136,8 +139,8 @@ export function faitsDePrise(commentaires: readonly Omit<CommentaireDePrise, "id
 // `fire` et `taken` — `labels`, lus avec le rail — est tenu par la prise que ses
 // commentaires disent : une prise ne se repose jamais sans reposer `taken`.
 // `retraits` est null quand ils n'ont pas été lus.
-async function lireLesFaits(numero: number, github: GitHubDeLaPrise, labels?: readonly string[]): Promise<{ tenant: Tenant | null; retraits: RetraitDeLabel[] | null }> {
-  const commentaires = await github.commentaires(numero);
+async function lireLesFaits(numero: number, github: GitHubDeLaPrise, labels?: readonly string[], lus?: CommentaireDePrise[]): Promise<{ tenant: Tenant | null; retraits: RetraitDeLabel[] | null }> {
+  const commentaires = lus ?? (await github.commentaires(numero));
   const parLesCommentaires = tenant(commentaires, []);
   if (parLesCommentaires === null) return { tenant: null, retraits: null };
   if (labels?.includes(PRIS) && labels.includes(LABEL)) return { tenant: parLesCommentaires, retraits: null };
@@ -152,10 +155,17 @@ export async function lireTenant(numero: number, github: GitHubDeLaPrise, labels
 
 // Prend le ticket pour la station : si personne ne le tient, poste sa prise,
 // relit l'issue, et y pose `taken` si elle l'emporte. Déjà tenu par une autre,
-// n'écrit rien ; par elle, n'écrit que `taken` s'il manque.
-export async function prendre(issue: Pick<Issue, "number" | "labels">, { github, station }: Contexte): Promise<Resultat> {
+// n'écrit rien ; par elle, n'écrit que `taken` s'il manque. Retenu — parqué, ou
+// arrêté pour de bon (#4217) —, il est refusé à toute station, sans rien écrire.
+// Parqué, mais sa date passée ou un fait nouveau sur l'issue, sa retenue est
+// tombée : les labels qui le parquent sont retirés, puis la prise se fait.
+export async function prendre(issue: Pick<Issue, "number" | "labels">, { github, station, maintenant = () => new Date() }: Contexte): Promise<Resultat> {
   if (!NOM_DE_STATION.test(station)) throw new Error(`station name not usable in a claim comment: ${JSON.stringify(station)}`);
-  const faits = await lireLesFaits(issue.number, github);
+  const commentaires = await github.commentaires(issue.number);
+  const retenue = await retenueALaPrise(issue.labels, commentaires, () => github.retraitsDeLabels(issue.number), maintenant());
+  if (retenue.retenu !== null) return { prise: false, tenant: tenant(commentaires, []), retenu: retenue.retenu };
+  if (retenue.fin !== null) for (const label of LABELS_DE_LA_RETENUE.filter((l) => issue.labels.includes(l))) await github.delabelliser(issue.number, label);
+  const faits = await lireLesFaits(issue.number, github, undefined, commentaires);
   let tient = faits.tenant;
   if (tient === null) {
     await github.commenter(issue.number, corpsDePrise(station));

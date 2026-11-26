@@ -117,6 +117,7 @@ import { lireLaCarte } from "./sortie-attente-capacite/sortie.ts";
 import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corpsDuSecondJugement, lireLaConsigne, lireSecondJugement, secondJugementDe } from "./second-juge.ts";
 import { motifArretCook } from "./motif-arret-cook.ts";
 import { direLaMiseDeCote, RUN_OK, runFiniOk, runsEchoues } from "./echecs-sans-livraison.ts";
+import { arreterPourDeBon, ESSAIS_AU_TOTAL, essaisDuTicket, motifDeLEssai } from "./claim-hold/essais.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Fin, type Supervise } from "./superviseur.ts";
 import { commitsDuRunPrecedent, consigneDuRunPrecedent, estUneRepriseDeGarde, estUneSauvegarde, gardeLeTravail, marquerLeTravail, SUJET_DE_SAUVEGARDE } from "./cuisson/reprise/reprise.ts";
@@ -157,8 +158,8 @@ export type Prise = {
 };
 
 // La prise de #2056, liée à la station et au client du tour.
-export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise => ({
-  prendre: (issue) => prendre(issue, { github, station }),
+export const priseDeLaStation = (github: GitHubDuTour, station: string, maintenant?: () => Date): Prise => ({
+  prendre: (issue) => prendre(issue, { github, station, ...(maintenant === undefined ? {} : { maintenant }) }),
   lacher: (issue) => lacher(issue, { github, station }),
   purger: (issue) => purger(issue, { github }),
 });
@@ -579,7 +580,7 @@ const depuisLeRelancement = async (github: Pick<GitHubDuTour, "retraitsDeLabels"
   return commentaires.slice(reprise + 1).filter((c) => c.body.startsWith(marque) && !(Date.parse(c.createdAt) <= relance));
 };
 // Le motif d'un essai, tel que son commentaire `brigade:echec` ou `brigade:renvoi` le dit.
-const motifDe = (corps: string) => corps.match(/ — ([^\n]*)/)?.[1] ?? "";
+const motifDe = motifDeLEssai;
 // Le renvoi précédent a rendu le même résultat que `raison` : les mêmes mots, ou la même attente hors de la cuisine (#3814).
 const normeDuRenvoi = (texte: string) => texte.trim().replace(/\s+/g, " ").toLowerCase();
 function memeRenvoi(corps: string, raison: string, maintenant: Date): boolean {
@@ -1518,9 +1519,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // `ECHECS_MAX` cooks sans livraison, il sort de la cuisine (#2209).
       // Illisibles, ses commentaires ne retiennent pas le rendu : l'échec compte pour un.
       // Compté depuis le dernier retrait de `served-elsewhere` (#2430).
-      const precedents = await depuisLeRelancement(github, issue, await github.commentaires(issue).catch(() => []), MARQUE_D_ECHEC);
+      const lus = await github.commentaires(issue).catch(() => null);
+      const precedents = await depuisLeRelancement(github, issue, lus ?? [], MARQUE_D_ECHEC);
       // Seuls les runs échoués comptent vers la mise de côté : un run fini `ok` sans livraison est relancé (#3652).
       const fini = "fini" in fait && fait.fini === true;
+      // Le compte total, lui, ne repart jamais de zéro (#4217) : ni une prise, ni une réécriture du manager, ni une passe
+      // du superviseur ne le remettent à zéro. À `ESSAIS_AU_TOTAL`, le ticket s'arrête pour de bon. Illisible, le compte
+      // ne se dit pas (`n` manque) et n'arrête rien : le prochain échec le relit.
+      const auTotal = lus === null ? null : essaisDuTicket(lus);
+      const tentes = auTotal === null ? null : [...auTotal.depuisLArret, ...(fini ? [] : [fait.echec])];
+      const auBout = tentes !== null && tentes.length >= ESSAIS_AU_TOTAL;
       const essais = [...precedents.map((c) => ({ motif: motifDe(c.body), runOk: runFiniOk(c.body) })), { motif: fait.echec, runOk: fini }];
       const echoues = runsEchoues(essais);
       const echecs = echoues.length;
@@ -1532,15 +1540,19 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Les runs finis `ok` ne comptent pas parmi les échecs (#3652).
       const sortie = fini || horsCuisine(essais.filter((essai) => !essai.runOk).map((essai) => ({ motif: essai.motif, desaccord: false })));
       // Ses essais épuisés, le ticket va au manager, pas au chef (#3513).
-      const suite = sortie ? await apresLesEssais(ticket, echoues) : null;
+      const suite = sortie && !auBout ? await apresLesEssais(ticket, echoues) : null;
       const tete = depart === null ? null : await github.prDuTicket(issue).then((pr) => (pr?.state === "open" ? pr.sha : null), () => null);
       avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery (${fini ? "its run ended ok, not counted" : `try ${echecs}/${ECHECS_MAX}`}): ${fait.echec}`);
       await github.commenter(
         issue,
-        `${MARQUE_D_ECHEC} n=${precedents.length + 1}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${detailDesGates(fait)}${suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Parked (\`${LABEL_PARKED}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. It waits for the supervisor, who takes it and decides what happens to it.` : `Parked (\`${LABEL_PARKED}\`) by its failure count ${direLaMiseDeCote(echoues)}: it waits for the supervisor, who takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
+        `${MARQUE_D_ECHEC}${auTotal === null ? "" : ` n=${auTotal.total + 1}`}${fini ? ` ${RUN_OK}` : ""}${avecLaTete(tete === depart ? tete : null)} -->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.echec}${detailDesGates(fait)}${auBout ? `\n\nIts ${tentes.length} tries in total are spent: the ticket stops for good, parked for the chef — the comment below lists what was tried.` : suite === null ? "" : "auChef" in suite ? `\n\n${fini ? `Parked (\`${LABEL_PARKED}\`) at this refusal: the cook finished \`ok\` and its delivery was refused, and another cook on the ticket as it stands would end the same way. It waits for the supervisor, who takes it and decides what happens to it.` : `Parked (\`${LABEL_PARKED}\`) by its failure count ${direLaMiseDeCote(echoues)}: it waits for the supervisor, who takes it and decides what happens to it.`}\n\n${suite.auChef}` : fini ? `\n\nThe cook finished \`ok\` and its delivery was refused: the ticket is not relaunched as it stands. It went to the manager, not to the chef — its comment below says what it did.` : `\n\nIts ${echecs} tries are spent: the ticket went to the manager, not to the chef — its comment below says what it did.`}`,
       );
       chrono.rater(issue);
-      if (suite !== null && "auChef" in suite) {
+      if (auBout) {
+        chrono.oublier(issue);
+        avertir(`brigade : #${issue} sur ${nom} — its ${tentes.length} tries in total are spent: it stops for good, parked for the chef`);
+        await arreterPourDeBon(github, issue, nom, tentes);
+      } else if (suite !== null && "auChef" in suite) {
         chrono.oublier(issue);
         await arreterLaBoucle(issue, [...echoues, ...(fini ? [fait.echec] : [])]);
       } else if (suite !== null) {

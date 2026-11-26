@@ -125,14 +125,18 @@ test("a rewritten ticket that fails its tries again goes to the chef, once, with
   faux.corpsEcrivables = true;
   faux.feu(TICKET, ["fire", "model:sonnet", "effort:medium"], CORPS);
   const { a, consultations } = station(faux, reprise({ choix: "reecrire", motif: "The ticket never names the file.", corps: "Edit `runtime/src/rail.ts`." }));
-  await tourner(a, 12, () => parqueParSesEchecs(faux, TICKET));
+  // Le compte total ne repart pas de zéro après la réécriture (#4217) : trois essais avant, deux après, et le ticket
+  // s'arrête pour de bon à `ESSAIS_AU_TOTAL`, parqué pour le chef, avec ce qui a été tenté.
+  await tourner(a, 12, () => faux.ticket(TICKET).labels.has(CHEF_TODO));
   assert.equal(consultations.length, 1);
   assert.deepEqual(consultations[0]?.motifs, ["reason 1", "reason 2", "reason 3"]);
-  assert.ok(parqueParSesEchecs(faux, TICKET));
+  assert.ok(faux.ticket(TICKET).labels.has(CHEF_TODO));
   const echecs = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).map((c) => c.body);
-  assert.equal(echecs.length, 6, "three tries before the rewrite, three after");
-  assert.match(echecs[5] ?? "", /n=3 -->[\s\S]*Parked \(`parked`\) by its failure count[\s\S]*\*\*What was tried\.\*\* The manager already reworked this ticket after its first failed tries: it was rewritten more precisely — The ticket never names the file\./);
-  assert.match(echecs[5] ?? "", /The ticket never names the file\.[\s\S]*1\. reason 4\n2\. reason 5\n3\. reason 6/);
+  assert.equal(echecs.length, 5, "three tries before the rewrite, two after");
+  assert.match(echecs[4] ?? "", /n=5 -->[\s\S]*Its 5 tries in total are spent: the ticket stops for good, parked for the chef/);
+  const arrets = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.startsWith("<!-- brigade:todo kind=blocked stop=5 -->")).map((c) => c.body);
+  assert.equal(arrets.length, 1);
+  assert.match(arrets[0] ?? "", /1\. reason 1\n2\. reason 2\n3\. reason 3\n4\. reason 4\n5\. reason 5/);
   assert.equal(reprisesDe(faux, TICKET).length, 1);
   // Une seule fois : parqué, plus aucun cook ni commentaire — hors celui qui lui donne une raison et une date (invariant 3, #4026).
   const dits = () => (faux.commentaires.get(TICKET) ?? []).filter((c) => !c.body.includes("<!-- brigade:invariant n=3 ")).length;

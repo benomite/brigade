@@ -221,8 +221,9 @@ test("les noms déclarés `<machine>/<moteur>` signent une prise, que l'autre st
 test("`prise.ts` ne lit et n'écrit que par le client de GitHub : il n'importe ni le relais, ni la boîte, ni le journal", () => {
   const source = readFileSync(join(import.meta.dirname, "../../src/github-etat/prise.ts"), "utf8");
   const imports = [...source.matchAll(/^import .* from "(.+)";$/gm)].map((ligne) => ligne[1]);
-  // `alimenter.ts` ne lui donne que la liste de ceux dont un commentaire fait foi.
-  assert.deepEqual(imports, ["../alimenter.ts", "../github.ts"]);
+  // `alimenter.ts` ne lui donne que la liste de ceux dont un commentaire fait foi ; `claim-hold/retenue.ts`, la retenue
+  // du ticket, lue des labels, des commentaires et des retraits que la prise lui passe (#4217).
+  assert.deepEqual(imports, ["../alimenter.ts", "../github.ts", "../claim-hold/retenue.ts"]);
   for (const module of imports) assert.doesNotMatch(module, /relais|boite|journal/);
   assert.doesNotMatch(source, /from "node:/);
 });
