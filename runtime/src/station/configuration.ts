@@ -2,15 +2,15 @@
 // chacun. C'est le seul fichier qu'ajouter ou retirer un projet touche — ni
 // unité, ni drop-in, ni règle du système.
 //
-// Une ligne : le nom du projet, son dépôt GitHub, sa branche d'intégration
-// s'il le faut, puis, au besoin, des réglages `BRIGADE_…=valeur` propres à ce
-// projet. La branche que le dépôt du projet déclare passe avant celle de la
-// ligne (`reglages-projet/en-vigueur.ts`) : un projet qui la déclare n'en a
-// pas besoin.
+// Une ligne : le nom du projet, son dépôt GitHub, puis, au besoin, des
+// réglages `BRIGADE_…=valeur` propres à ce projet. La branche d'intégration
+// vient du projet — celle que son dépôt déclare, sinon sa branche par défaut
+// (`reglages-projet/en-vigueur.ts`) —, jamais de la ligne : une branche qu'une
+// ancienne ligne a gardée est ignorée.
 //
-//   # projet  dépôt              branche  réglages
-//   brigade   acme/brigade   v2
-//   web       acme/web    main     BRIGADE_SECRETS_FILE=/srv/secrets/web.env
+//   # projet  dépôt              réglages
+//   brigade   acme/brigade
+//   web       acme/web    BRIGADE_SECRETS_FILE=/srv/secrets/web.env
 //   shop      acme/shop
 //
 // Tout le reste vient de la station : son environnement, que chaque projet
@@ -120,6 +120,8 @@ export function lireConfiguration(texte: string): Configuration {
     const base = reste[0] !== undefined && !REGLAGE.test(reste[0]) ? reste[0] : null;
     const suite = base === null ? reste : reste.slice(1);
     if (!NOM_DE_PROJET.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, compta)`);
+    // La même ligne répétée est le même projet : il n'est lu qu'une fois.
+    if (projets.some((projet) => projet.nom === nom && projet.ligne === champs.join(" "))) return;
     if (projets.some((projet) => projet.nom === nom)) return refuser(`le projet « ${nom} » a déjà sa ligne`);
     const reglages: Record<string, string> = {};
     for (const champ of suite) {

@@ -117,7 +117,6 @@ test("trois tickets sur le même fichier, et un entre eux sur un autre, font deu
   );
 });
 
-// brigade:guard
 test("le ticket joint prend le calibrage le plus haut des siens et toutes leurs capacités", () => {
   const [haut, bas] = prevus([["a.ts"]], [["a.ts"]]) as [TicketPrevu, TicketPrevu];
   const [joint] = joindre([
@@ -314,7 +313,6 @@ test("un ticket dont la zone touche la vue de l'app ne porte aucun champ de cook
   for (const prevu of lu.valeur.tickets) assert.equal(Object.hasOwn(prevu, "cook"), false);
 });
 
-// brigade:guard
 test("le calibrage d'un ticket de la vue se lit comme celui des autres, sans `xhigh` ni `max`", () => {
   const lu = lireDecoupage(reponse([ticket({ zone: ["app/src/vue/carte.js"], modele: "opus", effort: "high" })]));
   assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");

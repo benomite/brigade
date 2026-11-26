@@ -40,6 +40,7 @@ import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrent
 import { ecrireDansLeProjet, lireDansLeProjet } from "./vue/fiche-projet/fiche-projet-dossier.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { brancherLeMotAuCook } from "./vue/mot-au-cook/mot-au-cook-box.ts";
+import { brancherLeSavoirFaire } from "./vue/savoir-faire/savoir-faire-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -73,6 +74,7 @@ import { lancerLeTriage, mettreSurLeRail, proposerLeDepart } from "./depart-du-p
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
+import { changerLeSavoir, lireLeSavoirDuProjet } from "./vue/know-how/know-how-github.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { jouerLaRevue } from "./vue/carte-sensible/carte-sensible-github.ts";
@@ -94,6 +96,7 @@ import { commandesDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { tenirOutilsRequis } from "./outils-requis.ts";
+import { pourLaVue, rattacherGhPose, telechargerPourDeBon, tenirInstallation } from "./install-tools/install-tools.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
@@ -144,6 +147,10 @@ const plateforme = process.platform;
 const shellIci = shellDuPoste(plateforme, process.env);
 const chemin = cheminDe({ emplacements, env: process.env, maison: homedir(), plateforme, duShell: () => (plateforme === "win32" ? undefined : lireCheminDuShell(shellIci.commande, 10_000)) });
 if (chemin !== undefined) process.env.PATH = chemin;
+// Le `gh` que l'app a posé d'un clic (#4350, install-tools/) est dans un dossier du compte, que le PATH du chef n'a pas :
+// il reprend sa place en tête du PATH de l'app à chaque lancement. Rien n'est lu en ligne.
+const dossierDeGh = join(app.getPath("userData"), "tools", "gh");
+rattacherGhPose(process.env, dossierDeGh, plateforme);
 
 // Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
 // à côté d'elle dans son clone, ou dans son paquet une fois installée ; un poste sur un
@@ -1466,7 +1473,9 @@ ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
   return rendu;
 });
 // Les outils que l'app ne livre pas (#4059, outils-requis.ts) : la connexion à GitHub, le clone et le login Max les
-// demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation (l'app n'installe rien, #4266).
+// demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation. `gh` et `claude` s'y
+// installent aussi d'un clic (#4350, install-tools/) — Git jamais (#4266) : chaque outil qui manque dit si l'app sait
+// l'installer ici. Rien ne se télécharge ni ne s'installe sans ce clic.
 const outilsRequis = tenirOutilsRequis({
   charger: async () => {
     const [requis, machine, outils] = await Promise.all([
@@ -1479,7 +1488,9 @@ const outilsRequis = tenirOutilsRequis({
   env: process.env,
   autoriserLaPage: (lien) => pagesDuPremier.add(lien),
 });
-ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
+const installation = pourLaVue(tenirInstallation({ plateforme, env: process.env, dossier: dossierDeGh, telecharger: telechargerPourDeBon, rendre: () => {} }));
+ipcMain.handle("outilsManquants", async (_, outils: unknown) => installation.installables(await outilsRequis.manquants(outils)));
+ipcMain.handle("installerOutil", (_, outil: unknown) => installation.installer(outil));
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
 ipcMain.handle("seConnecterAClaude", () => loginIci());
 // La page où taper le code se rouvre depuis l'écran.
@@ -1575,6 +1586,15 @@ ipcMain.handle("changerVerificationDuCloser", async (_, nom: unknown, geste: unk
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const rendu = await changerLesVerifications({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), geste, saisie, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+});
+// Le savoir-faire du projet, sous Settings (#4239, vue/know-how/) : `.brigade/know-how.md` lu sur sa branche
+// d'intégration, et une entrée changée ou retirée proposée par une pull request vers elle, comme un plafond.
+const savoirDe = (nom: unknown) => ({ nom, projet: connu(nom), depotDe: depotDuProjet, brancheDe: brancheDuProjet, client: clientDesLabels });
+ipcMain.handle("savoirDuProjet", (_, nom: unknown) => lireLeSavoirDuProjet(savoirDe(nom)));
+ipcMain.handle("changerLeSavoir", async (_, nom: unknown, changement: unknown) => {
+  const rendu = await changerLeSavoir({ ...savoirDe(nom), changement });
   if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
   return rendu;
 });
@@ -1674,6 +1694,7 @@ ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unkno
 ipcMain.handle("lireUnFichierDuProjet", (_, nom: unknown, chemin: unknown) => lireDansLeProjet(connu(nom), chemin));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, nom: unknown, chemin: unknown, texte: unknown) => ecrireDansLeProjet(connu(nom), chemin, texte));
 brancherLeMotAuCook(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le mot au cook (#4048, vue/mot-au-cook/mot-au-cook-box.ts)
+brancherLeSavoirFaire(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le savoir-faire du projet, sous Know-how (#4241, vue/savoir-faire/savoir-faire-box.ts)
 // Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
 // marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
 // (vue/explications/explications-box.ts).

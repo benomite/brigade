@@ -43,13 +43,13 @@ You need two accounts:
 - a **GitHub account**, with a repository you can push to (a throwaway one is fine for a first run);
 - a **Claude account**: the cooks run on a Claude Max session, and an API key does not fit.
 
-Before step 1, install these three tools on your computer. The app checks that they are there; it installs nothing itself:
+Before step 1, install these three tools on your computer. The app checks that they are there; it can install the GitHub CLI and Claude Code itself, on a click, and never installs Git:
 
 - **Git**: [git-scm.com/downloads](https://git-scm.com/downloads)
 - **The GitHub CLI** (`gh`): [cli.github.com](https://cli.github.com)
 - **Claude Code** (`claude`): [code.claude.com/docs/en/setup](https://code.claude.com/docs/en/setup)
 
-If one is missing, the welcome screen names it, says why brigade needs it and links to its install page; once you have installed it, click **I installed it** and the app checks again and goes on. The details for each tool are in **[docs/installation.md](docs/installation.md)**.
+If one is missing, the welcome screen names it, says why brigade needs it and links to its install page; for `gh` and `claude` it also offers **install gh** or **install claude**. Once you have installed it, click **I installed it** and the app checks again and goes on. The details for each tool are in **[docs/installation.md](docs/installation.md)**.
 
 **The app is not signed.** macOS and Windows refuse an unsigned app the first time you open it; the way through is below, in step 1, and in **[docs/installation.md](docs/installation.md)**.
 

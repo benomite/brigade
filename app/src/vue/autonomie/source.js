@@ -18,6 +18,8 @@
  *   thread: string,
  *   autonomy: Niveau,
  *   counters: { fixedBySelf: number, handedToChef: number },
+ *   progress?: { toward: "act", done: number, of: number } | null,
+ *   pinned?: boolean,
  *   gestures: { at: string, line: string, reason: string, outcome: string }[],
  *   pending: { id: string, line: string }[],
  * }} Agent

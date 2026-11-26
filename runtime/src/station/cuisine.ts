@@ -13,7 +13,6 @@ import { noterGitHubSeul } from "../github-seul-etat.ts";
 import { fichierDesRefus, lireLesRefus } from "../station-contributrice/refus.ts";
 import { aiguillerLaStation } from "../station-contributrice/aiguillage.ts";
 import { brancherBrigadeGithub, delaiDesGatesMs, priseDeLaStation, stationDuDepot, type ProjetOuvert } from "../brigade-github.ts";
-import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { brancherJeton, configJeton, direJeton } from "../jeton-claude.ts";
@@ -45,12 +44,15 @@ import { disqueDuProjet } from "../github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { DIT_MODE_RESTREINT } from "../onboarding/mode-restreint.ts";
 import { placeLibre } from "../prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { porteDuRuntime } from "../autonomie/agents/porte.ts";
+import { politiqueDuRuntime } from "../autonomie/agents/politique-du-runtime.ts";
+import { lireLaQualite } from "../autonomie/agents/qualite.ts";
 import { brancherSuperviseur, type ManagerDuSuperviseur } from "../superviseur/brancher.ts";
 import { suivreLeTour } from "../superviseur/tour.ts";
 import { ecrireLaLacune } from "../routage-station/lacune.ts";
@@ -75,6 +77,8 @@ import { direStations } from "../stations-declarees.ts";
 import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
 import { createAgentSettings } from "../agent-settings/index.ts";
+import { creerConfiance, type Confiance } from "../trust/trust.ts";
+import { AcceptesIllisibles, ouvrirAcceptes, type Acceptes } from "../trust/acceptes.ts";
 
 export type Cuisine = {
   projet: string;
@@ -92,12 +96,16 @@ export type Cuisine = {
   enCuisine?(): number[];
   // Les tickets qui attendent une prise sur GitHub (#3713).
   enAttente?(): number[];
-  // Sauve leur travail sur leur branche avant une relance (#2586).
-  sauver?(): Promise<number[]>;
   // Pourquoi sa cuisine ne prend aucun ticket sur GitHub (le projet ne déclare
   // aucune station sur cette machine), ou null quand elle en prend : une
   // cuisine qui n'en prend pas ne sert pas le projet (#3449).
   refusGitHub?(): string | null;
+  // Qui est de confiance — le chef, un collaborateur qui écrit, un agent de la
+  // cuisine —, et les issues et commentaires acceptés (#4421) : la porte de
+  // confiance que les lectures du texte des issues interrogent. Les acceptés
+  // sont null quand leur fichier est illisible : rien n'est tenu pour accepté.
+  confiance?: Confiance;
+  acceptes?: Acceptes | null;
 };
 
 export type OptionsCuisine = {
@@ -114,9 +122,6 @@ export type OptionsCuisine = {
   intervalleTickMs?: number;
   // Entre deux regards sur ce que la mise à jour de la station a donné : deux secondes, à défaut.
   intervalleRelaisMs?: number;
-  // Vrai tant que la station se vide pour sa mise à jour (#2189) : sa cuisine
-  // GitHub seul ne prend plus aucun ticket (`retenirLaPrise`).
-  retenue?: () => boolean;
   // Avant le premier tour GitHub seul du projet : la station décale ses projets (#2436).
   departMs?: number;
 };
@@ -190,6 +195,14 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   let ouverte: Runtime | null = null;
   // Non nul : le projet est servi sur l'état GitHub seul (`brigade-github.ts`).
   let projetGitHub: ProjetOuvert | null = null;
+  let confiance: Confiance | undefined;
+  let acceptes: Acceptes | null = null;
+  try {
+    acceptes = ouvrirAcceptes(join(repertoireEtat, "acceptes.json"));
+  } catch (erreur) {
+    if (!(erreur instanceof AcceptesIllisibles)) throw erreur;
+    dire(`brigade : éléments acceptés non lus, aucun n'est tenu pour accepté — ${erreur.message}`);
+  }
   try {
     identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
     let republierReseau = () => {};
@@ -257,20 +270,17 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
                 github: githubs.pass,
                 depot,
-                prise: options.retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), options.retenue as () => boolean),
+                prise: priseDeLaStation,
                 claude: station.bin,
                 env,
                 cloison,
                 bacASable,
+                hotes,
                 plafonds: reglages.plafonds,
                 graceMs: reglages.graceMs,
                 reviewer: () => decisions.reviewer(),
                 // La question d'un cook bloqué va au manager avant que le ticket ne soit parqué pour le chef (#2894).
                 manager: () => decisions.manager(),
-                // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
-                testsAcceptation: () => decisions.manager(),
-                // Il classe d'abord chaque critère, testable ou non, avec la preuve due (#3740).
-                classesDesCriteres: () => decisions.manager(),
                 flux: join(repertoireEtat, "github-seul"),
                 // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
                 gardes,
@@ -341,6 +351,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
     const { chef } = brancherLeChef(connectee, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
     chefDuProjet = chef;
+    const lecteur = githubs.station;
+    confiance = creerConfiance({ chef, permission: async (login) => (lecteur.permissionSurLeDepot ? lecteur.permissionSurLeDepot(login) : Promise.reject(new Error("ce client GitHub ne lit pas les droits"))), avertir: dire });
     brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
     brancherReponseParCommentaire(ouverte, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
@@ -354,6 +366,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     brancherResumeHebdomadaire(ouverte, { projet, depot: rail.depot, repertoireEtat, github: githubs.station, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
     brancherLeDigest(ouverte, { repertoireEtat, avertir: dire });
+    // Les niveaux d'autonomie bougent selon le bilan des gestes, au plus une fois par heure ; une rétrogradation réveille le chef (#4380).
+    politiqueDuRuntime(ouverte, { lire: () => lireLaQualite({ depot, clone: station.clone, base: station.base, depotGitHub: rail.depot, github: githubs.station, env }, new Date()), avertir: dire });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();
@@ -381,6 +395,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   );
   dire(direJeton(jeton, envProjet));
   if (bacASable !== null) dire(direBacASable(bacASable));
+  else if (cloison === null) dire(`cook sans bac à sable — ${DIT_MODE_RESTREINT}`);
   dire(
     arbitre === null
       ? "arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
@@ -416,6 +431,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   return {
     projet,
     repertoireEtat,
+    ...(confiance === undefined ? {} : { confiance }),
+    acceptes,
     rail() {
       if (arretee) throw new Error(`la cuisine de ${projet} est arrêtée`);
       return railDuJournal(annoncee.journal);
@@ -428,10 +445,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       runtime.arreter(motif);
     },
     arretee: () => finDuTour,
-    // Ses cooks en vol, pour la mise à jour de la station (#2189).
+    // Ses cooks en vol.
     enCuisine: () => servieSurGitHub.enCuisine(),
     enAttente: () => servieSurGitHub.enAttente?.() ?? [],
-    sauver: async () => (await servieSurGitHub.sauver?.()) ?? [],
     refusGitHub: () => servieSurGitHub.refus ?? null,
   };
 }

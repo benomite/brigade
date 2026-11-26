@@ -11,12 +11,10 @@ test("every skip is zone-held: the cause names the PR that blocks the most ticke
   assert.deepEqual(arretDeLaCuisine({ ...SANS_CARTE, skipped: [tenu(1, 9), tenu(2, 5)] })?.cause, { kind: "zone-held", pr: 5, zone: "app/src" });
 });
 
-// brigade:guard
 test("main red comes before a held zone", () => {
   assert.deepEqual(arretDeLaCuisine({ ...SANS_CARTE, mainRed: { since: "2026-11-20T09:00:00.000Z" }, skipped: [tenu(1, 9)] })?.cause, { kind: "main-red" });
 });
 
-// brigade:guard
 test("a skip with no code or no PR invents no cause: frozen-zone when a ticket is frozen, else unknown", () => {
   const frozen = { ticket: 7, zone: "app/src", since: "2026-11-20T08:00:00.000Z" };
   assert.deepEqual(arretDeLaCuisine({ ...SANS_CARTE, frozen, skipped: [tenu(1, 9), { ticket: 2, reason: "other" }] })?.cause, { kind: "frozen-zone", ticket: 7, zone: "app/src" });

@@ -15,6 +15,8 @@ import { vuDeLaCarte } from "../carte-todo.js";
 import { estUneRevue, MERGER } from "../carte-sensible/carte-sensible.js";
 import { bouton } from "../composants/bouton/bouton.js";
 import { PAS_ENCORE } from "../lexique.js";
+import { parkedTodo } from "../parked/parked-todo.js";
+import { CHEF, chefRecords } from "../parked/records.js";
 import { estRouge } from "../todo/todo.js";
 import { estUneValidation, VALIDER } from "../validation-design/validation-design.js";
 
@@ -140,6 +142,8 @@ export function ligneParquee(doc, parque) {
 // Les gestes de WAITING qui la tranchent : la reprendre, ou dire arrivé ce qu'elle attendait — « waiting for… » remet la
 // question à plus tard, il n'y répond pas (docs/todo-cards.md).
 const TRANCHENT = ["attente-reprendre", "attente-arrivee"];
+// Pourquoi une entrée du TODO se lit sans bouton.
+const LECTURE_SEULE = "read-only: nothing is decided from here";
 
 /**
  * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider, « Merge » d'une revue,
@@ -160,42 +164,31 @@ export function gestesDuTodo(carte, gestes) {
 
 /**
  * Le TODO du chef : une entrée par ticket parked pour lui (ticket 4261) — son numéro et son titre, dont un clic ouvre sa
- * carte ; ce qui lui est demandé ; ses boutons, qui y répondent. Sans `gestes` — un projet en lecture seule —, ses cartes se
- * lisent sans bouton. Rien du tout quand rien ne l'attend.
- * @param {Fabrique} doc @param {{ cartes: readonly Carte[], ouvrir: (carte: Carte) => void, gestes?: GestesDuTodo }} todo
+ * carte ; ce qui lui est demandé ; qui, jusqu'à quand ; ses boutons, qui y répondent. Les entrées sont celles du TODO
+ * parked (parked/, ticket 4281), qui ajoute à chacune son contrôle de park (`control`, `opened`). Sans `gestes` — un
+ * projet en lecture seule —, ses cartes se lisent sans bouton. Rien du tout quand rien ne l'attend.
+ * @param {Fabrique} doc @param {{ cartes: readonly Carte[], ouvrir: (carte: Carte) => void, gestes?: GestesDuTodo, control?: (record: import("../parked/records.js").ParkedRecord) => any, opened?: Set<number> }} todo
  */
-export function poserLeTodo(doc, { cartes, ouvrir, gestes }) {
+export function poserLeTodo(doc, { cartes, ouvrir, gestes, control, opened }) {
   if (cartes.length === 0) return undefined;
-  const cadre = doc.createElement("div");
-  cadre.className = "todo-du-rail";
-  cadre.ariaLabel = "What awaits you";
-  const tete = doc.createElement("p");
-  tete.className = "tete-du-todo";
-  tete.textContent = `TODO (${cartes.length})`;
-  const liste = doc.createElement("ol");
-  liste.className = "entrees-du-todo";
-  liste.append(
-    ...cartes.map((carte) => {
-      const entree = doc.createElement("li");
-      entree.className = "entree-du-todo";
-      entree.dataset.ticket = String(carte.ticket);
-      const ouvre = bouton(doc, `#${carte.ticket}${carte.titre === undefined ? "" : ` ${carte.titre}`}`, () => ouvrir(carte), { sorte: "discret" });
-      ouvre.title = carte.parque === undefined ? `open #${carte.ticket}'s card` : `open #${carte.ticket}'s card — ${ditParque(carte.parque)}`;
-      entree.append(ouvre);
-      const quoi = carte.parque?.quoi;
-      if (quoi !== undefined) entree.append(Object.assign(doc.createElement("p"), { className: "demande-du-todo", textContent: quoi }));
-      const siens = gestes === undefined ? [] : gestesDuTodo(carte, gestes);
-      if (siens.length > 0) {
-        const reponses = doc.createElement("div");
-        reponses.className = "reponses-du-todo";
-        reponses.append(...siens.map(({ texte, recommande, sorte, reponse }) => bouton(doc, texte, () => gestes?.jouer(carte.ticket, sorte, reponse), { sorte: recommande ? "recommande" : "secondaire" })));
-        entree.append(reponses);
-      }
-      return entree;
-    }),
-  );
-  cadre.append(tete, liste);
-  return cadre;
+  const parTicket = new Map(cartes.map((carte) => [carte.ticket, { carte, siens: gestes === undefined ? [] : gestesDuTodo(carte, gestes) }]));
+  /** @param {number} ticket */
+  const de = (ticket) => /** @type {{ carte: Carte, siens: GesteDuTodo[] }} */ (parTicket.get(ticket));
+  return parkedTodo(doc, {
+    records: chefRecords(cartes),
+    chef: CHEF,
+    choices: ({ ticket }) => de(ticket).siens,
+    answer: (ticket, texte) => {
+      const geste = de(ticket).siens.find((siens) => siens.texte === texte);
+      if (geste !== undefined) gestes?.jouer(ticket, geste.sorte, geste.reponse);
+    },
+    ...(gestes === undefined ? { readOnly: LECTURE_SEULE } : { control, opened }),
+    open: (ticket) => ouvrir(de(ticket).carte),
+    openTitle: (ticket) => {
+      const { parque } = de(ticket).carte;
+      return parque === undefined ? `open #${ticket}'s card` : `open #${ticket}'s card — ${ditParque(parque)}`;
+    },
+  });
 }
 
 // Ce que le supervisor surveille, faute que la cuisine le dise : la règle 14 de la spec.

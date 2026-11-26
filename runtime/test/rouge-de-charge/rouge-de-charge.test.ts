@@ -36,61 +36,40 @@ test("the load line names the load and the threshold; a red of the code writes n
 
 const TICKET = 12;
 
-test("on the station, red gates under load count no try and hold the delivery; once the load drops, the ticket is taken before the end of its wait and its gates are replayed, without a cook", async (t) => {
+test("on the station, red gates under load count no try and do not hold the delivery: it is pushed, and the CI of its PR judges it (#4366)", async (t) => {
   const lieux = depotGit(t);
   const trace = join(repertoireTemporaire(t), "gates-jouees").replaceAll("\\", "/");
-  const calme = join(repertoireTemporaire(t), "calme").replaceAll("\\", "/");
   const depot = ouvrirDepot({ clone: lieux.clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT });
   const faux = new FauxGitHub();
   faux.feu(TICKET, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- The button exists");
-  // Un autre ticket attend après un arrêt qui n'est pas la charge : la machine calme ne le reprend pas.
-  faux.feu(13, ["fire", "model:opus", "effort:medium"], "## Acceptance criteria\n\n- The menu exists");
-  faux.poster(13, "box", `<!-- brigade:attente until=${Date.now() + 3_600_000} -->\nStation \`box\`: the cook stopped without a delivery — quota.`);
-  // Les gates : rouges tant que la machine est chargée, vertes une fois calme.
+  // Les gates : rouges, la machine chargée.
   const cuissons: number[] = [];
   const lancer: Lancer = ({ args, cwd, flux, ticket }) => {
     if (!args.includes("--tools")) {
       cuissons.push(ticket ?? 0);
       mkdirSync(join(cwd, ".claude/brigade"), { recursive: true });
-      writeFileSync(join(cwd, ".claude/brigade/gates.sh"), `#!/usr/bin/env bash\necho gates >> '${trace}'\n[ -f '${calme}' ] && exit 0\necho "FAIL  the button test is red" >&2\nexit 1\n`);
+      writeFileSync(join(cwd, ".claude/brigade/gates.sh"), `#!/usr/bin/env bash\necho gates >> '${trace}'\necho "FAIL  the button test is red" >&2\nexit 1\n`);
       chmodSync(join(cwd, ".claude/brigade/gates.sh"), 0o755);
       writeFileSync(join(cwd, "bouton.ts"), "export const bouton = 1;\n");
     }
     writeFileSync(flux, `${JSON.stringify({ type: "result", is_error: false, result: "Done.\n<livrable>\nThe button.\n</livrable>" })}\n`);
     return { fin: Promise.resolve({ code: 0, signal: null, turns: 30, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
   };
-  let charge = 40;
   const journal: string[] = [];
-  const station = stationDuDepot({ ...STATION_DU_DEPOT, places: 2, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, lireCharge: () => charge, avertir: (ligne) => void journal.push(ligne) });
+  const station = stationDuDepot({ ...STATION_DU_DEPOT, places: 2, base: BASE, github: fauxClient(faux), depot, flux: repertoireTemporaire(t), lancer, lireCharge: () => 40, avertir: (ligne) => void journal.push(ligne) });
   if ("refus" in station) throw new Error(station.refus);
   const corps = () => (faux.commentaires.get(TICKET) ?? []).map((c) => c.body);
 
   await station.tour();
   await station.calme();
-  assert.deepEqual(cuissons, [TICKET]);
-  assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "red gates: nothing is pushed");
-  assert.doesNotMatch(git(lieux.clone, "log", "-1", "--format=%s", brancheDuTicket(TICKET)), /work in progress saved/, "not marked saved: its gates are replayed before any cook");
+  assert.deepEqual(cuissons, [TICKET], "one cook");
+  assert.equal(readFileSync(trace, "utf8"), "gates\n", "the gates ran once");
+  assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "red under load: the delivery is pushed all the same");
   assert.ok(!corps().some((c) => c.startsWith("<!-- brigade:echec")), "no failed try is counted");
-  assert.ok(corps().some((c) => c.startsWith("<!-- brigade:attente") && /machine load \(load 40 for at most/.test(c)), "the ticket waits, and the issue says the load");
-  assert.equal(journal.filter((l) => /#12 .*machine load \(load 40 for at most/.test(l)).length, 1, "one line of the station log says it, with the load");
-
-  // Toujours chargée : le ticket attend, ses gates ne sont pas rejouées.
-  await station.tour();
-  await station.calme();
-  assert.equal(readFileSync(trace, "utf8"), "gates\n");
-
-  charge = 0.3;
-  writeFileSync(calme, "");
-  for (let tour = 0; tour < 3 && git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)) === ""; tour += 1) {
-    await station.tour();
-    await station.calme();
-  }
-  assert.equal(readFileSync(trace, "utf8"), "gates\ngates\n", "the gates are replayed once the load drops");
-  assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "green on the replay: the delivery is pushed");
-  assert.deepEqual(cuissons, [TICKET], "no cook was launched again, and the ticket waiting for another reason stays waiting");
+  assert.ok(!corps().some((c) => c.startsWith("<!-- brigade:attente")), "the ticket does not wait for the machine to calm down");
+  assert.equal(journal.filter((l) => /#12 .*red under machine load.*the CI of its PR judges it/.test(l)).length, 1, "one line of the station log says it");
 });
 
-// brigade:guard
 test("on the station, red gates on a calm machine still count a failed try, and the same red tree is not played again", async (t) => {
   const lieux = depotGit(t);
   const trace = join(repertoireTemporaire(t), "gates-jouees").replaceAll("\\", "/");

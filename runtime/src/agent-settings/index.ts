@@ -129,7 +129,8 @@ export function createAgentSettings({ stateDir, env, project = env.BRIGADE_PROJE
     if (typeof author !== "string" || author.trim() === "") return reason(400, "the request names no author: a change records who made it");
     const all = stored();
     const value = body.value as Value;
-    if (definition.niveau) levels.poser(project, definition.niveau, value as Niveau);
+    // The chef's level is pinned: the autonomy policy never moves it (autonomie/agents/politique.ts, #4380).
+    if (definition.niveau) levels.poser(project, definition.niveau, value as Niveau, { epingle: true });
     all[agent] = { ...all[agent], [definition.key]: { value, changedAt: now().toISOString(), changedBy: author } };
     ecrireAtomique(file, `${JSON.stringify(all, null, 2)}\n`);
     return { status: 200, body: field(agent, definition, all) };

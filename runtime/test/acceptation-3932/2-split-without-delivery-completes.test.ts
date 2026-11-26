@@ -9,7 +9,6 @@ const TICKET = 831;
 const CORPS = "## Context\n\nTwo deliverables in one ticket.\n\n## Acceptance criteria\n\n- the rail loads in under a second";
 type Reprise = Extract<Awaited<ReturnType<ReprendreLeTicket>>, { reprise: unknown }>["reprise"];
 
-// brigade:guard
 test("a split of a ticket with no open PR completes normally, without error", async () => {
   const faux = new FauxGitHub();
   faux.corpsEcrivables = true;

@@ -40,7 +40,6 @@ import { DECLARATION_BAC_A_SABLE } from "../bac-a-sable/declaration.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE } from "../reseau.ts";
 import { surLeProjetRalenti } from "../limite-github.ts";
 import { ETATS, lieuxDuProjet } from "../station/configuration.ts";
-import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { lireProjetsServis } from "./projets-servis.ts";
 import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
 
@@ -62,7 +61,7 @@ const minuscules = (texte: string) => texte.toLowerCase();
 export type ProjetAServir = { depot: string; nom: string; clone: string; worktrees: string; base: string };
 
 // Le tour d'un projet : celui de la box (`StationGitHub`).
-export type TourDuProjet = Pick<StationGitHub, "tour" | "enCuisine" | "enAttente" | "calme" | "quitter" | "presser" | "sauver">;
+export type TourDuProjet = Pick<StationGitHub, "tour" | "enCuisine" | "enAttente" | "calme" | "quitter" | "presser">;
 
 export type OptionsDuService = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`) : sa liste et ses lieux.
@@ -77,8 +76,6 @@ export type OptionsDuService = {
   dire: (ligne: string) => void;
   // Entre deux tours, pour `servirLesProjetsChoisis`.
   intervalleMs?: number;
-  // Vrai tant que la station se vide pour sa mise à jour (#2189) : aucun ticket neuf n'est pris.
-  retenue?: () => boolean;
   // Les dépôts que les cuisines de la station servent déjà, sur la même liste
   // (`station/station.ts`) : ils ne sont pas servis une seconde fois ici, sur le même clone.
   dejaServis?: () => readonly string[];
@@ -98,12 +95,10 @@ export type ServiceDeLOrdinateur = {
   servis(): string[];
   // Pourquoi chaque ligne de la liste n'est pas servie, par son dépôt en minuscules (#3449).
   refus(): Record<string, string>;
-  // Les tickets que ses cooks cuisinent : ce que sa mise à jour attend (#2189).
+  // Les tickets que ses cooks cuisinent.
   enCuisine(): number[];
   // Les tickets qui attendent une prise : ce qui garde le Mac éveillé sans cook qui cuise (#3713).
   enAttente(): number[];
-  // Sauve le travail de ces cooks sur leur branche, avant une relance (#2586).
-  sauver?(): Promise<number[]>;
   // Plus aucun tour ; ce qu'un tour tient est rendu.
   arreter(): Promise<void>;
   // Posé par la boucle : un projet a bougé au pass, le tour suivant presse ;
@@ -135,7 +130,6 @@ export function tourDeLaBox(options: OptionsDuService): (projet: ProjetAServir) 
         etat: options.racine,
         avertir: options.dire,
       });
-      const retenue = options.retenue;
       const managerDuDepot = reglages?.defaultCalibrations?.manager;
       return stationDuDepot({
         lireCharge: lireLaCharge,
@@ -146,7 +140,7 @@ export function tourDeLaBox(options: OptionsDuService): (projet: ProjetAServir) 
         depotGitHub: projet.depot,
         github: options.github?.(projet.depot) ?? ouvrirGitHub({ depot: projet.depot, bin: options.gh, projet: projet.nom }),
         depot: ouvrirDepot({ clone: projet.clone, base: projet.base, worktrees: projet.worktrees, env }),
-        prise: retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), retenue),
+        prise: priseDeLaStation,
         claude: options.claude,
         env,
         cloison: configCloison(env, { repertoireEtat: etat, clone: projet.clone }),
@@ -304,7 +298,6 @@ export function ouvrirLeService(options: OptionsDuService): ServiceDeLOrdinateur
     refus: () => Object.fromEntries(refus),
     enCuisine: () => [...[...ouverts.values()].map(({ tour }) => tour), ...retires].flatMap((tour) => tour.enCuisine()),
     enAttente: () => [...ouverts.values()].flatMap(({ tour }) => tour.enAttente?.() ?? []),
-    sauver: async () => (await Promise.all([...[...ouverts.values()].map(({ tour }) => tour), ...retires].map(async (tour) => (await tour.sauver?.()) ?? []))).flat(),
     arreter: async () => {
       arrete = true;
       await chaine;

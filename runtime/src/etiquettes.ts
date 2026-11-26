@@ -26,7 +26,6 @@ export const ETIQUETTES: readonly Etiquette[] = [
   ...EFFORTS.map((effort) => ({ name: `effort:${effort}`, color: "1D76DB", description: `The cook of this ticket runs at ${effort} effort` })),
   { name: "epic", color: "3E4B9E", description: "Groups other tickets: it is split, never cooked itself" },
   { name: "served-elsewhere", color: "6E7781", description: "This box does not serve the ticket: another box serves it" },
-  { name: "tests-written", color: "0E8A16", description: "Its acceptance tests are written and frozen: a cook can take it" },
   { name: "taken", color: "0052CC", description: "A cook holds the ticket" },
   { name: "in-pass", color: "0052CC", description: "The delivery of the ticket is being judged" },
   { name: "parked", color: "C5DEF5", description: "Waits for someone: who, for what, until when (a date or a fact) — nothing takes it before" },

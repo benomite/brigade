@@ -7,7 +7,6 @@ import type { TempsTicket } from "../../src/temps-ticket/ligne-status.ts";
 
 const ticket = (n: number, perdu: TempsTicket["perdu"]): TempsTicket => ({ ticket: n, mergedAt: new Date(Date.UTC(2026, 10, 7) + n * 10 * 60_000).toISOString(), cuisson: 300, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0, perdu });
 
-// brigade:guard
 test("the first-try rate and the lost time are computed from the same data as before", () => {
   const temps = [ticket(1, { attente: 20 * 60, ratees: 0, renvois: 0 }), ticket(2, { attente: 0, ratees: 60, renvois: 30 }), ticket(3, { attente: 0, ratees: 0, renvois: 0 })];
   const qualites = new Map<number, QualiteDuTicket>([
