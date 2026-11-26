@@ -5,6 +5,7 @@
 import { ouvrirCacheEtag } from "../cache-etag/cache-etag.ts";
 import { ouvrirLaMiseAJour } from "../station-update/mettre-a-jour.ts";
 import { mkdirSync } from "node:fs";
+import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fenetreDe } from "../lecture-initiale/etalement.ts";
@@ -178,7 +179,12 @@ const identite = identiteDeLaStation({ ...process.env, BRIGADE_STATION_NOM: nomR
 // Le quota horaire épuisé se dit au journal, avec la station et la sorte d'appel qui l'a pris (#3481).
 journaliserLeQuotaEpuise(dire, identite.nom);
 // Ce que la station cuisine vraiment, et publie (#3449, `publie.ts`).
-const cuisinesDeLaStation = () => publieDeLaStation(station, choisis);
+// The projects of the new kitchen (`kitchen/main.ts`, same machine) are published as served too.
+const cuisinesDeLaStation = () => {
+  const publie = publieDeLaStation(station, choisis);
+  for (const { name, repo } of projectsOfTheKitchen(racine)) publie.servis[name] = repo;
+  return publie;
+};
 const presence = tenirPresence({
   racine,
   canal,

@@ -3,6 +3,7 @@
 // is not served gives its reason on the error output, in 1. Played by agents-cli.ts.
 // Each agent's settings are those `agent-settings` serves (#4222), read the same way.
 import { LectureImpossible, Sortie, type Appel } from "../appel.ts";
+import { kitchenDirOf, serveKitchenAgents } from "../kitchen/agents-tab.ts";
 import { repondre } from "./api.ts";
 import { reglagesDuProjet, sourcesDuProjet } from "./sources.ts";
 
@@ -16,6 +17,13 @@ export async function principal({ args, env, dire, redire }: Appel): Promise<voi
 
   if (!env.BRIGADE_STATE_DIR) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   if (args.length > 1) echouer(2, USAGE);
+  // A project the new kitchen serves: its agents are read from the kitchen's runs.
+  const kitchen = kitchenDirOf(env.BRIGADE_STATE_DIR);
+  if (kitchen !== null) {
+    const servi = serveKitchenAgents(kitchen, args[0] ?? "/api/agents", new Date());
+    if (servi.statut === 200) return dire(JSON.stringify(servi.corps));
+    echouer(1, `${servi.statut}: ${(servi.corps as { reason: string }).reason}`);
+  }
   let sources;
   try {
     sources = { ...sourcesDuProjet(env, new Date()), reglages: await reglagesDuProjet(env) };
