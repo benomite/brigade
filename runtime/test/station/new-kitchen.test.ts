@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
-import { holdKitchen, kitchenProjects } from "../../src/station/new-kitchen.ts";
+import { holdKitchen } from "../../src/station/new-kitchen.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
 import { aArreter, repertoireTemporaire } from "../outils.ts";
 
@@ -114,13 +114,4 @@ test("off a Mac, the station starts no kitchen: the box has its own unit", (t) =
   const root = stationDir(t, "", "baloo acme/baloo main\n");
   const { launches } = kitchen(t, root, "linux");
   assert.equal(launches.length, 0);
-});
-
-test("kitchenProjects reads names and repositories, skipping comments and blank lines", (t) => {
-  const root = stationDir(t, "", "# comment\n\nbaloo acme/baloo main CLONE=/c\nsolo\n");
-  assert.deepEqual(kitchenProjects(root), [
-    { name: "baloo", repo: "acme/baloo" },
-    { name: "solo", repo: null },
-  ]);
-  assert.deepEqual(kitchenProjects(repertoireTemporaire(t)), []);
 });

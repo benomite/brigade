@@ -1,35 +1,14 @@
 // The projects of the new kitchen: `<BRIGADE_STATION_DIR>/kitchen/projects`,
-// one line each (`<name> <owner/repo> <base> ...`, see `kitchen/main.ts`).
+// one line each (`<name> <owner/repo> <base> ...`, see `kitchen/projects.ts`).
 // The station's old runtime serves none of them. On a Mac, the station runs
 // `src/kitchen/main.ts` for them itself, as the box's `brigade-kitchen` unit
 // does (docs/runtime/mac-new-kitchen.md).
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-
-export type KitchenProject = { name: string; repo: string | null };
+import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 
 // The kitchen's entry point, in the same runtime as the station.
 const KITCHEN_ENTRY = fileURLToPath(new URL("../kitchen/main.ts", import.meta.url));
-
-// The projects of `<root>/kitchen/projects`; none if the file is absent.
-export function kitchenProjects(root: string): KitchenProject[] {
-  let text: string;
-  try {
-    text = readFileSync(join(root, "kitchen", "projects"), "utf8");
-  } catch {
-    return [];
-  }
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "" && !line.startsWith("#"))
-    .map((line) => {
-      const [name = "", repo] = line.split(/\s+/);
-      return { name, repo: repo ?? null };
-    });
-}
 
 type KitchenLaunch = { command: string; args: string[]; env: Record<string, string | undefined> };
 export type KitchenProcess = { onExit(listener: (code: number | null, signal: string | null) => void): void; kill(): void };
@@ -74,7 +53,7 @@ export function holdKitchen(options: KitchenOptions): HeldKitchen {
   const check = () => {
     if (stopped || platform !== "darwin" || running !== null) return;
     if (Date.now() - exitedAt < restartMs) return;
-    const projects = kitchenProjects(root).map(({ name }) => name);
+    const projects = projectsOfTheKitchen(root).map(({ name }) => name);
     if (projects.length === 0) return;
     const started = launch({ command: process.execPath, args: [KITCHEN_ENTRY], env: { ...env, BRIGADE_STATION_DIR: root } });
     running = started;

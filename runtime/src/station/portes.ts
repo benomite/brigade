@@ -15,10 +15,10 @@ import { chownSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "n
 import { dirname, isAbsolute, join } from "node:path";
 import { AUTRES_HOTES, compterLesRefus, ouvrirPorte, type OptionsPorte, type Porte } from "../porte.ts";
 import { listeDuJournal, refusAuJournal } from "../porte-journal.ts";
+import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 import { REGLES_DE_BASE } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { CONFIGURATION, ETATS, lireFichierDeConfiguration } from "./configuration.ts";
-import { kitchenProjects } from "./new-kitchen.ts";
 
 export const VARIABLE_PORTES = "BRIGADE_STATION_PORTES";
 // Où le paquet le pose, sous le répertoire de la station : c'est là que la
@@ -141,8 +141,8 @@ export async function tenirPortes(options: OptionsPortes): Promise<PortesTenues>
       change = true;
       dire(`brigade : porte de la station ouverte — 127.0.0.1:${station.port} (Anthropic et GitHub seulement)`);
     }
-    // The projects of the new kitchen (\`kitchen/main.ts\`) have their gate too.
-    const projets = [...lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets, ...kitchenProjects(racine).map(({ name }) => ({ nom: name }))];
+    // The projects of the new kitchen (`kitchen/main.ts`) have their gate too.
+    const projets = [...lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets, ...projectsOfTheKitchen(racine).map(({ name }) => ({ nom: name }))];
     const voulus = new Set(projets.map((projet) => projet.nom));
     for (const [nom, porte] of [...ouvertes]) {
       if (voulus.has(nom)) continue;

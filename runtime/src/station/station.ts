@@ -12,7 +12,7 @@ import type { CodeDeRefus } from "../projets/refus.ts";
 import { demenagerVersLAtelier } from "./atelier.ts";
 import { departDuProjet, FENETRE_PAR_DEFAUT_MS } from "../lecture-initiale/etalement.ts";
 import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
-import { kitchenProjects } from "./new-kitchen.ts";
+import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
 
 export type OptionsStation = {
@@ -176,7 +176,7 @@ export function ouvrirStation(options: OptionsStation): Station {
     if (dits !== ditsProblemes) for (const probleme of problemes) dire(`brigade : station — ${probleme}`);
     ditsProblemes = dits;
     // A project of `kitchen/projects` is the new kitchen's: the old runtime does not serve it.
-    const aLaCuisine = new Set(kitchenProjects(racine).map(({ name }) => name));
+    const aLaCuisine = new Set(projectsOfTheKitchen(racine).map(({ name }) => name));
     const projets = lu.projets.filter(({ nom }) => !aLaCuisine.has(nom));
     for (const { nom } of lu.projets) if (aLaCuisine.has(nom) && !ditsALaCuisine.has(nom)) auNomDe(dire, nom)("served by the new kitchen (kitchen/projects): the old runtime does not serve it");
     ditsALaCuisine = new Set(lu.projets.filter(({ nom }) => aLaCuisine.has(nom)).map(({ nom }) => nom));
