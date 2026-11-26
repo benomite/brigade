@@ -160,7 +160,7 @@ series. **The worktree goes away at the end of the cook.**
 **A delivery is pushed only once the project's gates are green** (#3996). The station plays
 `.claude/brigade/gates.sh` in the cook's worktree before the push; red, nothing is pushed: the try fails
 with the gates' first red line (`its gates are red, so its delivery was not pushed: …`), the branch is
-marked as saved work (`brigade: work in progress saved before the station restarts (#2586)`), and the
+marked as saved work (`brigade: work in progress kept for the next cook (#2586)`), and the
 next cook starts from it. A next cook that delivers the same tree, changed in nothing, gets the same red
 without the gates being played again. **Red gates on a loaded machine are not the code's** (#4211):
 when the machine's one-minute load is above the station's CPU threshold (`BRIGADE_MAX_LOAD_PER_CORE`
@@ -172,7 +172,7 @@ the end of its wait (after a restart, at its end) and plays its gates again on t
 pushed. Red on a calm machine, it counts as a try, as before. A project with no `gates.sh`, or gates that judge nothing (no test command,
 or provisional until the foundation ticket is served, #3188), pushes as before. A contributor station
 plays them the same way before pushing to its fork. **What is not a delivery is never pushed to the
-ticket's branch**: the work of a cook that stops on a question, or saved before a restart, is parked
+ticket's branch**: the work of a cook that stops on a question is parked
 on the origin under `refs/brigade/parked/<branch>` — no branch, no PR head, so no CI workflow runs on
 it. A station that does not have the branch resumes from that parked work when it carries what the
 origin has of the branch; the next delivery push removes it. So the CI runs on a cook branch only for

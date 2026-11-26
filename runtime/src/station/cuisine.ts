@@ -13,7 +13,6 @@ import { noterGitHubSeul } from "../github-seul-etat.ts";
 import { fichierDesRefus, lireLesRefus } from "../station-contributrice/refus.ts";
 import { aiguillerLaStation } from "../station-contributrice/aiguillage.ts";
 import { brancherBrigadeGithub, delaiDesGatesMs, priseDeLaStation, stationDuDepot, type ProjetOuvert } from "../brigade-github.ts";
-import { retenirLaPrise } from "../station-update/mettre-a-jour.ts";
 import { configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { brancherJeton, configJeton, direJeton } from "../jeton-claude.ts";
@@ -45,6 +44,7 @@ import { disqueDuProjet } from "../github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { DIT_MODE_RESTREINT } from "../onboarding/mode-restreint.ts";
 import { placeLibre } from "../prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
@@ -94,8 +94,6 @@ export type Cuisine = {
   enCuisine?(): number[];
   // Les tickets qui attendent une prise sur GitHub (#3713).
   enAttente?(): number[];
-  // Sauve leur travail sur leur branche avant une relance (#2586).
-  sauver?(): Promise<number[]>;
   // Pourquoi sa cuisine ne prend aucun ticket sur GitHub (le projet ne déclare
   // aucune station sur cette machine), ou null quand elle en prend : une
   // cuisine qui n'en prend pas ne sert pas le projet (#3449).
@@ -116,9 +114,6 @@ export type OptionsCuisine = {
   intervalleTickMs?: number;
   // Entre deux regards sur ce que la mise à jour de la station a donné : deux secondes, à défaut.
   intervalleRelaisMs?: number;
-  // Vrai tant que la station se vide pour sa mise à jour (#2189) : sa cuisine
-  // GitHub seul ne prend plus aucun ticket (`retenirLaPrise`).
-  retenue?: () => boolean;
   // Avant le premier tour GitHub seul du projet : la station décale ses projets (#2436).
   departMs?: number;
 };
@@ -259,7 +254,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 githubDeLaBrigade: ouvrirGitHub({ depot: DEPOT_BRIGADE, bin: rail.gh }),
                 github: githubs.pass,
                 depot,
-                prise: options.retenue === undefined ? priseDeLaStation : (github, nom) => retenirLaPrise(priseDeLaStation(github, nom), options.retenue as () => boolean),
+                prise: priseDeLaStation,
                 claude: station.bin,
                 env,
                 cloison,
@@ -382,6 +377,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   );
   dire(direJeton(jeton, envProjet));
   if (bacASable !== null) dire(direBacASable(bacASable));
+  else if (cloison === null) dire(`cook sans bac à sable — ${DIT_MODE_RESTREINT}`);
   dire(
     arbitre === null
       ? "arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
@@ -429,10 +425,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       runtime.arreter(motif);
     },
     arretee: () => finDuTour,
-    // Ses cooks en vol, pour la mise à jour de la station (#2189).
+    // Ses cooks en vol.
     enCuisine: () => servieSurGitHub.enCuisine(),
     enAttente: () => servieSurGitHub.enAttente?.() ?? [],
-    sauver: async () => (await servieSurGitHub.sauver?.()) ?? [],
     refusGitHub: () => servieSurGitHub.refus ?? null,
   };
 }
