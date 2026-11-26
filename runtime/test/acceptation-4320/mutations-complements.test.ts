@@ -1,14 +1,17 @@
 // #4320 : cas qui distinguent les lignes du correctif de leurs mutants (fetch de la base en échec, branche du clone, réécriture du bloc).
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer, type OptionsDuDepot } from "../../src/brigade-github.ts";
 import { DEBUT, FIN, lignesDuBloc, reecrireBloc } from "../../src/projets/bloc.ts";
+import { CHEMIN_DE_LA_FICHE, ecrireFiche, ficheParDefaut } from "../../src/fiche-projet/index.ts";
+import { brancheDuProjet } from "../../src/reglages-projet/en-vigueur.ts";
 import { baseDuClone } from "../../src/projets-station/selection.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
+import { git } from "../outils.ts";
 
 type Preparer = OptionsDuDepot["depot"]["preparer"];
 
@@ -97,4 +100,14 @@ test("reecrireBloc: writing the same project again and again leaves the file as 
 test("reecrireBloc: a project line written by hand twice outside the block is kept once, the chef's comments stay", () => {
   const texte = `# mine\nb y main\nb   y main\n${DEBUT}\n${FIN}\n`;
   assert.equal(reecrireBloc(texte, ["a x main"]), `# mine\nb y main\n${DEBUT}\na x main\n${FIN}\n`);
+});
+
+test("brancheDuProjet: a sheet that only the default branch of the repository carries is read there, and the clone's branch decides nothing else", (t) => {
+  const { amont, clone, rapatrier } = projetSurGit(t, { parDefaut: "main" });
+  ecrireFiche(amont, { ...ficheParDefaut("main"), served: { branch: "release-9" } });
+  git(amont, "add", ".");
+  git(amont, "commit", "-q", "-m", "fiche");
+  rapatrier();
+  assert.equal(existsSync(join(clone, CHEMIN_DE_LA_FICHE)), false, "the clone's tree does not hold the sheet");
+  assert.deepEqual(brancheDuProjet(clone, "v2"), { branche: "release-9", provenance: "fiche-projet.json", problemes: [] });
 });
