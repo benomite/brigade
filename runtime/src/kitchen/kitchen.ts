@@ -82,6 +82,12 @@ export function openKitchen(options: KitchenOptions) {
     await git(options.clone, ["fetch", "--quiet", "--prune", "origin"]);
     if (!existsSync(wt)) {
       await git(options.clone, ["worktree", "prune"]);
+      // A worktree left elsewhere on this branch (by an older kitchen) would forbid ours.
+      const listed = await git(options.clone, ["worktree", "list", "--porcelain"]);
+      for (const block of listed.split("\n\n")) {
+        const path = /^worktree (.+)$/m.exec(block)?.[1];
+        if (path !== undefined && block.split("\n").includes(`branch refs/heads/${branch}`)) await git(options.clone, ["worktree", "remove", "--force", path]).catch(() => "");
+      }
       const remote = (await git(options.clone, ["ls-remote", "--heads", "origin", branch])).trim() !== "";
       await git(options.clone, ["worktree", "add", "--force", "-B", branch, wt, remote ? `origin/${branch}` : `origin/${base}`]);
     }
