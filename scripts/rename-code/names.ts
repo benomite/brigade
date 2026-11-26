@@ -746,7 +746,7 @@ export const NAMES: Record<string, string> = {
   "app/src/vue/vue.js#bascule": "flip",
   "app/src/vue/vue.js#colorer": "colorIn",
   "app/src/vue/vue.js#courante": "currentOne",
-  "app/src/vue/vue.js#perime": "staleOne",
+  "app/src/vue/vue.js#perime": "outdated",
   "app/src/vue/vue.js#propose": "suggests",
   "app/src/vue/vue.js#replie": "collapsed",
   "app/test/accueil.test.ts#jeton": "tokenValue",
