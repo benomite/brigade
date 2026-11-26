@@ -8,6 +8,8 @@ import { type Calibrage, VUE_DE_L_APP } from "./calibrage.ts";
 import { dossierDesCaptures, VISUELS } from "./captures.ts";
 import type { FinDeCook } from "./events/station.ts";
 import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
+import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
+import type { FaitsDeLaCuisine } from "./fiche-projet/fiche.ts";
 import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
@@ -261,14 +263,22 @@ export function blocDuSetup(setup: SetupEnEchec | undefined): string[] {
   ];
 }
 
+// Ce que la fiche du projet dit du travail du cook (#4237) : son travail, ses
+// étapes et ses outils.
+export function blocDeLaFiche(cook: FaitsDeLaCuisine["cook"] | undefined): string[] {
+  if (cook === undefined) return [];
+  return [`La fiche du projet (\`${CHEMIN_DE_LA_FICHE}\`) dit ton travail : ${cook.work}. Ses étapes : ${cook.stages.join(" → ")}. Ses outils : ${cook.tools.join(", ")}.`, ""];
+}
+
 // Le profil du cook, en dur au jalon 1. `lecons` : celles du projet qu'il
 // reçoit (`apprentissage/injection.ts`). `carnet` : celui du profil sous
 // lequel il part, s'il en a un (`profils/preference.ts`).
-export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; joint?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string }): string {
+export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; joint?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string; fiche?: FaitsDeLaCuisine["cook"] }): string {
   const { ticket, titre, depot, base } = mission;
   return [
     `Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
+    ...blocDeLaFiche(mission.fiche),
     ...blocDesLecons(mission.lecons),
     ...blocDuCarnet(mission.carnet),
     ...blocDesGates(mission.gates),
