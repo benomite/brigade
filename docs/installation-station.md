@@ -177,14 +177,7 @@ then restarts the station. **The cooks in flight are not cut** (#4401): each run
 outlives the station, which restarts without waiting for them; the station that comes back up follows
 them to their end and finishes their tickets — gates, push, PR.
 
-**Updates go out in batches: at most one restart per hour** (#2374, #2585,
-`runtime/src/mise-a-jour/lot/`): every merge publishes a version, and every install restarts the
-station, cutting the work in flight. Within an hour of the last version it moved to
-(`BRIGADE_MISE_A_JOUR_ESPACEMENT_S`, default 3600), the updater waits, and its state says until
-when; at the end of the window it installs the latest version, so everything published meanwhile
-costs one restart. A version that was rolled back does not hold the next one. **An urgent version
-goes out at once**, window or not — a release whose notes carry `[urgent]` (a directory source: a
-file `urgent` in the version's directory), for example a repair of the station itself.
+**There is no spacing between updates**: the updater installs a ready release at its next pass (every ten minutes), whatever the time since the last install. What guards a broken release stays: the new version is tried, and rolled back if the station does not come up on it (below).
 
 The new version is kept when the station says it has started on it and serves all the projects it
 served before. Otherwise, **it goes back on its own to the previous version**, whose package it
