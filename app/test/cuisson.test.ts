@@ -76,7 +76,7 @@ describe("les stations du projet, ligne par ligne", () => {
     const { tableau } = lues([
       station("box/claude", { cooks: [COOK_14] }),
       station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: "2026-10-20T10:01:11.000Z", cooks: [COOK_15] }),
-      station("atelier/claude", { cuisson: "saturated" }),
+      station("atelier/claude", { cuisson: "refused", refus: REFUS }),
     ]);
     const lignes = tableau.stations?.lignes ?? assert.fail("pas de stations");
     assert.deepEqual(
@@ -84,7 +84,7 @@ describe("les stations du projet, ligne par ligne", () => {
       [
         { nom: "box/claude", distante: false, etat: "cooking", ton: "vert", dit: "", cooks: ["#14 box/claude"] },
         { nom: "mac/claude", distante: true, etat: "stopped", ton: "gris", dit: "by you, for 3 min · 1 cook finishing", cooks: ["#15 mac/claude"] },
-        { nom: "atelier/claude", distante: false, etat: "saturated", ton: "jaune", dit: "its machine has no room", cooks: [] },
+        { nom: "atelier/claude", distante: false, etat: "refused", ton: "rouge", dit: REFUS.message, cooks: [] },
       ],
     );
   });
@@ -131,21 +131,6 @@ describe("les stations du projet, ligne par ligne", () => {
     const recue = tenus.recevoir({ projet: "parade", demande: 0, a: LU, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [{ ...station("box/claude"), cooks: "deux" }] }) }] });
     assert.ok("informe" in recue);
     assert.match(recue.informe, /stations\[0\]\.cooks/);
-  });
-});
-
-describe("la ligne d'alerte de l'onglet Rail", () => {
-  test("rien ne demande de geste : pas de ligne", () => {
-    assert.equal(lues([station("box/claude"), station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: LU })]).tableau.stations?.alerte, null);
-  });
-
-  test("une station saturée : une seule ligne ; une station qui refuse le projet n'y est pas — son refus a sa ligne (refus-de-station)", () => {
-    assert.equal(lues([station("box/claude", { cuisson: "saturated" })]).tableau.stations?.alerte, "box/claude is saturated: it takes no ticket until its machine has room");
-    assert.equal(lues([station("box/claude", { cuisson: "refused", refus: REFUS })]).tableau.stations?.alerte, null);
-    assert.equal(
-      lues([station("box/claude", { cuisson: "saturated" }), station("atelier/claude", { cuisson: "refused", refus: REFUS }), station("mac/claude", { distante: true })]).tableau.stations?.alerte,
-      "box/claude is saturated: it takes no ticket until its machine has room",
-    );
   });
 });
 

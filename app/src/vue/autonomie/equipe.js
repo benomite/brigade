@@ -32,6 +32,8 @@ const TITRE = "The agents";
 const INDISPONIBLE = NON_ATTEINT("the agents");
 const ILLISIBLE = "the agents' reading is not readable";
 const NIVEAU = "autonomy";
+const SANS_COMPTEUR = "—";
+const EPINGLE = "level pinned";
 const PAR_LUI = "fixed by itself";
 const AU_CHEF = "handed to the chef";
 const EN_ATTENTE = "awaits your OK";
@@ -71,9 +73,10 @@ const detailDe = (erreur) => (erreur instanceof Error ? erreur.message : String(
 // L'équipe posée dans `cadre`, la section en tête de la vue du projet. `lire(projet)` la relit — à l'ouverture du
 // projet, à chaque lecture de son rail ; `montrer(projet)` la montre pour le projet affiché, et la cache pour tout autre.
 // La bande du haut de la vue (cuisine/, ticket 4238) lit un agent de l'équipe lue (`agent`) et ouvre son fil (`ouvrirLeFil`) ;
-// `apresLecture(projet)` est appelé quand une lecture change ce que l'équipe dit.
-/** @param {Fabrique} doc @param {any} cadre @param {(projet: string) => void} [apresLecture] */
-export function tenirLEquipe(doc, cadre, apresLecture) {
+// `apresLecture(projet)` est appelé quand une lecture change ce que l'équipe dit ; `ouvrirLesAgents()`, au clic d'un badge qui ouvre
+// son fil, ouvre aussi l'onglet Agents de la vue du projet (ticket 4224).
+/** @param {Fabrique} doc @param {any} cadre @param {(projet: string) => void} [apresLecture] @param {() => void} [ouvrirLesAgents] */
+export function tenirLEquipe(doc, cadre, apresLecture, ouvrirLesAgents) {
   const element = doc.createElement("div");
   element.className = "equipe";
   element.ariaLabel = TITRE;
@@ -164,6 +167,7 @@ export function tenirLEquipe(doc, cadre, apresLecture) {
     cree.addEventListener("click", () => {
       ouvert = ouvert === agent.agent ? null : agent.agent;
       rendre();
+      if (ouvert !== null) ouvrirLesAgents?.();
     });
     return cree;
   };
@@ -181,6 +185,12 @@ export function tenirLEquipe(doc, cadre, apresLecture) {
     compteurs.className = "compteurs";
     compteurs.textContent = `${PAR_LUI} ${agent.counters.fixedBySelf} · ${AU_CHEF} ${agent.counters.handedToChef}`;
     tete.append(titre, compteurs, niveaux(agent));
+    // Le compteur vers le prochain niveau, tel que le runtime le dit : `null` à act, rien tant qu'il ne le dit pas.
+    if (agent.progress !== undefined) {
+      const vers = agent.progress === null ? SANS_COMPTEUR : `${agent.progress.done} of ${agent.progress.of} toward ${agent.progress.toward}`;
+      tete.append(texte("progression", vers));
+    }
+    if (agent.pinned === true) tete.append(texte("epingle", EPINGLE));
     cadreDuFil.append(tete);
     const rate = rates.get(agent.agent);
     if (rate !== undefined) cadreDuFil.append(ligneErreur(doc, rate.ligne, rate.detail, { alerte: true }));

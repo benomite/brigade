@@ -4,7 +4,6 @@
 // n'en écrit plus (#2061) : les journaux d'avant les portent, et le rail les relit.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { mettreEnAttente } from "../src/attente.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { motifSansStation, motifStationAbsente } from "../src/capacites.ts";
 import { carteDuTicket } from "../src/carte-todo/cartes.ts";
@@ -61,7 +60,8 @@ test("aucune raison de mise de côté ne fait de carte au chef : le ticket reste
   raisons.forEach(([motif, { heure }], i) => {
     const ticket = 100 + i;
     poser(journal, ticket);
-    if (motif === ATTEND_UN_TIERS) mettreEnAttente(journal, PROJET, ticket, { quoi: "le devis signé", qui: "le client" }, MAINTENANT);
+    // Attendre un tiers s'écrivait au journal (d'avant #4129) : le rail le relit.
+    if (motif === ATTEND_UN_TIERS) journal.ajouter({ project: PROJET, ticket, author: "chef", type: "ticket.waiting", payload: { what: "le devis signé", who: "le client", followUp: "2026-11-03T12:00:00.000Z" } });
     else rail.quatreVingtSix(ticket, { motif: motifEcrit(motif), ...(heure ? { retour: new Date(MAINTENANT.getTime() + 3_600_000) } : {}) });
   });
 

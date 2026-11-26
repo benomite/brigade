@@ -23,7 +23,6 @@ import { requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
 import { livraisonsCoincees } from "./file-de-la-pass.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
-import { direSaturationsEn } from "./machine.ts";
 import { direLaLimiteDuCompte, type LimiteDuCompte } from "./github-limite.ts";
 import { direLaLimite, direLesAppels, direLesEcrituresRetenues, type Repartition } from "./limite-github.ts";
 import { direJaugeEn, type Franchi } from "./mesures.ts";
@@ -58,6 +57,7 @@ import { decisionsPosees } from "./decisions.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
+import { dernierAbandon, dernierDigest, type AbandonNotifie, type DigestPublie } from "./journal-du-jour/publication.ts";
 
 // La raison d'un ticket 86 sous sa carte : ce que la cuisine fait d'une
 // remontée technique, sinon la raison de sa mise de côté.
@@ -179,6 +179,10 @@ export type EtatCuisine = {
   // 30 min, sans que le projet soit éteint ni que toutes attendent une capacité
   // ou un tiers — une panne (cuisine-oisive.ts). Absente d'un état construit sans elle.
   oisive?: CuisineOisive | null;
+  // Le dernier digest du matin (#4280) et le dernier abandon notifié au chef (journal-du-jour/publication.ts). Absents
+  // d'un état construit sans eux.
+  digest?: DigestPublie | null;
+  notification?: AbandonNotifie | null;
   evenements: Evenement[];
 };
 
@@ -252,6 +256,8 @@ export function lireEtat(journal: Journal, maintenant = new Date(), { temps = []
     livres,
     coincees: livraisonsCoincees(base, maintenant),
     oisive: cuisineOisive({ session, gardeFous, interrupteur, stations, arretees, rail, cooks, livres, finDuDernierCook: finDuDernierCook(base) }, maintenant),
+    digest: dernierDigest(journal),
+    notification: dernierAbandon(journal),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -450,18 +456,13 @@ function enTete(rail: TicketRail[]): TicketRail | undefined {
 }
 
 // Pourquoi le ticket en tête de la file — ou un `prio:0` qui attend — ne part pas : ce qui le retient sur le
-// rail (une zone tenue par tel ticket, un ticket attendu), ou la machine
-// saturée quand toutes les stations le sont. Nul pour tout autre ticket, et
-// pour celui qui part.
+// rail (une zone tenue par tel ticket, un ticket attendu). Nul pour tout
+// autre ticket, et pour celui qui part.
 export function raisonDeTete(etat: EtatCuisine, ticket: TicketRail): string | null {
   const tete = enTete(etat.rail) === ticket;
   // Un `prio:0` qui attend dit derrière quoi, tête de file ou non (#3974).
   if (!tete && !(ticket.priority === 0 && ticket.state === "waiting" && ticket.waitingOn.length === 0)) return null;
-  const retenue = direRetenueEn(ticket);
-  if (retenue !== null) return retenue;
-  if (!tete) return null;
-  const saturees = etat.stations.length > 0 && etat.stations.every((station) => !station.remote && station.saturatedAt !== null && station.saturatedCauses.length > 0);
-  return saturees ? "machine saturated" : null;
+  return direRetenueEn(ticket);
 }
 
 // Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à quand.
@@ -579,18 +580,6 @@ function decrireCooks({ cooks, session, stations }: EtatCuisine, coinces: number
   return `${cooks.length} running${plafonds}`;
 }
 
-// La station qui se retient parce que la machine n'en peut plus : c'est le
-// vrai plafond, et il ne se voit nulle part ailleurs. Chaque ressource en
-// cause est nommée — la mémoire, le processeur, les deux —, avec ce qu'elle a
-// et ce qu'elle doit avoir, et d'où vient le minimum de mémoire.
-function decrireSaturations({ stations }: EtatCuisine, depuis: Depuis): string[] {
-  return stations.flatMap((station) => {
-    if (station.saturatedAt === null || station.saturatedCauses.length === 0) return [];
-    const { ressources, detail } = direSaturationsEn(station.saturatedCauses);
-    return [ligne("", `MACHINE SATURATED for ${depuis(station.saturatedAt)} on ${ressources} — ${detail}: ${station.station} takes no more tickets as long as it lasts`)];
-  });
-}
-
 // La station qui se retient alors qu'un ticket pourrait partir, et pourquoi.
 function decrireRetenues({ stations }: EtatCuisine, depuis: Depuis): string[] {
   return stations.flatMap((station) =>
@@ -704,7 +693,6 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
   // qui se retiennent. Une station qui ne le prendrait de toute façon pas n'y
   // est pour rien.
   const retenuesDe = (ticket: TicketRail) => [
-    ...(raisonDeTete(etat, ticket) === null ? [] : ["machine saturated"]),
     ...(etat.sansStation === null ? [] : ["no station declared"]),
     ...etat.stations.flatMap((station) =>
       station.heldReason === null || !fournitTout(station.provides, requises(ticket.card)) ? [] : [`withheld by ${station.station} (${direRetenueDeStationEn(station.heldReason)})`],
@@ -753,7 +741,6 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
         cooks.flatMap(({ ticket }) => (ticket && coince(ticket, maintenant) ? [ticket.ticket] : [])),
       ),
     ),
-    ...decrireSaturations(etat, depuisEn),
     ...decrireRetenues(etat, depuisEn),
     ...decrireArbitrage(etat, depuisEn),
     ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuisEn)),
@@ -903,7 +890,7 @@ export type Faits = {
   // `cuisson` : ce que la station fait du projet, un mot de `CUISSONS` —
   // `refused` (la station de la machine refuse le projet : `refus` dit
   // pourquoi), `stopped` (le chef l'a arrêtée — `arreteeDepuis` —, ou il a
-  // arrêté toute la cuisine), `saturated` (sa machine n'en peut plus), sinon
+  // arrêté toute la cuisine), sinon
   // `cooking`. `cooks` : ses cooks en cours, le plus ancien d'abord — arrêtée,
   // ce sont ceux qui finissent. Et ce que la principale sait d'elle (#1830) :
   // `fournit`, ce qu'elle déclare fournir ; `presente`, si elle la voit — toujours
@@ -937,11 +924,16 @@ export type Faits = {
   // nul pour le closer ; `fait`, ce qu'il fait, en anglais ; `depuis`, l'heure où il s'y est mis. La pass d'abord, dans
   // l'ordre du rail. Vide quand rien ne tourne, et quand le runtime est arrêté : rien ne tourne alors.
   agents: Array<{ role: AgentEnCours["role"]; station: string | null; ticket: number | null; fait: string; depuis: string }>;
+  // Le digest du matin de la veille (#4280), que l'app montre en carte : `text`, quelques lignes, la première le nombre
+  // de pannes vues d'abord par le chef ; `day`, le jour qu'il dit. Nul avant le premier. Jamais poussé en message.
+  digest?: DigestPublie | null;
+  // Le dernier abandon du système notifié au chef (#4280) : la seule notification du journal. Nul avant le premier.
+  notification?: AbandonNotifie | null;
 };
 
 // Ce qu'une station fait du projet, pour qui pose un mot dessus. La liste est
 // fermée, et peut gagner un mot.
-export const CUISSONS = ["cooking", "stopped", "saturated", "refused"] as const;
+export const CUISSONS = ["cooking", "stopped", "refused"] as const;
 export type Cuisson = (typeof CUISSONS)[number];
 
 // Une relecture, dans les mots que le reviewer lui-même emploie (reviewer.ts).
@@ -979,7 +971,6 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
   const cuisson = (station: EtatStation): Cuisson => {
     if (!station.remote && refusDeLaMachine !== null) return "refused";
     if (etat.arretees.has(station.station) || etat.gardeFous.stoppedAt !== null) return "stopped";
-    if (!station.remote && station.saturatedCauses.length > 0) return "saturated";
     return "cooking";
   };
   return {
@@ -1061,6 +1052,8 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       vueLe: station.remote ? station.seenAt : null,
     })),
     agents: faitsDesAgents(etat),
+    digest: etat.digest ?? null,
+    notification: etat.notification ?? null,
   };
 }
 

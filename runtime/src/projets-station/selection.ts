@@ -27,7 +27,8 @@ export const cooksDeLaMachine = (coeurs = availableParallelism()): number => pla
 // clone. Sans clone encore, aucune : la station le clone à cette lecture, et
 // la nomme à la suivante.
 export function baseDuClone(clone: string, env?: NodeJS.ProcessEnv): string | null {
-  if (brancheDuProjet(clone, null, env).branche !== null) return null;
+  const { provenance } = brancheDuProjet(clone, null, env);
+  if (provenance === "projet.json" || provenance === "CLAUDE.md") return null;
   try {
     const tete = execFileSync("git", ["-C", clone, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"], ...(env === undefined ? {} : { env }) })
       .trim()

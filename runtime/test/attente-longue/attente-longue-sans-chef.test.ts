@@ -1,11 +1,12 @@
 // #3764 : par la revue de l'attente longue, une attente levée ou gardée est décidée sans le chef, et seule une
 // décision de produit lui va en question. Chaque cas vérifie d'abord que la revue a eu lieu.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
 const A = 10;
@@ -44,8 +45,8 @@ async function revue(t: TestContext, reponse: object) {
     consultations,
     cooks,
     commentaires,
-    question: commentaires.some((corps) => corps.startsWith("**Question for the chef")),
-    aLaMain: faux.ticket(B).labels.has(A_LA_MAIN),
+    question: commentaires.some((corps) => corps.replace(/^<!-- brigade:todo kind=blocked -->\n/, "").startsWith("**Question for the chef")),
+    aLaMain: faux.ticket(B).labels.has(CHEF_TODO),
   };
 }
 

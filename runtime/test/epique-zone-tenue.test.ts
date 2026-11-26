@@ -10,7 +10,6 @@ test("an epic is a body with a task-list line naming a ticket, nothing else", ()
   assert.equal(porteDesTachesDeTickets("- [ ] write docs\nsee #875\n- #876"), false);
 });
 
-// brigade:guard
 test("a plain ticket with an open PR on a zone still holds it", async () => {
   const faux = new FauxGitHub();
   faux.feu(831, ["model:sonnet", "effort:medium"], "## Context\n\nNo task list here.\n");

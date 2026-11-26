@@ -15,3 +15,29 @@ What stays closed:
 - Opening a local port **does not** open a host: the list of outbound hosts is the same with or without it. The configuration adds no wildcard and no address to it.
 - Unix sockets stay refused (`allowAllUnixSockets: false`).
 - Loopback only is the sandbox's own rule (Seatbelt, as Claude Code applies it for `allowLocalBinding`), not a setting of Brigade: the configuration has no field that picks the address, and this was not verified on a Mac: Brigade's tests run on Linux and cannot probe the kernel. They assert that the configuration sets `allowLocalBinding` and adds no host.
+
+## When the machine has no sandbox: restricted mode
+
+The sandbox is the kernel's. Where Claude Code cannot apply it, the station does not guess. What triggers the
+missing-sandbox path is the **detection** of the machine, not a platform rule: a machine that passes it keeps the
+sandbox, whatever its system. The hold and the chef's two choices (`continue without sandbox`, or another station)
+are described in [What a cook may and may not do](../limites-du-cook.md).
+
+If the chef continues, the cook is not unbounded. The target is **restricted mode** (the launch is the work of the
+sibling tickets of #4349):
+
+- `--permission-mode dontAsk` with a `--settings` set, instead of `bypassPermissions`: a tool that no rule allows is
+  refused, with no prompt.
+- A deny rule for every path of `LECTURES_INTERDITES`.
+- `WebFetch` and `WebSearch` limited to the project's host list.
+- The #3506 guard hook (`runtime/src/garde-cook/`), which is the boundary of Bash: writes and deletions outside the
+  worktree and the temporary folders, and `gh` beyond the cook's own ticket, are refused.
+
+**State of the code today.** The launch of restricted mode is not shipped yet. Without a sandbox,
+`dansLeBacASableLocal` returns the arguments unchanged, so the cook still runs in `bypassPermissions`, with the
+guard hook as its only boundary: the deny rules, `dontAsk` and the host limit above come from the sandbox
+configuration, which is only written when a sandbox exists. Until restricted mode lands, the cook reads whatever the
+station's account reads, and the station's message says so.
+
+What restricted mode does not give is the kernel's precision. The guard reads a shell command only as far as it
+knows it; the list of what passes unchecked is in [station-cook.md](station-cook.md), which stays the reference.

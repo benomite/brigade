@@ -2,11 +2,12 @@
 // Mêmes conventions que `attente-longue-une-fois.test.ts` : le manager répond `{"issue":"produit","question":"…"}`,
 // `"leve"` ou `"garde"`.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 
 const A = 10;
@@ -56,9 +57,10 @@ async function apresUneHeure(t: TestContext, reponse: object) {
 
 test("a wait whose decision is a product one is sent to the chef as a question", async (t) => {
   const s = await apresUneHeure(t, { issue: "produit", question: QUESTION });
-  assert.equal(s.faux.ticket(B).labels.has(A_LA_MAIN), true);
-  const carte = s.commentaires().find((corps) => corps.startsWith("**Question for the chef"));
-  assert.equal(carte?.split("\n")[0], `**Question for the chef (product):** ${QUESTION}`);
+  assert.equal(s.faux.ticket(B).labels.has(CHEF_TODO), true);
+  // #4129 : une carte du TODO du chef, sa marque en tête.
+  const carte = s.commentaires().find((corps) => corps.startsWith("<!-- brigade:todo kind=blocked -->\n**Question for the chef"));
+  assert.equal(carte?.split("\n")[1], `**Question for the chef (product):** ${QUESTION}`);
 });
 
 test("a wait lifted or kept is decided without the chef: no question, no blocked-on-human", async (t) => {
@@ -68,7 +70,7 @@ test("a wait lifted or kept is decided without the chef: no question, no blocked
   ]) {
     const s = await apresUneHeure(t, reponse);
     assert.ok(s.commentaires().some((corps) => corps.includes(`<!-- brigade:attente-longue ${reponse.issue}`)), reponse.issue);
-    assert.equal(s.faux.ticket(B).labels.has(A_LA_MAIN), false, reponse.issue);
-    assert.ok(s.commentaires().every((corps) => !corps.startsWith("**Question for the chef")), reponse.issue);
+    assert.equal(s.faux.ticket(B).labels.has(CHEF_TODO), false, reponse.issue);
+    assert.ok(s.commentaires().every((corps) => !corps.replace(/^<!-- brigade:todo kind=blocked -->\n/, "").startsWith("**Question for the chef")), reponse.issue);
   }
 });

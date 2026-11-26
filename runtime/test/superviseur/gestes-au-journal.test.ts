@@ -44,7 +44,7 @@ test("a TODO card the supervisor posts is logged as handed to the chef, at its c
 });
 
 test("a gesture the supervisor does by itself is logged as fixed by itself", async (t) => {
-  const { repertoire, run } = await unRun(t, { gesture: "back-on-rail", ticket: 40, note: "the client answered" }, ["waiting"]);
+  const { repertoire, run } = await unRun(t, { gesture: "back-on-rail", ticket: 40, note: "the client answered" }, ["served-elsewhere"]);
   await run;
   const { lastGesture, counters } = enregistrementDe(repertoire, "supervisor");
   assert.match(lastGesture?.line ?? "", /^put #40 back on the rail/);
@@ -53,7 +53,7 @@ test("a gesture the supervisor does by itself is logged as fixed by itself", asy
 });
 
 test("a logged gesture done on a ticket still leaves its trace on that ticket", async (t) => {
-  const { repertoire, depot, run } = await unRun(t, { gesture: "back-on-rail", ticket: 40, note: "the client answered" }, ["waiting"]);
+  const { repertoire, depot, run } = await unRun(t, { gesture: "back-on-rail", ticket: 40, note: "the client answered" }, ["served-elsewhere"]);
   await run;
   assert.equal(enregistrementDe(repertoire, "supervisor").gestures.length, 1);
   const commentaires = depot.commentaires.get(40) ?? [];

@@ -7,7 +7,7 @@ import { etatDeLaBase, type EtatDeLaBase, type EtatDuTicket } from "../../../run
 import type { AppelGitHub } from "./client.ts";
 
 // Les mots du rail (faits.ts, `TONS_DE_TICKET`) ; `base rouge` est celui d'un ticket en pass dont la base est rouge.
-export const MOT_DE_L_ETAT: Readonly<Record<EtatDuTicket, string>> = { taken: "pris", pass: "en pass", waiting: "WAITING", "base-red": "base rouge" };
+export const MOT_DE_L_ETAT: Readonly<Record<EtatDuTicket, string>> = { taken: "pris", pass: "en pass", parked: "WAITING", "base-red": "base rouge" };
 
 type Brut = Record<string, unknown>;
 
