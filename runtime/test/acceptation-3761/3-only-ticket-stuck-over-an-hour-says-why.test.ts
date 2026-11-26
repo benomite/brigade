@@ -32,7 +32,6 @@ test("the only ticket of the rail unable to leave for more than an hour: one lin
   assert.match(lignes.find((ligne) => ligne.includes("#1912")) ?? "", /parked, waiting for a collaborator/);
 });
 
-// brigade:guard
 test("under an hour the line is not shown", async () => {
   const lignes = await lignesDuRail(59);
   assert.equal(lignes.filter((ligne) => ligne.includes("#1912")).length, 0, `no line naming #1912 in:\n${lignes.join("\n")}`);

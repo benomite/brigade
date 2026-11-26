@@ -3,7 +3,7 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**The project's menu is four entries, Rail · Stations · Agents · Settings** (#2485, #2921, #4224), next to the project name; **Rail is the
+**The project's menu is five entries, Rail · Stations · Agents · Know-how · Settings** (#2485, #2921, #4224, #4241), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
 the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **What the folded
 line `Caps, closer and all projects` held** (#2921, `app/src/vue/projet/bandeau-sante/`) — the duration caps (#2490), the
@@ -323,8 +323,15 @@ Open one of your projects on this PC: one click, no folder to choose.
   `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
   (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
   named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence,
-  one link to the tool's official install page, and `I installed it`. The app installs nothing itself (#4266): the
-  tool is the user's to install. The button never spins on a sign-in that cannot start. On `I installed it` the app
+  one link to the tool's official install page, and `I installed it`. For `gh` and `claude`, the screen also offers
+  `install gh` or `install claude` (#4350, `app/src/install-tools/`), the recommended button: one click, and only that
+  click, downloads or runs the official installer (what each writes and where: `docs/installation.md`). While it runs,
+  the screen says `Installing the GitHub CLI on this computer…`; when it fails, `The app could not install the GitHub
+  CLI (<reason>): follow the steps of its page instead.`, with the link and `I installed it` kept and the install
+  offered again. On a computer where the app cannot install it, the screen says `The app cannot install … on this
+  computer: follow the steps of its page.` and has no install button. Installed, the app checks again as after `I
+  installed it`; Claude Code installed, the screen ends on `log in`. Git is never installed by the app (#4266): its
+  screen has no install button. The button never spins on a sign-in that cannot start. On `I installed it` the app
   checks again, adds to its PATH a tool its installer put outside it, and the step comes back where it was — the
   button, or the project that was opening, which starts again by itself. A tool still missing says so in one line,
   and the link stays. The same screen opens in the notice when **log in** on a lost
@@ -675,6 +682,21 @@ tickets in other steps (in pass, served…) have no field. An app whose bridge d
 *Code: `app/src/vue/mot-au-cook/` — `mot-au-cook.js` (the field), `source.js` (the call), `mot-au-cook-box.ts` (the command,
 main process).*
 
+### The Know-how tab: what the project's cooks learned (#4241, epic #4140)
+
+**Know-how**, between Stations and Settings in the project's menu, lists the project's know-how: the lessons its cooks
+receive when they start (the latest ones, up to the project's cap), each with the ticket it came from (`from #4002`). Each
+opening of the tab reads them again, with the runtime command `know-how` where the project's kitchen runs. **edit** opens
+an entry's text in a field, in place; **save** writes it (on one line), **Cancel** leaves it as it was. **remove** asks
+"Remove this entry? No cook will receive it any more.", and **Yes, remove** removes it. Each change is a fact of the
+project's log (`know-how.edited`, `know-how.removed`): the next cooks receive the new text, or no longer the removed entry.
+With no entry, the tab says "No know-how yet. The project has no entry." A reading or a gesture that fails is said on
+one line, the detail on hover; the typed text stays in its field. A bridge that does not carry these gestures (the phone)
+says so on the tab.
+
+*Code: `app/src/vue/savoir-faire/` — `savoir-faire.js` (the tab), `source.js` (the calls), `savoir-faire-box.ts` (the
+command, main process); runtime: `runtime/src/savoir-faire/`.*
+
 ### The line of figures is gone (#2486, #3013, #3523)
 
 The line of figures that stood above the columns — ticket time, first try, `Cooks 2 running` / `Cooks none running`, last
@@ -978,8 +1000,9 @@ its detail on hover. A second click on the badge closes the thread. A click on a
 **Agents** tab (#4224, below).
 
 The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which
-calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The runtime side is another ticket of the
-epic: until the bridge carries them, the reading gives nothing and the project view shows no badge. A reading that
+calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The main process answers `lireLesAgents` (#4327,
+`app/src/equipe-de-la-box.ts`) with the `equipe` of `facts`, run where the project's kitchen runs; a project that does not
+cook on this computer gives nothing and shows no badge. `reglerLAutonomie` and `approuverLeGeste` are not carried yet. A reading that
 fails says `The agents not reached.`, and a record missing a field says the reading is not readable: no value is made
 up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
@@ -1035,6 +1058,24 @@ another shape, or of an unknown kind, is counted in one line, never sorted; a `d
 chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/journal/fils.ts`, the words the runtime's digest must write); a
 digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
 the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
+
+### The last 24 hours: tickets merged on time, and the slowest overruns (#4309, epic #4298)
+
+At the top of the project view, **Last 24 hours** shows the share of tickets merged within their expected time —
+`83 % merged within their expected time (20/24)` —, then the worst overruns, worst first (the most minutes over the
+expected time): each says its ticket number, its title, its expected time and its actual time. A click on an overrun
+opens where its time went — cook, gates, review, send-backs, waits —, in minutes; a second click closes it.
+
+The data is the `delais` object that `brigade <project> status --json` returns. Each station that serves the project
+computes it from its clone and publishes it in its follow-up next to `temps` (`runtime/src/projets/tenir.ts`), as soon
+as a ticket merged in the last 24 hours; the app relays it as is (`app/src/projets/demande.ts`,
+`app/src/projets/projets.ts`) and `app/src/vue-delais/delais.js` reads it. With no `delais`, a `part_dans_les_temps`
+that is `null`, or a share that is not readable, the block says `No ticket merged with an expected time in the last 24
+hours.` — never a made-up figure. When the station cannot read its clone's ticket files, it publishes the reason and
+the block says `The merged tickets cannot be read: <reason>`. An overrun with no readable time or title is left out;
+one whose breakdown is not readable says so when opened. Captures: `docs/captures/4309/` — `espace-projet-avant.png`,
+`espace-projet-apres.png` (no `delais`: the short empty line), `projet-delais-apres.png` and
+`projet-delais-ouvert-apres.png` (the worst overrun opened).
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
@@ -3625,6 +3666,18 @@ kitchen opens its frozen ticket, the checks of a red main, or reads again; a sta
 quota pause read again; the line of an issue the kitchen opened on itself opens that issue. Where the paragraphs below
 speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures:
 `docs/captures/4238/`.
+
+**Each TODO entry says who, for what and until when, and opens its park control (#4281).** The entries are drawn by
+`app/src/vue/parked/parked-todo.js`, from the parked records that `app/src/vue/parked/records.js` reads in the cards:
+under what is asked, `waits for the chef · until <day>` (`no date set` without one; `for what: not given` when the card
+does not say). A click on an answer sends it once, and the entry leaves the TODO — until the kitchen has played the
+answer, the next drawing of the rail shows it again. `park or unpark…`, next to the
+buttons, opens the park control under the entry: who (a person, or the chef), for what, until (a date or a fact), then
+`park` and `unpark`. A form that lacks one of the three is not sent, and says which one is missing. `park` and `unpark`
+call one gesture, with the same project, ticket and step, for any project (`park-control.js`). Until the shared park
+gesture of #4129 exists, that gesture goes through the waiting gestures (`park-gesture.js`): `park` is `waiting for…`,
+which takes only a date for now (a fact comes back refused, with its reason, under the form); `unpark` is `it arrived,
+back to the kitchen`. Read-only, the entry has no buttons and no park control. Captures: `docs/captures/4281/`.
 
 **TODO is not a column (#3458).** Tickets move left to right, from On the rail to Served; what awaits the chef is a
 property of a ticket, not a place on the rail. **A card that awaits you stays in the column of its stage** — On the rail

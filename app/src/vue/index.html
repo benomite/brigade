@@ -35,12 +35,14 @@
     <link rel="stylesheet" href="rail-bloque/rail-bloque.css" />
     <link rel="stylesheet" href="attente-du-rail/attente-du-rail.css" />
     <link rel="stylesheet" href="bandeau-arret/bandeau-arret.css" />
+    <link rel="stylesheet" href="bandeau-panne/bandeau-panne.css" />
     <link rel="stylesheet" href="pause-quota/pause-quota.css" />
     <link rel="stylesheet" href="backlog-band/backlog-band.css" />
     <link rel="stylesheet" href="rail/rail.css" />
     <link rel="stylesheet" href="carte-attente/carte-attente.css" />
     <link rel="stylesheet" href="carte-ticket/carte-ticket.css" />
     <link rel="stylesheet" href="mot-au-cook/mot-au-cook.css" />
+    <link rel="stylesheet" href="savoir-faire/savoir-faire.css" />
     <link rel="stylesheet" href="fiche-tests/fiche-tests.css" />
     <link rel="stylesheet" href="fiche-diagramme/fiche-diagramme.css" />
     <link rel="stylesheet" href="vue.css" />
@@ -56,6 +58,7 @@
     <link rel="stylesheet" href="agents/agents.css" />
     <link rel="stylesheet" href="journal/journal.css" />
     <link rel="stylesheet" href="cuisine/cuisine.css" />
+    <link rel="stylesheet" href="parked/parked.css" />
     <link rel="stylesheet" href="resume-hebdomadaire/resume-hebdomadaire.css" />
     <link rel="stylesheet" href="reglages-stations/stations.css" />
     <link rel="stylesheet" href="visite/visite.css" />
@@ -112,7 +115,7 @@
       <section id="arret" aria-live="polite" hidden></section>
       <header>
         <strong id="espace" class="mono"></strong>
-        <!-- Le menu du projet (ticket 2485, 2921) : Rail · Stations · Settings. Un seul onglet est montré au centre ; le
+        <!-- Le menu du projet (ticket 2485, 2921, 4241) : Rail · Stations · Know-how · Settings. Un seul onglet est montré au centre ; le
              second, à droite, ne change pas de l'un à l'autre. Settings s'ouvre par-dessus. -->
         <div id="onglets-du-projet" role="tablist" aria-label="Project menu" hidden></div>
         <!-- La station du projet et son état — cooking, stopped, paused —, à côté de l'onglet Stations (ticket 3523). -->
@@ -145,6 +148,8 @@
       <section id="choix-du-projet" aria-label="What its station lacks" aria-live="polite" hidden></section>
       <!-- Le temps de l'ajout au premier ticket servi (ticket 1401) : court tant qu'aucun n'est servi, figé ensuite. -->
       <section id="delai-du-projet" aria-label="Time to its first served ticket" hidden></section>
+      <!-- Les délais des dernières 24 heures (ticket 4309) : la part à l'heure, les pires dépassements. -->
+      <section id="delais-du-projet" aria-label="The last 24 hours"></section>
       <!-- L'offre du téléphone (ticket 3303) : sur le premier projet, juste après son premier ticket servi. -->
       <section id="offre-telephone" aria-label="Your phone" hidden></section>
       <section id="blocages-du-projet" aria-label="What blocks it" aria-live="polite" hidden></section>

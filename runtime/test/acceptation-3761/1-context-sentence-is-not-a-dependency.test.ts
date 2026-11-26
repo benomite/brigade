@@ -18,12 +18,10 @@ const lire = async (numero: number) => {
   return null;
 };
 
-// brigade:guard
 test("a body that only says `Builds on #1908` is claimable and is not held by the remaining tickets of #1908", async () => {
   assert.deepEqual(await attendusDuCorps(TICKET, `## Context\n\n${CONTEXTE}\n\nDo the thing.`, lire), []);
 });
 
-// brigade:guard
 test("the same body with an explicit dependency on #1908 still waits for its remaining ticket", async () => {
   assert.deepEqual(await attendusDuCorps(TICKET, `## Context\n\n${CONTEXTE}\n\nDepends on #${EPIQUE}\n`, lire), [RESTANT]);
 });

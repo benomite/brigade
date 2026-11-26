@@ -177,40 +177,10 @@ base, the stale-branch pruning).
   issue of the brigade that carries that mark — open or closed, changed within 30 days, from the repository or from
   this station's account — covers the card: no second one. A brigade that cannot be read files nothing and is
   warned; the next turn tries again (`runtime/src/signalement-carte-sans-question.ts`, #3134).
-- **No cook takes a ticket before its acceptance tests are written** (#3725, epic #3724). Between `queued` and `taken`,
-  the rail has the step `tests written`. When the claim gate reaches a ticket without the `tests-written` label, it
-  does not take it: the station prepares the ticket's branch `cook/<n>-github` on the base and runs the manager there,
-  which writes one test per acceptance criterion and names their paths. The station checks that the tree carries
-  these files and no other, commits them as the branch's first and only commit with the trailer
-  `Acceptance-Tests: frozen`, pushes the branch, posts on the issue one record per criterion
-  (`<!-- brigade:tests-acceptation -->`: `criterion`, `testPath`, then `redOnMain`, `greenOnBranch`, `mutationsCaught`,
-  `mutationsTotal`, `survivingLines`, left empty for other tickets to fill) and sets `tests-written`. The cook then
-  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. A
-  delivery that changes a frozen test is not refused before the review: the reviewer's brief names each frozen test
-  the head no longer carries as the frozen commit left it, with its diff since the freeze, and the reviewer judges it
-  as a blocking finding (#3910, `runtime/src/passe-gel-tests/gel-tests.ts`, `docs/runtime/pass.md`). There is no
-  amendment: a wrong criterion is a send-back reason, or a TODO card when it changes the product. A
-  writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
-  the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
-  taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
-  and is taken as is (`runtime/src/tests-acceptation/`). The app's rail shows a ticket labelled `tests-written` and not
-  yet taken as `tests written`, in the On the rail column, and counts it apart from `queued` (`app/src/vue/rail/github.ts`).
-  A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
-  at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
-  and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
-  A ticket held by another one (an open ticket it depends on, one set aside, its zone held) has its tests written
-  during that hold (#3872), and so do the tickets that wait for a place taken by a cook, or that a full pass leaves —
-  in rail order, at most one writing per place, under the same guards (#3887): the claim, once the hold, the place or
-  the pass frees, no longer waits for the writing after it. Their skip line still names what holds them.
-  Before the step, the manager classes each criterion (#3740, `runtime/src/qualification/classes.ts`, the rule in
-  `agents/manager.md`), in a throwaway checkout of the base: `testable` — a behaviour the end user observes — or
-  `not-testable`, with the proof the delivery owes instead (a before/after capture, the diff, the evaluation case, the
-  measured value). Only the testable criteria get a frozen test, and each record also carries `class`, and `proof` for
-  a not-testable one (its `testPath` is empty); the comment shows every criterion with its class and its test or its
-  proof. A ticket with no testable criterion does not start the step: the station posts its records with the line
-  `no testable criterion: proof by <kind>`, sets no label, and a cook takes it with the proofs it owes in its brief.
-  Classes that cannot be read (no JSON, a criterion missing, a `not-testable` one with no proof) write nothing and
-  count as a failed writing. A station whose clone cannot make a throwaway checkout says the criteria are not classed.
+- **No step writes acceptance tests before the cook** (#4229, epic #4132). The cook writes its tests with its work, in the
+  same pull request, and the review judges them (`agents/cook.md`). Nothing freezes a test: a cook may change any test
+  file of its own branch. The app's rail still reads the `tests-written` label of a ticket that went through the former
+  step, as `tests written` (`app/src/vue/rail/github.ts`).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a
@@ -311,14 +281,7 @@ base, the stale-branch pruning).
   reply or not: its verdict records the judged pair, the head and its reason, and the same head comes back with the same
   reason. It is sent back again on that reason, and that send-back counts among the `RENVOIS_MAX`, so a disagreement
   cannot loop (#3961: #3955 looped about 15 times between cook and review on one commit). A head never reviewed — sent
-  back for a red CI — is reviewed with the reply in its brief. The brief also says that a "Red on main, green on the branch" remark is the
-  pass's replay, not the review's: no reply lifts it, nor a free comment in the test calling it a guard of a behavior
-  the base already has — only a test that fails without the change, no such test (#3694: #3632's cook kept such a test
-  with a guard comment, its next cooks added nothing with no failed cook counted, and its head came back on that same
-  remark until 06f7aac removed the test), or, when the ticket's criteria say the behavior stays "as before" /
-  "unchanged", the test marked `// brigade:guard`, which the pass accepts green on the base (#3852). The remark never
-  loops: the second time it names a test, the cook marks it so, or sets the ticket aside once with the reason in one
-  line between `<bloque>` tags.
+  back for a red CI — is reviewed with the reply in its brief.
 - **A delivery cut before its PR.** A branch the station pushed but that never had a PR (the station stopped between
   the push and the PR, or GitHub refused the PR) goes to the pass as it is, with no cook: its PR opens and it takes
   `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a

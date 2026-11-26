@@ -78,7 +78,6 @@ test("le bandeau STOPPED d'une zone tenue nomme la PR, et les autres causes ne l
   }
 });
 
-// brigade:guard
 test("le bandeau STOPPED dit à qui chaque cause attend, sans mélanger main rouge et cause inconnue (#4244)", () => {
   const avec = (cause: unknown) => vueDeposee({ ...tableau, arretCuisine: { cause, since: "2026-11-24T10:00:00Z" } } as unknown as Tableau).banners[0]!;
   assert.equal(avec({ kind: "main-red" }).waitsOn, "the repair of main");

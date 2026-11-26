@@ -75,7 +75,6 @@ test("the Mac cannot install the dependencies: the ticket goes back to the rail 
   assert.ok(faux.prs.some((pr) => pr.issue === N && pr.state === "open"), "the box's delivery is a PR");
 });
 
-// brigade:guard
 test("no other station in the project: the ticket stays held on the Mac, which says so", async (t) => {
   const faux = new FauxGitHub();
   faux.feu(N, CALIBRE, "## Context\n\nRepair the red main.");
