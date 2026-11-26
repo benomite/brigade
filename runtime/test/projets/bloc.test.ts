@@ -33,3 +33,10 @@ test("un bloc dont la fin a été effacée court jusqu'au bout du fichier", () =
   assert.deepEqual(lignesDuBloc(texte), ["shop acme/shop main"]);
   assert.equal(reecrireBloc(texte, []), A_LA_MAIN);
 });
+
+test("un bloc sans fin qui répète sa ligne mise de côté et son projet est réécrit avec chacun une fois, et sa fin", () => {
+  const texte = [DEBUT, "# held-back brigade", "# held-back brigade", "brigade benomite/brigade", "brigade  benomite/brigade", ""].join("\n");
+  const rendu = reecrireBloc(texte, lignesDuBloc(texte));
+  assert.equal(rendu, [DEBUT, "# held-back brigade", "brigade benomite/brigade", FIN, ""].join("\n"));
+  assert.equal(reecrireBloc(rendu, lignesDuBloc(rendu)), rendu);
+});
