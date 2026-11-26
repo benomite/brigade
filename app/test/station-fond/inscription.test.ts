@@ -48,10 +48,31 @@ test("sur un Mac, l'agent launchd de la station joue l'hôte par le node de l'ap
 
 test("sur un Mac, un agent déjà chargé n'est jamais rechargé — ce serait arrêter la station qui tourne — : il est lancé s'il ne tourne pas", async (t) => {
   const maison = repertoireTemporaire(t);
-  const { systeme, appels } = unSysteme(maison, "darwin");
-  assert.deepEqual(await inscrireLaStationDeFond(systeme), { par: "launchd" });
-  assert.deepEqual(appels, ["launchctl print gui/501/brigade.station", "launchctl kickstart gui/501/brigade.station"]);
-  assert.ok(!appels.some((appel) => appel.includes("bootout")));
+  const { systeme, appels } = unSysteme(maison, "darwin", { "launchctl print": 113 });
+  await inscrireLaStationDeFond(systeme);
+  appels.length = 0;
+  // Le plist est déjà celui que l'app écrirait : l'agent chargé reste tel quel.
+  const charge = unSysteme(maison, "darwin");
+  assert.deepEqual(await inscrireLaStationDeFond(charge.systeme), { par: "launchd" });
+  assert.deepEqual(charge.appels, ["launchctl print gui/501/brigade.station", "launchctl kickstart gui/501/brigade.station"]);
+});
+
+test("sur un Mac, un plist que l'app réécrit est rechargé — bootout puis bootstrap — : launchd ne garde pas l'ancienne définition (#4400)", async (t) => {
+  const maison = repertoireTemporaire(t);
+  const plist = join(maison, "Library", "LaunchAgents", "brigade.station.plist");
+  const ancien = unSysteme(maison, "darwin", { "launchctl print": 113 });
+  await inscrireLaStationDeFond(ancien.systeme);
+  const renomme = unSysteme(maison, "darwin");
+  renomme.systeme.node = "/Applications/brigade.app/Contents/Resources/node/bin/brigade-node";
+  assert.deepEqual(await inscrireLaStationDeFond(renomme.systeme), { par: "launchd" });
+  assert.match(readFileSync(plist, "utf8"), /bin\/brigade-node<\/string>/);
+  assert.deepEqual(renomme.appels, ["launchctl print gui/501/brigade.station", "launchctl bootout gui/501/brigade.station", `launchctl bootstrap gui/501 ${plist}`]);
+
+  const refuse = unSysteme(maison, "darwin", { "launchctl bootout": 5 });
+  refuse.systeme.node = "/autre/node";
+  const rendu = await inscrireLaStationDeFond(refuse.systeme);
+  assert.match("refus" in rendu ? rendu.refus : "", /did not unload the station's agent gui\/501\/brigade\.station \(exit code 5\)/);
+  assert.ok(!refuse.appels.some((appel) => appel.includes("bootstrap")));
 });
 
 test("sur un Mac, l'agent posé par l'installeur de la station est laissé tel quel ; un launchd qui refuse est dit", async (t) => {
