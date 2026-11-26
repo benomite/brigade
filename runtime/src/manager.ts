@@ -263,7 +263,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   const garantir = async (issue: IssueOuverte): Promise<boolean> => {
     try {
       retenues.set(issue.number, await confiance.retenue(issue));
-      return true;
+      return false;
     } catch (erreur) {
       if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : confiance non lue sur l'issue #${issue.number} — ${message(erreur)}`);
       return false;
