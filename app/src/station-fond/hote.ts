@@ -15,7 +15,7 @@
 // - **Une station qui refuse de démarrer** (code 2) ne le fait pas partir (#3701) : l'hôte l'écrit dans `fond.json` et la
 //   retente d'elle-même (poste/station.ts), cinq secondes d'abord — une mise à jour à chaud qui trouve encore l'ancienne
 //   station sur le répertoire démarre dès qu'elle est partie, sans geste du chef.
-import { utimesSync } from "node:fs";
+import { existsSync, utimesSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { prendreLaStation, rendreLaStation, TENUE_PAR } from "../poste/station.ts";
 import { remettreLesProjets } from "../station-projets-remis.ts";
@@ -97,7 +97,15 @@ station = tenirProcessDeStation({
   reessaiMs: 10_000,
   // Le délai entre deux essais d'une station morte ou refusée : cinq secondes, sauf pour les tests qui ne l'attendent pas.
   ...(Number(process.env.BRIGADE_HOTE_RELANCE_MS) > 0 ? { relanceMs: Number(process.env.BRIGADE_HOTE_RELANCE_MS) } : {}),
-  avantLancement: async () => remettreLesProjets({ racine, dire }),
+  avantLancement: async () => {
+    // Le `node` de l'app qu'une mise à jour a retiré ou renommé (#4400) : chaque lancement échouerait en ENOENT. L'hôte
+    // s'en va avec un code d'échec, launchd le relance depuis le plist que l'app a réécrit.
+    if (!existsSync(process.execPath)) {
+      dire(`brigade: the background station stops — its node binary ${process.execPath} no longer exists (the app was updated); launchd restarts it from its current definition`);
+      process.exit(1);
+    }
+    await remettreLesProjets({ racine, dire });
+  },
   surChangement: noter,
   surIssue: noter,
 });

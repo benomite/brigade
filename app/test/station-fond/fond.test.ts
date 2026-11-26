@@ -2,8 +2,8 @@
 // quand elle tourne — le même process, le même pid —, et en quittant ne l'arrête pas : un cook en cours continue. Une
 // seconde station n'est jamais lancée. Contre une station d'essai : de vrais process, ni GitHub ni `claude`.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { uptime } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -203,4 +203,20 @@ test("l'app tient la station de cet ordinateur par la station de fond, et en qui
   const quitter = main.slice(main.indexOf('app.on("will-quit"'));
   assert.match(quitter, /stationLocale\?\.fermer\(\);/);
   assert.doesNotMatch(main, /stationLocale\?\.arreter\(\)|tenirProcessDeStation/);
+});
+
+test("l'hôte dont le node a disparu (mise à jour de l'app) s'en va avec un code d'échec au lieu de relancer en ENOENT : launchd le relance (#4400)", { skip: SOUS_POSIX }, async (t) => {
+  const ordi = unOrdinateur(t, "process.exit(1);\n");
+  const copie = join(repertoireTemporaire(t), "node");
+  copyFileSync(process.execPath, copie);
+  const hote = spawn(copie, [HOTE, ordi.racine, ordi.embarque], { env: { ...process.env, ...CACHE_DE_COMPILATION, BRIGADE_HOTE_RELANCE_MS: "300" }, stdio: ["ignore", "pipe", "ignore"] });
+  let sortie = "";
+  hote.stdout.on("data", (morceau) => (sortie += morceau));
+  const fini = new Promise<number | null>((ok) => hote.on("exit", ok));
+  t.after(() => hote.kill("SIGKILL"));
+  await jusqua(() => tenantDeLaStation(ordi.racine) === hote.pid, 2_000);
+  rmSync(copie);
+  assert.equal(await fini, 1);
+  assert.match(sortie, /its node binary .* no longer exists/);
+  assert.equal(existsSync(join(ordi.racine, TENUE_PAR)), false);
 });
