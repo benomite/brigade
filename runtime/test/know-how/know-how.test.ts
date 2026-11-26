@@ -1,5 +1,5 @@
-// The parser and writer of the project know-how file (#4239): several sections, a line without ticket, an empty file,
-// and a line number that is not an entry.
+// The parser and writer of the project know-how file (#4239), beyond the frozen cases of runtime/test/acceptation-4239/:
+// punctuation and CRLF, loose lines, the last entry removed, a line number that is not an entry, and the new text refused.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { editEntry, entryText, KNOW_HOW_FILE, parseKnowHow, removeEntry } from "../../src/know-how/know-how.ts";
@@ -20,23 +20,8 @@ const FILE = [
   "",
 ].join("\n");
 
-const changedLines = (before: string, after: string) => {
-  const a = before.split("\n");
-  return after.split("\n").flatMap((line, i) => (line === a[i] ? [] : [i]));
-};
-
 test("the file lives at .brigade/know-how.md", () => {
   assert.equal(KNOW_HOW_FILE, ".brigade/know-how.md");
-});
-
-test("several sections: each entry carries its section, its text, its ticket and its line", () => {
-  assert.deepEqual(parseKnowHow(FILE), [
-    { section: "Conventions", text: "Tests live next to the code", ticket: 101, line: 3 },
-    { section: "Conventions", text: "Identifiers are in French", ticket: 102, line: 4 },
-    { section: "Pitfalls", text: "Never run the pass with a dirty tree", ticket: 205, line: 7 },
-    { section: "Tools", text: "Use `gh api` for rate limits", ticket: 310, line: 10 },
-    { section: "Tools", text: "A tool nobody ticketed", ticket: null, line: 11 },
-  ]);
 });
 
 test("an entry's text keeps its own punctuation and a ticket in the middle of the text", () => {
@@ -55,32 +40,11 @@ test("a line before any heading is an entry with no section; prose and empty bul
   assert.deepEqual(parseKnowHow("- Loose (#3)\nSome prose\n-\n- \n## Tools\n  - indented"), [{ section: "", text: "Loose", ticket: 3, line: 0 }]);
 });
 
-test("an empty file, or one with its headings only, has no entry", () => {
-  assert.deepEqual(parseKnowHow(""), []);
-  assert.deepEqual(parseKnowHow("## Conventions\n\n## Pitfalls\n\n## Tools\n"), []);
-});
-
-test("editEntry changes exactly that line and keeps its ticket", () => {
-  const after = editEntry(FILE, 7, "  Never run the pass on a dirty worktree ");
-  assert.deepEqual(changedLines(FILE, after), [7]);
-  assert.equal(after.split("\n").length, FILE.split("\n").length);
-  assert.equal(after.split("\n")[7], "- Never run the pass on a dirty worktree (#205)");
-});
-
-test("editEntry on a line without ticket invents none", () => {
-  const after = editEntry(FILE, 11, "Reworded");
-  assert.deepEqual(changedLines(FILE, after), [11]);
-  assert.equal(after.split("\n")[11], "- Reworded");
-});
-
 test("editEntry keeps a CRLF line ending", () => {
   assert.equal(editEntry("## Tools\r\n- Old (#4)\r\n", 1, "New"), "## Tools\r\n- New (#4)\r\n");
 });
 
-test("removeEntry deletes exactly that line", () => {
-  const expected = FILE.split("\n");
-  expected.splice(4, 1);
-  assert.equal(removeEntry(FILE, 4), expected.join("\n"));
+test("removeEntry of the last entry leaves its section heading and no entry", () => {
   const lastOne = removeEntry("## Tools\n- Only (#9)\n", 1);
   assert.equal(lastOne, "## Tools\n");
   assert.deepEqual(parseKnowHow(lastOne), []);
@@ -101,4 +65,11 @@ test("an entry's new text is one line, not empty", () => {
   assert.throws(() => entryText("two\nlines"), /one line/);
   assert.throws(() => editEntry(FILE, 3, "two\rlines"), /one line/);
   assert.throws(() => editEntry(FILE, 3, ""), /needs a text/);
+});
+
+test("an entry's new text that ends with a ticket is refused: the source ticket is kept, never doubled", () => {
+  assert.throws(() => entryText("Reworded (#999)"), /names no ticket/);
+  assert.throws(() => editEntry(FILE, 7, "Reworded (#999)"), /names no ticket/);
+  assert.equal(entryText("See (#12) first"), "See (#12) first");
+  assert.equal(editEntry(FILE, 7, "See (#12) first").split("\n")[7], "- See (#12) first (#205)");
 });

@@ -46,11 +46,13 @@ function lineToChange(text: string, line: number) {
   return { lines, raw, entry };
 }
 
-// The new text of an entry: one line, not empty — an entry holds in one line.
+// The new text of an entry: one line, not empty — an entry holds in one line —, and no ` (#ticket)` of its own at its
+// end: the entry keeps its source ticket, and a second one would be read in its place.
 export function entryText(saisie: unknown): string {
   const text = typeof saisie === "string" ? saisie.trim() : "";
   if (text === "") throw new Error("an entry needs a text");
   if (/[\r\n]/.test(text)) throw new Error("an entry holds in one line");
+  if (entryAt(`- ${text}`)?.ticket != null) throw new Error("an entry's text names no ticket: its source ticket is kept");
   return text;
 }
 
