@@ -260,6 +260,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/attente-du-rail/alertes.ts",
     "app/src/rail-bloque/diagnostic.ts",
     "app/src/tableau/ecriture.ts",
+    // Le kanban de la nouvelle cuisine, de ses labels seuls, sans E/S (ticket 4482).
+    "app/src/tableau/kitchen-board.ts",
     "app/src/tableau/lecture.ts",
     "app/src/tableau/mise-de-cote-github.ts",
     // Le label `parked:chef` de la nouvelle cuisine, sans E/S : TODO lit ses issues de la liste des issues ouvertes (ticket 4474).
