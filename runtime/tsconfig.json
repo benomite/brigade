@@ -16,6 +16,7 @@
   },
   "include": ["src", "test"],
   "exclude": [
+    "test/acceptation-4229/2-a-cook-can-change-a-test-file-in-its-own-pr.test.ts",
     "test/acceptation-4302/2-form-remark-only-is-merged.test.ts",
     "test/mot-au-cook/1-send-word-on-a-cooking-ticket-answers-ok-and-posts-the-word-on-the-issue.test.ts",
     "test/acceptation-4062/1-no-broken-link.test.ts",
