@@ -37,9 +37,9 @@ const MARQUE_GESTE_ACCEPT = /<!-- brigade:reponse gesture=accept -->/;
 export const labelDeLaCuisine = (label: string): boolean => label === LABEL || priorite([label]) !== null || label.startsWith("model:") || label.startsWith("effort:");
 
 // L'empreinte de ce que le chef accepte : le titre et le corps de l'issue.
-export const empreinteAcceptee = ({ title, body }: { title: string; body: string }): string => createHash("sha256").update(`${title}\n${body}`).digest("hex").slice(0, 12);
+const empreinteAcceptee = ({ title, body }: { title: string; body: string }): string => createHash("sha256").update(`${title}\n${body}`).digest("hex").slice(0, 12);
 
-export const marqueDeLAccord = (issue: { title: string; body: string }, par: string): string =>
+const marqueDeLAccord = (issue: { title: string; body: string }, par: string): string =>
   `<!-- brigade:trust-accepted of=${empreinteAcceptee(issue)} -->\n**Accepted** by @${par}: the kitchen now reads this issue and judges it like any other.`;
 
 const meme = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
@@ -58,7 +58,7 @@ const ceQuElleDemande = ({ title, body }: { title: string; body: string }): stri
 
 // La carte : sa question, `accept` puis `close`, ce que l'issue demande et qui l'a ouverte.
 // `declare` : l'auteur est un humain que le projet déclare (`humans`), sans l'écriture.
-export function carteDeRetenue(numero: number, issue: { title: string; body: string; auteur?: string; declare?: boolean }): Carte {
+function carteDeRetenue(numero: number, issue: { title: string; body: string; auteur?: string; declare?: boolean }): Carte {
   const auteur = issue.auteur === undefined || issue.auteur === "" ? "someone" : `@${issue.auteur}`;
   const qui = issue.declare === true ? `Opened by ${auteur}, a declared human of the project without write access.` : `Opened by ${auteur}, who has no write access to the repository.`;
   return {
@@ -79,7 +79,7 @@ export function carteDeRetenue(numero: number, issue: { title: string; body: str
 
 // L'accord parmi ces commentaires — ceux qui suivent la carte —, ou nul. Fait foi : un compte de
 // confiance, ou l'humain à qui la carte va ; jamais une autre marque de la cuisine.
-export async function accordDu(commentaires: readonly Commentaire[], humain: string | null, porte: Pick<PorteDeConfiance, "deConfiance">): Promise<{ par: string } | null> {
+async function accordDu(commentaires: readonly Commentaire[], humain: string | null, porte: Pick<PorteDeConfiance, "deConfiance">): Promise<{ par: string } | null> {
   for (const commentaire of [...commentaires].reverse()) {
     const { body, author } = commentaire;
     const geste = MARQUE_GESTE_ACCEPT.test(body);

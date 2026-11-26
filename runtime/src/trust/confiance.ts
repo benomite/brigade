@@ -17,7 +17,7 @@ import { ECRITURE, type Commentaire, type GitHub } from "../github.ts";
 
 // Un agent de la cuisine : le robot du projet, ou une App de rôle (`<app>[bot]`), qu'un
 // administrateur du dépôt seul installe.
-export const agentDeLaCuisine = (login: string | undefined): boolean => login !== undefined && (auteurInterne(login) || login.toLowerCase().endsWith("[bot]"));
+const agentDeLaCuisine = (login: string | undefined): boolean => login !== undefined && (auteurInterne(login) || login.toLowerCase().endsWith("[bot]"));
 
 export type GitHubDeLaConfiance = Pick<GitHub, "commentaires" | "permissionDe">;
 export type Auteur = { author?: string; association: string };
