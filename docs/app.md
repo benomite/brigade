@@ -2749,7 +2749,7 @@ answered. No station read yet, one line under the card says so. Screenshots: `do
 
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
 the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
-run without a sandbox, nothing goes out before the chef's choice — and two buttons: "choose another
+run without a sandbox, in restricted mode (credential reads and hosts outside the project's list refused; shell commands only checked by the best-effort guard), nothing goes out before the chef's choice — and two buttons: "choose another
 station" (recommended: it opens the choice of machines for the move) and "continue without sandbox"
 (`continuerSansBacASable` of the bridge, whose answer is stated under the stations line). The choice records the
 decision through the runtime's `accepterSansBacASable`, in the project's state on this computer, for the station

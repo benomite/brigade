@@ -83,7 +83,7 @@ const SANS_BAC: DuRuntime = {
   courante: "machine",
   etapes: [
     AVANT[0] as DuRuntime["etapes"][number],
-    { etape: "machine", titre: "Cooking machine", etat: "courante", dit: "box has no sandbox: its cooks would read everything the station's account reads. Nothing is launched for mirrorlab until you choose.", geste: { quoi: "Continue without a sandbox on box, or choose another station for mirrorlab.", ou: "In the app, on the project's page.", liens: [] } },
+    { etape: "machine", titre: "Cooking machine", etat: "courante", dit: "box has no sandbox: its cooks would run in restricted mode: credential reads and hosts outside the project's list are refused, but shell commands are only checked by a best-effort guard (sed -i, curl -o, perl -i, python -c…). Nothing is launched for mirrorlab until you choose.", geste: { quoi: "Continue without a sandbox on box, or choose another station for mirrorlab.", ou: "In the app, on the project's page.", liens: [] } },
     { etape: "preparation", titre: "Repository preparation", etat: "a-venir", dit: `box opens the ticket that prepares ${DEPOT}.`, geste: null },
     A_VENIR,
   ],

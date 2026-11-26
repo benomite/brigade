@@ -190,7 +190,7 @@ function etapeMachine(entrees: Entrees): Vue {
       geste: { quoi: `Choose the station that cooks ${projet}.`, ou: "In the app, on the project's page.", liens: [] },
     };
   }
-  const sansBac = sansBacASable === true ? `: its cooks run without a sandbox, they read everything the station's account reads` : "";
+  const sansBac = sansBacASable === true ? `: its cooks run without a sandbox, in restricted mode: shell commands are only checked by a best-effort guard (sed -i, curl -o, perl -i, python -c…)` : "";
   // Un accès refusé est dit par l'étape du dépôt : la cuisine attend qu'il soit levé.
   if (suivi?.acces !== undefined) return { faite: false, dit: `${station} opens the kitchen of ${projet} once it may fetch from and push to its repository.`, geste: null };
   // De même pour un clone en échec.
@@ -199,7 +199,7 @@ function etapeMachine(entrees: Entrees): Vue {
   if (decisionAttendue(entrees)) {
     return {
       faite: false,
-      dit: `${station} has no sandbox: its cooks would read everything the station's account reads. Nothing is launched for ${projet} until you choose.`,
+      dit: `${station} has no sandbox: its cooks would run in restricted mode: credential reads and hosts outside the project's list are refused, but shell commands are only checked by a best-effort guard (sed -i, curl -o, perl -i, python -c…). Nothing is launched for ${projet} until you choose.`,
       geste: { quoi: `Continue without a sandbox on ${station}, or choose another station for ${projet}.`, ou: "In the app, on the project's page.", liens: [] },
     };
   }

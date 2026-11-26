@@ -32,6 +32,8 @@ import { leveesDesCommentaires } from "./boucle-attente/levee.ts";
 import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
+import { REGLES_DE_BASE, type Regle } from "./reseau.ts";
+import { dansLeModeRestreint } from "./bac-a-sable/restreint.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { garderLeCook } from "./garde-cook/garde.ts";
@@ -2929,6 +2931,11 @@ export type OptionsDuDepot = {
   cloison: Cloison | null;
   // Le bac à sable de Claude Code, quand la cuisine est sur le poste du chef.
   bacASable?: BacASableLocal | null;
+  // Sans bac à sable ni cloison (`bacASable` nul, #4349), le cook part en mode
+  // restreint : la liste réseau du projet et ses caches, d'où ses réglages se
+  // construisent. Absents, le socle réseau et aucun cache.
+  hotes?: () => Regle[];
+  caches?: string[];
   plafonds: Plafonds;
   graceMs: number;
   // Relu à chaque relecture quand c'est une fonction : un calibrage changé depuis l'app vaut à la suivante (#4222).
@@ -3073,6 +3080,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
+  // Le `claude` d'un cook : dans le bac à sable s'il y en a un ; sans bac à
+  // sable ni cloison, en mode restreint — jamais en `bypassPermissions` nu.
+  const dansLeBacDuCook = (args: string[], worktree: string, brigade = false): string[] =>
+    options.bacASable === null && cloison === null
+      ? dansLeModeRestreint(args, { worktree, caches: options.caches ?? [], hotes: options.hotes?.() ?? REGLES_DE_BASE, home: options.env.HOME ?? "", brigade })
+      : dansLeBacASableLocal(options.bacASable, args, worktree, [], brigade);
   const sansJeton = () => environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) });
   const env = (depart: NodeJS.ProcessEnv = sansJeton()) => environnementClaude(depart, options.env);
   // Ce qu'un setup ne fait pas entrer dans l'environnement du cook : ni le
@@ -3489,7 +3502,13 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
-    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
+    let args: string[];
+    try {
+      args = garderLeCook(dansLeBacDuCook(argumentsClaude(calibrage), worktree, brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
+    } catch (erreur) {
+      depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
+      return { subi: `the cook's restricted settings could not be built: ${message(erreur)}` };
+    }
     // Sur le moteur de la station (#3744) : `claude` tel quel, à la clé d'API, ou Codex.
     const surLeMoteur = lancementDuCook(moteur, { claude: { commande: options.claude, args, env: env(envDuCook) }, worktree, calibrage });
     if ("refus" in surLeMoteur) {
@@ -4110,7 +4129,12 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // Le manager lancé sur une consigne dans un worktree, gardé dans ce worktree.
   const lancerLeManager = async (numero: number, prefixe: string, texte: string, worktree: string, calibrage: Calibrage): Promise<{ message: string } | { illisible: string }> => {
     const flux = join(options.flux, `${prefixe}-${numero}-github-${Date.now()}.flux.jsonl`);
-    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree), { worktree, ticket: numero, depot: depotGitHub, branche: brancheDuTicket(numero) });
+    let args: string[];
+    try {
+      args = garderLeCook(dansLeBacDuCook(argumentsClaude(calibrage), worktree), { worktree, ticket: numero, depot: depotGitHub, branche: brancheDuTicket(numero) });
+    } catch (erreur) {
+      return { illisible: `the restricted settings could not be built: ${message(erreur)}` };
+    }
     const lancement = envelopper(cloison, { commande: options.claude, args }, { cwd: worktree, depot: "ecriture" });
     const lance = lancer({ ...lancement, entree: texte, cwd: worktree, env: env(), flux, ticket: numero });
     const fin = await lance.fin;

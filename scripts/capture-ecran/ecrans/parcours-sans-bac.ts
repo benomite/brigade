@@ -15,7 +15,7 @@ export const SANS_BAC: Onboarding = {
       etape: "machine",
       titre: "Cooking machine",
       etat: "courante",
-      dit: "box has no sandbox: its cooks would read everything the station's account reads. Nothing is launched for parade until you choose.",
+      dit: "box has no sandbox: its cooks would run in restricted mode: credential reads and hosts outside the project's list are refused, but shell commands are only checked by a best-effort guard (sed -i, curl -o, perl -i, python -c…). Nothing is launched for parade until you choose.",
       geste: { quoi: "Continue without a sandbox on box, or choose another station for parade.", ou: "In the app, on the project's page.", liens: [] },
     },
     { etape: "preparation", titre: "Repository preparation", etat: "a-venir", dit: "box opens the ticket that prepares benomite/parade: its gates, its worktree setup, the sites it may reach.", geste: null },

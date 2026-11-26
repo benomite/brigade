@@ -19,7 +19,7 @@ import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { brancherJeton, configJeton, direJeton } from "../jeton-claude.ts";
 import { brancherConnexionMax } from "../connexion-max/cuisine.ts";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
-import { configBacASableLocal, direBacASable, lireCaches } from "../bac-a-sable/local.ts";
+import { configBacASableLocal, direBacASable, lireCaches, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { sondesDeLaMachine, type Sondes } from "../bac-a-sable/detection.ts";
 import { annoncerCloison, configCloison, direFichiers, direReseau, type Cloison } from "../cloison.ts";
 import { noterCodeEnService } from "../code.ts";
@@ -71,6 +71,8 @@ import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
 import { configStation } from "../station.ts";
 import { sousLeNomRetenu } from "./nom.ts";
+import { LIMITES_DU_MODE_RESTREINT, MODE_RESTREINT } from "../bac-a-sable/restreint.ts";
+import { lireDecisionSansBacASable } from "../onboarding/attente.ts";
 import { direStations } from "../stations-declarees.ts";
 import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
@@ -175,11 +177,26 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       return REGLES_DE_BASE;
     }
   };
-  const bacASable = configBacASableLocal(options.sondes ?? sondesDeLaMachine(station.bin), { home: envProjet.HOME, worktrees, caches: lireCaches(envProjet) }, hotes, () => servicesDuDepot(() => lireALaBase(station, DECLARATION_SERVICES_LOCAUX)), {
+  const lieuxDuBac = { home: envProjet.HOME, worktrees, caches: lireCaches(envProjet) };
+  const declareeDuBac = {
     declaration: () => lireALaBase(station, DECLARATION_BAC_A_SABLE),
     etat: repertoireEtat,
     avertir: dire,
-  });
+  };
+  const servicesDuBac = () => servicesDuDepot(() => lireALaBase(station, DECLARATION_SERVICES_LOCAUX));
+  // Le bac à sable manque et le chef a décidé de cuire sans (`accepterSansBacASable`) :
+  // le cook part en mode restreint (#4349), pas dans un bac à sable ni à nu. Sans
+  // cette décision, la cuisine ne s'ouvre pas, comme avant.
+  let sansBac = false;
+  let bacASable: BacASableLocal | null = null;
+  try {
+    bacASable = configBacASableLocal(options.sondes ?? sondesDeLaMachine(station.bin), lieuxDuBac, hotes, servicesDuBac, declareeDuBac);
+  } catch (erreur) {
+    const machine = stations.find((declaree) => !declaree.distante);
+    const decision = lireDecisionSansBacASable(repertoireEtat);
+    if (!(erreur instanceof ConfigInvalide) || erreur.code !== "sandbox-unusable" || machine === undefined || decision?.station !== machine.nom.split("/")[0]) throw erreur;
+    sansBac = true;
+  }
   const session = configSession(envProjet, repertoireEtat);
   const apps = configIdentites(envProjet);
 
@@ -261,7 +278,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 claude: station.bin,
                 env,
                 cloison,
-                bacASable,
+                bacASable: sansBac ? null : (bacASable ?? undefined),
+                hotes,
+                caches: lieuxDuBac.caches,
                 plafonds: reglages.plafonds,
                 graceMs: reglages.graceMs,
                 reviewer: () => decisions.reviewer(),
@@ -381,6 +400,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   );
   dire(direJeton(jeton, envProjet));
   if (bacASable !== null) dire(direBacASable(bacASable));
+  if (sansBac) dire(`bac à sable — ${MODE_RESTREINT}: the chef decided to cook without it, so no \`claude\` of the kitchen runs under bypassPermissions; ${LIMITES_DU_MODE_RESTREINT}`);
   dire(
     arbitre === null
       ? "arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
