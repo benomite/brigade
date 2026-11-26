@@ -76,7 +76,7 @@ A level moves in two ways: the chef sets it from the app (the Agents tab, `PUT /
 autonomy policy moves it from the agent's gesture record (#4380, `politique.ts`):
 - **Promotion** — an agent at `propose` moves to `act` when its last N gestures done at `propose` all went through the
   chef's OK (at `propose`, the gate holds every gesture until the chef approves it) and none of their deliveries is in
-  an escaped bug or a revert. N is 5 (`NOMBRE_DE_GESTES_PROPRES`).
+  an escaped bug or a revert. N is 5 (`NOMBRE_DE_GESTES_PROPRES`, `niveaux.ts`).
 - **Demotion** — a gesture the agent did by itself under `act` whose delivery is later reverted, or cited by an escaped
   bug, sends it one step back, `act` to `propose`, with the revert or the bug as the reason. Each revert or escaped bug
   is handled once, by its key (`revert <sha>`, `bug <owner/repo>#<n>`): run again on the same facts, nothing moves
@@ -92,7 +92,7 @@ splitting of an epic logs in the manager's log, so neither is moved by it. In `e
 `progress`: `{ toward: "act", done, of: 5 }` at `propose` — its clean gestures at `propose` since its last move, the
 newest first, up to the first one a revert or a bug touches —, `null` at any other level.
 
-The runtime runs the policy at its tick, once an hour at most (`politiqueDuRuntime`). It reads the reverts of the last
+The runtime runs the policy at its tick, once an hour at most (`politiqueDuRuntime`, `politique-du-runtime.ts`). It reads the reverts of the last
 30 days on the base as the project's clone fetches it — the commits carrying git's trailer `This reverts commit <sha>`,
 with the tickets their reverted commits cite — and the escaped bugs from GitHub — the issues labelled `bug` created in
 those 30 days, with the tickets they cite (`qualite.ts`). A read that fails moves nothing and is said on the service

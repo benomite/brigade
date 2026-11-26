@@ -62,6 +62,10 @@ type DuProjet = Partial<Record<Reglable, Pose>> & { handled?: FaitTraite[] };
 // What the store holds of a project: its levels, those the chef pinned, and the facts the policy handled.
 export type EtatDesNiveaux = { niveaux: Niveaux; epingles: ReadonlySet<Reglable>; traites: FaitTraite[] };
 
+// The autonomy policy's N (politique.ts, #4380): an agent at `propose` moves to `act` after this many clean gestures
+// in a row, each through the chef's OK.
+export const NOMBRE_DE_GESTES_PROPRES = 5;
+
 export type MagasinDeNiveaux = {
   // The level of each agent of the project: what the chef set, else its default.
   lire(projet: string): Niveaux;

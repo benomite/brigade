@@ -32,7 +32,7 @@ import { placeLibre } from "./prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "./chef/chef.ts";
 import { brancherLeDigest } from "./journal-du-jour/matin.ts";
 import { notifierAuJournal } from "./journal-du-jour/publication.ts";
-import { politiqueDuRuntime } from "./autonomie/agents/politique.ts";
+import { politiqueDuRuntime } from "./autonomie/agents/politique-du-runtime.ts";
 import { lireLaQualite } from "./autonomie/agents/qualite.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { lireMachine } from "./machine.ts";
