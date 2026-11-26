@@ -157,21 +157,11 @@ and no child process.
 A failed ticket is taken again at once by a new cook (new worktree and branch); the breaker bounds the
 series. **The worktree goes away at the end of the cook.**
 
-**A delivery is pushed only once the project's gates are green** (#3996). The station plays
-`.claude/brigade/gates.sh` in the cook's worktree before the push; red, nothing is pushed: the try fails
-with the gates' first red line (`its gates are red, so its delivery was not pushed: …`), the branch is
-marked as saved work (`brigade: work in progress kept for the next cook (#2586)`), and the
-next cook starts from it. A next cook that delivers the same tree, changed in nothing, has nothing new to deliver (#4218): it is not a new try, the gates are not played again, and the ticket stops with a comment that says so, with the red the gates gave. The comment names each failed gate with its own error lines.
-**Red gates on a loaded machine are not the code's** (#4211):
-when the machine's one-minute load is above the station's CPU threshold (`BRIGADE_MAX_LOAD_PER_CORE`
-times its cores) at the end of the gates — a cut by their clock guard included —, no failed try is
-counted. The station's log and the issue get one line that names the load (`its gates are red because
-of machine load (load … for at most …)`), and the ticket goes back on the rail with a wait. Its branch is
-not marked as saved: once the load is back under the threshold, the station takes the ticket before
-the end of its wait (after a restart, at its end) and plays its gates again on the same delivery, without a cook. Green, it is
-pushed. Red on a calm machine, it counts as a try, as before. A project with no `gates.sh`, or gates that judge nothing (no test command,
-or provisional until the foundation ticket is served, #3188), pushes as before. A contributor station
-plays them the same way before pushing to its fork. **What is not a delivery is never pushed to the
+**The station plays no gates in the cook's worktree** (#4227): the cook tries its work (it runs its
+code or its tests), it does not judge it, and nothing it tried holds its delivery back. A delivery is
+pushed as it is, and the pass alone judges it: it runs the project's checks on the head of the PR,
+once, with the CI and the review (`github-seul.md`, "The pass is the only judge"). A contributor
+station pushes to its fork the same way. **What is not a delivery is never pushed to the
 ticket's branch**: the work of a cook that stops on a question is parked
 on the origin under `refs/brigade/parked/<branch>` — no branch, no PR head, so no CI workflow runs on
 it. A station that does not have the branch resumes from that parked work when it carries what the

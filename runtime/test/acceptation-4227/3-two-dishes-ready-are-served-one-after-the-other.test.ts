@@ -15,7 +15,10 @@ test("two dishes on disjoint zones are ready: the pass steps of the second begin
   const issueDe = (pr: number) => faux.prs.find((p) => p.number === pr)?.issue ?? 0;
   // Ce que la pass a fait, dans l'ordre : le début et la fin de chaque étape, par plat.
   const journal: string[] = [];
+  // Les plats prêts — leur PR ouverte, en pass — quand la pass commence sa première étape.
+  let pretsAuDebut: number[] | null = null;
   const etape = async (nom: string, issue: number) => {
+    pretsAuDebut ??= faux.prs.filter((p) => p.state === "open" && !p.merged).map((p) => p.issue).sort();
     journal.push(`start ${nom} ${issue}`);
     await dure();
     journal.push(`end ${nom} ${issue}`);
@@ -42,6 +45,8 @@ test("two dishes on disjoint zones are ready: the pass steps of the second begin
     await station.calme();
   }
   assert.ok(faux.mergee(11) !== undefined && faux.mergee(12) !== undefined, `both dishes are served: ${journal.join(", ")}`);
+  // Les deux plats étaient prêts ensemble : la pass a retenu le second, elle ne l'attendait pas.
+  assert.deepEqual(pretsAuDebut, [11, 12], "both dishes were ready when the pass began its first step");
   const plats = journal.map((ligne) => Number(ligne.split(" ")[2]));
   const premier = plats[0];
   const dernierDuPremier = plats.lastIndexOf(premier ?? 0);

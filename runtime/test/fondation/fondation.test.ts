@@ -202,8 +202,8 @@ test("the foundation ticket's own delivery is not blocked by the provisional gat
   faux.feu(1, [...CALIBRE, LABEL_FONDATION]);
   const { statuts, gatesJouees } = await servir(t, { faux, ticket: 1, claudeMd: PROVISOIRES, gates: "verte" });
   assert.equal(faux.mergee(1)?.mergeePar, "box");
-  // Dans le worktree du cook avant son push (#3996), puis sur la tête de sa PR.
-  assert.match(gatesJouees, /^npm test in .*[\\/]1-github\nnpm test in .*[\\/]gates-1-github\n$/);
+  // Une fois, sur la tête de sa PR, par la pass seule (#4227) : jamais dans le worktree du cook.
+  assert.match(gatesJouees, /^npm test in .*[\\/]gates-1-github\n$/);
   assert.deepEqual(statuts, [
     ["pending", "Gates running on station box"],
     ["success", "Gates green on station box"],

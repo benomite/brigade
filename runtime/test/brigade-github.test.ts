@@ -1158,7 +1158,7 @@ test("a red check that runs only on the base (Windows) holds nothing; a red chec
   assert.equal(faux.mergee(38), undefined);
 });
 
-test("a review runs off the turn: while one delivery's review runs, the turn reviews and merges another one (#2329)", async () => {
+test("a review runs off the turn: the turn goes on while it runs, and the pass, which serves one dish at a time, takes the other delivery once the first has its result (#2329, #4227)", async () => {
   const faux = new FauxGitHub();
   faux.feu(51);
   faux.feu(52);
@@ -1174,19 +1174,23 @@ test("a review runs off the turn: while one delivery's review runs, the turn rev
   });
   await a.tour();
   await jusqua(() => a.enCuisine().length === 0);
-  // #51 se relit encore : les tours suivants relisent, mettent à jour et mergent #52.
-  for (let i = 0; i < 20 && faux.mergee(52) === undefined; i += 1) {
+  // #51 se relit encore : les tours passent sans l'attendre, et #52 attend que #51 ait son résultat.
+  for (let i = 0; i < 20; i += 1) {
     await a.tour();
     await new Promise((resoudre) => setImmediate(resoudre));
   }
-  assert.equal(faux.mergee(52)?.mergeePar, "A");
   assert.equal(faux.mergee(51), undefined);
+  assert.equal(faux.mergee(52), undefined, "the second dish is not served while the first is in the pass");
+  const pr52 = faux.prs.find((p) => p.issue === 52);
+  assert.ok(pr52);
+  assert.deepEqual((faux.commentaires.get(pr52.number) ?? []).filter((c) => c.body.startsWith("<!-- brigade:verdict")), [], "nor even reviewed");
   liberer();
-  for (let i = 0; i < 4 && faux.mergee(51) === undefined; i += 1) {
+  for (let i = 0; i < 8 && (faux.mergee(51) === undefined || faux.mergee(52) === undefined); i += 1) {
     await a.tour();
     await a.calme();
   }
   assert.equal(faux.mergee(51)?.mergeePar, "A");
+  assert.equal(faux.mergee(52)?.mergeePar, "A");
 });
 
 test("the pass presses the next turns on a delivery, a fresh verdict and a merge attempt — CI running included, once per head — and never on a quiet turn (#2333)", async () => {
@@ -1761,8 +1765,8 @@ test("the station of this runtime, on espace: reading its dispatch-only CI, it r
   }
   assert.equal(faux.mergee(757)?.mergeePar, "box");
   assert.deepEqual(fait, ["reprendre review-757-github cook/757-github", "retirer review-757-github", "reprendre gates-757-github cook/757-github", "retirer gates-757-github"]);
-  // Dans le worktree du cook avant le push (#3996), puis sur la tête approuvée de la PR.
-  assert.equal(readFileSync(join(repertoire, "gates.log"), "utf8"), `gates in ${join(repertoire, "757-github")}\ngates in ${join(repertoire, "gates-757-github")}\n`);
+  // Une fois, sur la tête de la PR, par la pass seule (#4227) : jamais dans le worktree du cook.
+  assert.equal(readFileSync(join(repertoire, "gates.log"), "utf8"), `gates in ${join(repertoire, "gates-757-github")}\n`);
   assert.deepEqual((faux.statutsDeCommit.get(pr.sha) ?? []).map(({ state, description }) => [state, description]), [
     ["pending", "Gates running on station box"],
     ["success", "Gates green on station box"],

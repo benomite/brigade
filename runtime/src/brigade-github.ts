@@ -75,7 +75,7 @@ import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-d
 import { consigneDesOutils, outilsDuCook } from "./outils-du-cook.ts";
 import { consigneDesTestsDeLaZone, selectionnerTests } from "./tests-de-la-zone/tests-de-la-zone.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
-import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
+import { approuvee, ciDeLaTete, fusionner, partiesDuResultat, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
 import { enLivraisonDuTour, laisserAuxCooksHumains } from "./cook-humain/livraison.ts";
@@ -137,8 +137,6 @@ import { chronometre, completerLesTemps, type DepotDuTicket, rattraperLaPrise } 
 import { retenirLeSensible, SENSIBLE } from "./sensible/sensible.ts";
 import { agirSurLaReponse } from "./reponse-validation/reponse-validation.ts";
 import { signalerHorsZone } from "./passe-hors-zone/hors-zone.ts";
-import { lireLaCharge } from "./rouge-de-charge/classeur.ts";
-import { enregistrerGatesRouges, rejouerQuandCalme } from "./rouge-de-charge/crochet.ts";
 
 // Un ticket tel que le tour le lit : une issue ouverte qui porte `fire`.
 // `epique` : son corps porte la liste des tickets d'une épique — elle se sert
@@ -476,9 +474,6 @@ export type StationGitHub = {
   // La fiche du projet, relue à chaque merge (#4230) : son classement du risque parque pour le chef le merge d'un
   // ticket dont le genre d'action est rangé `chef`. La station la reçoit, comme sa porte, après sa construction.
   ficheDuProjet?: (() => unknown) | null;
-  // La charge de la machine, relue pour reprendre un ticket rendu pour elle (#4211) : la station la reçoit après sa
-  // construction (`stationDuDepot`). Absente, celle du système.
-  lireCharge?: () => number;
   // Un tour : relit et merge ce qui est en pass, puis prend ce que ses places
   // libres permettent et lance leurs cooks, sans les attendre.
   tour(): Promise<void>;
@@ -551,6 +546,8 @@ export const RENVOIS_MAX = 2;
 // vide moins vite que les cooks livrent ; l'amas s'y relit à chaque tour et s'y
 // met en conflit à chaque merge.
 export const PASS_MAX = 5;
+// La pass sert un plat à la fois (règle 8 de la spec du processus simplifié, #4227).
+export const PLATS_A_LA_FOIS = 1;
 
 // Ce que la porte de prise dit des tickets qu'elle laisse quand ses places, ou
 // le pass, sont pleins (#3677) : la borne, et les tickets qui la tiennent.
@@ -897,6 +894,16 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const retenuesDuTour = new Set<number>();
   // Les livraisons que la station relit et merge en ce moment, hors du tour (#2329).
   const enRelecture = new Map<number, Promise<void>>();
+  // Les plats que la pass, qui en sert un à la fois, a laissés attendre — à ce tour et au précédent —, et le
+  // dernier qu'elle a pris : celui qui attend passe devant lui (#4227).
+  let attendentLaPass = new Set<number>();
+  let attendaientLaPass = new Set<number>();
+  let dernierServi: number | null = null;
+  // Le plat dont la pass n'a pas encore son résultat : ses checks restent à jouer sur sa tête (sa branche mise à jour
+  // de sa base, ou ses gates qui viennent de se jouer et que le tour suivant lit). Les livraisons vues en pass au
+  // tour d'avant : un plat tenu qui n'y est plus — mergé, renvoyé, fermé — ne tient plus la pass.
+  let tenueParLaPass: number | null = null;
+  const vusEnPass = new Set<number>();
   // Un merge à la fois : chaque merge attend le précédent.
   let serie: Promise<unknown> = Promise.resolve();
   const enSerie = <T>(faire: () => Promise<T>): Promise<T> => {
@@ -915,10 +922,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const enAttente = async (ticket: TicketLu): Promise<number | null> => {
     return termeDeLAttente(await github.commentaires(ticket.number).catch(() => []), instant());
   };
-  // Les tickets rendus au rail pour des gates rouges sous la charge (#4211) : leur attente se lève dès que la
-  // machine est calme. Perdus au redémarrage de la station, ils attendent alors le terme de leur attente.
-  const remisPourLaCharge = new Set<number>();
-  const railDeLaCharge = { remettre: (numero: number) => void remisPourLaCharge.add(numero) };
 
   // La question d'un cook bloqué va au manager, jamais au chef directement
   // (#2894). Rend ce que devient le ticket — rendu à la file (`liberee`), retenu
@@ -1503,8 +1506,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
           const demain = instant() + ATTENTE_MAX_MS;
           const reprise = Math.min(demain, Math.max(instant() + ATTENTE_MS, fait.retour?.getTime() ?? 0));
           avertir(`brigade : #${issue} sur ${nom} — the cook stopped without a delivery, through no fault of its own: ${fait.subi}`);
-          // Rendu pour la charge (`charge`, posé par les gates de `stationDuDepot`) : son attente se lève dès qu'elle tombe.
-          if ((fait as { charge?: boolean }).charge === true) railDeLaCharge.remettre(issue);
           await github.commenter(issue, `${MARQUE_D_ATTENTE} until=${reprise}${fait.court === true ? " court " : " "}-->\nStation \`${nom}\`: the cook stopped without a delivery — ${fait.subi}\n\nThis stop is not the cook's doing: it is not counted among the ticket's ${ECHECS_MAX} tries. The ticket waits until ${new Date(reprise).toISOString()}, then is retried.`);
         } else {
           await github.commenter(issue, `Station \`${nom}\`: the cook added nothing, and the delivery still has work left — ${fait.reste}. The ticket is given back; this is not counted as a failed cook.`);
@@ -1833,6 +1834,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const tour = async () => {
     renvoyes.clear();
     retenuesDuTour.clear();
+    attendaientLaPass = attendentLaPass;
+    attendentLaPass = new Set();
+    if (tenueParLaPass !== null && !vusEnPass.has(tenueParLaPass) && !enRelecture.has(tenueParLaPass)) tenueParLaPass = null;
+    vusEnPass.clear();
     // Une base rouge se relance au tour même (invariant 4, #4026), et se répare au run du superviseur (#3945).
     const checksDeLaBase = await github.checksDeLaBase();
     // La guérison (#2757) : un geste qui échoue est dit, et ne retient ni les
@@ -2047,9 +2052,26 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
         if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
         // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
-        // de plusieurs minutes ne retient plus les merges, les autres relectures
-        // ni les prises. Les merges, eux, passent un à un.
-        if (enRelecture.has(ticket.number) || enRelecture.size >= PASS_MAX) continue;
+        // de plusieurs minutes ne retient ni le tour ni les prises.
+        // Elle sert un plat à la fois (#4227) : le second n'entre dans sa pass qu'une fois le premier sorti de la sienne,
+        // avec son résultat. Un plat qui a attendu passe devant celui qu'elle vient de servir : un plat qui revient à
+        // chaque tour — sa CI qui tourne encore, son merge retenu — ne tient pas les autres hors de la pass.
+        // Un plat que la pass a encore à juger — ses checks à jouer sur sa tête mise à jour — la garde jusqu'à son
+        // résultat. Une livraison retenue pour le chef attend un humain, pas la pass : elle n'y prend pas la place (#3446).
+        if (enRelecture.has(ticket.number)) continue;
+        vusEnPass.add(ticket.number);
+        const pourUnHumain = pourLeChef.has(ticket.number);
+        if (!pourUnHumain) {
+          const occupee = [...enRelecture.keys()].filter((numero) => !pourLeChef.has(numero)).length >= PLATS_A_LA_FOIS;
+          const tenueParUnAutre = tenueParLaPass !== null && tenueParLaPass !== ticket.number;
+          const unAutreAttend = [...attendaientLaPass, ...attendentLaPass].some((numero) => numero !== ticket.number);
+          if (occupee || tenueParUnAutre || (dernierServi === ticket.number && tenueParLaPass !== ticket.number && unAutreAttend)) {
+            attendentLaPass.add(ticket.number);
+            continue;
+          }
+          dernierServi = ticket.number;
+          attendentLaPass.delete(ticket.number);
+        }
         const relireEtFusionner = async () => {
         // Le pass a bougé : un verdict neuf, un merge, une mise à jour, un refus,
         // un renvoi, ou une CI attendue sur une tête neuve (#2333).
@@ -2057,16 +2079,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         let mergee = false;
         // Retenue pour la validation de son écran (#3184) : pas un refus de GitHub.
         let retenue = false;
+        // La pass n'a pas encore le résultat de ce plat : ses checks restent à lire ou à jouer sur sa tête (#4227).
+        let resteAJuger = false;
         try {
           const rendu = await relire(pr, {
             github,
             station: nom,
+            // Checks, CI et relecture, dans une seule étape de la pass, qui rend un seul résultat (#4227) : les gates
+            // du projet d'abord, jouées sur la tête quand sa CI ne tourne pas sur ses PR — la pass est le seul lieu
+            // où elles se jouent —, puis la relecture ; son verdict dit les trois parties. Une branche en retard sur sa
+            // base change de tête à sa mise à jour : ses gates se jouent sur la tête mise à jour, une fois.
             juger: async (lue) => {
+              if (!lue.enRetard && !ciDesPR(sienne) && ciDeLaTete(await github.ci(lue.sha), false) === "gates-a-jouer" && (await jouerLesGates(ticket, pr))) bouge = true;
               chrono.marquer(ticket.number, "revue");
               const jugement = await juger(ticket, lue);
               chrono.marquer(ticket.number, "ci");
               bouge = true;
-              return jugement;
+              return { ...jugement, parties: partiesDuResultat(await github.ci(lue.sha), ciDesPR(sienne)) };
             },
           });
           // Approuvée, une livraison qui touche à ce qui la juge passe devant
@@ -2191,7 +2220,12 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
               await cloreLeServi(ticket);
             }
             // Hors de la série des merges : des gates de plusieurs minutes ne retiennent pas les autres.
-            if (fusion.issue === "gates-a-jouer" && (await jouerLesGates(ticket, pr))) bouge = true;
+            if (fusion.issue === "gates-a-jouer" && (await jouerLesGates(ticket, pr))) {
+              bouge = true;
+              resteAJuger = true;
+            }
+            // Mise à jour de sa base, sa tête change : la pass y joue ses checks au tour suivant, avant tout autre plat.
+            if (fusion.issue === "mise-a-jour" && !ciDesPR(sienne)) resteAJuger = true;
             if (attendue) {
               if (attendues.get(pr.number) !== tentee) bouge = true;
               attendues.set(pr.number, tentee);
@@ -2216,6 +2250,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         } finally {
+          if (resteAJuger) tenueParLaPass = ticket.number;
+          else if (tenueParLaPass === ticket.number) tenueParLaPass = null;
           enRelecture.delete(ticket.number);
           // Mergée, elle libère ce qui retenait des tickets — une dépendance,
           // une zone tenue, une place du pass — : ils se prennent à un tour
@@ -2531,20 +2567,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Le saut est dit, comme les autres : sans lui, le dossier du superviseur
       // ne sait pas ce qui le tient (#3945).
       const termeDeLAttente = await enAttente(ticket);
-      let calme = false;
-      if (termeDeLAttente !== null && remisPourLaCharge.has(ticket.number)) {
-        await rejouerQuandCalme({
-          tickets: [ticket.number],
-          lireCharge: station.lireCharge ?? lireLaCharge,
-          rail: railDeLaCharge,
-          rejouer: (numero) => {
-            remisPourLaCharge.delete(numero);
-            calme = true;
-            avertir(`brigade : #${numero} sur ${nom} — the machine is calm again: the ticket whose gates were red under load is taken again before the end of its wait, and its gates are replayed`);
-          },
-        });
-      }
-      if (termeDeLAttente !== null && !calme) {
+      if (termeDeLAttente !== null) {
         sauter(ticket.number, direSaut(ticket.number, `it waits until ${new Date(termeDeLAttente).toISOString()} after a stop`));
         continue;
       }
@@ -2896,9 +2919,6 @@ export type OptionsDuDepot = {
   base: string;
   // L'heure de la station ; les tests la fixent.
   maintenant?: () => Date;
-  // La charge de la machine (#4211) : la station la lit (`lireLaCharge`), les tests la fixent. Absente, elle
-  // n'est pas lue et tout rouge des gates compte un essai, comme avant.
-  lireCharge?: () => number;
   // `owner/name` du projet.
   depotGitHub: string;
   // Le GitHub de la brigade, où va le ticket du temps perdu (#2783).
@@ -3084,7 +3104,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const abandon = new AbortController();
   // La charge de la machine, qui départage un rouge des gates (#4211). Non lue, la machine compte pour calme :
   // tout rouge est celui du code, comme avant.
-  const lireCharge = options.lireCharge ?? (() => 0);
 
   const ciDesPR = lecteurDeLaCiDesPR(depot, base);
   // Les tickets de fondation du dépôt, lus seulement quand des gates ne jouent
@@ -3212,67 +3231,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       },
     });
   };
-  // Les gates du projet, jouées dans le worktree d'une livraison avant son push
-  // (#3996) : la CI ne joue que sur une livraison qu'elles ont jugée prête. Un
-  // projet sans `gates.sh` n'a rien à y jouer, ni des gates qui ne jugent rien
-  // — provisoires tant que la fondation n'est pas servie (#3188) : la livraison
-  // part comme avant, et la pass dit pourquoi elle ne les joue pas.
-  // Rend ce qui la retient, ou null quand elle peut partir.
-  // L'arbre dont les gates viennent d'être rouges, par ticket : le cook suivant
-  // qui le livre sans y rien changer n'a pas à les rejouer — même arbre, même
-  // verdict —, ce qui coûtait une suite entière de plus. Un arbre qui ne se lit
-  // pas les rejoue.
-  const arbresRouges = new Map<number, { arbre: string; resume: string; detail: string }>();
-  const gatesAvantLePush = async (ticket: TicketLu, worktree: string): Promise<{ echec: string; detail?: string; fini?: true } | { subi: string; charge?: boolean } | null> => {
-    if (!aDesGates(worktree) || (await gatesQuiNeJugentPas(worktree, ticket, lireFondations)) !== null) return null;
-    const lu = await depot.lancerGit?.(["rev-parse", "HEAD^{tree}"], worktree);
-    const arbre = lu?.code === 0 ? lu.stdout.trim() : null;
-    const dejaRouge = arbresRouges.get(ticket.number);
-    // Le même arbre que la livraison aux gates rouges : le cook n'a rien de neuf à livrer, ce n'est pas un nouvel essai (#4218).
-    // Le ticket s'arrête là-dessus, avec ce que les gates avaient dit ; elles ne sont pas rejouées.
-    if (arbre !== null && dejaRouge?.arbre === arbre) return { echec: `the cook had nothing new to deliver: its delivery is the same tree as its previous one, whose gates are red (${dejaRouge.resume}), so the gates were not played again`, detail: dejaRouge.detail, fini: true };
-    const secrets = lireSecrets(worktree, options.gates?.secrets ?? null);
-    if (!secrets.pret) return { echec: `its gates could not run before the push, so its delivery was not pushed: the secrets the project declares cannot be given to them — ${secrets.problemes.join("; ")}` };
-    const delaiMs = options.gates?.delaiMs ?? delaiDesGatesMs(options.env);
-    // Le tour des gates que la station a reçu (`BRIGADE_GATES_VERROU`), que `environnementCook` écarte avec les autres `BRIGADE_*` :
-    // les gates d'un test qui joue celles du dépôt n'attendent pas le tour que tiennent les gates qui le jouent.
-    const verrou = options.env.BRIGADE_GATES_VERROU;
-    const envGates = { ...environnementCook(options.env), ...(verrou === undefined ? {} : { BRIGADE_GATES_VERROU: verrou }) };
-    const gates = await jouerGates({
-      worktree,
-      ticket: ticket.number,
-      env: { ...envGates, ...secrets.env },
-      masquer: secrets.masquer,
-      interdites: options.gates?.sansIdentite ? VARIABLES_GITHUB : [],
-      delaiMs,
-      cloison,
-      signal: abandon.signal,
-    });
-    if (abandon.signal.aborted) return { subi: "the station stopped during the gates of the delivery, before its push" };
-    const { vert, resume, detail } = verdictDesGates(gates, delaiMs);
-    if (vert) {
-      arbresRouges.delete(ticket.number);
-      return null;
-    }
-    const echec = `its gates are red, so its delivery was not pushed: ${resume}`;
-    // Rouges sous la charge de la machine, elles ne disent rien du code (#4211) : aucun essai raté, et la
-    // livraison part quand même (#4366) — la CI de la PR rejoue tout sur des machines calmes et juge avant le
-    // merge (#4141). Attendre que la machine se calme coûtait 30 min et plus par ticket pour un rouge sans objet.
-    // Rouges pour le code, comme avant : les tests rouges par leur nom et la fin de leur sortie (#4113).
-    let sousCharge = false;
-    await enregistrerGatesRouges({
-      ticket: ticket.number,
-      gates,
-      lireCharge,
-      // L'essai raté se compte au retour du cook, sur `echec`, comme avant.
-      essais: { ajouter: () => void (arbre !== null && arbresRouges.set(ticket.number, { arbre, resume, detail })) },
-      journal: { ecrire: () => undefined },
-      rail: { remettre: () => void (sousCharge = true) },
-    });
-    if (!sousCharge) return { echec, detail };
-    avertir(`brigade : #${ticket.number} — its gates are red under machine load, not because of its code: its delivery is pushed and the CI of its PR judges it (#4366)`);
-    return null;
-  };
+  // Aucune gate ne se joue dans le worktree du cook avant le push : le cook
+  // essaie son travail, il ne le juge pas. La pass est seul juge, et joue les
+  // checks du projet sur la tête de la PR (#4227).
   const cuisinerLeTicket: Cuisiner = async (ticket, calibrage, suivre = false) => {
     const run = runDuTicket(ticket.number);
     // Son cook a survécu à une vie précédente de la station (#4401) : il est
@@ -3381,7 +3342,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     const sauvee = reprise && (estUneSauvegarde(depot.sujet?.(branche)) || repriseDeGarde);
     const lancerGit = depot.lancerGit === undefined ? undefined : (args: string[], cwd: string) => depot.lancerGit!(args, cwd);
     if (repriseDeGarde) joint += `\n\n${consigneDuRunPrecedent(branche, await commitsDuRunPrecedent(lancerGit, worktree, base))}`;
-    else if (sauvee) joint += `\n\n## Work saved by the previous cook\n\nThe previous cook on this ticket stopped before delivering: it declared itself blocked and the chef has answered on this issue, or the station's gates were red on its delivery, which was not pushed (this issue's comments say which). Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
+    else if (sauvee) joint += `\n\n## Work saved by the previous cook\n\nThe previous cook on this ticket stopped before delivering: it declared itself blocked and the chef has answered on this issue (this issue's comments say so). Its work in progress is committed on this branch (last commit: \`${SUJET_DE_SAUVEGARDE}\`). Read what it did (\`git log\`, \`git show HEAD\`) and continue from where it stopped, do not start over.`;
     if (suivi === null && sansPR && !sauvee && avant !== null && depot.livree !== undefined) {
       const livree = depot.livree(branche);
       // `livree` rend la branche locale quand l'origine n'a pas la sienne
@@ -3389,18 +3350,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       // quoi que dise le clone (#2610). Elle part d'abord sur GitHub ; si le push
       // échoue, un cook la reprend.
       let surGitHub = livree !== branche;
-      // Elle ne part qu'une fois les gates vertes dans son worktree (#3996) :
-      // rouges, un cook la reprend, avec ce qu'elles disent.
-      const retenue = surGitHub || depot.commits(branche) === 0 ? null : await gatesAvantLePush(ticket, worktree);
-      if (retenue !== null) {
-        if ("subi" in retenue) {
-          await depot.ranger(worktree, branche);
-          return retenue;
-        }
-        avertir(`brigade : #${ticket.number} sur ${nom} — \`${branche}\` carries a delivery that was never pushed, and ${retenue.echec}: a cook resumes it`);
-        joint += `\n\n## Gates red on the delivery\n\nThis branch carries a delivery that was never pushed: ${retenue.echec}. Fix what is red, run the gates and commit.${retenue.detail === undefined || retenue.detail === "" ? "" : `\n\nWhat the gates said:\n\n${retenue.detail}`}`;
-      }
-      if (!surGitHub && retenue === null && depot.commits(branche) > 0) {
+      // Elle part telle quelle : la pass est seul juge, et joue elle-même les checks du projet (#4227).
+      if (!surGitHub && depot.commits(branche) > 0) {
         try {
           depot.pousser(branche);
           surGitHub = true;
@@ -3617,22 +3568,11 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // d'un cook dont le travail est fait —, livre. Sans quoi son essai comptait
     // pour un cook raté, « added nothing since its last delivery », sur #3036.
     const livreLaSauvegarde = sauvee && prOuverte === null && lireLivrable(lireLeFlux(lance.flux ?? flux).message ?? null).texte !== null;
-    // Ce qui partira en livraison ne part qu'une fois les gates du projet
-    // vertes dans son worktree (#3996), ce que le cook a laissé non commité
-    // compris : récolté d'abord. Rouges, la branche garde la marque du travail
-    // sauvé (#2586) : le cook suivant en repart, au lieu que la station la
-    // pousse telle quelle, sans gates, comme une livraison coupée (#2577).
+    // Ce que le cook a laissé non commité part avec sa livraison : récolté
+    // d'abord. Rien de ce que le cook a essayé ne la retient : la pass est seul
+    // juge, et joue elle-même les checks du projet (#4227).
     depot.recolter?.(worktree, branche);
-    const retenue = depot.commits(branche) > 0 && (livreLaSauvegarde || depot.tete?.(branche) !== avant) ? await gatesAvantLePush(ticket, worktree) : null;
-    if (retenue !== null && "echec" in retenue && !estUneSauvegarde(depot.sujet?.(branche))) {
-      try {
-        depot.recolter?.(worktree, branche, SUJET_DE_SAUVEGARDE, true);
-      } catch (erreur) {
-        avertir(`brigade : #${ticket.number} sur ${nom} — the work whose gates are red could not be marked as saved on \`${branche}\`: ${message(erreur)}`);
-      }
-    }
     await depot.ranger(worktree, branche);
-    if (retenue !== null) return retenue;
     // Une écriture refusée par le bac à sable n'est pas le fait du ticket : un
     // motif nommé, qui ne compte pas vers `served-elsewhere` (#2738).
     const refusee = lireLeFlux(lance.flux ?? flux).ecritureRefusee;
@@ -3967,7 +3907,6 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     arreterLeTour?.();
   };
   station.porte = options.porte ?? null;
-  station.lireCharge = lireCharge;
   station.lacune = options.lacune;
   const quitter = station.quitter;
   station.quitter = async () => {

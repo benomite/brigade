@@ -76,7 +76,6 @@ import { configStation } from "../station.ts";
 import { sousLeNomRetenu } from "./nom.ts";
 import { direStations } from "../stations-declarees.ts";
 import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
-import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
 import { createAgentSettings } from "../agent-settings/index.ts";
 import { creerConfiance, type Confiance } from "../trust/trust.ts";
 import { AcceptesIllisibles, ouvrirAcceptes, type Acceptes } from "../trust/acceptes.ts";
@@ -261,7 +260,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
           : (() => {
               const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), avertir: dire, env });
               const ecrivaine = stationDuDepot({
-                lireCharge: lireLaCharge,
                 porte: gestes,
                 nom: ici.nom,
                 places,

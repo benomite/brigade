@@ -318,8 +318,7 @@ base, the stale-branch pruning).
   `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a
   failure, until `served-elsewhere` (#2577: two cooks of 7 and 10 turns on a delivery whose PR never opened). The
   branch must be what the origin carries: a head that was never pushed, or a branch that already had a PR (sent back,
-  closed), still gets a cook. A head found only in the clone is pushed first, and only once the station's gates are
-  green on it; red, it is not pushed, and a cook resumes it with what they say (#3996).
+  closed), still gets a cook. A head found only in the clone is pushed first, as it is: the pass alone judges it (#4227).
 - **What a red CI says, handed to the cook.** The cook has no access to GitHub: told only that the CI of its PR is red,
   at best with the names of the red jobs, it rebuilt the CI's selection of tests and played it again to find what
   failed (#2545: 16 cooks taken again on a red CI, 93 min of cooking). The station now reads the failure annotations
@@ -352,12 +351,22 @@ base, the stale-branch pruning).
   through the ordinary merge path; refused, it goes back to a cook with the judge's reasons, like a review that
   requests changes, and its next head is judged again. Nothing waits for the chef: no `blocked-on-human`, no
   "merge it by hand".
+- **The pass is the only judge, and serves one dish at a time** (#4227, rule 8 of
+  `docs/superpowers/specs/2026-11-24-simplified-process.md`). The station plays no gates in the cook's worktree: the
+  cook tries its work, it does not judge it, and nothing it tried holds its delivery back. The pass runs the project's
+  checks, reads the CI and runs the review in one pass step, and posts one result: the verdict comment, whose first
+  line names its three parts (`Approved by station … Checks: green. CI: none on this project's PRs. Review:
+  approved.`). It serves one dish at a time: a second dish starts its pass step only once the first has left its own;
+  a dish whose checks are still to run on its updated head keeps the pass until they have run. A dish that waited
+  goes before the one just served, so a dish that comes back every turn (its CI still running) does not hold the
+  others out; a delivery held for the chef waits for a human and takes no place in the pass.
 - **A red base** holds a delivery's merge only if that delivery runs the same check: a workflow that runs only on the
   base, like the Windows tests, never freezes the pass (#2279).
 - **A project with no CI on its PRs** (espace since 2026-10-22, #2456) is judged by its own gates: when none of its
   workflows on the base (`.github/workflows/*.yml`, read by `runtime/src/declencheurs.ts`) runs on a PR that changes
-  those files, an approved PR with no gates status on its head has `.claude/brigade/gates.sh` run on that head by a
-  station, in a worktree of its branch, with the project's secrets, under a time cap (`BRIGADE_GATES_TIMEOUT_SECONDS`,
+  those files, a PR with no gates status on its head has `.claude/brigade/gates.sh` run on that head by a
+  station, in a worktree of its branch — before its review when its branch is up to date with its base, after its
+  update otherwise, so they run once per dish (#4227) —, with the project's secrets, under a time cap (`BRIGADE_GATES_TIMEOUT_SECONDS`,
   30 min by default, `delaiDesGatesMs`), and the result is posted as the commit status `brigade/gates`
   (`github-etat/gates-de-la-tete.ts`). Green, the PR merges; red, what failed is written on the issue and the delivery
   goes back to a cook like a red CI. The `pending` status is the claim: a fresh one (under 90 min, `GATES_PERIMEES_MS`)

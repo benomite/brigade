@@ -16,8 +16,7 @@ const SUJET_DE_REPRISE = "brigade: work in progress saved after the idle guard s
 export const estUneRepriseDeGarde = (sujet: string | null | undefined): boolean => sujet === SUJET_DE_REPRISE;
 
 // Le sujet du commit qui garde le travail d'un cook arrêté sans livraison — il
-// s'est dit bloqué, ou les gates de la station sont rouges sur ce qu'il livre :
-// une tête qui le porte n'est pas une livraison (#2577), un cook la reprend
+// s'est dit bloqué : une tête qui le porte n'est pas une livraison (#2577), un cook la reprend
 // (#2586). Le second, celui d'avant #4401, se lit encore sur les branches qui le portent.
 export const SUJET_DE_SAUVEGARDE = "brigade: work in progress kept for the next cook (#2586)";
 const SUJETS_DE_SAUVEGARDE = [SUJET_DE_SAUVEGARDE, "brigade: work in progress saved before the station restarts (#2586)"];

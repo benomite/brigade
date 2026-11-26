@@ -5,7 +5,7 @@
 // nue, une fourche nue, le clone de chaque station —, seuls GitHub et le
 // lancement de `claude` sont faux.
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Lancer, StationGitHub } from "../../src/brigade-github.ts";
@@ -302,13 +302,14 @@ test("a fork the push cannot reach releases the claim, says why, and opens no PR
   assert.ok(bob.dits.some((dit) => dit.includes("could not be pushed to the fork")), bob.dits.join("\n"));
 });
 
-test("a delivery whose gates are red in the cook's worktree is not pushed to the fork, and no PR opens (#3996)", async (t) => {
+test("the station plays no gates in the cook's worktree: a delivery whose gates would be red is pushed to the fork and its PR opens, for the project's pass alone to judge (#4227)", async (t) => {
   const projet = new Projet();
   projet.ajouter(7);
   const { origine, clone } = depotGit(t);
-  // Le projet porte des gates rouges sur sa base.
+  // Le projet porte des gates rouges sur sa base, qui laissent une trace si on les joue.
+  const trace = join(repertoireTemporaire(t), "gates-jouees").replaceAll("\\", "/");
   mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-  writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/bin/sh\necho "FAIL  the shop test is red" >&2\nexit 1\n');
+  writeFileSync(join(clone, ".claude/brigade/gates.sh"), `#!/bin/sh\necho gates >> '${trace}'\necho "FAIL  the shop test is red" >&2\nexit 1\n`);
   chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
   git(clone, "add", ".");
   git(clone, "commit", "-q", "-m", "gates");
@@ -316,9 +317,10 @@ test("a delivery whose gates are red in the cook's worktree is not pushed to the
   const bob = station(t, projet, "bob", origine);
   await bob.servir();
   assert.deepEqual(bob.cooks, ["bob:7-github"]);
-  assert.equal(git(bob.fourche, "branch", "--list", "cook/7-github"), "");
-  assert.deepEqual(projet.prs, []);
-  assert.ok(bob.dits.some((dit) => dit.includes("its gates are red, so nothing was pushed to the fork: FAIL  the shop test is red")), bob.dits.join("\n"));
+  assert.equal(existsSync(trace), false, "no gates were played in the cook's worktree");
+  assert.notEqual(git(bob.fourche, "branch", "--list", "cook/7-github"), "");
+  assert.equal(projet.prs.length, 1);
+  assert.ok(!bob.dits.some((dit) => dit.includes("gates are red")), bob.dits.join("\n"));
 });
 
 test("rights that cannot be read fail the turn and nothing is cooked; the next turn reads them again", async (t) => {

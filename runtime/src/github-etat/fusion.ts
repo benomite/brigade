@@ -65,12 +65,31 @@ export type PRAFusionner = Pick<PR, "number" | "sha" | "state" | "merged" | "enR
 export type VerdictRendu = { station: string; verdict: Verdict; sha: string; commentaire: number };
 
 // Ce que rend le jugement d'une PR : le verdict, et ce qui le motive.
-export type Jugement = { verdict: Verdict; motif: string };
+// `parties` : ce que les checks du projet et la CI disent de la tête, que la
+// pass a lus dans la même étape que la relecture (#4227).
+export type Jugement = { verdict: Verdict; motif: string; parties?: PartiesDuResultat };
+
+// Les deux parties du résultat de la pass que la relecture ne dit pas : les
+// checks du projet (ses gates) et la CI de la tête.
+export type PartiesDuResultat = { checks: string; ci: string };
+
+// Ce que les checks du projet et la CI disent de la tête, lus de ses checks.
+// `ciDesPR` : un workflow du projet se lance sur cette PR.
+export function partiesDuResultat(checks: Pick<Check, "outcome" | "name">[], ciDesPR: boolean): PartiesDuResultat {
+  const gates = checks.find((check) => check.name === CONTEXTE_DES_GATES)?.outcome;
+  const ci = etatDeLaBase(checks.filter((check) => check.name !== CONTEXTE_DES_GATES));
+  return {
+    checks: gates === undefined ? (ciDesPR ? "run by the CI of the PR" : "not run yet, the pass runs them on the head it merges") : gates === "green" ? "green" : gates === "red" ? "red" : "running",
+    ci: ci === null ? (ciDesPR ? "not started" : "none on this project's PRs") : ci === "pending" ? "running" : ci,
+  };
+}
 
 export type ContexteDeRelecture = { github: GitHubDeLaFusion; station: string; juger(pr: PRAFusionner): Promise<Jugement> };
 
-export const corpsDeVerdict = (station: string, sha: string, { verdict, motif }: Jugement) =>
-  `<!-- brigade:verdict station=${station} verdict=${verdict} sha=${sha} -->\n${verdict === "approve" ? "Approved" : "Changes requested"} by station \`${station}\`.${motif === "" ? "" : `\n\n${motif}`}`;
+// Le résultat de la pass : sa première ligne dit le verdict et, quand la pass
+// les a lues, ses trois parties — checks, CI, relecture ; le motif suit.
+export const corpsDeVerdict = (station: string, sha: string, { verdict, motif, parties }: Jugement) =>
+  `<!-- brigade:verdict station=${station} verdict=${verdict} sha=${sha} -->\n${verdict === "approve" ? "Approved" : "Changes requested"} by station \`${station}\`.${parties === undefined ? "" : ` Checks: ${parties.checks}. CI: ${parties.ci}. Review: ${verdict === "approve" ? "approved" : "changes requested"}.`}${motif === "" ? "" : `\n\n${motif}`}`;
 
 // Le verdict le plus récent de la PR, dans quelque ordre qu'on lise ses
 // commentaires ; null si aucun. Seul le dépôt rend un verdict.
