@@ -6,12 +6,12 @@
 // branch: {"risk": ["runtime/"]}.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { argumentsClaude, environnementCook } from "../claude.ts";
-import { configCloison, envelopper } from "../cloison.ts";
-import { environnementClaude, masquerLaConsole } from "../jeton-claude.ts";
-import { passerParLaPorte, variablesDeRelais } from "../reseau.ts";
+import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
+import { masquerLaConsole } from "../jeton-claude.ts";
+import { REGLES_DE_BASE, passerParLaPorte, type Regle } from "../reseau.ts";
 import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
+import { launcherOf, projectHosts } from "./launch.ts";
 import { gitCli, openKitchen } from "./kitchen.ts";
 
 masquerLaConsole();
@@ -41,43 +41,40 @@ export function readProjects(text: string, stationDir: string): Line[] {
 
 const log = (project: string) => (line: string) => console.log(`${new Date().toISOString()} ${project}: ${line}`);
 
+// The project's kitchen, or why it launches no agent.
 function kitchenOf(project: Line) {
   const state = join(root as string, "kitchen", project.name);
   const git = gitCli(process.env);
   const portsFile = process.env.BRIGADE_STATION_PORTES;
   // Read at each launch: the gate may open the project's port after the kitchen started.
   const portOf = () => (portsFile && existsSync(portsFile) ? (lirePortes(portsFile).projets[project.name] ?? null) : null);
-  const cloison = configCloison(process.env, { repertoireEtat: state, clone: project.clone });
   let risk: string[] = [];
+  let hosts: Regle[] = REGLES_DE_BASE;
+  const worktrees = join(state, "worktrees");
+  const launcher = launcherOf({ project: project.name, env: process.env, claude: claudeBin, state, clone: project.clone, worktrees, hosts: () => hosts, probes: sondesDeLaMachine(claudeBin), portsFile, portOf });
+  if ("refused" in launcher) return launcher;
   return {
-    risk: async () => {
+    // What the base branch declares, read before each turn.
+    readBase: async () => {
       try {
         risk = (JSON.parse(await git(project.clone, ["show", `origin/${project.base}:.brigade/kitchen.json`])) as { risk?: string[] }).risk ?? [];
       } catch {
         risk = [];
       }
+      hosts = await projectHosts(git, project.clone, project.base);
     },
     kitchen: openKitchen({
       repo: project.repo,
       base: project.base,
       clone: project.clone,
-      worktrees: join(state, "worktrees"),
+      worktrees,
       state,
       gh: ghCli(process.env.BRIGADE_GH_BIN || "gh", process.env),
       git,
       places: () => project.places,
       riskPaths: () => risk,
       log: log(project.name),
-      launch: (_kind, cwd, write, calibration, input) => {
-        // No BRIGADE_ variable and no GitHub token reach an agent: it reads its ticket from its input.
-        const { GH_TOKEN: _gh, GITHUB_TOKEN: _github, ...base } = environnementCook(process.env);
-        const port = portOf();
-        // On a station with gates, an agent never leaves without its project's.
-        if (portsFile && port === null) throw new Error(`no network gate is open for ${project.name}: no agent leaves without one`);
-        const env = environnementClaude({ ...base, ...(port === null ? {} : variablesDeRelais(port)) }, process.env);
-        const launch = envelopper(cloison, { commande: claudeBin, args: argumentsClaude(calibration) }, { cwd, depot: write ? "ecriture" : "lecture" });
-        return { command: launch.commande, args: launch.args, input, cwd, env, secrets: {} };
-      },
+      launch: launcher.launch,
     }),
   };
 }
@@ -87,7 +84,10 @@ if (import.meta.main) {
   const portsFile = process.env.BRIGADE_STATION_PORTES;
   const stationPort = portsFile && existsSync(portsFile) ? lirePortes(portsFile).station : null;
   if (stationPort !== null) passerParLaPorte(stationPort);
-  const kitchens = new Map<string, ReturnType<typeof kitchenOf>>();
+  type Served = Exclude<ReturnType<typeof kitchenOf>, { refused: string }>;
+  const kitchens = new Map<string, Served>();
+  // A refused project is tried again each turn; its reason is logged when it changes.
+  const refusals = new Map<string, string>();
   const file = join(root, "kitchen", "projects");
   for (;;) {
     let projects: Line[] = [];
@@ -98,9 +98,18 @@ if (import.meta.main) {
     }
     for (const project of projects) {
       try {
-        if (!kitchens.has(project.name)) kitchens.set(project.name, kitchenOf(project));
-        const served = kitchens.get(project.name) as ReturnType<typeof kitchenOf>;
-        await served.risk();
+        if (!kitchens.has(project.name)) {
+          const opened = kitchenOf(project);
+          if ("refused" in opened) {
+            if (refusals.get(project.name) !== opened.refused) log(project.name)(opened.refused);
+            refusals.set(project.name, opened.refused);
+            continue;
+          }
+          refusals.delete(project.name);
+          kitchens.set(project.name, opened);
+        }
+        const served = kitchens.get(project.name) as Served;
+        await served.readBase();
         await served.kitchen.turn();
       } catch (error) {
         log(project.name)(`turn failed — ${(error as Error).message}`);
