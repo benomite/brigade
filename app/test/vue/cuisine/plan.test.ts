@@ -154,7 +154,7 @@ describe("la bande du haut : une carte du supervisor et une du closer, sur une l
 
   test("une issue que la cuisine a ouverte sur elle-même : le supervisor en alerte ; sans rôle, « no tidy yet »", () => {
     const posee = bande({ roles: undefined, alerte: 77 });
-    assert.deepEqual(cartes(posee), [["supervisor", "supervisoralert: #77"], ["closer", "closerno tidy yet"]]);
+    assert.deepEqual(cartes(posee), [["supervisor", "supervisoralert: #77"], ["closer", "closerNo tidy yet."]]);
     assert.deepEqual(tons(posee), ["rouge", "gris"]);
   });
 

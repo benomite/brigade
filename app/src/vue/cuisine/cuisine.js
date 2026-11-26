@@ -271,7 +271,7 @@ export function poserLaBandeDuHaut(doc, { roles, montre, alerte, maintenant, dep
   };
   if (!montre("supervisor")) carte("supervisor", alerte === undefined ? "gris" : "rouge", alerte === undefined ? "ok" : `alert: #${alerte}`);
   const rangement = role("closer")?.latest ?? null;
-  if (!montre("closer")) carte("closer", "gris", rangement === null ? "no tidy yet" : `tidied ${ilYA(maintenant - Date.parse(rangement.at))}`);
+  if (!montre("closer")) carte("closer", "gris", rangement === null ? PAS_ENCORE("tidy") : `tidied ${ilYA(maintenant - Date.parse(rangement.at))}`);
   if (delai !== undefined) ligne.append(Object.assign(doc.createElement("span"), { className: "ligne-du-delai", textContent: delai, title: delai }));
   return cadre;
 }
