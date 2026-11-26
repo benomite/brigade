@@ -19,6 +19,11 @@ function fakeGh() {
   let next = 1;
   const gh: Gh = async (args, input) => {
     const flag = (name: string) => args[args.indexOf(name) + 1] ?? "";
+    if (args[0] === "api" && args.at(-1)?.includes("/comments")) return "[[]]";
+    if (args[0] === "api" && args[1]?.startsWith("repos/")) {
+      const i = issues.get(Number(args[1].split("/").pop())) as FakeIssue;
+      return JSON.stringify({ title: i.title, body: i.body, author_association: "OWNER", labels: i.labels.map((name) => ({ name })) });
+    }
     if (args[0] === "api") {
       return JSON.stringify({
         data: {
