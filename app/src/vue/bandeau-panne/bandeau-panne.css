@@ -1,0 +1,14 @@
+/* Le bandeau de panne du projet (ticket 4216). La panne reprend la peau de `.panne-du-rail` (vue.css) ; l'arrêt tranquille
+   est neutre : texte du rail, filet gris, aucune couleur de panne. */
+#rail .bandeau-en-panne strong {
+  flex: 1;
+}
+#rail .bandeau-en-panne .fait-du-systeme {
+  color: var(--texte);
+}
+#rail .bandeau-repos {
+  margin: var(--pas-2) var(--pas-4) 0;
+  padding: var(--pas-2) var(--pas-3);
+  border: 1px solid var(--gris);
+  border-radius: var(--rayon-bouton);
+}

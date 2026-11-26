@@ -189,12 +189,9 @@ export class Faux {
     return [...this.descendants()].filter(({ balise }) => balises.includes(balise));
   }
 
-  // Tout ce qui est posé dessous, dans l'ordre de la page.
-  *descendants(): Generator<Faux> {
-    for (const enfant of this.children) {
-      yield enfant;
-      yield* enfant.descendants();
-    }
+  // Tout ce qui est posé dessous, dans l'ordre de la page, en tableau : un test en compte (`.filter(…).length`, #4241).
+  descendants(): Faux[] {
+    return this.children.flatMap((enfant) => [enfant, ...enfant.descendants()]);
   }
   // Les éléments de cette balise posés dessous — `pre`, `button`…
   dessous(balise: string): Faux[] {
