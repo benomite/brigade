@@ -98,6 +98,19 @@ const auNomDe = (projet: string, ligne: string) => `brigade [${projet}] : ${lign
 // Ouvre les portes de la station et les tient : la sienne, puis celle de
 // chaque projet de sa configuration. Rend quand la première relecture est
 // faite, ses ports écrits.
+// The names in \`<racine>/kitchen/projects\`, one project per line; none if it is absent.
+function projetsDeLaCuisine(racine: string): Array<{ nom: string }> {
+  try {
+    return readFileSync(join(racine, "kitchen", "projects"), "utf8")
+      .split("\n")
+      .map((ligne) => ligne.trim().split(/\s+/)[0] ?? "")
+      .filter((nom) => nom !== "" && !nom.startsWith("#"))
+      .map((nom) => ({ nom }));
+  } catch {
+    return [];
+  }
+}
+
 export async function tenirPortes(options: OptionsPortes): Promise<PortesTenues> {
   const { racine, fichier, dire } = options;
   const ouvrir = options.ouvrir ?? ouvrirPorte;
@@ -140,7 +153,8 @@ export async function tenirPortes(options: OptionsPortes): Promise<PortesTenues>
       change = true;
       dire(`brigade : porte de la station ouverte — 127.0.0.1:${station.port} (Anthropic et GitHub seulement)`);
     }
-    const { projets } = lireFichierDeConfiguration(join(racine, CONFIGURATION));
+    // The projects of the new kitchen (\`kitchen/main.ts\`) have their gate too.
+    const projets = [...lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets, ...projetsDeLaCuisine(racine)];
     const voulus = new Set(projets.map((projet) => projet.nom));
     for (const [nom, porte] of [...ouvertes]) {
       if (voulus.has(nom)) continue;

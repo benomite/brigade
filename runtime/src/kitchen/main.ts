@@ -45,7 +45,8 @@ function kitchenOf(project: Line) {
   const state = join(root as string, "kitchen", project.name);
   const git = gitCli(process.env);
   const portsFile = process.env.BRIGADE_STATION_PORTES;
-  const port = portsFile && existsSync(portsFile) ? (lirePortes(portsFile).projets[project.name] ?? null) : null;
+  // Read at each launch: the gate may open the project's port after the kitchen started.
+  const portOf = () => (portsFile && existsSync(portsFile) ? (lirePortes(portsFile).projets[project.name] ?? null) : null);
   const cloison = configCloison(process.env, { repertoireEtat: state, clone: project.clone });
   let risk: string[] = [];
   return {
@@ -70,6 +71,9 @@ function kitchenOf(project: Line) {
       launch: (_kind, cwd, write, calibration, input) => {
         // No BRIGADE_ variable and no GitHub token reach an agent: it reads its ticket from its input.
         const { GH_TOKEN: _gh, GITHUB_TOKEN: _github, ...base } = environnementCook(process.env);
+        const port = portOf();
+        // On a station with gates, an agent never leaves without its project's.
+        if (portsFile && port === null) throw new Error(`no network gate is open for ${project.name}: no agent leaves without one`);
         const env = environnementClaude({ ...base, ...(port === null ? {} : variablesDeRelais(port)) }, process.env);
         const launch = envelopper(cloison, { commande: claudeBin, args: argumentsClaude(calibration) }, { cwd, depot: write ? "ecriture" : "lecture" });
         return { command: launch.commande, args: launch.args, input, cwd, env, secrets: {} };
