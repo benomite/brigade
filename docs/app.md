@@ -2765,6 +2765,22 @@ the removed lines cap: the two others say `not read on GitHub yet`, the reason o
 closer rows, which propose the same keys by a pull request (#1685). Screenshots: `docs/captures/2491/`. Module:
 `app/src/vue/projet/bandeau-sante/Closer.js`.
 
+**The project know-how** (#4239, epic #4135). Under the closer, the **Project know-how** block: the entries of
+`.brigade/know-how.md` (the file each cook reads first and adds to, `agents/cook.md`), read on the project's integration
+branch on GitHub with the chef's `gh` token, like the closer — when Settings opens, then at most once a minute. The entries
+are grouped by section, `Conventions`, `Pitfalls` and `Tools` first, then any other section of the file; each row says the
+entry's text and its source ticket (`#205`, or `no source ticket` for a line without one), with **Edit** and **Remove**. A
+missing file, or one with no entry, is one empty line (`No project know-how yet. .brigade/know-how.md is missing or has
+no entry.`), not an error; a refused reading is the error line `The project know-how not reached.`, its detail on hover. **Edit** opens a field with the entry's
+text; there is no **save**: the field applies on its `change` (Enter, or leaving it) when its text is a new one — left as
+it was or emptied, it closes; Escape closes it. **Remove** applies at once. Either is proposed by a pull request towards
+the integration branch (`proposerLeFichier` with that path): only that line changes — an edit keeps its ` (#ticket)` —,
+the file is read again first, and a row whose text moved since the reading proposes nothing and says so. The row says
+`opening the pull request…`, then `the new text proposed in` (or `the removal proposed in`) and a `pull request #<n>`
+link; the list keeps the text in force until the PR is merged. Both states (entries, empty) are rendered by `app/test/vue/know-how/know-how-vue.test.ts`. Modules:
+`app/src/vue/know-how/` (the block, and its reading and pull request), `runtime/src/know-how/know-how.ts` (the parser and
+writer of the file).
+
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
 `2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of
