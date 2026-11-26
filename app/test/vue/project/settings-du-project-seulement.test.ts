@@ -61,8 +61,8 @@ describe("Settings : les réglages du projet seulement", () => {
     for (const id of ["sigle", "couleurs", "retrait"]) assert.match(settings, new RegExp(`id="${id}"`), id);
     assert.match(settings, /aria-label="Remove this project from the app's sidebar"/);
     const vue = readFileSync(join(VUE, "vue.js"), "utf8");
-    assert.match(vue, /rangeeDeReglage\("Remove this project from the app's sidebar"/);
-    assert.doesNotMatch(vue, /rangeeDeReglage\("in your app"/);
+    assert.match(vue, /rangeeDeSetting\("Remove this project from the app's sidebar"/);
+    assert.doesNotMatch(vue, /rangeeDeSetting\("in your app"/);
   });
 
   test("chaque réglage montré a son stockage, dit par une table qui suit la page ; ceux que `setting` lit sont dans projet.json", () => {

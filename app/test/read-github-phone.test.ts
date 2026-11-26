@@ -311,13 +311,13 @@ describe("ce que le téléphone envoie et lit de GitHub", () => {
     const www = mkdtempSync(join(tmpdir(), "lecture-github-telephone-"));
     t.after(() => rmSync(www, { recursive: true, force: true }));
     poserLesModules(www, APP, join(APP, "src", "read-github-phone.ts"));
-    const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "lecture-github-telephone.js")).href], { encoding: "utf8" });
-    assert.equal(charge.stdout.trim(), "INTERVALLE_MS lireLesProjetsDuCompte ouvrirLaLectureGitHub parCapacitor", charge.stderr);
+    const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "read-github-phone.js")).href], { encoding: "utf8" });
+    assert.equal(charge.stdout.trim(), "INTERVALLE_MS lireLesProjectsDuAccount ouvrirLaReadGitHub parCapacitor", charge.stderr);
   });
 });
 
 // Le téléphone tel que l'APK le porte : le pont (www/android/pont.js), joué comme dans la WebView, et la lecture qu'il
-// charge à côté de la vue (www/src/lecture-github-telephone.js), posés par la construction. Le coffre garde le jeton du
+// charge à côté de la vue (www/src/read-github-phone.js), posés par la construction. Le coffre garde le jeton du
 // chef (#2500) ; le HTTP natif de Capacitor est le faux GitHub de ce fichier, qui ne joint rien d'autre que l'API de
 // GitHub. Le stockage garde aussi un appairage d'avant #2500, avec l'adresse de sa station : elle n'est jamais demandée.
 const POSEE = mkdtempSync(join(tmpdir(), "lecture-github-telephone-apk-"));

@@ -110,7 +110,7 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     assert.equal(dite(vue).dessous("h4")[0]?.textContent, TITRE);
     assert.match(dite(vue).textContent, new RegExp(EN_COURS));
     assert.match(dite(vue).textContent, /on box\/claude · 12 turns · 48,210 tokens/);
-    assert.equal(maintenant(vue), "nowwriting app/src/bon.tsfor 2 min");
+    assert.equal(maintenant(vue), "nowwriting app/src/slip.tsfor 2 min");
     assert.deepEqual(steps(vue), ["reading runtime/src/etat.ts"]);
     // Pas encore de PR : aucun bouton qui l'ouvre, et rien ne dit qu'il n'en a pas — il tourne.
     assert.equal(buttonPr(vue), undefined);

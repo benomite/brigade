@@ -146,7 +146,7 @@ describe("les gestes du chef", () => {
 
     // Le process principal ne fait que passer le nom du geste au socle — avec là où la cuisine du projet tourne ; ni lui, ni le pont, ni la vue, ni ce qui dit l'offre ne lancent rien.
     const principal = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
-    assert.ok(principal.includes('ipcMain.handle("geste", (_, nom: unknown, id: unknown, oui: unknown) => {\n  const vise = connu(nom);\n  return vise === undefined ? parti(nom) : ecrireGeste(terminaux, id, vise, oui, cuisines.cuisineDe(vise));\n});'), "le canal « geste » du process principal ne passe plus le seul nom du geste au socle");
+    assert.ok(principal.includes('ipcMain.handle("geste", (_, name: unknown, id: unknown, oui: unknown) => {\n  const vise = connu(name);\n  return vise === undefined ? parti(name) : ecrireAction(terminaux, id, vise, oui, kitchens.cuisineDe(vise));\n});'), "le canal « geste » du process principal ne passe plus le seul nom du geste au socle");
     assert.doesNotMatch(principal, /sudo/);
     for (const fichier of ["app/src/preload.cjs", "app/src/vue/vue.js", "app/src/confirmation.ts"]) {
       const source = readFileSync(join(RACINE, fichier), "utf8");
@@ -285,7 +285,7 @@ describe("les gestes du chef", () => {
     // Aucun module de Node : pas de `child_process`, donc rien qui s'exécute. De la veille, `cite`, et
     // de quoi écrire le geste de la station de cet ordinateur (`GESTE`, `mots`) — rien qui lance.
     assert.deepEqual(imports, ["./box.ts", "./config.ts", "./terminaux.ts"]);
-    assert.ok(source.includes('import { GESTE, mots, type Cuisine, type Locale } from ' + '"./box.ts";'));
+    assert.ok(source.includes('import { ACTION, mots, type Kitchen, type Locale } from ' + '"./box.ts";'));
     assert.doesNotMatch(source, /\bimport\(|require\(|process\.|execFile|spawn/);
   });
 });

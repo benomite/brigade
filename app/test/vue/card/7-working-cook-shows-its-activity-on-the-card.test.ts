@@ -62,6 +62,6 @@ const texte = (vue: Jouee, numero: number): string => (cardDuTicket(vue, numero)
 
 test("a taken card whose cook is working says what it does, never 'no activity yet'", async () => {
   const vue = await ouvrir([card(4062, "pris")], [cook(4062)]);
-  assert.match(texte(vue, 4062), /writing app\/src\/bon\.ts/, texte(vue, 4062));
+  assert.match(texte(vue, 4062), /writing app\/src\/slip\.ts/, texte(vue, 4062));
   assert.doesNotMatch(texte(vue, 4062), /no activity yet/i, texte(vue, 4062));
 });

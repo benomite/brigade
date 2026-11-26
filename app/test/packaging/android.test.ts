@@ -311,13 +311,13 @@ test("le pont rouvre la page de GitHub où taper le code dans le navigateur du t
 });
 
 // Les modules que le pont charge à côté de la vue posée pour Capacitor — la lecture de GitHub (#2501,
-// www/src/lecture-github-telephone.js) —, sans leurs types, avec ce qu'ils importent d'app/src/.
+// www/src/read-github-phone.js) —, sans leurs types, avec ce qu'ils importent d'app/src/.
 test("les lectures du pont sont posées à côté de la vue, sans types ni modules de Node, et chaque import y tient", async (t) => {
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const poses = poserLesModules(www);
-  assert.ok(!poses.includes("android/lecture.js") && poses.includes("src/lecture-github-telephone.js") && poses.includes("src/gestes-github-telephone.js"));
-  assert.ok(poses.includes("src/faits.js") && poses.includes("src/attend.js") && poses.includes("src/accueil.js"));
+  assert.ok(!poses.includes("android/lecture.js") && poses.includes("src/read-github-phone.js") && poses.includes("src/actions-github-phone.js"));
+  assert.ok(poses.includes("src/facts.js") && poses.includes("src/awaiting.js") && poses.includes("src/home.js"));
   for (const pose of poses.filter((chemin) => chemin.endsWith(".js"))) {
     const code = readFileSync(join(www, pose), "utf8");
     // Aucun import ne reste vers un fichier TypeScript, ni vers un module de Node : chacun est un fichier posé.
@@ -336,8 +336,8 @@ test("les lectures du pont sont posées à côté de la vue, sans types ni modul
 test("la lecture posée se charge sans rien de Node, comme dans la WebView", async (t) => {
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
-  const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "lecture-github-telephone.js")).href], { encoding: "utf8" });
-  assert.equal(charge.stdout.trim(), "INTERVALLE_MS lireLesProjetsDuCompte ouvrirLaLectureGitHub parCapacitor", charge.stderr);
+  const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "read-github-phone.js")).href], { encoding: "utf8" });
+  assert.equal(charge.stdout.trim(), "INTERVALLE_MS lireLesProjectsDuAccount ouvrirLaReadGitHub parCapacitor", charge.stderr);
 });
 
 test("l'enveloppe native n'appaire plus : ni lecteur de QR ni lien `brigade://pair` ; le navigateur du pont, et aucun http en clair", () => {

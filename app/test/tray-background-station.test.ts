@@ -226,22 +226,22 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
     const entree = lire("src/tray-background/entree.ts");
     assert.match(entree, /if \(process\.argv\.includes\(ARGUMENT\)\) \{\n  await import\("\.\/processus\.ts"\);\n\} else \{/);
     assert.ok(entree.includes('await import(' + '"../main.ts");'));
-    assert.ok(entree.includes("if (installee && stationDeFondInstallee(systeme))"));
-    assert.ok(entree.includes("await inscrireLeFond("));
+    assert.ok(entree.includes("if (installee && stationDeBackgroundInstallee(systeme))"));
+    assert.ok(entree.includes("await inscrireLeBackground("));
   });
 
   test("l'app ne pose pas sa propre icône quand celle de fond la tient", () => {
     const principal = lire("src/main.ts");
-    assert.ok(principal.includes('const iconeAuFond = emplacements.facon === "installee" && stationDeFondInstallee('));
-    assert.ok(principal.includes("barreDeMenus.poser(suivi.configuration().barreDeMenus !== false && !iconeAuFond,"));
+    assert.ok(principal.includes('const iconeAuBackground = emplacements.facon === "installee" && stationDeBackgroundInstallee('));
+    assert.ok(principal.includes("barDeMenus.poser(suivi.configuration().barreDeMenus !== false && !iconeAuBackground,"));
   });
 
   test("le process de l'icône lit les projets de la station, et joue ses gestes et la confirmation de quitter", () => {
     const processus = lire("src/tray-background/processus.ts");
-    assert.ok(processus.includes("await lireLesProjets(servisPar(racine), lancer)"));
-    assert.ok(processus.includes("await jouerLeGeste(geste, projets, lancer, DELAI_MS)"));
-    assert.ok(processus.includes("const texte = confirmationDeQuitter(projets);"));
-    assert.match(processus, /if \(response !== 0\) return;\n\s+await dire\(await quitterLaStation\(/);
+    assert.ok(processus.includes("await lireLesProjects(servedPar(racine), lancer)"));
+    assert.ok(processus.includes("await jouerLeAction(action, projects, lancer, DELAY_MS)"));
+    assert.ok(processus.includes("const texte = confirmationDeQuitter(projects);"));
+    assert.match(processus, /if \(response !== 0\) return;\n\s+await tell\(await quitterLaStation\(/);
   });
 });
 

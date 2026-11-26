@@ -104,10 +104,10 @@ describe("le câblage des explications", () => {
 
   test("le process principal tient les trois canaux, sous le compte GitHub connecté, et les passe au runtime du projet", () => {
     const main = readFileSync(join(APP, "src", "main.ts"), "utf8");
-    assert.match(main, /import \{ ecrireLesExplications, lireLesExplications \} from "\.\/vue\/explications\/explications-box\.ts";/);
-    assert.match(main, /const compteDesExplications = \(\) => compteConnecte\.login\(\);/);
-    assert.match(main, /ipcMain\.handle\("lireLesExplications", [\s\S]*?lireLesExplications\(vise\.nom, lu, compteDesExplications, lancerSurLaCuisine\)/);
-    assert.match(main, /ipcMain\.handle\("marquerUneExplication", [\s\S]*?ecrireLesExplications\(vise\.nom, lu, compteDesExplications, \{ vu: mot \}, lancerSurLaCuisine\)/);
-    assert.match(main, /ipcMain\.handle\("remontrerLesExplications", [\s\S]*?ecrireLesExplications\(vise\.nom, lu, compteDesExplications, \{ effacer: true \}, lancerSurLaCuisine\)/);
+    assert.match(main, /import \{ ecrireLesExplanations, lireLesExplanations \} from "\.\/vue\/explanations\/explanations-box\.ts";/);
+    assert.match(main, /const accountDesExplanations = \(\) => accountConnecte\.login\(\);/);
+    assert.match(main, /ipcMain\.handle\("lireLesExplications", [\s\S]*?lireLesExplanations\(vise\.nom, lu, accountDesExplanations, lancerSurLaKitchen\)/);
+    assert.match(main, /ipcMain\.handle\("marquerUneExplication", [\s\S]*?ecrireLesExplanations\(vise\.nom, lu, accountDesExplanations, \{ vu: word \}, lancerSurLaKitchen\)/);
+    assert.match(main, /ipcMain\.handle\("remontrerLesExplications", [\s\S]*?ecrireLesExplanations\(vise\.nom, lu, accountDesExplanations, \{ effacer: true \}, lancerSurLaKitchen\)/);
   });
 });

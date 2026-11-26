@@ -81,7 +81,7 @@ describe("le crochet, dans les réglages du second", () => {
     const crochets = settingsDuSecond(crochetsDuRefusal({ node: "/usr/bin/node" })).hooks?.PreToolUse ?? assert.fail("pas de PreToolUse");
     assert.equal(crochets[0]?.matcher, MATCHER);
     assert.deepEqual(MATCHER.split("|"), ["Bash", "Read", "Grep"]);
-    assert.match(crochets[0]?.hooks[0]?.command ?? "", /^'\/usr\/bin\/node' '.*second\/refus\.ts'$/);
+    assert.match(crochets[0]?.hooks[0]?.command ?? "", /^'\/usr\/bin\/node' '.*second\/refusal\.ts'$/);
 
     const lances: Launch[] = [];
     const terminaux = ouvrirTerminaux({

@@ -87,7 +87,7 @@ test("installer l'app sur un ordinateur : sa station démarre, s'appaire seule, 
   await jusqua(() => /paired with the app, as “ordi”/.test(dit()));
   assert.equal(station.etat(), "demarree");
   // Ce que la station dit d'elle est dans le terminal de l'app, tel quel — celle d'un serveur le dit pareil.
-  assert.match(dit(), /brigade : station démarrée — pid \d+, configuration .*station\/projets ; aucun projet served/);
+  assert.match(dit(), /brigade : station démarrée — pid \d+, configuration .*station\/projets ; aucun projet servi/);
   assert.match(dit(), /brigade : station à appairer — tape ce code dans l'app : [0-9A-Z]{4}-[0-9A-Z]{4}/);
   await home.relire();
   assert.equal(enLine(home)?.etat, "en-ligne");

@@ -469,12 +469,12 @@ describe("rien de ce qui est au parking n'apparaît", () => {
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {
     // Les seules requêtes admises sont la largeur de la page étroite (#1186), qui change la mise en page, et « reduce
     // motion », qui fige la poêle (#2984) : ni l'une ni l'autre ne change le thème.
-    const sansLaPageEtroite = (texte: string) => texte.replaceAll(/@media \(max-width: \d+px\)/g, "").replaceAll("@media (prefers-reduced-motion: reduce)", "").replaceAll("window.matchMedia?.(ECRAN_ETROIT)", "");
+    const sansLaPageEtroite = (texte: string) => texte.replaceAll(/@media \(max-width: \d+px\)/g, "").replaceAll("@media (prefers-reduced-motion: reduce)", "").replaceAll("window.matchMedia?.(SCREEN_ETROIT)", "");
     for (const fichier of fichiers) assert.doesNotMatch(sansLaPageEtroite(lire(fichier)), /@media|color-scheme:(?!\s*dark;)|data-theme|matchMedia|prefers-color-scheme/, fichier);
   });
 
   test("la page étroite (#1186) a un seul seuil, le même dans la vue et dans sa peau", () => {
-    const threshold = /^const ECRAN_ETROIT = "(\(max-width: \d+px\))";$/m.exec(lire("vue.js"))?.[1];
+    const threshold = /^const SCREEN_ETROIT = "(\(max-width: \d+px\))";$/m.exec(lire("vue.js"))?.[1];
     assert.ok(threshold !== undefined, "vue.js nomme le seuil de la page étroite");
     assert.deepEqual([...lire("vue.css").matchAll(/@media ([^{]*?)\s*\{/g)].map(([, requete]) => requete), [threshold]);
   });

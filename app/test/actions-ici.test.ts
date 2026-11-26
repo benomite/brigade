@@ -43,9 +43,9 @@ function workstation(t: TestContext) {
 { printf 'pwd=%s\\n' "$PWD"; printf 'station=%s\\n' "$BRIGADE_STATION_DIR"; for mot in "$@"; do printf 'arg=%s\\n' "$mot"; done; printf -- '--\\n'; } >> '${racine}/node-lance'
 shift 2
 case "$*" in
-  "guardrails stop") echo stopped > '${racine}/kitchen'; echo "brigade : the kitchen is stopped" ;;
-  "guardrails resume") echo running > '${racine}/kitchen'; echo "brigade : the kitchen is resumed" ;;
-  status) printf 'cuisine    %s\\n' "$(cat '${racine}/kitchen')" ;;
+  "guardrails stop") echo stopped > '${racine}/cuisine'; echo "brigade : the kitchen is stopped" ;;
+  "guardrails resume") echo running > '${racine}/cuisine'; echo "brigade : the kitchen is resumed" ;;
+  status) printf 'cuisine    %s\\n' "$(cat '${racine}/cuisine')" ;;
   "${JUGEMENT}") cat '${racine}/sortie'; exit "$(cat '${racine}/code')" ;;
   *) echo "brigade : $*" ;;
 esac

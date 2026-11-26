@@ -80,8 +80,8 @@ describe("sa feuille", () => {
   test("32 px de haut sur l'ordinateur ; 44 px quand il est grand, sous un écran qui les veut grands, et à la largeur d'un téléphone", () => {
     assert.equal(declarations(FEUILLE, "[data-bouton]").get("min-height"), "32px");
     assert.equal(declarations(FEUILLE, '[data-bouton][data-taille="grand"],\n[data-boutons="grands"] [data-bouton]').get("min-height"), "44px");
-    // Le même seuil que la page étroite de la vue (ECRAN_ETROIT, vue.js).
-    const threshold = /const ECRAN_ETROIT = "([^"]+)"/.exec(readFileSync(join(VUE, "vue.js"), "utf8"))?.[1];
+    // Le même seuil que la page étroite de la vue (SCREEN_ETROIT, vue.js).
+    const threshold = /const SCREEN_ETROIT = "([^"]+)"/.exec(readFileSync(join(VUE, "vue.js"), "utf8"))?.[1];
     assert.equal(threshold, "(max-width: 720px)");
     const etroit = FEUILLE.slice(FEUILLE.indexOf(`@media ${threshold}`));
     assert.ok(etroit.length < FEUILLE.length, "pas de page étroite dans la feuille du bouton");

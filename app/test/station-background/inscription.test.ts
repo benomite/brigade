@@ -122,8 +122,8 @@ test("sous Linux, rien ne s'inscrit : l'app lance l'hôte à son ouverture", asy
 
 test("le binaire de l'app lancé avec --station-fond lance la station de fond, sans fenêtre", () => {
   const entree = readFileSync(join(import.meta.dirname, "../../src/tray-background/entree.ts"), "utf8");
-  assert.match(entree, /if \(process\.argv\.includes\(ARGUMENT_FOND\)\) \{\n(?: {2}\/\/.*\n)? {2}await import\("\.\.\/station-fond\/demarrage\.ts"\);\n\} else if/);
+  assert.match(entree, /if \(process\.argv\.includes\(ARGUMENT_BACKGROUND\)\) \{\n(?: {2}\/\/.*\n)? {2}await import\("\.\.\/station-background\/demarrage\.ts"\);\n\} else if/);
   const demarrage = readFileSync(join(import.meta.dirname, "../../src/station-background/demarrage.ts"), "utf8");
-  assert.match(demarrage, /lancerLeFond\(\{ node: emplacements\.node, embarque: role\.principal, racine, env: process\.env \}\)/);
+  assert.match(demarrage, /lancerLeBackground\(\{ node: emplacements\.node, embarque: role\.principal, racine, env: process\.env \}\)/);
   assert.match(demarrage, /app\.exit\(0\);\s*$/);
 });

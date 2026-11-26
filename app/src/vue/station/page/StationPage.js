@@ -32,9 +32,9 @@ import { NON_ATTEINT } from "../../lexique.js";
 
 // Les sections, dans leur ordre sur la page : leur fichier sous `sections/` et leur titre.
 export const SECTIONS = /** @type {const} */ ([
-  { fichier: "identite", titre: "Identity" },
-  { fichier: "connexions", titre: "Connections" },
-  { fichier: "dossiers-et-bac-a-sable", titre: "Folders and sandbox" },
+  { fichier: "identity", titre: "Identity" },
+  { fichier: "connections", titre: "Connections" },
+  { fichier: "dossiers-et-sandbox", titre: "Folders and sandbox" },
   { fichier: "capacites", titre: "Capabilities" },
   { fichier: "cooks", titre: "Cooks" },
   { fichier: "moteur", titre: "Engine" },
@@ -42,7 +42,7 @@ export const SECTIONS = /** @type {const} */ ([
 
 // Les sections dont le fichier est livré sous `sections/` : le ticket qui livre une section y ajoute son nom.
 /** @type {ReadonlySet<string>} */
-export const LIVREES = new Set(["dossiers-et-bac-a-sable", "connexions", "moteur"]);
+export const LIVREES = new Set(["dossiers-et-sandbox", "connections", "moteur"]);
 // Une section livrée hors de `sections/` : son module, par son nom (le moteur, ticket 3746, sous `moteur/`).
 /** @type {Readonly<Record<string, string>>} */
 const AILLEURS = { moteur: "../../engine/EngineSection.js" };

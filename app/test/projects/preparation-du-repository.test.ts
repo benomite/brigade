@@ -45,8 +45,8 @@ function pontDe(canaux: Record<string, (...args: unknown[]) => Promise<unknown>>
 describe("le câblage de la vérification du dépôt choisi", () => {
   test("le process principal tient les deux canaux, et les passe à la préparation du dépôt", () => {
     const main = readFileSync(join(APP, "src", "main.ts"), "utf8");
-    assert.match(main, /ipcMain\.handle\("checkRepoSetup", \(_, depot: unknown\) => preparation\.verifier\(depot\)\);/);
-    assert.match(main, /ipcMain\.handle\("runRepoSetup", \(_, depot: unknown\) => preparation\.installer\(depot\)\);/);
+    assert.match(main, /ipcMain\.handle\("checkRepoSetup", \(_, repository: unknown\) => preparation\.verifier\(repository\)\);/);
+    assert.match(main, /ipcMain\.handle\("runRepoSetup", \(_, repository: unknown\) => preparation\.installer\(repository\)\);/);
     assert.match(main, /duRuntime<typeof import\("\.\.\/\.\.\/runtime\/src\/depot-prepare\/preparation\.ts"\)>\("depot-prepare", "preparation\.ts"\)/);
   });
 

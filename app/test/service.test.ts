@@ -302,7 +302,7 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
 
     assert.ok(rendu.etat === "jugee" && rendu.jugement.verdict === "plantee");
     assert.equal(rendu.jugement.panne.connue?.issue, 654);
-    assert.match(rendu.jugement.phrase, /problème de brigade, pas de ton project/);
+    assert.match(rendu.jugement.phrase, /problème de brigade, pas de ton projet/);
     assert.equal(rendu.jugement.brut, `brigade : ${EACCES.message}\n`);
     assert.match(rendu.obtenu, /lstat '\/etc\/sudoers\.d\/brigade-installer'\n\n→ exit code 1$/);
   });

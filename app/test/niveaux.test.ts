@@ -21,7 +21,7 @@ function demandes(): Map<string, string[]> {
       const chemin = join(dossier, entree.name);
       if (entree.isDirectory()) lire(chemin);
       else if (entree.name.endsWith(".js") && entree.name !== "niveaux.js") {
-        for (const [, cleDe, cleSection] of readFileSync(chemin, "utf8").matchAll(/(?:niveauDe\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)|contexte\.niveau\("([^"]+)"\)/g)) { const cle = cleDe ?? cleSection ?? ""; rendu.set(cle, [...(rendu.get(cle) ?? []), entree.name]); }
+        for (const [, cleDe, cleSection] of readFileSync(chemin, "utf8").matchAll(/(?:niveauDe\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)|context\.niveau\("([^"]+)"\)/g)) { const cle = cleDe ?? cleSection ?? ""; rendu.set(cle, [...(rendu.get(cle) ?? []), entree.name]); }
       }
     }
   };

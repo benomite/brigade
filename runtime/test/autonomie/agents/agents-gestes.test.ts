@@ -12,7 +12,7 @@ import { lireLesFaits } from "../../../src/faits.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { repertoireTemporaire } from "../../outils.ts";
 
-// The file of the log, in the directory it is given (actions.ts).
+// The file of the log, in the directory it is given (gestes.ts).
 const FICHIER = "autonomy-gestures.json";
 
 const PROJET = "shop";

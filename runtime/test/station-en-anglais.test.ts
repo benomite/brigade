@@ -73,7 +73,7 @@ test("`station` : chaque refus, y compris ceux de `decisions.ts` et de `stations
     assert.notEqual(lu.code, 0, args.join(" "));
     sansMotFrancais(lu.lignes);
     // Un refus n'est pas seulement sans mot du glossaire : il ne garde aucune des phrases françaises d'avant.
-    assert.doesNotMatch(lu.lignes.join("\n"), /n'est pas|invalide|attendu|refusé|rien n'est écrit|aucun|log/, args.join(" "));
+    assert.doesNotMatch(lu.lignes.join("\n"), /n'est pas|invalide|attendu|refusé|rien n'est écrit|aucun|journal/, args.join(" "));
   }
   // Un plafond avant toute station : le refus dit le geste, en anglais.
   const vide = repertoireTemporaire(t);

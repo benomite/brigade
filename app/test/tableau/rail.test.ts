@@ -349,9 +349,9 @@ test("aucun chemin qui dessine le rail ne lance de processus : ses veilles lisen
   // Dans le process principal, les trois veilles qui dessinent le rail — `status`, les faits, l'amont — sont celles de
   // GitHub : aucune ne lance de processus.
   const main = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
-  for (const standby of ["veille", "veilleDesFaits", "veilleDeLAmont"]) {
+  for (const standby of ["standby", "factsWatch", "standbyDeLAmont"]) {
     const declaration = new RegExp(`^const ${standby} = (\\w+)\\(\\{([\\s\\S]*?)^\\}\\);`, "m").exec(main);
-    assert.equal(declaration?.[1], "ouvrirVeilleDuTableau", standby);
+    assert.equal(declaration?.[1], "ouvrirStandbyDuTableau", standby);
   }
   // Les gestes du rail qui ont un fait sur GitHub visent la dernière lecture réussie ; seule la carte du chef lue de GitHub
   // se répond, sur son issue (#2434) — toute autre carte ne part pas.

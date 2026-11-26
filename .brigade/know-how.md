@@ -1,0 +1,2 @@
+- `scripts/rename-code` renames one zone with `--only app|runtime`; then many app tests still fail, because they read sources as text (regexes on `main.ts`, `vue.js`, `preload.cjs`) or load files by names built in strings (`StationPage.js` sections, `app/android/web/pont.js`): after a rename, fix those strings and regexes to the new names, never the assertions (#4413)
+- A full `rename.sh` run takes 10–15 min and over 4 GB of heap: start with `--check` (plan only, a few minutes) to list refused names before a `--keep` dry run (#4413)

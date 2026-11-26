@@ -202,7 +202,7 @@ describe("le crochet joué à la main", () => {
   test("un projet sans dépôt, dans un dossier sans origine : dit qu'aucun dépôt n'est connu, et sort en 0", { skip: SANS_SH }, (t) => {
     const r = jouer(t, fauxGh(t, 0, "[]"), "brigade", "");
     assert.equal(r.status, 0);
-    assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", /file non lue : aucun dépôt GitHub pour ce project/);
+    assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", /file non lue : aucun dépôt GitHub pour ce projet/);
   });
 
   test("la lecture entière tient dans son délai, toutes ses vagues d'appels comprises : passé, la file est dite non lue, avant que `claude` ne tue le crochet", { skip: SANS_SH }, async (t) => {

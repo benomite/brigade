@@ -149,7 +149,7 @@ test("la station demande à redémarrer sur X : seul son process est remplacé, 
   // La station sait où poser les versions qu'elle télécharge.
   await jusqua(() => dit().includes(`station d'essai en 1.0.0 — versions sous ${ordi.versions}`));
 
-  const onglets = desOnglets(t, `${ordi.machine}/project`);
+  const onglets = desOnglets(t, `${ordi.machine}/projet`);
   const ouverts = onglets.pids();
   assert.equal(ouverts.length, 2);
   assert.ok(ouverts.every((pid) => vivant(pid)));
@@ -194,7 +194,7 @@ for (const [cas, corps, motif] of [
     const { station, issues, dit } = hold(t, ordi);
     await jusqua(() => enService(ordi.racine)?.version === "1.0.0");
     const avant = enService(ordi.racine)?.pid ?? assert.fail("aucune station en service");
-    const onglets = desOnglets(t, `${ordi.machine}/project`);
+    const onglets = desOnglets(t, `${ordi.machine}/projet`);
     const ouverts = onglets.pids();
 
     const issue = await station.redemarrer("1.0.1");

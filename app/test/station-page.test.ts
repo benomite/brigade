@@ -61,8 +61,8 @@ describe("la coque de la page d'une station", () => {
       station: STATION,
       locale: "gist-mac",
       charger: async (fichier) => {
-        if (fichier === "identite") throw new SyntaxError("Unexpected token");
-        if (fichier === "connexions") return { poserSection: () => { throw new Error("lecture ratée"); } };
+        if (fichier === "identity") throw new SyntaxError("Unexpected token");
+        if (fichier === "connections") return { poserSection: () => { throw new Error("lecture ratée"); } };
         if (fichier === "capacites") return {};
         return temoins(new Map())(fichier);
       },

@@ -70,7 +70,7 @@ test("les trois projets passent à la station : une ligne chacun — dépôt, br
   // Le port de chaque porte ne s'écrit pas sur la ligne : il attend les portes
   // de la station, là où elles le chercheront — un cook en vol retrouve la sienne.
   assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481, "calculus-workspace": 8482, espace: 8483 } });
-  assert.match(dit.join("\n"), /espace — sa porte reprise par la station : même port \(127\.0\.0\.1:8483\), même liste blanche, lue à son log/);
+  assert.match(dit.join("\n"), /espace — sa porte reprise par la station : même port \(127\.0\.0\.1:8483\), même liste blanche, lue à son journal/);
 });
 
 test("un projet sans porte dans l'ancienne installation : aucun port repris — la station lui en ouvre une, et le dit", (t) => {

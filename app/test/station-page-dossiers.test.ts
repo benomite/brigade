@@ -37,7 +37,7 @@ function port(sansBac = false) {
 }
 async function section(locale: string, settings: ReturnType<typeof port>) {
   const page = (await poserPageDeStation(doc, { station: STATION, locale, reglages: settings })) as Faux;
-  return page.children.find((s) => s.dataset.section === "dossiers-et-bac-a-sable") as Faux;
+  return page.children.find((s) => s.dataset.section === "dossiers-et-sandbox") as Faux;
 }
 
 describe("la section dossiers et bac à sable", () => {

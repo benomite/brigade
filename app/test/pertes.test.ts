@@ -187,7 +187,7 @@ describe("un projet installé perd une station : une alerte en bande et sur sa c
 
     const [line, ...autres] = bande.alertes.filter(({ sujet }) => sujet === "verification");
     assert.deepEqual(autres, []);
-    assert.match(line?.dit ?? "", /problème de brigade, pas de ton project/);
+    assert.match(line?.dit ?? "", /problème de brigade, pas de ton projet/);
     assert.match(line?.dit ?? "", /#654/);
     assert.match(line?.geste ?? "", /^nothing to do/);
     assert.equal(line?.appel, undefined);

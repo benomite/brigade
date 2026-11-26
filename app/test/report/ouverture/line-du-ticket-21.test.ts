@@ -29,7 +29,7 @@ test("le test du corps du signalement échoue si une ligne du ticket #21 entre d
     // Le filtre par ticket laisse passer les lignes de tous les tickets : celles de #21 entrent dans le rapport.
     const context = join(copie, "src/report/context/context.ts");
     const source = readFileSync(context, "utf8");
-    const fuite = source.replace('if ("ticket" in reference) return ligne.ticket === reference.ticket;', 'if ("ticket" in reference) return true;');
+    const fuite = source.replace('if ("ticket" in reference) return line.ticket === reference.ticket;', 'if ("ticket" in reference) return true;');
     assert.notEqual(fuite, source, "the ticket filter was not found");
     writeFileSync(context, fuite);
     const rendu = joue(test, "#1 SMP PREEMPT_DYNAMIC Debian 6.1.158-1");

@@ -257,15 +257,12 @@ function graphe(entree: string): string[] {
 test("la lecture du rail ne joint ni box ni station : ses modules ne chargent que les états de GitHub du runtime, et la règle des stations vues de GitHub (#2358)", () => {
   assert.deepEqual(graphe("app/src/tableau/read.ts"), [
     // Les alertes du haut du rail et le diagnostic du rail bloqué, sans E/S, que le runtime ne dit plus (ticket 3945).
-    "app/src/wait-du-rail/alerts.ts",
     "app/src/rail-blocked/diagnostic.ts",
     "app/src/tableau/ecriture.ts",
-    "app/src/tableau/read.ts",
     "app/src/tableau/mise-de-side-github.ts",
     "app/src/tableau/rail-github.ts",
+    "app/src/tableau/read.ts",
     "app/src/tableau/todo-github.ts",
-    // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).
-    "app/src/vue/wait-du-rail/wait-du-rail.ts",
     // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
     "app/src/vue/backlog/avancement-github.ts",
     "app/src/vue/banner-stop/stop-du-rail.ts",
@@ -281,6 +278,9 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/send-back.ts",
+    // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).
+    "app/src/vue/wait-du-rail/wait-du-rail.ts",
+    "app/src/wait-du-rail/alerts.ts",
     "runtime/src/arret-cuisine/arret-cuisine.ts",
     "runtime/src/attente-du-rail/lecture.ts",
     "runtime/src/attente-du-rail/raison.ts",

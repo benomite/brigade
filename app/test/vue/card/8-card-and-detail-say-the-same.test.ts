@@ -69,8 +69,8 @@ test("card and detail name the same station and the same activity", async () => 
   const laCard = texte(vue, 4064);
   const theDetail = detail.textContent;
   assert.match(theDetail, /parade-box/, theDetail);
-  assert.match(theDetail, /writing app\/src\/bon\.ts/, theDetail);
+  assert.match(theDetail, /writing app\/src\/slip\.ts/, theDetail);
   assert.match(laCard, /parade-box/, `card: ${laCard}`);
-  assert.match(laCard, /writing app\/src\/bon\.ts/, `card: ${laCard}`);
+  assert.match(laCard, /writing app\/src\/slip\.ts/, `card: ${laCard}`);
   assert.doesNotMatch(laCard, /no activity yet/i, `card: ${laCard}`);
 });

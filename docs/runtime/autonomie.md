@@ -19,7 +19,7 @@ The autonomy table (rows, positions, profiles) and the routing of decisions that
 ## Each agent's record and autonomy level
 
 Spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, C1, C2 and C4 (#4036, #4037, #4038). Code:
-`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`), `actions.ts`
+`runtime/src/autonomie/agents/` — `agents.ts` (`equipeDuProjet`), `niveaux.ts` (`magasinDeNiveaux`), `gestes.ts`
 (the gesture log), `prochain-passage.ts` (the next run's text) and `horaires.ts` (the schedules noted).
 
 `facts` gives one record per agent in `equipe`: the manager, the supervisor, the closer, the pass, then each cook running
@@ -43,7 +43,7 @@ that cannot be read is said in the text, never read as no schedule. A note that 
 neither the supervisor nor the closer.
 
 Each agent has a gesture log (#4037): each entry is `{at, line, reason, outcome}` — its time, one line (a line break
-becomes a space), its reason and its outcome. The outcomes are listed once, in `OUTCOME` of `actions.ts`: `fixed by
+becomes a space), its reason and its outcome. The outcomes are listed once, in `OUTCOME` of `gestes.ts`: `fixed by
 itself` and `handed to the chef`. The record's `counters` count them (`fixedBySelf`, `handedToChef`), its `gestures` are
 the log, oldest first, and its `lastGesture` is the log's most recent entry, unless its roles' last action is later. The
 log is kept in `autonomy-gestures.json` of the state directory, one list per agent. A missing file is a log with no

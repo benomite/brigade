@@ -59,10 +59,10 @@ test("une lecture ratée rend sa raison ; une lecture qui lève aussi — jamais
 test("le process principal porte la lecture à la vue, par la lecture du rail et ce qui attend un humain, sans clone", () => {
   const principal = readFileSync(join(import.meta.dirname, "../../src/main.ts"), "utf8");
   const canal = principal.slice(principal.indexOf('ipcMain.handle("lireLaCuisineVisitee"'), principal.indexOf('ipcMain.handle("railDuProjet"'));
-  assert.match(canal, /lireLaCuisineVisitee\(depot, async \(vise\) => \{/);
-  assert.match(canal, /lireLeTableauDuDepot\(\{ depot: vise, appeler: appelerSousBudget/);
-  assert.match(canal, /avecCeQuiAttendLeChef\(lu, lectureConditionnelle\(appelerSousBudget/);
+  assert.match(canal, /lireLaKitchenVisitee\(repository, async \(vise\) => \{/);
+  assert.match(canal, /lireLeTableauDuRepository\(\{ depot: vise, appeler: appelerSousBudget/);
+  assert.match(canal, /avecCeQuiAwaitingLeChef\(lu, readConditionnelle\(appelerSousBudget/);
   assert.doesNotMatch(canal, /ouvrirDUneStation|clone|ajouter/i);
   const pont = readFileSync(join(import.meta.dirname, "../../src/preload.cjs"), "utf8");
-  assert.match(pont, /lireLaCuisineVisitee: \(depot\) => ipcRenderer\.invoke\("lireLaCuisineVisitee", depot\)/);
+  assert.match(pont, /lireLaCuisineVisitee: \(repository\) => ipcRenderer\.invoke\("lireLaCuisineVisitee", repository\)/);
 });
