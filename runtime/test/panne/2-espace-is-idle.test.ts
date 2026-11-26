@@ -1,7 +1,7 @@
 // #4214, critère 2 : la situation d'espace (trois `fire`, aucun faisable) est `idle`, pas une panne.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diagnostiquer } from "../../src/panne/index.ts";
+import { diagnostiquer } from "../../src/outage/index.ts";
 
 test("three fire tickets, none workable (one decision waiting on the client, two on hold), is idle", () => {
   const r = diagnostiquer({

@@ -10,17 +10,17 @@ import { LABELS_D_ECART, MOTS_DU_GESTE, type Geste } from "../attente-du-rail/st
 import { estParque } from "../github-etat/etats.ts";
 
 // Un ticket `fire` : ses labels, une décision ouverte, une attente (sur qui, quand on le sait).
-export type TicketDeLaPanne = { numero: number; labels: readonly string[]; decisionOuverte: boolean; enAttente: boolean; enAttenteDe?: string };
-export type StationDeLaPanne = { nom: string; enMarche: boolean };
+export type OutageTicket = { numero: number; labels: readonly string[]; decisionOuverte: boolean; enAttente: boolean; enAttenteDe?: string };
+export type OutageStation = { nom: string; enMarche: boolean };
 // `mainRouge`, `boucleDeRelance` : null quand l'appelant ne les a pas lus. `reparationDeMain` : le ticket qui la répare ;
 // `ticketEnBoucle` : le ticket que la cuisine a sorti de sa boucle.
-export type RailDeLaPanne = { mainRouge: boolean | null; boucleDeRelance: boolean | null; reparationDeMain?: number; ticketEnBoucle?: number };
+export type OutageRail = { mainRouge: boolean | null; boucleDeRelance: boolean | null; reparationDeMain?: number; ticketEnBoucle?: number };
 // `stations` : celles qui servent le projet ; null quand elles ne se lisent pas.
-type EntreeDeLaPanne = { rail: RailDeLaPanne; stations: readonly StationDeLaPanne[] | null; tickets: readonly TicketDeLaPanne[] };
+type OutageInput = { rail: OutageRail; stations: readonly OutageStation[] | null; tickets: readonly OutageTicket[] };
 
 export type Reparation = Geste | "reparer-main";
-export type ActionDeLaPanne = { kind: "done"; text: string } | { kind: "button"; label: string; id: Reparation } | null;
-export type Diagnostic = { state: "fault" | "idle"; cause: string; action: ActionDeLaPanne };
+export type OutageAction = { kind: "done"; text: string } | { kind: "button"; label: string; id: Reparation } | null;
+export type Diagnostic = { state: "fault" | "idle"; cause: string; action: OutageAction };
 // `ready` : un ticket est faisable et rien ne le retient — rien à dire au chef.
 export type Bilan = Diagnostic | { state: "ready"; cause: string; action: null };
 
@@ -28,12 +28,12 @@ const LABEL_FIRE = "fire";
 const EN_CUISINE = ["taken", "in-pass"];
 const LABELS_DE_DECISION = ["decision", "question"];
 
-const bouton = (id: Reparation, label: string): ActionDeLaPanne => ({ kind: "button", label, id });
+const bouton = (id: Reparation, label: string): OutageAction => ({ kind: "button", label, id });
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? "s" : ""}`;
 
 // Ce qui retient un ticket `fire` hors de la cuisine, ou null s'il est faisable.
 type Retenue = "decision" | "hold" | "label";
-function retenueDe(ticket: TicketDeLaPanne): Retenue | null {
+function retenueDe(ticket: OutageTicket): Retenue | null {
   if (ticket.decisionOuverte || ticket.labels.some((label) => LABELS_DE_DECISION.includes(label))) return "decision";
   // Parqué : `parked`, une carte du chef ou un label d'avant parked (`estParque`).
   if (ticket.enAttente || estParque(ticket.labels)) return "hold";
@@ -52,7 +52,7 @@ function detail(retenues: readonly Retenue[]): string {
   return parts.filter((part) => part !== null).join(", ");
 }
 
-export function diagnostiquer(entree: EntreeDeLaPanne): Bilan {
+export function diagnostiquer(entree: OutageInput): Bilan {
   const { rail } = entree;
   // 1 le rail : main rouge, puis une boucle de relances.
   if (rail.mainRouge === true) {
@@ -89,7 +89,7 @@ export function diagnostiquer(entree: EntreeDeLaPanne): Bilan {
 
 // Les lignes de `status` : l'état et sa cause, puis l'action — ce que la cuisine a fait, ou le bouton de l'app. Aucune
 // quand la cuisine peut cuire.
-export function lignesDeLaPanne(bilan: Bilan): string[] {
+export function outageLines(bilan: Bilan): string[] {
   if (bilan.state === "ready") return [];
   const titre = "kitchen".padEnd(11);
   const action = bilan.action === null ? [] : [`${"".padEnd(11)}${bilan.action.kind === "done" ? `done: ${bilan.action.text}` : `button: ${bilan.action.label}`}`];

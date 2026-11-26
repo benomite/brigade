@@ -1,13 +1,13 @@
 // #4214 : chaque branche de la panne — le rail, les labels, les retenues, les stations — et les lignes que `status` en écrit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { diagnostiquer, lignesDeLaPanne, type TicketDeLaPanne } from "../../src/panne/index.ts";
+import { diagnostiquer, outageLines, type OutageTicket } from "../../src/outage/index.ts";
 
-type EntreeDeLaPanne = Parameters<typeof diagnostiquer>[0];
+type OutageInput = Parameters<typeof diagnostiquer>[0];
 
-const feu = (numero: number, autres: string[] = [], plus: Partial<TicketDeLaPanne> = {}): TicketDeLaPanne => ({ numero, labels: ["fire", ...autres], decisionOuverte: false, enAttente: false, ...plus });
+const feu = (numero: number, autres: string[] = [], plus: Partial<OutageTicket> = {}): OutageTicket => ({ numero, labels: ["fire", ...autres], decisionOuverte: false, enAttente: false, ...plus });
 const calme = { mainRouge: false, boucleDeRelance: false };
-const entree = (plus: Partial<EntreeDeLaPanne>): EntreeDeLaPanne => ({ rail: calme, stations: [{ nom: "A", enMarche: true }], tickets: [feu(1)], ...plus });
+const entree = (plus: Partial<OutageInput>): OutageInput => ({ rail: calme, stations: [{ nom: "A", enMarche: true }], tickets: [feu(1)], ...plus });
 
 describe("le rail d'abord", () => {
   test("main rouge et sa réparation sur le rail : la cuisine la répare, dit fait", () => {
@@ -72,9 +72,9 @@ describe("les stations", () => {
 
 describe("les lignes de `status`", () => {
   test("rien quand la cuisine peut cuire ; l'état et la cause, puis ce qui est fait ou le bouton", () => {
-    assert.deepEqual(lignesDeLaPanne({ state: "ready", cause: "x", action: null }), []);
-    assert.deepEqual(lignesDeLaPanne({ state: "idle", cause: "nothing to cook: y", action: null }), ["kitchen    idle: nothing to cook: y"]);
-    assert.deepEqual(lignesDeLaPanne({ state: "fault", cause: "z", action: { kind: "done", text: "fixed" } }), ["kitchen    fault: z", "           done: fixed"]);
-    assert.deepEqual(lignesDeLaPanne({ state: "fault", cause: "z", action: { kind: "button", label: "Start it", id: "demarrer-la-station" } }), ["kitchen    fault: z", "           button: Start it"]);
+    assert.deepEqual(outageLines({ state: "ready", cause: "x", action: null }), []);
+    assert.deepEqual(outageLines({ state: "idle", cause: "nothing to cook: y", action: null }), ["kitchen    idle: nothing to cook: y"]);
+    assert.deepEqual(outageLines({ state: "fault", cause: "z", action: { kind: "done", text: "fixed" } }), ["kitchen    fault: z", "           done: fixed"]);
+    assert.deepEqual(outageLines({ state: "fault", cause: "z", action: { kind: "button", label: "Start it", id: "demarrer-la-station" } }), ["kitchen    fault: z", "           button: Start it"]);
   });
 });

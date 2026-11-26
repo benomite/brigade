@@ -1,7 +1,7 @@
 // #4214, critère 3 : chaque famille de cause donne un état et une cause d'une phrase qui la nomme.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diagnostiquer } from "../../src/panne/index.ts";
+import { diagnostiquer } from "../../src/outage/index.ts";
 
 const sain = { rail: { mainRouge: false, boucleDeRelance: false }, stations: [{ nom: "A", enMarche: true }], tickets: [{ numero: 1, labels: ["fire"], decisionOuverte: false, enAttente: false }] };
 const uneSeulePhrase = (s: string) => s.trim().length > 0 && !/[.!?]\s+\S/.test(s.trim()) && !s.includes("\n");

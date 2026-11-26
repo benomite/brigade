@@ -19,8 +19,8 @@ import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
 import { attenteDeLIssue } from "../attente-github/marque.ts";
 import { lireLOrdreDuRail } from "../ordre-de-merge/lecture.ts";
 import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail, type TicketEnWaiting } from "./raison.ts";
-import { diagnostiquer, lignesDeLaPanne, type TicketDeLaPanne } from "../panne/index.ts";
-import { panneDesStations } from "../panne/stations.ts";
+import { diagnostiquer, outageLines, type OutageTicket } from "../outage/index.ts";
+import { outageStations } from "../outage/stations.ts";
 
 const LABEL_DU_TABLEAU = "kitchen-board";
 // La réparation de main que la cuisine ouvre tant que main est rouge (#3815), lue comme le rail de l'app la lit.
@@ -41,11 +41,11 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // qui il attend, relu de sa marque ; ses commentaires illisibles ne le cachent pas, ils taisent seulement qui (nul).
 // `panne` (#4214) : chaque issue `fire`, ses labels et son attente, pour dire pourquoi la cuisine ne cuit pas ; `boucle` : un
 // ticket en WAITING que la station a sorti de sa boucle de relances (#4041), relu de sa marque.
-export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<{ tickets: TicketDuRail[]; waiting: TicketEnWaiting[]; panne: TicketDeLaPanne[]; boucle: number | null }> {
+export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<{ tickets: TicketDuRail[]; waiting: TicketEnWaiting[]; panne: OutageTicket[]; boucle: number | null }> {
   const { depot, lire } = options;
   const tickets: TicketDuRail[] = [];
   const waiting: TicketEnWaiting[] = [];
-  const panne: TicketDeLaPanne[] = [];
+  const panne: OutageTicket[] = [];
   let boucle: number | null = null;
   const feux = await lesFeux(depot, lire);
   const quiAttend = async (numero: number): Promise<string | null> => {
@@ -125,7 +125,7 @@ async function lireLAttente(options: { depot: string; lire: Lire; stations: () =
   // Main rouge se lit de sa réparation `repair-main` sur le rail, comme l'app la lit : sans elle, main n'est pas lue (null).
   const reparation = lue.panne.find(({ labels }) => labels.includes(LABEL_REPARATION_DE_MAIN));
   const rail = { mainRouge: reparation === undefined ? null : true, boucleDeRelance: lue.boucle !== null, ...(reparation === undefined ? {} : { reparationDeMain: reparation.numero }), ...(lue.boucle === null ? {} : { ticketEnBoucle: lue.boucle }) };
-  const cuisine = (stations: StationsLues | null) => lignesDeLaPanne(diagnostiquer({ rail, stations: stations === null ? null : panneDesStations(stations, depot, maintenant), tickets: lue.panne }));
+  const cuisine = (stations: StationsLues | null) => outageLines(diagnostiquer({ rail, stations: stations === null ? null : outageStations(stations, depot, maintenant), tickets: lue.panne }));
   // Rien en file, ou un cook qui tourne : les stations n'ont rien à dire, elles ne se lisent pas.
   if (!tickets.some(({ etat }) => etat === "queued") || tickets.some(({ etat }) => etat === "taken")) return { lignes: lignesDeStatus(null, cartes), enFile: [], cuisine: cuisine(null) };
   const stations = await options.stations();

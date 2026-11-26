@@ -1,7 +1,7 @@
 // #4214, critère 4 : toute panne porte une action `done` (avec texte) ou `button` (libellé et id de réparation), jamais un texte à copier.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diagnostiquer } from "../../src/panne/index.ts";
+import { diagnostiquer } from "../../src/outage/index.ts";
 
 const sain = { rail: { mainRouge: false, boucleDeRelance: false }, stations: [{ nom: "A", enMarche: true }], tickets: [{ numero: 1, labels: ["fire"], decisionOuverte: false, enAttente: false }] };
 const entrees = [

@@ -3,9 +3,9 @@
 import { disponible } from "../enregistrement-station/contrat.ts";
 import { stationDe } from "../stations-github/stations.ts";
 import { servantesDe, type StationsLues } from "../attente-du-rail/stations.ts";
-import type { StationDeLaPanne } from "./index.ts";
+import type { OutageStation } from "./index.ts";
 
-export function panneDesStations(stations: StationsLues, depot: string, maintenant: number): StationDeLaPanne[] | null {
+export function outageStations(stations: StationsLues, depot: string, maintenant: number): OutageStation[] | null {
   if ("illisibles" in stations) return null;
   return servantesDe(stations.lues, depot, maintenant).map((station) => ({ nom: stationDe(station.name), enMarche: disponible(station, maintenant) }));
 }
