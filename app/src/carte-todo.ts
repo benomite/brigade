@@ -78,6 +78,7 @@ const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
   drop: `${POSTEE}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
   close: `${POSTEE}, and the app closes the issue: the ticket is not cooked`,
   rail: `${POSTEE}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
+  accept: `${POSTEE}, and the kitchen accepts the held item: it is judged and read like any other, and never asked again`,
   wait: `${POSTEE}, and the app parks the ticket for the one the choice names, until a date seven days away, and it leaves your TODO: nothing takes it before they answer or that date comes`,
 };
 

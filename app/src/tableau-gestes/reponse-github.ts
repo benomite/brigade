@@ -19,6 +19,8 @@
 //        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la date à sept jours, puis le label
 //        `parked` (vue/attente/attente-github.ts, `parquer`) ; les labels d'avant parked qui la parquaient pour le
 //        chef sont retirés : la question attend un tiers, plus le chef.
+//      - `accept` : rien d'autre — l'élément retenu d'un auteur sans l'écriture (#4425) ; la cuisine lit le geste, l'accepte
+//        par son module de confiance (runtime/src/trust/acceptes.ts), puis le juge et le lit comme tout autre.
 //      Chaque geste retire aussi `chef-todo`, et `parked` sauf `wait` : répondue, la question n'attend plus le chef, et le
 //      ticket parqué pour lui reprend où il était (#4129).
 // La carte quitte TODO à la lecture suivante : ses labels ont changé, et une question que suit une réponse n'en pose plus
@@ -56,6 +58,8 @@ const RETIRES: Readonly<Record<GesteDuChef, readonly string[]>> = {
   rail: [LABEL_DU_CHEF, PARKED],
   // Parquée pour un tiers, la question du manager l'attend, lui : elle n'attend plus le chef (#3434).
   wait: [...LABELS_D_AVANT_PARKED_POUR_LE_CHEF, LABEL_DU_CHEF],
+  // Accepté, l'élément retenu n'attend plus le chef : la cuisine le juge comme tout autre (#4425).
+  accept: [LABEL_DU_CHEF, PARKED],
 };
 
 // Qui un choix « Wait for <qui> » attend — le libellé entier, s'il n'a pas cette forme.

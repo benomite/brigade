@@ -33,8 +33,10 @@ export type Recommandee = { texte: string; pourquoi: string };
 export type CarteDuChef = { sorte: string; texte: string; design?: ValidationDesign; sensible?: RevueSensible; recommandee?: Recommandee | null };
 
 // Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`), `rail`, et
-// `wait`, la mise en WAITING qu'une carte du manager propose quand sa question attend un tiers (#3434).
-export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail", "wait"] as const;
+// `wait`, la mise en WAITING qu'une carte du manager propose quand sa question attend un tiers (#3434), et `accept`, que
+// porte la carte d'un élément retenu — l'issue ou le commentaire d'un auteur sans l'écriture (#4425, épique #4358) : la
+// cuisine en lit le geste et l'accepte par son module de confiance (runtime/src/trust/acceptes.ts).
+export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail", "wait", "accept"] as const;
 export type GesteDuChef = (typeof GESTES_DU_CHEF)[number];
 export type ChoixDuChef = { texte: string; suite: GesteDuChef };
 // Ce que le texte d'une carte du chef pose : sa question — sa première ligne écrite, nulle sur un texte vide —, ses choix,
