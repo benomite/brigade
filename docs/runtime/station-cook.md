@@ -123,7 +123,7 @@ The rail does not change: worktree, branch, brief, push, PR, pass. The reviewer 
 ### The cook does not deliver, the station harvests
 
 The cook commits in its worktree. `git push` and `gh pr merge` are
-forbidden to it at launch (a good-faith safeguard: it runs in `bypassPermissions`; restricted mode for a cook with no sandbox is described in `bac-a-sable.md`). `git merge` is
+forbidden to it at launch (a good-faith safeguard: it runs in `bypassPermissions`). `git merge` is
 not: its instructions ask it to merge the base into its branch before its final gates, and a local
 merge never reaches the base; forbidden, it left the cook delivering in conflict with the base (#3789). The real closure:
 under one identity per role it gets **no GitHub token**, and branch protection lets only the pass's
@@ -136,7 +136,7 @@ redirection…) whose target resolves outside them — absolute paths, `..` and 
 Its `gh` stays on its ticket: reads in its repository pass; writes pass only on its issue, on its
 branch's PR (`gh pr …` with no number, or naming its branch) and on its branch; admin and settings
 endpoints, deletions, merges, another repository and another ticket's issue, PR or branch are refused.
-The shell check is best-effort, not a sandbox (it is the boundary of a cook with no sandbox, [restricted mode](bac-a-sable.md#when-the-machine-has-no-sandbox-restricted-mode)); this list is the reference of the gap: it only reads the commands it knows, so other writers
+The shell check is best-effort, not a sandbox. It is also the boundary of a cook with no sandbox: see [restricted mode](bac-a-sable.md#when-the-machine-has-no-sandbox-restricted-mode). This is the reference list of its gaps. It only reads the commands it knows, so other writers
 (`sed -i`, `perl -i`, `git -C`, `python -c`, `node -e`, `curl -o`…) pass unchecked. A `mv` gets the
 root check on its sources only: moving a file into the worktree root, or into `/tmp`, passes.
 Each refusal tells the cook why. What passes gets no decision, so no permission prompt is added. The

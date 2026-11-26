@@ -18,11 +18,10 @@ What stays closed:
 
 ## When the machine has no sandbox: restricted mode
 
-The sandbox is the kernel's: where Claude Code cannot apply it, the station does not guess. What triggers the
-missing-sandbox path is the **detection** of the machine (the station checks whether the sandbox can run), not a
-platform rule: a machine that passes it keeps the sandbox, whatever its system. When detection fails, the station
-holds the project and asks the chef (`continue without sandbox`, or another station, see
-[What a cook may and may not do](../limites-du-cook.md)); nothing is launched before the answer.
+The sandbox is the kernel's. Where Claude Code cannot apply it, the station does not guess. What triggers the
+missing-sandbox path is the **detection** of the machine, not a platform rule: a machine that passes it keeps the
+sandbox, whatever its system. The hold and the chef's two choices (`continue without sandbox`, or another station)
+are described in [What a cook may and may not do](../limites-du-cook.md).
 
 If the chef continues, the cook is not unbounded. The target is **restricted mode** (the launch is the work of the
 sibling tickets of #4349):
