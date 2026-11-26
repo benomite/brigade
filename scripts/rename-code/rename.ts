@@ -396,7 +396,8 @@ type Plan = { edits: Map<string, Edit[]>; renamed: Map<string, string>; renames:
 const CONSTANT = /^[A-Z][A-Z0-9_]*$/;
 // A reserved word, or one of strict mode's (`let`, `static`, `interface`…).
 const reserved = (name: string) => {
-  const token = ts.stringToToken(name);
+  // `stringToToken` is in the JavaScript API, not in its declarations.
+  const token = (ts as unknown as { stringToToken(text: string): ts.SyntaxKind | undefined }).stringToToken(name);
   if (token === undefined) return false;
   return (token >= ts.SyntaxKind.FirstReservedWord && token <= ts.SyntaxKind.LastReservedWord) || (token >= ts.SyntaxKind.FirstFutureReservedWord && token <= ts.SyntaxKind.LastFutureReservedWord);
 };
@@ -438,6 +439,20 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
     for (const group of groups) for (const reference of group.references) at(reference.fileName, reference.textSpan.start, reference.textSpan.length);
     return [...spans.values()];
   };
+  const checker = program.getTypeChecker();
+  const MEANING = ts.SymbolFlags.Value | ts.SymbolFlags.Type | ts.SymbolFlags.Namespace;
+  // The bindings already renamed, by their new name.
+  const renamedTo = new Map<string, { name: string; symbol: ts.Symbol }[]>();
+  const clashAt = (locations: readonly ts.RenameLocation[], to: string, name: string): string | undefined => {
+    for (const location of locations) {
+      const node = findNode(program.getSourceFile(location.fileName)!, location.textSpan.start);
+      if (node === undefined) continue;
+      const where = `${rel(location.fileName)}@${location.textSpan.start}`;
+      if (checker.resolveName(to, node, MEANING, true) !== undefined) return where;
+      for (const other of renamedTo.get(to) ?? []) if (other.name !== name && checker.resolveName(other.name, node, MEANING, true) === other.symbol) return `${where} (${other.name})`;
+    }
+    return undefined;
+  };
   const all = declarations(program, files.filter((file) => under(file, OWN)));
   for (const declared of all) {
     const to = newName(declared);
@@ -471,7 +486,21 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
       else refused.push(`${declared.file}:${declared.name}: ${info.localizedErrorMessage}`);
       continue;
     }
-    const locations = (declared.syntax === "ShorthandPropertyAssignment" ? propertyOf(declared) : undefined) ?? ls.findRenameLocations(abs(declared.file), declared.start, false, false, preferences) ?? [];
+    const locations = [...((declared.syntax === "ShorthandPropertyAssignment" ? propertyOf(declared) : undefined) ?? ls.findRenameLocations(abs(declared.file), declared.start, false, false, preferences) ?? [])];
+    // `export { a } from "./b.js"` keeps its old public name (`a as a`), so
+    // its importers are not among the locations: the export is renamed too
+    // (below), and its importers follow it, down the chain.
+    for (let index = 0; index < locations.length; index++) {
+      const location = locations[index]!;
+      const node = findNode(program.getSourceFile(location.fileName)!, location.textSpan.start);
+      if (!(location.suffixText ?? "").startsWith(" as ") || node === undefined || !ts.isExportSpecifier(node.parent)) continue;
+      // Asked from the export, the rename gives its importers (and keeps
+      // `a as` on the export itself, which is already among the locations).
+      for (const next of ls.findRenameLocations(location.fileName, location.textSpan.start, false, false, preferences) ?? []) {
+        if (locations.some((known) => known.fileName === next.fileName && known.textSpan.start === next.textSpan.start)) continue;
+        locations.push(next);
+      }
+    }
     const key = locations.map((location) => `${location.fileName}:${location.textSpan.start}`).sort().join(",");
     if (seen.has(key)) continue;
     seen.add(key);
@@ -491,6 +520,22 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
       if (string) {
         members.push({ declared, to, why: `named by a string: ${rel(string.fileName)}@${string.textSpan.start}` });
         continue;
+      }
+    }
+    // A binding cannot take a name that is already seen where it is used
+    // (`geste` → `action` beside an `action`), nor the new name of another
+    // binding seen there (`fiche` and `carte` → `card`): NAMES gives it another.
+    if (!member) {
+      const clash = clashAt(locations, to, declared.name);
+      if (clash !== undefined) {
+        refused.push(`${declared.file}:${declared.name}: its new name \`${to}\` is already seen in ${clash} — give it one in names.ts (\`${declared.file}#${declared.name}\`)`);
+        continue;
+      }
+      const symbol = checker.getSymbolAtLocation(declared.node);
+      if (symbol !== undefined) {
+        const list = renamedTo.get(to) ?? [];
+        list.push({ name: declared.name, symbol });
+        renamedTo.set(to, list);
       }
     }
     renames.push({ declared, to, at: locations.length });
