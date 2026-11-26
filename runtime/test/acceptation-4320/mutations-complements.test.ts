@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { priseDeLaStation, stationDuDepot, type Lancer, type OptionsDuDepot } from "../../src/brigade-github.ts";
-import { DEBUT, FIN, reecrireBloc } from "../../src/projets/bloc.ts";
+import { DEBUT, FIN, lignesDuBloc, reecrireBloc } from "../../src/projets/bloc.ts";
 import { baseDuClone } from "../../src/projets-station/selection.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
@@ -79,4 +79,10 @@ test("reecrireBloc: lines are written inside the block; no line and no comment r
   assert.equal(reecrireBloc("", ["a x main"]), `${DEBUT}\na x main\n${FIN}\n`);
   assert.equal(reecrireBloc(`${DEBUT}\na x main\n${FIN}\n`, []), "");
   assert.equal(reecrireBloc(`${DEBUT}\n# note\n${FIN}\n`, []), `${DEBUT}\n# note\n${FIN}\n`);
+});
+
+test("reecrireBloc: a project repeated with other spacing and a repeated held-back comment are each written once", () => {
+  const texte = `${DEBUT}\n# held-back a/x\n# held-back a/x\na x main\n${FIN}\n`;
+  assert.equal(reecrireBloc(texte, ["a x main", "a   x  main", "b y main"]), `${DEBUT}\n# held-back a/x\na x main\nb y main\n${FIN}\n`);
+  assert.deepEqual(lignesDuBloc(`${DEBUT}\nb y main\n b  y main\n${FIN}\n`), ["b y main"]);
 });
