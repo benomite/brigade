@@ -16,6 +16,8 @@
 // (`github-etat/fusion.ts`, #2058). Le cook et la relecture sont ceux
 // d'aujourd'hui — worktree du dépôt de la station, cloison, consignes du cook
 // et du reviewer —, lancés ici sans journal.
+import { homedir } from "node:os";
+import { REGLES_DE_BASE, type Regle } from "./reseau.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { current } from "./agent-settings/index.ts";
@@ -32,7 +34,7 @@ import { leveesDesCommentaires } from "./boucle-attente/levee.ts";
 import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
-import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
+import { dansLeBacASableLocal, dansLeModeRestreint, lireCaches, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { garderLeCook } from "./garde-cook/garde.ts";
 import { poserALaMain } from "./blocages-sans-question.ts";
@@ -2875,6 +2877,8 @@ export type OptionsDuDepot = {
   cloison: Cloison | null;
   // Le bac à sable de Claude Code, quand la cuisine est sur le poste du chef.
   bacASable?: BacASableLocal | null;
+  // La liste réseau du projet, relue à chaque lancement ; sert au cook sans bac à sable ni cloison. Absente, le socle seul.
+  hotes?: () => Regle[];
   plafonds: Plafonds;
   graceMs: number;
   // Relu à chaque relecture quand c'est une fonction : un calibrage changé depuis l'app vaut à la suivante (#4222).
@@ -3010,6 +3014,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // Le cook n'a besoin d'aucun `gh` : son ticket lui est remis dans sa
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
+  // Sans bac à sable ni cloison, le cook part en mode restreint : `dontAsk` et des réglages qui tiennent sans le noyau.
+  const lancementDuClaude = (args: string[], ou: string, lit: string[] = [], setup?: boolean): string[] =>
+    options.bacASable || cloison !== null ? dansLeBacASableLocal(options.bacASable, args, ou, lit, setup) : dansLeModeRestreint(args, { worktree: ou, caches: lireCaches(options.env), hotes: (options.hotes ?? (() => REGLES_DE_BASE))(), home: options.env.HOME ?? homedir(), lit });
   const sansJeton = () => environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) });
   const env = (depart: NodeJS.ProcessEnv = sansJeton()) => environnementClaude(depart, options.env);
   // Ce qu'un setup ne fait pas entrer dans l'environnement du cook : ni le
@@ -3413,7 +3420,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let flux = join(options.flux, `${run}.flux.jsonl`);
     const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint, fiche: ficheDuCook });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
-    const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
+    const args = garderLeCook(lancementDuClaude(argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     // Sur le moteur de la station (#3744) : `claude` tel quel, à la clé d'API, ou Codex.
     const surLeMoteur = lancementDuCook(moteur, { claude: { commande: options.claude, args, env: env(envDuCook) }, worktree, calibrage });
     if ("refus" in surLeMoteur) {

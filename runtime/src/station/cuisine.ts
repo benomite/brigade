@@ -264,6 +264,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 env,
                 cloison,
                 bacASable,
+                hotes,
                 plafonds: reglages.plafonds,
                 graceMs: reglages.graceMs,
                 reviewer: () => decisions.reviewer(),
