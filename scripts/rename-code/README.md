@@ -49,6 +49,7 @@ machine).
 | `rename.sh --keep <dir>` | The same dry run, but the renamed copy stays at `<dir>`, so its tests and gates can be run. It carries the remote branches, which the gates compare with. Remove it with `rm -rf <dir>`. |
 | `rename.sh --apply` | Renames this tree in place, then proves it. The tree must be clean. If the proof fails or anything throws, the rename is undone whole (`git reset --hard`, then `git clean` on the renamed zones), and the tree is the commit again. The renamed tree is left uncommitted, for the caller to commit. |
 | `rename.sh --check` | Lists every identifier and path part of `runtime/` and `app/` that still holds a glossary term and is not an exception of the table. It exits 1 if there is one. Run after `--apply`, it must say `no glossary term left outside the table's exceptions`. |
+| `… --only runtime` or `… --only app` | Any of the above, on the names of one zone only (#4413): its declarations and files are renamed, the other zone only follows (its imports and paths). A rename of one zone can land without the other. |
 
 ### The lines of the dry run
 

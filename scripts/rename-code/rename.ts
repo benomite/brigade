@@ -13,6 +13,8 @@
 //   rename.sh --check         list the glossary terms left in identifiers and
 //                             file names that the table does not keep: exit 1
 //                             if there is one
+//   … --only <zone>           rename (or check) the names of one zone only,
+//                             `runtime` or `app`; the other zone follows
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,8 +28,10 @@ import { translate } from "./words.ts";
 // run makes of it (`main`).
 const HOME = resolve(import.meta.dirname, "../..");
 let REPO = HOME;
-// Where names are renamed: declarations and file names.
-const OWN = ["app/src", "app/test"];
+// Where names are renamed: declarations and file names. `--only <zone>`
+// narrows it to one zone (#4413): the other one only follows.
+const ZONES = ["runtime", "app"];
+let OWN = ZONES.flatMap((zone) => [`${zone}/src`, `${zone}/test`]);
 // Code that only follows: it imports the renamed code, its references and the
 // paths it names follow, its own names do not change.
 const FOLLOWERS = ["scripts/capture-ecran"];
@@ -665,9 +669,19 @@ function copy(dir: string, commit: string) {
   }
 }
 
-const USAGE = "usage: scripts/rename-code/rename.sh [--keep <dir> | --apply | --check]";
+const USAGE = "usage: scripts/rename-code/rename.sh [--keep <dir> | --apply | --check] [--only runtime|app]";
 
 function main(args: string[]): number {
+  const onlyAt = args.indexOf("--only");
+  const only = onlyAt === -1 ? undefined : args[onlyAt + 1];
+  if (onlyAt !== -1) {
+    if (only === undefined || !ZONES.includes(only)) {
+      console.error(USAGE);
+      return 2;
+    }
+    OWN = [`${only}/src`, `${only}/test`];
+    args = args.filter((_, index) => index !== onlyAt && index !== onlyAt + 1);
+  }
   if (args.includes("--check")) return check();
   const applying = args.includes("--apply");
   const keepAt = args.indexOf("--keep");
