@@ -79,7 +79,9 @@ import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-exte
 import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
-import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
+import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
+import { avisDuChefALaBase, faitsDuDossier, type FaitsDeLaCuisine } from "./fiche-projet/fiche.ts";
+import { aDesGates, gatesManquantes, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
@@ -533,8 +535,9 @@ export const REPRISE_MIN_MS = 5_000;
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 // Ce qui juge une livraison : une PR qui y touche ne se merge qu'approuvée
-// aussi par le second juge (#2555) — sa consigne comprise.
-const JUGES = [".claude/brigade/", ".github/workflows/", "agents/second-juge.md"];
+// aussi par le second juge (#2555) — sa consigne comprise, et la fiche du
+// projet, qui nomme les gates (#4237).
+const JUGES = [".claude/brigade/", ".github/workflows/", "agents/second-juge.md", CHEMIN_DE_LA_FICHE];
 
 // Le rang d'un ticket dans l'ordre de service : le plus petit `prio:N` qu'il porte.
 const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
@@ -2119,7 +2122,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
                       }
                     }
                     // Un ticket \`sensitive\` attend la revue du chef avant son merge (#3223).
-                    const sensible = await retenirLeSensible(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, chef: await chefAMentionner() });
+                    const sensible = await retenirLeSensible(github, { depot: options.depotServi, station: nom, ticket, pr: { number: numero, sha }, chef: await chefAMentionner() }, () => avisDuChefALaBase(clone, base));
                     if (sensible !== null) {
                       retenue = true;
                       return { fait: false, motif: sensible };
@@ -3121,7 +3124,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { nonJouees: motif };
     };
     if (depot.tete(branche) !== pr.sha) return refus(`the station's clone holds \`${branche}\` at another head than PR #${pr.number}'s \`${pr.sha.slice(0, 7)}\``);
-    if (!aDesGates(worktree)) return refus(`the project has no \`${SCRIPT_GATES}\`: with no CI either, nothing would judge this delivery`);
+    if (!aDesGates(worktree)) return refus(`the project has no \`${gatesManquantes(worktree).join("`, `")}\`, which its sheet names: with no CI either, nothing would judge this delivery`);
     // Des gates qui ne jouent rien — aucune commande de test, ou provisoires tant que la fondation n'est pas servie (#3188).
     const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
     if (vides !== null) return refus(vides);
@@ -3198,7 +3201,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const verifierLeDejaServi = async (ticket: TicketLu, worktree: string, affirmation: string): Promise<{ servi: DejaServi } | { refus: string }> => {
     const reglage = options.gates;
     if (depot.lancerGit === undefined || reglage === undefined) return { refus: "this station cannot run git or the gates in a cook's worktree" };
-    if (!aDesGates(worktree)) return { refus: `the project has no \`${SCRIPT_GATES}\`: nothing would show the base is green` };
+    if (!aDesGates(worktree)) return { refus: `the project has no \`${gatesManquantes(worktree).join("`, `")}\`, which its sheet names: nothing would show the base is green` };
     const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
     if (vides !== null) return { refus: vides };
     const secrets = lireSecrets(worktree, reglage.secrets ?? null);
@@ -3496,8 +3499,16 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       if (setup.pret) envDuCook = setup.env;
       else avertir(`brigade : #${ticket.number} sur ${nom} — \`${SCRIPT_SETUP}\` failed (${setup.depasse ? `stopped after ${Math.round(options.setup.delaiMs / 1000)} s` : `exit code ${setup.code ?? "none"}`}): the cook starts in its worktree as is`);
     }
+    // Le travail du cook, tel que la fiche du projet le dit (#4237). Refusée, aucun cook ne part.
+    let ficheDuCook: FaitsDeLaCuisine["cook"];
+    try {
+      ficheDuCook = faitsDuDossier(worktree, base).cook;
+    } catch (erreur) {
+      depot.retirer(worktree, reprise || sauves.has(ticket.number) ? undefined : branche);
+      return { subi: `the project sheet is refused, no cook starts: ${message(erreur)}` };
+    }
     let flux = join(options.flux, `${run}.flux.jsonl`);
-    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint });
+    const texte = consigne({ ticket: ticket.number, titre: ticket.title, depot: depotGitHub, base, joint, fiche: ficheDuCook });
     // Gardé (#3506) : ses écritures restent dans son worktree, son `gh` sur son ticket.
     const args = garderLeCook(dansLeBacASableLocal(options.bacASable, argumentsClaude(calibrage), worktree, [], brigade), { worktree, ticket: ticket.number, depot: depotGitHub, branche });
     // Sur le moteur de la station (#3744) : `claude` tel quel, à la clé d'API, ou Codex.
@@ -3859,7 +3870,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       })();
       // Ce que le manager a demandé au cook dans le fil : un geste demandé n'est jamais un point bloquant (#3962).
       const demandesDuManager = demandesDuManagerDans(await options.github.commentaires(ticket.number).catch(() => []));
-      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, demandesDuManager, ...(testsGeles === undefined ? {} : { testsGeles }) }), reponse);
+      // Les règles de la maison, telles que la fiche du projet les dit (#4237). Refusée, la relecture ne part pas.
+      const regles = faitsDuDossier(worktree, base).passe.rules;
+      const texte = avecLeDesaccord(consigneDeRelecture({ depot: depotGitHub, base, ticket: { number: ticket.number, title: ticket.title, body: issue?.body ?? "" }, commentaires: [], compteRendu: null, diff, criteres, demandesDuManager, regles, testsGeles }), reponse);
       // Le rejeu des tests ajoutés court pendant la relecture : la pass n'en est pas plus lente.
       // Les mutants se jouent après la preuve, contre ses tests gelés, et pendant la relecture.
       // Sans test gelé — un ticket sans critère testable (#3740) —, aucun mutant ne se joue.
@@ -3923,7 +3936,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
               const lue = await options.github.issue(pr.number);
               const diff = { fichiers: depot.changes(reference), texte: depot.diff(reference) };
               const ticket = { number: pr.number, title: `Outside PR #${pr.number} — ${lue?.title ?? "(no title)"}`, body: `This is a pull request opened from a fork, not a ticket of the kitchen: judge its diff against what its description below asks.\n\n${lue?.body ?? ""}` };
-              return await relireDans(worktree, run, consigneDeRelecture({ depot: depotGitHub, base, ticket, commentaires: [], compteRendu: null, diff }), pr);
+              return await relireDans(worktree, run, consigneDeRelecture({ depot: depotGitHub, base, ticket, commentaires: [], compteRendu: null, diff, regles: faitsDuDossier(worktree, base).passe.rules }), pr);
             } finally {
               depot.retirer(worktree);
             }
@@ -3931,7 +3944,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           gates: async (pr) => {
             const { worktree } = await teteExterne(pr, `gates-pr-${pr.number}-github`);
             try {
-              if (!aDesGates(worktree)) return { nonJouees: `the PR's tree has no \`${SCRIPT_GATES}\`` };
+              if (!aDesGates(worktree)) return { nonJouees: `the PR's tree has no \`${gatesManquantes(worktree).join("`, `")}\`, which its sheet names` };
               // Ni les secrets du projet (aucun `lireSecrets`), ni jeton GitHub, ni de Claude.
               const gates = await jouerGates({ worktree, ticket: pr.number, env: sansJeton(), interdites: VARIABLES_GITHUB, delaiMs: reglageDesGates.delaiMs, cloison, signal: abandon.signal });
               if (abandon.signal.aborted) throw new Error("the station stopped during the gates");
