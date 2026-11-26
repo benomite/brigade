@@ -842,9 +842,9 @@ cooked by its box (`stations-tab-cuit`), the new project's page (`parcours-premi
 open while it waits (`stations-tab-ajout-serveur`). The checked-in state has no capture: the capture tool answers each
 reading with the same frozen data, so no server can arrive between two readings; the played tests show it.
 
-*Code: `app/src/vue/ajout-serveur/` (the panel, `serveurVu`), laid by `stations-tab/stations-tab.js` and
+*Code: `app/src/vue/add-server/` (the panel, `serverSeen`), laid by `stations-tab/stations-tab.js` and
 `parcours-premier-projet/parcours-premier-projet.js`; its state and gestures in `app/src/vue/vue.js` (`serveurAttendu`,
-`gestesDuServeur`). Tests: `app/test/ajout-serveur/`, `app/test/acceptation-4347/`.*
+`gestesDuServeur`). Tests: `app/test/add-server/`, `app/test/acceptation-4347/`.*
 
 ### The account's GitHub quota gauge, on the Stations tab (#3483, epic #3475)
 

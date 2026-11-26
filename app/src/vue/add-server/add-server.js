@@ -31,23 +31,23 @@ import { poserLesChoix } from "../stations-tab/choix.js";
  * }} GestesDuServeur
  */
 
-export const AJOUTER_UN_SERVEUR = "Add a server";
+export const ADD_A_SERVER = "Add a server";
 // La ligne d'installation de Linux et de macOS, celle que la page d'installation publie.
-export const COMMANDE = INSTALLER[0]?.commande ?? "";
-export const OU_LA_LANCER = "Paste this one line in a terminal on any always-on Linux server (Debian or Ubuntu): it installs the station, then signs the server in to GitHub — use this same account — and to your Claude Max subscription.";
-export const SUR_UN_MAC = "On a Mac, it is the same command; the station cooks only while that Mac stays on and connected.";
-export const ATTENTE = "Waiting for its first check-in: the server appears here within a minute after the command ends.";
-export const VERIFIER = "check again";
-export const ILLISIBLE = "your stations could not be read";
+export const INSTALL_COMMAND = INSTALLER[0]?.commande ?? "";
+export const WHERE_TO_RUN = "Paste this one line in a terminal on any always-on Linux server (Debian or Ubuntu): it installs the station, then signs the server in to GitHub — use this same account — and to your Claude Max subscription.";
+export const ON_A_MAC = "On a Mac, it is the same command; the station cooks only while that Mac stays on and connected.";
+export const WAITING = "Waiting for its first check-in: the server appears here within a minute after the command ends.";
+export const CHECK_AGAIN = "check again";
+export const UNREADABLE = "your stations could not be read";
 /** @param {string} nom */
-export const APPAIREE = (nom) => `${nom} checked in: it is one of your stations now.`;
+export const PAIRED = (nom) => `${nom} checked in: it is one of your stations now.`;
 /** @param {string} projet */
-export const QUI_LE_CUIT = (projet) => `Choose who cooks ${projet}:`;
+export const WHO_COOKS_IT = (projet) => `Choose who cooks ${projet}:`;
 
 // Le serveur attendu, d'après la lecture du compte : `connues`, les stations qu'il avait à l'ouverture du panneau — sans
 // elles, aucune n'est dite neuve. Rien encore lu : il attend.
 /** @param {ReadonlySet<string> | undefined} connues @param {StationsDuCompte | undefined} lues @returns {ServeurVu} */
-export function serveurVu(connues, lues) {
+export function serverSeen(connues, lues) {
   if (lues === undefined) return { etat: "attente" };
   if (lues.state !== "listed") return { etat: "illisible", raison: lues.reason, detail: "detail" in lues ? (lues.detail ?? "") : "" };
   const neuve = connues === undefined ? undefined : lues.stations.find(({ id }) => !connues.has(id));
@@ -66,41 +66,41 @@ function cree(doc, balise, texte) {
 function panneau(doc, { vu, copiee, projet }, gestes) {
   const racine = cree(doc, "section");
   racine.className = "ajout-de-serveur";
-  racine.ariaLabel = AJOUTER_UN_SERVEUR;
-  const ou = cree(doc, "p", OU_LA_LANCER);
+  racine.ariaLabel = ADD_A_SERVER;
+  const ou = cree(doc, "p", WHERE_TO_RUN);
   ou.className = "ou";
   const ligne = cree(doc, "p");
   ligne.className = "commande";
-  const code = cree(doc, "code", COMMANDE);
+  const code = cree(doc, "code", INSTALL_COMMAND);
   code.className = "mono";
-  const copier = boutonAction(doc, copiee === true ? COPIEE : COPIER, () => gestes.copier?.(COMMANDE));
+  const copier = boutonAction(doc, copiee === true ? COPIEE : COPIER, () => gestes.copier?.(INSTALL_COMMAND));
   ligne.append(code, copier);
-  const mac = cree(doc, "p", SUR_UN_MAC);
+  const mac = cree(doc, "p", ON_A_MAC);
   mac.className = "mac";
   racine.append(ou, ligne, mac);
   if (vu.etat === "appairee") {
-    const arrivee = cree(doc, "p", APPAIREE(vu.station.name));
+    const arrivee = cree(doc, "p", PAIRED(vu.station.name));
     arrivee.className = "arrivee";
     racine.append(arrivee);
     const confier = gestes.confier;
     if (projet !== undefined && confier !== undefined) {
-      const question = cree(doc, "p", QUI_LE_CUIT(projet));
+      const question = cree(doc, "p", WHO_COOKS_IT(projet));
       question.className = "qui-le-cuit";
       const un = { cle: vu.station.id, nom: vu.station.name, horsLigne: !vu.station.available, recommande: vu.station.available };
       racine.append(question, ...poserLesChoix(doc, { choix: [un] }, () => confier(vu.station)));
     }
     return racine;
   }
-  if (vu.etat === "illisible") racine.append(ligneErreur(doc, `${ILLISIBLE}: ${vu.raison}`, vu.detail, { classe: "erreur" }));
+  if (vu.etat === "illisible") racine.append(ligneErreur(doc, `${UNREADABLE}: ${vu.raison}`, vu.detail, { classe: "erreur" }));
   else {
-    const attente = cree(doc, "p", ATTENTE);
+    const attente = cree(doc, "p", WAITING);
     attente.className = "attente";
     attente.ariaLive = "polite";
     racine.append(attente);
   }
   const pied = cree(doc, "p");
   pied.className = "gestes";
-  pied.append(boutonAction(doc, VERIFIER, () => gestes.verifier?.()));
+  pied.append(boutonAction(doc, CHECK_AGAIN, () => gestes.verifier?.()));
   racine.append(pied);
   return racine;
 }
@@ -108,10 +108,10 @@ function panneau(doc, { vu, copiee, projet }, gestes) {
 // Le bouton « Add a server », puis son panneau quand il est ouvert. Un clic l'ouvre ou le ferme de lui-même — fermé, le
 // panneau se pose au premier clic —, et le dit à la vue, qui le repose ensuite.
 /** @param {Fabrique} doc @param {EtatDuServeur} etat @param {GestesDuServeur} gestes */
-export function poserAjoutDeServeur(doc, etat, gestes) {
+export function placeAddServer(doc, etat, gestes) {
   /** @type {any} */
   let pose = etat.ouvert ? panneau(doc, etat, gestes) : undefined;
-  const entree = bouton(doc, AJOUTER_UN_SERVEUR, () => {
+  const entree = bouton(doc, ADD_A_SERVER, () => {
     if (pose === undefined) {
       pose = panneau(doc, { ...etat, ouvert: true }, gestes);
       pose.hidden = true;

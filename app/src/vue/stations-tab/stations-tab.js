@@ -11,7 +11,7 @@
 //      « Stop cooking here » — et « Details », replié, qui porte ses réglages et ses lectures, chacun avec son contrôle.
 //   3. Comment le changer : le choix de station (choix.js), ouvert sous la ligne du haut — qui le cuit, ou où déménager.
 //      Quand une station le sert déjà, « Add a station » ouvre le même choix pour en ajouter une (ticket 3402).
-//   4. Où trouver une machine de plus : « Add a server », sous la ligne du haut ou sous le choix ouvert (ajout-serveur/,
+//   4. Où trouver une machine de plus : « Add a server », sous la ligne du haut ou sous le choix ouvert (add-server/,
 //      ticket 4347) — la ligne d'installation d'un serveur, puis le serveur vu arriver et le projet qui lui est confié.
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (briques.js), ce qu'elle a lu et les gestes.
 
@@ -20,7 +20,7 @@ import { confirmationDeGeste } from "../composants/confirmation/confirmation.js"
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { marque } from "../composants/pastille/pastille.js";
-import { poserAjoutDeServeur } from "../ajout-serveur/ajout-serveur.js";
+import { placeAddServer } from "../add-server/add-server.js";
 import { ANNULER, CET_ORDINATEUR, ENREGISTREMENT, LECTURE_DE, OUI } from "../lexique.js";
 import { lignesDeCooks } from "../stations-de-cuisson.js";
 import { poserLeQuota } from "../stations-quota/stations-quota.js";
@@ -57,7 +57,7 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *                 garde l'ordinateur éveillé tant que c'est vrai.
  *   `moteurIci`   le moteur que la station de cet ordinateur a choisi dans ses réglages (moteur/, ticket 3746) : sa carte le
  *                 dit quand le runtime n'en publie rien.
- *   `serveur`     « Add a server » (ajout-serveur/, ticket 4347) : son panneau, ouvert ou non, et où en est le serveur attendu ;
+ *   `serveur`     « Add a server » (add-server/, ticket 4347) : son panneau, ouvert ou non, et où en est le serveur attendu ;
  *                 ouvert, il remplace les gestes de la ligne du haut. Absent, le bouton est offert, son panneau fermé.
  *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163) ; et,
  *                 quand une station le sert déjà, « Add a station » (ticket 3402).
@@ -82,7 +82,7 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *   quota?: import("../stations-quota/stations-quota.js").QuotaGithub,
  *   veille?: import("../veille-machine/veille-machine.js").Veille,
  *   moteurIci?: string,
- *   serveur?: import("../ajout-serveur/ajout-serveur.js").EtatDuServeur,
+ *   serveur?: import("../add-server/add-server.js").EtatDuServeur,
  * }} VuDeLOnglet
  */
 /**
@@ -97,7 +97,7 @@ import { lignesDuMoteur } from "../moteur/MoteurDeLaCarte.js";
  *   confirmerArret(id: string): void,
  *   renoncerArret(): void,
  *   basculer(id: string, ouvert: boolean): void,
- *   serveur?: import("../ajout-serveur/ajout-serveur.js").GestesDuServeur,
+ *   serveur?: import("../add-server/add-server.js").GestesDuServeur,
  * }} GestesDeLOnglet
  */
 
@@ -337,7 +337,7 @@ export function poserLOngletDesStations(doc, vu, gestes) {
   }
   if (vu.choix !== undefined) racine.append(leChoix(doc, vu.choix, gestes));
   // « Add a server », à côté de la liste des stations : sous le choix ouvert, sinon sous la ligne du haut (ticket 4347).
-  if (vu.lecture !== true) racine.append(...poserAjoutDeServeur(doc, vu.serveur ?? { ouvert: false, vu: { etat: "attente" } }, gestes.serveur ?? {}));
+  if (vu.lecture !== true) racine.append(...placeAddServer(doc, vu.serveur ?? { ouvert: false, vu: { etat: "attente" } }, gestes.serveur ?? {}));
   if (vu.servantes.length > 0) {
     const cartes = cree(doc, "div");
     cartes.className = "cartes-des-stations";

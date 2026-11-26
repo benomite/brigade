@@ -142,7 +142,7 @@ import { diagrammeTenu, rendreAvecMermaid } from "./fiche-diagramme/fiche-diagra
 import { ligneDAlerte, plafondLu } from "./stations-de-cuisson.js";
 import { deplacementSuivi, estUnOrdinateur, hautDe, nomDePrise, servantesDe, UNE_MINUTE_MS } from "./stations-tab/etat.js";
 import { choixDuDeplacement } from "./stations-tab/choix.js";
-import { serveurVu } from "./ajout-serveur/ajout-serveur.js";
+import { serverSeen } from "./add-server/add-server.js";
 import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET, QUI_D_AUTRE } from "./stations-tab/stations-tab.js";
 import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
@@ -452,7 +452,7 @@ async function servirIciLeDepot(depot) {
 function reposerLOngletStations() {
   if (courant !== undefined && ongletDe(courant) === STATIONS) poserRail(courant);
 }
-// « Add a server » (ticket 4347, ajout-serveur/) : son panneau, ouvert pour un projet — sur son onglet Stations ou sa page
+// « Add a server » (ticket 4347, add-server/) : son panneau, ouvert pour un projet — sur son onglet Stations ou sa page
 // « who cooks it ». `connues` : les stations du compte qu'il avait à son ouverture — une qui n'y était pas est le serveur
 // neuf, qui s'enregistre seul sous le compte ; pas encore lues, elles le sont à la première lecture. `copiee` : la ligne
 // d'installation vient d'être copiée.
@@ -466,10 +466,10 @@ function reposerLeServeur() {
   if (courant !== undefined && parcoursDesProjets.de(courant.nom) !== undefined) poserLeProjetAPreparer();
 }
 // Ce que le panneau montre pour un projet. `confiable` : l'écran sait lui confier le projet — il le nomme alors.
-/** @param {string} projet @param {boolean} confiable @returns {import("./ajout-serveur/ajout-serveur.js").EtatDuServeur} */
+/** @param {string} projet @param {boolean} confiable @returns {import("./add-server/add-server.js").EtatDuServeur} */
 function serveurDe(projet, confiable) {
   const ouvert = serveurAttendu?.projet === projet;
-  const vu = serveurVu(ouvert ? serveurAttendu?.connues : undefined, enregistreesAbsentes ? undefined : etatDesEnregistrees.stations);
+  const vu = serverSeen(ouvert ? serveurAttendu?.connues : undefined, enregistreesAbsentes ? undefined : etatDesEnregistrees.stations);
   return { ouvert, vu, copiee: ouvert && serveurAttendu?.copiee === true, ...(confiable ? { projet } : {}) };
 }
 // « check again » : les stations du compte se relisent — celles d'avant sont prises à la première lecture qui réussit.
@@ -480,7 +480,7 @@ async function relireLeServeur() {
   reposerLeServeur();
 }
 // Les gestes du panneau pour un projet. `confier` : le geste de l'écran qui donne le projet à une station du compte.
-/** @param {string} projet @param {(station: import("../stations-du-compte.ts").StationEnregistree) => void} confier @returns {import("./ajout-serveur/ajout-serveur.js").GestesDuServeur} */
+/** @param {string} projet @param {(station: import("../stations-du-compte.ts").StationEnregistree) => void} confier @returns {import("./add-server/add-server.js").GestesDuServeur} */
 function gestesDuServeur(projet, confier) {
   return {
     basculer: (ouvert) => {
