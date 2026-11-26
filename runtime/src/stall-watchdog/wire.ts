@@ -16,9 +16,9 @@ import { etatDeLInterrupteur } from "../projections/switch.ts";
 import type { Runtime } from "../runtime.ts";
 import { echeanceSansMerge, PRISES_SANS_LIVRER, SANS_MERGE_MS } from "../superviseur/declencheur.ts";
 import type { SuiviDuTour } from "../superviseur/tour.ts";
-import { creerVeille, DELAI_SANS_LIVRAISON_MS, type CarteDeLaVeille, type FaitsDeLaMachine } from "./veille.ts";
+import { createWatchdog, IDLE_WITHOUT_MERGE_MS, type WatchdogCard, type MachineFacts } from "./watchdog.ts";
 
-export type OptionsDeLaVeilleDuProjet = {
+export type ProjectWatchdogOptions = {
   // Le tour GitHub seul observé ; nul quand la station ne s'ouvre pas : rien n'est veillé.
   tour: SuiviDuTour | null;
   // La station de cette machine, dont les cooks en vol se comptent.
@@ -37,7 +37,7 @@ export type OptionsDeLaVeilleDuProjet = {
   maintenant?: () => Date;
 };
 
-export function brancherVeilleBlocage<R extends Runtime>(runtime: R, options: OptionsDeLaVeilleDuProjet): R {
+export function wireStallWatchdog<R extends Runtime>(runtime: R, options: ProjectWatchdogOptions): R {
   const { tour, station, repertoireEtat, seuils, env, disque, github, dire } = options;
   if (tour === null) return runtime;
   const { base } = runtime.journal;
@@ -48,7 +48,7 @@ export function brancherVeilleBlocage<R extends Runtime>(runtime: R, options: Op
   // Sans le cache npm : la station le rend quand la machine sature, il n'est pas un reste qui bloque.
   const lieux = () => ({ worktrees: worktreesDuProjet(env, repertoireEtat), repertoireEtat, ...(env.BRIGADE_REPO_DIR === undefined ? {} : { clone: env.BRIGADE_REPO_DIR }), finis: runsRendables(base) });
   const eteinte = () => etatDesGardeFous(base).stoppedAt !== null || etatDeLInterrupteur(base)?.on === false;
-  const veille = creerVeille({
+  const veille = createWatchdog({
     racine: repertoireEtat,
     maintenant: () => maintenant().getTime(),
     // Le repère du superviseur : le dernier merge, ou l'arrivée du plus ancien ticket qui attend, le plus récent des deux.
@@ -57,7 +57,7 @@ export function brancherVeilleBlocage<R extends Runtime>(runtime: R, options: Op
       return echeance === null ? null : echeance.getTime() - SANS_MERGE_MS;
     },
     attendent: () => (eteinte() ? 0 : tour.faits().cuisinables.length),
-    faits: (): FaitsDeLaMachine => {
+    faits: (): MachineFacts => {
       const lue = machine();
       const vus = recuperer(lieux(), { ...fichiers, retirer: () => {}, elaguer: () => {} }, { ...processus, tuer: () => {} });
       return {
@@ -73,14 +73,14 @@ export function brancherVeilleBlocage<R extends Runtime>(runtime: R, options: Op
       const { echecs } = recuperer(lieux(), fichiers, processus);
       if (echecs.length > 0) throw new Error(`could not reclaim ${echecs.join(", ")}`);
     },
-    creerCarte: async ({ cause, texte }: CarteDeLaVeille) => {
+    creerCarte: async ({ cause, texte }: WatchdogCard) => {
       if (cause === "disk") return (await disque.poser({ sorte: "blocked", texte })) === "posee";
       const [tete] = tour.faits().cuisinables;
       if (tete === undefined) throw new Error("no ticket waits any more to carry the card");
       return (await poserCarte(tete.ticket, { sorte: "blocked", texte }, github)) === "posee";
     },
     ecrire: dire,
-    delaiMs: DELAI_SANS_LIVRAISON_MS,
+    delaiMs: IDLE_WITHOUT_MERGE_MS,
     chargeParCoeur: seuils.chargeParCoeur,
   });
   runtime.surReveil(() => {

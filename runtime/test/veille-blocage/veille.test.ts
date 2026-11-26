@@ -5,29 +5,29 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { creerVeille, noterPanneMachine, pannesDesSeptJours, type CarteDeLaVeille, type FaitsDeLaMachine } from "../../src/veille-blocage/veille.ts";
+import { createWatchdog, recordMachineOutage, outagesInLastSevenDays, type WatchdogCard, type MachineFacts } from "../../src/stall-watchdog/watchdog.ts";
 import { jusqua } from "../outils.ts";
 
 const HEURE = 3_600_000;
 const NOW = 1_000_000_000_000;
-const SAINS: FaitsDeLaMachine = { charge: 0.5, cooks: 1, portes: [], boucles: [], restes: { processus: [], fichiers: [] }, disquePlein: false };
+const SAINS: MachineFacts = { charge: 0.5, cooks: 1, portes: [], boucles: [], restes: { processus: [], fichiers: [] }, disquePlein: false };
 
 type Monte = {
-  faits?: () => FaitsDeLaMachine;
+  faits?: () => MachineFacts;
   dernierMerge?: number | null;
   reparer?: () => void;
-  creerCarte?: (carte: CarteDeLaVeille) => void | boolean | Promise<void | boolean>;
+  creerCarte?: (carte: WatchdogCard) => void | boolean | Promise<void | boolean>;
   racine?: string;
 };
 
 function monter(opts: Monte = {}) {
   const t = { now: NOW };
   const racine = opts.racine ?? mkdtempSync(join(tmpdir(), "veille-blocage-"));
-  const cartes: CarteDeLaVeille[] = [];
+  const cartes: WatchdogCard[] = [];
   const reparations: unknown[] = [];
   const lignes: string[] = [];
   let faits = opts.faits ?? (() => SAINS);
-  const veille = creerVeille({
+  const veille = createWatchdog({
     racine,
     maintenant: () => t.now,
     dernierMerge: () => (opts.dernierMerge === undefined ? NOW - 61 * 60_000 : opts.dernierMerge),
@@ -43,7 +43,7 @@ function monter(opts: Monte = {}) {
     },
     ecrire: (l) => lignes.push(l),
   });
-  return { t, racine, cartes, reparations, lignes, veille, poser: (f: FaitsDeLaMachine) => (faits = () => f) };
+  return { t, racine, cartes, reparations, lignes, veille, poser: (f: MachineFacts) => (faits = () => f) };
 }
 
 test("with no merge known, the watchdog does nothing", () => {
@@ -129,7 +129,7 @@ test("a cause that goes and comes back gets a new card; a cause still there does
   m.poser({ ...SAINS, disquePlein: true });
   m.veille.verifier();
   assert.equal(m.cartes.length, 2);
-  assert.equal(pannesDesSeptJours(m.racine, NOW), 2);
+  assert.equal(outagesInLastSevenDays(m.racine, NOW), 2);
 });
 
 test("the causes told to the chef outlive the process: a new watchdog on the same directory posts no second card", () => {
@@ -145,7 +145,7 @@ test("a card that was already there opens the cause, but is no new outage", () =
   m.veille.verifier();
   m.veille.verifier();
   assert.equal(m.cartes.length, 1);
-  assert.equal(pannesDesSeptJours(m.racine, NOW), 0);
+  assert.equal(outagesInLastSevenDays(m.racine, NOW), 0);
   assert.match(m.lignes[0]!, /the chef already had a card for disk; none is added/);
 });
 
@@ -157,7 +157,7 @@ test("a card posted asynchronously is posted once while it is pending, and count
   assert.equal(m.cartes.length, 1);
   poser(true);
   await jusqua(() => m.lignes.length === 1);
-  assert.equal(pannesDesSeptJours(m.racine, NOW), 1);
+  assert.equal(outagesInLastSevenDays(m.racine, NOW), 1);
   m.veille.verifier();
   assert.equal(m.cartes.length, 1);
 });
@@ -170,29 +170,29 @@ test("a card that cannot be posted is said, and tried again next time", async ()
   assert.match(m.lignes[0]!, /the TODO card could not be posted \(GitHub is down\), tried again next time/);
   m.veille.verifier();
   assert.equal(m.cartes.length, 2);
-  assert.equal(pannesDesSeptJours(m.racine, NOW), 1);
+  assert.equal(outagesInLastSevenDays(m.racine, NOW), 1);
 });
 
 test("a card whose posting throws at once is said too", () => {
   const m = monter({ faits: () => ({ ...SAINS, disquePlein: true }), creerCarte: () => assert.fail("no client") });
   m.veille.verifier();
   assert.match(m.lignes[0]!, /the TODO card could not be posted \(no client\)/);
-  assert.equal(pannesDesSeptJours(m.racine, NOW), 0);
+  assert.equal(outagesInLastSevenDays(m.racine, NOW), 0);
 });
 
 test("an unreadable memory posts no card, is never overwritten, and says so", () => {
-  for (const contenu of ["{not json", JSON.stringify({ ouvertes: [] }), JSON.stringify({ pannes: [] })]) {
+  for (const contenu of ["{not json", JSON.stringify({ open: [] }), JSON.stringify({ outages: [] })]) {
     const m = monter({ faits: () => ({ ...SAINS, disquePlein: true }) });
-    writeFileSync(join(m.racine, "veille-blocage.json"), contenu);
+    writeFileSync(join(m.racine, "stall-watchdog.json"), contenu);
     m.veille.verifier();
     assert.deepEqual(m.cartes, []);
-    assert.match(m.lignes[0]!, /veille-blocage\.json could not be read/);
-    assert.equal(readFileSync(join(m.racine, "veille-blocage.json"), "utf8"), contenu);
+    assert.match(m.lignes[0]!, /stall-watchdog\.json could not be read/);
+    assert.equal(readFileSync(join(m.racine, "stall-watchdog.json"), "utf8"), contenu);
   }
 });
 
 test("a card posted while the memory breaks is said as posted but not noted", () => {
-  const m = monter({ faits: () => ({ ...SAINS, disquePlein: true }), creerCarte: () => writeFileSync(join(m.racine, "veille-blocage.json"), "{not json") });
+  const m = monter({ faits: () => ({ ...SAINS, disquePlein: true }), creerCarte: () => writeFileSync(join(m.racine, "stall-watchdog.json"), "{not json") });
   m.veille.verifier();
   assert.equal(m.cartes.length, 1);
   assert.match(m.lignes[0]!, /the card for disk is posted, but it was not noted/);
@@ -200,6 +200,6 @@ test("a card posted while the memory breaks is said as posted but not noted", ()
 
 test("an outage noted by the disk guard counts in the week", () => {
   const racine = mkdtempSync(join(tmpdir(), "veille-blocage-"));
-  noterPanneMachine(racine, "disk", NOW - 2 * 24 * HEURE);
-  assert.equal(pannesDesSeptJours(racine, NOW), 1);
+  recordMachineOutage(racine, "disk", NOW - 2 * 24 * HEURE);
+  assert.equal(outagesInLastSevenDays(racine, NOW), 1);
 });

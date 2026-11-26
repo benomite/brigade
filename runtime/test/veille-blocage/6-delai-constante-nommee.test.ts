@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { creerVeille, DELAI_SANS_LIVRAISON_MS } from "../../src/veille-blocage/veille.ts";
+import { createWatchdog, IDLE_WITHOUT_MERGE_MS } from "../../src/stall-watchdog/watchdog.ts";
 
 const HEURE = 3_600_000;
 const SAINS = { charge: 0.5, cooks: 1, portes: [] as string[], boucles: [] as number[], restes: { processus: [] as number[], fichiers: [] as string[] }, disquePlein: false };
@@ -13,7 +13,7 @@ const SAINS = { charge: 0.5, cooks: 1, portes: [] as string[], boucles: [] as nu
 function monter(delaiMs: number) {
   const now = 1_000_000_000_000;
   const compte = { faits: 0 };
-  const veille = creerVeille({
+  const veille = createWatchdog({
     racine: mkdtempSync(join(tmpdir(), "veille-blocage-")),
     maintenant: () => now,
     dernierMerge: () => now - 2 * HEURE,
@@ -28,7 +28,7 @@ function monter(delaiMs: number) {
 }
 
 test("the behaviour follows the idle time", () => {
-  assert.equal(typeof DELAI_SANS_LIVRAISON_MS, "number");
+  assert.equal(typeof IDLE_WITHOUT_MERGE_MS, "number");
   const court = monter(HEURE);
   court.veille.verifier();
   assert.equal(court.compte.faits > 0, true);

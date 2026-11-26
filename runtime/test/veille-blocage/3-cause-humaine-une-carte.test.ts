@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { creerVeille } from "../../src/veille-blocage/veille.ts";
+import { createWatchdog } from "../../src/stall-watchdog/watchdog.ts";
 
 const HEURE = 3_600_000;
 const HUMAIN = { charge: 0.5, cooks: 1, portes: [] as string[], boucles: [] as number[], restes: { processus: [] as number[], fichiers: [] as string[] }, disquePlein: true };
@@ -14,7 +14,7 @@ test("creates exactly one card in plain words, and no second one on the same cau
   const t = { now: 1_000_000_000_000 };
   const reparations: unknown[] = [];
   const cartes: { cause: string; texte: string }[] = [];
-  const veille = creerVeille({
+  const veille = createWatchdog({
     racine: mkdtempSync(join(tmpdir(), "veille-blocage-")),
     maintenant: () => t.now,
     dernierMerge: () => 1_000_000_000_000 - 100 * HEURE,

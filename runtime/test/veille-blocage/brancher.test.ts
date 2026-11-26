@@ -9,8 +9,8 @@ import { configMachine, type Machine } from "../../src/machine.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import type { FaitsDuProjet } from "../../src/superviseur/declencheur.ts";
 import type { SuiviDuTour } from "../../src/superviseur/tour.ts";
-import { brancherVeilleBlocage } from "../../src/veille-blocage/brancher.ts";
-import { pannesDesSeptJours } from "../../src/veille-blocage/veille.ts";
+import { wireStallWatchdog } from "../../src/stall-watchdog/wire.ts";
+import { outagesInLastSevenDays } from "../../src/stall-watchdog/watchdog.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 const STATION = "box/claude";
@@ -63,7 +63,7 @@ function monter(t: TestContext, options: Options = {}) {
     labelliser: async () => {},
     delabelliser: async () => {},
   } as unknown as GitHubDesCartes;
-  const rendu = brancherVeilleBlocage(runtime, {
+  const rendu = wireStallWatchdog(runtime, {
     tour,
     station: STATION,
     repertoireEtat: repertoire,
@@ -137,7 +137,7 @@ test("a saturated machine with no cook in flight gets one card on the first wait
   assert.equal(m.commentaires.length, 1);
   assert.equal(m.commentaires[0]!.numero, 7);
   assert.match(m.commentaires[0]!.corps, /the machine is saturated \(load 2\.00 per core, the limit is 1\.5\)/);
-  assert.equal(pannesDesSeptJours(m.repertoire, NOW.getTime()), 1);
+  assert.equal(outagesInLastSevenDays(m.repertoire, NOW.getTime()), 1);
 });
 
 test("the same saturated machine with a cook of this station in flight gets no card", (t) => {
@@ -155,11 +155,11 @@ test("a full disk gets its card on the disk issue; a card already there is no ne
   assert.match(pleine.disque[0]!.texte, /the disk of this station is full/);
   assert.equal(pleine.disque[0]!.sorte, "blocked");
   assert.deepEqual(pleine.commentaires, []);
-  assert.equal(pannesDesSeptJours(pleine.repertoire, NOW.getTime()), 1);
+  assert.equal(outagesInLastSevenDays(pleine.repertoire, NOW.getTime()), 1);
   const deja = monter(t, { machine: () => ({ ...SAINE, disqueLibre: GO }), pose: "deja" });
   deja.reveiller();
   await jusqua(() => deja.lignes.length === 1);
-  assert.equal(pannesDesSeptJours(deja.repertoire, NOW.getTime()), 0);
+  assert.equal(outagesInLastSevenDays(deja.repertoire, NOW.getTime()), 0);
 });
 
 test("a saturated machine whose waiting ticket left the rail meanwhile says the card was not posted", async (t) => {

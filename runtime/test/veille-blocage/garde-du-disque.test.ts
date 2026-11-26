@@ -7,7 +7,7 @@ import type { Pose } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import { gardesDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { configMachine, type Machine } from "../../src/machine.ts";
 import { demarrer } from "../../src/runtime.ts";
-import { pannesDesSeptJours } from "../../src/veille-blocage/veille.ts";
+import { outagesInLastSevenDays } from "../../src/stall-watchdog/watchdog.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 const GO = 1024 * 1024 * 1024;
@@ -38,12 +38,12 @@ async function poserLaCarte(t: TestContext, pose: Pose) {
 
 test("the disk card the station guard posts is a machine outage, dated, counted in the week", async (t) => {
   const { repertoire, avertis } = await poserLaCarte(t, "posee");
-  assert.equal(pannesDesSeptJours(repertoire, NOW.getTime()), 1);
+  assert.equal(outagesInLastSevenDays(repertoire, NOW.getTime()), 1);
   assert.ok(avertis.some((texte) => texte.includes("(1 machine outage(s) reached the chef in the last 7 days)")));
 });
 
 test("a disk card that was already there is no new outage", async (t) => {
   const { repertoire, avertis } = await poserLaCarte(t, "deja");
-  assert.equal(pannesDesSeptJours(repertoire, NOW.getTime()), 0);
+  assert.equal(outagesInLastSevenDays(repertoire, NOW.getTime()), 0);
   assert.ok(avertis.some((texte) => texte.includes("(0 machine outage(s) reached the chef in the last 7 days)")));
 });

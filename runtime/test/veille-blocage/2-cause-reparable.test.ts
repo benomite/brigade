@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { creerVeille } from "../../src/veille-blocage/veille.ts";
+import { createWatchdog } from "../../src/stall-watchdog/watchdog.ts";
 
 const HEURE = 3_600_000;
 const BLOQUE = { charge: 0.5, cooks: 1, portes: [] as string[], boucles: [] as number[], restes: { processus: [4242], fichiers: [] as string[] }, disquePlein: false };
@@ -15,7 +15,7 @@ test("repairs leftover processes, logs one line, creates no card", () => {
   const reparations: unknown[] = [];
   const cartes: unknown[] = [];
   const lignes: string[] = [];
-  const veille = creerVeille({
+  const veille = createWatchdog({
     racine: mkdtempSync(join(tmpdir(), "veille-blocage-")),
     maintenant: () => now,
     dernierMerge: () => now - 100 * HEURE,

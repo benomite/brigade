@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { creerVeille, pannesDesSeptJours } from "../../src/veille-blocage/veille.ts";
+import { createWatchdog, outagesInLastSevenDays } from "../../src/stall-watchdog/watchdog.ts";
 
 const HEURE = 3_600_000;
 const JOUR = 24 * HEURE;
@@ -14,7 +14,7 @@ const HUMAIN = { charge: 0.5, cooks: 1, portes: [] as string[], boucles: [] as n
 test("counts the machine outages of the last 7 days", () => {
   const now = 1_000_000_000_000;
   const racine = mkdtempSync(join(tmpdir(), "veille-blocage-"));
-  const veille = creerVeille({
+  const veille = createWatchdog({
     racine,
     maintenant: () => now,
     dernierMerge: () => now - 100 * HEURE,
@@ -25,7 +25,7 @@ test("counts the machine outages of the last 7 days", () => {
     ecrire: () => {},
   });
   veille.verifier();
-  assert.equal(pannesDesSeptJours(racine, now), 1);
-  assert.equal(pannesDesSeptJours(racine, now + 6 * JOUR), 1);
-  assert.equal(pannesDesSeptJours(racine, now + 8 * JOUR), 0);
+  assert.equal(outagesInLastSevenDays(racine, now), 1);
+  assert.equal(outagesInLastSevenDays(racine, now + 6 * JOUR), 1);
+  assert.equal(outagesInLastSevenDays(racine, now + 8 * JOUR), 0);
 });

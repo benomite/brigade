@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { creerVeille, DELAI_SANS_LIVRAISON_MS } from "../../src/veille-blocage/veille.ts";
+import { createWatchdog, IDLE_WITHOUT_MERGE_MS } from "../../src/stall-watchdog/watchdog.ts";
 
 const HEURE = 3_600_000;
 const MINUTE = 60_000;
@@ -15,7 +15,7 @@ test("acts within the idle time over 13 faked hours", () => {
   const debut = 1_000_000_000_000;
   const t = { now: debut };
   const reparations: unknown[] = [];
-  const veille = creerVeille({
+  const veille = createWatchdog({
     racine: mkdtempSync(join(tmpdir(), "veille-blocage-")),
     maintenant: () => t.now,
     dernierMerge: () => debut,
@@ -32,6 +32,6 @@ test("acts within the idle time over 13 faked hours", () => {
     if (agi === null && reparations.length > 0) agi = t.now - debut;
   }
   assert.notEqual(agi, null);
-  assert.equal(agi! <= DELAI_SANS_LIVRAISON_MS + 5 * MINUTE, true);
-  assert.equal(DELAI_SANS_LIVRAISON_MS < 13 * HEURE, true);
+  assert.equal(agi! <= IDLE_WITHOUT_MERGE_MS + 5 * MINUTE, true);
+  assert.equal(IDLE_WITHOUT_MERGE_MS < 13 * HEURE, true);
 });

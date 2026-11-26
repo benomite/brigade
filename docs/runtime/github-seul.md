@@ -262,8 +262,8 @@ base, the stale-branch pruning).
   (`<!-- brigade:disk-full -->`): the figures and the biggest consumers on the volume, if `du` reads them. It is
   not raised while that reclaim could still be enough, nor twice for the same state, and it is lifted once the disk
   has room (#4091).
-- **The watchdog of a stalled kitchen** (#4213, `runtime/src/veille-blocage/`). At each wake of a project's runtime,
-  next to the supervisor: when nothing has merged for one hour (`DELAI_SANS_LIVRAISON_MS`, counted like the
+- **The watchdog of a stalled kitchen** (#4213, `runtime/src/stall-watchdog/`). At each wake of a project's runtime,
+  next to the supervisor: when nothing has merged for one hour (`IDLE_WITHOUT_MERGE_MS`, counted like the
   supervisor's 30 min, from the later of the last merge and the oldest waiting ticket) while at least one ticket
   waits, and the kitchen is neither stopped nor switched off, it reads the machine (load per core, cooks of the
   station in flight, what the claim gate skipped, tickets taken three times without delivering, the leftovers of
@@ -272,7 +272,7 @@ base, the stale-branch pruning).
   service log naming the cause and the action. A full disk, or a machine over its load per core with no cook of the
   station in flight, needs a human: one TODO card (`blocked`) in plain words — the disk's on the disk issue above,
   shared with it, the load's on the first waiting ticket — and no second card while the cause lasts, across restarts
-  (`<state>/veille-blocage.json`). Each card posted, by the watchdog or by the disk guard above, is a machine outage
+  (`<state>/stall-watchdog.json`). Each card posted, by the watchdog or by the disk guard above, is a machine outage
   that reached the chef, noted with its date; the watchdog's line and the disk guard's say how many there were in the
   last 7 days. With no machine cause, it says so once, and the tickets stay with the supervisor.
 - **A word to a cooking cook** (#4047, `runtime/src/mot-au-cook/`). `send-word <owner>/<repo>#<ticket> <word…>`
