@@ -30,6 +30,7 @@
     "sensitive": "node src/sensitive-cli.ts",
     "undo": "node src/undo-cli.ts",
     "send-word": "node src/send-word-cli.ts",
+    "trust": "node src/trust-cli.ts",
     "know-how": "node src/know-how-cli.ts",
     "report": "node src/rapport-cli.ts",
     "guardrails": "node src/garde-fous-cli.ts",

@@ -111,6 +111,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | — | `sensitive` | A green delivery of a ticket labelled `sensitive`, held on its `review before merge` card (#3223) | `merge <owner>/<repo>#<ticket>`, `send-back <owner>/<repo>#<ticket> --note <note>` — new, with no old name |
 | — | `undo` | A served ticket undone from its card (#3274): a pull request reverts its merge and goes through the pass like any delivery, and the ticket is reopened | `<owner>/<repo>#<ticket>` — new, with no old name |
 | — | `send-word` | A word: one line of text the chef sends to the cook of a `taken` ticket (#4047). It is posted on the issue and reaches the cook at the end of its current turn | `<owner>/<repo>#<ticket> <word…>` — new, with no old name |
+| — | `trust` | The trust gate (#4421): whether an author is trusted — the chef, a kitchen agent, or a collaborator with write access — and the issues and comments the chef accepted | `author <login>`, `accept issue\|comment <id>`, `check issue\|comment <id>` — new, with no old name |
 | — | `know-how` | The project's know-how: the lessons its cooks receive, each with the ticket it came from (#4241) | `edit <id> <text…>`, `remove <id>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `pass` | `pass` | The pass and its verdicts | — |
