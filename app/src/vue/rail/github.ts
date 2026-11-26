@@ -40,7 +40,7 @@ import type { HautDuBacklogDesFaits } from "./rail.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
-// Le label que portent encore les tickets passés par l'étape retirée (#4229) : ils se lisent toujours.
+// Le label que portent encore les tickets passés par l'étape retirée (ticket 4229) : ils se lisent toujours.
 const LABEL_TESTS_ECRITS = "tests-written";
 // Le mot d'un ticket en file dont les tests d'acceptation sont écrits et gelés : l'étape `tests written` du rail, entre
 // `queued` et `taken` (ticket 3725, label `tests-written`).
