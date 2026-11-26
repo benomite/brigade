@@ -28,7 +28,7 @@ const REACTIONS: Record<string, (n: string) => string> = {
   split: (n) => `split ${n} again`,
   escalate: (n) => `escalated ${n} to you`,
 };
-// Ce qu'il a fait d'une issue tenue par `blocked-on-human`, relue (manager.requalified).
+// Ce qu'il a fait d'une issue tenue pour un humain, relue avant parked (manager.requalified, l'histoire du journal).
 const RELECTURES: Record<string, (n: string) => string> = {
   stated: (n) => `re-read ${n}: the decision it awaits is written`,
   card: (n) => `re-read ${n} and put its question in TODO`,

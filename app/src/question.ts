@@ -216,16 +216,3 @@ export function resumeDe(texte: string): string {
   return (posee === undefined ? lignes.slice(0, 2) : [posee]).map(rogner).join("\n");
 }
 
-// Le label qui retient un ticket, et les deux gestes qui le lèvent : retirer le label — le manager
-// le juge à son prochain tour — ou fermer l'issue. Un clic du chef, par son `gh`, à son nom.
-export const LABEL_RETENUE = "blocked-on-human";
-export type GesteDeRetenue = "label" | "fermer";
-export type Leve = { fait: true; dit: string } | { fait: false; refus: string };
-export async function lever(reglages: Reglages, adresse: string, geste: unknown): Promise<Leve> {
-  if (geste !== "label" && geste !== "fermer") return { fait: false, refus: "nothing was done: the view named neither “remove the label” nor “close the issue”" };
-  const args = geste === "label" ? ["issue", "edit", adresse, "--remove-label", LABEL_RETENUE] : ["issue", "close", adresse];
-  const rendu = await lancer(reglages, args);
-  const { erreur } = rendu;
-  if (erreur !== null) return { fait: false, refus: `nothing was done — ${echec(reglages, args, { ...rendu, erreur })}` };
-  return { fait: true, dit: geste === "label" ? `\`${LABEL_RETENUE}\` removed: the manager judges the issue again at its next tick` : "issue closed" };
-}

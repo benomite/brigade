@@ -96,11 +96,11 @@ describe("deux stations sur un projet : le manager agit une fois par issue", { c
       { ticket: 30, type: "manager.commented", payload: {} },
     ]);
 
-    await jusqua(() => p.gh.lire(30)?.labels.includes("decision") === true);
+    await jusqua(() => p.gh.lire(30)?.labels.includes("chef-todo") === true);
     await p.laisserTourner();
 
     assert.equal(box.runs("juge-30-").length, 1);
-    assert.deepEqual(p.gh.labellisations, [[30, ["decision"]]]);
+    assert.deepEqual(p.gh.labellisations, [[30, ["chef-todo"]]]);
     assert.match(p.dits(30)[0] ?? "", /\nDo you grant the deploy role write access to the backup bucket\?\n/);
   });
 
@@ -121,7 +121,7 @@ describe("deux stations sur un projet : le manager agit une fois par issue", { c
     await jusqua(() => p.dits(30).length === 1);
 
     assert.equal(box.runs("juge-30-").length, 1);
-    assert.deepEqual(p.gh.lire(30)?.labels, ["fire", "model:haiku", "effort:low"]);
+    assert.deepEqual(p.gh.lire(30)?.labels, ["model:haiku", "effort:low", "fire"]);
     // Le travail est dit fait au tour qui l'a mené au bout.
     await p.laisserTourner(2);
     assert.deepEqual(await p.prises(30), [

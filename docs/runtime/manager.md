@@ -1,8 +1,8 @@
 ## The manager
 
 The manager decides **what goes onto the rail, and at what calibration**. The chef writes an issue in
-product language, with no label: the manager sets `fire`, `model:` and `effort:` and says why — or says
-in a comment why it is not executable. An **epic** it **splits**; a ticket that **fails in the pass**, it
+product language, with no label: the manager judges it, and when the kitchen has room it takes it from the
+backlog, sets `model:` and `effort:`, then `fire`, and says why — or says in a comment why it is not executable. An **epic** it **splits**; a ticket that **fails in the pass**, it
 acts on rather than passing it up as is.
 
 **It has no switch of its own: it follows the project switch** (`npm --prefix runtime run switch`, see
@@ -25,8 +25,8 @@ splits of an epic when you set `manager split-epic` to `propose` — it is `act`
 the tickets are created at the same pass. The gate is described in [`autonomie.md`](autonomie.md).
 
 ⚠️ **Once on, it judges the whole open backlog**, and whatever it judges executable goes straight to the
-kitchen and is merged when green. Before switching on, set `blocked-on-human` on whatever must not go:
-an issue that carries it is never judged, **an epic that carries it is never split**. It sets no
+kitchen and is merged when green. Before switching on, park whatever must not go (`parked`, #4129):
+a parked issue is never judged, **a parked epic is never split**. It sets no
 dependencies between issues you wrote (unless you write `attend` in a card), but does between the
 tickets of an epic it splits.
 The kitchen holds a ticket only for a `Depends on #N` line of its body, written by the manager or the chef (#3865), until that ticket is closed;
@@ -41,7 +41,7 @@ of the station starts the hour over. Past an hour, the station gives the wait to
 in a worktree of the base (`runtime/src/attente-longue/`). Not a real dependency: the manager lifts it,
 the issue says so in one line, and a cook takes the ticket at the next turn. A real one: it keeps it,
 the issue says why, and the wait stays until the awaited ticket is served. Only a product decision goes
-to the chef, as a question under `blocked-on-human`; once the chef has answered and removed the label,
+to the chef, as a TODO card that parks the ticket for the chef (`chef-todo`, #4129); once the chef has answered it,
 the manager reads the wait again with that answer. Whatever the outcome, the issue then carries a line
 naming what the ticket waits for and who decided it (the station, the manager or the chef) — also when
 the manager gives no readable answer, or the station has no manager. That line carries a mark: the same
@@ -113,6 +113,28 @@ equal priority. Each has `ticket`, `titre`, `url`, `priorite` (its `prio:` label
 What the rail did with an issue (left, served) counts only if more recent than the manager's decision.
 It is **a read**. GitHub not reached, or a log without the manager's state, it exits with `1`.
 
+### It takes the next backlog issue (#4221)
+
+Rules 2 and 3 of `docs/superpowers/specs/2026-11-24-simplified-process.md`. A judgment no longer sets `fire`: an
+issue judged executable waits in the backlog. On each turn, once the new issues are judged, the manager reads the
+room of the kitchen: the places of the station on this machine (its declared cap bounded by the cores, or the cap
+the chef set), less its cooks at work, less the open issues that carry `fire` and that no cook holds yet — one
+that is parked (`parked`, `waiting`, `blocked-on-human`, `decision`, `question`, `product-question`, `chef-todo`)
+or set aside (`served-elsewhere`, `set-aside:failures`) does not count. While there is room, it takes from the issues
+it judged executable and that nobody fired the best priority (`prio:1` before `prio:2`; an issue without `prio:`
+last), then the oldest. It never takes an `idea`, a parked issue, an epic, nor one already on the rail. It takes again
+at the end of the turn, for the issues the turn completed or judged again, in the room its first take left.
+
+The chosen issue is read again before anything is written: closed or parked since the poll, it is not taken, and
+the choice moves to the next. Then, in this order, the manager calibrates it — `model:` and `effort:` from its
+judgment, set on the issue; a dimension that already carries a label is left as it is —, sets `fire`, presses the
+station's turn, and posts its comment (`ticket put on the rail`). Neither the chef nor the second has a gesture to
+make. A room that cannot be read, a read or a label that fails, is said in the station's journal (journald), and
+the next turn takes it again. An issue you fire yourself is calibrated at once, as before.
+
+The code is `runtime/src/prise-backlog/prise-backlog.ts` (the choice and the order of the steps), reached from the
+turn of `runtime/src/manager.ts`; the room is given by `runtime/src/station/cuisine.ts` and `runtime/src/main.ts`.
+
 ### What the code decides, and what the LLM judges
 
 On each wake-up the loop rereads **one** list — the open issues, under its own ETag — and sorts it
@@ -130,7 +152,8 @@ without spending anything:
 | is an epic it already split, or a ticket born from its splits | Nothing: what they carry since is yours | — |
 | carries `served-elsewhere` — even with `fire`, or a calibration | Nothing: not served on this box, not in the rail nor `attend`; says so once if it carries `fire` | `manager.set-aside` (`served-elsewhere`) |
 | carries `blocked-on-human` | **Reread** by the LLM once per state, for the decision it awaits. Stated in the issue: stays held. Absent but a real question derives: a `product`, `design` or `gesture` card is proposed and goes to the triage; the issue stays held, the card leaves with the label. Absent, no question: the kitchen takes the ticket back, the label is removed, the issue judged in the same turn. The comment says which | `manager.requalified` (`stated`, `card`, `taken-back`, `unreadable`), then `manager.set-aside` unless taken back |
-| carries `question` or `decision` — set by you, or by the manager on a `question` or `decision` verdict (#3429) | Nothing: it is a TODO card until it is answered | `manager.set-aside` (the label) |
+| is parked — `parked`, or `chef-todo` for you: by the manager on a `question` or `decision` verdict (#3429, #4129), by a station, or by you | Nothing: it waits until it resumes; parked for you, it is a TODO card until it is answered | `manager.set-aside` (`parked`, or the nature of its question) |
+| carries `question` or `decision` — set before #4129 | Nothing: it is a TODO card until it is answered | `manager.set-aside` (the label) |
 | already lists an epic's tickets in its body, unsplit by it | Nothing: split by hand | `manager.set-aside` (`already-split`) |
 | carries `epic` | **Split** by the LLM, once | `manager.split`, or a question |
 | any other | **Judged** by the LLM, once per state | `manager.judged`, or `manager.failed` |
@@ -171,8 +194,8 @@ call to `claude`, and does one of two things:
   a test, a split): it rewrites the issue's acceptance criteria section (or adds one), keeping the rest of
   the body and the author's intent, says on the issue that it completed it, and judges it `fire` with a
   calibration — the labels are set in the same turn;
-- **the gap is a product or design choice**: the issue gets the `product-question` label and a `product`
-  TODO card carrying exactly one question for you. Your answer on the issue changes it, and it is judged
+- **the gap is a product or design choice**: the issue is parked for you (`chef-todo`, #4129; it got the
+  `product-question` label before) with a `product` TODO card carrying exactly one question for you. Your answer on the issue changes it, and it is judged
   again.
 
 An answer that does not read is never the end of it: the manager then asks you itself, in the same kind of
@@ -183,10 +206,12 @@ by a completion or a card is not followed twice.
 
 **A `question` or `decision` verdict never ends outside the rail and TODO either** (#3429). Such an issue
 awaits you, so the judgment also writes what you have to settle, in one sentence ending with its only "?".
-The refusal comment carries that sentence on a line of its own, then the manager sets the label of the same
-name (`question` or `decision`) on the issue. The issue is now a TODO card with that question
-(`carteDeLEcart`, #3370), its answers as buttons, and the free answer. Answering it, by a
-choice or in your own words, removes the label, and the manager judges the issue again with your answer.
+The refusal comment carries that sentence on a line of its own, then the manager parks the issue for you
+(#4129): `chef-todo`, and a TODO card (`<!-- brigade:todo kind=product-question -->`, `poserCarte`) with that
+question, its answers as buttons, its recommendation, and the free answer. It no longer sets `question` or
+`decision`. A parked issue is not judged (`manager.set-aside`, `parked` or the nature of its question). Answering
+the card, by a choice or in your own words, removes `chef-todo`, and the manager judges the issue again with your
+answer.
 
 **The card carries the answers, not `Back to the kitchen`** (#3434). With its question, the judgment writes
 the answers to it (`reponses`, two to four, in the question's own words), the one it recommends with why in
@@ -196,17 +221,18 @@ client, another team, a named person). The refusal comment writes, under the que
 `**Recommended:** <answer> — <why>`. A recommendation that is not one of the answers word for word, or has no
 why, is dropped: the card then recommends nothing, never a default. A question that waits on someone else
 says so instead of `Yours to settle` (`Not yours to answer: it waits on <who>`), and its first choice is
-`- [wait] Wait for <who>`, the one recommended: the app puts the issue in WAITING, awaiting them. A card
-judged before #3434 keeps `Back to the kitchen` and `Close it`, with no recommendation.
-With no sentence that reads, the card asks what its label waits for. Nothing is set on an issue you put in
-WAITING. The set label is not the manager's: removing it never makes a `chef-changed`. A verdict judged
+`- [wait] Wait for <who>`, the one recommended: the app parks the issue for them. A card with no answer
+carries `Back to the kitchen` and `Close it`, with no recommendation.
+With no sentence that reads, the card asks for your answer to its nature. Nothing is set on an issue parked for
+someone else. `chef-todo` is not the manager's label: removing it never makes a `chef-changed`. A verdict judged
 before #3429 (no sentence in the log, no label) is judged once more, to get its question.
 
 ### Handing it back
 
 **Each deviation has its gesture, and `run manager` says it** (the `set aside` section, ten most recent).
 `chef-changed` (you removed a `fire`, `model:` or `effort:` it set): `npm --prefix runtime run manager --
-return <n°>`. `blocked-on-human`, `question`, `decision`: remove the label, judged at the next wake-up.
+return <n°>`. Parked (`chef-todo` or `parked`): answer its card, or unpark it, judged at the next wake-up.
+`blocked-on-human`, `question`, `decision` (set before #4129): remove the label, judged at the next wake-up.
 `already-split`: remove the list from the body. `served-elsewhere`, roadmap, vision, kitchen alert, author with no hand on the
 repository: nothing to hand back (remove `served-elsewhere` if the box must take the issue).
 
@@ -269,13 +295,19 @@ not proven (a cook cannot read that journal), only that a new issue no longer wa
 **The tickets of a split never await each other** (#3130): two tickets whose zones overlap (the project's
 common paths aside), or one the answer makes await another, are **joined into one ticket** by the code —
 its title the titles joined by `; `, all their criteria, zones and capabilities, the highest model and effort
-of theirs, the interface label if one had it —, and the split comment names each one joined, with the path they
+of theirs, the sum of their expected times (120 at most), the interface label if one had it —, and the split comment names each one joined, with the path they
 shared, under "Tickets joined". Before, the second awaited the first, and lost its whole cooking, pass, CI
 and merge waiting for its claim. The instruction asks for disjoint zones and an empty `attend`; an `attend`
 between disjoint zones is refused, and the split redone once.
 
+**Each ticket of a split has an expected time** (#4307): `temps_attendu`, the minutes it should be merged
+in — about 2 for a wording or title fix, about 10 for a contained feature, up to about 60 for a rework of a
+central system; most tickets 10 or less. An answer whose ticket has none, or one that is not a whole number
+from 1 to 120, is refused; so is one above 10 whose `calibrage` gives no reason (no "because", "since", "so"…).
+
 **A ticket born from a split** carries a body starting with `Epic: #N`, then context, criteria and
-**why this calibration**; `model:`, `effort:` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
+**why this calibration**, shown as model, effort and expected time (`sonnet` / `medium` / `10 min`);
+`model:`, `effort:`, `attendu:<minutes>` and the epic's `prio:`; its **card** (`awaiting`, `zone`,
 `requires`) in a comment; and `fire`, set **last**. It is not judged again and waits for those it depends
 on (see "A ticket's card", in `station.md`).
 

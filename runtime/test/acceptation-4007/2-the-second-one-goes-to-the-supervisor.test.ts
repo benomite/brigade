@@ -3,10 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { attenteDeLIssue } from "../../src/attente-github/attente-github.ts";
 import { priseDeLaStation, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { LABEL_PARKED } from "../../src/github-etat/etats.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
 
-// #4007 : au second renvoi sans rien ajouter sur le même check rouge, le ticket va au superviseur.
+// #4007 : au second renvoi sans rien ajouter sur le même check rouge, le ticket va au superviseur : parqué par ses
+// échecs, il l'attend (#4129).
 test("on the second no-op relaunch for the same red check, the ticket goes to the supervisor and is not relaunched", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
@@ -27,11 +30,14 @@ test("on the second no-op relaunch for the same red check, the ticket goes to th
   assert.ok(!("refus" in station), "refus" in station ? station.refus : "");
   if ("refus" in station) return;
   const lancements = () => (faux.commentaires.get(14) ?? []).filter((c) => c.body.includes("the cook added nothing") || c.body.startsWith("<!-- brigade:echec")).length;
-  for (let tour = 0; tour < 4 && !faux.ticket(14).labels.has("set-aside:failures"); tour += 1) {
+  for (let tour = 0; tour < 4 && !faux.ticket(14).labels.has(LABEL_PARKED); tour += 1) {
     await station.tour();
     await station.calme();
   }
-  assert.ok(faux.ticket(14).labels.has("set-aside:failures"), "the ticket is set aside for the supervisor");
+  assert.ok(faux.ticket(14).labels.has(LABEL_PARKED), "the ticket is parked for the supervisor");
+  const attente = attenteDeLIssue((faux.commentaires.get(14) ?? []).map((c) => ({ body: c.body, association: c.association })));
+  assert.equal(attente?.who, "the supervisor");
+  assert.equal(attente?.failures, true);
   const avant = lancements();
   for (let tour = 0; tour < 2; tour += 1) {
     await station.tour();

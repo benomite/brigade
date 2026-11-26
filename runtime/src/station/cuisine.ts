@@ -37,6 +37,7 @@ import { brancherCalendrier } from "../recurrences/calendrier.ts";
 import { brancherRecurrents } from "../recurrents/planificateur.ts";
 import { brancherTicketDEssai } from "../essai-projet/ticket.ts";
 import { brancherResumeHebdomadaire } from "../resume-hebdomadaire/cuisine.ts";
+import { brancherLeDigest } from "../journal-du-jour/matin.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { gardesDuTour } from "../github-seul/garde-fous/garde-fous.ts";
@@ -44,6 +45,7 @@ import { disqueDuProjet } from "../github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { placeLibre } from "../prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
@@ -72,6 +74,7 @@ import { sousLeNomRetenu } from "./nom.ts";
 import { direStations } from "../stations-declarees.ts";
 import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
+import { createAgentSettings } from "../agent-settings/index.ts";
 
 export type Cuisine = {
   projet: string;
@@ -151,7 +154,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`, "clone-missing");
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   const { stations } = station;
-  const reviewer = configReviewer(decide);
+  // Lu ici pour qu'un calibrage du reviewer manquant refuse le démarrage ; la pass le relit ensuite à chaque relecture.
+  configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   lireSeuils(decide);
   const arbitre = configArbitrage(envProjet);
@@ -205,7 +209,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // station ouvre — au lancement ou quand l'app l'ajoute — part allumé, un interrupteur posé reste tel quel.
     const pose = etablirLInterrupteur(socle.journal, projet);
     if (pose !== null) dire(pose);
-    const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis);
+    // Les réglages des agents posés depuis l'app passent avant tout, relus eux aussi à chaque lecture (#4222).
+    const reglagesDesAgents = createAgentSettings({ stateDir: repertoireEtat, env: envProjet, project: projet });
+    const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis, () => reglagesDesAgents.overrides());
     const journal = socle.journal.base;
     if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU), avertir: dire });
     // Sous une identité par rôle, ni les cooks, ni les gates, ni les juges ne
@@ -258,8 +264,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 bacASable,
                 plafonds: reglages.plafonds,
                 graceMs: reglages.graceMs,
-                reviewer: reviewer.calibrage,
-                // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+                reviewer: () => decisions.reviewer(),
+                // La question d'un cook bloqué va au manager avant que le ticket ne soit parqué pour le chef (#2894).
                 manager: () => decisions.manager(),
                 // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
                 testsAcceptation: () => decisions.manager(),
@@ -271,6 +277,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 avertir: dire,
                 observer: suiviDuTour.envelopper,
                 sauter: suiviDuTour.sauter,
+                // Les PR périmées que la porte ne compte plus : le superviseur les marque `zone-released` (#4243).
+                perimee: suiviDuTour.perimee,
                 superviseur: (consulter) => (managerDuSuperviseur = consulter),
                 // Un ticket dont les gates ne se jouent pas ici va à une autre station du projet (#3057).
                 stationsDuProjet: () => stations.map((declaree) => declaree.nom),
@@ -313,7 +321,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
-    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
     // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
     // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
     const superviser = <R extends Runtime>(runtime: R) => brancherSuperviseur(runtime, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, dire });
@@ -344,6 +352,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     brancherTicketDEssai(ouverte, { projet, repertoireEtat, depot: { base: station.base, lire: (chemin) => lireALaBase(station, chemin), fichiers: depot.fichiers }, github: githubs.manager, avertir: dire });
     // Le résumé hebdomadaire de ce que la cuisine a servi, au jour de `weeklySummaryDay`, mentionne le chef sur GitHub (#3261).
     brancherResumeHebdomadaire(ouverte, { projet, depot: rail.depot, repertoireEtat, github: githubs.station, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
+    // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
+    brancherLeDigest(ouverte, { repertoireEtat, avertir: dire });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();

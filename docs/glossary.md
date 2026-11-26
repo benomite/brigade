@@ -62,6 +62,7 @@ Related terms built on « cuisine »:
 | `sans progrès` | `no progress` | Time since the worktree last moved |
 | `brûle` | `burns` | What a ticket spends |
 | `fiche` | `card` | The ticket's machine-readable card (`attend`, `zone`) |
+| `fiche du projet` | `project sheet` | What a project declares of its kitchen, in `.brigade/fiche-projet.json`: its eight items. See [runtime/fiche-projet.md](runtime/fiche-projet.md) |
 | `sensible` | `sensitive` | A ticket marked as touching a migration, security, a payment or the deletion of user data. See [sensitive-tickets.md](sensitive-tickets.md) |
 | `relecture avant merge` | `review before merge` | The TODO card a sensitive ticket waits on after the pass. See [sensitive-tickets.md](sensitive-tickets.md) |
 | `carte` (de projet) | `tile` | A project's summary in All projects |
@@ -81,7 +82,6 @@ Related terms built on « cuisine »:
 | `porte` | `door` | The runtime's entry for a remote station |
 | `station distante` | `remote station` | A station elsewhere than the box |
 | `se retient` (une station) / `SE RETIENT` | `withholding` / `WITHHOLDING` | A station refuses new tickets, with its reason |
-| `MACHINE SATURÉE` | `MACHINE SATURATED` | The machine is out of memory or time |
 | `ARBITRE INJOIGNABLE` | `ARBITER UNREACHABLE` | The arbiter does not answer |
 | `connexion` (Max) | `connection` | The Max subscription's login; `ABSENTE` → `MISSING`, `EXPIRÉE` → `EXPIRED` |
 
@@ -104,6 +104,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |
 | — | `recurring` | The project's recurring tickets: on its next date, each becomes an issue with `fire` (#3230) | `declare --title <title> [--body <body>] --rhythm daily \| weekly --weekday <1-7> \| monthly --day <1-31>`, `pause <id>`, `resume <id>`, `remove <id>` — new, with no old name |
 | — | `explanations` | The explanations of the kitchen's words a chef has seen in the app, kept per chef (#3308) | `--chef <login>`, `seen <word> --chef <login>`, `reset --chef <login>` — new, with no old name |
+| — | `agent-settings` | Each agent's settings, for the app's Agents tab (#4222): model, effort, autonomy level, pause and the agent's own limits, with who changed what and when | `<agent>`, `<agent> set <key> <value> --by <author>` — new, with no old name |
 | — | `recap` | What the kitchen did since the chef last looked, for the app's home screen (#3581): served tickets and their pull request, sends back and refusals, guardrail stops | `<owner>/<repo>`, `<owner>/<repo> seen <instant>` — new, with no old name |
 | — | `design` | A green design delivery held for the chef's validation (#3184) | `validate <owner>/<repo>#<ticket>`, `send-back <owner>/<repo>#<ticket> --comment <what to change>` — new, with no old name |
 | — | `sensitive` | A green delivery of a ticket labelled `sensitive`, held on its `review before merge` card (#3223) | `merge <owner>/<repo>#<ticket>`, `send-back <owner>/<repo>#<ticket> --note <note>` — new, with no old name |

@@ -8,6 +8,8 @@ import { type Calibrage, VUE_DE_L_APP } from "./calibrage.ts";
 import { dossierDesCaptures, VISUELS } from "./captures.ts";
 import type { FinDeCook } from "./events/station.ts";
 import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
+import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
+import type { FaitsDeLaCuisine } from "./fiche-projet/fiche.ts";
 import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE } from "./livrable.ts";
@@ -135,7 +137,7 @@ export function ticketRemis(ticket: { number: number; title: string; body: strin
 // préparation, que `0-en-premier/recette.test.ts` citait encore en français ;
 // #3052 lisait une route GitHub de plus, que le faux GitHub des tests du
 // téléphone de l'app ne servait pas.
-export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière, qui prend des minutes sur une station chargée. Mais les gates et la CI de ta PR peuvent ne jouer que les tests proches de ton diff — ce qu'ils importent ou nomment, sans entrer dans le code du produit — ; la base joue tout, et un test cassé de loin la rend rouge après ton merge. Avant de livrer, cherche donc dans tous les tests du dépôt chaque texte que ton diff réécrit, sous son ancienne forme, et chaque appel neuf de ton code à un service — une route GitHub, une API —, là où une doublure de ce service sert déjà ses voisines ; joue les fichiers que tu trouves. Joue aussi les tests qui gardent tout un dossier — ceux qui parcourent les fichiers d'un dossier au lieu d'importer ce qu'ils testent : une règle d'architecture, une liste des modules qui ont droit à un import, une limite de durée des tests — : aucun diff ne les rend proches, et la CI de ta PR peut ne pas les jouer ; cherche ceux qui parcourent un dossier où ton diff écrit, et joue-les avant de livrer. Les gates, joue-les une seule fois, quand tu es prêt à livrer ; une seconde fois seulement si elles échouent et que tu corriges quelque chose.";
+export const CONSIGNE_DES_TESTS = "Pendant que tu travailles, ne joue que les fichiers de test qui couvrent ce que tu changes — jamais la suite entière : elle tourne en CI et à la pass, et tu ne la lances pas, car elle prend des minutes sur une station chargée. Mais les gates et la CI de ta PR peuvent ne jouer que les tests proches de ton diff — ce qu'ils importent ou nomment, sans entrer dans le code du produit — ; la base joue tout, et un test cassé de loin la rend rouge après ton merge. Avant de livrer, cherche donc dans tous les tests du dépôt chaque texte que ton diff réécrit, sous son ancienne forme, et chaque appel neuf de ton code à un service — une route GitHub, une API —, là où une doublure de ce service sert déjà ses voisines ; joue les fichiers que tu trouves. Joue aussi les tests qui gardent tout un dossier — ceux qui parcourent les fichiers d'un dossier au lieu d'importer ce qu'ils testent : une règle d'architecture, une liste des modules qui ont droit à un import, une limite de durée des tests — : aucun diff ne les rend proches, et la CI de ta PR peut ne pas les jouer ; cherche ceux qui parcourent un dossier où ton diff écrit, et joue-les avant de livrer. Les gates, joue-les une seule fois, quand tu es prêt à livrer ; une seconde fois seulement si elles échouent et que tu corriges quelque chose.";
 
 // Comment un cook se relit avant de livrer : sur ce que le reviewer tient pour
 // bloquant (`reviewer.ts`, « Ce que tu cherches »). La relecture bloquante est
@@ -261,14 +263,22 @@ export function blocDuSetup(setup: SetupEnEchec | undefined): string[] {
   ];
 }
 
+// Ce que la fiche du projet dit du travail du cook (#4237) : son travail, ses
+// étapes et ses outils.
+export function blocDeLaFiche(cook: FaitsDeLaCuisine["cook"] | undefined): string[] {
+  if (cook === undefined) return [];
+  return [`La fiche du projet (\`${CHEMIN_DE_LA_FICHE}\`) dit ton travail : ${cook.work}. Ses étapes : ${cook.stages.join(" → ")}. Ses outils : ${cook.tools.join(", ")}.`, ""];
+}
+
 // Le profil du cook, en dur au jalon 1. `lecons` : celles du projet qu'il
 // reçoit (`apprentissage/injection.ts`). `carnet` : celui du profil sous
 // lequel il part, s'il en a un (`profils/preference.ts`).
-export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; joint?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string }): string {
+export function consigne(mission: { ticket: number; titre: string; depot: string; base: string; remis?: string; joint?: string; setup?: SetupEnEchec; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string; fiche?: FaitsDeLaCuisine["cook"] }): string {
   const { ticket, titre, depot, base } = mission;
   return [
     `Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
     "",
+    ...blocDeLaFiche(mission.fiche),
     ...blocDesLecons(mission.lecons),
     ...blocDuCarnet(mission.carnet),
     ...blocDesGates(mission.gates),

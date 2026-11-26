@@ -4,7 +4,7 @@
 // demande — `faits`, `tous`, `regarder`, `onglet` —, ce que le process principal lui enverrait.
 // L'heure est arrêtée à celle de l'écran. Et la page dit quand elle s'est posée (`__capture.calme`).
 (() => {
-  /** @type {{ maintenant: string, stockage?: Record<string, string>, reponses: Record<string, unknown>, envois: { faits?: Envoi[], tous?: Envoi[], regarder?: Record<string, Envoi[]>, onglet?: Record<string, Envoi[]> } }} */
+  /** @type {{ maintenant: string, stockage?: Record<string, string>, api?: Record<string, any>, reponses: Record<string, unknown>, envois: { faits?: Envoi[], tous?: Envoi[], regarder?: Record<string, Envoi[]>, onglet?: Record<string, Envoi[]> } }} */
   const donnees = window.__donnees;
   /** @typedef {{ sur: string, args: unknown[], demande?: "faits" | "vue" | "onglet" }} Envoi */
 
@@ -99,6 +99,18 @@
       },
     },
   );
+
+  // L'API du runtime que lit l'onglet Agents (ticket 4224) : ce que l'écran en fige, par « <méthode> <chemin> » — un
+  // succès, `{ __statut, corps }` pour un refus, `{ __enAttente: true }` pour une réponse qui ne vient pas. Un chemin
+  // qu'il ne fige pas rend 404. Rien ne part sur le réseau.
+  /** @param {RequestInfo | URL} adresse @param {RequestInit} [options] */
+  window.fetch = (adresse, options = {}) => {
+    const chemin = new URL(String(adresse), window.location.href).pathname;
+    const figee = donnees.api?.[`${(options.method ?? "GET").toUpperCase()} ${chemin}`];
+    if (figee !== null && typeof figee === "object" && "__enAttente" in figee) return new Promise(() => undefined);
+    const [statut, corps] = figee === undefined ? [404, { error: "not frozen" }] : figee !== null && typeof figee === "object" && "__statut" in figee ? [Number(figee.__statut), figee.corps] : [200, figee];
+    return new Promise((rendre) => plusTard(() => rendre(new Response(JSON.stringify(corps), { status: statut, headers: { "content-type": "application/json" } }))));
+  };
 
   // La page est posée quand rien n'est en route vers elle, que ses polices sont là, et que rien
   // n'y a bougé pendant plusieurs images de suite.

@@ -12,7 +12,7 @@
 //   sa branche, puis le ticket repart à un cook depuis elle (`apresLaMiseAJour`).
 //   Si elle n'y arrive pas — conflit, refus, réseau —, le ticket revient à son
 //   propre cook, conflit nommé (`conflit-main/`, #3476) : jamais un ticket
-//   neuf, jamais de carte TODO, jamais `blocked-on-human`.
+//   neuf, jamais de carte TODO, jamais parqué pour le chef.
 //
 // Différent de #2953 (`renvoi-conflit.ts`) : là, la PR est déjà en conflit et
 // la fusion, non commitée, est laissée au cook ; ici, la fusion est commitée

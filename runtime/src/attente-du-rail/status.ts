@@ -2,14 +2,14 @@
 // de la file, puis la ligne de chaque carte — les mêmes que le rail de l'app écrit (vue/rail/github.ts).
 //
 // Seule une station GitHub seul la cherche : le rail y est sur GitHub. Le rail se lit de
-// ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni `waiting`, ni mise de côté), pris, ou en pass — un
+// ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni parqué, ni mise de côté), pris, ou en pass — un
 // `in-pass` est compté en pass sans relire sa PR. Une lecture qui échoue le dit sur la même ligne : jamais une file dite
 // calme faute de l'avoir lue.
 import type { Base } from "../base.ts";
 import { cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees } from "../projections/stations.ts";
 import { porteListe, ticketsDeLaListe } from "../epique.ts";
 import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-compte.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { lireGitHubSeul } from "../github-seul-etat.ts";
 import { clientGh } from "../proteger-branche.ts";
 import { feuPoseLe, lesFeux, type Lire } from "./lecture.ts";
@@ -33,7 +33,7 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme. Un ticket en file porte aussi
 // ses attentes avec leur source (#3763) : son corps, sa fiche et les arrêts de ses cooks, lus de ses commentaires, sur un
 // ticket du rail : un ticket hors du rail ne se dit pas.
-// Un ticket en WAITING n'est pas sur le rail, mais un ticket en file qui l'attend le dit (#3761) : `waiting`, chacun avec
+// Un ticket parqué n'est pas sur le rail, mais un ticket en file qui l'attend le dit (#3761) : `waiting`, chacun avec
 // qui il attend, relu de sa marque ; ses commentaires illisibles ne le cachent pas, ils taisent seulement qui (nul).
 export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<{ tickets: TicketDuRail[]; waiting: TicketEnWaiting[] }> {
   const { depot, lire } = options;
@@ -49,14 +49,14 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
   for (const issue of feux) {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
     const labels = (Array.isArray(issue.labels) ? issue.labels : []).flatMap((label) => (typeof objet(label)?.name === "string" ? [objet(label)?.name as string] : []));
-    if (labels.includes(LABEL_WAITING)) waiting.push({ ticket: issue.number, qui: await quiAttend(issue.number) });
-    if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_WAITING)) continue;
+    if (labels.includes(LABEL_PARKED)) waiting.push({ ticket: issue.number, qui: await quiAttend(issue.number) });
+    if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_PARKED)) continue;
     const decoupage = (n: number) => decoupages.get(n) ?? [];
     const duCorps = attentesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires: [], decoupage }).attentes;
     const depend = [...new Set(duCorps.map(({ ticket }) => ticket))];
     if (labels.includes(LABEL_TAKEN)) tickets.push({ ticket: issue.number, etat: "taken", entreLe: null, depend });
     else if (labels.includes(LABEL_IN_PASS)) tickets.push({ ticket: issue.number, etat: "pass", entreLe: null, depend });
-    else if (!labels.some((label) => LABELS_D_ECART.includes(label))) {
+    else if (!estParque(labels) && !labels.some((label) => LABELS_D_ECART.includes(label))) {
       const evenements = await lire(`/repos/${depot}/issues/${issue.number}/events?per_page=${PAR_PAGE}`).catch(() => null);
       const poses = Array.isArray(evenements) ? feuPoseLe(evenements.flatMap((un: unknown) => { const o = objet(un); return o === null ? [] : [o]; })) : null;
       // Sa fiche et les arrêts de ses cooks (#3763) : des commentaires qui ne se lisent pas ne le disent pas libre, sa carte
@@ -73,7 +73,7 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
 // Chaque ticket du rail avec les tickets dont le merge passe avant le sien (#4044) : ses dépendances déclarées encore sur le
 // rail, et les tickets en pass dont la PR change un fichier qu'il change aussi. Un ordre qui ne se lit pas ne lie rien.
 async function avecLOrdreDeMerge(depot: string, lire: Lire, tickets: TicketDuRail[]): Promise<TicketDuRail[]> {
-  // Un ticket en WAITING attend un tiers, hors de la suite des merges : sa carte le dit déjà (#3761), elle ne se dit pas « after ».
+  // Un ticket parqué attend quelqu'un, hors de la suite des merges : sa carte le dit déjà (#3761), elle ne se dit pas « after ».
   const surLeRail = new Set(tickets.map(({ ticket }) => ticket));
   const declarees = new Map(tickets.filter(({ etat }) => etat !== "taken").map((carte) => [carte.ticket, carte.depend.filter((n) => n !== carte.ticket && surLeRail.has(n))] as const));
   const enPass = tickets.filter(({ etat }) => etat === "pass").map(({ ticket }) => ticket);

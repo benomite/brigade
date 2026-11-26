@@ -26,11 +26,6 @@ export const checksRepares = (corps: string): string[] => [...corps.matchAll(CHE
 // Une réparation de la base : sa priorité, et la marque du check qu'elle répare.
 export const estUneReparation = (corps: string, labels: readonly string[]): boolean => labels.includes(PRIO_REPARATION) && checksRepares(corps).length > 0;
 
-// Le label du ticket qui répare la saturation de la machine (#4100) : la porte
-// de prise le laisse passer quand la machine est à court — sinon la réparation
-// attendrait la fin du mal qu'elle répare.
-export const LABEL_REPARATION_SATURATION = "saturation-repair";
-
 // Ce qui a échoué, tel que les gates le nomment : leurs lignes `FAIL`, sans le
 // mot. Sans ligne `FAIL`, ce que leur sortie dit d'elles.
 export function echecsDesGates(gates: Gates): string[] {
