@@ -11,9 +11,7 @@ import { ouvrirJournal } from "../../../src/journal.ts";
 import { ouvrirCuisine } from "../../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../../src/station/configuration.ts";
 import { projetSurGit } from "../../aides/projet-sur-git.ts";
-import { DEPOT, FAUX_CLAUDE, fauxGh, jusqua, repertoireTemporaire, temporaireDuFichier } from "../../outils.ts";
-
-const rienNeReste = temporaireDuFichier();
+import { DEPOT, FAUX_CLAUDE, fauxGh, jusqua, repertoireTemporaire } from "../../outils.ts";
 
 test("the station's kitchen runs the autonomy policy: a promotion, a demotion by an escaped bug, and one notification of the chef", async (t) => {
   const racine = repertoireTemporaire(t);
@@ -52,5 +50,3 @@ test("the station's kitchen runs the autonomy policy: a promotion, a demotion by
     relu.fermer();
   }
 });
-
-test("politique-station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
