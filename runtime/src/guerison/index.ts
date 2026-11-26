@@ -25,7 +25,8 @@
 import { cartesDesIssues } from "../attente-github/attente-github.ts";
 import { brancheDuTicket } from "../brigade-github.ts";
 import { estMisDeCote, type GitHub, type Issue, type PR } from "../github.ts";
-import { estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
+import { LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
+import { parkedDuTour } from "../parked/parked.ts";
 import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "../github-etat/fusion.ts";
 import type { Check } from "../events/pass.ts";
 import { lireTenant, type RetraitDeLabel } from "../github-etat/prise.ts";
@@ -123,7 +124,8 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     // prise — un second cook partirait sur le même ticket. Cette station ne
     // libère que ses propres prises et celles que personne ne tient.
     await tache("claim", async () => {
-      const pris = tickets.filter((t) => t.labels.includes(LABEL_TAKEN) && !t.labels.includes(LABEL_IN_PASS) && !estParque(t.labels));
+      const parked = parkedDuTour(tickets);
+      const pris = tickets.filter((t) => t.labels.includes(LABEL_TAKEN) && !t.labels.includes(LABEL_IN_PASS) && parked.prenable("repair", t.number));
       const vivants = new Set(enCuisine);
       for (const ticket of pris) {
         if (vivants.has(ticket.number)) continue;
@@ -138,7 +140,8 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     // Ni un ticket mis de côté (aucune minuterie ne le remet sur le rail : le superviseur en décide) ou parqué, ni une
     // épique, ni un ticket qu'un cook tient encore.
     await tache("in-pass", async () => {
-      const candidats = tickets.filter((t) => t.epique !== true && !estMisDeCote(t.labels) && !estParque(t.labels) && !t.labels.includes(LABEL_TAKEN) && !enCuisine.has(t.number));
+      const parked = parkedDuTour(tickets);
+      const candidats = tickets.filter((t) => t.epique !== true && !estMisDeCote(t.labels) && parked.prenable("repair", t.number) &&!t.labels.includes(LABEL_TAKEN) && !enCuisine.has(t.number));
       const parBranche = new Map(candidats.map((t) => [brancheDuTicket(t.number), t.number]));
       const poses = await poserInPassSurLesPrsPretes({
         tickets: async () => ({ inchange: false, issues: candidats.map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),

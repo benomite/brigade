@@ -53,7 +53,8 @@ import type { Plafonds } from "./events/guardrails.ts";
 import { jamaisParti } from "./projections/guardrails.ts";
 import { labelPoseLe } from "./attente-du-rail/lecture.ts";
 import { ordreDeMerge } from "./ordre-de-merge/ordre.ts";
-import { CHEF_TODO, estParque, etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "./github-etat/etats.ts";
+import { parkedDuTour } from "./parked/parked.ts";
+import { CHEF_TODO, etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "./github-etat/etats.ts";
 import { lireAttenteDuCook, mettreEnAttenteParLaCuisine, parquerSesEchecs, ramenerALaRelance } from "./attente/attente-par-le-cook.ts";
 import { termeDeLAttente, veilleDesOrphelins } from "./reprise-attente/orphelins.ts";
 import { attenteDeZone, direAttenteDeZone, type AttenteDeZone, type EnVol, ZONE_VIDE, zoneVide } from "./chevauchement/chevauchement.ts";
@@ -2214,8 +2215,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // Libre : aucun état, et aucun label d'état — un `in-pass` dont la PR
       // vient d'être mergée n'est pas à reprendre.
       // Parqué — pour le chef (`chef-todo`) ou pour un autre (`parked`) —, il attend sa date, son fait ou sa réponse
-      // (#2805, #4260) : rien ne le prend.
-      if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN) && !estParque(ticket.labels)) libres.push(ticket);
+      // (#2805, #4260) : rien ne le prend — la fiche parked le dit (parked/parked.ts, #4272).
+      if (etat === null && !enPass && !ticket.labels.includes(LABEL_TAKEN) && parkedDuTour([ticket]).prenable("station", ticket.number)) libres.push(ticket);
       // Au premier tour, un `taken` sans cook ici est peut-être une prise
       // qu'un runtime d'avant a laissée : `lacher` ne rend que si c'est la sienne.
       // Son cook a survécu à ce runtime, et la prise est encore la sienne : il

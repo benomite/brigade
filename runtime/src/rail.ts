@@ -5,7 +5,7 @@
 import type { Attendu, AttenduEnWaiting, Etat, TicketRail } from "./projections/rail.ts";
 import { manqueDuTicket } from "./capacites.ts";
 import { LABEL_PARKED } from "./attente-github/marque.ts";
-import { estParque } from "./github-etat/etats.ts";
+import { parkedDuTour } from "./parked/parked.ts";
 
 // Le geste ne s'applique pas à l'état du rail : ticket absent, déjà pris, tenu
 // par une autre station… Une station qui le reçoit a perdu son ticket.
@@ -20,7 +20,7 @@ export class GesteRefuse extends Error {
 // avant sa date, son fait ou la réponse de celui qu'il attend. Seul le déparquer — les boutons de l'app, le second,
 // la réponse du superviseur, ou sa date atteinte — le fait reprendre, exactement où il était.
 export function exigerNonParque(labels: readonly string[], ticket: number): void {
-  if (estParque(labels)) throw new GesteRefuse(`#${ticket} is parked (\`${LABEL_PARKED}\`): it waits for someone, and nothing takes it before its date, its fact or the answer — unpark it first`);
+  if (!parkedDuTour([{ number: ticket, labels }]).prenable("supervisor", ticket)) throw new GesteRefuse(`#${ticket} is parked (\`${LABEL_PARKED}\`): it waits for someone, and nothing takes it before its date, its fact or the answer — unpark it first`);
 }
 
 const NOMS: Record<Etat, string> = { waiting: "en attente", taken: "pris", pass: "en pass", served: "servi", "86": "86" };
