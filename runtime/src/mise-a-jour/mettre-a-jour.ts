@@ -3,12 +3,9 @@
 // installée, elle l'installe — sauf si la version est gelée, ou si celle-ci a
 // déjà raté. Installer, c'est remettre le paquet à apt : dpkg pose le nouveau
 // code et les unités qu'il porte, puis son postinst recharge systemd et relance
-// la station. Seul le process de la station est relancé (`KillMode=process`),
-// mais l'arrêt du runtime tue les cooks de l'état GitHub seul : l'installation
-// attend un moment où la station n'a plus de cook en vol, au plus jusqu'à
-// l'échéance (un quart d'heure à défaut), et la station prend ses tickets
-// pendant ce temps ; à l'échéance, elle sauve d'abord le travail de ses cooks
-// sur leur branche (`vidange.ts`, #2547 ; `attente/attente.ts`, #2586).
+// la station. Seul le process de la station est relancé (`KillMode=process`) :
+// ses cooks, portés chacun par un relais, lui survivent, et la station relancée
+// les suit jusqu'à leur fin (#4401). L'installation n'attend donc rien d'eux.
 //
 // Une version est gardée quand la station relancée sur elle s'est dite en
 // service — sa version, sous le pid que systemd lui donne — et sert au moins
@@ -28,7 +25,6 @@ import { ecrireEtatMiseAJour, lireEtatMiseAJour, noterIssue, PAQUETS, type EtatM
 import type { Publication, Publications } from "./publications.ts";
 import { lireReglages } from "./reglages.ts";
 import { PAQUET, type Systeme } from "./systeme.ts";
-import { retirerLaDemande, viderLaStation } from "./vidange.ts";
 import { comparerVersions } from "./versions.ts";
 import { deciderLaRelance, INTERVALLE_MS } from "./lot/fenetre.ts";
 
@@ -49,10 +45,6 @@ export type OptionsMiseAJour = {
   // Le temps minimal entre deux passages réussis (#2374) ; une heure par
   // défaut, une version urgente ne l'attend pas (#2585).
   espacementMs?: number;
-  // Le plus long qu'une installation attend les cooks en vol de la station,
-  // et le temps qu'elle lui laisse pour dire qu'elle a vu la demande (#2547).
-  vidangeMs?: number;
-  accuseMs?: number;
 };
 
 export const GARDE_MS = 120_000;
@@ -256,15 +248,10 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   const enServiceAvant = lireEnService(racine);
   const servis = enServiceAvant !== null && comparerVersions(enServiceAvant.version, installee) === 0 ? enServiceAvant.servis : [];
 
-  // Ses cooks en vol finissent, ou sont sauvés à l'échéance, avant que
-  // l'installation ne la relance (#2547, #2586).
-  await viderLaStation({ racine, dossier, visee, pid: () => systeme.service().pid, dire, pasMs, ...(options.vidangeMs === undefined ? {} : { maxMs: options.vidangeMs }), ...(options.accuseMs === undefined ? {} : { accuseMs: options.accuseMs }), maintenant });
-
   // L'essai est noté avant de partir : interrompu, le passage suivant le conclut.
   etat.essai = { visee, depuis: installee, servis };
   ecrire();
   dire(`brigade : mise à jour — ${installee} → ${visee}`);
   const essai = await installer(nouveau, visee, servis);
-  retirerLaDemande(dossier);
   return conclure(await conclureEssai(visee, installee, servis, essai));
 }

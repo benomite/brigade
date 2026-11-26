@@ -7,13 +7,22 @@
 // en repart (`depot.reprendre`) et sa consigne lui dit ce qu'il y trouve.
 //
 // Une tête qui porte ce sujet n'est pas une livraison, comme la sauvegarde
-// d'avant une relance (#2586) : un cook la reprend, la pass ne la juge pas.
+// d'un cook arrêté sans livraison (#2586) : un cook la reprend, la pass ne la juge pas.
 
 // Le sujet du commit qui marque le travail d'un cook tué par la garde
 // d'inactivité. Il porte ce que le cook n'avait pas commité, ou rien.
 const SUJET_DE_REPRISE = "brigade: work in progress saved after the idle guard stopped the cook (#3649)";
 
 export const estUneRepriseDeGarde = (sujet: string | null | undefined): boolean => sujet === SUJET_DE_REPRISE;
+
+// Le sujet du commit qui garde le travail d'un cook arrêté sans livraison — il
+// s'est dit bloqué, ou les gates de la station sont rouges sur ce qu'il livre :
+// une tête qui le porte n'est pas une livraison (#2577), un cook la reprend
+// (#2586). Le second, celui d'avant #4401, se lit encore sur les branches qui le portent.
+export const SUJET_DE_SAUVEGARDE = "brigade: work in progress kept for the next cook (#2586)";
+const SUJETS_DE_SAUVEGARDE = [SUJET_DE_SAUVEGARDE, "brigade: work in progress saved before the station restarts (#2586)"];
+
+export const estUneSauvegarde = (sujet: string | null | undefined): boolean => SUJETS_DE_SAUVEGARDE.includes(sujet ?? "");
 
 // Les arrêts dont le travail est gardé pour le run suivant : la garde
 // d'inactivité seule. Un cook qui a fini, ou que d'autres plafonds ont
