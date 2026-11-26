@@ -144,7 +144,7 @@ describe("changing an entry by a pull request", () => {
   test("an edit changes exactly that line on a new branch, keeps its ticket, and opens a pull request towards main", async () => {
     const { client, branches, prs, ecrits, proposee } = github();
     const rendu = await proposerLeChangement(client, DEPOT, "main", { kind: "edit", line: 7, text: "Never run the pass on a dirty worktree", avant: "Never run the pass with a dirty tree" });
-    assert.deepEqual(rendu, { pr: `https://github.com/${DEPOT}/pull/77`, numero: 77 });
+    assert.deepEqual(rendu, { kind: "edit", pr: `https://github.com/${DEPOT}/pull/77`, numero: 77 });
     assert.equal(branches.get("main"), SAVOIR, "main is not written in place");
     assert.deepEqual(lignesChangees(SAVOIR, proposee()), [7]);
     assert.equal(proposee().split("\n")[7], "- Never run the pass on a dirty worktree (#205)");
