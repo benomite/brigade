@@ -2151,13 +2151,12 @@ main > header,
 #rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) > ol > li {
   container: todo-plein / inline-size;
 }
-/* Le TODO du chef (tickets 3523, 4238) : cuisine/cuisine.css le montre au-dessus des colonnes. */
+/* Le TODO du chef déplié (tickets 3523, 4238, 4354) : sous sa ligne, que cuisine/cuisine.css montre au-dessus des colonnes. */
 #rail .todo-du-rail {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--pas-2);
-  padding: var(--pas-2) var(--pas-4) 0;
 }
 #rail .todo-du-rail > * {
   flex: 1 1 100%;
@@ -3019,15 +3018,6 @@ main > header,
    centre (vue.js montre l'un ou l'autre). La tête du projet passe à la ligne plutôt que de déborder, et une ligne de
    station pose son bouton à côté de son nom, son état et ses cooks dessous. Le même seuil que `ECRAN_ETROIT` (vue.js). */
 @media (max-width: 720px) {
-  /* Le bandeau Backlog (ticket 3460) : sa ligne passe sous son titre et défile de côté — toutes ses étiquettes y sont,
-     sans `+N`. */
-#rail .backlog-band-rang {
-    flex-wrap: wrap;
-  }
-#rail .backlog-band-tags {
-    flex-basis: 100%;
-    overflow-x: auto;
-  }
   /* Settings (ticket 1700) : les groupes serrés, et le nom, la valeur et le contrôle d'un réglage l'un sous l'autre. */
 #etat > .groupe {
     margin: var(--pas-2) var(--pas-2) 0;

@@ -17,7 +17,10 @@
 //   commentaire de chaque cook arrêté sans livraison (`MARQUE_D_ECHEC`), plus un par
 //   relance à vide sur une CI rouge, sans `n=` (`A_VIDE`, #4008) ; un `n=` fait foi.
 // - `main` rouge : depuis le premier tour qui a lu un check rouge sur sa tête,
-//   nul dès qu'aucun ne l'est.
+//   nul dès qu'aucun ne l'est ; et le début que ses checks rouges portent (#4382).
+// - Le dernier correctif de la base (#4382) : la PR que ce tour a mergée, la
+//   livraison qu'une autre station a mergée, ou la relance des jobs rouges de
+//   `main` par le superviseur — le post-mortem d'une panne y lit ce qui l'a corrigée.
 //
 // Rien n'est tenu d'un process à l'autre : à l'ouverture, les comptes repartent.
 //
@@ -30,6 +33,7 @@ import type { CheckVu } from "../carte-ci-windows.ts";
 import { estParque, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED, LABELS_D_AVANT_PARKED } from "../github-etat/etats.ts";
 import { estMisDeCote, MIS_DE_COTE } from "../github.ts";
 import { CHEF_TODO } from "../github-seul/carte-todo/carte-todo.ts";
+import { jobDuCheck } from "../github.ts";
 import { MARQUE_D_ECHEC } from "../qualite-github.ts";
 import { PRIO_REPARATION } from "../reparation.ts";
 import { suivreLesProgres, type SuiviDesProgres } from "../inactivite/observer.ts";
@@ -70,13 +74,30 @@ export type SuiviDuTour = {
   reparationMiseDeCote(): boolean;
   // Les progrès des tickets et leurs états, que lit le réveil sans progrès (#4027) ; sans eux, ce réveil ne part pas.
   progres?: SuiviDesProgres;
+  // Le plus tôt des débuts que portent les checks rouges de la base au dernier tour, nul sans rouge ou sans début (#4382).
+  debutDuRouge?(): string | null;
+  // Le dernier correctif de la base, et quand ; nul avant le premier (#4382).
+  correctif?(): Correctif | null;
+  // Un run relancé : un run rouge de la base au dernier tour est une réparation du superviseur (#4382).
+  relance?(run: number): void;
+  // Le titre d'un ticket ouvert au dernier tour (#4382).
+  titre?(ticket: number): string | undefined;
 };
+
+export type Correctif = { quoi: string; a: string };
+export const REPARE_SEUL = "fixed by itself";
 
 export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDuTour {
   let dernierMerge: string | null = null;
   let mainRougeDepuis: string | null = null;
   let checks: CheckVu[] | null = null;
   let reparationMiseDeCote = false;
+  let debutDuRouge: string | null = null;
+  let runsRouges = new Set<number>();
+  let correctif: Correctif | null = null;
+  // Un merge de ce tour depuis la dernière lecture des tickets : le ticket qui quitte la pass est le sien, déjà nommé.
+  let mergeDuTour = false;
+  let titres = new Map<number, string>();
   // Les cuisinables, et le tour qui a vu chacun commencer d'attendre.
   let cuisinables = new Map<number, string>();
   let enPass = new Set<number>();
@@ -103,7 +124,13 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
   const noterTickets = (tickets: TicketLu[]) => {
     const instant = maintenant().toISOString();
     const ouverts = new Set(tickets.map(({ number }) => number));
-    if ([...enPass].some((ticket) => !ouverts.has(ticket))) dernierMerge = instant;
+    const servi = [...enPass].find((ticket) => !ouverts.has(ticket));
+    if (servi !== undefined) {
+      dernierMerge = instant;
+      if (!mergeDuTour) correctif = { quoi: `the delivery of #${servi}, merged by another station`, a: instant };
+    }
+    mergeDuTour = false;
+    titres = new Map(tickets.map(({ number, title }) => [number, title]));
     enPass = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
     enCuisson = new Set(tickets.filter(({ labels }) => labels.includes(LABEL_TAKEN) || labels.includes(LABEL_IN_PASS)).map(({ number }) => number));
     attentes = new Map([...attentes].filter(([ticket]) => sautesDuTour.has(ticket)));
@@ -148,13 +175,24 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
       checksDeLaBase: async () => {
         const lus = await github.checksDeLaBase();
         checks = lus.map(({ name, outcome }) => ({ name, outcome }));
+        const rouges = lus.filter(({ outcome }) => outcome === "red");
+        debutDuRouge = rouges.flatMap(({ startedAt }) => (startedAt !== undefined && !Number.isNaN(Date.parse(startedAt)) ? [startedAt] : [])).sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
+        runsRouges = new Set(rouges.flatMap(({ url }) => jobDuCheck({ url: url ?? null } as Parameters<typeof jobDuCheck>[0])?.run ?? []));
         mainRougeDepuis = lus.some(({ outcome }) => outcome === "red") ? (mainRougeDepuis ?? maintenant().toISOString()) : null;
         return lus;
       },
       merger: async (numero, sha) => {
         const merge = await github.merger(numero, sha);
-        if (merge.fait) dernierMerge = maintenant().toISOString();
+        if (merge.fait) {
+          dernierMerge = maintenant().toISOString();
+          correctif = { quoi: `PR #${numero} merged (commit ${sha.slice(0, 7)})`, a: dernierMerge };
+          mergeDuTour = true;
+        }
         return merge;
+      },
+      relancerLesEchecs: async (run) => {
+        await github.relancerLesEchecs(run);
+        suivi.relance?.(run);
       },
     }),
     faits: () => ({
@@ -171,6 +209,12 @@ export function suivreLeTour(maintenant: () => Date = () => new Date()): SuiviDu
     perimee: (ticket, pr) => void perimeesDuTour.set(pr.number, bloqueDe(ticket, pr)),
     zonesPerimees: () => [...new Map([...perimees, ...perimeesDuTour]).values()],
     checks: () => checks,
+    debutDuRouge: () => debutDuRouge,
+    correctif: () => correctif,
+    relance: (run) => {
+      if (runsRouges.has(run)) correctif = { quoi: `the supervisor reran the failed jobs of main (run ${run}) — ${REPARE_SEUL}`, a: maintenant().toISOString() };
+    },
+    titre: (ticket) => titres.get(ticket),
     reparationMiseDeCote: () => reparationMiseDeCote,
     progres,
     enPremier: () => {

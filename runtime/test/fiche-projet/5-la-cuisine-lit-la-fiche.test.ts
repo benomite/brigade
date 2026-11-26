@@ -106,11 +106,10 @@ test("served: the integration branch is the one the sheet serves, at the base or
   git(clone, "commit", "-q", "-m", "fiche");
   git(clone, "push", "-q", "origin", `HEAD:${BASE}`);
   git(clone, "fetch", "-q", "origin");
+  git(clone, "remote", "set-head", "origin", BASE);
   rmSync(join(clone, ".brigade"), { recursive: true });
   assert.deepEqual(brancheDuProjet(clone, BASE), { branche: "release-3", provenance: "fiche-projet.json", problemes: [] });
-  const illisible = brancheDuProjet(clone, "absente");
-  assert.equal(illisible.problemes.length, 1, "a branch git cannot read is said once, by the settings' read");
-  assert.doesNotMatch(illisible.problemes[0] ?? "", /fiche-projet/);
+  assert.deepEqual(brancheDuProjet(clone, "absente"), { branche: "release-3", provenance: "fiche-projet.json", problemes: [] }, "a stale station line is ignored: the sheet is read on the default branch");
 });
 
 test("the chef's opinion: the card of a sensitive ticket names the risks and the humans of the sheet", async () => {

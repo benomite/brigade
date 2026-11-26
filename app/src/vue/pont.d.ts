@@ -193,8 +193,6 @@ export type Pont = {
   essayer(projet: string, ticket: number): Promise<void>;
   arreterEssai(projet: string, ticket: number): Promise<void>;
   refus(projet: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  // Le geste d'une idée en réserve, depuis la liste du Backlog (gestes-idee.ts, ticket 3589) : `abandonner` ferme l'issue.
-  idee(projet: string, id: "abandonner", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
@@ -367,6 +365,8 @@ export type Pont = {
   closerDeSante(projet: string): Promise<import("../closer-sante.ts").LectureDuCloser>;
   changerReglageDuCloser(projet: string, cle: string, saisie: string | { model: string; effort: string }): Promise<import("../closer-sante.ts").RenduDuReglage>;
   changerVerificationDuCloser(projet: string, geste: "ajouter" | "retirer", saisie: string): Promise<import("../closer-sante.ts").RenduDesVerifications>;
+  savoirDuProjet(projet: string): Promise<import("./know-how/know-how-github.ts").LectureDuSavoir>;
+  changerLeSavoir(projet: string, changement: import("./know-how/know-how-github.ts").ChangementDuSavoir): Promise<import("./know-how/know-how-github.ts").RenduDuSavoir>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —

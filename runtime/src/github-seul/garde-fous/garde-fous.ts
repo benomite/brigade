@@ -27,11 +27,12 @@ import type { Arbitrage, Reponse } from "../../arbitrage.ts";
 import type { Lancer } from "../../brigade-github.ts";
 import { lireFlux, verdict } from "../../claude.ts";
 import type { FaitStation, Ressource, Retenue } from "../../events/station.ts";
-import { LancementRefuse, type GardeFous, type Verdict } from "../../garde-fous.ts";
+import { LancementRefuse, type CookLance, type DemandeCook, type GardeFous, type Verdict } from "../../garde-fous.ts";
 import { direSaturationsEn, JEUNE_MS, reserver, saturations, type Machine, type Saturation, type Seuils } from "../../machine.ts";
 import { worktreesDuProjet } from "../../depot.ts";
 import { carteDuDisque, peutEncoreLiberer, type DisquePlein } from "./disque-plein.ts";
 import { recuperer, type Fichiers, type Processus } from "./recuperation.ts";
+import { recordMachineOutage, outagesInLastSevenDays } from "../../stall-watchdog/watchdog.ts";
 import { etatDesGardeFous } from "../../projections/guardrails.ts";
 import { consommationDesCooks, etatStation, runsRendables } from "../../projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../repli/moteur-actif.ts";
@@ -80,7 +81,7 @@ export type GardesDuTour = {
 
 export type OptionsDesGardes = {
   // Le runtime du projet, augmenté de ses garde-fous.
-  garde: Pick<GardeFous, "lancer"> & Pick<Runtime, "journal" | "projet">;
+  garde: Pick<GardeFous, "lancer"> & Partial<Pick<GardeFous, "survivants" | "reprendre">> & Pick<Runtime, "journal" | "projet">;
   // La station GitHub seul de cette machine : le nom sous lequel ses retenues
   // et son quota s'écrivent.
   station: string;
@@ -295,9 +296,12 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
       const { observed, limit } = manqueDisque;
       const sonde = await disquePlein.sonder();
       if (peutEncoreLiberer(observed * 1024 * 1024, sonde.propre, limit)) return;
-      await disquePlein.poser(carteDuDisque({ libreMo: observed, minMo: limit, propre: sonde.propre, consommateurs: sonde.consommateurs, station }));
+      const pose = await disquePlein.poser(carteDuDisque({ libreMo: observed, minMo: limit, propre: sonde.propre, consommateurs: sonde.consommateurs, station }));
       carteDuDisquePosee = true;
-      avertir(`brigade : the disk under GitHub-only station ${station} is full of things the kitchen cannot free — a TODO card tells the chef`);
+      // Une panne de la machine arrivée au chef, datée : la veille du blocage en lit le compte des sept jours (#4213).
+      const quand = maintenant().getTime();
+      if (pose === "posee") recordMachineOutage(repertoireEtat, "disk", quand);
+      avertir(`brigade : the disk under GitHub-only station ${station} is full of things the kitchen cannot free — a TODO card tells the chef (${outagesInLastSevenDays(repertoireEtat, quand)} machine outage(s) reached the chef in the last 7 days)`);
     } catch (erreur) {
       avertir(`brigade : the disk card of GitHub-only station ${station} could not be settled (${message(erreur)}) — tried again next round`);
     }
@@ -327,36 +331,59 @@ export function gardesDuTour(options: OptionsDesGardes): GardesDuTour {
     noter({ type: "station.86", payload: { station, reason: "quota", until: retour.toISOString(), window: lecture.quota?.fenetre ?? null, ...(moteur === engine ? {} : { engine: moteur }) } });
   };
 
-  const lancer: Lancer = ({ commande, args, entree, cwd, env, flux: demande, ticket }) => {
+  const fluxDe = (essai: string) => join(repertoireEtat, "runs", `${essai}.jsonl`);
+  const juger =
+    (moteur: string): DemandeCook["juger"] =>
+    (fin, essai) => {
+      const lecture = lireFlux(existsSync(fluxDe(essai)) ? readFileSync(fluxDe(essai), "utf8") : "");
+      const conclusion = verdict(lecture, fin.code);
+      if (conclusion === "86") noterLeQuota(lecture, moteur);
+      return jugerDuFlux(conclusion);
+    };
+  // Le nom que la station donne au flux d'un lancement : celui de son run, sans
+  // ce qui le rend unique au journal.
+  const nomDuFlux = (flux: string) => basename(flux).replace(/\.flux\.jsonl$|\.jsonl$/, "");
+  // Chaque lancement part par un relais, et survit à la station (#4401). Les
+  // cooks de tickets qu'une vie précédente a laissés en vol sont repris ici,
+  // avant que les garde-fous n'arrêtent ceux que personne ne reprend : la
+  // reprise de leur ticket les suit, au lieu d'en lancer un autre.
+  const repris = new Map<string, CookLance>();
+  for (const { run } of garde.survivants?.() ?? []) {
+    const flux = /^(\d+-github(?:-word-\d+)?)-[0-9a-f]{8}(?:-[rs]\d+)?$/.exec(run)?.[1];
+    const lance = flux === undefined ? null : (garde.reprendre?.(run, juger(engine)) ?? null);
+    if (flux !== undefined && lance !== null) repris.set(flux, lance);
+  }
+
+  const lancer: Lancer = ({ commande, args, entree, cwd, env, flux: demande, ticket, suivre }) => {
     // Le run est unique au journal : un ticket renvoyé repart sous un autre.
-    const run = `${basename(demande).replace(/\.flux\.jsonl$|\.jsonl$/, "")}-${randomUUID().slice(0, 8)}`;
-    const fluxDe = (essai: string) => join(repertoireEtat, "runs", `${essai}.jsonl`);
+    const run = `${nomDuFlux(demande)}-${randomUUID().slice(0, 8)}`;
     const flux = fluxDe(run);
-    const lu = (essai: string) => lireFlux(existsSync(fluxDe(essai)) ? readFileSync(fluxDe(essai), "utf8") : "");
     // Choisi au lancement : un cook garde son moteur jusqu'à sa fin. Retenue, la
     // station lance ce qu'on lui demande encore (une relecture) sur le principal.
     const moteur = surQuelMoteur().engine ?? engine;
     try {
-      const lance = garde.lancer({
-        ticket: null,
-        run,
-        // Hors ticket au journal ; le ticket servi se dit à part, pour le disjoncteur (#3656).
-        contexte: { station, ...(ticket === undefined ? {} : { serves: ticket }) },
-        commande,
-        args,
-        ...(entree === undefined ? {} : { entree }),
-        cwd,
-        env: { ...env, [VARIABLE_DU_MOTEUR]: moteur },
-        juger: (fin, essai) => {
-          const lecture = lu(essai);
-          const conclusion = verdict(lecture, fin.code);
-          if (conclusion === "86") noterLeQuota(lecture, moteur);
-          return jugerDuFlux(conclusion);
-        },
-      });
+      // Un cook repris que la station ne suit pas — son ticket pris à neuf — est arrêté.
+      const ancien = repris.get(nomDuFlux(demande));
+      repris.delete(nomDuFlux(demande));
+      if (!suivre) ancien?.arreter();
+      const lance =
+        (suivre ? ancien : undefined) ??
+        garde.lancer({
+          ticket: null,
+          run,
+          // Hors ticket au journal ; le ticket servi se dit à part, pour le disjoncteur (#3656).
+          contexte: { station, ...(ticket === undefined ? {} : { serves: ticket }) },
+          commande,
+          args,
+          ...(entree === undefined ? {} : { entree }),
+          cwd,
+          env: { ...env, [VARIABLE_DU_MOTEUR]: moteur },
+          survivant: { secrets: {} },
+          juger: juger(moteur),
+        });
       // Un run calé est relancé sous un autre nom, avec son flux (#3599) : le
       // flux qui se lit après la fin est celui du dernier essai.
-      let dernier = run;
+      let dernier = lance.run;
       return {
         fin: lance.fin.then((fin) => {
           dernier = fin.run;

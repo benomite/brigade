@@ -65,7 +65,6 @@ import { lireLaCuisineVisitee } from "./visite.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
-import { jouerLIdee } from "./gestes-idee.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
@@ -74,6 +73,7 @@ import { lancerLeTriage, mettreSurLeRail, proposerLeDepart } from "./depart-du-p
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
+import { changerLeSavoir, lireLeSavoirDuProjet } from "./vue/know-how/know-how-github.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { jouerLaRevue } from "./vue/carte-sensible/carte-sensible-github.ts";
@@ -1014,15 +1014,6 @@ ipcMain.handle("refus", async (_, nom: unknown, id: unknown, ticket: unknown) =>
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
-// Le geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Drop » ferme l'issue comme non prévue — par
-// l'accès GitHub de l'app (gestes-idee.ts). Aucun ne la met sur le rail (#4223) : le rail est le haut du backlog.
-ipcMain.handle("idee", async (_, nom: unknown, id: unknown, ticket: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return parti(nom);
-  const rendu = await jouerLIdee(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
-  if ("fait" in rendu) tableaux.oublier();
-  return rendu;
-});
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
 // projet et le ticket ; l'adresse est celle que la box a rendue (faits.ts). Rien pour un ticket que
@@ -1585,6 +1576,15 @@ ipcMain.handle("changerVerificationDuCloser", async (_, nom: unknown, geste: unk
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const rendu = await changerLesVerifications({ depot: await depotDuProjet(vise), branche: brancheDuProjet(vise), geste, saisie, client: clientDesLabels });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+});
+// Le savoir-faire du projet, sous Settings (#4239, vue/know-how/) : `.brigade/know-how.md` lu sur sa branche
+// d'intégration, et une entrée changée ou retirée proposée par une pull request vers elle, comme un plafond.
+const savoirDe = (nom: unknown) => ({ nom, projet: connu(nom), depotDe: depotDuProjet, brancheDe: brancheDuProjet, client: clientDesLabels });
+ipcMain.handle("savoirDuProjet", (_, nom: unknown) => lireLeSavoirDuProjet(savoirDe(nom)));
+ipcMain.handle("changerLeSavoir", async (_, nom: unknown, changement: unknown) => {
+  const rendu = await changerLeSavoir({ ...savoirDe(nom), changement });
   if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
   return rendu;
 });

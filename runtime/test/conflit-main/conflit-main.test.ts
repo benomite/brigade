@@ -18,7 +18,7 @@ import { ouvrirDepot } from "../../src/depot.ts";
 import { reparationDuGeste } from "../../src/garde-todo/geste-git.ts";
 import { marqueDeFix } from "../../src/github-seul/renvois/renvois.ts";
 import { ouvrirGitHub, type GitHub } from "../../src/github.ts";
-import { SUJET_DE_SAUVEGARDE } from "../../src/mise-a-jour/attente/attente.ts";
+import { SUJET_DE_SAUVEGARDE } from "../../src/cuisson/reprise/reprise.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
 import { BASE, commiter, DEPOT, depotGit, ENV_GIT, fauxGh, git, repertoireTemporaire } from "../outils.ts";
 

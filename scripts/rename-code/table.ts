@@ -1,108 +1,45 @@
-// The correspondence table of the rename: French → English, from
-// `docs/glossary.md`. The tool reads nothing else: to change a result, change
-// this file and replay (README.md).
+// The correspondence table of the rename: French → English. The tool reads
+// nothing else: to change a result, change this file or `mapping.json` and
+// replay (README.md).
 
-// Word sequences of a name (lower case, space-separated) and their English
-// words. A name is cut into words (`lireJournalDuProjet` → lire journal du
-// projet, `garde-fous-cli` → garde fous cli), every sequence found here is
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+// The French → English mapping of words, `mapping.json` — the one source that
+// the rename applies, that the naming gate (`gate.ts`) checks, and that the
+// tables of `docs/naming-rule.md` and README.md print. Two parts, both applied:
+// `glossary`, the words of `docs/glossary.md`, and `code`, the recurring
+// French words of the file names of runtime/src and app/src.
+export const MAPPING_FILE = join(import.meta.dirname, "mapping.json");
+
+export type Mapping = { glossary: Record<string, string>; code: Record<string, string> };
+
+// The mapping, read and checked: a file that is missing or malformed throws,
+// naming the file — never an empty table, which would rename nothing and let
+// every French name through the gate.
+export function readMapping(file: string = MAPPING_FILE): Mapping {
+  let data: unknown;
+  try {
+    data = JSON.parse(readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new Error(`cannot read the French → English mapping ${file}: ${(error as Error).message}`);
+  }
+  const part = (name: string): Record<string, string> => {
+    const value = (data as Record<string, unknown> | null)?.[name];
+    if (typeof value !== "object" || value === null || Object.values(value).some((english) => typeof english !== "string"))
+      throw new Error(`the French → English mapping ${file} has no \`${name}\` object of strings`);
+    return value as Record<string, string>;
+  };
+  return { glossary: part("glossary"), code: part("code") };
+}
+
+// Word sequences of a name (lower case, space-separated, no accents) and their
+// English words. A name is cut into words (`lireJournalDuProjet` → lire journal
+// du projet, `garde-fous-cli` → garde fous cli), every sequence found here is
 // replaced, and the name is put back together in its own style. The longest
 // sequence wins (`en attente` before `attente`).
-export const WORDS: Record<string, string> = {
-  // §1 — « cuisine »
-  cuisine: "kitchen",
-  cuisines: "kitchens",
-  cuisiner: "cook",
-  // §2 — product terms
-  "garde fous": "guardrails",
-  "garde fou": "guardrail",
-  plafond: "cap",
-  plafonds: "caps",
-  disjoncteur: "breaker",
-  journal: "log",
-  journaux: "logs",
-  sauvegarde: "backup",
-  sauvegardes: "backups",
-  sauvegarder: "backup",
-  fermeture: "closing",
-  fermetures: "closings",
-  derive: "drift",
-  consomme: "consumed",
-  attend: "awaiting",
-  "t attend": "awaiting you",
-  "en attente": "queued",
-  pris: "taken",
-  servi: "served",
-  servie: "served",
-  servis: "served",
-  servies: "served",
-  bloque: "blocked",
-  bloquee: "blocked",
-  bloques: "blocked",
-  bloquees: "blocked",
-  abandonne: "dropped",
-  abandonnes: "dropped",
-  coince: "stuck",
-  coinces: "stuck",
-  bail: "lease",
-  "tenu par": "taken by",
-  fiche: "card",
-  fiches: "cards",
-  bon: "slip",
-  bons: "slips",
-  decoupage: "split",
-  decoupages: "splits",
-  epique: "epic",
-  epiques: "epics",
-  calibrage: "calibration",
-  calibrages: "calibrations",
-  tours: "turns",
-  jetons: "tokens",
-  livraison: "delivery",
-  livraisons: "deliveries",
-  livrable: "deliverable",
-  livrables: "deliverables",
-  poste: "workstation",
-  postes: "workstations",
-  espace: "space",
-  brule: "burns",
-  "sans progres": "no progress",
-  rangement: "cleanup",
-  rangements: "cleanups",
-  cloison: "partition",
-  arbitre: "arbiter",
-  arbitres: "arbiters",
-  arbitrage: "arbitration",
-  porte: "door",
-  portes: "doors",
-  distante: "remote",
-  distantes: "remote",
-  "station distante": "remote station",
-  "stations distantes": "remote stations",
-  connexion: "connection",
-  connexions: "connections",
-  mesure: "measure",
-  mesures: "measures",
-  faits: "facts",
-  // §3 — box commands and their options
-  tirer: "pull",
-  annoncer: "announce",
-  reclamer: "claim",
-  renouveler: "renew",
-  restaurer: "restore",
-  rejouer: "replay",
-  desinstaller: "uninstall",
-  revoquer: "revoke",
-  prolonger: "extend",
-  poids: "weight",
-  preuve: "proof",
-  serveur: "server",
-  serveurs: "servers",
-  ecran: "screen",
-  ecrans: "screens",
-  "tenir porte": "hold door",
-  "tenir portes": "hold doors",
-  "tenir arbitre": "hold arbiter",
-};
+const mapping = readMapping();
+export const WORDS: Record<string, string> = { ...mapping.glossary, ...mapping.code };
 
 // Whole names, for the names the word-by-word translation would leave half
 // French: names.ts.

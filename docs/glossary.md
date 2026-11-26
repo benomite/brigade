@@ -54,6 +54,7 @@ Related terms built on « cuisine »:
 | `WAITING` | `WAITING` | Waiting for a third party, not for you; the kitchen does not take it |
 | — | `parked` | One state for everything that waits: who, for what, until when ([simplified process](superpowers/specs/2026-11-24-simplified-process.md), rule 13). A parked card stays in the column where it waits and says who it waits for and until when; no Waiting column (#4238). A ticket that waits for the chef is parked for the chef — for its question, with no date — and the chef's TODO is those tickets, and nothing else: a ticket in WAITING is parked for a third party, and a passed follow-up date does not bring it to the TODO (#4261) |
 | `second` | `second` | Your product assistant, who helps you write the tickets |
+| — | `human cook` | A human — the chef, the client, a colleague — who takes a ticket only a human can do, on the same rail: the label `human-cook` and the issue's assignee. No station takes it; their pull request goes through the same pass as a cook's (#4276) |
 | `savoir-faire` | `know-how` | What the project's cooks learned: the lessons they receive when they start, each with the ticket it came from; the chef reads, edits and removes them in the app's Know-how tab (#4241) |
 | `abandonné` | `dropped` | A ticket left the rail without being served |
 | `pas sur le rail` | `off the rail` | Ticket the manager does not serve |
@@ -70,7 +71,7 @@ Related terms built on « cuisine »:
 | `bon` | `slip` | One card of the rail |
 | `découpage` | `split` | Cutting an epic into tickets |
 | `épique` | `epic` | A ticket that groups tickets |
-| — | `Backlog band` | The order book above the rail (epic #3459): one tag per open need that is not on the rail. A need (an epic, an idea or a decision to make) is not a ticket: it is split into tickets, and the tickets move on the rail. A served need stays in the band for 24 hours. Replaces the Backlog column and the stacked bar of the rail band (#3461) |
+| — | `Backlog band` | Gone (#4354): the order book that stood above the rail (epic #3459), one tag per open need. The Backlog column alone shows the backlog |
 | — | `idea` | A label for an idea in reserve, not a request: it is never on the rail, and the manager never reads it — no `decision`, `fire`, `model:` or `effort:`, no comment, no TODO card (#3536) |
 | `calibrage` | `calibration` | Model and effort given to a role |
 | `tours` / `jetons` | `turns` / `tokens` | A cook's measured use |
@@ -102,6 +103,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
 | `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` and `approve <n>` are new, with no old name |
 | — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
+| — | `human-cooks` | The tickets waiting on a human cook, read on GitHub, with who holds each (#4276) | new, with no old name |
 | — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |
 | — | `recurring` | The project's recurring tickets: on its next date, each becomes an issue with `fire` (#3230) | `declare --title <title> [--body <body>] --rhythm daily \| weekly --weekday <1-7> \| monthly --day <1-31>`, `pause <id>`, `resume <id>`, `remove <id>` — new, with no old name |
 | — | `explanations` | The explanations of the kitchen's words a chef has seen in the app, kept per chef (#3308) | `--chef <login>`, `seen <word> --chef <login>`, `reset --chef <login>` — new, with no old name |

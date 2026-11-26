@@ -4,7 +4,7 @@
 // L'état des tickets, la relecture et le merge sont les vrais modules de
 // l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`,
 // `github-etat/prise.ts`) : seul le client GitHub est faux, plus bas qu'eux.
-import { SUJET_DE_SAUVEGARDE } from "../src/mise-a-jour/attente/attente.ts";
+import { SUJET_DE_SAUVEGARDE } from "../src/cuisson/reprise/reprise.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -285,7 +285,7 @@ test("two review send-backs with the same remark are the same result despite the
   assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
 });
 
-test("the send-back that spends the tries counts itself and states its reason, the chef's card (#4302)", async () => {
+test("the refusal that spends the tries counts itself and states its reason, on the chef's card (#4302, #4226)", async () => {
   const faux = new FauxGitHub();
   faux.feu(8);
   let appels = 0;
@@ -294,28 +294,27 @@ test("the send-back that spends the tries counts itself and states its reason, t
     await a.tour();
     await a.calme();
   }
-  const renvois = (faux.commentaires.get(8) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
-  const dernier = renvois.at(-1) ?? "";
-  assert.match(dernier, /^<!-- brigade:renvoi n=3 sha=/);
-  assert.match(dernier, /still not mergeable after 2 sends back — /);
-  assert.match(dernier, /\n\nSend-back reason: wrong behaviour\n/);
-  assert.doesNotMatch(dernier, /Blocking reason/);
+  const carte = (faux.commentaires.get(8) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:todo kind=blocked")).at(-1) ?? "";
+  assert.match(carte, /^<!-- brigade:todo kind=blocked tries=3 sha=/);
+  assert.match(carte, /- Try 3: the review requested changes: Remark number 3: the page is wrong\.\n/);
+  assert.match(carte, /\nSend-back reason: wrong behaviour\n/);
+  assert.doesNotMatch(carte, /Blocking reason/);
 });
 
 test("the send-back that spends the tries counts itself and states its reason, the ticket going to the manager (#4302)", async () => {
   const faux = new FauxGitHub();
   faux.feu(8);
   faux.corpsEcrivables = true;
-  let appels = 0;
-  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: `Remark number ${(appels += 1)}: the page is wrong.` }), avertir: () => {}, reprendre: async () => ({ reprise: { choix: "reecrire", motif: "The page is still wrong.", corps: "Fix the page." } }) });
+  // Le même résultat deux fois de suite : ses renvois sont épuisés avant le troisième refus (#3814), il va au manager.
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "Remark: the page is wrong." }), avertir: () => {}, reprendre: async () => ({ reprise: { choix: "reecrire", motif: "The page is still wrong.", corps: "Fix the page." } }) });
   for (let tour = 0; tour < 20; tour += 1) {
     await a.tour();
     await a.calme();
   }
   const renvois = (faux.commentaires.get(8) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
   const dernier = renvois.find((r) => /still not mergeable/.test(r)) ?? "";
-  assert.match(dernier, /^<!-- brigade:renvoi n=3 sha=/);
-  assert.match(dernier, /still not mergeable after 2 sends back — [\s\S]*the ticket went to the manager/);
+  assert.match(dernier, /^<!-- brigade:renvoi n=2 sha=/);
+  assert.match(dernier, /still not mergeable after 1 sends back — [\s\S]*the ticket went to the manager/);
   assert.match(dernier, /\n\nSend-back reason: wrong behaviour\n/);
   assert.doesNotMatch(dernier, /Blocking reason/);
 });
@@ -670,7 +669,7 @@ function parqueParSesEchecs(faux: FauxGitHub, issue: number): boolean {
   return faux.ticket(issue).labels.has(LABEL_PARKED) && attente?.failures === true && attente.who === "the supervisor";
 }
 
-test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then off the kitchen after 2 sends back (#2209)", async () => {
+test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then is parked for the chef at its third refusal (#2209, #4226)", async () => {
   const faux = new FauxGitHub();
   faux.feu(31);
   const a = faux.station("A");
@@ -679,17 +678,18 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 30 && !parqueParSesEchecs(faux, 31); i += 1) {
+  for (let i = 0; i < 30 && !faux.ticket(31).labels.has("chef-todo"); i += 1) {
     await a.tour();
     await a.calme();
   }
   assert.equal(faux.mergee(31), undefined);
   const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
-  // Parquée par ses échecs après deux renvois (#4129), rien ne la prend avant sa date (#3911) : elle attend le superviseur.
-  assert.equal(renvois.length, 3);
+  // Deux renvois, puis la mise de côté pour le chef, aucune minuterie ne la relance : elle attend sa réponse.
+  assert.equal(renvois.length, 2);
   assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
-  assert.match(renvois[2]?.body ?? "", /Parked \(`parked`\) by its failure count/);
-  assert.ok(parqueParSesEchecs(faux, 31));
+  assert.match((faux.commentaires.get(31) ?? []).at(-1)?.body ?? "", /parked for the chef[\s\S]*Still red on its head `[0-9a-f]+`: `?tests/);
+  assert.ok(faux.ticket(31).labels.has("chef-todo"));
+  assert.ok(!faux.ticket(31).labels.has("set-aside:failures"));
   assert.equal((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:relance")).length, 0);
   assert.equal(faux.creations.length, 0);
   // Recuisiné deux fois, sous la même PR : aucune seconde PR.
@@ -2099,8 +2099,9 @@ test("a cook that ends with exit code 143 (SIGTERM) is not a failed cook: the ti
 });
 
 // #2543, 2026-11-06 : la station, relancée par sa mise à jour toutes les 35 à 45 min, tuait ses
-// cooks ; chaque ticket attendait 30 min, puis son cook repris mourait à la relance suivante.
-test("a cook killed because its station stops does not hold its ticket: no wait, no try counted, and the next round takes it again (#2543)", async (t) => {
+// cooks. Depuis #4401, son cook lui survit : la station qui s'arrête garde le ticket pris, sans rien
+// en dire, et celle qui la relance le reprend à son premier tour.
+test("a station that stops while its cook runs keeps the ticket taken and says nothing on it; the restarted station takes it back at its first round (#2543, #4401)", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -2128,10 +2129,11 @@ test("a cook killed because its station stops does not hold its ticket: no wait,
   await station.calme();
 
   const corps = (faux.commentaires.get(79) ?? []).map((c) => c.body).join("\n");
-  assert.match(corps, /stopped with its station[\s\S]*signal SIGKILL/);
+  assert.doesNotMatch(corps, /stopped with its station/);
   assert.doesNotMatch(corps, /brigade:attente/);
   assert.doesNotMatch(corps, /brigade:echec/);
-  assert.equal(faux.ticket(79).labels.has(LABEL_TAKEN), false);
+  assert.doesNotMatch(corps, /brigade:lache/);
+  assert.equal(faux.ticket(79).labels.has(LABEL_TAKEN), true);
 
   // La station relancée le reprend à son premier tour, sans attendre.
   const relancee = stationDuDepot(options);
