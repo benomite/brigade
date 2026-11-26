@@ -10,13 +10,13 @@ const lire = (page: string) => readFileSync(join(RACINE, page), "utf8");
 const PAGES = ["docs/runtime/bac-a-sable.md", "docs/limites-du-cook.md", "docs/runtime/station-cook.md"];
 
 test("the sandbox and chef pages describe restricted mode, and no page calls the unsandboxed cook unbounded", () => {
-  const bac = lire(PAGES[0]);
-  const limites = lire(PAGES[1]);
+  const bac = lire(PAGES[0]!);
+  const limites = lire(PAGES[1]!);
   assert.match(bac, /restricted mode/i, "bac-a-sable.md describes restricted mode");
   assert.match(bac, /dontAsk/, "bac-a-sable.md names the dontAsk permission mode");
   assert.match(limites, /restricted mode: no sandbox/, "limites-du-cook.md carries the wording");
   assert.match(limites, /continue without sandbox/, "limites-du-cook.md names the decision");
-  assert.match(lire(PAGES[2]), /restricted mode/i, "station-cook.md points to restricted mode");
+  assert.match(lire(PAGES[2]!), /restricted mode/i, "station-cook.md points to restricted mode");
 
   for (const page of PAGES) {
     const texte = lire(page);
