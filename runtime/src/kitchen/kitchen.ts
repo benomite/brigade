@@ -174,7 +174,7 @@ export function openKitchen(options: KitchenOptions) {
       }
       case "manager": {
         const tickets = await Promise.all(action.issues.map((n) => ticketText(gh, repo, n)));
-        startRun(runs, { kind: "manager", issue: null, pr: null, worktree: null }, options.launch("manager", options.clone, false, JUDGE, text.manager({ tickets })));
+        startRun(runs, { kind: "manager", issue: null, pr: null, worktree: null, given: action.issues }, options.launch("manager", options.clone, false, JUDGE, text.manager({ tickets })));
         return log(`manager called on ${action.issues.map((n) => `#${n}`).join(", ")}`);
       }
       case "supervisor": {
@@ -202,7 +202,15 @@ export function openKitchen(options: KitchenOptions) {
         try {
           if (run.kind === "cook") await onCookEnd(run, issue);
           else if (run.kind === "pass") await onPassEnd(run, issue, run.issue === null ? undefined : prs.get(run.issue));
-          else await applyAgentActions(parseAgentActions(run.result), { act, issues, log, who: run.kind });
+          else {
+            const acted = await applyAgentActions(parseAgentActions(run.result), { act, issues, log, who: run.kind });
+            // A ticket the manager gave no usable gesture would come back to it every turn: it waits for the chef instead.
+            for (const n of (run.given ?? []).filter((one) => !acted.has(one) && issues.has(one))) {
+              await act.labels(n, [LABELS.parkedChef]);
+              await act.comment(n, `Parked for the chef: the manager gave no usable gesture for it. Its last words: ${run.result.slice(-800) || "none"}`);
+              log(`#${n} parked for the chef — the manager gave no usable gesture`);
+            }
+          }
         } catch (error) {
           log(`${run.name} ended, its outcome could not be applied — ${(error as Error).message}`);
         }

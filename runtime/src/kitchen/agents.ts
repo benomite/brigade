@@ -71,7 +71,9 @@ const EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
 // Labels an agent never sets or removes: the try count and trust stay the kitchen's.
 const LOCKED = (label: string) => /^try:/.test(label) || label === ACCEPTED || label === LABELS.taken || label === LABELS.inPass;
 
-export async function applyAgentActions(actions: AgentAction[], context: { act: Gestures; issues: Map<number, Issue>; log: (line: string) => void; who: string }) {
+// Applies what an agent asked for, and says which tickets it acted on.
+export async function applyAgentActions(actions: AgentAction[], context: { act: Gestures; issues: Map<number, Issue>; log: (line: string) => void; who: string }): Promise<Set<number>> {
+  const acted = new Set<number>();
   const { act, issues, log, who } = context;
   // An agent acts only on open, trusted tickets.
   const known = (n: unknown): n is number => typeof n === "number" && issues.get(n)?.trusted === true;
@@ -82,16 +84,19 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
       if ("calibrate" in action && known(action.calibrate) && MODELS.has(action.model) && EFFORTS.has(action.effort)) {
         const old = issues.get(action.calibrate)?.labels.filter((label) => label.startsWith("model:") || label.startsWith("effort:")) ?? [];
         await act.labels(action.calibrate, [LABELS.ready, `model:${action.model}`, `effort:${action.effort}`], old);
+        acted.add(action.calibrate);
         log(`${who}: #${action.calibrate} calibrated ${action.model}/${action.effort}`);
       } else if ("split" in action && known(action.split) && Array.isArray(action.tickets) && action.tickets.length > 0 && action.tickets.length <= 10) {
         const children: number[] = [];
         for (const ticket of action.tickets) children.push(await act.open(ticket.title, `${ticket.body}\n\nEpic: #${action.split}`));
         await act.labels(action.split, [LABELS.epic], [LABELS.ready]);
         await act.comment(action.split, `Split by the manager into ${children.map((n) => `#${n}`).join(", ")}.`);
+        acted.add(action.split);
         log(`${who}: #${action.split} split into ${children.join(", ")}`);
       } else if ("park" in action && known(action.park) && typeof action.reason === "string") {
         await act.labels(action.park, [LABELS.parkedChef]);
         await act.comment(action.park, `Parked for the chef by the ${who}: ${action.reason}`);
+        acted.add(action.park);
         log(`${who}: #${action.park} parked for the chef`);
       } else if ("unpark" in action && known(action.unpark)) {
         await act.labels(action.unpark, [], [LABELS.parkedChef, LABELS.parked]);
@@ -114,4 +119,5 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
       log(`${who}: gesture failed — ${(error as Error).message}`);
     }
   }
+  return acted;
 }
