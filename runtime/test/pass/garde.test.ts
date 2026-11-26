@@ -51,6 +51,7 @@ test("a guard green on main is accepted and said in the pass's line and log; an 
   assert.match(journalDeLaPreuve(preuve, "main") ?? "", /`kept` \(`a\.test\.ts`\) green on `main`, green on the branch \(marked as a guard\); `green`/);
 });
 
+// brigade:guard
 test("a guard green on both sides covers its criterion, and the verdict says so", () => {
   const preuve: Preuve = { rejeux: [{ fichier: "t/garde.test.ts", nom: "kept", garde: true, main: true, branche: true }, { fichier: "t/garde.test.ts", nom: "broken", garde: true, main: true, branche: false }] };
   const couvertures = [{ tests: ["kept"], relecture: false }, { tests: ["broken"], relecture: false }];
@@ -60,6 +61,7 @@ test("a guard green on both sides covers its criterion, and the verdict says so"
   ]);
 });
 
+// brigade:guard
 test("the send-back and the cook are each told how to mark a guard", () => {
   const [motif] = motifDuRenvoi([{ fichier: "a.test.ts", nom: "green", main: true, branche: true }], "main");
   assert.match(motif ?? "", /"as before" \/ "unchanged", mark the test as a guard instead: a `\/\/ brigade:guard` comment/);
