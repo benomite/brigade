@@ -166,7 +166,7 @@ if (import.meta.main) {
   for (const f of findings) console.error(`  ${f.file}: ${f.kind} \`${f.name}\` ${f.why}`);
   console.error(
     `\nNaming rule: identifiers are English — file and directory names, exported symbols, JSON contract keys. See ${RULE} for the rule and the French → English table (scripts/rename-code/mapping.json).` +
-      `\nNames already on the base are not checked: the rename tickets remove them.`,
+      `\nFrench names already on the base pass: the rename tickets remove them.`,
   );
   process.exit(1);
 }
