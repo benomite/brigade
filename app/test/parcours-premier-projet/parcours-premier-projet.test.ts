@@ -49,6 +49,7 @@ import {
   type GestesDuParcours,
 } from "../../src/vue/parcours-premier-projet/parcours-premier-projet.js";
 import { REESSAYER } from "../../src/vue/lexique.js";
+import { ADD_A_SERVER } from "../../src/vue/add-server/add-server.js";
 import { PLUS_TARD, poserPremierTicket, QUESTION as QUESTION_DU_PREMIER } from "../../src/vue/premier-ticket/premier-ticket.js";
 import { REFUS_RESEAU } from "../../src/stations-du-compte.ts";
 import { CONTINUER, LACHER, METTRE, PASSER, poserLeDepart, tenirLesDeparts, TITRE as TITRE_DU_DEPART, type Etat as EtatDuDepart } from "../../src/vue/parcours-premier-projet/depart.js";
@@ -159,7 +160,7 @@ describe("ce que la page dit", () => {
     assert.equal(carte.dessous("h2")[0]?.textContent, "Who cooks chef/cantine?");
     assert.equal(phraseDe(carte)?.textContent, ICI_DIT);
     assert.equal(ICI_DIT, "This computer cooks the project's tickets while it is on; you can add a server or another computer later.");
-    assert.deepEqual(boutons(carte), ["this computer", "atelier"]);
+    assert.deepEqual(boutons(carte), ["this computer", "atelier", ADD_A_SERVER]);
     assert.equal(carte.dessous("button")[0]?.className.includes("recommande"), true);
     assert.equal(carte.dessous("button")[1]?.className.includes("recommande"), false);
     // Cet ordinateur, puis son nom d'hôte ; la station hors ligne dit depuis quand, et le geste qui la ramène.
@@ -173,7 +174,7 @@ describe("ce que la page dit", () => {
     const choix = choixDeStation({ ici: true, stations: [station("g2", "parade-box", true)] });
     const carte = poserParcoursPremierProjet(doc, { depot: DEPOT, vu: { etape: "station" }, progression: "", station: "a-faire", choix }, gestesVides()) as unknown as Faux;
     assert.equal(phraseDe(carte)?.textContent, STATION_DIT("parade-box"));
-    assert.deepEqual(boutons(carte), ["this computer", "parade-box"]);
+    assert.deepEqual(boutons(carte), ["this computer", "parade-box", ADD_A_SERVER]);
     // Le recommandé se distingue où qu'il soit dans la liste.
     assert.equal(carte.dessous("button")[0]?.className.includes("recommande"), false);
     assert.equal(carte.dessous("button")[1]?.className.includes("recommande"), true);
@@ -372,7 +373,7 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     assert.equal(principal(vue).dataset.parcours, "station");
     assert.equal(progressionDe(vue), "1 of 2: who cooks it");
     assert.equal(phraseDe(question(vue))?.textContent, ICI_DIT);
-    assert.deepEqual(boutons(question(vue)), ["this computer"]);
+    assert.deepEqual(boutons(question(vue)), ["this computer", ADD_A_SERVER]);
     // L'avis d'un projet pas préparé n'ajoute pas un second geste.
     assert.equal(vue.poses().some((pose) => pose.className === "avis-depot"), false);
 
@@ -424,7 +425,7 @@ describe("la vue jouée : un dépôt choisi, sa page tant qu'il n'est pas prêt"
     await lire(vue);
     await repos();
     assert.equal(phraseDe(question(vue))?.textContent, STATION_DIT("parade-box"));
-    assert.deepEqual(boutons(question(vue)), ["this computer", "parade-box", "atelier"]);
+    assert.deepEqual(boutons(question(vue)), ["this computer", "parade-box", "atelier", ADD_A_SERVER]);
     bouton(question(vue), "parade-box").click();
     await repos();
     assert.deepEqual(choisis, [["g2", ["chef/parade", DEPOT]]]);

@@ -99,6 +99,11 @@ computer**, then click **Start the kitchen on this computer**. If the page offer
 **choose its machine** first. If it warns that the machine has no sandbox, **continue without
 sandbox** is yours to decide for a first run on your own repository.
 
+**To cook on an always-on server instead**, click **Add a server** under the choices: the panel shows
+one line to paste in a terminal on the server, with **copy**. When the server has checked in, the
+panel names it: click its name, and it cooks the project. The same **Add a server** is on every
+project's **Stations** tab, under its top line and under its `Who cooks <project>?` choice.
+
 ### 4. Wait for the project to be prepared
 
 Before your own ticket moves, brigade prepares your repository: when it needs it, a cook works a
