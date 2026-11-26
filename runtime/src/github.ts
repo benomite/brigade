@@ -478,12 +478,12 @@ type PRBrute = {
 // Ce que `/brigade:init` pose toujours dans le dépôt (commands/init.md) : la PR qui l'a posé est la sienne.
 const GATES_DE_L_INIT = SCRIPT_GATES;
 
-type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
+type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null; started_at?: string | null };
 // Une annotation d'échec d'un check : où — `chemin` et `ligne`, nuls quand la
 // CI n'en nomme pas —, son titre et son message.
 export type AnnotationDeCheck = { chemin: string | null; ligne: number | null; titre: string; message: string };
 type AnnotationBrute = { path?: string; start_line?: number; annotation_level?: string; title?: string | null; message?: string };
-type Statut = { context: string; state: string; target_url: string | null };
+type Statut = { context: string; state: string; target_url: string | null; created_at?: string };
 // Un run de GitHub Actions et un de ses jobs, tels que l'API les rend (#3512).
 type RunBrut = { id?: number; head_sha?: string; created_at?: string; updated_at?: string; status?: string };
 type JobBrut = { name?: string; conclusion?: string | null; created_at?: string; started_at?: string | null; completed_at?: string | null };
@@ -950,11 +950,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
         ...check_runs.map((run): Check => {
           const conclusion = run.status === "completed" ? (run.conclusion ?? "inconnue") : run.status;
           const outcome = run.status !== "completed" ? "pending" : CONCLUSIONS_VERTES.includes(conclusion) ? "green" : "red";
-          return { name: run.name, outcome, conclusion, url: run.html_url ?? null };
+          return { name: run.name, outcome, conclusion, url: run.html_url ?? null, ...(typeof run.started_at === "string" ? { startedAt: run.started_at } : {}) };
         }),
         ...statuses.map((statut): Check => {
           const outcome = statut.state === "success" ? "green" : statut.state === "pending" ? "pending" : "red";
-          return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
+          return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null, ...(typeof statut.created_at === "string" ? { startedAt: statut.created_at } : {}) };
         }),
       ];
       // Gardée seulement pour un commit (40 hexadécimaux), jamais pour une branche
