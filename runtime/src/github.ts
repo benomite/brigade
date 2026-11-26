@@ -61,6 +61,9 @@ export type Issue = {
 // auteur avec le dépôt, tel que GitHub le nomme (`OWNER`, `MEMBER`, `NONE`…).
 export type IssueOuverte = Issue & { body: string; association: string; author?: string };
 
+// Les permissions qui écrivent sur le dépôt, telles que l'API les nomme (`permissionDe`).
+export const ECRITURE: readonly string[] = ["admin", "maintain", "write"];
+
 // Une issue lue parmi celles modifiées depuis un instant : fermée, avec quand
 // elle l'a été, si GitHub le dit.
 export type IssueDepuis = IssueOuverte & { closedAt?: string };
@@ -155,6 +158,11 @@ export type GitHub = {
   // posé le label, pas de qui a écrit l'issue (#2619).
   // Vaut aussi le label d'un humain déclaré sur une carte qui lui est assignée (#2762).
   labelsPosesParDeConfiance?(numero: number): Promise<string[]>;
+  // La permission d'un compte sur le dépôt, telle que l'API la nomme (`admin`, `maintain`,
+  // `write`, `triage`, `read`, `none`) : ce que la porte de confiance lit (`trust/`, #4358).
+  // Un compte que GitHub ne connaît pas comme collaborateur : `none`. Facultatif : seul le
+  // client réel le porte.
+  permissionDe?(login: string): Promise<string>;
   // Poste un commentaire sur une issue.
   commenter(numero: number, corps: string): Promise<void>;
   // Ajoute des labels à une issue, sans toucher à ceux qu'elle porte.
@@ -662,6 +670,16 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
   };
   // Une liste lue de sa première page à sa dernière, sous condition.
   const lireLaListe = async (chemin: string): Promise<Reponse[]> => feuilleter(await lireSousCondition([chemin], true), chemin);
+  // La permission d'un compte sur le dépôt (#4358).
+  const permissionDe = async (login: string): Promise<string> => {
+    const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
+    const reponse = await lireSousCondition([chemin]);
+    // Un compte qui n'est pas un collaborateur, ou qui n'existe plus.
+    if (reponse.statut === 404) return "none";
+    const { permission } = JSON.parse(exiger(reponse, chemin).corps) as { permission?: unknown };
+    if (typeof permission !== "string" || permission === "") throw new Error(`gh api ${chemin} : no permission in the answer`);
+    return permission;
+  };
 
   // Une liste d'issues, chacune de ses pages sous l'ETag de sa dernière
   // lecture : tant que rien n'a changé, chaque page coûte un 304, que GitHub
@@ -807,16 +825,16 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       for (const brut of posees) {
         const login = brut.actor?.login as string;
         if (!ecrivains.has(login)) {
-          const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
-          const reponse = await lireSousCondition([chemin]);
-          const permission = reponse.statut === 200 ? (JSON.parse(reponse.corps) as { permission?: string }).permission : undefined;
-          const ecrit = permission === "admin" || permission === "maintain" || permission === "write";
+          // Une permission illisible n'écrit pas, comme avant (#2619).
+          const permission = await permissionDe(login).catch(() => "none");
+          const ecrit = ECRITURE.includes(permission);
           ecrivains.set(login, ecrit || (await reponseDUnHumainDeclare(login, options.humains ?? [], lireAssignes)));
         }
         if (ecrivains.get(login)) labels.add(brut.label?.name as string);
       }
       return [...labels];
     },
+    permissionDe,
     async prQuiFerme(numero) {
       // La fermeture par un merge porte le commit du merge ; la dernière
       // fermeture est celle qui tient si l'issue a été rouverte.

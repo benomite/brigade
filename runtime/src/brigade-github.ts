@@ -32,6 +32,7 @@ import { leveesDesCommentaires } from "./boucle-attente/levee.ts";
 import { corpsDeLIncapacite, direIncapacite, direLaLacune, gatesInjouables, incapablesLus, stationsCapables } from "./routage-station/routage-station.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "./calibrage.ts";
 import { DERNIERS_COMMENTAIRES, environnementHorsGitHub, ticketJoint } from "./bac-a-sable/hors-github.ts";
+import { porteDeConfiance } from "./trust/confiance.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, VARIABLES_DE_JETON, verdict } from "./claude.ts";
 import { garderLeCook } from "./garde-cook/garde.ts";
@@ -3276,6 +3277,8 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     });
     return retenue;
   };
+  // Ce qu'un agent lit des commentaires d'un ticket : ceux des comptes de confiance seulement (`trust/confiance.ts`, #4358).
+  const confiance = porteDeConfiance(options.github);
   const cuisinerLeTicket: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
     // Le ticket, lu ici : dans le bac à sable, le `gh` du cook n'a aucun
@@ -3287,7 +3290,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     let brigade = false;
     let commentairesDuTicket: { body: string; association: string }[] = [];
     try {
-      const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+      const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), confiance.commentaires(ticket.number)]);
       if (lue === null) throw new Error("the issue no longer exists");
       commentairesDuTicket = commentaires;
       joint = ticketJoint({ number: ticket.number, title: lue.title, body: lue.body ?? "", commentaires });
@@ -3924,7 +3927,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           gates: async (pr) => {
             const { worktree } = await teteExterne(pr, `gates-pr-${pr.number}-github`);
             try {
-              if (!aDesGates(worktree)) return { nonJouees: `the PR's tree has no \`${SCRIPT_GATES}\`` };
+              if (aDesGates(worktree)) return { nonJouees: `the PR's tree has no \`${SCRIPT_GATES}\`` };
               // Ni les secrets du projet (aucun `lireSecrets`), ni jeton GitHub, ni de Claude.
               const gates = await jouerGates({ worktree, ticket: pr.number, env: sansJeton(), interdites: VARIABLES_GITHUB, delaiMs: reglageDesGates.delaiMs, cloison, signal: abandon.signal });
               if (abandon.signal.aborted) throw new Error("the station stopped during the gates");
@@ -3944,7 +3947,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDuManager === undefined
       ? undefined
       : async (ticket, { question, reponses }) => {
-          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), confiance.commentaires(ticket.number)]);
           if (lue === null) return { illisible: "the issue no longer exists" };
           const branche = brancheDuTicket(ticket.number);
           const run = `blocage-${ticket.number}-github`;
@@ -3970,7 +3973,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDuManager === undefined
       ? undefined
       : async (ticket, { calibrage, motifs }) => {
-          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), confiance.commentaires(ticket.number)]);
           if (lue === null) return { illisible: "the issue no longer exists" };
           const run = `reprise-${ticket.number}-github`;
           const lieu = await depot.preparer(run);
@@ -3996,7 +3999,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     calibrageDuManager === undefined
       ? undefined
       : async (ticket, { attendus, depuisMs }) => {
-          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), options.github.commentaires(ticket.number)]);
+          const [lue, commentaires] = await Promise.all([options.github.issue(ticket.number), confiance.commentaires(ticket.number)]);
           if (lue === null) return { illisible: "the issue no longer exists" };
           const attendusLus = (await Promise.all(attendus.map((n) => options.github.issue(n).catch(() => null)))).flatMap((attendu, rang) => (attendu === null ? [] : [{ number: attendus[rang] as number, title: attendu.title, body: attendu.body ?? "", labels: attendu.labels }]));
           const run = `attente-longue-${ticket.number}-github`;

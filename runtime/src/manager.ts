@@ -16,7 +16,7 @@ import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { abandonsAuChef } from "./abandon-au-chef.ts";
-import { DE_CONFIANCE, priorite } from "./alimenter.ts";
+import { priorite } from "./alimenter.ts";
 import { carteBacklogVideDuJournal } from "./carte-backlog-vide/carte-du-journal.ts";
 import { calibrage as calibragePose, complet, EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
@@ -37,7 +37,7 @@ import { LancementRefuse, STATION_DU_MANAGER, type GardeFous, type Verdict } fro
 import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
-import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
+import { ouvrirRetenues } from "./trust/retenue.ts";
 import { choisirSuivante, prendreSuivante } from "./prise-backlog/prise-backlog.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
 import { ENTETE_REPONSE } from "./reponse-carte.ts";
@@ -245,9 +245,11 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   };
   const estLaRoadmap = (numero: number) => numero === options.roadmap || numero === roadmapDesBindings;
 
-  // Les issues d'un inconnu qu'un membre de confiance a lancées ou priorisées :
-  // le manager lit qui a posé le label, pas qui a écrit l'issue (#2619).
-  const garanties = new Set<number>();
+  // La porte de confiance (#4358) : l'issue d'un auteur sans l'écriture est retenue jusqu'à ce que le chef l'accepte —
+  // ou qu'un membre de confiance l'ait lancée ou priorisée (#2619) —, et le commentaire d'un tel auteur ne pèse dans
+  // aucun jugement. `retenues` : le verdict de chaque issue, lu au début de son service.
+  const retenues = new Map<number, boolean>();
+  const confiance = ouvrirRetenues({ github, humains: options.humains ?? (() => []), avertir, arrete: () => arrete });
   // Les comptes que le projet déclare (`humans`) : seuls ils font d'une marque de station celle d'une station (#3012).
   // Des réglages illisibles ne déclarent personne : la marque ne vaut alors rien, et l'issue reste celle d'un inconnu.
   const declares = () => {
@@ -257,17 +259,18 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       return [];
     }
   };
-  const garantir = async (issue: IssueOuverte) => {
-    garanties.delete(issue.number);
-    if (!auteurSansEcriture(issue, declares()) || !github.labelsPosesParDeConfiance) return;
-    if (!issue.labels.some((label) => label === LABEL || priorite([label]) !== null)) return;
+  // Lit si l'issue est retenue. Rend faux si GitHub ne l'a pas dit : rien n'en est décidé, le tour suivant la relit.
+  const garantir = async (issue: IssueOuverte): Promise<boolean> => {
     try {
-      const posees = await github.labelsPosesParDeConfiance(issue.number);
-      if (posees.some((label) => issue.labels.includes(label) && (label === LABEL || priorite([label]) !== null))) garanties.add(issue.number);
+      retenues.set(issue.number, await confiance.retenue(issue));
+      return true;
     } catch (erreur) {
-      if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : auteur des labels non lu sur l'issue #${issue.number} — ${message(erreur)}`);
+      if (!arrete && !estLaPauseDeGitHub(erreur)) avertir(`brigade : confiance non lue sur l'issue #${issue.number} — ${message(erreur)}`);
+      return false;
     }
   };
+  // Retenue : son verdict lu, ou, pas encore lu, ce que GitHub dit du lien de son auteur avec le dépôt.
+  const retenue = (issue: IssueOuverte): boolean => retenues.get(issue.number) ?? auteurSansEcriture(issue, declares());
 
   const trier = (issue: IssueOuverte, connue: IssueDuManager | null): Tri => {
     const fired = issue.labels.includes(LABEL);
@@ -302,7 +305,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
-    if (auteurSansEcriture(issue, declares()) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
+    if (retenue(issue)) return { quoi: "ecart", raison: "untrusted-author", fired };
     // Parquée (#4129) — pour le chef, par la carte de sa question, ou pour un autre — : elle n'est pas jugée avant de
     // reprendre. Parquée par sa question au chef, l'écart garde la nature de cette question.
     const nature = (NATURES_AU_CHEF as readonly string[]).includes(connue?.reason ?? "") ? (connue?.reason as Ecart) : "parked";
@@ -317,14 +320,14 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     return { quoi: "juger" };
   };
 
-  // Ce qui pèse dans un jugement : les commentaires de ceux qui ont la main
-  // sur le dépôt, moins ceux du manager.
+  // Ce qui pèse dans un jugement : les commentaires de ceux qui ont l'écriture
+  // sur le dépôt (`trust/confiance.ts`, #4358), moins ceux du manager.
   const lire = async (issue: IssueOuverte) => {
     const connus = lus.get(issue.number);
     if (connus?.updatedAt === issue.updatedAt) return connus;
     // Une prise du travail n'est pas un échange : la poster ne change pas l'état de l'issue.
-    const deConfiance = (await github.commentaires(issue.number))
-      .filter((commentaire) => DE_CONFIANCE.includes(commentaire.association) && !estUnePriseDuManager(commentaire.body))
+    const deConfiance = (await confiance.porte.commentaires(issue.number))
+      .filter((commentaire) => !estUnePriseDuManager(commentaire.body))
       .map((commentaire) => commentaire.body);
     const lu = {
       updatedAt: issue.updatedAt,
@@ -604,7 +607,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
         // Fermée ou disparue : il n'y a plus rien à poser, ni à dire.
         if (!fraiche || fraiche.state !== "open") return true;
         issue = { ...issue, labels: fraiche.labels };
-        await garantir(issue);
+        if (!(await garantir(issue))) return false;
         const tri = trier(issue, connue);
         if (tri.quoi === "ecart") ecarter(issue, tri, connue);
         // Devenue une épique depuis son jugement — le chef y a posé `epic` :
@@ -856,19 +859,9 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     porte: options.porte ?? null,
   });
 
-  // L'issue d'un auteur sans l'écriture : une proposition de tri, et une carte
-  // à l'humain `product`, dont la réponse la met sur le rail ou la ferme (#2934).
-  const etrangeres = ouvrirIssuesEtrangeres({
-    github,
-    depotGitHub: options.depotGitHub,
-    demander,
-    peutJuger,
-    arrete: () => arrete,
-    avertir,
-    humains: options.humains ?? (() => []),
-  });
-  // Les issues ouvertes du tour en cours, parmi lesquelles le tri cherche un doublon.
+  // Les issues ouvertes du tour en cours, que la roadmap liste à son jugement : jamais celles qui sont retenues.
   let ouvertesDuTour: IssueOuverte[] = [];
+  const ouvertesLisibles = (issues: readonly IssueOuverte[]) => issues.filter((issue) => lisible(issue) && !retenue(issue));
 
   // La roadmap écartée : ce qui y questionne le chef s'en retire, et le travail
   // séparé qu'elle porte s'ouvre en issues (#3436).
@@ -962,18 +955,23 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       issue = { ...issue, labels };
     }
     const connue = issueDuManager(base, issue.number);
-    await garantir(issue);
-    const tri = trier(issue, connue);
+    if (!(await garantir(issue))) return "reste";
+    let tri = trier(issue, connue);
+    // Retenue : une carte au chef, rien d'autre (`trust/retenue.ts`, #4358). Acceptée, elle passe comme toute autre.
+    if (tri.quoi === "ecart" && tri.raison === ("untrusted-author" satisfies Ecart)) {
+      ecarter(issue, tri, connue);
+      if (arrete || !managerAllume(base)) return "arret";
+      const suite = await confiance.traiter(issue);
+      if (suite !== "acceptee") return suite;
+      retenues.set(issue.number, false);
+      tri = trier(issue, connue);
+    }
     // La roadmap des bindings ne s'est jamais lue : cette issue l'est peut-être.
     if ((tri.quoi === "juger" || tri.quoi === "decouper") && roadmapDesBindings === undefined) return "reste";
     let epique = tri.quoi === "decouper";
     if (tri.quoi === "fini") return "fait";
     if (tri.quoi === "ecart") {
       ecarter(issue, tri, connue);
-      if (tri.raison === ("untrusted-author" satisfies Ecart)) {
-        if (arrete || !managerAllume(base)) return "arret";
-        return etrangeres.traiter(issue, ouvertesDuTour);
-      }
       if (tri.raison === ("vision" satisfies Ecart)) {
         if (arrete || !managerAllume(base)) return "arret";
         // Sans `fire`, elle n'est pas sur le rail : il n'y a rien à prendre.
@@ -1180,7 +1178,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       return true;
     };
     if (!sondage.inchange) {
-      ouvertesDuTour = sondage.issues.filter(lisible);
+      ouvertesDuTour = ouvertesLisibles(sondage.issues);
       if (!(await servirLesNeuves(sondage.issues))) return;
     }
     // L'avancement de chaque épique se lit sur GitHub, à chaque tour, avant
@@ -1204,7 +1202,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     if (sondage.inchange && (confirmees === null || remisesEnAttente(base).every((remise) => sansObjet.has(cle(remise))))) return;
     const issues = (sondage.inchange ? (confirmees ?? []) : sondage.issues).filter((issue) => !terminees.has(issue.number));
     const presentes = new Set(issues.map((issue) => issue.number));
-    ouvertesDuTour = issues.filter(lisible);
+    ouvertesDuTour = ouvertesLisibles(issues);
     for (const numero of [...lus.keys()]) if (!presentes.has(numero)) lus.delete(numero);
     decoupage.observer(issues.filter(lisible));
     constater(presentes);

@@ -14,7 +14,9 @@
 //        Les labels d'attente d'avant parked sont retirés aussi ;
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
 //      - `close` : l'issue est fermée ;
-//      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
+//      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé ;
+//      - `accept` : rien de plus que le commentaire — l'issue retenue d'un auteur sans l'écriture (#4358) : la cuisine y lit
+//        l'accord du chef, et la lit et la juge comme toute autre (runtime/src/trust/retenue.ts).
 //      - `wait` : l'issue est parquée pour un tiers (#3434, #4129) — le commentaire de parking, qui attend ce que le libellé
 //        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la date à sept jours, puis le label
 //        `parked` (vue/attente/attente-github.ts, `parquer`) ; les labels d'avant parked qui la parquaient pour le
@@ -54,6 +56,7 @@ const RETIRES: Readonly<Record<GesteDuChef, readonly string[]>> = {
   drop: [LABEL_FIRE, LABEL_DU_CHEF, PARKED],
   close: [LABEL_DU_CHEF, PARKED],
   rail: [LABEL_DU_CHEF, PARKED],
+  accept: [LABEL_DU_CHEF, PARKED],
   // Parquée pour un tiers, la question du manager l'attend, lui : elle n'attend plus le chef (#3434).
   wait: [...LABELS_D_AVANT_PARKED_POUR_LE_CHEF, LABEL_DU_CHEF],
 };
@@ -105,7 +108,7 @@ async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: numb
     fait = `#${ticket} closed`;
   }
   if (geste === "rail") {
-    // L'issue d'un inconnu : le `prio:` que le choix nomme, sinon `fire`, comme « on the rail » du runtime.
+    // Le `prio:` que le choix nomme, sinon `fire`.
     const label = /\bprio:([1-9])\b/.exec(libelle)?.[0] ?? LABEL_FIRE;
     const posee = await client.ecrire("POST", `${issue}/labels`, { labels: [label] });
     if (posee.status !== 200) throw refusDe(`the \`${label}\` label`, posee);

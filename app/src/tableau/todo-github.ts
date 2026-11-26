@@ -32,9 +32,10 @@ const MARQUE = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)(?:\s+[a-z]+=[^\s
 export type Recommandee = { texte: string; pourquoi: string };
 export type CarteDuChef = { sorte: string; texte: string; design?: ValidationDesign; sensible?: RevueSensible; recommandee?: Recommandee | null };
 
-// Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`), `rail`, et
-// `wait`, la mise en WAITING qu'une carte du manager propose quand sa question attend un tiers (#3434).
-export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail", "wait"] as const;
+// Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`), `rail`,
+// `wait`, la mise en WAITING qu'une carte du manager propose quand sa question attend un tiers (#3434), et `accept`,
+// l'accord du chef à l'issue retenue d'un auteur sans l'écriture (runtime/src/trust/retenue.ts, #4358).
+export const GESTES_DU_CHEF = ["resume", "merge", "drop", "close", "rail", "wait", "accept"] as const;
 export type GesteDuChef = (typeof GESTES_DU_CHEF)[number];
 export type ChoixDuChef = { texte: string; suite: GesteDuChef };
 // Ce que le texte d'une carte du chef pose : sa question — sa première ligne écrite, nulle sur un texte vide —, ses choix,

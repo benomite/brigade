@@ -20,6 +20,7 @@ import { attendusDuCorps } from "../attente-ticket/attente-ticket.ts";
 import { horsDesTickets } from "../issue-de-la-cuisine.ts";
 import { brancheDuTicket, delaiDesGatesMs, ECHECS_MAX, runDuTicket, verdictDesGates, type Lancer, type StationGitHub } from "../brigade-github.ts";
 import { environnementHorsGitHub, ticketJoint } from "../bac-a-sable/hors-github.ts";
+import { porteDeConfiance } from "../trust/confiance.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "../bac-a-sable/local.ts";
 import { calibrage as calibrageDesLabels, complet, type Calibrage } from "../calibrage.ts";
 import { argumentsClaude, consigne, environnementCook, lireFlux, verdict } from "../claude.ts";
@@ -142,7 +143,8 @@ export function stationContributrice(options: OptionsContributrice): StationGitH
     const branche = brancheDuTicket(ticket.number);
     let joint: string;
     try {
-      const commentaires = (await github.commentaires(ticket.number)).filter(({ body }) => !estUneReclamation(body));
+      // Ceux des comptes de confiance seulement (`trust/confiance.ts`, #4358).
+      const commentaires = (await porteDeConfiance(github).commentaires(ticket.number)).filter(({ body }) => !estUneReclamation(body));
       joint = ticketJoint({ number: ticket.number, title: ticket.title, body: issue.body, commentaires });
     } catch (erreur) {
       return lacher(ticket.number, `its comments could not be read on GitHub (${message(erreur)})`);

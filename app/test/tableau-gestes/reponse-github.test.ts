@@ -186,7 +186,7 @@ describe("les cartes de #2061 et #1554 : un bouton par choix et un champ, la que
   });
 });
 
-// La carte d'une issue d'un inconnu, telle que le tri la pose (runtime/src/issue-etrangere/issue-etrangere.ts, `carteDuTriage`).
+// La carte d'une issue d'un inconnu, telle que le tri la posait avant #4358 : une carte déjà posée se répond toujours.
 const CARTE_ETRANGERE = [
   "<!-- brigade:todo kind=product-question -->",
   "Stranger's issue #40: put it on the rail, or close it?",
@@ -222,6 +222,31 @@ describe("la carte d'une issue d'un inconnu : un clic sur chaque bouton, en un s
     assert.deepEqual([...(leMonde.issues.get(40)?.labels ?? [])], ["prio:2"]);
     assert.equal(leMonde.issues.get(40)?.state, "open");
     assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 40));
+  });
+
+  // La carte d'une issue retenue (#4358), telle que la cuisine la pose (runtime/src/trust/retenue.ts, `carteDeRetenue`).
+  const CARTE_RETENUE = [
+    "<!-- brigade:todo kind=product-question -->",
+    "Held issue #41: accept it, so the kitchen reads it?",
+    "",
+    "- [accept] Accept it",
+    "- [close] Close it",
+    "",
+    "Asks: Ticket 41 — Please add dark mode.",
+    "Opened by @mallory, who has no write access to the repository.",
+  ].join("\n");
+
+  test("accept : la carte d'une issue retenue offre « accept » ; un clic poste l'accord et lève la carte, l'issue reste ouverte", async () => {
+    const leMonde = monde();
+    leMonde.issues.set(41, { labels: new Set(["chef-todo"]), state: "open", commentaires: [{ id: 901, body: CARTE_RETENUE, author_association: "OWNER", created_at: "2026-11-05T02:00:00Z" }] });
+    const { racine } = posee(41, carteDe(await todo(leMonde.client), 41).todo ?? assert.fail("the card asks its question"));
+    assert.deepEqual(boutons(racine).map(({ textContent }) => textContent), ["Accept it", "Close it"]);
+    const rendu = await cliquer(leMonde, 41, "Accept it");
+    assert.ok("repondue" in rendu, JSON.stringify(rendu));
+    assert.equal(dernierCommentaire(leMonde, 41), "<!-- brigade:reponse gesture=accept -->\nAccept it");
+    assert.deepEqual([...(leMonde.issues.get(41)?.labels ?? [])], []);
+    assert.equal(leMonde.issues.get(41)?.state, "open");
+    assert.ok(!(await todo(leMonde.client)).some(({ ticket }) => ticket === 41));
   });
 
   // La carte d'une PR de fork (runtime/src/pr-externe/pr-externe.ts) est posée sur la PR elle-même.

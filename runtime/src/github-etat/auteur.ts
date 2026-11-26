@@ -2,8 +2,8 @@
 // le dépôt a écrit : propriétaire, membre ou collaborateur. L'issue de tout autre auteur
 // (`NONE`, `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`…) est écartée, `untrusted-author` : son
 // texte est celui d'un inconnu, et le manager ne le lit pas comme une instruction. Elle
-// n'entre au rail que par la réponse du chef ou de l'humain `product` à la carte de
-// `issue-etrangere/`, ou par un label qu'un membre de confiance y pose (#2619).
+// n'entre au rail que par l'accord du chef ou de l'humain `product` sur la carte de
+// `trust/retenue.ts` (#4358), ou par un label qu'un membre de confiance y pose (#2619).
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { auteurInterne } from "../auteur-interne.ts";
 
