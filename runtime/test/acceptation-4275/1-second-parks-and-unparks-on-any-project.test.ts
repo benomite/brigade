@@ -1,23 +1,8 @@
 // #4275, criterion 1: the second parks and unparks a ticket the same way on project A and on project B.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { fakeParked } from "./fake-parked.ts";
 import { createParkedGesture } from "../../src/parked-gesture/parked-gesture.ts";
-
-// Fake of the parked state (runtime/src/parked/): same signatures as the real one, one instance per project.
-function fakeParked() {
-  const calls: unknown[][] = [];
-  return {
-    calls,
-    park: (ticket: number, who: string, forWhat: string, until: string) => {
-      calls.push(["park", ticket, who, forWhat, until]);
-      return { ticket, who, for: forWhat, until, step: "cooking" };
-    },
-    unpark: (ticket: number, reason: string) => {
-      calls.push(["unpark", ticket, reason]);
-      return { ticket, reason };
-    },
-  };
-}
 
 const REQUEST = { who: "the chef", for: "waiting for the vendor's answer", until: "2026-12-01" };
 
