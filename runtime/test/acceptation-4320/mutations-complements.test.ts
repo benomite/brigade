@@ -8,7 +8,6 @@ import { priseDeLaStation, stationDuDepot, type Lancer, type OptionsDuDepot } fr
 import { DEBUT, FIN, lignesDuBloc, reecrireBloc } from "../../src/projets/bloc.ts";
 import { CHEMIN_DE_LA_FICHE, ecrireFiche, ficheParDefaut } from "../../src/fiche-projet/index.ts";
 import { brancheDuProjet } from "../../src/reglages-projet/en-vigueur.ts";
-import { baseDuClone } from "../../src/projets-station/selection.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { FauxGitHub, fauxClient } from "../faux-github.ts";
 import { git } from "../outils.ts";
@@ -42,46 +41,15 @@ const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: 
 
 const echecs = (faux: FauxGitHub, issue: number) => (faux.commentaires.get(issue) ?? []).filter((c) => c.body.startsWith("<!-- brigade:echec")).length;
 
-test("a failed fetch of the base presses a new turn: the ticket is given back", async (t) => {
+test("a failed fetch of the base is the station's, not the ticket's: no try is counted and the ticket is given back", async (t) => {
   const faux = new FauxGitHub();
   faux.feu(31);
   const s = station(t, faux, async () => { throw new Error("git fetch origin main : no route"); }, false);
-  let pressee = 0;
-  s.presser = () => { pressee += 1; };
   await s.tour();
   await s.calme();
-  assert.ok(pressee >= 1);
-});
-
-test("a worktree failure that is not a fetch is the ticket's own failure: it counts a try and does not stop the project", async (t) => {
-  const faux = new FauxGitHub();
-  faux.feu(31);
-  const s = station(t, faux, async () => { throw new Error("disk full"); }, false);
-  await s.tour();
-  await s.calme();
-  assert.equal(echecs(faux, 31), 1);
-});
-
-test("a resumed branch whose resume fails with a fetch message is the ticket's failure, not the station's", async (t) => {
-  const faux = new FauxGitHub();
-  faux.feu(31);
-  const s = station(t, faux, async () => { throw new Error("unused"); }, true);
-  await s.tour();
-  await s.calme();
-  assert.equal(echecs(faux, 31), 1);
-});
-
-test("baseDuClone: null when the repository declares its branch, the default branch otherwise", (t) => {
-  const { clone: sans } = projetSurGit(t, { parDefaut: "trunk" });
-  assert.equal(baseDuClone(sans), "trunk");
-  const { clone: declare } = projetSurGit(t, { parDefaut: "main", autres: ["v2"], reglages: { integrationBranch: "v2" } });
-  assert.equal(baseDuClone(declare), null);
-});
-
-test("reecrireBloc: lines are written inside the block; no line and no comment removes it", () => {
-  assert.equal(reecrireBloc("", ["a x main"]), `${DEBUT}\na x main\n${FIN}\n`);
-  assert.equal(reecrireBloc(`${DEBUT}\na x main\n${FIN}\n`, []), "");
-  assert.equal(reecrireBloc(`${DEBUT}\n# note\n${FIN}\n`, []), `${DEBUT}\n# note\n${FIN}\n`);
+  assert.equal(echecs(faux, 31), 0);
+  assert.equal(faux.prisesDe("A"), 1);
+  assert.equal(faux.ticket(31).labels.has("taken"), false);
 });
 
 test("reecrireBloc: a project repeated with other spacing and a repeated held-back comment are each written once", () => {

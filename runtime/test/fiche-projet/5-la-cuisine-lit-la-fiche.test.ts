@@ -106,6 +106,7 @@ test("served: the integration branch is the one the sheet serves, at the base or
   git(clone, "commit", "-q", "-m", "fiche");
   git(clone, "push", "-q", "origin", `HEAD:${BASE}`);
   git(clone, "fetch", "-q", "origin");
+  git(clone, "remote", "set-head", "origin", BASE);
   rmSync(join(clone, ".brigade"), { recursive: true });
   assert.deepEqual(brancheDuProjet(clone, BASE), { branche: "release-3", provenance: "fiche-projet.json", problemes: [] });
   assert.deepEqual(brancheDuProjet(clone, "absente"), { branche: "release-3", provenance: "fiche-projet.json", problemes: [] }, "a stale station line is ignored: the sheet is read on the default branch");

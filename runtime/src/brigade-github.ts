@@ -3353,7 +3353,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       const absente = /couldn't find remote ref (?:refs\/heads\/)?(\S+)/.exec(message(erreur))?.[1];
       if (absente === base) return { baseAbsente: absente };
       // Le fetch de la base échoue (réseau, jeton, origine) : c'est l'état de la station, pas celui du ticket, et le rejouer ticket après ticket les userait tous.
-      if (!reprise && /\bfetch\b/.test(message(erreur))) return { baseInjoignable: message(erreur) };
+      if (!reprise && /\bfetch\b/.test(message(erreur)) && message(erreur).includes(base)) return { baseInjoignable: message(erreur) };
       return { echec: `its worktree could not be prepared: ${message(erreur)}` };
     }
     const { worktree, branche } = lieu;

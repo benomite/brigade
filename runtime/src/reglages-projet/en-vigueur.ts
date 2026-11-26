@@ -14,10 +14,10 @@
 //
 // La branche se résout avant de savoir où lire, une fois, à l'ouverture de la
 // cuisine : c'est d'elle que partent les worktrees.
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Calibrage } from "../calibrage.ts";
+import { execFileSync } from "../sans-invite.ts";
 import { lireALaBase } from "../depot.ts";
 import { CHEMIN_DE_LA_FICHE } from "../fiche-projet/defauts.ts";
 import { ficheDuTexte, FicheInvalide } from "../fiche-projet/fiche.ts";
@@ -59,8 +59,9 @@ export type BrancheDuProjet = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// La branche par défaut du dépôt, telle que le clone l'a reçue : `origin/HEAD`,
-// ou la branche que le clone a extraite. Null si le clone n'en dit aucune.
+// La branche par défaut du dépôt, telle que le clone l'a reçue : `origin/HEAD`.
+// Null si le clone n'en dit aucune (sans origine, la branche qu'il a extraite
+// n'est pas celle du dépôt).
 function brancheParDefaut(clone: string, env?: NodeJS.ProcessEnv): string | null {
   const lire = (...args: string[]) => {
     try {
@@ -70,7 +71,7 @@ function brancheParDefaut(clone: string, env?: NodeJS.ProcessEnv): string | null
     }
   };
   const origine = lire("symbolic-ref", "--short", "refs/remotes/origin/HEAD").replace(/^origin\//, "");
-  return origine !== "" ? origine : lire("symbolic-ref", "--short", "HEAD") || null;
+  return origine !== "" ? origine : null;
 }
 
 // La branche d'intégration du projet, toujours tirée du projet et jamais d'une
