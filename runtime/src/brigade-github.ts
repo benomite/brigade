@@ -81,7 +81,7 @@ import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
 import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
 import { avisDuChefALaBase, faitsDuDossier, type FaitsDeLaCuisine } from "./fiche-projet/fiche.ts";
-import { aDesGates, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
+import { aDesGates, gatesManquantes, jouerGates, jouerOutil, jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { gatesQuiNeJugentPas, LABEL_FONDATION } from "./fondation/fondation.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import { lireSecrets } from "./secrets.ts";
@@ -3117,7 +3117,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return { nonJouees: motif };
     };
     if (depot.tete(branche) !== pr.sha) return refus(`the station's clone holds \`${branche}\` at another head than PR #${pr.number}'s \`${pr.sha.slice(0, 7)}\``);
-    if (!aDesGates(worktree)) return refus(`the project has no \`${SCRIPT_GATES}\`: with no CI either, nothing would judge this delivery`);
+    if (!aDesGates(worktree)) return refus(`the project has no \`${gatesManquantes(worktree).join("`, `")}\`, which its sheet names: with no CI either, nothing would judge this delivery`);
     // Des gates qui ne jouent rien — aucune commande de test, ou provisoires tant que la fondation n'est pas servie (#3188).
     const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
     if (vides !== null) return refus(vides);
@@ -3194,7 +3194,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   const verifierLeDejaServi = async (ticket: TicketLu, worktree: string, affirmation: string): Promise<{ servi: DejaServi } | { refus: string }> => {
     const reglage = options.gates;
     if (depot.lancerGit === undefined || reglage === undefined) return { refus: "this station cannot run git or the gates in a cook's worktree" };
-    if (!aDesGates(worktree)) return { refus: `the project has no \`${SCRIPT_GATES}\`: nothing would show the base is green` };
+    if (!aDesGates(worktree)) return { refus: `the project has no \`${gatesManquantes(worktree).join("`, `")}\`, which its sheet names: nothing would show the base is green` };
     const vides = await gatesQuiNeJugentPas(worktree, ticket, lireFondations);
     if (vides !== null) return { refus: vides };
     const secrets = lireSecrets(worktree, reglage.secrets ?? null);
@@ -3937,7 +3937,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
           gates: async (pr) => {
             const { worktree } = await teteExterne(pr, `gates-pr-${pr.number}-github`);
             try {
-              if (!aDesGates(worktree)) return { nonJouees: `the PR's tree has no \`${SCRIPT_GATES}\`` };
+              if (!aDesGates(worktree)) return { nonJouees: `the PR's tree has no \`${gatesManquantes(worktree).join("`, `")}\`, which its sheet names` };
               // Ni les secrets du projet (aucun `lireSecrets`), ni jeton GitHub, ni de Claude.
               const gates = await jouerGates({ worktree, ticket: pr.number, env: sansJeton(), interdites: VARIABLES_GITHUB, delaiMs: reglageDesGates.delaiMs, cloison, signal: abandon.signal });
               if (abandon.signal.aborted) throw new Error("the station stopped during the gates");

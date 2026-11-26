@@ -25,7 +25,7 @@ import { ouvrirDepot, worktreesDuProjet } from "./depot.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
-import { BRANCHE_PRINCIPALE_PAR_DEFAUT as BRANCHE_PAR_DEFAUT } from "./fiche-projet/defauts.ts";
+import { BRANCHE_PRINCIPALE_PAR_DEFAUT } from "./fiche-projet/defauts.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { POSABLES } from "./poser-decisions.ts";
@@ -793,7 +793,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       });
     } else {
       const ligne = bindings.get("Branche d'intégration");
-      const declaree = ligne === undefined ? BRANCHE_PAR_DEFAUT : (/`([^`]+)`/.exec(ligne)?.[1] ?? ligne.trim());
+      const declaree = ligne === undefined ? BRANCHE_PRINCIPALE_PAR_DEFAUT : (/`([^`]+)`/.exec(ligne)?.[1] ?? ligne.trim());
       if (declaree !== base) {
         noter(
           "depot",

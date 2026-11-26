@@ -115,17 +115,19 @@ export type Setup =
   | { pret: true; joue: boolean; env: NodeJS.ProcessEnv; sortie: string; masques: number }
   | { pret: false; depasse: boolean; code: number | null; sortie: string; masques: number };
 
-// Le worktree a les gates que sa fiche nomme. Une fiche invalide les a : c'est
-// en les jouant que la pass dit son refus (`jouerGatesMesurees`).
-export const aDesGates = (worktree: string): boolean => {
-  let scripts: string[];
+// Les gates que la fiche du worktree nomme et qui n'y sont pas. Une fiche
+// invalide n'en a aucune de manquante : c'est en les jouant que la pass dit son
+// refus (`jouerGatesMesurees`).
+export const gatesManquantes = (worktree: string): string[] => {
   try {
-    scripts = gatesDuDossier(worktree);
+    return gatesDuDossier(worktree).filter((script) => !existsSync(join(worktree, script)));
   } catch {
-    return true;
+    return [];
   }
-  return scripts.every((script) => existsSync(join(worktree, script)));
 };
+
+// Le worktree a les gates que sa fiche nomme.
+export const aDesGates = (worktree: string): boolean => gatesManquantes(worktree).length === 0;
 
 // `coupee` : la sortie ne tenait pas dans ce qui en est gardé, son début manque.
 // `retenues` : les lignes de sa sortie standard que `retenir` a reconnues,

@@ -12,7 +12,7 @@ import { consigne } from "../../src/claude.ts";
 import { runRepoSetup } from "../../src/depot-prepare/preparation.ts";
 import { CHEMIN_DE_LA_FICHE, chargerFiche, ecrireFiche, faitsDuDossier, ficheParDefaut } from "../../src/fiche-projet/index.ts";
 import { gatesQuiNeJugentPas } from "../../src/fondation/fondation.ts";
-import { aDesGates, jouerGates } from "../../src/gates.ts";
+import { aDesGates, gatesManquantes, jouerGates } from "../../src/gates.ts";
 import type { ClientGitHub } from "../../src/proteger-branche.ts";
 import { brancheDuProjet } from "../../src/reglages-projet/en-vigueur.ts";
 import { consigneDeRelecture } from "../../src/reviewer.ts";
@@ -74,6 +74,7 @@ test("the pass: the gates are the scripts the sheet names, stage after stage, th
 
   ecrireFiche(worktree, fiche((f) => (f.stages = [{ name: "script", gates: ["ok.sh", "absent.sh"] }])));
   assert.equal(aDesGates(worktree), false, "a script the sheet names is missing");
+  assert.deepEqual(gatesManquantes(worktree), ["absent.sh"], "the refusals name the missing script of the sheet");
 });
 
 test("the pass: a sheet the loader refuses makes the gates red, naming the item, and nothing is played", async (t: TestContext) => {
@@ -256,7 +257,7 @@ const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
 test("the pass: the gates of the sheet get only the time the setup leaves of their cap", { skip: posixOnly("moves the test's clock past what the setup left of a 1 s cap and expects the gates of the sheet stopped as a timeout; on Windows the cap's kill of their process group (a negative pid) fails silently, so the gates run on and come back green") }, async (t: TestContext) => {
   const worktree = repertoireTemporaire(t);
   const temoins = repertoireTemporaire(t);
-  const [parti, libere, lancees, fin] = ["parti", "libere", "lancees", "fin"].map((nom) => join(temoins, nom));
+  const [parti, libere, lancees, fin] = (["parti", "libere", "lancees", "fin"] as const).map((nom) => join(temoins, nom)) as [string, string, string, string];
   mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
   script(worktree, ".claude/brigade/worktree-setup.sh", `touch '${parti}'; until [ -e '${libere}' ]; do sleep 0.01; done`);
   script(worktree, "lent.sh", `touch '${lancees}'; until [ -e '${fin}' ]; do sleep 0.01; done`);
