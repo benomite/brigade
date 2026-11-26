@@ -26,6 +26,7 @@ import { MARQUEUR_MANAGER } from "./juger.ts";
 import { creationsAnnoncees, decoupageDe, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
 import { communsDuRail } from "./projections/rail.ts";
 import { capacitesFournies } from "./projections/stations.ts";
+import { labelAttendu, texteDuCalibrage } from "./temps-attendu/temps-attendu.ts";
 
 // Ce qu'un jugement rend : sa réponse lue, ou ce qui la rend illisible. Null :
 // il n'a pas abouti, et reste à faire.
@@ -146,7 +147,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           "|---|---|---|---|---|",
           ...connu.tickets.map(
             (prevu, i) =>
-              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | \`${prevu.model}\` / \`${prevu.effort}\` |`,
+              `| ${numero(i + 1)} | ${prevu.title.replace(/\|/g, "\\|")} | ${prevu.waitsFor.map(numero).join(", ") || "none"} | ${prevu.zone.map((chemin) => `\`${chemin}\``).join(", ")} | ${texteDuCalibrage(prevu.model, prevu.effort, prevu.expectedMinutes)} |`,
           ),
           ...(joints.length === 0
             ? []
@@ -252,7 +253,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
         } else noter(epic.number, { type: "manager.split-creating", payload: { index: rang } });
         const retrouve = numero !== undefined;
         if (numero === undefined) {
-          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...priorites(epic.labels)];
+          const labels = [`model:${prevu.model}`, `effort:${prevu.effort}`, ...(prevu.expectedMinutes === undefined ? [] : [labelAttendu(prevu.expectedMinutes)]), ...priorites(epic.labels)];
           numero = await github.creerIssue({ titre: prevu.title, corps: corpsDuTicket(epic.number, rang, prevu), labels });
           neuf = true;
           if (arrete()) return false;
