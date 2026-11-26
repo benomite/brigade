@@ -159,7 +159,7 @@ import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
-import { poserLesOutils, tenirLesOutils } from "./outils-requis/outils-requis.js";
+import { aMontrer, oublierLInstallation, poserLesOutils, tenirLesOutils } from "./outils-requis/outils-requis.js";
 import { DEPOT_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserLaCuisineVisitee, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
@@ -8228,12 +8228,23 @@ const outilsDuParcours = tenirLesOutils({
 });
 const outilsDuLogin = tenirLesOutils({ pont: brigade, outils: ["claude"], rendre: () => poserLesOutilsIci() });
 /** @param {ReturnType<typeof tenirLesOutils>} tenus */
-const gestesDesOutils = (tenus) => ({ ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url), verifier: () => void tenus.verifier(true) });
+// `installer` (ticket 4350) : le bouton « install gh » ou « install claude » de l'écran. Claude Code posé, l'avis finit
+// sur « log in », le login de cet ordinateur, puis se ferme.
+const gestesDesOutils = (tenus) => ({
+  ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url),
+  verifier: () => void tenus.verifier(true),
+  installer: () => void tenus.installer(),
+  seConnecterAClaude: () => {
+    oublierLInstallation(tenus.etat);
+    poserLesOutilsIci();
+    void seConnecterAClaude();
+  },
+});
 let avisDesOutils = false;
 function poserLesOutilsIci() {
   const surLePremier = ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous && !tous.hidden;
   if (surLePremier) poserLePremier();
-  const tenus = [...(surLePremier ? [] : [outilsDuParcours]), outilsDuLogin].find(({ etat }) => etat.manque !== undefined);
+  const tenus = [...(surLePremier ? [] : [outilsDuParcours]), outilsDuLogin].find(({ etat }) => aMontrer(etat));
   if (tenus === undefined) {
     if (avisDesOutils) avis.hidden = true;
     avisDesOutils = false;
@@ -8241,6 +8252,7 @@ function poserLesOutilsIci() {
   }
   avisDesOutils = true;
   avis.replaceChildren(...poserLesOutils(document, tenus.etat, gestesDesOutils(tenus)), bouton("close", () => {
+      oublierLInstallation(tenus.etat);
       avis.hidden = true;
       avisDesOutils = false;
     }, "discret"));
