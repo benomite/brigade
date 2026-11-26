@@ -16,6 +16,19 @@ The last line before the follow, `todo`, counts the cards that entered TODO over
 kind (`product`, `design`): `-- --days <N>` sets it, 7 by default. A card refused at the door
 (`todo.refused`), or entered before the two kinds, counts nowhere.
 
+The `on time` line (#4308, `runtime/src/delais/`) gives, for the tickets merged in the last 24 h,
+the share merged within the expected time of their label `attendu:<minutes>`, with the counts
+(`83 % (20/24) …`), from the claim (`Taken by station`) to the merge. A ticket merged without that
+label counts apart (`· N without an expected time`), never on time or late; with no merged ticket:
+`no merged ticket in the last 24 h`. Under it, one `overrun` line per ticket over its expected
+time, the worst first, 5 at most: number, title, expected and actual minutes, calibration, and
+where the time went — `cook` (cooks, failed ones included), `gates` (CI included), `review`,
+`send-backs`, `waits` (the rest), the same split as the slow-ticket comment of #4299: the phases of
+the ticket's record, cut at the claim and the merge. It reads the clone's
+`.claude/brigade/temps-tickets.json` and `.claude/brigade/delais-tickets.json` (title and
+labels, written by the station at the merge); a ticket merged before that file has no expected
+time. `-- --json` prints only `{ "delais": … }`, the same figures (`null` when a file does not read).
+
 | Block | What it says |
 |---|---|
 | `nothing cooks` | **Very first line, absent otherwise.** The base is red and its repair ticket is working on it: `nothing cooks: base red since <duration> ago, repair #N in progress`. **Outside the `awaiting` block**: nothing waits for the chef during the repair. It disappears on return to green; a failed repair no longer carries it (the `base` line of `awaiting` replaces it). The app sets it on the project's tile |
