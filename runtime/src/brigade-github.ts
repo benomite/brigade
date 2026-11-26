@@ -3260,24 +3260,23 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       return null;
     }
     const echec = `its gates are red, so its delivery was not pushed: ${resume}`;
-    // Rouges sous la charge de la machine, elles ne disent rien du code (#4211) : aucun essai raté, la ligne
-    // qui le dit avec la charge, et le ticket rendu au rail ; sa livraison, gardée non poussée et non marquée
-    // sauvée, voit ses gates rejouées à sa reprise, sans cook, quand la machine est calme. Rouges pour le code, comme avant.
-    // Ce qu'elles ont dit — les tests rouges par leur nom, la fin de leur sortie —, et pas seulement leur première ligne :
-    // sans eux, ni le cook suivant ni le manager ne savent quoi corriger (#4113).
-    let retenue: { echec: string; detail: string } | { subi: string; charge: boolean } = { echec, detail };
-    let ligne = "";
+    // Rouges sous la charge de la machine, elles ne disent rien du code (#4211) : aucun essai raté, et la
+    // livraison part quand même (#4366) — la CI de la PR rejoue tout sur des machines calmes et juge avant le
+    // merge (#4141). Attendre que la machine se calme coûtait 30 min et plus par ticket pour un rouge sans objet.
+    // Rouges pour le code, comme avant : les tests rouges par leur nom et la fin de leur sortie (#4113).
+    let sousCharge = false;
     await enregistrerGatesRouges({
       ticket: ticket.number,
       gates,
       lireCharge,
       // L'essai raté se compte au retour du cook, sur `echec`, comme avant.
       essais: { ajouter: () => void (arbre !== null && arbresRouges.set(ticket.number, { arbre, echec, detail })) },
-      // La ligne part au journal de la station et sur l'issue par l'arrêt subi, une fois.
-      journal: { ecrire: (dite) => void (ligne = dite) },
-      rail: { remettre: () => void (retenue = { subi: ligne, charge: true }) },
+      journal: { ecrire: () => undefined },
+      rail: { remettre: () => void (sousCharge = true) },
     });
-    return retenue;
+    if (!sousCharge) return { echec, detail };
+    avertir(`brigade : #${ticket.number} — its gates are red under machine load, not because of its code: its delivery is pushed and the CI of its PR judges it (#4366)`);
+    return null;
   };
   const cuisinerLeTicket: Cuisiner = async (ticket, calibrage) => {
     const run = runDuTicket(ticket.number);
