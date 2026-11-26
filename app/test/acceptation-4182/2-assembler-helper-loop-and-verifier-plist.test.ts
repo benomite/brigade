@@ -21,7 +21,7 @@ const AUXILIAIRES: Record<string, Record<string, string>> = {
   "Electron Helper (Plugin)": {},
 };
 
-test("assembler then the plist check leave every helper folder and executable named Electron Helper", (t) => {
+test("assembler then the plist check rename every helper folder and executable to Brigade Helper", (t) => {
   const racine = mkdtempSync(join(tmpdir(), "brigade-4182-"));
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   const contenu = join(racine, "Electron.app", "Contents");
@@ -46,6 +46,6 @@ test("assembler then the plist check leave every helper folder and executable na
 
   assert.deepEqual(defautsDeNom(paquet), []);
   const frameworks = join(paquet, "Contents", "Frameworks");
-  assert.deepEqual(readdirSync(frameworks).sort(), Object.keys(AUXILIAIRES).map((n) => `${n}.app`).sort());
-  for (const nom of Object.keys(AUXILIAIRES)) assert.deepEqual(readdirSync(join(frameworks, `${nom}.app`, "Contents", "MacOS")), [nom]);
+  assert.deepEqual(readdirSync(frameworks).sort(), Object.keys(AUXILIAIRES).map((n) => `${n.replace(/^Electron/, "Brigade")}.app`).sort());
+  for (const nom of Object.keys(AUXILIAIRES).map((n) => n.replace(/^Electron/, "Brigade"))) assert.deepEqual(readdirSync(join(frameworks, `${nom}.app`, "Contents", "MacOS")), [nom]);
 });
