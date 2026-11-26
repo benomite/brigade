@@ -369,8 +369,8 @@ adds or changes ("Mutations caught", [`pass.md`](pass.md)) — each by the first
 removed unary `!` it finds outside the line's strings and comments — and replays the tests the
 delivery adds against each mutant: a mutation that survives sends the delivery back naming its line,
 whatever the review says. Before committing, the cook does it itself: on each line of code its diff
-adds or changes that carries one of these mutations, it applies it by hand, plays its added tests and
-the frozen tests, sees one of them fail, and puts the line back. A surviving mutation calls for a test
+adds or changes that carries one of these mutations, it applies it by hand, plays its added tests,
+sees one of them fail, and puts the line back. A surviving mutation calls for a test
 case that tells the line from its mutant, or for removing a line nothing asks for. Blocking review was
 still the first send-back reason after the mutations came to the pass (#3880: 33 over 20 merged
 tickets), and 24 of those 33 were a surviving mutation, which the cook's instructions did not name.

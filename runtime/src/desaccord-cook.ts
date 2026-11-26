@@ -19,7 +19,7 @@ const MARQUE_DE_REPONSE = /^<!-- brigade:reponse-cook sha=([0-9a-f]+) -->/;
 // Un commentaire de la PR, dans l'ordre où GitHub les rend.
 type CommentaireLu = { body: string; association: string; createdAt: string };
 
-// Ce que le brief d'un cook renvoyé lui dit du désaccord. Le rejeu des tests ajoutés ne lit aucune réponse (#3694), mais le marqueur de garde (#3852) ; un test gelé n'y est jamais renvoyé (#3921).
+// Ce que le brief d'un cook renvoyé lui dit du désaccord. Le rejeu des tests ajoutés ne lit aucune réponse (#3694), mais le marqueur de garde (#3852) ; un test marqué garde reste vert des deux côtés.
 export function consigneDuDesaccord(pr: number): string {
   const [ouvre, ferme] = [`<${BALISE_DE_REPONSE}>`, `</${BALISE_DE_REPONSE}>`];
   return [

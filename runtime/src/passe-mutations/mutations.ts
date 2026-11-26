@@ -142,17 +142,17 @@ function mutantsDuDiff(diff: string, lire: (fichier: string) => string | null): 
   return mutants;
 }
 
-// Les tests gelés : ceux que la livraison ajoute et qui passent sur sa branche.
-const testsGeles = (preuve: Preuve): Unite[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.branche).map(({ fichier, nom }) => ({ fichier, nom })) : []);
+// Les tests ajoutés : ceux que la livraison ajoute et qui passent sur sa branche.
+const testsAjoutes = (preuve: Preuve): Unite[] => ("rejeux" in preuve ? preuve.rejeux.filter((rejeu) => rejeu.branche).map(({ fichier, nom }) => ({ fichier, nom })) : []);
 
 const cle = ({ fichier, nom }: Unite) => `${fichier}\0${nom ?? ""}`;
 
-// Un mutant joué : les tests gelés qui l'ont tué (vide : il a survécu), ou
+// Un mutant joué : les tests ajoutés qui l'ont tué (vide : il a survécu), ou
 // null s'il n'a pas été joué avant la fin du budget.
 type MutantJoue = Mutant & { tuePar: string[] | null };
 
 // Ce que l'étape a établi. `aucunMutant` : la livraison ne change aucune ligne
-// de code qui se mute. `sansTest` : il y a des mutants, mais aucun test gelé
+// de code qui se mute. `sansTest` : il y a des mutants, mais aucun test ajouté
 // contre qui les jouer. `injouable` : les mutants n'ont pas pu être joués, et
 // pourquoi. `budgetMs` et `depasse` : le budget, et s'il a manqué.
 export type Mutations =
@@ -178,16 +178,16 @@ type OutilsDesMutations = {
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const lireSiPresent = (chemin: string) => (existsSync(chemin) ? readFileSync(chemin, "utf8") : null);
 
-// Mute les lignes que la livraison change et joue ses tests gelés contre
+// Mute les lignes que la livraison change et joue ses tests ajoutés contre
 // chaque mutant, en parallèle, dans le budget.
 export async function muter(preuve: Preuve, outils: OutilsDesMutations): Promise<Mutations> {
   const mutants = mutantsDuDiff(outils.diff, (fichier) => lireSiPresent(join(outils.branche, fichier)));
   if (mutants.length === 0) return { aucunMutant: true };
-  const geles = testsGeles(preuve);
-  if (geles.length === 0) return { sansTest: mutants.length };
-  // Les fichiers de test à jouer, chacun réduit à ses tests gelés.
+  const ajoutes = testsAjoutes(preuve);
+  if (ajoutes.length === 0) return { sansTest: mutants.length };
+  // Les fichiers de test à jouer, chacun réduit à ses tests ajoutés.
   const parFichier = new Map<string, Unite[]>();
-  for (const unite of geles) parFichier.set(unite.fichier, [...(parFichier.get(unite.fichier) ?? []), unite]);
+  for (const unite of ajoutes) parFichier.set(unite.fichier, [...(parFichier.get(unite.fichier) ?? []), unite]);
   const aJouer = [...parFichier].map(([fichier, unites]) => ({ fichier, neuf: unites.some(({ nom }) => nom === null), unites }));
 
   const joues: MutantJoue[] = mutants.map((mutant) => ({ ...mutant, tuePar: null }));
@@ -250,7 +250,7 @@ export async function muter(preuve: Preuve, outils: OutilsDesMutations): Promise
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n === 1 ? "" : "s"}`;
 const REGLE_DES_MUTATIONS = "Mutation check";
 
-// Les mutants joués, et ceux qui ont survécu à tous les tests gelés.
+// Les mutants joués, et ceux qui ont survécu à tous les tests ajoutés.
 const joues = (mutations: Mutations): MutantJoue[] => ("mutants" in mutations ? mutations.mutants.filter(({ tuePar }) => tuePar !== null) : []);
 const survivants = (mutations: Mutations): MutantJoue[] => joues(mutations).filter(({ tuePar }) => tuePar!.length === 0);
 
