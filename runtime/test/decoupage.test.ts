@@ -94,7 +94,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
   // `fire` la fin du tour du manager — 40 min comptées dans son attente d'une prise.
   test("un ticket déposé pendant le découpage d'une épique est jugé et lancé sans attendre la fin du découpage (#3156)", async (t) => {
     const feu = join(repertoireTemporaire(t), "feu");
-    const c = brigade(t, { manager: { suite: ["decoupe-tickets-lent"], jugement: "juge-ticket" }, env: { FAUX_CLAUDE_FEU: feu }, issues: [issue(30, ["epic", "prio:1"])] });
+    const c = brigade(t, { manager: { suite: ["decoupe-tickets-lent"], jugement: "juge-ticket" }, env: { FAUX_CLAUDE_FEU: feu, FAUX_CLAUDE_FEU_DELAI: "1200" }, issues: [issue(30, ["epic", "prio:1"])] });
     epique(c);
     await jusqua(() => c.jugements().length === 1);
 

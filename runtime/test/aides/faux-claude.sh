@@ -175,12 +175,13 @@ session() {
 # cook derrière elle.
 rester() { exec sleep 30; }
 
-# Attendre que le test pose le fichier $1. Cinq minutes au plus, la garde d'un test sous Windows :
+# Attendre que le test pose le fichier $1. Cinq minutes au plus (FAUX_CLAUDE_FEU_DELAI, en secondes,
+# pour un test qui attend plus longtemps — sous Windows ses délais sont multipliés), la garde d'un test sous Windows :
 # là, tuer le cook ne tue pas ses enfants, et une boucle sans borne d'un test raté y lançait un
 # `sleep` toutes les 20 ms jusqu'à la fin de la part (#2080).
 attendre_le_feu() {
   until [ -e "$1" ]; do
-    [ "$SECONDS" -lt 300 ] || exit 1
+    [ "$SECONDS" -lt "${FAUX_CLAUDE_FEU_DELAI:-300}" ] || exit 1
     sleep 0.02
   done
 }
