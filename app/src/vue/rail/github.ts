@@ -19,7 +19,6 @@ import { attenteDeLIssue, type AttenteGitHub } from "../../../../runtime/src/att
 import { attentesDuTicket } from "../../../../runtime/src/carte-attente/carte-attente.ts";
 import { etatDuTicket, LABELS_D_AVANT_PARKED_SANS_CARTE, type EtatDeLaBase, type IssueLue } from "../../../../runtime/src/github-etat/etats.ts";
 import { alertesDuRail, type AlerteDuRail, type BaseRougeLue, type RelanceLue } from "../../attente-du-rail/alertes.ts";
-import { etapeDuRail } from "../../../../runtime/src/tests-acceptation/etape.ts";
 import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
 import type { Cook } from "../../faits.ts";
 import type { AppelGitHub } from "../../tableau/client.ts";
@@ -41,6 +40,8 @@ import type { HautDuBacklogDesFaits } from "./rail.ts";
 
 const LABEL_FIRE = "fire";
 const MOT_EN_FILE = "en attente";
+// Le label que portent encore les tickets passés par l'étape retirée (ticket 4229) : ils se lisent toujours.
+const LABEL_TESTS_ECRITS = "tests-written";
 // Le mot d'un ticket en file dont les tests d'acceptation sont écrits et gelés : l'étape `tests written` du rail, entre
 // `queued` et `taken` (ticket 3725, label `tests-written`).
 const MOT_TESTS_ECRITS = "tests écrits";
@@ -278,7 +279,7 @@ export async function lireLeRailSurGithub(options: { depot: string; appeler: App
     // Gelé, la zone que sa PR ouverte tient (ticket 3924), des commentaires déjà lus : aucune lecture de plus.
     if (miseDeCote) miseDeCote.zoneTenue = zoneTenueDe(deLaMiseDeCote ?? [], pr, misDeCoteLe);
     const dit = etatDuTicket(issueLue, base);
-    const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : etapeDuRail(labels) === "tests written" ? MOT_TESTS_ECRITS : MOT_EN_FILE;
+    const etat = miseDeCote !== undefined ? MOT_MIS_DE_COTE : dit !== null ? MOT_DE_L_ETAT[dit] : labels.includes(LABEL_TESTS_ECRITS) ? MOT_TESTS_ECRITS : MOT_EN_FILE;
     const deLaPrise = TENUS.has(etat) ? liste(await lire(`/repos/${depot}/issues/${numero}/comments?per_page=100`)) : undefined;
     // Pris, le label dit que le ticket est tenu : un retrait `unlabeled taken` déjà lu dont le label est encore là (la lecture
     // tombe dans la seconde du passage en pass) ne lui ôte pas sa station, et ses événements ne se lisent pas.
