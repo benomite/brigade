@@ -64,6 +64,7 @@ const LIGNES_DE_FIN = 40;
 // consigne d'un renvoi : borné.
 const ECHECS_MAX = 20;
 const LIGNE_MAX = 300;
+const LIGNES_PAR_ECHEC = 10;
 const SORTIE_MAX = 256 * 1024;
 // Une mesure déclarée par les gates : `MESURE  <nom>=<nombre>`, seule sur sa
 // ligne. Le nombre s'écrit avec un point ou une virgule.
@@ -295,6 +296,14 @@ export async function jouerGatesMesurees(demande: DemandeScript): Promise<{ gate
   // Seule la ligne qui nomme le plafond reconnu n'est pas un échec : une autre,
   // qui en nomme un autre, n'a pas sa mesure.
   const echecs = lignes.filter((ligne) => /^FAIL\b/.test(ligne) && !(franchi && plafondDeLaLigne(ligne).includes(franchi.limitSeconds)));
+  // Les lignes d'erreur de chaque échec : celles d'avant sa ligne `FAIL`, depuis la `FAIL` précédente, sans les `ok` (#4218).
+  let depuis = 0;
+  const lignesDesEchecs = lignes.flatMap((ligne, rang) => {
+    if (!/^FAIL\b/.test(ligne)) return [];
+    const propres = lignes.slice(depuis, rang).filter((l) => !/^\s*ok\b/i.test(l)).slice(-LIGNES_PAR_ECHEC);
+    depuis = rang + 1;
+    return echecs.includes(ligne) ? [propres.map((l) => l.slice(0, LIGNE_MAX))] : [];
+  });
   // Coupées par leur garde d'horloge, et rien d'autre : aucune autre ligne
   // FAIL. Une sortie dont le début manque peut en avoir perdu une.
   const coupees = rouges && passage.code !== null && !passage.coupee ? echecs.filter((ligne) => COUPEE_SANS_ECHEC.test(ligne)) : [];
@@ -306,6 +315,7 @@ export async function jouerGatesMesurees(demande: DemandeScript): Promise<{ gate
     outcome: passage.depasse ? "timeout" : !rouges || (franchi && echecs.length === 0) ? "green" : "red",
     code: passage.code,
     failures: echecs.slice(0, ECHECS_MAX).map((ligne) => ligne.slice(0, LIGNE_MAX)),
+    ...(lignesDesEchecs.some((propres) => propres.length > 0) ? { failureLines: lignesDesEchecs.slice(0, ECHECS_MAX) } : {}),
     tail: lignes.slice(-LIGNES_DE_FIN).join("\n").slice(-FIN_MAX),
     ...(franchi ? { overCeiling: franchi } : {}),
     ...(coupee === undefined ? {} : { clockGuardCut: coupee.slice(0, LIGNE_MAX) }),

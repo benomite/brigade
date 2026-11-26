@@ -22,9 +22,9 @@ test("when a gate is red, the message to the cook names the failed gate and give
   writeFileSync(join(racine, ".claude/brigade/gates.sh"), `${script}\n`);
   chmodSync(join(racine, ".claude/brigade/gates.sh"), 0o755);
 
-  const gates = await jouerGates({ worktree: racine, ticket: 4218, env: ENV_ENFANT, delaiMs: 60_000 });
+  const gates = await jouerGates({ worktree: racine, ticket: 4218, env: ENV_ENFANT, delaiMs: 2_000 });
   assert.equal(gates.outcome, "red");
-  const verdict = verdictDesGates(gates, 60_000);
+  const verdict = verdictDesGates(gates, 2_000);
   const message = `${verdict.resume}\n${verdict.detail}`;
 
   assert.match(message, /type check of the card is red/, "the message names the failed gate");

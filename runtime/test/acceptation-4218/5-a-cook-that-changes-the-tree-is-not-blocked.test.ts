@@ -23,7 +23,7 @@ test("a cook that changes the tree after red gates is not blocked: the gates run
         // Rouges jusqu'au bout, sous beaucoup de sortie ; ce qu'elles disent change avec l'arbre.
         writeFileSync(
           join(cwd, ".claude/brigade/gates.sh"),
-          `#!/usr/bin/env bash\necho gates >> '${trace}'\nif [ -f "$1/second.txt" ]; then echo "  ✖ the card is not shown (second tree)" >&2; else echo "  ✖ the button is not shown (first tree)" >&2; fi\necho "FAIL  card tests are red" >&2\nfor i in $(seq 1 400); do echo "ok    later gate $i"; done\nexit 1\n`,
+          `#!/usr/bin/env bash\necho gates >> '${trace}'\nif [ -f second.txt ]; then echo "  ✖ the card is not shown (second tree)" >&2; else echo "  ✖ the button is not shown (first tree)" >&2; fi\necho "FAIL  card tests are red" >&2\nfor i in $(seq 1 400); do echo "ok    later gate $i"; done\nexit 1\n`,
         );
         chmodSync(join(cwd, ".claude/brigade/gates.sh"), 0o755);
         writeFileSync(join(cwd, "bouton.ts"), "export const bouton = 1;\n");

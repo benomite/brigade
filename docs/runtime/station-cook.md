@@ -161,8 +161,8 @@ series. **The worktree goes away at the end of the cook.**
 `.claude/brigade/gates.sh` in the cook's worktree before the push; red, nothing is pushed: the try fails
 with the gates' first red line (`its gates are red, so its delivery was not pushed: …`), the branch is
 marked as saved work (`brigade: work in progress kept for the next cook (#2586)`), and the
-next cook starts from it. A next cook that delivers the same tree, changed in nothing, gets the same red
-without the gates being played again. **Red gates on a loaded machine are not the code's** (#4211):
+next cook starts from it. A next cook that delivers the same tree, changed in nothing, has nothing new to deliver (#4218): it is not a new try, the gates are not played again, and the ticket stops with a comment that says so, with the red the gates gave. The comment names each failed gate with its own error lines.
+**Red gates on a loaded machine are not the code's** (#4211):
 when the machine's one-minute load is above the station's CPU threshold (`BRIGADE_MAX_LOAD_PER_CORE`
 times its cores) at the end of the gates — a cut by their clock guard included —, no failed try is
 counted. The station's log and the issue get one line that names the load (`its gates are red because

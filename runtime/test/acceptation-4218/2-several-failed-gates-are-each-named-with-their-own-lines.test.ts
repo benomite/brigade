@@ -24,9 +24,9 @@ test("when several gates fail, the message names each failed gate with its own e
   writeFileSync(join(racine, ".claude/brigade/gates.sh"), `${script}\n`);
   chmodSync(join(racine, ".claude/brigade/gates.sh"), 0o755);
 
-  const gates = await jouerGates({ worktree: racine, ticket: 4218, env: ENV_ENFANT, delaiMs: 60_000 });
+  const gates = await jouerGates({ worktree: racine, ticket: 4218, env: ENV_ENFANT, delaiMs: 2_000 });
   assert.equal(gates.outcome, "red");
-  const verdict = verdictDesGates(gates, 60_000);
+  const verdict = verdictDesGates(gates, 2_000);
   const message = `${verdict.resume}\n${verdict.detail}`;
 
   for (const attendu of [
@@ -36,9 +36,11 @@ test("when several gates fail, the message names each failed gate with its own e
     /✖ the button is shown on the card/,
     /✖ the card keeps its title on reload/,
   ]) assert.match(message, attendu);
-  // Chaque gate vient avant ses lignes propres et après celles de l'autre : rien n'est mélangé.
+  // Chaque gate vient avec ses seules lignes : son nom, ses lignes, puis la gate suivante.
   const place = (motif: RegExp) => message.search(motif);
-  const premiere = Math.max(place(/type check of the card is red/), place(/src\/card\.ts:12:5/));
-  const seconde = Math.min(place(/tests of the card are red/), place(/✖ the button is shown/));
-  assert.ok(premiere < seconde || place(/type check of the card is red/) > place(/✖ the card keeps its title/), "each gate's lines stay grouped with its name");
+  const premiere = place(/FAIL {2}type check of the card is red/);
+  const seconde = place(/FAIL {2}tests of the card are red/);
+  assert.ok(premiere < seconde, "the gates come in order");
+  assert.ok(place(/src\/card\.ts:12:5/) > premiere && place(/src\/card\.ts:12:5/) < seconde, "the first gate's lines sit between its name and the second gate");
+  for (const propre of [/✖ the button is shown/, /✖ the card keeps its title/]) assert.ok(place(propre) > seconde, "the second gate's lines come after its name");
 });
