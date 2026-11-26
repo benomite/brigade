@@ -588,8 +588,11 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
 
     assert.match(c.liste(30), /\*\*0\/4 served\.\*\*/);
     assert.doesNotMatch(c.liste(30), /#41/);
-    // Neuve, elle est jugée avant le suivi de l'épique, qui l'adopte ensuite (#3422).
-    assert.deepEqual(c.faits(40).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented", "manager.split-adopted"]);
+    // Neuve, elle est jugée avant le suivi de l'épique, qui l'adopte ensuite (#3422). Sa question au chef la parque au
+    // tour suivant, que le runtime écrit avant ou après le second commentaire : le test l'attend.
+    await jusqua(() => c.faits(40).some((e) => e.type === "manager.set-aside"));
+    assert.deepEqual(c.faits(40).map((e) => e.type), ["manager.judged", "manager.completed", "manager.completed", "manager.commented", "manager.split-adopted", "manager.set-aside"]);
+    assert.deepEqual(c.faits(40).filter((e) => e.type === "manager.set-aside").map((e) => (e.payload as { reason?: unknown }).reason), ["parked"]);
     assert.deepEqual(ticketsDEpique(c.journal.base, 30).map((ticket) => [ticket.ticket, ticket.index]), [[501, 1], [502, 2], [503, 3], [40, null]]);
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
 
