@@ -4,10 +4,10 @@
 import { DE_CONFIANCE, LABEL_PARKED } from "../attente-github/marque.ts";
 import { estParque } from "../github-etat/etats.ts";
 import { poserCarte, type GitHubDesCartes } from "../github-seul/carte-todo/carte-todo.ts";
-import { calibre, reparerLesLimbes, type TicketDesLimbes } from "./reparer.ts";
+import { isCalibrated, reparerLesLimbes, type LimboTicket } from "./reparer.ts";
 
 // Ce que la réparation demande au client GitHub de la station.
-export type GitHubDesLimbesDuTour = GitHubDesCartes;
+export type LimboTurnGitHub = GitHubDesCartes;
 
 // La ligne d'une réponse sur la carte, dans la forme que l'app lit (manager.ts, `lignesDeLaCarte`).
 const ligneDeReponse = (reponse: string) => `- [${/^close it\b/i.test(reponse) ? "close" : /^wait for\b/i.test(reponse) ? "wait" : "resume"}] ${reponse}`;
@@ -17,13 +17,13 @@ const ligneDeReponse = (reponse: string) => `- [${/^close it\b/i.test(reponse) ?
  * ni parqués, ni carte (`chef-todo`), ni `decision` — se relisent : leurs commentaires d'un auteur du dépôt, qui seuls
  * font foi. La carte est une carte `product-question` (`poserCarte`) ; l'attente, le label `parked` et son commentaire.
  */
-export async function reparerLesLimbesSurGitHub(github: GitHubDesLimbesDuTour, tickets: readonly { number: number; state: string; labels: string[] }[], maintenant?: () => Date): Promise<void> {
-  const candidats = tickets.filter((t) => t.state === "open" && !calibre(t.labels) && !estParque(t.labels));
+export async function repairLimboOnGitHub(github: LimboTurnGitHub, tickets: readonly { number: number; state: string; labels: string[] }[], maintenant?: () => Date): Promise<void> {
+  const candidats = tickets.filter((t) => t.state === "open" && !isCalibrated(t.labels) && !estParque(t.labels));
   if (candidats.length === 0) return;
   await reparerLesLimbes({
     github: {
       listerTickets: async () => {
-        const lus: TicketDesLimbes[] = [];
+        const lus: LimboTicket[] = [];
         for (const t of candidats) {
           const commentaires = (await github.commentaires(t.number)).filter(({ association }) => DE_CONFIANCE.includes(association));
           lus.push({ numero: t.number, etat: "open", etiquettes: [...t.labels], commentaires: commentaires.map(({ body }) => ({ corps: body })) });

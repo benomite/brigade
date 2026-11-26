@@ -2,7 +2,7 @@
 // un verdict qui remplace le précédent, et ce qui échoue.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { reparerLesLimbes, type TicketDesLimbes } from "../../src/limbo/reparer.ts";
+import { reparerLesLimbes, type LimboTicket } from "../../src/limbo/reparer.ts";
 
 const M = "<!-- brigade:manager -->";
 // Le refus d'une issue de décision, tel que le manager l'écrit (manager.ts, `dire`).
@@ -26,7 +26,7 @@ const REFUS_DECISION = [
 const SUR_LE_RAIL = `${M}\n**Manager — ticket put on the rail.** Set: \`model:opus\`, \`effort:medium\`.`;
 const ATTENTE = `${M}\nJudgment: on hold\nReason: waits for the client DNS records\n`;
 
-function faux(tickets: TicketDesLimbes[], casse: { commenter?: boolean } = {}) {
+function faux(tickets: LimboTicket[], casse: { commenter?: boolean } = {}) {
   const cartes: { numero: number; question: string; choix: string[] }[] = [];
   const ecrits: string[] = [];
   const github = {

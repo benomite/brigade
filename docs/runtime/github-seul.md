@@ -184,7 +184,7 @@ base, the stale-branch pruning).
   yet (`<!-- brigade:reponse`), its `product-question` card comes back with the judgment's question and answers. Judged
   on hold, with `fire`, it is parked (`parked`, and the parking comment with the manager's reason). Each repair is said
   in a comment marked `<!-- brigade:limbo -->`. A repaired ticket carries its card or its hold, so the next turn writes
-  nothing (`runtime/src/limbo/reparer.ts`, `runtime/src/limbo/sur-github.ts`).
+  nothing (`runtime/src/limbo/reparer.ts`, `runtime/src/limbo/on-github.ts`).
 - **No step writes acceptance tests before the cook** (#4229, epic #4132). The cook writes its tests with its work, in the
   same pull request, and the review judges them (`agents/cook.md`). Nothing freezes a test: a cook may change any test
   file of its own branch. The app's rail still reads the `tests-written` label of a ticket that went through the former

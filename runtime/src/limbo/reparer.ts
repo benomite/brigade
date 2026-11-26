@@ -9,7 +9,7 @@
 // geste se dit sur le ticket (`<!-- brigade:limbo -->`). La réparation est idempotente : un ticket réparé a sa carte ou
 // son attente, et le tour suivant ne le voit plus en limbes.
 //
-// `reparerLesLimbes` ne lit et n'écrit que par ce qu'on lui donne ; `reparerLesLimbesSurGitHub` (sur-github.ts) le
+// `reparerLesLimbes` ne lit et n'écrit que par ce qu'on lui donne ; `repairLimboOnGitHub` (on-github.ts) le
 // branche sur le client GitHub de la station et les cartes `chef-todo`, et la guérison de chaque tour le joue
 // (guerison/index.ts).
 import { corpsDuParking } from "../attente-github/marque.ts";
@@ -18,22 +18,22 @@ import { estParque } from "../github-etat/etats.ts";
 import { MARQUEUR_MANAGER } from "../juger.ts";
 
 // Ce que la réparation lit d'un ticket : ses labels et ses commentaires, du plus ancien au plus récent.
-export type TicketDesLimbes = { numero: number; etat: "open" | "closed"; etiquettes: string[]; commentaires: { corps: string }[] };
+export type LimboTicket = { numero: number; etat: "open" | "closed"; etiquettes: string[]; commentaires: { corps: string }[] };
 
-export type GitHubDesLimbes = {
-  listerTickets(): Promise<TicketDesLimbes[]>;
+export type LimboGitHub = {
+  listerTickets(): Promise<LimboTicket[]>;
   ajouterEtiquette(numero: number, nom: string): Promise<void>;
   retirerEtiquette(numero: number, nom: string): Promise<void>;
   commenter(numero: number, corps: string): Promise<void>;
 };
 
 // Une carte de TODO : la question posée au chef, et les réponses qu'il clique.
-export type CarteDesLimbes = { numero: number; question: string; choix: string[] };
-export type CartesDesLimbes = { lister(): Promise<CarteDesLimbes[]>; poser(carte: CarteDesLimbes): Promise<void> };
+export type LimboCard = { numero: number; question: string; choix: string[] };
+export type LimboCards = { lister(): Promise<LimboCard[]>; poser(carte: LimboCard): Promise<void> };
 
-export type OptionsDesLimbes = {
-  github: GitHubDesLimbes;
-  cartes: CartesDesLimbes;
+export type LimboOptions = {
+  github: LimboGitHub;
+  cartes: LimboCards;
   // Le label qui parque. `waiting` par défaut, le label d'attente que le contrat du ticket nomme, et qui se lit
   // toujours comme parqué (github-etat/etats.ts) ; sur GitHub, la station pose `parked`.
   labelDAttente?: string;
@@ -46,7 +46,7 @@ type Jugement =
   | { quoi: "attente"; raison: string; qui: string | null }
   | { quoi: "autre" };
 
-export const MARQUE_DES_LIMBES = "<!-- brigade:limbo -->";
+export const LIMBO_MARK = "<!-- brigade:limbo -->";
 const MARQUE_DE_REPONSE = /^\s*<!--\s*brigade:reponse\b/;
 
 // Les deux formes d'un jugement : celle du contrat (`Judgment: decision` / `Answers:`, `Judgment: on hold` /
@@ -95,11 +95,11 @@ function dernierJugement(commentaires: readonly { corps: string }[]): { jugement
   return null;
 }
 
-export const calibre = (etiquettes: readonly string[]) => etiquettes.some((e) => e.startsWith("model:")) && etiquettes.some((e) => e.startsWith("effort:"));
+export const isCalibrated = (etiquettes: readonly string[]) => etiquettes.some((e) => e.startsWith("model:")) && etiquettes.some((e) => e.startsWith("effort:"));
 
 // Ce que la réparation fait d'un ticket, ou null s'il n'est pas en limbes.
-function geste(ticket: TicketDesLimbes, carte: boolean, labelDAttente: string): Exclude<Jugement, { quoi: "autre" }> | null {
-  if (ticket.etat !== "open" || calibre(ticket.etiquettes) || carte) return null;
+function geste(ticket: LimboTicket, carte: boolean, labelDAttente: string): Exclude<Jugement, { quoi: "autre" }> | null {
+  if (ticket.etat !== "open" || isCalibrated(ticket.etiquettes) || carte) return null;
   if (ticket.etiquettes.includes("decision") || ticket.etiquettes.includes(labelDAttente) || estParque(ticket.etiquettes)) return null;
   const dernier = dernierJugement(ticket.commentaires);
   if (dernier === null || dernier.repondu || dernier.jugement.quoi === "autre") return null;
@@ -114,7 +114,7 @@ const questionDeLaCarte = (numero: number, question: string | null) => question 
  * Répare chaque ticket en limbes. Un ticket qui échoue ne retient pas les autres : la réparation va jusqu'au bout, puis
  * lève une erreur qui les nomme, et le tour suivant les reprend. Une liste ou des cartes illisibles ne réparent rien.
  */
-export async function reparerLesLimbes(options: OptionsDesLimbes): Promise<void> {
+export async function reparerLesLimbes(options: LimboOptions): Promise<void> {
   const { github, cartes } = options;
   const labelDAttente = options.labelDAttente ?? "waiting";
   const maintenant = options.maintenant ?? (() => new Date());
@@ -131,7 +131,7 @@ export async function reparerLesLimbes(options: OptionsDesLimbes): Promise<void>
         await github.commenter(
           ticket.numero,
           [
-            MARQUE_DES_LIMBES,
+            LIMBO_MARK,
             `**Kitchen — the manager's decision is back in the chef's TODO.** The manager judged this issue a decision for the chef, and nothing showed it any more: no open decision, no calibration, no hold. Its card is posed again, with the manager's answers:`,
             "",
             question,
@@ -144,7 +144,7 @@ export async function reparerLesLimbes(options: OptionsDesLimbes): Promise<void>
         try {
           await github.commenter(
             ticket.numero,
-            [corpsDuParking(attente), "", MARQUE_DES_LIMBES, `**Kitchen — put on hold, as the manager judged.** \`fire\` was set with no calibration, no open decision and no hold. The manager's reason: ${aFaire.raison}`].join("\n"),
+            [corpsDuParking(attente), "", LIMBO_MARK, `**Kitchen — put on hold, as the manager judged.** \`fire\` was set with no calibration, no open decision and no hold. The manager's reason: ${aFaire.raison}`].join("\n"),
           );
         } catch (erreur) {
           // Le ticket n'attend pas sans dire pourquoi : le label posé part, le tour suivant reprend.
