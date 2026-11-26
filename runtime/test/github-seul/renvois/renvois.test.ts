@@ -208,6 +208,17 @@ async function epuiser(gh: ReturnType<typeof depot>) {
   throw new Error("unreachable");
 }
 
+test("le renvoi d'une CI rouge dit son motif, un test qui échoue ; celui qui épuise les renvois le dit aussi (#4302)", async () => {
+  const gh = depot(CALIBRE);
+  gh.rougeSur(sha(1), "runtime tests", "https://github.com/o/r/actions/runs/7");
+  await renvoyerLaLivraison(gh.ticket(), ciRouge(1), gh.contexte());
+  assert.match(gh.commentaires()[0]?.body ?? "", /\n\nSend-back reason: failing test\n\nThe next cook takes up/);
+  const plafond = depot(["fire", LABEL_IN_PASS, "model:opus", "effort:high"]);
+  await epuiser(plafond);
+  const dernier = plafond.commentaires().find(({ body }) => /still not mergeable after 2 sends back/.test(body))?.body ?? "";
+  assert.match(dernier, /\n\nSend-back reason: failing test\n\nParked for the supervisor/);
+});
+
 test("au plafond, rien ne monte : le ticket sort de la cuisine, un humain décide", async () => {
   const gh = depot(["fire", LABEL_IN_PASS, "model:opus", "effort:high"]);
   const coup = await epuiser(gh);
