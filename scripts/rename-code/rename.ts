@@ -32,6 +32,10 @@ let REPO = HOME;
 // narrows it to one zone (#4413): the other one only follows.
 const ZONES = ["runtime", "app"];
 let OWN = ZONES.flatMap((zone) => [`${zone}/src`, `${zone}/test`]);
+// Under `--only`, members keep their names: a member of one zone matches the
+// other zone's by structure alone (`Extract<T, { a: unknown }>`), which no
+// reference carries. Only bindings and files are renamed.
+let ONLY: string | undefined;
 // Code that only follows: it imports the renamed code, its references and the
 // paths it names follow, its own names do not change. Under `--only`, the
 // other zone follows too (`runtime/test` imports `app/src`).
@@ -390,6 +394,12 @@ type Kept = { declared: Declared; to: string; why: string };
 type Plan = { edits: Map<string, Edit[]>; renamed: Map<string, string>; renames: { declared: Declared; to: string; at: number }[]; members: Kept[]; refused: string[] };
 
 const CONSTANT = /^[A-Z][A-Z0-9_]*$/;
+// A reserved word, or one of strict mode's (`let`, `static`, `interface`…).
+const reserved = (name: string) => {
+  const token = ts.stringToToken(name);
+  if (token === undefined) return false;
+  return (token >= ts.SyntaxKind.FirstReservedWord && token <= ts.SyntaxKind.LastReservedWord) || (token >= ts.SyntaxKind.FirstFutureReservedWord && token <= ts.SyntaxKind.LastFutureReservedWord);
+};
 
 function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
   const files = codeFiles();
@@ -434,6 +444,15 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
     if (to === declared.name) continue;
     if (keptName(declared.name)) continue;
     const member = declared.kind === "member";
+    // A binding cannot be a reserved word (`interrupteur` → `switch`): NAMES gives it another.
+    if (!member && reserved(to)) {
+      refused.push(`${declared.file}:${declared.name}: its new name \`${to}\` is a reserved word — give it one in names.ts`);
+      continue;
+    }
+    if (member && ONLY !== undefined) {
+      members.push({ declared, to, why: `a member, kept under --only ${ONLY}` });
+      continue;
+    }
     if (member && keptMember(declared.name)) {
       members.push({ declared, to, why: "kept by the table" });
       continue;
@@ -681,6 +700,7 @@ function main(args: string[]): number {
       console.error(USAGE);
       return 2;
     }
+    ONLY = only;
     OWN = [`${only}/src`, `${only}/test`];
     FOLLOWERS = [...FOLLOWERS, ...ZONES.filter((zone) => zone !== only).flatMap((zone) => [`${zone}/src`, `${zone}/test`])];
     args = args.filter((_, index) => index !== onlyAt && index !== onlyAt + 1);

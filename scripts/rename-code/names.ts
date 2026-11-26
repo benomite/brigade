@@ -232,6 +232,7 @@ export const NAMES: Record<string, string> = {
   HOTE_DU_SERVEUR: "SERVER_HOST",
   horsCuisine: "servedElsewhere",
   // I
+  interrupteur: "toggle", // `switch` is a reserved word
   INSTANCE_PORTE: "DOOR_INSTANCE",
   IdDeFiche: "CardId",
   IssueEnAttente: "QueuedIssue",
