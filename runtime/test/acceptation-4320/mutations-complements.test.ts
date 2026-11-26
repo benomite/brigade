@@ -98,6 +98,12 @@ test("brancheDuProjet: a sheet that only the default branch of the repository ca
   assert.deepEqual(brancheDuProjet(clone, "v2"), { branche: "release-9", provenance: "fiche-projet.json", problemes: [] });
 });
 
+// brigade:guard
+test("reecrireBloc: the chef's repeated comments and blank lines outside the block stay as they are", () => {
+  const texte = `# mine\n\n# mine\n\nb y main\n${DEBUT}\n${FIN}\n`;
+  assert.equal(reecrireBloc(texte, ["a x main"]), `# mine\n\n# mine\n\nb y main\n${DEBUT}\na x main\n${FIN}\n`);
+});
+
 test("reecrireBloc: a block that already repeats a `# held-back` line five times is written back with it once", () => {
   const ligne = "# held-back: brigade";
   const texte = `${DEBUT}\n${ligne}\n${ligne}\n${ligne}\n${ligne}\n${ligne}\na x main\n${FIN}\n`;
