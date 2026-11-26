@@ -20,7 +20,7 @@ export const SCRIPT_D_ANCIEN_NOM = "node src/ancien-nom.ts";
 export type DeLaBox = { nom: string; description: string; ancien?: string; mots?: Readonly<Record<string, string>>; rang?: number };
 
 export const COMMANDES: readonly DeLaBox[] = [
-  { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live", mots: { "--suivre": "--follow" } },
+  { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live; --json, the delays of the tickets merged in 24 h", mots: { "--suivre": "--follow" } },
   { nom: "facts", ancien: "faits", description: "The machine-readable form of status, for the app" },
   { nom: "rail", description: "The ticket rail; remove <ticket>, choose, answer, human <ticket> [who] (a ticket for a human cook)" },
   { nom: "release-notes", description: "Publish a weekly summary as the release notes of a version: <tag> <summary.json> creates the GitHub Release of that tag, once, on this explicit call only" },

@@ -16,6 +16,19 @@ The last line before the follow, `todo`, counts the cards that entered TODO over
 kind (`product`, `design`): `-- --days <N>` sets it, 7 by default. A card refused at the door
 (`todo.refused`), or entered before the two kinds, counts nowhere.
 
+The `on time` line (#4308, `runtime/src/delais/`) gives, for the tickets merged in the last 24 h,
+the share merged within the expected time of their label `attendu:<minutes>`, with the counts
+(`83 % (20/24) …`), from the claim (`Taken by station`) to the merge. A ticket merged without that
+label counts apart (`· N without an expected time`), never on time or late; with no merged ticket:
+`no merged ticket in the last 24 h`. Under it, one `overrun` line per ticket over its expected
+time, the worst first, 5 at most: number, title, expected and actual minutes, calibration, and
+where the time went — `cook` (cooks, failed ones included), `gates` (CI included), `review`,
+`send-backs`, `waits` (the rest), the same split as the slow-ticket comment of #4299: the phases of
+the ticket's record, cut at the claim and the merge. It reads the clone's
+`.claude/brigade/temps-tickets.json` and `.claude/brigade/delais-tickets.json` (title and
+labels, written by the station at the merge); a ticket merged before that file has no expected
+time. `-- --json` prints only `{ "delais": … }`, the same figures (`null` when a file does not read).
+
 | Block | What it says |
 |---|---|
 | `nothing cooks` | **Very first line, absent otherwise.** The base is red and its repair ticket is working on it: `nothing cooks: base red since <duration> ago, repair #N in progress`. **Outside the `awaiting` block**: nothing waits for the chef during the repair. It disappears on return to green; a failed repair no longer carries it (the `base` line of `awaiting` replaces it). The app sets it on the project's tile |
@@ -393,6 +406,19 @@ decimal) and its share of their lost time. The 75th
 percentile is the value at rank ⌈0.75·(n−1)⌉ (numpy's `higher`): of 40 tickets, the 31st. A ticket
 recorded again replaces its earlier record; a file still in the bare-array shape of before #2662 is read, and
 rewritten as the object at the next merge. Records of before #2662 have no `depuis`: they count from the claim.
+
+**Taken to merged, over 24 hours** (#4299, epic #4298; `runtime/src/delais/`). From the same records, each merged
+ticket's time runs from its claim — the first "Taken by station" its issue carries (`priseAt`), else the first phase
+the station saw (`claimedAt`) — to its merge (`mergedAt`). `brigade <project> status` prints one line on the tickets
+merged in the last 24 hours: `taken-to-merged 24 h: 50% in 10 min or less (1 of 2), median 16.5 min`, or
+`taken-to-merged 24 h: no merged ticket in the last 24 h`; a times file that cannot be read says `not known`. The app's
+kitchen view shows the same line, computed by the same code on the times the stations publish. After each merge, the
+station posts on the issue of each ticket merged in the last 24 hours more than 10 minutes after its claim one comment
+(marked `<!-- brigade:delai-de-prise -->`) with that time split into cook, gates, review, send-backs and waits, in
+minutes to the tenth, which add up to it: the record's phases are laid end to end from `depuis` and cut at the claim
+and the merge — `cooking` and `failed cook` are cook, `gates` and `CI` are gates, `review` is review, `send-back` is
+send-backs, every other phase and any span no phase covers is a wait. An issue that already carries the mark gets no
+second comment; a ticket recorded before #2662, with no `phases`, gets none.
 
 Each phase runs from the moment it starts to the next one, the last to the merge, so they add up to the
 filing-to-merge time (from `fire` for an issue put on the rail more than an hour after its filing: a threshold

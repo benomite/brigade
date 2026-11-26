@@ -70,7 +70,7 @@ test("a red main: the card names its checks and asks one question; unreadable st
   aArreter(t, () => journal.fermer());
   const base = { journal, projet: "brigade", branche: "trunk" };
   assert.deepEqual(await evaluerMain({ ...base, statuts: { resultats: async () => Promise.reject(new Error("HTTP 502")) }, cuisinePeutReparer: async () => false }), { carte: "aucune", illisible: "HTTP 502" });
-  const statuts = statutsFixes({ main: [rouge("unit", 900), rouge("lint", 900)] });
+  const statuts = statutsFixes({ trunk: [rouge("unit", 900), rouge("lint", 900)] });
   assert.deepEqual(await evaluerMain({ ...base, statuts, cuisinePeutReparer: async () => Promise.reject(new Error("no turn")) }), { carte: "aucune", illisible: "no turn" });
   assert.deepEqual(cartesEnTodo(journal.base), []);
   // Aucun résultat : rien ne bouge.
@@ -82,7 +82,7 @@ test("a red main: the card names its checks and asks one question; unreadable st
   assert.equal(carte?.question, "Will you take the red unit, lint on trunk in hand yourself?");
   assert.deepEqual(carte?.choix.map(({ suite }) => suite), ["resume", "drop"]);
   // Le vert la sort ; un second vert ne sort rien de plus.
-  const verts = statutsFixes({ main: [vert("unit", 901), vert("lint", 901)] });
+  const verts = statutsFixes({ trunk: [vert("unit", 901), vert("lint", 901)] });
   assert.deepEqual(await evaluerMain({ ...base, statuts: verts, cuisinePeutReparer: async () => assert.fail("a green main asks nothing") }), { carte: "sortie" });
   assert.deepEqual(await evaluerMain({ ...base, statuts: verts, cuisinePeutReparer: async () => false }), { carte: "aucune" });
 });
@@ -90,7 +90,7 @@ test("a red main: the card names its checks and asks one question; unreadable st
 test("another red's card in TODO does not hold back this branch's card: each red has its own", async (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   aArreter(t, () => journal.fermer());
-  const entree = { journal, projet: "brigade", statuts: statutsFixes({ main: [rouge("unit", 900)] }), cuisinePeutReparer: async () => false };
+  const entree = { journal, projet: "brigade", statuts: statutsFixes({ main: [rouge("unit", 900)], trunk: [rouge("unit", 900)] }), cuisinePeutReparer: async () => false };
   assert.deepEqual(await evaluerMain({ ...entree, branche: "trunk" }), { carte: "entree" });
   assert.deepEqual(await evaluerMain(entree), { carte: "entree" });
   assert.deepEqual(cartesEnTodo(journal.base).map(({ ticket }) => ticket).sort(), [ticketDuRougeDe("trunk"), ticketDuRougeDe("main")].sort());

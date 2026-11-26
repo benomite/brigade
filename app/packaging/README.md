@@ -132,12 +132,12 @@ Le `.dmg` porte `Brigade.app` et un lien vers Applications, où la glisser.
 
 | Chemin dans `Brigade.app/Contents/` | Quoi |
 |---|---|
-| `MacOS/Electron`, `Frameworks/` | l'Electron officiel ; l'exécutable et ses auxiliaires gardent leur nom de fichier — c'est sous lui qu'Electron cherche ses auxiliaires — mais le `Info.plist` de chaque auxiliaire porte `Brigade Helper…` et `com.github.benomite.brigade.helper…` : c'est le nom que macOS montre |
+| `MacOS/Brigade`, `Frameworks/` | l'Electron officiel ; l'exécutable, les dossiers et exécutables des auxiliaires (`Brigade Helper (GPU).app`…) et leurs `Info.plist` portent `Brigade` et `com.github.benomite.brigade…` : c'est le nom que macOS montre pour l'activité d'arrière-plan, et Electron cherche ses auxiliaires sous le nom de l'exécutable principal. `verifier-plist.ts` le contrôle avant la signature, sans Mac |
 | `Info.plist` | celui d'Electron, au nom de l'app : `Brigade`, `com.github.benomite.brigade`, l'icône `Brigade.icns`, la version construite |
 | `Resources/Brigade.icns` | l'icône de l'app (`icones/Brigade.icns`) ; celle d'Electron n'y est plus |
 | `Resources/app/` | `src/`, le `package.json` de l'app (sans scripts ni dépendances de dev) et ses dépendances de production ; node-pty n'y garde que ce qui est compilé pour darwin-arm64 |
 | `Resources/runtime/` | `src/` et `package.json` du runtime, à la version construite — celle que la station dit d'elle |
-| `Resources/node/bin/node` | le `node` qui joue la station |
+| `Resources/node/bin/brigade-node` | le `node` qui joue la station, renommé et signé sous `com.github.benomite.brigade.node` : il ne garde ni le nom ni la signature de la Node.js Foundation |
 | `Resources/plugin/commands/` | `dev.md` et `ask.md` de `commands/` : ce que l'app installe dans les projets qu'elle ouvre (`app/src/plugin-app.ts`) |
 
 Construite sans identité, l'app est **signée ad hoc** (`codesign --sign -`), pas par un développeur identifié : Apple
@@ -180,7 +180,7 @@ Ils ne remplacent pas l'essai sur un Mac, de préférence un compte sans clone n
 4. Un ticket servi par cette station va jusqu'à sa PR, ou à un résultat clair, comme depuis le dépôt.
 
 Ce que la station dit s'écrit sur la sortie de l'app : lancée par
-`/Applications/Brigade.app/Contents/MacOS/Electron` dans un terminal, on le lit.
+`/Applications/Brigade.app/Contents/MacOS/Brigade` dans un terminal, on le lit.
 
 # L'APK Android
 
