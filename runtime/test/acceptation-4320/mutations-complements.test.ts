@@ -15,7 +15,7 @@ import { git } from "../outils.ts";
 
 type Preparer = OptionsDuDepot["depot"]["preparer"];
 
-const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: Preparer, connait: boolean, maintenant?: () => Date) => {
+const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: Preparer, connait: boolean, maintenant?: () => Date, reprendre?: (run: string) => Promise<string>) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-4320-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const lancer: Lancer = ({ flux }) => {
@@ -25,7 +25,7 @@ const station = (t: { after(f: () => void): void }, faux: FauxGitHub, preparer: 
   const depot: OptionsDuDepot["depot"] = {
     connait: () => connait,
     preparer,
-    reprendre: async (run) => { throw new Error(`resume ${run}: boom`); },
+    reprendre: reprendre ?? (async (run) => { throw new Error(`resume ${run}: boom`); }),
     retirer: () => {},
     ranger: async () => null,
     pousser: () => {},
@@ -153,3 +153,13 @@ const baseDuCloneCas = (t: Parameters<typeof projetSurGit>[0]) => {
   const { clone: sans } = projetSurGit(t, { parDefaut: "trunk" });
   assert.equal(baseDuClone(sans), "trunk");
 };
+
+// brigade:guard
+test("a fetch failure that is not the base fetch (a resume of the ticket's branch) stays the ticket's own failure and counts a try", async (t) => {
+  const faux = new FauxGitHub();
+  faux.feu(71);
+  const s = station(t, faux, async () => { throw new Error("unused"); }, true, undefined, async () => { throw new Error("git fetch origin cook/71-github main : no route"); });
+  await s.tour();
+  await s.calme();
+  assert.equal(echecs(faux, 71), 1);
+});

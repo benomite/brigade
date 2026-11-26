@@ -34,7 +34,7 @@ test("when the fetch of the base branch fails, the station takes no more tickets
     changes: () => ["a.ts"],
     diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
   };
-  const station = stationDuDepot({ nom: "A", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux), depot, prise: priseDeLaStation,
+  const station = stationDuDepot({ nom: "A", places: 1, base: "main", depotGitHub: "faux/depot", github: fauxClient(faux, "A"), depot, prise: priseDeLaStation,
     claude: "claude",
     env: {},
     cloison: null,
