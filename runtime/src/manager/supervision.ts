@@ -25,6 +25,7 @@ import type { Journal } from "../journal.ts";
 import { couper, COMMENTAIRES_MAX, CORPS_MAX } from "../juger.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous } from "../projections/guardrails.ts";
 import type { Reponse } from "../decoupage.ts";
+import { porteDeConfiance } from "../trust/confiance.ts";
 
 // Les gestes que le superviseur peut faire sur un ticket parqué pour lui : ceux de l'étape 4 de la spec que ce ticket sait
 // appliquer, et aucun autre. `rail` : le déparquer sur le rail, avec une note ; `park` : le laisser parqué, pour un
@@ -57,7 +58,7 @@ export type OptionsSupervision = {
   base: Base;
   journal: Journal;
   projet: string;
-  github: Pick<GitHub, "tickets" | "issue" | "commentaires" | "commenter" | "labelliser" | "delabelliser" | "fermerIssue">;
+  github: Pick<GitHub, "tickets" | "issue" | "commentaires" | "commenter" | "labelliser" | "delabelliser" | "fermerIssue" | "permissionDe">;
   demander: Demander;
   maintenant: () => Date;
   avertir: (message: string) => void;
@@ -194,7 +195,8 @@ export function ouvrirSupervision(options: OptionsSupervision) {
       return;
     }
     const corps = (await github.issue(ticket.number))?.body ?? "";
-    const commentaires = lus.slice(-8).map((c) => `${c.author} (${c.createdAt}):\n${c.body}`);
+    // Ceux des comptes de confiance seulement (`trust/confiance.ts`, #4358) : le texte d'un inconnu ne va à aucun agent.
+    const commentaires = (await porteDeConfiance(github).garder(lus)).slice(-8).map((c) => `${c.author} (${c.createdAt}):\n${c.body}`);
     const faits = journal.duTicket(ticket.number).slice(-15).map(resume);
     const reponse = await demander({ numero: ticket.number, prefixe: "supervise", nom: "supervisor dossier" }, consigneDuDossier(ticket, corps, commentaires, faits), lireLaDecision);
     if (reponse === null || arrete()) return;
