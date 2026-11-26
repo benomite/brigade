@@ -3660,6 +3660,18 @@ quota pause read again; the line of an issue the kitchen opened on itself opens 
 speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures:
 `docs/captures/4238/`.
 
+**Each TODO entry says who, for what and until when, and opens its park control (#4281).** The entries are drawn by
+`app/src/vue/parked/parked-todo.js`, from the parked records that `app/src/vue/parked/records.js` reads in the cards:
+under what is asked, `waits for the chef · until <day>` (`no date set` without one; `for what: not given` when the card
+does not say). A click on an answer sends it once, and the entry leaves the TODO — until the kitchen has played the
+answer, the next drawing of the rail shows it again. `park or unpark…`, next to the
+buttons, opens the park control under the entry: who (a person, or the chef), for what, until (a date or a fact), then
+`park` and `unpark`. A form that lacks one of the three is not sent, and says which one is missing. `park` and `unpark`
+call one gesture, with the same project, ticket and step, for any project (`park-control.js`). Until the shared park
+gesture of #4129 exists, that gesture goes through the waiting gestures (`park-gesture.js`): `park` is `waiting for…`,
+which takes only a date for now (a fact comes back refused, with its reason, under the form); `unpark` is `it arrived,
+back to the kitchen`. Read-only, the entry has no buttons and no park control. Captures: `docs/captures/4281/`.
+
 **TODO is not a column (#3458).** Tickets move left to right, from On the rail to Served; what awaits the chef is a
 property of a ticket, not a place on the rail. **A card that awaits you stays in the column of its stage** — On the rail
 before it is taken, Taken, Pass, Waiting — **with the black-and-red look of the awaiting card**, its `awaiting you` pill,
