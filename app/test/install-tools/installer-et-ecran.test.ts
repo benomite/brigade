@@ -291,7 +291,7 @@ test("the notice shows a missing tool, or Claude Code just installed; closing it
   const encore = { lu: true, manque: { outil: "gh" as const }, installation: { installable: true, phase: "failed" as const } };
   oublierLInstallation(encore);
   assert.equal(encore.installation.phase, "failed");
-  const fini: { lu: boolean; installation?: object } = { lu: true, installation: { installable: true, phase: "done", outil: "claude" } };
+  const fini: import("../../src/vue/outils-requis/outils-requis.js").EtatDesOutils = { lu: true, installation: { installable: true, phase: "done", outil: "claude" } };
   oublierLInstallation(fini);
   assert.equal(fini.installation, undefined);
 });
