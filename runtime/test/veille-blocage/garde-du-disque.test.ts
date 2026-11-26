@@ -33,15 +33,17 @@ async function poserLaCarte(t: TestContext, pose: Pose) {
   await gardes.retenue(0);
   // La garde le dit une fois la carte posée et notée.
   await jusqua(() => poses === 1 && avertis.some((texte) => /a TODO card tells the chef/.test(texte)));
-  return repertoire;
+  return { repertoire, avertis };
 }
 
 test("the disk card the station guard posts is a machine outage, dated, counted in the week", async (t) => {
-  const repertoire = await poserLaCarte(t, "posee");
+  const { repertoire, avertis } = await poserLaCarte(t, "posee");
   assert.equal(pannesDesSeptJours(repertoire, NOW.getTime()), 1);
+  assert.ok(avertis.some((texte) => texte.includes("(1 machine outage(s) reached the chef in the last 7 days)")));
 });
 
 test("a disk card that was already there is no new outage", async (t) => {
-  const repertoire = await poserLaCarte(t, "deja");
+  const { repertoire, avertis } = await poserLaCarte(t, "deja");
   assert.equal(pannesDesSeptJours(repertoire, NOW.getTime()), 0);
+  assert.ok(avertis.some((texte) => texte.includes("(0 machine outage(s) reached the chef in the last 7 days)")));
 });

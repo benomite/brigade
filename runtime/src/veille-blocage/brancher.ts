@@ -16,7 +16,7 @@ import { etatDeLInterrupteur } from "../projections/switch.ts";
 import type { Runtime } from "../runtime.ts";
 import { echeanceSansMerge, PRISES_SANS_LIVRER, SANS_MERGE_MS } from "../superviseur/declencheur.ts";
 import type { SuiviDuTour } from "../superviseur/tour.ts";
-import { creerVeille } from "./veille.ts";
+import { creerVeille, DELAI_SANS_LIVRAISON_MS, type CarteDeLaVeille, type FaitsDeLaMachine } from "./veille.ts";
 
 export type OptionsDeLaVeilleDuProjet = {
   // Le tour GitHub seul observé ; nul quand la station ne s'ouvre pas : rien n'est veillé.
@@ -57,7 +57,7 @@ export function brancherVeilleBlocage<R extends Runtime>(runtime: R, options: Op
       return echeance === null ? null : echeance.getTime() - SANS_MERGE_MS;
     },
     attendent: () => (eteinte() ? 0 : tour.faits().cuisinables.length),
-    faits: () => {
+    faits: (): FaitsDeLaMachine => {
       const lue = machine();
       const vus = recuperer(lieux(), { ...fichiers, retirer: () => {}, elaguer: () => {} }, { ...processus, tuer: () => {} });
       return {
@@ -73,13 +73,14 @@ export function brancherVeilleBlocage<R extends Runtime>(runtime: R, options: Op
       const { echecs } = recuperer(lieux(), fichiers, processus);
       if (echecs.length > 0) throw new Error(`could not reclaim ${echecs.join(", ")}`);
     },
-    creerCarte: async ({ cause, texte }) => {
+    creerCarte: async ({ cause, texte }: CarteDeLaVeille) => {
       if (cause === "disk") return (await disque.poser({ sorte: "blocked", texte })) === "posee";
       const [tete] = tour.faits().cuisinables;
       if (tete === undefined) throw new Error("no ticket waits any more to carry the card");
       return (await poserCarte(tete.ticket, { sorte: "blocked", texte }, github)) === "posee";
     },
     ecrire: dire,
+    delaiMs: DELAI_SANS_LIVRAISON_MS,
     chargeParCoeur: seuils.chargeParCoeur,
   });
   runtime.surReveil(() => {
