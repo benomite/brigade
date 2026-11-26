@@ -25,7 +25,7 @@ import { ouvrirDepot, worktreesDuProjet } from "./depot.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { lireSeuils } from "./derive.ts";
 import { lireReglages } from "./garde-fous.ts";
-import { BRANCHE_PRINCIPALE_PAR_DEFAUT } from "./fiche-projet/defauts.ts";
+import { BRANCHE_PRINCIPALE_PAR_DEFAUT, CHEMIN_DE_LA_FICHE, faitsDeLaFiche, ficheDuTexte, ficheParDefaut } from "./fiche-projet/index.ts";
 import { jouerSetup, SCRIPT_GATES, SCRIPT_SETUP } from "./gates.ts";
 import { lireReglage, ouvertDe, Refus } from "./installateur.ts";
 import { POSABLES } from "./poser-decisions.ts";
@@ -750,25 +750,43 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   if (illisible !== null) noter("depot", "note", `repository not checked: ${illisible}`);
   else {
     const ref = baseLue;
-    const porte = new Map(
-      (await git("ls-tree", ref, "--", SCRIPT_GATES, SCRIPT_SETUP)).stdout
-        .split("\n")
-        .filter(Boolean)
-        .map((ligne): [string, string] => [ligne.slice(ligne.indexOf("\t") + 1), ligne.split(" ")[0] ?? ""]),
-    );
+    const arbre = async (...chemins: string[]) =>
+      new Map(
+        (await git("ls-tree", ref, "--", ...chemins)).stdout
+          .split("\n")
+          .filter(Boolean)
+          .map((ligne): [string, string] => [ligne.slice(ligne.indexOf("\t") + 1), ligne.split(" ")[0] ?? ""]),
+      );
+    // Les gates que la fiche du projet nomme sur la base (#4237) ; sans fiche,
+    // celles des défauts. Refusée, c'est un manque, et aucune gate n'est jugée
+    // sur elle.
+    let gates = ficheParDefaut(BRANCHE_PRINCIPALE_PAR_DEFAUT).stages.flatMap((etape) => etape.gates);
+    if ((await arbre(CHEMIN_DE_LA_FICHE)).has(CHEMIN_DE_LA_FICHE)) {
+      const lue = await git("show", `${ref}:${CHEMIN_DE_LA_FICHE}`);
+      try {
+        if (lue.code !== 0) throw new Error(lue.stderr.trim() || "git show failed");
+        gates = faitsDeLaFiche(ficheDuTexte(lue.stdout)).passe.gates;
+      } catch (erreur) {
+        gates = [];
+        noter("depot", "manque", `the project sheet on \`${base}\` is refused — ${message(erreur)}`, `fix \`${CHEMIN_DE_LA_FICHE}\`, then merge into \`${base}\``);
+      }
+    }
+    const porte = await arbre(...gates, SCRIPT_SETUP);
     // Le runtime exécute ces scripts tels quels : un fichier ordinaire doit
     // porter son droit d'exécution. Un lien mène où il mène.
     const executable = (script: string) => porte.get(script) !== "100644";
     const rendre = (script: string) => `\`git update-index --chmod=+x ${script}\`, committed on \`${base}\``;
     const pasExecutable = (script: string, quoi: string) => ({ simple: `the repository's ${quoi} (\`${script}\`) ${quoi.endsWith("gates") ? "are" : "is"} not executable: brigade cannot run ${quoi.endsWith("gates") ? "them" : "it"}`, remede: parLeChef(`git update-index --chmod=+x ${script}`) });
 
-    if (!porte.has(SCRIPT_GATES)) {
-      noter("depot", "manque", `\`${SCRIPT_GATES}\` is not on \`${base}\`: without gates, the pass judges no delivery`, `\`/brigade:init\` in the repository, then merge into \`${base}\``, undefined, {
-        simple: "the repository has no gates: nothing would judge a delivery",
-        remede: dansLApp("init"),
-      });
-    } else if (!executable(SCRIPT_GATES)) noter("depot", "manque", `\`${SCRIPT_GATES}\` is not executable: the pass runs it as is`, rendre(SCRIPT_GATES), undefined, pasExecutable(SCRIPT_GATES, "gates"));
-    else noter("depot", "ok", `gates: \`${SCRIPT_GATES}\``);
+    for (const script of gates) {
+      if (!porte.has(script)) {
+        noter("depot", "manque", `\`${script}\` is not on \`${base}\`: without gates, the pass judges no delivery`, `\`/brigade:init\` in the repository, then merge into \`${base}\``, undefined, {
+          simple: "the repository has no gates: nothing would judge a delivery",
+          remede: dansLApp("init"),
+        });
+      } else if (!executable(script)) noter("depot", "manque", `\`${script}\` is not executable: the pass runs it as is`, rendre(script), undefined, pasExecutable(script, "gates"));
+      else noter("depot", "ok", `gates: \`${script}\``);
+    }
 
     if (!porte.has(SCRIPT_SETUP)) {
       noter("depot", "note", `no \`${SCRIPT_SETUP}\` on \`${base}\`: the cook starts in a fresh worktree as is, with no dependencies installed`);

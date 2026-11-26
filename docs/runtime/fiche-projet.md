@@ -40,3 +40,7 @@ keeps it.
 A repository with no sheet yet reads the defaults, served on the branch the kitchen already
 serves. A refused sheet starts no cook, makes the gates red with the item named, and is said in
 the problems of the integration branch's resolution.
+
+The box check (`installation verify`, `installation.ts`) looks for the gates the sheet on the
+integration branch names, each present and executable; with no sheet, those of the defaults. A
+sheet refused there is a missing item of the check, with the item named.
