@@ -194,20 +194,20 @@ base, the stale-branch pruning).
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a
   turn at once on the station that runs it (#2796): before, the ticket waited for its claim until the next interval, up
   to 2 minutes of every manager-qualified ticket's lost time. So does a cook that ends without a delivery, once its
-  ticket is given back (its place is free), and a merge (a dependency, a held zone or a pass place may be free): the
+  ticket is given back (its place is free), and a merge (a dependency or a held zone may be free): the
   rail is read again at once, not at the interval nor 30 s later (#2802) — on the computer's station too, whose loop
   waited the 30 s until #2832 ([diagnosis](claim-wait-2026-11-07.md)).
-- **At most 5 deliveries in pass** (`PASS_MAX`, #2300): while the project has 5 or more tickets `in-pass`, no station
-  takes a new ticket. A ticket sent back from the pass to a cook leaves it in the very turn it is sent back. A delivery
-  the pass holds for the chef — the validation of its screen, the review of a sensitive ticket — takes no place while
-  its head is the one held: it waits for a human, not for the pass, and counted, five deliveries waiting for the chef
-  stopped every claim of the project until he answered (#3446, [diagnosis](claim-wait-2026-11-13.md)). Nor does it
-  hold its zone at the claim gate ([station-cook.md](station-cook.md), #3677).
-- **A full stop says so.** When the places or the pass are full, the claim gate stops; each claimable ticket it leaves
-  says which bound holds it, and by which tickets — `the station's 6 places are all taken (#3643, #3649, …)`, `the
-  pass holds 5 deliveries, its most is 5 (#3601, …)` — unless it waits for an open ticket, which it names instead
-  (#3647). These lines are what the supervisor's dossier carries; before #3677 these two stops said nothing
-  ([diagnosis](claim-wait-2026-11-15.md)).
+- **The pass holds no claim** (#4462): whatever the number of deliveries `in-pass`, a station takes ready tickets up
+  to its places. From #2300 to #4462, 5 deliveries in pass (`PASS_MAX`) stopped every claim of the project; on
+  2026-11-26 four of them were red deliveries never reviewed, so never sent back, and no cook could start to fix
+  them. `PASS_MAX` now bounds only the reviews a station runs at once, and a delivery whose PR CI is complete and red,
+  with no verdict, goes back to its cook without a review ([pass.md](pass.md)).
+  A delivery the pass holds for the chef — the validation of its screen, the review of a sensitive ticket — does not
+  hold its zone at the claim gate while its head is the one held ([station-cook.md](station-cook.md), #3677).
+- **A full stop says so.** When the places are full, the claim gate stops; each claimable ticket it leaves says which
+  bound holds it, and by which tickets — `the station's 6 places are all taken (#3643, #3649, …)` — unless it waits
+  for an open ticket, which it names instead (#3647). These lines are what the supervisor's dossier carries; before
+  #3677 this stop said nothing ([diagnosis](claim-wait-2026-11-15.md)).
 - **A cook that says the ticket cannot be done yet puts it in WAITING** (#3814, `runtime/src/attente/`). On
   BOBL-tech/mirrorlab, #824 could only be done from 2026-11-25: each cook said "Too early", the review asked for changes,
   and the kitchen relaunched it about every 3 minutes for 26 h (1,198 runs) while its zone held #803; the second put it

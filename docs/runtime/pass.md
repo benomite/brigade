@@ -44,6 +44,14 @@ merged with the base, the gates and the CI found nothing, and a reviewer reread 
 nothing blocking".** Not "a human reread it", never "green on its own branch". Jobs set aside for an
 unstable test are left out of "nothing".
 
+**On the GitHub-only station, a red CI goes back to its cook without a review** (#4462). At each pass turn, a
+delivery whose PR CI is complete (no check still running) and red, and whose PR has no verdict, goes back to its
+cook at once, with the red checks named (`the CI is red on <sha>: …`); it uses up a send-back like any red CI. A
+delivery under review at that moment is not sent back by this rule, and a head already sent back is never sent back
+twice. The pass reviews at most 5 deliveries at a time per station (`PASS_MAX`), but it never holds the claims: a
+station takes ready tickets up to its places whatever the number of deliveries in pass. Before, 5 deliveries in pass
+stopped every claim of the project, and red deliveries never reviewed kept the pass full with no cook to fix them.
+
 A delivery can reach the pass **off the rail** (the PR of a closing pass, of an accepted correction
 to the instructions, or of the lessons notebook, [`carnet-lecons.md`](carnet-lecons.md)). Same judges;
 nothing that belongs to a ticket happens ([`fermeture.md`](fermeture.md)).

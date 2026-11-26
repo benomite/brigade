@@ -372,7 +372,7 @@ test("a station with 3 places never holds more than 3 tickets, even when its coo
   assert.ok(avertis.some((texte) => /limite d'appels/.test(texte)));
 });
 
-test("with 5 tickets in pass a station with free places claims nothing; at 4 it claims (PASS_MAX, #2300)", async () => {
+test("with 5 tickets in pass a station with free places still claims: the pass holds no claim (PASS_MAX, #4462)", async () => {
   const faux = new FauxGitHub();
   for (let n = 1; n <= 5; n += 1) faux.feu(n, [...CALIBRE, LABEL_IN_PASS]);
   faux.feu(10);
@@ -380,13 +380,8 @@ test("with 5 tickets in pass a station with free places claims nothing; at 4 it 
   await a.tour();
   await a.calme();
   assert.equal(PASS_MAX, 5);
-  assert.equal(faux.prisesDe("A"), 0);
-  assert.equal(faux.cuissons.length, 0);
-  // One leaves the pass: under the cap, the station claims again.
-  faux.ticket(5).labels.delete(LABEL_IN_PASS);
-  await a.tour();
-  await a.calme();
-  assert.ok(faux.cuissons.some((c) => c.issue === 10));
+  assert.equal(faux.prisesDe("A"), 1);
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 10 }]);
 });
 
 test("a restarted station gives back, at its first turn, the tickets it held with no cook, then takes only what its places allow (#2179)", async () => {
@@ -2404,7 +2399,7 @@ test("full places stop the claim gate out loud: each claimable ticket left says 
   await a.calme();
 });
 
-test("a full pass stops the claim gate out loud: each claimable ticket left names the deliveries that fill it (#3677)", async () => {
+test("five deliveries in pass stop no claim, and the claim gate says nothing of the pass (#3677, #4462)", async () => {
   const faux = new FauxGitHub();
   for (let n = 41; n < 41 + PASS_MAX; n += 1) {
     faux.feu(n, [...CALIBRE, LABEL_IN_PASS]);
@@ -2418,8 +2413,8 @@ test("a full pass stops the claim gate out loud: each claimable ticket left name
   const a = faux.station("A", { places: 3, sauter: (numero, ligne) => sauts.push([numero, ligne]) });
   await a.tour();
   await a.calme();
-  assert.deepEqual(faux.cuissons, []);
-  assert.deepEqual(sauts, [[50, "#50 is claimable but not claimed, the claim gate skipped it: the pass holds 5 deliveries, its most is 5 (#41, #42, #43, #44, #45)"]]);
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 50 }]);
+  assert.deepEqual(sauts, []);
 });
 
 test("a free zone is claimed, a zone inside or around a changed folder is held, an own PR holds nothing (#2188)", async () => {

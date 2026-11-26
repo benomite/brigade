@@ -75,7 +75,7 @@ import { consigneDuChoix, lireLeChoix, type ChoixDeDesign } from "./validation-d
 import { consigneDesOutils, outilsDuCook } from "./outils-du-cook.ts";
 import { consigneDesTestsDeLaZone, selectionnerTests } from "./tests-de-la-zone/tests-de-la-zone.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
-import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
+import { approuvee, ciDeLaTete, dernierVerdict, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
 import { enLivraisonDuTour, laisserAuxCooksHumains } from "./cook-humain/livraison.ts";
@@ -546,22 +546,14 @@ export const RELANCE_DES_GATES_MS = 30 * 60_000;
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
 
-// Au plus cinq livraisons en pass : tant que le projet en compte autant, aucune
-// station sur l'état GitHub seul ne prend de ticket neuf (#2300). Le pass se
-// vide moins vite que les cooks livrent ; l'amas s'y relit à chaque tour et s'y
-// met en conflit à chaque merge.
+// Au plus cinq relectures à la fois par station (#2300). Le pass ne retient plus
+// les prises : cinq livraisons rouges sans verdict y arrêtaient toute la cuisine (#4462).
 export const PASS_MAX = 5;
 
-// Ce que la porte de prise dit des tickets qu'elle laisse quand ses places, ou
-// le pass, sont pleins (#3677) : la borne, et les tickets qui la tiennent.
+// Ce que la porte de prise dit des tickets qu'elle laisse quand ses places
+// sont pleines (#3677) : la borne, et les tickets qui la tiennent.
 const numeros = (tickets: readonly number[]) => [...tickets].sort((a, b) => a - b).map((n) => `#${n}`).join(", ");
 const direPlacesPrises = (places: number, tenues: readonly number[]): string => `${places === 1 ? "the station's one place is" : `the station's ${places} places are all`} taken${tenues.length === 0 ? "" : ` (${numeros(tenues)})`}`;
-const direPassPlein = (livraisons: readonly number[]): string => `the pass holds ${livraisons.length} deliveries, its most is ${PASS_MAX} (${numeros(livraisons)})`;
-
-// Les tickets en pass : ceux qui portent `in-pass`, hors ceux que ce tour vient
-// de renvoyer à un cook — la liste lue peut porter encore leur label.
-export const enPass = (tickets: readonly Pick<TicketLu, "number" | "labels">[], renvoyes: ReadonlySet<number> = new Set()): number =>
-  tickets.filter((ticket) => ticket.labels.includes(LABEL_IN_PASS) && !renvoyes.has(ticket.number)).length;
 // Les commentaires de `marque` qui comptent pour le ticket : ceux d'après le
 // dernier retrait de `served-elsewhere` ou de `parked` (#4129), que GitHub date pour toutes les stations
 // (#2430). Relancer un ticket remet à zéro ses cooks sans livraison — pas ses
@@ -889,9 +881,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   const attendues = new Map<number, string>();
   // Les livraisons que la pass retient pour le chef — la validation de leur
   // écran, la revue d'un ticket sensible, une carte sans objet — et la tête
-  // retenue : elles attendent un humain, pas la pass, et ne prennent aucune de
-  // ses places (`PASS_MAX`). Comptées, cinq livraisons qui attendaient le chef
-  // arrêtaient toutes les prises du projet jusqu'à sa réponse (#3446).
+  // retenue : elles attendent un humain, pas la pass (#3446).
   const pourLeChef = new Map<number, string>();
   // Les livraisons en pass de ce tour dont la tête est encore celle retenue.
   const retenuesDuTour = new Set<number>();
@@ -1565,8 +1555,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // l'issue, que le cook lit, et `in-pass` tombe — le ticket redevient libre, et
   // la station qui le prend reprend sa branche, sous sa PR. Au troisième
   // refus de sa vie, il est mis de côté pour le chef (`essais/`, #4226).
-  // Un ticket renvoyé sort du pass dans le tour même : il ne compte plus pour le plafond.
-  const renvoyes = new Set<number>();
   // La tête de chaque PR en conflit dont la station a déjà tenté la synchro (#2726).
   const synchrosTentees = new Map<number, string>();
   // `fois` : les renvois que cette tête peut porter — plus d'un quand la pass a
@@ -1612,7 +1600,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await parquer(github, ticket, { station: nom, sha, raison, rouges: () => checksRougesDits(sha), motif: motifDit });
       chrono.oublier(ticket.number);
       await github.delabelliser(ticket.number, LABEL_IN_PASS);
-      renvoyes.add(ticket.number);
       return;
     }
     const deja = renvois.length;
@@ -1652,7 +1639,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${tousRenvois.length + 1} sha=${sha}${marque} -->\nStation \`${nom}\`: sent back to a cook (${genre === "conflict" ? `${deja + 1}, conflicts` : `${deja + 1}/${RENVOIS_MAX}`}) — ${raison}\n\n${motifDit}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
-    renvoyes.add(ticket.number);
     await fermerLesCartesDuRenvoi(ticket.number);
     // De retour en cuisine : le temps jusqu'au cook suivant est celui du renvoi (#2662).
     if (attenteDite === null && (!epuise || (suite !== null && !("auChef" in suite) && !suite.question))) chrono.marquer(ticket.number, "renvoi");
@@ -1831,7 +1817,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // Les cartes du chef (`chef-todo`) que le dégel a déjà relues (#3476).
   const cartesExaminees = new Set<number>();
   const tour = async () => {
-    renvoyes.clear();
     retenuesDuTour.clear();
     // Une base rouge se relance au tour même (invariant 4, #4026), et se répare au run du superviseur (#3945).
     const checksDeLaBase = await github.checksDeLaBase();
@@ -2044,8 +2029,23 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         // de check sur la PR : rouge, il ne la retient pas.
         // La seule exception est la réparation de la base elle-même : elle doit la
         // débloquer, et sa CI, sur sa tête, reste exigée par `fusionner`.
-        const siens = new Set((await github.ci(pr.sha)).map((check) => check.name));
+        const checks = await github.ci(pr.sha);
+        const siens = new Set(checks.map((check) => check.name));
         if (checksDeLaBase.some((check) => check.outcome === "red" && check.name !== undefined && siens.has(check.name)) && !estUneReparation(await github.corpsDuTicket(ticket.number), ticket.labels)) continue;
+        // Sa CI finie et rouge, sans verdict : elle repart à un cook sans attendre
+        // de relecture (#4462). Une livraison relue en ce moment ne repart pas d'ici,
+        // et `renvoyer` ne renvoie jamais deux fois la même tête.
+        if (!enRelecture.has(ticket.number) && ciDeLaTete(checks, ciDesPR(sienne)) === "red" && !checks.some((check) => check.outcome === "pending")) {
+          try {
+            if (dernierVerdict(await github.commentaires(pr.number)) === null) {
+              await renvoyer(ticket, pr.sha, `${RAISONS_DE_RENVOI.ci} \`${pr.sha.slice(0, 7)}\`: ${(await checksRougesDits(pr.sha)).join(", ")}`, 1, "red CI");
+              continue;
+            }
+          } catch (erreur) {
+            avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
+            continue;
+          }
+        }
         // La relecture tourne hors du tour, comme un cook (#2329) : un `claude`
         // de plusieurs minutes ne retient plus les merges, les autres relectures
         // ni les prises. Les merges, eux, passent un à un.
@@ -2438,13 +2438,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const limite = typeof places === "number" ? places : places();
       if (enVol.size + aRendre.size >= limite) {
         await direLesAttentes(libres.slice(rang), direPlacesPrises(limite, [...enVol.keys(), ...aRendre.keys()]));
-        break;
-      }
-      // Le pass est plein : aucun ticket neuf ne se prend avant qu'il ne redescende.
-      // Celles que la pass retient pour le chef n'y comptent pas (#3446).
-      const exclues = new Set([...renvoyes, ...retenuesDuTour]);
-      if (enPass(tickets, exclues) >= PASS_MAX) {
-        await direLesAttentes(libres.slice(rang), direPassPlein(tickets.filter((t) => t.labels.includes(LABEL_IN_PASS) && !exclues.has(t.number)).map(({ number }) => number)));
         break;
       }
       if (enVol.has(ticket.number)) continue;
