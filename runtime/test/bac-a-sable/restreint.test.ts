@@ -26,3 +26,10 @@ test("restricted mode: dontAsk, no bypass, no kernel sandbox, reads denied, netw
 test("restricted mode refuses a relative home rather than guessing", () => {
   assert.throws(() => dansLeModeRestreint(argumentsClaude(calibre), { ...cook, home: "" }));
 });
+
+test("restricted mode takes Windows paths: the rules name them the way claude reads them", () => {
+  const args = dansLeModeRestreint(argumentsClaude(calibre), { ...cook, worktree: "C:\\Users\\chef\\wt\\1", caches: ["C:\\Users\\chef\\cache"], home: "C:\\Users\\chef" });
+  const reglages = JSON.parse(args[args.indexOf("--settings") + 1] as string);
+  assert.ok(reglages.permissions.deny.includes("Read(//c/Users/chef/.ssh)"));
+  assert.ok(reglages.permissions.allow.includes("Edit(//c/Users/chef/cache/**)"));
+});

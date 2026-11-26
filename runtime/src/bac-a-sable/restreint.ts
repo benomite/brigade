@@ -21,12 +21,16 @@ export const MODE_RESTREINT = "restricted mode: no sandbox";
 // Ce que le mode couvre et ce qu'il ne couvre pas, en une phrase.
 export const LIMITES_DU_MODE_RESTREINT = "credential reads and hosts outside the project's list are refused to Claude's own tools, writes stay in the worktree and the project's caches; shell commands are only checked by the cook's guard, best-effort (sed -i, curl -o, perl -i, python -c…)";
 
+// Un chemin Windows (`C:\\a\\b`) s'écrit comme les règles de `claude` le lisent
+// partout : `/c/a/b`. `configuration.ts` ne connaît que les chemins posix.
+const enPosix = (chemin: string): string => (/^[A-Za-z]:[\\/]/.test(chemin) ? `/${chemin[0].toLowerCase()}${chemin.slice(2).replaceAll("\\", "/")}` : chemin);
+
 export type Restreint = { worktree: string; caches: string[]; hotes: Regle[]; home: string; lit?: string[]; brigade?: boolean };
 
 // Les arguments d'un cook sans bac à sable : son `--permission-mode` remplacé
 // par celui du mode restreint, et ses réglages posés à sa suite.
 export function dansLeModeRestreint(args: string[], cook: Restreint): string[] {
-  const config = configurer(cook);
+  const config = configurer({ ...cook, worktree: enPosix(cook.worktree), home: enPosix(cook.home), caches: cook.caches.map(enPosix), lit: cook.lit?.map(enPosix) });
   const { permissions, hooks, env } = config.reglages;
   const reglages = {
     env,
