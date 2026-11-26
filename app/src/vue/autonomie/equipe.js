@@ -159,7 +159,7 @@ export function tenirLEquipe(doc, cadre, apresLecture, ouvrirLesAgents) {
     cree.dataset.agent = agent.agent;
     cree.dataset.etat = agent.state.startsWith("broken") ? "casse" : "";
     cree.ariaExpanded = String(agent.agent === ouvert);
-    // Son dernier geste et sa prochaine passe (#4029, critère 2) : au survol, pas en texte — le badge tient sur une ligne (#4354).
+    // Son dernier geste et sa prochaine passe (ticket 4029, critère 2) : au survol, pas en texte — le badge tient sur une ligne (ticket 4354).
     cree.title = `${agent.lastGesture.line} · ${heureUtc(agent.lastGesture.at)} — ${agent.nextRun.text}`;
     // Le point : cassé en rouge, au repos en gris, au travail en bleu. L'état trop long pour le badge y est coupé : entier au survol.
     const ton = cree.dataset.etat === "casse" ? "rouge" : agent.state === "idle" ? "gris" : "bleu";
