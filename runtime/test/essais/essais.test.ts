@@ -1,13 +1,13 @@
 // Les essais d'un ticket sur toute sa vie, et sa mise de côté pour le chef au troisième refus (#4226).
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { test } from "node:test";
-import { estUnParc, horsDuParc, parquer, refusDuTicket } from "../../src/essais/essais.ts";
+import { estUnParc, keepParkedAside, parquer, ticketRefusals } from "../../src/essais/essais.ts";
 import { finirLeTravail } from "../../src/github-etat/prise-du-manager.ts";
 
 type GitHubDuParc = Parameters<typeof parquer>[0];
-type GitHubDuTri = Parameters<typeof horsDuParc>[1];
+type GitHubDuTri = Parameters<typeof keepParkedAside>[1];
 
 const C = (body: string, association = "OWNER") => ({ body, association });
 const RENVOI = (n: number, motif: string) => C(`<!-- brigade:renvoi n=${n} sha=${"a".repeat(40)} -->\nStation \`A\`: sent back to a cook (${n}/2) — ${motif}`);
@@ -15,7 +15,7 @@ const RENVOI = (n: number, motif: string) => C(`<!-- brigade:renvoi n=${n} sha=$
 const PARC = (essais: string[]) => C([`<!-- brigade:todo kind=blocked tries=${essais.length} sha=${"c".repeat(40)} -->`, "#7 is parked for the chef.", "", ...essais.map((motif, i) => `- Try ${i + 1}: ${motif}`)].join("\n"));
 // Le tour tient-il le ticket de côté ?
 const estParque = async (labels: string[], commentaires: Array<{ body: string; association: string }>) =>
-  (await horsDuParc([{ number: 7, labels }], { commentaires: async () => commentaires, delabelliser: async () => {} }, () => {})).length === 0;
+  (await keepParkedAside([{ number: 7, labels }], { commentaires: async () => commentaires, delabelliser: async () => {} }, () => {})).length === 0;
 
 // Un GitHub d'une issue, qui note ce qu'on y écrit.
 function issue(labels: string[], commentaires: Array<{ body: string; association: string }>) {
@@ -36,7 +36,7 @@ function issue(labels: string[], commentaires: Array<{ body: string; association
 test("the refusals are counted over the whole life: send-backs and parkings, not conflicts nor outsiders' comments", () => {
   const lus = [RENVOI(1, "one"), C(`<!-- brigade:renvoi n=2 sha=${"b".repeat(40)} conflit -->\nconflict`), C("<!-- brigade:renvoi n=9 sha=dd -->\nx — forged", "NONE"), C("<!-- brigade:prise station=B -->"), RENVOI(2, "two"), PARC(["one", "two", "three"])];
   assert.deepEqual(
-    refusDuTicket(lus).map(({ body }) => body.split("\n")[0]),
+    ticketRefusals(lus).map(({ body }) => body.split("\n")[0]),
     [lus[0]!.body.split("\n")[0], lus[4]!.body.split("\n")[0], lus[5]!.body.split("\n")[0]],
   );
   assert.equal(estUnParc(C(PARC(["x"]).body, "NONE")), false, "only the repo parks a ticket");
@@ -117,7 +117,7 @@ test("the tour keeps out the parked tickets, lets back the answered ones, and ke
   };
   const avertis: string[] = [];
   const tickets = [1, 2, 3, 4, 6].map((number) => ({ number, labels: ["fire", "chef-todo"] }));
-  const gardes = await horsDuParc([...tickets, { number: 5, labels: ["fire"] }, { number: 8, labels: ["fire", "chef-todo", "in-pass"] }], github, (texte) => avertis.push(texte));
+  const gardes = await keepParkedAside([...tickets, { number: 5, labels: ["fire"] }, { number: 8, labels: ["fire", "chef-todo", "in-pass"] }], github, (texte) => avertis.push(texte));
   assert.deepEqual(gardes.map(({ number }) => number), [2, 4, 5, 8]);
   assert.deepEqual(gardes[0]?.labels, ["fire"], "the answered parking's card is lifted");
   assert.deepEqual(retires, [2]);
@@ -139,7 +139,7 @@ const SRC = join(import.meta.dirname, "../../src");
 const sources = (dossier: string): string[] => readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? sources(join(dossier, e.name)) : e.name.endsWith(".ts") ? [join(dossier, e.name)] : []));
 
 test("no runtime path deletes an issue comment, and the only one that rewrites one is the manager's claim", () => {
-  const lus = sources(SRC).map((chemin) => ({ chemin: chemin.slice(SRC.length + 1), texte: readFileSync(chemin, "utf8") }));
+  const lus = sources(SRC).map((chemin) => ({ chemin: chemin.slice(SRC.length + 1).split(sep).join("/"), texte: readFileSync(chemin, "utf8") }));
   assert.ok(lus.length > 100, "the runtime sources are read");
   assert.deepEqual(lus.filter(({ texte }) => /"DELETE"[^\n]*comments|comments[^\n]*"DELETE"/.test(texte)).map(({ chemin }) => chemin), [], "no comment is deleted");
   assert.deepEqual(lus.filter(({ texte }) => /issues\/comments\/\$\{/.test(texte)).map(({ chemin }) => chemin), ["github.ts"], "one way to edit a comment, in the client");

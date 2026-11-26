@@ -124,7 +124,7 @@ import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { type GitHubDeLaBrigade } from "./issue-de-la-cuisine.ts";
 import { lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { mesurerQualite, projetDuClone, type QualiteDuTicket } from "./mesure-qualite.ts";
-import { ESSAIS_MAX, estUnParc, horsDuParc, parquer, refusDuTicket } from "./essais/essais.ts";
+import { ESSAIS_MAX, estUnParc, keepParkedAside, parquer, ticketRefusals } from "./essais/essais.ts";
 import { checkRougeDit, MARQUE_D_ATTENTE, MARQUE_D_ECHEC, MARQUE_DE_CONFLIT, MARQUE_DE_RENVOI, qualiteDeLIssue, qualiteLue, qualitesDesTemps, RAISONS_DE_RENVOI } from "./qualite-github.ts";
 import { ticketsRecents } from "./temps-max/mesure.ts";
 import type { EnregistrementTemps } from "./temps-ticket/synthese.ts";
@@ -1607,7 +1607,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const motifDit = ligneDuMotif(genre, raison);
     // Le troisième refus de sa vie met le ticket de côté pour le chef (#4226) : ni manager, ni quatrième cook. La carte
     // de validation qu'il tenait se ferme d'abord, pour que sa fermeture ne lève pas la carte de la mise de côté.
-    if (genre !== "conflict" && refusDuTicket(lus).length + 1 >= ESSAIS_MAX) {
+    if (genre !== "conflict" && ticketRefusals(lus).length + 1 >= ESSAIS_MAX) {
       await fermerLesCartesDuRenvoi(ticket.number);
       await parquer(github, ticket, { station: nom, sha, raison, rouges: () => checksRougesDits(sha), motif: motifDit });
       chrono.oublier(ticket.number);
@@ -1939,7 +1939,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     // Une épique découpée, ou un besoin dont un ticket lancé est né : ni elle
     // ne se prend, ni elle ne compte parmi les tickets du tour (#2618, #3479).
     // Un ticket mis de côté pour le chef à son troisième refus ne se prend ni ne se sert avant sa réponse (#4226).
-    const tickets = horsDesBesoins(await horsDuParc(lus.filter((ticket) => !estMisDeCote(ticket.labels)), github, avertir));
+    const tickets = horsDesBesoins(await keepParkedAside(lus.filter((ticket) => !estMisDeCote(ticket.labels)), github, avertir));
     ouvertsDuTour = new Set(tickets.map(({ number }) => number));
     ticketsDuTour = tickets;
     const libres: TicketLu[] = [];

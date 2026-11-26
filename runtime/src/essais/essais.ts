@@ -35,7 +35,7 @@ const deConfiance = (c: CommentaireLu) => DE_CONFIANCE.includes(c.association);
 export const estUnParc = (c: CommentaireLu): boolean => deConfiance(c) && MARQUE_DE_PARC.test(c.body);
 
 // Les refus du ticket, du plus ancien au plus récent, sur toute sa vie.
-export const refusDuTicket = <C extends CommentaireLu>(commentaires: readonly C[]): C[] =>
+export const ticketRefusals = <C extends CommentaireLu>(commentaires: readonly C[]): C[] =>
   commentaires.filter((c) => estUnParc(c) || (deConfiance(c) && c.body.startsWith(MARQUE_DE_RENVOI) && !estUnRenvoiPourConflit(c.body)));
 
 // Ce qu'un refus a dit, en une ligne : la raison d'un renvoi, ou le dernier essai qu'une carte liste.
@@ -96,7 +96,7 @@ export async function parquer(github: GitHubDuParc, ticket: { number: number; la
   if (issue === null) return "absent";
   const commentaires = await github.commentaires(ticket.number);
   if (estParque(issue.labels, commentaires)) return "deja";
-  const essais = [...refusDuTicket(commentaires).map((c) => motifDuRefus(c.body)), raison.trim().split("\n")[0] ?? ""];
+  const essais = [...ticketRefusals(commentaires).map((c) => motifDuRefus(c.body)), raison.trim().split("\n")[0] ?? ""];
   const lus = await rouges().catch((erreur: unknown) => ({ illisibles: erreur instanceof Error ? erreur.message : String(erreur) }));
   if (!issue.labels.includes(CHEF_TODO)) await github.labelliser(ticket.number, [CHEF_TODO]);
   await github.commenter(ticket.number, corpsDuParc({ ticket: ticket.number, station, sha, essais, rouges: lus, motif }));
@@ -109,7 +109,7 @@ type GitHubDuTri = Pick<GitHub, "delabelliser"> & { commentaires: (numero: numbe
 // sont relus : la mise de côté retire `in-pass`, et un ticket en pass, que la pass relit, n'est pas pris.
 // Une mise de côté que le chef a répondue lève sa carte (`chef-todo` retiré), et le ticket revient à ce tour. Des
 // commentaires qui ne se lisent pas, ou un label qui ne se retire pas, le gardent de côté : le tour suivant réessaie.
-export async function horsDuParc<T extends { number: number; labels: string[] }>(tickets: readonly T[], github: GitHubDuTri, avertir: (texte: string) => void): Promise<T[]> {
+export async function keepParkedAside<T extends { number: number; labels: string[] }>(tickets: readonly T[], github: GitHubDuTri, avertir: (texte: string) => void): Promise<T[]> {
   const gardes: T[] = [];
   for (const ticket of tickets) {
     if (!ticket.labels.includes(CHEF_TODO) || ticket.labels.includes(LABEL_IN_PASS)) {
