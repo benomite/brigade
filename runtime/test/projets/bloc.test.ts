@@ -40,3 +40,13 @@ test("un bloc sans fin qui répète sa ligne mise de côté et son projet est r�
   assert.equal(rendu, [DEBUT, "# held-back brigade", "brigade benomite/brigade", FIN, ""].join("\n"));
   assert.equal(reecrireBloc(rendu, lignesDuBloc(rendu)), rendu);
 });
+
+test("un fichier aux doublons d'espacement différent, lu puis réécrit deux fois, donne deux fois le même texte, chaque projet et chaque ligne mise de côté une fois", () => {
+  const texte = [A_LA_MAIN.trimEnd(), "", DEBUT, "# held-back shop", "# held-back shop", "shop acme/shop main", "shop   acme/shop  main", "compta acme/compta main", "# held-back shop", "compta acme/compta main", FIN, ""].join("\n");
+  const une = reecrireBloc(texte, lignesDuBloc(texte));
+  const deux = reecrireBloc(une, lignesDuBloc(une));
+  const attendu = [A_LA_MAIN.trimEnd(), "", DEBUT, "# held-back shop", "shop acme/shop main", "compta acme/compta main", FIN, ""].join("\n");
+  assert.equal(une, attendu);
+  assert.equal(deux, une);
+  assert.deepEqual(lignesDuBloc(deux), ["shop acme/shop main", "compta acme/compta main"]);
+});
