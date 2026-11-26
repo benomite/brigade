@@ -32,6 +32,7 @@ import { ConfigInvalide } from "../runtime.ts";
 import { DemandeInvalide } from "../enrolement/enrolement.ts";
 import { tenirEnregistrement } from "../enregistrement-station/enregistrer.ts";
 import { CONFIGURATION, lieuxDuProjet, worktreesDeLaStation } from "./configuration.ts";
+import { holdKitchen, kitchenProjects } from "./new-kitchen.ts";
 import { nomDeLaStation } from "./nom.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { avertirSiTropAncienne } from "./version-minimale.ts";
@@ -215,9 +216,13 @@ choisis = servirLesProjetsChoisis({
   gh,
   claude,
   dire,
-  dejaServis: () => Object.values(station.servisSurGitHub()),
+  // The repositories of the new kitchen's projects are its own too.
+  dejaServis: () => [...Object.values(station.servisSurGitHub()), ...kitchenProjects(racine).flatMap(({ repo }) => (repo === null ? [] : [repo]))],
 });
 const projetsChoisis = choisis;
+// On a Mac, the station runs `src/kitchen/main.ts` for the projects of `kitchen/projects`, as the box's
+// `brigade-kitchen` unit does (docs/runtime/mac-new-kitchen.md).
+const nouvelleCuisine = holdKitchen({ root: racine, env: process.env, platform: process.platform, say: dire });
 // Sur un Mac, l'ordinateur reste éveillé tant qu'un de ses cooks cuit (#3642), ou qu'un ticket qu'elle sert attend sa
 // prise (#3713), si le chef ne l'a pas éteint.
 const veille = tenirLaVeille({
@@ -250,6 +255,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     cacheEtag.arreter();
     projetsDeLApp.arreter();
     void projetsChoisis.arreter();
+    nouvelleCuisine.stop();
     veille.arreter();
     miseAJour?.arreter();
     station.arreter(signal);
@@ -267,6 +273,7 @@ process.on("SIGHUP", () => {
   station.relire();
   void projetsDeLApp.relire();
   void projetsChoisis.tourner();
+  nouvelleCuisine.check();
 });
 
 // Ce que la station dit d'elle-même — sa version, son pid, ce qu'elle sert :

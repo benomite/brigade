@@ -12,6 +12,7 @@ import type { CodeDeRefus } from "../projets/refus.ts";
 import { demenagerVersLAtelier } from "./atelier.ts";
 import { departDuProjet, FENETRE_PAR_DEFAUT_MS } from "../lecture-initiale/etalement.ts";
 import { ouvrirCuisine, type Cuisine, type OptionsCuisine } from "./cuisine.ts";
+import { kitchenProjects } from "./new-kitchen.ts";
 import { lirePortes, UNITE_DES_PORTES, type Portes } from "./portes.ts";
 
 export type OptionsStation = {
@@ -113,6 +114,8 @@ export function ouvrirStation(options: OptionsStation): Station {
   // Le dernier rail lu de chaque projet servi.
   const railsLus = new Map<string, TicketPublie[]>();
   let ditsProblemes = "";
+  // The projects the new kitchen serves, already said.
+  let ditsALaCuisine = new Set<string>();
   let arretee = false;
 
   const fermer = (nom: string, motif: string) => {
@@ -167,10 +170,16 @@ export function ouvrirStation(options: OptionsStation): Station {
 
   const relire = () => {
     if (arretee) return;
-    const { projets, problemes } = lireFichierDeConfiguration(fichier);
+    const lu = lireFichierDeConfiguration(fichier);
+    const { problemes } = lu;
     const dits = problemes.join("\n");
     if (dits !== ditsProblemes) for (const probleme of problemes) dire(`brigade : station — ${probleme}`);
     ditsProblemes = dits;
+    // A project of `kitchen/projects` is the new kitchen's: the old runtime does not serve it.
+    const aLaCuisine = new Set(kitchenProjects(racine).map(({ name }) => name));
+    const projets = lu.projets.filter(({ nom }) => !aLaCuisine.has(nom));
+    for (const { nom } of lu.projets) if (aLaCuisine.has(nom) && !ditsALaCuisine.has(nom)) auNomDe(dire, nom)("served by the new kitchen (kitchen/projects): the old runtime does not serve it");
+    ditsALaCuisine = new Set(lu.projets.filter(({ nom }) => aLaCuisine.has(nom)).map(({ nom }) => nom));
 
     const lus = portes === null ? null : lirePortes(portes);
 
@@ -179,8 +188,8 @@ export function ouvrirStation(options: OptionsStation): Station {
       const voulu = voulus.get(nom);
       if (voulu && cleDe(voulu, lus) === ouverte.cle) continue;
       const seulementLaPorte = voulu !== undefined && ouverte.cle.startsWith(`${voulu.ligne} porte=`);
-      auNomDe(dire, nom)(!voulu ? "retiré de la configuration : la station ne le sert plus" : seulementLaPorte ? "sa porte a changé de port : la station le rouvre" : "sa ligne a changé : la station le rouvre");
-      fermer(nom, voulu ? "reconfigured" : "removed");
+      auNomDe(dire, nom)(aLaCuisine.has(nom) ? "the new kitchen serves it now: the old runtime stops" : !voulu ? "retiré de la configuration : la station ne le sert plus" : seulementLaPorte ? "sa porte a changé de port : la station le rouvre" : "sa ligne a changé : la station le rouvre");
+      fermer(nom, aLaCuisine.has(nom) ? "new-kitchen" : voulu ? "reconfigured" : "removed");
     }
     for (const nom of [...refuses.keys()]) if (!voulus.has(nom)) refuses.delete(nom);
     for (const projet of projets) {
