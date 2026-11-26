@@ -4,7 +4,7 @@
 // hors de ce qu'un agent reçoit.
 //
 // Le lien que GitHub nomme (`author_association`) ne suffit pas : un membre d'une organisation
-// (`MEMBER`) peut n'avoir que la lecture. Pour les auteurs que ce lien ne met pas déjà dehors,
+// (`MEMBER`) peut n'avoir que la lecture. Pour les auteurs que ce lien ne met pas déjà dehors, hors le propriétaire,
 // la permission se lit par l'API (`permissionDe`), une fois par auteur et par client : le
 // résultat est gardé. Une lecture qui échoue n'est pas gardée, et lève : l'appelant reprend
 // au tour suivant, sans rien décider à sa place.
@@ -46,7 +46,8 @@ export function porteDeConfiance(github: GitHubDeLaConfiance) {
   const deConfiance = async ({ author, association }: Auteur): Promise<boolean> => {
     if (agentDeLaCuisine(author)) return true;
     if (!DE_CONFIANCE.includes(association)) return false;
-    if (github.permissionDe === undefined) return true;
+    // Le propriétaire du dépôt — ou de son organisation — en est administrateur : rien à lire.
+    if (association === "OWNER" || github.permissionDe === undefined) return true;
     if (author === undefined || author === "") return false;
     return permission(author);
   };
