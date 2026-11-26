@@ -27,7 +27,7 @@ import { translate } from "./words.ts";
 const HOME = resolve(import.meta.dirname, "../..");
 let REPO = HOME;
 // Where names are renamed: declarations and file names.
-const OWN = ["runtime/src", "runtime/test", "app/src", "app/test"];
+const OWN = ["app/src", "app/test"];
 // Code that only follows: it imports the renamed code, its references and the
 // paths it names follow, its own names do not change.
 const FOLLOWERS = ["scripts/capture-ecran"];
