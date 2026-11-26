@@ -51,6 +51,8 @@ test("a failed fetch of the base is the station's, not the ticket's: no try is c
   assert.equal(echecs(faux, 31), 0);
   assert.equal(faux.prisesDe("A"), 1);
   assert.equal(faux.ticket(31).labels.has("taken"), false);
+  await tourPresse(t);
+  await reprisePropre(t);
 });
 
 test("reecrireBloc: a project repeated with other spacing and a repeated held-back comment are each written once", () => {
@@ -72,6 +74,7 @@ test("reecrireBloc: a project line written by hand twice outside the block is ke
 });
 
 test("brancheDuProjet: a sheet that only the default branch of the repository carries is read there, and the clone's branch decides nothing else", (t) => {
+  baseDuCloneCas(t);
   const { amont, clone, rapatrier } = projetSurGit(t, { parDefaut: "main" });
   ecrireFiche(amont, { ...ficheParDefaut("main"), served: { branch: "release-9" } });
   git(amont, "add", ".");
@@ -90,7 +93,7 @@ test("reecrireBloc: a block that already repeats a `# held-back` line five times
   assert.equal(reecrireBloc(une, ["a x main"]), une);
 });
 
-test("a failed fetch of the base presses a new turn, and a ticket failure that only names the base or only says fetch is still the ticket's own", async (t) => {
+const tourPresse = async (t: { after(f: () => void): void }) => {
   const faux = new FauxGitHub();
   faux.feu(41);
   const s = station(t, faux, async () => { throw new Error("git fetch origin main : no route"); }, false);
@@ -107,9 +110,9 @@ test("a failed fetch of the base presses a new turn, and a ticket failure that o
     await autre.calme();
     assert.equal(echecs(f, issue), 1, texte);
   }
-});
+};
 
-test("a resume that fails with a fetch message naming the base is the ticket's own failure", async (t) => {
+const reprisePropre = async (t: { after(f: () => void): void }) => {
   const faux = new FauxGitHub();
   faux.feu(44);
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-4320-"));
@@ -128,11 +131,11 @@ test("a resume that fails with a fetch message naming the base is the ticket's o
   await s.tour();
   await s.calme();
   assert.equal(echecs(faux, 44), 1);
-});
+};
 
-test("baseDuClone: a project that declares its branch has none from its clone, an undeclaring one gives its default branch", (t) => {
+const baseDuCloneCas = (t: Parameters<typeof projetSurGit>[0]) => {
   const { clone: declare } = projetSurGit(t, { parDefaut: "main", autres: ["v2"], reglages: { integrationBranch: "v2" } });
   assert.equal(baseDuClone(declare), null);
   const { clone: sans } = projetSurGit(t, { parDefaut: "trunk" });
   assert.equal(baseDuClone(sans), "trunk");
-});
+};
