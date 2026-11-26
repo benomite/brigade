@@ -3091,7 +3091,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // consigne, et la station pousse sa branche et ouvre sa PR. Rien ne fait
   // donc parler son `gh` au nom du chef (`bac-a-sable/hors-github.ts`).
   // Sans bac à sable ni cloison, le cook part en mode restreint : `dontAsk` et des réglages qui tiennent sans le noyau.
-  const lancementDuClaude = (args: string[], ou: string, lit: string[] = [], setup = false): string[] =>
+  const lancementDuClaude = (args: string[], ou: string, lit: string[] = [], setup?: boolean): string[] =>
     options.bacASable || cloison !== null ? dansLeBacASableLocal(options.bacASable, args, ou, lit, setup) : dansLeModeRestreint(args, { worktree: ou, caches: lireCaches(options.env), hotes: (options.hotes ?? (() => REGLES_DE_BASE))(), home: options.env.HOME ?? homedir(), lit });
   const sansJeton = () => environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) });
   const env = (depart: NodeJS.ProcessEnv = sansJeton()) => environnementClaude(depart, options.env);
