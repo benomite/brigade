@@ -8,8 +8,9 @@
 //   checkRepoSetup(repo)   → { ready, missingBindings, missingLabels }
 //   runRepoSetup(repo)     fait ce que `/brigade:init` fait de ces deux choses —
 //                          met les labels d'après le catalogue (`etiquettes.ts` :
-//                          crée, renomme, corrige la description), puis crée la
-//                          section —, et rend un nouveau constat ; ou rejette,
+//                          crée, renomme, corrige la description), écrit la
+//                          fiche du projet si le dépôt n'en a pas (#4237), puis
+//                          crée la section —, et rend un nouveau constat ; ou rejette,
 //                          en une phrase.
 //
 // Rejouer `runRepoSetup` sur un dépôt à jour ne change rien : un label conforme
@@ -24,6 +25,8 @@ import { configRail } from "../alimenter.ts";
 import { Sortie, type Appel } from "../appel.ts";
 import { clientGh, type ClientGitHub, type ReponseGitHub } from "../proteger-branche.ts";
 import { ConfigInvalide } from "../runtime.ts";
+import { BRANCHE_PRINCIPALE_PAR_DEFAUT, CHEMIN_DE_LA_FICHE } from "../fiche-projet/defauts.ts";
+import { creerFiche } from "../fiche-projet/fiche.ts";
 import { ETIQUETTES, planDesLabels, type EtiquetteLue } from "../etiquettes.ts";
 import { claudeMdDeLaBase } from "../second-init/premier-ticket.ts";
 
@@ -139,13 +142,21 @@ async function poserLesLabels(client: ClientGitHub, depot: string): Promise<void
   for (const label of plan.corriger) await ecrireLabel(client, depot, { methode: "PATCH", chemin: chemin(label.name), corps: { description: label.description } }, `fix the description of the label \`${label.name}\``);
 }
 
-// Les labels d'abord : un refus de GitHub laisse le `CLAUDE.md` tel quel.
+// Les labels d'abord : un refus de GitHub laisse le `CLAUDE.md` tel quel. Un
+// dépôt sans fiche du projet reçoit celle des défauts (#4237), servie sur sa
+// branche d'intégration ; celui qui a la sienne la garde.
 export async function runRepoSetup(repo: Repo, client: ClientGitHub = ghDe(process.env)): Promise<RepoSetup> {
   const avant = await checkRepoSetup(repo, client);
   await poserLesLabels(client, repo.github);
+  const branche = repo.branch ?? BRANCHE_PRINCIPALE_PAR_DEFAUT;
+  try {
+    creerFiche(repo.dir, { branchePrincipale: branche });
+  } catch (erreur) {
+    throw new Error(`The project sheet could not be written to ${join(repo.dir, CHEMIN_DE_LA_FICHE)} (${erreur instanceof Error ? erreur.message : String(erreur)}).`);
+  }
   if (avant.missingBindings) {
     const existant = lireClaudeMd(repo);
-    const section = sectionDeBindings(repo.branch ?? "main");
+    const section = sectionDeBindings(branche);
     const contenu = existant === null || existant.trim() === "" ? section : `${existant.replace(/\n*$/, "")}\n\n${section}`;
     try {
       writeFileSync(cheminDuClaudeMd(repo), contenu);

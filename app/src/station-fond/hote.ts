@@ -4,8 +4,8 @@
 //   node hote.ts <répertoire de la station> <point d'entrée de la station livrée avec l'app>
 //
 // Il tient la station comme l'app la tenait (station-process/superviseur.ts, poste/station.ts) : relancée cinq secondes
-// après sa mort, remplacée seule par une release que sa mise à jour a téléchargée, et une cuisine par projet
-// (station-embarquee-cuisine-unique.ts). L'app qui quitte, redémarre ou se met à jour ne le touche pas : seul un arrêt
+// après sa mort, remplacée seule par une release que sa mise à jour a téléchargée, et les projets qu'une version d'avant avait
+// mis de côté remis (station-projets-remis.ts). L'app qui quitte, redémarre ou se met à jour ne le touche pas : seul un arrêt
 // demandé à lui (SIGTERM, SIGINT — « Quit the station » de l'icône de fond, tray-fond/systeme.ts) arrête la station.
 //
 // - **Un seul par ordinateur.** Il prend la marque `app.pid` de la station ; tenue par un autre process vivant, il le
@@ -17,10 +17,8 @@
 //   station sur le répertoire démarre dès qu'elle est partie, sans geste du chef.
 import { utimesSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
-import { gistLocal } from "../pannes/login.ts";
 import { prendreLaStation, rendreLaStation, TENUE_PAR } from "../poste/station.ts";
-import { garderUneSeuleCuisine } from "../station-embarquee-cuisine-unique.ts";
+import { remettreLesProjets } from "../station-projets-remis.ts";
 import { environnementDeLaStation, tenirProcessDeStation, type ProcessDeStation } from "../station-process/superviseur.ts";
 import { demanderAppairage, ecrireEtatDuFond, type EtatDuFond } from "./fond.ts";
 import { ecrireLePidPourLIcone } from "./inscription.ts";
@@ -99,16 +97,7 @@ station = tenirProcessDeStation({
   reessaiMs: 10_000,
   // Le délai entre deux essais d'une station morte ou refusée : cinq secondes, sauf pour les tests qui ne l'attendent pas.
   ...(Number(process.env.BRIGADE_HOTE_RELANCE_MS) > 0 ? { relanceMs: Number(process.env.BRIGADE_HOTE_RELANCE_MS) } : {}),
-  avantLancement: () =>
-    garderUneSeuleCuisine({
-      racine,
-      lire: async () => {
-        const { lireLesStationsDuChef } = (await import(pathToFileURL(join(runtime, "src", "appairage", "stations-du-chef.ts")).href)) as typeof import("../../../runtime/src/appairage/stations-du-chef.ts");
-        return lireLesStationsDuChef({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env });
-      },
-      soi: () => ({ gist: gistLocal(racine), nom: process.env.BRIGADE_STATION_NOM ?? "" }),
-      dire,
-    }),
+  avantLancement: async () => remettreLesProjets({ racine, dire }),
   surChangement: noter,
   surIssue: noter,
 });

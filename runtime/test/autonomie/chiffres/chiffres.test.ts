@@ -3,11 +3,14 @@
 // pull requests as the app reads them: no file, no log, no state directory.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { BLOCKED_ON_HUMAN, CHEF_TODO, chiffresDAutonomie, FIRE, MARQUE_DE_CARTE, MARQUE_DE_RENVOI, premiereLigne, type DonneesDuDepot, type Servi } from "../../../src/autonomie/chiffres/chiffres.ts";
-import { A_LA_MAIN } from "../../../src/brigade-github.ts";
+import { CHEF_TODO, chiffresDAutonomie, FIRE, MARQUE_DE_CARTE, MARQUE_DE_RENVOI, premiereLigne, type DonneesDuDepot, type Servi } from "../../../src/autonomie/chiffres/chiffres.ts";
 import { CHEF_TODO as CHEF_TODO_DES_CARTES, corpsDeCarte, SORTES } from "../../../src/github-seul/carte-todo/carte-todo.ts";
 import { LABEL } from "../../../src/github.ts";
 import { MARQUE_DE_RENVOI as MARQUE_DE_LA_STATION } from "../../../src/qualite-github.ts";
+import { LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../../../src/github-etat/etats.ts";
+
+// Un label d'attente du chef d'avant parked (#4260), que l'histoire d'une issue garde.
+const POUR_LE_CHEF_AVANT_PARKED = LABELS_D_AVANT_PARKED_POUR_LE_CHEF[0] ?? "";
 
 const MAINTENANT = new Date("2026-11-11T12:00:00.000Z");
 const JOUR = 24 * 3600 * 1000;
@@ -31,7 +34,6 @@ function depot(tickets: Ticket[], nom = "chef/parade"): DonneesDuDepot {
 describe("autonomy figures from GitHub", () => {
   test("the marks are the ones the stations write", () => {
     assert.equal(FIRE, LABEL);
-    assert.equal(BLOCKED_ON_HUMAN, A_LA_MAIN);
     assert.equal(CHEF_TODO, CHEF_TODO_DES_CARTES);
     assert.equal(MARQUE_DE_RENVOI, MARQUE_DE_LA_STATION);
     for (const sorte of SORTES) assert.match(corpsDeCarte({ sorte, texte: "x" }), MARQUE_DE_CARTE);
@@ -39,7 +41,7 @@ describe("autonomy figures from GitHub", () => {
     assert.match("<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->\n**Q?**", MARQUE_DE_CARTE);
   });
 
-  test("a TODO card or `blocked-on-human` makes a ticket served with a human, with the question it asked; neither, served without", () => {
+  test("a TODO card or a waiting label for the chef of before parked makes a ticket served with a human, with the question it asked; neither, served without", () => {
     const chiffres = chiffresDAutonomie(
       [
         depot([
@@ -55,7 +57,7 @@ describe("autonomy figures from GitHub", () => {
             numero: 3,
             fire: 3 * HEURE,
             merge: HEURE,
-            evenements: [pose(BLOCKED_ON_HUMAN, il(2 * HEURE))],
+            evenements: [pose(POUR_LE_CHEF_AVANT_PARKED, il(2 * HEURE))],
             commentaires: [commentaire("<!-- brigade:prise station=box -->\ntaken", il(2.8 * HEURE)), commentaire("**Question for the chef (product):** keep the old route?\n\nStation `box`: …", il(2 * HEURE + 1000))],
           },
         ]),
@@ -101,7 +103,7 @@ describe("autonomy figures from GitHub", () => {
       [
         depot([
           // Blocked before this `fire`, and a card mark written by a stranger: served without a human.
-          { numero: 6, fire: 3 * HEURE, merge: HEURE, evenements: [pose(BLOCKED_ON_HUMAN, il(5 * HEURE))], commentaires: [commentaire(corpsDeCarte({ sorte: "blocked", texte: "fake" }), il(2 * HEURE), "NONE")] },
+          { numero: 6, fire: 3 * HEURE, merge: HEURE, evenements: [pose(POUR_LE_CHEF_AVANT_PARKED, il(5 * HEURE))], commentaires: [commentaire(corpsDeCarte({ sorte: "blocked", texte: "fake" }), il(2 * HEURE), "NONE")] },
         ]),
       ],
       7,
@@ -143,7 +145,7 @@ describe("autonomy figures from GitHub", () => {
   test("a ticket merged outside the period is left out; changing the period changes the figures", () => {
     const donnees = depot([
       { numero: 1, fire: 2 * JOUR + HEURE, merge: 2 * JOUR },
-      { numero: 2, fire: 20 * JOUR + 5 * HEURE, merge: 20 * JOUR, evenements: [pose(BLOCKED_ON_HUMAN, il(20 * JOUR + 2 * HEURE))] },
+      { numero: 2, fire: 20 * JOUR + 5 * HEURE, merge: 20 * JOUR, evenements: [pose(POUR_LE_CHEF_AVANT_PARKED, il(20 * JOUR + 2 * HEURE))] },
       { numero: 3, fire: 40 * JOUR, merge: 35 * JOUR },
     ]);
     const semaine = chiffresDAutonomie([donnees], 7, MAINTENANT);
@@ -168,7 +170,7 @@ describe("autonomy figures from GitHub", () => {
 
   test("all projects pool their tickets, each served with a human named with its repository", () => {
     const parade = depot([{ numero: 1, fire: 2 * HEURE, merge: HEURE }]);
-    const cantine = depot([{ numero: 1, fire: 3 * HEURE, merge: HEURE, evenements: [pose(BLOCKED_ON_HUMAN, il(2 * HEURE))] }], "chef/cantine");
+    const cantine = depot([{ numero: 1, fire: 3 * HEURE, merge: HEURE, evenements: [pose(POUR_LE_CHEF_AVANT_PARKED, il(2 * HEURE))] }], "chef/cantine");
     const chiffres = chiffresDAutonomie([parade, cantine], 7, MAINTENANT);
     assert.deepEqual([chiffres.tickets, chiffres.partSansHumain, chiffres.delaiMedianMs], [2, 0.5, 1.5 * HEURE]);
     assert.deepEqual(chiffres.avecHumain.map(({ depot, ticket, questions }) => ({ depot, ticket, questions })), [{ depot: "chef/cantine", ticket: 1, questions: [null] }]);

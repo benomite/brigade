@@ -103,7 +103,7 @@ test("« stop » arrête tous les cooks en cours, au nom du chef, et le chef le 
   assert.match(stop.sortie, /kitchen stopped/);
   assert.deepEqual(fins.map((fin) => fin.outcome), ["stop", "stop"]);
   assert.deepEqual(commandes().map((e) => [e.type, e.author, e.project, e.ticket]), [["kitchen.stopped", "chef", "brigade", null]]);
-  assert.throws(() => cook(9, "fini"), /cuisine arrêtée/);
+  assert.throws(() => cook(9, "fini"), /kitchen stopped/);
 
   const { sortie } = await lancee();
   assert.match(sortie, /kitchen\s+STOPPED by the chef on \d{4}-\d{2}-\d{2}T.* — `resume` to restart/);
@@ -169,7 +169,7 @@ test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêt�
 
   assert.match(sortie, new RegExp(`breaker\\s+OPEN since ${JOUR_HORLOGE}T.* after 2 failures in a row — no more cooks are launched; the supervisor re-runs a run to check it and closes it by itself`));
   assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+tokens cap exceeded: 30 for 25`));
-  assert.throws(() => cook(10, "fini"), /disjoncteur/);
+  assert.throws(() => cook(10, "fini"), /breaker open/);
 
   assert.match((await commande("resume")).sortie, /breaker closed/);
   assert.match((await commande()).sortie, /breaker\s+closed — 0 failure/);
@@ -201,7 +201,7 @@ test("« stop » sans runtime qui tourne tient quand même, et le dit", async (t
   assert.match(cli.sortie(), /no runtime is running/);
   const runtime = brancherGardeFous(REGLAGES, demarrer({ repertoireEtat: repertoire, projet: "brigade" }));
   t.after(() => runtime.arreter("test"));
-  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /cuisine arrêtée/);
+  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /kitchen stopped/);
 });
 
 test("sans journal dans le répertoire d'état, la commande échoue, le dit, et ne crée rien", async (t) => {
@@ -289,7 +289,7 @@ test("un arrêt posé avant le ticket est toujours montré, et `resume` le lève
 
   const montre = await commande();
   assert.match(montre.sortie, /^kitchen\s+STOPPED by the chef on /m);
-  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /cuisine arrêtée/);
+  assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /kitchen stopped/);
 
   assert.match((await commande("resume")).sortie, /kitchen reopened/);
   assert.match((await commande()).sortie, /^kitchen\s+open$/m);

@@ -33,7 +33,7 @@ export const RENVOI = "send-back rate";
 const BUGS_ECHAPPES = "escaped bugs";
 const REVERTS = "reverts";
 export const DEFINITIONS = {
-  sansHumain: "The share of the tickets merged in the period whose path from fire to merge never asked the chef anything: no TODO card, no blocked-on-human.",
+  sansHumain: "The share of the tickets merged in the period whose path from fire to merge never asked the chef anything: no TODO card, never parked for the chef.",
   delai: "The median time from fire to merge of the tickets merged in the period.",
   renvoi: "The share of the deliveries merged in the period that the pass sent back at least once.",
   bugs: "The bug-labelled issues created after a ticket merged in the period was served, and citing its number in their title or body.",

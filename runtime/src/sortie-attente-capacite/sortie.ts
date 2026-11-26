@@ -18,6 +18,14 @@
 //   capacité qu'aucune station ne fournit. Rejoué sur un ticket déjà confié,
 //   le geste nomme quelqu'un d'autre.
 //
+// Un ticket ordinaire du rail — il n'attend aucune capacité, seul un humain peut
+// le faire (#4276, règle 6 de docs/superpowers/specs/2026-11-24-simplified-process.md) —
+// est marqué pour cet humain, sur GitHub (cook-humain/marquer.ts) : le label
+// `human-cook` et son assignee — le chef résolu quand il ne nomme personne —, et un
+// commentaire qui lui dit que c'est son travail. Il garde `fire` et reste sur le
+// rail : aucune station ne le prend, et la PR de l'humain passe la même pass que
+// celle d'un cook (cook-humain/livraison.ts). Sa tâche entre dans TODO de même.
+//
 // La tâche entre dans TODO comme une carte `product` de la forme unique
 // (carte-todo.ts, `jugerCarte`), sans passer par le triage : ce n'est pas la
 // proposition d'un producteur, c'est le geste du chef lui-même. Elle en sort
@@ -26,8 +34,10 @@
 import type { Base } from "../base.ts";
 import { manqueDuTicket } from "../capacites.ts";
 import { cartesEnTodo, jugerCarte } from "../carte-todo.ts";
+import type { ChefLu } from "../chef/chef.ts";
 import { requises } from "../fiche.ts";
 import type { Resultat } from "../geste-ticket.ts";
+import { LABEL_COOK_HUMAIN, marquerPourUnHumain, marqueSurGitHub } from "../cook-humain/marquer.ts";
 import { HORS_CUISINE, LABEL, type GitHub } from "../github.ts";
 import type { Journal } from "../journal.ts";
 import { ticketDuRail, type TicketRail } from "../projections/rail.ts";
@@ -114,7 +124,10 @@ export function carteDeLaTache(assignee: string, missing: readonly string[]) {
     type: "product",
     raison: "chef-gesture",
     besoin: "machine",
-    resume: `No station can provide ${capacitesDites(missing)}: this ticket left the rail and is a human's job, for ${pour(assignee)}.`,
+    resume:
+      missing.length === 0
+        ? `This ticket is ${pour(assignee)}'s work: only a human can do it. It stays on the rail, and its pull request goes through the same pass as a cook's.`
+        : `No station can provide ${capacitesDites(missing)}: this ticket left the rail and is a human's job, for ${pour(assignee)}.`,
     enonce: "What became of this task?",
     choix: [
       { texte: "It is done", suite: "resume" },
@@ -165,30 +178,53 @@ function entrer(journal: Journal, projet: string, ticket: number, tache: TacheHu
   journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "todo.entered", payload: { kind, summary, statement, choices: choix.map(({ texte, suite }) => ({ text: texte, then: suite })), captures: null } });
 }
 
+// Le compte GitHub de la marque : celui que le chef nomme, ou, s'il ne nomme
+// personne, le chef que la cuisine a résolu (chef/chef.ts : déclaré, propriétaire
+// du dépôt, ou auteur de son init). Null : aucun chef résolu, rien n'est assigné.
+const compteDeLaMarque = (assignee: string, chef: ChefLu): string | null => (assignee !== CHEF ? assignee : "login" in chef ? chef.login : null);
+
+// Marque un ticket ordinaire du rail pour un humain (#4276) : sur GitHub d'abord
+// — le label, l'assignee, le commentaire —, puis sa tâche dans TODO. Rejoué pour
+// quelqu'un d'autre, l'assignee d'avant est retiré.
+async function marquerLeTicket(journal: Journal, github: GitHub, projet: string, ticket: number, tache: TacheHumaine, avant: string | null, chef: ChefLu): Promise<Resultat> {
+  const login = compteDeLaMarque(tache.assignee, chef);
+  const ancien = avant === null ? null : compteDeLaMarque(avant, chef);
+  await marquerPourUnHumain({ ticket, login, github: marqueSurGitHub(github) });
+  if (ancien !== null && ancien !== login) await github.desassigner?.(ticket, [ancien]);
+  journal.base.transaction(() => entrer(journal, projet, ticket, tache));
+  return {
+    done: true,
+    price: `the ticket stays on the rail with \`${LABEL}\` and carries \`${LABEL_COOK_HUMAIN}\`, ${login === null ? "for the chef, assigned to no one: no chef is resolved yet" : `assigned to ${login}`}: no station takes it, and its pull request goes through the same pass as a cook's. Nothing is spent`,
+  };
+}
+
 // « It is a human's job » : le ticket en WAITING faute de capacité quitte le
 // rail et entre dans TODO, tâche de `qui` — le chef s'il ne nomme personne.
+// Un ticket ordinaire du rail est marqué pour `qui`, et reste sur le rail.
 // Sur un ticket déjà confié dont la tâche est dans TODO, nomme quelqu'un
 // d'autre. Tout autre ticket est refusé, et rien n'est touché.
-export async function confierAUnHumain(journal: Journal, github: GitHub, projet: string, ticket: number, qui = ""): Promise<Resultat> {
+// `chef` : le chef que la cuisine a résolu (`lireLeChef`), à qui la marque revient sans nom.
+export async function confierAUnHumain(journal: Journal, github: GitHub, projet: string, ticket: number, qui = "", chef: ChefLu = { absent: true }): Promise<Resultat> {
   const assignee = assigneeLu(qui);
   if (typeof assignee !== "string") return refuse(assignee.refus);
   const { base } = journal;
   const sur = ticketDuRail(base, ticket);
-  const deja = sur === null ? tachesHumaines(base).get(ticket) : undefined;
+  const deja = tachesHumaines(base).get(ticket);
 
   if (deja !== undefined) {
     if (deja.assignee === assignee) return refuse(`#${ticket} is already ${pour(assignee)}'s job`);
     const tache = { ...deja, assignee };
+    if (deja.missing.length === 0) return marquerLeTicket(journal, github, projet, ticket, tache, deja.assignee, chef);
     await github.commenter(ticket, direLaTache(tache, true));
     base.transaction(() => entrer(journal, projet, ticket, tache));
     return { done: true, price: `the task stays in TODO, now for ${pour(assignee)}; nothing is spent` };
   }
   if (sur === null) return refuse(`#${ticket} is not on the rail, and no human's job of it is in TODO`);
   const manque = manqueDuTicket(sur);
-  if (manque === null) return refuse(`#${ticket} does not wait for a capability no station provides: only such a WAITING card becomes a human's job`);
 
   const issue = await github.issue(ticket);
   const { context, criteria } = lireLaCarte(issue?.body ?? "");
+  if (manque === null) return marquerLeTicket(journal, github, projet, ticket, { assignee, missing: [], title: sur.title, context, criteria }, null, chef);
   const tache: TacheHumaine = { assignee, missing: manque.capacites, title: sur.title, context, criteria };
   // Le rail se lit de GitHub : les labels d'abord, puis le fait que le sondage
   // aurait écrit (geste-ticket.ts, `retirerDuRail`).

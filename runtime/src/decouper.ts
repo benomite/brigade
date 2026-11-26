@@ -11,6 +11,7 @@ import { DEBUT_DIAGRAMME, FIN_DIAGRAMME, sansBloc } from "./diagramme-epique.ts"
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
+import { CONSIGNE_TEMPS_ATTENDU, lireTempsAttendu, tempsJoint, texteDuCalibrage } from "./temps-attendu/temps-attendu.ts";
 import { recouvrement, segments } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORT_HIGH_AU_RENVOI, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
@@ -106,6 +107,8 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "",
     `Le calibrage le plus bas qui suffit : c'est le quota du chef. ${EFFORT_HIGH_AU_RENVOI} Tu ne poses jamais \`xhigh\` ni \`max\`.`,
     "",
+    CONSIGNE_TEMPS_ATTENDU,
+    "",
     CRITERE_DE_FORME,
     "",
     "## Tu ne découpes pas ce que tu ne comprends pas",
@@ -116,6 +119,8 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "",
     "Une question au chef se formule comme un choix entre des voies : chaque voie dite en une phrase — ce que l'utilisateur en retrouve, ce qu'elle change pour lui —, jamais en termes de fichiers ou de code. Pas de question ouverte (« comment veux-tu… ? »), pas de question dont la réponse ne change rien pour l'utilisateur.",
     "",
+    "**Découper ou non n'est jamais une question pour le chef** : un ticket ou plusieurs, combien, lesquels — c'est à toi, tu le décides et tu le dis dans le `motif`. Une épique qui tient dans une seule PR est un découpage en un seul ticket. Tu ne demandes jamais au chef s'il faut la découper, ni si elle doit rester un seul ticket.",
+    "",
     "Si l'épique liste déjà ses tickets — des issues nommées par leur numéro, dans son corps ou ses commentaires —, elle est déjà découpée : tu ne crées rien.",
     "",
     "## Ta réponse",
@@ -123,7 +128,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "Un seul objet JSON, et rien après lui. Un découpage :",
     "",
     "```json",
-    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "calibrage": "pourquoi ce modèle et cet effort"}]}`,
+    `{"reponse": "tickets", "motif": "pourquoi ces tickets-là", "ordre": "pourquoi cet ordre", "tickets": [{"titre": "ce que le ticket livre", "contexte": "ce que le cook doit savoir, en quelques phrases", "criteres": ["un critère observable", "un autre"], "attend": [], "zone": ["chemin/du/depot"], "capacites": [], "modele": "sonnet", "effort": "medium", "temps_attendu": 10, "calibrage": "pourquoi ce modèle et cet effort"}]}`,
     "```",
     "",
     "une question :",
@@ -177,6 +182,12 @@ export function ficheDuTicket(prevu: Pick<TicketPrevu, "waitsFor" | "zone" | "re
 
 const REPONSES = ["tickets", "question", "deja-decoupee"];
 
+// Une question qui demande au chef s'il faut découper — un ticket ou plusieurs —
+// n'en est pas une : depuis le 2026-11-25 (#4247), c'est au manager. Elle se lit
+// comme une réponse illisible, redemandée une fois, puis l'épique est jugée
+// comme un ticket seul : aucune carte ne la pose au chef.
+const DEMANDE_SI_DECOUPER = /\bsplit(ting)?\b.*\btickets?\b|\btickets?\b.*\bsplit(ting)?\b|\b(a single|several|multiple|separate) tickets?\b|\bone ticket or\b|\bor (keep it as )?(a )?(single|one) ticket\b/i;
+
 function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   const ou = `ticket ${rang}`;
   if (brut === null || typeof brut !== "object" || Array.isArray(brut)) return `${ou}: not an object`;
@@ -209,7 +220,9 @@ function lireTicket(brut: unknown, rang: number): TicketPrevu | string {
   if (!effort) return `${ou}: an effort the manager does not set: ${JSON.stringify(lu.effort)} — expected ${EFFORTS_DU_MANAGER.join(", ")}`;
   const calibration = phrase(lu.calibrage);
   if (!calibration) return `${ou}: calibration not justified`;
-  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration };
+  const attendu = lireTempsAttendu(lu.temps_attendu, calibration);
+  if ("refus" in attendu) return `${ou}: ${attendu.refus}`;
+  return { title, context: phrase(lu.contexte) ?? "", criteria: criteres as string[], ...prevu, model, effort, calibration, expectedMinutes: attendu.minutes };
 }
 
 // Lit le découpage dans le dernier message du jugement. `fichiers` : le plan
@@ -222,7 +235,9 @@ export function lireDecoupage(message: string | null): { valeur: Decoupe } | { i
   if (!reponse) return { illisible: `unknown answer ${JSON.stringify(lu.reponse)} — expected ${REPONSES.join(", ")}` };
   if (reponse === "question") {
     const question = phrase(lu.question);
-    return question ? { valeur: { quoi: "question", question } } : { illisible: "no `question`" };
+    if (!question) return { illisible: "no `question`" };
+    if (DEMANDE_SI_DECOUPER.test(question)) return { illisible: "the question asks the chef whether to split the epic: the manager decides that itself" };
+    return { valeur: { quoi: "question", question } };
   }
   const reason = phrase(lu.motif);
   if (!reason) return { illisible: "no `motif`" };
@@ -292,6 +307,7 @@ export function joindre(tickets: TicketPrevu[], communs: string[] = []): TicketP
     if (membres.length === 1) return premier;
     const sans = <T>(valeurs: T[]) => [...new Set(valeurs)];
     const requires = sans(membres.flatMap((m) => m.requires ?? []));
+    const joint = tempsJoint(membres.map((m) => m.expectedMinutes));
     const joined = rangs.slice(1).map((i, k) => {
       const prevu = membres[k + 1] as TicketPrevu;
       const path = membres.slice(0, k + 1).reduce<string | null>((trouve, avant) => trouve ?? recouvrement(prevu.zone, avant.zone, communs), null);
@@ -308,6 +324,7 @@ export function joindre(tickets: TicketPrevu[], communs: string[] = []): TicketP
       model: plusHaut(MODELES, membres.map((m) => m.model), "debut") ?? premier.model,
       effort: plusHaut(EFFORTS, membres.map((m) => m.effort), "fin") ?? premier.effort,
       calibration: sans(membres.map((m) => m.calibration)).join(" "),
+      ...(joint === undefined ? {} : { expectedMinutes: joint }),
     };
   });
 }
@@ -358,7 +375,7 @@ export function corpsDuTicket(epic: number, index: number, prevu: TicketPrevu): 
     "",
     "---",
     "",
-    `_Born of the split of epic #${epic} by the manager. Calibrated \`${prevu.model}\` / \`${prevu.effort}\` — ${prevu.calibration} This ticket is yours: change a criterion, replace a calibration label, remove \`fire\` or close it, the manager will not come back to it._`,
+    `_Born of the split of epic #${epic} by the manager. Calibrated ${texteDuCalibrage(prevu.model, prevu.effort, prevu.expectedMinutes)} — ${prevu.calibration} This ticket is yours: change a criterion, replace a calibration label, remove \`fire\` or close it, the manager will not come back to it._`,
   ].join("\n");
 }
 

@@ -12,7 +12,6 @@ const FICHIERS = ["docs/installation.md", "docs/index.md"];
 const ancre = (titre: string): string =>
   titre.trim().toLowerCase().replace(/[`*_]/g, "").replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s/g, "-");
 
-// brigade:guard
 test("every link of the install page and of the docs index points to a path that exists", () => {
   for (const fichier of FICHIERS) {
     const texte = readFileSync(resolve(RACINE, fichier), "utf8");

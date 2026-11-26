@@ -26,7 +26,7 @@
       "attente": null,
       "tiers": null,
       "revenu": null,
-      "raison": "machine saturated"
+      "raison": null
     },
     {
       "ticket": 17,
@@ -401,7 +401,7 @@
       "ensemble": false,
       "bacASable": null,
       "prendOrdinaires": true,
-      "cuisson": "saturated",
+      "cuisson": "cooking",
       "arreteeDepuis": null,
       "refus": null,
       "cooks": [

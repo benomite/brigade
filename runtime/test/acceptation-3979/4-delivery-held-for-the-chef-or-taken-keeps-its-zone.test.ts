@@ -1,6 +1,7 @@
 // #3979 : seuls les tickets en file lâchent leur zone ; un ticket qui attend le chef, ou dont la prise se lit, la garde.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 
 const fiche = (zone: string) => `<!-- brigade:fiche -->\n- awaiting: none\n- zone: ${zone}`;
@@ -19,12 +20,11 @@ async function demarre(labelsDeDeux: string[], prise: boolean): Promise<boolean>
   return faux.cuissons.some(({ issue }) => issue === 1);
 }
 
-// brigade:guard
+// #4260 : un ticket retenu pour le chef porte `chef-todo` (parqué pour lui), plus `blocked-on-human`.
 test("the open PR of a ticket held for the chef keeps its zone", async () => {
-  assert.equal(await demarre([...CALIBRE, "blocked-on-human"], false), false);
+  assert.equal(await demarre([...CALIBRE, CHEF_TODO], false), false);
 });
 
-// brigade:guard
 test("the open PR of a ticket taken by a station keeps its zone", async () => {
   assert.equal(await demarre([...CALIBRE, "taken"], true), false);
 });
