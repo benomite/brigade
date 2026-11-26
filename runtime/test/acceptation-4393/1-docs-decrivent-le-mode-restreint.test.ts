@@ -23,7 +23,7 @@ test("the sandbox and chef pages describe restricted mode, and no page calls the
     assert.doesNotMatch(texte, /unsandboxed[^.\n]*\b(unbounded|unrestricted|without (any )?guard)/i, `${page} claims no bounds`);
     assert.doesNotMatch(texte, /no sandbox[^.\n]*\b(unbounded|unrestricted|without (any )?guard)/i, `${page} claims no bounds`);
     for (const [, cible] of texte.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)/g)) {
-      assert.ok(existsSync(join(RACINE, dirname(page), cible)), `${page}: broken link ${cible}`);
+      assert.ok(existsSync(join(RACINE, dirname(page), cible!)), `${page}: broken link ${cible}`);
     }
   }
 });
