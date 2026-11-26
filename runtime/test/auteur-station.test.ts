@@ -7,13 +7,11 @@ import { marqueDuProjet } from "../src/issue-de-la-cuisine.ts";
 
 const station = ["pierreyvesbobl"];
 
-// brigade:guard
 test("a ticket carrying the station's project mark, from a declared human's account, goes to the manager", () => {
   assert.equal(auteurSansEcriture({ association: "NONE", author: "pierreyvesbobl", body: `${marqueDuProjet("pierreyvesbobl/os-perso")}\nmeasure` }, station), false);
   assert.equal(auteurSansEcriture({ association: "CONTRIBUTOR", author: "PierreYvesBobl", body: marqueDuProjet("pierreyvesbobl/os-perso") }, station), false);
 });
 
-// brigade:guard
 test("a stranger who pastes the mark into an issue stays a stranger, declared humans or not", () => {
   const forgee = marqueDuProjet("pierreyvesbobl/os-perso");
   assert.equal(auteurSansEcriture({ association: "NONE", author: "intrus", body: forgee }, station), true);

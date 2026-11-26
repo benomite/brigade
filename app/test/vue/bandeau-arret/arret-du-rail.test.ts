@@ -170,7 +170,6 @@ test("several held PRs: the board names the PR blocking the most queued tickets,
   assert.deepEqual(egalite.arret?.cause, { kind: "zone-held", pr: 130, zone: "app/src/vue" });
 });
 
-// brigade:guard
 test("a queued ticket that no open PR holds keeps the stop on the frozen ticket, not a held zone (#4244)", async () => {
   const { arret } = await lire([EN_FILE(21, "app/src/vue/x.ts"), EN_FILE(22, "docs"), GELE(30, "app/src/vue")], [{ ticket: 30, le: "2026-11-20T08:05:00Z" }]);
   assert.deepEqual(arret?.cause, { kind: "frozen-zone", ticket: 30, zone: "app/src/vue" });
@@ -192,7 +191,6 @@ test("an unknown kind never keeps a text the facts carry: the status is the runt
   assert.equal(arretCuisineLu({ cause: { kind: "out-of-gas" }, since, statut: "zone held by PR 1" }).arretCuisine?.statut, "cause unknown");
 });
 
-// brigade:guard
 test("a banner without a status says each cause in its own words (#4244)", () => {
   const since = "2026-11-20T08:30:00Z";
   const dit = (cause: unknown) => {

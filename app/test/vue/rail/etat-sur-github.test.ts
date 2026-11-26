@@ -16,7 +16,6 @@ const github: AppelGitHub = async (chemin) => {
   return { status: 404, data: {} };
 };
 
-// brigade:guard
 test("a set-aside ticket, one that still carries `tests-written`, and a plain one each read their own state", async () => {
   const rail = await lireLeRailSurGithub({ depot: DEPOT, appeler: github, maintenant: () => new Date("2026-11-19T12:00:00.000Z") });
   const etat = (n: number) => rail.tickets.find(({ ticket }) => ticket === n)?.etat;
