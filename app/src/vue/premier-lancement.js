@@ -22,7 +22,7 @@ import { ligneVide } from "./composants/ligne-vide/ligne-vide.js";
 import { ligneErreur } from "./composants/ligne-erreur/ligne-erreur.js";
 import { REESSAYER, PAS_ENCORE } from "./lexique.js";
 import { poserLesDeuxChoix } from "./accueil/choix/choix.js";
-import { poserLesOutils, SE_CONNECTER_A_CLAUDE } from "./outils-requis/outils-requis.js";
+import { poserLesOutils } from "./outils-requis/outils-requis.js";
 
 // La connexion à GitHub et ses mots, dits pareil partout : le rail publié et les stations du compte les prennent ici.
 export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDetail, ROUVRIR_LA_PAGE, tapeLeCode } from "./parcours-projet/connexion.js";
@@ -61,7 +61,7 @@ export { boutonDeLaPage, connexionDite, CONNEXION_EN_ROUTE, gestes, phraseEtDeta
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnProjet: () => void,
  *   visiter?: () => void,
- *   outils?: import("./outils-requis/outils-requis.js").GestesDesOutils,
+ *   outils?: { ouvrir: (url: string) => void, verifier: () => void },
  * } & GestesDuCompte} GestesDuPremier
  */
 
@@ -85,8 +85,8 @@ export const DEPOT_INCONNU = "its station does not say which GitHub repository i
 export const SANS_CUISINE = "does not cook";
 /** @param {string} projet */
 export const ouvertureDe = (projet) => `Opening ${projet}…`;
-// Le geste qui connecte Claude Code sur cet ordinateur, dit aussi par l'écran de l'outil manquant au bout de son installation.
-export { SE_CONNECTER_A_CLAUDE };
+// Le geste qui connecte Claude Code sur cet ordinateur : le mot du bouton de la panne « Max connection lost » (pannes/pannes.ts).
+export const SE_CONNECTER_A_CLAUDE = "log in";
 
 // Ce que le chef a tapé, lu : un dépôt `owner/repo` — ou un nom seul, complété par le compte connecté —, sinon pourquoi
 // rien ne s'ouvre. Rien n'est deviné : l'adresse de GitHub se reconnaît, le reste se refuse. Le nom du projet est celui du

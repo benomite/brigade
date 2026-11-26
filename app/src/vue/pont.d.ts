@@ -395,10 +395,7 @@ export type Pont = {
   seConnecterAClaude?(): Promise<RenduDePanne>;
   // Les outils que l'app ne livre pas (ticket 4059, outils-requis.ts) : ceux de `outils` — les trois, sans liste — qui
   // manquent à cet ordinateur, chacun avec le lien de sa page d'installation.
-  // `installable` : l'app sait installer cet outil d'un clic sur cet ordinateur (ticket 4350) — jamais Git.
-  outilsManquants?(outils?: ("gh" | "git" | "claude")[]): Promise<(import("../outils-requis.ts").OutilManquant & { installable?: boolean })[]>;
-  // Installe `gh` ou `claude` (ticket 4350, install-tools/), au clic du chef seulement : done, ou failed et sa raison.
-  installerOutil?(outil: "gh" | "claude"): Promise<import("../install-tools/install-tools.ts").EtatDInstallation>;
+  outilsManquants?(outils?: ("gh" | "git" | "claude")[]): Promise<import("../outils-requis.ts").OutilManquant[]>;
   // Le compte GitHub que le `gh` de cet ordinateur tient (ticket 2475, connexion-github.ts) : son login, aucun, ou
   // pourquoi il ne se lit pas. L'étape du compte du parcours d'ajout le dit, et le relit au bout d'une connexion.
   compteGitHub?(): Promise<CompteGitHub>;

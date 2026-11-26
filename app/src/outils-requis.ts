@@ -1,9 +1,8 @@
 // Les outils que l'app ne livre pas — `gh`, `git`, `claude` —, côté process principal (#4059, épique #4054). Le runtime
 // lit la machine et dit, pour chacun qui manque, la page d'installation officielle (runtime/src/outils-requis/) ; l'app
-// relaie ce choix à la vue. L'app n'installe jamais Git (#4266) ; `gh` et `claude`, elle les installe au clic du chef
-// (#4350, install-tools/), sinon le chef les installe et revient dire « I installed it ». Chaque lecture rattache au
-// PATH de l'app un outil que son installeur vient de poser hors de lui (le `gh` de winget, dans `Program Files`) :
-// l'app le trouve sans redémarrer, et tout ce qu'elle lance ensuite aussi.
+// relaie ce choix à la vue. L'app n'installe rien (#4266) : installer est l'affaire du chef, qui revient dire « I
+// installed it ». Chaque lecture rattache au PATH de l'app un outil que son installeur vient de poser hors de lui (le
+// `gh` de winget, dans `Program Files`) : l'app le trouve sans redémarrer, et tout ce qu'elle lance ensuite aussi.
 
 type Requis = typeof import("../../runtime/src/outils-requis/outils-requis.ts");
 type DeLaMachine = typeof import("../../runtime/src/outils-requis/machine.ts");
