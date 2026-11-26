@@ -1,6 +1,6 @@
-// Le rail de « parade » et, au-dessus de ses colonnes, le bandeau Backlog (#3460) : une étiquette par besoin hors du rail
-// — celui qui t'attend en rouge d'abord, puis par priorité ; un besoin découpé dit ses tickets servis sur leur total, un
-// besoin tout servi depuis moins de 24 h reste marqué servi. Ce que la lecture de GitHub publie (`avantLeRail`) est écrit
+// Le rail de « parade » avec un backlog lu sur GitHub : depuis #4354, rien de lui au-dessus des colonnes — ni bandeau Backlog,
+// ni haut du backlog —, la colonne Backlog seule le montre ; au-dessus, les cartes du supervisor et du closer et la ligne du
+// TODO. Ce que la lecture de GitHub publie (`avantLeRail`) est écrit
 // ici mot pour mot ; ce que la vue en reçoit est calculé par l'app, comme main.ts le fait du tableau lu (tableau/rail.ts,
 // amont.ts).
 import type { Faits } from "../../../app/src/faits.ts";
@@ -74,7 +74,7 @@ export const AVANT_LE_RAIL = {
 const tableau = (avantLeRail: typeof AVANT_LE_RAIL) => ({ lu: true, depot: "chef/parade", numero: 3, luLe: MAINTENANT, avantLeRail }) as unknown as TableauLu;
 
 // Les données de l'écran : la cuisine figée, et, quand l'espace de « parade » s'ouvre, ce qui est avant son rail — celui
-// de cet écran, ou celui qu'un autre lui donne (rail-backlog-avancement.ts).
+// de cet écran, ou celui qu'un autre lui donne.
 export function donnees(avantLeRail: typeof AVANT_LE_RAIL = AVANT_LE_RAIL): Donnees {
   const envois = cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } });
   const vu = tenirAmont().recevoir(lectureDuTableau(tableau(avantLeRail), "parade", 0, [COMMANDE]));
@@ -86,7 +86,7 @@ export function donnees(avantLeRail: typeof AVANT_LE_RAIL = AVANT_LE_RAIL): Donn
 }
 
 export const ecran: Ecran = {
-  dit: "Le rail de « parade » : au-dessus de ses colonnes, le bandeau Backlog — une étiquette par besoin, celui qui t'attend en rouge d'abord, `+N` au bout",
+  dit: "Le rail de « parade », un backlog lu sur GitHub : au-dessus des colonnes, une ligne — les cartes du supervisor et du closer — et « 2 wait for you » ; la colonne Backlog seule montre le backlog (#4354)",
   largeur: 1440,
   hauteur: 900,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],

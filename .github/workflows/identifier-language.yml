@@ -1,0 +1,33 @@
+# The naming gate (#4411): identifiers are English (docs/naming-rule.md). On a pull request, it fails
+# on a file name, a directory name, an exported symbol or a JSON key that the branch adds with an
+# accent or a French word of scripts/rename-code/mapping.json. French names already on the base pass.
+name: identifier-language
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: identifier-language-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  naming-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      # All the history: the gate compares the branch with its merge base on `origin/<base>`.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      # The gate's own tests, then the gate on this pull request. No dependency: Node runs the TypeScript.
+      - name: Tests of the gate
+        run: node --test scripts/rename-code/test/
+      - name: Naming gate
+        run: node scripts/rename-code/gate.ts --base "origin/${{ github.base_ref }}"

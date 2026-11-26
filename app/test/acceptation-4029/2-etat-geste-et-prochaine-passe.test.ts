@@ -135,11 +135,13 @@ const tousLesAgents = (): Agent[] => [
 ];
 
 // #4029, critère 2 : chaque badge montre l'état de l'agent, son dernier geste avec l'heure, et le texte de sa prochaine passe.
+// Depuis #4354, le badge tient sur une ligne : l'état en texte, le dernier geste et la prochaine passe au survol (`title`).
 test("each badge shows the agent's state, its last gesture with the time, and its next run text", async () => {
   fauxModule(tousLesAgents());
   const vue = await ouvrir();
   for (const { agent: nom, state, lastGesture, nextRun } of tousLesAgents()) {
-    const texte = badge(vue, nom).textContent;
+    const pose = badge(vue, nom);
+    const texte = `${pose.textContent} ${pose.title}`;
     assert.ok(texte.includes(state), `${nom} : son état`);
     assert.ok(texte.includes(lastGesture.line), `${nom} : son dernier geste`);
     assert.ok(texte.includes(nextRun.text), `${nom} : sa prochaine passe, telle que le runtime la dit`);

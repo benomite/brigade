@@ -606,6 +606,25 @@ test("le journal d'un check se lit par son job, quand c'en est un de GitHub Acti
   assert.equal(await github.journalDuCheck({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/789` }), null);
 });
 
+test("a finished job's log and failing steps are read once per client, then kept by job id; a running job is read again (#4407)", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/actions/jobs/456/logs`, { corps: "not ok 1 - export" });
+  gh.repondre(`repos/${DEPOT}/actions/jobs/456`, { corps: { status: "completed", steps: [{ name: "Run the tests", conclusion: "failure" }] } });
+  const check = { name: "tests", outcome: "red" as const, conclusion: "failure", url: `https://github.com/${DEPOT}/actions/runs/123/job/456` };
+
+  for (let tour = 0; tour < 3; tour += 1) {
+    assert.equal(await github.journalDuCheck(check), JSON.stringify("not ok 1 - export"));
+    assert.deepEqual(await github.etapesEnEchec?.(check), ["Run the tests"]);
+  }
+  assert.equal(gh.appels().length, 2);
+  // Un job encore en cours n'est pas gardé : il se relit.
+  gh.repondre(`repos/${DEPOT}/actions/jobs/457`, { corps: { status: "in_progress", steps: [] } });
+  const enCours = { ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/457` };
+  await github.etapesEnEchec?.(enCours);
+  await github.etapesEnEchec?.(enCours);
+  assert.equal(gh.appels().length, 4);
+});
+
 test("les jobs en échec d'un run de GitHub Actions se relancent, eux seuls ; un refus de GitHub lève", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/actions/runs/123/rerun-failed-jobs`;

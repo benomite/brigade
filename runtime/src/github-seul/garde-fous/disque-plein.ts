@@ -10,7 +10,7 @@ import { promisify } from "node:util";
 import { DE_CONFIANCE } from "../../alimenter.ts";
 import type { GitHub } from "../../github.ts";
 import { execFile } from "../../sans-invite.ts";
-import { leverCarte, poserCarte, type Carte, type GitHubDesCartes } from "../carte-todo/carte-todo.ts";
+import { leverCarte, poserCarte, type Carte, type GitHubDesCartes, type Pose } from "../carte-todo/carte-todo.ts";
 
 const MARQUEUR_DISQUE = "<!-- brigade:disk-full -->";
 const TITRE_DISQUE = "The station disk is full of things the kitchen cannot free";
@@ -25,10 +25,10 @@ type Consommateur = { chemin: string; octets: number };
 export type SondeDuDisque = { propre: number; consommateurs: Consommateur[] };
 
 // La cuisine, devant un disque saturé et sans cook en vol : ce que la sonde
-// lit, la carte qu'elle pose, la carte qu'elle lève quand le disque respire.
+// lit, la carte qu'elle pose — et si elle l'a posée ou si elle y était déjà —, la carte qu'elle lève quand le disque respire.
 export type DisquePlein = {
   sonder(): Promise<SondeDuDisque>;
-  poser(carte: Carte): Promise<void>;
+  poser(carte: Carte): Promise<Pose | void>;
   lever(): Promise<void>;
 };
 
@@ -65,9 +65,9 @@ async function issueDuDisque(github: GitHubDuDisque): Promise<number | undefined
 }
 
 // La carte du disque sur son issue : une seule tant qu'elle attend le chef.
-async function poserLaCarteDuDisque(github: GitHubDuDisque, carte: Carte): Promise<void> {
+async function poserLaCarteDuDisque(github: GitHubDuDisque, carte: Carte): Promise<Pose> {
   const numero = (await issueDuDisque(github)) ?? (await github.creerIssue({ titre: TITRE_DISQUE, corps: `${MARQUEUR_DISQUE}\nThe disk of a station is full of things the kitchen cannot free. The card below tells the chef.`, labels: [] }));
-  await poserCarte(numero, carte, github);
+  return poserCarte(numero, carte, github);
 }
 
 // Lever ne crée jamais d'issue : sans issue du disque, il n'y a rien à lever.
