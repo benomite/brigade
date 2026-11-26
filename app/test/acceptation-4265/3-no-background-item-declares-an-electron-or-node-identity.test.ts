@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { assembler, construire, IDENTIFIANT } from "../../packaging/construire.ts";
+import { PAQUETS } from "../aides/posix.ts";
 
 const MACH_O = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
 const plist = (nom: string, id: string, icone?: string) => `<?xml version="1.0" encoding="UTF-8"?>
@@ -71,7 +72,7 @@ const sansApp = (chemin: string) => !/\/Resources\/(app|runtime)\//.test(chemin)
 
 const SRC = join(import.meta.dirname, "../../src");
 
-test("no launchd plist of the built app names Electron or Node.js Foundation, and each uses the Brigade bundle ID", (t) => {
+test("no launchd plist of the built app names Electron or Node.js Foundation, and each uses the Brigade bundle ID", { skip: PAQUETS }, (t) => {
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   const agents = fichiers(join(paquet, "Contents")).filter((f) => sansApp(f) && /\/Library\/(LaunchAgents|LaunchDaemons|LoginItems)\//.test(f));
@@ -89,7 +90,7 @@ test("no launchd plist of the built app names Electron or Node.js Foundation, an
   assert.deepEqual(defauts, []);
 });
 
-test("the app source registers its background items (launchd labels, login item) under Brigade names only", () => {
+test("the app source registers its background items (launchd labels, login item) under Brigade names only", { skip: PAQUETS }, () => {
   const defauts: string[] = [];
   for (const chemin of fichiers(SRC).filter((f) => /\.(ts|js|cjs|mjs)$/.test(f))) {
     const lignes = readFileSync(chemin, "utf8").split("\n");
