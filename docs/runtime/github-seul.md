@@ -269,14 +269,7 @@ base, the stale-branch pruning).
   reply or not: its verdict records the judged pair, the head and its reason, and the same head comes back with the same
   reason. It is sent back again on that reason, and that send-back counts among the `RENVOIS_MAX`, so a disagreement
   cannot loop (#3961: #3955 looped about 15 times between cook and review on one commit). A head never reviewed — sent
-  back for a red CI — is reviewed with the reply in its brief. The brief also says that a "Red on main, green on the branch" remark is the
-  pass's replay, not the review's: no reply lifts it, nor a free comment in the test calling it a guard of a behavior
-  the base already has — only a test that fails without the change, no such test (#3694: #3632's cook kept such a test
-  with a guard comment, its next cooks added nothing with no failed cook counted, and its head came back on that same
-  remark until 06f7aac removed the test), or, when the ticket's criteria say the behavior stays "as before" /
-  "unchanged", the test marked `// brigade:guard`, which the pass accepts green on the base (#3852). The remark never
-  loops: the second time it names a test, the cook marks it so, or sets the ticket aside once with the reason in one
-  line between `<bloque>` tags.
+  back for a red CI — is reviewed with the reply in its brief.
 - **A delivery cut before its PR.** A branch the station pushed but that never had a PR (the station stopped between
   the push and the PR, or GitHub refused the PR) goes to the pass as it is, with no cook: its PR opens and it takes
   `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a

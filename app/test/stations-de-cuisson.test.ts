@@ -162,7 +162,6 @@ describe("l'onglet Stations : une carte par station qui sert le projet", () => {
     assert.deepEqual(lignes(vue), []);
   });
 
-  // brigade:guard
   test("une station qui refuse le projet : aucune n'a de bouton, la seconde dit pourquoi", async () => {
     const refus = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox on this computer, then wait: the station tries again by itself.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
     const { vue } = await ouvrir([station("box/claude", { cooks: [COOK_14] }), station("atelier/claude", { cuisson: "refused", refus })]);
@@ -261,7 +260,6 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     assert.deepEqual(alertes(vue), []);
   });
 
-  // brigade:guard
   test("l'accès au dépôt bloqué : une seule ligne la dit, et « open Cooks » ouvre l'onglet Stations", async () => {
     const { vue } = await ouvrir([station("box/claude"), station("mac/claude", { distante: true })]);
     await ouvrirOnglet(vue, "Rail");
@@ -286,7 +284,6 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     assert.deepEqual(alertes(vue), []);
   });
 
-  // brigade:guard
   test("l'accès au dépôt bloqué : une seule ligne, le détail de git en moins ; avec une station arrêtée, toujours une seule — et la ligne part quand c'est levé", async () => {
     const { vue } = await ouvrir([station("box/claude")]);
     await ouvrirOnglet(vue, "Rail");
@@ -316,7 +313,6 @@ describe("« Details » de la carte d'une station dit le plafond du projet, sans
     plafonds: { [PARADE]: { "box/claude": { plafond } } },
   });
 
-  // brigade:guard
   test("le plafond, puis le plafond neuf à la lecture suivante ; ni champ ni bouton pour le régler", async () => {
     const vue = await jouerLaVue({
       demarrage,

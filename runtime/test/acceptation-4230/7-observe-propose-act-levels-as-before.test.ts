@@ -4,7 +4,6 @@ import { test } from "node:test";
 import { magasinDeNiveaux } from "../../src/autonomie/agents/niveaux.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
-// brigade:guard
 test("the observe / propose / act levels keep their defaults, can be set one at a time, and refuse what is no level", (t) => {
   const magasin = magasinDeNiveaux(repertoireTemporaire(t));
   assert.equal(magasin.lire("shop").pass, "act");

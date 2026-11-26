@@ -35,7 +35,6 @@ function existe(ref: string): boolean {
   return spawnSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd: RACINE, env: ENV_GIT }).status === 0;
 }
 
-// brigade:guard
 test("the bindings of the Équipe multi-agents section are kept, word for word as on origin/main", () => {
   const ref = existe("origin/main") ? "origin/main" : existe("main") ? "main" : null;
   assert.ok(ref, "neither origin/main nor main exists: the checkout must fetch origin/main (git fetch origin main)");

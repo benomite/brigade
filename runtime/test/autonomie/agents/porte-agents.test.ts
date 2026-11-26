@@ -116,7 +116,6 @@ function epiqueDecoupee(t: TestContext) {
 }
 
 // The chef still puts the split back on hold by setting its level (#4247): unchanged.
-// brigade:guard
 test("the manager's split of an epic set to propose is held: no ticket is created until the chef's approval, then each once", async (t) => {
   const { repertoire, creees, porte, avertissements, traiter } = epiqueDecoupee(t);
   magasinDeNiveaux(repertoire).poser("porte-manager", "manager split-epic", "propose");
