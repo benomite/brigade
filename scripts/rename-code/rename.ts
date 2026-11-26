@@ -293,6 +293,8 @@ function bases(file: string): string[] {
   const out = [dirname(abs(file)), REPO];
   for (const root of ["runtime", "app"]) out.push(abs(root), abs(`${root}/src`), abs(`${root}/test`));
   if (zone === "scripts") out.push(abs("scripts/capture-ecran"), abs("scripts/app-release"));
+  // The view's files are read by their path under the view (`lire("composants/bon/bon.css")`).
+  if (zone === "app" || zone === "scripts") out.push(abs("app/src/vue"));
   return [...new Set(out)];
 }
 
@@ -329,10 +331,20 @@ function pathEdits(file: string, text: string, renamed: Map<string, string>, exi
       break;
     }
     // A bare file name (`join(VUE, "jetons.css")`) that only one moved file
-    // bears, wherever it is read from.
+    // bears, wherever it is read from — unless a file that stays bears it
+    // too, as near to the text: `fiche.ts` in `runtime/` names the
+    // runtime's, not the app's.
     if (replacement === undefined && !plain.includes("/")) {
       const bearers = [...renamed].filter(([old]) => old.endsWith("/" + plain));
-      if (bearers.length === 1) replacement = escaped ? bearers[0]![1].replace(/\./g, "\\.") : bearers[0]![1];
+      const near = (path: string) => {
+        const a = abs(file).split("/");
+        const b = path.split("/");
+        let at = 0;
+        while (at < a.length && at < b.length && a[at] === b[at]) at++;
+        return at;
+      };
+      const staying = [...existing].filter((path) => path.endsWith("/" + plain) && !renamed.has(path));
+      if (bearers.length === 1 && staying.every((path) => near(path) < near(bearers[0]![0]))) replacement = escaped ? bearers[0]![1].replace(/\./g, "\\.") : bearers[0]![1];
     }
     if (replacement === undefined) continue;
     const start = found.index!;

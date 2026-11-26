@@ -51,6 +51,17 @@ export const PATHS: Record<string, string> = {
   // The project menu's Know-how tab (#4241), beside Settings' know-how section (`vue/know-how`).
   "app/src/vue/savoir-faire": "know-how-tab",
   "app/test/vue/savoir-faire": "know-how-tab",
+  // Components named in PascalCase, which the word-by-word translation does not cut.
+  "app/src/vue/accueil/projets/BlocDesProjets.js": "ProjectsBlock.js",
+  "app/src/vue/moteur/MoteurDeLaCarte.js": "CardEngine.js",
+  "app/src/vue/moteur/SectionDuMoteur.js": "EngineSection.js",
+  "app/src/vue/projet/bandeau-sante/PlafondsDuree.js": "DurationCaps.js",
+  "app/src/vue/projet/bandeau-sante/TempsDeLaPasse.js": "PassTime.js",
+  "app/src/vue/projet/stations/AjoutStation.js": "AddStation.js",
+  "app/src/vue/projet/stations/ArretStation.js": "StopStation.js",
+  "app/src/vue/projet/stations/ReglagesStation.js": "StationSettings.js",
+  "app/src/vue/station/page/NiveauReglage.js": "SettingLevel.js",
+  "app/src/vue/station/page/ProjetsDeLaStation.js": "StationProjects.js",
   "app/src/gestes-fiche.ts": "card-actions.ts",
   "app/test/gestes-fiche.test.ts": "card-actions.test.ts",
   "app/test/ecrans-restants.test.ts": "remaining-screens.test.ts",
