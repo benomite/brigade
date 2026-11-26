@@ -142,6 +142,7 @@ import { diagrammeTenu, rendreAvecMermaid } from "./fiche-diagramme/fiche-diagra
 import { ligneDAlerte, plafondLu } from "./stations-de-cuisson.js";
 import { deplacementSuivi, estUnOrdinateur, hautDe, nomDePrise, servantesDe, UNE_MINUTE_MS } from "./stations-tab/etat.js";
 import { choixDuDeplacement } from "./stations-tab/choix.js";
+import { serverSeen } from "./add-server/add-server.js";
 import { cleDe, OU_DEPLACER, poserLOngletDesStations, QUI_CUIT as QUI_CUIT_ONGLET, QUI_D_AUTRE } from "./stations-tab/stations-tab.js";
 import { PAR_DEFAUT as MOTEUR_PAR_DEFAUT } from "./moteur/moteurs.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
@@ -450,6 +451,61 @@ async function servirIciLeDepot(depot) {
 }
 function reposerLOngletStations() {
   if (courant !== undefined && ongletDe(courant) === STATIONS) poserRail(courant);
+}
+// « Add a server » (ticket 4347, add-server/) : son panneau, ouvert pour un projet — sur son onglet Stations ou sa page
+// « who cooks it ». `connues` : les stations du compte qu'il avait à son ouverture — une qui n'y était pas est le serveur
+// neuf, qui s'enregistre seul sous le compte ; pas encore lues, elles le sont à la première lecture. `copiee` : la ligne
+// d'installation vient d'être copiée.
+/** @type {{ projet: string, connues?: ReadonlySet<string>, copiee: boolean } | undefined} */
+let serveurAttendu;
+/** @param {import("../stations-du-compte.ts").StationsDuCompte | undefined} lues */
+const idsDuCompte = (lues) => (lues?.state === "listed" ? new Set(lues.stations.map(({ id }) => id)) : undefined);
+// Le panneau se repose là où il est montré : l'onglet Stations, ou la page d'un projet pas prêt.
+function reposerLeServeur() {
+  reposerLOngletStations();
+  if (courant !== undefined && parcoursDesProjets.de(courant.nom) !== undefined) poserLeProjetAPreparer();
+}
+// Ce que le panneau montre pour un projet. `confiable` : l'écran sait lui confier le projet — il le nomme alors.
+/** @param {string} projet @param {boolean} confiable @returns {import("./add-server/add-server.js").EtatDuServeur} */
+function serveurDe(projet, confiable) {
+  const ouvert = serveurAttendu?.projet === projet;
+  const vu = serverSeen(ouvert ? serveurAttendu?.connues : undefined, enregistreesAbsentes ? undefined : etatDesEnregistrees.stations);
+  return { ouvert, vu, copiee: ouvert && serveurAttendu?.copiee === true, ...(confiable ? { projet } : {}) };
+}
+// « check again » : les stations du compte se relisent — celles d'avant sont prises à la première lecture qui réussit.
+async function relireLeServeur() {
+  await lireLesEnregistrees();
+  const connues = idsDuCompte(enregistreesAbsentes ? undefined : etatDesEnregistrees.stations);
+  if (serveurAttendu !== undefined && serveurAttendu.connues === undefined && connues !== undefined) serveurAttendu.connues = connues;
+  reposerLeServeur();
+}
+// Les gestes du panneau pour un projet. `confier` : le geste de l'écran qui donne le projet à une station du compte.
+/** @param {string} projet @param {(station: import("../stations-du-compte.ts").StationEnregistree) => void} confier @returns {import("./add-server/add-server.js").GestesDuServeur} */
+function gestesDuServeur(projet, confier) {
+  return {
+    basculer: (ouvert) => {
+      if (!ouvert) {
+        serveurAttendu = undefined;
+        return reposerLeServeur();
+      }
+      const connues = idsDuCompte(enregistreesAbsentes ? undefined : etatDesEnregistrees.stations);
+      serveurAttendu = { projet, copiee: false, ...(connues === undefined ? {} : { connues }) };
+      reposerLeServeur();
+      void relireLeServeur();
+    },
+    copier: (commande) => {
+      void navigator.clipboard?.writeText(commande)?.catch(() => {});
+      if (serveurAttendu?.projet === projet) serveurAttendu.copiee = true;
+      reposerLeServeur();
+    },
+    verifier: () => void relireLeServeur(),
+    // Confié, le panneau se ferme : l'écran dit, par le geste de « Choose who cooks it », à qui le projet est allé.
+    confier: (station) => {
+      serveurAttendu = undefined;
+      confier(station);
+      reposerLeServeur();
+    },
+  };
 }
 const reglagesDuProjet = element("reglages-du-projet");
 const reglagesEnPlus = element("reglages-du-projet-en-plus");
@@ -4710,6 +4766,7 @@ function ongletDesStations(projet) {
       ...(tenu !== undefined && "tableau" in tenu && tenu.tableau.quotaGithub !== undefined ? { quota: tenu.tableau.quotaGithub } : {}),
       ...(veilleVue === undefined ? {} : { veille: veilleVue }),
       ...(stationLocaleLue.projet === projet.nom && stationLocaleLue.moteur !== undefined ? { moteurIci: stationLocaleLue.moteur } : {}),
+      serveur: serveurDe(projet.nom, ajout !== undefined),
     },
     {
       choisirQuiCuit: () => ajout?.gestes.ouvrir(),
@@ -4756,6 +4813,12 @@ function ongletDesStations(projet) {
         reposerLOngletStations();
       },
       basculer: (cle, ouvert) => void (ouvert ? ouverts.add(cle) : ouverts.delete(cle)),
+      // Le serveur arrivé reçoit le projet par le geste de « Choose who cooks it » : l'étape s'ouvre, et le confie.
+      serveur: gestesDuServeur(projet.nom, (station) => {
+        if (ajout === undefined) return;
+        ajout.gestes.ouvrir();
+        ajout.gestes.confier(station);
+      }),
     },
   );
   return pose;
@@ -8571,6 +8634,21 @@ function poserLeProjetAPreparer() {
     stations: lues?.state === "listed" ? stationsAProposer(lues.stations, parcours.depot, projetsVus?.locale) : [],
     maintenant: Date.now(),
   });
+  // Un clic, et la page passe à la suite : cet ordinateur sert le dépôt par le geste de « Add a station »
+  // (`servirUnProjet`) ; une station du compte le reçoit dans sa sélection (`choisirLesProjets`).
+  /** @param {import("./stations-tab/choix.js").Choix} un */
+  const choisir = async (un) => {
+    const avant = parcoursDesProjets.de(nom)?.station;
+    if (avant === undefined || (typeof avant === "object" && "enCours" in avant)) return;
+    parcoursDesProjets.station(nom, { enCours: un.cle });
+    const appairee = lues?.state === "listed" ? lues.stations.find(({ id }) => id === un.cle) : undefined;
+    const station = await ajouterLaStation(un.nom, () =>
+      un.cle === ICI || appairee === undefined ? servirIciLeDepot(parcours.depot) : choisirPourUneEnregistree(appairee.id, [...(appairee.selection ?? []), parcours.depot]),
+    );
+    parcoursDesProjets.station(nom, station, un.horsLigne ? un.nom : undefined);
+    const etape = depots.get(nom)?.etape;
+    if (station === "ajoutee" && etape !== "prepare" && etape !== "en-route") void lirePreparation(projet);
+  };
   principal.dataset.parcours = vu.etape;
   sectionDuParcours.replaceChildren(
     poserParcoursPremierProjet(
@@ -8584,22 +8662,12 @@ function poserLeProjetAPreparer() {
         ...(parcours.illisible === undefined ? {} : { illisible: parcours.illisible }),
         ...(preparation?.etape === "refus" ? { refus: preparation.dit } : {}),
         ...(parcours.absente === undefined ? {} : { absente: parcours.absente }),
+        serveur: serveurDe(nom, true),
       },
       {
-        // Un clic, et la page passe à la suite : cet ordinateur sert le dépôt par le geste de « Add a station »
-        // (`servirUnProjet`) ; une station du compte le reçoit dans sa sélection (`choisirLesProjets`).
-        choisir: async (un) => {
-          const avant = parcoursDesProjets.de(nom)?.station;
-          if (avant === undefined || (typeof avant === "object" && "enCours" in avant)) return;
-          parcoursDesProjets.station(nom, { enCours: un.cle });
-          const appairee = lues?.state === "listed" ? lues.stations.find(({ id }) => id === un.cle) : undefined;
-          const station = await ajouterLaStation(un.nom, () =>
-            un.cle === ICI || appairee === undefined ? servirIciLeDepot(parcours.depot) : choisirPourUneEnregistree(appairee.id, [...(appairee.selection ?? []), parcours.depot]),
-          );
-          parcoursDesProjets.station(nom, station, un.horsLigne ? un.nom : undefined);
-          const etape = depots.get(nom)?.etape;
-          if (station === "ajoutee" && etape !== "prepare" && etape !== "en-route") void lirePreparation(projet);
-        },
+        choisir,
+        // Le serveur arrivé est un choix comme les autres : la même station du compte, par le même geste.
+        serveur: gestesDuServeur(nom, (station) => void choisir({ cle: station.id, nom: station.name, horsLigne: !station.available, recommande: station.available })),
         relire: () => void lirePreparation(projet),
         preparer: () => void preparerLeDepot(projet),
         ouvrirLaCarte: () => {
