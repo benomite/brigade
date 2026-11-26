@@ -11,6 +11,9 @@ import { brancheDuTicket } from "../brigade-github.ts";
 import type { GitHub } from "../github.ts";
 import { etapesDeLaPass } from "./etapes-de-la-pass.ts";
 
+// Hors du catalogue (etiquettes.ts), que le plugin de l'app recopie ligne pour
+// ligne et que ce ticket ne touche pas : GitHub crée le label la première fois
+// qu'il est posé sur une issue.
 export const LABEL_COOK_HUMAIN = "human-cook";
 
 // Ce que la marque écrit sur GitHub.
