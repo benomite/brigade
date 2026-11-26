@@ -12,6 +12,7 @@
 import { ACCEPTANCES, questionsInOrder, type UnsettledPoint } from "./questions.ts";
 import { etatDuDepot, lireLeDepot, type LectureDuDepot, type Trouvaille } from "./lecture-depot.ts";
 import { messageDuPremierTicket } from "./premier-ticket.ts";
+import { BRANCHE_PRINCIPALE_PAR_DEFAUT } from "../fiche-projet/defauts.ts";
 
 // Ce à quoi chaque chose sert dans Brigade, en une ou deux phrases.
 export const SERT = {
@@ -43,7 +44,7 @@ export function pointsDeLaMiseEnPlace(lecture: LectureDuDepot): UnsettledPoint[]
     return { id, question, recommended, ...(t.lu ? { settled: (Array.isArray(t.valeur) ? t.valeur : [t.valeur]).join(", ") } : {}) };
   };
   return [
-    point("branche", "Which branch should every delivery land on?", "main"),
+    point("branche", "Which branch should every delivery land on?", BRANCHE_PRINCIPALE_PAR_DEFAUT),
     point("checks", "Which command must pass before a delivery is merged?", "none for now, so that no check runs nothing"),
     point("zones", "How should the repository be split into parts with their own rules?", "one part for the whole repository"),
   ];

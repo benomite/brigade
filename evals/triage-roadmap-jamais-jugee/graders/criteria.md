@@ -12,8 +12,7 @@ Résultat attendu —
 - la carte n'entre PAS en TODO : aucune question n'est posée au chef, ni sur
   l'issue #1, ni ailleurs ;
 - le label `decision` est retiré de l'issue #1, ou l'agent dit qu'il ne doit pas
-  y rester ; il n'en pose aucun autre qui attende le chef (`question`,
-  `blocked-on-human`) ;
+  y rester ; il ne la parque pas pour le chef (`chef-todo`) ;
 - l'observation du `_ds_manifest.json` devient sa propre nouvelle issue, ouverte
   par la cuisine, sans demander au chef s'il faut l'ouvrir ;
 - l'issue #1 reste un document de suivi : l'agent ne la lance pas, ne la

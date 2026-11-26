@@ -48,7 +48,6 @@ describe("l'accent hors d'un projet est un blanc cassé neutre, dans un projet c
     });
   const accent = () => (globalThis as unknown as { document: { documentElement: Faux } }).document.documentElement.style.getPropertyValue("--accent");
 
-  // brigade:guard
   test("dans l'espace d'un projet, l'accent est celui du projet ; en sortant, la peau reprend le sien", async () => {
     const vue = await jouer([ORANGE, BLEU]);
     const barre = vue.element("projets");

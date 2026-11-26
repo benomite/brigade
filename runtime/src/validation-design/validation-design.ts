@@ -57,6 +57,7 @@ import { LABEL_IN_PASS } from "../github-etat/etats.ts";
 import { carteEnCours, CHEF_TODO, type Sorte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { GitHub, PR } from "../github.ts";
 import { estUnRenvoiPourConflit, MARQUE_DE_RENVOI } from "../qualite-github.ts";
+import { commentaireDeRenvoi } from "../renvoi-sur-le-fond/regle.ts";
 import { GesteRefuse } from "../rail.ts";
 import { questionDuCorps, reponseDuCorps } from "../reponse-validation/marques.ts";
 import { possede } from "../zones.ts";
@@ -349,6 +350,15 @@ export async function fermerLesCartesCaduques(
     }
     if (github.commentaires === undefined || !issue.labels.includes(CHEF_TODO)) continue;
     try {
+      // Sa carte, dépassée par un renvoi, que GitHub n'a pas levée après lui : levée ici. Parqué pour le chef, le ticket
+      // ne repartirait sinon jamais à son cook (#4129).
+      const { commentaires } = github;
+      let depassee = false;
+      for (const sorte of sortes) if (!depassee) depassee = (await fermerLaCarteDepassee(sorte, { ...github, commentaires }, issue.number)) !== null;
+      if (depassee) {
+        fermees.push(issue.number);
+        continue;
+      }
       // La dernière carte de TODO du ticket, comme TODO la lit.
       const derniere = (await github.commentaires(issue.number)).findLast((c) => carteEnCours([CHEF_TODO], [c]) !== null);
       const demande = sortes.map((sorte) => demandeDuCorps(sorte.sorte, derniere?.body ?? "")).find((lue) => lue !== null && lue.ticket === issue.number);
@@ -636,7 +646,7 @@ export const valider = (github: GitHubDesGestes, numero: number, brancheDuTicket
 // réponse sur le ticket (`reponse-validation/`, #3616).
 export async function renvoyerAuCook(github: Pick<GitHub, "commenter" | "delabelliser"> & Pick<GitHubDeLaRetenue, "commentaires">, ticket: number, sha: string, texte: string): Promise<void> {
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
-  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${sha} -->\n${texte}`);
+  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${sha} -->\n${commentaireDeRenvoi({ motif: "unmet criterion", detail: texte })}`);
   await github.delabelliser(ticket, LABEL_IN_PASS);
 }
 

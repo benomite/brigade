@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_STATION } from "../../../src/brigade-github.ts";
 import { RENVOIS_MAX as RENVOIS_MAX_DE_LA_PASS } from "../../../src/events/pass.ts";
-import { etatDuTicket, LABEL_IN_PASS, LABEL_WAITING } from "../../../src/github-etat/etats.ts";
+import { etatDuTicket, LABEL_IN_PASS, LABEL_PARKED } from "../../../src/github-etat/etats.ts";
 import { corpsDeVerdict } from "../../../src/github-etat/fusion.ts";
-import { ECHECS_ATTEINTS, HORS_CUISINE } from "../../../src/github.ts";
+import { HORS_CUISINE } from "../../../src/github.ts";
 import {
   calibrageAuDessus,
   marqueDeFix,
@@ -138,10 +138,10 @@ test("après N renvois, le ticket n'est plus donné à un cook : remis au manage
 
   assert.match(gh.commentaires().at(-1)?.body ?? "", new RegExp(`^<!-- brigade:au-manager fix=${coup.fix} sha=`));
   assert.match(gh.commentaires().at(-1)?.body ?? "", /handed to the manager, who opened the fix ticket #100, calibrated `sonnet` \/ `high`, one step above `sonnet` \/ `medium`/);
-  assert.ok(gh.labels().includes(LABEL_WAITING));
+  assert.ok(gh.labels().includes(LABEL_PARKED));
   assert.ok(!gh.labels().includes(LABEL_IN_PASS));
   // La boucle ne le donne plus à un cook : il attend son fix.
-  assert.equal(gh.etat(), "waiting");
+  assert.equal(gh.etat(), "parked");
 
   // Rejouée sur la même livraison, elle n'ouvre pas un second fix.
   const encore = await renvoyerLaLivraison(gh.ticket(), ciRouge(3), gh.contexte());
@@ -208,14 +208,40 @@ async function epuiser(gh: ReturnType<typeof depot>) {
   throw new Error("unreachable");
 }
 
+test("le renvoi d'une CI rouge dit son motif, un test qui échoue ; celui qui épuise les renvois le dit aussi (#4302)", async () => {
+  const gh = depot(CALIBRE);
+  gh.rougeSur(sha(1), "runtime tests", "https://github.com/o/r/actions/runs/7");
+  await renvoyerLaLivraison(gh.ticket(), ciRouge(1), gh.contexte());
+  assert.match(gh.commentaires()[0]?.body ?? "", /\n\nSend-back reason: failing test\n\nThe next cook takes up/);
+  const plafond = depot(["fire", LABEL_IN_PASS, "model:opus", "effort:high"]);
+  await epuiser(plafond);
+  const dernier = plafond.commentaires().find(({ body }) => /still not mergeable after 2 sends back/.test(body))?.body ?? "";
+  assert.match(dernier, /\n\nSend-back reason: failing test\n\nParked for the supervisor/);
+});
+
 test("au plafond, rien ne monte : le ticket sort de la cuisine, un humain décide", async () => {
   const gh = depot(["fire", LABEL_IN_PASS, "model:opus", "effort:high"]);
   const coup = await epuiser(gh);
   assert.equal(coup.coup, "set-aside");
   assert.deepEqual(gh.creees, []);
-  assert.ok(gh.labels().includes(ECHECS_ATTEINTS));
+  // #4129 : parqué pour le superviseur, jamais `set-aside:failures`.
+  assert.ok(gh.labels().includes(LABEL_PARKED));
+  assert.ok(!gh.labels().includes("set-aside:failures"));
+  assert.ok(gh.commentaires().some(({ body }) => body.startsWith('<!-- brigade:parked {"what":"its delivery is still not mergeable after')), JSON.stringify(gh.commentaires()));
   assert.ok(!gh.labels().includes(HORS_CUISINE));
   assert.match(gh.commentaires().at(-1)?.body ?? "", /already the highest the kitchen sets/);
+});
+
+// #4129 : au plafond, le ticket est parqué pour le superviseur jusqu'à sa réponse — sa marque dit qui, pour quoi, jusqu'à
+// quand —, jamais mis de côté par `set-aside:failures`.
+test("au plafond, le ticket est parqué pour le superviseur jusqu'à sa réponse : la marque du parking, une date à venir", async () => {
+  const gh = depot(["fire", LABEL_IN_PASS, "model:opus", "effort:high"]);
+  const avant = Date.now();
+  await epuiser(gh);
+  const marque = gh.commentaires().map(({ body }) => /^<!-- brigade:parked (\{.*?\}) -->/.exec(body)?.[1]).find((lue) => lue !== undefined);
+  const lue = JSON.parse(marque ?? "null") as { who: string; fact: string; failures: boolean; followUp: string } | null;
+  assert.deepEqual(lue && { who: lue.who, fact: lue.fact, failures: lue.failures }, { who: "the supervisor", fact: "the supervisor answers", failures: true });
+  assert.ok(Date.parse(lue?.followUp ?? "") > avant, lue?.followUp ?? "no follow-up");
 });
 
 test("un ticket fix de la cuisine n'ouvre pas de fix de plus", async () => {

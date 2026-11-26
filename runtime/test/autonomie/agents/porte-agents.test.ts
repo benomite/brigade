@@ -1,7 +1,9 @@
 // #4039: the gestures of the other agents go through the same gate as the closer's. The supervisor's run is held on
-// `propose` until the chef's approval; the manager's split of an epic is held by default, its tickets created only
-// once approved. GitHub is a fake that counts its calls; the clock is given; no `claude` is launched.
+// `propose` until the chef's approval; the manager's split of an epic creates its tickets at once by default (#4247),
+// and is held until approved when the chef sets it to `propose`. GitHub is a fake that counts its calls; the clock is given; no `claude` is launched.
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { enregistrementDe, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
 import { magasinDeNiveaux } from "../../../src/autonomie/agents/niveaux.ts";
@@ -19,12 +21,13 @@ import { repertoireTemporaire } from "../../outils.ts";
 
 const A = (hhmm: string) => () => new Date(`2026-11-23T${hhmm}:00.000Z`);
 
-// A supervisor's run, woken by #40 taken three times, whose manager asks to put #40 back on the rail.
+// A supervisor's run, woken by #40 taken three times, whose manager asks to put #40 back on the rail. #40 is held off the
+// rail without being parked (`served-elsewhere`): a parked ticket is refused (#4129).
 async function unRun(t: TestContext, projet: string, options: { repertoireEtat?: string; porte?: ReturnType<typeof porteDesGestes> }) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   t.after(() => journal.fermer());
   const depot = new FauxDepot();
-  depot.issue(40, ["waiting"]);
+  depot.issue(40, ["served-elsewhere"]);
   const pris: FaitsDuProjet = { dernierMerge: null, cuisinables: [], prises: [{ ticket: 40, prises: 3 }], mainRougeDepuis: null };
   const consultations = { n: 0 };
   await superviseur({
@@ -46,7 +49,7 @@ test("the supervisor on propose: its gesture is not done until the chef's approv
   const { depot, consultations } = await unRun(t, projet, { repertoireEtat: repertoire, porte });
   assert.equal(consultations.n, 1);
   assert.deepEqual(depot.ecrits(), []);
-  assert.deepEqual(depot.labelsDe(40), ["waiting"]);
+  assert.deepEqual(depot.labelsDe(40), ["served-elsewhere"]);
   assert.deepEqual(enregistrementDe(repertoire, "supervisor").gestures, []);
   assert.deepEqual(gestesEnAttente(repertoire).map(({ id, agent, line, reason }) => ({ id, agent, line, reason })), [{ id: 1, agent: "supervisor", line: 'back-on-rail {"ticket":40,"note":"the client answered"}', reason: "#40 was taken 3 times without delivering" }]);
 
@@ -67,7 +70,7 @@ test("a supervisor given no gate takes the one of its state directory, at its le
   const projet = "porte-superviseur-defaut";
   magasinDeNiveaux(repertoire).poser(projet, "supervisor", "propose");
   const tenu = await unRun(t, projet, { repertoireEtat: repertoire });
-  assert.deepEqual(tenu.depot.labelsDe(40), ["waiting"]);
+  assert.deepEqual(tenu.depot.labelsDe(40), ["served-elsewhere"]);
   assert.deepEqual(gestesEnAttente(repertoire).map(({ agent }) => agent), ["supervisor"]);
 
   const sans = await unRun(t, projet, {});
@@ -112,8 +115,10 @@ function epiqueDecoupee(t: TestContext) {
   return { repertoire, epic, creees, porte, avertissements, traiter: () => decoupage.traiter(epic, []) };
 }
 
-test("the manager's split of an epic is held by default: no ticket is created until the chef's approval, then each once", async (t) => {
+// The chef still puts the split back on hold by setting its level (#4247): unchanged.
+test("the manager's split of an epic set to propose is held: no ticket is created until the chef's approval, then each once", async (t) => {
   const { repertoire, creees, porte, avertissements, traiter } = epiqueDecoupee(t);
+  magasinDeNiveaux(repertoire).poser("porte-manager", "manager split-epic", "propose");
   assert.equal(await traiter(), false);
   assert.equal(await traiter(), false);
   assert.deepEqual(creees, []);
@@ -134,5 +139,26 @@ test("the manager's split of an epic set to act creates its tickets at once, and
   assert.equal(await traiter(), true);
   assert.equal(creees.length, 2);
   assert.deepEqual(enregistrementDe(repertoire, "manager").gestures.map(({ line }) => line), ["split the epic #30 into 2 tickets"]);
+  assert.deepEqual(gestesEnAttente(repertoire), []);
+});
+
+test("by default, the manager's split of an epic creates its tickets at the same pass, with no chef's OK and nothing held (#4247)", async (t) => {
+  const { repertoire, creees, avertissements, traiter } = epiqueDecoupee(t);
+  assert.equal(await traiter(), true);
+  assert.deepEqual(creees, ["The rail counts its tickets", "The doc says the count"]);
+  assert.deepEqual(enregistrementDe(repertoire, "manager").gestures.map(({ line }) => line), ["split the epic #30 into 2 tickets"]);
+  assert.deepEqual(gestesEnAttente(repertoire), []);
+  assert.deepEqual(avertissements, []);
+});
+
+test("an epic whose split was held for the chef's OK before the delivery is split at the next pass, and no longer pending (#4247)", async (t) => {
+  const { repertoire, creees, traiter } = epiqueDecoupee(t);
+  magasinDeNiveaux(repertoire).poser("porte-manager", "manager split-epic", "propose");
+  assert.equal(await traiter(), false);
+  assert.equal(gestesEnAttente(repertoire).length, 1);
+  // The level goes back to its default, as on a station whose chef never set it.
+  writeFileSync(join(repertoire, "autonomy-levels.json"), "{}\n");
+  assert.equal(await traiter(), true);
+  assert.equal(creees.length, 2);
   assert.deepEqual(gestesEnAttente(repertoire), []);
 });

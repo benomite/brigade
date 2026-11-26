@@ -63,9 +63,15 @@ export function consignerGeste(repertoire: string, agent: string, geste: { line:
 }
 
 // The agent's gestures, oldest first. Its type lets a reader take the first entry without a check, as the acceptance
-// tests of #4037 do: an empty log gives `undefined` there all the same.
-export type Gestes = Geste[] & { 0: Geste };
+// tests of #4037 do — and of a slice, as those of #4380 do: an empty log gives `undefined` there all the same.
+export type Gestes = { 0: Geste; slice(debut?: number, fin?: number): Gestes } & Geste[];
 export const gestesDe = (repertoire: string, agent: string): Gestes => (lireTout(repertoire)[agent] ?? []) as Gestes;
+
+// Every agent's gestures, by agent, oldest first: the threads the logbook of the day reads (journal-du-jour/).
+export const tousLesGestes = (repertoire: string): Record<string, Geste[]> => lireTout(repertoire);
+
+// The names the log holds a list under (`closer`, `cook #12`): the Agents tab gathers the cooks' (agents-tab/api.ts).
+export const agentsDuJournal = (repertoire: string): string[] => Object.keys(lireTout(repertoire));
 
 export const compteursDe = (repertoire: string, agent: string): Compteurs => compter(gestesDe(repertoire, agent));
 

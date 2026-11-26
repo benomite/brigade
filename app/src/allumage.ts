@@ -1,7 +1,7 @@
 // Ce qu'engage l'allumage du projet (#1406) — et de son manager, qui le suit —, dit au moment du geste « allumer » :
 // l'avertissement de docs/runtime/manager.md, « Le manager », mot pour mot, et deux
-// nombres — les issues ouvertes du projet, et celles qui portent
-// `blocked-on-human`. Les nombres viennent de la box, par le geste qui existe
+// nombres — les issues ouvertes du projet, et celles qui sont parquées
+// (`parked`, #4129). Les nombres viennent de la box, par le geste qui existe
 // (`brigade <nom> manager backlog`, box.ts) : une commande du runtime
 // qui lit GitHub et n'écrit rien (runtime/src/manager-cli.ts). L'app ne joint
 // pas GitHub elle-même, et ne demande rien de plus à la box.
@@ -22,23 +22,24 @@ export const COMMANDE = "manager backlog";
 // docs/runtime/manager.md, « Le manager » : son avertissement, sans sa mise en gras, dit en anglais
 // côté app (la doc, elle, est en français).
 export const AVERTISSEMENT =
-  "Once on, the manager judges the whole open backlog, whatever it judges executable goes to the kitchen right away, and green deliveries are merged. Before switching the project on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.";
+  "Once on, the manager judges the whole open backlog, whatever it judges executable goes to the kitchen right away, and green deliveries are merged. Before switching the project on, park whatever must not go: a parked issue is never judged, a parked epic is never split.";
 
 // Ce que la confirmation pose dès qu'elle s'ouvre, avant que la box ait répondu : la vue
 // les nomme, elle n'en écrit aucun.
 export const ALLUMAGE = {
   geste: GESTE,
   commande: COMMANDE,
-  enCours: "this project's open issues, and those carrying `blocked-on-human`: reading from the station…",
+  enCours: "this project's open issues, and those parked: reading from the station…",
   parti: "the two numbers were not read: the app could not ask this project's station for them. This is not “no issue”: look at the backlog yourself before saying yes",
 } as const;
 
 export type Backlog = { ouvertes: number; retenues: number };
 
-// La ligne `backlog` : `<n> open issue(s), of which <m> carry/carries `blocked-on-human` — <suite>`.
-// D'avant #951 : `<n> issue(s) ouverte(s), dont <m> porte(nt) `blocked-on-human` — <suite>`.
-const LIGNE = /^backlog {2,}(\d+) open issues?, of which (\d+) carr(?:y|ies) `blocked-on-human`/;
-const LIGNE_D_AVANT = /^backlog {2,}(\d+) issues? ouvertes?, dont (\d+) porte(?:nt)? `blocked-on-human`/;
+// La ligne `backlog` : `<n> open issue(s), of which <m> is/are parked — <suite>`. Une box d'avant #4260 la disait
+// `<n> open issue(s), of which <m> carry/carries `<label>` — <suite>`, et d'avant #951 `<n> issue(s) ouverte(s), dont
+// <m> porte(nt) `<label>` — <suite>` : son label d'attente d'alors.
+const LIGNE = /^backlog {2,}(\d+) open issues?, of which (\d+) (?:is|are) parked/;
+const LIGNES_D_AVANT = [/^backlog {2,}(\d+) open issues?, of which (\d+) carr(?:y|ies) `[a-z-]+`/, /^backlog {2,}(\d+) issues? ouvertes?, dont (\d+) porte(?:nt)? `[a-z-]+`/];
 
 // Ce que cette sortie de `manager backlog` compte — ou en quoi elle n'en a pas la forme.
 export function backlogDe(sortie: string): Backlog | { informe: string } {
@@ -46,16 +47,16 @@ export function backlogDe(sortie: string): Backlog | { informe: string } {
   const [ligne] = lignes;
   if (ligne === undefined) return { informe: "it has no `backlog` line" };
   if (lignes.length > 1) return { informe: "it has more than one `backlog` line" };
-  const [, lues, portees] = LIGNE.exec(ligne) ?? LIGNE_D_AVANT.exec(ligne) ?? [];
+  const [, lues, portees] = [LIGNE, ...LIGNES_D_AVANT].map((forme) => forme.exec(ligne)).find((lu) => lu !== null) ?? [];
   const [ouvertes, retenues] = [Number(lues), Number(portees)];
   if (lues === undefined || portees === undefined || !Number.isSafeInteger(ouvertes) || !Number.isSafeInteger(retenues)) return { informe: `its \`backlog\` line does not give the two numbers in the expected form: “${ligne}”` };
-  if (retenues > ouvertes) return { informe: `its \`backlog\` line counts more \`blocked-on-human\` issues than open issues: “${ligne}”` };
+  if (retenues > ouvertes) return { informe: `its \`backlog\` line counts more parked issues than open issues: “${ligne}”` };
   return { ouvertes, retenues };
 }
 
 // Ce que la vue pose une fois la box revenue : elle n'y calcule rien. `a` : l'instant de la lecture.
 // `dit` : le prix d'« allumer », en une phrase, d'après les deux nombres — ce que le manager va juger :
-// les issues ouvertes, moins celles que `blocked-on-human` retient, qu'il ne juge jamais (#906).
+// les issues ouvertes, moins celles qui sont parquées, qu'il ne juge jamais (#906, #4260).
 // `sans` : pourquoi ils ne sont pas posés — ce n'est jamais « aucune issue » ; `obtenu` : ce que
 // l'app a eu à leur place, tel quel.
 export type Compte = { projet: string; a: string } & ((Backlog & { dit: string }) | { sans: string; obtenu: string });
@@ -65,8 +66,8 @@ const issues = (combien: number) => `${combien} open issue${combien > 1 ? "s" : 
 export function dire({ ouvertes, retenues }: Backlog): string {
   if (ouvertes === 0) return "it will judge no issue: none is open";
   if (retenues === 0) return `it will judge the ${issues(ouvertes)}`;
-  if (retenues === ouvertes) return `it will judge no issue: ${ouvertes > 1 ? `all ${issues(ouvertes)} carry` : "the only open issue carries"} \`blocked-on-human\``;
-  return `it will judge ${ouvertes - retenues} of the ${issues(ouvertes)} — ${retenues} ${retenues > 1 ? "carry" : "carries"} \`blocked-on-human\``;
+  if (retenues === ouvertes) return `it will judge no issue: ${ouvertes > 1 ? `all ${issues(ouvertes)} are` : "the only open issue is"} parked`;
+  return `it will judge ${ouvertes - retenues} of the ${issues(ouvertes)} — ${retenues} ${retenues > 1 ? "are" : "is"} parked`;
 }
 
 const PAS_LUS = "the two numbers were not read";

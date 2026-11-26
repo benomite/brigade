@@ -2,14 +2,14 @@
 // de la file, puis la ligne de chaque carte — les mêmes que le rail de l'app écrit (vue/rail/github.ts).
 //
 // Seule une station GitHub seul la cherche : le rail y est sur GitHub. Le rail se lit de
-// ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni `waiting`, ni mise de côté), pris, ou en pass — un
+// ses issues `fire` ouvertes : en file (ni `taken`, ni `in-pass`, ni parqué, ni mise de côté), pris, ou en pass — un
 // `in-pass` est compté en pass sans relire sa PR. Une lecture qui échoue le dit sur la même ligne : jamais une file dite
 // calme faute de l'avoir lue.
 import type { Base } from "../base.ts";
 import { cooksEnCoursDeStation, etatStation, plafondDeCooks, stationsAnnoncees } from "../projections/stations.ts";
 import { porteListe, ticketsDeLaListe } from "../epique.ts";
 import { lireLesStationsDuCompte } from "../enregistrement-station/stations-du-compte.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN, LABEL_WAITING } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN, LABEL_PARKED } from "../github-etat/etats.ts";
 import { lireGitHubSeul } from "../github-seul-etat.ts";
 import { clientGh } from "../proteger-branche.ts";
 import { feuPoseLe, lesFeux, type Lire } from "./lecture.ts";
@@ -19,8 +19,12 @@ import { attentesDuTicket } from "../carte-attente/carte-attente.ts";
 import { attenteDeLIssue } from "../attente-github/marque.ts";
 import { lireLOrdreDuRail } from "../ordre-de-merge/lecture.ts";
 import { expliquerLAttente, lignesDeStatus, lignesDesCartes, type LimiteDite, type TicketDuRail, type TicketEnWaiting } from "./raison.ts";
+import { diagnostiquer, outageLines, type OutageTicket } from "../outage/index.ts";
+import { outageStations } from "../outage/stations.ts";
 
 const LABEL_DU_TABLEAU = "kitchen-board";
+// La réparation de main que la cuisine ouvre tant que main est rouge (#3815), lue comme le rail de l'app la lit.
+const LABEL_REPARATION_DE_MAIN = "repair-main";
 const PAR_PAGE = 100;
 
 type Brut = Record<string, unknown>;
@@ -33,30 +37,42 @@ const texte = (valeur: unknown): string => (typeof valeur === "string" ? valeur 
 // la porte de prise les attend (`attendusDuCorps`, #3622) : la ligne de la carte les nomme. Un ticket en file porte aussi
 // ses attentes avec leur source (#3763) : son corps, sa fiche et les arrêts de ses cooks, lus de ses commentaires, sur un
 // ticket du rail : un ticket hors du rail ne se dit pas.
-// Un ticket en WAITING n'est pas sur le rail, mais un ticket en file qui l'attend le dit (#3761) : `waiting`, chacun avec
+// Un ticket parqué n'est pas sur le rail, mais un ticket en file qui l'attend le dit (#3761) : `waiting`, chacun avec
 // qui il attend, relu de sa marque ; ses commentaires illisibles ne le cachent pas, ils taisent seulement qui (nul).
-export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<{ tickets: TicketDuRail[]; waiting: TicketEnWaiting[] }> {
+// `panne` (#4214) : chaque issue `fire`, ses labels et son attente, pour dire pourquoi la cuisine ne cuit pas ; `boucle` : un
+// ticket en WAITING que la station a sorti de sa boucle de relances (#4041), relu de sa marque.
+export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): Promise<{ tickets: TicketDuRail[]; waiting: TicketEnWaiting[]; panne: OutageTicket[]; boucle: number | null }> {
   const { depot, lire } = options;
   const tickets: TicketDuRail[] = [];
   const waiting: TicketEnWaiting[] = [];
+  const panne: OutageTicket[] = [];
+  let boucle: number | null = null;
   const feux = await lesFeux(depot, lire);
   const quiAttend = async (numero: number): Promise<string | null> => {
     const brutes = await lire(`/repos/${depot}/issues/${numero}/comments?per_page=${PAR_PAGE}`).catch(() => null);
     const commentaires = Array.isArray(brutes) ? brutes.flatMap((un: unknown) => { const o = objet(un); return o === null ? [] : [{ body: texte(o.body), association: texte(o.author_association) }]; }) : [];
-    return attenteDeLIssue(commentaires)?.who ?? null;
+    const attente = attenteDeLIssue(commentaires);
+    if (attente?.failures === true) boucle ??= numero;
+    return attente?.who ?? null;
   };
   const decoupages = new Map(feux.flatMap((issue) => (typeof issue.number === "number" && porteListe(texte(issue.body)) ? [[issue.number, ticketsDeLaListe(texte(issue.body))] as const] : [])));
   for (const issue of feux) {
     if (issue.pull_request !== undefined || typeof issue.number !== "number") continue;
     const labels = (Array.isArray(issue.labels) ? issue.labels : []).flatMap((label) => (typeof objet(label)?.name === "string" ? [objet(label)?.name as string] : []));
-    if (labels.includes(LABEL_WAITING)) waiting.push({ ticket: issue.number, qui: await quiAttend(issue.number) });
-    if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body)) || labels.includes(LABEL_WAITING)) continue;
+    // Un ticket parqué (`estParque`) attend : sa carte ne dit que ceux qui portent `parked`, la panne les compte tous.
+    const parque = estParque(labels);
+    const enWaiting = parque ? { ticket: issue.number, qui: await quiAttend(issue.number) } : null;
+    if (enWaiting !== null && labels.includes(LABEL_PARKED)) waiting.push(enWaiting);
+    // Le tableau et une épique découpée ne se cuisent pas : ni l'un ni l'autre ne compte dans la panne.
+    if (labels.includes(LABEL_DU_TABLEAU) || porteListe(texte(issue.body))) continue;
+    panne.push({ numero: issue.number, labels, decisionOuverte: false, enAttente: parque, ...(enWaiting?.qui == null ? {} : { enAttenteDe: enWaiting.qui }) });
+    if (labels.includes(LABEL_PARKED)) continue;
     const decoupage = (n: number) => decoupages.get(n) ?? [];
     const duCorps = attentesDuTicket({ ticket: issue.number, corps: texte(issue.body), commentaires: [], decoupage }).attentes;
     const depend = [...new Set(duCorps.map(({ ticket }) => ticket))];
     if (labels.includes(LABEL_TAKEN)) tickets.push({ ticket: issue.number, etat: "taken", entreLe: null, depend });
     else if (labels.includes(LABEL_IN_PASS)) tickets.push({ ticket: issue.number, etat: "pass", entreLe: null, depend });
-    else if (!labels.some((label) => LABELS_D_ECART.includes(label))) {
+    else if (!estParque(labels) && !labels.some((label) => LABELS_D_ECART.includes(label))) {
       const evenements = await lire(`/repos/${depot}/issues/${issue.number}/events?per_page=${PAR_PAGE}`).catch(() => null);
       const poses = Array.isArray(evenements) ? feuPoseLe(evenements.flatMap((un: unknown) => { const o = objet(un); return o === null ? [] : [o]; })) : null;
       // Sa fiche et les arrêts de ses cooks (#3763) : des commentaires qui ne se lisent pas ne le disent pas libre, sa carte
@@ -67,13 +83,13 @@ export async function lireLeRailEnFile(options: { depot: string; lire: Lire }): 
       tickets.push({ ticket: issue.number, etat: "queued", entreLe: poses, depend: [...new Set(attentes.map(({ ticket }) => ticket))], attentes, commentairesLus });
     }
   }
-  return { tickets: await avecLOrdreDeMerge(depot, lire, tickets), waiting };
+  return { tickets: await avecLOrdreDeMerge(depot, lire, tickets), waiting, panne, boucle };
 }
 
 // Chaque ticket du rail avec les tickets dont le merge passe avant le sien (#4044) : ses dépendances déclarées encore sur le
 // rail, et les tickets en pass dont la PR change un fichier qu'il change aussi. Un ordre qui ne se lit pas ne lie rien.
 async function avecLOrdreDeMerge(depot: string, lire: Lire, tickets: TicketDuRail[]): Promise<TicketDuRail[]> {
-  // Un ticket en WAITING attend un tiers, hors de la suite des merges : sa carte le dit déjà (#3761), elle ne se dit pas « after ».
+  // Un ticket parqué attend quelqu'un, hors de la suite des merges : sa carte le dit déjà (#3761), elle ne se dit pas « after ».
   const surLeRail = new Set(tickets.map(({ ticket }) => ticket));
   const declarees = new Map(tickets.filter(({ etat }) => etat !== "taken").map((carte) => [carte.ticket, carte.depend.filter((n) => n !== carte.ticket && surLeRail.has(n))] as const));
   const enPass = tickets.filter(({ etat }) => etat === "pass").map(({ ticket }) => ticket);
@@ -91,23 +107,31 @@ export async function lignesDeLAttente(options: { depot: string; lire: Lire; sta
 }
 
 // Les lignes de l'attente et, quand GitHub limite la station (#3684), les tickets en file que la ligne `rail` doit lister : le
-// journal local n'en sait rien sur une station GitHub seul, et dit `empty`.
-export type AttenteLue = { lignes: string[]; enFile: number[] };
+// journal local n'en sait rien sur une station GitHub seul, et dit `empty`. `cuisine` (#4214) : pourquoi la cuisine ne cuit
+// pas — au repos ou en panne, sa cause et son action —, vide quand elle peut cuire.
+export type AttenteLue = { lignes: string[]; enFile: number[]; cuisine: string[] };
 async function lireLAttente(options: { depot: string; lire: Lire; stations: () => Promise<StationsLues>; maintenant: number; plafondAtteint?: boolean; limite?: LimiteDite | null }): Promise<AttenteLue> {
   const { depot, lire, maintenant, plafondAtteint = false, limite = null } = options;
   let tickets: TicketDuRail[];
   let waiting: TicketEnWaiting[];
+  let lue: Awaited<ReturnType<typeof lireLeRailEnFile>>;
   try {
-    ({ tickets, waiting } = await lireLeRailEnFile({ depot, lire }));
+    lue = await lireLeRailEnFile({ depot, lire });
+    ({ tickets, waiting } = lue);
   } catch (erreur) {
-    return { lignes: [nonLue(depot, erreur instanceof Error ? erreur.message : String(erreur))], enFile: [] };
+    return { lignes: [nonLue(depot, erreur instanceof Error ? erreur.message : String(erreur))], enFile: [], cuisine: [] };
   }
   const cartes = lignesDesCartes(tickets, waiting);
+  // Main rouge se lit de sa réparation `repair-main` sur le rail, comme l'app la lit : sans elle, main n'est pas lue (null).
+  const reparation = lue.panne.find(({ labels }) => labels.includes(LABEL_REPARATION_DE_MAIN));
+  const rail = { mainRouge: reparation === undefined ? null : true, boucleDeRelance: lue.boucle !== null, ...(reparation === undefined ? {} : { reparationDeMain: reparation.numero }), ...(lue.boucle === null ? {} : { ticketEnBoucle: lue.boucle }) };
+  const cuisine = (stations: StationsLues | null) => outageLines(diagnostiquer({ rail, stations: stations === null ? null : outageStations(stations, depot, maintenant), tickets: lue.panne }));
   // Rien en file, ou un cook qui tourne : les stations n'ont rien à dire, elles ne se lisent pas.
-  if (!tickets.some(({ etat }) => etat === "queued") || tickets.some(({ etat }) => etat === "taken")) return { lignes: lignesDeStatus(null, cartes), enFile: [] };
-  const attente = expliquerLAttente({ depot, tickets, stations: await options.stations(), plafondAtteint, maintenant, limite, waiting });
+  if (!tickets.some(({ etat }) => etat === "queued") || tickets.some(({ etat }) => etat === "taken")) return { lignes: lignesDeStatus(null, cartes), enFile: [], cuisine: cuisine(null) };
+  const stations = await options.stations();
+  const attente = expliquerLAttente({ depot, tickets, stations, plafondAtteint, maintenant, limite, waiting });
   const limitee = attente?.raison === "quota-github" && limite !== null;
-  return { lignes: lignesDeStatus(attente?.phrase ?? null, cartes), enFile: limitee ? tickets.filter(({ etat }) => etat === "queued").map(({ ticket }) => ticket) : [] };
+  return { lignes: lignesDeStatus(attente?.phrase ?? null, cartes), enFile: limitee ? tickets.filter(({ etat }) => etat === "queued").map(({ ticket }) => ticket) : [], cuisine: cuisine(stations) };
 }
 
 // Le plafond de cooks est-il atteint ? Chaque station annoncée par le journal local qui a un plafond fait tourner autant de cooks
@@ -131,7 +155,7 @@ export const railCherche = (env: Record<string, string | undefined>): boolean =>
 
 export async function attenteEtRailDuStatus(env: Record<string, string | undefined>, maintenant: Date, base: Base): Promise<AttenteLue> {
   const depot = env.BRIGADE_GITHUB_REPO;
-  if (!depot || !railCherche(env)) return { lignes: [], enFile: [] };
+  if (!depot || !railCherche(env)) return { lignes: [], enFile: [], cuisine: [] };
   const gh = env.BRIGADE_GH_BIN || "gh";
   const client = clientGh(gh, env as NodeJS.ProcessEnv);
   const lire: Lire = async (chemin) => {

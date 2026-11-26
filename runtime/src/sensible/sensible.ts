@@ -15,6 +15,7 @@
 //   merge la tête de la carte et ferme la carte ; `send-back` renvoie le
 //   ticket à un cook avec la note du chef, que le cook lit sur le ticket, et
 //   ferme la carte. Une note vide est refusée.
+import type { FaitsDeLaCuisine } from "../fiche-projet/fiche.ts";
 import { DESIGN, livraisonDe, mergerLaCarte, renvoyerLaCarte, tenirPourLeChef, type GitHubDeLaRetenue, type GitHubDesGestes, type LivraisonARetenir, type SorteDeRetenue } from "../validation-design/validation-design.ts";
 
 // Le label d'un ticket sensible.
@@ -46,12 +47,23 @@ export const estSensible = (labels: readonly string[]) => labels.includes(LABEL_
 // elle ne la merge pas — la carte « review before merge » la tient. Le dépôt
 // inconnu, ou une carte que GitHub ne crée pas, lèvent : la pass le dit, ne
 // merge pas, et réessaie au tour suivant.
-export async function retenirLeSensible(github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr" | "chef">): Promise<string | null> {
+// `avis` : ce que la fiche du projet dit de l'avis du chef (#4237) — les
+// risques qui le demandent et les humains de la cuisine —, lu seulement pour
+// un ticket sensible, que la carte porte avant son brief ; nul, elle n'en dit
+// rien. Une fiche que rien ne lit lève, comme une carte que GitHub ne crée pas.
+export async function retenirLeSensible(github: GitHubDeLaRetenue, livraison: Pick<LivraisonARetenir, "depot" | "station" | "ticket" | "pr" | "chef">, avis?: () => FaitsDeLaCuisine["avisDuChef"] | null): Promise<string | null> {
   if (!estSensible(livraison.ticket.labels)) return null;
   // Une livraison design sensible attend sa seule carte « Validate its
   // screen » : la validation du chef, gardée après une mise à jour de la
   // branche, répond aussi pour elle — jamais une seconde carte (#3332).
-  return tenirPourLeChef(SENSIBLE, github, livraison, undefined, [DESIGN]);
+  const lu = avis?.() ?? null;
+  return tenirPourLeChef(SENSIBLE, github, livraison, undefined, [DESIGN], undefined, lu === null ? [] : lignesDeLAvis(lu));
+}
+
+// Les risques et les humains que la fiche du projet nomme, sur la carte.
+export function lignesDeLAvis({ risks, humans }: FaitsDeLaCuisine["avisDuChef"]): string[] {
+  const liste = (textes: readonly string[]) => (textes.length === 0 ? "none" : textes.join("; "));
+  return [`**Risks that require the chef's opinion (project sheet):** ${liste(risks)}`, `**Humans in the kitchen (project sheet):** ${liste(humans)}`, ""];
 }
 
 // Les deux réponses du chef sur la carte, nommée par son ticket ou par sa PR (#3718).

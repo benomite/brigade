@@ -16,7 +16,8 @@
 //   demande au chef un geste git est retirée.
 import { poserALaMain } from "../blocages-sans-question.ts";
 import type { Avis, ReponseDuManager } from "../blocage-au-manager.ts";
-import { A_LA_MAIN, brancheDuTicket, ECHECS_MAX, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
+import { CHEF_TODO } from "../github-etat/etats.ts";
+import { brancheDuTicket, ECHECS_MAX, type GitHubDuTour, type TicketLu } from "../brigade-github.ts";
 import type { LanceurGit } from "../integration-base.ts";
 import { mettreAJourLaBranche, type MiseAJourDeLaBranche } from "../mise-a-jour-branche/mise-a-jour-branche.ts";
 import { consigneDeLIntegration, integrerAvantLeCook } from "../renvoi-conflit.ts";
@@ -104,12 +105,15 @@ export type GitHubDuDegel = Pick<GitHubDuTour, "commentaires" | "commenter" | "c
 // - un ticket dont le travail est de changer la branche d'un autre ticket est
 //   fermé, et replié dans le renvoi de ce ticket à son propre cook, avec les
 //   fichiers en conflit qu'il nommait ;
-// - une carte du chef (`blocked-on-human`) qui lui demande un geste git est
+// - une carte du chef (`chef-todo`) qui lui demande un geste git est
 //   retirée, et le ticket dont elle nomme la branche revient à son cook.
 // `enVol` : les tickets qu'un cook de cette station tient, laissés au tour
 // suivant. `examinees` : les cartes déjà relues par ce processus, qui ne se
 // relisent pas à chaque tour. Un ticket qui échoue est dit, et ne retient pas
 // les autres. Rend les tickets fermés, et ceux dont la carte est retirée.
+// Ce qui tient le ticket pour le chef : sa carte (`chef-todo`).
+const tenues = (ticket: TicketLu): string[] => [CHEF_TODO].filter((label) => ticket.labels.includes(label));
+
 export async function degelerLesConflits(
   github: GitHubDuDegel,
   { station, base, tickets, enVol, examinees, avertir }: { station: string; base: string; tickets: readonly TicketLu[]; enVol: ReadonlySet<number>; examinees: Set<number>; avertir: (texte: string) => void },
@@ -135,30 +139,31 @@ export async function degelerLesConflits(
           ticket.number,
           `Station \`${station}\`: this ticket's work was to change the branch of #${proprietaire}, which only #${proprietaire}'s own cook changes. It is folded into #${proprietaire}'s send-back to its cook, which resolves the conflict with \`origin/${base}\` in its own branch, and closed. Nothing here is for the chef.`,
         );
-        if (ticket.labels.includes(A_LA_MAIN)) await github.delabelliser(ticket.number, A_LA_MAIN);
+        for (const tenue of tenues(ticket)) await github.delabelliser(ticket.number, tenue);
         await github.fermerIssue(ticket.number);
         fermes.add(ticket.number);
         avertir(`brigade : #${ticket.number} sur ${station} — its work was to change the branch of #${proprietaire}: closed, and #${proprietaire} goes back to its own cook`);
         continue;
       }
-      if (!ticket.labels.includes(A_LA_MAIN) || examinees.has(ticket.number)) continue;
+      const tenue = tenues(ticket)[0];
+      if (tenue === undefined || examinees.has(ticket.number)) continue;
       const carte = (await github.commentaires(ticket.number)).map((c) => teteDeCarte(c.body)).findLast((tete) => tete !== null) ?? null;
       examinees.add(ticket.number);
       if (carte !== null && carteDeBacASable(carte)) {
-        await github.delabelliser(ticket.number, A_LA_MAIN);
+        await github.delabelliser(ticket.number, tenue);
         rendus.add(ticket.number);
-        await github.commenter(ticket.number, `Station \`${station}\`: the chef's card on this ticket asked for a sandbox setting — never something the chef can do. The card is withdrawn and \`${A_LA_MAIN}\` removed: the ticket goes back to the kitchen with the sandbox limit named (${DIT_L_ARRET_DU_BAC}).`);
+        await github.commenter(ticket.number, `Station \`${station}\`: the chef's card on this ticket asked for a sandbox setting — never something the chef can do. The card is withdrawn and \`${tenue}\` removed: the ticket goes back to the kitchen with the sandbox limit named (${DIT_L_ARRET_DU_BAC}).`);
         avertir(`brigade : #${ticket.number} sur ${station} — its chef card asked for a sandbox setting: withdrawn, the ticket goes back to the kitchen`);
         continue;
       }
       if (carte === null || !carteDeGesteGit(carte)) continue;
       const nommee = /\bcook\/([1-9]\d*)-/.exec(carte);
       const cible = nommee ? Number(nommee[1]) : ticket.number;
-      await github.delabelliser(ticket.number, A_LA_MAIN);
+      await github.delabelliser(ticket.number, tenue);
       rendus.add(ticket.number);
       await github.commenter(
         ticket.number,
-        `Station \`${station}\`: the chef's card on this ticket asked for a git gesture on ${cible === ticket.number ? "its branch" : `the branch of #${cible}`} — never a question for the chef. The card is withdrawn and \`${A_LA_MAIN}\` removed: ${cible === ticket.number ? "the ticket goes back to its own cook" : `#${cible} goes back to its own cook`}, which brings its branch up to date with \`origin/${base}\` itself.`,
+        `Station \`${station}\`: the chef's card on this ticket asked for a git gesture on ${cible === ticket.number ? "its branch" : `the branch of #${cible}`} — never a question for the chef. The card is withdrawn and \`${tenue}\` removed: ${cible === ticket.number ? "the ticket goes back to its own cook" : `#${cible} goes back to its own cook`}, which brings its branch up to date with \`origin/${base}\` itself.`,
       );
       await renvoyer(cible, fichiersNommes(carte));
       avertir(`brigade : #${ticket.number} sur ${station} — its chef card asked for a git gesture: withdrawn, #${cible} goes back to its own cook`);
