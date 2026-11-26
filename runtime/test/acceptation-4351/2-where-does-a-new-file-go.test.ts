@@ -12,7 +12,7 @@ test("code-layout.md has the 'Where does a new file go?' rule", () => {
   const titre = /^#+\s*Where does a new file go\?\s*$/m.exec(texte);
   assert.ok(titre, "no section 'Where does a new file go?'");
   const reste = texte.slice(titre.index + titre[0].length);
-  const section = reste.split(/^#{1,2}\s/m)[0];
+  const section = reste.split(/^#{1,2}\s/m)[0]!;
   assert.match(section, /main\.ts/);
   assert.match(section, /status\.ts/);
   assert.match(section, /npm scripts?/i);

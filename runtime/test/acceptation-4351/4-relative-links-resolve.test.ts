@@ -9,7 +9,7 @@ test("every relative link in code-layout.md and README.md resolves", () => {
   assert.ok(existsSync(new URL("code-layout.md", DOSSIER)), "code-layout.md does not exist");
   for (const page of ["code-layout.md", "README.md"]) {
     const texte = readFileSync(new URL(page, DOSSIER), "utf8");
-    const liens = [...texte.matchAll(/\]\(([^)\s]+)\)/g)].map((m) => m[1]).filter((l) => !/^([a-z]+:|#|\/\/)/i.test(l));
+    const liens = [...texte.matchAll(/\]\(([^)\s]+)\)/g)].map((m) => m[1]!).filter((l) => !/^([a-z]+:|#|\/\/)/i.test(l));
     for (const lien of liens) {
       const cible = new URL(lien.split("#")[0] || ".", DOSSIER);
       assert.ok(existsSync(cible), `${page}: broken link ${lien}`);
