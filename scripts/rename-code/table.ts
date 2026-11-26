@@ -101,12 +101,6 @@ export const KEPT_FILES: { why: string; paths: string[] }[] = [
 // sorted order the rename changes.
 export const FIXUPS: { file: string; from: string; to: string; why: string; count?: number }[] = [
   {
-    file: "app/test/page.test.ts",
-    from: 'fonction("poserServie")',
-    to: 'fonction("renderServed")',
-    why: "the test reads the view's source for the function by its name",
-  },
-  {
     file: "runtime/test/log-not-replayed.test.ts",
     from: '"garde-fous-cli"',
     to: '"guardrails-cli"',

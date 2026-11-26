@@ -617,7 +617,8 @@ function rename(computed: Plan, ls: ts.LanguageService, files: string[]): string
   const broken = prove(before, computed.edits, computed.renamed, newFiles);
   // Last, the fixups, on the renamed tree: a string the references do not
   // carry (a test that names a function or a file in text).
-  for (const fixup of FIXUPS) {
+  // A fixup of a zone that is not renamed (`--only`) has nothing to fix.
+  for (const fixup of FIXUPS.filter((candidate) => under(candidate.file, OWN))) {
     const text = readFileSync(abs(fixup.file), "utf8");
     const count = text.split(fixup.from).length - 1;
     if (count !== (fixup.count ?? 1)) throw new Error(`fixup found ${count} time(s) in ${fixup.file}, not ${fixup.count ?? 1}: ${fixup.from}`);
@@ -634,7 +635,7 @@ function report(computed: Plan, broken: string[]): string[] {
   for (const kept of computed.members) lines.push(`kept\t${kept.declared.file}\t${kept.declared.syntax}\t${kept.declared.name}\t${kept.to}\t${kept.why}`);
   for (const [path, to] of computed.renamed) lines.push(`move\t${rel(path)}\t${to}`);
   for (const [file, list] of computed.edits) for (const edit of list.filter((candidate) => candidate.why.startsWith("path "))) lines.push(`path\t${rel(file)}\t${edit.why.slice(5)}\t${edit.text}`);
-  for (const fixup of FIXUPS) lines.push(`fixup\t${fixup.file}\t${fixup.from}\t${fixup.to}`);
+  for (const fixup of FIXUPS.filter((candidate) => under(candidate.file, OWN))) lines.push(`fixup\t${fixup.file}\t${fixup.from}\t${fixup.to}`);
   for (const refused of computed.refused) lines.push(`unresolved\t${refused}`);
   for (const line of broken) lines.push(`unresolved\t${line}`);
   return [...new Set(lines)].sort();
