@@ -994,9 +994,11 @@ C1, C2, C4). Each badge says the agent's state, its last gesture with its time, 
 (`closer: next pass in 3 h`), its autonomy level, and how many of its gestures await your OK. A click on a badge opens
 the agent's thread under the badges: its last gestures, one line each with its reason and its outcome, its two counters
 `fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
-pressed, its meaning on hover — and each gesture that awaits your OK with one `OK` button. A level click sets the level
+pressed, its meaning on hover — the counter toward the next level move (#4381), and each gesture that awaits your OK with one `OK` button. A level click sets the level
 once; an `OK` approves the gesture once and removes it. A gesture that fails changes nothing and says it in one line,
-its detail on hover. A second click on the badge closes the thread. A click on a badge also opens the project's
+its detail on hover. The counter reads the agent's `progress` in `facts`: `2 of 5 toward act` for an agent at `propose`, and `—` for an
+agent at `act`, which has no move left (`progress: null`); a record without `progress` shows no counter. An agent whose
+`pinned` is true shows `level pinned` next to it. A second click on the badge closes the thread. A click on a badge also opens the project's
 **Agents** tab (#4224, below).
 
 The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which

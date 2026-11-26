@@ -21,6 +21,7 @@ import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, e
 import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
 import type { LecturesDesGestes } from "./gestes/lectures-des-gestes.ts";
 import type { RunDeCi } from "./temps-ticket/ci-github.ts";
+import { aLaMain } from "./trust/trust.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -210,6 +211,10 @@ export type GitHub = {
   // Vrai si ce compte a accès au dépôt, quel que soit son droit (lecture
   // comprise) ; faux s'il n'en a aucun.
   aAccesAuDepot?(login: string): Promise<boolean>;
+  // Le droit de ce compte sur le dépôt, tel que GitHub le dit (« admin »,
+  // « maintain », « write », « triage », « read » ou « none ») ; « none » pour
+  // un compte que GitHub ne connaît pas comme collaborateur (#4421).
+  permissionSurLeDepot?(login: string): Promise<string>;
   // Un fichier du dépôt tel que `ref` le porte — son texte, et l'empreinte de
   // son blob que sa réécriture doit citer —, ou null s'il n'y est pas.
   fichier?(chemin: string, ref: string): Promise<{ texte: string; sha: string } | null>;
@@ -517,7 +522,7 @@ export function decouper(sortie: string): Reponse | null {
 // Combien de lectures de jobs finis un client garde, les plus anciennes oubliées d'abord.
 const JOBS_GARDES = 200;
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers" | "ouvertesDuLabel" | "desassigner">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "permissionSurLeDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers" | "ouvertesDuLabel" | "desassigner">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -828,7 +833,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
           const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
           const reponse = await lireSousCondition([chemin]);
           const permission = reponse.statut === 200 ? (JSON.parse(reponse.corps) as { permission?: string }).permission : undefined;
-          const ecrit = permission === "admin" || permission === "maintain" || permission === "write";
+          const ecrit = permission !== undefined && aLaMain(permission);
           ecrivains.set(login, ecrit || (await reponseDUnHumainDeclare(login, options.humains ?? [], lireAssignes)));
         }
         if (ecrivains.get(login)) labels.add(brut.label?.name as string);
@@ -985,12 +990,15 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       return true;
     },
     async aAccesAuDepot(login) {
+      return (await this.permissionSurLeDepot(login)) !== "none";
+    },
+    async permissionSurLeDepot(login) {
       const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
       const reponse = await lireSousCondition([chemin]);
-      if (reponse.statut === 404) return false;
+      if (reponse.statut === 404) return "none";
       const { permission } = JSON.parse(exiger(reponse, chemin).corps) as { permission?: unknown };
       if (typeof permission !== "string") throw new Error(`gh api ${chemin} : réponse sans droit`);
-      return permission !== "none";
+      return permission;
     },
     async fichier(chemin, ref) {
       const lu = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
