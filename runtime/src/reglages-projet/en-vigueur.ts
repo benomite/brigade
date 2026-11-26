@@ -18,6 +18,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Calibrage } from "../calibrage.ts";
 import { lireALaBase } from "../depot.ts";
+import { CHEMIN_DE_LA_FICHE } from "../fiche-projet/defauts.ts";
+import { ficheDuTexte, FicheInvalide } from "../fiche-projet/fiche.ts";
 import { direHumains } from "../humains/humains.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, ReglageRefuse, roadmapDuClaudeMd, SEUILS_DU_PROJET, type ReglagesProjet } from "./reglages.ts";
@@ -43,7 +45,7 @@ export function roadmapALaBase(lieu: { clone: string; base: string }, env?: Node
 
 // D'où vient la branche d'intégration : le fichier du dépôt, la ligne de la
 // station, ou la ligne « Branche d'intégration » du `CLAUDE.md` du clone.
-export type ProvenanceDeLaBranche = "projet.json" | "configuration" | "CLAUDE.md";
+export type ProvenanceDeLaBranche = "fiche-projet.json" | "projet.json" | "configuration" | "CLAUDE.md";
 
 export type BrancheDuProjet = {
   // Null : ni le dépôt ni la ligne ne la disent.
@@ -56,6 +58,9 @@ export type BrancheDuProjet = {
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
 // La branche d'intégration du projet. Dans l'ordre :
+//   0. celle que la fiche du projet sert (`served`, #4237), lue comme le
+//      fichier des réglages : sur la branche que la ligne nomme, puis dans
+//      l'arbre du clone ;
 //   1. celle que le fichier porte sur la branche que la ligne nomme — la
 //      ligne n'est alors qu'un point de départ ;
 //   2. celle que le fichier porte dans l'arbre du clone — un clone frais, sur
@@ -75,6 +80,24 @@ export function brancheDuProjet(clone: string, ligne: string | null, env?: NodeJ
     }
   };
   const duFichier = (reglages: ReglagesProjet | null): BrancheDuProjet | null => (reglages === null ? null : { branche: reglages.integrationBranch, provenance: "projet.json", problemes });
+  const servie = (contenu: string | null): BrancheDuProjet | null => (contenu === null ? null : { branche: ficheDuTexte(contenu).served.branch, provenance: "fiche-projet.json", problemes });
+  // Une fiche refusée est dite. Une branche que `git` ne lit pas l'est par la
+  // lecture du fichier des réglages, sur la même branche, juste après.
+  const essayerLaFiche = (ou: string, lire: () => BrancheDuProjet | null): BrancheDuProjet | null => {
+    try {
+      return lire();
+    } catch (erreur) {
+      if (erreur instanceof FicheInvalide) problemes.push(`${CHEMIN_DE_LA_FICHE} not read on ${ou} — ${message(erreur)}`);
+      return null;
+    }
+  };
+  const ficheALaLigne = ligne === null ? null : essayerLaFiche(`origin/${ligne}`, () => servie(lireALaBase({ clone, base: ligne }, CHEMIN_DE_LA_FICHE, env)));
+  if (ficheALaLigne !== null) return ficheALaLigne;
+  const ficheDeLArbre = join(clone, CHEMIN_DE_LA_FICHE);
+  if (existsSync(ficheDeLArbre)) {
+    const lue = essayerLaFiche("the clone's working tree", () => servie(readFileSync(ficheDeLArbre, "utf8")));
+    if (lue !== null) return lue;
+  }
   if (ligne !== null) {
     const lu = duFichier(essayer(`origin/${ligne}`, () => reglagesALaBase({ clone, base: ligne }, env)));
     if (lu !== null) return lu;
@@ -154,7 +177,7 @@ export function variablesDuDepot(reglages: ReglagesProjet | null): Record<string
 // station : ce que le dépôt fixe, et ce qu'il laisse à la box.
 export function direReglagesDuDepot(branche: BrancheDuProjet, reglages: ReglagesProjet | null, base: string): string {
   const d = (calibrage: Calibrage | undefined) => (calibrage === undefined ? "box" : `${calibrage.model}/${calibrage.effort}`);
-  const depuis = { "projet.json": `${FICHIER}`, configuration: "the station's configuration line", "CLAUDE.md": "the clone's CLAUDE.md" };
+  const depuis = { "fiche-projet.json": CHEMIN_DE_LA_FICHE, "projet.json": `${FICHIER}`, configuration: "the station's configuration line", "CLAUDE.md": "the clone's CLAUDE.md" };
   const brancheDite = `branch ${branche.branche ?? "?"} (from ${branche.provenance === null ? "nowhere" : depuis[branche.provenance]})`;
   if (reglages === null) return `project settings — ${brancheDite}; origin/${base} has no ${FICHIER}: calibrations, ceiling and closer are the box's`;
   const { manager, reviewer } = reglages.defaultCalibrations ?? {};

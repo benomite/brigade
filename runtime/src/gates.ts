@@ -10,9 +10,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { envelopper, type Cloison } from "./cloison.ts";
 import type { Depassement, Gates } from "./events/pass.ts";
+import { gatesDuDossier } from "./fiche-projet/fiche.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 
-export const SCRIPT_GATES = ".claude/brigade/gates.sh";
+// Le script des gates d'un projet de code, celui que `/brigade:init` pose : la
+// pass, elle, joue ceux que la fiche du projet nomme (`gatesDuDossier`).
+export { SCRIPT_GATES } from "./fiche-projet/defauts.ts";
 export const SCRIPT_SETUP = ".claude/brigade/worktree-setup.sh";
 
 // Le canal par lequel le setup rend ce qu'il a exporté : ni sa sortie ni sa
@@ -38,9 +41,17 @@ for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done ${canal}
 // dire sur le canal, par `times`, le processeur de tout ce qu'il a attendu —
 // les gates et ce qu'elles ont lancé et attendu, workers compris. Tuées par un
 // signal, il en meurt de même : leur code reste le leur.
+// Les gates de la fiche se jouent l'une après l'autre, la première rouge arrête
+// les suivantes : son code est celui des gates.
 const GATES = (canal: string) => `
-"$1" "$2" 2>&1
-code=$?
+worktree="$1"
+shift
+code=0
+for gates in "$@"; do
+  "$gates" "$worktree" 2>&1
+  code=$?
+  [ "$code" -eq 0 ] || break
+done
 times ${canal}
 if [ "$code" -gt 128 ]; then kill -s "$(kill -l "$code")" "$$" 2>/dev/null; fi
 exit "$code"
@@ -104,7 +115,19 @@ export type Setup =
   | { pret: true; joue: boolean; env: NodeJS.ProcessEnv; sortie: string; masques: number }
   | { pret: false; depasse: boolean; code: number | null; sortie: string; masques: number };
 
-export const aDesGates = (worktree: string) => existsSync(join(worktree, SCRIPT_GATES));
+// Les gates que la fiche du worktree nomme et qui n'y sont pas. Une fiche
+// invalide n'en a aucune de manquante : c'est en les jouant que la pass dit son
+// refus (`jouerGatesMesurees`).
+export const gatesManquantes = (worktree: string): string[] => {
+  try {
+    return gatesDuDossier(worktree).filter((script) => !existsSync(join(worktree, script)));
+  } catch {
+    return [];
+  }
+};
+
+// Le worktree a les gates que sa fiche nomme.
+export const aDesGates = (worktree: string): boolean => gatesManquantes(worktree).length === 0;
 
 // `coupee` : la sortie ne tenait pas dans ce qui en est gardé, son début manque.
 // `retenues` : les lignes de sa sortie standard que `retenir` a reconnues,
@@ -276,11 +299,18 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
 // De même, avec ce que leur passage a coûté.
 export async function jouerGatesMesurees(demande: DemandeScript): Promise<{ gates: Gates; cout: CoutDesGates | null }> {
   const { worktree } = demande;
+  let scripts: string[];
+  try {
+    scripts = gatesDuDossier(worktree);
+  } catch (erreur) {
+    const refus = `FAIL  ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    return { gates: { outcome: "red", code: null, failures: [refus.slice(0, LIGNE_MAX)], tail: refus.slice(-FIN_MAX) }, cout: null };
+  }
   const debut = Date.now();
   const setup = await jouerSetup(demande);
   const lancees = Date.now();
   const passage = setup.pret
-    ? await jouer(GATES, [join(worktree, SCRIPT_GATES), worktree], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (lancees - debut) })
+    ? await jouer(GATES, [worktree, ...scripts.map((script) => join(worktree, script))], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (lancees - debut) })
     : { ...setup, coupee: false, masques: 0, canal: "", sortie: `${setup.sortie}\nFAIL  setup du worktree en échec : ${join(worktree, SCRIPT_SETUP)}` };
   const cout = setup.pret ? { durationMs: Date.now() - lancees, cpuMs: processeurDit(passage.canal) } : null;
   const masques = setup.masques + passage.masques;

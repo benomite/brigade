@@ -72,7 +72,33 @@ The levels set are kept in `autonomy-levels.json` of the state directory, per pr
 defaults. A file that cannot be read is said in `equipe` of `facts`, and refused by the store when it sets a level:
 nothing is guessed in its place and the file is never overwritten.
 
-No command sets a level yet.
+A level moves in two ways: the chef sets it from the app (the Agents tab, `PUT /api/agents/:id/settings`), or the
+autonomy policy moves it from the agent's gesture record (#4380, `politique.ts`):
+- **Promotion** — an agent at `propose` moves to `act` when its last N gestures done at `propose` all went through the
+  chef's OK (at `propose`, the gate holds every gesture until the chef approves it) and none of their deliveries is in
+  an escaped bug or a revert. N is 5 (`NOMBRE_DE_GESTES_PROPRES`, `niveaux.ts`).
+- **Demotion** — a gesture the agent did by itself under `act` whose delivery is later reverted, or cited by an escaped
+  bug, sends it one step back, `act` to `propose`, with the revert or the bug as the reason. Each revert or escaped bug
+  is handled once, by its key (`revert <sha>`, `bug <owner/repo>#<n>`): run again on the same facts, nothing moves
+  again. A demotion wakes the chef once (`chef.notified`), not once per gesture.
+- **Pin** — a level the chef sets is stored `pinned`; the policy never moves a pinned level, up or down. A level stored
+  bare, as every level was before the policy, was the chef's, and reads as pinned.
+
+Every move is an entry of the agent's gesture log, `autonomy moved from <level> to <level>`, its reason naming the
+facts. A gesture's delivery is what its line and reason cite: a commit or a ticket (`#12`). The level a gesture was done
+under is the one the agent had after the last move logged before it. The policy moves the manager, the supervisor, the
+closer and the pass, each of which has its own log; the cooks share one level over a log per ticket, and the manager's
+splitting of an epic logs in the manager's log, so neither is moved by it. In `equipe`, each record gives `pinned` and
+`progress`: `{ toward: "act", done, of: 5 }` at `propose` — its clean gestures at `propose` since its last move, the
+newest first, up to the first one a revert or a bug touches —, `null` at any other level.
+
+Each project's kitchen in the station (`ouvrirCuisine`, `station/cuisine.ts`) runs the policy at its tick, once an hour
+at most after a run that read its figures (`politiqueDuRuntime`, `politique-du-runtime.ts`). It reads the reverts of the last
+30 days on the base as the project's clone fetches it — the commits carrying git's trailer `This reverts commit <sha>`,
+with the tickets their reverted commits cite — and the escaped bugs from GitHub — the issues labelled `bug` created in
+those 30 days, with the tickets they cite (`qualite.ts`). A read that fails moves nothing, is said on the service
+log, and is tried again at the next tick. A gesture log or a levels file that cannot be read is refused: the policy moves nothing, overwrites nothing, and
+the runtime keeps serving.
 
 ## The gate of the agents' gestures
 

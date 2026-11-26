@@ -35,6 +35,7 @@ import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/si
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { approuverLeGeste, lireLesRetenus } from "./held/lecture.ts";
+import { lireLesAgents } from "./equipe-de-la-box.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireDansLeProjet, lireDansLeProjet } from "./vue/fiche-projet/fiche-projet-dossier.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
@@ -1633,6 +1634,8 @@ ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humains-du-projet.ts).
 // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
 // et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
+// L'équipe du projet que lit la vue (tickets 4029 et 4327) : les enregistrements que `facts` publie, lus là où sa cuisine tourne.
+ipcMain.handle("lireLesAgents", (_, nom: unknown) => lireLesAgents(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
 ipcMain.handle("gestesRetenus", (_, nom: unknown) => lireLesRetenus(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
 // L'API des agents que lit l'onglet Agents (ticket 4224) : la vue la demande par `fetch` sur `brigade-agents:`, et chaque
 // demande est une commande `agents` ou `agent-settings` lancée là où la cuisine du projet nommé tourne (agents-de-la-box.ts).
@@ -2057,7 +2060,7 @@ void app.whenReady().then(() => {
   const icone = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-1024.png");
   const iconeDock = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-dock-1024.png");
   const iconeWindows = app.isPackaged ? join(dirname(process.execPath), "Brigade.ico") : icone;
-  // Sans garde sur `isPackaged` seul : le .dmg n'est pas reconnu empaqueté et ne livre pas ce fichier.
+  // Sur un Mac, le .dmg est empaqueté (son exécutable s'appelle Brigade) : l'icône du Dock est celle de son bundle.
   if (estUnMac(plateforme) && !app.isPackaged) poserLIconeDuDock(iconeDock, (chemin) => app.dock?.setIcon(chemin));
   // L'entrée d'aide : les Discussions du dépôt (#3258).
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuDeLApp((url) => shell.openExternal(url), estUnMac(plateforme))));

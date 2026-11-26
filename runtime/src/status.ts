@@ -1,6 +1,7 @@
 // L'état de la cuisine, en lecture seule :
 //   npm --prefix runtime run status                          la photo : runtime, ce qui attend le chef, rail, cooks, derniers événements
 //   npm --prefix runtime run status -- --follow [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
+//   npm --prefix runtime run status -- --json                les délais des tickets mergés en 24 h (#4308), en JSON
 // `--days <N>` : la période des cartes entrées dans TODO, par type — product,
 // design, gesture —, comptée en jours jusqu'à maintenant (7 par défaut).
 // L'ancien mot `--suivre` répond encore, en disant le nouveau (`commandes.ts`).
@@ -31,9 +32,11 @@ import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
+import { direLesDelais } from "./delais/affichage.ts";
+import { delaisDuClone } from "./delais/lecture.ts";
 import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile, railCherche } from "./attente-du-rail/status.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>] | --json]";
 
 const JOURS_DE_TODO = 7;
 
@@ -57,6 +60,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   }
 
   if (!env.BRIGADE_STATE_DIR) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  // `--json` : l'objet `delais` (#4308), seul ; illisible, il vaut null et la raison va sur stderr.
+  if (args.length === 1 && args[0] === "--json") {
+    const delais = delaisDuClone(env.BRIGADE_REPO_DIR, new Date());
+    if ("illisible" in delais) redire(`brigade : merged tickets unreadable: ${delais.illisible}`);
+    return dire(JSON.stringify({ delais: "illisible" in delais ? null : delais }, null, 2));
+  }
   const [option, ticket] = args;
   if (args.length > 2 || (option !== undefined && option !== "--follow") || (ticket !== undefined && !/^[0-9]+$/.test(ticket))) {
     echouer(2, USAGE);
@@ -179,6 +188,8 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(direCadence(journal.base, maintenant));
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
   lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
+  // La part des tickets mergés en 24 h dans leur temps attendu, et les pires dépassements (#4308).
+  lignes.push(...direLesDelais(delaisDuClone(env.BRIGADE_REPO_DIR, maintenant)));
   // La part des tickets mergés en 10 min ou moins de leur prise, et la médiane, sur 24 h (#4299).
   lignes.push(ligneDuDelaiDePrise(env.BRIGADE_REPO_DIR, maintenant));
   // Les quatre chiffres (#2672) : valeur, seuil, rouge au-dessus.
