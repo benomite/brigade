@@ -21,19 +21,24 @@ What stays closed:
 The sandbox is the kernel's: where Claude Code cannot apply it, the station does not guess. What triggers the
 missing-sandbox path is the **detection** of the machine (the station checks whether the sandbox can run), not a
 platform rule: a machine that passes it keeps the sandbox, whatever its system. When detection fails, the station
-publishes a decision to the chef (`continue without sandbox` or another station, see
-[What a cook may and may not do](../limites-du-cook.md)), and launches nothing before the answer.
+holds the project and asks the chef (`continue without sandbox`, or another station, see
+[What a cook may and may not do](../limites-du-cook.md)); nothing is launched before the answer.
 
-If the chef continues, the cook is **not** unbounded and **not** under `bypassPermissions`. It runs in
-**restricted mode**:
+If the chef continues, the cook is not unbounded. The target is **restricted mode** (the launch is the work of the
+sibling tickets of #4349):
 
-- `--permission-mode dontAsk` with a `--settings` set: a tool that no rule allows is refused, with no prompt.
-- A deny rule for every path of `LECTURES_INTERDITES` (`.ssh`, `.config/gh`, the keychain, the cloud credentials…).
-- `WebFetch` and `WebSearch` limited to the project's host list (the same list as above).
-- The #3506 guard hook (`runtime/src/garde-cook/`): writes and deletions outside the worktree and the temporary
-  folders, and `gh` beyond the cook's own ticket, are refused. Bash stays usable, and the guard is its boundary.
+- `--permission-mode dontAsk` with a `--settings` set, instead of `bypassPermissions`: a tool that no rule allows is
+  refused, with no prompt.
+- A deny rule for every path of `LECTURES_INTERDITES`.
+- `WebFetch` and `WebSearch` limited to the project's host list.
+- The #3506 guard hook (`runtime/src/garde-cook/`), which is the boundary of Bash: writes and deletions outside the
+  worktree and the temporary folders, and `gh` beyond the cook's own ticket, are refused.
+
+**State of the code today.** The launch of restricted mode is not shipped yet. Without a sandbox,
+`dansLeBacASableLocal` returns the arguments unchanged, so the cook still runs in `bypassPermissions`, with the
+guard hook as its only boundary: the deny rules, `dontAsk` and the host limit above come from the sandbox
+configuration, which is only written when a sandbox exists. Until restricted mode lands, the cook reads whatever the
+station's account reads, and the station's message says so.
 
 What restricted mode does not give is the kernel's precision. The guard reads a shell command only as far as it
-knows it: shell writers such as `sed -i`, `curl -o`, `perl -i` and `python -c` are read on a best-effort basis, and
-the list of what passes unchecked is in [station-cook.md](station-cook.md), which stays the reference. The network
-of a shell command is not cut either: the host list binds `WebFetch` and `WebSearch`, not `curl`.
+knows it; the list of what passes unchecked is in [station-cook.md](station-cook.md), which stays the reference.
