@@ -44,7 +44,10 @@ function changementDe(recu: unknown): ChangementDuSavoir {
 // Proposes one entry edited or removed: the file read again — its last state and the `sha` GitHub demands —, that one
 // line changed, then a pull request opened towards the integration branch. Throws, with what went wrong.
 export async function proposerLeChangement(client: ClientDeLaPriorite, depot: string, branche: string | null, recu: unknown): Promise<PrOuverte> {
-  const changement = changementDe(recu);
+  return proposer(client, depot, branche, changementDe(recu));
+}
+
+async function proposer(client: ClientDeLaPriorite, depot: string, branche: string | null, changement: ChangementDuSavoir): Promise<PrOuverte> {
   const lu = await lireLeMarkdown(client, depot, branche, KNOW_HOW_FILE);
   if (lu.texte === null) throw new Error(`${depot} has no ${KNOW_HOW_FILE} any more`);
   const entree = parseKnowHow(lu.texte).find(({ line }) => line === changement.line);
@@ -75,8 +78,9 @@ export async function lireLeSavoirDuProjet<P>({ nom, projet, depotDe, brancheDe,
 export async function changerLeSavoir<P>({ nom, projet, depotDe, brancheDe, client, changement }: ProjetDuSavoir<P> & { changement: unknown }): Promise<RenduDuSavoir> {
   if (projet === undefined) return { refus: `nothing was done: “${String(nom)}” is no longer in the projects file` };
   try {
-    const ouverte = await proposerLeChangement(client, await depotDe(projet), brancheDe(projet), changement);
-    return { propose: PROPOSE, kind: changementDe(changement).kind, ...ouverte };
+    const lu = changementDe(changement);
+    const ouverte = await proposer(client, await depotDe(projet), brancheDe(projet), lu);
+    return { propose: PROPOSE, kind: lu.kind, ...ouverte };
   } catch (erreur) {
     return { refus: `nothing was proposed: ${message(erreur)}`, detail: "" };
   }
