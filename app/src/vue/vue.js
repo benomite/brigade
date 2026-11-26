@@ -190,6 +190,7 @@ import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js"
 import { tenirLeSavoir } from "./know-how/know-how.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserBlocTempsDeLaPasse } from "./projet/bandeau-sante/TempsDeLaPasse.js";
+import { tenirLesDelais } from "./delais.js";
 import { poserBlocPostMortems } from "./projet/bandeau-sante/PostMortems.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
@@ -682,6 +683,8 @@ const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delaiDuProjet = element("delai-du-projet");
+const delaisDuProjet = element("delais-du-projet");
+const delaisTenus = tenirLesDelais(document);
 // L'équipe du projet affiché (ticket 4029, autonomie/equipe.js), en tête de sa vue : relue à son ouverture et à chaque
 // lecture de son rail, montrée pour lui seul.
 // La bande du haut du rail lit son supervisor et son closer : une lecture qui les change la repose (ticket 4238).
@@ -7035,6 +7038,7 @@ function poserLeDelai(projet) {
   const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
   delaiDuProjet.hidden = pose === null;
   delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  delaisDuProjet.replaceChildren(...(projet === undefined ? [] : [delaisTenus.poser(projet.nom, vu?.delais)]));
   poserLOffreDuTelephone(projet);
 }
 
@@ -9415,7 +9419,8 @@ async function ranger(nom, rang) {
 // s'il existe encore — sinon « Tous les projets », ou l'ajout tant qu'il n'y a aucun projet.
 function afficher() {
   relecture.hidden = configuration.nonRelu === undefined;
-  relecture.textContent = [
+  // Relu sans faute, rien à dire : la ligne cachée ne garde pas « → undefined » (ticket 4309).
+  relecture.textContent = configuration.nonRelu === undefined ? "" : [
     `${configuration.chemin} changed, and could not be re-read:`,
     `  → ${configuration.nonRelu}`,
     "Your projects are the ones from before, and nothing is closed. The app re-reads it as soon as it changes.",
