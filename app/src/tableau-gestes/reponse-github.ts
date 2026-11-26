@@ -21,6 +21,8 @@
 //        chef sont retirés : la question attend un tiers, plus le chef.
 //      Chaque geste retire aussi `chef-todo`, et `parked` sauf `wait` : répondue, la question n'attend plus le chef, et le
 //      ticket parqué pour lui reprend où il était (#4129).
+// La carte d'un ticket que la nouvelle cuisine parque pour le chef (`parked:chef`, #4474, tableau/parked-chef-github.ts) n'a
+// que sa réponse libre, Answer : le commentaire posté, puis `parked:chef` retiré, et rien d'autre — il retourne sur le rail.
 // La carte quitte TODO à la lecture suivante : ses labels ont changé, et une question que suit une réponse n'en pose plus
 // (tableau/mise-de-cote-github.ts).
 import { carteLueDuChef, reponseLue, type Rendu } from "../carte-todo.ts";
@@ -28,6 +30,7 @@ import type { MethodeDEcriture } from "../priorite.ts";
 import type { AppelGitHub, ReponseGitHub } from "../tableau/client.ts";
 import { LABELS_D_AVANT_PARKED, LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../../../runtime/src/github-etat/etats.ts";
 import { SERVED_ELSEWHERE } from "../tableau/mise-de-cote-github.ts";
+import { LABEL_PARKED_CHEF, SORTE_PARKED_CHEF } from "../tableau/parked-chef-github.ts";
 import { ticketDeLaPR } from "../tableau/rail-github.ts";
 import { LABEL_DU_CHEF, type CarteDuChef, type GesteDuChef } from "../tableau/todo-github.ts";
 import { refusDe } from "../tableau/client.ts";
@@ -84,7 +87,7 @@ async function prNommee(depot: string, ticket: number, libelle: string, client: 
 }
 
 // Le geste joué sur l'issue de `ticket` — ce qu'il dit fait, ou l'erreur de GitHub.
-async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: number | null, libelle: string, question: string, maintenant: Date, client: ClientDeLaReponse): Promise<string> {
+async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: number | null, libelle: string, question: string, maintenant: Date, client: ClientDeLaReponse, parqueePourLeChef = false): Promise<string> {
   const issue = `/repos/${depot}/issues/${ticket}`;
   let fait = "";
   if (geste === "wait") {
@@ -112,7 +115,7 @@ async function jouer(depot: string, ticket: number, geste: GesteDuChef, pr: numb
     fait = `\`${label}\` put on #${ticket}`;
   }
   const retires: string[] = [];
-  for (const label of RETIRES[geste]) {
+  for (const label of parqueePourLeChef ? [LABEL_PARKED_CHEF] : RETIRES[geste]) {
     const retire = await client.ecrire("DELETE", `${issue}/labels/${encodeURIComponent(label)}`);
     // Une issue qui ne le porte pas : rien à retirer.
     if (retire.status === 200) retires.push(`\`${label}\``);
@@ -150,7 +153,7 @@ export async function repondreSurGithub({ depot, ticket, chef, reponse, client, 
     return { refus: `nothing was sent: your answer was not posted on #${lue.ticket}`, detail: message(erreur) };
   }
   try {
-    const fait = await jouer(depot, lue.ticket, geste, pr, choisi?.texte ?? "", connue?.question ?? "", maintenant, client);
+    const fait = await jouer(depot, lue.ticket, geste, pr, choisi?.texte ?? "", connue?.question ?? "", maintenant, client, chef?.sorte === SORTE_PARKED_CHEF);
     return { repondue: true, dit: `answer posted on #${lue.ticket} (${geste}): ${fait}`, commentaire };
   } catch (erreur) {
     return { refus: `your answer is posted on #${lue.ticket}, but its gesture (${geste}) was not played — play it on GitHub`, detail: message(erreur) };

@@ -262,6 +262,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/tableau/ecriture.ts",
     "app/src/tableau/lecture.ts",
     "app/src/tableau/mise-de-cote-github.ts",
+    // Le label `parked:chef` de la nouvelle cuisine, sans E/S : TODO lit ses issues de la liste des issues ouvertes (ticket 4474).
+    "app/src/tableau/parked-chef-github.ts",
     "app/src/tableau/rail-github.ts",
     "app/src/tableau/todo-github.ts",
     // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).

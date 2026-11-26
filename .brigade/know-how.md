@@ -1,0 +1,1 @@
+- An app TODO source that lists one more label per reading breaks the app's GitHub budget (app/test/budget-github.test.ts, 1,000 requests an hour): take its issues from the open-issues list the rail reading already makes (app/src/tableau/lecture.ts, `lireAvantLeRail`), and list the label only where no rail is read (#4474)

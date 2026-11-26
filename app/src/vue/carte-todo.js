@@ -64,6 +64,9 @@ export const REPOS = { etape: "repos" };
 
 export const ENVOYER = "send";
 export const CHAMP = "or answer in your own words";
+// La carte d'un ticket que la nouvelle cuisine parque pour le chef (ticket 4474) : sa réponse, et son issue.
+export const CHAMP_SEUL = "your answer, in your own words";
+export const SUR_GITHUB = "Open on GitHub";
 export const EN_ROUTE = "sending your answer…";
 // Le bouton cliqué le dit à l'instant, avant que GitHub ne réponde (ticket 3386).
 export const EN_ROUTE_BOUTON = "sending…";
@@ -142,7 +145,7 @@ function cree(doc, balise, texte) {
  * @param {CarteDeTodo} carte
  * @param {Etat} etat
  * @param {{ captures: any[], brouillon: string, cle: string, second?: { envoi: true } | { parti: string } | { refus: string }, lectureSeule?: boolean }} posees
- * @param {{ repondre: (reponse: Reponse) => void, ecrire: (texte: string) => void, demander: () => void, copier?: (texte: string) => Promise<unknown> | undefined }} gestes
+ * @param {{ repondre: (reponse: Reponse) => void, ecrire: (texte: string) => void, demander: () => void, copier?: (texte: string) => Promise<unknown> | undefined, ouvrir?: () => void }} gestes
  */
 export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon, cle, second, lectureSeule = false }, gestes) {
   const vu = vuDeLaCarte(carte, etat);
@@ -201,12 +204,12 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   const saisie = cree(doc, "textarea");
   saisie.value = brouillon;
   saisie.rows = 2;
-  saisie.placeholder = CHAMP;
+  saisie.placeholder = carte.repondre === undefined ? CHAMP : CHAMP_SEUL;
   saisie.ariaLabel = question === null ? `your answer to #${ticket}, in your own words` : `your answer to #${ticket}'s question, in your own words`;
   saisie.disabled = enRoute;
   saisie.dataset.cle = cle;
   saisie.dataset.champ = CHAMP_DE_CARTE;
-  const envoyer = boutonAction(doc, reponseEnRoute !== undefined && "texte" in reponseEnRoute ? EN_ROUTE_BOUTON : ENVOYER, () => gestes.repondre({ question, texte: saisie.value }), { prix: carte.prixDuTexte });
+  const envoyer = boutonAction(doc, reponseEnRoute !== undefined && "texte" in reponseEnRoute ? EN_ROUTE_BOUTON : (carte.repondre ?? ENVOYER), () => gestes.repondre({ question, texte: saisie.value }), { prix: carte.prixDuTexte });
   const bouton = envoyer.children?.[0];
   if (bouton !== undefined) bouton.disabled = enRoute || brouillon.trim() === "";
   saisie.addEventListener("input", () => {
@@ -218,14 +221,19 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
   // met le clavier. Sans choix, le champ est la seule réponse : il reste ouvert ; un texte déjà tapé le garde ouvert.
   const replie = carte.choix.length > 0 && brouillon === "" && !enRoute;
   phrase.hidden = replie;
-  const ouvrir = boutonDeLaFamille(doc, EN_MES_MOTS, undefined, { sorte: "discret" });
-  ouvrir.className = "en-mes-mots";
-  ouvrir.hidden = !replie;
-  ouvrir.addEventListener("click", () => {
+  const ouvrirLeChamp = boutonDeLaFamille(doc, EN_MES_MOTS, undefined, { sorte: "discret" });
+  ouvrirLeChamp.className = "en-mes-mots";
+  ouvrirLeChamp.hidden = !replie;
+  ouvrirLeChamp.addEventListener("click", () => {
     phrase.hidden = false;
-    ouvrir.hidden = true;
+    ouvrirLeChamp.hidden = true;
     saisie.focus?.();
   });
+
+  // « Open on GitHub » (ticket 4474) : l'issue du ticket, dans le navigateur — sous la réponse, à toute étape.
+  const ouvrir = gestes.ouvrir;
+  const surGithub = carte.surGithub === true && ouvrir !== undefined ? [boutonDeLaFamille(doc, SUR_GITHUB, () => ouvrir(), { sorte: "discret" })] : [];
+  for (const bouton of surGithub) bouton.className = "sur-github";
 
   if (vu.vu === "attente" || vu.vu === "jouee") {
     // Répondue : plus rien à trancher ici. La réponse rappelée, puis où elle en est, à voix basse, le détail au survol.
@@ -234,9 +242,9 @@ export function poserCarteDeTodo(doc, ticket, carte, etat, { captures, brouillon
     const ou = cree(doc, "p");
     ou.className = "ou-en-est";
     ou.append(cree(doc, "span", vu.vu === "attente" ? EN_ATTENTE : JOUEE), survol(doc, vu.vu === "attente" ? EN_ATTENTE_DETAIL : vu.dit));
-    racine.append(...tete, ...captures, rappel, ou, ...reste);
-  } else if (lectureSeule) racine.append(...tete, ...captures, ...reste);
-  else racine.append(...tete, ...captures, choix, ouvrir, phrase, ...reste);
+    racine.append(...tete, ...captures, rappel, ou, ...surGithub, ...reste);
+  } else if (lectureSeule) racine.append(...tete, ...captures, ...surGithub, ...reste);
+  else racine.append(...tete, ...captures, choix, ouvrirLeChamp, phrase, ...surGithub, ...reste);
   if (enRoute) {
     const envoi = cree(doc, "span", EN_ROUTE);
     envoi.className = "en-route";

@@ -5525,6 +5525,7 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
       },
       demander: () => void demanderAuSecond(projet, ticket, () => brigade.passerAuSecond(projet.nom, ticket, todo.question)),
       copier: (texte) => navigator.clipboard?.writeText(texte),
+      ouvrir: () => void ouvrirIssue(projet, ticket),
     },
   );
 }
