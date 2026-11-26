@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decide, triesOf, type Context, type Issue, type PullRequest } from "../../src/kitchen/decide.ts";
+import { decide, triesOf, type Issue, type PullRequest } from "../../src/kitchen/decide.ts";
 
 const issue = (number: number, labels: string[] = [], extra: Partial<Issue> = {}): Issue => ({ number, title: `#${number}`, labels, trusted: true, dependsOn: [], ...extra });
 const pr = (n: number, extra: Partial<PullRequest> = {}): PullRequest => ({ number: 1000 + n, issue: n, checks: "success", failing: [], conflicting: false, ...extra });
+type Context = Parameters<typeof decide>[2];
 const context = (extra: Partial<Context> = {}): Context => ({
   places: 2,
   passPlaces: 2,

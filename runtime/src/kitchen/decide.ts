@@ -26,7 +26,7 @@ export type PullRequest = {
 
 export type Running = { cooks: number[]; passes: number[]; manager: boolean; supervisor: boolean };
 
-export type Context = {
+type Context = {
   places: number;
   passPlaces: number;
   running: Running;
