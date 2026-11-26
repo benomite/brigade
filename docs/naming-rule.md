@@ -36,7 +36,7 @@ A name fails when it **has an accent**, or when it **holds a word of the French 
 
 A French name that is already on the base passes: the gate never asks a branch to rename what it did not add. Comments, strings, test messages and docs are never read.
 
-What the gate does not read, and the rule still covers: npm subcommands, environment variables, and JSON keys that the code builds without a JSON file. Those are checked by review.
+What the gate does not read, and the rule still covers: npm subcommands, environment variables, and JSON keys that the code builds without a JSON file.
 
 When the gate cannot run — the base is not found, the mapping does not read — it stops with exit 2 (or 1 for the mapping) and says why; it never passes in its place.
 
