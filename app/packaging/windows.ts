@@ -17,7 +17,7 @@
 //   resources/app/         `src/`, son package.json et ses dépendances de production ; node-pty n'y
 //                          garde que ce qui est compilé pour win32-x64
 //   resources/runtime/     `src/` et package.json du runtime
-//   resources/node/bin/node.exe   le `node` qui joue la station : celui de la machine n'y est pour rien
+//   resources/node/bin/brigade-node.exe   le `node` qui joue la station : celui de la machine n'y est pour rien
 //   resources/plugin/commands/    `dev.md` et `ask.md` de `commands/`, ce que l'app installe dans
 //                          les projets qu'elle ouvre (src/plugin-app.ts)
 //   Uninstall Brigade.exe  le désinstalleur
