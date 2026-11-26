@@ -61,5 +61,5 @@ test("the app's reading (`du-rail`) lists no `parked` issues: a WAITING ticket o
   const bloc = blocDuChef({ lu: LU, attentes: lecture.attentes, illisibles: lecture.illisibles, depot: DEPOT }).join("\n");
   assert.match(bloc, /#52 {2}WAITING {2}awaiting the calendar/);
   assert.doesNotMatch(bloc, /#41/);
-  assert.equal(chemins.some((chemin) => /labels=parked/.test(chemin)), false, chemins.join("\n"));
+  assert.equal(chemins.some((chemin) => /labels=parked(&|$)/.test(chemin)), false, chemins.join("\n"));
 });

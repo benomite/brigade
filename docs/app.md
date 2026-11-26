@@ -1247,6 +1247,7 @@ question. On the repository's open issues, read with the token of this computer'
 | `fire` + `blocked-on-human`, the station's comment naming the PR | `Merge the PR of #<ticket> by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #<ticket>” — or in your own words` |
 | `fire` + `hors-cuisine`, a `product-question` marked comment with no answer after it | its question — `answer on its Todo card: “<choice>” or “<choice>” — or in your own words` |
 | `chef-todo` | the question of its latest marked comment, and how to answer it, the same way |
+| `parked:chef` (the new kitchen, `runtime/src/kitchen/`, #4474) | the kitchen's latest comment that says why (`Parked for the chef…`, from a repository author) — `on its Todo card: Answer, in your own words — the ticket goes back on the rail`. Without such a comment, the card says so and still asks |
 | `question`, `decision`, `blocked-on-human` (the manager's set-asides, not on the rail — set before #4129: the manager now parks for the chef with a `chef-todo` card) | the manager's question, from the latest comment of a repository author that asks one, and its choices — `- [<gesture>] <label>` lines, else `answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3370). An answer removes `question`, `decision` and `blocked-on-human`: the manager judges the ticket again. On a `question` or `decision` the manager judged, the choices are the answers to its question, the one it recommends accented with its reason, none without one, and `Wait for <who>` when the question waits on someone else: that one puts the ticket in WAITING (#3434) |
 
 A `fire` + `blocked-on-human` ticket without a PR reads `Lift the hold? — answer on its Todo card: “Back to the kitchen” or “Close it” — or in your own words` (#3369). An issue
@@ -1266,6 +1267,19 @@ the ticket, or the label taken off if it is technical. The chef lifts the label 
 next reading (within a minute, or after a gesture).
 *Code: `app/src/tableau/attente-du-chef.ts`, used by `lireLeTableau` (`app/src/main.ts`, `avecCeQuiAttendLeChef`) and
 `app/src/second/file.ts`. Tests: `app/test/tableau/attente-du-chef.test.ts`, `app/test/second/file.test.ts`.*
+
+**A ticket the new kitchen parks for the chef (#4474).** The new kitchen parks a ticket for the chef with the label
+`parked:chef` and a comment that starts with `Parked for the chef` and says why: its cook wrote `PARK:`, the manager parked
+it, or it was refused too many times. Its Todo card shows that comment, the latest one from a repository author, as its
+question — nothing is read from the old runtime. The card has no choices: a field, **Answer**, which posts the chef's text
+as a comment on the issue (from the chef's `gh` account) and removes `parked:chef`, and nothing else — the ticket goes back
+on the rail where it was; and **Open on GitHub**, which opens the issue. The app finds these issues in the list of open
+issues its rail reading already makes, with no request of its own (`app/test/budget-github.test.ts`); the second and the
+notifications, which do not read the rail, list the label. Screens: `todo-parked-chef-avant`, `todo-parked-chef`,
+`todo-parked-chef-repondu` (`docs/captures/4474/`).
+*Code: `app/src/tableau/parked-chef-github.ts`, `app/src/tableau/attente-du-chef.ts`, `app/src/tableau/lecture.ts`
+(`parqueesPourLeChef`), `app/src/tableau-gestes/reponse-github.ts`, `app/src/carte-todo.ts`, `app/src/vue/carte-todo.js`.
+Test: `app/test/acceptation-4474/parked-chef-todo.test.ts`.*
 
 **"ask the second" on a Todo card hands the card over (#3133).** Every Todo card — with or without a gesture or a
 question — ends with an `ask the second` button. One click writes into the project's second, without Enter, a prepared

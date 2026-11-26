@@ -20,6 +20,7 @@ import { avancementDeLaListe, type Avancement } from "../vue/backlog/avancement-
 import { avecLeRail, lireLeRailSurGithub, SIGNES_PAS_LUS, type SignesDeVie } from "../vue/rail/github.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 import { ecritureSurLeDepot } from "./ecriture.ts";
+import { LABEL_PARKED_CHEF } from "./parked-chef-github.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./rail-github.ts";
 
 // Une rubrique de `status` : son titre, et ses lignes.
@@ -76,7 +77,11 @@ export type TableauLu = {
   activites: ActiviteDuCook[];
   // Absent quand les issues avant le rail n'ont pas été lues.
   avantLeRail?: AvantLeRailPublie;
+  // Les issues ouvertes que la nouvelle cuisine parque pour le chef (`parked:chef`, #4474), tirées de la même liste que ce qui
+  // est avant le rail : TODO les lit sans une lecture de plus (attente-du-chef.ts). Absent quand cette liste n'a pas été lue.
+  parqueesPourLeChef?: IssueParqueePourLeChef[];
 };
+export type IssueParqueePourLeChef = { ticket: number; titre: string; url: string; creee: string | null; labels: string[] };
 // Ce que `facts` porte d'un dépôt où le compte GitHub de l'app ne peut pas écrire (#3163) : la vue ouvre alors le projet en
 // lecture seule, sans aucun geste, et le dit en une ligne.
 export type LectureSeule = { depot: string };
@@ -205,7 +210,7 @@ async function roadmapDuDepot(depot: string, lire: (chemin: string) => Promise<u
 // dernier ; à priorité égale, la plus ancienne. Chacune est un besoin (#3460) : les tickets nés d'un découpage n'en sont
 // pas — ils sont comptés sur le besoin dont ils viennent. Puis les épiques découpées fermées depuis moins de 24 h, tous
 // leurs tickets servis : une lecture qui les rate n'en montre aucune, et le reste se lit.
-async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<unknown>, lu: string, memoire?: MemoireDesLectures): Promise<AvantLeRailPublie> {
+async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<unknown>, lu: string, memoire?: MemoireDesLectures): Promise<{ avantLeRail: AvantLeRailPublie; parqueesPourLeChef: IssueParqueePourLeChef[] }> {
   const issues: Brut[] = [];
   for (let page = 1; page <= PAGES_AU_PLUS; page++) {
     const lues = liste(await lire(`/repos/${depot}/issues?state=open&sort=created&direction=asc&per_page=${PAR_PAGE}&page=${page}`));
@@ -214,6 +219,9 @@ async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<
   }
   const ouvertes = issues.filter((issue) => issue.pull_request === undefined && typeof issue.number === "number");
   const numerosOuverts = new Set(ouvertes.map((issue) => issue.number as number));
+  const parqueesPourLeChef = ouvertes
+    .filter((issue) => labelsDe(issue).includes(LABEL_PARKED_CHEF))
+    .map((issue) => ({ ticket: issue.number as number, titre: typeof issue.title === "string" ? issue.title : "", url: typeof issue.html_url === "string" ? issue.html_url : `https://github.com/${depot}/issues/${issue.number}`, creee: typeof issue.created_at === "string" ? issue.created_at : null, labels: labelsDe(issue) }));
   const roadmap = await roadmapDuDepot(depot, lire);
   const hors = ouvertes.filter((issue) => !labelsDe(issue).includes(LABEL_FIRE) && !labelsDe(issue).includes(LABEL_ROADMAP) && issue.number !== roadmap);
   const depuis = Date.parse(lu) - RETENUE_MS;
@@ -281,7 +289,7 @@ async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<
     });
   const tous = [...avant, ...retenues.map((issue) => besoin(issue, { etat: "servie", dit: `split, all ${ticketsDe(issue).length} tickets served` }, issue.closed_at as string))];
   tous.sort((a, b) => (a.priorite ?? 10) - (b.priorite ?? 10) || a.ticket - b.ticket);
-  return { lu, issues: tous };
+  return { avantLeRail: { lu, issues: tous }, parqueesPourLeChef };
 }
 
 // La lecture vide d'un projet, à l'heure dite : ce que le rail, TODO et ce qui est avant le rail complètent.
@@ -327,12 +335,12 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     if (reponse.status !== 200) throw new Error(`HTTP ${reponse.status}`);
     return reponse.data;
   };
-  const avantLeRail = await lireAvantLeRail(depot, lire, lu.luLe, memoire).catch(() => undefined);
+  const avant = await lireAvantLeRail(depot, lire, lu.luLe, memoire).catch(() => undefined);
   // Un dépôt où le compte ne peut pas écrire s'ouvre en lecture seule (#3163) ; relu à chaque lecture — un 304 ne coûte
   // rien —, l'accès gagné rend la vue ordinaire à la suivante. Ce qui ne se lit pas ne décide rien : le rail reste lu.
   const lectureSeule: LectureSeule | undefined = (await ecritureSurLeDepot(depot, lecteur)) === false ? { depot } : undefined;
   const complete = lectureSeule === undefined ? lu : { ...lu, faits: { ...lu.faits, lectureSeule } };
-  return avantLeRail === undefined ? complete : { ...complete, avantLeRail };
+  return avant === undefined ? complete : { ...complete, ...avant };
 }
 
 // Ce que la vue reçoit de l'activité des cooks d'un projet, à chaque lecture de son rail (#1846, vue/activite-du-cook.js) :
