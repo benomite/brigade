@@ -545,7 +545,10 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
       const node = findNode(program.getSourceFile(location.fileName)!, location.textSpan.start);
       const reexport = (location.suffixText ?? "").startsWith(" as ") && node !== undefined && ts.isExportSpecifier(node.parent);
       const text = (location.prefixText ?? "") + to + (reexport ? "" : (location.suffixText ?? ""));
-      addEdit(edits, location.fileName, { start: location.textSpan.start, end: location.textSpan.start + location.textSpan.length, text, prefix: (location.prefixText ?? "").length, why: `${declared.name} → ${to}` });
+      // `{ a }` destructured by a follower, whose binding keeps its name: `{ b: a }`, and the binding is now after the colon.
+      const kept = node !== undefined && ts.isBindingElement(node.parent) && (location.suffixText ?? "").startsWith(": ") && !under(rel(location.fileName), OWN);
+      const prefix = kept ? text.length - (location.suffixText ?? "").length + 2 : (location.prefixText ?? "").length;
+      addEdit(edits, location.fileName, { start: location.textSpan.start, end: location.textSpan.start + location.textSpan.length, text, prefix, why: `${declared.name} → ${to}` });
     }
   }
   const everything = tracked(...OWN, ...FOLLOWERS, ...PATH_TEXT);

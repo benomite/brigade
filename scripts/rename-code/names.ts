@@ -522,4 +522,6 @@ export const NAMES: Record<string, string> = {
   "app/test/vue/carte/8-card-and-detail-say-the-same.test.ts#laFiche": "theDetail",
   "app/test/vue/pause-quota/pause-quota.test.ts#faits": "readFacts",
   "app/test/vue/rail/github.test.ts#carte": "cardItem",
+  // A JSDoc type predicate (`@returns {statut is T}`) is not among the rename's locations.
+  "app/src/vue/bandeau-panne/bandeau-panne.js#statut": "statut",
 };
