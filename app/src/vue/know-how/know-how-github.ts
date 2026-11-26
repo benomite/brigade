@@ -82,6 +82,6 @@ export async function changerLeSavoir<P>({ nom, projet, depotDe, brancheDe, clie
     const ouverte = await proposer(client, await depotDe(projet), brancheDe(projet), lu);
     return { propose: PROPOSE, kind: lu.kind, ...ouverte };
   } catch (erreur) {
-    return { refus: `nothing was proposed: ${message(erreur)}`, detail: "" };
+    return { refus: `nothing was proposed: ${message(erreur)}` };
   }
 }
