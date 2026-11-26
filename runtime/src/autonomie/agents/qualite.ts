@@ -6,7 +6,7 @@
 //   - the escaped bugs: the issues GitHub gives as changed in the period, labelled `bug`, created in it, each with
 //     the tickets its title or body cites.
 // A read that fails throws: the policy then moves nothing, and the runtime says why.
-import { execFile } from "node:child_process";
+import { execFile } from "../../sans-invite.ts";
 import { promisify } from "node:util";
 import { ticketDuMerge } from "../../closer-github-passe/derive-github.ts";
 import type { Depot as DepotDeStation } from "../../depot.ts";

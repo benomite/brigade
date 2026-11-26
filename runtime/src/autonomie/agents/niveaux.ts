@@ -128,7 +128,7 @@ export function magasinDeNiveaux(repertoire: string): MagasinDeNiveaux {
         if (pose !== undefined && estEpingle(pose)) throw new NiveauxIllisibles(`the chef pinned the ${reglable}'s level: the policy does not move it`);
         siens[reglable] = { level: niveau, pinned: false };
       }
-      if (traites.length <= 0) siens.handled = [...(siens.handled ?? []), ...traites];
+      if (traites.length > 0) siens.handled = [...(siens.handled ?? []), ...traites];
       tous[projet] = siens;
       ecrire(tous);
     },
