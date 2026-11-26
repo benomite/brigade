@@ -1,7 +1,7 @@
 // Les réglages d'un cook sans bac à sable (#4391) : mêmes refus que le bac à sable, sans le noyau.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { LECTURES_INTERDITES, enPosix, reglagesSansBacASable } from "../../src/bac-a-sable/configuration.ts";
+import { LECTURES_INTERDITES, reglagesSansBacASable } from "../../src/bac-a-sable/configuration.ts";
 import { dansLeModeRestreint } from "../../src/bac-a-sable/local.ts";
 import { reglesDuProjet } from "../../src/reseau.ts";
 
@@ -30,8 +30,6 @@ test("un hôte borné à un port n'ouvre pas WebFetch, qui ouvre tous les ports"
 });
 
 test("un chemin de Windows se pose en POSIX absolu", () => {
-  assert.equal(enPosix("C:\\Users\\chef"), "/C:/Users/chef");
-  assert.equal(enPosix("/Users/chef"), "/Users/chef");
   const { deny } = reglagesSansBacASable({ ...cook, home: "C:\\Users\\chef", worktree: "C:\\Users\\chef\\wt\\12", caches: [] }).permissions;
   assert.ok(deny.includes("Read(//C:/Users/chef/.ssh)"));
 });

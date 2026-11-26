@@ -280,7 +280,7 @@ export type ReglagesSansBac = { permissions: { allow: string[]; deny: string[]; 
 
 // Un chemin d'ici, sous la forme POSIX absolue que les règles attendent : sous
 // Windows, `C:\Users\x` devient `/C:/Users/x`.
-export const enPosix = (brut: string): string => {
+const enPosix = (brut: string): string => {
   const droit = brut.replaceAll("\\", "/");
   return droit.startsWith("/") ? droit : `/${droit}`;
 };
