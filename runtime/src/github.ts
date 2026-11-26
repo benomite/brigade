@@ -14,6 +14,7 @@ import { porteListe } from "./epique.ts";
 import { avecLAlerte, type AlerteDeLaCuisine } from "./issue-de-la-cuisine.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { SCRIPT_GATES } from "./fiche-projet/defauts.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
@@ -464,7 +465,7 @@ type PRBrute = {
 };
 
 // Ce que `/brigade:init` pose toujours dans le dépôt (commands/init.md) : la PR qui l'a posé est la sienne.
-const GATES_DE_L_INIT = ".claude/brigade/gates.sh";
+const GATES_DE_L_INIT = SCRIPT_GATES;
 
 type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
 // Une annotation d'échec d'un check : où — `chemin` et `ligne`, nuls quand la
