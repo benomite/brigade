@@ -1,14 +1,15 @@
 // What the kitchen tells its agents, and what it takes back from them. The
 // behaviour lives in `agents/kitchen/<role>.md`; this file only assembles the
 // input and applies the few gestures an agent may ask for.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LABELS, type Issue } from "./decide.ts";
 import { ACCEPTED, type Gestures } from "./github.ts";
 import type { Run } from "./runs.ts";
 
 export type Prompts = { dir: string };
-const DEFAULT_DIR = join(import.meta.dirname, "..", "..", "..", "agents", "kitchen");
+// Next to the runtime in a station's package, at the repository's root in a clone.
+const DEFAULT_DIR = [join(import.meta.dirname, "..", "..", "agents", "kitchen"), join(import.meta.dirname, "..", "..", "..", "agents", "kitchen")].find((dir) => existsSync(dir)) ?? "";
 
 const fill = (template: string, values: Record<string, string | number>) => template.replace(/\{\{(\w+)\}\}/g, (all, key: string) => (key in values ? String(values[key]) : all));
 
