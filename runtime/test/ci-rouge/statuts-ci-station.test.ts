@@ -8,8 +8,10 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { priseDeLaStation, stationDuDepot, type GitHubDuTour, type Lancer, type TicketLu } from "../../src/brigade-github.ts";
 import { ticketDuCheck } from "../../src/carte-ci-windows.ts";
+import { attenteDeLIssue } from "../../src/attente-github/attente-github.ts";
 import { cartesEnTodo } from "../../src/carte-todo.ts";
-import { ECHECS_ATTEINTS, HORS_CUISINE, type GitHub } from "../../src/github.ts";
+import { LABEL_PARKED } from "../../src/github-etat/etats.ts";
+import { HORS_CUISINE, type GitHub } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import type { CauseReveil, Runtime } from "../../src/runtime.ts";
 import { brancherSuperviseur } from "../../src/superviseur/brancher.ts";
@@ -32,9 +34,23 @@ test("the turn sees a base repair ticket set aside by its failures — and only 
   assert.equal(suivi.reparationMiseDeCote(), false);
   for (const [tickets, attendu] of [
     [[ticket(1, "prio:0")], false],
-    [[ticket(1, ECHECS_ATTEINTS)], false],
-    [[ticket(1, "prio:0", ECHECS_ATTEINTS)], true],
+    [[ticket(1, LABEL_PARKED)], false],
+    [[ticket(1, "prio:0", LABEL_PARKED)], true],
     [[ticket(2), ticket(1, "prio:0", HORS_CUISINE)], true],
+  ] as const) {
+    dicte.tickets = [...tickets];
+    await github.fires();
+    assert.equal(suivi.reparationMiseDeCote(), attendu, tickets.map(({ labels }) => labels.join(",")).join(" "));
+  }
+});
+
+test("the turn sees a base repair ticket parked by its failures (#4129) — and only a repair ticket", async () => {
+  const dicte = { tickets: [] as TicketLu[] };
+  const suivi = suivreLeTour();
+  const github = suivi.envelopper({ fires: async () => dicte.tickets, commentaires: async () => [] } as unknown as GitHubDuTour);
+  for (const [tickets, attendu] of [
+    [[ticket(1, "prio:0", "parked")], true],
+    [[ticket(1, "parked")], false],
   ] as const) {
     dicte.tickets = [...tickets];
     await github.fires();
@@ -71,7 +87,7 @@ test("the supervisor's wake-up: a red base whose repair is still alive makes no 
   // Le tour suivant ne pose rien de plus : rien n'attend que la carte arrive.
   await r.tourner();
   assert.deepEqual(cartes(), []);
-  r.dicte.tickets = [ticket(70, "prio:0", ECHECS_ATTEINTS)];
+  r.dicte.tickets = [ticket(70, "prio:0", LABEL_PARKED)];
   await r.tourner();
   await jusqua(() => cartes().length === 1);
   await r.tourner();
@@ -90,11 +106,11 @@ test("the supervisor's wake-up: a red base with no repair ticket at all is still
   const r = supervise(t);
   const cartes = () => cartesEnTodo(r.journal.base).map(({ ticket }) => ticket);
   r.dicte.checks = [{ name: "unit", outcome: "red" }];
-  r.dicte.tickets = [ticket(71, HORS_CUISINE), ticket(72, ECHECS_ATTEINTS)];
+  r.dicte.tickets = [ticket(71, HORS_CUISINE), ticket(72, LABEL_PARKED)];
   await r.tourner();
   await r.tourner();
   assert.deepEqual(cartes(), []);
-  r.dicte.tickets = [ticket(70, "prio:0", ECHECS_ATTEINTS)];
+  r.dicte.tickets = [ticket(70, "prio:0", LABEL_PARKED)];
   await r.tourner();
   await jusqua(() => cartes().length === 1);
   assert.deepEqual(r.dits, []);
@@ -164,17 +180,26 @@ async function livrer(t: TestContext, runs: RunDeCi[] | Error | null, reprise = 
 
 const runRouge = (id: number, creeLe: string, check = "unit"): RunDeCi => ({ id, tete: `t${id}`, creeLe, finiLe: creeLe, jobs: [{ creeLe, commenceLe: creeLe, finiLe: creeLe, nom: check, conclusion: "failure" }] });
 
-test("a cook's delivery on a ticket whose CI is red on the same check three runs in a row is not pushed: one comment names the check and the runs, and the ticket is set aside", async (t) => {
+test("a cook's delivery on a ticket whose CI is red on the same check three runs in a row is not pushed: one comment names the check and the runs, and the ticket is parked by its failures", async (t) => {
   const { faux, pousses, lues, commentaires, avertis, pressees } = await livrer(t, [runRouge(303, "2026-11-20T12:00:00Z"), runRouge(302, "2026-11-20T11:00:00Z"), runRouge(301, "2026-11-20T10:00:00Z")]);
   assert.deepEqual(pousses, []);
   assert.deepEqual(lues, ["cook/42-github"]);
   const rouges = commentaires.filter((corps) => corps.startsWith(MARQUE_DES_ROUGES));
   assert.equal(rouges.length, 1);
   assert.match(rouges[0] ?? "", /`unit`[\s\S]*run 303, run 302, run 301/);
-  // Aucun autre commentaire que celui-là, hors de la prise et du lâcher de la station : ni échec, ni renvoi.
-  const autres = commentaires.filter((corps) => !/^<!-- brigade:(prise|lache) /.test(corps));
+  // Aucun autre commentaire que celui-là, hors de la prise et du lâcher de la station, et de son parking (#4129) : ni
+  // échec, ni renvoi.
+  const parking = commentaires.filter((corps) => corps.startsWith("<!-- brigade:parked "));
+  assert.equal(parking.length, 1, commentaires.join("\n---\n"));
+  const autres = commentaires.filter((corps) => !/^<!-- brigade:(prise|lache|parked) /.test(corps));
   assert.deepEqual(autres, rouges);
-  assert.equal(faux.ticket(42).labels.has(ECHECS_ATTEINTS), true);
+  // Parqué par ses échecs : il attend le superviseur, sa raison est la série rouge.
+  assert.equal(faux.ticket(42).labels.has(LABEL_PARKED), true);
+  assert.equal(faux.ticket(42).labels.has("set-aside:failures"), false);
+  const attente = attenteDeLIssue(parking.map((body) => ({ body, association: "OWNER" })));
+  assert.equal(attente?.who, "the supervisor");
+  assert.equal(attente?.failures, true);
+  assert.match(attente?.what ?? "", /The reason: its CI is red on `unit` 3 runs in a row$/);
   assert.ok(avertis.some((ligne) => ligne.includes("#42") && ligne.includes("not pushed")), avertis.join("\n"));
   // Le commentaire est écrit : la station ne dit pas qu'il s'est perdu.
   assert.ok(!avertis.some((ligne) => ligne.includes("could not be posted")), avertis.join("\n"));
@@ -187,7 +212,8 @@ test("a cook's delivery whose last three runs are not red on one check is pushed
   assert.deepEqual(deux.pousses, ["cook/42-github"]);
   assert.deepEqual(deux.lues, ["cook/42-github"]);
   assert.equal(deux.commentaires.filter((corps) => corps.startsWith(MARQUE_DES_ROUGES)).length, 0);
-  assert.equal(deux.faux.ticket(42).labels.has(ECHECS_ATTEINTS), false);
+  assert.equal(deux.faux.ticket(42).labels.has(LABEL_PARKED), false);
+  assert.equal(deux.faux.ticket(42).labels.has("set-aside:failures"), false);
   assert.ok(!deux.avertis.some((ligne) => ligne.includes("could not be read")), deux.avertis.join("\n"));
   // Une branche neuve n'a jamais été poussée : aucun run ne se lit, et elle part.
   const neuve = await livrer(t, [runRouge(303, "2026-11-20T12:00:00Z"), runRouge(302, "2026-11-20T11:00:00Z"), runRouge(301, "2026-11-20T10:00:00Z")], false);

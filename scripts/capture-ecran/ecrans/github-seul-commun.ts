@@ -70,6 +70,8 @@ export const SUR_GITHUB: RailSurGithub = {
     ticket(21, "en attente", { priorite: 2, creeLe: "2026-10-13T07:40:00.000Z" }),
     ticket(22, "en attente", { creeLe: "2026-10-13T09:01:00.000Z" }),
   ],
+  // Leurs labels (#4223) : #21 et #22 calibrés et prêts, le haut du backlog — #21 d'abord, par sa priorité.
+  labelsLus: { 14: ["fire", "prio:1", "model:opus", "effort:medium"], 16: ["fire", "prio:2", "model:sonnet", "effort:low"], 30: ["fire", "model:opus", "effort:medium"], 40: ["fire"], 21: ["fire", "prio:2", "model:opus", "effort:medium"], 22: ["fire", "model:sonnet", "effort:low"] },
 };
 
 // Le signe de vie d'une station du compte, à qui l'app a choisi « parade » (#2358).
