@@ -138,7 +138,7 @@ export function apresLaDecision(onboarding) {
   const etapes = onboarding.etapes.map((etape) => {
     if (etape.etape === "machine" && etape.etat === "courante") {
       suivante = true;
-      return { ...etape, etat: /** @type {const} */ ("faite"), dit: "You decided to continue without a sandbox: the station starts on its next turn.", geste: null };
+      return { ...etape, etat: /** @type {const} */ ("faite"), dit: "You decided to continue without a sandbox: the station starts on its next turn, in restricted mode: no sandbox.", geste: null };
     }
     if (suivante && etape.etat === "a-venir") {
       suivante = false;

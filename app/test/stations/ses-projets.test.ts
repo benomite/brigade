@@ -27,7 +27,7 @@ const MAC: StationVue = { ...BOX, id: "g2", nom: "macbook", machine: "macOS 25.0
 const ATELIER: StationVue = { ...BOX, id: "g3", nom: "atelier", machine: "Debian 12 · 8 cores", ligne: "online · version 1.4.0 · no project", projets: [] };
 const ACCUEIL: Accueil = {
   projets: [],
-  stations: [ligneDeStation(BOX, 1, false), ligneDeStation(MAC, 0, false), ligneDeStation(ATELIER, 0, false)],
+  stations: [ligneDeStation(BOX, 1), ligneDeStation(MAC, 0), ligneDeStation(ATELIER, 0)],
   sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" },
 };
 const PARADE: VuDesProjets = {

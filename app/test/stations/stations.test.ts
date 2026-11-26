@@ -109,6 +109,24 @@ test("les durées se disent à la minute", () => {
 });
 
 describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
+  // #4408 : l'app relisait toutes les 30 s chaque gist de station, morte ou vive, et la liste : ~1 100 appels comptés par heure.
+  test("a gist and the list read again unchanged are conditional reads (304, not counted); a change is read in full (#4408)", { skip: SANS_POSIX }, async (t) => {
+    const github = unGitHub(t);
+    const lus = githubDesStations({ gh: github.gh, delaiMs: 30_000 });
+    github.station("box", publie());
+    assert.equal((await lus.lister()).length, 1);
+    assert.ok((await lus.lire("box"))?.[FICHIER_STATION]);
+    const avant = github.appels().length;
+    assert.equal((await lus.lister()).length, 1);
+    assert.ok((await lus.lire("box"))?.[FICHIER_STATION]);
+    const relus = github.appels().slice(avant);
+    assert.equal(relus.length, 2);
+    assert.ok(relus.every((appel) => appel.includes("If-None-Match: ")), `every read again is conditional: ${relus.join(" | ")}`);
+    github.station("box", publie({ nom: "box-2" }));
+    const relu = lireDocument((await lus.lire("box"))?.[FICHIER_STATION] ?? "");
+    assert.equal(relu !== undefined && "nom" in relu ? relu.nom : null, "box-2");
+  });
+
   // La trace du téléphone connecté (#3303, telephone-connecte.ts), lue par le `gh` du poste.
   test("un gist qui porte la trace du téléphone : connecté ; aucun : non ; un `gh` en panne : lève", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
@@ -213,7 +231,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     await stations.appairer(CODE);
     await stations.relire();
     assert.ok(github.appels().length > 0);
-    for (const appel of github.appels()) assert.match(appel, /^api (-X PATCH )?\/gists(\/[a-z0-9]+|\?per_page=100&page=\d+)( --input -)?$/);
+    for (const appel of github.appels()) assert.match(appel, /^api (-X PATCH |-i (-H If-None-Match: \S+ )?)?\/gists(\/[a-z0-9]+|\?per_page=100&page=\d+)( --input -)?$/);
     for (const nom of readdirSync(SOURCES)) {
       const source = readFileSync(join(SOURCES, nom), "utf8");
       for (const interdit of [/node:(net|http|https|dgram|tls)\b/, /\bfetch\(/, /\bWebSocket\b/]) assert.doesNotMatch(source, interdit, `${nom} : ${interdit}`);

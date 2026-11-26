@@ -813,8 +813,17 @@ types_partir app "$SELECTION_app"
 temporaire_des_tests
 ENV_TESTS=(-u BRIGADE_STATE_DIR -u BRIGADE_PORT ${DUREE[@]+"${DUREE[@]}"})
 [ -z "$TEMPORAIRE" ] || ENV_TESTS+=("NODE_COMPILE_CACHE=${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}" "TMPDIR=$TEMPORAIRE")
-suite runtime "du runtime" "runtime absent" du-runtime "$SELECTION_runtime"
-suite app "de l'app" "app absente" de-l-app "$SELECTION_app"
+# Sous macOS, les suites de tests du runtime et de l'app ne sont pas jouées (#4369) : une cinquantaine de tests
+# du runtime supposent Linux (bac à sable et faux HOME sous TMPDIR, /var et /private/var, E2BIG), et ceux de
+# l'app en ont quatorze qui rencontrent la station, le terminal et la session vivants du poste — toute livraison
+# d'une station Mac rougissait, alors que la CI de la PR, sous Linux, joue les deux et juge avant le merge (#4141).
+# `BRIGADE_GATES_TOUT=1` les joue.
+if [ "$(uname -s)" = Darwin ] && [ "${BRIGADE_GATES_TOUT:-}" != 1 ]; then
+  ok "tests du runtime et de l'app : non joués sous macOS — la CI de la PR (Linux) les joue et juge (#4369)"
+else
+  suite runtime "du runtime" "runtime absent" du-runtime "$SELECTION_runtime"
+  suite app "de l'app" "app absente" de-l-app "$SELECTION_app"
+fi
 EXECUTION=$((SECONDS - DEBUT_EXECUTION))
 quitter
 ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution (la garde de ${BRIGADE_GATES_DELAI_TESTS:-300} s ne compte que l'exécution, charge de la machine déduite)"

@@ -92,7 +92,7 @@ describe("the project's settings are read from its repository before the box's",
     const { clone } = projetSurGit(t, { claudeMd: "- **Branche d'intégration** : `v2`\n" });
     const lu = lireLeDepot({ BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: "v2" });
     assert.equal(lu.env.BRIGADE_BASE_BRANCH, "v2");
-    assert.equal(lu.branche.provenance, "configuration");
+    assert.equal(lu.branche.provenance, "CLAUDE.md");
     assert.equal(lu.reglages, null);
 
     const posees = suivreDecisions(journalDeLaBox(t, DE_LA_BOX).base, {}, () => {}, lu.suivis);
@@ -132,31 +132,37 @@ describe("the project's settings are read from its repository before the box's",
 });
 
 describe("the integration branch is resolved from the repository", { concurrency: 8 }, () => {
-  test("the file on the branch the line names comes first, then the file of the clone's working tree, then the line, then the CLAUDE.md line", (t) => {
-    // Le fichier sur la branche que la ligne nomme : il fait foi.
+  test("the file on the repository's default branch comes first, then the file of the clone's working tree, then the CLAUDE.md line, then the default branch — never the line", (t) => {
+    // Le fichier du dépôt fait foi, quoi que dise la ligne.
     const surLaLigne = projetSurGit(t, { reglages: { integrationBranch: "develop" }, autres: ["develop"] });
     assert.deepEqual(brancheDuProjet(surLaLigne.clone, "v2"), { branche: "develop", provenance: "projet.json", problemes: [] });
-    // La ligne nomme une branche sans le fichier : celui de l'arbre du clone.
+    // La branche par défaut du clone n'a plus le fichier : celui de l'arbre du clone.
     const dansLArbre = projetSurGit(t, { reglages: { integrationBranch: "develop" }, parDefaut: "main" });
     git(join(dansLArbre.clone, "..", "amont"), "checkout", "-q", "-b", "nue");
     git(join(dansLArbre.clone, "..", "amont"), "rm", "-q", FICHIER);
     git(join(dansLArbre.clone, "..", "amont"), "commit", "-q", "-m", "sans réglages");
     dansLArbre.rapatrier();
     assert.deepEqual(brancheDuProjet(dansLArbre.clone, "nue"), { branche: "develop", provenance: "projet.json", problemes: [] });
-    // Aucun fichier : la ligne, sinon le CLAUDE.md.
+    // Aucun fichier : le CLAUDE.md, jamais une ligne périmée.
     const sans = projetSurGit(t, { claudeMd: "- **Branche d'intégration** : `trunk`\n" });
-    assert.deepEqual(brancheDuProjet(sans.clone, "v2"), { branche: "v2", provenance: "configuration", problemes: [] });
+    assert.deepEqual(brancheDuProjet(sans.clone, "v2"), { branche: "trunk", provenance: "CLAUDE.md", problemes: [] });
     assert.deepEqual(brancheDuProjet(sans.clone, null), { branche: "trunk", provenance: "CLAUDE.md", problemes: [] });
-    // Rien nulle part : rien n'est deviné.
-    assert.deepEqual(brancheDuProjet(projetSurGit(t).clone, null), { branche: null, provenance: null, problemes: [] });
+    // Rien de déclaré : la branche par défaut du dépôt, même si la ligne en garde une périmée.
+    const nu = projetSurGit(t, { parDefaut: "main" });
+    assert.deepEqual(brancheDuProjet(nu.clone, "v2"), { branche: "main", provenance: "default", problemes: [] });
+    assert.deepEqual(brancheDuProjet(nu.clone, null), { branche: "main", provenance: "default", problemes: [] });
+    // Pas même un clone git : la ligne, faute de tout autre dire.
+    assert.deepEqual(brancheDuProjet(join(nu.clone, "absent"), "v2"), { branche: "v2", provenance: "configuration", problemes: [] });
+    assert.deepEqual(brancheDuProjet(join(nu.clone, "absent"), null), { branche: null, provenance: null, problemes: [] });
   });
 
   test("a branch the clone does not know, or an unreadable file, is said — the resolution goes on, it never throws", (t) => {
     const { clone } = projetSurGit(t, { claudeMd: "- **Branche d'intégration** : `v2`\n" });
+    // Une branche de ligne que le clone ne connaît pas n'est jamais lue : elle n'a pas à être dite.
     const inconnue = brancheDuProjet(clone, "disparue");
-    assert.equal(inconnue.branche, "disparue");
-    assert.equal(inconnue.provenance, "configuration");
-    assert.match(inconnue.problemes[0] ?? "", /^\.claude\/brigade\/projet\.json not read on origin\/disparue — /);
+    assert.equal(inconnue.branche, "v2");
+    assert.equal(inconnue.provenance, "CLAUDE.md");
+    assert.deepEqual(inconnue.problemes, []);
 
     poser(clone, FICHIER, "{ not json");
     const illisible = brancheDuProjet(clone, null);

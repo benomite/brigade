@@ -257,11 +257,11 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.equal(confirmation(vue), undefined);
   });
 
-  test("la phrase compte ce qu'il va vraiment juger : `blocked-on-human` retient, et rien d'ouvert, c'est rien à juger", () => {
+  test("la phrase compte ce qu'il va vraiment juger : un ticket parqué retient, et rien d'ouvert, c'est rien à juger", () => {
     assert.equal(dire({ ouvertes: 23, retenues: 0 }), "it will judge the 23 open issues");
-    assert.equal(dire({ ouvertes: 23, retenues: 2 }), "it will judge 21 of the 23 open issues — 2 carry `blocked-on-human`");
+    assert.equal(dire({ ouvertes: 23, retenues: 2 }), "it will judge 21 of the 23 open issues — 2 are parked");
     assert.equal(dire({ ouvertes: 1, retenues: 0 }), "it will judge the 1 open issue");
-    assert.equal(dire({ ouvertes: 4, retenues: 4 }), "it will judge no issue: all 4 open issues carry `blocked-on-human`");
+    assert.equal(dire({ ouvertes: 4, retenues: 4 }), "it will judge no issue: all 4 open issues are parked");
     assert.equal(dire({ ouvertes: 0, retenues: 0 }), "it will judge no issue: none is open");
   });
 });

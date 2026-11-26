@@ -1,4 +1,4 @@
-// #3875, critère 1 : un ticket qui porte `set-aside:failures` ou `out-of-kitchen` est sur le rail mis de côté (« 86 »), jamais en file,
+// #3875, critère 1 : un ticket qui porte `out-of-kitchen` (d'abord aussi `set-aside:failures`, parqué depuis #4260) est sur le rail mis de côté (« 86 »), jamais en file,
 // et sa carte dit la raison du dernier commentaire de la station.
 // Test d'acceptation gelé (#3725).
 import assert from "node:assert/strict";
@@ -48,7 +48,8 @@ async function lire(label: string) {
   return { rail, lu: avecLeRail(VIDE, rail, SIGNES) };
 }
 
-for (const label of ["set-aside:failures", "out-of-kitchen"]) {
+// `set-aside:failures` n'est plus une mise de côté : un ticket que ses échecs arrêtent est parqué (#4260).
+for (const label of ["out-of-kitchen"]) {
   test(`a ticket carrying ${label} shows as set aside, never queued, and its card says the station's reason`, async () => {
     const { rail, lu } = await lire(label);
     const lu1029 = rail.tickets.find(({ ticket }) => ticket === 1029) ?? assert.fail("#1029 is on the rail");

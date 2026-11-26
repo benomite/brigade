@@ -9,7 +9,8 @@
 //   npm --prefix runtime run rail -- remove 8              le retirer du rail (en attente, BLOQUÉ, 86, ou qui attend le chef)
 //   npm --prefix runtime run rail -- choose 8 <n>          répondre à sa carte de TODO par son choix n (à partir de 1)
 //   npm --prefix runtime run rail -- answer 8 <texte…>     répondre à sa carte de TODO en texte libre
-//   npm --prefix runtime run rail -- human 8 [qui…]        en WAITING faute de capacité : le confier à un humain, dans TODO (sortie-attente-capacite/)
+//   npm --prefix runtime run rail -- human 8 [qui…]        le confier à un humain, dans TODO : en WAITING faute de capacité, il quitte le rail ;
+//                                                          sinon il est marqué `human-cook` et assigné sur GitHub (sortie-attente-capacite/, cook-humain/)
 // `choose` et `answer` écrivent la réponse sur l'issue et font avancer le
 // ticket dans le même appel (reponse-carte.ts).
 // La priorité d'un ticket n'a pas de geste ici : c'est le label `prio:` de son
@@ -18,6 +19,7 @@
 // (code 1) avec sa raison. Il pose le label sur l'issue, sous le `gh` du compte du
 // service, puis écrit au journal ce que le sondage y aurait écrit.
 import { configRail } from "./alimenter.ts";
+import { lireLeChef } from "./chef/chef.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { direLAttente } from "./attente-du-rail/raison.ts";
@@ -96,7 +98,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
             : geste === "choose"
               ? await repondreALaCarte(journal, github, projet, ticket, { choix: Number(valeur) })
               : geste === GESTE_HUMAIN
-                ? await confierAUnHumain(journal, github, projet, ticket, raison ?? "")
+                ? await confierAUnHumain(journal, github, projet, ticket, raison ?? "", lireLeChef(repertoireEtat))
                 : await repondreALaCarte(journal, github, projet, ticket, { texte: raison ?? "" });
       } catch (erreur) {
         if (journalPasRejoue(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");

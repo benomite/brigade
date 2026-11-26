@@ -1,7 +1,10 @@
 // Les essais d'un ticket sur toute sa vie, et sa mise de côté pour le chef au troisième refus (#4226).
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { estUnParc, horsDuParc, parquer, refusDuTicket } from "../../src/essais/essais.ts";
+import { finirLeTravail } from "../../src/github-etat/prise-du-manager.ts";
 
 type GitHubDuParc = Parameters<typeof parquer>[0];
 type GitHubDuTri = Parameters<typeof horsDuParc>[1];
@@ -121,4 +124,34 @@ test("the tour keeps out the parked tickets, lets back the answered ones, and ke
   assert.equal(avertis.length, 2);
   assert.match(avertis[0]!, /#3 .*stays aside this tour — HTTP 502/);
   assert.match(avertis[1]!, /#6 .*HTTP 403/);
+});
+
+test("a reason that carries a dash is kept whole on the card, and the send-back reason line follows the red checks", async () => {
+  const { github, ecrits } = issue(["fire"], [RENVOI(1, "the review requested changes: one — and another"), C(`<!-- brigade:renvoi n=2 sha=${"b".repeat(40)} -->\nStation \`A\`: sent back to a cook (2/2)\n\nlater — not a reason`)]);
+  await parquer(github, { number: 7, labels: [] }, { station: "A", sha: "e".repeat(40), raison: "the CI is red on `eeeeeee`: tests — lint", rouges: async () => ["tests", "lint"], motif: "Send-back reason: failing test" });
+  assert.match(ecrits[0]!, /\n- Try 1: the review requested changes: one — and another\n- Try 2: \n- Try 3: the CI is red on `eeeeeee`: tests — lint\n\nStill red on its head `eeeeeee`: tests, lint\.\nSend-back reason: failing test\n\nNothing relaunches #7 before you answer on this issue\./);
+});
+
+// Critère 1 : le compte se lit des commentaires de l'issue, et aucun chemin — prise, réécriture, découpage, passe du
+// superviseur, redémarrage — n'en efface ni n'en réécrit un. Le client GitHub n'a aucun moyen d'effacer un commentaire,
+// et le seul qui en réécrit un, `remplacerCommentaire`, n'est appelé que par la prise du manager, sur sa propre marque.
+const SRC = join(import.meta.dirname, "../../src");
+const sources = (dossier: string): string[] => readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? sources(join(dossier, e.name)) : e.name.endsWith(".ts") ? [join(dossier, e.name)] : []));
+
+test("no runtime path deletes an issue comment, and the only one that rewrites one is the manager's claim", () => {
+  const lus = sources(SRC).map((chemin) => ({ chemin: chemin.slice(SRC.length + 1), texte: readFileSync(chemin, "utf8") }));
+  assert.ok(lus.length > 100, "the runtime sources are read");
+  assert.deepEqual(lus.filter(({ texte }) => /"DELETE"[^\n]*comments|comments[^\n]*"DELETE"/.test(texte)).map(({ chemin }) => chemin), [], "no comment is deleted");
+  assert.deepEqual(lus.filter(({ texte }) => /issues\/comments\/\$\{/.test(texte)).map(({ chemin }) => chemin), ["github.ts"], "one way to edit a comment, in the client");
+  assert.deepEqual(lus.filter(({ texte }) => /\.remplacerCommentaire\(|remplacerCommentaire\.bind\(/.test(texte)).map(({ chemin }) => chemin).sort(), ["brigade-github.ts", "github-etat/prise-du-manager.ts"]);
+});
+
+test("the manager's claim rewrites its own claim comment, never a send-back or a parking", async () => {
+  const remplaces: string[] = [];
+  const github = { remplacerCommentaire: async (_n: number, ancien: string) => (remplaces.push(ancien), true) } as unknown as Parameters<typeof finirLeTravail>[2];
+  for (const corps of [RENVOI(1, "one").body, PARC(["a", "b", "c"]).body]) assert.equal(await finirLeTravail(7, { station: "A", corps, fait: false, createdAt: "" }, github), false);
+  assert.deepEqual(remplaces, []);
+  const prise = "<!-- brigade:manager-prise station=A etat=abc jeton=12345678 -->";
+  assert.equal(await finirLeTravail(7, { station: "A", corps: prise, fait: false, createdAt: "" }, github), true);
+  assert.deepEqual(remplaces, [prise]);
 });

@@ -14,7 +14,7 @@ import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import { EFFORTS, MODELES } from "../src/projets/projets.ts";
+import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { AU_REPOS } from "../src/vue/stations-tab/stations-tab.js";
 import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
@@ -53,11 +53,21 @@ const station = (nom: string, plus: Partial<DuRuntime> = {}): DuRuntime => ({
 });
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
 const COOK_15 = { ticket: 15, titre: "La carte des desserts", station: "mac/claude" };
-// #14 cuit sur la box ; le Mac, distant, est arrêté par le chef et #15 y finit ; l'atelier est saturé.
+// #14 cuit sur la box ; le Mac, distant, est arrêté par le chef et #15 y finit ; l'atelier refuse le projet.
+const REFUS = { status: "refused" as const, code: "sandbox-unusable" as const, message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Install or repair the sandbox.", noRemedy: "Repairing the sandbox means installing software on this computer, which the app does not do for you." };
+const ACCES = { bloque: "fetch" as const, raison: "parade-box cannot fetch from benomite/parade: github.com asks for a username (git: fatal: could not read Username).", geste: "Run `gh auth setup-git` on parade-box." };
+const projetsDesStations = (): VuDesProjets => ({
+  a: A,
+  projets: [{ nom: PARADE, depot: "benomite/parade", base: "main", suiviPar: { id: "g1", nom: "parade-box" }, stations: [{ id: "g1", nom: "parade-box", etat: "servi", dit: "", autoriser: [] }], servi: null, acces: ACCES, refus: null, worktree: null }],
+  recommandee: "g1",
+  avertissements: {},
+  machines: {},
+  calibrage: calibrageRecommande([]),
+});
 const STATIONS: DuRuntime[] = [
   station("box/claude", { cooks: [COOK_14] }),
   station("mac/claude", { distante: true, cuisson: "stopped", arreteeDepuis: "2026-10-20T10:01:11.000Z", cooks: [COOK_15] }),
-  station("atelier/claude", { cuisson: "saturated" }),
+  station("atelier/claude", { cuisson: "refused", refus: REFUS }),
 ];
 const FAITS: Faits = {
   etat: "ouverte",
@@ -123,7 +133,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("Rail, Stations et Second, et chacun se montre d'un tap : le second à la place du centre, jamais à côté", async () => {
     const { vue, ecran } = await ouvrir();
     assert.ok(ecran.requetes.length > 0, "la vue demande la largeur de l'écran");
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings", "Second"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
 
@@ -193,7 +203,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
     assert.deepEqual(vu(rouverte), { centre: false, second: true });
     // Sur un écran large, la conversation n'est pas un onglet : le même projet s'y rouvre sur Rail, le second à droite.
     const { vue: large } = await ouvrir({ stockage, etroit: false });
-    assert.deepEqual(titres(large), ["Rail", "Stations", "Settings"]);
+    assert.deepEqual(titres(large), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(montre(large), ["Rail"]);
     assert.deepEqual(vu(large), { centre: true, second: true });
   });
@@ -201,8 +211,10 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("Rail y est celui d'un écran large : ses colonnes, et la ligne qui ouvre Stations", async () => {
     const { vue } = await ouvrir();
     assert.deepEqual(colonnes(vue), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
+    vue.dire("surProjetsDesStations", projetsDesStations());
+    await repos();
     const alerte = vue.element("rail").dessous("p").find((p) => p.className === "alerte-de-cuisine") ?? assert.fail("pas de ligne d'alerte");
-    assert.match(alerte.textContent, /atelier\/claude is saturated/);
+    assert.match(alerte.textContent, /parade-box cannot fetch from benomite\/parade/);
     (alerte.dessous("button")[0] ?? assert.fail("pas de lien")).click();
     await repos();
     assert.deepEqual(montre(vue), ["Stations"]);
@@ -214,7 +226,7 @@ describe("l'onglet Stations d'un écran étroit, en lecture seule", () => {
     const { vue } = await ouvrir();
     await taper(vue, "Stations");
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["online", "stopped by you, for 3 min · 1 cook finishing", "onlineits machine has no room"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["online", "stopped by you, for 3 min · 1 cook finishing", "refusing itThis computer cannot run the project's cooks in Claude Code's sandbox."]);
     assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
     assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [AU_REPOS]);
@@ -244,7 +256,7 @@ describe("l'onglet Stations d'un écran étroit, en lecture seule", () => {
 describe("sur un écran large, rien ne change", () => {
   test("deux onglets, et le second à droite quel que soit l'onglet ; Stations porte ses stations", async () => {
     const { vue } = await ouvrir({ etroit: false });
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
     await taper(vue, "Stations");
     assert.deepEqual(vu(vue), { centre: true, second: true });
@@ -259,12 +271,12 @@ describe("sur un écran large, rien ne change", () => {
     const { vue, ecran } = await ouvrir({ etroit: false });
     ecran.changer(true);
     await repos();
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings", "Second"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
     assert.deepEqual(vu(vue), { centre: true, second: false });
     await taper(vue, "Second");
     ecran.changer(false);
     await repos();
-    assert.deepEqual(titres(vue), ["Rail", "Stations", "Settings"]);
+    assert.deepEqual(titres(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(montre(vue), ["Rail"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
   });

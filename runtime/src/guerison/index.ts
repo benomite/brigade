@@ -5,8 +5,6 @@
 //   (`claim-perime.ts`, #2751) ;
 // - `in-pass` sur le ticket d'une PR approuvée, verte et mergeable
 //   (`pr-prete.ts`, #2752) ;
-// - le renvoi à un cook d'une PR `cook/<n>-github` rouge sur laquelle aucun
-//   cook ne travaille, jamais au chef (`../ci-rouge/ci-rouge.ts`, #2970) ;
 // - la clôture d'une épique dont tous les sous-tickets sont fermés
 //   (`epique-finie.ts`, #2754) ;
 // - le défaut d'une carte de TODO sans question, déposé sur la brigade
@@ -14,15 +12,17 @@
 // La lacune technique que le manager complète seul (#2753) est dans ses
 // instructions, pas ici.
 //
+// Aucun ne touche un ticket parqué (#4260) : il attend sa date, son fait ou sa
+// réponse, et reprend exactement où il était.
+//
 // Un geste qui échoue ne retient pas les autres : son erreur va à `avertir`.
 // Rien n'est propre à un dépôt : le projet, sa base et sa station viennent de
 // l'appelant. Ce qui se tient d'un tour à l'autre (l'horloge des claims) vit
 // dans l'objet que rend `ouvrirGuerison`, un par station.
 import { cartesDesIssues } from "../attente-github/attente-github.ts";
 import { brancheDuTicket } from "../brigade-github.ts";
-import { aExaminer, renvoyerLesCiRouges, type PROuverte } from "../ci-rouge/ci-rouge.ts";
 import { estMisDeCote, type GitHub, type Issue, type PR } from "../github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
+import { estParque, LABEL_IN_PASS, LABEL_TAKEN } from "../github-etat/etats.ts";
 import { dernierVerdict, type CommentaireDeVerdict, type PRAFusionner } from "../github-etat/fusion.ts";
 import type { Check } from "../events/pass.ts";
 import { lireTenant, type RetraitDeLabel } from "../github-etat/prise.ts";
@@ -48,12 +48,10 @@ export type GitHubDeLaGuerison = {
 };
 
 // Ce que la guérison demande au client du tour, et rien de plus. `issue` :
-// absent, les épiques ne se ferment pas. `prsOuvertes` : absent, aucune PR
-// rouge n'est renvoyée.
+// absent, les épiques ne se ferment pas.
 export type GitHubDuProjet = GitHubDeLaGuerison &
   Pick<GitHub, "fermerIssue"> & {
     retraitsDeLabels(numero: number): Promise<RetraitDeLabel[]>;
-    prsOuvertes?(): Promise<PROuverte[]>;
     prOuverteDuTicket?: GitHubDeLaGuerison["prDuTicket"];
     issue?: GitHub["issue"];
   };
@@ -76,18 +74,15 @@ export type OptionsDeLaGuerison = {
   maintenant?: () => number;
 };
 
-export type Geste = "claim" | "ci-rouge" | "in-pass" | "epique" | "sans-question";
+export type Geste = "claim" | "in-pass" | "epique" | "sans-question";
 
 // Ce qu'un tour de guérison a fait, geste par geste. `tickets` : ceux du tour
 // tels que la guérison les laisse — un
-// claim libéré sans `taken`, une PR rouge renvoyée sans ce qui la tenait pour
-// le chef, une PR prête avec `in-pass`, une épique fermée
+// claim libéré sans `taken`, une PR prête avec `in-pass`, une épique fermée
 // hors de la liste —, pour que le tour ne lise pas des labels périmés.
 export type BilanDeLaGuerison<T extends TicketDuTour = TicketDuTour> = {
   tickets: T[];
   liberes: number[];
-  // Les tickets dont la PR rouge repart à un cook, et les labels levés de chacun.
-  ciRouges: { ticket: number; leves: string[] }[];
   enPass: number[];
   epiquesFermees: number[];
   echecs: { geste: Geste; message: string }[];
@@ -105,7 +100,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
   // `tickets` : ceux que le tour vient de lire (`fire`, ouverts). `enCuisine` :
   // les tickets qu'un cook de cette station cuisine en ce moment.
   async function guerir<T extends TicketDuTour>(tickets: readonly T[], enCuisine: ReadonlySet<number>): Promise<BilanDeLaGuerison<T>> {
-    const bilan: BilanDeLaGuerison<T> = { tickets: [], liberes: [], ciRouges: [], enPass: [], epiquesFermees: [], echecs: [] };
+    const bilan: BilanDeLaGuerison<T> = { tickets: [], liberes: [], enPass: [], epiquesFermees: [], echecs: [] };
     const echouer = (geste: Geste, erreur: unknown, ticket?: number) => {
       const dit = message(erreur);
       bilan.echecs.push({ geste, message: dit });
@@ -124,7 +119,7 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
     // prise — un second cook partirait sur le même ticket. Cette station ne
     // libère que ses propres prises et celles que personne ne tient.
     await tache("claim", async () => {
-      const pris = tickets.filter((t) => t.labels.includes(LABEL_TAKEN) && !t.labels.includes(LABEL_IN_PASS));
+      const pris = tickets.filter((t) => t.labels.includes(LABEL_TAKEN) && !t.labels.includes(LABEL_IN_PASS) && !estParque(t.labels));
       const vivants = new Set(enCuisine);
       for (const ticket of pris) {
         if (vivants.has(ticket.number)) continue;
@@ -136,20 +131,10 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       for (const { ticket, message: dit } of fait.echecs) echouer("claim", new Error(dit), ticket);
     });
 
-    // Après le claim : un ticket dont le claim vient de tomber n'a plus de cook.
-    await tache("ci-rouge", async () => {
-      const libres = new Set(bilan.liberes);
-      const lus = tickets.map((t) => (libres.has(t.number) ? { ...t, labels: t.labels.filter((l) => l !== LABEL_TAKEN) } : t));
-      if (github.prsOuvertes === undefined || !lus.some((t) => aExaminer(t, enCuisine))) return;
-      const fait = await renvoyerLesCiRouges({ github, station, prs: await github.prsOuvertes(), tickets: lus, enCuisine });
-      bilan.ciRouges.push(...fait.renvoyes.map(({ ticket, leves }) => ({ ticket, leves })));
-      for (const { ticket, message: dit } of fait.echecs) echouer("ci-rouge", new Error(dit), ticket);
-    });
-
-    // Ni un ticket mis de côté (aucune minuterie ne le remet sur le rail : le superviseur en décide), ni une épique, ni un
-    // ticket qu'un cook tient encore.
+    // Ni un ticket mis de côté (aucune minuterie ne le remet sur le rail : le superviseur en décide) ou parqué, ni une
+    // épique, ni un ticket qu'un cook tient encore.
     await tache("in-pass", async () => {
-      const candidats = tickets.filter((t) => t.epique !== true && !estMisDeCote(t.labels) && !t.labels.includes(LABEL_TAKEN) && !enCuisine.has(t.number));
+      const candidats = tickets.filter((t) => t.epique !== true && !estMisDeCote(t.labels) && !estParque(t.labels) && !t.labels.includes(LABEL_TAKEN) && !enCuisine.has(t.number));
       const parBranche = new Map(candidats.map((t) => [brancheDuTicket(t.number), t.number]));
       const poses = await poserInPassSurLesPrsPretes({
         tickets: async () => ({ inchange: false, issues: candidats.map((t) => ({ ...t, createdAt: "", updatedAt: "", url: "" })), confirmer: () => {} }),
@@ -205,7 +190,6 @@ export function ouvrirGuerison(options: OptionsDeLaGuerison) {
       .map((t) => {
         let labels = [...t.labels];
         if (bilan.liberes.includes(t.number)) labels = sans(labels, LABEL_TAKEN);
-        for (const label of bilan.ciRouges.find((c) => c.ticket === t.number)?.leves ?? []) labels = sans(labels, label);
         if (bilan.enPass.includes(t.number)) labels.push(LABEL_IN_PASS);
         return labels.length === t.labels.length && labels.every((l, i) => l === t.labels[i]) ? t : { ...t, labels };
       });

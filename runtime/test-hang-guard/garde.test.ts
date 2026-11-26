@@ -79,3 +79,34 @@ test("a frozen acceptance test that calls gh skips when gh is logged out, and ru
   assert.match(connecte.sortie, /Error: ran todo/);
   assert.match(connecte.sortie, /hook ran/);
 });
+
+// #4229: no step freezes a test any more, so the skip reason names a plain acceptance test; and the
+// skip hangs on the login: logged out it skips with that reason, logged in the test runs.
+test("the skip reason of a gh-reading acceptance test names no frozen test, and only a logged-out gh skips", { skip: posixOnly("a fake gh shell script") }, () => {
+  const racine = mkdtempSync(join(tmpdir(), "garde-gh-"));
+  const dossier = join(racine, "test/acceptation-2");
+  mkdirSync(dossier, { recursive: true });
+  const fichier = join(dossier, "lit-une-pr.test.ts");
+  writeFileSync(
+    fichier,
+    ['import { execFileSync } from "node:child_process";', 'import test from "node:test";', 'test("reads the PR", () => { execFileSync("gh", ["pr", "view", "1"]); throw new Error("ran it"); });', ""].join("\n"),
+  );
+  const jouer = (connecte: boolean) => {
+    const bin = mkdtempSync(join(tmpdir(), "garde-gh-bin-"));
+    writeFileSync(join(bin, "gh"), `#!/bin/sh\nexit ${connecte ? 0 : 1}\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    const r = spawnSync(process.execPath, ["--import", join(ICI, "charger.ts"), "--test", "--test-force-exit", fichier], {
+      encoding: "utf8",
+      env: { ...ENV_ENFANT, PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin` },
+    });
+    return { status: r.status, sortie: r.stdout + r.stderr };
+  };
+  const deconnecte = jouer(false);
+  assert.equal(deconnecte.status, 0, deconnecte.sortie);
+  assert.match(deconnecte.sortie, /# gh is missing or logged out: this acceptance test reads GitHub through it/);
+  assert.doesNotMatch(deconnecte.sortie, /frozen/);
+  const connecte = jouer(true);
+  assert.equal(connecte.status, 1, connecte.sortie);
+  assert.match(connecte.sortie, /Error: ran it/);
+  assert.doesNotMatch(connecte.sortie, /gh is missing or logged out/);
+});

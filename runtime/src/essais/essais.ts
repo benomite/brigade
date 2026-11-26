@@ -41,7 +41,11 @@ export const refusDuTicket = <C extends CommentaireLu>(commentaires: readonly C[
 // Ce qu'un refus a dit, en une ligne : la raison d'un renvoi, ou le dernier essai qu'une carte liste.
 function motifDuRefus(corps: string): string {
   if (MARQUE_DE_PARC.test(corps)) return corps.match(/^- Try \d+: (.*)$/gm)?.at(-1)?.replace(/^- Try \d+: /, "") ?? "";
-  return corps.match(/ — ([^\n]*)/)?.[1] ?? "";
+  // La ligne du renvoi, sous sa marque : son étiquette (« Station `A`: sent back to a cook (1/2) »), le premier ` — `,
+  // puis la raison entière, qui peut en porter d'autres.
+  const ligne = corps.split("\n")[1] ?? "";
+  const separateur = ligne.indexOf(" — ");
+  return separateur === -1 ? "" : ligne.slice(separateur + 3);
 }
 
 // Une réponse du chef : un commentaire du dépôt qui n'est pas de la cuisine (aucune ligne de marque `<!-- brigade:`),
@@ -64,7 +68,7 @@ const reponduSousLeLabel = (labels: readonly string[], commentaires: readonly Co
 };
 
 // Le texte de la carte : chaque essai, les checks encore rouges, et ce que le chef peut faire.
-function corpsDuParc({ ticket, station, sha, essais, rouges }: { ticket: number; station: string; sha: string; essais: readonly string[]; rouges: readonly string[] | { illisibles: string } }): string {
+function corpsDuParc({ ticket, station, sha, essais, rouges, motif }: { ticket: number; station: string; sha: string; essais: readonly string[]; rouges: readonly string[] | { illisibles: string }; motif: string | undefined }): string {
   const rouge = "illisibles" in rouges ? `The checks of its head \`${sha.slice(0, 7)}\` could not be read: ${rouges.illisibles}.` : rouges.length === 0 ? `No check is red on its head \`${sha.slice(0, 7)}\`: the review refused it.` : `Still red on its head \`${sha.slice(0, 7)}\`: ${rouges.join(", ")}.`;
   return [
     marqueDeParc(essais.length, sha),
@@ -74,6 +78,7 @@ function corpsDuParc({ ticket, station, sha, essais, rouges }: { ticket: number;
     ...essais.map((motif, i) => `- Try ${i + 1}: ${motif}`),
     "",
     rouge,
+    ...(motif === undefined ? [] : [motif]),
     "",
     `Nothing relaunches #${ticket} before you answer on this issue. Answer here, and a cook takes it up again with your answer.`,
   ].join("\n");
@@ -85,7 +90,8 @@ type GitHubDuParc = Pick<GitHub, "commenter" | "labelliser"> & Partial<Pick<GitH
 // — rejouée, par la même station ou une autre, elle ne poste aucun second commentaire. Sinon, pose `chef-todo` puis la
 // carte : arrêtée entre les deux, la station laisse le label sans carte de mise de côté, et la reprise écrit la carte.
 // `rouges` lit les checks rouges de la tête ; une lecture qui échoue se dit sur la carte, la mise de côté se fait quand même.
-export async function parquer(github: GitHubDuParc, ticket: { number: number; labels: readonly string[] }, { station, sha, raison, rouges }: { station: string; sha: string; raison: string; rouges: () => Promise<string[]> }): Promise<"parque" | "deja" | "absent"> {
+// `motif` : la ligne du motif du renvoi (`Send-back reason: …`, #4302), que la carte dit comme un renvoi.
+export async function parquer(github: GitHubDuParc, ticket: { number: number; labels: readonly string[] }, { station, sha, raison, rouges, motif }: { station: string; sha: string; raison: string; rouges: () => Promise<string[]>; motif?: string }): Promise<"parque" | "deja" | "absent"> {
   const issue = github.issue === undefined ? { labels: ticket.labels } : await github.issue(ticket.number);
   if (issue === null) return "absent";
   const commentaires = await github.commentaires(ticket.number);
@@ -93,7 +99,7 @@ export async function parquer(github: GitHubDuParc, ticket: { number: number; la
   const essais = [...refusDuTicket(commentaires).map((c) => motifDuRefus(c.body)), raison.trim().split("\n")[0] ?? ""];
   const lus = await rouges().catch((erreur: unknown) => ({ illisibles: erreur instanceof Error ? erreur.message : String(erreur) }));
   if (!issue.labels.includes(CHEF_TODO)) await github.labelliser(ticket.number, [CHEF_TODO]);
-  await github.commenter(ticket.number, corpsDuParc({ ticket: ticket.number, station, sha, essais, rouges: lus }));
+  await github.commenter(ticket.number, corpsDuParc({ ticket: ticket.number, station, sha, essais, rouges: lus, motif }));
   return "parque";
 }
 

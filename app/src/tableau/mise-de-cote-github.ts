@@ -1,35 +1,32 @@
 // Un ticket mis de côté, lu de GitHub, pour un projet GitHub seul (#2075) : la station ou le chef pose sur son issue
-// `served-elsewhere` (trop de renvois, trop de cooks sans livraison : un humain décide) ou `blocked-on-human` (la livraison
-// touche à ce qui la juge), et la station dit pourquoi dans un commentaire, en posant le label. Le ticket attend le chef :
-// sa carte est dans TODO — dans WAITING si le chef l'y a mis —, et dit en une ligne pourquoi, tirée de ce commentaire.
+// `served-elsewhere` (trop de renvois, trop de cooks sans livraison : un humain décide) ou `out-of-kitchen`, et la station
+// dit pourquoi dans un commentaire, en posant le label. Un ticket qui attend quelqu'un est parqué (#4129) : le label
+// `parked`, ou `chef-todo` pour le chef — jamais une mise de côté.
 //
-// Le commentaire lu est le dernier qui nomme le label que l'issue porte — ou, pour `blocked-on-human`, celui que la station
-// écrit en le posant, qui ne le nomme pas (« this delivery changes what judges it ») —, d'un auteur du dépôt
+// Le commentaire lu est le dernier qui nomme le label que l'issue porte, d'un auteur du dépôt
 // (`author_association` OWNER, MEMBER ou COLLABORATOR : tout le monde peut commenter une issue publique), hors ceux du
 // manager (`<!-- brigade:manager -->`), qui nomment les labels sans en être la raison. Aucun : la carte le dit
-// (`SANS_RAISON`), et reste dans TODO.
+// (`SANS_RAISON`).
 //
-// Ce qui entre dans TODO (#2422) : seul ce qui demande quelque chose au chef. `blocked-on-human` — la livraison touche à ce
-// qui la juge : la merger à la main — est une question à lui, avec son bouton (« Merge the PR of #T by hand? »,
-// `Merge the PR of #T`, #3368, #3716). `served-elsewhere` n'en est une que si un commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217,
-// todo-github.ts) en pose une ; pour une cause technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de
-// mise de côté, avec sa ligne : c'est le travail du second. Un `kitchen-board` n'est jamais une carte.
+// Ce qui entre dans TODO (#2422) : seul ce qui demande quelque chose au chef. `served-elsewhere` n'en est une que si un
+// commentaire marqué `<!-- brigade:todo kind=product-question -->` (#2217, todo-github.ts) en pose une ; pour une cause
+// technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de mise de côté, avec sa
+// ligne : c'est le travail du second. Un `kitchen-board` n'est jamais une carte.
 //
 // Les commentaires de la station (runtime/src/brigade-github.ts, runtime/src/github-seul/renvois/renvois.ts) se disent en
 // une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
 // GitHub mène de l'une à l'autre.
 
+import { LABEL_PARKED } from "../../../runtime/src/attente-github/marque.ts";
 import type { ZoneTenue } from "../vue/bandeau-arret/arret-du-rail.ts";
 import { carteDuCommentaire, formeDuChef, type CarteDuChef, type ChoixDuChef, type Recommandee } from "./todo-github.ts";
-import { direLaPrParSonTicket, PR_DU_TICKET } from "../vue/pr-du-ticket.js";
+import { direLaPrParSonTicket } from "../vue/pr-du-ticket.js";
 
 export const SERVED_ELSEWHERE = "served-elsewhere";
-export const BLOCKED_ON_HUMAN = "blocked-on-human";
-// Dans l'ordre où la carte les nomme quand l'issue porte les deux.
-// Ceux de la station (runtime/src/github.ts, `MIS_DE_COTE`) : `set-aside:failures` (#3875) et `out-of-kitchen` mettent aussi de côté.
-export const SET_ASIDE_FAILURES = "set-aside:failures";
+// Celui de la station (runtime/src/github.ts, `MIS_DE_COTE`) : `out-of-kitchen` met aussi de côté.
 export const OUT_OF_KITCHEN = "out-of-kitchen";
-export const LABELS_DE_MISE_DE_COTE = [SERVED_ELSEWHERE, BLOCKED_ON_HUMAN, SET_ASIDE_FAILURES, OUT_OF_KITCHEN] as const;
+// Dans l'ordre où la carte les nomme quand l'issue porte les deux.
+export const LABELS_DE_MISE_DE_COTE = [SERVED_ELSEWHERE, OUT_OF_KITCHEN] as const;
 // L'issue du tableau de la cuisine : jamais une carte, ni sur le rail ni dans TODO.
 export const LABEL_DU_TABLEAU_DE_LA_CUISINE = "kitchen-board";
 // La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi : un label posé à la main. Ici, et non dans faits.ts,
@@ -46,24 +43,20 @@ const LONGUEUR_MAX = 160;
 export type LienDeLigne = { numero: number; url: string };
 // Ce que la carte dit d'un ticket mis de côté : le label qui le met de côté, la ligne qui dit pourquoi — nulle quand aucun
 // commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
-// `pr` : la PR à merger à la main, quand c'est la question ; `chef` : la question marquée d'un `served-elsewhere`, ou celle
-// de la PR à merger, ou celle de la retenue sans PR (#3369), avec ses boutons.
+// `chef` : la question marquée d'un `served-elsewhere`, avec ses boutons.
 // `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
 // `zoneTenue` : la zone que sa fiche déclare et que sa PR ouverte tient, et depuis quand (vue/bandeau-arret/, ticket 3924).
-export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; pr?: LienDeLigne | null; chef?: CarteDuChef; zoneTenue?: ZoneTenue };
+export type MiseDeCote = { label: string; raison: string | null; complete?: string; liens: LienDeLigne[]; auChef?: boolean; chef?: CarteDuChef; zoneTenue?: ZoneTenue };
 
 type Brut = Record<string, unknown>;
 
-// Le label qui met l'issue de côté, ou rien. `waiting` l'emporte : le chef a mis le ticket en attente d'un tiers.
+// Le label qui met l'issue de côté, ou rien. `parked` l'emporte : le ticket attend quelqu'un d'autre que le chef (#4129).
 export function labelDeMiseDeCote(labels: readonly string[]): string | null {
-  if (labels.includes("waiting")) return null;
+  if (labels.includes(LABEL_PARKED)) return null;
   return LABELS_DE_MISE_DE_COTE.find((label) => labels.includes(label)) ?? null;
 }
 
 const nomme = (corps: string, label: string) => new RegExp(`(?<![\\w-])${label}(?![\\w-])`).test(corps);
-// Le commentaire de la station qui pose `blocked-on-human` sur une livraison qui touche à ce qui la juge.
-const JUGES = /changes what judges it\b[\s\S]*?merge it by hand: PR #(\d+)/;
-const ditLaMiseDeCote = (corps: string, label: string) => nomme(corps, label) || (label === BLOCKED_ON_HUMAN && JUGES.test(corps.replace(/`/g, "")));
 
 // Le texte d'un commentaire, sans ses marques, sa mise en forme, ni le « Station `x`: » qui l'ouvre.
 const nettoyer = (texte: string) =>
@@ -102,9 +95,6 @@ export function ligneDuCommentaire(corps: string, ticket?: number): string | nul
   const echec = /^the cook stopped without a delivery — ([\s\S]*)$/.exec(tete);
   const cooks = /after (\d+) cooks without a delivery/.exec(texte);
   if (echec !== null && cooks !== null) return dite(couper(`off the kitchen after ${cooks[1]} cooks without a delivery — ${(echec[1] as string).split("\n")[0]?.trim()}`));
-  // Une livraison qui touche à ce qui la juge (brigade-github.ts) : la merger à la main.
-  const juges = JUGES.exec(texte);
-  if (juges !== null) return dite(`Merge PR #${juges[1]} by hand? It changes what judges it.`);
   const premiere = texte
     .split("\n")
     .map((ligne) => ligne.replace(/^\s*(?:#+|>|[-*])\s*/, "").trim())
@@ -131,51 +121,37 @@ function sourceDeLaMiseDeCote(label: string, commentaires: readonly Brut[]): { d
   const dit =
     [...commentaires]
       .reverse()
-      .filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DU_MANAGER) && ditLaMiseDeCote(body, label))
+      .filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && DE_CONFIANCE.has(association) && !body.includes(MARQUE_DU_MANAGER) && nomme(body, label))
       .find(({ body }) => ligneDuCommentaire(body as string) !== null);
   const question = label === SERVED_ELSEWHERE ? questionDuChef(commentaires) : null;
   return { dit: question?.commentaire ?? dit, question: question?.carte ?? null };
 }
 
-// La carte du chef d'une livraison qui touche à ce qui la juge (#3368) : sa question, et un seul choix,
-// `Merge the PR of #T`, que la réponse joue sur GitHub (tableau-gestes/reponse-github.ts) — la PR mergée, `blocked-on-human` retiré —, dans l'app comme
-// sur le téléphone, qui ne liste que les cartes qui posent une question.
-const SORTE_DU_MERGE = "merge-by-hand";
-// La PR s'y dit par son ticket (ticket 3716) : le choix ne nomme pas son numéro, et la réponse merge la PR ouverte du ticket.
-const carteDuMerge = (ticket: number, raison: string | null): CarteDuChef => ({ sorte: SORTE_DU_MERGE, texte: `${raison ?? `Merge the ${PR_DU_TICKET(ticket)} by hand?`}\n- [merge] Merge the ${PR_DU_TICKET(ticket)}` });
-
-// La carte du chef d'un ticket que la station a mis de côté sans PR à merger (#3369) : lever la retenue, ou fermer l'issue.
-// `resume` retire `blocked-on-human` (tableau-gestes/reponse-github.ts) : le ticket revient sur le rail.
-const SORTE_DE_LA_RETENUE = "hold";
-const carteDeLaRetenue = (raison: string | null): CarteDuChef => ({ sorte: SORTE_DE_LA_RETENUE, texte: `${raison ?? "Lift the hold?"}\n- [resume] Back to the kitchen\n- [close] Close it` });
-
-// La carte du chef d'un ticket que le manager a écarté au chef — `question`, `decision`, ou `blocked-on-human` hors du rail
-// (#3370, attente-du-chef.ts) : la question du manager, un bouton par choix, et le champ libre. La question est la dernière
+// La carte du chef d'un ticket parqué pour lui par un label d'attente d'avant parked (#4129, la liste
+// `LABELS_D_AVANT_PARKED_POUR_LE_CHEF` de runtime/src/github-etat/etats.ts ; d'abord les écarts du manager, #3370,
+// attente-du-chef.ts) : la question du manager, un bouton par choix, et le champ libre. La question est la dernière
 // ligne qui finit par « ? » du dernier commentaire d'un auteur du dépôt qui en porte une — hors ceux qu'une station écrit en
 // prenant le ticket (`<!-- brigade:manager-prise`) —, tant qu'aucune réponse du chef (`<!-- brigade:reponse`) ne la suit ;
 // ses choix sont les lignes `- [<geste>] <libellé>` qui la suivent (todo-github.ts, `formeDuChef`), et le reste du
-// commentaire la précise. Sans choix : `Back to the kitchen` — `resume` retire le label qui le retient
-// (tableau-gestes/reponse-github.ts), le manager le juge de nouveau — et `Close it`. Aucune question sur l'issue : la carte
+// commentaire la précise. Sans choix : `Back to the kitchen` — `resume` retire le label qui le parque
+// (tableau-gestes/reponse-github.ts) : il reprend où il était — et `Close it`. Aucune question sur l'issue : la carte
 // demande ce que son label attend, avec ces deux choix.
 // La réponse que le manager recommande (#3434) est la ligne `Recommended: <libellé d'un choix> — <pourquoi>` qui suit la
 // question (runtime/src/manager.ts) : elle quitte le reste du commentaire pour la carte (`recommandee`). Sans elle — le
 // manager n'avait rien pour en recommander une, ou la carte retombe sur ses deux choix —, la carte n'en recommande aucune :
 // jamais `Back to the kitchen` par défaut.
 const MARQUE_DE_PRISE = "<!-- brigade:manager-prise";
-const QUESTION_DE_L_ECART: Readonly<Record<string, string>> = {
-  question: "The manager set this ticket aside with a question: what is your answer?",
-  decision: "The manager set this ticket aside for your decision: what do you decide?",
-  [BLOCKED_ON_HUMAN]: "Lift the hold?",
-};
+const questionDeLEcart = (label: string) => `It carries \`${label}\`, a waiting label of before parked: what do you decide?`;
 const CHOIX_DE_L_ECART = ["- [resume] Back to the kitchen", "- [close] Close it"];
 const QUESTION = /\?\s*$/;
 const CHOIX = /^\s*[-*]\s*\[[a-z]+\]\s/i;
-export const sorteDeLEcart = (label: string) => `manager-${label}`;
+// La sorte de sa carte, quel que soit le label d'avant qui la parque.
+export const SORTE_DE_L_ECART = "manager-parked";
 const RECOMMANDEE = "Recommended: ";
 
 // La ligne du contexte qui recommande l'un des choix, et ce qui la précise : le choix et pourquoi — rien sans elle, ni pour
 // un libellé qui n'est pas celui d'un choix, ni sans pourquoi.
-function recommandeeDe(contexte: string, choix: readonly ChoixDuChef[]): { recommandee: Recommandee; contexte: string } | null {
+export function recommandeeDe(contexte: string, choix: readonly ChoixDuChef[]): { recommandee: Recommandee; contexte: string } | null {
   const lignes = contexte.split("\n");
   for (const [rang, ligne] of lignes.entries()) {
     const dite = ligne.trim();
@@ -204,9 +180,9 @@ export function carteDeLEcart(label: string, commentaires: readonly Brut[]): Car
     const avant = lignes.slice(0, rang).join("\n").trim();
     const precise = [avant, contexte].filter((texte) => texte !== "").join("\n\n");
     const boutons = choix.length === 0 ? CHOIX_DE_L_ECART : choix.map(({ texte, suite }) => `- [${suite}] ${texte}`);
-    return { sorte: sorteDeLEcart(label), texte: [question, ...boutons, ...(precise === "" ? [] : ["", precise])].join("\n"), recommandee: recommandee?.recommandee ?? null };
+    return { sorte: SORTE_DE_L_ECART, texte: [question, ...boutons, ...(precise === "" ? [] : ["", precise])].join("\n"), recommandee: recommandee?.recommandee ?? null };
   }
-  return { sorte: sorteDeLEcart(label), texte: [QUESTION_DE_L_ECART[label] ?? "Lift the hold?", ...CHOIX_DE_L_ECART].join("\n"), recommandee: null };
+  return { sorte: SORTE_DE_L_ECART, texte: [questionDeLEcart(label), ...CHOIX_DE_L_ECART].join("\n"), recommandee: null };
 }
 
 // Depuis quand un ticket mis de côté par `label` l'est : l'heure du commentaire qui le dit (ce qui attend le chef,
@@ -224,11 +200,7 @@ export function miseDeCoteDe(depot: string, label: string, commentaires: readonl
   const dit = question === null ? source.dit : undefined;
   const raison = question !== null ? couper(question.texte.split("\n")[0] ?? "") || null : dit === undefined ? null : ligneDuCommentaire(dit.body as string, ticket);
   const numeros = [...new Set([...(raison ?? "").matchAll(/#(\d+)\b/g)].map((trouve) => Number(trouve[1])))];
-  const juges = label === BLOCKED_ON_HUMAN && dit !== undefined ? JUGES.exec((dit.body as string).replace(/`/g, "")) : null;
-  const pr = juges === null ? null : { numero: Number(juges[1]), url: `https://github.com/${depot}/pull/${juges[1]}` };
-  // La PR, que la raison dit par son ticket (ticket 3716), garde son lien : son adresse est celle de la PR.
-  const liens = [...numeros.map((numero) => (numero === pr?.numero ? pr : { numero, url: `https://github.com/${depot}/issues/${numero}` })), ...(pr === null || numeros.includes(pr.numero) ? [] : [pr])];
+  const liens = numeros.map((numero) => ({ numero, url: `https://github.com/${depot}/issues/${numero}` }));
   const complete = label !== SERVED_ELSEWHERE || question !== null || dit === undefined ? "" : direLaPrParSonTicket(sansStation(nettoyer(dit.body as string)), ticket);
-  const chef = question ?? (pr !== null ? carteDuMerge(ticket, raison) : label === BLOCKED_ON_HUMAN ? carteDeLaRetenue(raison) : null);
-  return { label, raison, ...(complete === "" ? {} : { complete }), liens, auChef: label === BLOCKED_ON_HUMAN || question !== null, pr, ...(chef === null ? {} : { chef }) };
+  return { label, raison, ...(complete === "" ? {} : { complete }), liens, auChef: question !== null, ...(question === null ? {} : { chef: question }) };
 }

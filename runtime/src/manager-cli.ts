@@ -2,7 +2,7 @@
 //   npm --prefix runtime run manager                s'il juge, les dernières décisions, ce qu'il a écarté, les épiques, et ses réactions aux échecs
 //   npm --prefix runtime run manager -- on | off    refusées : le manager n'a plus d'interrupteur à lui, il suit celui du projet (`switch`, interrupteur.ts)
 //   npm --prefix runtime run manager -- return <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
-//   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien portent `blocked-on-human`
+//   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien sont parquées
 //   npm --prefix runtime run manager -- upstream    ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour un programme
 //   npm --prefix runtime run manager -- approve <n> l'OK du chef à un geste en attente d'un agent sur « propose » (#4039, autonomie/agents/porte.ts) :
 //                                                   le runtime qui tourne le fait à son prochain réveil, une fois ; `manager` seul les liste
@@ -20,6 +20,7 @@ import { enAnglais } from "./commandes.ts";
 import { decrire, decrireEcart, ecart } from "./dire-manager.ts";
 import type { Ecart } from "./events/manager.ts";
 import { type IssueOuverte } from "./github.ts";
+import { estParque } from "./github-etat/etats.ts";
 import { ouvrirGitHubDuGeste } from "./gestes/github-du-geste.ts";
 import { approuverGeste, gestesEnAttente } from "./autonomie/agents/porte.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
@@ -188,12 +189,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   }
 
   // Ce qu'allumer engage, compté là où le manager le lira : les issues ouvertes,
-  // et celles qui portent `blocked-on-human`, jamais jugées. Les nombres
+  // et celles qui sont parquées, jamais jugées avant de reprendre (#4260). Les nombres
   // s'écrivent en chiffres nus, en tête de leur mot : un programme les lit.
   async function compter(): Promise<void> {
     const { depot, issues } = await lireOuvertes((depot) => `the backlog of ${depot}`);
-    const retenues = issues.filter((issue) => issue.labels.includes("blocked-on-human" satisfies Ecart)).length;
-    ligne("backlog", `${issues.length} open issue${issues.length === 1 ? "" : "s"}, of which ${retenues} ${retenues === 1 ? "carries" : "carry"} \`blocked-on-human\` — read just now on GitHub (${depot})`);
+    const retenues = issues.filter((issue) => estParque(issue.labels)).length;
+    ligne("backlog", `${issues.length} open issue${issues.length === 1 ? "" : "s"}, of which ${retenues} ${retenues === 1 ? "is" : "are"} parked — read just now on GitHub (${depot})`);
   }
 
   // Ce qui n'est pas encore sur le rail (amont.ts) : les issues ouvertes que le
