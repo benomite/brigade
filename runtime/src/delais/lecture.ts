@@ -36,7 +36,7 @@ function lireLesFiches(dossier: string): FicheDuTicket[] {
 // plus ancienne du même ticket est remplacée. Un fichier illisible n'est pas
 // écrasé : l'appel lève.
 export function retenirLaFiche(dossier: string, fiche: FicheDuTicket): void {
-  const autres = lireLesFiches(dossier).filter((lue) => lue.ticket !== fiche.ticket);
+  const autres = lireLesFiches(dossier).filter((lue) => !(lue.ticket === fiche.ticket));
   const fichier = join(dossier, FICHIER_DES_FICHES);
   mkdirSync(dirname(fichier), { recursive: true });
   const provisoire = `${fichier}.${process.pid}.tmp`;
