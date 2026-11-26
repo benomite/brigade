@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { argumentsClaude, environnementCook } from "../claude.ts";
 import { configCloison, envelopper } from "../cloison.ts";
 import { environnementClaude, masquerLaConsole } from "../jeton-claude.ts";
-import { variablesDeRelais } from "../reseau.ts";
+import { passerParLaPorte, variablesDeRelais } from "../reseau.ts";
 import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
 import { gitCli, openKitchen } from "./kitchen.ts";
@@ -79,6 +79,10 @@ function kitchenOf(project: Line) {
 }
 
 if (import.meta.main) {
+  // On a station whose service may only reach localhost, the kitchen's own `gh` and `git` go through its gate too.
+  const portsFile = process.env.BRIGADE_STATION_PORTES;
+  const stationPort = portsFile && existsSync(portsFile) ? lirePortes(portsFile).station : null;
+  if (stationPort !== null) passerParLaPorte(stationPort);
   const kitchens = new Map<string, ReturnType<typeof kitchenOf>>();
   const file = join(root, "kitchen", "projects");
   for (;;) {
