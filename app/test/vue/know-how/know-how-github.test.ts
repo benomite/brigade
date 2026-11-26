@@ -152,6 +152,8 @@ describe("changing an entry by a pull request", () => {
     assert.equal(prs.length, 1);
     assert.equal(prs[0]?.base, "main");
     assert.equal(prs[0]?.title, "brigade: edit a know-how entry (#205)");
+    assert.equal(ecrits[0]?.message, "brigade: edit a know-how entry (#205) (from the app, Settings > Project know-how)");
+    assert.match(String(prs[0]?.body), /^Proposed from the app \(Settings > Project know-how\): edit a know-how entry \(#205\) in `\.brigade\/know-how\.md`\./);
   });
 
   test("a removal deletes exactly that line on a new branch, and opens a pull request", async () => {
