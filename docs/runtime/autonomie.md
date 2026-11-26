@@ -139,3 +139,20 @@ or a cook proposes it again, an approved gesture waits.
 A levels file, a pending file or a gesture log that cannot be read is refused: the gesture is not done, nothing is
 guessed in its place, and no file is overwritten. A cook's gate that cannot be read is said, and the turn goes on with
 the next ticket.
+
+## Risk classes of the project sheet
+
+The declaration lives on the `risks` line of the project sheet, `.brigade/fiche-projet.json` ([fiche-projet.md](fiche-projet.md)).
+Each class has a name and exactly one trigger shape: a path zone (a change touching these paths is risky) or a command
+shape (a command or API gesture, such as `gh release`). A class may say `hold`, which holds the gesture even at level
+`act`. No free text is read as a rule; an entry with no trigger shape is refused and said, and the kitchen runs without it.
+The rules are in [simplified process](../superpowers/specs/2026-11-24-simplified-process.md), the project sheet section.
+
+The gate of the agents' gestures enforces the classes: `runtime/src/autonomie/agents/porte.ts` reads them through
+`runtime/src/autonomie/risque.ts`. A gesture that matches a class is held as a pending gesture when its agent's level is
+`propose` or the class says `hold`, and its gesture log records `reason: risk class <name>`.
+
+The pass stops a delivery touching a declared zone before it is served (push, merge, publish) until the chef answers.
+The chef answers on the TODO card, with the existing pending-gesture answers.
+
+With no `risks` line in the project sheet, nothing changes.
