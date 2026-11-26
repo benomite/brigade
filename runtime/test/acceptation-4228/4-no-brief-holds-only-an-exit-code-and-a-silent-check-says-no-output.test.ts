@@ -13,6 +13,22 @@ test("a red check that gives no output is named with « no output », and none o
     journalDuCheck: async (check: Check) => (check.name === "silent-check" ? null : "##[group]Run npm test\n✖ the exit-only check has a failing test (3ms)\n##[error]Process completed with exit code 1."),
   };
   const brief = briefDuRenvoi(await lireLeRenvoi(github, { number: 99, sha: "c".repeat(40) }, [rouge("silent-check"), rouge("exit-only-check")], ""), "main");
+  const nu = briefDuRenvoi(
+    await lireLeRenvoi(
+      {
+        commentaires: async () => [],
+        annotationsDuCheck: async () => [{ chemin: ".github", ligne: 1, titre: "bare-check", message: "Process completed with exit code 1." }],
+        journalDuCheck: async () => "##[error]Process completed with exit code 1.",
+      },
+      { number: 99, sha: "c".repeat(40) },
+      [rouge("bare-check")],
+      "",
+    ),
+    "main",
+  );
+  // Un check qui ne dit que son code de sortie est nommé, avec « no output » : le code seul n'est jamais le brief.
+  assert.match(nu, /bare-check[\s\S]*?no output/i);
+  assert.doesNotMatch(nu, /exit code/);
 
   assert.match(brief, /silent-check[\s\S]*?no output/i);
   assert.match(brief, /exit-only-check/);

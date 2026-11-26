@@ -76,7 +76,7 @@ import { consigneDesOutils, outilsDuCook } from "./outils-du-cook.ts";
 import { consigneDesTestsDeLaZone, selectionnerTests } from "./tests-de-la-zone/tests-de-la-zone.ts";
 import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteDepassee, fermerLesCartesCaduques, livraisonSansObjet, reponsesGardees, retenirLeDesign } from "./validation-design/validation-design.ts";
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
-import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
+import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, sortieDesGates, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
 import { enLivraisonDuTour, laisserAuxCooksHumains } from "./cook-humain/livraison.ts";
 import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts";
@@ -104,7 +104,7 @@ import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
 import { geste as gesteDeBox } from "./geste.ts";
 import { ligneDuMotif } from "./renvoi-sur-le-fond/motif.ts";
 import { verdictDeLaRelecture } from "./renvoi-sur-le-fond/regle.ts";
-import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
+import { briefDuRenvoi, lireLeRenvoi, type GitHubDuBrief, type Renvoi } from "./brief-renvoi.ts";
 import { consigneDeLIntegration, integrerAvantLeCook, suiteDuBlocageTechnique } from "./renvoi-conflit.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche, type MiseAJourDeLaBranche } from "./mise-a-jour-branche/mise-a-jour-branche.ts";
 import { degelerLesConflits, partirSurLaBase, renvoisPourLaBase, suiteDuConflitBloque } from "./conflit-main/conflit-main.ts";
@@ -3363,7 +3363,21 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
               nomsRouges = rouges.map((check) => check.name).sort();
             }
           }
-          renvoi = await lireLeRenvoi(options.github, ouverte, rouges, depot.diff(branche));
+          // `brigade/gates` n'a pas d'annotation : sa sortie est celle que son statut porte (#4228).
+          const github = options.github;
+          const duBrief: GitHubDuBrief = {
+            commentaires: (numero) => github.commentaires(numero),
+            annotationsDuCheck: async (check) => {
+              if (check.name === CONTEXTE_DES_GATES && github.statuts !== undefined) {
+                const sortie = sortieDesGates(await github.statuts(ouverte.sha, CONTEXTE_DES_GATES));
+                if (sortie !== null) return [{ chemin: null, ligne: null, titre: check.name, message: sortie }];
+              }
+              return (await github.annotationsDuCheck?.(check)) ?? [];
+            },
+            journalDuCheck: async (check) => (await github.journalDuCheck?.(check)) ?? null,
+            etapesEnEchec: async (check) => (await github.etapesEnEchec?.(check)) ?? [],
+          };
+          renvoi = await lireLeRenvoi(duBrief, ouverte, rouges, depot.diff(branche));
         }
       } catch {
         // Illisible, la PR ne retient pas le cook : il part comme avant.

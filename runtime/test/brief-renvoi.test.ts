@@ -44,8 +44,8 @@ test("a cook sent back after a red CI gets each failing check's name and failure
   const brief = briefDuRenvoi(await lireLeRenvoi(github, pr, [rouge("tests app (3/3)"), rouge("types (app)", null), rouge("gates")], ""), "main");
   assert.match(brief, /### What the CI says is red/);
   assert.ok(brief.includes(`#### \`tests app (3/3)\`\n\n\`\`\`\napp/test/peau.test.ts:57 — tests app (3/3)\n${sortie}\n\`\`\``));
-  assert.match(brief, /#### `types \(app\)`\n\n_GitHub gives no failure annotation for this check\._/);
-  assert.match(brief, /#### `gates`\n\n_GitHub gives no failure annotation for this check: https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/5_/);
+  assert.match(brief, /#### `types \(app\)`\n\n_No output: GitHub gives no failure annotation for this check\._/);
+  assert.match(brief, /#### `gates`\n\n_No output: GitHub gives no failure annotation for this check: https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/5_/);
   assert.doesNotMatch(brief, /What the review asked/);
 });
 

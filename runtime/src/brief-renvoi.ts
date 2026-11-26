@@ -19,6 +19,7 @@
 // l'aveugle, jusqu'à onze CI rouges sur un ticket (#3806).
 import { lignesDeTestsEnEchec, sortieDErreur } from "./checks-de-la-branche.ts";
 import { dernierVerdict } from "./github-etat/fusion.ts";
+import { secondJugementDe } from "./second-juge.ts";
 import type { Check } from "./events/pass.ts";
 import type { AnnotationDeCheck, Commentaire } from "./github.ts";
 
@@ -51,14 +52,22 @@ function annotationEnTexte({ chemin, ligne, titre, message }: AnnotationDeCheck)
   return [tete, message.trimEnd()].filter((partie) => partie !== "").join("\n");
 }
 
+// Un message qui ne dit que le code de sortie d'une étape : il ne nomme rien.
+const SEUL_CODE = /^(?:##\[error\])?Process completed with exit code -?\d+\.?$/;
+const ditSeulementUnCode = (message: string) => SEUL_CODE.test(message.trim());
+
 // Les remarques de la relecture, si son dernier verdict demande des
 // changements sur la tête `sha` : le corps du verdict, après son marqueur et sa
-// ligne « Changes requested by station … ».
+// ligne « Changes requested by station … ». Et les raisons du second juge, s'il
+// refuse cette tête (#4228) : elles arrivent au cook comme celles de la relecture.
 function remarquesDeLaRelecture(commentaires: Commentaire[], sha: string): string | null {
   const numerotes = commentaires.map((commentaire, id) => ({ ...commentaire, id }));
   const verdict = dernierVerdict(numerotes);
-  if (verdict === null || verdict.verdict !== "request-changes" || verdict.sha !== sha) return null;
-  return numerotes[verdict.commentaire]?.body.split("\n").slice(2).join("\n").trim() || null;
+  const relecture = verdict === null || verdict.verdict !== "request-changes" || verdict.sha !== sha ? null : numerotes[verdict.commentaire]?.body.split("\n").slice(2).join("\n").trim() || null;
+  const second = secondJugementDe(numerotes, sha);
+  const raisons = second === null || second.verdict !== "request-changes" || second.motif === "" ? null : second.motif;
+  if (relecture === null) return raisons === null ? null : `The second judge asked for changes:\n\n${raisons}`;
+  return raisons === null ? relecture : `${relecture}\n\nThe second judge asked for changes too:\n\n${raisons}`;
 }
 
 // Lit sur GitHub ce que la livraison renvoyée laisse au cook : la PR `pr`, ses
@@ -83,8 +92,11 @@ export async function lireLeRenvoi(github: GitHubDuBrief, pr: { number: number; 
     } catch {
       // Le check est dit sans ses étapes.
     }
+    // Un code de sortie seul ne dit rien de ce qui a échoué : le brief ne s'en contente pas (#4228).
+    let informatif = dites.length > 0 || annotations.some(({ message }) => !ditSeulementUnCode(message));
     dites.push(...annotations.map(annotationEnTexte));
-    if (annotations.every(({ chemin }) => chemin === null)) {
+    // Une étape de workflow est annotée sur `.github`, et d'un code de sortie seul : aucune ne nomme alors ce qui a échoué.
+    if (annotations.every(({ chemin, message }) => chemin === null || chemin === ".github" || ditSeulementUnCode(message))) {
       let journal: string | null = null;
       try {
         journal = (await github.journalDuCheck?.(check)) ?? null;
@@ -95,8 +107,9 @@ export async function lireLeRenvoi(github: GitHubDuBrief, pr: { number: number; 
       if (fin !== "") dites.push(`The end of the job's log:\n${fin}`);
       const manquantes = journal === null ? [] : lignesDeTestsEnEchec(journal).filter((ligne) => !fin.includes(ligne));
       if (manquantes.length > 0) dites.push(`The failing test lines of the job's log:\n${manquantes.join("\n")}`);
+      if ([...fin.split("\n"), ...manquantes].some((ligne) => ligne.trim() !== "" && !ditSeulementUnCode(ligne))) informatif = true;
     }
-    lus.push({ nom: check.name, url: check.url, sortie: dites.join("\n\n") });
+    lus.push({ nom: check.name, url: check.url, sortie: informatif ? dites.join("\n\n") : "" });
   }
   return { relecture, rouges: lus, diff };
 }
@@ -122,7 +135,7 @@ export function briefDuRenvoi(renvoi: Renvoi | null, base: string): string {
     const nommes: string[] = [];
     for (const { nom, url, sortie } of renvoi.rouges) {
       const titre = `#### \`${nom}\``;
-      const sans = url === null ? "_GitHub gives no failure annotation for this check._" : `_GitHub gives no failure annotation for this check: ${url}_`;
+      const sans = url === null ? "_No output: GitHub gives no failure annotation for this check._" : `_No output: GitHub gives no failure annotation for this check: ${url}_`;
       const dit = sortie === "" ? [titre, "", sans].join("\n") : [titre, "", bloc(sortie)].join("\n");
       if (taille + octets(dit) > OCTETS_DU_RENVOI) {
         nommes.push(url === null ? `\`${nom}\`` : `\`${nom}\` (${url})`);

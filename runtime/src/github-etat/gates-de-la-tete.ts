@@ -112,3 +112,12 @@ export async function jouerLesGatesDeLaTete(
     lieu.liberer();
   }
 }
+
+// Ce que dit le dernier verdict rouge des gates de la tête, en entier — le nom des gates en échec et leur sortie telle que
+// son statut la porte, sans le « Gates red on station … » du début — pour le brief du cook renvoyé (#4228) ; null sans verdict rouge.
+export function sortieDesGates(statuts: readonly StatutDeCommit[]): string | null {
+  const verdict = statuts.filter(({ state }) => state !== "pending").at(-1);
+  if (verdict === undefined || verdict.state === "success") return null;
+  const dit = (ROUGES.exec(verdict.description)?.[1] ?? verdict.description).trim();
+  return dit === "" ? null : dit;
+}

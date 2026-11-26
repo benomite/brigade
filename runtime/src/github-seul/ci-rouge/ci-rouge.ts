@@ -47,7 +47,7 @@ export async function ceQueDitLaCiRouge(github: GitHubDeLaCiRouge, rouges: Check
       // Illisibles, elles ne retiennent pas le cook : le check est dit sans elles.
     }
     const titre = `#### \`${check.name}\``;
-    const sans = check.url === null ? "_GitHub gives no failure annotation for this check._" : `_GitHub gives no failure annotation for this check: ${check.url}_`;
+    const sans = check.url === null ? "_No output: GitHub gives no failure annotation for this check._" : `_No output: GitHub gives no failure annotation for this check: ${check.url}_`;
     const texte = couper(annotations.map(annotationEnTexte).join("\n\n"), DIT_MAX);
     const bloc = texte === "" ? [titre, "", sans].join("\n") : [titre, "", cloture(texte), texte, cloture(texte)].join("\n");
     if (blocs.length > 0 && taille + bloc.length > DIT_MAX) break;

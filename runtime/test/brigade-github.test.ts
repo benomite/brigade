@@ -2221,7 +2221,7 @@ test("a cook that takes a ticket whose PR's CI is red is given what the red chec
   assert.deepEqual(lus, ["tests app (3/3)", "types (app)"]);
   assert.match(consigne, /## Work left on the delivery\n\nthe CI of PR #99 is red\./);
   assert.match(consigne, /### What the CI says is red[\s\S]*#### `tests app \(3\/3\)`\n\n```\ntests app \(3\/3\)\n✖ failing tests:\n\ntest at test\/peau\.test\.ts:57:1\n✖ the skin has no hard-coded colour\n```/);
-  assert.match(consigne, /#### `types \(app\)`\n\n_GitHub gives no failure annotation for this check: https:\/\/github\.com\/faux\/depot\/actions\/runs\/7\/job\/32_/);
+  assert.match(consigne, /#### `types \(app\)`\n\n_No output: GitHub gives no failure annotation for this check: https:\/\/github\.com\/faux\/depot\/actions\/runs\/7\/job\/32_/);
   assert.doesNotMatch(consigne, /tests runtime \(1\/16\)/);
 });
 

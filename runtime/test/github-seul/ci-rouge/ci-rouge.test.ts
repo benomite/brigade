@@ -31,10 +31,10 @@ test("a check with no annotation, or whose annotations GitHub does not give, is 
     },
     [rouge("gates"), rouge("types (app)", null)],
   );
-  assert.match(dit, /#### `gates`\n\n_GitHub gives no failure annotation for this check: https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/5_/);
-  assert.match(dit, /#### `types \(app\)`\n\n_GitHub gives no failure annotation for this check\._/);
+  assert.match(dit, /#### `gates`\n\n_No output: GitHub gives no failure annotation for this check: https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/5_/);
+  assert.match(dit, /#### `types \(app\)`\n\n_No output: GitHub gives no failure annotation for this check\._/);
   // Un client sans lecture des annotations dit les checks de même.
-  assert.match(await ceQueDitLaCiRouge({}, [rouge("gates")]), /#### `gates`\n\n_GitHub gives no failure annotation/);
+  assert.match(await ceQueDitLaCiRouge({}, [rouge("gates")]), /#### `gates`\n\n_No output: GitHub gives no failure annotation/);
 });
 
 test("the text stays bounded: a long message keeps its start, past the checks read or the size the others are only named", async () => {
