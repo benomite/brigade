@@ -1,5 +1,5 @@
-/* L'équipe d'un projet (ticket 4029) : en tête de sa vue, une rangée de badges, un par agent, qui passe à la ligne ; le fil
-   de l'agent ouvert dessous, dans la carte de l'app. Seules des variables de jetons.css portent une couleur. */
+/* L'équipe d'un projet (ticket 4029) : en tête de sa vue, une rangée de badges d'une ligne chacun (ticket 4354), un par
+   agent ; le fil de l'agent ouvert dessous, dans la carte de l'app. Seules des variables de jetons.css portent une couleur. */
 #equipe-du-projet {
   padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
@@ -11,10 +11,8 @@
 }
 .equipe .badge {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0;
-  min-width: 180px;
+  align-items: center;
+  gap: var(--pas-1);
   max-width: 260px;
   padding: var(--pas-1) var(--pas-2);
   font: inherit;
@@ -33,16 +31,11 @@
 .equipe .badge[data-etat="casse"] {
   border-left: 3px solid var(--rouge);
 }
-.equipe .badge > span {
+.equipe .badge > span:not(.pastille) {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.equipe .badge .tete {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
 }
 .equipe .badge .nom {
   font-weight: 600;
@@ -51,13 +44,8 @@
 .equipe .badge .etat {
   color: var(--texte);
 }
-.equipe .niveau {
-  padding: 0 var(--pas-1);
-  color: var(--discret);
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-pastille);
-}
-.equipe .badge .prochaine {
+.equipe .fil .geste,
+.equipe .fil .prochaine {
   color: var(--discret);
 }
 .equipe .badge .attente {

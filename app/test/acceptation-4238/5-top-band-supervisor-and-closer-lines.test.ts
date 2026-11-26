@@ -1,4 +1,5 @@
-// Test d'acceptation gelé (#4238). Critère 5 : la bande du haut montre la ligne du supervisor (ce qu'il surveille, sa dernière action, ce qu'il a parked pour le chef) et celle du closer (dernier rangement, prochain).
+// Test d'acceptation de #4238, critère 5, revu par #4354 : la bande du haut montre le supervisor et le closer en petites cartes
+// sur une ligne — son nom, un point d'état, deux ou trois mots — et leur détail s'ouvre d'un clic ; aucune phrase.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
@@ -45,7 +46,7 @@ const colonnes = (vue: Jouee): Faux[] => (vue.element("rail").children.find(({ c
 const colonne = (vue: Jouee, nom: RegExp): Faux => colonnes(vue).find((c) => nom.test(titres(c)[0] ?? "")) ?? assert.fail(`pas de colonne ${nom}`);
 const numeros = (el: Faux): number[] => el.dessous("li").filter(({ dataset }) => dataset.ticket !== undefined).map(({ dataset }) => Number(dataset.ticket));
 
-test("la bande du haut porte la ligne du supervisor et celle du closer", async () => {
+test("la bande du haut porte une carte du supervisor et une du closer, leur détail à un clic", async () => {
   const vue = await montrer({
     rail: [carte(31, "pris")],
     rolesCuisine: [
@@ -53,13 +54,12 @@ test("la bande du haut porte la ligne du supervisor et celle du closer", async (
       { role: "closer", does: "tidies what is served", latest: { what: "removed dead code", ticket: null, at: "2026-11-25T06:00:00Z" } },
     ],
   });
-  const bande = vue.element("rail").children.find(({ className }) => /top-band|bande-du-haut|band-top|haut/.test(className) && !/backlog/.test(className)) ?? assert.fail("pas de bande du haut");
-  const lignes = bande.children.map((c) => c.textContent);
-  const supervisor = lignes.find((t) => /supervisor/i.test(t)) ?? assert.fail("pas de ligne du supervisor");
-  assert.match(supervisor, /watch/i);
-  assert.match(supervisor, /last/i);
-  assert.match(supervisor, /parked #31|parked/i);
-  const closer = lignes.find((t) => /closer/i.test(t)) ?? assert.fail("pas de ligne du closer");
-  assert.match(closer, /last tidy/i);
-  assert.match(closer, /next tidy/i);
+  const bande = vue.element("rail").children.find(({ className }) => className === "bande-du-haut") ?? assert.fail("pas de bande du haut");
+  const cartes = bande.dessous("button");
+  assert.deepEqual(cartes.map(({ dataset }) => dataset.agent), ["supervisor", "closer"]);
+  assert.match(cartes[0]?.textContent ?? "", /^supervisorok$/);
+  assert.match(cartes[1]?.textContent ?? "", /^closertidied \d+ (min|h|d) ago$/);
+  assert.deepEqual(bande.dessous("p"), [], "aucune phrase tant que rien n'est ouvert");
+  cartes[0]?.click();
+  assert.match(bande.dessous("p")[0]?.textContent ?? "", /watches the whole kitchen · last: parked #31 for the chef/);
 });

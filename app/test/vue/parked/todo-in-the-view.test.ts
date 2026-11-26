@@ -48,7 +48,13 @@ const pourLeChef = (quoi: string) => ({ quoi, qui: "the chef", depuis: "2026-11-
 const FAITS = {
   rail: [carte(51, "pris", { tiers: pourLeChef("your call") }), carte(52, "en pass", { tiers: pourLeChef("the logo") }), carte(53, "pris", { tiers: { ...pourLeChef("the keys"), qui: "Camille" } })],
 };
-const todoDe = (vue: Jouee) => vue.element("rail").children.find(({ className }) => className === "todo-du-rail") ?? assert.fail("pas de TODO");
+// Le TODO est une ligne au-dessus des colonnes (#4354) : un clic la déplie, s'il ne l'est pas déjà.
+const todoDe = (vue: Jouee) => {
+  const avis = vue.element("rail").children.find(({ className }) => className === "avis-du-todo") ?? assert.fail("pas de TODO");
+  const [ligne] = avis.dessous("button");
+  if (ligne?.ariaExpanded !== "true") ligne?.click();
+  return avis.children.find(({ className }) => className === "todo-du-rail") ?? assert.fail("TODO pas déplié");
+};
 const entrees = (vue: Jouee) => todoDe(vue).dessous("li").filter(({ className }) => className === "entree-du-todo");
 const entree = (vue: Jouee, ticket: number) => entrees(vue).find(({ dataset }) => dataset.ticket === String(ticket)) ?? assert.fail(`pas de #${ticket}`);
 const attentes = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "attente").map(({ args }) => args);

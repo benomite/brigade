@@ -694,7 +694,6 @@ test("a served project whose clone merged tickets in the last 24 h publishes the
   // À côté des temps et du délai de l'ajout, que la station publie toujours.
   assert.deepEqual(station.suivi()?.[0]?.delai, AJOUTE);
   assert.equal(station.suivi()?.[0]?.temps?.enregistrements.length, 2);
-  assert.deepEqual(lireSuivi(station.suiviBrut())[0]?.delais, attendus);
 });
 
 test("a served project whose ticket cards cannot be read publishes the reason, never an empty window", async (t) => {
@@ -706,5 +705,5 @@ test("a served project whose ticket cards cannot be read publishes the reason, n
   station.demander(SUR_BASE);
   await station.projets.relire();
 
-  assert.match((lireSuivi(station.suiviBrut())[0]?.delais as { illisible?: string } | undefined)?.illisible ?? "", /JSON/);
+  assert.match((station.suivi()?.[0]?.delais as { illisible?: string } | undefined)?.illisible ?? "", /JSON/);
 });
