@@ -978,8 +978,9 @@ its detail on hover. A second click on the badge closes the thread. A click on a
 **Agents** tab (#4224, below).
 
 The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which
-calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The runtime side is another ticket of the
-epic: until the bridge carries them, the reading gives nothing and the project view shows no badge. A reading that
+calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The main process answers `lireLesAgents` (#4327,
+`app/src/equipe-de-la-box.ts`) with the `equipe` of `facts`, run where the project's kitchen runs; a project that does not
+cook on this computer gives nothing and shows no badge. `reglerLAutonomie` and `approuverLeGeste` are not carried yet. A reading that
 fails says `The agents not reached.`, and a record missing a field says the reading is not readable: no value is made
 up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
@@ -1035,6 +1036,24 @@ another shape, or of an unknown kind, is counted in one line, never sorted; a `d
 chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/journal/fils.ts`, the words the runtime's digest must write); a
 digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
 the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
+
+### The last 24 hours: tickets merged on time, and the slowest overruns (#4309, epic #4298)
+
+At the top of the project view, **Last 24 hours** shows the share of tickets merged within their expected time —
+`83 % merged within their expected time (20/24)` —, then the worst overruns, worst first (the most minutes over the
+expected time): each says its ticket number, its title, its expected time and its actual time. A click on an overrun
+opens where its time went — cook, gates, review, send-backs, waits —, in minutes; a second click closes it.
+
+The data is the `delais` object that `brigade <project> status --json` returns. Each station that serves the project
+computes it from its clone and publishes it in its follow-up next to `temps` (`runtime/src/projets/tenir.ts`), as soon
+as a ticket merged in the last 24 hours; the app relays it as is (`app/src/projets/demande.ts`,
+`app/src/projets/projets.ts`) and `app/src/vue-delais/delais.js` reads it. With no `delais`, a `part_dans_les_temps`
+that is `null`, or a share that is not readable, the block says `No ticket merged with an expected time in the last 24
+hours.` — never a made-up figure. When the station cannot read its clone's ticket files, it publishes the reason and
+the block says `The merged tickets cannot be read: <reason>`. An overrun with no readable time or title is left out;
+one whose breakdown is not readable says so when opened. Captures: `docs/captures/4309/` — `espace-projet-avant.png`,
+`espace-projet-apres.png` (no `delais`: the short empty line), `projet-delais-apres.png` and
+`projet-delais-ouvert-apres.png` (the worst overrun opened).
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
