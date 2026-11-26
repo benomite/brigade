@@ -1,6 +1,6 @@
 // La page d'une station, la vue jouée (#877) : ouverte d'un clic sur sa ligne de l'accueil, elle dit
 // en tête son nom, sa pastille et son état en une phrase — en ligne et ses cooks, hors ligne depuis
-// quand, saturée —, et un geste visible ramène à l'accueil. Sa machine et sa version ne se lisent
+// quand —, et un geste visible ramène à l'accueil. Sa machine et sa version ne se lisent
 // qu'au survol de l'icône d'aide, jamais dans la page. La phrase se calcule dans accueil.ts
 // (accueil.test.ts) : ici, ce que la vue en pose.
 import assert from "node:assert/strict";
@@ -21,12 +21,12 @@ import { type Faux, jouerLaVue, ouvrirToutesLesStations, type Reponses, repos } 
 const A = "2026-10-16T12:00:00.000Z";
 const EN_LIGNE: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0-47-amd64", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
 const HORS_LIGNE: StationVue = { ...EN_LIGNE, id: "g2", nom: "mac", machine: "macOS 25.0.0", etat: "hors-ligne", ligne: "offline for 12 min · version 1.4.0 · 1 project: parade", dit: "offline for 12 min", max: null };
-const SATUREE: StationVue = { ...EN_LIGNE, id: "g3", nom: "atelier", machine: "Debian 12 · 8 cores" };
-const STATIONS = [EN_LIGNE, HORS_LIGNE, SATUREE];
-// Les lignes de l'accueil telles que le process principal les dit : deux cooks sur « box », « atelier » saturée.
+const ATELIER: StationVue = { ...EN_LIGNE, id: "g3", nom: "atelier", machine: "Debian 12 · 8 cores" };
+const STATIONS = [EN_LIGNE, HORS_LIGNE, ATELIER];
+// Les lignes de l'accueil telles que le process principal les dit : deux cooks sur « box », « atelier » un.
 const ACCUEIL: Accueil = {
   projets: [],
-  stations: [ligneDeStation(EN_LIGNE, 2, false), ligneDeStation(HORS_LIGNE, 0, false), ligneDeStation(SATUREE, 1, true)],
+  stations: [ligneDeStation(EN_LIGNE, 2), ligneDeStation(HORS_LIGNE, 0), ligneDeStation(ATELIER, 1)],
   sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" },
 };
 
@@ -61,7 +61,7 @@ async function laPage(nom: string, reponses: Reponses = {}) {
   return { jouee, page: jouee.element("station") };
 }
 
-test("un clic sur une station ouvre sa page : son nom, sa pastille et son état en une phrase — en ligne, hors ligne, saturée", async () => {
+test("un clic sur une station ouvre sa page : son nom, sa pastille et son état en une phrase — en ligne, hors ligne, un seul cook", async () => {
   const vues = [];
   for (const nom of ["box", "mac", "atelier"]) {
     const { jouee, page } = await laPage(nom);
@@ -71,7 +71,7 @@ test("un clic sur une station ouvre sa page : son nom, sa pastille et son état 
   assert.deepEqual(vues, [
     { nom: "box", ton: "vert", phrase: "online · 2 cooks running" },
     { nom: "mac", ton: "gris", phrase: "offline for 12 min" },
-    { nom: "atelier", ton: "jaune", phrase: "saturated" },
+    { nom: "atelier", ton: "vert", phrase: "online · 1 cook running" },
   ]);
 });
 
@@ -101,7 +101,7 @@ test("un geste visible, « ‹ All projects », ramène à l'accueil", async () 
 
 test("relue, la page suit : une station qui passe hors ligne le dit dans sa phrase, et sa pastille grisit", async () => {
   const { jouee, page } = await laPage("box");
-  jouee.dire("surAccueil", { ...ACCUEIL, stations: [ligneDeStation({ ...EN_LIGNE, etat: "hors-ligne", dit: "offline for 3 min", max: null }, 0, false)] });
+  jouee.dire("surAccueil", { ...ACCUEIL, stations: [ligneDeStation({ ...EN_LIGNE, etat: "hors-ligne", dit: "offline for 3 min", max: null }, 0)] });
   await repos();
   assert.deepEqual(enTete(page), { nom: "box", ton: "gris", phrase: "offline for 3 min" });
 });
@@ -160,7 +160,7 @@ test("confirmer retire la station et ramène à l'accueil", async () => {
   assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-bloc-projets"), "l'accueil est là");
   assert.ok(!jouee.element("tous").children.includes(page));
   // La lecture suivante ne la contient plus : elle n'est plus dans la liste de l'accueil.
-  jouee.dire("surStations", { a: A, stations: [HORS_LIGNE, SATUREE] });
+  jouee.dire("surStations", { a: A, stations: [HORS_LIGNE, ATELIER] });
   jouee.dire("surAccueil", { ...ACCUEIL, stations: ACCUEIL.stations?.filter(({ id }) => id !== "g1") });
   await repos();
   const lignes = jouee.element("toutes-les-stations").dessous("button").filter(({ className }) => className === "ligne");

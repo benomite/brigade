@@ -7,6 +7,7 @@
 // qu'il n'a pas vu. Une panne porte toujours une action : ce que la cuisine a déjà fait (`done`), ou un seul bouton.
 // Un fait qu'on ne lui donne pas (null) n'est jamais une cause : il passe au suivant.
 import { LABELS_D_ECART, MOTS_DU_GESTE, type Geste } from "../attente-du-rail/stations.ts";
+import { estParque } from "../github-etat/etats.ts";
 
 // Un ticket `fire` : ses labels, une décision ouverte, une attente (sur qui, quand on le sait).
 export type TicketDeLaPanne = { numero: number; labels: readonly string[]; decisionOuverte: boolean; enAttente: boolean; enAttenteDe?: string };
@@ -25,7 +26,6 @@ export type Bilan = Diagnostic | { state: "ready"; cause: string; action: null }
 
 const LABEL_FIRE = "fire";
 const EN_CUISINE = ["taken", "in-pass"];
-const LABEL_WAITING = "waiting";
 const LABELS_DE_DECISION = ["decision", "question"];
 
 const bouton = (id: Reparation, label: string): ActionDeLaPanne => ({ kind: "button", label, id });
@@ -35,7 +35,8 @@ const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? "s" : ""}`;
 type Retenue = "decision" | "hold" | "label";
 function retenueDe(ticket: TicketDeLaPanne): Retenue | null {
   if (ticket.decisionOuverte || ticket.labels.some((label) => LABELS_DE_DECISION.includes(label))) return "decision";
-  if (ticket.enAttente || ticket.labels.includes(LABEL_WAITING)) return "hold";
+  // Parqué : `parked`, une carte du chef ou un label d'avant parked (`estParque`).
+  if (ticket.enAttente || estParque(ticket.labels)) return "hold";
   if (ticket.labels.some((label) => LABELS_D_ECART.includes(label))) return "label";
   return null;
 }
@@ -60,7 +61,7 @@ export function diagnostiquer(entree: EntreeDeLaPanne): Bilan {
   }
   if (rail.boucleDeRelance === true) {
     const quel = rail.ticketEnBoucle === undefined ? "a ticket" : `#${rail.ticketEnBoucle}`;
-    return { state: "fault", cause: `the kitchen relaunched ${quel} in a loop`, action: { kind: "done", text: `the kitchen put ${quel} in WAITING, out of the loop` } };
+    return { state: "fault", cause: `the kitchen relaunched ${quel} in a loop`, action: { kind: "done", text: `the kitchen parked ${quel}, out of the loop` } };
   }
   // 2 les labels : seuls les tickets `fire` sont à cuire ; un ticket pris ou en pass, la cuisine cuit.
   const feux = entree.tickets.filter(({ labels }) => labels.includes(LABEL_FIRE));

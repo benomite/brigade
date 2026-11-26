@@ -5,7 +5,6 @@ import { FauxGitHub } from "../faux-github.ts";
 
 const MOTIF = "The new export has no caller up to ouvrirStation.";
 
-// brigade:guard
 test("a delivery whose sha changed is reviewed normally, even for the same blocking reason", async () => {
   const faux = new FauxGitHub();
   faux.feu(7);

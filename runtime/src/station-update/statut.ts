@@ -41,9 +41,6 @@ export type StatutDeLaStation = {
   held: string | null;
   // La release téléchargée et vérifiée, prête à lancer.
   ready: string | null;
-  // Une release prête attend le moment de la relance : la station prend encore
-  // ses tickets, et dit ses cooks en vol (#2815).
-  draining: { since: string; cooks: number[] } | null;
   // La demande de relance, une fois faite.
   restart: DemandeDeRelance | null;
 };
@@ -51,7 +48,7 @@ export type StatutDeLaStation = {
 export const dossierDe = (racine: string) => join(racine, DOSSIER);
 
 export function statutVierge(version: string): StatutDeLaStation {
-  return { stationVersion: version, latestStationVersion: null, behind: false, checkedAt: null, check: null, held: null, ready: null, draining: null, restart: null };
+  return { stationVersion: version, latestStationVersion: null, behind: false, checkedAt: null, check: null, held: null, ready: null, restart: null };
 }
 
 const lireJson = (fichier: string): unknown => {

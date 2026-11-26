@@ -10,15 +10,15 @@ import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
-import { CHEF_TODO } from "../../src/github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_DU_CONFLIT_MAIN } from "../../src/conflit-main/renvoi.ts";
 import type { GitHub } from "../../src/github.ts";
 import type { SortieGit } from "../../src/integration-base.ts";
 import { apresLaMiseAJour, demandeLaBase, mettreAJourLaBranche } from "../../src/mise-a-jour-branche/mise-a-jour-branche.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 
 const TICKET = 7;
 const BRANCHE = `cook/${TICKET}-github`;
@@ -92,7 +92,7 @@ function station(t: TestContext, cook: Cook, avant?: (depot: { origine: string; 
 
 const sansCarte = (s: ReturnType<typeof station>) => {
   assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false, "no TODO card");
-  assert.equal(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), false, "never blocked-on-human");
+  assert.equal(s.faux.ticket(TICKET).labels.has(CHEF_TODO), false, "never blocked-on-human");
   assert.deepEqual(s.consultations, [], "the question never reaches the manager, who could put a card");
 };
 
@@ -127,6 +127,18 @@ test("a cook starts on a branch that contains the current origin tip, when the o
 test("a cook resuming a branch cut from an older base starts with the current origin tip merged into it", async (t) => {
   const { s, tete } = await unCookSurLaTeteDeLOrigine(t, ({ clone }) => git(clone, "branch", BRANCHE, BASE));
   git(s.clone, "merge-base", "--is-ancestor", tete, BRANCHE);
+});
+
+test("the merge the station commits on the cook's branch, which goes into its PR, is in English (#4056)", async () => {
+  const appels: string[][] = [];
+  const git = async (args: string[]): Promise<SortieGit> => {
+    appels.push(args);
+    // La tête de la base n'est pas dans la branche : la station fusionne.
+    return { code: args[0] === "merge-base" ? 1 : 0, stdout: "", stderr: "" };
+  };
+  assert.deepEqual(await mettreAJourLaBranche(git, "/nulle-part", "main"), { etat: "fusionnee" });
+  const fusion = appels.find((args) => args[0] === "merge") ?? [];
+  assert.equal(fusion[fusion.indexOf("-m") + 1], "brigade: branch updated from origin/main");
 });
 
 test("a cook that stops because it needs commits on the base: the station merges origin into its branch and a cook resumes it, with no TODO card", async (t) => {

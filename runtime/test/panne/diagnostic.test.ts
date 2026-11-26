@@ -19,7 +19,7 @@ describe("le rail d'abord", () => {
   });
 
   test("une boucle de relances : la cuisine a sorti le ticket de la boucle, et le nomme", () => {
-    assert.deepEqual(diagnostiquer(entree({ rail: { mainRouge: null, boucleDeRelance: true, ticketEnBoucle: 7 } })), { state: "fault", cause: "the kitchen relaunched #7 in a loop", action: { kind: "done", text: "the kitchen put #7 in WAITING, out of the loop" } });
+    assert.deepEqual(diagnostiquer(entree({ rail: { mainRouge: null, boucleDeRelance: true, ticketEnBoucle: 7 } })), { state: "fault", cause: "the kitchen relaunched #7 in a loop", action: { kind: "done", text: "the kitchen parked #7, out of the loop" } });
     assert.equal(diagnostiquer(entree({ rail: { mainRouge: null, boucleDeRelance: true } })).cause, "the kitchen relaunched a ticket in a loop");
   });
 
@@ -41,9 +41,9 @@ describe("les tickets", () => {
     assert.equal(diagnostiquer(entree({ tickets: [feu(1, ["decision"])] })).cause, "nothing to cook: 1 ticket waits on you or on a third party (1 open decision)");
   });
 
-  test("chaque retenue comptée : décisions (au pluriel, du label ou de l'issue), attentes, labels", () => {
-    const tickets = [feu(1, ["question"]), feu(2, [], { decisionOuverte: true }), feu(3, ["waiting"]), feu(4, ["blocked-on-human"]), feu(5, [], { enAttente: true, enAttenteDe: "client" })];
-    assert.deepEqual(diagnostiquer(entree({ tickets, stations: [] })), { state: "idle", cause: "nothing to cook: 5 tickets wait on you or on a third party (2 open decisions, 2 on hold, 1 set aside by a label)", action: null });
+  test("chaque retenue comptée : décisions (au pluriel, du label ou de l'issue), attentes (un label d'avant parked compte), labels", () => {
+    const tickets = [feu(1, ["question"]), feu(2, [], { decisionOuverte: true }), feu(3, ["waiting"]), feu(4, ["blocked-on-human"]), feu(5, [], { enAttente: true, enAttenteDe: "client" }), feu(6, ["idea"])];
+    assert.deepEqual(diagnostiquer(entree({ tickets, stations: [] })), { state: "idle", cause: "nothing to cook: 6 tickets wait on you or on a third party (2 open decisions, 3 on hold, 1 set aside by a label)", action: null });
   });
 
   test("un ticket faisable parmi des retenus : la cuisine peut cuire", () => {

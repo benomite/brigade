@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { attendusDesCommentaires, attendusDuBlocage, attendusDuCorps, corpsDeLAttente, MARQUE_D_ATTENTE_DE_TICKET } from "../../src/attente-ticket/attente-ticket.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { MARQUEUR } from "../../src/fiche.ts";
 import { LABEL_TAKEN } from "../../src/github-etat/etats.ts";
 import type { GitHub } from "../../src/github.ts";
@@ -93,7 +93,7 @@ test("a cook that stops on an open ticket's unmerged work: the ticket waits for 
   assert.equal(await s.tour(), null, "first turn: the cook takes the ticket");
   assert.equal(s.cooks(), 1);
   const ticket = s.faux.ticket(B);
-  assert.equal(ticket.labels.has(A_LA_MAIN), false, "not blocked-on-human");
+  assert.equal(ticket.labels.has(CHEF_TODO), false, "not blocked-on-human");
   assert.equal(ticket.labels.has(CHEF_TODO), false, "no chef TODO card");
   assert.equal(ticket.labels.has(LABEL_TAKEN), false, "given back to the rail");
   assert.equal(ticket.labels.has("fire"), true);

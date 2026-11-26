@@ -45,8 +45,8 @@ async function lire(t: TestContext, feux: unknown[], plus: Record<string, unknow
 }
 
 describe("la ligne `kitchen` de `status`", () => {
-  test("espace : une décision et deux tickets en WAITING, rien en file — au repos, sans lire les stations", async (t) => {
-    const feux = [issue(1, ["fire", "decision"]), issue(2, ["fire", "waiting"]), issue(3, ["fire", "waiting"]), issue(4, ["fire", "kitchen-board"]), issue(5, ["fire"], `${DEBUT}\n- [ ] #2\n${FIN}`)];
+  test("espace : une décision et deux tickets parqués (`parked`, et `waiting` d'avant), rien en file — au repos, sans lire les stations", async (t) => {
+    const feux = [issue(1, ["fire", "decision"]), issue(2, ["fire", "parked"]), issue(3, ["fire", "waiting"]), issue(4, ["fire", "kitchen-board"]), issue(5, ["fire"], `${DEBUT}\n- [ ] #2\n${FIN}`)];
     const lue = await lire(t, feux, { [`/repos/${DEPOT}/issues/2/comments?per_page=100`]: marque({ who: "the client" }) });
     assert.deepEqual([lue.cuisine, lue.stationsLues], [["kitchen    idle: nothing to cook: 3 tickets wait on you or on a third party (1 open decision, 2 on hold)"], false]);
   });
@@ -67,9 +67,9 @@ describe("la ligne `kitchen` de `status`", () => {
   });
 
   test("un ticket que la station a sorti de sa boucle de relances : la boucle, nommée", async (t) => {
-    const plus = { [`/repos/${DEPOT}/issues/7/comments?per_page=100`]: marque({ who: "the supervisor", whileSetAside: true }), [`/repos/${DEPOT}/issues/6/comments?per_page=100`]: marque({ who: "the client" }) };
-    const lue = await lire(t, [issue(6, ["fire", "waiting"]), issue(7, ["fire", "waiting"])], plus);
-    assert.deepEqual(lue.cuisine, ["kitchen    fault: the kitchen relaunched #7 in a loop", "           done: the kitchen put #7 in WAITING, out of the loop"]);
+    const plus = { [`/repos/${DEPOT}/issues/7/comments?per_page=100`]: marque({ who: "the supervisor", failures: true }), [`/repos/${DEPOT}/issues/6/comments?per_page=100`]: marque({ who: "the client" }) };
+    const lue = await lire(t, [issue(6, ["fire", "parked"]), issue(7, ["fire", "parked"])], plus);
+    assert.deepEqual(lue.cuisine, ["kitchen    fault: the kitchen relaunched #7 in a loop", "           done: the kitchen parked #7, out of the loop"]);
   });
 
   test("GitHub qui limite la station : la file listée reste, la cuisine ne juge pas des stations illisibles", async (t) => {

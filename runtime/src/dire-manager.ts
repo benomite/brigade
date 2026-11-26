@@ -27,17 +27,17 @@ export function ecart(issue: IssueDuManager): { motif: string; geste: string | n
   switch (issue.reason as Ecart) {
     case "chef-changed":
       return { motif: "you removed `fire` or a calibration the manager had set", geste: `\`${commandeRendre(issue.ticket)}\`: it rejudges it from scratch` };
-    case "blocked-on-human":
     case "question":
     case "decision":
+      return { motif: `it is parked for you (\`chef-todo\`): its card asks your ${issue.reason}`, geste: "answer its card: it is judged on the next wake-up" };
     case "epic":
       return label(issue.reason);
     case "served-elsewhere":
       return { motif: "`served-elsewhere` — this ticket is not served on this box; the why is on the issue", geste: "remove `served-elsewhere` if the box should take it: it is judged on the next wake-up" };
     case "idea":
       return label("idea");
-    case "set-aside:failures":
-      return { motif: "set aside by its failure count: its cooks stopped without a delivery too many times in a row; the station's last comment on the issue says why", geste: "the supervisor has the ticket and acts on it with its own gestures: the chef does not need to act" };
+    case "parked":
+      return { motif: "it is parked: it waits for someone — the chef when it carries `chef-todo`, else the one its parking comment names", geste: "answer its card, or remove `parked`: it is judged on the next wake-up" };
     case "already-split":
       return { motif: "its body already lists the tickets of an epic, split by hand", geste: "remove that list from its body: the epic is split on the next wake-up" };
     case "roadmap":

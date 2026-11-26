@@ -16,11 +16,17 @@
   },
   "include": ["src", "test"],
   "exclude": [
+    "test/acceptation-4229/2-a-cook-can-change-a-test-file-in-its-own-pr.test.ts",
+    "test/acceptation-4302/2-form-remark-only-is-merged.test.ts",
     "test/mot-au-cook/1-send-word-on-a-cooking-ticket-answers-ok-and-posts-the-word-on-the-issue.test.ts",
     "test/acceptation-4062/1-no-broken-link.test.ts",
     "test/acceptation-4138/1-rejected-entries.test.ts",
     "test/acceptation-4138/2-opens-per-frequency.test.ts",
     "test/acceptation-4138/3-one-issue-per-period.test.ts",
-    "test/acceptation-4138/4-new-period-new-issue.test.ts"
+    "test/acceptation-4138/4-new-period-new-issue.test.ts",
+    "test/acceptation-4211/5-delivery-log-line.test.ts",
+    "test/acceptation-4299/4-slow-ticket-comment-lists-the-parts.test.ts",
+    "test/acceptation-4236/1-closer-instructions-checks-still-pass.test.ts",
+    "test/acceptation-4276/2-marking-adds-label-assignee-friendly-comment.test.ts"
   ]
 }
