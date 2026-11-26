@@ -267,3 +267,35 @@ export function configurer(cook: Cook): ConfigDeBacASable {
 export function argumentsDuBacASable(config: ConfigDeBacASable): string[] {
   return ["--permission-mode", config.modeDePermission, "--settings", JSON.stringify(config.reglages), "--append-system-prompt", CONSIGNE_DE_REFUS];
 }
+
+// Le cook qui part sans bac à sable (Seatbelt inutilisable, le chef a accepté de
+// continuer sans) garde ce que `--settings` tient sans le noyau : `dontAsk`,
+// les lectures et écritures interdites refusées à ses outils, WebFetch borné à
+// la liste réseau du projet, Edit borné à son worktree et aux caches. Bash reste
+// ouvert : la garde du cook (#3506), posée après par `garderLeCook`, en est la
+// frontière. Mêmes sources et mêmes règles que `configurer`.
+export type CookSansBac = { worktree: string; caches: string[]; hotes: Regle[]; home: string; lit?: string[] };
+
+export type ReglagesSansBac = { permissions: { allow: string[]; deny: string[]; disableBypassPermissionsMode: "disable" } };
+
+// Un chemin d'ici, sous la forme POSIX absolue que les règles attendent : sous
+// Windows, `C:\Users\x` devient `/C:/Users/x`.
+const enPosix = (brut: string): string => {
+  const droit = brut.replaceAll("\\", "/");
+  return droit.startsWith("/") ? droit : `/${droit}`;
+};
+
+export function reglagesSansBacASable(cook: CookSansBac): ReglagesSansBac {
+  const home = chemin(enPosix(cook.home), "/", "répertoire du compte");
+  const interdits = LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif));
+  const ecrits = unique([chemin(enPosix(cook.worktree), home, "worktree"), ...cook.caches.map((cache) => chemin(enPosix(cache), home, "cache du projet"))]);
+  const lus = unique((cook.lit ?? []).map((fichier) => chemin(enPosix(fichier), home, "fichier remis au cook")));
+  const hotes = cook.hotes.map((regle) => domaines(regle));
+  return {
+    permissions: {
+      allow: unique(["Bash", ...ecrits.map((lieu) => `Edit(/${lieu}/**)`), ...lus.map((fichier) => `Read(/${fichier})`), ...cook.hotes.flatMap((regle, rang) => (regle.port === null ? hotes[rang]!.map((nom) => `WebFetch(domain:${nom})`) : []))]),
+      deny: interdits.flatMap((interdit) => [...regles("Read", interdit), ...regles("Edit", interdit)]),
+      disableBypassPermissionsMode: "disable",
+    },
+  };
+}
