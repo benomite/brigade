@@ -736,19 +736,23 @@ export const nommerEn = (attente: Attente): string => (attente.ticket === null ?
 // distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
 // version passée en service. Ni l'un ni l'autre ne compte pour une décision.
 // `depuis` : la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, passage: Passage | null = null, pause: PauseEnVigueur | null = null, tropLongs: readonly string[] = []): string[] {
+// `tenus` : une ligne par geste tenu pour l'OK du chef (held/held.ts, #4271), dite dès qu'il est tenu.
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, passage: Passage | null = null, pause: PauseEnVigueur | null = null, tropLongs: readonly string[] = [], tenus: readonly string[] = []): string[] {
   const [premiere] = attentes;
+  const gestes = tenus.map((ligne) => `  ${ligne}`);
   // Les tickets au-delà de deux fois le max de temps : de l'information, pas une décision.
   const passee = [...tropLongs.map((ligne) => `  ${ligne}`), ...(passage === null ? [] : [`  ${passage.ligne}`])];
   // La pause acceptée n'est pas une décision : sa ligne vient sous la tête,
   // et ne compte pas.
   const enPause = pause === null ? [] : [`  ${direPauseEn(pause, depuis)}`];
+  if (premiere === undefined && tenus.length > 0) return [`${TETE_AWAITING.padEnd(11)}${tenus.length === 1 ? "1 held gesture waits" : `${tenus.length} held gestures wait`} for your OK`, ...enPause, ...gestes, ...passee, FIN_AWAITING, ""];
   if (premiere === undefined) return [`${TETE_AWAITING.padEnd(11)}nothing awaits the chef`, ...enPause, ...passee, FIN_AWAITING, ""];
   const tete = attentes.length === 1 ? `1 decision awaits the chef — for ${depuis(premiere.since)}` : `${attentes.length} decisions await the chef — the oldest for ${depuis(premiere.since)}`;
   return [
     `${TETE_AWAITING.padEnd(11)}${tete}`,
     ...enPause,
     ...attentes.flatMap((attente) => [`  ${nommerEn(attente)}  for ${depuis(attente.since)}  ${attente.quoi === "disjoncteur" ? direDisjoncteurEn(attente, true) : direAttenteEn(attente)}${attente.title === null ? "" : `  ${attente.title}`}`, ...suiteEn(attente)]),
+    ...gestes,
     ...passee,
     FIN_AWAITING,
     "",

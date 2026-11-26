@@ -20,6 +20,7 @@ import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaLis
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
 import { geste } from "./geste.ts";
+import { annoncerUneFois, commentaireDeTenue } from "./held/held.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
@@ -284,6 +285,15 @@ export function ouvrirDecoupage(atelier: Atelier) {
     const dit = { line: `split the epic #${epic.number} into ${connu.tickets.length} tickets`, reason: connu.reason, outcome: OUTCOME.FIXED_BY_SELF };
     const passage = await porte.passer({ agent: "manager", reglable: "manager split-epic" }, dit, () => creer(epic, connu), (fait) => (fait ? dit : null));
     if (passage.etat === "held") avertir(`brigade : split of the epic #${epic.number} held for the chef's OK — \`${geste(`manager approve ${passage.id}`)}\` creates its tickets`);
+    // Its epic says it once per hold, on GitHub: held for the chef, the command, the place in the app (#4271). A comment
+    // that fails is said, and posted again at the next poll.
+    if (passage.etat === "held") {
+      try {
+        await annoncerUneFois(porte.repertoire, passage.id, (tenu) => atelier.github.commenter(epic.number, commentaireDeTenue(tenu)));
+      } catch (erreur) {
+        avertir(`brigade : held split of the epic #${epic.number} not said on its issue — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      }
+    }
     return passage.etat === "done" && passage.valeur;
   };
 

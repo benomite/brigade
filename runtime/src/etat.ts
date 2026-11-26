@@ -58,6 +58,7 @@ import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
 import { dernierAbandon, dernierDigest, type AbandonNotifie, type DigestPublie } from "./journal-du-jour/publication.ts";
+import { direLesTenusDuRail, lignesDesTenus, type LectureDesTenus } from "./held/held.ts";
 
 // La raison d'un ticket 86 sous sa carte : ce que la cuisine fait d'une
 // remontée technique, sinon la raison de sa mise de côté.
@@ -125,6 +126,8 @@ export type EtatCuisine = {
   passage: Passage | null;
   // Les tickets mesurés au-delà de deux fois le max de temps, dits en une ligne chacun (`temps-max/affichage`) : posés par `status`, qui lit les temps.
   tropLongs?: readonly string[];
+  // Les gestes tenus pour l'OK du chef (held/held.ts, #4271) : posés par `status`, qui lit le répertoire d'état.
+  tenus?: LectureDesTenus;
   // La pause du renommage du code, acceptée par le chef, tant qu'elle tient.
   pause: PauseEnVigueur | null;
   // L'interrupteur du projet (interrupteur.ts) : nul ou absent tant qu'aucun
@@ -688,6 +691,8 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
   // elles attendent un tiers ou une station, ce n'est pas une panne (#1927).
   const toutEnWaiting = etat.rail.length > 0 && etat.rail.every((ticket) => etatLuEn(ticket) === EN_WAITING);
   const cooks = trierCooks(etat, maintenant);
+  // Un rail vide avec des gestes tenus attend l'OK du chef : « 3 splits wait for your OK » (#4271).
+  const tenusDuRail = etat.tenus === undefined ? null : direLesTenusDuRail(etat.tenus);
   // Ce qui retient un ticket que rien ne retient sur le rail : les stations
   // qui pourraient le cuisiner — celles qui fournissent ce qu'il demande — et
   // qui se retiennent. Une station qui ne le prendrait de toute façon pas n'y
@@ -721,9 +726,9 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs, depuisEn),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuisEn, etat.passage, etat.pause, etat.tropLongs),
+    ...decrireAttentes(etat.attend, depuisEn, etat.passage, etat.pause, etat.tropLongs, etat.tenus === undefined ? [] : lignesDesTenus(etat.tenus, depuisEn)),
     ...decrireCoincees(etat, depuisEn),
-    ligne("rail", decompte.length === 0 ? "empty" : toutEnWaiting ? `empty — ${decompte.join(" · ")}, normal: nothing on it for a cook` : decompte.join(" · ")),
+    ligne("rail", decompte.length === 0 ? (tenusDuRail === null ? "empty" : `empty — ${tenusDuRail}`) : toutEnWaiting ? `empty — ${decompte.join(" · ")}, normal: nothing on it for a cook${tenusDuRail === null ? "" : ` · ${tenusDuRail}`}` : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [
         `  #${ticket.ticket}`,

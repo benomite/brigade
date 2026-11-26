@@ -34,6 +34,8 @@ export type Passage<T> = { etat: "done"; valeur: T } | { etat: "held"; id: numbe
 export type GesteEnAttente = { id: number; agent: string; line: string; reason: string; at: string; approved: boolean };
 
 export type PorteDesGestes = {
+  // The state directory whose `autonomy-pending.json` holds its pending gestures (held/held.ts reads them, #4271).
+  readonly repertoire: string;
   // `consigne`: what is logged once the gesture is done, from what it gave — null logs nothing (a gesture refused on
   // the way). By default, the gesture as its agent said it.
   passer<T>(qui: AgentDuGeste, geste: GesteDit, faire: () => T | Promise<T>, consigne?: (valeur: T) => GesteDit | null): Promise<Passage<T>>;
@@ -144,6 +146,7 @@ export function porteDesGestes({ repertoire, projet, horloge, niveaux = magasinD
   };
 
   return {
+    repertoire,
     async passer(qui, geste, faire, consigne = () => geste) {
       const lu = niveaux.lire(projet)[qui.reglable];
       const niveau = qui.auChef === true && lu !== "observe" ? "propose" : lu;

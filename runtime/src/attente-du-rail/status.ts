@@ -156,9 +156,9 @@ export function avecLAttenteDuRail(lignes: readonly string[], attente: readonly 
   return rang === -1 ? [...lignes, ...attente] : [...lignes.slice(0, rang), ...attente, ...lignes.slice(rang)];
 }
 
-// La ligne `rail` d'une photo qui dit `empty` alors que des tickets `fire` attendent sur GitHub (#3684) : elle les liste.
+// La ligne `rail` d'une photo qui dit `empty` — ou `empty` et les gestes tenus pour l'OK du chef (#4271) — alors que des tickets `fire` attendent sur GitHub (#3684) : elle les liste.
 export function avecLeRailEnFile(lignes: readonly string[], enFile: readonly number[]): string[] {
-  const rang = lignes.findIndex((ligne) => /^rail\s+empty$/.test(ligne));
+  const rang = lignes.findIndex((ligne) => /^rail\s+empty(?:$| — .* for your OK$)/.test(ligne));
   if (enFile.length === 0 || rang === -1) return [...lignes];
   return [...lignes.slice(0, rang), `${"rail".padEnd(11)}${enFile.length} queued, held by GitHub's rate limit`, ...enFile.map((ticket) => `  #${ticket}  queued`), ...lignes.slice(rang + 1)];
 }

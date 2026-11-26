@@ -22,7 +22,8 @@ import type { Ecart } from "./events/manager.ts";
 import { type IssueOuverte } from "./github.ts";
 import { estParque } from "./github-etat/etats.ts";
 import { ouvrirGitHubDuGeste } from "./gestes/github-du-geste.ts";
-import { approuverGeste, gestesEnAttente } from "./autonomie/agents/porte.ts";
+import { gestesEnAttente } from "./autonomie/agents/porte.ts";
+import { approuverGesteTenu } from "./held/held.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
@@ -227,8 +228,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     const id = args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
     if (id === null) echouer(2, `the pending gesture's number is needed\n${USAGE}`);
     try {
-      const attente = approuverGeste(repertoireEtat, id);
-      dire(`brigade : gesture ${attente.id} of the ${attente.agent} approved (${attente.line}) — the running runtime does it at its next tick, once`);
+      // The same action as the app's approval (held/held.ts, #4271).
+      const tenu = approuverGesteTenu(repertoireEtat, id, env);
+      dire(`brigade : gesture ${tenu.id} of the ${tenu.agent} approved (${tenu.summary}) — the running runtime does it at its next tick, once`);
     } catch (erreur) {
       echouer(1, `${erreur instanceof Error ? erreur.message : String(erreur)} — nothing is approved`);
     }

@@ -136,6 +136,19 @@ left as it is. Proposed again — the same agent, the same line —, a gesture k
 gave it meanwhile: this is how a gesture held before a restart is done after it. Until the closer, the manager, the pass
 or a cook proposes it again, an approved gesture waits.
 
+The chef sees every held gesture without ssh (#4271, `runtime/src/held/held.ts`). Each one is a record — `id`, `kind`
+(`epic split`, `closing pass`), `summary` (`split #4129 into 3 tickets`), `reason`, `approveCommand`, `heldAt` — read
+from the pending file, so it shows the moment the gesture is held:
+
+- `brigade <project> status` gives it one line in its `awaiting` block, with its summary, its reason and its approve
+  command; an empty rail with held gestures says how many wait for the chef's OK (`rail empty — 3 splits wait for your
+  OK`). A pending file that cannot be read is said on that block, never read as nothing held.
+- A held split posts one comment on its epic's issue: held for the chef, the approve command, and where to approve it in
+  the app. It is posted once per hold (`held-announced.json` of the state directory): a second poll or a restart posts
+  nothing; a comment that fails is said and posted at the next poll.
+- For the app: `gestesTenus(<state directory>)` lists them, and `approuverGesteTenu(<state directory>, id)` approves one —
+  the same action as `manager approve <id>`, which goes through it.
+
 A levels file, a pending file or a gesture log that cannot be read is refused: the gesture is not done, nothing is
 guessed in its place, and no file is overwritten. A cook's gate that cannot be read is said, and the turn goes on with
 the next ticket.
