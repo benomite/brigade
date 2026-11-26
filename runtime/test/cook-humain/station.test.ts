@@ -33,7 +33,7 @@ test("the human's pull request on the ticket's branch enters the pass, which rev
 
   ouvrir(t, faux.station("A"));
 
-  await jusqua(() => faux.mergee(1) !== undefined, 20_000);
-  await jusqua(() => faux.ticket(1).state === "closed", 20_000);
+  await jusqua(() => faux.mergee(1) !== undefined);
+  await jusqua(() => faux.ticket(1).state === "closed");
   assert.deepEqual(faux.cuissons, []);
 });
