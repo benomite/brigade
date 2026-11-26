@@ -86,3 +86,15 @@ test("reecrireBloc: a project repeated with other spacing and a repeated held-ba
   assert.equal(reecrireBloc(texte, ["a x main", "a   x  main", "b y main"]), `${DEBUT}\n# held-back a/x\na x main\nb y main\n${FIN}\n`);
   assert.deepEqual(lignesDuBloc(`${DEBUT}\nb y main\n b  y main\n${FIN}\n`), ["b y main"]);
 });
+
+test("reecrireBloc: writing the same project again and again leaves the file as the first write left it", () => {
+  let texte = `${DEBUT}\n# held-back a/x\n${FIN}\n`;
+  for (let i = 0; i < 4; i++) texte = reecrireBloc(texte, [...lignesDuBloc(texte), "a x main"]);
+  assert.equal(texte, `${DEBUT}\n# held-back a/x\na x main\n${FIN}\n`);
+  assert.equal(texte.split("\n").filter((l) => l === "# held-back a/x").length, 1);
+});
+
+test("reecrireBloc: a project line written by hand twice outside the block is kept once, the chef's comments stay", () => {
+  const texte = `# mine\nb y main\nb   y main\n${DEBUT}\n${FIN}\n`;
+  assert.equal(reecrireBloc(texte, ["a x main"]), `# mine\nb y main\n${DEBUT}\na x main\n${FIN}\n`);
+});
