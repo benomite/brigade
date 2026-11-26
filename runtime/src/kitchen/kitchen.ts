@@ -2,11 +2,13 @@
 // GitHub, decide, act. The agents judge; this file only does the few
 // gestures that stay locked in code: merge, the try count, places, risk zones.
 import { execFile } from "../sans-invite.ts";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
 import { branchOf, gestures, readState, ticketText, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
+import { KITCHEN_ALLOWLIST } from "../porte-journal.ts";
+import { DECLARATION_RESEAU, lireDeclaration } from "../reseau.ts";
 import { forget, listRuns, startRun, type Finished, type Kind, type Launch } from "./runs.ts";
 
 export type Git = (cwd: string, args: string[]) => Promise<string>;
@@ -186,8 +188,32 @@ export function openKitchen(options: KitchenOptions) {
     }
   }
 
+  // Publishes what the base declares in `.claude/brigade/reseau` where the
+  // project's gate reads it, only when it changed. A failed read keeps the
+  // last list: it never closes the project's hosts.
+  const allowlist = join(options.state, KITCHEN_ALLOWLIST);
+  let unreadable: string | null = null;
+  async function publishAllowlist() {
+    try {
+      await git(options.clone, ["fetch", "--quiet", "origin", base]).catch(() => "");
+      const present = (await git(options.clone, ["ls-tree", `origin/${base}`, "--", DECLARATION_RESEAU])).trim() !== "";
+      const { hotes, problemes } = lireDeclaration(present ? await git(options.clone, ["show", `origin/${base}:${DECLARATION_RESEAU}`]) : "");
+      const declared = `${JSON.stringify({ base, hosts: hotes, problems: problemes })}\n`;
+      unreadable = null;
+      if (existsSync(allowlist) && readFileSync(allowlist, "utf8") === declared) return;
+      writeFileSync(`${allowlist}.${process.pid}`, declared, { mode: 0o644 });
+      renameSync(`${allowlist}.${process.pid}`, allowlist);
+      log(`network allowlist published — ${hotes.length} declared host${hotes.length === 1 ? "" : "s"}${problemes.length > 0 ? `, ${problemes.length} line${problemes.length === 1 ? "" : "s"} ignored` : ""}`);
+    } catch (error) {
+      const why = (error as Error).message;
+      if (why !== unreadable) log(`network declaration unreadable on ${base}, the last allowlist holds — ${why}`);
+      unreadable = why;
+    }
+  }
+
   let labelled = false;
   async function turn() {
+    await publishAllowlist();
     if (!labelled) {
       await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.epic, "try:1", "try:2"]);
       labelled = true;

@@ -4,7 +4,7 @@
 // pas la porte assise dessus. La porte d'une installation par projet
 // (`tenir-porte.ts`) et celles de la station (`station/portes.ts`) le lisent
 // de la même façon.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { AUTRES_HOTES, compterLesRefus, garderLaListe } from "./porte.ts";
 import { REGLES_DE_BASE, reglesDuProjet, type Regle } from "./reseau.ts";
@@ -19,12 +19,22 @@ const RELECTURE_AVANT_REFUS_MS = 1000;
 
 const dire = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// The allowlist the new kitchen publishes for its project, in its state
+// directory (`kitchen/kitchen.ts`): `{ base, hosts, problems }`, like `network.declared`.
+export const KITCHEN_ALLOWLIST = "network.json";
+
 // La liste blanche du projet, lue de son journal. Avant le premier démarrage
 // de son runtime, il n'y a pas de journal : le socle suffit à rapatrier le
-// dépôt, d'où viendra le reste.
-export function listeDuJournal(repertoireEtat: string, options: { avertir?: (message: string) => void } = {}): (fraiches?: boolean) => Regle[] {
+// dépôt, d'où viendra le reste. `published`: the file the new kitchen
+// publishes; once it exists, it is read instead of the journal.
+export function listeDuJournal(repertoireEtat: string, options: { avertir?: (message: string) => void; published?: string } = {}): (fraiches?: boolean) => Regle[] {
   return garderLaListe(
     (): Regle[] => {
+      if (options.published !== undefined && existsSync(options.published)) {
+        const { hosts } = JSON.parse(readFileSync(options.published, "utf8")) as { hosts?: unknown };
+        if (!Array.isArray(hosts) || !hosts.every((hote) => typeof hote === "string")) throw new Error(`${options.published}: no list of hosts`);
+        return reglesDuProjet(hosts);
+      }
       if (!existsSync(cheminJournal(repertoireEtat))) return REGLES_DE_BASE;
       const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
       try {

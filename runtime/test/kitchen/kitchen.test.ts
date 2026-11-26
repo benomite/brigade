@@ -136,7 +136,7 @@ test("a ready ticket is taken, cooked, delivered as a pull request, reviewed and
   await until(() => fake.issues.get(issue)?.closed === true, kitchen.turn);
   assert.equal(fake.issues.get(issue)?.closed, true, lines.join("\n"));
   assert.equal(sh(clone, "fetch", "-q", "origin") === "" && sh(clone, "ls-tree", "--name-only", "origin/cook/1-github").includes("feature.txt"), true);
-  assert.deepEqual(lines, ["#1 taken", "#1 delivered", "#1 in review (PR #100)", "#1 merged (PR #100)"]);
+  assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), ["#1 taken", "#1 delivered", "#1 in review (PR #100)", "#1 merged (PR #100)"]);
 });
 
 test("a ticket the manager gives no usable gesture is parked for the chef, not handed back to it every turn", async () => {
@@ -161,5 +161,5 @@ test("a ticket the manager gives no usable gesture is parked for the chef, not h
     log: (line) => lines.push(line),
   });
   await until(() => fake.issues.get(issue)?.labels.includes("parked:chef") === true, kitchen.turn);
-  assert.deepEqual(lines, ["manager called on #1", "#1 parked for the chef — the manager gave no usable gesture"]);
+  assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), ["manager called on #1", "#1 parked for the chef — the manager gave no usable gesture"]);
 });
