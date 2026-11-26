@@ -196,6 +196,7 @@ The product rule (#3504): **deterministic checks block, models advise.**
   | `critere-non-tenu` | Criterion of the ticket not met | an acceptance criterion of the ticket the delivery does not meet, or breaks — a written form criterion included |
   | `securite` | Security risk | a secret delivered, untrusted data run or believed, an access control or the partition bypassed |
   | `perte-de-donnees` | Data loss | a file, a state, a log or a history erased or overwritten without the ticket asking for it |
+  | `regle-de-la-maison` | House rule broken | a house rule the project sheet locks (`rules`, [`fiche-projet.md`](fiche-projet.md)) that the delivery breaks; the finding names the rule (#4237) |
   | `code-non-atteint` | New code nothing reaches | new code nothing reaches in production: an export only its tests call (`CLAUDE.md`) |
   | `diagramme-faux` | Diagram contradicts the code | a Mermaid diagram of the ticket or of the PR ("Before" / "After") that shows what the code does not do; the finding names the wrong node or edge. A ticket without a diagram is not checked on this point, and the reviewer never asks for one (#3772) |
 

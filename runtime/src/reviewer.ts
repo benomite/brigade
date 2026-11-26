@@ -12,6 +12,7 @@ import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { lancementEnFlux, SOURCES_DE_REGLAGES } from "./claude.ts";
 import { FERMETURE, OUVERTURE } from "./livrable.ts";
 import { CONSIGNE_STE } from "./ste.ts";
+import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
 import type { Finding } from "./events/pass.ts";
 import type { Couverture } from "./pass/rouge-sur-main.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -103,6 +104,7 @@ export const CATEGORIES_BLOQUANTES = {
   securite: { libelle: "Security risk", dit: "un risque de sécurité : un secret livré, une donnée non fiable exécutée ou crue, un contrôle d'accès ou une cloison contournés" },
   "perte-de-donnees": { libelle: "Data loss", dit: "une perte de données : un fichier, un état, un journal ou un historique effacé ou écrasé sans que le ticket le demande" },
   "code-non-atteint": { libelle: "New code nothing reaches", dit: "du code neuf que rien n'atteint en production : un export que seuls ses tests appellent" },
+  "regle-de-la-maison": { libelle: "House rule broken", dit: "une règle de la maison que la fiche du projet verrouille et que la livraison enfreint : le constat nomme la règle" },
   "diagramme-faux": { libelle: "Diagram contradicts the code", dit: "un diagramme Mermaid du ticket ou de la PR qui dit ce que le code livré (ou, pour « Before », le code d'avant) ne fait pas : le constat nomme le nœud, l'arête ou l'état faux" },
 } as const;
 type Categorie = keyof typeof CATEGORIES_BLOQUANTES;
@@ -152,7 +154,15 @@ export type Relecture = {
   // relecture dit pour chacun quels tests du diff le vérifient, et si elle l'a
   // jugé elle-même (#3466). Absents ou vides : elle n'en dit rien.
   criteres?: readonly string[];
+  // Les règles de la maison que la fiche du projet verrouille (#4237). Absentes : elle n'en dit rien.
+  regles?: readonly string[];
 };
+
+// Les règles de la maison, telles que la fiche du projet les dit (#4237).
+function blocDesRegles(regles: readonly string[] | undefined): string[] {
+  if (regles === undefined || regles.length === 0) return [];
+  return ["## Les règles de la maison", "", `La fiche du projet (\`${CHEMIN_DE_LA_FICHE}\`) les verrouille : une livraison qui en enfreint une est un constat \`bloquant\` de catégorie \`regle-de-la-maison\`, qui la nomme.`, "", ...regles.map((regle) => `- ${regle}`), ""];
+}
 
 export function consigneDeRelecture(mission: Relecture): string {
   const { depot, base, ticket, commentaires, compteRendu, diff } = mission;
@@ -187,6 +197,7 @@ export function consigneDeRelecture(mission: Relecture): string {
           "Tu es dans un worktree du dépôt, en lecture seule : vérifie dans les fichiers ce que le livrable affirme du code.",
         ]),
     "",
+    ...blocDesRegles(mission.regles),
     "## Bloquant, ou remarque",
     "",
     `- \`bloquant\` — ${diff ? "ce diff ne doit pas être mergé tel quel" : "ce livrable ne doit pas être servi tel quel"}, pour l'une de ces raisons seulement, que le constat nomme dans \`categorie\` :`,
