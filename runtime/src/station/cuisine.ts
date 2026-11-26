@@ -55,6 +55,7 @@ import { politiqueDuRuntime } from "../autonomie/agents/politique-du-runtime.ts"
 import { lireLaQualite } from "../autonomie/agents/qualite.ts";
 import { brancherSuperviseur, type ManagerDuSuperviseur } from "../superviseur/brancher.ts";
 import { suivreLeTour } from "../superviseur/tour.ts";
+import { wireStallWatchdog } from "../stall-watchdog/wire.ts";
 import { ecrireLaLacune } from "../routage-station/lacune.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
 import type { TicketPublie } from "../appairage/rail-publie.ts";
@@ -345,6 +346,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherRapportHebdo(superviser(brancherJeton(brancherSession(closee, session, undefined, jeton), jeton)), { clone: station.clone, repertoireEtat }), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire, options.intervalleRelaisMs);
+    // La veille du blocage (#4213) : rien de mergé depuis une heure, des tickets en attente — elle en cherche la cause sur
+    // la machine. Sans station ici, le tour ne lit aucun ticket : rien n'attend, elle ne fait rien.
+    wireStallWatchdog(suivie, { tour: suiviDuTour, station: ici?.nom ?? "", repertoireEtat, seuils: station.seuils, env, disque: disqueDuProjet(repertoireEtat, githubs.pass), github: githubs.pass, dire });
     const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
     ouverte = connectee;
     // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
