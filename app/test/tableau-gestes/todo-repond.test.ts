@@ -80,7 +80,7 @@ const colonneDe = (lePlan: Awaited<ReturnType<typeof plan>>, ticket: number) => 
 async function cliquer(leMonde: ReturnType<typeof monde>, ticket: number, libelle: string) {
   const todo = ceQuiTAttend(await plan(leMonde.client));
   const joues: { carte: Carte; reponse: Reponse }[] = [];
-  const pose = poserLeTodo({ createElement: (balise: string) => new Faux(balise) }, { cartes: todo, ouvrir: () => {}, gestes: { etat: () => REPOS, attente: [], jouer: (numero, _sorte, reponse) => void joues.push({ carte: todo.find((une) => une.ticket === numero) as Carte, reponse: reponse as Reponse }) } }) as unknown as Faux;
+  const pose = poserLeTodo({ createElement: (balise: string) => new Faux(balise) }, { deplie: { ouvert: true }, cartes: todo, ouvrir: () => {}, gestes: { etat: () => REPOS, attente: [], jouer: (numero, _sorte, reponse) => void joues.push({ carte: todo.find((une) => une.ticket === numero) as Carte, reponse: reponse as Reponse }) } }) as unknown as Faux;
   const entree = pose.dessous("li").find(({ dataset }) => dataset.ticket === String(ticket)) ?? assert.fail(`#${ticket} is in the TODO`);
   (entree.dessous("button").find(({ textContent }) => textContent === libelle) ?? assert.fail(`a button “${libelle}”`)).click();
   const [joue] = joues;
