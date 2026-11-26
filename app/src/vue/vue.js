@@ -176,7 +176,8 @@ import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.
 import { AUCUNE_STATION } from "./cooks/sans-station.js";
 import { marqueApres } from "./carte-attente/carte-attente.js";
 import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
-import { AGENTS, MENU, STATIONS } from "./projet/menu/menu.js";
+import { AGENTS, MENU, SAVOIR_FAIRE, STATIONS } from "./projet/menu/menu.js";
+import { poserLeSavoirFaire, relireLeSavoirFaire } from "./savoir-faire/savoir-faire.js";
 import { interrupteur as interrupteurDeLApp } from "./composants/interrupteur/interrupteur.js";
 import { FAIT_DIT, stationsAProposer, tenirLAjoutDeStation } from "./projet/stations/AjoutStation.js";
 import { arreter, gesteDArret, SANS_GESTE } from "./projet/stations/ArretStation.js";
@@ -220,7 +221,7 @@ const COUTS = "couts";
 const RESUMES = "resumes";
 // Les onglets de la page d'un projet (ticket 1184), Rail et Stations.
 const RAIL = "rail";
-// Le menu du projet (ticket 2485, 2921) : Rail · Stations · Settings (projet/menu/menu.js).
+// Le menu du projet (ticket 2485, 2921, 4224, 4241) : Rail · Stations · Agents · Know-how · Settings (projet/menu/menu.js).
 // Sur un écran étroit — le téléphone (ticket 1186) —, trois colonnes ne tiennent pas : la conversation avec le second
 // est un troisième onglet, à la place du panneau de droite.
 const CONVERSATION = "second";
@@ -839,7 +840,7 @@ function retenus() {
   ongletsRetenus = new Map();
   try {
     const lus = JSON.parse(window.localStorage?.getItem(CLE_DES_ONGLETS) ?? "{}");
-    for (const [nom, id] of Object.entries(lus ?? {})) if ([RAIL, STATIONS, AGENTS, CONVERSATION].includes(id)) ongletsRetenus.set(nom, id);
+    for (const [nom, id] of Object.entries(lus ?? {})) if ([RAIL, STATIONS, AGENTS, SAVOIR_FAIRE, CONVERSATION].includes(id)) ongletsRetenus.set(nom, id);
   } catch {
     // Illisible : chaque projet s'ouvre sur Rail, et le prochain choix le réécrit.
   }
@@ -1463,7 +1464,7 @@ function montrer() {
   const terminaux = duCourant().map(({ terminal }) => terminal);
   // En haut, l'onglet de pages, Paramètres. Les terminaux n'en sont pas : ils sont à droite.
   espace.textContent = courant?.nom ?? "";
-  // Rail, Stations et Settings, à côté du nom (ticket 1184, 2921) : celui qui est montré est marqué — aucun quand une page le couvre.
+  // Rail, Stations, Know-how et Settings, à côté du nom (ticket 1184, 2921, 4241) : celui qui est montré est marqué — aucun quand une page le couvre.
   const ouvert = courant;
   ongletsDuProjet.hidden = ouvert === undefined;
   // La station du projet et son état, à côté de l'onglet Stations : c'est là qu'on en ajoute une.
@@ -2000,11 +2001,19 @@ function choisirOnglet(id) {
   retenir(courant.nom, id);
   if (id === STATIONS) enregistreesARelire = true;
   if (id === AGENTS) agentsDuProjet.lire(courant.nom);
+  // Know-how relit ses entrées à chaque ouverture (ticket 4241).
+  if (id === SAVOIR_FAIRE) relireLeSavoirFaire(courant.nom, reposerLeSavoirFaire(courant.nom));
   laisse.delete(courant.nom);
   nonEcrit = "";
   if (ouverte !== undefined) fermerFiche();
   montrer();
 }
+
+// L'onglet Know-how se repose quand ses entrées arrivent ou qu'un geste a répondu, s'il est encore celui du projet montré.
+/** @param {string} nom */
+const reposerLeSavoirFaire = (nom) => () => {
+  if (courant?.nom === nom && ongletDe(courant) === SAVOIR_FAIRE) poserRail(courant);
+};
 
 // Settings s'ouvre par-dessus le rail. Recliqué, il se referme.
 /** @param {string} id */
@@ -5103,7 +5112,7 @@ function poserLeRail(projet) {
   rail.hidden = false;
   const onglet = ongletDe(projet);
   rail.dataset.onglet = [STATIONS, AGENTS].includes(onglet) ? onglet : RAIL;
-  rail.ariaLabel = onglet === STATIONS ? "The stations" : onglet === AGENTS ? "The agents" : "The rail";
+  rail.ariaLabel = onglet === STATIONS ? "The stations" : onglet === AGENTS ? "The agents" : onglet === SAVOIR_FAIRE ? "The know-how" : "The rail";
   // Settings ouvert par-dessus : sa section des plafonds et du closer suit la lecture, comme elle le faisait sur l'onglet
   // (ticket 3014) ; un champ en cours de frappe n'est pas reposé.
   reposerLaSante(projet, true);
@@ -5120,6 +5129,13 @@ function poserLeRail(projet) {
     agentsDuProjet.montrer(projet.nom);
     if (rail.children[0] !== agentsDuProjet.element) rail.replaceChildren(agentsDuProjet.element);
     return;
+  }
+  // Know-how : les entrées du savoir-faire du projet, chacune réécrite ou retirée sur place (ticket 4241, savoir-faire/).
+  if (onglet === SAVOIR_FAIRE) {
+    poserCuisson(projet);
+    const reprise = repriseDuClavier();
+    rail.replaceChildren(poserLeSavoirFaire(document, projet.nom, reposerLeSavoirFaire(projet.nom)));
+    return rendreLeClavier(reprise);
   }
   const horsLigne = horsLignes.get(projet.nom);
   const perime = perimes.get(projet.nom);

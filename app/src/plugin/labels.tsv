@@ -19,7 +19,6 @@ effort:xhigh	1D76DB	The cook of this ticket runs at xhigh effort
 effort:max	1D76DB	The cook of this ticket runs at max effort
 epic	3E4B9E	Groups other tickets: it is split, never cooked itself
 served-elsewhere	6E7781	This box does not serve the ticket: another box serves it
-tests-written	0E8A16	Its acceptance tests are written and frozen: a cook can take it
 taken	0052CC	A cook holds the ticket
 in-pass	0052CC	The delivery of the ticket is being judged
 parked	C5DEF5	Waits for someone: who, for what, until when (a date or a fact) — nothing takes it before

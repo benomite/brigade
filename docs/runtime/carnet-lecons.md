@@ -46,6 +46,17 @@ off. A badly written integer makes the start refuse, naming the variable; `seuil
 
 `cook.launched` logs `lessons`: the ids, in brief order (`[]` if none).
 
+### The chef edits or removes a provisional lesson (#4241)
+
+The project's provisional lessons are its **know-how**, listed in the app's Know-how tab with the
+ticket each came from. The command `know-how` reads them (`{"entries":[{id, text, ticket}]}`);
+`know-how edit <id> <text…>` rewrites one, on one line, and `know-how remove <id>` removes it — each
+writes a fact to the log, `know-how.edited` (`id`, `text`) or `know-how.removed` (`id`), by `chef`.
+The lessons are still recomputed from the retros and candidates; these facts apply on top, in log
+order: the last text wins, a removed lesson stays removed. A cook receives the new text, or no
+longer the removed lesson. An id that is not a lesson of the project, or an empty text, is refused
+(`{"ok":false,"message":…}`, exit 1) and nothing is written. Module: `runtime/src/savoir-faire/`.
+
 On a station configured with at least two projects, the cook also receives, after them and in a
 block of its own, the accepted lessons of the **common tier** (`C1`, `C2`…) — outside the cap, ids
 logged after the project's. A cook under a **cook profile** also receives that profile's promoted
