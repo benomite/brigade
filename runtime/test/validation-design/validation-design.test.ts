@@ -41,7 +41,7 @@ function enPass(fichiers: string[], labels: string[] = CALIBRE) {
 // La station A, sous ce réglage, ses relectures attendues à chaque tour ; les
 // issues qu'elle crée sont notées par leur titre. Le cook d'un renvoi pousse
 // une tête neuve, hors de conflit avec la base.
-function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pannes: Partial<GitHubDuTour> = {}, juge: JugeDuChoix | null = async () => ({ choix: "the layout of the rail" })) {
+function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pannes: Partial<GitHubDuTour> = {}, juge: JugeDuChoix | null = async () => ({ choix: "the layout of the rail" }), maintenant?: () => Date) {
   const creees: string[] = [];
   const bas = { ...faux.pour("A"), ouvertes: gestes(faux).ouvertes, prDeBranche: fauxClient(faux, "A").prDeBranche, ...pannes };
   const github = {
@@ -69,6 +69,7 @@ function station(faux: FauxGitHub, valide: boolean, avertis: string[] = [], pann
     },
     juger: async () => ({ verdict: "approve", motif: "" }),
     avertir: (texte) => avertis.push(texte),
+    ...(maintenant === undefined ? {} : { maintenant }),
   });
   const { tour } = s;
   s.tour = async () => {
@@ -409,17 +410,27 @@ test("a send-back of the pass closes the card it overtakes at once: the card lea
   assert.equal(faux.ticket(TICKET).state, "open");
 });
 
-test("a card GitHub does not close after a send-back: the send-back is made, the station says so, and the next card closes it", async () => {
+// #4129 : la carte non levée garde le ticket parqué pour le chef — aucun cook ne le reprend — jusqu'au balayage suivant
+// des cartes, qui la lève : le ticket repart alors à son cook, et sa livraison suivante pose la carte suivante.
+test("a card GitHub does not close after a send-back: the send-back is made, the station says so, and the next sweep of the cards closes it", async () => {
   const faux = enPass(ECRAN);
   const avertis: string[] = [];
   let panne = false;
+  let horloge = Date.parse("2026-11-25T10:00:00.000Z");
   const bas = faux.pour("A");
-  const { s } = station(faux, true, avertis, {
-    delabelliser: async (numero, label) => {
-      if (panne && label === CHEF_TODO) throw new Error("HTTP 502");
-      return bas.delabelliser(numero, label);
+  const { s } = station(
+    faux,
+    true,
+    avertis,
+    {
+      delabelliser: async (numero, label) => {
+        if (panne && label === CHEF_TODO) throw new Error("HTTP 502");
+        return bas.delabelliser(numero, label);
+      },
     },
-  });
+    undefined,
+    () => new Date(horloge),
+  );
   await tours(s, 3);
   const [premiere] = ouvertes(faux);
   assert.ok(premiere !== undefined);
@@ -428,10 +439,14 @@ test("a card GitHub does not close after a send-back: the send-back is made, the
   miseAJour(faux);
   await tours(s, 4, () => renvois(faux).length > 0);
   assert.equal(renvois(faux).length, 1);
-  assert.match(avertis.join("\n"), /#40 sur A — its “Validate its screen” card could not be closed after the send-back, the next card closes it: HTTP 502/);
+  assert.match(avertis.join("\n"), /#40 sur A — its “Validate its screen” card could not be closed after the send-back, the next sweep of the cards closes it: HTTP 502/);
   assert.equal(faux.ticket(TICKET).labels.has(CHEF_TODO), true, "the card could not be lifted");
+  const cuissons = faux.cuissons.length;
   panne = false;
   faux.ciRouge.delete(PR);
+  await tours(s, 2);
+  assert.equal(faux.cuissons.length, cuissons, "parked for the chef until its card is lifted: no cook takes it");
+  horloge += 61_000;
   await tours(s, 12, () => ouvertes(faux).some((carte) => carte.corps !== premiere.corps));
   assert.equal(ouvertes(faux).length, 1);
   assert.equal(cartes(faux).length, 2);
@@ -472,6 +487,12 @@ test("send-back with the ticket's number sends that ticket's delivery back to a 
   assert.deepEqual(fin.lignes, [`faux/depot: the delivery of #40 (PR 1040) sent back: #40 goes back to a cook with your comment, card #40 closed — its next delivery comes back as a new card`]);
   assert.ok(renvois(faux)[0]?.body.startsWith(`<!-- brigade:renvoi n=1 sha=${sha} -->\n`));
   assert.equal(faux.mergee(TICKET), undefined);
+});
+
+test("the chef's send-back comment states its reason from the closed list, then the chef's words (#4302)", async () => {
+  const { faux, sha } = await retenue();
+  await design(faux, "send-back", `faux/depot#${TICKET}`, "--comment", "Make the take button stand out.");
+  assert.match(renvois(faux)[0]?.body ?? "", new RegExp(`^<!-- brigade:renvoi n=1 sha=${sha} -->\\nSend-back reason: unmet criterion\\n\\n[\\s\\S]*Make the take button stand out\\.`));
 });
 
 test("validate on a ticket with no pull request is refused naming the ticket, and merges nothing (#3718)", async () => {
@@ -807,7 +828,6 @@ test("a delivery that is not design is merged as before, whatever the setting", 
   }
 });
 
-// brigade:guard
 test("a design delivery is one that changes what the user sees: the app's view, the site, a mockup, or captures", () => {
   assert.ok(estUneLivraisonDesign(1, ["app/src/vue/rail.js"]));
   assert.ok(estUneLivraisonDesign(1, ["site/index.html"]));

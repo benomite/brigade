@@ -4,9 +4,9 @@
 // avec ce qui la retient en une ligne. Ce module n'y déduit rien : il compte ce que la lecture liste, range chaque
 // issue sous le mot qu'elle porte, et pose ce qu'elle en dit, mot pour mot. Une lecture ratée n'est jamais « rien avant
 // le rail ».
-// Au-dessus des colonnes du rail, le bandeau Backlog (vue/backlog-band/, #3460) : une étiquette par besoin, le détail
-// d'un clic, la liste entière d'un clic sur son titre ; et, quand le rail est vide, ce qu'il y a avant lui, et si le
-// manager le lit — son état vient de `manager` (manager.ts).
+// La vue en tire, quand le rail est vide, ce qu'il y a avant lui, et si le manager le lit — son état vient de `manager`
+// (manager.ts) ; les issues mises de côté et celles que la cuisine a ouvertes sur elle-même. Le bandeau Backlog qui en
+// posait une étiquette par besoin au-dessus des colonnes n'est plus (#4354) : la colonne Backlog montre le backlog.
 import type { Lecture } from "./box.ts";
 import { estHorsLigne, titreDEchec, type Carte } from "./faits.ts";
 import { entete, type Entete } from "./fiche.ts";

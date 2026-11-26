@@ -20,7 +20,7 @@ export type Fichiers = {
   elaguer(clone: string): void;
 };
 
-const fichiersReels: Fichiers = {
+export const fichiersReels: Fichiers = {
   lister: (dossier) => readdirSync(dossier),
   retirer: (chemin) => rmSync(chemin, { recursive: true, force: true }),
   elaguer: (clone) => void execFileSync("git", ["worktree", "prune"], { cwd: clone, stdio: "ignore" }),
@@ -34,7 +34,7 @@ export type Processus = {
 };
 
 // Lire le dossier de travail d'un processus passe par `/proc` : ailleurs, aucun n'est vu.
-const processusReels: Processus = {
+export const processusReels: Processus = {
   lister: () => {
     let noms: string[];
     try {

@@ -83,6 +83,18 @@ base, the stale-branch pruning).
   delivery (`brigade:echec`), so `ECHECS_MAX` bounds it. A manager that cannot answer — its run fails, its answer is
   unreadable — sends nothing to the chef: the ticket waits (`brigade:attente … manager`), then
   is retried; the third such wait since the ticket was last relaunched counts as a cook without a delivery. Seen on #2875 (#2894).
+- **A ticket only a human can do is taken by that human, on the same rail** (#4276, rule 6 of the
+  [simplified process](../superpowers/specs/2026-11-24-simplified-process.md)). The chef marks it with
+  `rail human <ticket> [who]` (`runtime/src/sortie-attente-capacite/sortie.ts`, `runtime/src/cook-humain/`): the issue
+  gets the label `human-cook`, its assignee — the login the chef names, or the repository's owner for the chef (an
+  organisation is refused: name who takes it) —, and one comment telling that person the ticket is their work and the
+  branch to open their pull request from (`cook/<n>-github`). The ticket keeps `fire` and its task enters the chef's TODO
+  with the assignee's name; marked again for someone else, the previous assignee is removed. No station takes a ticket
+  that carries `human-cook`. When its pull request is open, the station sets `in-pass`, as at a cook's delivery, and the
+  same pass judges it: review, gates, CI, then merge, in the same order, nothing skipped
+  (`runtime/src/cook-humain/livraison.ts`). `npm --prefix runtime run human-cooks` lists every open ticket marked
+  `human-cook` with its assignee, then the address of the same list on GitHub; a ticket leaves it when it closes or
+  loses the label.
 - **A station with no manager posts the cook's question for a manager on another station** (#3938,
   `runtime/src/manager/question-sans-manager.ts`). It posts the question on the issue
   (`<!-- brigade:question-au-manager station=<name> -->`) and gives the ticket back. A station runs a manager when GitHub
@@ -165,40 +177,18 @@ base, the stale-branch pruning).
   issue of the brigade that carries that mark — open or closed, changed within 30 days, from the repository or from
   this station's account — covers the card: no second one. A brigade that cannot be read files nothing and is
   warned; the next turn tries again (`runtime/src/signalement-carte-sans-question.ts`, #3134).
-- **No cook takes a ticket before its acceptance tests are written** (#3725, epic #3724). Between `queued` and `taken`,
-  the rail has the step `tests written`. When the claim gate reaches a ticket without the `tests-written` label, it
-  does not take it: the station prepares the ticket's branch `cook/<n>-github` on the base and runs the manager there,
-  which writes one test per acceptance criterion and names their paths. The station checks that the tree carries
-  these files and no other, commits them as the branch's first and only commit with the trailer
-  `Acceptance-Tests: frozen`, pushes the branch, posts on the issue one record per criterion
-  (`<!-- brigade:tests-acceptation -->`: `criterion`, `testPath`, then `redOnMain`, `greenOnBranch`, `mutationsCaught`,
-  `mutationsTotal`, `survivingLines`, left empty for other tickets to fill) and sets `tests-written`. The cook then
-  starts from that branch, its brief listing the frozen tests, so the commit comes first in the pull request. A
-  delivery that changes a frozen test is not refused before the review: the reviewer's brief names each frozen test
-  the head no longer carries as the frozen commit left it, with its diff since the freeze, and the reviewer judges it
-  as a blocking finding (#3910, `runtime/src/passe-gel-tests/gel-tests.ts`, `docs/runtime/pass.md`). There is no
-  amendment: a wrong criterion is a send-back reason, or a TODO card when it changes the product. A
-  writing that fails commits, pushes and labels nothing, and is warned; after 3 failures the station stops trying and
-  the skip line says why. A ticket without acceptance criteria has no test to freeze: the step does not apply to it, and it is
-  taken as before once its body is read. A ticket whose branch the clone already has was taken before the step existed
-  and is taken as is (`runtime/src/tests-acceptation/`). The app's rail shows a ticket labelled `tests-written` and not
-  yet taken as `tests written`, in the On the rail column, and counts it apart from `queued` (`app/src/vue/rail/github.ts`).
-  A station asked for the step whose clone cannot run git says the step is off. The writings of several tickets run
-  at once, with no queue or lock of their own: each holds one of the station's places while it runs, as a cook does,
-  and counts for the guards like one; a ticket the places leave waits with the same skip line as a cook's (#3742).
-  A ticket held by another one (an open ticket it depends on, one set aside, its zone held) has its tests written
-  during that hold (#3872), and so do the tickets that wait for a place taken by a cook, or that a full pass leaves —
-  in rail order, at most one writing per place, under the same guards (#3887): the claim, once the hold, the place or
-  the pass frees, no longer waits for the writing after it. Their skip line still names what holds them.
-  Before the step, the manager classes each criterion (#3740, `runtime/src/qualification/classes.ts`, the rule in
-  `agents/manager.md`), in a throwaway checkout of the base: `testable` — a behaviour the end user observes — or
-  `not-testable`, with the proof the delivery owes instead (a before/after capture, the diff, the evaluation case, the
-  measured value). Only the testable criteria get a frozen test, and each record also carries `class`, and `proof` for
-  a not-testable one (its `testPath` is empty); the comment shows every criterion with its class and its test or its
-  proof. A ticket with no testable criterion does not start the step: the station posts its records with the line
-  `no testable criterion: proof by <kind>`, sets no label, and a cook takes it with the proofs it owes in its brief.
-  Classes that cannot be read (no JSON, a criterion missing, a `not-testable` one with no proof) write nothing and
-  count as a failed writing. A station whose clone cannot make a throwaway checkout says the criteria are not classed.
+- **A ticket the manager judged is never left in limbo** (#4215). At each turn's healing, a ticket of the turn that is
+  open, has no calibration, no `chef-todo` card, no `decision` label and is not parked is read again: its latest
+  manager judgment, from the repository, is the source of truth, whatever happened to its labels since. Judged a
+  decision for the chef (`**Manager — not a workable ticket: a decision issue.**` or `a question`), and not answered
+  yet (`<!-- brigade:reponse`), its `product-question` card comes back with the judgment's question and answers. Judged
+  on hold, with `fire`, it is parked (`parked`, and the parking comment with the manager's reason). Each repair is said
+  in a comment marked `<!-- brigade:limbo -->`. A repaired ticket carries its card or its hold, so the next turn writes
+  nothing (`runtime/src/limbo/reparer.ts`, `runtime/src/limbo/on-github.ts`).
+- **No step writes acceptance tests before the cook** (#4229, epic #4132). The cook writes its tests with its work, in the
+  same pull request, and the review judges them (`agents/cook.md`). Nothing freezes a test: a cook may change any test
+  file of its own branch. The app's rail still reads the `tests-written` label of a ticket that went through the former
+  step, as `tests written` (`app/src/vue/rail/github.ts`).
 - **Every 2 minutes** (#2296), a turn takes, cooks, reviews and merges. Each turn reads its tickets, the open PRs with their CI, files and mergeability,
   and the base's CI in one GraphQL query (#2301), and falls back to REST for that turn when the query fails.
   A ticket the manager makes claimable — it lays `fire` or the calibration, or fires a ticket of a split — brings a
@@ -221,24 +211,33 @@ base, the stale-branch pruning).
 - **A cook that says the ticket cannot be done yet puts it in WAITING** (#3814, `runtime/src/attente/`). On
   BOBL-tech/mirrorlab, #824 could only be done from 2026-11-25: each cook said "Too early", the review asked for changes,
   and the kitchen relaunched it about every 3 minutes for 26 h (1,198 runs) while its zone held #803; the second put it
-  in WAITING by hand. Now the station does it, with no chef gesture:
+  in WAITING by hand. Now the station parks it (#4129), with no chef gesture:
   - a cook that stops blocked (`<bloque>`) on a date to come ("cannot be done before 2026-11-25", "too early", "only
     from …"), or on something a third party outside the kitchen has not given ("waiting for the client", "nothing in
-    the kitchen can produce it"), puts the ticket in WAITING through the same gesture as `waiting set`: the `waiting`
-    label and the `<!-- brigade:waiting … -->` comment, with what, from whom, and the follow-up taken from its words
+    the kitchen can produce it"), parks the ticket through the same marks as the chef's park: the `parked`
+    label and the `<!-- brigade:parked … -->` comment, with who, for what, and the date taken from its words
     (the date it says; without one, seven days). Any other question goes to the manager, as before, and so does this
-    one when GitHub refuses the WAITING gesture: the station says why;
+    one when GitHub refuses the parking: the station says why;
   - a delivery the review hands back twice in a row with the same result is not relaunched a third time as it stands:
-    if that result says the ticket cannot be done yet, it goes to WAITING the same way — the gesture first, then the
+    if that result says the ticket cannot be done yet, it is parked the same way — the gesture first, then the
     send-back comment, so a refused gesture is tried again at the next turn; otherwise its sends back are
-    spent and it goes to the manager (rework, or set aside with its reason). A red CI keeps its own count;
-  - a ticket in WAITING holds no file zone, even with an open PR: the ticket behind it starts;
-  - on its follow-up date, a ticket the kitchen put in WAITING goes back on the rail by itself — `waiting` removed,
-    `fire` kept, a comment that says so — and a cook takes it at the next turn. A wait the chef set stays until the
-    chef lifts it. The turn reads each WAITING ticket's comments once, for this return;
-  - the chef's TODO (the `awaiting` block) lists each ticket in WAITING with its follow-up date, without
-    counting it as a decision for the chef. The second's queue also lists the `waiting` issues; the app, which reads
-    each project every thirty seconds, keeps to the WAITING tickets of the lists it already reads.
+    spent and it goes to the manager (rework, or set aside with its reason) — at the third refusal of its life it is
+    parked for the chef instead (`chef-todo`, #4226). A red CI keeps its own count;
+  - a parked ticket holds no file zone, even with an open PR: the ticket behind it starts;
+  - an open PR holds a file zone only while it is alive (#4242, `runtime/src/claim-gate.ts`): its ticket is in cook
+    or at the pass, or the PR had activity (commit, comment, review, update — its `updatedAt`) within the stale delay,
+    `STALE_DELAY_MS`, 12 hours. A PR whose changes are already on the base (each of its files has the same content on
+    the base as on its head) holds nothing, nor does a PR labelled `zone-released`. An activity that cannot be read,
+    or a base that cannot be compared, keeps the zone held. A ticket skipped for a PR says it in one line, the PR
+    number and why the PR is alive (`zone held by open PR #4077 (last activity …, within the 12 h stale delay)`), and
+    the skip carries the reason code `zone-held` with the PR number. On 2026-11-24, a forgotten open PR (PR 4077)
+    held the README zone for an hour and the claim gate skipped the only cookable ticket (#4061);
+  - on its date, a ticket parked until a date resumes exactly where it was by itself — `parked` removed, nothing
+    else, a comment that says so — whoever parked it. Parked until a fact, or for the chef, it stays until someone
+    unparks it. The turn reads each parked ticket's comments once, for this return;
+  - the chef's TODO (the `awaiting` block) lists each ticket parked for someone else with its date, without
+    counting it as a decision for the chef. The second's queue also lists the `parked` issues; the app, which reads
+    each project every thirty seconds, keeps to the parked tickets of the lists it already reads.
 - **Places.** A station never holds more tickets than its places; a cook that fails keeps its place until the turn
   gives its ticket back on the issue, and at its first turn a restarted station gives back the tickets it held with no
   cook (#2179). Its places are read again at each turn: the cap the chef sets live (`station -- cooks <N>`, `0` for no
@@ -256,18 +255,27 @@ base, the stale-branch pruning).
   says the ticket was taken with no cook on any station and no wait, and that it returns to the rail. From that turn
   it no longer holds its zone. On 2026-11-19, #3764 kept `taken` on a timed wait for over two hours across two
   restarts of its station, and the claim gate skipped #3761 and #3786 as "zone held by #3764".
-- **The machine.** Past its first cook, a station takes no ticket while its machine runs short of processor, memory or
-  disk (`station.saturated`, held `machine`; thresholds in [station.md](station.md)). With the machine as the bound,
-  the cores' default is one cook per core past the two kept, not two cores per cook (#3560).
-  The one exception is a ticket labelled `saturation-repair`, the repair of the saturation itself: the machine does not
-  hold it (nor does the arbiter read the project as saturated for it), while the stop, the breaker, the quota, the
-  places and the zone holds still apply, and a station takes one such ticket at a time (#4100). Every other ticket is
-  skipped for saturation, and the scan goes on past it to a repair further down the rail.
+- **The machine.** It holds no take and no launch: a saturated machine is only said (`station.saturated`, thresholds
+  in [station.md](station.md)), and the places of the station, the cores' default of one cook per core past the two
+  kept (#3560), bound its cooks (#4285).
   When the disk is the lack, no cook runs, and what the kitchen holds itself (the size of its state directory) could
   not bring the free space back to the floor, the chef gets one TODO card on an issue of its own
   (`<!-- brigade:disk-full -->`): the figures and the biggest consumers on the volume, if `du` reads them. It is
   not raised while that reclaim could still be enough, nor twice for the same state, and it is lifted once the disk
   has room (#4091).
+- **The watchdog of a stalled kitchen** (#4213, `runtime/src/stall-watchdog/`). At each wake of a project's runtime,
+  next to the supervisor: when nothing has merged for one hour (`IDLE_WITHOUT_MERGE_MS`, counted like the
+  supervisor's 30 min, from the later of the last merge and the oldest waiting ticket) while at least one ticket
+  waits, and the kitchen is neither stopped nor switched off, it reads the machine (load per core, cooks of the
+  station in flight, what the claim gate skipped, tickets taken three times without delivering, the leftovers of
+  exited cooks, the disk) and decides one cause. Leftovers of exited cooks (orphaned processes, worktrees, run files
+  and tmp dirs, read as the reclaim above reads them, without the npm cache) are repaired at once, with one line in the
+  service log naming the cause and the action. A full disk, or a machine over its load per core with no cook of the
+  station in flight, needs a human: one TODO card (`blocked`) in plain words — the disk's on the disk issue above,
+  shared with it, the load's on the first waiting ticket — and no second card while the cause lasts, across restarts
+  (`<state>/stall-watchdog.json`). Each card posted, by the watchdog or by the disk guard above, is a machine outage
+  that reached the chef, noted with its date; the watchdog's line and the disk guard's say how many there were in the
+  last 7 days. With no machine cause, it says so once, and the tickets stay with the supervisor.
 - **A word to a cooking cook** (#4047, `runtime/src/mot-au-cook/`). `send-word <owner>/<repo>#<ticket> <word…>`
   answers `{"ok":true}` or `{"ok":false,"reason":"…"}` on one line. It reads the issue: a ticket that is not `taken`
   (in pass, closed, unknown, queued, waiting) is refused with the reason, and nothing is posted or queued. A `taken`
@@ -284,9 +292,18 @@ base, the stale-branch pruning).
   nothing the ticket is given back with a comment, uncounted, since that is work left, not a failed cook.
 - **Sends back are counted per ticket** (#3961). The count is read from the ticket's `brigade:renvoi` comments and
   survives relaunches: removing `served-elsewhere` or `set-aside:failures` no longer restarts it at 1/2 (on 2026-11-20,
-  #3955 went "send-back 3", "relaunch 2", then "send-back 1" on the same commit). Only the manager's rework at the limit
-  (#3513) starts it again. Set aside at its last send-back, a ticket is never relaunched to a cook by the kitchen: the
-  manager or the chef decides.
+  #3955 went "send-back 3", "relaunch 2", then "send-back 1" on the same commit).
+- **Three tries per ticket, in total** (#4226, rule 12 of `docs/superpowers/specs/2026-11-24-simplified-process.md`). A
+  try counts when a refusal comes back from the pass — red gates, red CI or the review — not a send-back for a conflict
+  with the base. The count is read from all the ticket's comments, over its whole life (`runtime/src/essais/`): no
+  claim, manager rewrite, split, supervisor pass or station restart takes one off. At the third refusal the ticket is
+  **parked for the chef**, not given to the manager: one `chef-todo` card (`<!-- brigade:todo kind=blocked tries=3
+  sha=… -->`) lists each try, the checks still red on the refused head and the send-back reason line (#4302), `in-pass` is removed, and the PR stays open.
+  Running that step again — the same station, another one, after a restart — posts nothing. No station takes a
+  parked ticket until the chef answers on the issue: a comment of theirs after the card (or the app's answer), or
+  `chef-todo` removed. The station then lifts the card, and a cook takes the ticket up from its branch; its next
+  refusal parks it again. A turn reads the comments of each `chef-todo` ticket out of the pass; when they cannot be
+  read, the ticket stays aside for that turn.
 - **A cook that disagrees with the review.** Sent back on review remarks, a cook that judges them already addressed or
   wrong replies on the PR instead of ending silently: its brief tells it to write the reply in its last message between
   `<reponse-pr>` tags, and the station posts it on the PR (`brigade:reponse-cook sha=…`), since the cook has no GitHub
@@ -295,14 +312,7 @@ base, the stale-branch pruning).
   reply or not: its verdict records the judged pair, the head and its reason, and the same head comes back with the same
   reason. It is sent back again on that reason, and that send-back counts among the `RENVOIS_MAX`, so a disagreement
   cannot loop (#3961: #3955 looped about 15 times between cook and review on one commit). A head never reviewed — sent
-  back for a red CI — is reviewed with the reply in its brief. The brief also says that a "Red on main, green on the branch" remark is the
-  pass's replay, not the review's: no reply lifts it, nor a free comment in the test calling it a guard of a behavior
-  the base already has — only a test that fails without the change, no such test (#3694: #3632's cook kept such a test
-  with a guard comment, its next cooks added nothing with no failed cook counted, and its head came back on that same
-  remark until 06f7aac removed the test), or, when the ticket's criteria say the behavior stays "as before" /
-  "unchanged", the test marked `// brigade:guard`, which the pass accepts green on the base (#3852). The remark never
-  loops: the second time it names a test, the cook marks it so, or sets the ticket aside once with the reason in one
-  line between `<bloque>` tags.
+  back for a red CI — is reviewed with the reply in its brief.
 - **A delivery cut before its PR.** A branch the station pushed but that never had a PR (the station stopped between
   the push and the PR, or GitHub refused the PR) goes to the pass as it is, with no cook: its PR opens and it takes
   `in-pass`. Before this, the cook taken again on it found the work done, added nothing, and each try counted as a
@@ -470,6 +480,17 @@ deleted. `runtime/src/superviseur/brancher.ts` wires it into both entry points, 
   is, and `runtime/src/manager/supervision.ts` hands it to the supervisor, which answers with one of its closed list of
   gestures (#3911). It is not parked for ever: it carries a date to look at it again, and past that date it is put
   back on the rail (invariant 3, #4026).
+- **A zone held by a stale PR** (#4243, `superviseur/zone-liberee.ts`). The claim gate no longer counts an open PR
+  that is stale (#4242, `claim-gate.ts`): neither in cook nor at the pass, and idle for 12 hours or more
+  (`STALE_DELAY_MS`), or with its changes already on the base, or carrying `zone-released`. When such a PR overlaps the
+  zone of a ticket, the gate names it, and the turn keeps it (`zonesPerimees`). On each wake, without the manager, the
+  supervisor reads it again with the gate's rule. It adds the label `zone-released` to a stale PR, and never closes it.
+  It writes one line on the ticket, `Released the zone held by the stale PR #N (…)`, in the station's service log
+  (`supervisor on <project>: …`) and in its gesture log. A PR that already carries the label is not labelled or said
+  again. When the PR is a human's (its branch is neither `cook/<n>-…` nor the second's `<type>/<n>-…`), the
+  supervisor also opens one `chef-todo` issue asking whether to close it. That issue carries the mark
+  `<!-- brigade:zone-released pr=N -->`, and no second one opens while an issue of the last year, open or closed,
+  carries that mark. A brigade PR gets no card.
 - **The Windows CI card of the base** (#2413, `carte-ci-windows.ts`) is kept, read by the supervisor's wiring from the
   same turn.
 

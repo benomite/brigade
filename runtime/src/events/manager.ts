@@ -37,7 +37,9 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // `kitchen-alert`: an issue the station opened for its own needs — its
 // breaker (`issue-de-la-cuisine.ts`) —, not a ticket about the project's
 // code: never judged, never handed to a cook (#3620).
-export type Ecart = "roadmap" | "epic" | "question" | "decision" | "blocked-on-human" | "served-elsewhere" | "set-aside:failures" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert";
+// `parked` (#4129) : le ticket attend quelqu'un — `parked`, ou `chef-todo` pour le chef ; le manager ne le juge pas avant
+// qu'il reprenne.
+export type Ecart = "roadmap" | "epic" | "question" | "decision" | "served-elsewhere" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert" | "parked";
 
 // The command by which the chef hands a `chef-changed` issue back to the
 // manager, as it is told on the issue and in the report.
@@ -65,6 +67,9 @@ export type TicketPrevu = {
   model: string;
   effort: string;
   calibration: string;
+  // The minutes it is expected to be merged in (#4307): label
+  // `attendu:<minutes>`. Absent from splits before #4307.
+  expectedMinutes?: number;
 };
 
 // What the manager does with a ticket the pass handed to it. `retry`: the
@@ -116,7 +121,7 @@ export type FaitManager =
   // capabilities no station provides, `reason`: why the rewrite is impossible.
   | { type: "manager.capability-resplit"; payload: { missing: string[]; run: string | null } }
   | { type: "manager.capability-gestured"; payload: { missing: string[]; reason: string } }
-  // An issue held by `blocked-on-human` was re-read for the decision it awaits.
+  // An issue held for a human, before parked (#4260), was re-read for the decision it awaits: the log's history.
   // `outcome`: `stated` (the decision is written: nothing changes), `card` (a
   // typed TODO card was derived: `card` holds it), `taken-back` (the label was
   // removed, the kitchen judges the issue), `unreadable` (no usable answer: it
@@ -128,7 +133,7 @@ export type FaitManager =
   // An issue judged `incomplete` was followed up (#2692). `outcome`: `completed`
   // (the manager rewrote its acceptance criteria and judged it `fire`:
   // `criteria` holds them), `question` (a `product` TODO card asks the chef
-  // `question`, and the issue carries `product-question`), `unreadable` (no
+  // `question`, and the issue is parked for the chef), `unreadable` (no
   // usable answer). `fingerprint`: that of the verdict it follows — the same
   // one is not followed twice.
   | {

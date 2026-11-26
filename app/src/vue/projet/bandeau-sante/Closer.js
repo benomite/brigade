@@ -1,5 +1,6 @@
 // @ts-check
-// Le closer, sur Kitchen > Health (ticket 2491, épique 2484) : ce qu'il a fait — ses passes, et ce que chacune a retiré —,
+// Le closer, sur Kitchen > Health (ticket 2491, épique 2484) : ce qu'il a fait — ses passes, et où en est chacune ; les
+// lignes qu'elles ont retirées n'y sont plus, l'onglet Agents dit ses chiffres (ticket 4224) —,
 // ce qu'il vérifie en premier sur ce projet, ce que le chef lui demande de vérifier en plus, et ses réglages — son
 // calibrage, sa condition de départ, ses plafonds. Tout vient du dépôt du projet, sur GitHub (closer-sante.ts) : une
 // passe est une issue de fermeture, ce qu'elle a retiré est sa PR mergée ; ce qu'il vérifie en premier, ce que la
@@ -88,11 +89,12 @@ function partie(doc, titre, aide) {
 
 // --- Ce qu'il a fait -----------------------------------------------------------------
 
-// Ce qu'une passe a retiré, en une ligne : les lignes de sa PR mergée ; rien, sinon — et pourquoi, en mots.
+// Où en est une passe, en une ligne : sa PR mergée — ses chiffres sont dans l'onglet Agents (ticket 4224) — ; rien de
+// retiré, sinon — et pourquoi, en mots.
 /** @param {Passe} passe */
 export function ceQuElleARetire(passe) {
   const { pr } = passe;
-  if (pr?.mergee === true) return { retire: true, dit: `−${nombre(pr.retirees)} line${s(pr.retirees)}`, precise: `+${nombre(pr.ajoutees)} added` };
+  if (pr?.mergee === true) return { retire: true, dit: "its PR merged", precise: "" };
   if (passe.ouverte) return { retire: false, dit: pr === null ? "in progress — not cooked yet" : "in progress — its PR is in the pass", precise: "" };
   return { retire: false, dit: "nothing removed", precise: pr === null ? "closed with no PR" : "its PR was closed without a merge" };
 }

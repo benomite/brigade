@@ -1,5 +1,5 @@
-// La ligne d'état du rail (#3523) : au-dessus des colonnes, le bandeau Backlog et — seulement quand quelque chose retient la cuisine —
-// une seule ligne. Une issue que la cuisine a ouverte sur elle-même n'est jamais un besoin du Backlog : son contenu est cette
+// La ligne d'état du rail (#3523) : au-dessus des colonnes, la bande du haut et — seulement quand quelque chose retient la
+// cuisine — une seule ligne ; aucun bandeau Backlog (#4354). Une issue que la cuisine a ouverte sur elle-même n'est jamais un besoin du Backlog : son contenu est cette
 // ligne. Et la ligne ne dit jamais « no reason is found » devant une raison connue. Le module pur d'abord, puis la vue jouée.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -101,8 +101,6 @@ function recevoirFaits(vue: Jouee, faits: Faits): void {
 
 const enfants = (vue: Jouee): Faux[] => vue.element("rail").children;
 const avantLesColonnes = (vue: Jouee): Faux[] => enfants(vue).slice(0, enfants(vue).findIndex(({ className }) => className === "colonnes"));
-const bandeau = (vue: Jouee): Faux => enfants(vue).find(({ className }) => className === "backlog-band") ?? assert.fail("pas de bandeau Backlog");
-const titre = (vue: Jouee): Faux => bandeau(vue).dessous("button").find(({ className }) => className === "backlog-band-titre") ?? assert.fail("pas de titre");
 const statut = (vue: Jouee): Faux | undefined => enfants(vue).find(({ className }) => className.split(" ").includes("statut-du-rail") || className.split(" ").includes("attente-du-rail"));
 
 // Les issues que la cuisine a ouvertes sur elle-même (la cuisine oisive, plus ouverte depuis #3945), et #21, mise de côté.
@@ -112,22 +110,16 @@ const FAITS_EN_ATTENTE = { ...FAITS, attenteDuRail: { raison: "normale", phrase:
 const faitsAvec = (faits: object): Faits => faits as Faits;
 
 describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoin", () => {
-  test("une alerte de la cuisine sort du backlog : ni étiquette, ni ligne dans la liste dépliée, ni compte — son contenu est la ligne d'état", async () => {
+  test("une alerte de la cuisine : son contenu est la ligne d'état, et la carte du supervisor la dit en deux mots", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe([...ISSUES, INERTE])));
-
-    const tags = bandeau(vue).dessous("button").filter(({ className }) => className === "backlog-tag").map(({ dataset }) => Number(dataset.ticket));
-    assert.equal(tags.some((ticket) => ticket === 35), false);
-    assert.equal(titre(vue).textContent, "Backlog" + "8" + "1 awaits you");
-    titre(vue).click();
-    await repos();
-    assert.equal(bandeau(vue).dessous("button").some(({ dataset }) => dataset.ticket === "35"), false);
-    assert.doesNotMatch(bandeau(vue).textContent, /kitchen is idle/i);
+    const superviseur = enfants(vue)[0]?.dessous("button").find(({ dataset }) => dataset.agent === "supervisor");
+    assert.equal(superviseur?.textContent, "supervisoralert: #35");
 
     // La ligne d'état : celle de la cuisine oisive — et une seule, sous la bande du haut (#4238).
     assert.match(statut(vue)?.textContent ?? "", /^Kitchen idle: no merge for 60 minutes/);
-    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["bande-du-haut", "statut-du-rail", "backlog-band"]);
+    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["bande-du-haut", "statut-du-rail"]);
   });
 
   test("la cuisine oisive, seule : sa ligne dit « Kitchen idle », et son seul geste ouvre l'issue que la cuisine a ouverte (#4238)", async () => {
@@ -142,11 +134,11 @@ describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoi
     assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 35]);
   });
 
-  test("rien ne retient la cuisine : aucune ligne d'état — le bandeau Backlog est seul au-dessus des colonnes", async () => {
+  test("rien ne retient la cuisine : aucune ligne d'état — la bande du haut est seule au-dessus des colonnes (#4354)", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
-    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["bande-du-haut", "backlog-band"]);
+    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className), ["bande-du-haut"]);
   });
 
   test("la file attend et un ticket est mis de côté : la ligne nomme cette raison, jamais « no reason is found »", async () => {
@@ -159,35 +151,30 @@ describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoi
     vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
     assert.equal(phrase(), "The queue waits: #12, #13 are set aside.");
     assert.doesNotMatch(vue.element("rail").textContent, /no reason is found/);
-    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className.split(" ")[0]), ["bande-du-haut", "attente-du-rail", "backlog-band"]);
+    assert.deepEqual(avantLesColonnes(vue).map(({ className }) => className.split(" ")[0]), ["bande-du-haut", "attente-du-rail"]);
   });
 });
 
-describe("le bandeau Backlog est replié par défaut, et ne reste pas ouvert d'une visite à l'autre", () => {
-  test("ouvert d'un clic sur « Backlog », replié d'un second ; quitté pour Stations, il est replié au retour", async () => {
+describe("le TODO du haut est replié par défaut, et ne reste pas ouvert d'une visite à l'autre (#4354)", () => {
+  test("ouvert d'un clic sur sa ligne, replié d'un second ; quitté pour Stations, il est replié au retour", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
-    vue.dire("surAmont", tenirAmont().recevoir(await amontDe(ISSUES)));
-    assert.equal("deplie" in bandeau(vue).dataset, false);
-    titre(vue).click();
     await repos();
-    assert.equal("deplie" in bandeau(vue).dataset, true);
-    titre(vue).click();
-    await repos();
-    assert.equal("deplie" in bandeau(vue).dataset, false);
-
-    titre(vue).click();
-    await repos();
-    assert.equal("deplie" in bandeau(vue).dataset, true);
+    const ligne = () => (enfants(vue).find(({ className }) => className === "avis-du-todo") ?? assert.fail("pas de TODO")).dessous("button")[0] ?? assert.fail("pas de ligne");
+    assert.equal(ligne().ariaExpanded, "false");
+    ligne().click();
+    assert.equal(ligne().ariaExpanded, "true");
+    ligne().click();
+    assert.equal(ligne().ariaExpanded, "false");
+    ligne().click();
     await ouvrirOnglet(vue, "Stations");
     await ouvrirOnglet(vue, "Rail");
-    assert.equal("deplie" in bandeau(vue).dataset, false);
+    assert.equal(ligne().ariaExpanded, "false");
   });
 });
 
 describe("le module pur de la ligne d'état", () => {
   const doc = { createElement: (balise: string) => new Faux(balise) };
-  // brigade:guard
   test("les alertes : la première (par ticket) ; aucune alerte, aucune ligne", () => {
     assert.deepEqual(ligneDesAlertes(doc, undefined), []);
     assert.deepEqual(ligneDesAlertes(doc, []), []);

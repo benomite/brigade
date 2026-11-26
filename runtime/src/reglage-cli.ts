@@ -68,7 +68,7 @@ function enVigueur(env: Record<string, string | undefined>) {
   const reglages = reglagesPourMontrer(env);
   const clone = env.BRIGADE_REPO_DIR;
   const branche = clone ? brancheDuProjet(clone, env.BRIGADE_BASE_BRANCH || null) : null;
-  const provenanceDeLaBranche: Record<string, Provenance> = { "projet.json": "repository", configuration: "station", "CLAUDE.md": "CLAUDE.md" };
+  const provenanceDeLaBranche: Record<string, Provenance> = { "fiche-projet.json": "repository", "projet.json": "repository", configuration: "station", "CLAUDE.md": "CLAUDE.md", default: "default" };
   const journal = ouvrirJournal(env.BRIGADE_STATE_DIR as string, { lectureSeule: true });
   let posees;
   try {

@@ -29,7 +29,7 @@ test("machine saturée : la tête de file le dit, un prio:0 retenu dit derrière
 
   const rail = faits(lireEtat(journal, LU_LE), LU_LE).rail;
 
-  assert.equal(rail.find(({ ticket }) => ticket === 40)?.raison, "machine saturated");
+  assert.equal(rail.find(({ ticket }) => ticket === 40)?.raison, null, "a saturated machine is no reason: nothing is held for it");
   assert.match(rail.find(({ ticket }) => ticket === 41)?.raison ?? "", /#39/, "held non-head prio:0 names its holder");
   assert.equal(rail.find(({ ticket }) => ticket === 42)?.raison, null, "a free non-head prio:0 is not said saturated");
 });

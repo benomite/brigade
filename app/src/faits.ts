@@ -12,14 +12,17 @@
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (bon.ts).
 // Ce sont les deux seules choses lues hors de la forme.
 import { vueDesPostMortems, type VueDesPostMortems } from "./projets/post-mortems.ts";
+import { digestLu, filsLus, type DigestLu, type FilsLus } from "./journal/fils.ts";
+import { journalDuJour, type JournalDuJour } from "./projets/journal-du-jour.ts";
 import { railBloqueLu, type RailBloqueLu } from "./vue/rail-bloque/rail-bloque.ts";
 import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts";
 import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCartesLues, type AttendusDesCartes, type LignesDesCartes } from "./vue/attente-du-rail/attente-du-rail.ts";
 import type { AlerteDuRail } from "./attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
+import { hautDuBacklogLu, type HautDuBacklog } from "./vue/rail/rail.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
-import { lieuDe, lignesDuRail, motDEtat, porter, priorite, type Porte } from "./bon.ts";
+import { LE_CHEF, lieuDe, lignesDuRail, motDEtat, parqueDe, porter, priorite, type Porte } from "./bon.ts";
 import { sEssaie } from "./essai.ts";
 import { ligneAuTravail, ligneBaseRouge, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllisible, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRefusee, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
@@ -32,9 +35,8 @@ import { entete, type Entete } from "./fiche.ts";
 import { agentsDe, cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
 import { gardeRepeteeLue, ligneDeGarde, type GardeRepeteeLue, type LigneDeGarde } from "./vue/carte-ticket/garde-repetee.ts";
 import { anciennete, cadenceLue, essaisLus, points, type Anciennete, type EssaiLu, type Point, type CadenceLue } from "./cadence.ts";
-import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteDuChefDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
-import type { CarteDuChef, Recommandee } from "./tableau/todo-github.ts";
+import { LABEL_DU_CHEF, type CarteDuChef, type Recommandee } from "./tableau/todo-github.ts";
 import { validationLue } from "./vue/validation-design/validation-design-github.ts";
 import { revueLue } from "./vue/carte-sensible/carte-sensible-github.ts";
 import { SANS_RAISON, SERVED_ELSEWHERE, type MiseDeCote } from "./tableau/mise-de-cote-github.ts";
@@ -286,10 +288,8 @@ const QUI_M_ATTEND_DU_CHEF: Readonly<Record<string, string>> = {
   "review-before-merge": "A sensitive ticket waits for your review before merge.",
   // La question du manager avant de découper une épique (tableau/question-d-epique-github.ts).
   "manager-epic-question": "The manager asked you a question before splitting this epic: it waits for your answer.",
-  // Les écarts du manager (#3370, tableau/mise-de-cote-github.ts, `carteDeLEcart`).
-  "manager-question": "The manager set this ticket aside with a question for you.",
-  "manager-decision": "The manager set this ticket aside for your decision.",
-  "manager-blocked-on-human": "The manager holds this ticket until you lift the hold.",
+  // Un ticket parqué pour le chef par un label d'attente d'avant parked (#3370, #4129, tableau/mise-de-cote-github.ts, `carteDeLEcart`).
+  "manager-parked": "Parked for you by a waiting label of before parked: it waits for your answer.",
 };
 const phraseDuChef = (sorte: string): string => QUI_M_ATTEND_DU_CHEF[sorte] ?? `Waits for you: ${sorte}.`;
 
@@ -322,7 +322,7 @@ export { SANS_RAISON };
 // quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
 // `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
 // (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
-// `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` ou `blocked-on-human` met de côté, ce qui le
+// `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` met de côté, ce qui le
 // met de côté (tableau/mise-de-cote-github.ts, #2075) — absente pour toute autre entrée.
 // Une carte qui attend un autre humain du projet que le compte connecté (vue/cartes-assignees/, ticket 2985) : TODO la
 // replie sous « Awaiting others » — comme une entrée de `attend` (sa carte, sa décision…), et `qui` elle attend, leurs logins
@@ -424,6 +424,9 @@ export type Faits = {
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseDuCompte;
+  // Le rail, haut du backlog (vue/rail/, #4223) : les issues calibrées et prêtes, par priorité puis âge, et leur écran ;
+  // absent d'une lecture qui ne le compose pas.
+  hautDuBacklog?: HautDuBacklog;
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -488,6 +491,10 @@ export type Faits = {
   // Ce que les cooks ont appris au projet, ses leçons et ses profils (apprentissage.ts) : absent quand il
   // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
   apprentissage?: ApprentissageLu;
+  // Les fils des agents du projet, et le digest de la veille (journal/fils.ts, ticket 4274) : le journal du jour et la carte
+  // du matin de sa vue — absents d'un runtime qui ne les donne pas.
+  fils?: FilsLus;
+  digest?: DigestLu;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -511,7 +518,7 @@ export type Faits = {
 // `captures` : celles d'un ticket d'interface livré, avant et après (captures.ts) — absentes,
 // le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
 // `question` : sur une carte de TODO, son issue porte une question du manager — avant de découper
-// une épique, ou qui la retient (`blocked-on-human`) —, que la carte dit en deux lignes (question.ts).
+// une épique, ou qui la parque pour le chef (`chef-todo`) —, que la carte dit en deux lignes (question.ts).
 // `todo` : sur une carte de TODO entrée par la porte du runtime, sa question, ses choix et ses captures
 // (carte-todo.ts) — ce que le chef tranche sur la carte même, d'un clic ou d'un texte.
 // `repondue` : sur une carte de WAITING, sa question est répondue, et elle attend que le manager lise
@@ -524,8 +531,8 @@ export type Faits = {
 // `essai` : le rang de l'essai en cours d'un ticket pris plus d'une fois (#3923) — absent pour un premier essai.
 // `sensible` : son ticket porte le label `sensitive` (ticket 3224) — la carte le marque.
 // `etape` : sur une carte qui attend le chef, la colonne de son étape, où la vue la pose en rouge (#3458) — TODO n'est
-// pas une colonne. `relancePassee` : sur une carte de WAITING, sa relance est passée — elle revient au chef, et la vue la
-// pose en rouge dans WAITING.
+// pas une colonne. `relancePassee` : sur une carte de WAITING, sa relance est passée — sa ligne le signale ; parked jusqu'à
+// une date, elle n'attend pas le chef pour autant : ni rouge, ni dans son TODO (#4261).
 // `miseDeCote` : sur une carte de TODO d'un projet GitHub seul, le label qui met son ticket de côté, et les `#N` de sa
 // ligne qui s'ouvrent d'un clic (#2075) — sa ligne dit pourquoi.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
@@ -587,6 +594,8 @@ export type Tableau = {
   arretCuisine?: ArretDeLaCuisine;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
   pauseQuota?: PauseDuCompte;
+  // Le rail, haut du backlog (vue/rail/, #4223) : au-dessus des colonnes, sous le bandeau Backlog. Absent sans lecture qui le porte.
+  hautDuBacklog?: HautDuBacklog;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
   // tout s'y voit, aucun geste n'y est offert, et une ligne en tête le dit. Absent : la vue ordinaire.
   lectureSeule?: { depot: string };
@@ -616,6 +625,11 @@ export type Tableau = {
   // Où en est chaque ticket pris, en pass ou servi, que le récit du premier ticket suit (ticket 3302,
   // vue/premier-ticket/) — absent d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ).
   etapesDesTickets?: EtapeDuTicket[];
+  // Le journal du jour, tiré des fils des agents à cette lecture (projets/journal-du-jour.ts, ticket 4274), avec les gestes
+  // illisibles qu'il n'a pas pu ranger — ou pourquoi les fils ne se lisent pas ; et le digest de la veille. Absents d'un
+  // runtime qui ne les donne pas.
+  journal?: (JournalDuJour & { illisibles: number }) | { illisible: string };
+  digest?: DigestLu;
 };
 
 // Un ticket tel que le récit du premier ticket le suit (ticket 3302) : son mot d'état (`pris`, `en pass`, `base rouge`,
@@ -900,6 +914,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...alertesDuRailLues(racine.alertesDuRail),
       ...arretCuisineLu(racine.arretCuisine),
       ...pauseQuotaLue(racine.pauseQuota),
+      ...hautDuBacklogLu(racine.hautDuBacklog),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
@@ -1017,6 +1032,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
       ...(budgetDesAppelsLu(racine.budgetDesAppels) === undefined ? {} : { budgetDesAppels: budgetDesAppelsLu(racine.budgetDesAppels) }),
       ...(racine.apprentissage === undefined ? {} : { apprentissage: apprentissageLu(racine.apprentissage) }),
+      ...(filsLus(racine.fils) === undefined ? {} : { fils: filsLus(racine.fils) }),
+      ...(digestLu(racine.digest) === undefined ? {} : { digest: digestLu(racine.digest) }),
     };
   } catch (erreur) {
     if (erreur instanceof Informe || apprentissageInforme(erreur)) return { informe: erreur.message };
@@ -1260,17 +1277,16 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   const dAutres = new Map((faits.attendAutres ?? []).map((attendu) => [attendu.ticket, attendu]));
   for (const entree of attend === undefined ? [] : ticketsDe(attend.bloc)) dits.set(entree.ticket, [...(dits.get(entree.ticket) ?? []), ditDe(entree)]);
   for (const { ticket } of faits.attend ?? []) if (!dits.has(ticket)) dits.set(ticket, []);
-  // Un ticket parked que la file nomme attend le chef : sa carte reste dans la colonne où il attend, et va aussi dans son TODO.
-  const parquesPourLeChef = new Set([...enWaiting].filter((ticket) => dits.has(ticket)));
   for (const ticket of enWaiting) dits.delete(ticket);
   // Une question du manager avant de découper une épique — d'un runtime d'avant `decision`, ce que sa
-  // ligne du bloc en dit —, et une issue que la question retient : la carte dit la question.
+  // ligne du bloc en dit —, et une issue que le manager a parquée pour le chef avec sa question (`chef-todo`, que sa ligne
+  // du bloc nomme, runtime/src/attend.ts ; d'abord un label d'attente d'avant parked, #4260) : la carte dit la question.
   const avantDecoupage = (ticket: number) => {
     const decision = (faits.attend?.find((attendu) => attendu.ticket === ticket) ?? dAutres.get(ticket))?.decision;
     return decision === undefined ? (dits.get(ticket) ?? []).some((dit) => QUESTION_D_EPIQUE.test(dit)) : decision.quoi === "question";
   };
-  const interroge = (ticket: number) => avantDecoupage(ticket) || (dits.get(ticket) ?? []).some((dit) => dit.includes(`\`${LABEL_RETENUE}\``));
-  // Répondue, la question avant découpage n'attend plus le chef. Celle qui retient l'issue, si : le label reste à lever.
+  const interroge = (ticket: number) => avantDecoupage(ticket) || (dits.get(ticket) ?? []).some((dit) => dit.includes(`\`${LABEL_DU_CHEF}\``));
+  // Répondue, la question avant découpage n'attend plus le chef. Celle qui parque l'issue, si : sa carte reste à répondre.
   const repondus = new Map([...dits.keys()].flatMap((ticket) => {
     const repondue = repondues?.get(ticket);
     return repondue !== undefined && avantDecoupage(ticket) ? [[ticket, repondue] as const] : [];
@@ -1359,7 +1375,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     // TODO, pas dans ces colonnes : elle n'en porte pas.
     const age = connu === undefined || connu.illisible !== undefined || dit !== undefined ? undefined : anciennete(connu.etat, connu.depuis, faits.lu, faits.cadence?.medianSeconds);
     const essais = age === undefined ? undefined : points(connu?.essais);
-    return {
+    const posee: Carte = {
       ticket,
       ...ligne,
       ...(essais === undefined ? {} : { essais }),
@@ -1412,6 +1428,11 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(prio === undefined ? {} : { prio: prio === "-" ? SANS_PRIO : prio }),
       ...(age === undefined ? {} : { age }),
     };
+    // Ce qui attend le chef, ou un autre humain du projet, est parked pour lui (#4261) : pour sa question — ou ce que sa
+    // carte attend —, sans date. Parked pour le chef, c'est une carte de son TODO.
+    if (dit === undefined) return posee;
+    const autrui = dits.has(ticket) ? undefined : dAutres.get(ticket)?.qui.join(", ");
+    return { ...posee, parque: parqueDe(autrui ?? LE_CHEF, posee.todo?.question ?? posee.fiche.attendu, null) };
   };
 
   // La carte d'une question répondue, qui attend que le manager lise la réponse : qui y a répondu,
@@ -1470,9 +1491,10 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
               { libelle: "on arrival", valeur: tiers.aLArrivee },
             ],
       ...(tiers == null ? { sans: TIERS_PAS_DONNE } : {}),
-      // Sa relance est passée : il revient au chef, sa carte est rouge dans WAITING (#3458).
+      // Sa relance est passée : sa ligne le signale (#3458) — une date passée ne la rend pas au chef (#4261).
       ...(tiers?.relance != null && relance < 0 ? { relancePassee: true as const } : {}),
-      ...(tiers == null ? {} : { parque: { qui: tiers.qui, jusqua: tiers.relance, ...(parquesPourLeChef.has(ticket) ? { chef: true as const } : {}) } }),
+      // Parked pour qui elle attend, pour ce qu'elle attend : pour le chef seulement, elle est dans son TODO (#4261).
+      ...(tiers == null ? {} : { parque: parqueDe(tiers.qui, tiers.quoi, tiers.relance) }),
       fiche: entete({ titre, url, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }),
       // Sans relance, personne n'a posé l'attente : rien à reprendre ni à renvoyer, le ticket repart seul.
       ...(tiers?.relance === null ? {} : { gestes: ["attente-reprendre" as const, "attente-arrivee" as const] }),
@@ -1625,6 +1647,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.alertesDuRail === undefined ? {} : { alertesDuRail: faits.alertesDuRail }),
     ...(faits.arretCuisine === undefined ? {} : { arretCuisine: faits.arretCuisine }),
     ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
+    ...(faits.hautDuBacklog === undefined ? {} : { hautDuBacklog: faits.hautDuBacklog }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
@@ -1633,6 +1656,8 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.budgetDesAppels === undefined ? {} : { budgetDesAppels: faits.budgetDesAppels }),
     apprentissage: apprentissageDe(faits.apprentissage),
     etapesDesTickets: etapesDesTickets(faits),
+    ...(faits.fils === undefined ? {} : { journal: "illisible" in faits.fils ? faits.fils : { ...journalDuJour(faits.fils.fils, new Date(faits.lu)), illisibles: faits.fils.illisibles } }),
+    ...(faits.digest === undefined ? {} : { digest: faits.digest }),
   };
 }
 

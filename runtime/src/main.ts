@@ -28,7 +28,11 @@ import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentite
 import { noterLeModeDesIdentites } from "./appels-par-identite.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
+import { placeLibre } from "./prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "./chef/chef.ts";
+import { brancherLeDigest } from "./journal-du-jour/matin.ts";
+import { politiqueDuRuntime } from "./autonomie/agents/politique-du-runtime.ts";
+import { lireLaQualite } from "./autonomie/agents/qualite.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
@@ -48,6 +52,8 @@ import { configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
 import { humainsDuProjet } from "./aiguillage-humains/aiguillage.ts";
+import { lireLaCharge } from "./rouge-de-charge/classeur.ts";
+import { createAgentSettings } from "./agent-settings/index.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -115,7 +121,8 @@ try {
   const station = configStation(decide);
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   ({ stations } = station);
-  const reviewer = configReviewer(decide);
+  // Lu ici pour qu'un calibrage du reviewer manquant refuse le démarrage ; la pass le relit ensuite à chaque relecture.
+  configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
   // relit ensuite à chaque réveil.
@@ -147,7 +154,9 @@ try {
   const pose = etablirLInterrupteur(socle.journal, projet);
   if (pose !== null) console.log(pose);
   // Ce que le chef décide sans redémarrer : chaque lecture relit le journal.
-  const decisions = suivreDecisions(socle.journal.base, process.env, undefined, duDepot.suivis);
+  // Les réglages des agents posés depuis l'app passent avant tout, relus eux aussi à chaque lecture (#4222).
+  const reglagesDesAgents = createAgentSettings({ stateDir: repertoireEtat, env: process.env, project: projet });
+  const decisions = suivreDecisions(socle.journal.base, process.env, undefined, duDepot.suivis, () => reglagesDesAgents.overrides());
   // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à
   // chaque tick : un hôte mergé s'ouvre sans rien redémarrer, et avant le
   // setup du premier ticket pris après lui.
@@ -185,6 +194,7 @@ try {
         : (() => {
             const gardes = gardesDuTour({ garde, station: ici.nom, repertoireEtat, arbitre: arbitre === null ? null : joindreArbitre(arbitre), machine: { lire: () => lireMachine(repertoireEtat), seuils: station.seuils }, disquePlein: disqueDuProjet(repertoireEtat, githubs.pass), env });
             const ecrivaine = stationDuDepot({
+              lireCharge: lireLaCharge,
               porte: gestes,
               nom: ici.nom,
               places,
@@ -201,13 +211,9 @@ try {
               cloison,
               plafonds: reglages.plafonds,
               graceMs: reglages.graceMs,
-              reviewer: reviewer.calibrage,
-              // La question d'un cook bloqué va au manager avant tout `blocked-on-human` (#2894).
+              reviewer: () => decisions.reviewer(),
+              // La question d'un cook bloqué va au manager avant que le ticket ne soit parqué pour le chef (#2894).
               manager: () => decisions.manager(),
-              // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
-              testsAcceptation: () => decisions.manager(),
-              // Il classe d'abord chaque critère, testable ou non, avec la preuve due (#3740).
-              classesDesCriteres: () => decisions.manager(),
               // Une recalibration du manager après le dernier essai reste sous ce plafond (#3513).
               plafond: () => manager.plafond,
               flux: join(repertoireEtat, "github-seul"),
@@ -253,7 +259,7 @@ try {
   brancherDerive(socle, decisions.seuils);
   // Le manager : il ne lance que des jugements et des découpages. Son travail
   // sur une issue se prend sur GitHub au nom de la station (#2568).
-  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,
@@ -268,7 +274,7 @@ try {
   const datee = brancherJeton(suivie, jeton);
   // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
   // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
-  const supervisee = brancherSuperviseur(datee, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur });
+  const supervisee = brancherSuperviseur(datee, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, chef: async () => (chefDuProjet === null ? null : chefDuProjet()) });
   runtime = supervisee;
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
@@ -277,6 +283,10 @@ try {
   brancherMentionDuChef(runtime, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages });
   // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
   brancherReponseParCommentaire(runtime, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages });
+  // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
+  brancherLeDigest(runtime, { repertoireEtat, avertir: (ligne) => console.error(`brigade : ${ligne}`) });
+  // Les niveaux d'autonomie bougent selon le bilan des gestes, au plus une fois par heure ; une rétrogradation réveille le chef (#4380).
+  politiqueDuRuntime(runtime, { lire: () => lireLaQualite({ depot, clone: station.clone, base: station.base, depotGitHub: rail.depot, github: githubs.station, env }, new Date()) });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

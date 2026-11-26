@@ -58,7 +58,7 @@ The rail's facts: `ticket.arrived`, `ticket.changed`, `ticket.left` (also for an
 | **in pass** | the cook has finished; the pass is judging — or stopped, green, without merging |
 | **served** | merged. The pass closes its issue: it leaves the rail at the next poll |
 | **86** | not servable for now (quota exhausted, ticket refused, pass escalated to the chef) |
-| **WAITING** | waiting for a **third party**, not for you; the kitchen does not take it (see "A ticket waits for a third party: WAITING") |
+| **WAITING** | in an old box log, waiting for a **third party**, not for you; the kitchen does not take it — today such a ticket is parked (see "A ticket waits for someone: parked") |
 
 **Service order**: `prio:1`, `prio:2`, `prio:3`, then no `prio:`; at equal priority, the oldest
 first. Only the `prio:` labels set the order; the rail lends the first ticket, in this order, that
@@ -175,52 +175,57 @@ it hands the task to someone else; any other ticket is refused. The other way ou
 capability to a station (`installation stations set`): `facts` gives, on such a WAITING card only,
 `requiert`, every capability the card asks for.
 
-### A ticket waits for a third party: WAITING
+### A ticket waits for someone: parked
 
-What waits for someone other than you — a client's answer, an external decision, a meeting — leaves
-what awaits you (TODO) and is put aside: **WAITING**. The ticket says what it waits for (your
-words), from whom, since when, the date to come back to it, and what happens on arrival.
+A ticket that waits for someone — the chef, a client's answer, an external decision, a date — is
+**parked** (#4129, rule 13 of
+[the simplified process](../superpowers/specs/2026-11-24-simplified-process.md)): its issue carries
+the `parked` label and a comment marked `<!-- brigade:parked {…} -->` that says **who** it waits
+for, **for what**, and **until when** — a date, or a fact
+(`runtime/src/attente-github/marque.ts`, `corpsDuParking`). Parked replaces WAITING: the label
+catalogue renames `waiting` to `parked` on GitHub, an old `<!-- brigade:waiting … -->` comment is
+still read, and the box's `waiting` command is gone. Nothing goes through the box: every gesture
+is written on the issue, on any GitHub project.
 
-```bash
-npm --prefix runtime run waiting                # the tickets in WAITING
-npm --prefix runtime run waiting -- set 8 --what "sa validation écrite du devis" --from "le client" [--remind 2026-10-21]
-npm --prefix runtime run waiting -- resume 8    # WAITING → TODO, right away
-```
+No box command sets or lifts it (#4262): the chef's app and the second park and unpark a ticket the
+same way, on its issue, on any project, through the same two functions — `parquer`
+(`app/src/vue/attente/attente-github.ts`) and `deparquer` (`app/src/gestes-github.ts`). The app
+plays them from **waiting for…** on a card, **resume** and **it arrived, back to the kitchen**; the
+second with the parking command the app gives it at each session start (`app/src/second/parking.ts`):
+`park <owner>/<repo>#<n> --who <who> --what <what> --until <YYYY-MM-DD>` and
+`unpark <owner>/<repo>#<n>`. The kitchen parks with the same marks (`mettreEnAttenteGitHub` and
+`poserLAttente` in `runtime/src/attente-github/attente-github.ts`).
 
-`--what` and `--from` values are the chef's own words, so French; `set`, `resume`, `--what`,
-`--from`, `--remind` are English (the old `poser`, `reprendre`, `--quoi`, `--de` still answer). "It
-arrived" is not a box command: on the GitHub-only path, remove the ticket's `waiting` label on
-GitHub ([`github-seul.md`](github-seul.md)).
-
-- **`set`** puts a ticket of the rail that is **queued or 86** in WAITING; a ticket taken or in pass
-  is refused. `--remind`: a date (midnight, box time), a date and time (`2026-10-21T09:00`) or a
-  duration (`7j`, `36h`); **default seven days**. Said again, it updates what it waits for, not since
-  when.
-- **The second launches it, alone or on request.** Alone: reading the queue, any TODO card whose
-  text names the awaited third party goes to WAITING through this action, with a follow-up (the
-  card's date, otherwise seven days); it says so in its first answer, one line per card, and the chef
-  cancels in a word ("resume #N"). If who is awaited is unclear, it moves nothing and asks one
-  question. A card that awaits the chef stays in TODO. On request ("put #8 in waiting for the client
-  until the 21st"), it extracts what, from whom and the follow-up, asks for what is missing, then
-  launches the same action through the box (`brigade <name> waiting set 8 --what … --from …
-  --remind 2026-10-21`), never a label or comment set by hand; a refusal is relayed as is. Auto mode
-  judges it: no narrow rule names free arguments. Evals: `evals/second-met-en-attente`,
-  `evals/second-met-en-attente-seul`.
-- **The kitchen never takes a WAITING ticket**: it is an 86 with no return time, reason
-  `third-party`, holding no zone even with an open delivery; put back on the rail, it claims it
-  again.
-- **`resume`** brings it back to TODO: in its state before waiting if it had been set aside (its
-  `attend` line as it was), otherwise set aside for you (reason `third-party:resumed`), with what it
-  waited for and your actions. It does not go to the kitchen alone.
-- **`/brigade arrived #<N>`** puts it back on the rail, queued: a cook takes it in turn, on its open
-  delivery if any. It also works on a ticket back from WAITING into TODO. The box answers under the
-  comment: done, or why not (a ticket not on the rail, or neither in WAITING nor back from it). The
-  app's "it arrived, back to the kitchen" and "back to the kitchen" (sheet) post it.
-- **On the issue**: the `waiting` label while the ticket waits, and a comment on entering WAITING and
-  at each change; on leaving, the label goes and a comment says where the ticket went. What is set
-  is logged (`waiting.marked`); if GitHub is unreachable, it is caught up at the next wake-up.
-- The follow-up is only a stated date: nothing brings the ticket back when it passes. It stays in
-  WAITING, with no card in TODO, and its card shows `follow-up date passed`.
+- **From any step.** A ticket is parked at the backlog, while its cook is cooking it (`taken`) or
+  at the pass (`in-pass`): the labels of its step stay as they are. A ticket that is already
+  parked is refused, and nothing is written.
+- **Until when.** A date — the day the app's form or the parking command gives, seven days when the
+  kitchen says none — or a fact, which only the kitchen writes today (a ticket parked by its failures
+  waits for the supervisor's answer).
+- **It resumes exactly where it was** — `parked` is removed and nothing else: no `fire` added, the
+  labels of its step as they were — when its **date** comes (the station, at each turn:
+  `ramenerALaRelance` in `runtime/src/attente/attente-par-le-cook.ts`), when its **fact** happens
+  (`arrived`, or the app's *it arrived, back to the kitchen*), or when the person **answers**
+  (`resume`, the app's *resume*, the second). A ticket parked until a fact, or for the chef, never
+  resumes by a date.
+- **For the chef.** Parked for the chef, it carries `chef-todo` instead of `parked`, and a card: it is in the chef's TODO ([TODO cards](../todo-cards.md)). A TODO card the
+  kitchen posts parks its ticket the same way (`poserCarte` in
+  `runtime/src/github-seul/carte-todo/carte-todo.ts`). A chef's card parked for someone else takes
+  `parked` and leaves TODO; when it resumes, it is back in TODO.
+- **What the kitchen parks by itself.** A ticket whose cooks failed too many times: the station
+  stops its relaunch loop and parks it, waiting for the supervisor, which gets its dossier
+  (`parquerSesEchecs`, `runtime/src/manager/supervision.ts`). A ticket whose cook says it cannot be
+  done before a date, or that it waits for a third party outside the kitchen: parked until that
+  date, or seven days. And, for the chef, with a TODO card (`chef-todo`): a cook blocked on a
+  product or design question, or on a gesture only the chef makes (`poserALaMain`); a prerequisite
+  only a human installs on a station; a wait the manager finds to be a product decision; an issue
+  the manager refuses to the chef with its question. `blocked-on-human`, `question`, `decision`,
+  `product-question` and `set-aside:failures` are set by nothing any more: on an issue that still
+  carries one from before, they are read as before.
+- **Nothing takes it before**: see "Nothing takes a parked ticket" in
+  [exploitation.md](exploitation.md).
+- **Old logs.** The WAITING events of a box log (`ticket.waiting`, `ticket.resumed`) are still read
+  as history by `status`; nothing writes them any more.
 - What a third party or an absent machine holds — a capability no station provides (`no-station`),
   an absent remote station — does not wait for the chef either: not in the `awaiting` block nor in
   TODO; the rail line says what it waits for.

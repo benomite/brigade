@@ -1,6 +1,7 @@
 // L'état de la cuisine, en lecture seule :
 //   npm --prefix runtime run status                          la photo : runtime, ce qui attend le chef, rail, cooks, derniers événements
 //   npm --prefix runtime run status -- --follow [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
+//   npm --prefix runtime run status -- --json                les délais des tickets mergés en 24 h (#4308), en JSON
 // `--days <N>` : la période des cartes entrées dans TODO, par type — product,
 // design, gesture —, comptée en jours jusqu'à maintenant (7 par défaut).
 // L'ancien mot `--suivre` répond encore, en disant le nouveau (`commandes.ts`).
@@ -26,13 +27,16 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direCadence } from "./produit/cadence/statut.ts";
 import { nommerLePlusLent } from "./lenteur/nommer.ts";
 import { ligneDuTempsDesTickets } from "./status-temps-tickets.ts";
+import { ligneDuDelaiDePrise } from "./delais/ligne.ts";
 import { ligneDesReparations } from "./status-reparations.ts";
 import { ligneDesTempsDesTickets, lesTempsDesTickets } from "./temps-ticket/ligne-status.ts";
 import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
+import { direLesDelais } from "./delais/affichage.ts";
+import { delaisDuClone } from "./delais/lecture.ts";
 import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile, railCherche } from "./attente-du-rail/status.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
+const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>] | --json]";
 
 const JOURS_DE_TODO = 7;
 
@@ -56,6 +60,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   }
 
   if (!env.BRIGADE_STATE_DIR) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  // `--json` : l'objet `delais` (#4308), seul ; illisible, il vaut null et la raison va sur stderr.
+  if (args.length === 1 && args[0] === "--json") {
+    const delais = delaisDuClone(env.BRIGADE_REPO_DIR, new Date());
+    if ("illisible" in delais) redire(`brigade : merged tickets unreadable: ${delais.illisible}`);
+    return dire(JSON.stringify({ delais: "illisible" in delais ? null : delais }, null, 2));
+  }
   const [option, ticket] = args;
   if (args.length > 2 || (option !== undefined && option !== "--follow") || (ticket !== undefined && !/^[0-9]+$/.test(ticket))) {
     echouer(2, USAGE);
@@ -77,7 +87,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const lu = journal;
   if (!railCherche(env)) return ecrire(lignes);
   // Pourquoi la file ne part pas (#3433) : sa phrase au-dessus de la ligne `rail`, la même que le rail de l'app.
-  return attenteEtRailDuStatus(env, maintenant, lu.base).then((attente) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(lignes, attente.enFile), attente.lignes)), (erreur: unknown) => {
+  // Puis, au-dessus, pourquoi la cuisine ne cuit pas (#4214) : au repos ou en panne, sa cause et son action.
+  return attenteEtRailDuStatus(env, maintenant, lu.base).then((attente) => ecrire(avecLAttenteDuRail(avecLeRailEnFile(lignes, attente.enFile), [...attente.cuisine, ...attente.lignes])), (erreur: unknown) => {
     lu.fermer();
     throw erreur;
   });
@@ -170,7 +181,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   if (githubSeul !== null) lignes.push(direGitHubSeul(githubSeul));
   // Les redémarrages de la station des dernières 24 heures (#2589).
   lignes.push(ligneDesRedemarrages(env.BRIGADE_STATION_DIR, maintenant.getTime()));
-  // Les `blocked-on-human` demandés sans question sur la carte, jamais remis à zéro (#2556).
+  // Les tickets parqués pour le chef sans question sur la carte, jamais remis à zéro (#2556).
   lignes.push(`${"blocked w/o q".padEnd(11)} ${lireBlocagesSansQuestion(env.BRIGADE_STATE_DIR)}`);
   // Le chef que les cartes de TODO mentionnent, et d'où il vient, tel que la cuisine l'a résolu (#2928).
   lignes.push(direLeChef(lireLeChef(env.BRIGADE_STATE_DIR)));
@@ -178,6 +189,10 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   lignes.push(direCadence(journal.base, maintenant));
   lignes.push(ligneDesTempsDesTickets(env.BRIGADE_REPO_DIR));
   lignes.push(ligneDuTempsDesTickets(env.BRIGADE_REPO_DIR));
+  // La part des tickets mergés en 24 h dans leur temps attendu, et les pires dépassements (#4308).
+  lignes.push(...direLesDelais(delaisDuClone(env.BRIGADE_REPO_DIR, maintenant)));
+  // La part des tickets mergés en 10 min ou moins de leur prise, et la médiane, sur 24 h (#4299).
+  lignes.push(ligneDuDelaiDePrise(env.BRIGADE_REPO_DIR, maintenant));
   // Les quatre chiffres (#2672) : valeur, seuil, rouge au-dessus.
   lignes.push(...direLesChiffres(chiffresDuClone(env.BRIGADE_REPO_DIR), rouge));
   // Les réparations de la base par PR mergée, comptes à l'appui, sur la fenêtre des temps (#2696).

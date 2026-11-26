@@ -2,7 +2,7 @@
 // chaque cas sans question est compté (#2556).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { A_LA_MAIN } from "../src/brigade-github.ts";
+import { CHEF_TODO } from "../src/github-etat/etats.ts";
 import { lireBlocagesSansQuestion, poserALaMain } from "../src/blocages-sans-question.ts";
 import { principal as faits } from "../src/faits.ts";
 import { principal as status } from "../src/status.ts";
@@ -18,14 +18,16 @@ function github() {
   };
 }
 
-test("avec une question, elle est écrite sur la carte avant le label, et rien n'est compté", async (t) => {
+// #4129 : le ticket est parqué pour le chef — `chef-todo`, puis la carte marquée qui porte la question et ses deux
+// boutons —, jamais `blocked-on-human`.
+test("avec une question, le ticket est parqué pour le chef : `chef-todo`, puis la carte qui la porte, et rien n'est compté", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const gh = github();
 
   const pose = await poserALaMain({ github: gh, repertoireEtat: repertoire }, 12, "Which of the two layouts do you want?");
 
   assert.deepEqual(pose, { pose: true });
-  assert.deepEqual(gh.gestes, ["comment #12: Which of the two layouts do you want?", `label #12: ${A_LA_MAIN}`]);
+  assert.deepEqual(gh.gestes, [`label #12: ${CHEF_TODO}`, "comment #12: <!-- brigade:todo kind=blocked -->\nWhich of the two layouts do you want?\n\n- [resume] Back to the kitchen\n- [close] Close it"]);
   assert.equal(lireBlocagesSansQuestion(repertoire), 0);
 });
 

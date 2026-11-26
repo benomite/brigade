@@ -56,11 +56,10 @@ function lesPlists(paquet: string): string[] {
 }
 const cle = (xml: string, nom: string) => new RegExp(`<key>${nom}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
 
-// brigade:guard
 test("the packaging build still succeeds: the bundle is assembled with its app, runtime and node", (t) => {
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));
-  for (const chemin of ["Contents/Info.plist", "Contents/Resources/app/package.json", "Contents/Resources/runtime/package.json", "Contents/Resources/node/bin/node"])
+  for (const chemin of ["Contents/Info.plist", "Contents/Resources/app/package.json", "Contents/Resources/runtime/package.json", "Contents/Resources/node/bin/brigade-node"])
     assert.ok(readFileSync(join(paquet, chemin)).length > 0, chemin);
   // The renamed helpers are still all there, and the app's executable still starts them.
   assert.equal(lesPlists(paquet).length, 5);

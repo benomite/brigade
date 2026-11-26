@@ -63,7 +63,6 @@ test("a served delivery says how long ago it was merged, and the age moves with 
 
 // #3925, critère 3 : les chiffres de la colonne Served restent, avec leurs valeurs — comme avant.
 // Test d'acceptation gelé : il passe déjà sur la base, et c'est voulu.
-// brigade:guard
 test("the figures of the Served column stay and keep their values", async () => {
   const appeler = github(() => [fermee(7, new Date(T0 - 2 * 60_000).toISOString()), fermee(8, new Date(T0 - 30 * 60_000).toISOString())]);
   const lu = await lireA(appeler, T0);

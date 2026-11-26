@@ -1,10 +1,11 @@
 // @ts-check
 // L'équipe d'un projet (ticket 4029, épique 4024, spec 2026-11-23-autonomy-trust-control.md, C1, C2, C4) : en tête de la
 // vue du projet, un badge par agent — supervisor et closer d'abord, puis manager, pass et chaque cook, dans la même
-// forme. Chaque badge dit l'état de l'agent, son dernier geste et quand, et sa prochaine passe telle que le runtime la
-// dit. Un clic ouvre son fil sous la rangée : ses derniers gestes, une ligne chacun avec sa raison et son issue, ses deux
-// compteurs, son niveau d'autonomie — observe, propose, act — que le chef change d'un clic, et les gestes qui attendent
-// son OK, un bouton chacun. Un nouveau clic sur le badge le referme.
+// forme. Chaque badge tient sur une ligne (ticket 4354) : son nom, un point d'état — au travail, au repos, cassé — et
+// l'état en deux ou trois mots, et combien de ses gestes attendent l'OK du chef. Un clic ouvre son fil sous la rangée :
+// son dernier geste et quand, sa prochaine passe telle que le runtime la dit, ses derniers gestes, une ligne chacun avec
+// sa raison et son issue, ses deux compteurs, son niveau d'autonomie — observe, propose, act — que le chef change d'un
+// clic, et les gestes qui attendent son OK, un bouton chacun. Un nouveau clic sur le badge le referme.
 // Les données passent par autonomie/source.js, et par lui seul : la vue n'appelle que `source.lire`, `source.regler` et
 // `source.approuver`. Une lecture qui ne rend rien ne pose aucune équipe ; une lecture qui échoue, ou qui ne se lit pas,
 // se dit en une ligne, son détail au survol ; un geste qui échoue aussi, et rien ne change à l'écran.
@@ -12,6 +13,7 @@
 
 import { heureUtc } from "../activite-du-cook.js";
 import { bouton } from "../composants/bouton/bouton.js";
+import { marque } from "../composants/pastille/pastille.js";
 import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
 import { NON_ATTEINT, PAS_ENCORE } from "../lexique.js";
@@ -32,6 +34,8 @@ const TITRE = "The agents";
 const INDISPONIBLE = NON_ATTEINT("the agents");
 const ILLISIBLE = "the agents' reading is not readable";
 const NIVEAU = "autonomy";
+const SANS_COMPTEUR = "—";
+const EPINGLE = "level pinned";
 const PAR_LUI = "fixed by itself";
 const AU_CHEF = "handed to the chef";
 const EN_ATTENTE = "awaits your OK";
@@ -71,9 +75,10 @@ const detailDe = (erreur) => (erreur instanceof Error ? erreur.message : String(
 // L'équipe posée dans `cadre`, la section en tête de la vue du projet. `lire(projet)` la relit — à l'ouverture du
 // projet, à chaque lecture de son rail ; `montrer(projet)` la montre pour le projet affiché, et la cache pour tout autre.
 // La bande du haut de la vue (cuisine/, ticket 4238) lit un agent de l'équipe lue (`agent`) et ouvre son fil (`ouvrirLeFil`) ;
-// `apresLecture(projet)` est appelé quand une lecture change ce que l'équipe dit.
-/** @param {Fabrique} doc @param {any} cadre @param {(projet: string) => void} [apresLecture] */
-export function tenirLEquipe(doc, cadre, apresLecture) {
+// `apresLecture(projet)` est appelé quand une lecture change ce que l'équipe dit ; `ouvrirLesAgents()`, au clic d'un badge qui ouvre
+// son fil, ouvre aussi l'onglet Agents de la vue du projet (ticket 4224).
+/** @param {Fabrique} doc @param {any} cadre @param {(projet: string) => void} [apresLecture] @param {() => void} [ouvrirLesAgents] */
+export function tenirLEquipe(doc, cadre, apresLecture, ouvrirLesAgents) {
   const element = doc.createElement("div");
   element.className = "equipe";
   element.ariaLabel = TITRE;
@@ -154,16 +159,16 @@ export function tenirLEquipe(doc, cadre, apresLecture) {
     cree.dataset.agent = agent.agent;
     cree.dataset.etat = agent.state.startsWith("broken") ? "casse" : "";
     cree.ariaExpanded = String(agent.agent === ouvert);
-    const tete = doc.createElement("span");
-    tete.className = "tete";
-    tete.append(texte("nom", agent.agent), texte("etat", agent.state), texte("niveau", agent.autonomy));
-    cree.append(tete, texte("geste", `${agent.lastGesture.line} · ${heureUtc(agent.lastGesture.at)}`), texte("prochaine", agent.nextRun.text));
-    // Une ligne trop longue pour le badge y est coupée d'une ellipse : entière au survol.
-    for (const ligne of cree.children) ligne.title = ligne.textContent;
+    // Son dernier geste et sa prochaine passe (ticket 4029, critère 2) : au survol, pas en texte — le badge tient sur une ligne (ticket 4354).
+    cree.title = `${agent.lastGesture.line} · ${heureUtc(agent.lastGesture.at)} — ${agent.nextRun.text}`;
+    // Le point : cassé en rouge, au repos en gris, au travail en bleu. L'état trop long pour le badge y est coupé : entier au survol.
+    const ton = cree.dataset.etat === "casse" ? "rouge" : agent.state === "idle" ? "gris" : "bleu";
+    cree.append(marque(doc, ton), texte("nom", agent.agent), Object.assign(texte("etat", agent.state), { title: agent.state }));
     if (agent.pending.length > 0) cree.append(texte("attente", `${agent.pending.length} ${EN_ATTENTE}`));
     cree.addEventListener("click", () => {
       ouvert = ouvert === agent.agent ? null : agent.agent;
       rendre();
+      if (ouvert !== null) ouvrirLesAgents?.();
     });
     return cree;
   };
@@ -180,7 +185,13 @@ export function tenirLEquipe(doc, cadre, apresLecture) {
     const compteurs = doc.createElement("p");
     compteurs.className = "compteurs";
     compteurs.textContent = `${PAR_LUI} ${agent.counters.fixedBySelf} · ${AU_CHEF} ${agent.counters.handedToChef}`;
-    tete.append(titre, compteurs, niveaux(agent));
+    tete.append(titre, texte("geste", `${agent.lastGesture.line} · ${heureUtc(agent.lastGesture.at)}`), texte("prochaine", agent.nextRun.text), compteurs, niveaux(agent));
+    // Le compteur vers le prochain niveau, tel que le runtime le dit : `null` à act, rien tant qu'il ne le dit pas.
+    if (agent.progress !== undefined) {
+      const vers = agent.progress === null ? SANS_COMPTEUR : `${agent.progress.done} of ${agent.progress.of} toward ${agent.progress.toward}`;
+      tete.append(texte("progression", vers));
+    }
+    if (agent.pinned === true) tete.append(texte("epingle", EPINGLE));
     cadreDuFil.append(tete);
     const rate = rates.get(agent.agent);
     if (rate !== undefined) cadreDuFil.append(ligneErreur(doc, rate.ligne, rate.detail, { alerte: true }));

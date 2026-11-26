@@ -41,7 +41,6 @@ const EXEMPLES = {
   ecartee: [
     { ...ticket(21), quoi: "ecartee", reason: "question" },
     { ...ticket(22), quoi: "ecartee", reason: "decision" },
-    { ...ticket(23), quoi: "ecartee", reason: "blocked-on-human" },
   ],
   illisible: [
     { ...ticket(24), quoi: "illisible", epique: true },
@@ -177,11 +176,12 @@ describe("the four kinds the chef named", () => {
     );
   });
 
-  test("the manager's question before splitting an epic: a question, two ways to answer, and the free answer", () => {
+  test("the manager's question before splitting an epic never asks whether to split it: one gesture, and the free answer (#4247)", () => {
     const carte = carteDeLAttente(exemple(26));
-    assert.equal(carte.question, "How does the manager split #26?");
-    assert.equal(carte.choix.length, 2);
-    assert.ok(carte.choix.every(({ suite }) => suite === "resume"));
+    assert.equal(carte.resume, "The manager asked a product question on the epic #26: it is on the issue. It splits the epic once your answer is there.");
+    assert.equal(carte.question, null);
+    assert.deepEqual(carte.choix, [{ texte: "Split it with what the issue says", suite: "resume" }]);
+    assert.ok(!/single ticket|how does the manager split/i.test(JSON.stringify(carte)));
     assert.equal(carte.reponseLibre, true);
   });
 
