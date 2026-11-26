@@ -33,12 +33,13 @@ let REPO = HOME;
 const ZONES = ["runtime", "app"];
 let OWN = ZONES.flatMap((zone) => [`${zone}/src`, `${zone}/test`]);
 // Code that only follows: it imports the renamed code, its references and the
-// paths it names follow, its own names do not change.
-const FOLLOWERS = ["scripts/capture-ecran"];
+// paths it names follow, its own names do not change. Under `--only`, the
+// other zone follows too (`runtime/test` imports `app/src`).
+let FOLLOWERS = ["scripts/capture-ecran", "scripts/app-release", "app/packaging"];
 // Text whose paths follow the renamed files. History (the CHANGELOG, the
 // dated specs) is left as it was written; the role files are the agents'
 // voice and name no renamed file.
-const PATH_TEXT = ["runtime", "app", "scripts/capture-ecran", ".claude/brigade", "docs", "README.md", "CLAUDE.md"];
+const PATH_TEXT = ["runtime", "app", "scripts/capture-ecran", "scripts/app-release", ".claude/brigade", "docs", "README.md", "CLAUDE.md"];
 const PATH_TEXT_SKIPPED = ["docs/superpowers/"];
 // The zones whose dependencies the program's types come from: those
 // `.claude/brigade/worktree-setup.sh` installs.
@@ -287,7 +288,7 @@ function bases(file: string): string[] {
   const zone = file.split("/")[0]!;
   const out = [dirname(abs(file)), REPO];
   for (const root of ["runtime", "app"]) out.push(abs(root), abs(`${root}/src`), abs(`${root}/test`));
-  if (zone === "scripts") out.push(abs("scripts/capture-ecran"));
+  if (zone === "scripts") out.push(abs("scripts/capture-ecran"), abs("scripts/app-release"));
   return [...new Set(out)];
 }
 
@@ -680,6 +681,7 @@ function main(args: string[]): number {
       return 2;
     }
     OWN = [`${only}/src`, `${only}/test`];
+    FOLLOWERS = [...FOLLOWERS, ...ZONES.filter((zone) => zone !== only).flatMap((zone) => [`${zone}/src`, `${zone}/test`])];
     args = args.filter((_, index) => index !== onlyAt && index !== onlyAt + 1);
   }
   if (args.includes("--check")) return check();

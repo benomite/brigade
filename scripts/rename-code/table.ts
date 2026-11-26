@@ -48,6 +48,9 @@ export { NAMES } from "./names.ts";
 // Files and folders whose word-by-word name would be wrong, or would land on
 // another's: their new name (the last part only), keyed by their path.
 export const PATHS: Record<string, string> = {
+  // The project menu's Know-how tab (#4241), beside Settings' know-how section (`vue/know-how`).
+  "app/src/vue/savoir-faire": "know-how-tab",
+  "app/test/vue/savoir-faire": "know-how-tab",
   "app/src/gestes-fiche.ts": "card-actions.ts",
   "app/test/gestes-fiche.test.ts": "card-actions.test.ts",
   "app/test/ecrans-restants.test.ts": "remaining-screens.test.ts",
