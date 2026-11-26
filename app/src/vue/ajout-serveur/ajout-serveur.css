@@ -1,0 +1,52 @@
+/* « Add a server » (ticket 4347, ajout-serveur/) : le bouton à côté de la liste des stations, puis son panneau — la
+   phrase, la ligne d'installation et « copy », le mot pour un Mac, où en est le serveur attendu. Les jetons de l'app
+   seulement ; les boutons et la ligne d'erreur sont ceux de leurs composants. */
+.ajouter-un-serveur {
+  align-self: flex-start;
+}
+.ajout-de-serveur {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-2);
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+  color: var(--texte);
+}
+.ajout-de-serveur p {
+  margin: 0;
+}
+.ajout-de-serveur .commande {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pas-1) var(--pas-3);
+}
+.ajout-de-serveur .commande code {
+  flex: 1 1 20em;
+  min-width: 0;
+  padding: var(--pas-1) var(--pas-2);
+  background: var(--bandeau);
+  border-radius: var(--rayon-carte);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.ajout-de-serveur :is(.mac, .attente) {
+  color: var(--discret);
+}
+.ajout-de-serveur .arrivee {
+  font-weight: 600;
+}
+.ajout-de-serveur .choix-de-station {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ajout-de-serveur .gestes {
+  display: flex;
+  gap: var(--pas-2);
+}

@@ -11,7 +11,8 @@
 // Prêt : le rail reprend la page, et le second demande au-dessus ce que le chef veut changer d'abord (premier-ticket/, ticket 3306).
 // Un projet où le compte ne peut pas écrire (ticket 3163) n'ouvre rien de tout cela.
 // La question « qui le cuit » est le choix de station de l'onglet Stations (stations-tab/choix.js, ticket 3195) : les mêmes
-// choix, la même liste ; cette page n'y ajoute que sa phrase.
+// choix, la même liste ; cette page n'y ajoute que sa phrase. Sous la liste, « Add a server » (ajout-serveur/, ticket
+// 4347) : la ligne d'installation d'un serveur, puis le serveur vu arriver, à qui le projet se confie d'un clic.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction, survol } from "../briques.js";
@@ -21,6 +22,7 @@ import { PREPARER } from "../page-projet/depot-non-prepare.js";
 import { CET_ORDINATEUR, LECTURE_DE, REESSAYER } from "../lexique.js";
 import { AU_RETOUR } from "../choix-station/choix-station.js";
 import { ICI, poserLesChoix } from "../stations-tab/choix.js";
+import { poserAjoutDeServeur } from "../ajout-serveur/ajout-serveur.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../page-projet/depot-non-prepare.js").Etat} Preparation */
@@ -53,6 +55,7 @@ import { ICI, poserLesChoix } from "../stations-tab/choix.js";
  *   relire: () => void,
  *   preparer: () => void,
  *   ouvrirLaCarte: () => void,
+ *   serveur?: import("../ajout-serveur/ajout-serveur.js").GestesDuServeur,
  * }} GestesDuParcours
  */
 
@@ -161,16 +164,18 @@ function cree(doc, balise, texte) {
 }
 
 // La question « qui le cuit » : la phrase du choix recommandé, puis le choix de station de l'onglet Stations
-// (stations-tab/choix.js) — un refus y dit sa cause et son geste (stations-du-compte.ts), ce que GitHub a répondu au survol.
-/** @param {Fabrique} doc @param {Station} station @param {readonly Choix[]} choix @param {GestesDuParcours} geste */
-function corpsDeLaStation(doc, station, choix, geste) {
-  if (choix.length === 0) return [cree(doc, "p", AUCUN_CHOIX)];
+// (stations-tab/choix.js) — un refus y dit sa cause et son geste (stations-du-compte.ts), ce que GitHub a répondu au survol —,
+// puis « Add a server » et son panneau (`serveur`, fermé s'il n'est pas dit).
+/** @param {Fabrique} doc @param {Station} station @param {readonly Choix[]} choix @param {GestesDuParcours} geste @param {import("../ajout-serveur/ajout-serveur.js").EtatDuServeur} [serveur] */
+function corpsDeLaStation(doc, station, choix, geste, serveur = { ouvert: false, vu: { etat: "attente" } }) {
+  const unServeur = poserAjoutDeServeur(doc, serveur, geste.serveur ?? {});
+  if (choix.length === 0) return [cree(doc, "p", AUCUN_CHOIX), ...unServeur];
   const recommande = choix.find((un) => un.recommande);
   const dit = cree(doc, "p", recommande === undefined ? AUCUNE_EN_LIGNE : recommande.cle === ICI ? ICI_DIT : STATION_DIT(recommande.nom));
   dit.className = "phrase";
   const enCours = typeof station === "object" && "enCours" in station ? station.enCours : undefined;
   const refus = typeof station === "object" && "ligne" in station ? station : undefined;
-  return [dit, ...poserLesChoix(doc, { choix, ...(enCours === undefined ? {} : { enCours }), ...(refus === undefined ? {} : { refus }) }, geste.choisir)];
+  return [dit, ...poserLesChoix(doc, { choix, ...(enCours === undefined ? {} : { enCours }), ...(refus === undefined ? {} : { refus }) }, geste.choisir), ...unServeur];
 }
 
 // La mise en place : ce qui est attendu, et de qui — une phrase ; ce qui en dit plus au survol ; le bouton, quand le
@@ -209,10 +214,10 @@ function corpsDuSetup(doc, depot, { attente, qui }, raisons, geste) {
 // « pret » ici : prêt, le rail reprend la page, sous le premier ticket (premier-ticket/).
 /**
  * @param {Fabrique} doc
- * @param {{ depot: string, vu: Exclude<Vu, { etape: "pret" }>, progression: string, station: Station, choix: readonly Choix[], illisible?: string, refus?: string, absente?: string }} donnees
+ * @param {{ depot: string, vu: Exclude<Vu, { etape: "pret" }>, progression: string, station: Station, choix: readonly Choix[], illisible?: string, refus?: string, absente?: string, serveur?: import("../ajout-serveur/ajout-serveur.js").EtatDuServeur }} donnees
  * @param {GestesDuParcours} geste
  */
-export function poserParcoursPremierProjet(doc, { depot, vu, progression: ligne, station, choix, illisible, refus, absente }, geste) {
+export function poserParcoursPremierProjet(doc, { depot, vu, progression: ligne, station, choix, illisible, refus, absente, serveur }, geste) {
   const racine = cree(doc, "section");
   racine.className = "parcours-premier-projet carte";
   racine.ariaLabel = vu.etape === "station" ? QUI_CUIT(depot) : MISE_EN_PLACE(depot);
@@ -222,7 +227,7 @@ export function poserParcoursPremierProjet(doc, { depot, vu, progression: ligne,
   const titre = cree(doc, "h2", vu.etape === "station" ? QUI_CUIT(depot) : MISE_EN_PLACE(depot));
   titre.className = "attendu";
   const corps =
-    vu.etape === "station" ? corpsDeLaStation(doc, station, choix, geste)
+    vu.etape === "station" ? corpsDeLaStation(doc, station, choix, geste, serveur)
     : corpsDuSetup(doc, depot, vu, { ...(illisible === undefined ? {} : { illisible }), ...(refus === undefined ? {} : { refus }) }, geste);
   racine.append(ou, titre, ...(vu.etape === "station" ? [] : auRetour(doc, depot, absente)), ...corps);
   return racine;
