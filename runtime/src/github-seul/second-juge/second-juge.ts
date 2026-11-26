@@ -12,9 +12,11 @@
 // - Le refus poste un commentaire sur la PR, une fois : tant que ce refus est
 //   le dernier mot du fil, il n'est pas répété.
 import type { VerdictDuSecondJuge } from "../../events/pass.ts";
+import { CHEMIN_DE_LA_FICHE } from "../../fiche-projet/defauts.ts";
 
-// Les dossiers dont le contenu juge les livraisons.
-export const DOSSIERS_DES_JUGES = [".github/workflows/", ".claude/brigade/"] as const;
+// Les dossiers dont le contenu juge les livraisons, et la fiche du projet, qui
+// nomme les gates (#4237).
+export const DOSSIERS_DES_JUGES = [".github/workflows/", ".claude/brigade/", CHEMIN_DE_LA_FICHE] as const;
 
 export const touchePeutJuger = (fichier: string): boolean => DOSSIERS_DES_JUGES.some((dossier) => fichier.startsWith(dossier));
 
