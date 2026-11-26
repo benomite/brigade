@@ -31,7 +31,8 @@ import { brancherManager, configManager } from "./manager.ts";
 import { placeLibre } from "./prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "./chef/chef.ts";
 import { brancherLeDigest } from "./journal-du-jour/matin.ts";
-import { brancherLaPolitique } from "./autonomie/agents/politique-du-runtime.ts";
+import { politiqueDuRuntime } from "./autonomie/agents/politique-du-runtime.ts";
+import { lireLaQualite } from "./autonomie/agents/qualite.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
@@ -289,7 +290,7 @@ try {
   // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
   brancherLeDigest(runtime, { repertoireEtat, avertir: (ligne) => console.error(`brigade : ${ligne}`) });
   // Les niveaux d'autonomie bougent selon le bilan des gestes, au plus une fois par heure ; une rétrogradation réveille le chef (#4380).
-  brancherLaPolitique(runtime, { depot, clone: station.clone, base: station.base, depotGitHub: rail.depot, github: githubs.station, env }, (ligne) => console.error(`brigade : ${ligne}`));
+  politiqueDuRuntime(runtime, { lire: () => lireLaQualite({ depot, clone: station.clone, base: station.base, depotGitHub: rail.depot, github: githubs.station, env }, new Date()) });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

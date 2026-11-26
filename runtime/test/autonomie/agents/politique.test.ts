@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { equipeDuProjet } from "../../../src/autonomie/agents/agents.ts";
 import { consignerGeste, gestesDe, OUTCOME, type Outcome } from "../../../src/autonomie/agents/gestes.ts";
 import { magasinDeNiveaux, NiveauxIllisibles, type Niveaux } from "../../../src/autonomie/agents/niveaux.ts";
@@ -20,6 +20,11 @@ const horloge = () => new Date("2026-11-26T12:00:00.000Z");
 const RIEN: ChiffresDeQualite = { bugsEchappes: [], reverts: [] };
 const revert = (sha: string, revertes: string[], tickets: number[] = []) => ({ depot: "o/shop", sha, revertes, tickets });
 const geste = (repertoire: string, agent: string, texte: string, outcome: Outcome = OUTCOME.FIXED_BY_SELF) => consignerGeste(repertoire, agent, { line: texte, reason: texte, outcome }, horloge);
+const journalDe = (t: TestContext, repertoire: string) => {
+  const journal = ouvrirJournal(repertoire);
+  t.after(() => journal.fermer());
+  return journal;
+};
 const appliquer = (repertoire: string, chiffres: ChiffresDeQualite = RIEN, reveils: string[] = []) => appliquerLaPolitique({ repertoire, projet: PROJET, chiffres, horloge, reveillerLeChef: (raison) => void reveils.push(raison) });
 
 test("a level written bare, as the chef set every level before the policy, reads as pinned, and the policy leaves it", (t) => {
@@ -132,7 +137,7 @@ test("on the runtime, the policy runs at a tick, once an hour at most, and a rea
   let echoue = true;
   const avertis: string[] = [];
   politiqueDuRuntime(
-    { projet: PROJET, repertoireEtat: repertoire, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}) },
+    { projet: PROJET, repertoireEtat: repertoire, journal: journalDe(t, repertoire), surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}) },
     { lire: async () => (lectures++, echoue ? Promise.reject(new Error("GitHub down")) : RIEN), reveillerLeChef: () => {}, horloge: () => maintenant, avertir: (texte) => void avertis.push(texte) },
   );
   const reveiller = async (cause: CauseReveil) => {
@@ -160,7 +165,7 @@ test("on the runtime, the policy runs at a tick, once an hour at most, and a rea
   assert.equal(lectures, 3);
   // Without a state directory, nothing listens.
   const sans: unknown[] = [];
-  politiqueDuRuntime({ projet: PROJET, surReveil: (ecouter) => (sans.push(ecouter), () => {}) }, { lire: async () => RIEN, reveillerLeChef: () => {} });
+  politiqueDuRuntime({ projet: PROJET, journal: journalDe(t, repertoire), surReveil: (ecouter) => (sans.push(ecouter), () => {}) }, { lire: async () => RIEN, reveillerLeChef: () => {} });
   assert.deepEqual(sans, []);
 });
 
@@ -171,7 +176,7 @@ test("a run still reading is not run again at the next tick, however late", asyn
   let lectures = 0;
   let finir: (chiffres: ChiffresDeQualite) => void = () => {};
   politiqueDuRuntime(
-    { projet: PROJET, repertoireEtat: repertoire, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}) },
+    { projet: PROJET, repertoireEtat: repertoire, journal: journalDe(t, repertoire), surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}) },
     { lire: () => (lectures++, new Promise<ChiffresDeQualite>((fin) => (finir = fin))), reveillerLeChef: () => {}, horloge: () => maintenant },
   );
   const tick = async () => {

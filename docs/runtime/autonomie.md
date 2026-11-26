@@ -93,7 +93,7 @@ splitting of an epic logs in the manager's log, so neither is moved by it. In `e
 newest first, up to the first one a revert or a bug touches —, `null` at any other level.
 
 Each project's kitchen in the station (`ouvrirCuisine`, `station/cuisine.ts`) runs the policy at its tick, once an hour
-at most after a run that read its figures (`brancherLaPolitique`, `politique-du-runtime.ts`). It reads the reverts of the last
+at most after a run that read its figures (`politiqueDuRuntime`, `politique-du-runtime.ts`). It reads the reverts of the last
 30 days on the base as the project's clone fetches it — the commits carrying git's trailer `This reverts commit <sha>`,
 with the tickets their reverted commits cite — and the escaped bugs from GitHub — the issues labelled `bug` created in
 those 30 days, with the tickets they cite (`qualite.ts`). A read that fails moves nothing, is said on the service
