@@ -77,6 +77,8 @@ import { direStations } from "../stations-declarees.ts";
 import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
 import { createAgentSettings } from "../agent-settings/index.ts";
+import { creerConfiance, type Confiance } from "../trust/trust.ts";
+import { AcceptesIllisibles, ouvrirAcceptes, type Acceptes } from "../trust/acceptes.ts";
 
 export type Cuisine = {
   projet: string;
@@ -98,6 +100,12 @@ export type Cuisine = {
   // aucune station sur cette machine), ou null quand elle en prend : une
   // cuisine qui n'en prend pas ne sert pas le projet (#3449).
   refusGitHub?(): string | null;
+  // Qui est de confiance — le chef, un collaborateur qui écrit, un agent de la
+  // cuisine —, et les issues et commentaires acceptés (#4421) : la porte de
+  // confiance que les lectures du texte des issues interrogent. Les acceptés
+  // sont null quand leur fichier est illisible : rien n'est tenu pour accepté.
+  confiance?: Confiance;
+  acceptes?: Acceptes | null;
 };
 
 export type OptionsCuisine = {
@@ -187,6 +195,14 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   let ouverte: Runtime | null = null;
   // Non nul : le projet est servi sur l'état GitHub seul (`brigade-github.ts`).
   let projetGitHub: ProjetOuvert | null = null;
+  let confiance: Confiance | undefined;
+  let acceptes: Acceptes | null = null;
+  try {
+    acceptes = ouvrirAcceptes(join(repertoireEtat, "acceptes.json"));
+  } catch (erreur) {
+    if (!(erreur instanceof AcceptesIllisibles)) throw erreur;
+    dire(`brigade : éléments acceptés non lus, aucun n'est tenu pour accepté — ${erreur.message}`);
+  }
   try {
     identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
     let republierReseau = () => {};
@@ -335,6 +351,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
     const { chef } = brancherLeChef(connectee, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat, avertir: dire });
     chefDuProjet = chef;
+    const lecteur = githubs.station;
+    confiance = creerConfiance({ chef, permission: async (login) => (lecteur.permissionSurLeDepot ? lecteur.permissionSurLeDepot(login) : Promise.reject(new Error("ce client GitHub ne lit pas les droits"))), avertir: dire });
     brancherMentionDuChef(ouverte, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
     brancherReponseParCommentaire(ouverte, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
@@ -413,6 +431,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   return {
     projet,
     repertoireEtat,
+    ...(confiance === undefined ? {} : { confiance }),
+    acceptes,
     rail() {
       if (arretee) throw new Error(`la cuisine de ${projet} est arrêtée`);
       return railDuJournal(annoncee.journal);
