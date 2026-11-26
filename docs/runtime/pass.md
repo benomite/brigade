@@ -206,16 +206,6 @@ reviewer says is blocking without a category, or with one outside the list, is a
 written on the PR, in the pass's verdict (`Advice` lines), and **does not stop the merge**: a review
 red only on advice is green.
 
-### A gesture the manager asks of a cook is never a blocking point
-
-One rule for the manager's answer and for the review (#3962). When the manager's answer in the ticket thread asks
-the cook for a gesture — for example adding `// brigade:guard` to a frozen test (#3913, #3955) — the cook may make it,
-and the review never lists it as a blocking point. The review reads the request from the manager's comments in the
-ticket thread, and holds the cook to the letter: a frozen test is let through only when the request names its file,
-the change removes no line, and every line it adds is quoted in the request. The same edit without a request, or an
-edit that goes beyond what was asked, stays a blocking point (`critere-non-tenu`). The review text that forbids edits
-to frozen tests (`runtime/src/reviewer.ts`) names this exception.
-
 ### Red on main, green on the branch
 
 A test the cook adds must test what its ticket asks for (#3466, `runtime/src/pass/rouge-sur-main.ts`).
@@ -258,17 +248,6 @@ what it did on each side.
 | an added test red on both sides | not counted as proof, and not sent back: the gates and the CI judge the branch |
 | the delivery adds no test, or the replay could not run (no throwaway checkout) | said in the verdict; nothing proved, nothing sent back |
 
-**A frozen acceptance test the delivery changes** (#3910, `runtime/src/passe-gel-tests/gel-tests.ts`). The frozen
-acceptance tests are the branch's first commit (trailer `Acceptance-Tests: frozen`), written by the manager before
-the cook. A delivery that changes, renames or removes one is not refused before the review: the pass compares each
-frozen file at the head with the frozen commit, and the reviewer's brief gets a section naming each changed test,
-with its diff since the freeze. The reviewer reports each one as a `blocking` finding of category
-`critere-non-tenu`, saying what the change takes from the criterion; a test changed then put back byte for byte is
-not changed. A history the pass cannot read is said in the station's log and in the brief, and the reviewer
-compares the files itself. A frozen case already green on the base is an added test like any other (the table
-above). There is no amendment and no automatic repair: a wrong criterion is a send-back reason, or a TODO card when
-it changes the product — the cook says it in `<bloque>`, the manager answers it or puts it to the chef.
-
 **The verdict on the PR** — the comment the pass already posts — ends with that line, then **one line
 per acceptance criterion** of the ticket (the bullets of its `Acceptance criteria` section), each
 marked: **covered by a test red on main and green on the branch** (naming it), **judged by the review
@@ -284,16 +263,10 @@ The added tests must also catch a change of the code the delivery changes (#3727
 reviewer reads, the pass **mutates only the lines the delivery adds or changes** in a JavaScript or
 TypeScript module (never a test, a test helper or the rest of the repository): one mutant per line, the
 first of `===`/`!==`, `==`/`!=`, `&&`/`||`, `<=`/`>=`, ` < `/` > `, `true`/`false`, ` + `/` - ` or a
-unary `!` found outside the line's strings and comments. Each mutant is played against **the frozen
+unary `!` found outside the line's strings and comments. Each mutant is played against **the added
 tests** — the added tests green on the branch — in a throwaway checkout of the base
 (`mutations-<ticket>-<n>`) where the delivery's changed files are copied; a mutant is caught when one
 of them fails.
-
-The step runs only on a delivery whose branch has frozen acceptance tests (#3740): its first commit
-carries the trailer `Acceptance-Tests: frozen` (the tests step of the rail). A ticket with no testable
-criterion has none, and no mutant is made: the verdict says `Mutation check: not run — the ticket has no
-frozen acceptance test (no testable criterion), …`. A history that cannot be read does not hold the
-mutants back: they run, and the station warns.
 
 The mutants run **4 at a time**, under a **time budget of 2 minutes** for the whole step
 (`BUDGET_DES_MUTATIONS_MS`); when it runs out, the running mutants are stopped, and the line says how
@@ -304,14 +277,14 @@ many were not run.
 | `Mutation check: Y of Y mutations caught` | nothing held back: the review decides |
 | `Mutation check: X of Y mutations caught`, X < Y | **red**: the delivery goes back to its cook, the reason naming the file and line of each surviving mutation |
 | `0 of 0 mutations caught` — no line of code changed (a doc-only delivery) | nothing sent back |
-| mutants but no frozen test, no throwaway checkout, or the time budget ran out | said in the verdict; a mutant not run sends nothing back |
+| mutants but no added test, no throwaway checkout, or the time budget ran out | said in the verdict; a mutant not run sends nothing back |
 
 The verdict on the PR ends with that line, then one line per acceptance criterion covered by a proved
 test, per test file: `Criterion <n>, <test file>: X of Y mutations caught`, with the surviving lines.
 
 **Before the PR, too** (#3970): a surviving mutation was the heaviest loss of time of the kitchen's
 tickets, each send-back costing a pass, a claim and a new cook. So the station runs the same check
-(same replay, same mutants, same budget, same rule on frozen tests) in the cook's worktree as soon as a
+(same replay, same mutants, same budget) in the cook's worktree as soon as a
 cook ends with a delivery — commits added, no blocking question. When a mutation survives, the station
 relaunches that cook in its worktree, its brief followed by `## Mutations your tests let through`
 and the reason lines the pass would write, each naming its file and line. The relaunched cook's delivery
