@@ -32,6 +32,8 @@ const TITRE = "The agents";
 const INDISPONIBLE = NON_ATTEINT("the agents");
 const ILLISIBLE = "the agents' reading is not readable";
 const NIVEAU = "autonomy";
+const SANS_COMPTEUR = "—";
+const EPINGLE = "level pinned";
 const PAR_LUI = "fixed by itself";
 const AU_CHEF = "handed to the chef";
 const EN_ATTENTE = "awaits your OK";
@@ -183,6 +185,12 @@ export function tenirLEquipe(doc, cadre, apresLecture, ouvrirLesAgents) {
     compteurs.className = "compteurs";
     compteurs.textContent = `${PAR_LUI} ${agent.counters.fixedBySelf} · ${AU_CHEF} ${agent.counters.handedToChef}`;
     tete.append(titre, compteurs, niveaux(agent));
+    // Le compteur vers le prochain niveau, tel que le runtime le dit : `null` à act, rien tant qu'il ne le dit pas.
+    if (agent.progress !== undefined) {
+      const vers = agent.progress === null ? SANS_COMPTEUR : `${agent.progress.done} of ${agent.progress.of} toward ${agent.progress.toward}`;
+      tete.append(texte("progression", vers));
+    }
+    if (agent.pinned === true) tete.append(texte("epingle", EPINGLE));
     cadreDuFil.append(tete);
     const rate = rates.get(agent.agent);
     if (rate !== undefined) cadreDuFil.append(ligneErreur(doc, rate.ligne, rate.detail, { alerte: true }));
