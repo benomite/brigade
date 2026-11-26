@@ -4,6 +4,7 @@
 // la raison et l'heure du prochain essai ; prêt, la phrase qui invite au premier ticket, puis plus
 // rien une fois écartée ou à la visite suivante. Les onboardings sont écrits dans la forme même du
 // runtime (`Onboarding`), et relus par `lireOnboarding` comme l'app relit le suivi d'une station.
+import { DIT_MODE_RESTREINT } from "../../../runtime/src/onboarding/mode-restreint.ts";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Onboarding as DuRuntime } from "../../../runtime/src/onboarding/etat.ts";
@@ -83,7 +84,7 @@ const SANS_BAC: DuRuntime = {
   courante: "machine",
   etapes: [
     AVANT[0] as DuRuntime["etapes"][number],
-    { etape: "machine", titre: "Cooking machine", etat: "courante", dit: "box has no sandbox: its cooks would read everything the station's account reads. Nothing is launched for mirrorlab until you choose.", geste: { quoi: "Continue without a sandbox on box, or choose another station for mirrorlab.", ou: "In the app, on the project's page.", liens: [] } },
+    { etape: "machine", titre: "Cooking machine", etat: "courante", dit: `box has no sandbox: if you continue, its cooks run in ${DIT_MODE_RESTREINT} Nothing is launched for mirrorlab until you choose.`, geste: { quoi: "Continue without a sandbox on box, or choose another station for mirrorlab.", ou: "In the app, on the project's page.", liens: [] } },
     { etape: "preparation", titre: "Repository preparation", etat: "a-venir", dit: `box opens the ticket that prepares ${DEPOT}.`, geste: null },
     A_VENIR,
   ],

@@ -44,6 +44,7 @@ import { disqueDuProjet } from "../github-seul/garde-fous/disque-plein.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { noterLeModeDesIdentites } from "../appels-par-identite.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { DIT_MODE_RESTREINT } from "../onboarding/mode-restreint.ts";
 import { placeLibre } from "../prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "../chef/chef.ts";
 import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
@@ -376,6 +377,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   );
   dire(direJeton(jeton, envProjet));
   if (bacASable !== null) dire(direBacASable(bacASable));
+  else if (cloison === null) dire(`cook sans bac à sable — ${DIT_MODE_RESTREINT}`);
   dire(
     arbitre === null
       ? "arbitre — aucun (BRIGADE_ARBITER_PORT n'est pas défini) : ce projet se tient pour seul sur la machine et sur le compte"
