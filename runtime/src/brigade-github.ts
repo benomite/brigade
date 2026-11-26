@@ -78,6 +78,7 @@ import { carteEnAttenteDuChef, DESIGN, designsValidesParUnHumain, fermerLaCarteD
 import { approuvee, ciDeLaTete, fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { CONTEXTE_DES_GATES, echecDesGates, jouerLesGatesDeLaTete, type GitHubDesGates, type LieuDesGates, type VerdictDesGates } from "./github-etat/gates-de-la-tete.ts";
 import { servirLaPRExterne, type GatesExternes, type PRExterne } from "./pr-externe/pr-externe.ts";
+import { enLivraisonDuTour, laisserAuxCooksHumains } from "./cook-humain/livraison.ts";
 import { humainsDuProjet, type Humain } from "./aiguillage-humains/aiguillage.ts";
 import { declencheSurPr } from "./declencheurs.ts";
 import type { Check, Gates } from "./events/pass.ts";
@@ -2391,6 +2392,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       }
       return null;
     };
+    // Marqué pour un cook humain (#4276) : aucune station ne le prend, et la PR que l'humain ouvre entre en pass comme
+    // celle d'un cook (cook-humain/livraison.ts).
+    const cooksHumains = { ...enLivraisonDuTour(github), avertir: (ligne: string) => avertir(`brigade : ${ligne} on ${nom}`) };
+    if (await laisserAuxCooksHumains(libres, cooksHumains)) station.presser?.(true);
     // Les plus prioritaires (`prio:0` avant `prio:1`…, sans `prio:` en dernier) — une
     // réparation de la base porte `prio:0` —, puis les plus anciens (#2209).
     // Celui que le réveil sans merge nomme passe avant tous (#4102).

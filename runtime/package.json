@@ -19,6 +19,7 @@
     "station": "node src/montrer-station.ts",
     "setting": "node src/reglage-cli.ts",
     "humans": "node src/humains-cli.ts",
+    "human-cooks": "node src/cook-humain-cli.ts",
     "recurring": "node src/recurrents-cli.ts",
     "explanations": "node src/explications-cli.ts",
     "agent-settings": "node src/agent-settings-cli.ts",
