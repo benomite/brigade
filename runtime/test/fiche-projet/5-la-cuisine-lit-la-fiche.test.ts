@@ -3,7 +3,7 @@
 // du chef ses risques et ses humains —, et un nouveau projet reçoit la fiche des
 // défauts. Chaque cas passe par le code que la cuisine appelle.
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -22,6 +22,7 @@ import { evaluerMain, statutsDesChecks } from "../../src/statuts-ci/regles.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { LABEL_IN_PASS } from "../../src/github-etat/etats.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, depotRepris, fauxClient } from "../faux-github.ts";
+import { posixOnly } from "../support/plateforme.ts";
 import { BASE, DEPOT, ENV_ENFANT, depotGit, git, repertoireTemporaire } from "../outils.ts";
 
 const fiche = (changer: (f: Record<string, unknown>) => void = () => {}) => {
@@ -245,4 +246,30 @@ test("the pass: a delivery that changes the project sheet changes what judges it
     await a.calme();
   }
   assert.deepEqual(faux.secondsJugements.map(({ juges }) => juges), [[CHEMIN_DE_LA_FICHE]]);
+});
+
+// L'horloge du test avance seule : le setup prend 600 ms de son plafond, les
+// gates de la fiche n'ont que les 400 qui restent.
+const vraiMinuteur = setTimeout;
+const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
+
+test("the pass: the gates of the sheet get only the time the setup leaves of their cap", { skip: posixOnly("moves the test's clock past what the setup left of a 1 s cap and expects the gates of the sheet stopped as a timeout; on Windows the cap's kill of their process group (a negative pid) fails silently, so the gates run on and come back green") }, async (t: TestContext) => {
+  const worktree = repertoireTemporaire(t);
+  const temoins = repertoireTemporaire(t);
+  const [parti, libere, lancees, fin] = ["parti", "libere", "lancees", "fin"].map((nom) => join(temoins, nom));
+  mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
+  script(worktree, ".claude/brigade/worktree-setup.sh", `touch '${parti}'; until [ -e '${libere}' ]; do sleep 0.01; done`);
+  script(worktree, "lent.sh", `touch '${lancees}'; until [ -e '${fin}' ]; do sleep 0.01; done`);
+  ecrireFiche(worktree, fiche((f) => (f.stages = [{ name: "code", gates: ["lent.sh"] }])));
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+
+  const enCours = jouerGates({ worktree, ticket: 4, env: ENV_ENFANT, delaiMs: 1_000 });
+  while (!existsSync(parti)) await souffler();
+  t.mock.timers.tick(600);
+  writeFileSync(libere, "");
+  while (!existsSync(lancees)) await souffler();
+  t.mock.timers.tick(400);
+  writeFileSync(fin, "");
+
+  assert.equal((await enCours).outcome, "timeout", "600 ms of setup leave 400 ms of a 1 s cap to the gates");
 });
