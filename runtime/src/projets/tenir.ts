@@ -60,6 +60,7 @@ import { chiffresDuClone } from "../chiffres-du-projet.ts";
 import { resumeServi } from "../mesures/resume-servi.ts";
 import { lesTempsDesTickets } from "../temps-ticket/ligne-status.ts";
 import { resumerLaPasse } from "../temps-ticket/passe.ts";
+import { delaisDuClone } from "../delais/lecture.ts";
 import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
 import { blocageDuClone, clonerEnReparant, ID_BLOCAGE_CLONE } from "../installation/clone/clone.ts";
@@ -245,8 +246,8 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const besoins = suivreLesBesoins({ station, sonde: options.sonde, avertir: dire });
   const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null, ...(cause === undefined ? {} : { refus: refusDe(cause, remedes) }) });
 
-  // Le projet, sa branche d'intégration résolue par son clone ; null si ni son
-  // dépôt ni l'app ne la nomment.
+  // Le projet, sa branche d'intégration résolue par son clone ; null si ni son clone
+  // ni l'app n'en nomment.
   const avecSaBranche = (projet: ProjetDemande): ProjetResolu | null => {
     const { branche } = brancheDuProjet(cloneDe(projet.nom), projet.base);
     return branche === null ? null : { ...projet, base: branche };
@@ -551,7 +552,11 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const lus = lesTempsDesTickets(cloneServi);
       // Et le temps de chaque phase de la pass sur 7 jours (#3512), null sans livraison mesurée.
       const temps = { ...lus, resume: resumeServi(lus.enregistrements, lus.lostTimeMaxMin, maintenant()), chiffres: chiffresDuClone(cloneServi), passe: resumerLaPasse(lus.enregistrements, maintenant()) };
-      return { ...dit, ...(delai === null ? {} : { delai }), temps, ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
+      // Les délais des dernières 24 heures, lus dans le même clone (#4309) : ce que `status --json` rend, publié dès qu'un
+      // ticket y est mergé, pour la vue de la cuisine de l'app ; un fichier illisible publie sa raison, jamais « aucun ».
+      const delais = delaisDuClone(cloneServi, new Date(maintenant()));
+      const avecDelais = "illisible" in delais || delais.fusionnes > 0;
+      return { ...dit, ...(delai === null ? {} : { delai }), temps, ...(avecDelais ? { delais } : {}), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     // Un besoin que le chef laisse au setup du projet : la station ouvre sur
     // le projet le ticket qui le lui demande, une fois, et son choix le dit.

@@ -48,6 +48,12 @@ What each project declares; the plan does not change. Short by default.
 | Recurring | the closer, daily | one episode a week | the month's close | — |
 | Humans in the kitchen | the chef, on what only a human does | the chef, the voice-over | the treasurer | the client |
 
+**The risks line.** The sheet's `risks` line declares the risk classes of the project. Each class has a name and exactly one trigger shape:
+- a path zone: a change touching these paths is risky (for example release tooling, `.brigade/`, publishing scripts);
+- a command shape: a command or API gesture (for example `gh release`).
+
+A class may say `hold`: the gesture is then held even at level `act`. No free text is read as a rule. An entry with no trigger shape is refused and said, and the kitchen runs without it. With no `risks` line, nothing changes. The gate that enforces them is described in [`docs/runtime/autonomie.md`](../../runtime/autonomie.md).
+
 ## What disappears
 
 | Removed | Replaced by |

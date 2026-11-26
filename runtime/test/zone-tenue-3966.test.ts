@@ -21,7 +21,7 @@ const tourner = async (a: { tour(): Promise<void>; calme(): Promise<void> }, tou
   }
 };
 
-test("a ticket in pass holds its zone though no claim comment names a station, a queued one holds none, and a rewrite after the last send-back keeps the PR open", async () => {
+test("a ticket in pass holds its zone though no claim comment names a station, a queued one holds none, and the parking after the last send-back keeps the PR open", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, [...CALIBRE, LABEL_IN_PASS], "the ticket's body");
   faux.poster(1, "manager", "<!-- brigade:fiche -->\n- awaiting: none\n- zone: runtime/src/a.ts");
@@ -37,7 +37,8 @@ test("a ticket in pass holds its zone though no claim comment names a station, a
   await livraisonGardeeApresLesRenvois();
 });
 
-// Après le dernier renvoi de la pass, la réécriture du manager laisse la PR ouverte : elle reste la livraison en pass.
+// Au dernier refus de la pass, la mise de côté pour le chef (#4226, la réécriture du manager avant elle) laisse la PR
+// ouverte : elle reste la livraison que le cook reprendra après la réponse du chef.
 async function livraisonGardeeApresLesRenvois(): Promise<void> {
   const faux = new FauxGitHub();
   faux.corpsEcrivables = true;
@@ -58,8 +59,9 @@ async function livraisonGardeeApresLesRenvois(): Promise<void> {
   // Après le premier tour : la guérison du premier tour ne rend pas ces tickets.
   ticketsEnFile(faux);
   faux.ciRouge.add(pr.number);
-  await tourner(a, 12, () => consultations > 0);
-  assert.equal(consultations, 1);
+  await tourner(a, 12, () => faux.ticket(31).labels.has("chef-todo"));
+  assert.ok(faux.ticket(31).labels.has("chef-todo"), "parked for the chef");
+  assert.equal(consultations, 0, "the manager does not rework it");
   assert.equal(faux.pr(pr.number).state, "open");
   assert.ok(faux.cuissons.some(({ issue }) => issue === 41), "#41 starts: #40, queued, holds no zone");
 }

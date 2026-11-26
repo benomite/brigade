@@ -19,6 +19,10 @@
 // À chaque réveil aussi, une PR périmée que la porte de prise ne compte plus sur la zone d'un ticket est marquée
 // (`zone-liberee.ts`, #4243) : sans le manager, le superviseur pose `zone-released` sur la PR, le dit sur le ticket, au
 // journal de ses gestes et ici.
+//
+// Une panne de `main` (#4023, #4382) se suit à chaque réveil, tenue dans le répertoire d'état d'un redémarrage à l'autre.
+// À sa fin, ce qui l'a corrigée est le dernier correctif de la base que le tour a vu pendant elle, et le signalement du
+// chef se lit des commentaires de GitHub écrits depuis son début — une lecture par panne finie.
 import { suivreLesChecksWindows } from "../carte-ci-windows.ts";
 import { evaluerMain, statutsDesChecks } from "../statuts-ci/regles.ts";
 import { objet } from "../juger.ts";
@@ -34,7 +38,8 @@ import { porteDuRuntime } from "../autonomie/agents/porte.ts";
 import { echeanceSansMerge, type FaitsDuProjet } from "./declencheur.ts";
 import { noterHoraire } from "../autonomie/agents/horaires.ts";
 import type { SuiviDuTour } from "./tour.ts";
-import { suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
+import { AUCUN_CORRECTIF_VU, gardeDeLaPanne, signalementDuChef, suivreLaBaseRouge, terminerLaPanne } from "../post-mortems/post-mortems.ts";
+import { chefDeGitHub } from "../chef/chef.ts";
 import { DE_CONFIANCE } from "../alimenter.ts";
 import { consignerGeste, OUTCOME } from "../autonomie/agents/gestes.ts";
 import { DELAI_PERIME_MS, ouvrirLesZones } from "./zone-liberee.ts";
@@ -56,6 +61,8 @@ export type OptionsDuBranchement = {
   consulter: () => ManagerDuSuperviseur | null;
   // Le répertoire d'état du projet, sinon celui du runtime : une panne de `main` de plus de 30 minutes y laisse son post-mortem (#4023). Sans lui, rien n'est rangé.
   repertoireEtat?: string;
+  // Le compte GitHub du chef (chef/chef.ts), seul auteur d'un signalement de panne (#4382) ; absent, celui que GitHub donne.
+  chef?: () => Promise<string | null>;
   maintenant?: () => Date;
   dire?: (ligne: string) => void;
 };
@@ -123,6 +130,11 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
       await options.github.delabelliser(numero, label);
       parUnAgent(numero);
     },
+    // Un run rouge de la base relancé par le superviseur est le correctif d'une panne de `main` (#4382).
+    relancerLesEchecs: async (run: number) => {
+      await options.github.relancerLesEchecs(run);
+      tour?.relance?.(run);
+    },
   };
   const repertoireEtat = options.repertoireEtat ?? runtime.repertoireEtat;
   const superviser = superviseur({
@@ -154,14 +166,49 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
           },
         });
   tour?.progres?.ecouter((ticket, progres) => inactivite?.progres(ticket, progres));
-  const suivreLaBase = suivreLaBaseRouge((panne) => {
+  const ranger = (panne: Parameters<typeof terminerLaPanne>[2]) => {
     if (repertoireEtat === undefined) return;
     try {
       terminerLaPanne(repertoireEtat, runtime.projet, panne);
     } catch (erreur) {
       dire(`supervisor on ${runtime.projet}: the post-mortem of an outage was not written — ${message(erreur)}`);
     }
-  });
+  };
+  const chef = options.chef ?? (async () => (await chefDeGitHub(options.github)).login);
+  // Les pannes finies dont le signalement du chef n'a pas encore été lu : une lecture qui échoue se retente au réveil suivant.
+  const aLire: Array<Parameters<typeof terminerLaPanne>[2]> = [];
+  let lecture: Promise<void> | null = null;
+  const lireLesSignalements = () => {
+    const { commentairesDepuis } = options.github;
+    if (lecture !== null || aLire.length === 0) return;
+    // Un client qui ne lit pas les commentaires n'a pas de source : la panne se range sans signalement.
+    if (commentairesDepuis === undefined) return void aLire.splice(0).forEach(ranger);
+    lecture = (async () => {
+      while (aLire.length > 0) {
+        const panne = aLire[0] as Parameters<typeof terminerLaPanne>[2];
+        const login = await chef();
+        const lus = login === null ? [] : await commentairesDepuis.call(options.github, panne.debut);
+        const signalement = login === null ? null : signalementDuChef(lus, { chef: login, debut: panne.debut, fin: panne.fin, titre: (issue) => tour?.titre?.(issue) });
+        aLire.shift();
+        ranger({ ...panne, signaleeParLeChef: signalement });
+      }
+    })()
+      .catch((erreur: unknown) => dire(`supervisor on ${runtime.projet}: the chef's report of an outage was not read, read again at the next wake — ${message(erreur)}`))
+      .finally(() => {
+        lecture = null;
+      });
+  };
+  const suivreLaBase = suivreLaBaseRouge(
+    (panne) => {
+      // Un tour qui ne suit pas les correctifs n'en dit rien ; celui qui les suit dit aussi qu'il n'en a vu aucun.
+      const correctif = tour?.correctif?.() ?? null;
+      const vu = correctif !== null && Date.parse(correctif.a) >= Date.parse(panne.debut) ? correctif.quoi : null;
+      const corrigePar = panne.finNonObservee || tour?.correctif === undefined ? null : (vu ?? AUCUN_CORRECTIF_VU);
+      aLire.push({ ...panne, corrigePar });
+      lireLesSignalements();
+    },
+    repertoireEtat === undefined ? undefined : gardeDeLaPanne(repertoireEtat, runtime.projet, (ligne) => dire(`supervisor on ${runtime.projet}: ${ligne}`)),
+  );
   // Les zones tenues par une PR périmée, une libération à la fois : deux à la fois ouvriraient deux cartes pour la même PR.
   const zones = ouvrirLesZones({
     maintenant,
@@ -215,8 +262,9 @@ export function brancherSuperviseur<R extends Runtime>(runtime: R, options: Opti
   const passer = () => {
     if (tour === null) return;
     try {
-      suivreLaBase(tour.faits().mainRougeDepuis, maintenant());
       const checks = tour.checks();
+      suivreLaBase(tour.faits().mainRougeDepuis, maintenant(), tour.debutDuRouge?.() ?? null, checks !== null);
+      lireLesSignalements();
       if (checks !== null) suivreLesChecksWindows(runtime.journal, runtime.projet, branche, checks);
       // La base rouge que la cuisine ne rend plus verte seule a sa carte dans TODO, une seule ; verte, elle en sort (#3953).
       if (checks !== null) {

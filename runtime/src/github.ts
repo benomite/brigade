@@ -14,12 +14,14 @@ import { porteListe } from "./epique.ts";
 import { avecLAlerte, type AlerteDeLaCuisine } from "./issue-de-la-cuisine.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { SCRIPT_GATES } from "./fiche-projet/defauts.ts";
 import { mesuresGitHubDuProcess } from "./mesures-github.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
 import { COMPTE_DE_LA_MACHINE, appelerGitHub, constaterLimite, estUneEcriture, etiquetteDe, lectureDe, limiteDuProcess, noterLesEntetes, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 import { reponseDUnHumainDeclare, type HumainDeclare } from "./reponse-humain-declare/reponse-humain-declare.ts";
 import type { LecturesDesGestes } from "./gestes/lectures-des-gestes.ts";
 import type { RunDeCi } from "./temps-ticket/ci-github.ts";
+import { aLaMain } from "./trust/trust.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -164,6 +166,12 @@ export type GitHub = {
   // Assigne l'issue à ces comptes, sans retirer ceux qui l'ont déjà (#2760).
   // Facultatif : seul le client réel le porte.
   assigner?(numero: number, logins: string[]): Promise<void>;
+  // Retire ces comptes des assignees de l'issue. Facultatif : seul le client réel le porte.
+  desassigner?(numero: number, logins: string[]): Promise<void>;
+  // Les issues ouvertes qui portent ce label, PR écartées, avec leurs assignees :
+  // la liste des tickets qui attendent un cook humain (cook-humain/liste.ts, #4276).
+  // Facultatif : seul le client réel le porte.
+  ouvertesDuLabel?(label: string): Promise<Array<Issue & { assignees: string[] }>>;
   // Crée une issue ; rend son numéro.
   creerIssue(issue: { titre: string; corps: string; labels: string[] }): Promise<number>;
   // Les issues modifiées depuis `instant`, ouvertes ou fermées, PR écartées,
@@ -203,6 +211,10 @@ export type GitHub = {
   // Vrai si ce compte a accès au dépôt, quel que soit son droit (lecture
   // comprise) ; faux s'il n'en a aucun.
   aAccesAuDepot?(login: string): Promise<boolean>;
+  // Le droit de ce compte sur le dépôt, tel que GitHub le dit (« admin »,
+  // « maintain », « write », « triage », « read » ou « none ») ; « none » pour
+  // un compte que GitHub ne connaît pas comme collaborateur (#4421).
+  permissionSurLeDepot?(login: string): Promise<string>;
   // Un fichier du dépôt tel que `ref` le porte — son texte, et l'empreinte de
   // son blob que sa réécriture doit citer —, ou null s'il n'y est pas.
   fichier?(chemin: string, ref: string): Promise<{ texte: string; sha: string } | null>;
@@ -464,14 +476,14 @@ type PRBrute = {
 };
 
 // Ce que `/brigade:init` pose toujours dans le dépôt (commands/init.md) : la PR qui l'a posé est la sienne.
-const GATES_DE_L_INIT = ".claude/brigade/gates.sh";
+const GATES_DE_L_INIT = SCRIPT_GATES;
 
-type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null };
+type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null; started_at?: string | null };
 // Une annotation d'échec d'un check : où — `chemin` et `ligne`, nuls quand la
 // CI n'en nomme pas —, son titre et son message.
 export type AnnotationDeCheck = { chemin: string | null; ligne: number | null; titre: string; message: string };
 type AnnotationBrute = { path?: string; start_line?: number; annotation_level?: string; title?: string | null; message?: string };
-type Statut = { context: string; state: string; target_url: string | null };
+type Statut = { context: string; state: string; target_url: string | null; created_at?: string };
 // Un run de GitHub Actions et un de ses jobs, tels que l'API les rend (#3512).
 type RunBrut = { id?: number; head_sha?: string; created_at?: string; updated_at?: string; status?: string };
 type JobBrut = { name?: string; conclusion?: string | null; created_at?: string; started_at?: string | null; completed_at?: string | null };
@@ -507,7 +519,10 @@ export function decouper(sortie: string): Reponse | null {
   return { statut: Number(code), entetes, corps: reste.join("\n\n") };
 }
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers">> {
+// Combien de lectures de jobs finis un client garde, les plus anciennes oubliées d'abord.
+const JOBS_GARDES = 200;
+
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "permissionSurLeDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers" | "ouvertesDuLabel" | "desassigner">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -525,6 +540,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
   // qui reste ; un 304, que GitHub ne compte pas, sort du compte de la box.
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   let partis = 0;
+  // Ce qu'un job de CI fini a rendu — son journal, ses étapes en échec — ne change plus : lu une fois, gardé par job (#4407).
+  // Le superviseur relisait à chaque réveil les mêmes jobs rouges de la base : ~1900 appels par heure.
+  const journauxLus = new Map<number, string>();
+  const etapesLues = new Map<number, string[]>();
+  const garderLeJob = <T>(lus: Map<number, T>, job: number, valeur: T) => {
+    if (lus.size >= JOBS_GARDES) lus.delete(lus.keys().next().value as number);
+    lus.set(job, valeur);
+  };
   const appeler = async (brut: string[]): Promise<Reponse> => {
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
     if (options.plafond !== undefined && partis >= options.plafond) {
@@ -810,7 +833,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
           const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
           const reponse = await lireSousCondition([chemin]);
           const permission = reponse.statut === 200 ? (JSON.parse(reponse.corps) as { permission?: string }).permission : undefined;
-          const ecrit = permission === "admin" || permission === "maintain" || permission === "write";
+          const ecrit = permission !== undefined && aLaMain(permission);
           ecrivains.set(login, ecrit || (await reponseDUnHumainDeclare(login, options.humains ?? [], lireAssignes)));
         }
         if (ecrivains.get(login)) labels.add(brut.label?.name as string);
@@ -838,6 +861,17 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async labelliser(numero, labels) {
       const chemin = `repos/${depot}/issues/${numero}/labels`;
       exiger(await appeler(["-X", "POST", ...labels.flatMap((label) => ["-f", `labels[]=${label}`]), chemin]), chemin);
+    },
+    async ouvertesDuLabel(label) {
+      const pages = await lireLaListe(`repos/${depot}/issues?state=open&labels=${encodeURIComponent(label)}&per_page=100`);
+      return pages
+        .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
+        .filter((brute) => brute.pull_request === undefined)
+        .map((brute) => ({ ...lire(brute), assignees: (brute.assignees ?? []).flatMap((assigne) => (assigne?.login ? [assigne.login] : [])) }));
+    },
+    async desassigner(numero, logins) {
+      const chemin = `repos/${depot}/issues/${numero}/assignees`;
+      exiger(await appeler(["-X", "DELETE", ...logins.flatMap((login) => ["-f", `assignees[]=${login}`]), chemin]), chemin);
     },
     async assigner(numero, logins) {
       const chemin = `repos/${depot}/issues/${numero}/assignees`;
@@ -916,11 +950,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
         ...check_runs.map((run): Check => {
           const conclusion = run.status === "completed" ? (run.conclusion ?? "inconnue") : run.status;
           const outcome = run.status !== "completed" ? "pending" : CONCLUSIONS_VERTES.includes(conclusion) ? "green" : "red";
-          return { name: run.name, outcome, conclusion, url: run.html_url ?? null };
+          return { name: run.name, outcome, conclusion, url: run.html_url ?? null, ...(typeof run.started_at === "string" ? { startedAt: run.started_at } : {}) };
         }),
         ...statuses.map((statut): Check => {
           const outcome = statut.state === "success" ? "green" : statut.state === "pending" ? "pending" : "red";
-          return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
+          return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null, ...(typeof statut.created_at === "string" ? { startedAt: statut.created_at } : {}) };
         }),
       ];
       // Gardée seulement pour un commit (40 hexadécimaux), jamais pour une branche
@@ -956,12 +990,15 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       return true;
     },
     async aAccesAuDepot(login) {
+      return (await this.permissionSurLeDepot(login)) !== "none";
+    },
+    async permissionSurLeDepot(login) {
       const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
       const reponse = await lireSousCondition([chemin]);
-      if (reponse.statut === 404) return false;
+      if (reponse.statut === 404) return "none";
       const { permission } = JSON.parse(exiger(reponse, chemin).corps) as { permission?: unknown };
       if (typeof permission !== "string") throw new Error(`gh api ${chemin} : réponse sans droit`);
-      return permission !== "none";
+      return permission;
     },
     async fichier(chemin, ref) {
       const lu = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
@@ -1011,7 +1048,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async journalDuCheck(check) {
       const job = jobDuCheck(check)?.job;
       if (job === undefined) return null;
+      const garde = journauxLus.get(job);
+      if (garde !== undefined) return garde;
       const reponse = await appeler([`repos/${depot}/actions/jobs/${job}/logs`]);
+      // GitHub ne rend le journal d'un job qu'une fois le job fini : il ne change plus.
+      if (reponse.statut === 200) garderLeJob(journauxLus, job, reponse.corps);
       return reponse.statut === 200 ? reponse.corps : null;
     },
     async annotationsDuCheck(check) {
@@ -1028,10 +1069,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
     async etapesEnEchec({ name, url }) {
       const job = jobDuCheck({ name, outcome: "red", conclusion: "failure", url: url ?? null })?.job;
       if (job === undefined) return [];
+      const garde = etapesLues.get(job);
+      if (garde !== undefined) return garde;
       const reponse = await appeler([`repos/${depot}/actions/jobs/${job}`]);
       if (reponse.statut !== 200) return [];
-      const { steps = [] } = JSON.parse(reponse.corps) as { steps?: Array<{ name?: string; conclusion?: string | null }> };
-      return steps.filter((etape) => etape.conclusion === "failure" && typeof etape.name === "string").map((etape) => etape.name as string);
+      const { status, steps = [] } = JSON.parse(reponse.corps) as { status?: string; steps?: Array<{ name?: string; conclusion?: string | null }> };
+      const etapes = steps.filter((etape) => etape.conclusion === "failure" && typeof etape.name === "string").map((etape) => etape.name as string);
+      if (status === "completed") garderLeJob(etapesLues, job, etapes);
+      return etapes;
     },
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;

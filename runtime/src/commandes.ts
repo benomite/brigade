@@ -20,13 +20,14 @@ export const SCRIPT_D_ANCIEN_NOM = "node src/ancien-nom.ts";
 export type DeLaBox = { nom: string; description: string; ancien?: string; mots?: Readonly<Record<string, string>>; rang?: number };
 
 export const COMMANDES: readonly DeLaBox[] = [
-  { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live", mots: { "--suivre": "--follow" } },
+  { nom: "status", description: "The photo of the project; --follow [<ticket>] then follows the log live; --json, the delays of the tickets merged in 24 h", mots: { "--suivre": "--follow" } },
   { nom: "facts", ancien: "faits", description: "The machine-readable form of status, for the app" },
-  { nom: "rail", description: "The ticket rail; remove <ticket>, choose, answer, human" },
+  { nom: "rail", description: "The ticket rail; remove <ticket>, choose, answer, human <ticket> [who] (a ticket for a human cook)" },
   { nom: "release-notes", description: "Publish a weekly summary as the release notes of a version: <tag> <summary.json> creates the GitHub Release of that tag, once, on this explicit call only" },
   { nom: "log", ancien: "journal", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
   { nom: "station", description: "A station's settings: cooks <N>, stop <station>, start <station>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
   { nom: "setting", description: "The project's settings, from its repository, for the app; a change is refused: make it by a pull request on GitHub" },
+  { nom: "human-cooks", description: "The tickets waiting on a human cook, read on GitHub: each open ticket marked `human-cook` with who holds it, then the address of the same list on GitHub (read-only)" },
   { nom: "humans", description: "The project's humans, from its repository, for the app: save <login> [<role>…], remove <login> — each change opens a pull request" },
   { nom: "recurring", description: "The project's recurring tickets, for the app: declare --title <title> [--body <body>] --rhythm daily | weekly --weekday <1-7> | monthly --day <1-31>, pause <id>, resume <id>, remove <id> — each one lands on the rail with `fire` on its next date" },
   { nom: "explanations", description: "The explanations of the kitchen's words a chef has seen, for the app: --chef <login>, seen <word> --chef <login>, reset --chef <login> — each word is explained once per chef, on all their devices" },
@@ -39,6 +40,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "sensitive", description: "A green delivery of a sensitive ticket held for the chef's review (its card “review before merge”): merge <owner>/<repo>#<ticket> merges it, send-back <owner>/<repo>#<ticket> --note <note> sends the ticket back to a cook with the note; both close the card; the pull request's number is still accepted in place of the ticket's" },
   { nom: "undo", description: "Undo a served ticket (its card's “undo”): <owner>/<repo>#<ticket> opens a pull request reverting its merge, which the pass judges and merges like any delivery, and reopens the ticket; a revert that does not apply cleanly files a ticket for the kitchen instead" },
   { nom: "send-word", description: "A word to the cook of a taken ticket: <owner>/<repo>#<ticket> <word…> posts it on the issue and queues it; it reaches the cook at the end of its current turn, never in the middle of it. Answers {\"ok\":true} or {\"ok\":false,\"reason\":\"…\"} on one line" },
+  { nom: "know-how", description: "The project's know-how, for the app: the lessons its cooks receive, each with the ticket it came from; edit <id> <text…> rewrites one, remove <id> removes it. Answers one line of JSON" },
   { nom: "report", description: "The project's weekly kitchen summary of the week starting a day (--week <YYYY-MM-DD>) (read-only)" },
   { nom: "guardrails", ancien: "garde-fous", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
   { nom: "base", description: "Show the integration base; replay its gates when red", mots: { rejouer: "replay" } },

@@ -57,6 +57,7 @@ import { LABEL_IN_PASS } from "../github-etat/etats.ts";
 import { carteEnCours, CHEF_TODO, type Sorte } from "../github-seul/carte-todo/carte-todo.ts";
 import type { GitHub, PR } from "../github.ts";
 import { estUnRenvoiPourConflit, MARQUE_DE_RENVOI } from "../qualite-github.ts";
+import { commentaireDeRenvoi } from "../renvoi-sur-le-fond/regle.ts";
 import { GesteRefuse } from "../rail.ts";
 import { questionDuCorps, reponseDuCorps } from "../reponse-validation/marques.ts";
 import { possede } from "../zones.ts";
@@ -645,7 +646,7 @@ export const valider = (github: GitHubDesGestes, numero: number, brancheDuTicket
 // réponse sur le ticket (`reponse-validation/`, #3616).
 export async function renvoyerAuCook(github: Pick<GitHub, "commenter" | "delabelliser"> & Pick<GitHubDeLaRetenue, "commentaires">, ticket: number, sha: string, texte: string): Promise<void> {
   const renvois = (await github.commentaires(ticket)).filter((c) => DE_CONFIANCE.includes(c.association) && c.body.startsWith(MARQUE_DE_RENVOI));
-  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${sha} -->\n${texte}`);
+  await github.commenter(ticket, `${MARQUE_DE_RENVOI} n=${renvois.length + 1} sha=${sha} -->\n${commentaireDeRenvoi({ motif: "unmet criterion", detail: texte })}`);
   await github.delabelliser(ticket, LABEL_IN_PASS);
 }
 

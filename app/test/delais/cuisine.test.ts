@@ -76,13 +76,14 @@ async function cuisine(projet: Partial<ProjetVu>): Promise<Jouee> {
 
 const bandeDuHaut = (vue: Jouee) => vue.element("rail").children.find(({ className }) => className === "bande-du-haut") ?? assert.fail("pas de bande du haut");
 
-test("the top band of the kitchen view shows the share and the median, under the supervisor and closer lines", async () => {
-  const lignes = bandeDuHaut(await cuisine({ delaiDePrise: LIGNE })).children.map(({ className, textContent }) => [className, textContent]);
-  assert.deepEqual(lignes.at(-1), ["ligne-du-delai", LIGNE]);
-  assert.match(lignes.map(([, texte]) => texte).join("\n"), /Supervisor[\s\S]*Closer[\s\S]*50% in 10 min or less[\s\S]*median 16\.5 min/);
+test("the top band of the kitchen view shows the share and the median, at the end of the supervisor and closer cards' line (#4354)", async () => {
+  const [ligne] = bandeDuHaut(await cuisine({ delaiDePrise: LIGNE })).children;
+  const bouts = (ligne ?? assert.fail("pas de ligne")).children.map(({ className, textContent }) => [className, textContent]);
+  assert.deepEqual(bouts.at(-1), ["ligne-du-delai", LIGNE]);
+  assert.match(bouts.map(([, texte]) => texte).join("\n"), /supervisor[\s\S]*closer[\s\S]*50% in 10 min or less[\s\S]*median 16\.5 min/);
 });
 
 test("without published times the band has no such line", async () => {
-  const classes = bandeDuHaut(await cuisine({})).children.map(({ className }) => className);
+  const classes = bandeDuHaut(await cuisine({})).descendants().map(({ className }) => className);
   assert.equal(classes.includes("ligne-du-delai"), false);
 });

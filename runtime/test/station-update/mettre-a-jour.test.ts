@@ -1,14 +1,12 @@
 // La mise à jour de la station de l'ordinateur : une release plus récente est
-// téléchargée sous le répertoire de la station, qui prend encore ses tickets et
-// demande sa relance sur elle au premier moment sans cook en vol, ou à
-// l'échéance, leur travail sauvé (#2815). Un regard ou un téléchargement qui
+// téléchargée sous le répertoire de la station, qui demande aussitôt sa relance
+// sur elle — ses cooks lui survivent (#4401). Un regard ou un téléchargement qui
 // rate la laisse telle quelle.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { stationGitHub, type GitHubDuTour, type Prise, type TicketLu } from "../../src/brigade-github.ts";
-import { configDeLaMiseAJour, demanderAuSuperviseur, LIGNE_DE_RELANCE, miseAJourDeLaStation, retenirLaPrise, SANS_SUITE_MS, tenirLaMiseAJour, type OptionsDeLaMiseAJour } from "../../src/station-update/mettre-a-jour.ts";
+import { configDeLaMiseAJour, demanderAuSuperviseur, LIGNE_DE_RELANCE, miseAJourDeLaStation, SANS_SUITE_MS, tenirLaMiseAJour, type OptionsDeLaMiseAJour } from "../../src/station-update/mettre-a-jour.ts";
 import { sourceDesVersions, type SourceDesVersions } from "../../src/station-update/releases.ts";
 import { lireDemande, lireStatut, type DemandeDeRelance } from "../../src/station-update/statut.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
@@ -22,28 +20,20 @@ function station(t: Parameters<typeof repertoireTemporaire>[0], options: Partial
   const publiees = repertoireTemporaire(t);
   const demandes: DemandeDeRelance[] = [];
   const dit: string[] = [];
-  const cooks = new Set<number>();
-  // Combien de fois la mise à jour a regardé les cooks en vol.
-  const regards = { n: 0 };
   const ouvrir = (version: string, versions: SourceDesVersions = sourceDesVersions(publiees, ARCHIVE_MAC)) =>
     miseAJourDeLaStation({
       racine,
       version,
       versions,
       plateforme: "darwin",
-      enVol: () => {
-        regards.n++;
-        return [...cooks];
-      },
       relancer: (demande) => {
         demandes.push(demande);
         demanderAuSuperviseur(racine, (ligne) => dit.push(ligne))(demande);
       },
       dire: (ligne) => dit.push(ligne),
-      pasDuDrainMs: 5,
       ...options,
     });
-  return { racine, publiees, demandes, dit, cooks, regards, ouvrir };
+  return { racine, publiees, demandes, dit, ouvrir };
 }
 
 test("une release plus récente est téléchargée sous le répertoire de la station, et sa relance est demandée ; aucune plus récente : rien n'est téléchargé, rien n'est demandé", async (t) => {
@@ -59,7 +49,6 @@ test("une release plus récente est téléchargée sous le répertoire de la sta
   assert.deepEqual(versionsTelechargees(racine), []);
   assert.equal(demandes.length, 0);
   assert.equal(lireDemande(racine), null);
-  assert.equal(aJour.retenue(), false);
 
   // En retard : la release est téléchargée, vérifiée, et la relance demandée.
   const enRetard = ouvrir("0.20261101.090000");
@@ -80,110 +69,6 @@ test("une release plus récente est téléchargée sous le répertoire de la sta
   // Demandée une fois : un regard de plus ne redemande rien.
   await enRetard.passer();
   assert.equal(demandes.length, 1);
-});
-
-test("un cook en vol retient la relance jusqu'à ce qu'il ait fini : il n'est pas coupé, et la station ne prend plus de ticket entre-temps (#3632)", async (t) => {
-  const { publiees, demandes, cooks, regards, ouvrir, racine } = station(t);
-  publier(publiees, "0.20261102.100000");
-  cooks.add(41);
-  const miseAJour = ouvrir("0.20261101.100000");
-  const passage = miseAJour.passer();
-  await jusqua(() => lireStatut(racine)?.draining !== null && lireStatut(racine)?.draining !== undefined);
-  assert.equal(miseAJour.retenue(), true);
-  assert.deepEqual(lireStatut(racine)?.draining?.cooks, [41]);
-  // Le cook travaille, regardé de nouveau, il retient toujours la demande — longtemps, sans échéance.
-  const vus = regards.n;
-  await jusqua(() => regards.n >= vus + 3);
-  assert.equal(demandes.length, 0);
-  assert.equal(lireDemande(racine), null);
-  assert.equal(miseAJour.retenue(), true);
-  // Il a fini : la demande part.
-  cooks.delete(41);
-  const statut = await passage;
-  assert.equal(demandes.length, 1);
-  assert.equal(statut.restart?.version, "0.20261102.100000");
-  assert.deepEqual(lireStatut(racine)?.draining?.cooks, []);
-});
-
-test("plusieurs cooks qui finissent l'un après l'autre : la relance n'est demandée qu'au dernier, et la mise à jour ne sauve ni ne coupe aucun cook (#3632)", async (t) => {
-  const { publiees, demandes, cooks, regards, ouvrir, racine } = station(t);
-  publier(publiees, "0.20261102.100000");
-  cooks.add(41);
-  cooks.add(42);
-  cooks.add(43);
-  const miseAJour = ouvrir("0.20261101.100000");
-  const passage = miseAJour.passer();
-  await jusqua(() => lireStatut(racine)?.draining?.cooks.length === 3);
-  for (const fini of [42, 41]) {
-    cooks.delete(fini);
-    const vus = regards.n;
-    await jusqua(() => regards.n >= vus + 3);
-    assert.equal(demandes.length, 0);
-    assert.equal(miseAJour.retenue(), true);
-  }
-  assert.deepEqual(lireStatut(racine)?.draining?.cooks, [43]);
-  cooks.delete(43);
-  const statut = await passage;
-  assert.equal(demandes.length, 1);
-  assert.equal(statut.restart?.version, "0.20261102.100000");
-});
-
-test("pendant l'attente de sa relance, la station GitHub seul garde son cook en vol et ne prend pas le ticket qui arrive (#3632) ; la relance est demandée quand son cook a livré", async (t) => {
-  // Les cooks en vol que la mise à jour regarde : ceux de la station GitHub seul.
-  let enCuisine = (): number[] => [];
-  const { publiees, demandes, ouvrir, racine } = station(t, { enVol: () => enCuisine() });
-  publier(publiees, "0.20261102.100000");
-  const ecrits: string[] = [];
-  let tickets: TicketLu[] = [{ number: 7, title: "sept", labels: ["fire", "model:opus", "effort:high"], state: "open" }];
-  const github = {
-    checksDeLaBase: async () => [],
-    ci: async () => [],
-    corpsDuTicket: async () => "",
-    prsOuvertes: async () => [],
-    fires: async () => tickets,
-    dependancesOuvertes: async () => [],
-    prDuTicket: async () => null,
-    ouvrirPR: async ({ branche }: { branche: string }) => void ecrits.push(`pr ${branche}`),
-    labelliser: async (numero: number, labels: string[]) => void ecrits.push(`+${labels.join(",")} #${numero}`),
-    delabelliser: async (numero: number, label: string) => void ecrits.push(`-${label} #${numero}`),
-    commenter: async (numero: number) => void ecrits.push(`comment #${numero}`),
-    commentaires: async () => [],
-  } as unknown as GitHubDuTour;
-  const prises: number[] = [];
-  const prise: Prise = { prendre: async (issue) => (prises.push(issue.number), { prise: true }), lacher: async () => true };
-  const livraisons = new Map<number, () => void>();
-  let miseAJour: ReturnType<typeof ouvrir> | null = null;
-  const tenue = stationGitHub({
-    nom: "mac/claude",
-    places: 2,
-    base: "main",
-    github,
-    prise: retenirLaPrise(prise, () => miseAJour?.retenue() ?? false),
-    cuisiner: (ticket) => new Promise((resoudre) => void livraisons.set(ticket.number, () => resoudre({ branche: `cook/${ticket.number}-github` }))),
-    juger: async () => ({ verdict: "approve", motif: "" }),
-    avertir: () => {},
-  });
-  enCuisine = () => tenue.enCuisine();
-  await tenue.tour();
-  assert.deepEqual(tenue.enCuisine(), [7]);
-
-  const ouverte = ouvrir("0.20261101.100000");
-  miseAJour = ouverte;
-  const passage = ouverte.passer();
-  await jusqua(() => lireStatut(racine)?.draining?.cooks.join(",") === "7");
-  // Un ticket libre arrive, une place est libre : la station ne le prend pas, une mise à jour en attente ne laisse
-  // partir aucun cook neuf (#3632).
-  tickets = [...tickets, { number: 8, title: "huit", labels: ["fire", "model:opus", "effort:high"], state: "open" }];
-  assert.equal(ouverte.retenue(), true);
-  await tenue.tour();
-  assert.deepEqual(prises, [7]);
-  assert.deepEqual(tenue.enCuisine(), [7]);
-  assert.equal(demandes.length, 0);
-  // Son cook livre : la relance est demandée.
-  livraisons.get(7)?.();
-  await passage;
-  assert.ok(ecrits.includes("pr cook/7-github"));
-  assert.equal(demandes[0]?.version, "0.20261102.100000");
 });
 
 test("le statut dit la version qui tourne, la plus récente publiée et le retard : en retard, puis à jour une fois la station relancée sur la release", async (t) => {
@@ -208,7 +93,7 @@ test("le statut dit la version qui tourne, la plus récente publiée et le retar
   assert.equal(demandes.length, 1);
 });
 
-test("le réseau coupé, ou une release mauvaise, laisse la station telle quelle : rien de téléchargé, aucun drain, aucune demande — et le regard suivant réessaie", async (t) => {
+test("le réseau coupé, ou une release mauvaise, laisse la station telle quelle : rien de téléchargé, aucune demande — et le regard suivant réessaie", async (t) => {
   const { racine, publiees, demandes, dit, ouvrir } = station(t);
   let coupe = true;
   const versions = sourceDesVersions(publiees, ARCHIVE_MAC);
@@ -223,7 +108,6 @@ test("le réseau coupé, ou une release mauvaise, laisse la station telle quelle
   // La liste ne se lit pas.
   let statut = await miseAJour.passer();
   assert.match(statut.check ?? "", /the published station versions do not read \(the releases of acme\/brigade\): fetch failed/);
-  assert.equal(miseAJour.retenue(), false);
   assert.deepEqual([versionsTelechargees(racine), demandes], [[], []]);
   assert.ok(dit.some((ligne) => /the station keeps running 0\.20261101\.100000, the next check tries again/.test(ligne)));
 
@@ -232,20 +116,20 @@ test("le réseau coupé, ou une release mauvaise, laisse la station telle quelle
   statut = await ouvrir("0.20261101.100000", telechargement).passer();
   assert.match(statut.check ?? "", /release 0\.20261102\.100000 cannot be obtained: fetch failed/);
   assert.equal(statut.behind, true);
-  assert.deepEqual([versionsTelechargees(racine), demandes, statut.draining], [[], [], null]);
+  assert.deepEqual([versionsTelechargees(racine), demandes, statut.restart], [[], [], null]);
 
   // Une archive qui ne s'extrait pas, puis un runtime qui ne dit pas sa version.
   publierIllisible(publiees, "0.20261103.100000");
   statut = await ouvrir("0.20261101.100000").passer();
   assert.match(statut.check ?? "", /release 0\.20261103\.100000 cannot be obtained: the archive does not extract/);
-  assert.deepEqual([versionsTelechargees(racine), demandes, statut.draining], [[], [], null]);
+  assert.deepEqual([versionsTelechargees(racine), demandes, statut.restart], [[], [], null]);
   publier(publiees, "0.20261104.100000", { dit: "0.20261103.190000" });
   statut = await ouvrir("0.20261101.100000").passer();
   assert.match(statut.check ?? "", /release 0\.20261104\.100000 cannot be obtained: release 0\.20261104\.100000 is not a station release: its runtime says version 0\.20261103\.190000, not 0\.20261104\.100000/);
   publier(publiees, "0.20261105.100000", { sansPointDEntree: true });
   statut = await ouvrir("0.20261101.100000").passer();
   assert.match(statut.check ?? "", /its runtime carries no src\/station\/main\.ts/);
-  assert.deepEqual([versionsTelechargees(racine), demandes, statut.draining], [[], [], null]);
+  assert.deepEqual([versionsTelechargees(racine), demandes, statut.restart], [[], [], null]);
 
   // Le réseau revient, une bonne release est publiée : le regard suivant la prend.
   coupe = false;
@@ -256,14 +140,13 @@ test("le réseau coupé, ou une release mauvaise, laisse la station telle quelle
   assert.equal(demandes[0]?.version, "0.20261106.100000");
 });
 
-test("sans personne pour la relancer, la station dit son retard sans rien télécharger ni se vider ; une release sans archive pour sa plateforme non plus", async (t) => {
+test("sans personne pour la relancer, la station dit son retard sans rien télécharger ; une release sans archive pour sa plateforme non plus", async (t) => {
   const { racine, publiees, ouvrir } = station(t, { relancer: null });
   publier(publiees, "0.20261102.100000");
   const miseAJour = ouvrir("0.20261101.100000");
   const statut = await miseAJour.passer();
   assert.equal(statut.behind, true);
   assert.match(statut.held ?? "", /nothing restarts this station on another release: 0\.20261102\.100000 waits/);
-  assert.equal(miseAJour.retenue(), false);
   assert.deepEqual(versionsTelechargees(racine), []);
 
   const linux = station(t);
@@ -295,7 +178,7 @@ test("le runtime que l'app embarque porte la version de l'app, celui d'un clone 
   }
 });
 
-test("une demande de relance qui ne s'écrit pas rend ses tickets à la station : elle ne reste pas vidée sans personne pour la relancer", async (t) => {
+test("une demande de relance qui ne s'écrit pas se dit, et le regard suivant redemande", async (t) => {
   const { publiees, ouvrir } = station(t, {
     relancer: () => {
       throw new Error("EACCES");
@@ -304,52 +187,42 @@ test("une demande de relance qui ne s'écrit pas rend ses tickets à la station 
   publier(publiees, "0.20261102.100000");
   const miseAJour = ouvrir("0.20261101.100000");
   const statut = await miseAJour.passer();
-  assert.equal(miseAJour.retenue(), false);
   assert.equal(statut.restart, null);
   assert.match(statut.check ?? "", /the restart request on release 0\.20261102\.100000 cannot be made: EACCES/);
 });
 
-test("une relance demandée que l'app ne joue pas ne retient pas la station pour toujours : passé SANS_SUITE_MS, elle reprend ses tickets, ne redemande plus cette release, et demande la suivante (#2820)", async (t) => {
+test("une relance demandée que l'app ne joue pas ne retient pas la station pour toujours : passé SANS_SUITE_MS, elle ne redemande plus cette release, et demande la suivante (#2820)", async (t) => {
   let instant = Date.parse("2026-11-07T21:00:00Z");
   const { publiees, demandes, dit, ouvrir, racine } = station(t, { maintenant: () => new Date(instant) });
   publier(publiees, "0.20261102.100000");
-  const prises: number[] = [];
   const miseAJour = ouvrir("0.20261101.100000");
-  const prise = retenirLaPrise({ prendre: async (issue) => (prises.push(issue.number), { prise: true }), lacher: async () => true }, () => miseAJour.retenue());
   await miseAJour.passer();
   assert.equal(demandes.length, 1);
-  assert.equal(miseAJour.retenue(), true);
-  assert.deepEqual(await prise.prendre({ number: 969, labels: ["fire"] }), { prise: false });
   // L'app la relance dans le délai : rien ne bouge.
   instant += SANS_SUITE_MS - 1_000;
   await miseAJour.passer();
-  assert.equal(miseAJour.retenue(), true);
   assert.equal(demandes.length, 1);
-  // Personne ne l'a relancée (une release refusée par l'app, par exemple) :
-  // retenue, elle ne prenait plus rien jusqu'à ce que l'app soit relancée.
+  // Personne ne l'a relancée (une release refusée par l'app, par exemple).
   instant += 1_000;
   const statut = await miseAJour.passer();
-  assert.equal(miseAJour.retenue(), false);
-  assert.deepEqual([statut.restart, statut.draining, lireDemande(racine)], [null, null, null]);
+  assert.deepEqual([statut.restart, lireDemande(racine)], [null, null]);
   assert.match(statut.held ?? "", /0\.20261102\.100000 was asked and did not come/);
-  assert.ok(dit.some((ligne) => /did not come: the station takes its tickets again on 0\.20261101\.100000/.test(ligne)));
-  assert.deepEqual(await prise.prendre({ number: 969, labels: ["fire"] }), { prise: true });
-  assert.deepEqual(prises, [969]);
+  assert.ok(dit.some((ligne) => /did not come: the station keeps running 0\.20261101\.100000/.test(ligne)));
   // La même release ne se redemande pas ; une plus récente, si.
   await miseAJour.passer();
-  assert.deepEqual([demandes.length, miseAJour.retenue()], [1, false]);
+  assert.equal(demandes.length, 1);
   publier(publiees, "0.20261103.100000");
   await miseAJour.passer();
-  assert.deepEqual([demandes.length, demandes[1]?.version, miseAJour.retenue()], [2, "0.20261103.100000", true]);
+  assert.deepEqual([demandes.length, demandes[1]?.version], [2, "0.20261103.100000"]);
 });
 
-test("les regards continuent après la demande de relance : sans suite, le suivant rend ses prises à la station (#2820)", async (t) => {
+test("les regards continuent après la demande de relance : sans suite, le suivant l'efface (#2820)", async (t) => {
   const { publiees, demandes, ouvrir } = station(t, { sansSuiteMs: 20 });
   publier(publiees, "0.20261102.100000");
   const miseAJour = ouvrir("0.20261101.100000");
   const arreter = tenirLaMiseAJour(miseAJour, { premierMs: 0, aleaMs: 0, intervalleMs: 60_000, sansSuiteMs: 20 });
   t.after(arreter);
   await jusqua(() => demandes.length === 1);
-  await jusqua(() => !miseAJour.retenue() && miseAJour.statut().restart === null);
+  await jusqua(() => miseAJour.statut().restart === null);
   assert.equal(demandes.length, 1);
 });

@@ -3,9 +3,9 @@
 // de gauche à droite, le backlog — le rail en tête, les tickets prêts à part —, le manager, les cooks, la pass, servi. Une
 // carte est dans la colonne de son étape. Une carte parked reste dans la colonne où elle attend, dessinée parked : qui elle
 // attend, jusqu'à quand. Il n'y a pas de colonne Waiting. Ce qui est parked pour le chef est aussi dans son TODO, à côté
-// des colonnes, et rien d'autre (ticket 4261) : chaque entrée dit ce qui lui est demandé, avec ses boutons. Au-dessus, la
-// bande du haut : la ligne du supervisor, celle du closer, et au plus un message — jamais sans un geste que le chef peut
-// faire.
+// des colonnes, et rien d'autre (ticket 4261) : une ligne, « 2 wait for you », dont un clic montre chaque entrée, ce qui
+// lui est demandé et ses boutons (ticket 4354). Au-dessus, la bande du haut : une carte du supervisor et une du closer sur
+// une ligne, et au plus un message — jamais sans un geste que le chef peut faire.
 // Le process principal range le rail en colonnes (faits.ts) : On the rail, Taken, Pass, Waiting, Served, et la liste de ce
 // qui attend le chef, que todo.js pose déjà dans la colonne de son étape. Ce module en tire le plan, sans rien relire.
 // Il ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
@@ -14,7 +14,11 @@ import { recommandationDe } from "../briques.js";
 import { vuDeLaCarte } from "../carte-todo.js";
 import { estUneRevue, MERGER } from "../carte-sensible/carte-sensible.js";
 import { bouton } from "../composants/bouton/bouton.js";
+import { heureUtc } from "../activite-du-cook.js";
+import { marque } from "../composants/pastille/pastille.js";
 import { PAS_ENCORE } from "../lexique.js";
+import { parkedTodo } from "../parked/parked-todo.js";
+import { CHEF, chefRecords } from "../parked/records.js";
 import { estRouge } from "../todo/todo.js";
 import { estUneValidation, VALIDER } from "../validation-design/validation-design.js";
 
@@ -140,6 +144,8 @@ export function ligneParquee(doc, parque) {
 // Les gestes de WAITING qui la tranchent : la reprendre, ou dire arrivé ce qu'elle attendait — « waiting for… » remet la
 // question à plus tard, il n'y répond pas (docs/todo-cards.md).
 const TRANCHENT = ["attente-reprendre", "attente-arrivee"];
+// Pourquoi une entrée du TODO se lit sans bouton.
+const LECTURE_SEULE = "read-only: nothing is decided from here";
 
 /**
  * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider, « Merge » d'une revue,
@@ -159,90 +165,114 @@ export function gestesDuTodo(carte, gestes) {
 }
 
 /**
- * Le TODO du chef : une entrée par ticket parked pour lui (ticket 4261) — son numéro et son titre, dont un clic ouvre sa
- * carte ; ce qui lui est demandé ; ses boutons, qui y répondent. Sans `gestes` — un projet en lecture seule —, ses cartes se
- * lisent sans bouton. Rien du tout quand rien ne l'attend.
- * @param {Fabrique} doc @param {{ cartes: readonly Carte[], ouvrir: (carte: Carte) => void, gestes?: GestesDuTodo }} todo
+ * Le TODO du chef, en une ligne au-dessus des colonnes (ticket 4354) : « 2 wait for you ». Un clic montre, sous elle, une
+ * entrée par ticket parked pour lui (ticket 4261) — son numéro et son titre, dont un clic ouvre sa carte ; ce qui lui est
+ * demandé ; qui, jusqu'à quand ; ses boutons, qui y répondent. Les entrées sont celles du TODO parked (parked/, ticket
+ * 4281), qui ajoute à chacune son contrôle de park (`control`, `opened`). `deplie` garde, d'un rendu à l'autre, que le chef
+ * l'a ouvert. Sans `gestes` — un projet en lecture seule —, ses cartes se lisent sans bouton. Rien du tout quand rien ne
+ * l'attend.
+ * @param {Fabrique} doc @param {{ cartes: readonly Carte[], ouvrir: (carte: Carte) => void, gestes?: GestesDuTodo, control?: (record: import("../parked/records.js").ParkedRecord) => any, opened?: Set<number>, deplie: { ouvert: boolean } }} todo
  */
-export function poserLeTodo(doc, { cartes, ouvrir, gestes }) {
+export function poserLeTodo(doc, { cartes, ouvrir, gestes, control, opened, deplie }) {
   if (cartes.length === 0) return undefined;
-  const cadre = doc.createElement("div");
-  cadre.className = "todo-du-rail";
-  cadre.ariaLabel = "What awaits you";
-  const tete = doc.createElement("p");
-  tete.className = "tete-du-todo";
-  tete.textContent = `TODO (${cartes.length})`;
-  const liste = doc.createElement("ol");
-  liste.className = "entrees-du-todo";
-  liste.append(
-    ...cartes.map((carte) => {
-      const entree = doc.createElement("li");
-      entree.className = "entree-du-todo";
-      entree.dataset.ticket = String(carte.ticket);
-      const ouvre = bouton(doc, `#${carte.ticket}${carte.titre === undefined ? "" : ` ${carte.titre}`}`, () => ouvrir(carte), { sorte: "discret" });
-      ouvre.title = carte.parque === undefined ? `open #${carte.ticket}'s card` : `open #${carte.ticket}'s card — ${ditParque(carte.parque)}`;
-      entree.append(ouvre);
-      const quoi = carte.parque?.quoi;
-      if (quoi !== undefined) entree.append(Object.assign(doc.createElement("p"), { className: "demande-du-todo", textContent: quoi }));
-      const siens = gestes === undefined ? [] : gestesDuTodo(carte, gestes);
-      if (siens.length > 0) {
-        const reponses = doc.createElement("div");
-        reponses.className = "reponses-du-todo";
-        reponses.append(...siens.map(({ texte, recommande, sorte, reponse }) => bouton(doc, texte, () => gestes?.jouer(carte.ticket, sorte, reponse), { sorte: recommande ? "recommande" : "secondaire" })));
-        entree.append(reponses);
-      }
-      return entree;
-    }),
+  const parTicket = new Map(cartes.map((carte) => [carte.ticket, { carte, siens: gestes === undefined ? [] : gestesDuTodo(carte, gestes) }]));
+  /** @param {number} ticket */
+  const de = (ticket) => /** @type {{ carte: Carte, siens: GesteDuTodo[] }} */ (parTicket.get(ticket));
+  const entrees = () =>
+    parkedTodo(doc, {
+      records: chefRecords(cartes),
+      chef: CHEF,
+      choices: ({ ticket }) => de(ticket).siens,
+      answer: (ticket, texte) => {
+        const geste = de(ticket).siens.find((siens) => siens.texte === texte);
+        if (geste !== undefined) gestes?.jouer(ticket, geste.sorte, geste.reponse);
+      },
+      ...(gestes === undefined ? { readOnly: LECTURE_SEULE } : { control, opened }),
+      open: (ticket) => ouvrir(de(ticket).carte),
+      openTitle: (ticket) => {
+        const { parque } = de(ticket).carte;
+        return parque === undefined ? `open #${ticket}'s card` : `open #${ticket}'s card — ${ditParque(parque)}`;
+      },
+    });
+  const avis = doc.createElement("div");
+  avis.className = "avis-du-todo";
+  /** @type {any} */
+  let liste = deplie.ouvert ? entrees() : undefined;
+  const ligne = bouton(
+    doc,
+    `${cartes.length} ${cartes.length === 1 ? "waits" : "wait"} for you`,
+    () => {
+      deplie.ouvert = liste === undefined;
+      liste?.remove();
+      liste = deplie.ouvert ? entrees() : undefined;
+      if (liste !== undefined) avis.append(liste);
+      ligne.ariaExpanded = String(deplie.ouvert);
+    },
+    { sorte: "discret" },
   );
-  cadre.append(tete, liste);
-  return cadre;
+  ligne.className += " ligne-du-todo";
+  ligne.ariaExpanded = String(deplie.ouvert);
+  ligne.title = "open your TODO: each ticket, its question and its buttons";
+  avis.append(ligne, ...(liste === undefined ? [] : [liste]));
+  return avis;
 }
 
-// Ce que le supervisor surveille, faute que la cuisine le dise : la règle 14 de la spec.
-const SURVEILLE = "each ticket's progress, loops, load, what is served, tickets parked too long";
-
-/** @typedef {{ lastGesture: { line: string, at: string }, nextRun: { text: string }, counters: { handedToChef: number } }} AgentLu */
-
-// La dernière action d'un rôle, ou celle de son fil quand la cuisine n'en donne pas : « parked #31 for the chef · 08:30 UTC ».
-/** @param {RoleDeCuisine | undefined} role @param {AgentLu | undefined} agent @param {string} chose ce qu'il n'a pas encore fait */
-const derniere = (role, agent, chose) => {
-  const latest = role?.latest ?? (agent === undefined ? null : { what: agent.lastGesture.line, at: agent.lastGesture.at });
-  if (latest === null) return PAS_ENCORE(chose);
-  const date = new Date(latest.at);
-  return Number.isNaN(date.getTime()) ? latest.what : `${latest.what} · ${deux(date.getUTCHours())}:${deux(date.getUTCMinutes())} UTC`;
+// Il y a combien de temps, en un seul ordre de grandeur : « 2 h ago ».
+/** @param {number} ms */
+const ilYA = (ms) => {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000);
+  return minutes < 1 ? "just now" : minutes < 60 ? `${minutes} min ago` : minutes < 1440 ? `${Math.floor(minutes / 60)} h ago` : `${Math.floor(minutes / 1440)} d ago`;
 };
 
 /**
- * La bande du haut : la ligne du supervisor — ce qu'il surveille, sa dernière action, ce qu'il a parked pour le chef — et celle
- * du closer — son dernier rangement, le prochain. Chaque ligne ouvre le fil de son agent quand l'équipe est lue (`ouvrirLeFil`).
- * Le message du haut, s'il y en a un, se pose juste dessous (vue.js).
+ * La bande du haut (ticket 4354) : une carte pour le supervisor, une pour le closer, sur une ligne — son nom, un point d'état
+ * (au travail, au repos, en alerte) et deux ou trois mots. Un clic sur une carte déplie son détail dessous : ce qu'il fait,
+ * sa dernière action et son heure ; `deplies` garde ce qui est déplié d'un rendu à l'autre. Un agent que l'équipe lue montre
+ * déjà (autonomie/equipe.js, `montre`) n'a pas de carte ici : son badge est la sienne. `alerte` : l'issue que la cuisine a
+ * ouverte sur elle-même, que le supervisor dit. `delai` : la ligne du délai de prise de `status` (ticket 4299), au bout de la
+ * ligne, coupée à sa largeur et entière au survol. Le message du haut, s'il y en a un, se pose juste dessous (vue.js).
  * @param {Fabrique} doc
- * @param {{ roles: readonly RoleDeCuisine[] | undefined, agent: (nom: string) => AgentLu | undefined, ouvrirLeFil: ((nom: string) => void) | undefined }} bande
+ * @param {{ roles: readonly RoleDeCuisine[] | undefined, montre: (nom: string) => boolean, alerte: number | undefined, maintenant: number, deplies: Set<string>, delai?: string }} bande
  */
-export function poserLaBandeDuHaut(doc, { roles, agent, ouvrirLeFil }) {
+export function poserLaBandeDuHaut(doc, { roles, montre, alerte, maintenant, deplies, delai }) {
   const cadre = doc.createElement("div");
   cadre.className = "bande-du-haut";
-  /** @param {string} nom @param {string} qui @param {string[]} morceaux */
-  const ligne = (nom, qui, morceaux) => {
-    const posee = doc.createElement("p");
-    posee.className = `ligne-du-${nom}`;
-    const etiquette = doc.createElement("strong");
-    etiquette.textContent = qui;
-    posee.append(etiquette, ...morceaux.map((morceau) => Object.assign(doc.createElement("span"), { textContent: morceau })));
-    if (ouvrirLeFil !== undefined && agent(nom) !== undefined) posee.append(bouton(doc, "its thread", () => ouvrirLeFil(nom), { sorte: "discret" }));
-    return posee;
-  };
+  const ligne = doc.createElement("div");
+  ligne.className = "cartes-des-agents";
+  cadre.append(ligne);
   const role = (/** @type {string} */ nom) => roles?.find((un) => un.role === nom);
-  const superviseur = agent("supervisor");
-  const closer = agent("closer");
-  cadre.append(
-    ligne("supervisor", "Supervisor", [
-      role("supervisor")?.does ?? `watching: ${SURVEILLE}`,
-      `last: ${derniere(role("supervisor"), superviseur, "action")}`,
-      `parked for you: ${superviseur === undefined ? "not known" : `${superviseur.counters.handedToChef} so far`}`,
-    ]),
-    ligne("closer", "Closer", [`last tidy: ${derniere(role("closer"), closer, "tidy")}`, `next tidy: ${closer === undefined ? "not known" : closer.nextRun.text.replace(/^closer: /, "")}`]),
-  );
+  /** @param {string} nom @param {string} ton @param {string} mots */
+  const carte = (nom, ton, mots) => {
+    const lui = role(nom);
+    const latest = lui?.latest ?? null;
+    const detail = doc.createElement("p");
+    detail.className = "detail-de-l-agent";
+    detail.dataset.agent = nom;
+    detail.textContent = [lui?.does, latest === null ? PAS_ENCORE("action") : `last: ${latest.what} · ${heureUtc(latest.at)}`].filter(Boolean).join(" · ");
+    const posee = bouton(
+      doc,
+      "",
+      () => {
+        if (deplies.delete(nom)) detail.remove();
+        else {
+          deplies.add(nom);
+          cadre.append(detail);
+        }
+        posee.ariaExpanded = String(deplies.has(nom));
+      },
+      { sorte: "discret" },
+    );
+    posee.className += " carte-d-agent";
+    posee.dataset.agent = nom;
+    posee.ariaExpanded = String(deplies.has(nom));
+    posee.replaceChildren(marque(doc, ton), Object.assign(doc.createElement("strong"), { textContent: nom }), Object.assign(doc.createElement("span"), { textContent: mots }));
+    ligne.append(posee);
+    if (deplies.has(nom)) cadre.append(detail);
+  };
+  if (!montre("supervisor")) carte("supervisor", alerte === undefined ? "gris" : "rouge", alerte === undefined ? "ok" : `alert: #${alerte}`);
+  const rangement = role("closer")?.latest ?? null;
+  if (!montre("closer")) carte("closer", "gris", rangement === null ? PAS_ENCORE("tidy") : `tidied ${ilYA(maintenant - Date.parse(rangement.at))}`);
+  if (delai !== undefined) ligne.append(Object.assign(doc.createElement("span"), { className: "ligne-du-delai", textContent: delai, title: delai }));
   return cadre;
 }
 

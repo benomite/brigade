@@ -1,4 +1,4 @@
-# rename-code — the glossary terms of the code, renamed by a tool (#1003, #1039)
+# rename-code — the French words of the code, renamed by a tool (#1003, #1039, #4411)
 
 The identifiers and file names of `runtime/` and `app/` that hold a term of
 `docs/glossary.md` are renamed to English **by this tool**, never by hand. It
@@ -117,13 +117,16 @@ What it does **not** touch:
 
 ## The table
 
-`table.ts` holds the French → English correspondence, taken from
-`docs/glossary.md`. The tool reads nothing else, so to change a result, change
-this file and replay.
+`mapping.json` holds the French → English correspondence of words: the one
+source that this tool applies (`table.ts` reads it into `WORDS`) and that the
+naming gate checks (`gate.ts`, below). The tool reads nothing else, so to change
+a result, change these files and replay.
 
-- `WORDS`: the glossary's words, as they are written in a name (no accents,
-  lower case). Word sequences are matched longest first, so `en attente` →
-  queued wins over any shorter sequence.
+- `WORDS` (`mapping.json`): words as they are written in a name (no accents,
+  lower case), in two parts, both applied: `glossary`, the words of
+  `docs/glossary.md`, and `code`, the recurring French words of the file names
+  of `runtime/src` and `app/src`. Word sequences are matched longest first, so
+  `en attente` → queued wins over any shorter sequence.
 - `NAMES` (`names.ts`): whole names, used in two cases:
   - the word-by-word translation would leave French words around the glossary
     term (`ouvrirLEcran` → `openTheScreen`, not `ouvrirLScreen`);
@@ -134,6 +137,237 @@ this file and replay.
 - `PATHS`: whole names of files and folders, by path.
 - `FIXUPS`: text edits the references cannot carry, applied last. Each one
   must be found the number of times it says, or the run fails.
+
+The mapping the tool applies, word by word — the same table as
+[docs/naming-rule.md](../../docs/naming-rule.md). A test
+(`test/4-tables-match-the-mapping.test.ts`) fails when either table differs
+from `mapping.json`.
+
+| French (`glossary`) | English |
+|---|---|
+| `cuisine` | `kitchen` |
+| `cuisines` | `kitchens` |
+| `cuisiner` | `cook` |
+| `garde fous` | `guardrails` |
+| `garde fou` | `guardrail` |
+| `plafond` | `cap` |
+| `plafonds` | `caps` |
+| `disjoncteur` | `breaker` |
+| `journal` | `log` |
+| `journaux` | `logs` |
+| `sauvegarde` | `backup` |
+| `sauvegardes` | `backups` |
+| `sauvegarder` | `backup` |
+| `fermeture` | `closing` |
+| `fermetures` | `closings` |
+| `derive` | `drift` |
+| `consomme` | `consumed` |
+| `attend` | `awaiting` |
+| `t attend` | `awaiting you` |
+| `en attente` | `queued` |
+| `pris` | `taken` |
+| `servi` | `served` |
+| `servie` | `served` |
+| `servis` | `served` |
+| `servies` | `served` |
+| `bloque` | `blocked` |
+| `bloquee` | `blocked` |
+| `bloques` | `blocked` |
+| `bloquees` | `blocked` |
+| `abandonne` | `dropped` |
+| `abandonnes` | `dropped` |
+| `coince` | `stuck` |
+| `coinces` | `stuck` |
+| `bail` | `lease` |
+| `tenu par` | `taken by` |
+| `fiche` | `card` |
+| `fiches` | `cards` |
+| `bon` | `slip` |
+| `bons` | `slips` |
+| `decoupage` | `split` |
+| `decoupages` | `splits` |
+| `epique` | `epic` |
+| `epiques` | `epics` |
+| `calibrage` | `calibration` |
+| `calibrages` | `calibrations` |
+| `tours` | `turns` |
+| `jetons` | `tokens` |
+| `livraison` | `delivery` |
+| `livraisons` | `deliveries` |
+| `livrable` | `deliverable` |
+| `livrables` | `deliverables` |
+| `poste` | `workstation` |
+| `postes` | `workstations` |
+| `espace` | `space` |
+| `brule` | `burns` |
+| `sans progres` | `no progress` |
+| `rangement` | `cleanup` |
+| `rangements` | `cleanups` |
+| `cloison` | `partition` |
+| `arbitre` | `arbiter` |
+| `arbitres` | `arbiters` |
+| `arbitrage` | `arbitration` |
+| `porte` | `door` |
+| `portes` | `doors` |
+| `distante` | `remote` |
+| `distantes` | `remote` |
+| `station distante` | `remote station` |
+| `stations distantes` | `remote stations` |
+| `connexion` | `connection` |
+| `connexions` | `connections` |
+| `mesure` | `measure` |
+| `mesures` | `measures` |
+| `faits` | `facts` |
+| `tirer` | `pull` |
+| `annoncer` | `announce` |
+| `reclamer` | `claim` |
+| `renouveler` | `renew` |
+| `restaurer` | `restore` |
+| `rejouer` | `replay` |
+| `desinstaller` | `uninstall` |
+| `revoquer` | `revoke` |
+| `prolonger` | `extend` |
+| `poids` | `weight` |
+| `preuve` | `proof` |
+| `serveur` | `server` |
+| `serveurs` | `servers` |
+| `ecran` | `screen` |
+| `ecrans` | `screens` |
+| `tenir porte` | `hold door` |
+| `tenir portes` | `hold doors` |
+| `tenir arbitre` | `hold arbiter` |
+
+| French (`code`) | English |
+|---|---|
+| `accueil` | `home` |
+| `activite` | `activity` |
+| `activites` | `activities` |
+| `affichage` | `display` |
+| `aiguillage` | `routing` |
+| `ajout` | `addition` |
+| `alerte` | `alert` |
+| `alertes` | `alerts` |
+| `appel` | `call` |
+| `appels` | `calls` |
+| `apprentissage` | `learning` |
+| `arret` | `stop` |
+| `attente` | `wait` |
+| `autonomie` | `autonomy` |
+| `avis` | `opinion` |
+| `bac a sable` | `sandbox` |
+| `bandeau` | `banner` |
+| `barre` | `bar` |
+| `besoin` | `need` |
+| `blocage` | `blockage` |
+| `blocages` | `blockages` |
+| `bouton` | `button` |
+| `branche` | `branch` |
+| `capacite` | `capacity` |
+| `capacites` | `capacities` |
+| `carte` | `card` |
+| `cartes` | `cards` |
+| `chiffres` | `figures` |
+| `choix` | `choice` |
+| `commande` | `command` |
+| `commandes` | `commands` |
+| `commentaire` | `comment` |
+| `compte` | `account` |
+| `conflit` | `conflict` |
+| `contexte` | `context` |
+| `contrat` | `contract` |
+| `cote` | `side` |
+| `cout` | `cost` |
+| `crochet` | `hook` |
+| `cuisson` | `cooking` |
+| `delai` | `delay` |
+| `delais` | `delays` |
+| `demande` | `request` |
+| `depot` | `repository` |
+| `diagramme` | `diagram` |
+| `dire` | `tell` |
+| `echec` | `failure` |
+| `echecs` | `failures` |
+| `enrolement` | `enrollment` |
+| `equipe` | `team` |
+| `erreur` | `error` |
+| `essai` | `trial` |
+| `etape` | `step` |
+| `etapes` | `steps` |
+| `etat` | `state` |
+| `etats` | `states` |
+| `evenement` | `event` |
+| `evenements` | `events` |
+| `explication` | `explanation` |
+| `explications` | `explanations` |
+| `fond` | `background` |
+| `garde` | `guard` |
+| `geste` | `action` |
+| `gestes` | `actions` |
+| `hebdomadaire` | `weekly` |
+| `historique` | `history` |
+| `hors` | `outside` |
+| `humain` | `human` |
+| `humains` | `humans` |
+| `identite` | `identity` |
+| `identites` | `identities` |
+| `interrupteur` | `switch` |
+| `jour` | `day` |
+| `juge` | `judge` |
+| `lancement` | `launch` |
+| `lecture` | `read` |
+| `libre` | `free` |
+| `ligne` | `line` |
+| `lignes` | `lines` |
+| `limite` | `limit` |
+| `mise a jour` | `update` |
+| `montrer` | `show` |
+| `mot` | `word` |
+| `moteur` | `engine` |
+| `nom` | `name` |
+| `outil` | `tool` |
+| `outils` | `tools` |
+| `panne` | `outage` |
+| `pannes` | `outages` |
+| `parcours` | `journey` |
+| `passe` | `pass` |
+| `pastille` | `pill` |
+| `poele` | `pan` |
+| `premier` | `first` |
+| `premiere` | `first` |
+| `priorite` | `priority` |
+| `prise` | `taking` |
+| `projet` | `project` |
+| `projets` | `projects` |
+| `publie` | `published` |
+| `qualite` | `quality` |
+| `recit` | `story` |
+| `recurrents` | `recurring` |
+| `refus` | `refusal` |
+| `registre` | `registry` |
+| `reglage` | `setting` |
+| `reglages` | `settings` |
+| `renvoi` | `send back` |
+| `renvois` | `send backs` |
+| `reponse` | `answer` |
+| `reponses` | `answers` |
+| `reprise` | `resumption` |
+| `requis` | `required` |
+| `rouge` | `red` |
+| `savoir faire` | `know how` |
+| `sensible` | `sensitive` |
+| `seuil` | `threshold` |
+| `seuils` | `thresholds` |
+| `seul` | `only` |
+| `seule` | `only` |
+| `signalement` | `report` |
+| `statut` | `status` |
+| `superviseur` | `supervisor` |
+| `telephone` | `phone` |
+| `temps` | `time` |
+| `tenir` | `hold` |
+| `veille` | `standby` |
+| `vide` | `empty` |
+| `visite` | `visit` |
 
 ### The exceptions, and why
 
@@ -158,6 +392,29 @@ The tool's own exceptions are in `table.ts`, each with its reason:
   They are renamed with their units, in a delivery that also moves the copies.
 - The members kept as formats are listed by the dry run (`kept` lines) and by
   `--check`, each with the reason the analysis gave.
+
+## The naming gate (#4411)
+
+`gate.ts` fails a branch that adds a French identifier
+([docs/naming-rule.md](../../docs/naming-rule.md)). It reads `mapping.json`
+through `table.ts`, as the rename does.
+
+```sh
+node scripts/rename-code/gate.ts --base origin/main
+```
+
+Against the merge base of `--base` and `HEAD`, it reads the file and directory
+names that the branch adds or renames under `runtime/src` and `app/src`, the
+symbols their code files newly export, and the keys newly found in the JSON
+files of `runtime/{src,test}` and `app/{src,test}`. A name with an accent, or
+with a word of the French side of `mapping.json`, fails: exit 1, each name with
+its file, then the rule. A French name already on the base passes. Exit 2 when
+it cannot compare (no base). It runs on every pull request in
+`.github/workflows/identifier-language.yml`. Its tests:
+
+```sh
+node --test scripts/rename-code/test/
+```
 
 ## Same commit, same result
 

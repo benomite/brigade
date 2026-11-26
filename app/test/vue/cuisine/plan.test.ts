@@ -1,6 +1,6 @@
 // Le plan de la cuisine (ticket 4238), le module seul (vue/cuisine/cuisine.js) devant un faux document : chaque carte dans la
 // colonne de son étape — backlog, le rail en tête, manager, cooks, pass, served —, la carte parked qui dit qui elle attend et
-// jusqu'à quand, le TODO qui liste exactement ce qui attend le chef, la bande du haut, et le message qui n'existe qu'avec un geste.
+// jusqu'à quand, le TODO — une ligne, puis exactement ce qui attend le chef —, la bande du haut, et le message qui n'existe qu'avec un geste.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Carte, Colonne } from "../../../src/faits.ts";
@@ -94,58 +94,89 @@ describe("le TODO liste exactement ce qui attend le chef", () => {
     assert.deepEqual(numeros(ceQuiTAttend(plan)), [50, 53]);
   });
 
-  test("une entrée par ticket, qui ouvre sa carte d'un clic ; rien quand rien n'attend le chef", () => {
+  test("une ligne, « 2 wait for you » ; rien quand rien n'attend le chef (#4354)", () => {
+    assert.equal(poserLeTodo(doc, { cartes: [], ouvrir: () => {}, deplie: { ouvert: false } }), undefined);
+    const un = poserLeTodo(doc, { cartes: [carte(50, "en attente", { attendu: true })], ouvrir: () => {}, deplie: { ouvert: false } }) as unknown as Faux;
+    assert.deepEqual(un.dessous("button").map(({ textContent }) => textContent), ["1 waits for you"]);
+    const deux = poserLeTodo(doc, { cartes: [carte(50, "en attente", { attendu: true }), carte(53, "pris", { parque: { ...PARKED, chef: true } })], ouvrir: () => {}, deplie: { ouvert: false } }) as unknown as Faux;
+    assert.equal(deux.className, "avis-du-todo");
+    assert.deepEqual(deux.dessous("button").map(({ textContent }) => textContent), ["2 wait for you"]);
+    // Ni question, ni bouton, ni entrée tant que le chef ne l'a pas ouvert.
+    assert.deepEqual(deux.dessous("li"), []);
+    assert.deepEqual(deux.dessous("p"), []);
+  });
+
+  test("un clic montre une entrée par ticket, qui ouvre sa carte d'un clic ; un second les replie ; le dépli se garde (#4354)", () => {
     const ouvertes: number[] = [];
-    assert.equal(poserLeTodo(doc, { cartes: [], ouvrir: () => {} }), undefined);
-    const todo = poserLeTodo(doc, { cartes: [carte(50, "en attente", { attendu: true }), carte(53, "pris", { parque: { ...PARKED, chef: true }, titre: undefined })], ouvrir: ({ ticket }) => void ouvertes.push(ticket) }) as unknown as Faux;
-    assert.deepEqual([todo.className, todo.ariaLabel], ["todo-du-rail", "What awaits you"]);
-    assert.equal(todo.children[0]?.textContent, "TODO (2)");
+    const deplie = { ouvert: false };
+    const todo = poserLeTodo(doc, { cartes: [carte(50, "en attente", { attendu: true }), carte(53, "pris", { parque: { ...PARKED, chef: true }, titre: undefined })], ouvrir: ({ ticket }) => void ouvertes.push(ticket), deplie }) as unknown as Faux;
+    const [ligne] = todo.dessous("button");
+    assert.equal(ligne?.ariaExpanded, "false");
+    ligne?.click();
+    assert.equal(deplie.ouvert, true);
+    assert.equal(ligne?.ariaExpanded, "true");
+    const liste = todo.children[1] ?? assert.fail("pas de liste");
+    assert.deepEqual([liste.className, liste.ariaLabel], ["todo-du-rail", "What awaits you"]);
     const entrees = todo.dessous("li");
     assert.deepEqual(entrees.map(({ dataset }) => dataset.ticket), ["50", "53"]);
-    assert.deepEqual(entrees.map(({ textContent }) => textContent), ["#50 Ticket 50", "#53"]);
+    // Son numéro et son titre ; sous ce qui est demandé, qui il attend et jusqu'à quand (ticket 4281).
+    assert.deepEqual(entrees.map((entree) => entree.dessous("button")[0]?.textContent), ["#50 Ticket 50", "#53"]);
     assert.equal(entrees[1]?.dessous("button")[0]?.title, "open #53's card — parked — waits for Camille, until 28 Nov, 09:00 UTC");
-    assert.equal(entrees[0]?.dessous("button")[0]?.title, "open #50's card");
     entrees[1]?.dessous("button")[0]?.click();
     assert.deepEqual(ouvertes, [53]);
+    ligne?.click();
+    assert.equal(deplie.ouvert, false);
+    assert.deepEqual(todo.dessous("li"), []);
+    // Le rendu suivant le garde comme le chef l'a laissé.
+    const rouvert = poserLeTodo(doc, { cartes: [carte(50, "en attente", { attendu: true })], ouvrir: () => {}, deplie: { ouvert: true } }) as unknown as Faux;
+    assert.deepEqual(rouvert.dessous("li").map(({ dataset }) => dataset.ticket), ["50"]);
   });
 });
 
-describe("la bande du haut : la ligne du supervisor et celle du closer", () => {
+describe("la bande du haut : une carte du supervisor et une du closer, sur une ligne (#4354)", () => {
   const ROLES = [
     { role: "supervisor", does: "watches the whole kitchen", latest: { what: "parked #31 for the chef", ticket: 31, at: "2026-11-25T08:30:00Z" } },
     { role: "closer", does: "tidies what is served", latest: { what: "removed dead code", ticket: null, at: "2026-11-25T06:00:00Z" } },
   ];
-  const agent = (handedToChef: number, nextRun: string) => ({ lastGesture: { line: "reran the tests", at: "2026-11-25T09:01:00Z" }, nextRun: { text: nextRun }, counters: { handedToChef } });
-  const lignes = (bande: Faux) => bande.children.map((ligne) => ligne.children.filter(({ balise }) => balise !== "button").map(({ textContent }) => textContent));
+  const MAINTENANT = Date.parse("2026-11-25T09:00:00Z");
+  const bande = (plus: Partial<Parameters<typeof poserLaBandeDuHaut>[1]> = {}) =>
+    poserLaBandeDuHaut(doc, { roles: ROLES, montre: () => false, alerte: undefined, maintenant: MAINTENANT, deplies: new Set(), ...plus }) as unknown as Faux;
+  const cartes = (posee: Faux) => posee.dessous("button").map((une) => [une.dataset.agent, une.textContent]);
+  const tons = (posee: Faux) => posee.dessous("span").filter(({ className }) => className === "pastille").map(({ dataset }) => dataset.ton);
 
-  test("ce que la cuisine en dit : ce qu'il surveille, sa dernière action, ce qu'il a parked pour le chef ; le dernier rangement, le prochain", () => {
-    const fils: string[] = [];
-    const agents: Record<string, ReturnType<typeof agent>> = { supervisor: agent(3, "supervisor: wakes if nothing is merged by 10:40"), closer: agent(0, "closer: next pass in 3 h") };
-    const bande = poserLaBandeDuHaut(doc, { roles: ROLES, agent: (nom) => agents[nom], ouvrirLeFil: (nom) => void fils.push(nom) }) as unknown as Faux;
-    assert.equal(bande.className, "bande-du-haut");
-    assert.deepEqual(bande.children.map(({ className }) => className), ["ligne-du-supervisor", "ligne-du-closer"]);
-    assert.deepEqual(lignes(bande), [
-      ["Supervisor", "watches the whole kitchen", "last: parked #31 for the chef · 08:30 UTC", "parked for you: 3 so far"],
-      ["Closer", "last tidy: removed dead code · 06:00 UTC", "next tidy: next pass in 3 h"],
-    ]);
-    for (const ligne of bande.children) ligne.dessous("button").find(({ textContent }) => textContent === "its thread")?.click();
-    assert.deepEqual(fils, ["supervisor", "closer"]);
+  test("son nom, un point d'état et deux ou trois mots — aucune phrase", () => {
+    const posee = bande();
+    assert.equal(posee.className, "bande-du-haut");
+    assert.deepEqual(cartes(posee), [["supervisor", "supervisorok"], ["closer", "closertidied 3 h ago"]]);
+    assert.deepEqual(tons(posee), ["gris", "gris"]);
+    assert.deepEqual(posee.dessous("p"), []);
   });
 
-  test("sans rôle ni équipe lue : ce qu'il surveille d'après la spec, et « not known » — jamais inventé ; aucun fil à ouvrir", () => {
-    const bande = poserLaBandeDuHaut(doc, { roles: undefined, agent: () => undefined, ouvrirLeFil: () => {} }) as unknown as Faux;
-    assert.deepEqual(lignes(bande), [
-      ["Supervisor", "watching: each ticket's progress, loops, load, what is served, tickets parked too long", "last: No action yet.", "parked for you: not known"],
-      ["Closer", "last tidy: No tidy yet.", "next tidy: not known"],
-    ]);
-    assert.deepEqual(bande.dessous("button"), []);
+  test("une issue que la cuisine a ouverte sur elle-même : le supervisor en alerte ; sans rôle, « no tidy yet »", () => {
+    const posee = bande({ roles: undefined, alerte: 77 });
+    assert.deepEqual(cartes(posee), [["supervisor", "supervisoralert: #77"], ["closer", "closerNo tidy yet."]]);
+    assert.deepEqual(tons(posee), ["rouge", "gris"]);
   });
 
-  test("l'équipe lue sans rôle : la dernière action est celle de son fil ; une heure illisible n'est pas dite ; en lecture seule, aucun fil", () => {
-    const lu = { ...agent(0, "closer: next pass once its merges are in"), lastGesture: { line: "pruned the know-how", at: "hier" } };
-    const bande = poserLaBandeDuHaut(doc, { roles: [], agent: () => lu, ouvrirLeFil: undefined }) as unknown as Faux;
-    assert.deepEqual(lignes(bande)[1], ["Closer", "last tidy: pruned the know-how", "next tidy: next pass once its merges are in"]);
-    assert.deepEqual(bande.dessous("button"), []);
+  test("un clic déplie son détail — ce qu'il fait, sa dernière action et son heure — ; un second le replie ; le dépli se garde", () => {
+    const deplies = new Set<string>();
+    const posee = bande({ deplies });
+    const [superviseur] = posee.dessous("button");
+    superviseur?.click();
+    assert.deepEqual(posee.dessous("p").map(({ textContent }) => textContent), ["watches the whole kitchen · last: parked #31 for the chef · 08:30 UTC"]);
+    assert.equal(superviseur?.ariaExpanded, "true");
+    assert.deepEqual([...deplies], ["supervisor"]);
+    assert.deepEqual(bande({ deplies, roles: [] }).dessous("p").map(({ textContent }) => textContent), ["No action yet."]);
+    superviseur?.click();
+    assert.deepEqual(posee.dessous("p"), []);
+    assert.deepEqual([...deplies], []);
+  });
+
+  test("un agent que l'équipe lue montre déjà n'a pas de carte ici ; la ligne du délai de prise vient au bout", () => {
+    const posee = bande({ montre: (nom) => nom === "supervisor", delai: "40 % merged within 10 min of their claim" });
+    assert.deepEqual(cartes(posee), [["closer", "closertidied 3 h ago"]]);
+    const [delai] = posee.dessous("span").filter(({ className }) => className === "ligne-du-delai");
+    assert.deepEqual([delai?.textContent, delai?.title], ["40 % merged within 10 min of their claim", "40 % merged within 10 min of their claim"]);
   });
 });
 

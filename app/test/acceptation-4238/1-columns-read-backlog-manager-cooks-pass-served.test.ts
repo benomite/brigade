@@ -55,3 +55,13 @@ test("les colonnes : backlog, manager, cooks, pass, served ; le rail en tête du
   assert.ok(sections.findIndex((t) => /ready/.test(t)) >= 0, "the ready tickets are set apart in the backlog");
   assert.ok(sections.findIndex((t) => /\brail\b/.test(t)) <= sections.findIndex((t) => /ready/.test(t)));
 });
+
+// Critère 2 : chaque carte de ticket est dans la colonne de son étape.
+test("chaque carte est dans la colonne de son étape", async () => {
+  const vue = await montrer({ rail: [carte(10, "en attente"), carte(11, "pris"), carte(12, "en pass"), carte(13, "servi")] });
+  assert.ok(numeros(colonne(vue, /backlog/i)).includes(10));
+  assert.deepEqual(numeros(colonne(vue, /cook/i)), [11]);
+  assert.deepEqual(numeros(colonne(vue, /pass/i)), [12]);
+  assert.deepEqual(numeros(colonne(vue, /served/i)), [13]);
+  assert.ok(!numeros(colonne(vue, /manager/i)).some((n) => [10, 11, 12, 13].includes(n)));
+});

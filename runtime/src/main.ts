@@ -31,6 +31,8 @@ import { brancherManager, configManager } from "./manager.ts";
 import { placeLibre } from "./prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "./chef/chef.ts";
 import { brancherLeDigest } from "./journal-du-jour/matin.ts";
+import { politiqueDuRuntime } from "./autonomie/agents/politique-du-runtime.ts";
+import { lireLaQualite } from "./autonomie/agents/qualite.ts";
 import { brancherMentionDuChef } from "./mention-du-chef/mention-du-chef.ts";
 import { lireMachine } from "./machine.ts";
 import { brancherReponseParCommentaire } from "./reponse-par-commentaire/reponse-par-commentaire.ts";
@@ -212,10 +214,6 @@ try {
               reviewer: () => decisions.reviewer(),
               // La question d'un cook bloqué va au manager avant que le ticket ne soit parqué pour le chef (#2894).
               manager: () => decisions.manager(),
-              // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
-              testsAcceptation: () => decisions.manager(),
-              // Il classe d'abord chaque critère, testable ou non, avec la preuve due (#3740).
-              classesDesCriteres: () => decisions.manager(),
               // Une recalibration du manager après le dernier essai reste sous ce plafond (#3513).
               plafond: () => manager.plafond,
               flux: join(repertoireEtat, "github-seul"),
@@ -276,7 +274,7 @@ try {
   const datee = brancherJeton(suivie, jeton);
   // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
   // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
-  const supervisee = brancherSuperviseur(datee, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur });
+  const supervisee = brancherSuperviseur(datee, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, chef: async () => (chefDuProjet === null ? null : chefDuProjet()) });
   runtime = supervisee;
   // Chaque carte de la file du chef le mentionne sur son issue, une fois : GitHub Mobile le notifie (#2746).
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
@@ -287,6 +285,8 @@ try {
   brancherReponseParCommentaire(runtime, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages });
   // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
   brancherLeDigest(runtime, { repertoireEtat, avertir: (ligne) => console.error(`brigade : ${ligne}`) });
+  // Les niveaux d'autonomie bougent selon le bilan des gestes, au plus une fois par heure ; une rétrogradation réveille le chef (#4380).
+  politiqueDuRuntime(runtime, { lire: () => lireLaQualite({ depot, clone: station.clone, base: station.base, depotGitHub: rail.depot, github: githubs.station, env }, new Date()) });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

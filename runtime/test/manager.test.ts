@@ -201,7 +201,7 @@ describe("le manager", { concurrency: 8 }, () => {
 
   test("une issue qui n'est pas une unité de travail n'entre pas sur le rail : le manager dit pourquoi, et ne la laisse pas sur ce seul commentaire (#2692)", async (t) => {
     const { gh, labels, dits, faits } = brigade(t, { manager: { jugement: "juge-incomplet" }, issues: [issue(30, [])] });
-    await jusqua(() => dits(30).length === 2);
+    await jusqua(() => dits(30).length === 2 && faits(30).some((e) => e.type === "manager.set-aside"));
 
     // Sa complétion ne se lit pas : la question passe au chef, rien ne part sur le rail.
     assert.deepEqual(labels(30), ["chef-todo"]);

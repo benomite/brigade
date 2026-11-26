@@ -23,7 +23,7 @@
 // (#2933) : ses gates ne passent pas par ici.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SCRIPT_GATES } from "../gates.ts";
+import { gatesDuDossier } from "../fiche-projet/fiche.ts";
 import type { Issue } from "../github.ts";
 
 export const LABEL_FONDATION = "foundation";
@@ -69,11 +69,20 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 // ici — ils se disent, et rien ne se merge. GitHub n'est lu que si les gates
 // ne jouent rien.
 export async function gatesQuiNeJugentPas(worktree: string, ticket: Pick<Issue, "labels">, lireFondations: LireFondations): Promise<string | null> {
-  let script: string;
+  // Les gates que la fiche du projet nomme (#4237) : elles jugent si l'une lance une commande.
+  let noms: string[];
   try {
-    script = readFileSync(join(worktree, SCRIPT_GATES), "utf8");
+    noms = gatesDuDossier(worktree);
   } catch (erreur) {
-    return `the \`${SCRIPT_GATES}\` of the delivery could not be read to know whether it runs a test command: ${message(erreur)}`;
+    return `the project sheet of the delivery is refused, so nothing says which gates judge it: ${message(erreur)}`;
+  }
+  const scripts: string[] = [];
+  for (const nom of noms) {
+    try {
+      scripts.push(readFileSync(join(worktree, nom), "utf8"));
+    } catch (erreur) {
+      return `the \`${nom}\` of the delivery could not be read to know whether it runs a test command: ${message(erreur)}`;
+    }
   }
   let claudeMd = "";
   try {
@@ -81,9 +90,9 @@ export async function gatesQuiNeJugentPas(worktree: string, ticket: Pick<Issue, 
   } catch (erreur) {
     if ((erreur as NodeJS.ErrnoException).code !== "ENOENT") return `the \`CLAUDE.md\` of the delivery could not be read to know whether its gates are provisional: ${message(erreur)}`;
   }
-  const sansCommande = !lanceUneCommande(script);
+  const sansCommande = !scripts.some(lanceUneCommande);
   if (!sansCommande && !ditProvisoires(claudeMd)) return null;
-  const aucuneCommande = `${RIEN_VERIFIE} — the gates run no test command: \`${SCRIPT_GATES}\` runs nothing, and gates that run nothing never pass a delivery`;
+  const aucuneCommande = `${RIEN_VERIFIE} — the gates run no test command: ${noms.map((nom) => `\`${nom}\``).join(", ")} ${noms.length > 1 ? "run" : "runs"} nothing, and gates that run nothing never pass a delivery`;
   if (ticket.labels.includes(LABEL_FONDATION)) return sansCommande ? aucuneCommande : null;
   let fondations: Pick<Issue, "number" | "labels" | "state">[];
   try {

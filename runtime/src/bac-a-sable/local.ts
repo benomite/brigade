@@ -19,7 +19,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute } from "node:path";
 import { REGLES_DE_BASE, type Regle } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { argumentsDuBacASable, configurer, type ConfigDeBacASable, type Cook } from "./configuration.ts";
+import { argumentsDuBacASable, configurer, reglagesSansBacASable, type CookSansBac, type ConfigDeBacASable, type Cook } from "./configuration.ts";
 import { lireDeclarationBacASable } from "./declaration.ts";
 import { detecter, type Sondes } from "./detection.ts";
 import { constater, pourLaBox } from "./ordinaires.ts";
@@ -124,4 +124,13 @@ export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, arg
 // Ce que la cuisine dit de son bac à sable au démarrage.
 export function direBacASable(bac: BacASableLocal): string {
   return `bac à sable — chaque \`claude\` de la cuisine (cook, closer, reviewer, manager) part dans celui de Claude Code (claude ${bac.version}) : il n'écrit que là où il travaille${bac.caches.length === 0 ? "" : ` et dans ${bac.caches.join(", ")}`}, ne lit ni ~/.ssh ni les identifiants du chef, ne joint que les hôtes de la liste réseau du projet`;
+}
+
+// Les arguments d'un cook lancé sans bac à sable : son `--permission-mode` —
+// `bypassPermissions` — devient `dontAsk`, et les réglages restreints
+// (`reglagesSansBacASable`) se posent par `--settings` à sa place.
+export function dansLeModeRestreint(args: readonly string[], cook: CookSansBac): string[] {
+  const mode = args.indexOf("--permission-mode");
+  if (mode === -1 || mode + 1 >= args.length) throw new Error("arguments de `claude` sans `--permission-mode` : le mode restreint ne s'y pose pas");
+  return [...args.slice(0, mode), "--permission-mode", "dontAsk", "--settings", JSON.stringify(reglagesSansBacASable(cook)), ...args.slice(mode + 2)];
 }

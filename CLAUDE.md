@@ -2,6 +2,10 @@
 
 The kitchen serves its tickets on its own. **Every `chef-todo` without a product or design decision is a failure**, to be fixed like a bug, never a normal step. A TODO card asks a human a question: a product choice, a design choice, or a review only the chef can make. It is never something an agent can decide: a technical merge with a green CI, a rebase, a rerun, putting a ticket back on the rail. When in doubt, decide, say what you decided, and move on.
 
+## Brigade's goal: security
+
+**No agent ever combines the three legs of the lethal trifecta**: private data, untrusted content, and a way to send data out. Every cook is isolated to its own project and behind its network filter; only text from trusted authors (the chef, write collaborators, the kitchen's agents) reaches an agent; without its safeguards, the kitchen cooks nothing. **A change that reopens a leg is refused** (a safeguard switch, a new outside source, a new way out).
+
 ## Équipe multi-agents (plugin brigade)
 
 The section title and the bold labels of the bindings below stay in French on purpose: `/brigade:init` and the roles look them up by these exact words. The content is English.
@@ -19,8 +23,8 @@ The section title and the bold labels of the bindings below stay in French on pu
   - **Plugin V1** — `commands/` (roles), `agents/`, `codex/skills/` (Codex mirror, copied by `/brigade:sync`), `.claude-plugin/` (manifests). `evals/` holds the evaluation cases of these roles.
   - **Common** — `scripts/` (release tooling), `docs/`, `.claude/brigade/` (gates and worktree setup).
 - **Dev local** :
-  - **Runtime** — Node 26, no build. Tests: the gates (`.claude/brigade/gates.sh <WT>`), never a whole suite (the CI runs `npm --prefix runtime test`). Type check: `npm --prefix runtime run typecheck` (needs the dev dependencies, which the worktree setup installs). Start: `npm --prefix runtime start`. **Nine variables are required** (`BRIGADE_STATE_DIR`, `BRIGADE_PROJECT`, `BRIGADE_GITHUB_REPO`, `BRIGADE_REPO_DIR`, `BRIGADE_BASE_BRANCH`, `BRIGADE_MANAGER_MODEL`, `BRIGADE_MANAGER_EFFORT`, `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT`): the setup sets only `BRIGADE_STATE_DIR`, and the runtime refuses to start, naming the one that is missing. **To read: the index `docs/runtime/README.md`, then only the pages of your part, and the section "On the dev workstation" of `docs/runtime/exploitation.md`.** **Started this way, it is a real kitchen: `start` launches real cooks on the Max quota, with no permission prompt.** The chef's commands run as `npm --prefix runtime run <command>` (the list in `runtime/package.json` is authoritative). No daemon runs on the dev workstation; the tests drive a fake `claude` (`BRIGADE_CLAUDE_BIN`) and use no quota.
-  - **App** — Tests: the gates, never a whole suite (CI: `npm --prefix app test`); type check: `npm --prefix app run typecheck` — both need the dependencies, which the setup installs **without the Electron binary**, which no test launches. Start: `npm --prefix app start`. **Started this way, every space opened launches a real `claude` in the project folder** — to avoid the quota, use `BRIGADE_CLAUDE_BIN=app/test/aides/faux-claude.sh` and `BRIGADE_APP_CONFIG=<a trial file>`. **A project that declares `hote` is read by a real `ssh` every thirty seconds** — use `BRIGADE_SSH_BIN=<a fake ssh>`. **To read: the sections "For app developers" and the one of your screen in `docs/app.md`** (not the whole file).
+  - **Runtime** — Node 26, no build. Tests: the gates (`.claude/brigade/gates.sh <WT>`), never a whole suite (the CI runs it). Type check: `npm --prefix runtime run typecheck` (the setup installs its dependencies). Start: `npm --prefix runtime start`. **Nine variables are required**: the setup sets only `BRIGADE_STATE_DIR`, and the runtime refuses to start, naming the one that is missing. **To read: `docs/runtime/README.md`, then only your part's pages and "On the dev workstation" in `docs/runtime/exploitation.md`.** **Started this way, it is a real kitchen: `start` launches real cooks on the Max quota, with no permission prompt.** The chef's commands run as `npm --prefix runtime run <command>` (list: `runtime/package.json`). The tests drive a fake `claude` (`BRIGADE_CLAUDE_BIN`) and use no quota.
+  - **App** — Tests: the gates, never a whole suite (CI: `npm --prefix app test`); type check: `npm --prefix app run typecheck` — the setup installs their dependencies, **without the Electron binary**. Start: `npm --prefix app start`. **Started this way, every space opened launches a real `claude` in the project folder** — to avoid the quota, use `BRIGADE_CLAUDE_BIN=app/test/aides/faux-claude.sh` and `BRIGADE_APP_CONFIG=<a trial file>`. **A project that declares `hote` is read by a real `ssh` every thirty seconds** — use `BRIGADE_SSH_BIN=<a fake ssh>`. **To read: the sections "For app developers" and the one of your screen in `docs/app.md`** (not the whole file).
   - **Plugin V1** — nothing to run. To try a modified role, bump `version` in `.claude-plugin/plugin.json`, then run `scripts/update-partout.sh`. The release path is in `scripts/README.md`.
   - **What the setup gives a worktree** — `BRIGADE_STATE_DIR=<WT>/.brigade-state` and `BRIGADE_PORT=20000 + <issue number>`. Never write a state path or a port by hand. The tests use neither: each creates its own temporary directory and listens on port 0.
 - **Doc vivante** : `docs/` — every delivery that changes the behavior of a role updates the matching doc under `docs/`.
@@ -29,8 +33,8 @@ The section title and the bold labels of the bindings below stay in French on pu
 
 ### Conventions of this repo
 
-- **Zone rules** live in the zone's doc. Runtime (tests, gates, the pass's checks): `docs/runtime/exploitation.md` § "Rules of this repo". App: `docs/app.md` § "For app developers".
-- **The gates check the other rules** (ENV_GIT in tests, no kill by name, the Codex mirror, roles declared): a red names the rule.
+- **Zone rules** live in the zone's doc. Runtime: `docs/runtime/exploitation.md` § "Rules of this repo". App: `docs/app.md` § "For app developers".
+- **The gates check the other rules**: a red names the rule.
 - **A criterion is served in every place it covers**: list each message, screen, command, path and doc it names, serve each, and write the list in the report.
 - **A plugin update does not change the running session**: roles load at startup.
 

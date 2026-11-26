@@ -40,8 +40,8 @@ export const REQUETE = `query($owner: String!, $repo: String!, $base: String!) {
     }
     ref(qualifiedName: $base) { target { ... on Commit { statusCheckRollup { contexts(first: 60) { pageInfo { hasNextPage } nodes {
       __typename
-      ... on CheckRun { name status conclusion detailsUrl }
-      ... on StatusContext { context state }
+      ... on CheckRun { name status conclusion detailsUrl startedAt }
+      ... on StatusContext { context state createdAt }
     } } } } } }
   }
 }`;
@@ -86,11 +86,12 @@ export type Instantane = {
   prs: PRDeLInstantane[];
   // Plus de PR ouvertes que la requête n'en lit : les PR se relisent en REST.
   prsTronquees: boolean;
-  base: Array<Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">>>;
+  // Les checks de la base disent aussi quand ils ont commencé : le début d'une panne de `main` (#4382).
+  base: Array<Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url" | "startedAt">>>;
   baseIncomplete: boolean;
 };
 
-type Contexte = { __typename?: string; name?: string; status?: string; conclusion?: string | null; detailsUrl?: string | null; context?: string; state?: string };
+type Contexte = { __typename?: string; name?: string; status?: string; conclusion?: string | null; detailsUrl?: string | null; context?: string; state?: string; startedAt?: string | null; createdAt?: string };
 
 // Un check tel que le REST le dit (`github.ts`, `ci`) : vert, rouge ou en cours.
 function check(contexte: Contexte): Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">> | null {
@@ -113,6 +114,13 @@ const checksDe = (rollup: unknown): Array<Pick<Check, "name" | "outcome"> & Part
   const noeuds = (rollup as Rollup)?.contexts?.nodes ?? [];
   return noeuds.map(check).filter((c): c is Pick<Check, "name" | "outcome"> & Partial<Pick<Check, "url">> => c !== null);
 };
+// Ceux de la base disent aussi quand chacun a commencé, quand GitHub le dit.
+const checksDeLaBase = (rollup: unknown): Instantane["base"] =>
+  ((rollup as Rollup)?.contexts?.nodes ?? []).flatMap((contexte) => {
+    const lu = check(contexte);
+    const debut = contexte.startedAt ?? contexte.createdAt;
+    return lu === null ? [] : [typeof debut === "string" ? { ...lu, startedAt: debut } : lu];
+  });
 const tronque = (rollup: unknown): boolean => (rollup as Rollup)?.contexts?.pageInfo?.hasNextPage === true;
 
 // L'instantané, lu dans ce que la requête rend. Lève si sa forme n'y est pas.
@@ -162,7 +170,7 @@ export function lireInstantane(data: unknown): Instantane {
         };
       }),
     prsTronquees: prs.pageInfo?.hasNextPage === true,
-    base: checksDe(baseRollup),
+    base: checksDeLaBase(baseRollup),
     baseIncomplete: tronque(baseRollup),
   };
 }

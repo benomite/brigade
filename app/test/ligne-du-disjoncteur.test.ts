@@ -120,7 +120,6 @@ describe("la ligne du disjoncteur, hors du rail : elle n'offre aucun geste (#352
     assert.equal(posee.dessous("p").find(({ className }) => className === "pourquoi")?.textContent, "breaker OPEN for 1 h 00 (3 failures in a row)");
   });
 
-  // brigade:guard
   test("le geste d'une autre ligne reste offert : « resume » de la cuisine arrêtée se presse sur un projet ordinaire, pas en lecture seule", async () => {
     const ordinaire = await ouvrir(REFERME, "arrêtée");
     assert.ok(boutons(ordinaire.element("alertes")).some(({ textContent }) => /resume/i.test(textContent)), "pas de bouton « resume » sur la ligne de la cuisine arrêtée");

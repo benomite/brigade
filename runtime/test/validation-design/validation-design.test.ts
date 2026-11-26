@@ -489,6 +489,12 @@ test("send-back with the ticket's number sends that ticket's delivery back to a 
   assert.equal(faux.mergee(TICKET), undefined);
 });
 
+test("the chef's send-back comment states its reason from the closed list, then the chef's words (#4302)", async () => {
+  const { faux, sha } = await retenue();
+  await design(faux, "send-back", `faux/depot#${TICKET}`, "--comment", "Make the take button stand out.");
+  assert.match(renvois(faux)[0]?.body ?? "", new RegExp(`^<!-- brigade:renvoi n=1 sha=${sha} -->\\nSend-back reason: unmet criterion\\n\\n[\\s\\S]*Make the take button stand out\\.`));
+});
+
 test("validate on a ticket with no pull request is refused naming the ticket, and merges nothing (#3718)", async () => {
   const { faux } = await retenue();
   faux.feu(77);
@@ -822,7 +828,6 @@ test("a delivery that is not design is merged as before, whatever the setting", 
   }
 });
 
-// brigade:guard
 test("a design delivery is one that changes what the user sees: the app's view, the site, a mockup, or captures", () => {
   assert.ok(estUneLivraisonDesign(1, ["app/src/vue/rail.js"]));
   assert.ok(estUneLivraisonDesign(1, ["site/index.html"]));

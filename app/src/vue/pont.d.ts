@@ -193,8 +193,6 @@ export type Pont = {
   essayer(projet: string, ticket: number): Promise<void>;
   arreterEssai(projet: string, ticket: number): Promise<void>;
   refus(projet: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  // Le geste d'une idée en réserve, depuis la liste du Backlog (gestes-idee.ts, ticket 3589) : `abandonner` ferme l'issue.
-  idee(projet: string, id: "abandonner", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
@@ -339,6 +337,11 @@ export type Pont = {
   marquerUneExplication?(projet: string, mot: import("./explications/explications-box.ts").MotExplique): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   remontrerLesExplications?(projet: string): Promise<import("./explications/explications-box.ts").EcritureDesExplications>;
   envoyerUnMot?(projet: string, entree: { ticket: number; text: string }): Promise<import("./mot-au-cook/source.js").Reponse>; // le mot au cook (ticket 4048)
+  // Le savoir-faire du projet, sous Know-how (ticket 4241) : ses entrées lues, une réécrite, une retirée, là où sa cuisine
+  // tourne (savoir-faire/savoir-faire-box.ts). Optionnels : un pont qui ne les porte pas (le téléphone) le dit sur l'onglet.
+  lireLeSavoirFaire?(projet: string): Promise<import("./savoir-faire/savoir-faire-box.ts").LectureDuSavoirFaire>;
+  modifierLeSavoirFaire?(projet: string, id: string, texte: string): Promise<import("./savoir-faire/savoir-faire-box.ts").EcritureDuSavoirFaire>;
+  retirerDuSavoirFaire?(projet: string, id: string): Promise<import("./savoir-faire/savoir-faire-box.ts").EcritureDuSavoirFaire>;
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : ce que sa cuisine a fait depuis que le chef a regardé, lu
   // là où elle tourne ; montré, son marqueur avance jusqu'à `until` ; la PR d'un ticket servi s'ouvre (recap/recap-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucun récapitulatif.
@@ -362,6 +365,8 @@ export type Pont = {
   closerDeSante(projet: string): Promise<import("../closer-sante.ts").LectureDuCloser>;
   changerReglageDuCloser(projet: string, cle: string, saisie: string | { model: string; effort: string }): Promise<import("../closer-sante.ts").RenduDuReglage>;
   changerVerificationDuCloser(projet: string, geste: "ajouter" | "retirer", saisie: string): Promise<import("../closer-sante.ts").RenduDesVerifications>;
+  savoirDuProjet(projet: string): Promise<import("./know-how/know-how-github.ts").LectureDuSavoir>;
+  changerLeSavoir(projet: string, changement: import("./know-how/know-how-github.ts").ChangementDuSavoir): Promise<import("./know-how/know-how-github.ts").RenduDuSavoir>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identites-github.js) : ce qu'elle a de chaque rôle —
@@ -390,7 +395,10 @@ export type Pont = {
   seConnecterAClaude?(): Promise<RenduDePanne>;
   // Les outils que l'app ne livre pas (ticket 4059, outils-requis.ts) : ceux de `outils` — les trois, sans liste — qui
   // manquent à cet ordinateur, chacun avec le lien de sa page d'installation.
-  outilsManquants?(outils?: ("gh" | "git" | "claude")[]): Promise<import("../outils-requis.ts").OutilManquant[]>;
+  // `installable` : l'app sait installer cet outil d'un clic sur cet ordinateur (ticket 4350) — jamais Git.
+  outilsManquants?(outils?: ("gh" | "git" | "claude")[]): Promise<(import("../outils-requis.ts").OutilManquant & { installable?: boolean })[]>;
+  // Installe `gh` ou `claude` (ticket 4350, install-tools/), au clic du chef seulement : done, ou failed et sa raison.
+  installerOutil?(outil: "gh" | "claude"): Promise<import("../install-tools/install-tools.ts").EtatDInstallation>;
   // Le compte GitHub que le `gh` de cet ordinateur tient (ticket 2475, connexion-github.ts) : son login, aucun, ou
   // pourquoi il ne se lit pas. L'étape du compte du parcours d'ajout le dit, et le relit au bout d'une connexion.
   compteGitHub?(): Promise<CompteGitHub>;

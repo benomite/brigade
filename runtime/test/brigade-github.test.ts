@@ -4,7 +4,7 @@
 // L'état des tickets, la relecture et le merge sont les vrais modules de
 // l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`,
 // `github-etat/prise.ts`) : seul le client GitHub est faux, plus bas qu'eux.
-import { SUJET_DE_SAUVEGARDE } from "../src/mise-a-jour/attente/attente.ts";
+import { SUJET_DE_SAUVEGARDE } from "../src/cuisson/reprise/reprise.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -241,6 +241,98 @@ test("a review that requests changes keeps the PR unmerged", async () => {
   assert.match(verdictDe(faux, 1000)[0]?.body ?? "", /verdict=request-changes[\s\S]*tests missing/);
 });
 
+test("a review send-back states the reason its blocking remarks carry, and not one for its advice (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(5);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "- **Blocking**: Criterion of the ticket not met — it is not wired.\n- Advice: rename the test." }) });
+  for (let tour = 0; tour < 4 && !(faux.commentaires.get(5) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const corps = (faux.commentaires.get(5) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /^<!-- brigade:renvoi n=1 sha=/);
+  assert.match(corps, /sent back to a cook \(1\/2\) — /);
+  assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
+});
+
+test("two review send-backs with the same remark are the same result despite the reason line, and a conflict send-back states its own (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(7);
+  const motif = "The settings page still shows the old menu: remove it.";
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif }), avertir: () => {}, maintenant: () => new Date("2026-11-18T09:00:00Z") });
+  for (let tour = 0; tour < 12; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(7) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
+  assert.match(renvois[0] ?? "", /sent back to a cook \(1\/2\) — [^\n]*\n\nSend-back reason: wrong behaviour$/);
+  assert.ok(renvois.some((b) => /handed back twice in a row with the same result/.test(b) && /\n\nSend-back reason: wrong behaviour\n/.test(b)), renvois.join("\n---\n"));
+  const conflit = new FauxGitHub();
+  conflit.feu(36);
+  const b = conflit.station("A", { avertir: () => {} });
+  await b.tour();
+  await b.calme();
+  const pr = conflit.prs.find((p) => p.issue === 36);
+  assert.ok(pr);
+  pr.conflitDeContenu = true;
+  for (let i = 0; i < 6 && !(conflit.commentaires.get(36) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); i += 1) {
+    pr.enConflit = true;
+    await b.tour();
+    await b.calme();
+  }
+  const corps = (conflit.commentaires.get(36) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /sent back to a cook \(1, conflicts\)/);
+  assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
+});
+
+test("the refusal that spends the tries counts itself and states its reason, on the chef's card (#4302, #4226)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(8);
+  let appels = 0;
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: `Remark number ${(appels += 1)}: the page is wrong.` }), avertir: () => {} });
+  for (let tour = 0; tour < 20; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const carte = (faux.commentaires.get(8) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:todo kind=blocked")).at(-1) ?? "";
+  assert.match(carte, /^<!-- brigade:todo kind=blocked tries=3 sha=/);
+  assert.match(carte, /- Try 3: the review requested changes: Remark number 3: the page is wrong\.\n/);
+  assert.match(carte, /\nSend-back reason: wrong behaviour\n/);
+  assert.doesNotMatch(carte, /Blocking reason/);
+});
+
+test("the send-back that spends the tries counts itself and states its reason, the ticket going to the manager (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(8);
+  faux.corpsEcrivables = true;
+  // Le même résultat deux fois de suite : ses renvois sont épuisés avant le troisième refus (#3814), il va au manager.
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "Remark: the page is wrong." }), avertir: () => {}, reprendre: async () => ({ reprise: { choix: "reecrire", motif: "The page is still wrong.", corps: "Fix the page." } }) });
+  for (let tour = 0; tour < 20; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(8) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
+  const dernier = renvois.find((r) => /still not mergeable/.test(r)) ?? "";
+  assert.match(dernier, /^<!-- brigade:renvoi n=2 sha=/);
+  assert.match(dernier, /still not mergeable after 1 sends back — [\s\S]*the ticket went to the manager/);
+  assert.match(dernier, /\n\nSend-back reason: wrong behaviour\n/);
+  assert.doesNotMatch(dernier, /Blocking reason/);
+});
+
+test("the send-back that sends the ticket to WAITING counts itself and states its reason (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(9);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "Too early: this can only be done from 2026-11-25." }), avertir: () => {}, maintenant: () => new Date("2026-11-18T09:00:00Z") });
+  for (let tour = 0; tour < 12; tour += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const renvois = (faux.commentaires.get(9) ?? []).map((c) => c.body).filter((b) => b.startsWith("<!-- brigade:renvoi"));
+  const attente = renvois.find((b) => /handed back twice in a row with the same result/.test(b));
+  assert.match(attente ?? "", /^<!-- brigade:renvoi n=2 sha=/);
+  assert.match(attente ?? "", /\n\nSend-back reason: wrong behaviour\n\nNot relaunched a third time/);
+});
+
 test("a cook that delivers nothing gives the ticket back on the issue, which another station then takes", async () => {
   const faux = new FauxGitHub();
   faux.feu(6);
@@ -386,6 +478,27 @@ test("with no CI on its PRs, red gates send the delivery back to a cook like a r
   assert.match(commentaires.find((c) => c.body.includes("ran the project's gates"))?.body ?? "", /Station `box\/claude` ran the project's gates on `[0-9a-f]{7}` \(PR #\d+\) — no CI runs on this project's PRs — and they are red\.\n\nThey exited with code 1\.\n\n- `FAIL  runtime\/test\/pass\.test\.ts`/);
   assert.match(commentaires.find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: brigade\/gates/);
   assert.deepEqual([...faux.statutsDeCommit.values()].flat().map(({ state }) => state), ["pending", "failure"]);
+});
+
+test("a red-CI send-back counts itself and states its reason from the closed list (#4302)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(759);
+  const gates = gatesDites({ vert: false, resume: "FAIL  runtime/test/pass.test.ts", detail: "They exited with code 1." });
+  const a = faux.station("box/claude", { ciDesPR: () => false, gates: gates.pour("box/claude") });
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 759);
+  assert.ok(pr);
+  faux.sansCI.add(pr.number);
+  for (let i = 0; i < 4 && !(faux.commentaires.get(759) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  const corps = (faux.commentaires.get(759) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /^<!-- brigade:renvoi n=1 sha=/);
+  assert.match(corps, /sent back to a cook \(1\/2\) — /);
+  assert.match(corps, /Send-back reason: failing test/);
+  assert.match(corps, /\n\nSend-back reason: failing test$/);
 });
 
 test("a project with CI on its PRs keeps requiring it: an approved PR whose CI never starts is not merged, and no gates are run for it (#2456)", async () => {
@@ -556,7 +669,7 @@ function parqueParSesEchecs(faux: FauxGitHub, issue: number): boolean {
   return faux.ticket(issue).labels.has(LABEL_PARKED) && attente?.failures === true && attente.who === "the supervisor";
 }
 
-test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then off the kitchen after 2 sends back (#2209)", async () => {
+test("a delivery whose CI is red is never merged: it goes back to a cook with the failing check, then is parked for the chef at its third refusal (#2209, #4226)", async () => {
   const faux = new FauxGitHub();
   faux.feu(31);
   const a = faux.station("A");
@@ -565,17 +678,18 @@ test("a delivery whose CI is red is never merged: it goes back to a cook with th
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  for (let i = 0; i < 30 && !parqueParSesEchecs(faux, 31); i += 1) {
+  for (let i = 0; i < 30 && !faux.ticket(31).labels.has("chef-todo"); i += 1) {
     await a.tour();
     await a.calme();
   }
   assert.equal(faux.mergee(31), undefined);
   const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
-  // Parquée par ses échecs après deux renvois (#4129), rien ne la prend avant sa date (#3911) : elle attend le superviseur.
-  assert.equal(renvois.length, 3);
+  // Deux renvois, puis la mise de côté pour le chef, aucune minuterie ne la relance : elle attend sa réponse.
+  assert.equal(renvois.length, 2);
   assert.match(renvois[0]?.body ?? "", /sent back to a cook \(1\/2\) — the CI is red on `[0-9a-f]+`: tests/);
-  assert.match(renvois[2]?.body ?? "", /Parked \(`parked`\) by its failure count/);
-  assert.ok(parqueParSesEchecs(faux, 31));
+  assert.match((faux.commentaires.get(31) ?? []).at(-1)?.body ?? "", /parked for the chef[\s\S]*Still red on its head `[0-9a-f]+`: `?tests/);
+  assert.ok(faux.ticket(31).labels.has("chef-todo"));
+  assert.ok(!faux.ticket(31).labels.has("set-aside:failures"));
   assert.equal((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith("<!-- brigade:relance")).length, 0);
   assert.equal(faux.creations.length, 0);
   // Recuisiné deux fois, sous la même PR : aucune seconde PR.
@@ -1000,7 +1114,6 @@ test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
 });
 
-// brigade:guard
 test("places full, a place opens: a `prio:0` repair ticket is claimed before an older ticket without prio (#4102)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10, CALIBRE);
@@ -1286,7 +1399,6 @@ test("a red main: no PR is merged, and the next turns merge nothing either (#221
   assert.equal(faux.prs.filter((pr) => pr.merged && pr.issue === 10).length, 0);
 });
 
-// brigade:guard
 test("merges resume once main is green again (#2214)", async () => {
   const faux = new FauxGitHub();
   faux.feu(10);
@@ -1411,6 +1523,47 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
     ],
   );
   assert.match(verdictDe(faux, faux.mergee(11)?.number ?? 0)[0]?.body ?? "", /station=box verdict=approve[\s\S]*Looks right\.[\s\S]*Advice \(`a\.ts`\): a nit/);
+});
+
+test("the station of this runtime: a review whose only blocking finding is a criterion not met sends the delivery back with that reason, and merges nothing (#4302)", async (t) => {
+  const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
+  const faux = new FauxGitHub();
+  faux.feu(11, ["fire", "model:opus", "effort:high"]);
+  const lancer: Lancer = ({ args, flux }) => {
+    const reviewer = args.includes("--tools");
+    writeFileSync(flux, fluxQuiConclut(reviewer ? JSON.stringify({ verdict: "rouge", resume: "Not wired.", constats: [{ gravite: "bloquant", categorie: "critere-non-tenu", fichier: "a.ts", constat: "the rule is never called" }, { gravite: "remarque", fichier: "a.ts", constat: "rename the test" }] }) : "done"));
+    return { fin: Promise.resolve({ code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1, arret: null, erreur: null }) };
+  };
+  const station = stationDuDepot({
+    nom: "box",
+    places: 1,
+    base: "main",
+    depotGitHub: "faux/depot",
+    github: fauxClient(faux),
+    depot: {
+      connait: () => false,
+      preparer: async (run) => ({ worktree: join(repertoire, run), branche: `cook/${run}` }),
+      reprendre: async (run) => join(repertoire, run),
+      retirer: () => {},
+      ranger: async () => null,
+      pousser: () => {},
+      commits: () => 1,
+      changes: () => ["a.ts"],
+      diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
+    },
+    ...reglagesDuFauxClaude(repertoire, lancer),
+    avertir: () => {},
+  });
+  assert.ok(!("refus" in station));
+  if ("refus" in station) return;
+  for (let tour = 0; tour < 4 && !(faux.commentaires.get(11) ?? []).some((c) => c.body.startsWith("<!-- brigade:renvoi")); tour += 1) {
+    await station.tour();
+    await station.calme();
+  }
+  assert.equal(faux.mergee(11), undefined);
+  const corps = (faux.commentaires.get(11) ?? []).find((c) => c.body.startsWith("<!-- brigade:renvoi"))?.body ?? "";
+  assert.match(corps, /\n\nSend-back reason: unmet criterion$/);
 });
 
 test("the station of this runtime: a cook that exits loses its worktree, build output, run streams and tmp dir; a live cook keeps its own, process included (#4104)", async (t) => {
@@ -1946,8 +2099,9 @@ test("a cook that ends with exit code 143 (SIGTERM) is not a failed cook: the ti
 });
 
 // #2543, 2026-11-06 : la station, relancée par sa mise à jour toutes les 35 à 45 min, tuait ses
-// cooks ; chaque ticket attendait 30 min, puis son cook repris mourait à la relance suivante.
-test("a cook killed because its station stops does not hold its ticket: no wait, no try counted, and the next round takes it again (#2543)", async (t) => {
+// cooks. Depuis #4401, son cook lui survit : la station qui s'arrête garde le ticket pris, sans rien
+// en dire, et celle qui la relance le reprend à son premier tour.
+test("a station that stops while its cook runs keeps the ticket taken and says nothing on it; the restarted station takes it back at its first round (#2543, #4401)", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -1975,10 +2129,11 @@ test("a cook killed because its station stops does not hold its ticket: no wait,
   await station.calme();
 
   const corps = (faux.commentaires.get(79) ?? []).map((c) => c.body).join("\n");
-  assert.match(corps, /stopped with its station[\s\S]*signal SIGKILL/);
+  assert.doesNotMatch(corps, /stopped with its station/);
   assert.doesNotMatch(corps, /brigade:attente/);
   assert.doesNotMatch(corps, /brigade:echec/);
-  assert.equal(faux.ticket(79).labels.has(LABEL_TAKEN), false);
+  assert.doesNotMatch(corps, /brigade:lache/);
+  assert.equal(faux.ticket(79).labels.has(LABEL_TAKEN), true);
 
   // La station relancée le reprend à son premier tour, sans attendre.
   const relancee = stationDuDepot(options);

@@ -35,10 +35,12 @@ import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/si
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { ecrireLesHumains, lireLesHumains } from "./humains-du-projet.ts";
 import { approuverLeGeste, lireLesRetenus } from "./held/lecture.ts";
+import { lireLesAgents } from "./equipe-de-la-box.ts";
 import { ecrireUnRecurrent, lireLesRecurrents } from "./vue/recurrents/recurrents-box.ts";
 import { ecrireDansLeProjet, lireDansLeProjet } from "./vue/fiche-projet/fiche-projet-dossier.ts";
 import { ecrireLesExplications, lireLesExplications } from "./vue/explications/explications-box.ts";
 import { brancherLeMotAuCook } from "./vue/mot-au-cook/mot-au-cook-box.ts";
+import { brancherLeSavoirFaire } from "./vue/savoir-faire/savoir-faire-box.ts";
 import { lireLeRecap, marquerLeRecap } from "./vue/recap/recap-box.ts";
 import { ecrireLesStations, lireLesStations } from "./stations-contributrices.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -63,7 +65,6 @@ import { lireLaCuisineVisitee } from "./visite.ts";
 import { pageDesFaits } from "./lecture-seule.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { jouerLeRefus } from "./gestes-refus.ts";
-import { jouerLIdee } from "./gestes-idee.ts";
 import { commenterLIssue, retirerLeLabel, SANS_FAIT, surGithub } from "./gestes-github.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste } from "./gestes.ts";
@@ -72,6 +73,7 @@ import { lancerLeTriage, mettreSurLeRail, proposerLeDepart } from "./depart-du-p
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { changerLePlafond, lireLesPlafonds } from "./plafonds-duree.ts";
 import { changerLeReglage, changerLesVerifications, lireLeCloser } from "./closer-sante.ts";
+import { changerLeSavoir, lireLeSavoirDuProjet } from "./vue/know-how/know-how-github.ts";
 import { repondreSurGithub } from "./tableau-gestes/reponse-github.ts";
 import { jouerLaValidation } from "./vue/validation-design/validation-design-github.ts";
 import { jouerLaRevue } from "./vue/carte-sensible/carte-sensible-github.ts";
@@ -93,6 +95,7 @@ import { commandesDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { tenirOutilsRequis } from "./outils-requis.ts";
+import { pourLaVue, rattacherGhPose, telechargerPourDeBon, tenirInstallation } from "./install-tools/install-tools.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef, lireUnDepot } from "./projets/github.ts";
 import { preparationDuDepot } from "./projets/preparation-du-depot.ts";
@@ -143,6 +146,10 @@ const plateforme = process.platform;
 const shellIci = shellDuPoste(plateforme, process.env);
 const chemin = cheminDe({ emplacements, env: process.env, maison: homedir(), plateforme, duShell: () => (plateforme === "win32" ? undefined : lireCheminDuShell(shellIci.commande, 10_000)) });
 if (chemin !== undefined) process.env.PATH = chemin;
+// Le `gh` que l'app a posé d'un clic (#4350, install-tools/) est dans un dossier du compte, que le PATH du chef n'a pas :
+// il reprend sa place en tête du PATH de l'app à chaque lancement. Rien n'est lu en ligne.
+const dossierDeGh = join(app.getPath("userData"), "tools", "gh");
+rattacherGhPose(process.env, dossierDeGh, plateforme);
 
 // Ce qu'est l'app sur cette machine (poste/role.ts) : une station sur un ordinateur, le runtime
 // à côté d'elle dans son clone, ou dans son paquet une fois installée ; un poste sur un
@@ -1007,15 +1014,6 @@ ipcMain.handle("refus", async (_, nom: unknown, id: unknown, ticket: unknown) =>
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
 });
-// Le geste d'une idée en réserve, depuis la liste du Backlog (#3589) : « Drop » ferme l'issue comme non prévue — par
-// l'accès GitHub de l'app (gestes-idee.ts). Aucun ne la met sur le rail (#4223) : le rail est le haut du backlog.
-ipcMain.handle("idee", async (_, nom: unknown, id: unknown, ticket: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return parti(nom);
-  const rendu = await jouerLIdee(tableaux.dernier(vise.nom), id, ticket, clientDesLabels);
-  if ("fait" in rendu) tableaux.oublier();
-  return rendu;
-});
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
 // projet et le ticket ; l'adresse est celle que la box a rendue (faits.ts). Rien pour un ticket que
@@ -1465,7 +1463,9 @@ ipcMain.handle("demarrerLaStationIci", async (_, nom: unknown) => {
   return rendu;
 });
 // Les outils que l'app ne livre pas (#4059, outils-requis.ts) : la connexion à GitHub, le clone et le login Max les
-// demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation (l'app n'installe rien, #4266).
+// demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation. `gh` et `claude` s'y
+// installent aussi d'un clic (#4350, install-tools/) — Git jamais (#4266) : chaque outil qui manque dit si l'app sait
+// l'installer ici. Rien ne se télécharge ni ne s'installe sans ce clic.
 const outilsRequis = tenirOutilsRequis({
   charger: async () => {
     const [requis, machine, outils] = await Promise.all([
@@ -1478,7 +1478,9 @@ const outilsRequis = tenirOutilsRequis({
   env: process.env,
   autoriserLaPage: (lien) => pagesDuPremier.add(lien),
 });
-ipcMain.handle("outilsManquants", (_, outils: unknown) => outilsRequis.manquants(outils));
+const installation = pourLaVue(tenirInstallation({ plateforme, env: process.env, dossier: dossierDeGh, telecharger: telechargerPourDeBon, rendre: () => {} }));
+ipcMain.handle("outilsManquants", async (_, outils: unknown) => installation.installables(await outilsRequis.manquants(outils)));
+ipcMain.handle("installerOutil", (_, outil: unknown) => installation.installer(outil));
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
 ipcMain.handle("seConnecterAClaude", () => loginIci());
 // La page où taper le code se rouvre depuis l'écran.
@@ -1577,6 +1579,15 @@ ipcMain.handle("changerVerificationDuCloser", async (_, nom: unknown, geste: unk
   if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
   return rendu;
 });
+// Le savoir-faire du projet, sous Settings (#4239, vue/know-how/) : `.brigade/know-how.md` lu sur sa branche
+// d'intégration, et une entrée changée ou retirée proposée par une pull request vers elle, comme un plafond.
+const savoirDe = (nom: unknown) => ({ nom, projet: connu(nom), depotDe: depotDuProjet, brancheDe: brancheDuProjet, client: clientDesLabels });
+ipcMain.handle("savoirDuProjet", (_, nom: unknown) => lireLeSavoirDuProjet(savoirDe(nom)));
+ipcMain.handle("changerLeSavoir", async (_, nom: unknown, changement: unknown) => {
+  const rendu = await changerLeSavoir({ ...savoirDe(nom), changement });
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+});
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
 // « report to brigade », sous chaque panne que l'app montre (ticket 1977, vue/signalement/) : le journal du projet est lu
@@ -1633,6 +1644,8 @@ ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humains-du-projet.ts).
 // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
 // et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
+// L'équipe du projet que lit la vue (tickets 4029 et 4327) : les enregistrements que `facts` publie, lus là où sa cuisine tourne.
+ipcMain.handle("lireLesAgents", (_, nom: unknown) => lireLesAgents(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
 ipcMain.handle("gestesRetenus", (_, nom: unknown) => lireLesRetenus(cuisineDuProjet(nom).lu, lancerSurLaCuisine));
 // L'API des agents que lit l'onglet Agents (ticket 4224) : la vue la demande par `fetch` sur `brigade-agents:`, et chaque
 // demande est une commande `agents` ou `agent-settings` lancée là où la cuisine du projet nommé tourne (agents-de-la-box.ts).
@@ -1671,6 +1684,7 @@ ipcMain.handle("changerUnRecurrent", (_, nom: unknown, geste: unknown, id: unkno
 ipcMain.handle("lireUnFichierDuProjet", (_, nom: unknown, chemin: unknown) => lireDansLeProjet(connu(nom), chemin));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, nom: unknown, chemin: unknown, texte: unknown) => ecrireDansLeProjet(connu(nom), chemin, texte));
 brancherLeMotAuCook(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le mot au cook (#4048, vue/mot-au-cook/mot-au-cook-box.ts)
+brancherLeSavoirFaire(ipcMain, cuisineDuProjet, lancerSurLaCuisine); // le savoir-faire du projet, sous Know-how (#4241, vue/savoir-faire/savoir-faire-box.ts)
 // Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
 // marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
 // (vue/explications/explications-box.ts).
@@ -2057,7 +2071,7 @@ void app.whenReady().then(() => {
   const icone = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-1024.png");
   const iconeDock = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-dock-1024.png");
   const iconeWindows = app.isPackaged ? join(dirname(process.execPath), "Brigade.ico") : icone;
-  // Sans garde sur `isPackaged` seul : le .dmg n'est pas reconnu empaqueté et ne livre pas ce fichier.
+  // Sur un Mac, le .dmg est empaqueté (son exécutable s'appelle Brigade) : l'icône du Dock est celle de son bundle.
   if (estUnMac(plateforme) && !app.isPackaged) poserLIconeDuDock(iconeDock, (chemin) => app.dock?.setIcon(chemin));
   // L'entrée d'aide : les Discussions du dépôt (#3258).
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuDeLApp((url) => shell.openExternal(url), estUnMac(plateforme))));

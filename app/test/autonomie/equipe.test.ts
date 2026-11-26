@@ -80,7 +80,13 @@ test("the project view shows the fixture's agents at its top: supervisor and clo
     ["supervisor", "closer", "manager", "pass", "cook-4029", "cook-4032"],
   );
   const closer = badgeDe(equipe, "closer");
-  assert.equal(closer.textContent, "closeridleproposedeleted 412 dead lines in runtime/src/retenue/ · 03:12 UTCcloser: next pass in 3 h1 awaits your OK");
+  // Une ligne (#4354) : son point, son nom, son état, ce qui attend l'OK du chef ; le reste est dans son fil.
+  assert.equal(closer.textContent, "closeridle1 awaits your OK");
+  assert.deepEqual(["supervisor", "manager", "cook-4032"].map((nom) => badgeDe(equipe, nom).dessous("span")[0]?.dataset.ton), ["gris", "bleu", "rouge"]);
+  closer.click();
+  const fil = equipe.dessous("section").find(({ className }) => className === "fil") ?? assert.fail("pas de fil");
+  assert.ok(fil.textContent.includes("deleted 412 dead lines in runtime/src/retenue/ · 03:12 UTC"));
+  assert.ok(fil.textContent.includes("closer: next pass in 3 h"));
   assert.ok(!badgeDe(equipe, "supervisor").textContent.includes("awaits your OK"), "nothing pending, nothing said");
   assert.equal(badgeDe(equipe, "cook-4032").dataset.etat, "casse", "a broken agent is marked");
   assert.equal(badgeDe(equipe, "cook-4029").dataset.etat, "");
@@ -208,7 +214,7 @@ test("a level the runtime refuses leaves the level as it was and says it in one 
   assert.ok(cadre.textContent.includes(NIVEAU_NON_CHANGE("closer")));
   assert.equal(cadre.dessous("p").find((ligne) => ligne.textContent.startsWith(NIVEAU_NON_CHANGE("closer")))?.role, "alert", "a failed gesture is read out at once");
   assert.ok(cadre.dessous("button").some((aide) => aide.ariaLabel === "runtime: unknown agent"), "its detail on hover");
-  assert.equal(badgeDe(cadre, "closer").textContent.includes("propose"), true);
+  assert.equal(nomme(cadre, "propose")[0]?.ariaPressed, "true", "the level kept, in its thread");
 });
 
 test("an approval that fails keeps the gesture pending, with its OK, and says it; one that goes removes it", async () => {
