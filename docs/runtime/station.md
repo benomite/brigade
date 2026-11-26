@@ -401,7 +401,9 @@ same state follows them: at its first round, each `taken` ticket it still holds 
 except that nothing prepares the worktree again — no fetch, no merge of the base, no setup — and the
 launch follows the relay instead of starting a cook: alive, it is followed to its end under the same
 guards (duration counted from the launch); already ended, its stream is read at once. Only a resumed
-ticket follows a relay: a ticket taken afresh stops what a previous life left running for it. Then the usual
+ticket follows a relay: a ticket taken afresh stops what a previous life left running for it. A relay
+that died without writing its end (the machine rebooted) is not followed: its `reprise.json` is
+dropped, and the ticket takes the fresh path — worktree prepared, base merged, setup played. Then the usual
 steps run — mutation check, gates, push, PR —, as if the station had never stopped. Under the
 guards, the restarted runtime takes back at its start each cook run the journal still holds open
 whose relay lives or wrote its end (`cook.resumed`), and the resumed ticket's launch under the same

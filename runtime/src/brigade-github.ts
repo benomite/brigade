@@ -119,7 +119,7 @@ import { CALIBRAGE_DU_SECOND_JUGE, ConsigneIllisible, consigneDuSecondJuge, corp
 import { motifArretCook } from "./motif-arret-cook.ts";
 import { direLaMiseDeCote, RUN_OK, runFiniOk, runsEchoues } from "./echecs-sans-livraison.ts";
 import { avecLeDesaccord, classerArret, consigneDuDesaccord, corpsDeLaReponse, renvoisDeLaTete, reponseDuCook, reponseDuMessage } from "./desaccord-cook.ts";
-import { arreterParLeRelais, superviser, superviserParRelais, suivreLeRelais, type Fin, type Supervise } from "./superviseur.ts";
+import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Fin, type Supervise } from "./superviseur.ts";
 import { commitsDuRunPrecedent, consigneDuRunPrecedent, estUneRepriseDeGarde, estUneSauvegarde, gardeLeTravail, marquerLeTravail, SUJET_DE_SAUVEGARDE } from "./cuisson/reprise/reprise.ts";
 import { horsCuisine } from "./seuil-served-elsewhere.ts";
 import { type GitHubDeLaBrigade } from "./issue-de-la-cuisine.ts";
@@ -3101,8 +3101,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   let arretee = false;
   // Ce qu'il faut, hors de GitHub, pour finir le ticket d'un cook qui survit à
   // la station, écrit à son lancement à côté de son flux (#4401) : son
-  // worktree, et la tête de sa branche à son départ (`avant`). Puis sa fin et
-  // son flux, quand il a fini : la station qui s'arrête après lui reprend sans le relancer.
+  // worktree, la tête de sa branche à son départ (`avant`) et le flux de son
+  // relais. Puis sa fin, quand il a fini : la station qui s'arrête après lui
+  // reprend sans le relancer.
   type Reprise = { worktree: string; avant: string | null; reprise: boolean; conflit: string[] | null; reste: string | null; fin?: Fin; flux?: string };
   const repriseDuRun = (run: string) => join(options.flux, `${run}.reprise.json`);
   const lireLaReprise = (run: string): Reprise | null => {
@@ -3237,8 +3238,11 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     // suivi, pas relancé, dans son worktree tel qu'il le tient. Rien de ce qui
     // prépare un cook n'y touche. Pris à neuf, ce qu'une vie précédente en a
     // laissé ne se reprend pas : son relais est arrêté.
-    const suivi = suivre ? lireLaReprise(run) : null;
-    if (!suivre) {
+    let suivi = suivre ? lireLaReprise(run) : null;
+    // Son relais est mort sans écrire de fin — la machine a redémarré — : il
+    // n'y a rien à suivre, et le ticket repart à neuf, worktree préparé.
+    if (suivi !== null && suivi.fin === undefined && !relaisASuivre(suivi.flux ?? join(options.flux, `${run}.flux.jsonl`))) suivi = null;
+    if (suivi === null) {
       arreterParLeRelais(join(options.flux, `${run}.flux.jsonl`));
       rmSync(repriseDuRun(run), { force: true });
     }
@@ -3454,8 +3458,9 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
     const lancement = envelopper(cloison, { commande: surLeMoteur.commande, args: surLeMoteur.args }, { cwd: worktree, depot: "ecriture" });
     const aReprendre: Reprise = suivi ?? { worktree, avant, reprise, conflit, reste: resteAFaire };
-    if (suivi === null) writeFileSync(repriseDuRun(run), JSON.stringify(aReprendre));
-    let lance: ReturnType<Lancer> = aReprendre.fin === undefined ? lancerLeCook({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number, suivre }) : { fin: Promise.resolve(aReprendre.fin), flux: aReprendre.flux ?? flux };
+    let lance: ReturnType<Lancer> = aReprendre.fin === undefined ? lancerLeCook({ ...lancement, entree: texte, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number, suivre: suivi !== null }) : { fin: Promise.resolve(aReprendre.fin), flux: aReprendre.flux ?? flux };
+    // Le flux de son relais, où la station relancée regarde s'il vit encore.
+    if (suivi === null) writeFileSync(repriseDuRun(run), JSON.stringify({ ...aReprendre, flux: lance.flux ?? flux } satisfies Reprise));
     let fin = await lance.fin;
     // La station s'arrête pendant son cook : il lui survit, et la station relancée le suit jusqu'à sa fin (#4401).
     const survit = { subi: "the station stopped while its cook ran: the cook goes on, and the restarted station follows it" };
@@ -3473,7 +3478,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
       avertir(`brigade : #${ticket.number} sur ${nom} — the mutation check before its PR: ${survivantes.length} surviving, its cook gets them back`);
       const fini = { lance, fin, flux };
       flux = join(options.flux, `${run}-mutations-${relance}.flux.jsonl`);
-      lance = lancerLeCook({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number, suivre });
+      lance = lancerLeCook({ ...lancement, entree: `${texte}\n\n${consigneDesMutations(survivantes)}`, cwd: worktree, env: surLeMoteur.env, flux, ticket: ticket.number, suivre: suivi !== null });
       fin = await lance.fin;
       if (arretee) return survit;
       conclusion = fin.arret !== null ? `guard:${fin.arret.reason}` : verdict(lireLeFlux(lance.flux ?? flux), fin.code);

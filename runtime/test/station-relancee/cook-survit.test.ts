@@ -19,9 +19,10 @@ import { depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "../outils.
 const SANS_BASH = process.platform === "win32" && "the fake `claude` is a bash script";
 const TICKET = 7;
 
-// Un cook qui dit qu'il travaille, attend `feu`, puis commite sa livraison.
-const fauxClaude = (feu: string) => `#!/usr/bin/env bash
+// Un cook qui se compte dans `lances`, dit qu'il travaille, attend `feu`, puis commite sa livraison.
+const fauxClaude = (feu: string, lances: string) => `#!/usr/bin/env bash
 cat > /dev/null
+echo x >> '${lances}'
 echo '{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"text","text":"working"}],"usage":{"input_tokens":3,"output_tokens":7}},"parent_tool_use_id":null}'
 until [ -e '${feu}' ]; do sleep 0.05; done
 printf 'delivered\\n' > livraison.txt
@@ -70,15 +71,16 @@ class FauxGitHub {
   }
 }
 
-type Cuisine = { faux: FauxGitHub; dits: string[]; racine: string; origine: string; clone: string; claude: string; feu: string };
+type Cuisine = { faux: FauxGitHub; dits: string[]; racine: string; origine: string; clone: string; claude: string; feu: string; lances: () => number };
 
 function laCuisine(t: TestContext): Cuisine {
   const racine = repertoireTemporaire(t);
   const feu = join(racine, "feu");
   const claude = join(racine, "claude");
-  writeFileSync(claude, fauxClaude(feu));
+  const lances = join(racine, "lances");
+  writeFileSync(claude, fauxClaude(feu, lances));
   chmodSync(claude, 0o755);
-  return { faux: new FauxGitHub(), dits: [], racine, ...depotGit(t), claude, feu };
+  return { faux: new FauxGitHub(), dits: [], racine, ...depotGit(t), claude, feu, lances: () => (existsSync(lances) ? readFileSync(lances, "utf8").split("\n").length - 1 : 0) };
 }
 
 // Une vie de la station, sur l'état, le clone et le GitHub de la cuisine.
@@ -157,4 +159,34 @@ test("a cook whose relay ended while no station ran is delivered by the station'
   assert.deepEqual(cuisine.faux.prs.map(({ branche }) => branche), ["cook/7-github"], cuisine.dits.join("\n"));
   assert.deepEqual(commitsPousses(cuisine), ["livraison"]);
   assert.equal(JSON.parse(readFileSync(join(cuisine.racine, "flux", "livraisons.jsonl"), "utf8").trim()).ticket, TICKET);
+});
+
+test("a cook whose relay died without writing its end (the machine rebooted) is not followed: the restarted station takes its ticket afresh, worktree prepared, and delivers it (#4401)", { skip: SANS_BASH }, async (t) => {
+  const cuisine = laCuisine(t);
+  const premiere = await arreteePendantLeCook(t, cuisine);
+  // La machine redémarre : le relais et son cook meurent, sans fin écrite.
+  const pidDuCook = join(cuisine.racine, "flux", `${TICKET}-github.flux.cook.pid`);
+  await jusqua(() => existsSync(pidDuCook) && cuisine.lances() === 1);
+  const { pid } = JSON.parse(readFileSync(relais(cuisine), "utf8")) as { pid: number };
+  const cook = Number(readFileSync(pidDuCook, "utf8"));
+  process.kill(pid, "SIGKILL");
+  process.kill(-cook, "SIGKILL");
+  await premiere.calme();
+  assert.equal(existsSync(fin(cuisine)), false);
+
+  // La base avance pendant ce temps : le ticket repris à neuf part d'elle.
+  const autre = join(cuisine.racine, "autre");
+  git(cuisine.racine, "clone", "-q", "-b", "v2", cuisine.origine, autre);
+  git(autre, "commit", "-q", "--allow-empty", "-m", "base moves");
+  git(autre, "push", "-q", "origin", "v2");
+
+  writeFileSync(cuisine.feu, "");
+  const relancee = uneStation(t, cuisine);
+  await relancee.tour();
+  await relancee.calme();
+
+  assert.equal(cuisine.lances(), 2, "a fresh cook is launched");
+  assert.deepEqual(cuisine.faux.prs.map(({ branche }) => branche), ["cook/7-github"], cuisine.dits.join("\n"));
+  assert.ok(commitsPousses(cuisine).includes("livraison"));
+  assert.match(git(cuisine.origine, "log", "--format=%s", "cook/7-github"), /^base moves$/m, "its worktree was prepared: the branch carries the base");
 });
