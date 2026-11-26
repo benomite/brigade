@@ -113,6 +113,8 @@ import { ligneDesAlertesDuRail } from "./attente-du-rail/ligne-des-alertes.js";
 import { monterLeBandeau } from "./bandeau-arret/bandeau-arret.js";
 import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
+import { parkControl } from "./parked/park-control.js";
+import { parkGesture } from "./parked/park-gesture.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
@@ -967,6 +969,12 @@ const formulairesDAttente = new Map();
 // dit sous ses gestes tant qu'elle est dans WAITING.
 /** @type {Map<string, { envoi: true } | { fait: string, detail: string } | { refus: string, detail: string }>} */
 const arriveesDeCartes = new Map();
+// Le TODO parked du chef (parked/, ticket 4281) : les items dont le contrôle de park est ouvert, et ce que le chef y a tapé,
+// par projet et ticket — gardés d'un rendu à l'autre.
+/** @type {Map<string, Set<number>>} */
+const parkOuverts = new Map();
+/** @type {Map<string, import("./parked/park-control.js").Form>} */
+const parkSaisies = new Map();
 // Les gestes directs, et les confirmés, dits de même (gestes.ts) : le clic d'un direct fait partir
 // sa commande dans le second — ou dit pourquoi elle ne part pas ; celui d'un confirmé ouvre sa
 // confirmation, et rien ne part avant son « oui ». La vue ne le décide pas.
@@ -3255,6 +3263,10 @@ async function arriver(projet, ticket) {
   if (ficheDe(projet, ticket)) poserFiche();
 }
 
+// Park et unpark depuis le TODO du chef (parked/, ticket 4281) : un seul geste pour tout projet, par le geste d'attente du
+// pont, qui l'écrit sur l'issue ; parti, la cuisine est relue.
+const garerParLePont = parkGesture((projet, id, ticket, saisie) => brigade.attente(projet, id, ticket, saisie), { lire: () => lireLesFaits() });
+
 // Un geste de WAITING s'écrit sur l'issue (vue/attente/attente-github.ts), jamais par une commande de la box (ticket 4262).
 // Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
 /** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
@@ -5272,6 +5284,10 @@ function poserLeRail(projet) {
     cartes: ceQuiTAttend(plan),
     ouvrir: (carte) => ouvrirFiche(projet, carte, posees.get(carte) ?? rail),
     ...(lectureSeuleDe(projet) === undefined ? { gestes: { etat: (ticket, todo) => etatDeLaCarte(projet, ticket, todo), attente: GESTES_D_ATTENTE, jouer: (ticket, sorte, reponse) => GESTES_DU_TODO[sorte](projet, ticket, reponse) } } : {}),
+    // Sous chaque entrée, son contrôle de park, derrière « park or unpark… » (parked/, ticket 4281) : ce qui y est ouvert
+    // et tapé se garde d'un rendu à l'autre.
+    opened: parkOuverts.get(projet.nom) ?? parkOuverts.set(projet.nom, new Set()).get(projet.nom),
+    control: ({ ticket, step }) => parkControl(document, { project: projet.nom, ticket, step, gesture: garerParLePont, form: parkSaisies.get(`${projet.nom}#${ticket}`) ?? parkSaisies.set(`${projet.nom}#${ticket}`, {}).get(`${projet.nom}#${ticket}`) }),
   });
   // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
   // réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain
