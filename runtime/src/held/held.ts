@@ -58,15 +58,6 @@ export function approuverGesteTenu(repertoire: string, id: number, env?: NodeJS.
   return gesteTenu(approuverGeste(repertoire, id), env);
 }
 
-export function lireLesTenus(repertoire: string | undefined, env?: NodeJS.ProcessEnv): LectureDesTenus {
-  if (repertoire === undefined) return { tenus: [], illisible: null };
-  try {
-    return { tenus: gestesTenus(repertoire, env), illisible: null };
-  } catch (erreur) {
-    return { tenus: [], illisible: erreur instanceof Error ? erreur.message : String(erreur) };
-  }
-}
-
 // The lines of the `awaiting` block, one per held gesture: its summary, its reason, and how to approve it.
 export function lignesDesTenus({ tenus, illisible }: LectureDesTenus, depuis: (instant: string) => string): string[] {
   return [

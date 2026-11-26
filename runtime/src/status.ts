@@ -34,7 +34,7 @@ import { chiffresDuClone, direLesChiffres } from "./chiffres-du-projet.ts";
 import { lignesDeTicketsQuiPerdent } from "./temps-max/affichage/affichage.ts";
 import { direLesDelais } from "./delais/affichage.ts";
 import { delaisDuClone } from "./delais/lecture.ts";
-import { lireLesTenus } from "./held/held.ts";
+import { gestesTenus, type LectureDesTenus } from "./held/held.ts";
 import { attenteEtRailDuStatus, avecLAttenteDuRail, avecLeRailEnFile, railCherche } from "./attente-du-rail/status.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>] | --json]";
@@ -144,6 +144,17 @@ function ageMaxDeLaSauvegarde(env: Record<string, string | undefined>): number {
   return reglage === undefined ? AGE_MAX_SAUVEGARDE_MS : Number(reglage) * 3_600_000;
 }
 
+// The gestures held for the chef's OK (held/held.ts, #4271), or why the pending file cannot be read: said on the
+// `awaiting` block, never read as nothing held.
+function lireLesTenus(env: Record<string, string | undefined>): LectureDesTenus {
+  if (env.BRIGADE_STATE_DIR === undefined) return { tenus: [], illisible: null };
+  try {
+    return { tenus: gestesTenus(env.BRIGADE_STATE_DIR, env), illisible: null };
+  } catch (erreur) {
+    return { tenus: [], illisible: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+}
+
 function ouvrirEnLecture(repertoireEtat: string): Journal {
   try {
     return ouvrirJournal(repertoireEtat, { lectureSeule: true });
@@ -168,7 +179,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     }
     throw erreur;
   }
-  etat = { ...etat, tropLongs: lignesDeTicketsQuiPerdent(temps.enregistrements, temps.lostTimeMaxMin), tenus: lireLesTenus(env.BRIGADE_STATE_DIR, env) };
+  etat = { ...etat, tropLongs: lignesDeTicketsQuiPerdent(temps.enregistrements, temps.lostTimeMaxMin), tenus: lireLesTenus(env) };
   const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), limiteDuCompteDeLaStation(env.BRIGADE_STATION_DIR), ecrituresRetenuesDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   // Le budget d'appels de l'heure, par projet : lectures et écritures chacune sur sa ligne (#2196).
   const budget = budgetDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime());

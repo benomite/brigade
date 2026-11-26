@@ -7,8 +7,11 @@ import { magasinDeNiveaux } from "../../src/autonomie/agents/niveaux.ts";
 import { porteDesGestes } from "../../src/autonomie/agents/porte.ts";
 import { OUTCOME } from "../../src/autonomie/agents/gestes.ts";
 import { avecLeRailEnFile } from "../../src/attente-du-rail/status.ts";
-import { annoncerUneFois, approuverGesteTenu, commentaireDeTenue, direLesTenusDuRail, gestesTenus, lignesDesTenus, lireLesTenus } from "../../src/held/held.ts";
-import { repertoireTemporaire } from "../outils.ts";
+import { annoncerUneFois, approuverGesteTenu, commentaireDeTenue, direLesTenusDuRail, gestesTenus } from "../../src/held/held.ts";
+import type { Ajout } from "../../src/evenements.ts";
+import { ouvrirJournal } from "../../src/journal.ts";
+import { principal as status } from "../../src/status.ts";
+import { appeler, repertoireTemporaire } from "../outils.ts";
 
 const PROJET = "held";
 const A9 = () => new Date("2026-11-25T09:30:00.000Z");
@@ -51,14 +54,18 @@ test("a file of announces that cannot be read posts nothing: no comment is poste
   assert.deepEqual(postes, []);
 });
 
-test("a pending file that cannot be read is said in status, never read as nothing held", (t) => {
+test("a pending file that cannot be read is said in status, never read as nothing held", async (t) => {
   const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire);
+  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } } as Ajout);
+  journal.fermer();
   writeFileSync(join(repertoire, "autonomy-pending.json"), "{not json");
-  const lu = lireLesTenus(repertoire);
-  assert.deepEqual(lu.tenus, []);
-  assert.ok(lu.illisible !== null);
-  assert.equal(direLesTenusDuRail(lu), null);
-  assert.match(lignesDesTenus(lu, () => "0 s").join("\n"), /held gestures cannot be read/);
+  const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
+  await commande.fin;
+  const sortie = commande.sortie();
+  assert.match(sortie, /held gestures cannot be read/);
+  assert.doesNotMatch(sortie, /nothing awaits the chef/);
+  assert.match(sortie, /^rail\s+empty$/m);
 });
 
 test("an approved gesture waits for the runtime, not the chef: it leaves the list", async (t) => {
