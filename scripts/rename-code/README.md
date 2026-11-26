@@ -78,6 +78,12 @@ machine).
    A shorthand `{ a }` is a property and a variable at once:
    - when both are renamed alike, it stays a shorthand (`{ b }`);
    - when only one is renamed, it becomes `{ a: b }` or `{ b: a }`.
+
+   A binding whose new name is a reserved word (`interrupteur` → `switch`),
+   or is already seen where it is used (`geste` → `action` beside an
+   `action`; `fiche` and `carte` both → `card`), is refused: `names.ts`
+   gives it another (#4413). An `export { a } from` is renamed with its
+   importers, down the chain.
 3. **Members** (properties and methods) are renamed like the rest, **unless
    their name is a format**. A member is kept when it can be reached, through
    the types, from what leaves the process or comes into it (`exchanged.ts`):
@@ -102,6 +108,11 @@ machine).
    - a path built in pieces, `join(ressources, "app", "src", "poste", "enveloppe.ts")`.
 
    A path is rewritten only if it resolves to a file that exists and moves.
+   One word beside a slash (`ton projet/` closing a regex) is not a path:
+   a path has two parts, an extension, or starts with `./`. A bare file name
+   is read from its own zone (`gestes.ts` in `runtime/` is not the app's),
+   and it follows a moved file only if no staying file of that name is as
+   near to the text (#4413).
    `docs/superpowers/` and the `CHANGELOG.md` are history: they are left as
    written.
 5. **The proof.** After writing, the tool loads the renamed tree again and

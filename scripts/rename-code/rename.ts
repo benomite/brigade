@@ -306,12 +306,19 @@ function pathEdits(file: string, text: string, renamed: Map<string, string>, exi
     const escaped = token.includes("\\.");
     const plain = token.replace(/\\\./g, ".").replace(/\.+$/, "");
     if (plain === "" || plain.startsWith("//")) continue;
+    // One word beside a slash (`ton projet/` closing a regex, `${racine}/cuisine`)
+    // is a word, not a path: a path has two parts, an extension, or starts with `./`.
+    const words = plain.split("/").filter((part) => part !== "" && part !== "." && part !== "..");
+    if (words.length < 2 && !/\.[a-z]+$/.test(plain) && !/^\.\.?\//.test(plain)) continue;
     // `${WT}/app/src/bon.ts`: after an interpolation, a leading slash
     // belongs to the path, not to the root.
     const interpolated = plain.startsWith("/") && text[found.index! - 1] === "}";
     const path = interpolated ? plain.slice(1) : plain;
     let replacement: string | undefined;
-    for (const base of bases(file)) {
+    // A bare file name is read from its own zone: `gestes.ts` in `runtime/` is not `app/src/gestes.ts`.
+    const zone = file.split("/")[0]!;
+    const own = (base: string) => path.includes("/") || base === dirname(abs(file)) || base.startsWith(abs(zone) + "/") || base === abs(zone);
+    for (const base of bases(file).filter(own)) {
       const target = resolve(base, path);
       if (!target.startsWith(REPO + "/") || !existing.has(target)) continue;
       // Rewrite the parts of the token, one by one, from where it is read.
