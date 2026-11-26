@@ -16,6 +16,7 @@
 // (`github-etat/fusion.ts`, #2058). Le cook et la relecture sont ceux
 // d'aujourd'hui — worktree du dépôt de la station, cloison, consignes du cook
 // et du reviewer —, lancés ici sans journal.
+import { homedir } from "node:os";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { current } from "./agent-settings/index.ts";
@@ -3087,7 +3088,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   // sable ni cloison, en mode restreint — jamais en `bypassPermissions` nu.
   const dansLeBacDuCook = (args: string[], worktree: string, brigade = false): string[] =>
     options.bacASable === null && cloison === null
-      ? dansLeModeRestreint(args, { worktree, caches: options.caches ?? [], hotes: options.hotes?.() ?? REGLES_DE_BASE, home: options.env.HOME ?? "", brigade })
+      ? dansLeModeRestreint(args, { worktree, caches: options.caches ?? [], hotes: options.hotes?.() ?? REGLES_DE_BASE, home: options.env.HOME ?? homedir(), brigade })
       : dansLeBacASableLocal(options.bacASable, args, worktree, [], brigade);
   const sansJeton = () => environnementHorsGitHub(environnementCook(options.env), { bacASable: Boolean(options.bacASable) });
   const env = (depart: NodeJS.ProcessEnv = sansJeton()) => environnementClaude(depart, options.env);

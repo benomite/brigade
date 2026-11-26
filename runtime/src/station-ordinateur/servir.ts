@@ -151,6 +151,8 @@ export function tourDeLaBox(options: OptionsDuService): (projet: ProjetAServir) 
         env,
         cloison: configCloison(env, { repertoireEtat: etat, clone: projet.clone }),
         bacASable,
+        hotes,
+        caches: lireCaches(env),
         plafonds,
         graceMs,
         reviewer: reglages?.defaultCalibrations?.reviewer ?? REVIEWER_DE_DEPART,
