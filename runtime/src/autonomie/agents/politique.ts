@@ -22,7 +22,7 @@ import { consignerGeste, OUTCOME, tousLesGestes, type Geste } from "./gestes.ts"
 import { magasinDeNiveaux, NOMBRE_DE_GESTES_PROPRES, type FaitTraite, type MagasinDeNiveaux, type Niveau, type Reglable } from "./niveaux.ts";
 import type { BugEchappe, Revert } from "../chiffres/chiffres.ts";
 
-// N, the clean gestures that move a level up, is declared with the levels (niveaux.ts).
+// N, the clean gestures that move a level up, is declared with the levels (niveaux.ts); the acceptance tests read it here.
 export { NOMBRE_DE_GESTES_PROPRES } from "./niveaux.ts";
 
 export type ChiffresDeQualite = { bugsEchappes: readonly BugEchappe[]; reverts: readonly Revert[] };

@@ -123,7 +123,7 @@ test("the team gives each cook the pin and progress of the cooks' level", () => 
   assert.equal(equipe[0]?.pinned, false);
 });
 
-test("on the runtime, the policy runs at a tick, once an hour at most, and a read that fails is said and moves nothing", async (t) => {
+test("on the runtime, the policy runs at a tick, once an hour at most, and a read that fails is said, moves nothing and is tried again at the next tick", async (t) => {
   const repertoire = repertoireTemporaire(t);
   for (let n = 1; n <= NOMBRE_DE_GESTES_PROPRES; n++) geste(repertoire, "closer", `merged #${n} as 000000${n}a`);
   const ecouteurs: ((cause: CauseReveil) => void)[] = [];
@@ -145,14 +145,19 @@ test("on the runtime, the policy runs at a tick, once an hour at most, and a rea
   assert.equal(lectures, 1);
   assert.match(avertis[0] ?? "", /autonomy policy moved nothing — GitHub down/);
   assert.equal(magasinDeNiveaux(repertoire).lire(PROJET).closer, "propose");
+  // A read that failed is tried again at the next tick.
   echoue = false;
-  maintenant = new Date("2026-11-26T12:59:00.000Z");
-  await reveiller("tick");
-  assert.equal(lectures, 1);
-  maintenant = new Date("2026-11-26T13:00:00.000Z");
+  maintenant = new Date("2026-11-26T12:01:00.000Z");
   await reveiller("tick");
   assert.equal(lectures, 2);
   assert.equal(magasinDeNiveaux(repertoire).lire(PROJET).closer, "act");
+  // After a run that read its figures, not again within the hour.
+  maintenant = new Date("2026-11-26T13:00:59.000Z");
+  await reveiller("tick");
+  assert.equal(lectures, 2);
+  maintenant = new Date("2026-11-26T13:01:00.000Z");
+  await reveiller("tick");
+  assert.equal(lectures, 3);
   // Without a state directory, nothing listens.
   const sans: unknown[] = [];
   politiqueDuRuntime({ projet: PROJET, surReveil: (ecouter) => (sans.push(ecouter), () => {}) }, { lire: async () => RIEN, reveillerLeChef: () => {} });

@@ -51,6 +51,7 @@ import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { porteDuRuntime } from "../autonomie/agents/porte.ts";
+import { brancherLaPolitique } from "../autonomie/agents/politique-du-runtime.ts";
 import { brancherSuperviseur, type ManagerDuSuperviseur } from "../superviseur/brancher.ts";
 import { suivreLeTour } from "../superviseur/tour.ts";
 import { ecrireLaLacune } from "../routage-station/lacune.ts";
@@ -354,6 +355,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     brancherResumeHebdomadaire(ouverte, { projet, depot: rail.depot, repertoireEtat, github: githubs.station, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
     brancherLeDigest(ouverte, { repertoireEtat, avertir: dire });
+    // Les niveaux d'autonomie bougent selon le bilan des gestes, au plus une fois par heure ; une rétrogradation réveille le chef (#4380).
+    brancherLaPolitique(ouverte, { depot, clone: station.clone, base: station.base, depotGitHub: rail.depot, github: githubs.station, env }, dire);
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();
