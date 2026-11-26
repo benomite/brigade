@@ -20,6 +20,7 @@ import { avancementDeLaListe, type Avancement } from "../vue/backlog/avancement-
 import { avecLeRail, lireLeRailSurGithub, SIGNES_PAS_LUS, type SignesDeVie } from "../vue/rail/github.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 import { ecritureSurLeDepot } from "./ecriture.ts";
+import { onTheNewKitchen, readKitchenBoard, type KitchenBoard } from "./kitchen-board.ts";
 import { LABEL_PARKED_CHEF } from "./parked-chef-github.ts";
 import { lectureConditionnelle, type MemoireDesLectures } from "./rail-github.ts";
 
@@ -292,6 +293,35 @@ async function lireAvantLeRail(depot: string, lire: (chemin: string) => Promise<
   return { avantLeRail: { lu, issues: tous }, parqueesPourLeChef };
 }
 
+// La lecture d'un projet de la nouvelle cuisine (runtime/src/kitchen/, #4482) : son kanban, tiré des labels seuls
+// (kitchen-board.ts), et rien du runtime d'avant — ni prise, ni signe de vie de station, ni ordre de merge, ni fiche.
+// `faits.rail` reste vide : la vue dessine `kitchenBoard` à la place du plan de la cuisine.
+function avecLeKanban(lu: TableauLu, board: KitchenBoard): TableauLu {
+  const nombre = (key: string) => board.columns.find((colonne) => colonne.key === key)?.cards.length ?? 0;
+  const dits = (
+    [
+      ["ready", "ready"],
+      ["cooking", "cooking"],
+      ["pass", "in pass"],
+      ["parked", "parked"],
+    ] as const
+  ).flatMap(([key, dit]) => (nombre(key) === 0 ? [] : [`${nombre(key)} ${dit}`]));
+  return {
+    ...lu,
+    cuisine: {
+      rubriques: [
+        { titre: "rail", lignes: [dits.length === 0 ? "0 on the rail" : dits.join(" · ")] },
+        { titre: "cooks", lignes: [nombre("cooking") === 0 ? "none running" : `${nombre("cooking")} running`] },
+      ],
+    },
+    faits: {
+      ...lu.faits,
+      compteurs: { rail: nombre("ready"), auTravail: nombre("cooking"), aLaPass: nombre("pass"), attend: 0, livres24h: nombre("served") },
+      kitchenBoard: board,
+    },
+  };
+}
+
 // La lecture vide d'un projet, à l'heure dite : ce que le rail, TODO et ce qui est avant le rail complètent.
 const vide = (depot: string, luLe: string): TableauLu => ({
   lu: true,
@@ -321,9 +351,17 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     return reponse;
   };
   const luLe = maintenant();
+  // Un projet de la nouvelle cuisine se lit sur ses labels seuls (#4482) ; ce qui ne dit pas s'il en est un le laisse au rail
+  // d'avant, qui dit ce qui ne se lit pas.
+  const neuve = await onTheNewKitchen({ depot, appeler: lecteur, ...(memoire === undefined ? {} : { memoire }), now: luLe.getTime() }).catch(() => false);
   let lu: TableauLu;
+  let ouvertes: IssueParqueePourLeChef[] | undefined;
   try {
-    lu = avecLeRail(vide(depot, luLe.toISOString()), await lireLeRailSurGithub({ depot, appeler: suivi, maintenant: () => luLe }), await signes());
+    if (neuve) {
+      const { board, open } = await readKitchenBoard({ depot, appeler: suivi, now: luLe.getTime() });
+      lu = avecLeKanban(vide(depot, luLe.toISOString()), board);
+      ouvertes = open;
+    } else lu = avecLeRail(vide(depot, luLe.toISOString()), await lireLeRailSurGithub({ depot, appeler: suivi, maintenant: () => luLe }), await signes());
   } catch (erreur) {
     const dit = (erreur instanceof Error ? erreur.message : String(erreur)).trim().split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
     if (injoint) return echec(`GitHub could not be reached to read the rail of ${depot}${dit === "" ? "" : `: ${dit}`}.`, true);
@@ -335,7 +373,12 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     if (reponse.status !== 200) throw new Error(`HTTP ${reponse.status}`);
     return reponse.data;
   };
-  const avant = await lireAvantLeRail(depot, lire, lu.luLe, memoire).catch(() => undefined);
+  // La nouvelle cuisine n'a pas d'avant le rail : son Backlog est une colonne du kanban. TODO lit ses issues `parked:chef` de
+  // la liste déjà lue.
+  const avant =
+    ouvertes !== undefined
+      ? { parqueesPourLeChef: ouvertes.filter(({ labels }) => labels.includes(LABEL_PARKED_CHEF)) }
+      : await lireAvantLeRail(depot, lire, lu.luLe, memoire).catch(() => undefined);
   // Un dépôt où le compte ne peut pas écrire s'ouvre en lecture seule (#3163) ; relu à chaque lecture — un 304 ne coûte
   // rien —, l'accès gagné rend la vue ordinaire à la suivante. Ce qui ne se lit pas ne décide rien : le rail reste lu.
   const lectureSeule: LectureSeule | undefined = (await ecritureSurLeDepot(depot, lecteur)) === false ? { depot } : undefined;

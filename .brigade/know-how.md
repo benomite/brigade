@@ -2,3 +2,4 @@
 - A server just installed with the one-liner registers itself under the chef's account with no code: the app sees it through `stationsDuCompte` (the reading `Choose who cooks it` proposes), not through `stationsDuChef` (#4347)
 - With no `node_modules` (registry refused), `node --test` still runs most of `app/test`; about 46 tests fail anyway (node-pty, packaging, APK bridge). Compare the list of failures with an `origin/main` worktree before blaming the branch (#4347)
 - A new file, directory or exported symbol under `app/src` or `runtime/src` must be English: run `node scripts/rename-code/gate.ts --base origin/main` on a WIP commit before delivering, the CI `naming-gate` fails otherwise (#4347)
+- A project on the new kitchen is told by `.brigade/kitchen.json` on its default branch; any new app reading for it must stay off the old runtime (claims, gists, `chef-todo` lists): branch on `lu.faits.kitchenBoard` (app/src/tableau/kitchen-board.ts) (#4482)

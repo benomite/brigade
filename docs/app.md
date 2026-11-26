@@ -1202,6 +1202,44 @@ answer but a 304) in any hour, under the 1,000 the test allows.
 `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and `-apres.png` (one station cooking,
 one idle, one silent).*
 
+### The kanban of a project on the new kitchen, read from its labels (#4482)
+
+The new kitchen (`runtime/src/kitchen/`, spec
+[`2026-11-26-agents-in-prompts.md`](superpowers/specs/2026-11-26-agents-in-prompts.md)) keeps its whole state in GitHub
+labels. A project is on it when its default branch holds `.brigade/kitchen.json`, the file the kitchen reads its risk
+zones from. The app asks GitHub for that file at most once every ten minutes per project: a 404 carries no ETag, so asking at
+every reading would cost one counted request a minute.
+
+For such a project, the project view draws **six columns** in place of the plan of the kitchen, each read from the labels
+alone (`app/src/tableau/kitchen-board.ts`):
+
+| Column | What it holds |
+|---|---|
+| Backlog | an open issue without `fire` |
+| Ready | `fire` |
+| Cooking | `taken` |
+| Pass | `in-pass` |
+| Parked | `parked:chef` or `parked` (any `parked:…`, and the old waiting labels `waiting`, `chef-todo` and `blocked-on-human`, which the kitchen still reads as parked), whatever else it carries |
+| Served | an issue closed by a pull request merged in the last 24 hours |
+
+Each column is in the kitchen's order: priority (`prio:N`), then age. Served lists the latest merge first. A card shows its
+number, which opens its issue, and its title. When the card has any of them, a line follows with `parked for the chef`
+(or `parked`), `try N/3` (the highest `try:N` label), and `PR #M`, which opens its pull request: the open one that delivers
+it, or the one merged that served it. A pull request belongs to a ticket by its branch `cook/<n>-github`, or by the
+`Closes #n` in its body.
+
+**Nothing in this view is read from the old runtime:** no claim comment, no station gist, no check run of the base, no
+merge order, no ticket sheet, and no list of the old labels for the TODO. The reading is the open issues, the open pull
+requests and the recently closed ones (`/pulls?state=closed`, until a page older than the day). The chef's TODO stays the
+line above the columns. It holds the `parked:chef` issues, taken from the same list of open issues
+(`lireCeQuiAttendLeChef`, `newKitchen`). A project without the file keeps the rail described above.
+
+*Code: `app/src/tableau/kitchen-board.ts`, `app/src/vue/kitchen-board/kitchen-board.js`, `lireLeTableauDuDepot` in
+`app/src/tableau/lecture.ts`. Tests: `app/test/tableau/kitchen-board.test.ts`, `app/test/acceptation-4482/kitchen-board.test.ts`
+(a fake `gh` and a fake GitHub, one issue in each column, played in the view). Captures: `docs/captures/4482/` —
+`espace-projet-cuisine-neuve-avant.png` (the same labels, read as the old runtime's rail) and
+`espace-projet-cuisine-neuve-apres.png`, from the screen `espace-projet-cuisine-neuve`.*
+
 ### A project you cannot write to opens read-only (#3163)
 
 Each reading of a project's rail also reads what this computer's GitHub account may do with its repository:
