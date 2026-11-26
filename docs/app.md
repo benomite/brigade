@@ -323,15 +323,8 @@ Open one of your projects on this PC: one click, no folder to choose.
   `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
   (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
   named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence,
-  one link to the tool's official install page, and `I installed it`. For `gh` and `claude`, the screen also offers
-  `install gh` or `install claude` (#4350, `app/src/install-tools/`), the recommended button: one click, and only that
-  click, downloads or runs the official installer (what each writes and where: `docs/installation.md`). While it runs,
-  the screen says `Installing the GitHub CLI on this computer…`; when it fails, `The app could not install the GitHub
-  CLI (<reason>): follow the steps of its page instead.`, with the link and `I installed it` kept and the install
-  offered again. On a computer where the app cannot install it, the screen says `The app cannot install … on this
-  computer: follow the steps of its page.` and has no install button. Installed, the app checks again as after `I
-  installed it`; Claude Code installed, the screen ends on `log in`. Git is never installed by the app (#4266): its
-  screen has no install button. The button never spins on a sign-in that cannot start. On `I installed it` the app
+  one link to the tool's official install page, and `I installed it`. The app installs nothing itself (#4266): the
+  tool is the user's to install. The button never spins on a sign-in that cannot start. On `I installed it` the app
   checks again, adds to its PATH a tool its installer put outside it, and the step comes back where it was — the
   button, or the project that was opening, which starts again by itself. A tool still missing says so in one line,
   and the link stays. The same screen opens in the notice when **log in** on a lost

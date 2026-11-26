@@ -1,7 +1,6 @@
 // Les trois outils que l'app ne livre pas (#4059, épique #4054) : `gh` (la connexion à GitHub, `gh auth login --web`),
-// `git` (le clone d'un projet) et `claude` (les cooks, le second, le login Max). Elle vérifie qu'ils sont là, et
-// pour chacun qui manque renvoie à sa page d'installation officielle ; l'app installe `gh` et `claude` d'un clic (#4350),
-// jamais Git (#4266).
+// `git` (le clone d'un projet) et `claude` (les cooks, le second, le login Max). L'app n'installe aucun des trois
+// (#4266) : elle vérifie qu'ils sont là, et pour chacun qui manque renvoie à sa page d'installation officielle.
 //
 // `choisirInstallation(outil, machine)` ne lit rien : `machine` dit la plateforme et les commandes présentes (`winget`,
 // `outils-developpeur`, `gh`, `git`, `claude`…). Il rend `{ texte, lien }` : le pas, en une phrase — ce que le second

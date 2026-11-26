@@ -13,7 +13,7 @@ export const ecran: Ecran = {
     const donnees = page.donnees();
     return {
       ...donnees,
-      reponses: { ...donnees.reponses, panne: { outilManquant: "claude", refus: "the login was not launched: Claude Code is not installed on this computer" }, outilsManquants: outilsManquants({ plateforme: "darwin", presents: ["git", "gh"] }, ["claude"]).map((manque) => ({ ...manque, installable: true })) },
+      reponses: { ...donnees.reponses, panne: { outilManquant: "claude", refus: "the login was not launched: Claude Code is not installed on this computer" }, outilsManquants: outilsManquants({ plateforme: "darwin", presents: ["git", "gh"] }, ["claude"]) },
     };
   },
 };

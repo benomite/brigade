@@ -31,12 +31,9 @@ first time you open one; the steps are below.
 
 1. **Download** `Brigade-<version>-mac-arm64.dmg` from the releases page.
 2. **Install it**: open the `.dmg`, drag **Brigade** into **Applications**.
-3. **Install the tools**, if you do not have them. `git` you install yourself. For `gh` and
-   `claude`, the app's first screen offers **install gh** and **install claude**: see
-   [If a tool is missing](#if-a-tool-is-missing). Or install them yourself, as before: `gh`
-   (<https://cli.github.com>) and `claude`. Log in to Claude with your Max account: the **log in**
-   button of the app does it, or run `claude` once in Terminal and follow its login. You do not
-   need `node` or `npm`.
+3. **Install the tools**, if you do not have them: `git`, `gh` (<https://cli.github.com>) and
+   `claude`. Log in to Claude with your Max account: run `claude` once in Terminal and follow its
+   login. You do not need `node` or `npm`.
 4. **Open it the first time.** Gatekeeper blocks it, because the build is unsigned. In
    **Applications**, **right-click Brigade, choose Open, then Open again**. On **macOS 15 and
    later**, also open **System Settings > Privacy & Security** and click **Open Anyway**. It opens
@@ -55,13 +52,10 @@ it over the old one.
 ## On Windows
 
 1. **Download** `Brigade-<version>-windows-x64-setup.exe` from the releases page.
-2. **Install the tools**, if you do not have them. **Git for Windows**
+2. **Install the tools**, if you do not have them: **Git for Windows**
    (<https://git-scm.com/downloads>; the app opens its `bash` in its terminals, and `claude` asks for
-   it) you install yourself. For `gh` and `claude`, the app's first screen offers **install gh** and
-   **install claude**: see [If a tool is missing](#if-a-tool-is-missing). Or install them yourself,
-   as before: `gh` (<https://cli.github.com>) and `claude`. Log in to Claude with your Max account:
-   the **log in** button of the app does it, or run `claude` once and follow its login. You do not
-   need `node` or `npm`.
+   it), `gh` (<https://cli.github.com>) and `claude`. Log in to Claude with your Max account: run
+   `claude` once and follow its login. You do not need `node` or `npm`.
 3. **Run the installer.** The build is unsigned, so Windows **SmartScreen** warns about an unknown
    app (“Windows protected your PC”): click **More info**, then **Run anyway**. It installs for
    your account only, with no administrator rights, and adds **Brigade** to the Start menu.
@@ -86,47 +80,6 @@ and a button **open this project**. Nothing is prefilled.
 runs `gh auth login --web` and shows `Type the code ABCD-1234 on the GitHub page that opened in your browser.` (`open
 the GitHub page again` reopens it). Type the code, authorize, and the screen says which account is connected.
 **switch GitHub account**, a small link under the account, does the same with another account, and the account is read again afterwards.
-
-#### If a tool is missing
-
-Before it signs you in or clones a project, the app checks `git`, `gh` and `claude`. When one is
-missing, its screen names it (`The GitHub CLI is not installed on this computer.`), says why brigade
-needs it, and keeps the written way to install it: a button **how to install …** that opens the
-tool's official install page, and **I installed it**, which checks again. For `gh` and `claude` it
-also shows an install button. Nothing is downloaded or installed before you click it.
-
-- **install gh** downloads the archive of the latest GitHub CLI release for your computer from
-  <https://github.com/cli/cli/releases> (macOS, Windows or Linux, x64 or arm64), and unpacks it into
-  a folder of your account, with no Homebrew and no administrator rights: `tools/gh` in the app's
-  data folder — `~/Library/Application Support/Brigade/tools/gh` on a Mac,
-  `%APPDATA%\Brigade\tools\gh` on Windows, `~/.config/Brigade/tools/gh` on Linux. `gh` itself is
-  in its `bin` folder. The app puts that `bin` folder first on its own `PATH`, at once and at each
-  launch, then runs `gh --version`: when it answers, the GitHub step comes back.
-- **install claude** runs the official install of Claude Code. When `npm` answers on the app's
-  `PATH`, it runs `npm install -g @anthropic-ai/claude-code`, which writes into npm's global folder.
-  Without `npm`, it runs the native installer: `curl -fsSL https://claude.ai/install.sh | bash` on a
-  Mac or Linux, `irm https://claude.ai/install.ps1 | iex` in PowerShell on Windows, which puts
-  `claude` in `~/.local/bin` (`%USERPROFILE%\.local\bin\claude.exe` on Windows); the app puts that
-  folder on its own `PATH`. It then runs `claude --version`, and when it answers the screen ends on
-  **log in**, the same login as the **log in** of a lost Max connection.
-- While a button works, the screen says `Installing … on this computer…`. If it fails (a download
-  refused, an installer that exits in error, a tool that does not answer), the screen says
-  `The app could not install …` with the reason, keeps the link and **I installed it**, and offers
-  the button again: install the tool yourself, as its page says, then click **I installed it**.
-- On a computer where the app cannot install the tool (another system, or another processor), the
-  screen says `The app cannot install … on this computer` and shows no install button: install it
-  yourself as its page says.
-- **Git** has no install button: its screen is the same as before.
-
-**When the app's `PATH` differs from your account's.** The app does not change your account's
-`PATH` or your shell profile. A `gh` installed by **install gh** is on the app's `PATH` only: the app
-and what it launches find it, but a terminal opened outside the app does not (`gh: command not
-found`). To use it there too, add its `bin` folder (above) to your `PATH` in your shell profile, or,
-on Windows, to your account's `Path`. The other way round, a tool your terminal finds is not always
-found by the app: the installed app reads the `PATH` of your login shell at launch on a Mac or Linux,
-and your account's `PATH` on Windows, then adds a few known folders, `~/.local/bin` among them. A tool
-installed by hand in a folder that neither names is not found: the screen keeps saying it is
-missing. Add that folder to your shell profile (or your account's `Path`) and reopen the app.
 
 ### 2. Connect your project
 
