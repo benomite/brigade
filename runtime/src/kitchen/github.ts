@@ -99,6 +99,7 @@ export function gestures(gh: Gh, repo: string) {
       if (add.length === 0 && remove.length === 0) return;
       await gh(["issue", "edit", String(issue), ...r, ...(add.length ? ["--add-label", add.join(",")] : []), ...(remove.length ? ["--remove-label", remove.join(",")] : [])]);
     },
+    close: (issue: number, body: string) => gh(["issue", "close", String(issue), ...r, "--reason", "not planned", "--comment", body]),
     comment: (issue: number, body: string) => gh(["issue", "comment", String(issue), ...r, "--body-file", "-"], body),
     open: async (title: string, body: string, labels: string[] = []): Promise<number> => {
       const url = await gh(["issue", "create", ...r, "--title", title, "--body-file", "-", ...(labels.length ? ["--label", labels.join(",")] : [])], body);

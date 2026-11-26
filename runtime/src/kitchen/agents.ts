@@ -1,7 +1,7 @@
 // What the kitchen tells its agents, and what it takes back from them. The
 // behaviour lives in `agents/kitchen/<role>.md`; this file only assembles the
 // input and applies the few gestures an agent may ask for.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { LABELS, type Issue } from "./decide.ts";
 import { ACCEPTED, type Gestures } from "./github.ts";
@@ -26,10 +26,19 @@ export function prompts(options: Prompts = { dir: DEFAULT_DIR }) {
         "# Les tickets ouverts",
         input.issues.map((issue) => `#${issue.number} [${issue.labels.join(", ")}] ${issue.title}`).join("\n"),
         "# Les agents qui tournent",
-        input.running.map((run) => `${run.name} depuis ${Math.round((input.now - run.started) / 60_000)} min`).join("\n") || "aucun",
+        input.running.map((run) => `${run.name} depuis ${Math.round((input.now - run.started) / 60_000)} min, dernière activité il y a ${lastActivity(run, input.now)} min`).join("\n") || "aucun",
       ].join("\n\n"),
   };
 }
+
+// Minutes since the agent last wrote to its stream: a long run that still writes is working, not stuck.
+const lastActivity = (run: Run, now: number): number => {
+  try {
+    return Math.round((now - statSync(join(run.dir, "stream.jsonl")).mtimeMs) / 60_000);
+  } catch {
+    return Math.round((now - run.started) / 60_000);
+  }
+};
 
 export type Verdict = { merge: true } | { merge: false; reason: string };
 
@@ -52,6 +61,7 @@ export type AgentAction =
   | { unpark: number }
   | { labels: number; add?: string[]; remove?: string[] }
   | { comment: number; body: string }
+  | { close: number; reason: string }
   | { open: { title: string; body: string } };
 
 export function parseAgentActions(result: string): AgentAction[] {
@@ -106,6 +116,10 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
         const remove = (action.remove ?? []).filter((label) => !LOCKED(label));
         await act.labels(action.labels, add, remove);
         log(`${who}: #${action.labels} labels +${add.join(",")} -${remove.join(",")}`);
+      } else if ("close" in action && known(action.close) && typeof action.reason === "string") {
+        await act.close(action.close, `Closed by the kitchen's ${who}: ${action.reason}`);
+        acted.add(action.close);
+        log(`${who}: #${action.close} closed`);
       } else if ("comment" in action && known(action.comment) && typeof action.body === "string") {
         await act.comment(action.comment, action.body);
       } else if ("open" in action && typeof action.open?.title === "string" && opened < 2) {
