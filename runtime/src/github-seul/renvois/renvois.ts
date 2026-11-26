@@ -24,6 +24,7 @@ import { LABEL_IN_PASS, LABEL_PARKED } from "../../github-etat/etats.ts";
 import { corpsDuParking } from "../../attente-github/marque.ts";
 import { RELANCE_PAR_DEFAUT_MS } from "../../attente.ts";
 import { LABEL } from "../../github.ts";
+import { ligneDuMotif } from "../../renvoi-sur-le-fond/motif.ts";
 import { monter, PLAFOND_PAR_DEFAUT, type Plafond } from "../../reagir.ts";
 
 // Combien de fois une livraison repart au cook avant d'être remise au
@@ -224,8 +225,9 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   if (raison === null) return { coup: "rien", raison: refus.genre === "ci-rouge" ? "no check is red on this head" : "the review did not request changes on this head" };
 
   const n = renvois.length + 1;
+  const motif = ligneDuMotif(refus.genre === "ci-rouge" ? "red CI" : "review", raison);
   if (renvois.length < RENVOIS_MAX) {
-    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: sent back to a cook (${n}/${RENVOIS_MAX}) — ${raison}\n\nThe next cook takes up the branch of PR #${refus.pr}, fixes what is said above, and delivers again.`);
+    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: sent back to a cook (${n}/${RENVOIS_MAX}) — ${raison}\n\n${motif}\n\nThe next cook takes up the branch of PR #${refus.pr}, fixes what is said above, and delivers again.`);
     await libere();
     return { coup: "renvoi", n, raison };
   }
@@ -237,7 +239,7 @@ export async function renvoyerLaLivraison(ticket: TicketRenvoye, refus: Refus, c
   const vers = pose === null || estUnFix || remises.length > 0 ? null : calibrageAuDessus(pose, plafond);
   if (pose === null || vers === null) {
     const pourquoi = raisonDeSortie(pose, estUnFix, remises[0], plafond);
-    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\nParked for the supervisor by its failure count (\`${LABEL_PARKED}\`, #4129): ${pourquoi}. Not served elsewhere: the supervisor takes it and decides what happens to it.`);
+    await github.commenter(issue, `<!-- brigade:renvoi n=${n} sha=${refus.sha} -->\nStation \`${station}\`: still not mergeable after ${n - 1} sends back — ${raison}\n\n${motif}\n\nParked for the supervisor by its failure count (\`${LABEL_PARKED}\`, #4129): ${pourquoi}. Not served elsewhere: the supervisor takes it and decides what happens to it.`);
     // Parqué pour le superviseur jusqu'à sa réponse, comme la station parque une boucle de relances (`parquerSesEchecs`).
     await github.labelliser(issue, [LABEL_PARKED]);
     await github.commenter(issue, corpsDuParking({ what: `its delivery is still not mergeable after ${n - 1} sends back: ${pourquoi}`, who: "the supervisor", followUp: new Date(Date.now() + RELANCE_PAR_DEFAUT_MS).toISOString(), fact: "the supervisor answers", failures: true }));
