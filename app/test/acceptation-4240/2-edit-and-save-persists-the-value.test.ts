@@ -57,8 +57,10 @@ test("edit one item and save: the file holds the new value, and the screen shows
     const ecran = await p.ouvrir();
     champ(ecran, "work")!.value = "a podcast";
     enregistrer(ecran)!.click();
-    await repos();
-    await repos();
+    // The save is disabled while the file is written: wait for it to come back rather than a fixed number of turns,
+    // which a loaded CI runner can outlast (#4309 send-back).
+    for (let tours = 0; enregistrer(ecran)!.disabled && tours < 1000; tours++) await repos();
+    assert.equal(enregistrer(ecran)!.disabled, false, "the save ends");
     const fichier = JSON.parse(readFileSync(join(p.dossier, FICHE), "utf8"));
     assert.equal(fichier.work, "a podcast");
     assert.equal(fichier.served, FICHE_PLEINE.served);
