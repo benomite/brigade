@@ -81,7 +81,9 @@ function fauxGithub(issues: Issue[]) {
   return { github, ecritures, issues };
 }
 const sans = { appliquer: false, numeros: [] as number[] };
+const avec = { appliquer: true, numeros: [] as number[] };
 
+// The five criteria of #4321 share this stubbed client: each `describe` below is one criterion.
 describe("criterion 1: the dry run", () => {
   test("prints number, current tries, tries after the restore and the change, and writes nothing", () => {
     const { github, ecritures, issues } = fauxGithub([
@@ -101,5 +103,89 @@ describe("criterion 1: the dry run", () => {
     assert.deepEqual(ecritures, []);
     assert.equal(essais(issues[0]!), 3);
     assert.deepEqual(issues[0]!.labels, ["set-aside:failures"]);
+  });
+});
+
+describe("criterion 2: --apply", () => {
+  test("a ticket failed only by the v2 fetch error gets its tries back and returns to the rail", () => {
+    const { github, ecritures, issues } = fauxGithub([
+      ticket(4226, [echec(1, V2, DANS_LA_FENETRE[0]!), echec(2, V2, DANS_LA_FENETRE[1]!), echec(3, V2, DANS_LA_FENETRE[2]!)]),
+    ]);
+    const { code } = passer("benomite/brigade", avec, github);
+    assert.equal(code, 0);
+    assert.equal(essais(issues[0]!), 0, "its tries are back to their value before the failures");
+    assert.ok(issues[0]!.labels.includes("fire"), "back on the rail");
+    assert.ok(!issues[0]!.labels.includes("set-aside:failures"));
+    assert.ok(ecritures.length > 0);
+  });
+
+  test("the numbers given are added to the search", () => {
+    const { github, issues } = fauxGithub([
+      ticket(4280, [echec(1, V2, "2026-11-25T19:35:00Z")]),
+      ticket(4281, [echec(1, V2, DANS_LA_FENETRE[0]!)]),
+    ]);
+    passer("benomite/brigade", { appliquer: true, numeros: [4280] }, github);
+    assert.equal(essais(issues[0]!), 0);
+    assert.equal(essais(issues[1]!), 0);
+  });
+});
+
+describe("criterion 3: another cause", () => {
+  test("a ticket with a failure of another cause keeps the tries lost to that cause", () => {
+    const { github, issues } = fauxGithub([
+      ticket(4228, [echec(1, "claude ended in error (exit code 1)", AVANT), echec(2, V2, DANS_LA_FENETRE[0]!), echec(3, V2, DANS_LA_FENETRE[1]!)]),
+      ticket(4229, [echec(1, V2, DANS_LA_FENETRE[0]!), echec(2, "the cook added nothing since its last delivery", DANS_LA_FENETRE[1]!), echec(3, V2, DANS_LA_FENETRE[2]!)]),
+      ticket(4230, [echec(1, V2, DANS_LA_FENETRE[0]!), echec(2, V2, DANS_LA_FENETRE[1]!), echec(3, V2, DANS_LA_FENETRE[2]!, "another-station/claude")]),
+    ]);
+    const { code } = passer("benomite/brigade", avec, github);
+    assert.equal(code, 0);
+    assert.equal(essais(issues[0]!), 1, "the earlier failure of another cause stays");
+    assert.equal(essais(issues[1]!), 1, "the failure of another cause, inside the window, stays");
+    assert.equal(essais(issues[2]!), 1, "a v2 failure of another station is not this tool's");
+  });
+});
+
+describe("criterion 4: idempotence", () => {
+  const depart = () => [
+    ticket(4226, [echec(1, V2, DANS_LA_FENETRE[0]!), echec(2, V2, DANS_LA_FENETRE[1]!), echec(3, V2, DANS_LA_FENETRE[2]!)]),
+    ticket(4228, [echec(1, "claude ended in error", AVANT), echec(2, V2, DANS_LA_FENETRE[0]!)]),
+  ];
+  const etat = (issues: Issue[]) => JSON.stringify(issues.map((i) => ({ n: i.number, s: i.state, l: [...i.labels].sort(), c: i.comments.map((c) => c.body) })));
+
+  test("a second --apply gives the same result as the first and writes nothing", () => {
+    const une = fauxGithub(depart());
+    passer("benomite/brigade", avec, une.github);
+    const deux = fauxGithub(depart());
+    passer("benomite/brigade", avec, deux.github);
+    const avant = deux.ecritures.length;
+    const { sortie, code } = passer("benomite/brigade", avec, deux.github);
+    assert.equal(code, 0);
+    assert.equal(etat(deux.issues), etat(une.issues));
+    assert.equal(deux.ecritures.length, avant, "the second run made no write");
+    assert.match(sortie.join("\n"), /\b0 (?:GitHub )?writes?\b/i);
+  });
+});
+
+describe("criterion 5: the write count", () => {
+  const depart = () => [
+    ticket(4226, [echec(1, V2, DANS_LA_FENETRE[0]!), echec(2, V2, DANS_LA_FENETRE[1]!)]),
+    ticket(4228, [echec(1, V2, DANS_LA_FENETRE[2]!)]),
+  ];
+  const compte = (sortie: string[]) => Number(/(\d+) GitHub writes?/i.exec(sortie.join("\n"))?.[1] ?? NaN);
+
+  test("--apply prints the number of writes it made, which is the writes the client received", () => {
+    const { github, ecritures } = fauxGithub(depart());
+    const { sortie } = passer("benomite/brigade", avec, github);
+    assert.ok(ecritures.length > 0);
+    assert.equal(compte(sortie), ecritures.length);
+  });
+
+  test("the dry run prints the number of writes it would make, and makes none", () => {
+    const seche = fauxGithub(depart());
+    const { sortie } = passer("benomite/brigade", sans, seche.github);
+    assert.deepEqual(seche.ecritures, []);
+    const reelle = fauxGithub(depart());
+    passer("benomite/brigade", avec, reelle.github);
+    assert.equal(compte(sortie), reelle.ecritures.length);
   });
 });
