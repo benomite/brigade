@@ -5,7 +5,6 @@ import { CALIBRE, FauxGitHub } from "./faux-github.ts";
 
 const fiche = (zone: string, attend = "none") => `<!-- brigade:fiche -->\n- awaiting: ${attend}\n- zone: ${zone}`;
 
-// brigade:guard
 test("a prio:0 ticket that waits on an overlapping lower ticket does not keep its zone against it", async () => {
   const faux = new FauxGitHub();
   faux.feu(1, [...CALIBRE, "prio:0"]);
@@ -30,12 +29,10 @@ const lanceSeul = async (labelsDeA: string[]) => {
   return faux.cuissons.map(({ issue }) => issue);
 };
 
-// brigade:guard
 test("a prio:0 ticket needing a capability the station lacks does not keep its zone against a lower ticket", async () => {
   assert.deepEqual(await lanceSeul([...CALIBRE, "prio:0", "needs:gpu"]), [2]);
 });
 
-// brigade:guard
 test("a prio:0 ticket with an incomplete calibration does not keep its zone against a lower ticket", async () => {
   assert.deepEqual(await lanceSeul(["fire", "prio:0"]), [2]);
 });

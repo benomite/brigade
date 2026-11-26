@@ -128,7 +128,6 @@ test("a sheet that cannot be read parks the merge for the chef and says why", as
   assert.match(gestesEnAttente(repertoire)[0]?.line ?? "", /the project sheet cannot be read, so its kind `fix-typo` is taken as ranked 'chef' — `.claude\/brigade\/projet.json` is not valid JSON/);
 });
 
-// brigade:guard
 test("a kind ranked 'safe' still goes through the pass's level, as before: on propose, the merge waits for the chef's OK", async (t) => {
   const { repertoire, porte, faux, avertissements, tours } = station(t, "fix-typo", {}, "propose");
   await tours(3);
