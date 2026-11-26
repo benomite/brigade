@@ -4,11 +4,14 @@
 // manager consulté, reconnu à la marque de sa consigne. Les suivants passent par
 // la station du faux GitHub, dont le manager est une doublure.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../src/github-etat/etats.ts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { attenteDeLIssue } from "../src/attente-github/attente-github.ts";
+import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { LABEL_PARKED } from "../src/github-etat/etats.ts";
 import { ticketsDeLaListe } from "../src/epique.ts";
 import type { GitHub } from "../src/github.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
@@ -24,6 +27,13 @@ import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "./faux-gith
 const TICKET = 77;
 const CORPS = "## Context\n\nMake the rail faster.\n\n## Acceptance criteria\n\n- the rail loads in under a second";
 const ECHECS = "set-aside:failures";
+// Parqué par ses échecs (#4129) : le label `parked`, plus `set-aside:failures`, et sa marque dit qu'il attend le
+// superviseur, pour ses échecs.
+function parqueParSesEchecs(faux: FauxGitHub, issue: number): boolean {
+  const attente = attenteDeLIssue((faux.commentaires.get(issue) ?? []).map((c) => ({ body: c.body, association: c.association })));
+  const labels = faux.ticket(issue).labels;
+  return labels.has(LABEL_PARKED) && !labels.has(ECHECS) && attente?.failures === true && attente.who === "the supervisor";
+}
 const PLAFOND = { model: "opus", effort: "high" };
 const REECRIRE = { choix: "reecrire", motif: "Each cook guessed which rail was meant: the ticket never names the file.", corps: "Make `runtime/src/rail.ts` read the tickets once per turn.\n\n## Acceptance criteria\n\n- the rail loads in under a second" };
 
@@ -62,8 +72,8 @@ test("through the station of the repository: after its failed tries, the ticket 
   assert.deepEqual([args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]], ["opus", "medium"]);
   assert.equal(args[args.indexOf("--tools") + 1], "Read,Grep,Glob", "the manager reads the repo, it writes nothing");
   const ticket = faux.ticket(TICKET);
-  assert.equal(ticket.labels.has(ECHECS), false, "not set aside for the chef");
-  assert.equal(ticket.labels.has(A_LA_MAIN), false);
+  assert.equal(ticket.labels.has(LABEL_PARKED), false, "not parked for the supervisor");
+  assert.equal(ticket.labels.has(CHEF_TODO), false);
   assert.ok(ticket.labels.has("fire"));
   assert.ok(ticket.corps.startsWith(MARQUE_DE_REECRITURE));
   assert.match(ticket.corps, /Make `runtime\/src\/rail\.ts` read the tickets once per turn[\s\S]*<details>[\s\S]*Make the rail faster\./);
@@ -77,7 +87,7 @@ test("through the station of the repository: after its failed tries, the ticket 
   await station.tour();
   await station.calme();
   assert.equal(cooks, avant + 1);
-  assert.equal(faux.ticket(TICKET).labels.has(ECHECS), false, "its tries count again from the manager's comment");
+  assert.equal(faux.ticket(TICKET).labels.has(LABEL_PARKED), false, "its tries count again from the manager's comment");
 });
 
 // Une station du faux GitHub dont chaque cook rate, au motif `motif(n)`, et
@@ -115,16 +125,16 @@ test("a rewritten ticket that fails its tries again goes to the chef, once, with
   faux.corpsEcrivables = true;
   faux.feu(TICKET, ["fire", "model:sonnet", "effort:medium"], CORPS);
   const { a, consultations } = station(faux, reprise({ choix: "reecrire", motif: "The ticket never names the file.", corps: "Edit `runtime/src/rail.ts`." }));
-  await tourner(a, 12, () => faux.ticket(TICKET).labels.has(ECHECS));
+  await tourner(a, 12, () => parqueParSesEchecs(faux, TICKET));
   assert.equal(consultations.length, 1);
   assert.deepEqual(consultations[0]?.motifs, ["reason 1", "reason 2", "reason 3"]);
-  assert.ok(faux.ticket(TICKET).labels.has(ECHECS));
+  assert.ok(parqueParSesEchecs(faux, TICKET));
   const echecs = (faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).map((c) => c.body);
   assert.equal(echecs.length, 6, "three tries before the rewrite, three after");
-  assert.match(echecs[5] ?? "", /n=3 -->[\s\S]*Set aside by its failure count[\s\S]*\*\*What was tried\.\*\* The manager already reworked this ticket after its first failed tries: it was rewritten more precisely — The ticket never names the file\./);
+  assert.match(echecs[5] ?? "", /n=3 -->[\s\S]*Parked \(`parked`\) by its failure count[\s\S]*\*\*What was tried\.\*\* The manager already reworked this ticket after its first failed tries: it was rewritten more precisely — The ticket never names the file\./);
   assert.match(echecs[5] ?? "", /The ticket never names the file\.[\s\S]*1\. reason 4\n2\. reason 5\n3\. reason 6/);
   assert.equal(reprisesDe(faux, TICKET).length, 1);
-  // Une seule fois : mis de côté, plus aucun cook ni commentaire — hors celui qui lui donne une raison et une date (invariant 3, #4026).
+  // Une seule fois : parqué, plus aucun cook ni commentaire — hors celui qui lui donne une raison et une date (invariant 3, #4026).
   const dits = () => (faux.commentaires.get(TICKET) ?? []).filter((c) => !c.body.includes("<!-- brigade:invariant n=3 ")).length;
   const avant = dits();
   await tourner(a, 3);
@@ -151,13 +161,13 @@ test("split: the ticket becomes the epic of smaller tickets born on the rail wit
   }
   assert.deepEqual(ticketsDeLaListe(faux.ticket(TICKET).corps), nes);
   assert.match(reprisesDe(faux, TICKET)[0] ?? "", new RegExp(`choix=decouper[\\s\\S]*split into smaller tickets[\\s\\S]*the epic of #${nes[0]}, #${nes[1]}`));
-  assert.equal(faux.ticket(TICKET).labels.has(ECHECS), false);
+  assert.equal(faux.ticket(TICKET).labels.has(LABEL_PARKED), false);
   // L'épique ne se prend plus : seuls ses tickets partent chez un cook — qui ratent ici aussi,
   // et, nés d'une reprise, vont au chef sans seconde reprise.
-  await tourner(a, 16, () => nes.every((ne) => faux.ticket(ne).labels.has(ECHECS)));
+  await tourner(a, 16, () => nes.every((ne) => parqueParSesEchecs(faux, ne)));
   assert.equal(consultations.length, 1);
   for (const ne of nes) {
-    assert.ok(faux.ticket(ne).labels.has(ECHECS));
+    assert.ok(parqueParSesEchecs(faux, ne));
     const dernier = (faux.commentaires.get(ne) ?? []).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).at(-1)?.body ?? "";
     assert.match(dernier, new RegExp(`\\*\\*What was tried\\.\\*\\* This ticket was born of the manager's split of #${TICKET} after its failed tries — Two deliverables in one ticket\\.`));
   }
@@ -183,16 +193,20 @@ test("a product or design question in the reasons: only then a card for the chef
   const { a } = station(faux, reprise({ choix: "question", motif: "The cooks split on which view to change.", sorte: "product", question: "Should the rail show served tickets?" }), (n) => `the cook asked: which view, ${n}?`);
   await tourner(a, 6, () => reprisesDe(faux, TICKET).length > 0);
   const ticket = faux.ticket(TICKET);
-  assert.ok(ticket.labels.has(A_LA_MAIN));
+  assert.ok(ticket.labels.has(CHEF_TODO));
+  assert.equal(parqueParSesEchecs(faux, TICKET), false);
   assert.equal(ticket.labels.has(ECHECS), false);
   const [carte] = reprisesDe(faux, TICKET);
   assert.match(carte ?? "", /\*\*Question for the chef \(product\):\*\* Should the rail show served tickets\?/);
   assert.doesNotMatch(carte ?? "", /not sent to the chef/);
   // La carte lit la dernière ligne qui finit par « ? » : c'est la question, pas un motif d'essai.
   assert.equal((carte ?? "").split("\n").filter((ligne) => ligne.trim().endsWith("?")).at(-1), "**Question for the chef (product):** Should the rail show served tickets?");
+  // #4129 : la carte du TODO suit la reprise, qui garde sa marque en tête ; elle s'ouvre sur la question.
+  const carteDuTodo = (faux.commentaires.get(TICKET) ?? []).map((c) => c.body).find((corps) => corps.startsWith("<!-- brigade:todo kind=blocked -->\n"));
+  assert.equal(carteDuTodo?.split("\n")[1], "**Question for the chef (product):** Should the rail show served tickets?");
 });
 
-test("a manager that cannot rework it, or no manager on the station: the ticket is set aside as before, and the comment says why", async () => {
+test("a manager that cannot rework it, or no manager on the station: the ticket is parked for the supervisor, and the comment says why", async () => {
   for (const [manager, dit] of [
     [() => ({ illisible: "no JSON object in the answer" }), /The manager could not rework it: no JSON object in the answer\./],
     [null, /No manager runs on this station to rework it\./],
@@ -200,8 +214,8 @@ test("a manager that cannot rework it, or no manager on the station: the ticket 
     const faux = new FauxGitHub();
     faux.feu(TICKET, ["fire", "model:sonnet", "effort:medium"], CORPS);
     const { a } = station(faux, manager);
-    await tourner(a, 6, () => faux.ticket(TICKET).labels.has(ECHECS));
-    assert.ok(faux.ticket(TICKET).labels.has(ECHECS));
+    await tourner(a, 6, () => parqueParSesEchecs(faux, TICKET));
+    assert.ok(parqueParSesEchecs(faux, TICKET));
     assert.match((faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).at(-1)?.body ?? "", dit);
     assert.equal(reprisesDe(faux, TICKET).length, 0);
   }
@@ -211,13 +225,14 @@ test("a rewrite the station cannot write goes to the chef with the reason, never
   const faux = new FauxGitHub();
   faux.feu(TICKET, ["fire", "model:sonnet", "effort:medium"], CORPS);
   const { a } = station(faux, reprise({ choix: "reecrire", motif: "Unclear.", corps: "Clearer." }));
-  await tourner(a, 6, () => faux.ticket(TICKET).labels.has(ECHECS));
+  await tourner(a, 6, () => parqueParSesEchecs(faux, TICKET));
   assert.match((faux.commentaires.get(TICKET) ?? []).filter((c) => c.body.startsWith(MARQUE_D_ECHEC)).at(-1)?.body ?? "", /The manager chose to rewrite it, but this station cannot write the ticket's body\./);
   assert.equal(faux.ticket(TICKET).corps, CORPS);
   assert.equal(reprisesDe(faux, TICKET).length, 0);
 });
 
-test("after its last send-back by the pass, the ticket goes to the manager too, and back on the rail under the same PR", async () => {
+// Ses essais épuisés à la pass, le ticket est mis de côté pour le chef, pas repris par le manager (#4226).
+test("after its last send-back by the pass, the ticket is parked for the chef, not reworked by the manager, and keeps its PR", async () => {
   const faux = new FauxGitHub();
   faux.corpsEcrivables = true;
   faux.feu(31);
@@ -234,18 +249,15 @@ test("after its last send-back by the pass, the ticket goes to the manager too, 
   const pr = faux.prs.find((p) => p.issue === 31);
   assert.ok(pr);
   faux.ciRouge.add(pr.number);
-  await tourner(a, 12, () => consultations.length > 0);
-  assert.equal(consultations.length, 1);
-  assert.equal(consultations[0]?.length, 3);
-  assert.match(consultations[0]?.[0] ?? "", /the CI is red/);
+  await tourner(a, 12, () => faux.ticket(31).labels.has("chef-todo"));
+  assert.equal(consultations.length, 0, "the manager is not consulted");
   assert.equal(faux.ticket(31).labels.has(ECHECS), false);
+  assert.equal(faux.ticket(31).labels.has(LABEL_PARKED), false, "not parked for the supervisor");
   const renvois = (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).map((c) => c.body);
-  assert.match(renvois.at(-1) ?? "", /still not mergeable after 2 sends back[\s\S]*the ticket went to the manager, not to the chef/);
-  assert.equal(reprisesDe(faux, 31).length, 1);
-  assert.match(faux.ticket(31).corps, /Fix the `tests` check first\./);
-  // Ses renvois se recomptent : le suivant est le premier.
-  await tourner(a, 2, () => (faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).length > renvois.length);
-  assert.match((faux.commentaires.get(31) ?? []).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).at(-1)?.body ?? "", /sent back to a cook \(1\/2\)/);
+  assert.equal(renvois.length, 2);
+  assert.match((faux.commentaires.get(31) ?? []).at(-1)?.body ?? "", /^<!-- brigade:todo kind=blocked tries=3 [\s\S]*parked for the chef[\s\S]*the CI is red/);
+  assert.equal(reprisesDe(faux, 31).length, 0);
+  assert.equal(faux.pr(pr.number).state, "open");
 });
 
 test("the manager's answer is read strictly: a choice it cannot make is not guessed", () => {

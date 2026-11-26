@@ -10,7 +10,6 @@ import { ecrireEtatMiseAJour, lireEtatMiseAJour, lireIssues } from "../../src/mi
 import { passer } from "../../src/mise-a-jour/mettre-a-jour.ts";
 import type { Publication, Publications } from "../../src/mise-a-jour/publications.ts";
 import type { Systeme } from "../../src/mise-a-jour/systeme.ts";
-import { EN_VOL, tenirLaVidange, VIDANGE } from "../../src/mise-a-jour/vidange.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 
 // Ce que fait la station relancée sur une version : elle se dit en service en
@@ -68,14 +67,14 @@ function machine(t: TestContext, version: string, demarrage: (version: string) =
 }
 
 // Des versions publiées, chacune avec son paquet : un fichier qui dit ce qu'il est.
-function publiees(versions: string[], options: { illisibles?: string; autrePaquet?: string; urgentes?: string[] } = {}): Publications & { telecharges: string[] } {
+function publiees(versions: string[], options: { illisibles?: string; autrePaquet?: string } = {}): Publications & { telecharges: string[] } {
   const telecharges: string[] = [];
   return {
     nom: "les publications d'essai",
     telecharges,
     async lister(): Promise<Publication[]> {
       if (options.illisibles) throw new Error(options.illisibles);
-      return versions.map((version) => ({ version, paquet: `essai:${version}`, empreinte: null, ...(options.urgentes?.includes(version) ? { urgente: true as const } : {}) }));
+      return versions.map((version) => ({ version, paquet: `essai:${version}`, empreinte: null }));
     },
     async telecharger(publication, fichier) {
       telecharges.push(publication.version);
@@ -84,45 +83,20 @@ function publiees(versions: string[], options: { illisibles?: string; autrePaque
   };
 }
 
-// Sans espacement entre deux passages : celui de #2374 a son test.
-function passage(m: ReturnType<typeof machine>, publications: Publications, dites: string[] = [], options: { espacementMs?: number; maintenant?: () => Date; vidangeMs?: number; accuseMs?: number } = {}) {
-  return passer({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications, dire: (ligne) => dites.push(ligne), gardeMs: 2000, pasMs: 5, espacementMs: 0, ...options });
+function passage(m: ReturnType<typeof machine>, publications: Publications, dites: string[] = [], options: { maintenant?: () => Date } = {}) {
+  return passer({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications, dire: (ligne) => dites.push(ligne), gardeMs: 2000, pasMs: 5, ...options });
 }
 
-test("une version passée il y a moins d'une demi-heure retient la suivante, et l'état dit jusqu'à quand ; la demi-heure passée, elle s'installe (#2374)", async (t) => {
+test("une version publiée s'installe au passage suivant, quel que soit le temps écoulé depuis la dernière installation (#4420)", async (t) => {
   const m = machine(t, "1.0.0");
   let heure = Date.now();
   const maintenant = () => new Date(heure);
-  const premiere = (await passage(m, publiees(["1.0.0", "1.1.0"]), [], { espacementMs: 30 * 60_000, maintenant })).issue;
-  assert.equal(premiere?.quoi, "passee");
-  // L'instant où la station s'est dite en service sur 1.1.0 : la demi-heure part de lui.
-  const passee = Date.parse(premiere?.le ?? "");
-  heure = passee + 10 * 60_000;
-  const { etat, issue } = await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"]), [], { espacementMs: 30 * 60_000, maintenant });
-  assert.equal(issue, null);
-  assert.deepEqual(m.installations, ["1.1.0"]);
-  assert.ok((etat.retenue ?? "").startsWith(`1.2.0 attend ${new Date(passee + 30 * 60_000).toISOString()} : une version au plus toutes les 30 min`), etat.retenue ?? "");
-  heure = passee + 31 * 60_000;
-  assert.equal((await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"]), [], { espacementMs: 30 * 60_000, maintenant })).issue?.quoi, "passee");
+  const passee = Date.parse((await passage(m, publiees(["1.0.0", "1.1.0"]), [], { maintenant })).issue?.le ?? "");
+  heure = passee + 60_000;
+  const { etat, issue } = await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"]), [], { maintenant });
+  assert.equal(issue?.quoi, "passee");
+  assert.equal(etat.retenue, null);
   assert.deepEqual(m.installations, ["1.1.0", "1.2.0"]);
-});
-
-test("dans la fenêtre d'une heure, une version urgente s'installe sans attendre ; une non urgente publiée ensuite attend la fin de l'heure (#2585)", async (t) => {
-  const m = machine(t, "1.0.0");
-  let heure = Date.now();
-  const maintenant = () => new Date(heure);
-  const options = { espacementMs: 60 * 60_000, maintenant };
-  const passee = Date.parse((await passage(m, publiees(["1.0.0", "1.1.0"]), [], options)).issue?.le ?? "");
-  heure = passee + 5 * 60_000;
-  const dites: string[] = [];
-  assert.equal((await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0"], { urgentes: ["1.2.0"] }), dites, options)).issue?.quoi, "passee");
-  assert.deepEqual(m.installations, ["1.1.0", "1.2.0"]);
-  assert.ok(dites.includes("brigade : mise à jour — une version urgente est publiée : 1.2.0 s'installe sans attendre la fin de la fenêtre"), dites.join("\n"));
-  const urgente = Date.parse(lireEtatMiseAJour(m.dossier)?.derniere?.le ?? "");
-  heure = urgente + 20 * 60_000;
-  const { etat } = await passage(m, publiees(["1.0.0", "1.1.0", "1.2.0", "1.3.0"], { urgentes: ["1.2.0"] }), [], options);
-  assert.deepEqual(m.installations, ["1.1.0", "1.2.0"]);
-  assert.ok((etat.retenue ?? "").startsWith(`1.3.0 attend ${new Date(urgente + 60 * 60_000).toISOString()} : une version au plus toutes les 60 min`), etat.retenue ?? "");
 });
 
 test("une version plus récente publiée est installée, et gardée quand la station s'y dit en service ; le paquet d'avant reste de côté", async (t) => {
@@ -293,58 +267,3 @@ test("un essai noté sans que rien ait été installé est oublié : le passage 
   assert.deepEqual([m.installations, issue?.quoi, etat.essai, etat.ratees], [["1.1.0"], "passee", null, []]);
 });
 
-// La station de la box, avec ses cooks en vol : elle lit la demande de vidange
-// et dit ses cooks, comme celle de station/main.ts (#2547).
-function stationEnVol(t: TestContext, m: ReturnType<typeof machine>, cooks: number[]) {
-  const vidange = tenirLaVidange({ racine: m.racine, dossier: m.dossier, enVol: () => cooks, version: "1.0.0", pid: m.pid(), intervalleMs: 5 });
-  t.after(() => vidange.arreter());
-  return vidange;
-}
-
-test("une version prête attend un moment sans cook en vol de la station, qui prend encore ses tickets, puis elle est installée (#2547, #2586)", async (t) => {
-  const m = machine(t, "1.0.0");
-  const cooks = [2547, 2464];
-  const station = stationEnVol(t, m, cooks);
-  const dites: string[] = [];
-  const enCours = passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 60_000 });
-  await jusqua(() => dites.some((ligne) => ligne.includes("attend un moment sans cook en vol de la station (#2464, #2547)")));
-  assert.deepEqual(m.installations, []);
-  assert.equal(station.retenue(), false);
-  cooks.splice(0);
-  const { issue } = await enCours;
-  assert.equal(issue?.quoi, "passee");
-  assert.deepEqual(m.installations, ["1.1.0"]);
-  assert.ok(dites.includes("brigade : mise à jour — la station n'a plus de cook en vol : 1.1.0 s'installe"), dites.join("\n"));
-  // La demande est retirée : la station relancée prend ses tickets.
-  assert.equal(existsSync(join(m.dossier, VIDANGE)), false);
-});
-
-test("des cooks encore en vol à l'échéance sont sauvés par la station, puis la version s'installe (#2586)", async (t) => {
-  const m = machine(t, "1.0.0");
-  stationEnVol(t, m, [2464]);
-  const dites: string[] = [];
-  const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 50 });
-  assert.equal(issue?.quoi, "passee");
-  assert.ok(dites.some((ligne) => ligne.includes("la station est prête, ses cooks en vol sauvés sur leur branche (#2464) : 1.1.0 s'installe")), dites.join("\n"));
-});
-
-test("une station qui ne se dit pas prête à l'échéance voit ses cooks coupés : la version s'installe quand même (#2547)", async (t) => {
-  const m = machine(t, "1.0.0");
-  writeFileSync(join(m.racine, EN_VOL), JSON.stringify({ pid: m.pid(), vidange: "1.1.0", cooks: [2464] }));
-  const dites: string[] = [];
-  const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 50, accuseMs: 20 });
-  assert.equal(issue?.quoi, "passee");
-  assert.ok(dites.some((ligne) => ligne.includes("1 cook(s) encore en vol à l'échéance") && ligne.includes("(#2464) : 1.1.0 s'installe, ils sont coupés")), dites.join("\n"));
-});
-
-test("une station qui ne dit pas avoir vu la demande, ou d'avant la vidange, est installée sans attendre ses cooks (#2547)", async (t) => {
-  const muette = machine(t, "1.0.0");
-  writeFileSync(join(muette.racine, EN_VOL), JSON.stringify({ pid: muette.pid(), vidange: null, cooks: [2464] }));
-  const dites: string[] = [];
-  assert.equal((await passage(muette, publiees(["1.0.0", "1.1.0"]), dites, { vidangeMs: 60_000, accuseMs: 20 })).issue?.quoi, "passee");
-  assert.ok(dites.some((ligne) => ligne.includes("la station n'a pas vu la demande de vidange")), dites.join("\n"));
-  // Ses cooks dits sous un autre pid : ce n'est pas la station en service.
-  const ancienne = machine(t, "1.0.0");
-  writeFileSync(join(ancienne.racine, EN_VOL), JSON.stringify({ pid: ancienne.pid() + 1, vidange: "1.1.0", cooks: [2464] }));
-  assert.equal((await passage(ancienne, publiees(["1.0.0", "1.1.0"]), [], { vidangeMs: 60_000, accuseMs: 60_000 })).issue?.quoi, "passee");
-});

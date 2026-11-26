@@ -1001,91 +1001,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-/* La page des ratios de tous les projets (ticket 1682), à la place de l'accueil comme celle des coûts : le retour
-   à l'accueil, puis une ligne par projet qui a un closer réglé — sa teinte, son nom, son rapport ajouté / retiré
-   et ce qu'il compte, sa tendance et ses valeurs successives. */
-#ratios {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-#ratios .retour {
-  align-self: flex-start;
-}
-.tendances h2 {
-  margin: 0 0 var(--pas-2);
-  font-size: var(--taille-corps);
-  font-weight: 600;
-  color: var(--discret);
-}
-.tendances .projets-tendance {
-  display: grid;
-  gap: 0;
-  list-style: none;
-  margin: 0;
-  padding: var(--pas-1) var(--pas-4);
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-.tendances .projets-tendance li {
-  display: grid;
-  grid-template-columns: 8px minmax(7em, 12em) minmax(0, 1fr) minmax(0, 1.6fr);
-  align-items: baseline;
-  gap: var(--pas-3);
-  padding: var(--pas-3) 0;
-  font-size: var(--taille-corps);
-}
-.tendances .projets-tendance li + li {
-  border-top: 1px solid var(--trait-doux);
-}
-.tendances .teinte {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--teinte);
-}
-.tendances button.projet {
-  justify-content: flex-start;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.tendances :is(.actuel, .tendance) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-1) var(--pas-3);
-  min-width: 0;
-}
-.tendances .rapport {
-  font-size: var(--taille-titre);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--texte);
-}
-.tendances :is(.precise, .valeurs) {
-  font-size: var(--taille-corps);
-  font-variant-numeric: tabular-nums;
-  color: var(--discret);
-}
-.tendances .valeurs {
-  flex-basis: 100%;
-}
-.tendances .sens {
-  font-weight: 600;
-  color: var(--texte-doux);
-}
-.tendances .sens[data-sens="down"] {
-  color: var(--vert);
-}
-.tendances .sens[data-sens="up"] {
-  color: var(--jaune);
-}
-.tendances .sens.peu {
-  font-weight: 400;
-  color: var(--discret);
-}
 /* La courbe de la page des coûts, sous la tête : les tokens de chaque jour, une ligne par projet, à la teinte de
    sa pastille. Le tracé s'étire à la largeur de l'onglet ; ses jours et son plus haut sont du texte
    posé autour, qui ne s'étire pas. */
@@ -1579,9 +1494,6 @@ main > header,
    panne —, et le champ qui le règle, avec ses boutons à la suite. */
 #station .plafond-de-station p {
   margin: var(--pas-1) 0;
-}
-#station .plafond-de-station .retenue {
-  color: var(--jaune);
 }
 #station .plafond-de-station:empty {
   display: none;
@@ -2239,13 +2151,12 @@ main > header,
 #rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) > ol > li {
   container: todo-plein / inline-size;
 }
-/* Le TODO du chef (tickets 3523, 4238) : cuisine/cuisine.css le montre au-dessus des colonnes. */
+/* Le TODO du chef déplié (tickets 3523, 4238, 4354) : sous sa ligne, que cuisine/cuisine.css montre au-dessus des colonnes. */
 #rail .todo-du-rail {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--pas-2);
-  padding: var(--pas-2) var(--pas-4) 0;
 }
 #rail .todo-du-rail > * {
   flex: 1 1 100%;
@@ -3102,126 +3013,11 @@ main > header,
 .alerte-cout .alerte-geste {
   margin: 0 0 0 var(--pas-3);
 }
-/* Closer (#990) : quatre chiffres de la dernière observation, ce qu'elle a repéré derrière un bouton —
-   ou, sans closer réglé, le message, et le modèle et l'effort à choisir devant le bouton qui les écrit.
-   Les mêmes chiffres que la fiabilité, à côté d'elle sur Cooks (#1699). */
-#rail .tete-closer h2 {
-  margin: 0 0 var(--pas-2);
-  font-size: var(--taille-corps);
-  font-weight: 600;
-  color: var(--discret);
-}
-#rail .tete-closer .calibrage {
-  margin: 0 0 0 var(--pas-2);
-  font-weight: 400;
-}
-#rail .tete-closer .chiffres {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--pas-3);
-}
-#rail .tete-closer .chiffre {
-  min-width: 0;
-  padding: var(--pas-3) var(--pas-4);
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .tete-closer .chiffre h3 {
-  margin: 0;
-  font-size: var(--taille-corps);
-  font-weight: 600;
-  color: var(--discret);
-}
-#rail .tete-closer .total {
-  margin: var(--pas-1) 0 var(--pas-2);
-  font-size: var(--taille-chiffre);
-  font-weight: 700;
-  line-height: 1.25;
-  font-variant-numeric: tabular-nums;
-  color: var(--texte);
-}
-#rail .tete-closer .precise {
-  margin: 0;
-  font-size: var(--taille-corps);
-  font-variant-numeric: tabular-nums;
-  color: var(--discret);
-}
-#rail .tete-closer .attendu {
-  margin: 0;
-  font-size: var(--taille-intertitre);
-  font-weight: 600;
-  color: var(--texte);
-}
-#rail .closer-trouvailles {
-  margin: var(--pas-4) 0 0;
-}
-#rail .closer-trouvailles .trouvailles {
-  display: grid;
-  gap: var(--pas-1);
-  margin: var(--pas-2) 0 0;
-  padding: 0;
-  list-style: none;
-}
-#rail .closer-trouvailles .trouvailles li {
-  display: grid;
-  grid-template-columns: 3em minmax(0, 1fr) minmax(0, 1.4fr);
-  align-items: center;
-  gap: var(--pas-3);
-  padding: var(--pas-2) var(--pas-4);
-  font-size: var(--taille-corps);
-  color: var(--texte-doux);
-  background: var(--carte);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .closer-trouvailles :is(.nom, .ou) {
-  color: var(--texte);
-}
-#rail .closer-trouvailles :is(.ou, .quoi) {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-/* Le lancement d'un nettoyage (#991), sous la liste de ce qui a été repéré : le bouton recommandé, son
-   prix au survol ; la confirmation, la même que celle des autres gestes, qui dit ce que le closer va
-   faire ; puis où en est la demande, en une ligne — en attente en jaune, en cours en vert, refusée en
-   rouge — et, tant qu'elle n'est pas partie, le bouton qui l'annule. */
-#rail .closer-lancement {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2) var(--pas-3);
-  align-items: center;
-  margin: var(--pas-4) 0 0;
-}
-#rail .closer-lancement:empty {
-  display: none;
-}
-#rail .closer-lancement .etat {
-  display: inline-flex;
-  gap: var(--pas-2);
-  align-items: center;
-  margin: 0;
-  font-size: var(--taille-intertitre);
-  color: var(--texte);
-}
-#rail .closer-lancement .etat.retenue {
-  padding-left: var(--pas-2);
-  border-left: 3px solid var(--jaune);
-}
 /* Un écran étroit — le téléphone (ticket 1186) : trois colonnes n'y tiennent pas. La barre passe en haut, en une rangée
    qui défile ; la page du projet prend toute la largeur, et le second, quand son onglet est ouvert, prend la place du
    centre (vue.js montre l'un ou l'autre). La tête du projet passe à la ligne plutôt que de déborder, et une ligne de
    station pose son bouton à côté de son nom, son état et ses cooks dessous. Le même seuil que `ECRAN_ETROIT` (vue.js). */
 @media (max-width: 720px) {
-  /* Le bandeau Backlog (ticket 3460) : sa ligne passe sous son titre et défile de côté — toutes ses étiquettes y sont,
-     sans `+N`. */
-#rail .backlog-band-rang {
-    flex-wrap: wrap;
-  }
-#rail .backlog-band-tags {
-    flex-basis: 100%;
-    overflow-x: auto;
-  }
   /* Settings (ticket 1700) : les groupes serrés, et le nom, la valeur et le contrôle d'un réglage l'un sous l'autre. */
 #etat > .groupe {
     margin: var(--pas-2) var(--pas-2) 0;
@@ -4198,8 +3994,7 @@ main > header {
 .post-mortems-liste { list-style: none; margin: 0; padding: 0; }
 .post-mortems-liste li { margin-top: var(--pas-3); }
 /* L'écran de l'outil manquant (ticket 4059, outils-requis/) : à la place du pas qu'il retient — le compte du premier
-   lancement, ou l'avis —, l'outil nommé, pourquoi, son pas d'installation et ses deux boutons. La commande du pas se
-   sélectionne d'un clic, pour la copier. */
+   lancement, ou l'avis —, l'outil nommé, pourquoi, le lien de sa page d'installation et « I installed it ». */
 #tous .ecran-outil-manquant h3,
 .ecran-outil-manquant h3 {
   margin: 0;
@@ -4209,13 +4004,6 @@ main > header {
 }
 .ecran-outil-manquant .pourquoi {
   margin: var(--pas-2) 0 0;
-}
-.ecran-outil-manquant .pas {
-  margin: var(--pas-2) 0 0;
-  color: var(--texte-doux);
-}
-.ecran-outil-manquant .pas code {
-  user-select: all;
 }
 
 /* La PR d'une carte en pass ou servie : son lien, sa taille, son âge (ticket 4051). */

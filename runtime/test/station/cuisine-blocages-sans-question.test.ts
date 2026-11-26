@@ -36,7 +36,7 @@ test("the station's kitchen opens a defect naming the blocked-without-question c
   const ouverts = () => gh.appels().filter((args) => args.includes("POST") && args.at(-1) === `repos/${DEPOT}/issues`);
   try {
     await jusqua(() => ouverts().length > 0);
-    assert.ok(ouverts().some((args) => args.some((arg) => arg.startsWith("title=3 blocked-on-human without a question"))), JSON.stringify(ouverts()));
+    assert.ok(ouverts().some((args) => args.some((arg) => arg.startsWith("title=3 parked for the chef without a question"))), JSON.stringify(ouverts()));
   } finally {
     cuisine.arreter("fin du test");
     await cuisine.arretee?.();

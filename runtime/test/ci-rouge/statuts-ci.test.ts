@@ -6,7 +6,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cartesEnTodo, cartesRetenues, brancherLeTriage } from "../../src/carte-todo.ts";
-import { ECHECS_ATTEINTS } from "../../src/github.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ticketDuCheck } from "../../src/carte-ci-windows.ts";
 import { deciderDuPush, evaluerMain, statutsDesChecks, statutsDesRuns } from "../../src/statuts-ci/regles.ts";
@@ -44,7 +43,7 @@ test("the results of one head are one run: three heads red on unit stop the push
   assert.equal(await arret([rouge("unit", 3, "c"), rouge("lint", 2, "b"), rouge("types", 1, "a")]), null);
 });
 
-test("the comment names the check, the three runs and the set-aside label; an unnamed run is said so", async () => {
+test("the comment names the check, the three runs and the `parked` label — the ticket waits for the supervisor (#4129); an unnamed run is said so", async () => {
   const ecrits: Array<[number, string]> = [];
   const resultats: ResultatDeCheck[] = [{ check: "unit", outcome: "red", run: 303 }, { check: "unit", outcome: "red", run: null, tete: "b" }, { check: "unit", outcome: "red", run: 301 }];
   await deciderDuPush({ statuts: { resultats: async () => resultats }, ticket: 8, commenter: async (issue, corps) => void ecrits.push([issue, corps]) });
@@ -54,7 +53,8 @@ test("the comment names the check, the three runs and the set-aside label; an un
   assert.ok(corps.startsWith("<!-- brigade:rouges-de-suite check=unit -->"));
   assert.match(corps, /red on `unit` for the third time in a row \(run 303, an unnamed run, run 301\)/);
   assert.match(corps, /no fourth run/);
-  assert.ok(corps.includes(`\`${ECHECS_ATTEINTS}\``));
+  assert.ok(corps.includes("the ticket is parked (`parked`), waiting for the supervisor. Removing `parked` tries again"), corps);
+  assert.ok(!corps.includes("`set-aside:failures`"), corps);
 });
 
 test("statuses that cannot be read let the push go ahead and say why; a comment that cannot be written still refuses the push", async () => {
@@ -70,7 +70,7 @@ test("a red main: the card names its checks and asks one question; unreadable st
   aArreter(t, () => journal.fermer());
   const base = { journal, projet: "brigade", branche: "trunk" };
   assert.deepEqual(await evaluerMain({ ...base, statuts: { resultats: async () => Promise.reject(new Error("HTTP 502")) }, cuisinePeutReparer: async () => false }), { carte: "aucune", illisible: "HTTP 502" });
-  const statuts = statutsFixes({ main: [rouge("unit", 900), rouge("lint", 900)] });
+  const statuts = statutsFixes({ trunk: [rouge("unit", 900), rouge("lint", 900)] });
   assert.deepEqual(await evaluerMain({ ...base, statuts, cuisinePeutReparer: async () => Promise.reject(new Error("no turn")) }), { carte: "aucune", illisible: "no turn" });
   assert.deepEqual(cartesEnTodo(journal.base), []);
   // Aucun résultat : rien ne bouge.
@@ -82,7 +82,7 @@ test("a red main: the card names its checks and asks one question; unreadable st
   assert.equal(carte?.question, "Will you take the red unit, lint on trunk in hand yourself?");
   assert.deepEqual(carte?.choix.map(({ suite }) => suite), ["resume", "drop"]);
   // Le vert la sort ; un second vert ne sort rien de plus.
-  const verts = statutsFixes({ main: [vert("unit", 901), vert("lint", 901)] });
+  const verts = statutsFixes({ trunk: [vert("unit", 901), vert("lint", 901)] });
   assert.deepEqual(await evaluerMain({ ...base, statuts: verts, cuisinePeutReparer: async () => assert.fail("a green main asks nothing") }), { carte: "sortie" });
   assert.deepEqual(await evaluerMain({ ...base, statuts: verts, cuisinePeutReparer: async () => false }), { carte: "aucune" });
 });
@@ -90,7 +90,7 @@ test("a red main: the card names its checks and asks one question; unreadable st
 test("another red's card in TODO does not hold back this branch's card: each red has its own", async (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   aArreter(t, () => journal.fermer());
-  const entree = { journal, projet: "brigade", statuts: statutsFixes({ main: [rouge("unit", 900)] }), cuisinePeutReparer: async () => false };
+  const entree = { journal, projet: "brigade", statuts: statutsFixes({ main: [rouge("unit", 900)], trunk: [rouge("unit", 900)] }), cuisinePeutReparer: async () => false };
   assert.deepEqual(await evaluerMain({ ...entree, branche: "trunk" }), { carte: "entree" });
   assert.deepEqual(await evaluerMain(entree), { carte: "entree" });
   assert.deepEqual(cartesEnTodo(journal.base).map(({ ticket }) => ticket).sort(), [ticketDuRougeDe("trunk"), ticketDuRougeDe("main")].sort());

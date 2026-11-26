@@ -1,8 +1,8 @@
 // Ce qui est avant le rail (#1836, #697) : un rail vide ne veut pas dire un projet fini. Les issues ouvertes du dépôt sont
 // lues ici comme l'app les lit de GitHub (tableau/lecture.ts, tableau/rail.ts, #2061), sur un faux GitHub : chacune que
 // le rail ne porte pas est rangée d'après ses labels seuls. L'app compte ce que la lecture liste, range chaque issue sous
-// le mot qu'elle porte, et n'y déduit rien. Ce que la vue en pose — le bandeau Backlog au-dessus du rail, ce que dit un
-// rail vide — se joue dans test/backlog-band/ (#3460). L'état du manager vient de son journal, lu par la commande du
+// le mot qu'elle porte, et n'y déduit rien. Ce que la vue en pose — ce que dit un rail vide — se joue dans
+// test/vue/ (le bandeau Backlog au-dessus du rail n'est plus, #4354). L'état du manager vient de son journal, lu par la commande du
 // runtime.
 import { docRuntime } from "./aides/doc-runtime.ts";
 import assert from "node:assert/strict";
@@ -120,7 +120,8 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     assert.equal(vu.survol, SURVOL);
     const issue = (ticket: number) => vu.groupes.flatMap(({ issues }) => issues).find((posee) => posee.ticket === ticket) ?? assert.fail(`pas de #${ticket}`);
     // Ce qui la retient, mot pour mot — ce que ses labels disent, en une ligne.
-    assert.equal(issue(12).dit, "it carries `blocked-on-human`: a human decides");
+    // Un label d'attente d'avant parked la parque (#4260), comme le runtime le lit (runtime/src/amont.ts).
+    assert.equal(issue(12).dit, "parked (`parked`): it waits for someone — who, for what and until when are on the issue; nothing takes it before");
     assert.equal(issue(13).dit, "it carries `served-elsewhere`: this kitchen does not serve it");
     assert.equal(issue(14).dit, "not calibrated yet: no `model:` and `effort:` labels");
     assert.equal(issue(16).dit, "it carries `epic`: not split yet");

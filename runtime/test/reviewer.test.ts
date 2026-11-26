@@ -300,20 +300,3 @@ test("une violation de #830 mal formée rend la relecture illisible : règle inc
   assert.match((illisible(violation("erreur-brute", "docs/captures/17/fiche-avant.png")) as { illisible: string }).illisible, /cite la capture/);
   assert.match((illisible(violation("erreur-brute", "app/src/vue/vue.js")) as { illisible: string }).illisible, /cite la capture/);
 });
-
-test("the review's brief carries the frozen tests the delivery changes, their diff since the freeze, and makes each a blocking finding (#3910)", () => {
-  const diff = "--- a/t/a.test.ts\n+++ b/t/a.test.ts\n-assert.ok(1);\n+assert.ok(2);";
-  const un = consigneDeRelecture({ ...MISSION, testsGeles: { fichiers: ["t/a.test.ts"], diff } });
-  assert.match(un, /## Les tests d'acceptation gelés que la livraison change/);
-  assert.match(un, /change le test gelé `t\/a\.test\.ts` : c'est un constat `bloquant` de catégorie `critere-non-tenu`/);
-  assert.ok(un.includes("```diff\n--- a/t/a.test.ts\n+++ b/t/a.test.ts\n-assert.ok(1);\n+assert.ok(2);\n```"));
-  const deux = consigneDeRelecture({ ...MISSION, testsGeles: { fichiers: ["t/a.test.ts", "t/b.test.ts"], diff } });
-  assert.match(deux, /change les tests gelés `t\/a\.test\.ts`, `t\/b\.test\.ts` : chacun est un constat `bloquant`/);
-  for (const sans of [consigneDeRelecture({ ...MISSION, testsGeles: { fichiers: [], diff: "" } }), consigneDeRelecture(MISSION)]) assert.doesNotMatch(sans, /tests d'acceptation gelés/);
-});
-
-test("a frozen-test history the station could not read is said to the review, which compares them itself (#3910)", () => {
-  const texte = consigneDeRelecture({ ...MISSION, testsGeles: { illisible: "fatal: bad revision" } });
-  assert.match(texte, /## Les tests d'acceptation gelés\n/);
-  assert.match(texte, /n'a pas pu lire si la livraison les change \(fatal: bad revision\) : compare toi-même/);
-});

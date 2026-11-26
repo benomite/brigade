@@ -1,10 +1,11 @@
 // #4041, critère 2 : la carte du besoin de secret n'est jamais retirée comme « geste git », même si le message du cook cite sa branche.
 import assert from "node:assert/strict";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 import { basename, join } from "node:path";
 import { writeFileSync } from "node:fs";
 import { test, type TestContext } from "node:test";
 import { MARQUE_DE_LA_CONSULTATION } from "../../src/blocage-au-manager.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { ouvrirDepot } from "../../src/depot.ts";
 import type { GitHub } from "../../src/github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, fauxClient } from "../faux-github.ts";
@@ -54,7 +55,7 @@ function station(t: TestContext, { besoin, geste }: { besoin: string; geste: str
 }
 
 // Les cartes du chef posées sur l'issue.
-const cartes = (commentaires: string[]) => commentaires.filter((c) => /^\*\*(?:Gesture|Question) for the chef\b/.test(c.trimStart()));
+const cartes = (commentaires: string[]) => commentaires.filter((c) => /^(?:<!-- brigade:todo kind=blocked -->\n)?\*\*(?:Gesture|Question) for the chef\b/.test(c.trimStart()));
 const BESOIN = "I need an OpenRouter API key and the preprod database URL in the station's local environment file; only the chef can add them.";
 const GESTE_SECRET = "add the OpenRouter API key and the preprod database URL to the station's local environment file";
 
@@ -63,7 +64,7 @@ test("a secret card whose message also names the cook's branch is never withdraw
   const s = station(t, { besoin, geste: `${GESTE_SECRET}, then rebase cook/${TICKET}-github on the base` });
   for (let i = 0; i < 3; i++) await s.tour();
   assert.equal(cartes(s.commentaires()).length, 1, s.commentaires().join("\n---\n"));
-  assert.ok(s.faux.ticket(TICKET).labels.has(A_LA_MAIN), "the card is still up");
+  assert.ok(s.faux.ticket(TICKET).labels.has(CHEF_TODO), "the card is still up");
   const tout = [...s.commentaires(), ...s.avertissements].join("\n");
   assert.doesNotMatch(tout, /a git gesture|never a question for the chef|no card for the chef/i, tout);
 });

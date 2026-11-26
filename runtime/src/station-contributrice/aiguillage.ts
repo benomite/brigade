@@ -39,7 +39,6 @@ export function stationSelonLesDroits(options: OptionsDeLAiguillage): StationGit
     relu: async () => choisie?.relu(),
     quitter: async () => (choisie ?? options.ecrivaine).quitter?.(),
     arreter: () => choisie?.arreter?.(),
-    sauver: async () => (await choisie?.sauver?.()) ?? [],
   };
   return aiguillee;
 }

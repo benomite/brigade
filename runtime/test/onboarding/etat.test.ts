@@ -137,7 +137,7 @@ test("une station dont les cooks tournent sans bac à sable, décision prise : l
   const onboarding = etatDOnboarding({ ...decide, preparation: surLeRail({ etat: "waiting" }) });
   assert.equal(onboarding.sansBacASable, true);
   assert.equal(onboarding.decisionAttendue, false);
-  assert.match(etape(onboarding, "machine")?.dit ?? "", /^macbook cooks gadgets: its cooks run without a sandbox/);
+  assert.match(etape(onboarding, "machine")?.dit ?? "", /^macbook cooks gadgets in restricted mode: no sandbox\. Covered:.*Not covered:.*sed -i, curl -o, perl -i, python -c/);
   assert.equal(etatDOnboarding({ ...servi, sansBacASable: false }).sansBacASable, false);
 });
 

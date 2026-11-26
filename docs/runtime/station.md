@@ -72,9 +72,7 @@ for the runtime, the pass and its gates, then about one per cook. One to three c
 **8: 6**; 12: 10; 16: 14. The declared cap is only a bound (`box/claude:30` on 8 cores runs 6). A **remote**
 station keeps its declared cap: the box does not see its cores (#1045). Until #3560 it was about two
 cores per cook, `max(1, ⌊(cores − 2) / 2⌋)`: the box ran 3 cooks and its tickets waited for a place,
-while its 15-minute load average, read on 2026-11-14 as it served, stood near 2.3 of its 8 cores. The machine bound below is what keeps the load
-in check: past the first cook, no take while the machine runs short; the first cook too waits while the load
-is over its limit (#4210).
+while its 15-minute load average, read on 2026-11-14 as it served, stood near 2.3 of its 8 cores.
 
 `run status` and `run station` say the cap and **where it comes from**:
 
@@ -105,42 +103,21 @@ stops taking well before the out-of-memory killer acts. `BRIGADE_MIN_FREE_MEMORY
 runtime's start; `0` for memory or disk: never withheld.
 
 **The machine is read before each take** of the GitHub-only turn (`gardesDuTour`, #3560), after the
-chef's stop, the breaker and the quota, before the arbiter. Its shortage never holds the first cook: with none
-in flight the station takes one, as the cores cap never goes under one. **Then the admission** (`admission-charge`,
-#4210) is asked before each cook, the first included: it reads the one-minute load and the cores, and defers the
-cook while the load is over `BRIGADE_MAX_LOAD_PER_CORE` per core, with the 10% margin a brief spike gets (#4142),
-or while the cores cap of cooks already runs. The ticket stays on the rail, held `machine`, and is taken on a later
-turn once the load is back; the service log says each deferral (`admission deferred — a new cook waits on the
-rail: load of 27 on 8 cores, for at most 13.2`). The limit comes from the machine only, never from the rail's
-length. A ticket labelled `saturation-repair` is not deferred (#4100). Each take granted counts as one of
-load ahead (`reserver`) for a minute, the time the load average takes to show it, so a full rail does not
-leave in one block. A machine that cannot be read holds nothing — the station's places still bound its
-cooks — and the service log says it once. #2061 had dropped this bound with the old path; until #3560
-only the cores cap stood in for it.
+chef's stop, the breaker and the quota. It holds nothing, the first cook or any other (#4285): the places of the
+station bound its cooks, whatever the load. A machine that cannot be read is said once in the service log. Each take
+granted counts as one of load ahead (`reserver`) for a minute, the time the load average takes to show it.
 
-Saturated, it says so: `station.saturated` then `station.relieved`, `MACHINE SATURATED` in `run
-status` and `run station`. The fact names the first resource at fault and, in `also`, the others; it
-is rewritten when one is added or lifts, not when a value moves. `run status` names each resource at
-fault, with what it has, its threshold, and where the memory's comes from:
-
-```
-MACHINE SATURATED for 1 min on memory — 812 MB of memory available for at least 2,000 MB (set by BRIGADE_MIN_FREE_MEMORY_MB): box/claude takes no more tickets as long as it lasts
-```
+Saturated, it says so: `station.saturated` then `station.relieved`, and a line in the service log. The fact names the
+first resource at fault and, in `also`, the others; it is rewritten when one is added or lifts, not when a value
+moves. `run status` and `run station` show no saturation line: nothing is held for it.
 
 Short of disk or CPU, it also names the biggest consumer when it can (#4090), in the fact
-(`consumer`), the service log and `run status`: for disk, the biggest of what brigade leaves on the
+(`consumer`) and the service log: for disk, the biggest of what brigade leaves on the
 machine — each project's state directory (`espace/`, `brigade/`), the station's temporary directory
 and the npm cache, measured by `du`, never the whole disk; for CPU, the process `ps` shows taking the
-most. A measure that fails, or a missing tool, names nobody and the line reads as before:
+most. A measure that fails, or a missing tool, names nobody.
 
-```
-MACHINE SATURATED for 3 min on disk — 4,096 MB of disk free for at least 5,120 MB — biggest: espace/ (3.2 GB): box/claude takes no more tickets as long as it lasts
-```
-
-**The running cooks continue**, and the station resumes by itself when the machine breathes (ten
-percent of margin, resource by resource). **A full rail does not leave in one block**: during its
-first minute, each cook launched — and each ticket in the entry — weighs in advance one unit of load
-and 512 MB. The gates the pass plays load the machine too.
+The saturation lifts when the machine breathes (ten percent of margin, resource by resource).
 
 **A ticket that could leave and does not says why**: `station.held` in the log, a `WITHHOLDING` line
 in `run status` (`withholding` in `run station`), and the reason on the ticket's line (`withheld by
@@ -148,7 +125,7 @@ in `run status` (`withholding` in `run station`), and the reason on the ticket's
 
 | `reason` | What withholds the station |
 |---|---|
-| `ramp`, `machine` | the gradual ramp-up; the machine saturated |
+| `ramp`, `machine` | the gradual ramp-up; `machine`: read only in logs from before #4285 |
 | `cap`, `setups` | the cooks cap, the setups cap reached |
 | `stopped`, `breaker` | your "stop", the breaker open |
 | `station-stopped` | you stopped the kitchen on this station alone (see "Starting and stopping the kitchen, station by station") |
@@ -409,30 +386,35 @@ signal or as exit code 143 (the station restarting or updating, the app closed) 
 `outcome: stop`, `cause: external`), and the ticket goes back to the rail for a cook to take again.
 Only the failures the cooks caused open the breaker. The ticket is given back with an `attente` marker on its issue
 and is not taken again before it ends: 30 minutes, or the time the quota comes back when the stream
-says it (6 hours at most). It is then retried, never set aside for it. **A cook that dies because
-its own station stops waits for nothing** (#2543): the station is told it stops before the runtime
-kills its cooks, says so on the issue ("the cook stopped with its station"), and gives the ticket back
-with no `attente` marker; the restarted station, or another one, takes it at its next round. The box
-restarts its station at each update, every 35 to 45 minutes while merges keep coming: with the
-30-minute wait, a ticket taken again had 5 to 15 minutes before the next restart killed its cook once
-more — #2502 four times, #2464 six. **And the box no longer kills its cooks to update** (#2547):
-before installing, its updater posts its request (`vidange` in the update directory, with its
-deadline, `echeance`); the station writes its cooks in flight (`en-vol` in its directory) and **keeps
-taking tickets up to its places** (#2586 — it used to stop taking any, so the kitchen drained and
-refilled). The restart comes at the first moment with no cook in flight or, failing that, at the
-deadline (15 minutes by default, `BRIGADE_MISE_A_JOUR_VIDANGE_S`; the batching logic gives its own).
-At the deadline, the station first saves the work of each cook in flight on its branch — committed
-(`brigade: work in progress saved before the station restarts (#2586)`) and parked on the origin under
-`refs/brigade/parked/<branch>`, where no CI workflow runs (#3996) — then says it is
-ready (`prete` in `en-vol`), and takes no ticket until the restart. The ticket is given back; the next
-cook resumes the saved branch, told so in its brief, and that head is never sent to the pass as a
-delivery cut before its PR (#2577). A station that never says it is ready has its cooks cut 30 s
-after the deadline, as before. **The computer's station waits too** (#3632,
-`runtime/src/station-update/`): a ready release stops its claims, its cooks in flight finish, and the
-restart is asked as soon as none is left — no deadline, no save, nothing cut; an app update leaves the
-station and its cooks running (`app/src/mise-a-jour-fond/`). A restart it asked for and the app did not play (a refused
-release, a missing runtime) no longer holds its claims for good: still running 5 minutes after its
-request, it takes its tickets again and waits for a newer release (#2820). After a send back, "added
+says it (6 hours at most). It is then retried, never set aside for it. **A cook outlives its station's restart** (#4401). Every cook
+of the GitHub-only station is launched through a relay (`runtime/src/relais.ts`): a detached process
+that holds the cook, writes its masked stream and, when it dies, its end, next to the stream
+(`<run>.flux.relais.json`, `.cook.pid`, `.fin.json`). Under the guards, the stream lives in
+`<state>/runs/` and the journal keeps the run open (`cook.launched` with no `cook.exited`). Before the
+launch, the station writes what it needs to finish the ticket that GitHub does not hold:
+`<run>.reprise.json` next to the stream, with the worktree and the head of the branch when the cook
+started (`avant`, which tells "the cook added nothing"); once the cook has ended, its end and stream
+are added, so a station stopped during the gates or the push resumes from them without a new cook. A station that stops leaves its cooks running,
+writes nothing on their issues and keeps their tickets `taken`. The station that starts again on the
+same state follows them: at its first round, each `taken` ticket it still holds with a
+`reprise.json` is taken back (its claim is still its own: no comment is posted) and cooked as usual,
+except that nothing prepares the worktree again — no fetch, no merge of the base, no setup — and the
+launch follows the relay instead of starting a cook: alive, it is followed to its end under the same
+guards (duration counted from the launch); already ended, its stream is read at once. Only a resumed
+ticket follows a relay: a ticket taken afresh stops what a previous life left running for it. A relay
+that died without writing its end (the machine rebooted) is not followed: its `reprise.json` is
+dropped, and the ticket takes the fresh path — worktree prepared, base merged, setup played. Then the usual
+steps run — gates, push, PR —, as if the station had never stopped. Under the
+guards, the restarted runtime takes back at its start each cook run the journal still holds open
+whose relay lives or wrote its end (`cook.resumed`), and the resumed ticket's launch under the same
+stream name follows it; a review or a judgement left in flight is stopped, as before. Nothing is committed on the cook's branch by a restart. **The
+station restarts as soon as a release is ready**: the box's updater hands the version to `apt`
+without waiting for anything (the unit keeps the cooks alive with `KillMode=process`), and the
+computer's station asks for its restart as soon as the release is downloaded and checked
+(`runtime/src/station-update/`; `launchd` keeps them with `AbandonProcessGroup`); an app update leaves
+the station and its cooks running (`app/src/mise-a-jour-fond/`). A restart it asked for and the app did not play (a refused
+release, a missing runtime) is not asked again: still running 5 minutes after its request, the
+station waits for a newer release (#2820). After a send back, "added
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;
 stopping earlier means it never worked on the review's remarks, and waits like a stop it did not
 cause — but the third such stop in a row counts as a failed cook, so a cook that never works does
@@ -463,7 +445,9 @@ still open, the cook's answer is an ordinary failed attempt, with the reason in 
 ### After the third failed try: the manager reworks the ticket
 
 A station on GitHub alone stops trying a ticket after 3 cooks in a row without a delivery (or 2 in a
-row with the same stop reason, #2729), or when the pass refuses its delivery again after 2 sends back.
+row with the same stop reason, #2729), or when the pass hands its delivery back twice in a row with the
+same result. A delivery the pass refuses a third time over the ticket's life is parked for the chef, not
+reworked by the manager (#4226, "Three tries per ticket, in total" in `github-seul.md`).
 **A cook that finished `ok` and whose delivery the station refuses** — it committed nothing, added
 nothing since its last delivery, or said the ticket is already satisfied and the station could not
 confirm it — **stops the tries at that first refusal** (#3651): another cook on the ticket as it stands

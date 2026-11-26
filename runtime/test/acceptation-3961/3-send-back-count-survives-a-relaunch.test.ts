@@ -4,8 +4,9 @@ import { test } from "node:test";
 import { HORS_CUISINE } from "../../src/github.ts";
 import { FauxGitHub } from "../faux-github.ts";
 
-const renvois = (faux: FauxGitHub) => (faux.commentaires.get(7) ?? []).filter(({ body }) => body.startsWith("<!-- brigade:renvoi n="));
-const nDe = (body: string) => Number(/^<!-- brigade:renvoi n=(\d+)/.exec(body)?.[1]);
+// Each refusal: a send-back, or the parking that the third refusal of the ticket's life is (#4226).
+const renvois = (faux: FauxGitHub) => (faux.commentaires.get(7) ?? []).filter(({ body }) => /^<!-- brigade:(renvoi n=|todo kind=blocked tries=)/.test(body));
+const nDe = (body: string) => Number(/^<!-- brigade:(?:renvoi n=|todo kind=blocked tries=)(\d+)/.exec(body)?.[1]);
 
 test("after 2 send-backs and a relaunch, the next send-back counts as 3, not 1", async () => {
   const faux = new FauxGitHub();

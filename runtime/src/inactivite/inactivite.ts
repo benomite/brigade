@@ -1,8 +1,8 @@
 // Le réveil du superviseur sur un ticket sans progrès (#4027, spec
 // 2026-11-23-autonomy-trust-control, section A2) : un ticket qui n'a fait aucun
-// progrès depuis 30 minutes, dans quelque état qu'il soit — en cuisine, en
-// pass, mis de côté, parqué, en WAITING —, réveille le superviseur, une fois
-// par période de silence.
+// progrès depuis 30 minutes — en cuisine, en pass, mis de côté —, réveille le
+// superviseur, une fois par période de silence. Un ticket parqué ne le réveille
+// pas : il attend sa date, son fait ou sa réponse (#4260).
 //
 // Un progrès : un nouveau commit, un résultat de CI, un verdict de relecture,
 // ou un changement de label fait par un agent. Un label changé par un humain
@@ -25,7 +25,7 @@ export type GenreDeProgres = "commit" | "ci" | "review" | "label";
 // `at` : quand, en ISO ; un instant à venir ou illisible compte pour l'instant de l'observation.
 export type Progres = { kind: GenreDeProgres | string; by: "agent" | "human" | "station" | string; at: string };
 
-// Un ticket suivi, et son état dans les mots du glossaire : `cooking`, `in pass`, `set aside`, `parked`, `WAITING`.
+// Un ticket suivi, et son état dans les mots du glossaire : `cooking`, `in pass`, `set aside`.
 export type TicketSuivi = { number: number; state: string };
 
 // Le réveil : le ticket, son état, et depuis quand il ne progresse plus — `kind` nul quand

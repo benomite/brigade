@@ -5,7 +5,6 @@ import { test } from "node:test";
 import { commandeRendre } from "../../src/events/manager.ts";
 import { phraseDuSetup } from "../../src/preparation-depot/setup-en-echec.ts";
 
-// brigade:guard
 test("le chef lit toujours le geste pour rendre un ticket au manager, et l'échec du setup en français", () => {
   assert.equal(commandeRendre(30), "brigade <projet> manager return 30");
   assert.equal(

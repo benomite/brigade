@@ -6,11 +6,13 @@
 // of the stations, each role's last action (roles-cuisine/roles.ts), the levels (niveaux.ts) and each agent's gesture
 // log (gestes.ts), which gives its counters, its gestures and, when it is later than its roles' last action, its last
 // gesture — and each agent's next run, from the schedules the runtime noted (horaires.ts) and a clock, both handed in
-// (prochain-passage.ts, #4038).
+// (prochain-passage.ts, #4038) — and, when the reader gives them, whether the chef pinned its level and how far an
+// agent at `propose` is from `act` (politique.ts, #4380).
 import type { AgentEnCours } from "../../agents-en-cours.ts";
 import type { DerniereAction, RoleDeCuisine } from "../../roles-cuisine/roles.ts";
 import type { EnregistrementDeGestes, Geste } from "./gestes.ts";
-import type { Niveau, Niveaux } from "./niveaux.ts";
+import type { Niveau, Niveaux, Reglable } from "./niveaux.ts";
+import type { Progres } from "./politique.ts";
 import { HoraireIllisible, prochainPassage, type Horaire, type ProchainPassage } from "./prochain-passage.ts";
 
 type FicheDAgent = {
@@ -27,6 +29,9 @@ type FicheDAgent = {
   exceptions: Record<string, Niveau>;
   counters: { fixedBySelf: number; handedToChef: number };
   gestures: Geste[];
+  // Given when the reader gives the policy: the chef pinned its level; its progress toward `act` at `propose`, else null.
+  pinned?: boolean;
+  progress?: Progres | null;
 };
 
 const AGENTS = ["manager", "supervisor", "closer", "pass"] as const;
@@ -47,6 +52,8 @@ export type SourcesDeLEquipe = {
   gestes: (agent: string) => Pick<EnregistrementDeGestes, "lastGesture" | "counters" | "gestures">;
   // Each agent's schedule as the runtime noted it (`horaireDe`), read at `maintenant`.
   horaires?: { maintenant: Date; de: (agent: string) => Horaire | undefined };
+  // Each agent's pin and progress, by its name and what holds its level (politique.ts).
+  politique?: (agent: string, reglable: Reglable) => { pinned: boolean; progress: Progres | null };
 };
 
 const etatDe = (tickets: ReadonlyArray<number | null>): string => {
@@ -55,7 +62,7 @@ const etatDe = (tickets: ReadonlyArray<number | null>): string => {
   return numeros.length === 0 ? "working" : `working on ${numeros.map((ticket) => `#${ticket}`).join(", ")}`;
 };
 
-export function equipeDuProjet({ agents, cooks, roles, niveaux, gestes, horaires }: SourcesDeLEquipe): FicheDAgent[] {
+export function equipeDuProjet({ agents, cooks, roles, niveaux, gestes, horaires, politique }: SourcesDeLEquipe): FicheDAgent[] {
   // A schedule never noted, or one that cannot be read, is said as such: never as « no schedule ».
   const prochain = (agent: string): ProchainPassage | null => {
     if (horaires === undefined) return null;
@@ -85,11 +92,12 @@ export function equipeDuProjet({ agents, cooks, roles, niveaux, gestes, horaires
       autonomy: niveaux[agent],
       exceptions: agent === "manager" ? { "split-epic": niveaux["manager split-epic"] } : {},
       ...journal,
+      ...politique?.(agent, agent),
     };
   });
   const cuisiniers = cooks.map(({ ticket }): FicheDAgent => {
     const { lastGesture, ...journal } = duJournal(`cook #${ticket}`, []);
-    return { agent: `cook #${ticket}`, state: etatDe([ticket]), lastGesture, thread: `Cook #${ticket}`, autonomy: niveaux.cook, exceptions: {}, ...journal };
+    return { agent: `cook #${ticket}`, state: etatDe([ticket]), lastGesture, thread: `Cook #${ticket}`, autonomy: niveaux.cook, exceptions: {}, ...journal, ...politique?.(`cook #${ticket}`, "cook") };
   });
   return [...fixes, ...cuisiniers];
 }

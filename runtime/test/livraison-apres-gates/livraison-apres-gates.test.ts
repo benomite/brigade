@@ -40,7 +40,7 @@ test("red gates keep the delivery in the clone, marked as saved work; the next c
   await station.tour();
   await station.calme();
   assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "nothing was pushed: the gates are red");
-  assert.match(git(lieux.clone, "log", "-1", "--format=%s", brancheDuTicket(TICKET)), /work in progress saved/);
+  assert.match(git(lieux.clone, "log", "-1", "--format=%s", brancheDuTicket(TICKET)), /work in progress kept for the next cook/);
   assert.ok([...faux.commentaires.values()].flat().some((c) => /its gates are red, so its delivery was not pushed: FAIL {2}the button test is red/.test(c.body)));
   // Le commentaire d'échec dit ce que les gates ont dit, replié (#4113).
   assert.ok([...faux.commentaires.values()].flat().some((c) => /<details><summary>What the gates said<\/summary>[\s\S]*FAIL {2}the button test is red/.test(c.body)), "the failure comment carries what the gates said");
@@ -49,7 +49,7 @@ test("red gates keep the delivery in the clone, marked as saved work; the next c
     await station.tour();
     await station.calme();
   }
-  assert.match(consignes[1] ?? "", /## Work saved before a restart/, "the next cook starts from the saved work");
+  assert.match(consignes[1] ?? "", /## Work saved by the previous cook/, "the next cook starts from the saved work");
   assert.notEqual(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "green gates: the delivery is pushed");
   assert.equal(git(lieux.origine, "cat-file", "-e", `${brancheDuTicket(TICKET)}:corrige.txt`), "");
   assert.equal(existsSync(trace) && readFileSync(trace, "utf8"), "gates aucun\ngates aucun\n");
@@ -116,7 +116,7 @@ test("a saved head the next cook delivers as it is, on the tree whose gates were
   assert.equal(cuissons, 2, "the next cook was launched");
   assert.equal(git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)), "", "the same red tree is not pushed");
   assert.equal(readFileSync(trace, "utf8"), "gates\n", "same tree, same verdict: the gates are not played again");
-  assert.ok([...faux.commentaires.values()].flat().some((c) => /FAIL {2}the button test is red \(the same tree as its previous delivery: the gates were not played again\)/.test(c.body)));
+  assert.ok([...faux.commentaires.values()].flat().some((c) => /the cook had nothing new to deliver.*FAIL {2}the button test is red.*the gates were not played again/.test(c.body)));
 });
 
 test("a delivery cut before its push, found only in the clone, plays the gates: red, it is not pushed nor sent to the pass, and a cook resumes it with what they say (#2577)", async (t) => {
