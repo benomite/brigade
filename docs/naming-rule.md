@@ -194,7 +194,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `alerte` | `alert` |
 | `alerter` | `alert` |
 | `alertes` | `alerts` |
-| `allumage` | `startup` |
+| `allumage` | `power up` |
 | `allume` | `lit` |
 | `allumee` | `lit` |
 | `allumer` | `turn on` |
@@ -595,9 +595,9 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `dependances` | `dependencies` |
 | `depense` | `spending` |
 | `deplacable` | `movable` |
-| `deplacement` | `move` |
-| `deplacements` | `moves` |
-| `deplacer` | `move` |
+| `deplacement` | `displacement` |
+| `deplacements` | `displacements` |
+| `deplacer` | `displace` |
 | `deplie` | `unfolded` |
 | `depliee` | `unfolded` |
 | `depliees` | `unfolded` |

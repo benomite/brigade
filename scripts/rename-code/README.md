@@ -295,7 +295,7 @@ from `mapping.json`.
 | `alerte` | `alert` |
 | `alerter` | `alert` |
 | `alertes` | `alerts` |
-| `allumage` | `startup` |
+| `allumage` | `power up` |
 | `allume` | `lit` |
 | `allumee` | `lit` |
 | `allumer` | `turn on` |
@@ -696,9 +696,9 @@ from `mapping.json`.
 | `dependances` | `dependencies` |
 | `depense` | `spending` |
 | `deplacable` | `movable` |
-| `deplacement` | `move` |
-| `deplacements` | `moves` |
-| `deplacer` | `move` |
+| `deplacement` | `displacement` |
+| `deplacements` | `displacements` |
+| `deplacer` | `displace` |
 | `deplie` | `unfolded` |
 | `depliee` | `unfolded` |
 | `depliees` | `unfolded` |
