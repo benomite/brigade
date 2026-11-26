@@ -8,7 +8,7 @@ import { stationsDuChef } from "./stations-une-liste.ts";
 export const OUVRIR: Etape = { cliquer: "button.ajout-de-projet" };
 export const CHOISIR: Etape = { cliquer: `.etape-projet li[data-depot="benomite/parade"] button` };
 export const PREPARER: Etape = { cliquer: ".installation-du-depot button.recommande" };
-export const PAS_PRET = { ready: false, missingBindings: ["Branche d'intégration", "Gates"], missingLabels: ["fire", "ready", "blocked-on-human"] };
+export const PAS_PRET = { ready: false, missingBindings: ["Branche d'intégration", "Gates"], missingLabels: ["fire", "ready", "parked"] };
 
 export function ajoutDuDepot(dit: string, etapes: Etape[], reponses: Record<string, unknown>): Ecran {
   const ecran = stationsDuChef(dit, [NAS, OUVRIR, CHOISIR, ...etapes]);

@@ -45,21 +45,16 @@ that fails — network down, a bad digest, an archive that does not extract, a r
 version — leaves the running station untouched: no wait, no request; `check` says why, and the next
 check tries again.
 
-## Waiting for its moment: no cook is cut (#3632)
+## No wait: the cooks outlive the restart (#4401)
 
-Once the release is ready, the station takes no new ticket: `retenue()` is true from that moment to its
-restart, and `retenirLaPrise` makes a GitHub-only station's claim say "not taken" without writing on the
-issue. The cooks in flight finish, and the restart is asked, once, as soon as none is left (`enVol()` is
-empty) — right away when none ran. There is no deadline and no save: an update never cuts a cook, it is
-just pending until it can be applied, and `status.json` (`draining.cooks`) says which cooks it waits for.
-
-A ticket the station still holds without a cook (one whose cook failed to hand it back, for example)
-is handed back on GitHub by the restarted station at its first round, exactly as after a box update
-(`../brigade-github.ts`, the first round's `taken` without a cook here).
+Once the release is ready, the restart is asked at once, whatever runs. No cook is cut (#3632): each
+one runs under a relay that outlives the station (`../relais.ts`), and the restarted station follows
+it to its end and finishes its ticket (`../brigade-github.ts`, its first round). There is no drain,
+no deadline and no save.
 
 ## The restart request
 
-At that moment, the station writes
+Once the release is ready, the station writes
 
 ```
 <BRIGADE_STATION_DIR>/station-update/restart.json
@@ -80,10 +75,9 @@ station that starts removes any earlier `restart.json`.
 
 A request nobody plays does not hold the station forever (#2820). The app refuses some — a release that
 did not start at its try, a runtime it cannot find, an entry point it does not hold — and leaves the
-running process in place; held, it took no ticket and checked no release until someone restarted the
-app. So the station keeps checking after its request, and if it is still running `SANS_SUITE_MS`
-(5 minutes) after it, the request was not played: it removes `restart.json`, takes its tickets again,
-says so, and never asks for that release again (`held` says why) — a newer one, it does.
+running process in place. So the station keeps checking after its request, and if it is still running
+`SANS_SUITE_MS` (5 minutes) after it, the request was not played: it removes `restart.json`, says so,
+and never asks for that release again (`held` says why) — a newer one, it does.
 
 ## The status
 
@@ -99,7 +93,6 @@ says so, and never asks for that release again (`held` says why) — a newer one
 | `check` | why the last check or download failed; `null` when it worked |
 | `held` | why a newer release waits without failing (nothing restarts this station) |
 | `ready` | the release downloaded and checked |
-| `draining` | `{ since, cooks }` while a ready release waits for its moment: the tickets whose cooks are still in flight (the station keeps taking tickets) |
 | `restart` | the restart request, once made |
 
 A station restarted on the release says its new version at once: `behind` turns false.
@@ -111,6 +104,5 @@ published release: the runtime the app bundles carries the app's version (`1.0.8
 ## Still to wire
 
 The updater is a module: the station's entry point (`../station/main.ts`) opens it with
-`ouvrirLaMiseAJour({ racine, env, enVol, dire })`, gives it its cooks in flight across its kitchens,
-and wraps each kitchen's claim with `retenirLaPrise(prise, miseAJour.retenue)`. The app side (reading
-the request, relaunching on `main`, showing `behind`) is the app's tickets.
+`ouvrirLaMiseAJour({ racine, env, dire })`. The app side (reading the request, relaunching on `main`,
+showing `behind`) is the app's tickets.

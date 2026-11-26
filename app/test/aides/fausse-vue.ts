@@ -189,12 +189,9 @@ export class Faux {
     return [...this.descendants()].filter(({ balise }) => balises.includes(balise));
   }
 
-  // Tout ce qui est posé dessous, dans l'ordre de la page.
-  *descendants(): Generator<Faux> {
-    for (const enfant of this.children) {
-      yield enfant;
-      yield* enfant.descendants();
-    }
+  // Tout ce qui est posé dessous, dans l'ordre de la page, en tableau : un test en compte (`.filter(…).length`, #4241).
+  descendants(): Faux[] {
+    return this.children.flatMap((enfant) => [enfant, ...enfant.descendants()]);
   }
   // Les éléments de cette balise posés dessous — `pre`, `button`…
   dessous(balise: string): Faux[] {
@@ -548,13 +545,6 @@ export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
   (await ligneDeTousLesProjets(vue, "the cost of all projects")).click();
   await repos();
   return vue.element("cout");
-}
-
-// Ouvre la page des ratios de tous les projets (#1682) de même, par sa ligne « Closer ». Rend la page.
-export async function ouvrirLesRatios(vue: Jouee): Promise<Faux> {
-  (await ligneDeTousLesProjets(vue, "the added / removed ratio of all projects")).click();
-  await repos();
-  return vue.element("ratios");
 }
 
 // Toutes les stations et « + station », un bloc de l'accueil (#3195) : l'entrée « Tous les projets » de la barre l'ouvre.

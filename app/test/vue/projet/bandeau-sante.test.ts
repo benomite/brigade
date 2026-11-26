@@ -182,7 +182,7 @@ describe("le closer, sur Health", () => {
     const passes = partieDe(bloc, "passes").children.filter(({ className }) => className === "passe");
     assert.deepEqual(passes.map(texte), [
       "#2531Oct 10in progress — its PR is in the pass3 candidatesPR of #2531",
-      "#2477Oct 8−1,234 lines+56 added1 candidatePR of #2477",
+      "#2477Oct 8its PR merged1 candidatePR of #2477",
       "#2410Oct 6nothing removedits PR was closed without a mergeno candidatePR of #2410",
     ]);
     boutonNomme(bloc, "PR of #2477").click();
@@ -364,7 +364,7 @@ describe("le bandeau de santé, dans la vue", () => {
     assert.match(settings, /<section id="reglages-sante" class="groupe"[^>]*>\s*<h2 [^>]*class="niveau-du-groupe">Caps, closer and all projects<\/h2>\s*<div id="bandeau-sante"><\/div>/);
     assert.equal(vue.element("etat").hidden, false);
     const section = vue.element("bandeau-sante");
-    assert.deepEqual(section.children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
+    assert.deepEqual(section.children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "know-how", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
     assert.deepEqual(section.children.filter(({ balise }) => balise === "details"), [], "rien à déplier pour les voir");
   });
 
@@ -373,10 +373,10 @@ describe("le bandeau de santé, dans la vue", () => {
     await repos();
     for (const { cle } of PLAFONDS) assert.ok(ligneDe(bloc(vue), cle), cle);
     const duCloser = vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "closer") ?? assert.fail("pas de closer");
-    assert.match(texte(partieDe(duCloser, "passes")), /−1,234 lines/);
+    assert.match(texte(partieDe(duCloser, "passes")), /#2477Oct 8its PR merged/);
     assert.ok(partieDe(duCloser, "en-plus"));
     assert.ok(ligneDe(duCloser, "maxRemovedLines"));
-    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the cost of all projects", "the added / removed ratio of all projects", "the weekly summaries of all projects"]);
+    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the cost of all projects", "the weekly summaries of all projects"]);
   });
 
   test("ni sur Rail, ni sur Stations : la section n'est posée que Settings ouvert, et se repose à sa réouverture", async () => {
@@ -389,7 +389,7 @@ describe("le bandeau de santé, dans la vue", () => {
     }
     await ouvrirLecture(vue, "Settings");
     assert.equal(vue.element("etat").hidden, false);
-    assert.deepEqual(vue.element("bandeau-sante").children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
+    assert.deepEqual(vue.element("bandeau-sante").children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "know-how", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
   });
 
   test("un plafond changé dans le bandeau part au process principal à son `change`, et la rangée dit la PR ouverte, qui s'ouvre", async () => {
@@ -419,7 +419,7 @@ describe("le bandeau de santé, dans la vue", () => {
     await repos();
     assert.deepEqual(vue.dernier("closerDeSante"), ["parade"]);
     const duCloser = () => vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "closer") ?? assert.fail("pas de closer");
-    assert.match(texte(partieDe(duCloser(), "passes")), /−1,234 lines/);
+    assert.match(texte(partieDe(duCloser(), "passes")), /#2477Oct 8its PR merged/);
 
     const champ = partieDe(duCloser(), "en-plus").dessous("input")[0] ?? assert.fail("pas de champ");
     champ.value = "Doc sentences naming removed code";

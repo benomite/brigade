@@ -25,6 +25,7 @@
     "./agents/triage.md",
     "./agents/manager.md",
     "./agents/product.md",
-    "./agents/second-juge.md"
+    "./agents/second-juge.md",
+    "./agents/closer.md"
   ]
 }

@@ -8,7 +8,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { attenteDeLIssue } from "../src/attente-github/attente-github.ts";
 import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { LABEL_PARKED } from "../src/github-etat/etats.ts";
 import { corpsDeVerdict } from "../src/github-etat/fusion.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotRepris, fauxClient } from "./faux-github.ts";
 
@@ -69,14 +71,19 @@ test("#2557 on 2026-11-06: the same stop without a reply on the PR is a failure 
   assert.equal(faux.ticket(TICKET).labels.has("served-elsewhere"), false, "one failure does not take the ticket off the kitchen");
 });
 
-test("#2557 on 2026-11-06: the same stop without a reply, a cook finished ok whose delivery is refused, is set aside at the first refusal (#3651)", async (t) => {
+test("#2557 on 2026-11-06: the same stop without a reply, a cook finished ok whose delivery is refused, is parked at the first refusal (#3651, #4129)", async (t) => {
   const { faux, corps } = await cuisinerLe6Novembre(t, DERNIER_MESSAGE, 16);
   const echecs = corps(TICKET).filter((c) => c.startsWith("<!-- brigade:echec"));
-  // Mis de côté au premier refus, le ticket n'est pas relancé : aucune minuterie ne le remet sur le rail (#3911).
+  // Parqué par ses échecs au premier refus, pour le superviseur (#4129), le ticket n'est pas relancé : rien ne le prend
+  // avant sa date (#3911).
   assert.equal(echecs.length, 1);
   for (const echec of echecs) assert.ok(echec.includes(DERNIER_MESSAGE) && /6 turns/.test(echec));
-  assert.match(echecs[0] ?? "", /Set aside \(`set-aside:failures`\) at this refusal/);
+  assert.match(echecs[0] ?? "", /Parked \(`parked`\) at this refusal/);
   assert.equal(corps(TICKET).filter((c) => c.startsWith("<!-- brigade:relance")).length, 0);
-  assert.ok(faux.ticket(TICKET).labels.has("set-aside:failures"));
+  assert.ok(faux.ticket(TICKET).labels.has(LABEL_PARKED));
+  assert.ok(!faux.ticket(TICKET).labels.has("set-aside:failures"));
+  const attente = attenteDeLIssue((faux.commentaires.get(TICKET) ?? []).map((c) => ({ body: c.body, association: c.association })));
+  assert.equal(attente?.who, "the supervisor");
+  assert.equal(attente?.failures, true);
   assert.ok(!faux.ticket(TICKET).labels.has("served-elsewhere"));
 });

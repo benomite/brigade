@@ -286,8 +286,9 @@ request in the gist of each station he chose, and the station reads it there (`r
 - **What it says about it**: `brigade-projets-suivi.json`, rewritten on change; per project `servi` (and
   since when), `a-autoriser` (with its pages), `en-preparation`, `refuse` (failed clone, refused
   repository access, hand-written line, station refusal) or `secondaire`. A `servi` project whose kitchen
-  no longer prepares a worktree also carries `worktree`; one with blockers, `blocages`; next to the
-  list, the **onboarding** of each project it serves. Keys and status words are
+  no longer prepares a worktree also carries `worktree`; one with blockers, `blocages`; one whose clone
+  merged a ticket in the last 24 hours, `delais` — the object of `status --json` (#4309), or `{ illisible }`
+  with the reason when the clone's ticket files cannot be read; next to the list, the **onboarding** of each project it serves. Keys and status words are
   French until translated.
 - **Removed from the app**, the project leaves the request: the station removes its line from the block
   and no longer serves it; state and clone stay.

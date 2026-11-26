@@ -14,9 +14,8 @@ import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 import { test, type TestContext } from "node:test";
 import { configurer } from "../src/bac-a-sable/configuration.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
-import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
-import { CHEF_TODO } from "../src/github-seul/carte-todo/carte-todo.ts";
+import { stationDuDepot, type Lancer } from "../src/brigade-github.ts";
+import { CHEF_TODO, LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import { MARQUE_D_INCAPACITE } from "../src/routage-station/routage-station.ts";
 import { droitsDInstallation } from "../src/sandbox/installation.ts";
 import { MARQUE_DE_LA_CONSULTATION } from "../src/blocage-au-manager.ts";
@@ -108,7 +107,7 @@ function station(t: TestContext, faux: FauxGitHub, nom: string, complet: boolean
 
 const commentaires = (faux: FauxGitHub) => (faux.commentaires.get(N) ?? []).map((c) => c.body);
 const sansCarte = (faux: FauxGitHub) => {
-  assert.equal(faux.ticket(N).labels.has(A_LA_MAIN), false, "not blocked-on-human");
+  assert.equal(faux.ticket(N).labels.has(CHEF_TODO), false, "not blocked-on-human");
   assert.equal(faux.ticket(N).labels.has(CHEF_TODO), false, "no chef TODO card");
   assert.ok(commentaires(faux).every((corps) => !corps.startsWith("**Gesture for the chef") && !corps.startsWith("**Question for the chef")), "no card for the chef");
 };

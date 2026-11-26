@@ -39,8 +39,6 @@ describe("l'attendu d'une décision", () => {
     assert.deepEqual(attenduDe(decision("86", { motif: "refused" }), 1).gestes, ["issue", "retirer"]);
     assert.deepEqual(attenduDe(decision("86", { motif: "no-calibration" }), 1).gestes, ["issue"]);
     assert.deepEqual(attenduDe(decision("ecartee", { motif: "question" }), 1).gestes, ["issue"]);
-    // Retenue : ses deux gestes à elle sont sur la fiche.
-    assert.deepEqual(attenduDe(decision("ecartee", { motif: "blocked-on-human" }), 1).gestes, []);
     assert.match(attenduDe(decision("illisible", { motif: "epic" }), 1).phrase, /split/);
     assert.match(attenduDe(decision("illisible", { motif: "issue" }), 1).phrase, /judgement/);
     // Une carte de TODO : sa question et ses choix sont sur la carte même, aucun geste n'est ajouté.
@@ -53,7 +51,7 @@ describe("l'attendu d'une décision", () => {
 
   test("aucune phrase ne cite une commande, un label entre backticks ni la ligne de la file : une phrase, en clair", () => {
     const sortes = ["merge", "remontee", "fermee", "86", "capacite", "absente", "bloque", "ecartee", "illisible", "question", "repris", "carte", "abandon"];
-    const motifs = [null, "review-required", "merge-refused", "still-red", "unjudged", "manager-escalated", "no-calibration", "unreadable-card", "refused", "question", "decision", "blocked-on-human", "epic", "issue", "product", "design"];
+    const motifs = [null, "review-required", "merge-refused", "still-red", "unjudged", "manager-escalated", "no-calibration", "unreadable-card", "refused", "question", "decision", "epic", "issue", "product", "design"];
     for (const quoi of sortes) {
       for (const motif of motifs) {
         for (const pr of [null, PR]) {
@@ -87,7 +85,7 @@ describe("l'attendu d'une décision", () => {
 
   test("aucune phrase rendue n'envoie le chef à l'issue pour apprendre ce qu'on lui demande", () => {
     const sortes = ["merge", "remontee", "fermee", "86", "capacite", "absente", "bloque", "ecartee", "illisible", "question", "repris", "carte", "abandon", "inconnue"];
-    const motifs = [null, "review-required", "merge-refused", "still-red", "unjudged", "no-calibration", "unreadable-card", "refused", "question", "decision", "blocked-on-human", "epic", "issue", "product", "design"];
+    const motifs = [null, "review-required", "merge-refused", "still-red", "unjudged", "no-calibration", "unreadable-card", "refused", "question", "decision", "epic", "issue", "product", "design"];
     for (const quoi of sortes) {
       for (const motif of motifs) {
         const { phrase } = attenduDe(decision(quoi, { motif }), 1);

@@ -9,6 +9,7 @@
 // l'état quand la cause est inconnue.
 
 import { bouton } from "../composants/bouton/bouton.js";
+import { estUnStatutDePanne, monterLeBandeau as monterLeBandeauDePanne } from "../bandeau-panne/bandeau-panne.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../../../runtime/src/arret-cuisine/arret-cuisine.ts").ArretDeLaCuisine} ArretDeLaCuisine */
@@ -18,21 +19,23 @@ const MARQUE_ARRET = "STOPPED";
 /** @param {string} iso @returns {string | null} */
 const heureUtc = (iso) => (Number.isNaN(Date.parse(iso)) ? null : `${new Date(iso).toISOString().slice(11, 16)} UTC`);
 
+// Sans `statut` (un arrêt posé sans la lecture du rail), la cause se dit d'après son sorte.
 /** @param {ArretDeLaCuisine["cause"]} cause @returns {string} */
 function causeDite(cause) {
   if (cause.kind === "frozen-zone") return `frozen ticket #${cause.ticket} holds the file zone ${cause.zone}`;
+  if (cause.kind === "zone-held") return `zone held by PR ${cause.pr}`;
   if (cause.kind === "main-red") return "main is red";
   return "the cause is unknown";
 }
 
-// La phrase du bandeau : l'arrêt, depuis quand quand l'heure se lit, et sa cause.
+// La phrase du bandeau : l'arrêt, depuis quand quand l'heure se lit, et sa cause — le `statut` que le runtime a dit (statutDeLaCuisine).
 /** @param {ArretDeLaCuisine} arret @returns {string} */
 function phraseDeLArret(arret) {
   const heure = heureUtc(arret.since);
-  return `The kitchen is stopped${heure === null ? "" : ` since ${heure}`}: ${causeDite(arret.cause)}.`;
+  return `The kitchen is stopped${heure === null ? "" : ` since ${heure}`}: ${arret.statut ?? causeDite(arret.cause)}.`;
 }
 
-/** @typedef {{ ouvrirTicket(ticket: number): void, ouvrirLesChecks(): void, relire(): void }} GestesDeLArret */
+/** @typedef {{ ouvrirTicket(ticket: number): void, ouvrirLesChecks(): void, relire(): void, reparer?(id: string): void }} GestesDeLArret */
 
 // Le geste de l'arrêt, selon sa cause.
 /** @param {Fabrique} doc @param {ArretDeLaCuisine["cause"]} cause @param {GestesDeLArret} gestes */
@@ -42,11 +45,14 @@ function gesteDeLArret(doc, cause, gestes) {
   return bouton(doc, "read again", () => gestes.relire(), { sorte: "recommande" });
 }
 
-/** @param {Fabrique} doc @param {{ replaceChildren(...noeuds: any[]): void }} hote @param {GestesDeLArret} [gestes] @returns {{ maj(arret: ArretDeLaCuisine | null | undefined): void }} */
+/** @param {Fabrique} doc @param {{ replaceChildren(...noeuds: any[]): void }} hote @param {GestesDeLArret} [gestes] @returns {{ maj(arret: ArretDeLaCuisine | import("../bandeau-panne/bandeau-panne.js").StatutDePanne | null | undefined): void }} */
 export function monterLeBandeau(doc, hote, gestes) {
+  const panne = monterLeBandeauDePanne(doc, hote, (id) => gestes?.reparer?.(id));
   return {
     maj(arret) {
       if (arret === null || arret === undefined) return hote.replaceChildren();
+      // Un statut `{ state, cause, action }` (ticket 4216) se rend dans vue/bandeau-panne/.
+      if (estUnStatutDePanne(arret)) return panne.maj(arret);
       const ligne = doc.createElement("p");
       ligne.className = "panne-du-rail bandeau-arret";
       ligne.role = "alert";

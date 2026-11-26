@@ -24,7 +24,9 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`quota-github.md`](quota-github.md) | The GitHub quota of an account, shared by its stations: the two limits, the pause, the fields published |
 | [`station-navigateur.md`](station-navigateur.md) | Looking at an interface delivery |
 | [`manager.md`](manager.md) | The manager and the tickets of the epic |
+| [`fiche-projet.md`](fiche-projet.md) | The project sheet (`.brigade/fiche-projet.json`): its eight items, its defaults, what the cook, the pass, served and the chef's opinion read from it |
 | [`pass.md`](pass.md) | The pass: review, decision, merge |
+| [`risk-levels.md`](risk-levels.md) | The risk ranking of the project sheet: which kinds of actions the pass parks for the chef |
 | [`conflits-avec-main.md`](conflits-avec-main.md) | Who resolves a conflict with main: the cook of the ticket, the chef only for a product choice |
 | [`pass-merge.md`](pass-merge.md) | The merge, seeing the pass |
 | [`etat-et-mesures.md`](etat-et-mesures.md) | Kitchen state, measures |
@@ -34,4 +36,21 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`fermeture.md`](fermeture.md) | The closing that observes, the closing that writes |
 | [`identites-et-secrets.md`](identites-et-secrets.md) | One GitHub identity per role, the project's secrets |
 | [`cloison-et-arbitre.md`](cloison-et-arbitre.md) | The partition, the arbiter between projects |
+| [`isolation-and-network-filter.md`](isolation-and-network-filter.md) | The rule: isolation and the network filter on every station, and the lethal trifecta reason |
 | [`exploitation.md`](exploitation.md) | Variables, backup, "Driving it", dev workstation, the box |
+
+## Where the code lives
+
+The code of `runtime/src/` is one directory per subsystem. [`code-layout.md`](code-layout.md) lists
+each directory, the page that describes it, and where a new file goes. The index by directory:
+
+| Directory | Page |
+|---|---|
+| `station/` | [`station.md`](station.md) |
+| `rail/` | [`journal-et-rail.md`](journal-et-rail.md) |
+| `github/` | [`quota-github.md`](quota-github.md) |
+| `pass/` | [`pass.md`](pass.md) |
+| `manager/` | [`manager.md`](manager.md) |
+| `bac-a-sable/` | [`bac-a-sable.md`](bac-a-sable.md) |
+| `second/` | [`role-produit.md`](role-produit.md) |
+| `cli/` | [`exploitation.md`](exploitation.md) |
