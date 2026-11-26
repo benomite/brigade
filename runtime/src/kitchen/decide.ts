@@ -57,7 +57,9 @@ export const LABELS = {
 export const TRIES_MAX = 3;
 
 const has = (issue: Issue, label: string) => issue.labels.includes(label);
-const parked = (issue: Issue) => issue.labels.some((label) => label === LABELS.parked || label.startsWith(`${LABELS.parked}:`));
+// The old process's waiting labels still mean parked.
+const LEGACY_PARKED = new Set(["waiting", "chef-todo", "blocked-on-human"]);
+const parked = (issue: Issue) => issue.labels.some((label) => label === LABELS.parked || label.startsWith(`${LABELS.parked}:`) || LEGACY_PARKED.has(label));
 export const triesOf = (labels: readonly string[]): number => Math.max(0, ...labels.filter((label) => /^try:\d+$/.test(label)).map((label) => Number(label.slice(4))));
 
 const priority = (issue: Issue): number => {
@@ -86,7 +88,7 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
     const pr = prOf.get(issue.number);
     if (pr === undefined) actions.push({ kind: "requeue", issue: issue.number, reason: "it is in pass with no open pull request" });
     else if (pr.conflicting) actions.push({ kind: "send-back", issue: issue.number, reason: "its branch conflicts with the base branch", counts: false });
-    else if (pr.checks === "failure") actions.push({ kind: "send-back", issue: issue.number, reason: `the CI is red: ${pr.failing.join(", ") || "a check failed"}`, counts: true });
+    else if (pr.checks === "failure") actions.push({ kind: "send-back", issue: issue.number, reason: `the CI is red: ${pr.failing.slice(0, 5).join(", ") || "a check failed"}${pr.failing.length > 5 ? ` and ${pr.failing.length - 5} more` : ""}`, counts: true });
     else if (pr.checks !== "pending" && passFree > 0) {
       passFree -= 1;
       actions.push({ kind: "review", issue: issue.number, pr: pr.number });

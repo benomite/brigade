@@ -20,7 +20,7 @@ test("takes the ready tickets by priority then age, up to the free places", () =
 });
 
 test("never takes a parked, idea, epic, human, untrusted or waiting ticket", () => {
-  const issues = [issue(1, ["fire", "parked:chef"]), issue(2, ["fire", "idea"]), issue(3, ["fire", "epic"]), issue(4, ["fire", "human"]), issue(5, ["fire"], { trusted: false }), issue(6, ["fire"], { dependsOn: [7] }), issue(7, ["parked"])];
+  const issues = [issue(1, ["fire", "parked:chef"]), issue(2, ["fire", "idea"]), issue(3, ["fire", "epic"]), issue(4, ["fire", "human"]), issue(5, ["fire"], { trusted: false }), issue(6, ["fire"], { dependsOn: [7] }), issue(7, ["parked"]), issue(8, ["fire", "waiting"])];
   assert.deepEqual(decide(issues, [], context()).filter((a) => a.kind === "take"), []);
 });
 
