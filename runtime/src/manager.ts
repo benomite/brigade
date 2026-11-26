@@ -1067,6 +1067,10 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
           if (!arrete) avertir(`brigade : #${choisie.number} not taken from the backlog — its labels could not be read again — ${message(erreur)}`);
           return;
         }
+        // Ses labels relus, sa confiance aussi (#4358) : le `fire` d'un membre retiré, l'issue d'un inconnu est de nouveau
+        // retenue. Illisible, rien n'est pris à ce tour.
+        const relue = relues.get(choisie.number);
+        if (relue != null && !(await garantir(relue))) return;
         continue;
       }
       const prise = await prendreSuivante({

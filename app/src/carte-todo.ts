@@ -79,6 +79,7 @@ const PRIX_SUR_GITHUB: Readonly<Record<string, string>> = {
   close: `${POSTEE}, and the app closes the issue: the ticket is not cooked`,
   rail: `${POSTEE}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
   wait: `${POSTEE}, and the app parks the ticket for the one the choice names, until a date seven days away, and it leaves your TODO: nothing takes it before they answer or that date comes`,
+  accept: `${POSTEE}: the kitchen reads the held issue and judges it like any other, and it leaves your TODO`,
 };
 
 // La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,

@@ -175,3 +175,12 @@ describe("la situation d'une carte du chef (#3086)", () => {
     assert.equal(carte?.contexte, undefined);
   });
 });
+
+// #4358 : la carte d'une issue retenue — l'auteur sans l'écriture — dit ce que fait « Accept it », comme tout autre choix.
+test("la carte d'une issue retenue : « Accept it » dit que la cuisine lira l'issue et la jugera, « Close it » qu'elle la ferme", () => {
+  const texte = "Held issue #41: accept it, so the kitchen reads it?\n\n- [accept] Accept it\n- [close] Close it\n\nAsks: Please add dark mode.\nOpened by @mallory, who has no write access to the repository.";
+  const carte = carteDuChefDeTodo({ sorte: "product-question", texte });
+  assert.deepEqual(carte?.choix.map(({ texte: libelle }) => libelle), ["Accept it", "Close it"]);
+  assert.match(carte?.choix[0]?.prix ?? "", /reads the held issue and judges it/);
+  assert.match(carte?.choix[1]?.prix ?? "", /closes the issue/);
+});

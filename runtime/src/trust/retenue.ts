@@ -105,8 +105,11 @@ export function ouvrirRetenues(atelier: AtelierDeLaRetenue) {
   const { github, avertir, arrete } = atelier;
   const porte = porteDeConfiance(github);
   // Le verdict de chaque issue d'un auteur sans l'écriture, à l'instant de sa dernière
-  // modification : tant qu'elle ne change pas, rien n'est à relire. Cache, pas état.
-  const verdicts = new Map<number, { updatedAt: string; retenue: boolean }>();
+  // modification et pour ses labels : tant qu'ils ne changent pas, rien n'est à relire — le
+  // chef qui retire son `fire` entre un jugement et la pose des labels la retient de nouveau,
+  // même lue d'une issue au même instant. Cache, pas état.
+  const verdicts = new Map<number, { version: string; retenue: boolean }>();
+  const versionDe = (issue: IssueOuverte) => JSON.stringify([issue.updatedAt, [...issue.labels].sort()]);
   // Les issues dont la carte attend l'humain, à l'instant de leur dernière modification.
   const enAttente = new Map<number, string>();
   const declares = () => {
@@ -139,11 +142,12 @@ export function ouvrirRetenues(atelier: AtelierDeLaRetenue) {
       if (await porte.deConfiance(issue)) return false;
       const auteur = issue.author;
       if (deposeParUneStation(issue.body) && auteur !== undefined && auteur !== "" && declares().some((login) => meme(login, auteur))) return false;
+      const version = versionDe(issue);
       const connu = verdicts.get(issue.number);
-      if (connu?.updatedAt === issue.updatedAt) return connu.retenue;
+      if (connu?.version === version) return connu.retenue;
       const lance = (await garantis(issue)).some((label) => label === LABEL || priorite([label]) !== null);
       const retenue = !lance && !(await acceptee(issue, await github.commentaires(issue.number)));
-      verdicts.set(issue.number, { updatedAt: issue.updatedAt, retenue });
+      verdicts.set(issue.number, { version, retenue });
       return retenue;
     },
 

@@ -499,9 +499,9 @@ and says so below.
   merged*, above). The kitchen never merges it: a `merge #N?` card goes to the human with the `review` role, who merges
   it by hand, with `yes` recommended when the review approves and no gate is red. With no `review` human declared in the
   project's settings, the card goes to the chef.
-- **A stranger's issue waits for a human.** Decided, not yet in the runtime: an issue opened by someone outside the
-  project gets a triage proposal from the manager and a TODO card for the `product` human. Nothing reaches the rail until
-  that human answers.
+- **A stranger's issue waits for a human** (#4358, `runtime/src/trust/`). An issue opened by someone without write
+  access is held: no agent reads it, and a TODO card for the `product` human (the chef without one) names its author,
+  with `accept` and `close`. Nothing reaches the rail until that human accepts it ([trusted authors](../trusted-authors.md)).
 - **A contributor station runs from a fork.** Decided, not yet in the runtime: a contributor without write access runs a
   station from a fork, claims a ticket, and delivers an outside PR, which the path above judges.
 - **The chef can refuse a contributor station** (#2936). The refused stations are a list in the state directory
