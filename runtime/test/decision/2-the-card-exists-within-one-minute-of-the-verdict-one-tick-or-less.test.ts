@@ -8,16 +8,17 @@ import { decision } from "./aide.ts";
 test("the delay between the verdict and the card is at most one minute", async (t) => {
   const c = decision(t, { manager: { jugement: "juge-decision-reponses" }, issues: [issue(30, [])] });
 
-  // On the wall clock: the moment the verdict is in the journal, and the moment the card is read on GitHub.
-  let verdictVu: number | null = null;
+  // The runtime runs on a hand-moved clock: the delay is counted in the manager's polls of the open issues, one per tick,
+  // and on the wall clock. Both are read as soon as the verdict is in the journal, then as soon as the card is on GitHub.
+  let verdict: { sondages: number; ms: number } | null = null;
   await jusqua(async () => {
-    if (verdictVu === null && c.journal.duTicket(30).some((e) => e.type === "manager.judged")) verdictVu = Date.now();
-    return verdictVu !== null && (await c.aLaCarte(30));
+    if (verdict === null && c.journal.duTicket(30).some((e) => e.type === "manager.judged")) verdict = { sondages: c.gh.sondages.ouvertes, ms: Date.now() };
+    return verdict !== null && (await c.aLaCarte(30));
   });
-  const delai = Date.now() - (verdictVu ?? Number.NaN);
-  assert.ok(delai >= 0 && delai <= 60_000, `the card came ${delai} ms after the verdict`);
-  // One tick or less: the card is posed in the same pass as the verdict, before the manager polls the issues again.
-  const sondages = c.gh.sondages.ouvertes;
-  assert.ok(await c.aLaCarte(30));
-  assert.ok(c.gh.sondages.ouvertes - sondages <= 1);
+  const vu = verdict as { sondages: number; ms: number } | null;
+  assert.ok(vu !== null);
+  // One tick or less: no new poll of the open issues between the verdict and the card — it is posed in the verdict's pass.
+  assert.equal(c.gh.sondages.ouvertes - vu.sondages, 0, "the card waited for a later tick of the manager");
+  const delai = Date.now() - vu.ms;
+  assert.ok(delai <= 60_000, `the card came ${delai} ms after the verdict`);
 });

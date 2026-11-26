@@ -42,7 +42,11 @@ export function decision(t: TestContext, options: Options & { eteint?: boolean }
     for (let i = 0; i < 3; i++) {
       const depart = c.gh.sondages.ouvertes;
       battre();
-      await jusqua(() => c.gh.sondages.ouvertes > depart);
+      try {
+        await jusqua(() => c.gh.sondages.ouvertes > depart);
+      } catch {
+        throw new Error(`the manager made no new pass over the open issues (poll ${i + 1} of 3 never came): it skipped the issue's pass`);
+      }
     }
   };
   // Le chef change l'issue sur GitHub : le manager le lit à son tour suivant.
