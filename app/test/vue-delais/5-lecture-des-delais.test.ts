@@ -2,7 +2,10 @@
 // le pire d'abord, les illisibles écartés, jamais un chiffre inventé — et un dépassement qui s'ouvre puis se referme.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lireSuivi } from "../../src/projets/demande.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireSuivi, type ProjetDemande } from "../../src/projets/demande.ts";
+import { tenirProjets } from "../../src/projets/projets.ts";
+import type { Fichiers, GitHubDesStations } from "../../src/stations/github.ts";
+import type { StationVue } from "../../src/stations/stations.ts";
 import { tenirLesDelais } from "../../src/vue-delais/delais.js";
 import { Faux } from "../aides/fausse-vue.ts";
 
@@ -64,4 +67,23 @@ test("an overrun whose breakdown is not readable says so when opened, and makes 
   const bouton = bloc.children.at(-1)?.children[0]?.children[0] ?? assert.fail("no overrun");
   bouton.click();
   assert.match(bouton.parentElement?.textContent ?? "", /Where its time went is not readable\.$/);
+});
+
+test("a station that cannot read its merged tickets says why, and shows no share", () => {
+  assert.equal(texte({ illisible: "delais-tickets.json is not a JSON array" }), "Last 24 hoursThe merged tickets cannot be read: delais-tickets.json is not a JSON array");
+  assert.match(texte({ ...DELAIS, illisible: 7 }), /67 % merged within their expected time/, "a reason that is not a text is not one");
+});
+
+test("the main process gives the view the `delais` a station publishes, and drops them once the station no longer does", async () => {
+  const BOX: StationVue = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
+  const PARADE: ProjetDemande = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: null };
+  const gists = new Map<string, Fichiers>();
+  const publier = (plus: object) => gists.set(BOX.id, { [FICHIER_PROJETS]: documentDeDemande([PARADE]), [FICHIER_SUIVI]: JSON.stringify({ brigade: "projets-suivi", format: 1, a: "2026-11-25T12:00:00.000Z", projets: [{ nom: "parade", etat: "servi", dit: "", autoriser: [], serviLe: null, cuitSur: BOX.nom, ici: false, bascule: null, ...plus }] }) });
+  const github: GitHubDesStations = { lister: async () => [], lire: async (id) => gists.get(id) ?? null, ecrire: async () => {}, supprimer: async () => {} };
+  const projets = tenirProjets({ github, stations: () => [BOX], depots: async () => [], surLecture: () => {}, maintenant: () => Date.parse("2026-11-25T12:00:00.000Z"), locale: () => null });
+  const parade = async () => (await projets.relire()).projets.find(({ nom }) => nom === "parade");
+  publier({ delais: DELAIS });
+  assert.deepEqual((await parade())?.delais, DELAIS);
+  publier({});
+  assert.equal("delais" in ((await parade()) ?? assert.fail("no parade")), false);
 });

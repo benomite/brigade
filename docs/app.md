@@ -1043,10 +1043,13 @@ At the top of the project view, **Last 24 hours** shows the share of tickets mer
 expected time): each says its ticket number, its title, its expected time and its actual time. A click on an overrun
 opens where its time went — cook, gates, review, send-backs, waits —, in minutes; a second click closes it.
 
-The data is the `delais` object that `brigade <project> status --json` returns, relayed as is in the station's
-follow-up next to `temps` (`app/src/projets/demande.ts`) and read by `app/src/vue-delais/delais.js`. With no `delais`,
-a `part_dans_les_temps` that is `null`, or a share that is not readable, the block says `No ticket merged with an
-expected time in the last 24 hours.` — never a made-up figure. An overrun with no readable time or title is left out;
+The data is the `delais` object that `brigade <project> status --json` returns. Each station that serves the project
+computes it from its clone and publishes it in its follow-up next to `temps` (`runtime/src/projets/tenir.ts`), as soon
+as a ticket merged in the last 24 hours; the app relays it as is (`app/src/projets/demande.ts`,
+`app/src/projets/projets.ts`) and `app/src/vue-delais/delais.js` reads it. With no `delais`, a `part_dans_les_temps`
+that is `null`, or a share that is not readable, the block says `No ticket merged with an expected time in the last 24
+hours.` — never a made-up figure. When the station cannot read its clone's ticket files, it publishes the reason and
+the block says `The merged tickets cannot be read: <reason>`. An overrun with no readable time or title is left out;
 one whose breakdown is not readable says so when opened. Captures: `docs/captures/4309/` — `espace-projet-avant.png`,
 `espace-projet-apres.png` (no `delais`: the short empty line), `projet-delais-apres.png` and
 `projet-delais-ouvert-apres.png` (the worst overrun opened).

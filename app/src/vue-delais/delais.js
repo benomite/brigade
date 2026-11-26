@@ -5,8 +5,8 @@
 // gates, review, send-backs, waits —, en minutes ; un second le referme.
 //
 // La vue n'y calcule rien : l'objet est `delais`, tel que `brigade <project> status --json` le rend et que la station le
-// publie dans son suivi, à côté de `temps` (app/src/projets/demande.ts). Absent, illisible ou sans part (`null`) : une
-// courte ligne le dit, jamais un chiffre inventé. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
+// publie dans son suivi, à côté de `temps` (runtime/src/projets/tenir.ts, relu par app/src/projets/demande.ts). Absent ou
+// sans part (`null`) : une courte ligne le dit, jamais un chiffre inventé ; la station n'a pas pu les lire : sa raison. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
 /** @typedef {import("../vue/briques.js").Fabrique} Fabrique */
 /** @typedef {{ cook: number, gates: number, review: number, renvois: number, attentes: number }} Repartition */
@@ -85,6 +85,11 @@ export function tenirLesDelais(doc) {
     bloc.dataset.bloc = "delais";
     const d = lireLesDelais(lu);
     bloc.append(noeud(doc, "h3", "", `Last ${d?.heures ?? 24} hours`));
+    const illisible = /** @type {{ illisible?: unknown } | null | undefined} */ (lu)?.illisible;
+    if (typeof illisible === "string") {
+      bloc.append(noeud(doc, "p", "sans-part", `The merged tickets cannot be read: ${illisible}`));
+      return bloc;
+    }
     if (d === null) {
       bloc.append(noeud(doc, "p", "sans-part", SANS_PART));
       return bloc;

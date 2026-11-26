@@ -90,7 +90,9 @@ export type ProjetVu = {
   delai?: Delai;
   // Les temps de ses derniers tickets et son plafond, tels que le suivi les publie (#2346). Absent sans temps publiés.
   temps?: TempsPublie;
-  // Les délais de ses dernières 24 heures, tels que le suivi les publie (#4309), relus par la vue. Absent sans délais publiés.
+  // Les délais de ses dernières 24 heures, tels que le suivi les publie (#4309) : l'objet `delais` de `status --json`, ou
+  // `{ illisible }`, la raison pour laquelle la station n'a pas pu les lire. Relus, champ par champ, par la vue
+  // (app/src/vue-delais/delais.js), qui écarte ce qui ne se lit pas. Absent sans ticket mergé sur 24 heures.
   delais?: unknown;
   // Sur 24 h, la part des tickets mergés en 10 min ou moins de leur prise et leur médiane, la ligne de `status`,
   // tirée de ces temps (#4299). Absente sans temps publiés.
@@ -520,7 +522,8 @@ export function tenirProjets(options: OptionsProjets): Projets {
             else delete vu.blocages;
             if (dit?.delai !== undefined) vu.delai = dit.delai;
             else delete vu.delai;
-            vu.delais = dit?.delais;
+            if (dit?.delais !== undefined) vu.delais = dit.delais;
+            else delete vu.delais;
             if (dit?.choix !== undefined) vu.choix = dit.choix;
             else delete vu.choix;
             if (projet.choix !== undefined) vu.choisis = projet.choix;
