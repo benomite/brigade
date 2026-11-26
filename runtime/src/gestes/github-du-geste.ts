@@ -17,7 +17,9 @@ import { ouvrirLecturesDesGestes } from "./lectures-des-gestes.ts";
 //     label à lever, l'issue que la réponse relance, le commentaire, le label
 //     `fire` posé ou l'issue fermée, le label levé ;
 //   - `human` (sortie-attente-capacite/sortie.ts) : 4 au plus — l'issue relue,
-//     un label posé, un retiré, le commentaire.
+//     un label posé, un retiré, le commentaire ; sur un ticket ordinaire du rail
+//     (#4276), l'issue relue, le label `human-cook`, l'assignee posé, le
+//     commentaire — marqué de nouveau, l'assignee d'avant retiré au lieu de l'issue relue.
 // Aucun ne feuillette de liste : son coût ne grandit pas avec le dépôt.
 export const PLAFOND_D_UN_GESTE_DU_RAIL = 5;
 

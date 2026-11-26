@@ -36,6 +36,7 @@ Installing is separate: [`installer.md`](../installer.md). Decisions and reasons
 | [`fermeture.md`](fermeture.md) | The closing that observes, the closing that writes |
 | [`identites-et-secrets.md`](identites-et-secrets.md) | One GitHub identity per role, the project's secrets |
 | [`cloison-et-arbitre.md`](cloison-et-arbitre.md) | The partition, the arbiter between projects |
+| [`isolation-and-network-filter.md`](isolation-and-network-filter.md) | The rule: isolation and the network filter on every station, and the lethal trifecta reason |
 | [`exploitation.md`](exploitation.md) | Variables, backup, "Driving it", dev workstation, the box |
 
 ## Where the code lives

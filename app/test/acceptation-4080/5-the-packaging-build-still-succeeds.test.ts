@@ -56,7 +56,6 @@ function lesPlists(paquet: string): string[] {
 }
 const cle = (xml: string, nom: string) => new RegExp(`<key>${nom}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
 
-// brigade:guard
 test("the packaging build still succeeds: the bundle is assembled with its app, runtime and node", (t) => {
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));

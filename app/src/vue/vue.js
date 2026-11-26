@@ -113,6 +113,8 @@ import { ligneDesAlertesDuRail } from "./attente-du-rail/ligne-des-alertes.js";
 import { monterLeBandeau } from "./bandeau-arret/bandeau-arret.js";
 import { ceQueLeRailDit, ligneDuProjetEnPause, pauseDesProjets, tenirLaPause } from "./pause-quota/ligne-de-la-pause.js";
 import { apresRendu as apresLaRevue, CONFIRMATION_MS as CONFIRMATION_REVUE_MS, estUneRevue, marquerSensible, poserCarteSensible, REPOS as REVUE_AU_REPOS, SANS_PONT as REVUE_SANS_PONT } from "./carte-sensible/carte-sensible.js";
+import { parkControl } from "./parked/park-control.js";
+import { parkGesture } from "./parked/park-gesture.js";
 import { apresRendu as apresLAnnulation, poserAnnulation, REPOS as ANNULATION_AU_REPOS, SANS_PONT as ANNULATION_SANS_PONT } from "./undo/undo.js";
 import { apresRendu as apresLaCarte, CHAMP_DE_CARTE, detailsDeCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { rangeeDuSecond } from "./todo-carte/demander-au-second.js";
@@ -157,7 +159,7 @@ import { ligneDuRefus, rangeeDuRefus } from "./refus/refus.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { lireLeProjet, poserPremierLancement } from "./premier-lancement.js";
 import { tenirLeCompte } from "./parcours-projet/compte.js";
-import { poserLesOutils, tenirLesOutils } from "./outils-requis/outils-requis.js";
+import { aMontrer, oublierLInstallation, poserLesOutils, tenirLesOutils } from "./outils-requis/outils-requis.js";
 import { DEPOT_DE_LA_VISITE, REJOUER, etapesDeLaVisite, marqueurDeCible, poserLaCuisineVisitee, poserVisite, tenirLaVisite, trouverLaCible } from "./visite/visite.js";
 import { CLONE_DANS, poserLEcranDAjout } from "./parcours-projet/ajout.js";
 import { AU_RETOUR, cetOrdinateurDAbord, nomDite, proposeeDOffice, RAMENER, uneMachine } from "./choix-station/choix-station.js";
@@ -188,6 +190,7 @@ import { poserAjout, poserBlocDesProjets } from "./accueil/projets/BlocDesProjet
 import { poserBlocDeLaPromesse } from "./accueil/promesse/BlocDeLaPromesse.js";
 import { tenirBlocDeLaStation } from "./accueil/station/BlocDeLaStation.js";
 import { poserBlocPlafondsDuree } from "./projet/bandeau-sante/PlafondsDuree.js";
+import { tenirLeSavoir } from "./know-how/know-how.js";
 import { poserBlocCloser } from "./projet/bandeau-sante/Closer.js";
 import { poserBlocTempsDeLaPasse } from "./projet/bandeau-sante/TempsDeLaPasse.js";
 import { tenirLesDelais } from "./delais.js";
@@ -967,6 +970,12 @@ const formulairesDAttente = new Map();
 // dit sous ses gestes tant qu'elle est dans WAITING.
 /** @type {Map<string, { envoi: true } | { fait: string, detail: string } | { refus: string, detail: string }>} */
 const arriveesDeCartes = new Map();
+// Le TODO parked du chef (parked/, ticket 4281) : les items dont le contrôle de park est ouvert, et ce que le chef y a tapé,
+// par projet et ticket — gardés d'un rendu à l'autre.
+/** @type {Map<string, Set<number>>} */
+const parkOuverts = new Map();
+/** @type {Map<string, import("./parked/park-control.js").Form>} */
+const parkSaisies = new Map();
 // Les gestes directs, et les confirmés, dits de même (gestes.ts) : le clic d'un direct fait partir
 // sa commande dans le second — ou dit pourquoi elle ne part pas ; celui d'un confirmé ouvre sa
 // confirmation, et rien ne part avant son « oui ». La vue ne le décide pas.
@@ -3255,6 +3264,10 @@ async function arriver(projet, ticket) {
   if (ficheDe(projet, ticket)) poserFiche();
 }
 
+// Park et unpark depuis le TODO du chef (parked/, ticket 4281) : un seul geste pour tout projet, par le geste d'attente du
+// pont, qui l'écrit sur l'issue ; parti, la cuisine est relue.
+const garerParLePont = parkGesture((projet, id, ticket, saisie) => brigade.attente(projet, id, ticket, saisie), { lire: () => lireLesFaits() });
+
 // Un geste de WAITING s'écrit sur l'issue (vue/attente/attente-github.ts), jamais par une commande de la box (ticket 4262).
 // Parti, le formulaire se referme ; refusé, il reste, et dit pourquoi.
 /** @param {Projet} projet @param {string} id @param {number} ticket @param {{ quoi: string, qui: string, relance: string }} [saisie] */
@@ -5272,6 +5285,10 @@ function poserLeRail(projet) {
     cartes: ceQuiTAttend(plan),
     ouvrir: (carte) => ouvrirFiche(projet, carte, posees.get(carte) ?? rail),
     ...(lectureSeuleDe(projet) === undefined ? { gestes: { etat: (ticket, todo) => etatDeLaCarte(projet, ticket, todo), attente: GESTES_D_ATTENTE, jouer: (ticket, sorte, reponse) => GESTES_DU_TODO[sorte](projet, ticket, reponse) } } : {}),
+    // Sous chaque entrée, son contrôle de park, derrière « park or unpark… » (parked/, ticket 4281) : ce qui y est ouvert
+    // et tapé se garde d'un rendu à l'autre.
+    opened: parkOuverts.get(projet.nom) ?? parkOuverts.set(projet.nom, new Set()).get(projet.nom),
+    control: ({ ticket, step }) => parkControl(document, { project: projet.nom, ticket, step, gesture: garerParLePont, form: parkSaisies.get(`${projet.nom}#${ticket}`) ?? parkSaisies.set(`${projet.nom}#${ticket}`, {}).get(`${projet.nom}#${ticket}`) }),
   });
   // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
   // réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain
@@ -7097,6 +7114,15 @@ const candidatsOuverts = new Set();
 // Les chiffres d'autonomie de chaque projet (autonomie/chiffres.js, ticket 3222), dans sa section, lus de GitHub.
 /** @type {Map<string, ReturnType<typeof tenirLesChiffresDAutonomie>>} */
 const autonomieDesProjets = new Map();
+// Le savoir-faire du projet (know-how/, ticket 4239), dans la même section : lu sur GitHub par le process principal.
+/** @type {Map<string, ReturnType<typeof tenirLeSavoir>>} */
+const savoirDesProjets = new Map();
+/** @param {Projet} projet */
+function savoirDuProjet(projet) {
+  const tenu = savoirDesProjets.get(projet.nom) ?? tenirLeSavoir(document, { lire: () => brigade.savoirDuProjet(projet.nom), changer: (changement) => brigade.changerLeSavoir(projet.nom, changement), ouvrir: (url) => void brigade.ouvrirLaProposition(url), reposer: (garder) => reposerLaSante(projet, garder) });
+  savoirDesProjets.set(projet.nom, tenu);
+  return tenu;
+}
 /** @param {Projet} projet */
 function autonomieDuProjet(projet) {
   const tenue = autonomieDesProjets.get(projet.nom) ?? tenirLesChiffresDAutonomie(document, { lire: (jours) => brigade.lireAutonomie([projet.nom], jours), ouvrir: ouvrirTicketDAutonomie });
@@ -7113,7 +7139,7 @@ function postMortemsDe(projet) {
 /** @param {Projet} projet @param {boolean} [garder] */
 function poserLeBandeauDeSante(projet, garder = true) {
   const tape = /** @type {HTMLElement | null} */ (document.activeElement);
-  if (garder && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"]') && bandeauSante.contains(tape)) return;
+  if (garder && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"], [data-bloc="know-how"]') && bandeauSante.contains(tape)) return;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const etats = etatsDesPlafonds.get(projet.nom) ?? new Map();
   etatsDesPlafonds.set(projet.nom, etats);
@@ -7132,6 +7158,7 @@ function poserLeBandeauDeSante(projet, garder = true) {
       ouvrir: (url) => void brigade.ouvrirLaProposition(url),
     }),
     poserLeCloserDeSante(projet),
+    savoirDuProjet(projet).poser(),
     poserBlocTempsDeLaPasse(document, vu?.temps),
     autonomieDuProjet(projet).poser(),
     poserBlocPostMortems(document, postMortemsDe(projet)),
@@ -8212,12 +8239,23 @@ const outilsDuParcours = tenirLesOutils({
 });
 const outilsDuLogin = tenirLesOutils({ pont: brigade, outils: ["claude"], rendre: () => poserLesOutilsIci() });
 /** @param {ReturnType<typeof tenirLesOutils>} tenus */
-const gestesDesOutils = (tenus) => ({ ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url), verifier: () => void tenus.verifier(true) });
+// `installer` (ticket 4350) : le bouton « install gh » ou « install claude » de l'écran. Claude Code posé, l'avis finit
+// sur « log in », le login de cet ordinateur, puis se ferme.
+const gestesDesOutils = (tenus) => ({
+  ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url),
+  verifier: () => void tenus.verifier(true),
+  installer: () => void tenus.installer(),
+  seConnecterAClaude: () => {
+    oublierLInstallation(tenus.etat);
+    poserLesOutilsIci();
+    void seConnecterAClaude();
+  },
+});
 let avisDesOutils = false;
 function poserLesOutilsIci() {
   const surLePremier = ecranDuPremier !== undefined && ecranDuPremier.parentElement === tous && !tous.hidden;
   if (surLePremier) poserLePremier();
-  const tenus = [...(surLePremier ? [] : [outilsDuParcours]), outilsDuLogin].find(({ etat }) => etat.manque !== undefined);
+  const tenus = [...(surLePremier ? [] : [outilsDuParcours]), outilsDuLogin].find(({ etat }) => aMontrer(etat));
   if (tenus === undefined) {
     if (avisDesOutils) avis.hidden = true;
     avisDesOutils = false;
@@ -8225,6 +8263,7 @@ function poserLesOutilsIci() {
   }
   avisDesOutils = true;
   avis.replaceChildren(...poserLesOutils(document, tenus.etat, gestesDesOutils(tenus)), bouton("close", () => {
+      oublierLInstallation(tenus.etat);
       avis.hidden = true;
       avisDesOutils = false;
     }, "discret"));

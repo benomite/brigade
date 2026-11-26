@@ -323,8 +323,15 @@ Open one of your projects on this PC: one click, no folder to choose.
   `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
   (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
   named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence,
-  one link to the tool's official install page, and `I installed it`. The app installs nothing itself (#4266): the
-  tool is the user's to install. The button never spins on a sign-in that cannot start. On `I installed it` the app
+  one link to the tool's official install page, and `I installed it`. For `gh` and `claude`, the screen also offers
+  `install gh` or `install claude` (#4350, `app/src/install-tools/`), the recommended button: one click, and only that
+  click, downloads or runs the official installer (what each writes and where: `docs/installation.md`). While it runs,
+  the screen says `Installing the GitHub CLI on this computer…`; when it fails, `The app could not install the GitHub
+  CLI (<reason>): follow the steps of its page instead.`, with the link and `I installed it` kept and the install
+  offered again. On a computer where the app cannot install it, the screen says `The app cannot install … on this
+  computer: follow the steps of its page.` and has no install button. Installed, the app checks again as after `I
+  installed it`; Claude Code installed, the screen ends on `log in`. Git is never installed by the app (#4266): its
+  screen has no install button. The button never spins on a sign-in that cannot start. On `I installed it` the app
   checks again, adds to its PATH a tool its installer put outside it, and the step comes back where it was — the
   button, or the project that was opening, which starts again by itself. A tool still missing says so in one line,
   and the link stays. The same screen opens in the notice when **log in** on a lost
@@ -2758,6 +2765,22 @@ the removed lines cap: the two others say `not read on GitHub yet`, the reason o
 closer rows, which propose the same keys by a pull request (#1685). Screenshots: `docs/captures/2491/`. Module:
 `app/src/vue/projet/bandeau-sante/Closer.js`.
 
+**The project know-how** (#4239, epic #4135). Under the closer, the **Project know-how** block: the entries of
+`.brigade/know-how.md` (the file each cook reads first and adds to, `agents/cook.md`), read on the project's integration
+branch on GitHub with the chef's `gh` token, like the closer — when Settings opens, then at most once a minute. The entries
+are grouped by section, `Conventions`, `Pitfalls` and `Tools` first, then any other section of the file; each row says the
+entry's text and its source ticket (`#205`, or `no source ticket` for a line without one), with **Edit** and **Remove**. A
+missing file, or one with no entry, is one empty line (`No project know-how yet. .brigade/know-how.md is missing or has
+no entry.`), not an error; a refused reading is the error line `The project know-how not reached.`, its detail on hover. **Edit** opens a field with the entry's
+text; there is no **save**: the field applies on its `change` (Enter, or leaving it) when its text is a new one — left as
+it was or emptied, it closes; Escape closes it. **Remove** applies at once. Either is proposed by a pull request towards
+the integration branch (`proposerLeFichier` with that path): only that line changes — an edit keeps its ` (#ticket)` —,
+the file is read again first, and a row whose text moved since the reading proposes nothing and says so. The row says
+`opening the pull request…`, then `the new text proposed in` (or `the removal proposed in`) and a `pull request #<n>`
+link; the list keeps the text in force until the PR is merged. Both states (entries, empty) are rendered by `app/test/vue/know-how/know-how-vue.test.ts`. Modules:
+`app/src/vue/know-how/` (the block, and its reading and pull request), `runtime/src/know-how/know-how.ts` (the parser and
+writer of the file).
+
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
 `2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of
@@ -2783,7 +2806,7 @@ answered. No station read yet, one line under the card says so. Screenshots: `do
 
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
 the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
-run without a sandbox, nothing goes out before the chef's choice — and two buttons: "choose another
+would run in `restricted mode: no sandbox` (what it covers and what it cannot, named), nothing goes out before the chef's choice — and two buttons: "choose another
 station" (recommended: it opens the choice of machines for the move) and "continue without sandbox"
 (`continuerSansBacASable` of the bridge, whose answer is stated under the stations line). The choice records the
 decision through the runtime's `accepterSansBacASable`, in the project's state on this computer, for the station
@@ -3659,6 +3682,18 @@ kitchen opens its frozen ticket, the checks of a red main, or reads again; a sta
 quota pause read again; the line of an issue the kitchen opened on itself opens that issue. Where the paragraphs below
 speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures:
 `docs/captures/4238/`.
+
+**Each TODO entry says who, for what and until when, and opens its park control (#4281).** The entries are drawn by
+`app/src/vue/parked/parked-todo.js`, from the parked records that `app/src/vue/parked/records.js` reads in the cards:
+under what is asked, `waits for the chef · until <day>` (`no date set` without one; `for what: not given` when the card
+does not say). A click on an answer sends it once, and the entry leaves the TODO — until the kitchen has played the
+answer, the next drawing of the rail shows it again. `park or unpark…`, next to the
+buttons, opens the park control under the entry: who (a person, or the chef), for what, until (a date or a fact), then
+`park` and `unpark`. A form that lacks one of the three is not sent, and says which one is missing. `park` and `unpark`
+call one gesture, with the same project, ticket and step, for any project (`park-control.js`). Until the shared park
+gesture of #4129 exists, that gesture goes through the waiting gestures (`park-gesture.js`): `park` is `waiting for…`,
+which takes only a date for now (a fact comes back refused, with its reason, under the form); `unpark` is `it arrived,
+back to the kitchen`. Read-only, the entry has no buttons and no park control. Captures: `docs/captures/4281/`.
 
 **TODO is not a column (#3458).** Tickets move left to right, from On the rail to Served; what awaits the chef is a
 property of a ticket, not a place on the rail. **A card that awaits you stays in the column of its stage** — On the rail

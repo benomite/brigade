@@ -21,7 +21,6 @@ import { quotaGithub } from "../appels-github/quota-github.ts";
 import { noterUnDemarrage } from "../redemarrages/journal.ts";
 import { annoncerEnService, versionDuRuntime } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
-import { tenirLaVidange } from "../mise-a-jour/vidange.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { sourceDesProjets } from "../projets-station/source.ts";
 import { servirLesProjetsChoisis, type ServiceDeLOrdinateur } from "../station-ordinateur/servir.ts";
@@ -150,17 +149,6 @@ for (const sortie of ["log", "error"] as const) {
 }
 // La connexion Max de la machine : une seule veille, pour tous les projets.
 const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, jeton: Boolean(process.env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
-// Sa mise à jour, sur un ordinateur (#2189) : elle regarde les releases de la
-// station, télécharge la nouvelle, se vide — ses cuisines ne prennent plus de
-// ticket — et demande sa relance une fois ses cooks finis. Sur une box, ou sans
-// source de versions, elle n'a pas lieu (`configDeLaMiseAJour`) : sur la box,
-// c'est son unité root qui installe, et la station se vide à sa demande, lue
-// dans le répertoire de la mise à jour (`mise-a-jour/vidange.ts`, #2547) — sans
-// cesser de prendre ses tickets : elle se relance au premier moment sans cook
-// en vol, ou à l'échéance, leur travail sauvé sur leur branche (#2586).
-let seVide = (): boolean => false;
-// Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas) : leurs cooks en vol aussi retiennent sa relance.
-let choisis: ServiceDeLOrdinateur | null = null;
 // Ses projets n'ont qu'une liste, sa configuration (#3402) : l'ancienne liste de
 // l'ordinateur (`projets-servis.json`) y passe avant que ses cuisines ne la lisent.
 try {
@@ -170,12 +158,17 @@ try {
 } catch (erreur) {
   dire(`brigade : station — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
 }
-const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, retenue: () => seVide(), ...(fenetreDeDepartMs === null ? {} : { fenetreDeDepartMs }), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }), ...(relaisMs === undefined ? {} : { intervalleRelaisMs: Number(relaisMs) }) });
-const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], dire });
-if (miseAJour !== null) seVide = () => miseAJour.miseAJour.retenue();
+const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, ...(fenetreDeDepartMs === null ? {} : { fenetreDeDepartMs }), ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }), ...(relaisMs === undefined ? {} : { intervalleRelaisMs: Number(relaisMs) }) });
+// Sa mise à jour, sur un ordinateur (#2189) : elle regarde les releases de la
+// station, télécharge la nouvelle et demande sa relance dès qu'elle est prête.
+// Ses cooks lui survivent, chacun porté par un relais, et la station relancée
+// les suit jusqu'à leur fin (#4401). Sur une box, c'est son unité root qui
+// installe et la relance ; sans source de versions, elle n'a pas lieu
+// (`configDeLaMiseAJour`).
+const miseAJour = ouvrirLaMiseAJour({ racine, env: process.env, dire });
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
-const vidange = miseAJour !== null || dossierMiseAJour === null ? null : tenirLaVidange({ racine, dossier: dossierMiseAJour, enVol: () => [...station.enCuisine(), ...(choisis?.enCuisine() ?? [])], sauver: async () => [...(await station.sauver()), ...((await choisis?.sauver?.()) ?? [])], dire });
-if (vidange !== null) seVide = () => vidange.retenue();
+// Les projets de sa liste qu'elle sert elle-même sur GitHub seul (plus bas).
+let choisis: ServiceDeLOrdinateur | null = null;
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
 // pannes y vont aussi : sa mise à jour, que son unité lui fait lire
@@ -222,7 +215,6 @@ choisis = servirLesProjetsChoisis({
   gh,
   claude,
   dire,
-  retenue: () => seVide(),
   dejaServis: () => Object.values(station.servisSurGitHub()),
 });
 const projetsChoisis = choisis;
@@ -260,7 +252,6 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     void projetsChoisis.arreter();
     veille.arreter();
     miseAJour?.arreter();
-    vidange?.arreter();
     station.arreter(signal);
     connexion.arreter();
     console.log(`brigade : station arrêtée (${signal})`);

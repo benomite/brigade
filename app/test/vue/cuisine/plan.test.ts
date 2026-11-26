@@ -102,7 +102,8 @@ describe("le TODO liste exactement ce qui attend le chef", () => {
     assert.equal(todo.children[0]?.textContent, "TODO (2)");
     const entrees = todo.dessous("li");
     assert.deepEqual(entrees.map(({ dataset }) => dataset.ticket), ["50", "53"]);
-    assert.deepEqual(entrees.map(({ textContent }) => textContent), ["#50 Ticket 50", "#53"]);
+    // Son numéro et son titre ; sous ce qui est demandé, qui il attend et jusqu'à quand (ticket 4281).
+    assert.deepEqual(entrees.map((entree) => entree.dessous("button")[0]?.textContent), ["#50 Ticket 50", "#53"]);
     assert.equal(entrees[1]?.dessous("button")[0]?.title, "open #53's card — parked — waits for Camille, until 28 Nov, 09:00 UTC");
     assert.equal(entrees[0]?.dessous("button")[0]?.title, "open #50's card");
     entrees[1]?.dessous("button")[0]?.click();

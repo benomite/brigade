@@ -8,7 +8,6 @@ import { brancheDuTicket, stationGitHub, type GitHubDuTour } from "../../src/bri
 import { FauxGitHub } from "../faux-github.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
-// brigade:guard
 test("a turn on a station with a clone catches up the claims of the recent tickets that lack one", async (t) => {
   const clone = repertoireTemporaire(t);
   mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
