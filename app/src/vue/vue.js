@@ -122,6 +122,7 @@ import { apresLaLecture as apresLaLectureDuDepot, INCONNU as DEPOT_INCONNU, phra
 import { poserAvisDuTodo } from "./todo/avis-todo.js";
 import { poserLesAutres } from "./todo/autres.js";
 import { LISTE_DU_CHEF, estRouge, rangerLeRail } from "./todo/todo.js";
+import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
 import { COOKS, DU_RAIL, colonneDuPlan, PAS_PRETS, PASS as COLONNE_PASS, RIEN_DE_PRET, aUnGeste, ceQuiTAttend, ligneParquee, messageDesAlertes, planDeLaCuisine, poserLaBandeDuHaut, poserLeTodo } from "./cuisine/cuisine.js";
 import { ligneDesAlertes, phraseDeLAttente, retenuesConnues } from "./ligne-de-statut/ligne-de-statut.js";
 import { poserLigneDuDisjoncteur } from "./todo-breaker-line.js";
@@ -5246,6 +5247,13 @@ function poserLeRail(projet) {
       return colonne;
     }),
   );
+  // Un projet de la nouvelle cuisine (ticket 4482) : son kanban, tiré des labels seuls (kitchen-board/), prend la place du plan.
+  // Le TODO du chef reste la ligne au-dessus des colonnes.
+  if (tenu.tableau.kitchenBoard !== undefined) {
+    const kanban = kitchenBoardGrid(document, tenu.tableau.kitchenBoard, { openIssue: (ticket) => void ouvrirIssue(projet, ticket), openPr: (ticket) => void ouvrirPr(projet, ticket) });
+    grille.className = kanban.className;
+    grille.replaceChildren(...kanban.children);
+  }
   // Le TODO du chef (tickets 4238, 4261, 4354) : une ligne, « 2 wait for you », dont un clic montre exactement les tickets
   // parked pour lui, une entrée chacun — ce qui lui est demandé, ses boutons, et un clic sur son numéro ouvre sa carte. Posé
   // sous les colonnes, il se montre au-dessus d'elles.

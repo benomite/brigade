@@ -20,6 +20,7 @@ import { alertesDuRailLues, attendusDesCartesLus, attenteDuRailLue, lignesDesCar
 import type { AlerteDuRail } from "./attente-du-rail/alertes.ts";
 import { pauseQuotaLue, type PauseDuCompte } from "./vue/pause-quota/pause-quota.ts";
 import { hautDuBacklogLu, type HautDuBacklog } from "./vue/rail/rail.ts";
+import { kitchenBoardRead, type KitchenBoard } from "./tableau/kitchen-board.ts";
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { LE_CHEF, lieuDe, lignesDuRail, motDEtat, parqueDe, porter, priorite, type Porte } from "./bon.ts";
@@ -429,6 +430,9 @@ export type Faits = {
   // Le rail, haut du backlog (vue/rail/, #4223) : les issues calibrées et prêtes, par priorité puis âge, et leur écran ;
   // absent d'une lecture qui ne le compose pas.
   hautDuBacklog?: HautDuBacklog;
+  // Le kanban d'un projet de la nouvelle cuisine (tableau/kitchen-board.ts, #4482) : ses six colonnes, tirées des labels seuls ;
+  // absent d'un projet du runtime d'avant.
+  kitchenBoard?: KitchenBoard;
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -598,6 +602,8 @@ export type Tableau = {
   pauseQuota?: PauseDuCompte;
   // Le rail, haut du backlog (vue/rail/, #4223) : au-dessus des colonnes, sous le bandeau Backlog. Absent sans lecture qui le porte.
   hautDuBacklog?: HautDuBacklog;
+  // Le kanban d'un projet de la nouvelle cuisine (#4482) : la vue le dessine à la place du plan de la cuisine.
+  kitchenBoard?: KitchenBoard;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
   // tout s'y voit, aucun geste n'y est offert, et une ligne en tête le dit. Absent : la vue ordinaire.
   lectureSeule?: { depot: string };
@@ -917,6 +923,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...arretCuisineLu(racine.arretCuisine),
       ...pauseQuotaLue(racine.pauseQuota),
       ...hautDuBacklogLu(racine.hautDuBacklog),
+      ...kitchenBoardRead(racine.kitchenBoard),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
@@ -1650,6 +1657,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.arretCuisine === undefined ? {} : { arretCuisine: faits.arretCuisine }),
     ...(faits.pauseQuota === undefined ? {} : { pauseQuota: faits.pauseQuota }),
     ...(faits.hautDuBacklog === undefined ? {} : { hautDuBacklog: faits.hautDuBacklog }),
+    ...(faits.kitchenBoard === undefined ? {} : { kitchenBoard: faits.kitchenBoard }),
     ...(faits.stations === undefined ? {} : { stations: { ...cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail), ...(faits.stationsSurGithub === undefined ? {} : { surGithub: faits.stationsSurGithub }) } }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
@@ -1687,6 +1695,9 @@ export const BANNIERE = {
 // autre lecture, et le rail se dessine des deux. `repondues` : les questions répondues de chaque
 // projet (repondues.ts), que le rail range dans WAITING. `ecrites` : les priorités que l'app vient d'écrire sur
 // les issues de chaque projet (priorite.ts), que le rail montre tant que le tableau ne les a pas lues.
+// La carte d'un ticket sur le kanban de la nouvelle cuisine (#4482), aux derniers faits lus : son issue et sa PR s'ouvrent par elle.
+const carteDuKanban = (donnes: Faits | undefined, ticket: unknown) => donnes?.kitchenBoard?.columns.flatMap(({ cards }) => cards).find((carte) => carte.ticket === ticket);
+
 export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Repondue> = () => new Map(), ecrites: (projet: string) => PrioriteMontree = () => () => undefined) {
   const tenus = new Map<string, { faits: Faits; lecture: Lecture }>();
   const blocs = new Map<string, BlocLu>();
@@ -1753,6 +1764,8 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
         donnes?.rail.find((candidat) => candidat.ticket === ticket)?.url ??
         entreeDe(donnes, ticket)?.url ??
         donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.url ??
+        // Une carte du kanban de la nouvelle cuisine (#4482).
+        carteDuKanban(donnes, ticket)?.url ??
         // Un `#N` de la ligne d'un ticket mis de côté (#2075) : une issue ou une PR du dépôt, que le rail ne porte pas.
         donnes?.attend?.flatMap(({ miseDeCote }) => miseDeCote?.liens ?? []).find((lien) => lien.numero === ticket)?.url;
       return url != null && ouvrable(url) ? url : undefined;
@@ -1801,7 +1814,7 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       const donnes = typeof projet === "string" ? tenus.get(projet)?.faits : undefined;
       // Ou la PR qu'une carte « Validate its screen » valide (ticket 3185), ou qu'une carte « review before merge » retient (ticket 3224).
       const chef = entreeDe(donnes, ticket)?.chef;
-      const url = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.pr ?? chef?.design?.url ?? chef?.sensible?.url;
+      const url = donnes?.livres?.find((candidat) => candidat.ticket === ticket)?.pr ?? chef?.design?.url ?? chef?.sensible?.url ?? carteDuKanban(donnes, ticket)?.pr?.url;
       return url != null && ouvrable(url) ? url : undefined;
     },
     // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une

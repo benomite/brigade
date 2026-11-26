@@ -143,7 +143,9 @@ function ligneDeLaCarte({ sorte, texte: dit }: CarteDuChef): string {
 // au label `fire` posent leur question.
 // `parqueesPourLeChef` : les issues `parked:chef` que la lecture du rail a tirées de sa liste des issues ouvertes (#4474) —
 // sans elles, la liste du label est lue.
-export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: boolean | "du-rail"; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[]; parqueesPourLeChef?: readonly IssueParqueePourLeChef[] }): Promise<AttenteLue> {
+// `newKitchen` : le projet est sur la nouvelle cuisine (#4482) — seules ses issues `parked:chef` l'attendent : aucune liste des
+// labels du runtime d'avant n'est lue.
+export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: AppelGitHub; maintenant?: () => Date; enWaiting?: boolean | "du-rail"; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[]; parqueesPourLeChef?: readonly IssueParqueePourLeChef[]; newKitchen?: boolean }): Promise<AttenteLue> {
   const { depot, appeler } = options;
   const lire = async (chemin: string): Promise<unknown> => {
     const reponse = await appeler(chemin).catch((erreur: unknown) => {
@@ -192,7 +194,8 @@ export async function lireCeQuiAttendLeChef(options: { depot: string; appeler: A
     const labelsDEcart = LABELS_D_AVANT_PARKED_SANS_CARTE;
     // Les issues `parked:chef` que la lecture du rail a déjà listées ne se relisent pas (le budget GitHub de l'app, budget-github.ts).
     const dejaListees = options.parqueesPourLeChef?.map(({ ticket, titre, url, creee, labels }): Brut => ({ number: ticket, title: titre, html_url: url, created_at: creee, labels: labels.map((name) => ({ name })) }));
-    const listes = await Promise.all([issuesAuLabel(LABEL_FIRE), issuesAuLabel(LABEL_DU_CHEF), dejaListees ?? issuesAuLabel(LABEL_PARKED_CHEF), ...labelsDEcart.map(issuesAuLabel)]);
+    const duRuntimeDAvant = (label: string) => (options.newKitchen === true ? Promise.resolve([]) : issuesAuLabel(label));
+    const listes = await Promise.all([duRuntimeDAvant(LABEL_FIRE), duRuntimeDAvant(LABEL_DU_CHEF), dejaListees ?? issuesAuLabel(LABEL_PARKED_CHEF), ...labelsDEcart.map(duRuntimeDAvant)]);
     // Une issue en WAITING n'attend pas le chef : elle n'est l'entrée d'aucun label.
     const [auFeu, auChef, parqueesPourLeChef, ...ecartees] = listes.map((issues) => issues.filter((issue) => !enAttente(issue)));
     const misesDeCote = await Promise.all(
@@ -367,7 +370,7 @@ export function avecLAttenteDuChef(lu: TableauLu, { attentes, illisibles, autres
 export async function avecCeQuiAttendLeChef(lu: LectureDuTableauDuDepot, appeler: AppelGitHub, partager?: (attentes: AttenteDuChef[]) => Promise<Partage<AttenteDuChef>>): Promise<LectureDuTableauDuDepot> {
   if (!lu.lu) return lu;
   const epiquesAvantLeRail = (lu.avantLeRail?.issues ?? []).filter(({ etat }) => etat === "epique").map(({ ticket, titre }) => ({ ticket, titre }));
-  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: "du-rail", epiquesAvantLeRail, ...(lu.parqueesPourLeChef === undefined ? {} : { parqueesPourLeChef: lu.parqueesPourLeChef }) });
+  const attente = await lireCeQuiAttendLeChef({ depot: lu.depot, appeler, maintenant: () => new Date(lu.luLe), enWaiting: "du-rail", epiquesAvantLeRail, ...(lu.parqueesPourLeChef === undefined ? {} : { parqueesPourLeChef: lu.parqueesPourLeChef }), ...(lu.faits.kitchenBoard === undefined ? {} : { newKitchen: true }) });
   if (!attente.lue) return { lu: false, depot: lu.depot, luLe: lu.luLe, raison: attente.raison, ...(attente.horsLigne === undefined ? {} : { horsLigne: true as const }) };
   if (partager === undefined) return avecLAttenteDuChef(lu, attente);
   const { siennes, autres } = await partager(attente.attentes);
