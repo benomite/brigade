@@ -1,18 +1,17 @@
 // Le blocage d'un cook va au manager d'abord, jamais au chef directement
 // (#2894). Le 2026-11-08, le cook de #2875 s'est arrêté au bout d'une minute
 // sur une question que le dépôt répondait — l'outil de capture existe, le dépôt
-// est public —, et le ticket est allé tout droit au chef sous
-// `blocked-on-human`, en carte TODO sans question. La règle est la première
-// section du `CLAUDE.md` : un `blocked-on-human` sans décision de produit ou de
-// design est un échec.
+// est public —, et le ticket est allé tout droit au chef, en carte TODO sans
+// question. La règle est la première section du `CLAUDE.md` : un ticket parqué
+// pour le chef sans décision de produit ou de design est un échec.
 //
 // La station donne la question du cook au manager, qui la lit dans un worktree
 // de la branche du ticket, en lecture, et en tire l'une de quatre issues :
 //   - `technique` — un outil, un chemin, un dépôt, un choix entre options
 //     techniques, un accès que la cuisine a : il y répond sur l'issue, dit la
 //     décision qu'il prend, et le ticket repart à un cook depuis sa branche ;
-//   - `produit` ou `design` — seul le chef tranche : `blocked-on-human`, et le
-//     commentaire porte la question sur une ligne ;
+//   - `produit` ou `design` — seul le chef tranche : le ticket est parqué pour
+//     lui (`chef-todo`, #4129), et sa carte porte la question sur une ligne ;
 //   - `geste` — rien à décider, mais un geste que seul le chef peut faire : la
 //     carte nomme ce geste exact, jamais la question du cook seule. Un geste
 //     sur GitHub — ouvrir des issues, commenter, un label — la station le fait
@@ -87,7 +86,7 @@ export function consigneDuBlocage(mission: { depot: string; issue: IssueAJuger; 
         ];
   return [
     MARQUE_DE_LA_CONSULTATION,
-    `Tu es le manager de la brigade sur le dépôt ${depot}. Un cook — un agent qui exécute un ticket seul, sans personne pour lui répondre — s'est arrêté bloqué sur l'issue #${issue.number} et a écrit sa question. Elle vient à toi d'abord, jamais au chef directement : un \`blocked-on-human\` sans décision de produit ou de design est un échec de la cuisine.`,
+    `Tu es le manager de la brigade sur le dépôt ${depot}. Un cook — un agent qui exécute un ticket seul, sans personne pour lui répondre — s'est arrêté bloqué sur l'issue #${issue.number} et a écrit sa question. Elle vient à toi d'abord, jamais au chef directement : un ticket parqué pour le chef sans décision de produit ou de design est un échec de la cuisine.`,
     "",
     "Tu es dans un worktree de la branche du ticket, en lecture (Read, Grep, Glob) : vérifie dans le dépôt ce que la question demande — un outil, un chemin, un fichier, un script — avant de répondre.",
     "",
@@ -201,7 +200,7 @@ export function corpsDeLaCarte({ station, questionEn, avis, secret = false }: { 
     : avis.issue === "geste"
       ? "nothing in it is to decide, but only the chef can make this gesture"
       : `it is a ${avis.issue === "produit" ? "product" : "design"} decision, only the chef makes it`;
-  const ensuite = avis.issue === "geste" ? "Once it is done, remove `blocked-on-human`: a cook resumes the ticket from its branch." : "Answer it on this issue, then remove `blocked-on-human`: a cook resumes the ticket from its branch.";
+  const ensuite = avis.issue === "geste" ? "Once it is done, answer this card: the ticket resumes where it was, a cook from its branch." : "Answer this card: the ticket resumes where it was, a cook carries your answer from its branch.";
   return [
     tete,
     "",

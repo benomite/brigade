@@ -187,7 +187,7 @@ export function commentaireDeReprise({ station, reprise, motifs, avant, nouveaux
         ? `It is now the epic of ${nouveaux.map((n) => `#${n}`).join(", ")}, each on the rail with its calibration; it closes once they are all closed.`
         : reprise.choix === "recalibrer"
           ? `Its calibration goes from ${avant === null ? "none" : `\`${avant.model}\` / \`${avant.effort}\``} to \`${reprise.calibrage.model}\` / \`${reprise.calibrage.effort}\`, and it goes back on the rail.`
-          : `**Question for the chef (${reprise.sorte}):** ${reprise.question}\n\nAnswer it on this issue, then remove \`blocked-on-human\`: the ticket goes back on the rail.`;
+          : `**Question for the chef (${reprise.sorte}):** ${reprise.question}\n\nAnswer it on its card in your TODO: the ticket goes back on the rail.`;
   return [
     `${MARQUE_DE_LA_REPRISE} choix=${reprise.choix} -->`,
     `**Manager — after ${motifs.length} failed tries, the ticket is ${CE_QUI_EST_FAIT[reprise.choix]}, not tried again${reprise.choix === "question" ? "" : ", and not sent to the chef"}.**`,

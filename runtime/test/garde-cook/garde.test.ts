@@ -310,8 +310,8 @@ test("le cook que la station lance part sans demande de permission, gardé : une
   await station.calme();
   const cook = lancements.find(({ cwd }) => cwd === join(repertoire, "11-github"));
   assert.ok(cook, JSON.stringify(lancements));
-  // Aucune demande de permission ajoutée : le mode reste celui d'avant.
-  assert.equal(cook.args[cook.args.indexOf("--permission-mode") + 1], "bypassPermissions");
+  // Sans bac à sable, le cook part en mode restreint (#4391) : `dontAsk`, plus de `bypassPermissions` ; la garde ne pose aucune demande.
+  assert.equal(cook.args[cook.args.indexOf("--permission-mode") + 1], "dontAsk");
   assert.equal(cook.args.filter((arg) => arg === "--settings").length, 1);
   const reglages = JSON.parse(cook.args[cook.args.indexOf("--settings") + 1] ?? "{}") as { hooks?: { PreToolUse?: Array<{ matcher: string; hooks: Array<{ command: string }> }> } };
   const [crochet] = reglages.hooks?.PreToolUse ?? [];

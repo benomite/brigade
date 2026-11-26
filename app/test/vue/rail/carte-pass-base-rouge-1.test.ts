@@ -32,7 +32,7 @@ function github({ fermees, base = "success", issues, commentaires = {}, appels =
   return async (chemin) => {
     appels.push(chemin);
     if (chemin.includes("/issues?") && chemin.includes("labels=fire")) {
-      return ok(issues?.() ?? [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(4, ["fire", "waiting", "taken"]), issue(5, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })]);
+      return ok(issues?.() ?? [issue(1, ["fire", "prio:2"]), issue(2, ["fire", "taken", "prio:1"]), issue(3, ["fire", "in-pass"]), issue(4, ["fire", "parked", "taken"]), issue(5, ["fire", "in-pass"]), issue(40, ["fire"], { pull_request: {} })]);
     }
     // Toutes les issues ouvertes : ce qui est avant le rail (tableau/lecture.ts).
     if (chemin.includes("/issues?")) return ok([issue(1, ["fire"]), issue(2, ["fire", "taken"]), issue(6, [])]);

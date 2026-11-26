@@ -7,10 +7,10 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { A_LA_MAIN, priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
-import { CHEF_TODO } from "../src/github-seul/carte-todo/carte-todo.ts";
+import { priseDeLaStation, stationDuDepot, type Lancer } from "../src/brigade-github.ts";
 import { MARQUE_DE_RENVOI } from "../src/qualite-github.ts";
 import { FauxGitHub, fauxClient } from "./faux-github.ts";
+import { CHEF_TODO } from "../src/github-etat/etats.ts";
 
 const REFUS = "I stopped: `git merge origin/main` was refused, permission denied by the sandbox.";
 
@@ -131,7 +131,7 @@ test("a cook refused a git command on a conflict send-back, when the station's m
   assert.equal(commentairesDe(faux).filter((c) => c.startsWith(MARQUE_DE_RENVOI)).length, 0, "no second conflict send-back");
   assert.equal(commentairesDe(faux).filter((c) => /brigade:todo|brigade:consultation|chef/i.test(c)).length, 0, "no card for the chef");
   assert.equal(faux.ticket(14).labels.has(CHEF_TODO), false);
-  assert.equal(faux.ticket(14).labels.has(A_LA_MAIN), false);
+  assert.equal(faux.ticket(14).labels.has(CHEF_TODO), false);
 });
 
 test("a cook refused a git command on a conflict send-back, when the station's merge goes through: the delivery follows, nothing is restarted, blocked-on-human is not set", async (t) => {
@@ -142,5 +142,5 @@ test("a cook refused a git command on a conflict send-back, when the station's m
   assert.ok(gestes.includes("pousser cook/14-github"), "the merged branch is pushed");
   assert.equal(commentairesDe(faux).filter((c) => c.startsWith(MARQUE_DE_RENVOI)).length, 0);
   assert.equal(faux.ticket(14).labels.has(CHEF_TODO), false);
-  assert.equal(faux.ticket(14).labels.has(A_LA_MAIN), false);
+  assert.equal(faux.ticket(14).labels.has(CHEF_TODO), false);
 });

@@ -7,7 +7,7 @@ import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { NORMAL } from "./projet-temps-commun.ts";
 
 // Le bandeau de santé est une section de Settings (#3014) : le chef l'ouvre, puis la section est amenée à l'écran.
-export const SETTINGS = { cliquer: "#onglets-du-projet button:nth-child(3)" };
+export const SETTINGS = { cliquer: "#onglets-du-projet button:nth-child(4)" };
 export const SECTION = { defiler: "#bandeau-sante" };
 
 const DANS_LE_DEPOT: Record<string, number> = { gatesSeconds: 120, tests: 900 };

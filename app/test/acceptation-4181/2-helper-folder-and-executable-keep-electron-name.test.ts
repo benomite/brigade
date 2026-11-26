@@ -44,11 +44,11 @@ function construit(): { racine: string; paquet: string } {
   return { racine, paquet: assembler({ version: "1.0.0", electron, node }, join(racine, "volume")) };
 }
 
-test("les dossiers et exécutables des auxiliaires gardent le nom d'Electron", (t) => {
+test("les dossiers et exécutables des auxiliaires prennent le nom de Brigade", (t) => {
   const { racine, paquet } = construit();
   t.after(() => rmSync(racine, { recursive: true, force: true }));
   const frameworks = join(paquet, "Contents", "Frameworks");
-  assert.deepEqual(readdirSync(frameworks).sort(), ["Electron Helper (GPU).app", "Electron Helper (Renderer).app", "Electron Helper.app"]);
+  assert.deepEqual(readdirSync(frameworks).sort(), ["Brigade Helper (GPU).app", "Brigade Helper (Renderer).app", "Brigade Helper.app"]);
   for (const suffixe of [" (GPU)", " (Renderer)", ""])
-    assert.ok(existsSync(join(frameworks, `Electron Helper${suffixe}.app`, "Contents", "MacOS", `Electron Helper${suffixe}`)));
+    assert.ok(existsSync(join(frameworks, `Brigade Helper${suffixe}.app`, "Contents", "MacOS", `Brigade Helper${suffixe}`)));
 });

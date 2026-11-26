@@ -11,8 +11,9 @@
 // plafond du chef s'il en a réglé un (0 : sans limite), sinon son défaut — le même qu'avant. Un journal qui ne se lit pas
 // garde le défaut, et le dit une fois.
 import { availableParallelism } from "node:os";
+import { plafondDesCoeurs } from "../../projections/stations.ts";
 import type { Journal } from "../../journal.ts";
-import { etatStation, plafondDesCoeurs } from "../../projections/stations.ts";
+import { etatStation } from "../../projections/stations.ts";
 import type { StationDeclaree } from "../../stations-declarees.ts";
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));

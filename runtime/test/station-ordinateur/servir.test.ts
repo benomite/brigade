@@ -145,7 +145,7 @@ test("one project in the list is cloned into the station's own places, and a Git
   const dits = o.dits.join("\n");
   assert.match(dits, /^brigade : station mac\/claude — serves acme\/shop from GitHub only, under its own name/m);
   assert.match(dits, /^brigade : station mac\/claude — GitHub-only turn on acme\/shop: /m);
-  assert.deepEqual(o.dits.filter((ligne) => !ligne.startsWith(`brigade : station ${STATION} — `)), []);
+  assert.deepEqual(o.dits.filter((ligne) => !ligne.startsWith(`brigade : station ${STATION} — `) && !ligne.includes("Mutation check")), []);
   // Aucun journal de projet n'est ouvert sous la station : ni `log.db`, ni verrou.
   assert.deepEqual(fichiersSous(racine).filter((fichier) => /(^|\/)(log|lock)\.db/.test(fichier)), []);
 });

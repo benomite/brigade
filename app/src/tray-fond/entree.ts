@@ -11,7 +11,7 @@
 import { spawn } from "node:child_process";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import { estInstallee } from "../emplacements.ts";
 import { ARGUMENT_FOND } from "../station-fond/inscription.ts";
 import { lireLaCommande, memeProcess, prendreLaPlace } from "./instance.ts";
@@ -34,7 +34,12 @@ if (process.argv.includes(ARGUMENT_FOND)) {
     return !app.requestSingleInstanceLock() && autreApp !== undefined;
   };
   const passeLaMain = installee && uneAutreAppTourne();
-  if (passeLaMain) {
+  // Ouverte d'un lieu en lecture seule (l'image disque, #4269) : une phrase, puis on quitte sans erreur.
+  const lectureSeule = !passeLaMain && (await import("../pty.ts")).aideInutilisable;
+  if (lectureSeule) {
+    dialog.showErrorBox("Brigade", "Drag Brigade into the Applications folder first, then open it from there.");
+    app.exit(0);
+  } else if (passeLaMain) {
     app.exit(0);
   } else {
     app.on("second-instance", () => {

@@ -20,7 +20,7 @@ const limiteParDefaut = (): number => {
 
 const ICI = fileURLToPath(import.meta.url);
 
-// A ticket's frozen acceptance tests (`test/acceptation-<n>/`, #3725) may read a live PR through
+// A ticket's acceptance tests (`test/acceptation-<n>/`, #3725) may read a live PR through
 // `gh`. Where `gh` is missing or logged out (the CI, a bare clone) they cannot answer: the tests of
 // such a file skip there, saying why, instead of turning the base suite red. Where `gh` is logged
 // in — the station, whose pass judges them — they run (#3847). A file it cannot read runs as is.
@@ -33,7 +33,7 @@ function sansGh(fichier: string | undefined): string | null {
     return null;
   }
   if (!source.includes('"gh"')) return null;
-  return spawnSync("gh", ["auth", "token"], { stdio: "ignore" }).status === 0 ? null : "gh is missing or logged out: this frozen acceptance test reads GitHub through it";
+  return spawnSync("gh", ["auth", "token"], { stdio: "ignore" }).status === 0 ? null : "gh is missing or logged out: this acceptance test reads GitHub through it";
 }
 const SANS_GH = sansGh(process.argv[1]);
 
@@ -82,7 +82,7 @@ function entoure<F extends (...args: any[]) => unknown>(titre: string, ecrit: st
 }
 
 // Reads `(name, options, fn)`, `(name, fn)`, `(fn)`, `(options, fn)`.
-// `estUnTest`: a test (not a hook), which skips in a frozen acceptance file that `gh` cannot serve.
+// `estUnTest`: a test (not a hook), which skips in an acceptance file that `gh` cannot serve.
 function enveloppe<F extends (...args: any[]) => unknown>(original: F, estUnTest = false): F {
   const garde = function (this: unknown, ...args: any[]) {
     const i = args.findIndex((a) => typeof a === "function");

@@ -12,7 +12,7 @@
 //   sa branche, puis le ticket repart à un cook depuis elle (`apresLaMiseAJour`).
 //   Si elle n'y arrive pas — conflit, refus, réseau —, le ticket revient à son
 //   propre cook, conflit nommé (`conflit-main/`, #3476) : jamais un ticket
-//   neuf, jamais de carte TODO, jamais `blocked-on-human`.
+//   neuf, jamais de carte TODO, jamais parqué pour le chef.
 //
 // Différent de #2953 (`renvoi-conflit.ts`) : là, la PR est déjà en conflit et
 // la fusion, non commitée, est laissée au cook ; ici, la fusion est commitée
@@ -31,7 +31,7 @@ export type MiseAJourDeLaBranche =
   // les chemins en conflit. La fusion tentée est défaite.
   | { etat: "echec"; etape: "recolte" | "fetch" | "merge"; detail: string; fichiers: string[] };
 
-const SUJET_DE_LA_FUSION = (base: string) => `brigade : la branche mise à jour de origin/${base}`;
+const SUJET_DE_LA_FUSION = (base: string) => `brigade: branch updated from origin/${base}`;
 
 const detail = (sortie: SortieGit) => sortie.stderr.trim() || sortie.stdout.trim() || `git exited with ${sortie.code}`;
 

@@ -18,6 +18,7 @@ const ticket = (autres: Record<string, unknown> = {}) => ({
   zone: ["runtime/src/rail.ts"],
   modele: "sonnet",
   effort: "low",
+  temps_attendu: 10,
   calibrage: "Un module.",
   ...autres,
 });
@@ -116,7 +117,6 @@ test("trois tickets sur le même fichier, et un entre eux sur un autre, font deu
   );
 });
 
-// brigade:guard
 test("le ticket joint prend le calibrage le plus haut des siens et toutes leurs capacités", () => {
   const [haut, bas] = prevus([["a.ts"]], [["a.ts"]]) as [TicketPrevu, TicketPrevu];
   const [joint] = joindre([
@@ -170,11 +170,24 @@ test("un découpage se lit avec son motif, son ordre, et chaque ticket avec crit
       reason: "Un livrable par module.",
       order: "Le rail d'abord.",
       tickets: [
-        { title: "Le rail compte", context: "Le compte n'existe pas.", criteria: ["`run rail` affiche le compte"], waitsFor: [], zone: ["runtime/src/rail.ts"], model: "sonnet", effort: "low", calibration: "Un module." },
-        { title: "La pass lit", context: "", criteria: ["`run rail` affiche le compte"], waitsFor: [1], zone: ["runtime/src/pass.ts", "docs/"], model: "sonnet", effort: "low", calibration: "Un module." },
+        { title: "Le rail compte", context: "Le compte n'existe pas.", criteria: ["`run rail` affiche le compte"], waitsFor: [], zone: ["runtime/src/rail.ts"], model: "sonnet", effort: "low", calibration: "Un module.", expectedMinutes: 10 },
+        { title: "La pass lit", context: "", criteria: ["`run rail` affiche le compte"], waitsFor: [1], zone: ["runtime/src/pass.ts", "docs/"], model: "sonnet", effort: "low", calibration: "Un module.", expectedMinutes: 10 },
       ],
     },
   });
+});
+
+test("une question qui demande au chef s'il faut découper ne se lit pas : c'est au manager (#4247)", () => {
+  for (const question of [
+    "Does the manager split #4056 into several tickets, or keep it as a single ticket?",
+    "Should this epic be split into tickets?",
+    "One ticket or several?",
+    "Do we keep it as one ticket, or split it?",
+  ]) {
+    assert.match(illisible(JSON.stringify({ reponse: "question", question })), /asks the chef whether to split the epic/, question);
+  }
+  // Une question de produit se lit toujours, même quand elle parle de tickets.
+  assert.deepEqual(lireDecoupage('{"reponse": "question", "question": "Should the rail show one ticket per line?"}'), { valeur: { quoi: "question", question: "Should the rail show one ticket per line?" } });
 });
 
 test("une question et une épique déjà découpée se lisent, et ne portent aucun ticket", () => {
@@ -228,7 +241,7 @@ test("le corps d'un ticket dit son épique, porte sa marque, ses critères, et p
   assert.equal(neDUnDecoupage(`Le manager écrit \`${marque(30, 2)}\` dans ses tickets.`), false);
   assert.equal(marqueDe(`\`\`\`\n${marque(30, 2)}\n\`\`\``), null);
   assert.match(corps, /## Acceptance criteria\n\n- `run rail` affiche le compte/);
-  assert.match(corps, /Calibrated `sonnet` \/ `low` — Un module\./);
+  assert.match(corps, /Calibrated `sonnet` \/ `low` \/ `10 min` — Un module\./);
   assert.match(corps, /the manager will not come back to it/);
 });
 
@@ -300,7 +313,6 @@ test("un ticket dont la zone touche la vue de l'app ne porte aucun champ de cook
   for (const prevu of lu.valeur.tickets) assert.equal(Object.hasOwn(prevu, "cook"), false);
 });
 
-// brigade:guard
 test("le calibrage d'un ticket de la vue se lit comme celui des autres, sans `xhigh` ni `max`", () => {
   const lu = lireDecoupage(reponse([ticket({ zone: ["app/src/vue/carte.js"], modele: "opus", effort: "high" })]));
   assert.ok("valeur" in lu && lu.valeur.quoi === "tickets");
@@ -316,6 +328,6 @@ test("le corps d'un ticket ne désigne aucun cook, que sa zone touche la vue de 
   for (const prevu of lu.valeur.tickets) {
     const corps = corpsDuTicket(30, 1, prevu);
     assert.doesNotMatch(corps, /design cook|cook:design|## Design/i);
-    assert.match(corps, /Calibrated `sonnet` \/ `low` — Un module\./);
+    assert.match(corps, /Calibrated `sonnet` \/ `low` \/ `10 min` — Un module\./);
   }
 });

@@ -7,8 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { lireRevue, suiviDesAttentesLongues } from "../../src/attente-longue/attente-longue.ts";
-import { A_LA_MAIN, stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
+import { stationDuDepot, type Lancer } from "../../src/brigade-github.ts";
 import { FauxGitHub, STATION_DU_DEPOT, depotNeuf, fauxClient } from "../faux-github.ts";
+import { CHEF_TODO } from "../../src/github-etat/etats.ts";
 
 const A = 10;
 const B = 20;
@@ -43,7 +44,7 @@ function suivi(gh: ReturnType<typeof github>, revoir?: () => Promise<ReponseDeLa
   let maintenant = 0;
   const revues: number[] = [];
   const avertis: string[] = [];
-  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: A_LA_MAIN, ...(revoir === undefined ? {} : { revoir: async () => (revues.push(maintenant), revoir()) }), maintenant: () => maintenant, avertir: (texte) => avertis.push(texte) });
+  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: CHEF_TODO, ...(revoir === undefined ? {} : { revoir: async () => (revues.push(maintenant), revoir()) }), maintenant: () => maintenant, avertir: (texte) => avertis.push(texte) });
   const tour = async (minutes: number, libre = true) => {
     maintenant = minutes * MIN;
     s.tour(libre ? [B] : []);
@@ -95,7 +96,7 @@ test("once the chef has answered the product question and the ticket is back on 
   const s = suivi(gh, async () => reponse);
   await s.tour(0);
   await s.tour(61);
-  assert.deepEqual(gh.labels, [A_LA_MAIN]);
+  assert.deepEqual(gh.labels, [CHEF_TODO]);
   // `blocked-on-human` : le ticket n'est plus libre.
   await s.tour(62, false);
   gh.ecrits.push("Ship it without the palette.");
@@ -116,7 +117,7 @@ test("a mark of the wait with an outcome the station does not know is no review:
 test("the same wait named in another order is the same wait: before the hour, the issue is read once", async () => {
   const gh = github();
   let maintenant = 0;
-  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: A_LA_MAIN, revoir: async () => ({ revue: { issue: "garde", commentaire: "Kept." } }), maintenant: () => maintenant, avertir: () => {} });
+  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: CHEF_TODO, revoir: async () => ({ revue: { issue: "garde", commentaire: "Kept." } }), maintenant: () => maintenant, avertir: () => {} });
   for (const [minutes, attendus] of [[0, [A, 30]], [1, [30, A]], [2, [A, 30]], [3, [30, A]]] as const) {
     maintenant = minutes * MIN;
     s.tour([B]);
@@ -130,7 +131,7 @@ test("the manager is told how long the ticket has waited", async () => {
   const gh = github();
   const attentes: number[] = [];
   let maintenant = 1_000 * MIN;
-  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: A_LA_MAIN, revoir: async (_ticket, { depuisMs }) => (attentes.push(depuisMs), { revue: { issue: "garde", commentaire: "Kept." } }), maintenant: () => maintenant, avertir: () => {} });
+  const s = suiviDesAttentesLongues({ github: gh.client, station: "box", label: CHEF_TODO, revoir: async (_ticket, { depuisMs }) => (attentes.push(depuisMs), { revue: { issue: "garde", commentaire: "Kept." } }), maintenant: () => maintenant, avertir: () => {} });
   for (const minutes of [0, 30, 75]) {
     maintenant = (1_000 + minutes) * MIN;
     s.tour([B]);
@@ -151,7 +152,7 @@ test("through the station: a ticket whose sheet waits for a ticket set aside sta
   const repertoire = mkdtempSync(join(tmpdir(), "attente-longue-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
-  faux.feu(A, ["fire", "model:opus", "effort:medium", A_LA_MAIN], "The base.");
+  faux.feu(A, ["fire", "model:opus", "effort:medium", CHEF_TODO], "The base.");
   faux.feu(B, ["fire", "model:opus", "effort:medium"], "## Context\n\nA ticket.");
   faux.poster(B, "manager", `<!-- brigade:fiche -->\n- awaiting: #${A}\n- zone: src/b.ts`);
   let cooks = 0;

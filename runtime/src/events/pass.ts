@@ -43,7 +43,8 @@ export type Gates = {
 };
 
 // Un job de CI, ou un statut de commit.
-export type Check = { name: string; outcome: "green" | "red" | "pending"; conclusion: string; url: string | null };
+// `startedAt` : quand le job a commencé, quand GitHub le dit — le début d'une panne de `main` (#4382).
+export type Check = { name: string; outcome: "green" | "red" | "pending"; conclusion: string; url: string | null; startedAt?: string };
 
 // Ce que la CI du commit a dit. `none` : le commit n'a aucun check — ni vert ni
 // rouge, le verdict repose alors sur les seules gates. `skipped` : non lue — les

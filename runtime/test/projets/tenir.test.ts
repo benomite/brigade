@@ -15,6 +15,8 @@ import type { Fait } from "../../src/evenements.ts";
 import { leverBlocageDans, poserBlocageDans } from "../../src/installation/blocages/blocages.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
+import { retenirLaFiche } from "../../src/delais/lecture.ts";
+import { lireSuivi } from "../../../app/src/projets/demande.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
 import type { Onboarding } from "../../src/onboarding/etat.ts";
 import { ENQUETE_MUETTE, PAGE_DES_JETONS_FINS, type Enquete } from "../../src/projets/echec-du-clone.ts";
@@ -119,7 +121,8 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
   const suivi = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { projets: SuiviDuProjet[] } | null)?.projets;
   const onboarding = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { onboarding?: Record<string, Onboarding> } | null)?.onboarding;
   const ecrireTelQuel = (texte: string) => void (fichiers[FICHIER_PROJETS] = texte);
-  return { racine, origine, projets, demander, ecrireTelQuel, suivi, onboarding, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), enqueteDuGh: (lue: Enquete) => (enquete = lue), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
+  const suiviBrut = () => fichiers[FICHIER_SUIVI];
+  return { racine, origine, projets, demander, ecrireTelQuel, suivi, suiviBrut, onboarding, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), enqueteDuGh: (lue: Enquete) => (enquete = lue), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
 }
 
 // Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
@@ -668,4 +671,40 @@ test("un projet servi sans ticket mergé dans les dernières 24 h ne publie aucu
   await station.projets.relire();
 
   assert.equal(station.suivi()?.[0]?.temps?.resume, null);
+});
+
+// #4309 : les délais des dernières 24 heures, ceux de `status --json`, publiés dans le suivi à côté des temps, et relus
+// par l'app (`lireSuivi`) tels quels — la vue de la cuisine les montre.
+const aLaStation = (minutes: number) => new Date(Date.parse("2026-10-15T12:02:00Z") - minutes * 60_000).toISOString();
+const phases = [{ nom: "claim wait", minutes: 10 }, { nom: "cooking", minutes: 30 }, { nom: "gates", minutes: 2 }, { nom: "CI", minutes: 3 }, { nom: "review", minutes: 5 }, { nom: "send-back", minutes: 30 }, { nom: "pass wait", minutes: 15 }, { nom: "merge", minutes: 5 }];
+const merge = (ticket: number, prise: number, fusion: number, avec: object = {}) => ({ ticket, claimedAt: aLaStation(prise), priseAt: aLaStation(prise), mergedAt: aLaStation(fusion), cuisson: 0, cuissonTests: 0, attentePasse: 0, revue: 0, ci: 0, merge: 0, ...avec });
+
+test("a served project whose clone merged tickets in the last 24 h publishes their `delais`, and the app reads them as is", async (t) => {
+  const clone = repertoireTemporaire(t);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude", "brigade", "temps-tickets.json"), JSON.stringify([merge(9, 100, 10, { depuis: aLaStation(110), claimedAt: aLaStation(95), phases }), merge(5, 30, 5)]));
+  retenirLaFiche(clone, { ticket: 9, titre: "A slow ticket", etiquettes: ["attendu:20", "model:opus", "effort:high"] });
+  retenirLaFiche(clone, { ticket: 5, titre: "A quick ticket", etiquettes: ["attendu:60"] });
+  const station = uneStation(t, { clonesServis: { shop: clone } });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  const attendus = { fenetre_heures: 24, fusionnes: 2, dans_les_temps: 1, part_dans_les_temps: 0.5, sans_temps_attendu: 0, pires_depassements: [{ ticket: 9, titre: "A slow ticket", attendu_min: 20, reel_min: 90, modele: "opus", effort: "high", repartition_min: { cook: 30, gates: 5, review: 5, renvois: 30, attentes: 20 } }] };
+  assert.deepEqual(station.suivi()?.[0]?.delais, attendus);
+  // À côté des temps et du délai de l'ajout, que la station publie toujours.
+  assert.deepEqual(station.suivi()?.[0]?.delai, AJOUTE);
+  assert.equal(station.suivi()?.[0]?.temps?.enregistrements.length, 2);
+  assert.deepEqual(lireSuivi(station.suiviBrut())[0]?.delais, attendus);
+});
+
+test("a served project whose ticket cards cannot be read publishes the reason, never an empty window", async (t) => {
+  const clone = repertoireTemporaire(t);
+  mkdirSync(join(clone, ".claude", "brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude", "brigade", "temps-tickets.json"), JSON.stringify([merge(5, 30, 5)]));
+  writeFileSync(join(clone, ".claude", "brigade", "delais-tickets.json"), "{ not json");
+  const station = uneStation(t, { clonesServis: { shop: clone } });
+  station.demander(SUR_BASE);
+  await station.projets.relire();
+
+  assert.match((lireSuivi(station.suiviBrut())[0]?.delais as { illisible?: string } | undefined)?.illisible ?? "", /JSON/);
 });

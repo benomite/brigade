@@ -30,6 +30,8 @@ export type OptionsDuFaux = {
   // Le clone du projet, où le temps des tickets mergés s'écrit (#3512).
   clone?: string;
   sauter?: (ticket: number, ligne: string) => void;
+  // La PR périmée que la porte ne compte plus sur la zone d'un ticket (#4243).
+  perimee?: OptionsDeStation["perimee"];
   // Le manager consulté après le dernier essai raté (#3513).
   reprendre?: ReprendreLeTicket;
   // Les contrôles des invariants du rail, et la relance de la base rouge (#4026).
@@ -37,6 +39,7 @@ export type OptionsDuFaux = {
   relancerLaBase?: OptionsDeStation["relancerLaBase"];
   // La porte des gestes des agents (#4039).
   porte?: OptionsDeStation["porte"];
+  ficheDuProjet?: OptionsDeStation["ficheDuProjet"];
 };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
@@ -286,6 +289,7 @@ export class FauxGitHub {
     return stationGitHub({
       nom,
       ...(options.sauter === undefined ? {} : { sauter: options.sauter }),
+      ...(options.perimee === undefined ? {} : { perimee: options.perimee }),
       ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }),
       ...(options.ciDesPR === undefined ? {} : { ciDesPR: options.ciDesPR }),
       ...(options.gates === undefined ? {} : { gates: options.gates }),
@@ -295,6 +299,7 @@ export class FauxGitHub {
       ...(options.invariants === undefined ? {} : { invariants: options.invariants }),
       ...(options.relancerLaBase === undefined ? {} : { relancerLaBase: options.relancerLaBase }),
       ...(options.porte === undefined ? {} : { porte: options.porte }),
+      ...(options.ficheDuProjet === undefined ? {} : { ficheDuProjet: options.ficheDuProjet }),
       places: options.places ?? 1,
       ...(options.capacites === undefined ? {} : { capacites: options.capacites }),
       base: "main",
