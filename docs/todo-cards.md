@@ -48,7 +48,7 @@ On the phone, the list of `Awaiting you` shows only the cards that have a questi
 |---|---|---|---|
 | `design-validation` | Is the screen of this green design delivery right? | **Button** — `Validate` (merges the PR) or `Send back to the kitchen` (with a comment) | **Button** — the same two |
 | `merge-by-hand` of the setup PR (`runtime/src/second-init/pr-de-setup.ts`) | Merge the setup pull request #N? | **Button** — `Merge #N` | **Button** — `Merge #N` |
-| `product-question` of a stranger's issue (`runtime/src/issue-etrangere/issue-etrangere.ts`) | Put it on the rail, or close it? | **Button** — `Put it on the rail with prio:N` and `Close it` | **Button** — the same two |
+| `product-question` of a held issue, from an author who is not trusted (`runtime/src/issue-etrangere/issue-etrangere.ts`, #4422) | Accept it, or close it? | **Button** — `Accept it` (puts `fire`: the manager judges it) and `Close it` | **Button** — the same two |
 | `merge-by-hand` of a fork PR (`runtime/src/pr-externe/pr-externe.ts`) | Merge #N? | **Button** — `Merge #N` (merges the PR; a refused merge says why and the card stays) | **Button** — `Merge #N` |
 | Set aside by the station, `blocked-on-human`, with a PR to merge (`app/src/tableau/mise-de-cote-github.ts`) | Merge the PR of #T by hand? | **Button** — `Merge the PR of #T` (merges the ticket's open PR and removes `blocked-on-human`; a refused merge says why and the card stays) | **Button** — `Merge the PR of #T` |
 | Set aside by the station, `blocked-on-human`, without a PR (`app/src/tableau/mise-de-cote-github.ts`) | Lift the hold? | **Buttons** — `Back to the kitchen` (removes `blocked-on-human`: the ticket is back on the rail) and `Close it` (closes the issue) | **Buttons** — `Back to the kitchen` and `Close it` |

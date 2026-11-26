@@ -78,7 +78,7 @@ import { humainsDuProjet } from "../aiguillage-humains/aiguillage.ts";
 import { lireLaCharge } from "../rouge-de-charge/classeur.ts";
 import { createAgentSettings } from "../agent-settings/index.ts";
 import { creerConfiance, type Confiance } from "../trust/trust.ts";
-import { AcceptesIllisibles, ouvrirAcceptes, type Acceptes } from "../trust/acceptes.ts";
+import { ouvrirAcceptesOuRien, type Acceptes } from "../trust/acceptes.ts";
 
 export type Cuisine = {
   projet: string;
@@ -196,13 +196,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   // Non nul : le projet est servi sur l'état GitHub seul (`brigade-github.ts`).
   let projetGitHub: ProjetOuvert | null = null;
   let confiance: Confiance | undefined;
-  let acceptes: Acceptes | null = null;
-  try {
-    acceptes = ouvrirAcceptes(join(repertoireEtat, "acceptes.json"));
-  } catch (erreur) {
-    if (!(erreur instanceof AcceptesIllisibles)) throw erreur;
-    dire(`brigade : éléments acceptés non lus, aucun n'est tenu pour accepté — ${erreur.message}`);
-  }
+  const acceptes: Acceptes | null = ouvrirAcceptesOuRien(join(repertoireEtat, "acceptes.json"), dire);
   try {
     identites = apps && ouvrirIdentites({ ...apps, depot: rail.depot });
     let republierReseau = () => {};
@@ -331,7 +325,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     projetGitHub = ouvert;
     brancherDerive(socle, decisions.seuils, dire);
-    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+    const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station), confiance: () => confiance, acceptes });
     // Le superviseur (#3945) : quand la cuisine ne bouge pas, un run par projet,
     // qui donne son dossier au manager et ne joue que l'un de ses six gestes.
     const superviser = <R extends Runtime>(runtime: R) => brancherSuperviseur(runtime, { tour: ouvert.refus === undefined ? suiviDuTour : null, github: githubs.manager, depot: rail.depot, branche: station.base, consulter: () => managerDuSuperviseur, chef: async () => (chefDuProjet === null ? null : chefDuProjet()), dire });

@@ -37,6 +37,8 @@ import { LancementRefuse, STATION_DU_MANAGER, type GardeFous, type Verdict } fro
 import { HORS_CUISINE, LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import { estUnePriseDuManager, finirLeTravail, prendreLeTravail, type TenantDuTravail } from "./github-etat/prise-du-manager.ts";
 import { auteurSansEcriture } from "./github-etat/auteur.ts";
+import { ouvrirAcceptesOuRien, type Acceptes } from "./trust/acceptes.ts";
+import type { Confiance } from "./trust/trust.ts";
 import { ouvrirIssuesEtrangeres } from "./issue-etrangere/issue-etrangere.ts";
 import { choisirSuivante, prendreSuivante } from "./prise-backlog/prise-backlog.ts";
 import type { Humain } from "./aiguillage-humains/aiguillage.ts";
@@ -163,6 +165,14 @@ export type OptionsManager = ConfigManager & {
   // pas ; lève si elle ne se lit pas. Elle est la roadmap, comme `roadmap`
   // (#3436). Absente : seule `roadmap` l'est.
   roadmapDuDepot?: () => number | null;
+  // La porte de confiance (#4421) : qui est de confiance — le chef, l'écriture sur le dépôt, un agent de la cuisine —,
+  // relue à chaque issue ; absente, ou pas encore posée, le lien que GitHub donne de l'auteur au dépôt en tient lieu.
+  // Le texte d'une issue d'un autre auteur n'est ni jugé, ni mis sur le rail, ni donné à un agent tant que le chef ne
+  // l'a pas acceptée (#4422).
+  confiance?: () => Confiance | undefined;
+  // Les issues acceptées (#4421) : absentes, le manager ouvre `acceptes.json` sous `repertoireEtat` ; nulles, le
+  // fichier est illisible, et aucune issue retenue n'est tenue pour acceptée.
+  acceptes?: Acceptes | null;
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
@@ -248,6 +258,12 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
   // Les issues d'un inconnu qu'un membre de confiance a lancées ou priorisées :
   // le manager lit qui a posé le label, pas qui a écrit l'issue (#2619).
   const garanties = new Set<number>();
+  // Les issues retenues que le chef a acceptées (#4422) : l'accord est gardé, et l'issue suit le chemin de toute autre.
+  const acceptes = options.acceptes !== undefined ? options.acceptes : ouvrirAcceptesOuRien(join(options.repertoireEtat, "acceptes.json"), avertir);
+  const acceptee = (numero: number) => acceptes?.isAccepted({ kind: "issue", id: numero }) === true;
+  // Ce que la porte de confiance a dit de l'auteur de chaque issue, à sa dernière lecture : le tri, synchrone, s'en
+  // sert. Cache, pas état : le perdre coûte une question à la porte, qui retient déjà ses réponses.
+  const deConfiance = new Map<number, boolean>();
   // Les comptes que le projet déclare (`humans`) : seuls ils font d'une marque de station celle d'une station (#3012).
   // Des réglages illisibles ne déclarent personne : la marque ne vaut alors rien, et l'issue reste celle d'un inconnu.
   const declares = () => {
@@ -257,9 +273,17 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       return [];
     }
   };
+  // L'issue est retenue (#4422) : son auteur n'est pas de confiance, nul membre ne l'a lancée, et le chef ne l'a pas
+  // acceptée. Elle n'est ni jugée, ni mise sur le rail, ni lue par un agent : seule sa carte part au chef.
+  const retenue = (issue: IssueOuverte) =>
+    !acceptee(issue.number) && !garanties.has(issue.number) && auteurSansEcriture(issue, declares(), deConfiance.get(issue.number));
   const garantir = async (issue: IssueOuverte) => {
     garanties.delete(issue.number);
-    if (!auteurSansEcriture(issue, declares()) || !github.labelsPosesParDeConfiance) return;
+    deConfiance.delete(issue.number);
+    const confiance = options.confiance?.();
+    // La porte dit faux quand GitHub ne répond pas : l'issue reste retenue ce tour, jamais l'inverse.
+    if (confiance !== undefined && issue.author !== undefined && issue.author !== "") deConfiance.set(issue.number, await confiance.isTrusted(issue.author));
+    if (acceptee(issue.number) || !auteurSansEcriture(issue, declares(), deConfiance.get(issue.number)) || !github.labelsPosesParDeConfiance) return;
     if (!issue.labels.some((label) => label === LABEL || priorite([label]) !== null)) return;
     try {
       const posees = await github.labelsPosesParDeConfiance(issue.number);
@@ -302,7 +326,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     // Le manager a déjà posé sur cette issue, et il y manque quelque chose : le
     // chef l'a retiré. Tout ce qu'elle porte est désormais à lui.
     if (connue && connue.posed.length > 0) return { quoi: "ecart", raison: "chef-changed", fired };
-    if (auteurSansEcriture(issue, declares()) && !garanties.has(issue.number)) return { quoi: "ecart", raison: "untrusted-author", fired };
+    if (retenue(issue)) return { quoi: "ecart", raison: "untrusted-author", fired };
     // Parquée (#4129) — pour le chef, par la carte de sa question, ou pour un autre — : elle n'est pas jugée avant de
     // reprendre. Parquée par sa question au chef, l'écart garde la nature de cette question.
     const nature = (NATURES_AU_CHEF as readonly string[]).includes(connue?.reason ?? "") ? (connue?.reason as Ecart) : "parked";
@@ -856,18 +880,21 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
     porte: options.porte ?? null,
   });
 
-  // L'issue d'un auteur sans l'écriture : une proposition de tri, et une carte
-  // à l'humain `product`, dont la réponse la met sur le rail ou la ferme (#2934).
+  // L'issue retenue d'un auteur qui n'est pas de confiance : aucun agent ne la lit, une carte va à l'humain
+  // `product`, dont la réponse l'accepte ou la ferme (#2934, #4422).
   const etrangeres = ouvrirIssuesEtrangeres({
     github,
-    depotGitHub: options.depotGitHub,
-    demander,
-    peutJuger,
+    acceptes,
+    // La réponse à sa carte : d'un auteur de confiance, que la porte le dise — sinon le lien de l'auteur au dépôt.
+    deConfiance: async ({ author, association }) => {
+      const confiance = options.confiance?.();
+      return confiance === undefined ? DE_CONFIANCE.includes(association) : confiance.isTrusted(author);
+    },
     arrete: () => arrete,
     avertir,
     humains: options.humains ?? (() => []),
   });
-  // Les issues ouvertes du tour en cours, parmi lesquelles le tri cherche un doublon.
+  // Les issues ouvertes du tour en cours, que la roadmap lit — sans celles qui sont retenues (#4422).
   let ouvertesDuTour: IssueOuverte[] = [];
 
   // La roadmap écartée : ce qui y questionne le chef s'en retire, et le travail
@@ -972,7 +999,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       ecarter(issue, tri, connue);
       if (tri.raison === ("untrusted-author" satisfies Ecart)) {
         if (arrete || !managerAllume(base)) return "arret";
-        return etrangeres.traiter(issue, ouvertesDuTour);
+        return etrangeres.traiter(issue);
       }
       if (tri.raison === ("vision" satisfies Ecart)) {
         if (arrete || !managerAllume(base)) return "arret";
@@ -981,7 +1008,7 @@ export function brancherManager<R extends Runtime & GardeFous>(runtime: R, optio
       }
       if (tri.raison === ("roadmap" satisfies Ecart)) {
         if (arrete || !managerAllume(base)) return "arret";
-        if (!(await roadmap.traiter(issue, await commentaires(issue), ouvertesDuTour))) return "reste";
+        if (!(await roadmap.traiter(issue, await commentaires(issue), ouvertesDuTour.filter((ouverte) => !retenue(ouverte))))) return "reste";
       }
     } else if (tri.quoi === "juger") {
       const corps = await commentaires(issue);

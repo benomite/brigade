@@ -506,25 +506,6 @@ FIN
 {"nature":"decision","motif":"It waits for the client to say whether the respondent is recontacted after the beta.","manque":"The client's answer.","question":"Does AF want direct automatic recontact of the Respondent after the beta?","reponses":["Yes: recontact automatically","Close it: out of scope"],"recommandee":null,"pourquoi":null,"attend":"AF, the client"}
 FIN
       ;;
-    # Le tri de l'issue d'un auteur sans l'écriture (#2934).
-    trie-ticket)
-      assistant
-      resultat <<'FIN'
-{"triage":"ticket","prio":2,"motif":"A real need: the export drops the last row."}
-FIN
-      ;;
-    trie-doublon)
-      assistant
-      resultat <<'FIN'
-{"triage":"duplicate","de":31,"motif":"Issue #31 already asks for the same export fix."}
-FIN
-      ;;
-    trie-hors-perimetre)
-      assistant
-      resultat <<'FIN'
-{"triage":"out-of-scope","motif":"The project does not ship a mobile app."}
-FIN
-      ;;
     # Un verdict `incomplete` suivi (#2692) : le manager le complète, ou pose
     # une question produit au chef.
     complete-criteres)

@@ -33,6 +33,17 @@ function lire(fichier: string): Set<string> {
   return new Set(accepted as string[]);
 }
 
+// Le fichier ouvert, ou null s'il est illisible : rien n'est alors tenu pour accepté, et la ligne le dit.
+export function ouvrirAcceptesOuRien(fichier: string, avertir: (ligne: string) => void): Acceptes | null {
+  try {
+    return ouvrirAcceptes(fichier);
+  } catch (erreur) {
+    if (!(erreur instanceof AcceptesIllisibles)) throw erreur;
+    avertir(`brigade : éléments acceptés non lus, aucun n'est tenu pour accepté — ${erreur.message}`);
+    return null;
+  }
+}
+
 export function ouvrirAcceptes(fichier: string): Acceptes {
   const acceptes = lire(fichier);
   return {

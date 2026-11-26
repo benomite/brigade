@@ -30,8 +30,8 @@ Sentry creates a GitHub issue from an alert rule, with the action that creates a
 
 **The first gate: an issue from Sentry is not trusted by default.** Sentry's integration is not an account with write access to your repository. The manager sets aside any issue written by someone without a hand on the repository, **even with the label `fire`**, as `untrusted-author` ([`docs/runtime/manager.md`](../runtime/manager.md)). Only the `github-actions` bot is exempt. So an issue opened by Sentry does not go straight to the rail:
 
-1. **The manager triages it, once.** It comments with a proposal (`duplicate of #N`, `out of scope`, or `ticket` with a `prio:`) and opens a **TODO** card for the project's `product` human (the chef if there is none), with two buttons, **on the rail** or **close**, and a free answer.
-2. **A human answers.** Nothing reaches the rail until you, or an account with write access, answer on the card or on the issue. `on the rail` puts the proposed `prio:` (or the one you write, `on the rail prio:N`; `fire` if there is none) and the issue is judged on the manager's next wake-up. `close` closes it.
+1. **The issue is held.** No agent reads it: it is not judged, not put on the rail, and not given to a cook, the manager or the reviewer. The kitchen opens a **TODO** card for the project's `product` human (the chef if there is none), with two buttons, **accept** or **close**, and a free answer. The card copies nothing of the issue: read it on GitHub.
+2. **A human answers.** Nothing reaches an agent until you, or an account with write access, answer on the card or on the issue. `accept` is kept by the kitchen, and the issue is judged on the manager's next wake-up like any other. `close` closes it.
 
 This applies to each issue Sentry opens, so a human stays in the loop for every error. The manager does not remove this gate for a given Sentry setup: this guide documents no way around it.
 

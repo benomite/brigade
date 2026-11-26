@@ -16,7 +16,9 @@ export const deposeParUneStation = (body: string): boolean => MARQUE_DE_STATION.
 
 const meme = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
 
-export const auteurSansEcriture = (issue: { association: string; body?: string; author?: string }, declares: readonly string[] = []): boolean =>
-  !DE_CONFIANCE.includes(issue.association) &&
+// `aLaMain` : ce que la porte de confiance (`trust/trust.ts`, #4422) dit de l'auteur — le chef, l'écriture sur le
+// dépôt, un agent de la cuisine —, quand elle l'a dit ; sans elle, le lien que GitHub donne de l'auteur au dépôt.
+export const auteurSansEcriture = (issue: { association: string; body?: string; author?: string }, declares: readonly string[] = [], aLaMain?: boolean): boolean =>
+  !(aLaMain ?? DE_CONFIANCE.includes(issue.association)) &&
   !auteurInterne(issue.author) &&
   !(deposeParUneStation(issue.body ?? "") && issue.author !== undefined && issue.author !== "" && declares.some((login) => meme(login, issue.author as string)));

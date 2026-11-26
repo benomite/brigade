@@ -30,6 +30,7 @@ import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { placeLibre } from "./prise-backlog/prise-backlog.ts";
 import { brancherLeChef } from "./chef/chef.ts";
+import { creerConfiance, type Confiance } from "./trust/trust.ts";
 import { brancherLeDigest } from "./journal-du-jour/matin.ts";
 import { politiqueDuRuntime } from "./autonomie/agents/politique-du-runtime.ts";
 import { lireLaQualite } from "./autonomie/agents/qualite.ts";
@@ -186,6 +187,8 @@ try {
   let managerDuSuperviseur: ManagerDuSuperviseur | null = null;
   // Le chef, résolu plus bas : la validation demandée sur un ticket le mentionne (#3615).
   let chefDuProjet: (() => Promise<string | null>) | null = null;
+  // La porte de confiance, posée avec le chef plus bas : jusque-là, le manager s'en tient au lien de l'auteur au dépôt (#4422).
+  let confiance: Confiance | undefined;
   const ouvert = brancherBrigadeGithub({
     noter: (decision) => noterGitHubSeul(repertoireEtat, decision),
     station: () =>
@@ -259,7 +262,7 @@ try {
   brancherDerive(socle, decisions.seuils);
   // Le manager : il ne lance que des jugements et des découpages. Son travail
   // sur une issue se prend sur GitHub au nom de la station (#2568).
-  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station) });
+  const manage = brancherManager(garde, { ...manager, decisions, repertoireEtat, porte: gestes, surLeRail: () => ouvert.presser?.(), freeRoom: (ouvertes) => placeLibre({ places, enCuisine: ouvert.enCuisine().length, ouvertes }), github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers, station: ici?.nom ?? null, humains: () => humainsDuProjet(duDepot.suivis.relire() ?? duDepot.reglages), roadmapDuDepot: () => roadmapALaBase(station), confiance: () => confiance });
   // Les branches `cook/<n>-github` dont l'issue est fermée, retirées à chaque tick.
   const elaguee = brancherElagageGithub(manage, elagageDuClone({ clone: station.clone, github: githubs.station, env }));
   // Le closer, sur GitHub (#2361) : sa passe est une issue que les stations cuisinent,
@@ -280,6 +283,9 @@ try {
   // Le chef : déclaré, sinon le propriétaire du dépôt ou l'auteur de son `/brigade:init` ; `status` le dit avec sa source (#2928).
   const { chef } = brancherLeChef(runtime, { github: githubs.station, declare: () => (duDepot.suivis.relire() ?? duDepot.reglages)?.chef, repertoireEtat });
   chefDuProjet = chef;
+  // Qui est de confiance (#4421) : seul le texte d'un auteur de confiance, ou accepté, va au manager (#4422).
+  const lecteur = githubs.station;
+  confiance = creerConfiance({ chef, permission: async (login) => (lecteur.permissionSurLeDepot ? lecteur.permissionSurLeDepot(login) : Promise.reject(new Error("ce client GitHub ne lit pas les droits"))), avertir: (ligne) => console.error(ligne) });
   brancherMentionDuChef(runtime, { github: githubs.station, chef, projet: () => duDepot.suivis.relire() ?? duDepot.reglages });
   // Répondre au commentaire de la question sur GitHub vaut la réponse de l'app (#3253).
   brancherReponseParCommentaire(runtime, { github: githubs.station, projet, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages });

@@ -19,6 +19,8 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
+import type { Acceptes } from "../../src/trust/acceptes.ts";
+import type { Confiance } from "../../src/trust/trust.ts";
 import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, jusqua, lancementsDuFauxBwrap, lancementsDuFauxClaude, poserJournalVide, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
@@ -462,7 +464,7 @@ export type Options = {
   // sans lui, il se croit seul.
   // `surLeRail` : appelé quand le manager rend un ticket prenable (#2796).
   // `roadmapDuDepot` : la roadmap que les bindings du dépôt nomment (#3436).
-  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; freeRoom?: (ouvertes: readonly IssueOuverte[]) => number; humains?: () => Humain[]; roadmapDuDepot?: () => number | null };
+  manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond>; station?: string; surLeRail?: () => void; freeRoom?: (ouvertes: readonly IssueOuverte[]) => number; humains?: () => Humain[]; roadmapDuDepot?: () => number | null; confiance?: Confiance; acceptes?: Acceptes | null };
   // Les stations que le projet déclare. Par défaut, une seule : `box/claude`.
   stations?: StationDeclaree[];
   // Chaque lancement part dans une cloison — la doublure de `bwrap`.
@@ -565,6 +567,8 @@ export function cuisine(t: TestContext, options: Options = {}) {
         ...(options.manager.freeRoom === undefined ? {} : { freeRoom: options.manager.freeRoom }),
         ...(options.manager.humains === undefined ? {} : { humains: options.manager.humains }),
         ...(options.manager.roadmapDuDepot === undefined ? {} : { roadmapDuDepot: options.manager.roadmapDuDepot }),
+        ...(options.manager.confiance === undefined ? {} : { confiance: () => options.manager?.confiance }),
+        ...(options.manager.acceptes === undefined ? {} : { acceptes: options.manager.acceptes }),
       })
     : garde;
   aArreter = runtime;
