@@ -978,8 +978,9 @@ its detail on hover. A second click on the badge closes the thread. A click on a
 **Agents** tab (#4224, below).
 
 The view reads the agents through one module, `app/src/vue/autonomie/source.js` (`lire`, `regler`, `approuver`), which
-calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The runtime side is another ticket of the
-epic: until the bridge carries them, the reading gives nothing and the project view shows no badge. A reading that
+calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The main process answers `lireLesAgents` (#4327,
+`app/src/equipe-de-la-box.ts`) with the `equipe` of `facts`, run where the project's kitchen runs; a project that does not
+cook on this computer gives nothing and shows no badge. `reglerLAutonomie` and `approuverLeGeste` are not carried yet. A reading that
 fails says `The agents not reached.`, and a record missing a field says the reading is not readable: no value is made
 up. Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomie/equipe-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
