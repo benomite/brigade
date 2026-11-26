@@ -17,7 +17,6 @@ function enPass(faux: FauxGitHub, ticket: number, fichiers: string[]) {
   return pr;
 }
 
-// brigade:guard
 test("tickets with no declared dependency and no common file show nothing more and merge freely", async () => {
   const feuxPath = `/repos/${DEPOT}/issues?state=open&labels=fire&sort=created&direction=asc&per_page=100&page=1`;
   const feux = [4, 5].map((number) => ({ number, title: `#${number}`, body: "Independent work.", created_at: "2026-11-23T09:00:00Z", labels: [{ name: "fire" }] }));

@@ -69,7 +69,7 @@ squashfs of a folder (the AppDir). Its AppDir:
 | `brigade.desktop`, `brigade.png`, `.DirIcon` | its desktop entry and its icon (`icones/Brigade-1024.png`) |
 | `resources/app/` | `src/`, the app's `package.json` (named `Brigade`, at the built version, without scripts or dev dependencies) and its production dependencies. node-pty keeps its JavaScript and its `pty.node` for linux-x64, under `prebuilds/linux-x64/`, where node-pty loads it and where the app looks for it (`app/src/pty.ts`) |
 | `resources/runtime/` | `src/` and `package.json` of the runtime, at the built version |
-| `resources/node/bin/node` | the `node` that runs the station |
+| `resources/node/bin/brigade-node` | the `node` that runs the station |
 | `resources/plugin/commands/` | `dev.md` and `ask.md` from `commands/` (`app/src/plugin-app.ts`) |
 
 **No Chromium sandbox.** Mounted by FUSE, the AppDir belongs to root: Chromium's SUID sandbox helper
@@ -78,7 +78,7 @@ squashfs of a folder (the AppDir). Its AppDir:
 `--no-sandbox`, and `chrome-sandbox` is not carried.
 
 The app finds everything through `app/src/emplacements.ts`, unchanged: it knows it is installed
-because its sources are `resources/app/src`, and it runs the station with `resources/node/bin/node`.
+because its sources are `resources/app/src`, and it runs the station with `resources/node/bin/brigade-node`.
 Projects and settings are those of `~/.config/brigade/`, as for the app launched from the repository.
 
 ## Run it

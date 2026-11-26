@@ -47,16 +47,29 @@
 #rail .todo-du-rail .entrees-du-todo {
   flex: 1 1 0;
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: var(--pas-1) var(--pas-2);
+  flex-direction: column;
+  gap: var(--pas-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
+/* Une entrée : son ticket, ce qui est demandé au chef, puis ses boutons — sur une ligne tant qu'elle tient (ticket 4261). */
 #rail .entree-du-todo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-2);
   padding-left: var(--pas-1);
   border-left: 3px solid var(--rouge);
+}
+#rail .entree-du-todo .demande-du-todo {
+  margin: 0;
+  color: var(--texte);
+}
+#rail .entree-du-todo .reponses-du-todo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1);
 }
 
 /* Le backlog : le rail en tête, ce qui est prêt à cuire ; dessous, ce qui ne l'est pas encore. */

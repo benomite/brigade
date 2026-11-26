@@ -137,7 +137,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { commande, noter } = cuisine(t);
     assert.match((await commande()).sortie, /set aside\s+none/);
     noter({ type: "manager.set-aside", payload: { reason: "roadmap", fired: false } }, 1);
-    noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 31);
+    noter({ type: "manager.set-aside", payload: { reason: "parked", fired: false } }, 31);
     noter({ type: "manager.set-aside", payload: { reason: "already-split", fired: false } }, 32);
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 30);
 
@@ -146,7 +146,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const ecartees = sortie.slice(sortie.indexOf("\nset aside"), sortie.indexOf("epics"));
     assert.match(ecartees, /#30\s+you removed `fire` or a calibration the manager had set — to return it to the manager: `brigade <projet> manager return 30`: it rejudges it from scratch/);
     assert.match(ecartees, /#32\s+its body already lists the tickets of an epic, split by hand — to return it to the manager: remove that list from its body/);
-    assert.match(ecartees, /#31\s+it carries `blocked-on-human` — to return it to the manager: remove `blocked-on-human`: it is judged on the next wake-up/);
+    assert.match(ecartees, /#31\s+it is parked: it waits for someone — the chef when it carries `chef-todo`, else the one its parking comment names — to return it to the manager: answer its card, or remove `parked`: it is judged on the next wake-up/);
     assert.match(ecartees, /#1\s+it is the project's roadmap — nothing returns it to the manager/);
   });
 
@@ -167,7 +167,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
   test("rendre ne force aucun autre écart : la commande dit le geste qui le lève, et n'écrit rien", async (t) => {
     const { commande, noter, journal } = cuisine(t);
-    noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 31);
+    noter({ type: "manager.set-aside", payload: { reason: "parked", fired: false } }, 31);
     noter({ type: "manager.set-aside", payload: { reason: "untrusted-author", fired: false } }, 33);
     noter({ type: "manager.judged", payload: { run: "juge-34-a", fingerprint: "e1", verdict: "refused", kind: "incomplete", reason: "Aucun critère.", missing: null, model: null, effort: null, calibration: null } }, 34);
     const avant = journal.tout().length;
@@ -175,7 +175,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const [retenue, inconnu, refusee, jamaisVue, illisible] = await Promise.all([commande("return", "31"), commande("return", "33"), commande("return", "34"), commande("return", "99"), commande("return", "trente")]);
 
     assert.equal(retenue.code, 1);
-    assert.match(retenue.sortie, /#31 is not returned: it carries `blocked-on-human`\. What lifts this: remove `blocked-on-human`/);
+    assert.match(retenue.sortie, /#31 is not returned: it is parked: it waits for someone — the chef when it carries `chef-todo`, else the one its parking comment names\. What lifts this: answer its card, or remove `parked`/);
     assert.equal(inconnu.code, 1);
     assert.match(inconnu.sortie, /#33 is not returned: its author has no write access to the repository\. What lifts this: a member with write access puts `fire` or a `prio:` label on it/);
     assert.equal(refusee.code, 1);
@@ -197,7 +197,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     noter({ type: "manager.labeled", payload: { labels: ["fire", "effort:low"] } }, 30);
     noter({ type: "manager.judged", payload: { run: "juge-31-a", fingerprint: "e2", verdict: "refused", kind: "epic", reason: "Three deliverables.", missing: null, model: null, effort: null, calibration: null } }, 31);
     noter({ type: "manager.failed", payload: { run: "juge-32-a", fingerprint: "e3", reason: "no JSON object in the answer" } }, 32);
-    for (const [ticket, reason] of [[1, "roadmap"], [2, "blocked-on-human"], [3, "question"], [4, "decision"], [5, "epic"], [6, "served-elsewhere"], [7, "already-split"], [8, "untrusted-author"], [9, "chef-changed"]] as const) {
+    for (const [ticket, reason] of [[1, "roadmap"], [2, "parked"], [3, "question"], [4, "decision"], [5, "epic"], [6, "served-elsewhere"], [7, "already-split"], [8, "untrusted-author"], [9, "chef-changed"]] as const) {
       noter({ type: "manager.set-aside", payload: { reason, fired: ticket === 9 } }, ticket);
     }
     noter({ type: "manager.set-aside", payload: { reason: "chef-changed", fired: false } }, 10);
@@ -239,7 +239,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     // `backlog` et `upstream` : leurs lignes, et leurs erreurs de lecture de GitHub.
     const ouvertes = `repos/${DEPOT}/issues?state=open&per_page=100`;
     const gh = fauxGh(t);
-    gh.repondre(ouvertes, { corps: Array.from({ length: 60 }, (_, rang) => issueGitHub(rang + 1, { labels: rang % 7 === 0 ? ["epic"] : rang % 5 === 0 ? ["blocked-on-human"] : [] })) });
+    gh.repondre(ouvertes, { corps: Array.from({ length: 60 }, (_, rang) => issueGitHub(rang + 1, { labels: rang % 7 === 0 ? ["epic"] : rang % 5 === 0 ? ["parked"] : [] })) });
     const lire = async (args: string[], env: Record<string, string>) => {
       const cli = appeler(manager, args, env);
       const code = await cli.fin;
@@ -290,31 +290,31 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(vide, "log.db")), false);
   });
 
-  // Ce qu'allumer engage : les issues ouvertes du dépôt, et celles que `blocked-on-human` retient.
+  // Ce qu'allumer engage : les issues ouvertes du dépôt, et celles qui sont parquées (#4260).
   describe("backlog", () => {
     const OUVERTES = `repos/${DEPOT}/issues?state=open&per_page=100`;
-    // Un backlog connu : cinq issues ouvertes, dont deux retenues — et une PR, que l'API rend parmi elles.
+    // Un backlog connu : cinq issues ouvertes, dont deux parquées — et une PR, que l'API rend parmi elles.
     const CONNU = [
       issueGitHub(10, { labels: [] }),
-      issueGitHub(11, { labels: ["blocked-on-human"] }),
+      issueGitHub(11, { labels: ["parked"] }),
       issueGitHub(12, { labels: ["fire", "model:haiku", "effort:low"] }),
-      issueGitHub(13, { labels: ["epic", "blocked-on-human"] }),
-      issueGitHub(14, { labels: ["question"] }),
-      issueGitHub(15, { labels: ["blocked-on-human"], pull_request: {} }),
+      issueGitHub(13, { labels: ["epic", "chef-todo"] }),
+      issueGitHub(14, { labels: ["idea"] }),
+      issueGitHub(15, { labels: ["parked"], pull_request: {} }),
     ];
     const lire = (gh: { bin: string }, env: Record<string, string> = {}) => {
       const cli = appeler(manager, ["backlog"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin, ...env });
       return cli.fin.then((code) => ({ code, sortie: cli.sortie() }));
     };
 
-    test("les deux nombres sont ceux du dépôt : les issues ouvertes, PR écartées, et celles qui portent `blocked-on-human`", async (t) => {
+    test("les deux nombres sont ceux du dépôt : les issues ouvertes, PR écartées, et celles qui sont parquées", async (t) => {
       const gh = fauxGh(t);
       gh.repondre(OUVERTES, { corps: CONNU });
 
       const { code, sortie } = await lire(gh);
 
       assert.equal(code, 0);
-      assert.equal(sortie, `backlog               5 open issues, of which 2 carry \`blocked-on-human\` — read just now on GitHub (${DEPOT})\n`);
+      assert.equal(sortie, `backlog               5 open issues, of which 2 are parked — read just now on GitHub (${DEPOT})\n`);
     });
 
     test("elle ne fait que lire : un GET sur la liste que le manager sonde, rien au journal, et pas besoin de lui", async (t) => {
@@ -335,21 +335,21 @@ describe("la commande manager", { concurrency: 8 }, () => {
     test("un backlog de plus d'une page est compté en entier", async (t) => {
       const gh = fauxGh(t);
       const suite = `repositories/1/issues?state=open&per_page=100&page=2`;
-      gh.repondre(OUVERTES, { corps: Array.from({ length: 100 }, (_, rang) => issueGitHub(100 + rang, { labels: rang < 3 ? ["blocked-on-human"] : [] })), suivant: suite });
-      gh.repondre(suite, { corps: [issueGitHub(300, { labels: ["blocked-on-human"] }), issueGitHub(301, { labels: [] })] });
+      gh.repondre(OUVERTES, { corps: Array.from({ length: 100 }, (_, rang) => issueGitHub(100 + rang, { labels: rang < 3 ? ["parked"] : [] })), suivant: suite });
+      gh.repondre(suite, { corps: [issueGitHub(300, { labels: ["parked"] }), issueGitHub(301, { labels: [] })] });
 
       const { sortie } = await lire(gh);
 
-      assert.match(sortie, /^backlog\s+102 open issues, of which 4 carry `blocked-on-human`/);
+      assert.match(sortie, /^backlog\s+102 open issues, of which 4 are parked/);
     });
 
     test("une seule issue, aucune : les nombres restent en chiffres, en tête de leur mot", async (t) => {
       const [une, aucune] = [fauxGh(t), fauxGh(t)];
-      une.repondre(OUVERTES, { corps: [issueGitHub(11, { labels: ["blocked-on-human"] })] });
+      une.repondre(OUVERTES, { corps: [issueGitHub(11, { labels: ["parked"] })] });
       aucune.repondre(OUVERTES, { corps: [] });
 
-      assert.match((await lire(une)).sortie, /^backlog\s+1 open issue, of which 1 carries `blocked-on-human`/);
-      assert.match((await lire(aucune)).sortie, /^backlog\s+0 open issues, of which 0 carry `blocked-on-human`/);
+      assert.match((await lire(une)).sortie, /^backlog\s+1 open issue, of which 1 is parked/);
+      assert.match((await lire(aucune)).sortie, /^backlog\s+0 open issues, of which 0 are parked/);
     });
 
     test("GitHub pas joint : la commande échoue en le disant, sans aucun nombre — ce n'est pas « aucune issue »", async (t) => {
@@ -381,7 +381,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       const cli = lancer(t, CLI, ["backlog"], { BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: gh.bin });
 
       assert.equal(await cli.fin, 0);
-      assert.match(cli.sortie(), /^backlog\s+5 open issues, of which 2 carry `blocked-on-human`/);
+      assert.match(cli.sortie(), /^backlog\s+5 open issues, of which 2 are parked/);
     });
   });
   // Ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive.
@@ -459,7 +459,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
       ]);
       const dit = (ticket: number) => lu.issues.find((issue: { ticket: number }) => issue.ticket === ticket);
       assert.deepEqual(dit(11), { ticket: 11, titre: "Ticket 11", url: `https://github.com/${DEPOT}/issues/11`, priorite: 2, etat: "sortie", dit: "left the rail: label `fire` removed" });
-      assert.match(dit(12).dit, /^set aside by the manager, it carries `question`/);
+      assert.match(dit(12).dit, /^parked for you by the manager, with its question \(`chef-todo`\)/);
       assert.equal(dit(13).dit, "it is the project's roadmap — nothing returns it to the manager");
       // En une ligne : la raison du manager garde ses mots, pas ses retours à la ligne.
       assert.equal(dit(14).dit, "refused (an incomplete ticket) — Aucun critère observable.");

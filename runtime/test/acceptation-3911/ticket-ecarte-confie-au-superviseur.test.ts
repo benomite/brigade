@@ -1,12 +1,14 @@
-// #3911, criterion 5: a ticket set aside for its failures (`set-aside:failures`) is handed to the supervisor —
-// the project's manager, which receives a dossier — and it acts on it only with the gestures of step 4 of
+// #3911, criterion 5: a ticket set aside for its failures is handed to the supervisor — the project's manager, which
+// receives a dossier — and it acts on it only with the gestures of step 4 of
 // docs/superpowers/specs/2026-11-20-kitchen-spinning.md: rerun failed CI jobs; put a ticket back on the rail with
-// a note; set a ticket aside in WAITING; close a duplicate or a stale alert; file one `fix` ticket; post a TODO
-// card. The `claude` of this test records the dossier it is given, then ends well.
+// a note; park a ticket for a third party; close a duplicate or a stale alert; file one `fix` ticket; post a TODO
+// card. Since #4129 the station parks it (`parked`, its marker saying it waits for the supervisor for its failures)
+// instead of labelling it `set-aside:failures`. The `claude` of this test records the dossier it is given, then ends well.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { corpsDuParking } from "../../src/attente-github/marque.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { CLONES, environnementDuProjet, lireConfiguration } from "../../src/station/configuration.ts";
@@ -36,7 +38,9 @@ function ouvrir(t: TestContext) {
   const gh = fauxGh(t);
   gh.repondre("user", { corps: { login: "chef" } });
   gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT, owner: { login: "acme", type: "Organization" }, permissions: { push: true } } });
-  gh.issues([issueGitHub(TICKET, { labels: ["fire", "model:sonnet", "effort:low", "set-aside:failures"] })]);
+  gh.issues([issueGitHub(TICKET, { labels: ["fire", "model:sonnet", "effort:low", "parked"] })]);
+  // The marker the station leaves when it parks a ticket for its failures (`parquerSesEchecs`).
+  gh.commentaires(TICKET, corpsDuParking({ what: "its cooks failed too many times, the station stopped relaunching it. The reason: the cook stopped", who: "the supervisor", followUp: "2099-01-01T00:00:00.000Z", failures: true }));
   gh.repondre(`repos/${DEPOT}/issues/${TICKET}/events?per_page=100`, { corps: [] });
   gh.repondre(`repos/${DEPOT}/issues/*`, { statut: 201, corps: { number: 900 } });
   gh.repondre(`repos/benomite/brigade/issues?*`, { corps: [] });
@@ -56,15 +60,16 @@ function ouvrir(t: TestContext) {
 const GESTES: Array<[string, (chemin: string, args: string[]) => boolean]> = [
   ["rerun failed CI jobs", (chemin) => /^actions\/runs\/\d+\/rerun-failed-jobs$/.test(chemin)],
   ["put a ticket back on the rail with a note", (chemin, args) => /^issues\/\d+\/labels(\/fire)?$/.test(chemin) && args.some((arg) => arg.includes("fire"))],
-  ["set a ticket aside in WAITING", (chemin, args) => /^issues\/\d+\/labels$/.test(chemin) && args.some((arg) => arg.includes("waiting"))],
+  // Back on the rail or closed, the ticket is unparked.
+  ["unpark a ticket put back on the rail or closed", (chemin, args) => chemin === `issues/${TICKET}/labels/parked` && args.includes("DELETE")],
   ["close a duplicate or a stale alert", (chemin, args) => /^issues\/\d+$/.test(chemin) && args.some((arg) => arg.includes("closed"))],
   ["file one fix ticket", (chemin, args) => chemin === "issues" && args.some((arg) => /^labels(\[\])?=fix$/.test(arg) || arg === "fix")],
-  ["post a TODO card", (chemin, args) => /^issues\/\d+\/labels$/.test(chemin) && args.some((arg) => arg.includes("blocked-on-human"))],
-  // The trace: one comment on the ticket it acted on.
+  ["post a TODO card", (chemin, args) => /^issues\/\d+\/labels$/.test(chemin) && args.some((arg) => arg.includes("chef-todo"))],
+  // The trace: one comment on the ticket it acted on — parked for a third party, the parking marker opens it.
   ["trace", (chemin) => /^issues\/\d+\/comments$/.test(chemin)],
 ];
 
-test("a ticket set aside for its failures is handed to the supervisor, which gets a dossier naming it", async (t) => {
+test("a ticket parked for its failures is handed to the supervisor, which gets a dossier naming it", async (t) => {
   const { cuisine, claude } = ouvrir(t);
   try {
     await jusqua(() => claude.dossiers().some((dossier) => dossier.includes(`#${TICKET}`)), 2000);

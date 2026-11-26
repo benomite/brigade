@@ -12,6 +12,8 @@
 // Ni la box ni une station ne sont jointes : rien d'autre que GitHub, par l'appel que la plateforme donne (client.ts).
 // Ce qui ne se lit pas le dit, jamais un rail vide : GitHub qui ne répond pas ou refuse — chaque fois un échec, et sa
 // raison en une phrase, que l'app montre telle quelle.
+import { LABEL_PARKED } from "../../../runtime/src/attente-github/marque.ts";
+import { estParque } from "../../../runtime/src/github-etat/etats.ts";
 import { epiqueDe, FIN, DEBUT, porteListe, ticketsDeLaListe } from "../../../runtime/src/epique.ts";
 import { roadmapDuClaudeMd } from "../../../runtime/src/reglages-projet/ligne-roadmap.ts";
 import { avancementDeLaListe, type Avancement } from "../vue/backlog/avancement-github.ts";
@@ -135,13 +137,14 @@ const horizonDe = (labels: readonly string[]): number | null => {
 
 // L'état avant le rail d'une issue ouverte sans `fire`, d'après ses labels seuls — la box n'est plus là pour dire ce
 // que le manager en a jugé : `idea`, une idée en réserve, que le manager ne lit jamais (#3536) et que le Backlog range à
-// part (#3589) ; `served-elsewhere` ou `blocked-on-human`, mise de côté ; `epic`, une épique ; `model:` et `effort:`,
-// calibrée et prête ; sinon, pas encore calibrée.
+// part (#3589) ; parquée (`estParque`, runtime/src/github-etat/etats.ts) ou `served-elsewhere`, mise de côté ; `epic`, une
+// épique ; `model:` et `effort:`, calibrée et prête ; sinon, pas encore calibrée.
 export const LABEL_IDEE = "idea";
 export function avantLeRailDe(labels: readonly string[]): { etat: string; dit: string } {
   if (labels.includes(LABEL_IDEE)) return { etat: "idee", dit: "it carries `idea`: an idea in reserve, not a request" };
+  // Comme le runtime le dit (runtime/src/amont.ts, `avantDe`).
+  if (estParque(labels)) return { etat: "mise-de-cote", dit: `parked (\`${LABEL_PARKED}\`): it waits for someone — who, for what and until when are on the issue; nothing takes it before` };
   if (labels.includes("served-elsewhere")) return { etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" };
-  if (labels.includes("blocked-on-human")) return { etat: "mise-de-cote", dit: "it carries `blocked-on-human`: a human decides" };
   if (labels.includes("epic")) return { etat: "epique", dit: "it carries `epic`: not split yet" };
   const calibrage = labels.filter((label) => label.startsWith("model:") || label.startsWith("effort:"));
   if (calibrage.some((label) => label.startsWith("model:")) && calibrage.some((label) => label.startsWith("effort:"))) {

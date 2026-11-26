@@ -2,6 +2,7 @@
 // `fire`, leurs labels, leurs PR, la station qui tient chacune —, puis ce qui est avant le rail, rangé d'après les
 // labels seuls ; et, quand rien ne se lit, un échec qui dit pourquoi en une phrase — jamais un rail vide. Rien ne passe
 // par le réseau : l'appel à GitHub est une doublure, qui répond selon le chemin demandé.
+import { LABELS_D_AVANT_PARKED } from "../../../runtime/src/github-etat/etats.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -135,7 +136,8 @@ test("ce qui est avant le rail : les issues ouvertes sans `fire`, chacune dans l
 
 test("l'état avant le rail se tire des labels seuls", () => {
   assert.deepEqual(avantLeRailDe(["served-elsewhere", "epic"]), { etat: "mise-de-cote", dit: "it carries `served-elsewhere`: this kitchen does not serve it" });
-  assert.deepEqual(avantLeRailDe(["blocked-on-human", "model:opus", "effort:high"]), { etat: "mise-de-cote", dit: "it carries `blocked-on-human`: a human decides" });
+  // Parquée — `parked`, sa carte du chef, ou un label d'attente d'avant parked (#4260) —, comme le runtime la lit (runtime/src/amont.ts).
+  for (const labels of [["parked"], ["chef-todo"], [LABELS_D_AVANT_PARKED[0] as string]]) assert.deepEqual(avantLeRailDe([...labels, "model:opus", "effort:high"]), { etat: "mise-de-cote", dit: "parked (`parked`): it waits for someone — who, for what and until when are on the issue; nothing takes it before" }, labels.join());
   assert.deepEqual(avantLeRailDe(["epic", "model:opus", "effort:high"]), { etat: "epique", dit: "it carries `epic`: not split yet" });
   assert.deepEqual(avantLeRailDe(["prio:2", "model:opus", "effort:high"]), { etat: "prete", dit: "calibrated (model:opus, effort:high), without `fire`: the rail takes it once `fire` is set" });
   // L'un sans l'autre n'est pas calibré.
@@ -287,6 +289,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "runtime/src/attente-github/marque.ts",
     // Les attentes d'un ticket en file et leur source — son corps, sa fiche, l'arrêt d'un cook —, sans E/S (ticket 3763).
     "runtime/src/boucle-attente/levee.ts",
+    // La calibration d'un ticket, sans E/S : le haut du backlog ne montre qu'un ticket calibré (ticket 4223).
+    "runtime/src/calibrage.ts",
     "runtime/src/capacites.ts",
     "runtime/src/carte-attente/carte-attente.ts",
     "runtime/src/enregistrement-station/contrat.ts",
@@ -298,13 +302,13 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // L'ordre de merge des tickets qui touchent au même terrain, lu de GitHub sans station (ticket 4044).
     "runtime/src/ordre-de-merge/lecture.ts",
     "runtime/src/ordre-de-merge/ordre.ts",
+    // Le rail, haut du backlog : les tickets calibrés et prêts, par priorité puis âge, sans E/S (ticket 4223).
+    "runtime/src/rail-backlog/rail-backlog.ts",
     // Le ticket qu'une PR sert, sans E/S : la règle que le récapitulatif du runtime lit sur les mêmes PR (ticket 3581).
     "runtime/src/recap/servis.ts",
     // La ligne « Roadmap » du `CLAUDE.md`, sans E/S : la roadmap n'est pas une ligne du Backlog (ticket 3589).
     "runtime/src/reglages-projet/ligne-roadmap.ts",
     "runtime/src/stations-github/stations.ts",
-    // L'étape `tests written` du rail, d'après les labels, sans E/S (ticket 3725).
-    "runtime/src/tests-acceptation/etape.ts",
     "runtime/src/zones.ts",
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.

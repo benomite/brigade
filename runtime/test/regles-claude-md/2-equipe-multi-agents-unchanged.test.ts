@@ -21,8 +21,9 @@ function liaisons(texte: string): string | null {
 
 // #4164 réécrit, avec la règle 4 du process simplifié, la ligne Interface et la ligne App (le cook design n'existe plus) :
 // ces deux lignes sont écartées de la comparaison, le reste des liaisons reste mot pour mot celui de `origin/main`.
+// #4331 réécrit de même la ligne Runtime de Dev local (ses tests : les gates, jamais une suite entière) : elle est écartée aussi.
 function sansReecrites(texte: string | null): string | null {
-  return texte === null ? null : texte.split("\n").filter((l) => !l.startsWith("- **Interface**") && !l.startsWith("  - **App**")).join("\n");
+  return texte === null ? null : texte.split("\n").filter((l) => !l.startsWith("- **Interface**") && !l.startsWith("  - **App**") && !l.startsWith("  - **Runtime** — Node 26, no build.")).join("\n");
 }
 
 function lire(ref: string): string | null {
@@ -34,7 +35,6 @@ function existe(ref: string): boolean {
   return spawnSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd: RACINE, env: ENV_GIT }).status === 0;
 }
 
-// brigade:guard
 test("the bindings of the Équipe multi-agents section are kept, word for word as on origin/main", () => {
   const ref = existe("origin/main") ? "origin/main" : existe("main") ? "main" : null;
   assert.ok(ref, "neither origin/main nor main exists: the checkout must fetch origin/main (git fetch origin main)");

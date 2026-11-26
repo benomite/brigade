@@ -70,10 +70,10 @@ test("send-word on a ticket that is not taken answers ok false with its reason, 
     [{ state: "open", labels: ["in-pass"] }, /^#7 is in pass: no cook is cooking it/],
     [{ state: "closed", labels: [] }, /^#7 is closed \(served or dropped\)/],
     [null, /^#7 is unknown/],
-    [{ state: "open", labels: ["waiting"] }, /^#7 is waiting on a third party/],
+    [{ state: "open", labels: ["parked"] }, /^#7 is parked: it waits for someone/],
     [{ state: "open", labels: ["fire"] }, /^#7 is not taken/],
     [{ state: "open", labels: ["taken", "in-pass"] }, /^#7 is in pass/],
-    [{ state: "open", labels: ["taken", "waiting"] }, /^#7 is waiting/],
+    [{ state: "open", labels: ["taken", "parked"] }, /^#7 is parked/],
     [{ state: "closed", labels: ["taken"] }, /^#7 is closed/],
   ];
   for (const [issue, raison] of cas) {

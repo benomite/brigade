@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { LABELS_D_AVANT_PARKED } from "../../runtime/src/github-etat/etats.ts";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -65,7 +66,7 @@ type Panne = (recue: Recue) => { status: number; data: unknown } | "injoignable"
 function github(panne: Panne = () => undefined) {
   const issues = new Map<number, Issue>([
     [22, { labels: new Set(["fire"]), state: "open", commentaires: [] }],
-    [31, { labels: new Set(["fire", "waiting"]), state: "open", commentaires: [] }],
+    [31, { labels: new Set(["fire", "parked"]), state: "open", commentaires: [] }],
     [40, { labels: new Set(["fire", "served-elsewhere", "chef-todo"]), state: "open", commentaires: [QUESTION_40] }],
     [41, { labels: new Set(["fire", "served-elsewhere", "chef-todo"]), state: "open", commentaires: [QUESTION_41] }],
   ]);
@@ -178,6 +179,9 @@ async function deuxFois<R>(duDesktop: (client: ReturnType<typeof desktop>) => Pr
   assert.deepEqual(ditAuTelephone, dit, "the phone says what the desktop says");
   return { recues: auTelephone.recues, etat: auTelephone.etat(), dit: ditAuTelephone, ecrits };
 }
+// Déparquer : `parked` retiré, puis chaque label d'attente d'avant parked (runtime/src/github-etat/etats.ts) — un ticket que
+// l'un d'eux parque reprend aussi.
+const DEPARQUE = (ticket: number) => ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/${DEPOT}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
 const resume = (recues: Recue[]) => recues.map(({ methode, url, corps }) => `${methode} ${url.slice(API.length - 1)}${corps === undefined ? "" : ` ${JSON.stringify(corps)}`}`);
 const ENTETES = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${JETON}` };
 
@@ -190,10 +194,10 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
     assert.deepEqual(resume(recues), [
       `POST /repos/${DEPOT}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
       `DELETE /repos/${DEPOT}/issues/40/labels/served-elsewhere`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/blocked-on-human`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/question`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/decision`,
       `DELETE /repos/${DEPOT}/issues/40/labels/chef-todo`,
+      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
+      // — l'issue ne les porte pas, GitHub répond 404.
+      ...DEPARQUE(40),
     ]);
     assert.deepEqual(etat.issues[40]?.labels, ["fire"]);
     assert.deepEqual(dit, { repondue: true, dit: "answer posted on #40 (resume): `served-elsewhere` and `chef-todo` removed", commentaire: 902 });
@@ -209,21 +213,21 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       `GET /repos/${DEPOT}/pulls/1560`,
       `POST /repos/${DEPOT}/issues/41/comments {"body":"<!-- brigade:reponse gesture=merge -->\\nYes, merge PR #1560 as delivered"}`,
       `PUT /repos/${DEPOT}/pulls/1560/merge {"merge_method":"merge"}`,
-      // Un merge lève aussi la mise de côté de la station (#3368) : l'issue ne la porte pas, GitHub répond 404.
-      `DELETE /repos/${DEPOT}/issues/41/labels/blocked-on-human`,
       `DELETE /repos/${DEPOT}/issues/41/labels/chef-todo`,
+      // Mergée, la livraison n'attend plus personne : `parked` et les labels d'avant parked — l'issue ne les porte pas, 404.
+      ...DEPARQUE(41),
     ]);
     assert.equal(etat.pr.merged, true);
   });
 
-  test("reprendre — « back to the kitchen » sur la fiche : `waiting` retiré, une seule demande", async () => {
+  test("reprendre — « back to the kitchen » sur la fiche : `parked` retiré, et chaque label d'attente d'avant parked", async () => {
     const { recues, etat, dit, ecrits } = await deuxFois(
       (client) => retirerLeLabel(LU, "cuisine", 31, client),
       (gestes) => gestes.geste(PROJET, "cuisine", 31),
     );
-    assert.deepEqual(resume(recues), [`DELETE /repos/${DEPOT}/issues/31/labels/waiting`]);
+    assert.deepEqual(resume(recues), DEPARQUE(31));
     assert.deepEqual(etat.issues[31]?.labels, ["fire"]);
-    assert.deepEqual(dit, { fait: "back to the kitchen on GitHub: #31 no longer carries `waiting` — it is queued on the rail again", detail: `https://github.com/${DEPOT}/issues/31` });
+    assert.deepEqual(dit, { fait: "back to the kitchen on GitHub: #31 no longer carries `parked` — it resumes exactly where it was", detail: `https://github.com/${DEPOT}/issues/31` });
     assert.deepEqual(ecrits, [PROJET]);
   });
 
@@ -232,41 +236,40 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       (client) => retirerLeLabel(LU, "cuisine", 31, client),
       (gestes) => gestes.attente(PROJET, "attente-arrivee", 31),
     );
-    assert.deepEqual(resume(recues), [`DELETE /repos/${DEPOT}/issues/31/labels/waiting`]);
+    assert.deepEqual(resume(recues), DEPARQUE(31));
   });
 
   // #3075 : le téléphone ne joint aucun runtime ; « waiting for… » et « resume » s'écrivent sur l'issue comme le desktop les
-  // écrit quand la cuisine du projet n'est pas sur ce poste (vue/attente/attente-github.ts). Le commentaire dit l'instant
-  // de la mise en attente : il est comparé sans sa ligne `since`, que deux horloges écrivent chacune à sa minute.
-  test("« waiting for… » : le commentaire d'entrée en WAITING posté, puis `waiting` posé — ce que le desktop sans runtime écrit", async () => {
+  // écrit, sur tout projet (vue/attente/attente-github.ts). Le commentaire de parking (#4129) ne dit plus l'instant de la
+  // mise en attente : les deux GitHub reçoivent les mêmes demandes, au caractère près.
+  test("« waiting for… » : le commentaire de parking posté, puis `parked` posé — ce que le desktop écrit", async () => {
     const saisie = { quoi: "the signed quote", qui: "the client", relance: "2099-01-02" };
     const auDesktop = github();
     const dit = await attenteSurGithub({ id: "attente-poser", ticket: 22, saisie, aujourdhui: new Date(), lu: LU, client: desktop(auDesktop) });
     const auTelephone = github();
     const { gestes, ecrits } = telephone(auTelephone);
     const ditAuTelephone = await gestes.attente(PROJET, "attente-poser", 22, saisie);
-    const sansDepuis = (recues: Recue[]) => resume(recues).map((ligne) => ligne.replace(/- \*\*since\*\*: [^\\]*/, "since"));
-    assert.deepEqual(sansDepuis(auTelephone.recues), sansDepuis(auDesktop.recues));
+    assert.deepEqual(resume(auTelephone.recues), resume(auDesktop.recues));
     assert.deepEqual(ditAuTelephone, dit);
     assert.deepEqual(
       auTelephone.recues.map(({ methode, url }) => `${methode} ${url.slice(API.length - 1)}`),
       [`POST /repos/${DEPOT}/issues/22/comments`, `POST /repos/${DEPOT}/issues/22/labels`],
     );
     const etat = auTelephone.etat().issues[22];
-    assert.deepEqual(etat?.labels, ["fire", "waiting"]);
-    assert.match(etat?.commentaires[0] ?? "", /^\*\*WAITING: awaiting the client\.\*\* the signed quote\n/);
+    assert.deepEqual(etat?.labels, ["fire", "parked"]);
+    assert.match(etat?.commentaires[0] ?? "", /^<!-- brigade:parked \{"what":"the signed quote","who":"the client","followUp":"[^"]+"\} -->\n\*\*PARKED: waits for the client\.\*\* the signed quote\n/);
     assert.deepEqual(dit, { fait: "in WAITING on GitHub: #22 awaits the client, follow-up on 2099-01-02", detail: `https://github.com/${DEPOT}/issues/22#issuecomment-901` });
     assert.deepEqual(ecrits, [PROJET]);
   });
 
-  test("« resume » sur une carte de WAITING : `waiting` retiré, et la phrase dit qu'il revient où il était — plus rien d'une station", async () => {
+  test("« resume » sur une carte de WAITING : `parked` retiré, et la phrase dit qu'il revient où il était — plus rien d'une station", async () => {
     const { recues, etat, dit, ecrits } = await deuxFois(
       async (client) => attenteSurGithub({ id: "attente-reprendre", ticket: 31, saisie: undefined, aujourdhui: new Date(), lu: LU, client }),
       (gestes) => gestes.attente(PROJET, "attente-reprendre", 31),
     );
-    assert.deepEqual(resume(recues), [`DELETE /repos/${DEPOT}/issues/31/labels/waiting`]);
+    assert.deepEqual(resume(recues), DEPARQUE(31));
     assert.deepEqual(etat.issues[31]?.labels, ["fire"]);
-    assert.deepEqual(dit, { fait: "resumed on GitHub: #31 no longer carries `waiting` — it is back where it was before waiting", detail: `https://github.com/${DEPOT}/issues/31` });
+    assert.deepEqual(dit, { fait: "resumed on GitHub: #31 no longer carries `parked` — it resumes exactly where it was", detail: `https://github.com/${DEPOT}/issues/31` });
     assert.deepEqual(ecrits, [PROJET]);
     assert.ok(!JSON.stringify(dit).includes("station"));
   });
@@ -306,7 +309,9 @@ describe("sans station joignable, les trois gestes passent par GitHub seul", () 
     assert.ok("repondue" in (await gestes.repondreCarte(PROJET, 40, clic(40, 1))));
     assert.ok("fait" in (await gestes.geste(PROJET, "cuisine", 31)));
     assert.ok("fait" in (await gestes.geste(PROJET, "retirer", 22)));
-    assert.equal(monde.recues.length, 8);
+    // La réponse : son commentaire, `served-elsewhere`, `chef-todo`, `parked` et les labels d'avant parked retirés (#4129) ; puis
+    // `parked` et les labels d'avant parked, puis `fire`.
+    assert.equal(monde.recues.length, 1 + 2 + DEPARQUE(40).length + DEPARQUE(31).length + 1);
     for (const { url, entetes } of monde.recues) {
       assert.ok(url.startsWith(API), `${url} is GitHub's API`);
       assert.deepEqual(entetes, url.includes("/comments") ? { ...ENTETES, "Content-Type": "application/json" } : ENTETES);
@@ -348,11 +353,11 @@ describe("une écriture que GitHub ne prend pas se dit, et rien n'est montré fa
     const monde = github(() => "injoignable");
     const { gestes, ecrits } = telephone(monde);
     const dit = await gestes.geste(PROJET, "cuisine", 31);
-    assert.deepEqual(dit, { refus: "nothing was changed: GitHub did not remove `waiting` from #31", detail: 'Unable to resolve host "api.github.com": No address associated with hostname' });
+    assert.deepEqual(dit, { refus: "nothing was changed: GitHub did not remove `parked` from #31", detail: 'Unable to resolve host "api.github.com": No address associated with hostname' });
     const repondue = await gestes.repondreCarte(PROJET, 40, clic(40, 1));
     assert.ok("refus" in repondue);
     assert.equal(repondue.refus, "nothing was sent: your answer was not posted on #40");
-    assert.deepEqual(monde.etat().issues[31]?.labels, ["fire", "waiting"]);
+    assert.deepEqual(monde.etat().issues[31]?.labels, ["fire", "parked"]);
     assert.deepEqual(ecrits, []);
   });
 
@@ -492,10 +497,10 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
     assert.deepEqual(resume(ecrites), [
       `POST /repos/${DEPOT}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
       `DELETE /repos/${DEPOT}/issues/40/labels/served-elsewhere`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/blocked-on-human`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/question`,
-      `DELETE /repos/${DEPOT}/issues/40/labels/decision`,
       `DELETE /repos/${DEPOT}/issues/40/labels/chef-todo`,
+      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
+      // — l'issue ne les porte pas, GitHub répond 404.
+      ...DEPARQUE(40),
     ]);
     assert.ok("repondue" in dit);
     assert.ok(relues.length > 0);
@@ -503,27 +508,27 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
 
   test("répondre à une carte de TODO par un merge : la PR lue, mergée, puis `chef-todo` retiré", async () => {
     const { ecrites } = await parLePont((client) => repondreSurGithub({ depot: DEPOT, ticket: 41, chef: CHEFS.get(41), reponse: clic(41, 1), client }), "repondreCarte", PROJET, 41, clic(41, 1));
-    assert.deepEqual(resume(ecrites).map((ligne) => ligne.split(" {")[0]), [`GET /repos/${DEPOT}/pulls/1560`, `POST /repos/${DEPOT}/issues/41/comments`, `PUT /repos/${DEPOT}/pulls/1560/merge`, `DELETE /repos/${DEPOT}/issues/41/labels/blocked-on-human`, `DELETE /repos/${DEPOT}/issues/41/labels/chef-todo`]);
+    assert.deepEqual(resume(ecrites).map((ligne) => ligne.split(" {")[0]), [`GET /repos/${DEPOT}/pulls/1560`, `POST /repos/${DEPOT}/issues/41/comments`, `PUT /repos/${DEPOT}/pulls/1560/merge`, `DELETE /repos/${DEPOT}/issues/41/labels/chef-todo`, ...DEPARQUE(41)]);
   });
 
-  test("reprendre — « back to the kitchen » sur la fiche : `waiting` retiré", async () => {
+  test("reprendre — « back to the kitchen » sur la fiche : `parked` retiré", async () => {
     const { ecrites, dit } = await parLePont((client) => retirerLeLabel(LU, "cuisine", 31, client), "gesteDeFiche", PROJET, "cuisine", 31);
-    assert.deepEqual(resume(ecrites), [`DELETE /repos/${DEPOT}/issues/31/labels/waiting`]);
+    assert.deepEqual(resume(ecrites), DEPARQUE(31));
     assert.ok("fait" in dit);
   });
 
-  test("reprendre — « it arrived, back to the kitchen » sur une carte de WAITING : `waiting` retiré", async () => {
+  test("reprendre — « it arrived, back to the kitchen » sur une carte de WAITING : `parked` retiré", async () => {
     const { ecrites } = await parLePont((client) => retirerLeLabel(LU, "cuisine", 31, client), "attente", PROJET, "attente-arrivee", 31);
-    assert.deepEqual(resume(ecrites), [`DELETE /repos/${DEPOT}/issues/31/labels/waiting`]);
+    assert.deepEqual(resume(ecrites), DEPARQUE(31));
   });
 
-  test("« resume » sur une carte de WAITING : `waiting` retiré", async () => {
+  test("« resume » sur une carte de WAITING : `parked` retiré", async () => {
     const { ecrites, dit } = await parLePont((client) => attenteSurGithub({ id: "attente-reprendre", ticket: 31, saisie: undefined, aujourdhui: new Date(), lu: LU, client }), "attente", PROJET, "attente-reprendre", 31);
-    assert.deepEqual(resume(ecrites), [`DELETE /repos/${DEPOT}/issues/31/labels/waiting`]);
+    assert.deepEqual(resume(ecrites), DEPARQUE(31));
     assert.ok("fait" in dit);
   });
 
-  test("« waiting for… » : ce que le chef a rempli passe le pont, et part sur l'issue — le commentaire, puis `waiting`", async () => {
+  test("« waiting for… » : ce que le chef a rempli passe le pont, et part sur l'issue — le commentaire, puis `parked`", async () => {
     const monde = github();
     const { pont } = await pontDeLAPK(monde);
     const avant = monde.recues.length;
@@ -531,7 +536,7 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
     await auRepos();
     assert.deepEqual(dit.fait, "in WAITING on GitHub: #22 awaits the client, follow-up on 2099-01-02");
     assert.deepEqual(duGeste(monde.recues.slice(avant)).map(({ methode, url }) => `${methode} ${url.slice(API.length - 1)}`), [`POST /repos/${DEPOT}/issues/22/comments`, `POST /repos/${DEPOT}/issues/22/labels`]);
-    assert.deepEqual(monde.etat().issues[22]?.labels, ["fire", "waiting"]);
+    assert.deepEqual(monde.etat().issues[22]?.labels, ["fire", "parked"]);
   });
 
   test("mettre en suspens — « remove from the rail » : `fire` retiré", async () => {
