@@ -19,6 +19,8 @@ import {
   empreinteAnnoncee,
   estMachOArm64,
   metadonneesDeMiseAJour,
+  IDENTIFIANT,
+  nomDAuxiliaire,
   reecrirePlist,
   reecrirePlistAuxiliaire,
   versionCourte,
@@ -178,7 +180,7 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.ok(!existsSync(join(ressources, "runtime", "test")));
   assert.ok(!existsSync(join(ressources, "runtime", "node_modules")));
   assert.equal(JSON.parse(readFileSync(join(ressources, "runtime", "package.json"), "utf8")).version, "0.20261019.151600+g76f93fe");
-  assert.equal(statSync(join(ressources, "node", "bin", "node")).mode & 0o755, 0o755);
+  assert.equal(statSync(join(ressources, "node", "bin", "brigade-node")).mode & 0o755, 0o755);
 
   // Electron, au nom de l'app : son asar par défaut est parti, ses liens sont restés des liens.
   assert.ok(!existsSync(join(ressources, "default_app.asar")));
@@ -190,7 +192,7 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   // Ce que l'app installée résout, depuis là où son process principal tourne : la station de son paquet, et son `node`.
   assert.equal(estInstallee({ ressources, src: join(ressources, "app", "src") }), true);
   const emplacements = emplacementsDe({ ressources, src: join(ressources, "app", "src"), env: {} });
-  assert.equal(emplacements.node, join(ressources, "node", "bin", "node"));
+  assert.equal(emplacements.node, join(ressources, "node", "bin", "brigade-node"));
   assert.ok(existsSync(emplacements.node));
   assert.deepEqual(roleDe({ plateforme: "darwin", runtime: emplacements.runtime, env: {} }), { role: "station", principal: join(ressources, "runtime", "src", "station", "main.ts") });
   // Les commandes du plugin de l'app (src/plugin-app.ts) : `dev.md` et `ask.md` de `commands/`, et rien d'autre.
@@ -229,6 +231,7 @@ test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le
     ["otool", "-L", join(racine, "node")],
     ["codesign", "--force", "--sign", "-", join(pty, "pty.node")],
     ["codesign", "--force", "--sign", "-", join(pty, "spawn-helper")],
+    ["codesign", "--force", "--sign", "-", "--identifier", `${IDENTIFIANT}.node`, join(paquet, "Contents", "Resources", "node", "bin", "brigade-node")],
     ["codesign", "--force", "--deep", "--sign", "-", paquet],
     ["codesign", "--verify", paquet],
     ["hdiutil", "create", "-volname", "Brigade", "-srcfolder", join(racine, "atelier", "volume"), "-fs", "HFS+", "-format", "UDZO", "-ov", dmg],
@@ -245,9 +248,11 @@ test("signé Developer ID et notarisé : du plus profond au paquet, l'app agraf�
   const signes = appels.filter((a) => a[0] === "codesign" && a.includes("--entitlements")).map((a) => a.at(-1));
   assert.deepEqual(signes, aSigner(paquet));
   assert.equal(signes.at(-1), paquet);
-  assert.ok(signes.some((c) => c?.endsWith("node/bin/node")), "le node porté est signé");
+  assert.ok(signes.some((c) => c?.endsWith("node/bin/brigade-node")), "le node porté est signé");
   for (const a of appels.filter((a) => a[0] === "codesign" && a.includes("--entitlements")))
-    assert.deepEqual(a.slice(0, -1), ["codesign", "--force", "--sign", "Developer ID Application: Test (ABCDE12345)", "--options", "runtime", "--timestamp", "--entitlements", DROITS]);
+    assert.deepEqual(a.slice(0, -1).filter((m) => m !== "--identifier" && m !== `${IDENTIFIANT}.node`), ["codesign", "--force", "--sign", "Developer ID Application: Test (ABCDE12345)", "--options", "runtime", "--timestamp", "--entitlements", DROITS]);
+  const duNode = appels.find((a) => a.at(-1)?.endsWith("node/bin/brigade-node") && a.includes("--entitlements"));
+  assert.equal(duNode?.[duNode.indexOf("--identifier") + 1], `${IDENTIFIANT}.node`, "le node porté est signé sous un identifiant de Brigade");
   const ordre = appels.map((a) => a.filter((m) => !m.startsWith("/")).join(" "));
   const posdeApp = ordre.indexOf("codesign --verify --deep --strict");
   assert.ok(posdeApp > 0);
@@ -295,7 +300,7 @@ test("un `node` qui n'est pas pour un Mac arm64, ou qui lie les bibliothèques d
   assert.ok(!existsSync(sortie));
 });
 
-test("l'Info.plist d'Electron passe au nom de l'app ; l'exécutable garde le sien, sous lequel Electron cherche ses auxiliaires", () => {
+test("l'Info.plist d'Electron passe au nom de l'app ; l'exécutable aussi : macOS nomme l'activité d'arrière-plan d'après lui", () => {
   const plist = reecrirePlist(PLIST, "0.20261019.151600");
   const valeur = (cle: string) => new RegExp(`<key>${cle}</key>\\s*<string>([^<]*)</string>`).exec(plist)?.[1];
   assert.equal(valeur("CFBundleName"), "Brigade");
@@ -303,7 +308,7 @@ test("l'Info.plist d'Electron passe au nom de l'app ; l'exécutable garde le sie
   assert.equal(valeur("CFBundleIdentifier"), "com.github.benomite.brigade");
   assert.equal(valeur("CFBundleShortVersionString"), "0.20261019.151600");
   assert.equal(valeur("CFBundleVersion"), "0.20261019.151600");
-  assert.equal(valeur("CFBundleExecutable"), "Electron");
+  assert.equal(valeur("CFBundleExecutable"), "Brigade");
   assert.equal(valeur("NSPrincipalClass"), "AtomApplication");
   assert.doesNotMatch(plist, /ElectronAsarIntegrity|default_app\.asar/);
   // Toujours bien formé : autant de dictionnaires ouverts que fermés, et ce qui suivait la clé retirée est là.
@@ -320,8 +325,12 @@ function defautsAvecAide(t: TestContext, xml: string, dossierAide: string): { de
   const racine = dossier(t);
   const contenu = join(racine, "Brigade.app", "Contents");
   mkdirSync(join(contenu, "Frameworks", dossierAide, "Contents"), { recursive: true });
-  writeFileSync(join(contenu, "Info.plist"), plistAide(chaine("CFBundleName", "Brigade"), chaine("CFBundleDisplayName", "Brigade")));
+  writeFileSync(join(contenu, "Info.plist"), plistAide(chaine("CFBundleName", "Brigade"), chaine("CFBundleDisplayName", "Brigade"), chaine("CFBundleExecutable", "Brigade"), chaine("CFBundleIdentifier", IDENTIFIANT)));
+  mkdirSync(join(contenu, "MacOS"), { recursive: true });
+  writeFileSync(join(contenu, "MacOS", "Brigade"), "");
   const reecrit = reecrirePlistAuxiliaire(xml, dossierAide);
+  mkdirSync(join(contenu, "Frameworks", dossierAide, "Contents", "MacOS"), { recursive: true });
+  writeFileSync(join(contenu, "Frameworks", dossierAide, "Contents", "MacOS", nomDAuxiliaire(dossierAide)), "");
   writeFileSync(join(contenu, "Frameworks", dossierAide, "Contents", "Info.plist"), reecrit);
   return { defauts: defautsDeNom(join(racine, "Brigade.app")), reecrit };
 }
@@ -344,25 +353,26 @@ test("un auxiliaire dont CFBundleDisplayName diffère de CFBundleName : il prend
 });
 
 test("un auxiliaire dont aucun nom n'est de la forme attendue : le nom vient de son dossier", (t) => {
-  const xml = plistAide(chaine("CFBundleName", "Helper"), chaine("CFBundleDisplayName", "Electron"));
+  const xml = plistAide(chaine("CFBundleName", "Helper"), chaine("CFBundleDisplayName", "Electron"), chaine("CFBundleIdentifier", "com.github.Electron.helper.Plugin"));
   const { defauts, reecrit } = defautsAvecAide(t, xml, "Electron Helper (Plugin).app");
   assert.deepEqual(defauts, []);
   assert.equal(valeurDe(reecrit, "CFBundleName"), "Brigade Helper (Plugin)");
   assert.equal(valeurDe(reecrit, "CFBundleDisplayName"), "Brigade Helper (Plugin)");
-  const sansNoms = defautsAvecAide(t, plistAide(chaine("CFBundleExecutable", "Electron Helper")), "Electron Helper.app");
+  const sansNoms = defautsAvecAide(t, plistAide(chaine("CFBundleExecutable", "Electron Helper"), chaine("CFBundleIdentifier", "com.github.Electron.helper")), "Electron Helper.app");
   assert.deepEqual(sansNoms.defauts, []);
   assert.equal(valeurDe(sansNoms.reecrit, "CFBundleName"), "Brigade Helper");
 });
 
-test("assembler sur les cinq auxiliaires d'Electron : ni dossier ni exécutable renommé, et verifier-plist ne trouve rien", (t) => {
+test("assembler sur les cinq auxiliaires d'Electron : dossiers et exécutables renommés, et verifier-plist ne trouve rien", (t) => {
   const racine = dossier(t);
   const electron = fauxElectron(racine);
   poserAuxiliaires(electron);
   const paquet = assembler({ version: "1.0.0", electron, node: fauxNode(racine) }, join(racine, "volume"));
   const frameworks = join(paquet, "Contents", "Frameworks");
-  const attendus = Object.keys(AUXILIAIRES_ELECTRON).map((n) => `${n}.app`);
+  const renomme = (n: string) => n.replace(/^Electron/, "Brigade");
+  const attendus = Object.keys(AUXILIAIRES_ELECTRON).map((n) => `${renomme(n)}.app`);
   assert.deepEqual(readdirSync(frameworks).filter((n) => n.endsWith(".app")).sort(), attendus.sort());
-  for (const nom of Object.keys(AUXILIAIRES_ELECTRON)) {
+  for (const nom of Object.keys(AUXILIAIRES_ELECTRON).map(renomme)) {
     assert.deepEqual(readdirSync(join(frameworks, `${nom}.app`, "Contents", "MacOS")), [nom]);
     const plist = readFileSync(join(frameworks, `${nom}.app`, "Contents", "Info.plist"), "utf8");
     assert.equal(valeurDe(plist, "CFBundleExecutable"), nom);
