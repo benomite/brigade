@@ -51,6 +51,8 @@ import { brancherMentionDuChef } from "../mention-du-chef/mention-du-chef.ts";
 import { brancherReponseParCommentaire } from "../reponse-par-commentaire/reponse-par-commentaire.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { porteDuRuntime } from "../autonomie/agents/porte.ts";
+import { politiqueDuRuntime } from "../autonomie/agents/politique-du-runtime.ts";
+import { lireLaQualite } from "../autonomie/agents/qualite.ts";
 import { brancherSuperviseur, type ManagerDuSuperviseur } from "../superviseur/brancher.ts";
 import { suivreLeTour } from "../superviseur/tour.ts";
 import { ecrireLaLacune } from "../routage-station/lacune.ts";
@@ -267,10 +269,6 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
                 reviewer: () => decisions.reviewer(),
                 // La question d'un cook bloqué va au manager avant que le ticket ne soit parqué pour le chef (#2894).
                 manager: () => decisions.manager(),
-                // Le manager écrit les tests d'acceptation d'un ticket avant qu'un cook le prenne (#3725).
-                testsAcceptation: () => decisions.manager(),
-                // Il classe d'abord chaque critère, testable ou non, avec la preuve due (#3740).
-                classesDesCriteres: () => decisions.manager(),
                 flux: join(repertoireEtat, "github-seul"),
                 // Le « stop », le disjoncteur, le quota et l'arbitre (#2213).
                 gardes,
@@ -354,6 +352,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     brancherResumeHebdomadaire(ouverte, { projet, depot: rail.depot, repertoireEtat, github: githubs.station, chef, reglages: () => duDepot.suivis.relire() ?? duDepot.reglages, avertir: dire });
     // Chaque matin, le digest de la veille, lu des fils des agents, s'écrit pour la vue du projet ; il n'est jamais poussé (#4280).
     brancherLeDigest(ouverte, { repertoireEtat, avertir: dire });
+    // Les niveaux d'autonomie bougent selon le bilan des gestes, au plus une fois par heure ; une rétrogradation réveille le chef (#4380).
+    politiqueDuRuntime(ouverte, { lire: () => lireLaQualite({ depot, clone: station.clone, base: station.base, depotGitHub: rail.depot, github: githubs.station, env }, new Date()), avertir: dire });
   } catch (erreur) {
     identites?.fermer();
     void projetGitHub?.arreter();
