@@ -13,6 +13,7 @@ import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
 import { launcherOf, projectHosts } from "./launch.ts";
 import { gitCli, openKitchen } from "./kitchen.ts";
+import { projectsFile, readProjects, type KitchenProject } from "./projects.ts";
 
 masquerLaConsole();
 
@@ -24,25 +25,10 @@ if (!root) {
 const TURN_MS = Number(process.env.BRIGADE_KITCHEN_TURN_SECONDS || 60) * 1000;
 const claudeBin = process.env.BRIGADE_CLAUDE_BIN || "claude";
 
-type Line = { name: string; repo: string; base: string; places: number; clone: string };
-
-export function readProjects(text: string, stationDir: string): Line[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "" && !line.startsWith("#"))
-    .flatMap((line) => {
-      const [name, repo, base, ...settings] = line.split(/\s+/);
-      if (name === undefined || repo === undefined) return [];
-      const setting = (key: string) => settings.find((one) => one.startsWith(`${key}=`))?.slice(key.length + 1);
-      return [{ name, repo, base: base ?? "main", places: Number(setting("PLACES") ?? 4), clone: setting("CLONE") ?? join(stationDir, name, "depot") }];
-    });
-}
-
 const log = (project: string) => (line: string) => console.log(`${new Date().toISOString()} ${project}: ${line}`);
 
 // The project's kitchen, or why it launches no agent.
-function kitchenOf(project: Line) {
+function kitchenOf(project: KitchenProject) {
   const state = join(root as string, "kitchen", project.name);
   const git = gitCli(process.env);
   const portsFile = process.env.BRIGADE_STATION_PORTES;
@@ -88,9 +74,9 @@ if (import.meta.main) {
   const kitchens = new Map<string, Served>();
   // A refused project is tried again each turn; its reason is logged when it changes.
   const refusals = new Map<string, string>();
-  const file = join(root, "kitchen", "projects");
+  const file = projectsFile(root);
   for (;;) {
-    let projects: Line[] = [];
+    let projects: KitchenProject[] = [];
     try {
       projects = readProjects(readFileSync(file, "utf8"), root);
     } catch (error) {
