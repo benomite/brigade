@@ -1,5 +1,5 @@
-// #4129 : rien ne prend un ticket parqué avant sa date, son fait ou la réponse — ni le geste `back-on-rail` du
-// superviseur (que l'invariant 3 joue aussi), ni une date qui ne le libère pas : parqué jusqu'à un fait, il attend
+// #4129 : rien ne prend un ticket parqué avant sa date, son fait ou la réponse — ni un geste du
+// superviseur (qui ne remet plus rien sur le rail, #4233), ni une date qui ne le libère pas : parqué jusqu'à un fait, il attend
 // qu'on le dise arrivé.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -13,17 +13,20 @@ import { FauxDepot } from "../superviseur/faux-depot.ts";
 const MAINTENANT = new Date("2026-11-25T10:00:00.000Z");
 const PRISES: Reveil = { cause: "takes", takes: 3, ticket: 40 };
 
-const remettre = (depot: FauxDepot) =>
-  jouerLeRun({ github: depot.client(), depot: "acme/shop", branche: "main", maintenant: MAINTENANT }, PRISES, { saw: "the dossier", gesture: { gesture: "back-on-rail", ticket: 40, note: "again" } });
+const parquer = (depot: FauxDepot) =>
+  jouerLeRun({ github: depot.client(), depot: "acme/shop", branche: "main", maintenant: MAINTENANT }, PRISES, { saw: "the dossier", gesture: { gesture: "park", ticket: 40, what: "the key", who: "the client" } });
 
-test("`back-on-rail` refuse un ticket parqué, pour un tiers comme pour le chef : ses labels restent, rien ne le prend", async () => {
+test("le superviseur ne remet jamais un ticket parqué sur le rail (`back-on-rail` n'existe plus, #4233) et `park` refuse un ticket déjà parqué : ses labels restent", async () => {
   for (const labels of [["fire", "parked"], ["parked"], ["fire", "parked", "chef-todo"], ["chef-todo"]]) {
     const depot = new FauxDepot();
     depot.issue(40, labels);
-    const trace = await remettre(depot);
+    const trace = await parquer(depot);
     assert.equal(trace.outcome, "refused", labels.join(","));
     assert.deepEqual(depot.labelsDe(40), labels, labels.join(","));
-    assert.match(depot.commentaires.get(40)?.[0] ?? "", /- \*\*refused\*\*: back-on-rail: #40 is parked \(`parked`\): it waits for someone, and nothing takes it before its date, its fact or the answer/, labels.join(","));
+    assert.match(depot.commentaires.get(40)?.[0] ?? "", /- \*\*refused\*\*: park: #40 is parked \(`parked`\): it waits for someone, and nothing takes it before its date, its fact or the answer/, labels.join(","));
+    const rail = await jouerLeRun({ github: depot.client(), depot: "acme/shop", branche: "main", maintenant: MAINTENANT }, PRISES, { saw: "x", gesture: { gesture: "back-on-rail", ticket: 40, note: "again" } });
+    assert.equal(rail.outcome, "refused", labels.join(","));
+    assert.deepEqual(depot.labelsDe(40), labels, labels.join(","));
   }
 });
 

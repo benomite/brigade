@@ -69,15 +69,13 @@ export type OptionsDuBranchement = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// La consigne du manager : son dossier, les six gestes, et la forme de sa réponse.
+// La consigne du manager : son dossier, les quatre gestes, et la forme de sa réponse.
 function consigne(depot: string, dossier: Dossier, sauts: readonly string[], raisons: ReturnType<SuiviDuTour["raisonsDesSauts"]>): string {
   return [
-    `Tu es le manager de la brigade sur le dépôt ${depot}, et le superviseur de ce run : la cuisine ne bouge pas. Lis le dossier ci-dessous — la file, la fin du journal, les checks rouges de la base et leur log, l'historique du ticket en faute, tes derniers gestes et leurs compteurs —, dis ce que tu vois, et choisis UN geste parmi les six. Tu es dans un worktree de la base, en lecture : vérifie dans le dépôt ce que le dossier nomme.`,
+    `Tu es le manager de la brigade sur le dépôt ${depot}, et le superviseur de ce run : la cuisine ne bouge pas. Lis le dossier ci-dessous — la file, la fin du journal, les checks rouges de la base et leur log, l'historique du ticket en faute, tes derniers gestes et leurs compteurs —, dis ce que tu vois, et choisis UN geste parmi les quatre. Tu es dans un worktree de la base, en lecture : vérifie dans le dépôt ce que le dossier nomme.`,
     "",
-    "## Les six gestes, les seuls permis",
+    "## Les quatre gestes, les seuls permis",
     "",
-    '- `{"gesture": "rerun", "ticket": N | null}` — relancer les jobs en échec des checks rouges de la base.',
-    '- `{"gesture": "back-on-rail", "ticket": N, "note": "…"}` — remettre un ticket sur le rail, avec la note que le prochain cook lira.',
     '- `{"gesture": "park", "ticket": N, "what": "…", "who": "…"}` — parquer un ticket pour un tiers nommé : qui il attend, pour quoi ; rien ne le prend avant.',
     '- `{"gesture": "close-duplicate", "ticket": N, "of": M}` — fermer un doublon, ou une alerte périmée, au profit de M.',
     '- `{"gesture": "fix", "cause": "…", "title": "…", "body": "…", "check": "<check rouge>" | null}` — ouvrir UN ticket `fix` pour une cause neuve. Sur une base rouge, il nomme le check rouge qu\'il répare.',

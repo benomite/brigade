@@ -12,7 +12,7 @@ import { attenteDeLIssue, corpsDuParking, direRelance, reprendALaDate } from "..
 import { CHEF_TODO, LABEL_PARKED } from "../github-etat/etats.ts";
 import { MIS_DE_COTE } from "../github.ts";
 import { MARQUE_D_ECHEC, MARQUE_DE_RENVOI } from "../qualite-github.ts";
-import { remettreSurLeRail } from "../superviseur/gestes.ts";
+import { remettreSurLeRail } from "./gestes-du-rail.ts";
 import type { Invariant } from "./invariants.ts";
 
 // Ce que la cuisine a dit en dernier en le retenant : la première ligne qui suit sa marque.

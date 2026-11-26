@@ -58,10 +58,8 @@ function ouvrir(t: TestContext) {
 
 // The gestures of step 4, as a write to GitHub: the path (past the repository) and the arguments that make it one.
 const GESTES: Array<[string, (chemin: string, args: string[]) => boolean]> = [
-  ["rerun failed CI jobs", (chemin) => /^actions\/runs\/\d+\/rerun-failed-jobs$/.test(chemin)],
-  ["put a ticket back on the rail with a note", (chemin, args) => /^issues\/\d+\/labels(\/fire)?$/.test(chemin) && args.some((arg) => arg.includes("fire"))],
-  // Back on the rail or closed, the ticket is unparked.
-  ["unpark a ticket put back on the rail or closed", (chemin, args) => chemin === `issues/${TICKET}/labels/parked` && args.includes("DELETE")],
+  // The supervisor never reruns a job nor puts a ticket back on the rail (#4233); closed, the ticket is unparked.
+  ["unpark a ticket closed", (chemin, args) => chemin === `issues/${TICKET}/labels/parked` && args.includes("DELETE")],
   ["close a duplicate or a stale alert", (chemin, args) => /^issues\/\d+$/.test(chemin) && args.some((arg) => arg.includes("closed"))],
   ["file one fix ticket", (chemin, args) => chemin === "issues" && args.some((arg) => /^labels(\[\])?=fix$/.test(arg) || arg === "fix")],
   ["post a TODO card", (chemin, args) => /^issues\/\d+\/labels$/.test(chemin) && args.some((arg) => arg.includes("chef-todo"))],

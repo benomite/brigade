@@ -97,7 +97,7 @@ import { githubDeLaLivraison } from "./livraison-rouge/github-de-la-livraison.ts
 import { nommeLaLivraison, type GitHubDeLaLivraison } from "./livraison-rouge/nomme-livraison.ts";
 import { ouvrirGuerison } from "./guerison/index.ts";
 import type { ManagerDuSuperviseur } from "./superviseur/brancher.ts";
-import { relancerLesRouges } from "./superviseur/gestes.ts";
+import { relancerLesRouges } from "./invariants/gestes-du-rail.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import { genreDuTicket, ouvrirLePass } from "./risque/risque.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";

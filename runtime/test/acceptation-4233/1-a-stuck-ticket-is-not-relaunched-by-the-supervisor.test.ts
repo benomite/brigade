@@ -21,7 +21,7 @@ test("a stuck ticket is never put back on the rail nor rerun by the supervisor: 
     depot.checkRouge("tests (linux)", 7);
     await jouerLeRun({ github: depot.client(), depot: "acme/shop", branche: "main", maintenant: new Date("2026-11-20T10:00:00.000Z") }, BLOQUE, { saw: "the ticket is stuck", gesture });
     const label = JSON.stringify(gesture);
-    assert.ok(depot.labelsDe(40).includes("set-aside:failures") || depot.labelsDe(40).includes("waiting"), `${label}: the ticket is still held (${depot.labelsDe(40).join(",")})`);
+    assert.deepEqual(depot.labelsDe(40), ["fire", "set-aside:failures"], `${label}: the ticket is untouched`);
     assert.deepEqual(depot.relances(), [], `${label}: no job rerun`);
     assert.deepEqual(
       depot.appels.filter(({ methode, chemin }) => methode !== "GET" && !/\/issues\/\d+\/comments$/.test(chemin) && !/\/labels/.test(chemin)).map(({ chemin }) => chemin),

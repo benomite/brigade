@@ -21,20 +21,19 @@ import { repertoireTemporaire } from "../../outils.ts";
 
 const A = (hhmm: string) => () => new Date(`2026-11-23T${hhmm}:00.000Z`);
 
-// A supervisor's run, woken by #40 taken three times, whose manager asks to put #40 back on the rail. #40 is held off the
-// rail without being parked (`served-elsewhere`): a parked ticket is refused (#4129).
+// A supervisor's run, woken by #40 taken three times, whose manager asks to park #40 for the client.
 async function unRun(t: TestContext, projet: string, options: { repertoireEtat?: string; porte?: ReturnType<typeof porteDesGestes> }) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   t.after(() => journal.fermer());
   const depot = new FauxDepot();
-  depot.issue(40, ["served-elsewhere"]);
+  depot.issue(40, ["fire"]);
   const pris: FaitsDuProjet = { dernierMerge: null, cuisinables: [], prises: [{ ticket: 40, prises: 3 }], mainRougeDepuis: null };
   const consultations = { n: 0 };
   await superviseur({
     projet,
     depot: "acme/shop",
     sources: { journal, github: depot.client(), branche: "main", ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }) },
-    manager: async () => (consultations.n++, { saw: "#40 does not move", gesture: { gesture: "back-on-rail", ticket: 40, note: "the client answered" } }),
+    manager: async () => (consultations.n++, { saw: "#40 does not move", gesture: { gesture: "park", ticket: 40, what: "the API key", who: "the client" } }),
     maintenant: A("17:01"),
     ...(options.porte === undefined ? {} : { porte: options.porte }),
   })(pris);
@@ -49,16 +48,16 @@ test("the supervisor on propose: its gesture is not done until the chef's approv
   const { depot, consultations } = await unRun(t, projet, { repertoireEtat: repertoire, porte });
   assert.equal(consultations.n, 1);
   assert.deepEqual(depot.ecrits(), []);
-  assert.deepEqual(depot.labelsDe(40), ["served-elsewhere"]);
+  assert.deepEqual(depot.labelsDe(40), ["fire"]);
   assert.deepEqual(enregistrementDe(repertoire, "supervisor").gestures, []);
-  assert.deepEqual(gestesEnAttente(repertoire).map(({ id, agent, line, reason }) => ({ id, agent, line, reason })), [{ id: 1, agent: "supervisor", line: 'back-on-rail {"ticket":40,"note":"the client answered"}', reason: "#40 was taken 3 times without delivering" }]);
+  assert.deepEqual(gestesEnAttente(repertoire).map(({ id, agent, line, reason }) => ({ id, agent, line, reason })), [{ id: 1, agent: "supervisor", line: 'park {"ticket":40,"what":"the API key","who":"the client"}', reason: "#40 was taken 3 times without delivering" }]);
 
   await porte.approuver(1);
-  assert.deepEqual(depot.labelsDe(40), ["fire"]);
+  assert.deepEqual(depot.labelsDe(40), ["fire", "parked"]);
   assert.equal((depot.commentaires.get(40) ?? []).length, 1);
   const { gestures } = enregistrementDe(repertoire, "supervisor");
   assert.equal(gestures.length, 1);
-  assert.match(gestures[0]?.line ?? "", /^put #40 back on the rail/);
+  assert.match(gestures[0]?.line ?? "", /^parked #40/);
   assert.equal(gestures[0]?.outcome, OUTCOME.FIXED_BY_SELF);
 
   assert.equal(await porte.approuver(1), null);
@@ -70,11 +69,11 @@ test("a supervisor given no gate takes the one of its state directory, at its le
   const projet = "porte-superviseur-defaut";
   magasinDeNiveaux(repertoire).poser(projet, "supervisor", "propose");
   const tenu = await unRun(t, projet, { repertoireEtat: repertoire });
-  assert.deepEqual(tenu.depot.labelsDe(40), ["served-elsewhere"]);
+  assert.deepEqual(tenu.depot.labelsDe(40), ["fire"]);
   assert.deepEqual(gestesEnAttente(repertoire).map(({ agent }) => agent), ["supervisor"]);
 
   const sans = await unRun(t, projet, {});
-  assert.deepEqual(sans.depot.labelsDe(40), ["fire"]);
+  assert.deepEqual(sans.depot.labelsDe(40), ["fire", "parked"]);
 });
 
 const PREVU: TicketPrevu = { title: "The rail counts its tickets", context: "c", criteria: ["a test covers it"], waitsFor: [], zone: ["runtime/src/rail.ts"], model: "sonnet", effort: "low", calibration: "small and clear" };

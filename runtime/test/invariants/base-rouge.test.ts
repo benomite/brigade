@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Reveil } from "../../src/superviseur/declencheur.ts";
-import { jouerLeRun, relancerLesRouges } from "../../src/superviseur/gestes.ts";
+import { jouerLeRun } from "../../src/superviseur/gestes.ts";
+import { relancerLesRouges } from "../../src/invariants/gestes-du-rail.ts";
 import { CALIBRE, FauxGitHub } from "../faux-github.ts";
 import { FauxDepot } from "../superviseur/faux-depot.ts";
 
@@ -92,13 +93,13 @@ test("without a rerun of its own, the station reruns the failed jobs of the red 
   assert.equal(b.cuissons.length, 1, "nothing to rerun: nothing held");
 });
 
-test("the supervisor's rerun gesture reruns through the same function as the invariant", async () => {
+test("only the rail reruns the red checks of the base, through `relancerLesRouges`; the supervisor's `rerun` is no gesture (#4233)", async () => {
   assert.equal(await relancerLesRouges({ relancerLesEchecs: async () => assert.fail("no Actions job") }, "main", [{ name: "lint", url: null }]), null);
   const depot = new FauxDepot();
   depot.issue(40, ["fire"]);
   depot.checkRouge("tests (linux)", 7);
   const reveil: Reveil = { cause: "takes", takes: 3, ticket: 40 };
   const trace = await jouerLeRun({ github: depot.client(), depot: "acme/shop", branche: "main", maintenant: new Date("2026-11-20T10:00:00.000Z") }, reveil, { saw: "main red", gesture: { gesture: "rerun", ticket: 40 } });
-  assert.equal(trace.outcome, "done", trace.comment ?? "");
-  assert.deepEqual(depot.relances(), [7]);
+  assert.equal(trace.outcome, "refused", trace.comment ?? "");
+  assert.deepEqual(depot.relances(), []);
 });

@@ -17,7 +17,7 @@ import { FauxDepot } from "../superviseur/faux-depot.ts";
 
 const MARQUE_D_INACTIVITE = "<!-- brigade:no-progress";
 const A = (hhmm: string) => `2026-11-23T${hhmm}:00.000Z`;
-const BACK = (ticket: number) => JSON.stringify({ saw: `#${ticket} is set aside with no progress`, gesture: { gesture: "back-on-rail", ticket, note: "nothing holds it" } });
+const BACK = (ticket: number) => JSON.stringify({ saw: `#${ticket} is set aside with no progress`, gesture: { gesture: "close-duplicate", ticket, of: ticket } });
 
 function projet(t: TestContext, manager: ManagerDuSuperviseur) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
@@ -46,7 +46,7 @@ function projet(t: TestContext, manager: ManagerDuSuperviseur) {
   return { depot, dits, raisons, a: (hhmm: string) => void (instant = A(hhmm)), lire: () => client.fires(), reveiller: () => ecouter?.() };
 }
 
-test("a ticket set aside with no progress for 30 minutes wakes the supervisor, a parked one never; its gesture's label change, by an agent, starts a new silent period", async (t) => {
+test("a ticket set aside with no progress for 30 minutes wakes the supervisor, a parked one never; the supervisor leaves the ticket as it was", async (t) => {
   const consignes: string[] = [];
   let liberer: (() => void) | null = null;
   const p = projet(t, async (consigne) => {
@@ -75,19 +75,11 @@ test("a ticket set aside with no progress for 30 minutes wakes the supervisor, a
   // The run's trace names the cause it woke on.
   await jusqua(() => (p.depot.commentaires.get(41) ?? []).some((corps) => corps.startsWith("<!-- brigade:supervisor -->")));
   assert.match((p.depot.commentaires.get(41) ?? []).find((corps) => corps.startsWith("<!-- brigade:supervisor -->")) ?? "", /woke because #41 \(set aside\) has made no progress since 2026-11-23T10:00:00.000Z\./);
-  assert.deepEqual(p.depot.labelsDe(41), ["fire"]);
+  // The supervisor does not put it back on the rail: the ticket stays as it was (#4233).
+  assert.deepEqual(p.depot.labelsDe(41), ["fire", "served-elsewhere"]);
   p.a("10:31");
   p.reveiller();
   await jusqua(() => p.raisons(42).length === 1 && consignes.length === 2);
-  // #41 is woken once for its silence; its gesture's label change at 10:30 starts a new one.
-  p.a("10:59");
-  p.reveiller();
-  await new Promise((fin) => setImmediate(fin));
-  assert.equal(p.raisons(41).length, 1);
-  p.a("11:00");
-  p.reveiller();
-  await jusqua(() => p.raisons(41).length === 2);
-  assert.match(p.raisons(41)[1] ?? "", new RegExp(`Last progress: a label change by an agent, ${A("10:30")}`));
   // #43 is parked: silent just as long, it never wakes the supervisor.
   assert.deepEqual(p.raisons(43), []);
   assert.equal(consignes.join("\n").includes('"ticket": 43'), false);

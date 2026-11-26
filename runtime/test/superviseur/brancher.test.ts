@@ -17,7 +17,7 @@ import { jusqua, repertoireTemporaire } from "../outils.ts";
 import { FauxDepot } from "./faux-depot.ts";
 
 const A = (hhmm: string) => `2026-11-20T${hhmm}:00.000Z`;
-const RERUN = JSON.stringify({ saw: "main is red on tests (linux)", gesture: { gesture: "rerun", ticket: null } });
+const RERUN = JSON.stringify({ saw: "main is red on tests (linux)", gesture: { gesture: "fix", cause: "tests fail on linux", title: "Fix the linux tests", body: "Red.", check: "tests (linux)" } });
 
 // Un projet branché : son journal, son tour observé, son faux dépôt — `tests (linux)` rouge, run 7 —, et le manager
 // que le test fait répondre. `reveiller` joue un réveil du runtime ; `lu` fait lire au tour les checks de la base.
@@ -74,8 +74,9 @@ test("main rouge depuis 10 min : le manager reçoit la consigne du superviseur e
   assert.deepEqual(p.consignes, []);
   p.a("10:11");
   p.reveiller();
-  await jusqua(() => p.depot.relances().length > 0);
-  assert.deepEqual(p.depot.relances(), [7]);
+  await jusqua(() => p.depot.creees().length > 0);
+  assert.equal(p.depot.creees().length, 1);
+  assert.deepEqual(p.depot.relances(), []);
   const [consigne] = p.consignes;
   assert.match(consigne ?? "", /^Tu es le manager de la brigade sur le dépôt acme\/shop, et le superviseur de ce run/);
   assert.match(consigne ?? "", /"cause": "main-red"/);
@@ -91,7 +92,7 @@ test("ce que la porte de prise a dit des cuisinables qu'elle a sautés va au dos
   p.tour.sauter(12, "#12: no station provides `gpu`");
   p.a("10:11");
   p.reveiller();
-  await jusqua(() => p.depot.relances().length > 0);
+  await jusqua(() => p.depot.creees().length > 0);
   assert.match(p.consignes[0] ?? "", /"skipped": \[\n\s+"#12: no station provides `gpu`"\n\s+\]/);
 });
 
@@ -103,7 +104,7 @@ test("le code d'un saut, `zone-held` et la PR qui tient la zone, va au dossier d
   p.tour.sauter(61, "#61: zone held by open PR #4077", undefined, { code: "zone-held", pr: 4077 });
   p.a("10:11");
   p.reveiller();
-  await jusqua(() => p.depot.relances().length > 0);
+  await jusqua(() => p.depot.creees().length > 0);
   assert.match(p.consignes[0] ?? "", /"skipReasons": \[\n\s+\{\n\s+"ticket": 61,\n\s+"code": "zone-held",\n\s+"pr": 4077\n\s+\}\n\s+\]/);
 });
 
@@ -150,11 +151,11 @@ test("sans manager donné par la station, rien ne part ; donné, le réveil suiv
   p.a("10:11");
   p.reveiller();
   await new Promise((fin) => setImmediate(fin));
-  assert.deepEqual([p.depot.relances(), p.dits], [[], []]);
+  assert.deepEqual([p.depot.creees(), p.dits], [[], []]);
   const consignes: string[] = [];
   p.manager(async (consigne) => (consignes.push(consigne), { message: RERUN }));
   p.reveiller();
-  await jusqua(() => p.depot.relances().length > 0);
+  await jusqua(() => p.depot.creees().length > 0);
   assert.equal(consignes.length, 1);
 });
 
@@ -169,7 +170,7 @@ for (const [nom, reponse, dit] of [
     p.reveiller();
     await jusqua(() => p.dits.length > 0);
     assert.deepEqual(p.dits, [`supervisor on shop: its run failed — ${dit}`]);
-    assert.deepEqual(p.depot.relances(), []);
+    assert.deepEqual(p.depot.creees(), []);
   });
 }
 
@@ -190,7 +191,7 @@ test("le geste lit la tête de la base par le client du projet ; un client qui n
   await sans.pris();
   sans.reveiller();
   await jusqua(() => sans.depot.ecrits().length > 0);
-  assert.deepEqual(sans.depot.relances(), []);
+  assert.deepEqual(sans.depot.creees(), []);
   assert.match(sans.depot.commentaires.get(40)?.join("\n") ?? "", /cannot read the head of the integration branch/);
 });
 

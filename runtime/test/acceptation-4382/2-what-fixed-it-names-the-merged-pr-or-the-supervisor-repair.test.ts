@@ -17,20 +17,6 @@ test("an outage ended by a merged delivery names that PR", async (t) => {
   assert.equal(pm.corrige, "PR #4200 merged (commit deadbee)");
 });
 
-test("an outage ended by a supervisor repair names the repair and reads 'fixed by itself'", async (t) => {
-  const c = cuisine(t);
-  c.etat.checks = c.rouge(A("10:00"));
-  c.etat.manager = JSON.stringify({ saw: "main is red on a flaky job", gesture: { gesture: "rerun", ticket: null } });
-  await c.tic("10:00");
-  await c.tic("10:20");
-  assert.ok(c.etat.relances.length > 0, "the supervisor reran the failed jobs");
-  c.etat.checks = c.verte;
-  await c.tic("10:45");
-  const [pm] = lirePostMortems(c.repertoire, "shop");
-  assert.ok(pm, "the post-mortem exists");
-  assert.equal(pm.corrige, "the supervisor reran the failed jobs of main (run 777) — fixed by itself");
-});
-
 test("a merge made before the outage began does not fix it", async (t) => {
   const c = cuisine(t);
   await c.enveloppe.merger(4199, "cafe123");

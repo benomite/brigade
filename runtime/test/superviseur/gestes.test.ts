@@ -1,4 +1,4 @@
-// Les gestes du superviseur (#3944) : six, pas un de plus, joués par le vrai
+// Les gestes du superviseur (#3944) : quatre, pas un de plus, joués par le vrai
 // client GitHub du runtime sur un faux dépôt (`faux-depot.ts`) — et chaque run
 // écrit UN commentaire, compté sur ce que GitHub reçoit.
 import assert from "node:assert/strict";
@@ -15,8 +15,6 @@ const jouer = (depot: FauxDepot, reveil: Reveil, gesture: unknown, saw = "the do
 
 test("chaque geste fait, un seul commentaire sur le ticket où le run a agi, qui dit ce qu'il a vu et ce qu'il a fait — le parking et la carte TODO compris", async () => {
   const cas: Array<{ nom: string; gesture: unknown; ticket: number; tete?: RegExp; prepare?: (depot: FauxDepot) => void }> = [
-    { nom: "rerun", gesture: { gesture: "rerun", ticket: 40 }, ticket: 40, prepare: (depot) => depot.checkRouge("tests (linux)", 7) },
-    { nom: "back-on-rail", gesture: { gesture: "back-on-rail", ticket: 40, note: "its zone is free again" }, ticket: 40, prepare: (depot) => depot.issue(40, ["fire", "served-elsewhere"]) },
     { nom: "park", gesture: { gesture: "park", ticket: 40, what: "the API key", who: "the client" }, ticket: 40, tete: /^<!-- brigade:parked \{/ },
     { nom: "close-duplicate", gesture: { gesture: "close-duplicate", ticket: 40, of: 12 }, ticket: 40 },
     { nom: "fix", gesture: { gesture: "fix", cause: "the journal is read twice", title: "Read the journal once per tick", body: "The tick reads the journal twice." }, ticket: 500 },
@@ -42,11 +40,11 @@ test("chaque geste fait, un seul commentaire sur le ticket où le run a agi, qui
 test("un geste refusé : rien n'est fait, et le run le dit en un seul commentaire sur le ticket visé", async () => {
   const depot = new FauxDepot();
   depot.issue(40, ["fire", "taken"]);
-  const trace = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "again" });
+  const trace = await jouer(depot, PRISES, { gesture: "close-duplicate", ticket: 40, of: 40 });
   assert.equal(trace.outcome, "refused");
   assert.deepEqual(depot.labelsDe(40), ["fire", "taken"]);
   assert.equal(depot.ecrits().length, 1);
-  assert.match(depot.commentaires.get(40)?.[0] ?? "", /- \*\*refused\*\*: back-on-rail: #40 carries `taken`: the kitchen holds it/);
+  assert.match(depot.commentaires.get(40)?.[0] ?? "", /- \*\*refused\*\*: close-duplicate: #40 cannot duplicate itself/);
 });
 
 test("toute autre action est refusée : rien n'est écrit sur GitHub que le commentaire du run", async () => {
@@ -64,18 +62,16 @@ test("toute autre action est refusée : rien n'est écrit sur GitHub que le comm
   }
   const depot = new FauxDepot();
   depot.issue(40, ["fire"]);
-  assert.match((await jouer(depot, PRISES, { gesture: "merge" })).comment ?? "", /“merge” is not one of the supervisor's six gestures \(rerun, back-on-rail, park, close-duplicate, fix, todo\)/);
+  assert.match((await jouer(depot, PRISES, { gesture: "merge" })).comment ?? "", /“merge” is not one of the supervisor's four gestures \(park, close-duplicate, fix, todo\)/);
 });
 
-test("main rouge : le fix d'un check jamais relancé relance ses jobs en échec d'abord, et n'ouvre aucun ticket", async () => {
+test("main rouge : le fix d'un check jamais relancé s'ouvre tel quel — le superviseur ne relance aucun job (#4233)", async () => {
   const depot = new FauxDepot();
   depot.checkRouge("tests (linux)", 7, 1);
   const trace = await jouer(depot, MAIN_ROUGE, { gesture: "fix", cause: "tests fail on linux", title: "Fix the linux tests", body: "Red.", check: "tests (linux)" });
   assert.equal(trace.outcome, "done");
-  assert.deepEqual(depot.relances(), [7]);
-  assert.deepEqual(depot.creees(), []);
-  // Main rouge ne nomme aucun ticket : la relance n'agit sur aucun, et aucun commentaire ne part.
-  assert.deepEqual([trace.ticket, trace.comment, depot.ecrits().length], [null, null, 0]);
+  assert.deepEqual(depot.relances(), []);
+  assert.equal(depot.creees().length, 1);
 });
 
 test("main rouge : la relance finie et toujours rouge, un seul ticket fix par check rouge", async () => {
@@ -98,16 +94,11 @@ test("main rouge : la relance finie et toujours rouge, un seul ticket fix par ch
   assert.match(second.comment ?? "", /#500 is already open for this cause: no second fix ticket/);
 });
 
-test("main rouge : une relance qui tourne encore n'ouvre rien ; un fix sans son check rouge, ou sur un check vert, non plus", async () => {
+test("main rouge : un fix sans son check rouge, ou sur un check vert, n'ouvre rien", async () => {
   const depot = new FauxDepot();
-  depot.checkRouge("tests (linux)", 7, 2, "in_progress");
-  const fix = { gesture: "fix", cause: "tests fail on linux", title: "Fix the linux tests", body: "Red." };
-  // Main rouge ne nomme aucun ticket : un refus n'a aucun ticket où se dire.
-  const tourne = await jouer(depot, MAIN_ROUGE, { ...fix, check: "tests (linux)" });
-  assert.deepEqual([tourne.outcome, tourne.comment], ["refused", null]);
-  // Sur un réveil qui nomme un ticket, le refus s'y dit.
+  depot.checkRouge("tests (linux)", 7, 2);
   depot.issue(40, ["fire"]);
-  assert.match((await jouer(depot, PRISES, { ...fix, check: "tests (linux)" })).comment ?? "", /the rerun of tests \(linux\) \(run 7\) is still running/);
+  const fix = { gesture: "fix", cause: "tests fail on linux", title: "Fix the linux tests", body: "Red." };
   const sansCheck = await jouer(depot, MAIN_ROUGE, fix);
   assert.equal(sansCheck.outcome, "refused");
   assert.match((await jouer(depot, PRISES, { ...fix, check: "types (runtime)" })).comment ?? "", /types \(runtime\) is not red on the head of main/);
@@ -132,8 +123,6 @@ test("un fix pour une cause neuve s'ouvre ; une cause qu'un ticket ouvert porte 
 
 test("aucun ticket créé hors du geste fix, et jamais un ticket sur un ticket", async () => {
   for (const gesture of [
-    { gesture: "rerun", ticket: 40 },
-    { gesture: "back-on-rail", ticket: 40, note: "go" },
     { gesture: "park", ticket: 40, what: "the key", who: "the client" },
     { gesture: "close-duplicate", ticket: 40, of: 12 },
     { gesture: "todo", ticket: 40, kind: "design", question: "Which of the two home layouts do we keep?" },
@@ -184,34 +173,6 @@ test("la carte TODO de design pose la question de design ; une carte qui attend 
   assert.doesNotMatch(encore.comment ?? "", /brigade:todo/);
 });
 
-test("remettre sur le rail : `fire` posé, ce qui le retenait retiré ; déjà sur le rail, refusé", async () => {
-  const depot = new FauxDepot();
-  depot.issue(40, ["served-elsewhere", "prio:1"]);
-  const trace = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "the client answered" });
-  assert.deepEqual(depot.labelsDe(40), ["prio:1", "fire"]);
-  assert.match(trace.comment ?? "", /put #40 back on the rail \(`fire` added, `served-elsewhere` removed\)\. Note: the client answered/);
-  const deja = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "again" });
-  assert.equal(deja.outcome, "refused");
-  const fermee = new FauxDepot();
-  fermee.issue(40, []);
-  (fermee.issues.get(40) as { state: string }).state = "closed";
-  assert.equal((await jouer(fermee, PRISES, { gesture: "back-on-rail", ticket: 40, note: "x" })).outcome, "refused");
-  assert.deepEqual(fermee.labelsDe(40), []);
-});
-
-test("remettre sur le rail un ticket parqué (`parked` ou `chef-todo`) : refusé, rien n'est retiré (#4129)", async () => {
-  // Un label d'attente d'avant parked (#4260) parque aussi : il ne se retire pas en remettant sur le rail.
-  for (const labels of [["parked", "set-aside:failures", "prio:1"], ["chef-todo", "blocked-on-human", "prio:1"], ["fire", "parked", "chef-todo"], ["blocked-on-human", "served-elsewhere", "set-aside:failures", "prio:1"]]) {
-    const depot = new FauxDepot();
-    depot.issue(40, labels);
-    const trace = await jouer(depot, PRISES, { gesture: "back-on-rail", ticket: 40, note: "the client answered" });
-    assert.equal(trace.outcome, "refused", labels.join(","));
-    assert.deepEqual(depot.labelsDe(40), labels);
-    assert.match(trace.comment ?? "", /- \*\*refused\*\*: back-on-rail: #40 is parked \(`parked`\): it waits for someone, and nothing takes it before its date, its fact or the answer — unpark it first/);
-    assert.equal(depot.ecrits().length, 1);
-  }
-});
-
 test("parked : le label et la marque du tiers dans le seul commentaire ; un commentaire qui ne part pas retire le label", async () => {
   const depot = new FauxDepot();
   depot.issue(40, ["fire"]);
@@ -239,25 +200,6 @@ test("fermer un doublon : l'issue se ferme ; un doublon de lui-même, ou d'une i
     assert.equal((await jouer(autre, PRISES, { gesture: "close-duplicate", ticket: 40, of: original })).outcome, "refused");
     assert.equal(autre.issues.get(40)?.state, "open");
   }
-});
-
-test("relancer : les jobs en échec de chaque run rouge de la base, une fois par run ; sans check rouge relançable, refusé", async () => {
-  const depot = new FauxDepot();
-  depot.issue(40, ["fire"]);
-  depot.checkRouge("tests (1/2)", 7);
-  depot.checkRouge("tests (2/2)", 7);
-  depot.checkRouge("types", 8);
-  depot.checks.push({ name: "lint", status: "completed", conclusion: "success", html_url: "https://github.com/acme/shop/actions/runs/9/job/90" });
-  assert.equal((await jouer(depot, PRISES, { gesture: "rerun" })).outcome, "done");
-  assert.deepEqual(depot.relances(), [7, 8]);
-  const vert = new FauxDepot();
-  vert.issue(40, ["fire"]);
-  assert.equal((await jouer(vert, PRISES, { gesture: "rerun" })).outcome, "refused");
-  const statut = new FauxDepot();
-  statut.issue(40, ["fire"]);
-  statut.checks.push({ name: "deploy", status: "completed", conclusion: "failure", html_url: null });
-  assert.equal((await jouer(statut, PRISES, { gesture: "rerun" })).outcome, "refused");
-  assert.deepEqual(statut.relances(), []);
 });
 
 test("parked sur un ticket déjà parqué : refusé, rien n'est posé de plus", async () => {
