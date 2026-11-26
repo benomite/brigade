@@ -10,11 +10,10 @@
 // Une réponse `split` est un bouton `resume` de la carte : l'app poste la réponse et rend l'issue au manager, qui lit la
 // route dans les mots de la réponse. Aucun geste de plus dans l'app, aucun copier-coller dans l'onglet du second.
 
-export const ROUTES = ["wait", "split", "resume", "close"] as const;
-export type Route = (typeof ROUTES)[number];
+type Route = "wait" | "split" | "resume" | "close";
 
 // La route qu'une réponse donne à l'issue, lue de ses premiers mots.
-export function routeDeLaReponse(reponse: string): Route {
+function routeDeLaReponse(reponse: string): Route {
   const lue = reponse.trim();
   if (/^wait for\b/i.test(lue)) return "wait";
   if (/^split it\b/i.test(lue)) return "split";
@@ -23,7 +22,7 @@ export function routeDeLaReponse(reponse: string): Route {
 }
 
 // Le geste du bouton de la carte, que l'app joue (GESTES_DU_CHEF) : `split` y est un `resume`, que le manager route.
-export const gesteDuBouton = (reponse: string): "wait" | "resume" | "close" => {
+const gesteDuBouton = (reponse: string): "wait" | "resume" | "close" => {
   const route = routeDeLaReponse(reponse);
   return route === "split" ? "resume" : route;
 };

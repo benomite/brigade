@@ -2,12 +2,13 @@
 // answer that is not the latest one, a refusal that states no reason.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ligneDeReponse, ordonnerLesReponses, raisonDuRefus, recommandeeDuRefus, reponseQuiDecoupe, routeDeLaReponse } from "../../src/decision/reponses.ts";
+import { ligneDeReponse, ordonnerLesReponses, raisonDuRefus, recommandeeDuRefus, reponseQuiDecoupe } from "../../src/decision/reponses.ts";
 import { reparerLesLimbes, type LimboTicket } from "../../src/limbo/reparer.ts";
 
 test("each answer gets its route from its first words, and `split` is a `resume` button", () => {
-  assert.deepEqual(["Wait for AF", "Split it into tickets", "Ship it", "Close it: out of scope"].map(routeDeLaReponse), ["wait", "split", "resume", "close"]);
-  assert.deepEqual(["Wait for AF", "Split it into tickets", "Close it"].map(ligneDeReponse), ["- [wait] Wait for AF", "- [resume] Split it into tickets", "- [close] Close it"]);
+  assert.deepEqual(["Wait for AF", "Split it into tickets", "Ship it", "Close it: out of scope"].map(ligneDeReponse), ["- [wait] Wait for AF", "- [resume] Split it into tickets", "- [resume] Ship it", "- [close] Close it: out of scope"]);
+  const reponse = (texte: string) => [`<!-- brigade:reponse gesture=resume -->\n${texte}`];
+  assert.deepEqual(["Split it into tickets", "Ship it", "Close it: out of scope"].map((texte) => reponseQuiDecoupe(reponse(texte))), ["Split it into tickets", null, null]);
 });
 
 test("the recommended answer goes first; one that is not an answer word for word changes nothing", () => {
