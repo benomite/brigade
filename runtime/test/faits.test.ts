@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import type { Captures } from "../src/captures.ts";
 import { decrireEtat, ETATS_DE_PROJET, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { principal as commande } from "../src/faits.ts";
+import { principal as commande } from "./faits-principal.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
@@ -637,22 +637,6 @@ test("le plafond et le calibrage que porte le dépôt du projet passent avant ce
   assert.match(await station("ceiling-modele", "opus"), /^brigade : ceiling-modele: opus \(was: not set\) — read by the runtime.*\nbut the project's repository sets it \(\.claude\/brigade\/projet\.json: sonnet\): this decision is ignored while it does\nsource: project decisions$/m);
   assert.deepEqual(await lire(), { modele: "sonnet", effort: "low", parLeChef: { modele: false, effort: false }, depuisLeDepot: true });
   assert.match(await station(), /^  ceiling-modele +sonnet — from the project's repository \(\.claude\/brigade\/projet\.json\); set on the box: opus, ignored — source: project decisions$/m);
-});
-
-test("la commande refuse un argument, un répertoire d'état absent ou sans journal, en le disant", async (t) => {
-  const repertoire = repertoireTemporaire(t);
-
-  const sansEtat = appeler(commande, [], {});
-  assert.equal(await sansEtat.fin, 2);
-  assert.match(sansEtat.sortie(), /^brigade : BRIGADE_STATE_DIR n'est pas défini\nusage : /);
-
-  const avecArgument = appeler(commande, ["--json"], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await avecArgument.fin, 2);
-  assert.match(avecArgument.sortie(), /^brigade : usage : /);
-
-  const sansJournal = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /^brigade : /);
 });
 
 // Un ticket pris par box/claude, son cook lancé à 10:00:04.

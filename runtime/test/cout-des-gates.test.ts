@@ -7,7 +7,7 @@ import { describe, test, type TestContext } from "node:test";
 import { BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT, coutDuProjet, lireBudget, noterCoutDesGates } from "../src/cout-des-gates.ts";
 import { decisionsPosees, poserDecision, verifierDecision } from "../src/decisions.ts";
 import type { FaitGates } from "../src/events/gates.ts";
-import { principal as faits } from "../src/faits.ts";
+import { principal as faits } from "./faits-principal.ts";
 import { jouerGatesMesurees, processeurDit } from "../src/gates.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
