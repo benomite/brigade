@@ -48,6 +48,7 @@ import { playTheWait } from "./vue/wait/wait-github.ts";
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
 import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-assigned.ts";
 import { tokenOfGh } from "./board/token-gh.ts";
+import { keptReadsInFile } from "./board/kept-reads.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
 import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
 import { activitiesPublished, readTheBoardOfRepository, type ReadOfBoardOfRepository } from "./board/read.ts";
@@ -262,7 +263,7 @@ const readTheBoard = async (project: Project): Promise<ReadOfBoardOfRepository> 
     },
   });
 };
-const boards = holdReadsOfBoard<Project>({ lire: readTheBoard, fraicheurMs: FRESHNESS_MAX_OF_A_READ_MS });
+const boards = holdReadsOfBoard<Project>({ lire: readTheBoard, fraicheurMs: FRESHNESS_MAX_OF_A_READ_MS, garde: keptReadsInFile(join(dirname(pathConfiguration()), "rails-lus.json")) });
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
 // les cinq secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.

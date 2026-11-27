@@ -70,7 +70,10 @@ export type ReadOnly = { depot: string };
 // `horsLigne` : GitHub n'a pas été joint du tout — pas de réseau, une seule cause (#1818). Ce n'est pas une panne : la vue
 // garde le dernier rail lu, et le dit hors ligne. Un GitHub joint qui refuse en est une.
 // `faits` n'y est jamais posé : il n'est déclaré (lâche) que pour que `lu.faits` se lise sans rétrécir d'abord.
-export type BoardNotRead = { lu: false; depot: string; luLe: string; raison: string; horsLigne?: true; faits?: any };
+// `pause` : la lecture est retenue par la pause du budget GitHub (budget-github.ts, #4620), pas en panne : l'heure où elle reprend
+// (ISO), et ce que GitHub dit rester du budget quand il le dit.
+export type PauseOfReads = { jusqua: string; restant?: number; total?: number };
+export type BoardNotRead = { lu: false; depot: string; luLe: string; raison: string; horsLigne?: true; pause?: PauseOfReads; faits?: any };
 export type ReadOfBoardOfRepository = BoardRead | BoardNotRead;
 
 export type OptionsOfRead = {

@@ -159,6 +159,7 @@ import { additionsOfProject as additionsOfRecorded, detailsOf, stateSays, issueO
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
 import { setToolsOfSecond } from "./tools-of-second.js";
 import { NO_STATION } from "./cooks/without-station.js";
+import { sentenceOfPause } from "./cooks/github-pause.js";
 import { brandAfter } from "./card-wait/card-wait.js";
 import { waitExhausted, RAIL_NOT_READ } from "./wait-of-rail.js";
 import { AGENTS, MENU, KNOW_HOW, STATIONS } from "./project/menu/menu.js";
@@ -4826,6 +4827,8 @@ function setTheRail(project) {
   // rail se lit quand même, sur GitHub (ses issues, labels et PR, ticket 2061) : lu, c'est le même rail que celui d'un projet servi ici, TODO en
   // tête avec ses cartes et leurs gestes (ticket 2076). Hors ligne, le signe seul, comme pour tout rail (ticket 1818).
   const ofBoard = (held !== undefined && "tableau" in held) || outsideLine !== undefined;
+  // Le quota de GitHub retient la lecture, sans rail gardé : ce n'est pas qu'aucune station ne sert le projet (#4620).
+  if (!ofBoard && held !== undefined && "pause" in held && held.pause !== undefined && project.sansStation !== true) return rail.replaceChildren(block("h3", sentenceOfPause(held.pause)));
   if (!itselfLit(project) && project.sansStation !== true && !ofBoard) return rail.replaceChildren(block("h3", NO_STATION));
   // Sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
   // Le bon posé pour chaque carte, celles des stations comprises (ticket 1270) : celui de la fiche ouverte y reprend
