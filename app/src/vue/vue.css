@@ -303,6 +303,25 @@ main > header,
 #stations-du-projet p {
   margin: 0;
 }
+/* « Make this computer cook » : une ligne, son geste ou sa commande au bout. */
+#faire-cuisiner {
+  padding: var(--pas-2) var(--pas-4);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#faire-cuisiner .faire-cuisiner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-3);
+  color: var(--texte);
+}
+#faire-cuisiner .lecture {
+  color: var(--texte-doux);
+}
+#faire-cuisiner .commande {
+  user-select: all;
+  overflow-wrap: anywhere;
+}
 /* L'offre du téléphone (ticket 3303) : une ligne sous le délai, ses gestes au bout ; le lien et le compte côte à côte. */
 #offre-telephone {
   padding: var(--pas-2) var(--pas-4);

@@ -113,6 +113,7 @@ import { setBlockages } from "./project/blockages.js";
 import { linesOfRefusal } from "./project/rail/refusal-of-station.js";
 import { setDelay } from "./project/delay.js";
 import { setTheOffer, firstProjectServed, holdTheOffer } from "./offer-phone/offer-phone.js";
+import { holdMakeCook, setMakeCook } from "./make-cook/make-cook.js";
 import { setChoice, withoutTheChoice } from "./project/choice.js";
 import { mountTheCardProject } from "./card-project/mount-card-project.js";
 import { levelOf, LEVELS_SAID } from "./levels.js";
@@ -661,6 +662,17 @@ const offer = holdTheOffer({
   ouvrir: (link) => void brigade.ouvrirLaPage?.(link),
   rendre: () => setTheOfferOfPhone(current),
 });
+// "Make this computer cook": offered once, at launch, on a computer that is not a station.
+const sectionMakeCook = element("faire-cuisiner");
+const makeCook = holdMakeCook({
+  read: async () => brigade.offreDeCuisiner?.(),
+  make: async () => brigade.cuisinerIci?.(),
+  render: () => {
+    sectionMakeCook.hidden = !makeCook.offered;
+    sectionMakeCook.replaceChildren(...(makeCook.offered ? [setMakeCook(document, makeCook.state, { make: () => void makeCook.make() })] : []));
+  },
+});
+void makeCook.look();
 const bannerHealth = element("bandeau-sante");
 const blockagesOfProject = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
