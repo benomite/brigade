@@ -3,16 +3,16 @@
 // de ce poste — le compte qui annule est celui du chef qui a cliqué. Propre, une PR revert le merge du ticket et passe la
 // pass comme toute livraison, et le ticket est rouvert ; en conflit, aucune PR ne reste, et un ticket est déposé pour que
 // la cuisine l'annule à la main. Ce que la commande a dit en dernier est la ligne que la carte affiche.
-import { jouerLaCommande, type CommandeChargee, type RenduDeValidation } from "../validation-design/validation-design-github.ts";
+import { playTheCommand, type CommandLoaded, type RenderedOfValidation } from "../validation-design/validation-design-github.ts";
 
 // Ce qu'il en est advenu : fait, et la ligne de la commande ; ou rien n'est fait, et pourquoi.
-export type RenduDAnnulation = RenduDeValidation;
+export type RenderedOfCancellation = RenderedOfValidation;
 
-export const PAS_SERVI = "nothing was undone: this ticket is not among the served tickets of the latest reading";
+export const NOT_SERVED = "nothing was undone: this ticket is not among the served tickets of the latest reading";
 
 // L'annulation du ticket `ticket` du projet de `depot`. `servi` : la dernière lecture le porte parmi les servis avec sa PR
 // mergée — seul un tel ticket s'annule d'ici.
-export async function jouerLAnnulation({ depot, ticket, servi, commande, env }: { depot: string; ticket: unknown; servi: boolean; commande: () => Promise<CommandeChargee>; env: Record<string, string | undefined> }): Promise<RenduDAnnulation> {
-  if (!servi || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket <= 0) return { refus: PAS_SERVI, detail: "" };
-  return jouerLaCommande({ args: [`${depot}#${ticket}`], commande, env, parDefaut: `#${ticket} undone` });
+export async function playTheCancellation({ depot: repository, ticket, servi: served, commande: command, env }: { depot: string; ticket: unknown; servi: boolean; commande: () => Promise<CommandLoaded>; env: Record<string, string | undefined> }): Promise<RenderedOfCancellation> {
+  if (!served || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket <= 0) return { refus: NOT_SERVED, detail: "" };
+  return playTheCommand({ args: [`${repository}#${ticket}`], commande: command, env, parDefaut: `#${ticket} undone` });
 }

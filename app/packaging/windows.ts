@@ -1,7 +1,7 @@
 // Construit l'installeur Windows de l'app : un seul .exe, pour x64, qui pose l'app, le runtime de
 // sa station et le `node.exe` qui le joue dans le dossier du compte (%LOCALAPPDATA%\Programs\Brigade),
 // avec une entrée dans le menu Démarrer et un désinstalleur. Installée, l'app tourne sans clone du
-// dépôt, sans `node` ni `npm` sur la machine (src/emplacements.ts) — et sans droits d'administrateur.
+// dépôt, sans `node` ni `npm` sur la machine (src/locations.ts) — et sans droits d'administrateur.
 //
 //   node app/packaging/windows.ts                       l'installeur du commit construit
 //   node app/packaging/windows.ts --version 1.2.0
@@ -42,7 +42,7 @@ import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep 
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { crc32, inflateRawSync } from "node:zlib";
-import { APP_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
+import { APP_OF_PACKAGE, NODE_OF_PACKAGE, RUNTIME_OF_PACKAGE } from "../src/locations.ts";
 import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, IDENTIFIANT, majeureReclamee, metadonneesDeMiseAJour, NOM, porterLesCommandes, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
 
 const REFUS = 2;
@@ -62,7 +62,7 @@ export const ICONE = `${NOM}.ico`;
 export const DESINSTALLEUR = `Uninstall ${NOM}.exe`;
 // Le `node` du paquet : NODE_DU_PAQUET, le nom que l'app lance, plus l'extension que Windows lui
 // trouve tout seul (CreateProcess essaie `.com`, puis `.exe`).
-export const NODE_EXE = `${NODE_DU_PAQUET}.exe`;
+export const NODE_EXE = `${NODE_OF_PACKAGE}.exe`;
 // La clé de désinstallation, sous HKCU : c'est elle qui fait paraître l'app dans « Applications installées ».
 export const CLE_DE_DESINSTALLATION = `Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${IDENTIFIANT}`;
 
@@ -182,7 +182,7 @@ export function assembler(options: OptionsAssemblage, dossier: string): string {
 
   // L'app : ses sources, son package.json — au nom de l'app, à la version construite — et ses
   // dépendances de production, rangées comme dans le dépôt : la vue les charge par `../../node_modules`.
-  const dansApp = join(ressources, APP_DU_PAQUET);
+  const dansApp = join(ressources, APP_OF_PACKAGE);
   cpSync(join(app, "src"), join(dansApp, "src"), { recursive: true });
   const { devDependencies: _dev, scripts: _scripts, ...declare } = JSON.parse(readFileSync(join(app, "package.json"), "utf8"));
   writeFileSync(join(dansApp, "package.json"), `${JSON.stringify({ ...declare, productName: NOM, version: options.version }, null, 2)}\n`);
@@ -205,7 +205,7 @@ export function assembler(options: OptionsAssemblage, dossier: string): string {
 
   // Le runtime : ce que `node` exécute et le package.json qui en fait des modules ES — à la
   // version construite, celle que la station dit d'elle-même en démarrant.
-  const dansRuntime = join(ressources, RUNTIME_DU_PAQUET);
+  const dansRuntime = join(ressources, RUNTIME_OF_PACKAGE);
   cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
   writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
 

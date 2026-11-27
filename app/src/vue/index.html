@@ -9,68 +9,68 @@
     <title>brigade</title>
     <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
     <!-- Les jetons d'abord — les couleurs et les polices, embarquées —, puis la peau qui les nomme. -->
-    <link rel="stylesheet" href="jetons.css" />
+    <link rel="stylesheet" href="tokens.css" />
     <!-- Le bouton, une seule famille (ticket 2916) : avant la peau, qu'une règle d'écran (`.mono`) le précise sans le redessiner. -->
-    <link rel="stylesheet" href="composants/bouton/bouton.css" />
+    <link rel="stylesheet" href="components/button/button.css" />
     <!-- La pastille, un seul état de ticket pour tous les écrans (ticket 2917) : avant la peau. -->
-    <link rel="stylesheet" href="composants/pastille/pastille.css" />
+    <link rel="stylesheet" href="components/pill/pill.css" />
     <!-- Le bon et la carte d'attente (ticket 2918), l'un sur l'autre : avant la peau, qui ne les redessine pas. -->
-    <link rel="stylesheet" href="composants/bon/bon.css" />
-    <link rel="stylesheet" href="composants/carte-attente/carte-attente.css" />
+    <link rel="stylesheet" href="components/slip/slip.css" />
+    <link rel="stylesheet" href="components/card-wait/card-wait.css" />
     <!-- La poêle qui grésille à côté de ce qu'un agent fait en ce moment (ticket 2984). -->
-    <link rel="stylesheet" href="composants/poele/poele.css" />
+    <link rel="stylesheet" href="components/pan/pan.css" />
     <!-- La confirmation, la ligne vide et la ligne d'erreur (ticket 2919) : une de chaque, pour tous les écrans. -->
-    <link rel="stylesheet" href="composants/confirmation/confirmation.css" />
-    <link rel="stylesheet" href="composants/ligne-vide/ligne-vide.css" />
-    <link rel="stylesheet" href="composants/ligne-erreur/ligne-erreur.css" />
+    <link rel="stylesheet" href="components/confirmation/confirmation.css" />
+    <link rel="stylesheet" href="components/line-empty/line-empty.css" />
+    <link rel="stylesheet" href="components/line-error/line-error.css" />
     <!-- L'interrupteur (ticket 2914) : un seul pour tout marche / arrêt de chaque écran. -->
-    <link rel="stylesheet" href="composants/interrupteur/interrupteur.css" />
+    <link rel="stylesheet" href="components/switch/switch.css" />
     <!-- La rangée de réglage (ticket 2920) : une seule pour chaque réglage de chaque écran, avant la peau. -->
-    <link rel="stylesheet" href="composants/reglage/reglage.css" />
-    <link rel="stylesheet" href="cartes-du-chef/cartes-du-chef.css" />
-    <link rel="stylesheet" href="todo-carte/geste.css" />
+    <link rel="stylesheet" href="components/setting/setting.css" />
+    <link rel="stylesheet" href="cards-of-chef/cards-of-chef.css" />
+    <link rel="stylesheet" href="todo-card/action.css" />
     <link rel="stylesheet" href="validation-design/validation-design.css" />
-    <link rel="stylesheet" href="carte-sensible/carte-sensible.css" />
+    <link rel="stylesheet" href="card-sensitive/card-sensitive.css" />
     <link rel="stylesheet" href="undo/undo.css" />
-    <link rel="stylesheet" href="rail-bloque/rail-bloque.css" />
-    <link rel="stylesheet" href="attente-du-rail/attente-du-rail.css" />
-    <link rel="stylesheet" href="bandeau-arret/bandeau-arret.css" />
-    <link rel="stylesheet" href="bandeau-panne/bandeau-panne.css" />
+    <link rel="stylesheet" href="rail-blocked/rail-blocked.css" />
+    <link rel="stylesheet" href="wait-of-rail/wait-of-rail.css" />
+    <link rel="stylesheet" href="banner-stop/banner-stop.css" />
+    <link rel="stylesheet" href="banner-outage/banner-outage.css" />
     <link rel="stylesheet" href="pause-quota/pause-quota.css" />
-    <link rel="stylesheet" href="carte-attente/carte-attente.css" />
-    <link rel="stylesheet" href="carte-ticket/carte-ticket.css" />
-    <link rel="stylesheet" href="mot-au-cook/mot-au-cook.css" />
-    <link rel="stylesheet" href="savoir-faire/savoir-faire.css" />
-    <link rel="stylesheet" href="fiche-tests/fiche-tests.css" />
-    <link rel="stylesheet" href="fiche-diagramme/fiche-diagramme.css" />
+    <link rel="stylesheet" href="card-wait/card-wait.css" />
+    <link rel="stylesheet" href="card-ticket/card-ticket.css" />
+    <link rel="stylesheet" href="word-at-cook/word-at-cook.css" />
+    <link rel="stylesheet" href="know-how-tab/know-how.css" />
+    <link rel="stylesheet" href="card-tests/card-tests.css" />
+    <link rel="stylesheet" href="card-diagram/card-diagram.css" />
     <link rel="stylesheet" href="vue.css" />
     <link rel="stylesheet" href="know-how/know-how.css" />
-    <link rel="stylesheet" href="premier-lancement/avis-de-fond.css" />
-    <link rel="stylesheet" href="settings-humans/humains.css" />
-    <link rel="stylesheet" href="recurrents/recurrents.css" />
-    <link rel="stylesheet" href="fiche-projet/fiche-projet.css" />
-    <link rel="stylesheet" href="explications/explications.css" />
-    <link rel="stylesheet" href="identites-github.css" />
-    <link rel="stylesheet" href="projets-servis/projets-servis.css" />
-    <link rel="stylesheet" href="autonomie/chiffres.css" />
-    <link rel="stylesheet" href="autonomie/equipe.css" />
+    <link rel="stylesheet" href="first-launch/opinion-of-background.css" />
+    <link rel="stylesheet" href="settings-humans/humans.css" />
+    <link rel="stylesheet" href="recurring/recurring.css" />
+    <link rel="stylesheet" href="card-project/card-project.css" />
+    <link rel="stylesheet" href="explanations/explanations.css" />
+    <link rel="stylesheet" href="identities-github.css" />
+    <link rel="stylesheet" href="projects-served/projects-served.css" />
+    <link rel="stylesheet" href="autonomy/figures.css" />
+    <link rel="stylesheet" href="autonomy/team.css" />
     <link rel="stylesheet" href="agents/agents.css" />
-    <link rel="stylesheet" href="journal/journal.css" />
-    <link rel="stylesheet" href="cuisine/cuisine.css" />
+    <link rel="stylesheet" href="log/log.css" />
+    <link rel="stylesheet" href="kitchen/kitchen.css" />
     <link rel="stylesheet" href="parked/parked.css" />
-    <link rel="stylesheet" href="resume-hebdomadaire/resume-hebdomadaire.css" />
-    <link rel="stylesheet" href="reglages-stations/stations.css" />
-    <link rel="stylesheet" href="visite/visite.css" />
+    <link rel="stylesheet" href="resume-weekly/resume-weekly.css" />
+    <link rel="stylesheet" href="settings-stations/stations.css" />
+    <link rel="stylesheet" href="visit/visit.css" />
     <link rel="stylesheet" href="absence/absence.css" />
     <link rel="stylesheet" href="recap/recap.css" />
-    <link rel="stylesheet" href="parcours-premier-projet/parcours-premier-projet.css" />
-    <link rel="stylesheet" href="premier-ticket/premier-ticket.css" />
-    <link rel="stylesheet" href="recit-premier-ticket/recit-premier-ticket.css" />
-    <link rel="stylesheet" href="installation-projet/installation-projet.css" />
-    <link rel="stylesheet" href="choix-station/choix-station.css" />
+    <link rel="stylesheet" href="journey-first-project/journey-first-project.css" />
+    <link rel="stylesheet" href="first-ticket/first-ticket.css" />
+    <link rel="stylesheet" href="story-first-ticket/story-first-ticket.css" />
+    <link rel="stylesheet" href="installation-project/installation-project.css" />
+    <link rel="stylesheet" href="choice-station/choice-station.css" />
     <link rel="stylesheet" href="stations-tab/stations-tab.css" />
     <link rel="stylesheet" href="add-server/add-server.css" />
-    <link rel="stylesheet" href="moteur/moteur.css" />
+    <link rel="stylesheet" href="engine/engine.css" />
     <link rel="stylesheet" href="stations-quota/stations-quota.css" />
     <!-- Pas de bundler : la vue importe xterm par son nom, le navigateur le trouve ici. -->
     <script type="importmap">
@@ -107,7 +107,7 @@
     <!-- Le détail en grand d'une carte « Validate its screen » (ticket 3212) : un clic sur la carte l'ouvre par-dessus l'app,
          en plein écran sur le téléphone ; fermé — son bouton, Échap, ou l'un de ses deux gestes —, il rend ce qui était dessous. -->
     <section id="detail-de-validation" role="dialog" aria-modal="true" aria-label="A design validation, in large" tabindex="-1" hidden></section>
-    <!-- L'écran « Add a project » (ticket 3181, parcours-projet/ajout.js) : le choix du dépôt, et rien d'autre. -->
+    <!-- L'écran « Add a project » (ticket 3181, journey-project/addition.js) : le choix du dépôt, et rien d'autre. -->
     <section id="ajout" aria-label="Add a project" hidden></section>
     <main>
       <!-- La bande d'alertes : est-ce que ça peut tourner ? Vide quand tout va bien — elle ne prend alors aucune place. -->
@@ -123,7 +123,7 @@
         <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
       </header>
-      <!-- L'équipe du projet (ticket 4029, autonomie/equipe.js) : un badge par agent — supervisor et closer d'abord —, son état,
+      <!-- L'équipe du projet (ticket 4029, autonomy/team.js) : un badge par agent — supervisor et closer d'abord —, son état,
            son dernier geste et sa prochaine passe ; un clic ouvre son fil, son niveau d'autonomie et ce qui attend l'OK du chef.
            Vide, et cachée, tant que le runtime ne publie aucun agent. -->
       <section id="equipe-du-projet" aria-label="The agents" aria-live="polite" hidden></section>
@@ -225,7 +225,7 @@
       <div id="outils-du-second" hidden></div>
       <p id="bandeau" hidden></p>
       <div id="fil"></div>
-      <!-- Quand le second demande de choisir : un bouton par choix, sous son terminal (ticket 1520, second/choix.js). -->
+      <!-- Quand le second demande de choisir : un bouton par choix, sous son terminal (ticket 1520, second/choice.js). -->
       <div id="choix-du-second" hidden></div>
     </aside>
     </div>

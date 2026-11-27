@@ -1,6 +1,6 @@
 // La page de « parade », son onboarding fini (#1111) : à la place des étapes, la phrase qui invite à
 // poser le premier ticket avec le label `fire`, son bouton, et « dismiss ».
-import type { Onboarding } from "../../../app/src/projets/demande.ts";
+import type { Onboarding } from "../../../app/src/projects/request.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { EN_ECHEC } from "./parcours-en-echec.ts";

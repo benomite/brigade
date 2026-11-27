@@ -4,16 +4,16 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE, type Projet } from "../../src/config.ts";
-import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
-import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import type { StationEnregistree, StationsDuCompte } from "../../src/stations-du-compte.ts";
+import { POWER_UP } from "../../src/power-up.ts";
+import { forTheBar } from "../../src/bar.ts";
+import { EXAMPLE, type Project } from "../../src/config.ts";
+import { PALETTE } from "../../src/colors.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
+import { CONFIRMED, DIRECT } from "../../src/actions.ts";
+import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
+import type { StationRecorded, StationsOfAccount } from "../../src/stations-of-account.ts";
 import {
   ADD_A_SERVER,
   PAIRED,
@@ -26,14 +26,14 @@ import {
   serverSeen,
   ON_A_MAC,
   CHECK_AGAIN,
-  type EtatDuServeur,
+  type StateOfServer,
 } from "../../src/vue/add-server/add-server.js";
-import { poserParcoursPremierProjet } from "../../src/vue/parcours-premier-projet/parcours-premier-projet.js";
-import { poserLOngletDesStations } from "../../src/vue/stations-tab/stations-tab.js";
-import { Faux, jouerLaVue, type Jouee, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { setJourneyFirstProject } from "../../src/vue/journey-first-project/journey-first-project.js";
+import { setTheTabOfStations } from "../../src/vue/stations-tab/stations-tab.js";
+import { Fake, playTheVue, type Played, type Answers, repos } from "../helpers/false-vue.ts";
 
-const doc = { createElement: (balise: string) => new Faux(balise) };
-const station = (id: string, name: string, available = true): StationEnregistree => ({
+const doc = { createElement: (balise: string) => new Fake(balise) };
+const station = (id: string, name: string, available = true): StationRecorded => ({
   id,
   name,
   platform: "linux",
@@ -47,30 +47,30 @@ const station = (id: string, name: string, available = true): StationEnregistree
   refreshMs: 120_000,
   selection: null,
 });
-const LISTEE = (stations: StationEnregistree[]): StationsDuCompte => ({ state: "listed", stations, unreadable: [] });
-const texte = (racine: Faux) => [...racine.descendants()].map((n) => n.textContent).join("\n");
-const boutons = (racine: Faux) => racine.dessous("button").filter(({ hidden }) => !hidden).map(({ textContent }) => textContent);
-const bouton = (racine: Faux, libelle: string) => racine.dessous("button").find((candidat) => candidat.textContent === libelle) ?? assert.fail(`pas de « ${libelle} » : ${boutons(racine).join(", ")}`);
-const poser = (etat: EtatDuServeur, gestes = {}) => {
-  const racine = new Faux("div");
-  racine.append(...(placeAddServer(doc, etat, gestes) as Faux[]));
-  return racine;
+const LISTED = (stations: StationRecorded[]): StationsOfAccount => ({ state: "listed", stations, unreadable: [] });
+const text = (root: Fake) => [...root.descendants()].map((n) => n.textContent).join("\n");
+const buttons = (root: Fake) => root.dessous("button").filter(({ hidden }) => !hidden).map(({ textContent }) => textContent);
+const button = (root: Fake, wording: string) => root.dessous("button").find((candidate) => candidate.textContent === wording) ?? assert.fail(`pas de « ${wording} » : ${buttons(root).join(", ")}`);
+const set = (state: StateOfServer, actions = {}) => {
+  const root = new Fake("div");
+  root.append(...(placeAddServer(doc, state, actions) as Fake[]));
+  return root;
 };
 // Ce que le panneau demande de taper : chaque `code` qu'il montre.
-const commandes = (racine: Faux) => racine.dessous("code").map(({ textContent }) => textContent);
+const commands = (root: Fake) => root.dessous("code").map(({ textContent }) => textContent);
 
 describe("le serveur attendu, d'après la lecture du compte", () => {
   test("une station qui n'était pas là à l'ouverture est le serveur neuf ; sinon il attend", () => {
     const box = station("g1", "box");
-    const neuf = station("g9", "parade-box");
-    assert.deepEqual(serverSeen(new Set(["g1"]), LISTEE([box])), { etat: "attente" });
-    assert.deepEqual(serverSeen(new Set(["g1"]), LISTEE([box, neuf])), { etat: "appairee", station: neuf });
-    assert.deepEqual(serverSeen(new Set(), LISTEE([neuf])), { etat: "appairee", station: neuf });
+    const fresh = station("g9", "parade-box");
+    assert.deepEqual(serverSeen(new Set(["g1"]), LISTED([box])), { etat: "attente" });
+    assert.deepEqual(serverSeen(new Set(["g1"]), LISTED([box, fresh])), { etat: "appairee", station: fresh });
+    assert.deepEqual(serverSeen(new Set(), LISTED([fresh])), { etat: "appairee", station: fresh });
   });
 
   test("rien de lu, ou celles d'avant pas encore lues : aucune n'est dite neuve", () => {
     assert.deepEqual(serverSeen(new Set(), undefined), { etat: "attente" });
-    assert.deepEqual(serverSeen(undefined, LISTEE([station("g9", "parade-box")])), { etat: "attente" });
+    assert.deepEqual(serverSeen(undefined, LISTED([station("g9", "parade-box")])), { etat: "attente" });
   });
 
   test("une lecture du compte en échec se dit, sa raison et son détail — jamais « paired »", () => {
@@ -81,178 +81,178 @@ describe("le serveur attendu, d'après la lecture du compte", () => {
 
 describe("le panneau", () => {
   test("la ligne est celle que la page d'installation publie, et la seule", () => {
-    const publiee = /^curl -fsSL \S+\/station\/installer-station\.sh \| sh$/m.exec(readFileSync(new URL("../../../docs/installation-station.md", import.meta.url), "utf8"))?.[0];
-    assert.equal(INSTALL_COMMAND, publiee);
+    const published = /^curl -fsSL \S+\/station\/installer-station\.sh \| sh$/m.exec(readFileSync(new URL("../../../docs/installation-station.md", import.meta.url), "utf8"))?.[0];
+    assert.equal(INSTALL_COMMAND, published);
   });
 
   test("fermé, rien que le bouton ; un clic pose le panneau — la phrase, la ligne, « copy », le mot pour un Mac, l'attente — et le dit", () => {
-    const bascules: boolean[] = [];
-    const racine = poser({ ouvert: false, vu: { etat: "attente" } }, { basculer: (ouvert: boolean) => void bascules.push(ouvert) });
-    assert.deepEqual(boutons(racine), [ADD_A_SERVER]);
-    bouton(racine, ADD_A_SERVER).click();
-    for (const phrase of [WHERE_TO_RUN, ON_A_MAC, WAITING]) assert.ok(texte(racine).includes(phrase), phrase);
-    assert.deepEqual(commandes(racine), [INSTALL_COMMAND]);
-    assert.deepEqual(boutons(racine), [ADD_A_SERVER, "copy", CHECK_AGAIN]);
-    assert.equal(bouton(racine, ADD_A_SERVER).ariaExpanded, "true");
-    bouton(racine, ADD_A_SERVER).click();
-    assert.deepEqual(bascules, [true, false]);
-    assert.equal(bouton(racine, ADD_A_SERVER).ariaExpanded, "false");
+    const toggles: boolean[] = [];
+    const root = set({ ouvert: false, vu: { etat: "attente" } }, { basculer: (opened: boolean) => void toggles.push(opened) });
+    assert.deepEqual(buttons(root), [ADD_A_SERVER]);
+    button(root, ADD_A_SERVER).click();
+    for (const sentence of [WHERE_TO_RUN, ON_A_MAC, WAITING]) assert.ok(text(root).includes(sentence), sentence);
+    assert.deepEqual(commands(root), [INSTALL_COMMAND]);
+    assert.deepEqual(buttons(root), [ADD_A_SERVER, "copy", CHECK_AGAIN]);
+    assert.equal(button(root, ADD_A_SERVER).ariaExpanded, "true");
+    button(root, ADD_A_SERVER).click();
+    assert.deepEqual(toggles, [true, false]);
+    assert.equal(button(root, ADD_A_SERVER).ariaExpanded, "false");
   });
 
   test("« copy » copie la ligne ; « check again » relit le compte", () => {
-    const faits: string[] = [];
-    const racine = poser({ ouvert: true, vu: { etat: "attente" }, copiee: true }, { copier: (commande: string) => void faits.push(commande), verifier: () => void faits.push("verifier") });
-    bouton(racine, "copied").click();
-    bouton(racine, CHECK_AGAIN).click();
-    assert.deepEqual(faits, [INSTALL_COMMAND, "verifier"]);
+    const facts: string[] = [];
+    const root = set({ ouvert: true, vu: { etat: "attente" }, copiee: true }, { copier: (command: string) => void facts.push(command), verifier: () => void facts.push("verifier") });
+    button(root, "copied").click();
+    button(root, CHECK_AGAIN).click();
+    assert.deepEqual(facts, [INSTALL_COMMAND, "verifier"]);
   });
 
   test("le serveur arrivé : il le dit, et le projet se confie d'un clic sur son nom — sans projet nommé, rien ne se confie", () => {
-    const neuf = station("g9", "parade-box");
-    const confies: StationEnregistree[] = [];
-    const racine = poser({ ouvert: true, vu: { etat: "appairee", station: neuf }, projet: "parade" }, { confier: (une: StationEnregistree) => void confies.push(une) });
-    assert.ok(texte(racine).includes(PAIRED("parade-box")));
-    assert.ok(texte(racine).includes(WHO_COOKS_IT("parade")));
-    assert.ok(!texte(racine).includes(WAITING));
-    assert.equal(bouton(racine, "parade-box").className, "recommande");
-    bouton(racine, "parade-box").click();
-    assert.deepEqual(confies, [neuf]);
-    const sansProjet = poser({ ouvert: true, vu: { etat: "appairee", station: neuf } }, { confier: () => assert.fail("rien à confier") });
-    assert.ok(texte(sansProjet).includes(PAIRED("parade-box")));
-    assert.deepEqual(boutons(sansProjet), [ADD_A_SERVER, "copy"]);
+    const fresh = station("g9", "parade-box");
+    const entrusted: StationRecorded[] = [];
+    const root = set({ ouvert: true, vu: { etat: "appairee", station: fresh }, projet: "parade" }, { confier: (one: StationRecorded) => void entrusted.push(one) });
+    assert.ok(text(root).includes(PAIRED("parade-box")));
+    assert.ok(text(root).includes(WHO_COOKS_IT("parade")));
+    assert.ok(!text(root).includes(WAITING));
+    assert.equal(button(root, "parade-box").className, "recommande");
+    button(root, "parade-box").click();
+    assert.deepEqual(entrusted, [fresh]);
+    const withoutProject = set({ ouvert: true, vu: { etat: "appairee", station: fresh } }, { confier: () => assert.fail("rien à confier") });
+    assert.ok(text(withoutProject).includes(PAIRED("parade-box")));
+    assert.deepEqual(buttons(withoutProject), [ADD_A_SERVER, "copy"]);
   });
 
   test("hors ligne, le serveur se choisit sans être recommandé", () => {
-    const racine = poser({ ouvert: true, vu: { etat: "appairee", station: station("g9", "parade-box", false) }, projet: "parade" }, { confier: () => {} });
-    assert.equal(bouton(racine, "parade-box").className, "");
+    const root = set({ ouvert: true, vu: { etat: "appairee", station: station("g9", "parade-box", false) }, projet: "parade" }, { confier: () => {} });
+    assert.equal(button(root, "parade-box").className, "");
   });
 
   test("la lecture du compte en échec : une ligne, sa raison ; « check again » reste", () => {
-    const racine = poser({ ouvert: true, vu: { etat: "illisible", raison: "GitHub could not be reached.", detail: "dial tcp" } });
-    assert.ok(texte(racine).includes(`${UNREADABLE}: GitHub could not be reached.`));
-    assert.ok(!texte(racine).includes(WAITING));
+    const root = set({ ouvert: true, vu: { etat: "illisible", raison: "GitHub could not be reached.", detail: "dial tcp" } });
+    assert.ok(text(root).includes(`${UNREADABLE}: GitHub could not be reached.`));
+    assert.ok(!text(root).includes(WAITING));
     // Le « ? » de la ligne porte le détail au survol.
-    assert.deepEqual(boutons(racine), [ADD_A_SERVER, "copy", "?", CHECK_AGAIN]);
+    assert.deepEqual(buttons(root), [ADD_A_SERVER, "copy", "?", CHECK_AGAIN]);
   });
 });
 
 // Critère 2 du ticket : sur chaque écran qui l'offre, le panneau ouvert ne demande de taper que la ligne montrée, et ne
 // renvoie à aucune page d'installation.
 describe("aucune autre commande, aucune page d'installation, sur chaque écran qui l'offre", () => {
-  const GESTES = { choisirQuiCuit() {}, deplacer() {}, versIci() {}, cuireIci() {}, choisir() {}, annuler() {}, arreter() {}, confirmerArret() {}, renoncerArret() {}, basculer() {} };
+  const ACTIONS = { choisirQuiCuit() {}, deplacer() {}, versIci() {}, cuireIci() {}, choisir() {}, annuler() {}, arreter() {}, confirmerArret() {}, renoncerArret() {}, basculer() {} };
   const BASE = { projet: "parade", poste: "this Mac", lues: true, haut: { etat: "personne", vert: false }, servantes: [], deplacable: { offert: false, pourquoi: "" }, details: new Map(), ouverts: new Set(), quiCuit: true };
-  const OUVERT: EtatDuServeur = { ouvert: true, vu: { etat: "attente" }, projet: "parade" };
-  const sansAutre = (racine: Faux) => {
-    assert.ok(texte(racine).includes(INSTALL_COMMAND));
-    assert.deepEqual(commandes(racine), [INSTALL_COMMAND]);
-    assert.doesNotMatch(texte(racine), /installation-station|installer-station\.ps1|\birm\b|\bssh\b|\bsudo\b/i);
+  const OPEN: StateOfServer = { ouvert: true, vu: { etat: "attente" }, projet: "parade" };
+  const withoutOther = (root: Fake) => {
+    assert.ok(text(root).includes(INSTALL_COMMAND));
+    assert.deepEqual(commands(root), [INSTALL_COMMAND]);
+    assert.doesNotMatch(text(root), /installation-station|installer-station\.ps1|\birm\b|\bssh\b|\bsudo\b/i);
   };
 
   test("l'onglet Stations : sous la ligne du haut, dont les gestes s'effacent tant que le panneau est ouvert", () => {
-    const ferme = poserLOngletDesStations(doc as never, BASE as never, GESTES as never) as Faux;
-    assert.deepEqual(boutons(ferme), ["Choose who cooks it", ADD_A_SERVER]);
-    const ouvert = poserLOngletDesStations(doc as never, { ...BASE, serveur: OUVERT } as never, GESTES as never) as Faux;
-    assert.deepEqual(boutons(ouvert), [ADD_A_SERVER, "copy", CHECK_AGAIN]);
-    sansAutre(ouvert);
+    const closes = setTheTabOfStations(doc as never, BASE as never, ACTIONS as never) as Fake;
+    assert.deepEqual(buttons(closes), ["Choose who cooks it", ADD_A_SERVER]);
+    const opened = setTheTabOfStations(doc as never, { ...BASE, serveur: OPEN } as never, ACTIONS as never) as Fake;
+    assert.deepEqual(buttons(opened), [ADD_A_SERVER, "copy", CHECK_AGAIN]);
+    withoutOther(opened);
   });
 
   test("le choix « Who cooks parade? » : sous sa liste", () => {
-    const choix = { titre: "Who cooks parade?", choix: [{ cle: "ici", nom: "this computer", horsLigne: false, recommande: true }], deplacement: false };
-    const racine = poserLOngletDesStations(doc as never, { ...BASE, choix, serveur: OUVERT } as never, GESTES as never) as Faux;
-    assert.deepEqual(boutons(racine), ["this computer", "Cancel", ADD_A_SERVER, "copy", CHECK_AGAIN]);
-    sansAutre(racine);
+    const choice = { titre: "Who cooks parade?", choix: [{ cle: "ici", nom: "this computer", horsLigne: false, recommande: true }], deplacement: false };
+    const root = setTheTabOfStations(doc as never, { ...BASE, choix: choice, serveur: OPEN } as never, ACTIONS as never) as Fake;
+    assert.deepEqual(buttons(root), ["this computer", "Cancel", ADD_A_SERVER, "copy", CHECK_AGAIN]);
+    withoutOther(root);
   });
 
   test("la page « who cooks it » d'un projet neuf : sous ses choix", () => {
-    const racine = poserParcoursPremierProjet(
+    const root = setJourneyFirstProject(
       doc as never,
-      { depot: "chef/parade", vu: { etape: "station" }, progression: "1 of 2: who cooks it", station: "a-faire", choix: [{ cle: "ici", nom: "this computer", horsLigne: false, recommande: true }], serveur: OUVERT },
+      { depot: "chef/parade", vu: { etape: "station" }, progression: "1 of 2: who cooks it", station: "a-faire", choix: [{ cle: "ici", nom: "this computer", horsLigne: false, recommande: true }], serveur: OPEN },
       { choisir() {}, relire() {}, preparer() {}, ouvrirLaCarte() {} },
-    ) as Faux;
-    assert.deepEqual(boutons(racine), ["this computer", ADD_A_SERVER, "copy", CHECK_AGAIN]);
-    sansAutre(racine);
+    ) as Fake;
+    assert.deepEqual(buttons(root), ["this computer", ADD_A_SERVER, "copy", CHECK_AGAIN]);
+    withoutOther(root);
   });
 });
 
 // La page d'un projet neuf, jouée : « Add a project », le dépôt chef/cantine, puis « who cooks it ».
-const CHEMIN = "/home/chef/.config/brigade/app.json";
+const PATH = "/home/chef/.config/brigade/app.json";
 const A = "2026-11-26T10:04:12.000Z";
-const DEPOT = "chef/cantine";
-const FAITS: Faits = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [] } as never;
-async function laPageDeCantine(reponses: Reponses) {
-  let vue: Jouee | undefined;
-  vue = await jouerLaVue({
+const REPOSITORY = "chef/cantine";
+const FACTS: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [] } as never;
+async function thePageOfCantine(answers: Answers) {
+  let vue: Played | undefined;
+  vue = await playTheVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: CHEMIN, projets: [] }),
+      configuration: forTheBar({ chemin: PATH, projets: [] }),
       poste: { nom: "this computer", mac: false },
       palette: PALETTE,
-      exemple: EXEMPLE,
-      onglets: ONGLETS,
-      rubriques: RUBRIQUES,
-      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
-      banniere: BANNIERE,
-      calibrage: { modeles: MODELES, efforts: EFFORTS },
+      exemple: EXAMPLE,
+      onglets: TABS,
+      rubriques: HEADINGS,
+      gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+      banniere: BANNER,
+      calibrage: { modeles: MODELS, efforts: EFFORTS },
       code: undefined,
     }),
     stationsDuChef: () => ({ state: "listed", stations: [], unreadable: [] }),
     compteGitHub: () => ({ login: "chef" }),
-    depotsDuChef: () => ({ depots: [{ depot: DEPOT, base: "main" }] }),
-    ouvrirDUneStation: (nom, depot, base) => {
-      vue?.dire("surConfiguration", pourLaBarre({ chemin: CHEMIN, projets: [{ nom, dossier: `/home/chef/Brigade/${nom}`, depot, base: base ?? "main" } satisfies Projet] }), []);
-      return { state: "open", project: nom, repository: depot, folder: `/home/chef/Brigade/${nom}`, cloned: true };
+    depotsDuChef: () => ({ depots: [{ depot: REPOSITORY, base: "main" }] }),
+    ouvrirDUneStation: (name, repository, base) => {
+      vue?.dire("surConfiguration", forTheBar({ chemin: PATH, projets: [{ nom: name, dossier: `/home/chef/Brigade/${name}`, depot: repository, base: base ?? "main" } satisfies Project] }), []);
+      return { state: "open", project: name, repository: repository, folder: `/home/chef/Brigade/${name}`, cloned: true };
     },
     projetsServis: () => ({ depots: [] }),
     espace: () => [],
     departDuProjet: () => ({ aucune: true }),
     checkRepoSetup: () => ({ ready: false, missingBindings: ["Gates"], missingLabels: ["fire"] }),
-    ...reponses,
+    ...answers,
   });
   (vue.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
   await repos();
-  bouton(vue.element("ajout"), DEPOT).click();
+  button(vue.element("ajout"), REPOSITORY).click();
   await repos();
-  vue.dire("surFaits", { ...tenirFaits(() => new Map()).recevoir({ projet: "cantine", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] }), demande: vue.dernier("faits")[0] as number });
+  vue.dire("surFaits", { ...holdFacts(() => new Map()).recevoir({ projet: "cantine", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FACTS) }] }), demande: vue.dernier("faits")[0] as number });
   await repos();
   return vue;
 }
-const question = (vue: Jouee) => vue.element("parcours-premier-projet");
+const question = (vue: Played) => vue.element("parcours-premier-projet");
 
 describe("la page « who cooks it » d'un projet neuf, jouée", () => {
   test("« Add a server », le serveur vu arriver à « check again », puis confié d'un clic : la page passe à la mise en place", async () => {
     let stations = [station("g1", "atelier", false)];
-    const choisis: [string, string[]][] = [];
-    const vue = await laPageDeCantine({ stationsDuCompte: () => LISTEE(stations), choisirLesProjets: (id, depots) => (choisis.push([id, depots]), { selection: depots }) });
-    bouton(question(vue), ADD_A_SERVER).click();
+    const chosen: [string, string[]][] = [];
+    const vue = await thePageOfCantine({ stationsDuCompte: () => LISTED(stations), choisirLesProjets: (id, repositories) => (chosen.push([id, repositories]), { selection: repositories }) });
+    button(question(vue), ADD_A_SERVER).click();
     await repos();
-    assert.ok(texte(question(vue)).includes(INSTALL_COMMAND));
-    assert.ok(texte(question(vue)).includes(WAITING));
+    assert.ok(text(question(vue)).includes(INSTALL_COMMAND));
+    assert.ok(text(question(vue)).includes(WAITING));
     stations = [...stations, station("g9", "parade-box")];
-    bouton(question(vue), CHECK_AGAIN).click();
+    button(question(vue), CHECK_AGAIN).click();
     await repos();
-    assert.ok(texte(question(vue)).includes(PAIRED("parade-box")));
-    assert.ok(!texte(question(vue)).includes(PAIRED("atelier")), "a station known before is not the new server");
+    assert.ok(text(question(vue)).includes(PAIRED("parade-box")));
+    assert.ok(!text(question(vue)).includes(PAIRED("atelier")), "a station known before is not the new server");
     // La liste du haut le propose aussi, relue ; le panneau le confie.
-    const panneau = question(vue).dessous("section").find(({ className }) => className === "ajout-de-serveur") ?? assert.fail("pas de panneau");
-    bouton(panneau, "parade-box").click();
+    const panel = question(vue).dessous("section").find(({ className }) => className === "ajout-de-serveur") ?? assert.fail("pas de panneau");
+    button(panel, "parade-box").click();
     await repos();
-    assert.deepEqual(choisis, [["g9", [DEPOT]]]);
+    assert.deepEqual(chosen, [["g9", [REPOSITORY]]]);
     assert.equal(vue.element("main").dataset.parcours, "setup");
   });
 
   test("la lecture du compte qui échoue se dit dans le panneau : rien n'est dit arrivé", async () => {
-    let echoue = false;
-    const vue = await laPageDeCantine({
+    let fails = false;
+    const vue = await thePageOfCantine({
       stationsDuCompte: () => {
-        if (echoue) throw new Error("gh: dial tcp: i/o timeout");
-        return LISTEE([]);
+        if (fails) throw new Error("gh: dial tcp: i/o timeout");
+        return LISTED([]);
       },
     });
-    bouton(question(vue), ADD_A_SERVER).click();
+    button(question(vue), ADD_A_SERVER).click();
     await repos();
-    echoue = true;
-    bouton(question(vue), CHECK_AGAIN).click();
+    fails = true;
+    button(question(vue), CHECK_AGAIN).click();
     await repos();
-    assert.match(texte(question(vue)), /your stations could not be read: Your stations could not be read/);
-    assert.ok(!texte(question(vue)).includes("checked in"));
+    assert.match(text(question(vue)), /your stations could not be read: Your stations could not be read/);
+    assert.ok(!text(question(vue)).includes("checked in"));
   });
 });

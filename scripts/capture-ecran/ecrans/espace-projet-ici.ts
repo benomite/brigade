@@ -1,15 +1,15 @@
 // L'espace d'un projet qui cuit sur cet ordinateur (#1122) : « parade », servi par la station de
 // ce Mac — il a son rail, sa file et ses cartes comme un projet servi par une box. « cantine »
 // reste sur sa box.
-import type { Terminal } from "../../../app/src/terminaux.ts";
-import type { VuDesStations } from "../../../app/src/stations/stations.ts";
+import type { Terminal } from "../../../app/src/terminals.ts";
+import type { SeenOfStations } from "../../../app/src/stations/stations.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris : la session d'hier", arrete: false };
 const ECRAN_DU_SECOND = ["\x1b[1msecond · parade\x1b[0m", "", "  /brigade:second — rail lu à 10:04", "", "\x1b[2m> \x1b[0m"].join("\r\n");
 
-const STATIONS: VuDesStations = {
+const STATIONS: SeenOfStations = {
   a: MAINTENANT,
   stations: [
     { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", etat: "en-ligne", ligne: "online · 1 project: parade", pannes: [], dit: "online", version: "", projets: ["parade"], max: null },

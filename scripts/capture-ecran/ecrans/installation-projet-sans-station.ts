@@ -2,12 +2,12 @@
 // sert, cet ordinateur en tête. La capture rend une réponse figée par geste : la mise en place passe ici par « Set up for
 // Brigade » sur l'avis (#2628) — `checkRepoSetup` dit ce qui manque, `runRepoSetup` rend prêt —, ce qu'aucune lecture
 // relue ne peut faire. Dans l'app, c'est la lecture qui suit le merge de la PR de mise en place (#3170) qui la pose.
-import type { Projet } from "../../../app/src/config.ts";
+import type { Project } from "../../../app/src/config.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import type { Terminal } from "../../../app/src/terminaux.ts";
+import type { Terminal } from "../../../app/src/terminals.ts";
 
-const CANTINE: Projet = { ...(PROJETS.find(({ nom }) => nom === "cantine") ?? PROJETS[0]!), depot: "chef/cantine", base: "main" };
+const CANTINE: Project = { ...(PROJETS.find(({ nom }) => nom === "cantine") ?? PROJETS[0]!), depot: "chef/cantine", base: "main" };
 const SECOND: Terminal = { id: 1, projet: "cantine", genre: "second", titre: "second · claude", note: "", arrete: false };
 
 export const ecran: Ecran = {

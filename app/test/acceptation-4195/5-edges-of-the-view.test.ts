@@ -4,66 +4,66 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Tableau } from "../../src/faits.ts";
-import { blocage } from "../../src/second/blocage-du-second.ts";
-import type { VueDuProjet } from "../../src/second/contexte-du-blocage.ts";
-import { deposerLaVue } from "../../src/second/vue-du-projet.ts";
+import type { Board } from "../../src/facts.ts";
+import { blockage } from "../../src/second/blockage-of-second.ts";
+import type { VueOfProject } from "../../src/second/context-of-blockage.ts";
+import { dropTheVue } from "../../src/second/vue-of-project.ts";
 
 const base = { attendu: false, attend: [], fiche: {}, ouvrable: true, dit: [] };
-const carte = (ticket: number, plus: Record<string, unknown>) => ({ ...base, ticket, titre: `t${ticket}`, ...plus });
+const card = (ticket: number, more: Record<string, unknown>) => ({ ...base, ticket, titre: `t${ticket}`, ...more });
 
-function deposee(cartes: unknown[], alertes: unknown[] = []): VueDuProjet {
-  const vues = mkdtempSync(join(tmpdir(), "vue-4195-"));
+function dropped(cards: unknown[], alerts: unknown[] = []): VueOfProject {
+  const views = mkdtempSync(join(tmpdir(), "vue-4195-"));
   try {
-    const tableau = { rail: { colonnes: [{ nom: "X", ton: "", compte: "", cartes, vide: "" }], hors: [] }, alertesDuRail: alertes } as unknown as Tableau;
-    deposerLaVue("p", tableau, vues);
-    return JSON.parse(readFileSync(join(vues, "p.json"), "utf8")) as VueDuProjet;
+    const board = { rail: { colonnes: [{ nom: "X", ton: "", compte: "", cartes: cards, vide: "" }], hors: [] }, alertesDuRail: alerts } as unknown as Board;
+    dropTheVue("p", board, views);
+    return JSON.parse(readFileSync(join(views, "p.json"), "utf8")) as VueOfProject;
   } finally {
-    rmSync(vues, { recursive: true, force: true });
+    rmSync(views, { recursive: true, force: true });
   }
 }
 
 test("qui est attendu : chaque raison, seule", () => {
-  const vue = deposee([
-    carte(1, { etat: "todo", attendu: true }),
-    carte(2, { etat: "todo", question: true }),
-    carte(3, { etat: "waiting", enWaiting: true }),
-    carte(4, { etat: "waiting", relancePassee: true }),
-    carte(5, { etat: "base rouge" }),
-    carte(6, { etat: "in pass" }),
-    carte(7, { etat: "queued" }),
-    carte(8, { etat: "en attente" }),
-    carte(9, { etat: "autre" }),
+  const vue = dropped([
+    card(1, { etat: "todo", attendu: true }),
+    card(2, { etat: "todo", question: true }),
+    card(3, { etat: "waiting", enWaiting: true }),
+    card(4, { etat: "waiting", relancePassee: true }),
+    card(5, { etat: "base rouge" }),
+    card(6, { etat: "in pass" }),
+    card(7, { etat: "queued" }),
+    card(8, { etat: "en attente" }),
+    card(9, { etat: "autre" }),
   ]);
-  const attend = (n: number) => vue.rail.find((c) => c.number === n)!.waitsOn;
-  assert.match(attend(1), /chef/);
-  assert.match(attend(2), /chef/);
-  assert.match(attend(3), /station/);
-  assert.match(attend(4), /chef/);
-  assert.match(attend(6), /pass/);
-  assert.match(attend(7), /kitchen/);
-  assert.match(attend(8), /kitchen/);
-  assert.match(attend(9), /third party/);
+  const awaiting = (n: number) => vue.rail.find((c) => c.number === n)!.waitsOn;
+  assert.match(awaiting(1), /chef/);
+  assert.match(awaiting(2), /chef/);
+  assert.match(awaiting(3), /station/);
+  assert.match(awaiting(4), /chef/);
+  assert.match(awaiting(6), /pass/);
+  assert.match(awaiting(7), /kitchen/);
+  assert.match(awaiting(8), /kitchen/);
+  assert.match(awaiting(9), /third party/);
 });
 
 test("« base rouge » : attendu tel quel quand le rail dit la base rouge, sinon ramené à « in pass »", () => {
-  const rouge = deposee([carte(5, { etat: "base rouge" })], [{ sorte: "base-rouge", geree: null, fait: {}, phrase: "main is red" }]);
-  assert.equal(rouge.rail[0]!.waitsOn, "main to be green");
-  assert.equal(rouge.rail[0]!.displayed, "base rouge");
-  const verte = deposee([carte(5, { etat: "base rouge" })]);
-  assert.equal(verte.rail[0]!.displayed, "in pass");
-  assert.match(verte.rail[0]!.waitsOn, /pass/);
+  const red = dropped([card(5, { etat: "base rouge" })], [{ sorte: "base-rouge", geree: null, fait: {}, phrase: "main is red" }]);
+  assert.equal(red.rail[0]!.waitsOn, "main to be green");
+  assert.equal(red.rail[0]!.displayed, "base rouge");
+  const green = dropped([card(5, { etat: "base rouge" })]);
+  assert.equal(green.rail[0]!.displayed, "in pass");
+  assert.match(green.rail[0]!.waitsOn, /pass/);
 });
 
 test("le crochet : un message sans question de blocage, ou un événement de fond qui en parle, ne reçoit rien", () => {
-  const vues = mkdtempSync(join(tmpdir(), "vue-4195-"));
+  const views = mkdtempSync(join(tmpdir(), "vue-4195-"));
   try {
-    writeFileSync(join(vues, "p.json"), JSON.stringify({ banners: [], rail: [] }));
-    assert.equal(blocage({ prompt: "bonjour" }, { nom: "p" }, vues), "");
-    assert.equal(blocage({}, { nom: "p" }, vues), "");
-    assert.equal(blocage({ prompt: "Monitor event: blocked" }, { nom: "p" }, vues), "");
-    assert.notEqual(blocage({ prompt: "on est bloqués ?" }, { nom: "p" }, vues), "");
+    writeFileSync(join(views, "p.json"), JSON.stringify({ banners: [], rail: [] }));
+    assert.equal(blockage({ prompt: "bonjour" }, { nom: "p" }, views), "");
+    assert.equal(blockage({}, { nom: "p" }, views), "");
+    assert.equal(blockage({ prompt: "Monitor event: blocked" }, { nom: "p" }, views), "");
+    assert.notEqual(blockage({ prompt: "on est bloqués ?" }, { nom: "p" }, views), "");
   } finally {
-    rmSync(vues, { recursive: true, force: true });
+    rmSync(views, { recursive: true, force: true });
   }
 });

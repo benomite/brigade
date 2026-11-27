@@ -1,0 +1,76 @@
+// Le moteur de l'app pour le diagramme de la fiche (#3773) : Mermaid, réglé en sécurité stricte, son SVG importé dans la
+// vue. Il rejette quand Mermaid n'est pas chargé ou ne rend rien — la fiche montre alors la source. Contre un faux Mermaid
+// et un faux DOMParser : le test ne charge pas de navigateur.
+import assert from "node:assert/strict";
+import { afterEach, describe, test } from "node:test";
+import { renderWithMermaid } from "../../../src/vue/card-diagram/card-diagram.js";
+
+const world = globalThis as { mermaid?: unknown; DOMParser?: unknown };
+const before = { mermaid: world.mermaid, DOMParser: world.DOMParser };
+afterEach(() => {
+  world.mermaid = before.mermaid;
+  world.DOMParser = before.DOMParser;
+});
+
+// Un DOMParser dont le premier élément du corps est l'objet `lu` — ou rien.
+function parser(readOne: object | null) {
+  return class {
+    parseFromString(svg: string, type: string) {
+      assert.equal(type, "text/html");
+      return { body: { firstElementChild: readOne === null ? null : { ...readOne, svg } } };
+    }
+  };
+}
+
+function fakeMermaid() {
+  const settings: unknown[] = [];
+  const sources: string[] = [];
+  return {
+    reglages: settings,
+    sources,
+    initialize: (setting: unknown) => settings.push(setting),
+    render: async (_id: string, source: string) => {
+      sources.push(source);
+      return { svg: "<svg></svg>" };
+    },
+  };
+}
+
+function fakeDoc() {
+  const imported: [unknown, unknown][] = [];
+  return { importes: imported, importNode: (node: unknown, profond: unknown) => (imported.push([node, profond]), { importe: node }) };
+}
+
+describe("le moteur Mermaid de la fiche", () => {
+  test("Mermaid chargé : réglé sans démarrage seul et en sécurité stricte, son SVG est importé en entier", async () => {
+    const mermaid = fakeMermaid();
+    world.mermaid = mermaid;
+    world.DOMParser = parser({ balise: "svg" });
+    const doc = fakeDoc();
+    const pose = await renderWithMermaid(doc as unknown as Document)("flowchart LR\n  A --> B");
+    assert.deepEqual(pose, { importe: { balise: "svg", svg: "<svg></svg>" } });
+    assert.deepEqual(doc.importes, [[{ balise: "svg", svg: "<svg></svg>" }, true]]);
+    assert.deepEqual(mermaid.sources, ["flowchart LR\n  A --> B"]);
+    assert.equal(mermaid.reglages.length, 1);
+    assert.deepEqual(
+      { startOnLoad: (mermaid.reglages[0] as { startOnLoad: unknown }).startOnLoad, securityLevel: (mermaid.reglages[0] as { securityLevel: unknown }).securityLevel },
+      { startOnLoad: false, securityLevel: "strict" },
+    );
+  });
+
+  test("Mermaid absent : le rendu rejette, sans rien importer", async () => {
+    delete world.mermaid;
+    world.DOMParser = parser({ balise: "svg" });
+    const doc = fakeDoc();
+    await assert.rejects(renderWithMermaid(doc as unknown as Document)("flowchart LR"), /not loaded/);
+    assert.deepEqual(doc.importes, []);
+  });
+
+  test("Mermaid qui ne rend rien : le rendu rejette, sans rien importer", async () => {
+    world.mermaid = fakeMermaid();
+    world.DOMParser = parser(null);
+    const doc = fakeDoc();
+    await assert.rejects(renderWithMermaid(doc as unknown as Document)("flowchart LR"), /rendered nothing/);
+    assert.deepEqual(doc.importes, []);
+  });
+});

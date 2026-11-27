@@ -1,8 +1,8 @@
 // La page de « parade », le bandeau de santé dans Settings (#2491, #2920, #3014) : le chef a tapé une vérification de plus pour le closer
 // et cliqué « add » — l'ajout à `.claude/brigade/closer-checks.md` est proposé par une pull request, que la partie dit et
 // ouvre ; la liste reste celle en vigueur jusqu'au merge.
-import type { RenduDesVerifications } from "../../../app/src/closer-sante.ts";
-import { PROPOSE } from "../../../app/src/reglages-du-projet.ts";
+import type { RenderedOfVerifications } from "../../../app/src/closer-health.ts";
+import { PROPOSES } from "../../../app/src/settings-of-project.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { PLAFONDS_LUS, SETTINGS } from "./projet-sante.ts";
@@ -10,8 +10,8 @@ import { CLOSER_LU } from "./projet-sante-closer.ts";
 import { NORMAL } from "./projet-temps-commun.ts";
 
 const AJOUTEE = "Tests that only exercise a removed export";
-const RENDU: RenduDesVerifications = {
-  propose: PROPOSE,
+const RENDU: RenderedOfVerifications = {
+  propose: PROPOSES,
   pr: "https://github.com/chef/parade/pull/2613",
   numero: 2613,
   geste: "ajouter",

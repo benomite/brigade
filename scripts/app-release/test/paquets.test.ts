@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { nomDeLAppImage } from "../../../app/packaging/linux.ts";
-import { lireMetadonnees } from "../../../app/src/mise-a-jour/flux.ts";
+import { readMetadata } from "../../../app/src/update/flux.ts";
 import { fichiers, notes, paquetsDeLApp, paquetsDeLaStation, renommer } from "../paquets.ts";
 
 const script = fileURLToPath(new URL("../paquets.ts", import.meta.url));
@@ -81,9 +81,9 @@ test("renaming gives the release names and keeps the updater files readable", ()
   writeFileSync(join(dossier, "latest.yml"), yml("Brigade-1.2.3-x64-setup.exe"));
   renommer(dossier, "1.2.3");
   assert.deepEqual(readdirSync(dossier).sort(), ["Brigade-1.2.3-mac-arm64.dmg", "Brigade-1.2.3-windows-x64-setup.exe", "latest-mac.yml", "latest.yml"]);
-  assert.equal(lireMetadonnees(readFileSync(join(dossier, "latest-mac.yml"), "utf8")).nom, "Brigade-1.2.3-mac-arm64.dmg");
+  assert.equal(readMetadata(readFileSync(join(dossier, "latest-mac.yml"), "utf8")).nom, "Brigade-1.2.3-mac-arm64.dmg");
   assert.equal(
-    lireMetadonnees(readFileSync(join(dossier, "latest.yml"), "utf8"), { metadonnees: "latest.yml", extension: ".exe" }).nom,
+    readMetadata(readFileSync(join(dossier, "latest.yml"), "utf8"), { metadonnees: "latest.yml", extension: ".exe" }).nom,
     "Brigade-1.2.3-windows-x64-setup.exe",
   );
 });

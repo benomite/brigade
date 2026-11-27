@@ -79,7 +79,7 @@ export function listRuns(root: string): { running: Run[]; finished: Finished[] }
   return { running, finished };
 }
 
-// Done with a finished run: its directory moves to \`done/\`, so the next turn
+// Done with a finished run: its directory moves to `done/`, so the next turn
 // does not see it again and its stream can still be read. The last 100 stay.
 export function forget(run: Run) {
   const done = join(run.dir, "..", "..", "done");

@@ -1,0 +1,26 @@
+/* Le diagramme de la fiche (ticket 3773, posé par card-diagram.js) : le diagramme Mermaid du corps de l'issue, dans un
+   cadre sombre comme le code, de toute la largeur de la fiche ; le diagramme y est centré, réduit à cette largeur et
+   jamais agrandi au-delà de sa taille. */
+.diagramme-de-fiche {
+  align-self: stretch;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--pas-3);
+  overflow-x: auto;
+  text-align: center;
+  background: var(--terminal);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-bouton);
+}
+.diagramme-de-fiche > svg {
+  max-width: 100%;
+  height: auto;
+}
+/* Un bloc que Mermaid ne lit pas : sa source, en code, sans second cadre. */
+.diagramme-de-fiche[data-source="true"] {
+  padding: 0;
+  text-align: left;
+}
+.diagramme-de-fiche[data-source="true"] > pre {
+  border: 0;
+}

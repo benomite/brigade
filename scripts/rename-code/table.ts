@@ -4,6 +4,8 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { NAMES } from "./names.ts";
+import { translate } from "./words.ts";
 
 // The French → English mapping of words, `mapping.json` — the one source that
 // the rename applies, that the naming gate (`gate.ts`) checks, and that the
@@ -45,9 +47,34 @@ export const WORDS: Record<string, string> = { ...mapping.glossary, ...mapping.c
 // French: names.ts.
 export { NAMES } from "./names.ts";
 
+// The new name of a name declared in `file` (its path before the rename): its whole name in NAMES, for that file or
+// for any, or else its word-by-word translation. The rename gives this name, and the pass's gate reads it to tell a
+// renamed export from a new one (runtime/src/passe/gates/controle.ts, #4413).
+export const newNameOf = (file: string, name: string): string => NAMES[`${file}#${name}`] ?? NAMES[name] ?? translate(name, { words: WORDS });
+
 // Files and folders whose word-by-word name would be wrong, or would land on
 // another's: their new name (the last part only), keyed by their path.
 export const PATHS: Record<string, string> = {
+  // The project menu's Know-how tab (#4241), beside Settings' know-how section (`vue/know-how`).
+  "app/src/vue/savoir-faire": "know-how-tab",
+  "app/test/vue/savoir-faire": "know-how-tab",
+  // Components named in PascalCase, which the word-by-word translation does not cut.
+  "app/src/vue/accueil/projets/BlocDesProjets.js": "ProjectsBlock.js",
+  "app/src/vue/moteur/MoteurDeLaCarte.js": "CardEngine.js",
+  "app/src/vue/moteur/SectionDuMoteur.js": "EngineSection.js",
+  "app/src/vue/projet/bandeau-sante/PlafondsDuree.js": "DurationCaps.js",
+  "app/src/vue/projet/bandeau-sante/TempsDeLaPasse.js": "PassTime.js",
+  "app/src/vue/projet/stations/AjoutStation.js": "AddStation.js",
+  "app/src/vue/projet/stations/ArretStation.js": "StopStation.js",
+  "app/src/vue/projet/stations/ReglagesStation.js": "StationSettings.js",
+  "app/src/vue/station/page/NiveauReglage.js": "SettingLevel.js",
+  "app/src/vue/station/page/ProjetsDeLaStation.js": "StationProjects.js",
+  "app/src/vue/accueil/promesse/BlocDeLaPromesse.js": "PromiseBlock.js",
+  "app/src/vue/accueil/station/BlocDeLaStation.js": "StationBlock.js",
+  "app/src/vue/station/page/NoteSurPlace.js": "OnSiteNote.js",
+  "app/src/vue/projet/stations/StationLocale.js": "LocalStation.js",
+  // `menus@2x` is one piece, which the sequence `barre de menus` does not match.
+  "app/src/icones/barre-de-menus@2x.png": "menu-bar@2x.png",
   "app/src/gestes-fiche.ts": "card-actions.ts",
   "app/test/gestes-fiche.test.ts": "card-actions.test.ts",
   "app/test/ecrans-restants.test.ts": "remaining-screens.test.ts",
@@ -97,12 +124,6 @@ export const KEPT_FILES: { why: string; paths: string[] }[] = [
 // default): a test that names a function or a file in text, a list whose
 // sorted order the rename changes.
 export const FIXUPS: { file: string; from: string; to: string; why: string; count?: number }[] = [
-  {
-    file: "app/test/page.test.ts",
-    from: 'fonction("poserServie")',
-    to: 'fonction("renderServed")',
-    why: "the test reads the view's source for the function by its name",
-  },
   {
     file: "runtime/test/log-not-replayed.test.ts",
     from: '"garde-fous-cli"',

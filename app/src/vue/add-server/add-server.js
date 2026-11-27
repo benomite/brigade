@@ -2,33 +2,33 @@
 // « Add a server » (ticket 4347) : une station de serveur s'ajoute depuis l'app, sans ouvrir la page d'installation. Offert
 // à côté de la liste des stations — l'onglet Stations d'un projet, son choix « Who cooks <projet>? », et la page « who cooks
 // it » d'un projet neuf (parcours-premier-projet/). Le panneau dit en une phrase où lancer la ligne d'installation
-// (`INSTALLER`, stations-du-compte.js, la même que la page d'installation), la donne à copier, dit qu'un Mac fait la même,
+// (`INSTALLER`, stations-of-account.js, la même que la page d'installation), la donne à copier, dit qu'un Mac fait la même,
 // puis attend le serveur : une station enregistrée sous le compte (`stationsDuCompte`) qui n'y était pas à l'ouverture du
 // panneau est la sienne — elle s'y inscrit seule, sans code (runtime/src/enregistrement-station/README.md). « check again »
 // relit le compte ; le serveur arrivé, le projet lui est confié par le geste de « Choose who cooks it ».
 // Le bouton d'entrée ouvre et ferme le panneau de lui-même, et le dit à la vue (`basculer`), qui le repose ensuite.
-// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
+// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { boutonAction } from "../briques.js";
-import { bouton } from "../composants/bouton/bouton.js";
-import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
-import { COPIEE, COPIER, INSTALLER } from "../stations-du-compte.js";
-import { poserLesChoix } from "../stations-tab/choix.js";
+import { buttonAction } from "../bricks.js";
+import { button } from "../components/button/button.js";
+import { lineError } from "../components/line-error/line-error.js";
+import { COPIED, COPY, INSTALLER } from "../stations-of-account.js";
+import { setTheChoice } from "../stations-tab/choice.js";
 
-/** @typedef {import("../briques.js").Fabrique} Fabrique */
-/** @typedef {import("../../stations-du-compte.ts").StationsDuCompte} StationsDuCompte */
-/** @typedef {import("../../stations-du-compte.ts").StationEnregistree} StationEnregistree */
+/** @typedef {import("../bricks.js").Fabrique} Fabrique */
+/** @typedef {import("../../stations-of-account.ts").StationsOfAccount} StationsOfAccount */
+/** @typedef {import("../../stations-of-account.ts").StationRecorded} StationRecorded */
 // Où en est le serveur attendu : pas encore là, la lecture du compte en échec (sa phrase, son détail au survol), ou arrivé.
-/** @typedef {{ etat: "attente" } | { etat: "illisible", raison: string, detail: string } | { etat: "appairee", station: StationEnregistree }} ServeurVu */
+/** @typedef {{ etat: "attente" } | { etat: "illisible", raison: string, detail: string } | { etat: "appairee", station: StationRecorded }} ServerSeen */
 // Ce que le panneau montre. `projet` : le projet à lui confier, quand l'écran sait le faire.
-/** @typedef {{ ouvert: boolean, vu: ServeurVu, copiee?: boolean, projet?: string }} EtatDuServeur */
+/** @typedef {{ ouvert: boolean, vu: ServerSeen, copiee?: boolean, projet?: string }} StateOfServer */
 /**
  * @typedef {{
- *   basculer?: (ouvert: boolean) => void,
- *   copier?: (commande: string) => void,
+ *   basculer?: (opened: boolean) => void,
+ *   copier?: (command: string) => void,
  *   verifier?: () => void,
- *   confier?: (station: StationEnregistree) => void,
- * }} GestesDuServeur
+ *   confier?: (station: StationRecorded) => void,
+ * }} ActionsOfServer
  */
 
 export const ADD_A_SERVER = "Add a server";
@@ -39,89 +39,89 @@ export const ON_A_MAC = "On a Mac, it is the same command; the station cooks onl
 export const WAITING = "Waiting for its first check-in: the server appears here within a minute after the command ends.";
 export const CHECK_AGAIN = "check again";
 export const UNREADABLE = "your stations could not be read";
-/** @param {string} nom */
-export const PAIRED = (nom) => `${nom} checked in: it is one of your stations now.`;
-/** @param {string} projet */
-export const WHO_COOKS_IT = (projet) => `Choose who cooks ${projet}:`;
+/** @param {string} name */
+export const PAIRED = (name) => `${name} checked in: it is one of your stations now.`;
+/** @param {string} project */
+export const WHO_COOKS_IT = (project) => `Choose who cooks ${project}:`;
 
 // Le serveur attendu, d'après la lecture du compte : `connues`, les stations qu'il avait à l'ouverture du panneau — sans
 // elles, aucune n'est dite neuve. Rien encore lu : il attend.
-/** @param {ReadonlySet<string> | undefined} connues @param {StationsDuCompte | undefined} lues @returns {ServeurVu} */
-export function serverSeen(connues, lues) {
-  if (lues === undefined) return { etat: "attente" };
-  if (lues.state !== "listed") return { etat: "illisible", raison: lues.reason, detail: "detail" in lues ? (lues.detail ?? "") : "" };
-  const neuve = connues === undefined ? undefined : lues.stations.find(({ id }) => !connues.has(id));
-  return neuve === undefined ? { etat: "attente" } : { etat: "appairee", station: neuve };
+/** @param {ReadonlySet<string> | undefined} known @param {StationsOfAccount | undefined} readEntries @returns {ServerSeen} */
+export function serverSeen(known, readEntries) {
+  if (readEntries === undefined) return { etat: "attente" };
+  if (readEntries.state !== "listed") return { etat: "illisible", raison: readEntries.reason, detail: "detail" in readEntries ? (readEntries.detail ?? "") : "" };
+  const freshOne = known === undefined ? undefined : readEntries.stations.find(({ id }) => !known.has(id));
+  return freshOne === undefined ? { etat: "attente" } : { etat: "appairee", station: freshOne };
 }
 
-/** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
-function cree(doc, balise, texte) {
+/** @param {Fabrique} doc @param {string} balise @param {string} [text] */
+function created(doc, balise, text) {
   const pose = doc.createElement(balise);
-  if (texte !== undefined) pose.textContent = texte;
+  if (text !== undefined) pose.textContent = text;
   return pose;
 }
 
 // Le panneau : la phrase, la ligne et son bouton qui la copie, le mot pour un Mac, puis où en est le serveur.
-/** @param {Fabrique} doc @param {EtatDuServeur} etat @param {GestesDuServeur} gestes */
-function panneau(doc, { vu, copiee, projet }, gestes) {
-  const racine = cree(doc, "section");
-  racine.className = "ajout-de-serveur";
-  racine.ariaLabel = ADD_A_SERVER;
-  const ou = cree(doc, "p", WHERE_TO_RUN);
-  ou.className = "ou";
-  const ligne = cree(doc, "p");
-  ligne.className = "commande";
-  const code = cree(doc, "code", INSTALL_COMMAND);
+/** @param {Fabrique} doc @param {StateOfServer} etat @param {ActionsOfServer} actions */
+function panel(doc, { vu: seenOne, copiee: copied, projet: project }, actions) {
+  const root = created(doc, "section");
+  root.className = "ajout-de-serveur";
+  root.ariaLabel = ADD_A_SERVER;
+  const or = created(doc, "p", WHERE_TO_RUN);
+  or.className = "ou";
+  const line = created(doc, "p");
+  line.className = "commande";
+  const code = created(doc, "code", INSTALL_COMMAND);
   code.className = "mono";
-  const copier = boutonAction(doc, copiee === true ? COPIEE : COPIER, () => gestes.copier?.(INSTALL_COMMAND));
-  ligne.append(code, copier);
-  const mac = cree(doc, "p", ON_A_MAC);
+  const copy = buttonAction(doc, copied === true ? COPIED : COPY, () => actions.copier?.(INSTALL_COMMAND));
+  line.append(code, copy);
+  const mac = created(doc, "p", ON_A_MAC);
   mac.className = "mac";
-  racine.append(ou, ligne, mac);
-  if (vu.etat === "appairee") {
-    const arrivee = cree(doc, "p", PAIRED(vu.station.name));
-    arrivee.className = "arrivee";
-    racine.append(arrivee);
-    const confier = gestes.confier;
-    if (projet !== undefined && confier !== undefined) {
-      const question = cree(doc, "p", WHO_COOKS_IT(projet));
+  root.append(or, line, mac);
+  if (seenOne.etat === "appairee") {
+    const arrival = created(doc, "p", PAIRED(seenOne.station.name));
+    arrival.className = "arrivee";
+    root.append(arrival);
+    const entrust = actions.confier;
+    if (project !== undefined && entrust !== undefined) {
+      const question = created(doc, "p", WHO_COOKS_IT(project));
       question.className = "qui-le-cuit";
-      const un = { cle: vu.station.id, nom: vu.station.name, horsLigne: !vu.station.available, recommande: vu.station.available };
-      racine.append(question, ...poserLesChoix(doc, { choix: [un] }, () => confier(vu.station)));
+      const oneOf = { cle: seenOne.station.id, nom: seenOne.station.name, horsLigne: !seenOne.station.available, recommande: seenOne.station.available };
+      root.append(question, ...setTheChoice(doc, { choix: [oneOf] }, () => entrust(seenOne.station)));
     }
-    return racine;
+    return root;
   }
-  if (vu.etat === "illisible") racine.append(ligneErreur(doc, `${UNREADABLE}: ${vu.raison}`, vu.detail, { classe: "erreur" }));
+  if (seenOne.etat === "illisible") root.append(lineError(doc, `${UNREADABLE}: ${seenOne.raison}`, seenOne.detail, { classe: "erreur" }));
   else {
-    const attente = cree(doc, "p", WAITING);
-    attente.className = "attente";
-    attente.ariaLive = "polite";
-    racine.append(attente);
+    const wait = created(doc, "p", WAITING);
+    wait.className = "attente";
+    wait.ariaLive = "polite";
+    root.append(wait);
   }
-  const pied = cree(doc, "p");
-  pied.className = "gestes";
-  pied.append(boutonAction(doc, CHECK_AGAIN, () => gestes.verifier?.()));
-  racine.append(pied);
-  return racine;
+  const foot = created(doc, "p");
+  foot.className = "gestes";
+  foot.append(buttonAction(doc, CHECK_AGAIN, () => actions.verifier?.()));
+  root.append(foot);
+  return root;
 }
 
 // Le bouton « Add a server », puis son panneau quand il est ouvert. Un clic l'ouvre ou le ferme de lui-même — fermé, le
 // panneau se pose au premier clic —, et le dit à la vue, qui le repose ensuite.
-/** @param {Fabrique} doc @param {EtatDuServeur} etat @param {GestesDuServeur} gestes */
-export function placeAddServer(doc, etat, gestes) {
+/** @param {Fabrique} doc @param {StateOfServer} state @param {ActionsOfServer} actions */
+export function placeAddServer(doc, state, actions) {
   /** @type {any} */
-  let pose = etat.ouvert ? panneau(doc, etat, gestes) : undefined;
-  const entree = bouton(doc, ADD_A_SERVER, () => {
+  let pose = state.ouvert ? panel(doc, state, actions) : undefined;
+  const entry = button(doc, ADD_A_SERVER, () => {
     if (pose === undefined) {
-      pose = panneau(doc, { ...etat, ouvert: true }, gestes);
+      pose = panel(doc, { ...state, ouvert: true }, actions);
       pose.hidden = true;
-      entree.after(pose);
+      entry.after(pose);
     }
     pose.hidden = !pose.hidden;
-    entree.ariaExpanded = String(!pose.hidden);
-    gestes.basculer?.(!pose.hidden);
+    entry.ariaExpanded = String(!pose.hidden);
+    actions.basculer?.(!pose.hidden);
   });
-  entree.className = "ajouter-un-serveur";
-  entree.ariaExpanded = String(etat.ouvert);
-  return pose === undefined ? [entree] : [entree, pose];
+  entry.className = "ajouter-un-serveur";
+  entry.ariaExpanded = String(state.ouvert);
+  return pose === undefined ? [entry] : [entry, pose];
 }
