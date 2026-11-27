@@ -12,10 +12,9 @@ import { posixOnly } from "../support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../../.claude/brigade/gates.sh");
 const SELECTION = join(import.meta.dirname, "../../../.claude/brigade/tests-touches.mjs");
-const ROLES = ["po", "manager", "dev", "designer"];
 const SKIP = posixOnly("plays this repository's real gates.sh on a test project; on Windows its Python check reads the role paths with backslashes");
 
-// Un projet aux gates vertes, sur `main`, puis sur une branche de travail. Son test de loin lit la liste de `src/` : il ne
+// Un projet aux tests verts (sans rôle V1, ses contrôles plugin sont rouges, #4630), sur `main`, puis sur une branche de travail. Son test de loin lit la liste de `src/` : il ne
 // l'importe pas, et ne cite le nom d'aucun de ses fichiers.
 function projet(t: TestContext): string {
   const racine = join(repertoireTemporaire(t), "projet");
@@ -24,14 +23,10 @@ function projet(t: TestContext): string {
     writeFileSync(join(racine, fichier), contenu);
   };
   poser("CLAUDE.md", "## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `main`\n");
-  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ROLES.map((role) => `./commands/${role}.md`) }));
+  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ["./commands/start.md"], agents: [] }));
   poser(".claude-plugin/marketplace.json", "{}");
   poser(".claude/settings.json", "{}");
-  for (const role of ROLES) {
-    poser(`commands/${role}.md`, "");
-    poser(`codex/skills/${role}/SKILL.md`, "");
-    poser(`codex/skills/${role}/agents/openai.yaml`, "");
-  }
+  poser("commands/start.md", "");
   mkdirSync(join(racine, ".claude/brigade"), { recursive: true });
   copyFileSync(SELECTION, join(racine, ".claude/brigade/tests-touches.mjs"));
   for (const zone of ["runtime", "app"]) {

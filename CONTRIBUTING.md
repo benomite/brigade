@@ -33,5 +33,5 @@ Tests use a fake `claude` and no network, so they cost no quota. Do not start th
 
 - Targets `main`, does one thing, and links its issue (`Closes #123`).
 - Includes tests for the behavior it changes; tests never depend on timing.
-- Updates the doc under `docs/` when it changes a behavior; a change to `commands/` is carried into `codex/skills/`.
+- Updates the doc under `docs/` when it changes a behavior.
 - Has green CI (the `tests` check) and a description saying what changed, why, and how you verified it.

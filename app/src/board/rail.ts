@@ -18,7 +18,7 @@
 // reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer de commande.
 import { setTimeout as wait } from "node:timers/promises";
 import { FRESHNESS_MAX_OF_A_READ_MS, INTERVAL_OF_THE_STANDBY_MS } from "../vue/served/freshness.ts";
-import type { ReadOfBoardOfRepository, LineOfTheFile, HeadingOfBoard, BoardRead } from "./read.ts";
+import type { ReadOfBoardOfRepository, LineOfTheFile, HeadingOfBoard, BoardRead, PauseOfReads } from "./read.ts";
 
 // Les commandes que la lecture remplace, comme la veille des box les nomme (facts.ts, `COMMANDE` ; upstream.ts) : la vue
 // du rail les demande, la lecture en rend la sortie.
@@ -30,9 +30,9 @@ export const UPSTREAM = "manager upstream";
 // GitHub — `duTableau` la distingue d'une commande en échec, et `erreur` est sa raison en une phrase.
 export type OutputOfBoard = { commande: string; texte: string };
 // `horsLigne` : GitHub n'a pas été joint (read.ts) — l'app est hors ligne, rien n'est en panne (#1818).
-export type FailureOfBoard = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true };
+export type FailureOfBoard = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true; pause?: PauseOfReads };
 // `publieLe` : l'heure où l'état montré a été lu sur GitHub — l'âge du rail (#2054).
-export type ReadOfRail = { projet: string; demande: number; a: string } & ({ sorties: OutputOfBoard[]; publieLe?: string } | FailureOfBoard);
+export type ReadOfRail = { projet: string; demande: number; a: string } & ({ sorties: OutputOfBoard[]; publieLe?: string; pause?: PauseOfReads } | FailureOfBoard);
 // Une commande demandée : son texte — ou ce qui le compose d'après les sorties d'avant (box.ts, `Commande`), que la
 // lecture ne rend pas.
 export type CommandRequested = string | ((...readEntries: never[]) => string);
@@ -114,21 +114,25 @@ export function outputOfBoard(readOne: BoardRead, command: CommandRequested): { 
 // La lecture de la veille que celle de GitHub donne, pour ces commandes, dans leur ordre : la première qui ne s'en tire
 // pas fait l'échec, comme la première commande qui échoue sur une box.
 export function readOfBoard(readOne: ReadOfBoardOfRepository, project: string, request: number, commands: readonly CommandRequested[]): ReadOfRail {
-  const failure = (error: string, notPublished?: true, outsideLine?: true): ReadOfRail => ({ projet: project, demande: request, a: readOne.luLe, erreur: error, atteinte: true, cas: null, duTableau: true, ...(notPublished === undefined ? {} : { pasPublie: notPublished }), ...(outsideLine === undefined ? {} : { horsLigne: outsideLine }) });
-  if (!readOne.lu) return failure(readOne.raison, undefined, readOne.horsLigne);
+  const failure = (error: string, notPublished?: true, outsideLine?: true, pause?: PauseOfReads): ReadOfRail => ({ projet: project, demande: request, a: readOne.luLe, erreur: error, atteinte: true, cas: null, duTableau: true, ...(notPublished === undefined ? {} : { pasPublie: notPublished }), ...(outsideLine === undefined ? {} : { horsLigne: outsideLine }), ...(pause === undefined ? {} : { pause }) });
+  if (!readOne.lu) return failure(readOne.raison, undefined, readOne.horsLigne, readOne.pause);
   const outputs: OutputOfBoard[] = [];
   for (const command of commands) {
     const output = outputOfBoard(readOne, command);
     if ("raison" in output) return failure(output.raison, output.pasPublie);
     outputs.push({ commande: command as string, texte: output.texte });
   }
-  return { projet: project, demande: request, a: readOne.luLe, sorties: outputs, publieLe: readOne.luLe };
+  return { projet: project, demande: request, a: readOne.luLe, sorties: outputs, publieLe: readOne.luLe, ...(readOne.pause === undefined ? {} : { pause: readOne.pause }) };
 }
+
+// Le dernier rail lu de chaque projet, gardé sur disque pour survivre à un redémarrage de l'app (#4620) : sous la pause du
+// budget GitHub, un rail lu avant s'affiche, avec son âge, au lieu de rien.
+export type KeptReads = { lire(name: string): BoardRead | undefined; ecrire(name: string, readOne: BoardRead): void };
 
 // Les lectures des projets sur GitHub : une seule à la fois par projet, reprise par qui la demande tant qu'elle a moins
 // de `fraicheurMs` — les veilles du rail, des faits et de l'amont, lancées ensemble, n'en font qu'une. La dernière
 // lecture réussie de chaque projet est gardée : c'est elle que visent les gestes du rail (actions-github.ts).
-export function holdReadsOfBoard<P extends { nom: string }>(options: { lire: (project: P) => Promise<ReadOfBoardOfRepository>; fraicheurMs: number; maintenant?: () => number }) {
+export function holdReadsOfBoard<P extends { nom: string }>(options: { lire: (project: P) => Promise<ReadOfBoardOfRepository>; fraicheurMs: number; maintenant?: () => number; garde?: KeptReads }) {
   const now = options.maintenant ?? Date.now;
   const freshnessMs = Math.min(options.fraicheurMs, FRESHNESS_MAX_OF_A_READ_MS);
   const readEntries = new Map<string, { a: number; lecture: Promise<ReadOfBoardOfRepository> }>();
@@ -138,7 +142,11 @@ export function holdReadsOfBoard<P extends { nom: string }>(options: { lire: (pr
       const heldOne = readEntries.get(project.nom);
       if (heldOne !== undefined && now() - heldOne.a < freshnessMs) return heldOne.lecture;
       const reading = options.lire(project).then((readOne) => {
-        if (readOne.lu) succeeded.set(project.nom, readOne);
+        // Le rail gardé que rend la pause n'est pas une lecture neuve : ni gardé de nouveau, ni pris pour la dernière lue.
+        if (readOne.lu && readOne.pause === undefined) {
+          succeeded.set(project.nom, readOne);
+          options.garde?.ecrire(project.nom, readOne);
+        }
         return readOne;
       });
       readEntries.set(project.nom, { a: now(), lecture: reading });
@@ -146,7 +154,11 @@ export function holdReadsOfBoard<P extends { nom: string }>(options: { lire: (pr
     },
     // La dernière lecture réussie de ce projet ; rien s'il n'a jamais été lu.
     dernier(name: unknown): BoardRead | undefined {
-      return typeof name === "string" ? succeeded.get(name) : undefined;
+      if (typeof name !== "string") return undefined;
+      // Après un redémarrage, la dernière lecture gardée sur disque (#4620) tient lieu de la dernière lue.
+      const kept = succeeded.get(name) ?? options.garde?.lire(name);
+      if (kept !== undefined && !succeeded.has(name)) succeeded.set(name, kept);
+      return kept;
     },
     // La prochaine lecture va à GitHub, sans reprendre la dernière : « read again », ou un geste posté.
     oublier(): void {

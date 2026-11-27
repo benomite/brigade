@@ -152,7 +152,7 @@ async function principal(): Promise<void> {
   // L'installation : l'installeur rend la main quand il a fini.
   const installe = spawnSync(resolve(installeur), ["/S"], { stdio: "inherit" });
   if (installe.status !== 0) echouer(`the installer exited with ${installe.status ?? installe.error?.message}`);
-  for (const fichier of [EXE, DESINSTALLEUR, join("resources", NODE_EXE), join("resources", "app", "src", "main.ts"), join("resources", "app", "package.json"), join("resources", "runtime", "src", "station", "main.ts")])
+  for (const fichier of [EXE, DESINSTALLEUR, join("resources", NODE_EXE), join("resources", "app", "src", "main.ts"), join("resources", "app", "package.json"), join("resources", "runtime", "src", "kitchen", "main.ts")])
     if (!existsSync(join(dossier, fichier))) echouer(`the installer did not lay ${join(dossier, fichier)}`);
   verifie(`the app is installed in ${dossier}`);
   if (!existsSync(raccourci)) echouer(`the installer wrote no Start menu shortcut (${raccourci})`);

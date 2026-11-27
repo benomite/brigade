@@ -5,7 +5,7 @@
 // - **Sur un Mac**, l'agent launchd `brigade.station` (`~/Library/LaunchAgents/brigade.station.plist`) — celui que pose
 //   l'installeur de docs/installation-station.md, que l'icône de fond connaît déjà (tray-background/system.ts) : il joue
 //   l'hôte (host.ts) par le `node` de l'app. Pas encore chargé, il est chargé, et lance l'hôte ; chargé, il est lancé
-//   s'il ne tourne pas. Un agent posé par l'installeur est laissé tel quel : c'est sa station qui tourne.
+//   s'il ne tourne pas. Un agent posé par l'installeur est laissé tel quel (celui que l'app a écrit, sous l'une de ses marques, est le sien) : c'est sa station qui tourne.
 // - **Sous Windows**, la valeur `brigade-station` de `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` : le binaire
 //   de l'app avec `--station-fond` (tray-background/entry.ts), qui lance l'hôte sans console et s'en va. Le lanceur de
 //   l'installeur présent (`%LOCALAPPDATA%\brigade-station\lancer-station.ps1`), rien n'est écrit.
@@ -25,6 +25,8 @@ const VALUE_RUN = "brigade-station";
 // installée (tray-background/system.ts, `stationDeFondInstallee`), et « Quit the station » arrête son hôte (`station.pid`).
 export const REGISTERED_BY_THE_APP = "inscrite-par-l-app";
 const BRAND = "Written by the brigade app (app/src/station-background/registration.ts)";
+// Ce que l'app écrivait avant le renommage en anglais (#4413) : ces plists sont les siens, ils sont réécrits (#4603).
+const OLD_BRANDS = ["Written by the brigade app (app/src/station-fond/inscription.ts)"];
 
 type Run = (command: string, args: readonly string[]) => Promise<{ code: number | null; sortie: string }>;
 
@@ -102,7 +104,7 @@ export async function registerTheStationOfBackground(s: System): Promise<Registr
     } catch {
       written = undefined;
     }
-    if (written !== undefined && !written.includes(BRAND)) return { par: "installeur" };
+    if (written !== undefined && ![BRAND, ...OLD_BRANDS].some((brand) => written?.includes(brand))) return { par: "installeur" };
     const wanted = plistOfTheStation(s);
     const change = written !== wanted;
     try {

@@ -57,6 +57,4 @@ VER
 echo
 echo "Reste à faire à la main, projet par projet :"
 echo "  · redémarrer les sessions ouvertes (rien ne change à chaud)"
-echo "  · /brigade:sync   là où il y a un miroir Codex"
-echo "  · /brigade:init   si le bloc de bindings ou les settings doivent suivre"
 exit $rc
