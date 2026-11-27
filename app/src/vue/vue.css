@@ -1679,6 +1679,13 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
+/* Les lectures retenues pour le quota GitHub (ticket 4645) : une ligne, dans le jaune de la pause, au-dessus du rail. */
+#rail .pause-github {
+  margin: 0;
+  padding: var(--pas-2) var(--pas-4) 0;
+  font-size: var(--taille-corps);
+  color: var(--jaune);
+}
 /* Une lecture des faits en cours — la première, ou une relecture demandée — : le haut du rail bat doucement, sans
    phrase pour le dire, et s'éteint à la réponse (ticket 1818). Hors ligne ou non, le signe n'y est pour rien. */
 #rail {

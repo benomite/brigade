@@ -158,7 +158,7 @@ import { additionsOfProject as additionsOfRecorded, detailsOf, stateSays, issueO
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
 import { setToolsOfSecond } from "./tools-of-second.js";
 import { NO_STATION } from "./cooks/without-station.js";
-import { sentenceOfPause } from "./cooks/github-pause.js";
+import { setThePause } from "./cooks/github-pause.js";
 import { brandAfter } from "./card-wait/card-wait.js";
 import { waitExhausted, RAIL_NOT_READ } from "./wait-of-rail.js";
 import { AGENTS, MENU, KNOW_HOW, STATIONS } from "./project/menu/menu.js";
@@ -4147,12 +4147,6 @@ function signStale({ raison: reason }, readOne) {
   const saidOne = tellTheRead({ reading: true, readAt: readOne, stale: true, refusal: { kind: "other" } }, { maintenant: Date.now(), pourquoi: reason, panneauVisible: panelAFicher() });
   return setTheRead(document, saidOne);
 }
-// Le rail gardé que rend la pause du budget de GitHub (ticket 4620), un redémarrage compris : l'heure de la lecture montrée, son âge, et
-// l'heure où la lecture reprend.
-/** @param {{ jusqua: string }} pause @param {number | string} readOne */
-function signPause({ jusqua: until }, readOne) {
-  return setTheRead(document, tellTheRead({ reading: true, readAt: readOne, stale: true, refusal: { kind: "rate-limit", resetAt: until } }, { maintenant: Date.now(), panneauVisible: false }));
-}
 // Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
 /** @param {string} since */
 function signOutsideLine(since) {
@@ -4854,7 +4848,7 @@ function setTheRail(project) {
   // tête avec ses cartes et leurs gestes (ticket 2076). Hors ligne, le signe seul, comme pour tout rail (ticket 1818).
   const ofBoard = (held !== undefined && "tableau" in held) || outsideLine !== undefined;
   // Le quota de GitHub retient la lecture, sans rail gardé : ce n'est pas qu'aucune station ne sert le projet.
-  if (!ofBoard && held !== undefined && "pause" in held && held.pause !== undefined && project.sansStation !== true) return rail.replaceChildren(block("h3", sentenceOfPause(held.pause)));
+  if (!ofBoard && held !== undefined && "pause" in held && held.pause !== undefined && project.sansStation !== true) return rail.replaceChildren(setThePause(document, held.pause));
   if (!itselfLit(project) && project.sansStation !== true && !ofBoard) return rail.replaceChildren(block("h3", NO_STATION));
   // Sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
   // Le bon posé pour chaque carte, celles des stations comprises (ticket 1270) : celui de la fiche ouverte y reprend
@@ -5045,14 +5039,16 @@ function setTheRail(project) {
     [
       issueOfTheKitchen === undefined ? [] : withItsAction(lineOfAlerts(document, alerts), `open #${issueOfTheKitchen.ticket}`, () => void openIssue(project, issueOfTheKitchen.ticket)),
       headOfRail(project),
-      rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? signPause(held.pause, held.a) : freshness(held.a)),
+      rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? [] : freshness(held.a)),
     ].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
   // La bande du haut (ticket 4354) : les cartes du supervisor et du closer sur une ligne.
   const bandOfTop = setTheBandOfTop(document, { roles: held.tableau.rolesCuisine, montre: (name) => teamOfProject.agent(project.nom, name) !== undefined, alerte: issueOfTheKitchen?.ticket, maintenant: Date.now(), deplies: unfoldsOf(project.nom) });
   const age = held.publieLe === undefined ? undefined : ageOfRail(held.publieLe, held.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   if (age !== undefined) for (const carrier of [status[0], grid]) if (carrier !== undefined && !carrier.title) carrier.title = age;
-  set(bandOfTop, ...status, grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
+  // Les lectures retenues pour le quota GitHub : une ligne au-dessus du rail, qui part avec la pause.
+  const lineOfPause = held.pause === undefined ? [] : [setThePause(document, held.pause)];
+  set(...lineOfPause, bandOfTop, ...status, grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
   renderTheKeyboard(resumption);
   placeTheRow(project, grid, scrolls);
   if (sameRail) rail.scrollTop = topOfRail;

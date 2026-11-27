@@ -44,8 +44,10 @@ async function open(answers: Answers = {}, served = true): Promise<Played> {
 const PAUSE = { jusqua: "2026-11-27T16:27:00.000Z", restant: 734, total: 5_000 };
 const paused = (minute: number): Drawable => holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(minute), erreur: "The rail of chef/parade is not read until 2026-11-27 16:27 UTC", atteinte: true, cas: null, duTableau: true, pause: PAUSE });
 const receive = (vue: Played, receivedOne: Drawable) => vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });
-const hourOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s[AP]M$/, "");
-const SAYS = "GitHub's hourly quota is almost used up (734 of 5,000 left): the rail is read again at 16:27 UTC";
+const hourOf = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+// La ligne du quota (#4645) : ce qui reste, et l'heure locale où la lecture reprend.
+const SAYS = `GitHub quota: 734 of 5,000 left — reading resumes at ${hourOf(PAUSE.jusqua)}`;
+const linesOfPause = (vue: Played) => vue.element("rail").dessous("p").filter(({ className }) => className === "pause-github").map(({ textContent }) => textContent);
 
 describe("le quota GitHub retient le rail (#4620)", () => {
   for (const served of [true, false]) {
@@ -53,10 +55,16 @@ describe("le quota GitHub retient le rail (#4620)", () => {
       const vue = await open({}, served);
       receive(vue, paused(1));
       const text = vue.element("rail").textContent;
-      assert.ok(text.includes(SAYS), text);
+      assert.deepEqual(linesOfPause(vue), [SAYS]);
       assert.ok(!text.includes(NO_STATION), text);
     });
   }
+
+  test("sans reste connu (un refus sans en-têtes), la ligne dit la pause et l'heure de reprise", async () => {
+    const vue = await open();
+    receive(vue, holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(1), erreur: "paused", atteinte: true, cas: null, duTableau: true, pause: { jusqua: PAUSE.jusqua } }));
+    assert.deepEqual(linesOfPause(vue), [`GitHub quota: reads paused — reading resumes at ${hourOf(PAUSE.jusqua)}`]);
+  });
 });
 
 describe("le dernier rail lu survit au redémarrage (#4620)", () => {
@@ -109,7 +117,12 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
     const rail = vue.element("rail");
     assert.ok(rail.textContent.includes("Le journal en ajout seul"), rail.textContent);
     assert.ok(!rail.textContent.includes(NO_STATION), rail.textContent);
-    const line = rail.dessous("p").filter(({ className }) => className.split(" ").includes("perime")).map(({ textContent }) => textContent.replace(/ read .+ ago$/, " read N ago"));
-    assert.deepEqual(line, [`GitHub limits this account's requests until ${hourOf(PAUSE.jusqua)} — the rail shows the ${hourOf(a(0))} reading · read N ago`]);
+    // Une seule ligne au-dessus du rail dit la pause (#4645) : ce qui reste, l'heure de reprise — rien d'autre ne la redit.
+    assert.deepEqual(linesOfPause(vue), [SAYS]);
+    assert.equal(rail.dessous("p").filter(({ className }) => className.split(" ").includes("perime")).length, 0);
+    // La lecture reprend : la ligne part.
+    receive(vue, holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(28), publieLe: a(28), sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] } as never));
+    assert.deepEqual(linesOfPause(vue), []);
+    assert.ok(vue.element("rail").textContent.includes("Le journal en ajout seul"));
   });
 });
