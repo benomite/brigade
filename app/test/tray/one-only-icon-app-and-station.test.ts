@@ -37,13 +37,13 @@ register("data:text/javascript," + encodeURIComponent('export async function res
 // l'icône (`gestes`, d'après OPS) et dire ce que le Tray a reçu.
 const SETTER = `import { existsSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { creerLIcone, creerSiLibre } from ${JSON.stringify(pathToFileURL(join(APP, "src", "tray", "icon.ts")).href)};
+import { createTheIcon, createIfFree } from ${JSON.stringify(pathToFileURL(join(APP, "src", "tray", "icon.ts")).href)};
 const image = ([largeur, hauteur, octets]) => ({ etiquette: "origine", isEmpty: () => false, getScaleFactors: () => [1], getSize: () => ({ width: largeur, height: hauteur }), toBitmap: () => Buffer.alloc(octets ?? largeur * hauteur * 4) });
 if (process.env.SCENARIO === "gestes") {
   const ops = JSON.parse(process.env.OPS);
   const fichier = join(dirname(process.env.BRIGADE_APP_CONFIG), "icone.pid");
   try {
-    const icone = creerLIcone(image(ops.image), ops.plateforme);
+    const icone = createTheIcon(image(ops.image), ops.plateforme);
     icone.ligne(image(ops.image), { infobulle: "brigade", ligne: "0 cooking · 0 for you", questions: ops.questions });
     icone.menu([{ label: "Open brigade" }]);
     if (ops.autrePid) writeFileSync(fichier, String(process.ppid));
@@ -53,7 +53,7 @@ if (process.env.SCENARIO === "gestes") {
     process.stdout.write("@@" + JSON.stringify({ erreur: erreur.message }) + "\\n");
   }
 } else {
-  process.stdout.write(creerSiLibre(image([16, 16]), "darwin") === undefined ? "yielded\\n" : "created\\n");
+  process.stdout.write(createIfFree(image([16, 16]), "darwin") === undefined ? "yielded\\n" : "created\\n");
   setInterval(() => {}, 60_000);
 }
 `;

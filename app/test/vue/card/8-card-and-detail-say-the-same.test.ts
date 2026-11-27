@@ -38,7 +38,7 @@ const cook = (ticket: number): ActivityOfCook => ({
   lanceLe: "2026-11-23T15:44:00.000Z",
   finiLe: null,
   fin: null,
-  maintenant: { fait: "writing", faitEn: "writing", cible: "app/src/slip.ts", depuis: "2026-11-23T15:44:40.000Z" },
+  maintenant: { fait: "writing", faitEn: "writing", cible: "app/src/bon.ts", depuis: "2026-11-23T15:44:40.000Z" },
   etapes: [],
   tours: 3,
   tokens: 1000,

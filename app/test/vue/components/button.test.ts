@@ -81,7 +81,7 @@ describe("sa feuille", () => {
     assert.equal(declarations(SHEET, "[data-bouton]").get("min-height"), "32px");
     assert.equal(declarations(SHEET, '[data-bouton][data-taille="grand"],\n[data-boutons="grands"] [data-bouton]').get("min-height"), "44px");
     // Le même seuil que la page étroite de la vue (ECRAN_ETROIT, vue.js).
-    const threshold = /const ECRAN_ETROIT = "([^"]+)"/.exec(readFileSync(join(VUE, "vue.js"), "utf8"))?.[1];
+    const threshold = /const SCREEN_NARROW = "([^"]+)"/.exec(readFileSync(join(VUE, "vue.js"), "utf8"))?.[1];
     assert.equal(threshold, "(max-width: 720px)");
     const narrow = SHEET.slice(SHEET.indexOf(`@media ${threshold}`));
     assert.ok(narrow.length < SHEET.length, "pas de page étroite dans la feuille du bouton");

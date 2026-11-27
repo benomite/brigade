@@ -44,7 +44,7 @@ export const WORDS = {
   inconnu: (/** @type {string} */ raw) => `“${raw}” — an engine this app does not know`,
 };
 
-/** @param {unknown} key @returns {cle is Engine} */
+/** @param {unknown} key @returns {key is Engine} */
 export const isOneEngine = (key) => ENGINES.some((engine) => engine.cle === key);
 
 /** @param {string} key */

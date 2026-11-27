@@ -48,8 +48,8 @@ async function until(condition: () => boolean, what: () => string): Promise<void
 // tests ci-dessous y sont sautés — encore faut-il que ce fichier s'y charge.
 test("là où node-pty n'est pas livré compilé, le module du pty se charge quand même, et dit le pty indisponible", () => {
   const load = `Object.defineProperty(process, "platform", { value: "linux" });
-    const { ptyDisponible } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, "../src/pty.ts")).href)});
-    console.log("disponible :", ptyDisponible);`;
+    const { ptyAvailable } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, "../src/pty.ts")).href)});
+    console.log("disponible :", ptyAvailable);`;
 
   assert.equal(execFileSync(process.execPath, ["--input-type=module", "-e", load], { encoding: "utf8" }), "disponible : false\n");
 });

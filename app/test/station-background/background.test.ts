@@ -198,8 +198,8 @@ test("l'appairage passe par l'app : la station demande son code, l'app le tape e
 
 test("l'app tient la station de cet ordinateur par la station de fond, et en quittant cesse seulement de la regarder", () => {
   const main = readFileSync(join(import.meta.dirname, "../../src/main.ts"), "utf8");
-  assert.match(main, /const stationLocale =\n {2}role\.role === "station" && !installeeAuLancement\n {4}\? tenirLaStationDeFond\(/);
-  assert.match(main, /lancer: \(\) => lancerLeFond\(/);
+  assert.match(main, /const stationLocale =\n {2}role\.role === "station" && !installedAtLaunch\n {4}\? holdTheStationOfBackground\(/);
+  assert.match(main, /lancer: \(\) => launchTheBackground\(/);
   const quit = main.slice(main.indexOf('app.on("will-quit"'));
   assert.match(quit, /stationLocale\?\.fermer\(\);/);
   assert.doesNotMatch(main, /stationLocale\?\.arreter\(\)|tenirProcessDeStation/);

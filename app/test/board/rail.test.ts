@@ -344,17 +344,17 @@ test("aucun chemin qui dessine le rail ne lance de processus : ses veilles lisen
   for (const module of ["app/src/board/rail.ts", "app/src/board/read.ts", "app/src/board/todo-github.ts", "app/src/actions-github.ts"]) {
     const imported = graph(module);
     assert.ok(!imported.includes("node:child_process"), `${module} : ${imported.join(", ")}`);
-    assert.ok(!imported.some((path) => /app\/src\/(box|terminaux|pty)\.ts$/.test(path)), `${module} : ${imported.join(", ")}`);
+    assert.ok(!imported.some((path) => /app\/src\/(box|terminals|pty)\.ts$/.test(path)), `${module} : ${imported.join(", ")}`);
   }
   // Dans le process principal, les trois veilles qui dessinent le rail — `status`, les faits, l'amont — sont celles de
   // GitHub : aucune ne lance de processus.
   const main = readFileSync(join(ROOT, "app/src/main.ts"), "utf8");
-  for (const standby of ["veille", "veilleDesFaits", "veilleDeLAmont"]) {
+  for (const standby of ["standby", "factsWatch", "standbyOfTheUpstream"]) {
     const declaration = new RegExp(`^const ${standby} = (\\w+)\\(\\{([\\s\\S]*?)^\\}\\);`, "m").exec(main);
-    assert.equal(declaration?.[1], "ouvrirVeilleDuTableau", standby);
+    assert.equal(declaration?.[1], "openStandbyOfBoard", standby);
   }
   // Les gestes du rail qui ont un fait sur GitHub visent la dernière lecture réussie ; seule la carte du chef lue de GitHub
   // se répond, sur son issue (#2434) — toute autre carte ne part pas.
-  assert.match(main, /ipcMain\.handle\("gesteDeFiche"[\s\S]*?retirerLeLabel\(tableaux\.dernier/);
-  assert.match(main, /ipcMain\.handle\("repondreCarte"[\s\S]*?if \(chef === undefined\) return \{ refus: SANS_FAIT\.carte[\s\S]*?repondreSurGithub\(/);
+  assert.match(main, /ipcMain\.handle\("gesteDeFiche"[\s\S]*?removeTheLabel\(boards\.dernier/);
+  assert.match(main, /ipcMain\.handle\("repondreCarte"[\s\S]*?if \(chef === undefined\) return \{ refus: WITHOUT_DONE\.carte[\s\S]*?answerOnGithub\(/);
 });

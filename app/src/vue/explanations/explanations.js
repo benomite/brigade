@@ -74,7 +74,7 @@ export const WORDS = {
 
 /** @param {unknown} error */
 const message = (error) => (error instanceof Error ? error.message : String(error));
-/** @param {unknown} words @returns {mots is Word[]} */
+/** @param {unknown} words @returns {words is Word[]} */
 const areOfWords = (words) => Array.isArray(words) && words.every((word) => WORDS_EXPLAINED.includes(word));
 
 // Ce qu'une écriture a rendu, lu : les mots vus, ou un refus — toute autre réponse est un refus, jamais un registre deviné.

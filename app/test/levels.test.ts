@@ -21,7 +21,7 @@ function requests(): Map<string, string[]> {
       const path = join(folder, entry.name);
       if (entry.isDirectory()) read(path);
       else if (entry.name.endsWith(".js") && entry.name !== "levels.js") {
-        for (const [, keyOf, keySection] of readFileSync(path, "utf8").matchAll(/(?:niveauDe\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)|contexte\.niveau\("([^"]+)"\)/g)) { const key = keyOf ?? keySection ?? ""; rendered.set(key, [...(rendered.get(key) ?? []), entry.name]); }
+        for (const [, keyOf, keySection] of readFileSync(path, "utf8").matchAll(/(?:levelOf\([^,()]+|avecNiveau\(\w+\([^()]*\)),\s*"([^"]+)"\)|context\.niveau\("([^"]+)"\)/g)) { const key = keyOf ?? keySection ?? ""; rendered.set(key, [...(rendered.get(key) ?? []), entry.name]); }
       }
     }
   };

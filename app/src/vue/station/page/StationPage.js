@@ -2,7 +2,7 @@
 // La page d'une station (ticket 2641, épique 2497) : la coque qui pose ses sections, dans cet ordre — son identité, ses
 // connexions, ses dossiers et son bac à sable, ses capacités, ses cooks, son moteur —, chacune sous son titre. vue.js la monte sur
 // la page d'une station, à son ouverture. Chaque section est un module de `sections/`, nommé dans SECTIONS, qui exporte
-// `poserSection(doc, contexte)` et rend un élément (ou sa promesse). Une section n'est chargée que lorsque son fichier
+// `setSection(doc, contexte)` et rend un élément (ou sa promesse). Une section n'est chargée que lorsque son fichier
 // est déclaré dans LIVREES : tant qu'il ne l'est pas, la coque pose son titre et une ligne qui dit qu'elle n'est pas
 // encore là, sans demander de fichier absent. Une section livrée qui ne se charge pas, ou qui lève en se posant, dit en
 // une ligne qu'elle est indisponible, son détail au survol ; les autres sections se posent quand même.
@@ -27,7 +27,7 @@ import { NOT_REACHED } from "../../lexicon.js";
  * @typedef {{ station: StationOpen, ici: boolean, lectureSeule: boolean, niveau(key: string): any, reglages?: Port, connexions?: import("./sections/connections.js").Connections }} Context
  */
 /** @typedef {import("./sections/folders-and-sandbox.js").Port} Port */
-/** @typedef {{ poserSection(doc: Fabrique, context: Context): any }} Section */
+/** @typedef {{ setSection(doc: Fabrique, context: Context): any }} Section */
 /** @typedef {(file: string) => Promise<Partial<Section>> | undefined} Load */
 
 // Les sections, dans leur ordre sur la page : leur fichier sous `sections/` et leur titre.
@@ -43,9 +43,14 @@ export const SECTIONS = /** @type {const} */ ([
 // Les sections dont le fichier est livré sous `sections/` : le ticket qui livre une section y ajoute son nom.
 /** @type {ReadonlySet<string>} */
 export const DELIVERED = new Set(["dossiers-et-bac-a-sable", "connexions", "moteur"]);
-// Une section livrée hors de `sections/` : son module, par son nom (le moteur, ticket 3746, sous `moteur/`).
+// Une section dont le module n'est pas `sections/<son nom>.js` : son module, par son nom (le moteur, ticket 3746, sous
+// `engine/` ; les fichiers renommés en anglais par le ticket 4413, dont le nom de section reste celui de la page).
 /** @type {Readonly<Record<string, string>>} */
-const ELSEWHERE = { moteur: "../../engine/EngineSection.js" };
+const ELSEWHERE = {
+  moteur: "../../engine/EngineSection.js",
+  "dossiers-et-bac-a-sable": "./sections/folders-and-sandbox.js",
+  connexions: "./sections/connections.js",
+};
 
 export const NOT_STILL = "not shown yet";
 export const UNAVAILABLE = NOT_REACHED("this section");
@@ -102,8 +107,8 @@ async function setOneSection(doc, { fichier: file, titre: title }, context, load
       return root;
     }
     const module = await loaded;
-    if (typeof module?.poserSection !== "function") throw new Error(`sections/${file}.js exports no poserSection`);
-    root.append(await module.poserSection(doc, context));
+    if (typeof module?.setSection !== "function") throw new Error(`sections/${file}.js exports no setSection`);
+    root.append(await module.setSection(doc, context));
   } catch (error) {
     root.append(lineError(doc, UNAVAILABLE, error instanceof Error ? error.message : String(error)));
   }

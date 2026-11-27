@@ -701,7 +701,7 @@ describe("le second reste local, sans multiplexeur, et sa conversation reprend �
   });
 
   test("le second n'est pas une machine de « + shell » : seules les cibles de shells y sont proposées", async () => {
-    const { machinesDe: machinesOf } = await import("../src/machines.ts");
+    const { machinesOf } = await import("../src/machines.ts");
     const machines = machinesOf();
 
     assert.ok(machines.length > 0);

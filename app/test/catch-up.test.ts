@@ -159,9 +159,9 @@ describe("à l'ouverture, `npm start` passe d'abord à la nouvelle version", () 
   test("le lancement met à jour avant de poser quoi que ce soit, et ne s'arrête pas sur une mise à jour ratée", () => {
     const source = readFileSync(join(import.meta.dirname, "../src/launch.ts"), "utf8");
     const principal = source.slice(source.indexOf("if (import.meta.main)"));
-    assert.ok(principal.indexOf("rattraper(") > 0 && principal.indexOf("rattraper(") < principal.indexOf("preparer("), "le lancement ne met plus à jour avant de poser les dépendances");
+    assert.ok(principal.indexOf("catchUp(") > 0 && principal.indexOf("catchUp(") < principal.indexOf("prepare("), "le lancement ne met plus à jour avant de poser les dépendances");
     // Ce qui rend le code de sortie, c'est la pose : la mise à jour ne fait que dire.
-    assert.match(principal, /process\.exitCode = preparer\(/);
+    assert.match(principal, /process\.exitCode = prepare\(/);
   });
 
   test("joué par Node seul, avant toute dépendance : de launch.ts, rien ne s'importe hors de Node", () => {

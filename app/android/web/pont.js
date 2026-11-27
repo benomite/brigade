@@ -225,12 +225,12 @@ async function laLectureGitHub() {
   const connexion = await connexionGardee();
   if (connexion === undefined) return undefined;
   lectureGitHub ??= Promise.resolve()
-    .then(() => Promise.all([import(new URL("../lecture-github-telephone.js", window.location.href).href), import(new URL("../gestes-github-telephone.js", window.location.href).href)]))
-    .then(([{ ouvrirLaLectureGitHub, parCapacitor }, { ecritureParCapacitor }]) => {
-      const ouverte = ouvrirLaLectureGitHub({
+    .then(() => Promise.all([import(new URL("../read-github-phone.js", window.location.href).href), import(new URL("../actions-github-phone.js", window.location.href).href)]))
+    .then(([{ openTheReadGitHub, parCapacitor }, { writingParCapacitor }]) => {
+      const ouverte = openTheReadGitHub({
         jeton: jetonDuCoffre,
         envoyer: parCapacitor((/** @type {Record<string, unknown>} */ demande) => natif("CapacitorHttp", "request", { ...demande, connectTimeout: DELAI_MS, readTimeout: DELAI_MS })),
-        ecrire: ecritureParCapacitor((/** @type {Record<string, unknown>} */ demande) => natif("CapacitorHttp", "request", { ...demande, connectTimeout: DELAI_MS, readTimeout: DELAI_D_ECRITURE_MS })),
+        ecrire: writingParCapacitor((/** @type {Record<string, unknown>} */ demande) => natif("CapacitorHttp", "request", { ...demande, connectTimeout: DELAI_MS, readTimeout: DELAI_D_ECRITURE_MS })),
         dire,
         compte: connexion.compte,
         connus: projetsGardes(CLE_DES_PROJETS_GITHUB),
@@ -259,7 +259,7 @@ const avecLesGestes = async (faire, sans) => {
 };
 // Les notifications des cartes de TODO (le ticket 2747). Le sondage qui les montre est celui d'Android, toutes les quinze
 // minutes, app ouverte ou non (SondeWorker.java, android/sonde.html) ; ici, ce qui tient à l'app ouverte :
-//   - répondre à une carte retire sa notification (app/src/notifications-todo.ts, `carteRepondue`), sur la mémoire que le
+//   - répondre à une carte retire sa notification (app/src/notifications-todo.ts, `cardAnswered`), sur la mémoire que le
 //     natif garde (Pont.java) ;
 //   - toucher une notification ouvre la carte : le natif garde la carte touchée (`carteDemandee`), et la vue en est
 //     prévenue par `surOuvrirCarte`, au démarrage, à chaque retour de l'app au premier plan et quand le natif le dit.
@@ -267,8 +267,8 @@ const avecLesGestes = async (faire, sans) => {
 async function retirerLaNotification(projet, ticket) {
   try {
     // À côté de la vue (src/vue/index.html), comme la lecture : `src/notifications-todo.js`.
-    const { carteRepondue } = await import(new URL("../notifications-todo.js", window.location.href).href);
-    await carteRepondue(
+    const { cardAnswered } = await import(new URL("../notifications-todo.js", window.location.href).href);
+    await cardAnswered(
       {
         memoire: { lire: async () => JSON.parse((await natif("Pont", "gardees", {})).valeur || "{}"), ecrire: (/** @type {unknown} */ notifiees) => natif("Pont", "garder", { valeur: JSON.stringify(notifiees) }) },
         notifier: { montrer: async () => undefined, retirer: (/** @type {number} */ id) => natif("Pont", "retirer", { id }) },

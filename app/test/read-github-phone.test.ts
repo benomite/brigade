@@ -311,8 +311,8 @@ describe("ce que le téléphone envoie et lit de GitHub", () => {
     const www = mkdtempSync(join(tmpdir(), "lecture-github-telephone-"));
     t.after(() => rmSync(www, { recursive: true, force: true }));
     poserLesModules(www, APP, join(APP, "src", "read-github-phone.ts"));
-    const load = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "lecture-github-telephone.js")).href], { encoding: "utf8" });
-    assert.equal(load.stdout.trim(), "INTERVALLE_MS lireLesProjetsDuCompte ouvrirLaLectureGitHub parCapacitor", load.stderr);
+    const load = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "src", "read-github-phone.js")).href], { encoding: "utf8" });
+    assert.equal(load.stdout.trim(), "INTERVAL_MS openTheReadGitHub parCapacitor readTheProjectsOfAccount", load.stderr);
   });
 });
 

@@ -59,7 +59,7 @@ const FACTS: Facts = {
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 1 },
   dernierEvenement: null,
   rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "écrit", faitEn: "writing", cible: "app/src/slip.ts", depuis: "2026-10-13T10:02:11.000Z" } },
+    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "écrit", faitEn: "writing", cible: "app/src/bon.ts", depuis: "2026-10-13T10:02:11.000Z" } },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
     { ticket: 22, etat: "en attente", titre: "Un ticket libre", url: "https://github.com/benomite/brigade/issues/22", activite: null },
     { ticket: 30, etat: "en pass", titre: "La pass verte", url: "https://github.com/benomite/brigade/issues/30", activite: { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: "2026-10-13T10:03:41.000Z" } },
@@ -365,7 +365,7 @@ describe("une carte porte ce que la file dit", () => {
     receive(vue);
 
     // Sur la carte : une ligne, rien de ce qui ne change pas ce que le chef fait.
-    assert.equal(lineOf(slipOf(vue, 14)), "writing app/src/slip.ts · 2 min ago");
+    assert.equal(lineOf(slipOf(vue, 14)), "writing app/src/bon.ts · 2 min ago");
     assert.equal(lineOf(slipOf(vue, 30)), "running the gates · 30 s ago");
     assert.ok((lineOf(slipOf(vue, 12)) ?? "") !== "");
     // Aucune carte ne dit le français du geste — « thinking · N s ago » est, depuis #3923, ce que dit un cook qui réfléchit.

@@ -38,7 +38,7 @@ describe("la phrase de chaque état d'une carte (#622)", () => {
   test("au travail : ce que le cook fait, et depuis combien de temps", () => {
     assert.deepEqual(sentence(of(FACTS, 1)), { ligne: "writing the tests · 12 min ago" });
     assert.deepEqual(lineAtWork({ faitEn: "reading", cible: "runtime/src/etat.ts" }, "3 min"), { ligne: "reading runtime/src/etat.ts · 3 min ago" });
-    assert.deepEqual(lineAtWork({ faitEn: "writing", cible: "app/src/slip.ts" }, "2 s"), { ligne: "writing app/src/slip.ts · 2 s ago" });
+    assert.deepEqual(lineAtWork({ faitEn: "writing", cible: "app/src/bon.ts" }, "2 s"), { ligne: "writing app/src/bon.ts · 2 s ago" });
     assert.deepEqual(lineAtWork({ faitEn: "running a command", cible: null }, "5 s"), { ligne: "running a command · 5 s ago" });
     // Un cook qui réfléchit le dit lui aussi, avec son âge (ticket 3923) : la carte dit ce que fait son cook.
     assert.deepEqual(lineAtWork({ faitEn: "thinking", cible: null }, "2 s"), { ligne: "thinking · 2 s ago" });

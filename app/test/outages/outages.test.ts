@@ -143,7 +143,7 @@ test("aucun message de panne n'affiche une commande de terminal : les trois cas,
           },
           stationLocale: () => (locale ? "g1" : null),
           login: async () => {
-            const { LANCE: LAUNCHES } = await import("../../src/outages/login.ts");
+            const { LAUNCHES } = await import("../../src/outages/login.ts");
             return { fait: LAUNCHES };
           },
         };

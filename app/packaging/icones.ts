@@ -72,7 +72,7 @@ writeFileSync(join(sortie, "Brigade-1024.png"), png(icone, 1024));
 // L'icône de la barre des menus et de la zone de notification (src/menu-bar.ts, #3269) : dans `src/`, que les
 // deux paquets livrent ; 16 px et sa version @2x, qu'Electron prend sur un écran Retina.
 writeFileSync(join(ici, "..", "src", "icons", "menu-bar.png"), png(icone, 16));
-writeFileSync(join(ici, "..", "src", "icons", "bar-of-menus@2x.png"), png(icone, 32));
+writeFileSync(join(ici, "..", "src", "icons", "menu-bar@2x.png"), png(icone, 32));
 // L'icône du Dock sous `npm start`, avec la marge de la grille Mac.
 writeFileSync(join(sortie, "Brigade-dock-1024.png"), png(iconeMac, 1024));
 

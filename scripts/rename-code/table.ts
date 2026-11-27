@@ -66,6 +66,8 @@ export const PATHS: Record<string, string> = {
   "app/src/vue/accueil/station/BlocDeLaStation.js": "StationBlock.js",
   "app/src/vue/station/page/NoteSurPlace.js": "OnSiteNote.js",
   "app/src/vue/projet/stations/StationLocale.js": "LocalStation.js",
+  // `menus@2x` is one piece, which the sequence `barre de menus` does not match.
+  "app/src/icones/barre-de-menus@2x.png": "menu-bar@2x.png",
   "app/src/gestes-fiche.ts": "card-actions.ts",
   "app/test/gestes-fiche.test.ts": "card-actions.test.ts",
   "app/test/ecrans-restants.test.ts": "remaining-screens.test.ts",

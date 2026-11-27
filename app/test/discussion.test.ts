@@ -296,8 +296,8 @@ describe("demander au second depuis la fiche : `/brigade:ask <ticket> ` écrit d
     assert.equal(askAtSecond.length, 3);
     // Le canal du process principal n'appelle que lui : ni l'accès GitHub de l'app, ni le rail lu.
     const channel = /ipcMain\.handle\("demanderAuSecond"[\s\S]*?\n\}\);/.exec(readFileSync(join(ROOT, "app/src/main.ts"), "utf8"))?.[0] ?? assert.fail("pas de canal « demanderAuSecond »");
-    assert.match(channel, /demanderAuSecond\(\(commande\) => terminaux\.inscrire\(vise, commande, noteDeLaQuestion\), vise, ticket\)/);
-    assert.doesNotMatch(channel, /commenterLIssue|clientDesLabels|tableaux|brigade ask/);
+    assert.match(channel, /askAtSecond\(\(command\) => terminals\.inscrire\(aims, command, noteOfTheQuestion\), aims, ticket\)/);
+    assert.doesNotMatch(channel, /commentTheIssue|clientDesLabels|tableaux|brigade ask/);
   });
 
   test("ni ticket, ni projet qui s'ouvre : rien n'est écrit, et pourquoi est dit", () => {
