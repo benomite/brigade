@@ -65,6 +65,19 @@ describe("sous Linux", { skip: sansSystemd }, () => {
   };
   // `gh` sous le compte brigade : connecté ou non.
   const runuser = (connecte: boolean) => (connecte ? "exit 0" : 'case "$*" in *"gh auth status"*) exit 1 ;; esac');
+  // Le node du paquet et son étape de connexion Max : une doublure qui note son appel.
+  function paquetPose(t: TestContext, appels: string, { code = 0, etape = true } = {}): string {
+    const lib = repertoireTemporaire(t);
+    mkdirSync(join(lib, "node/bin"), { recursive: true });
+    writeFileSync(join(lib, "node/bin/node"), `#!/bin/sh\necho "node $*" >>"${appels}"\nexit ${code}\n`);
+    chmodSync(join(lib, "node/bin/node"), 0o755);
+    if (etape) {
+      mkdirSync(join(lib, "runtime/src/connexion-max"), { recursive: true });
+      writeFileSync(join(lib, "runtime/src/connexion-max/connecter-cli.ts"), "// l'étape de connexion Max\n");
+    }
+    return lib;
+  }
+
   test("sans argument : le paquet de la dernière version publiée, pour l'architecture de la machine, remis à apt", (t) => {
     const machine = doublures(t, debian);
     const rendu = jouer([], machine.env);
@@ -125,36 +138,66 @@ describe("sous Linux", { skip: sansSystemd }, () => {
     assert.deepEqual(machine.appels().filter((a) => a.startsWith("systemctl")), []);
   });
 
-  test("devant un terminal : la connexion GitHub sous le compte brigade — et rien d'autre ne se demande", (t) => {
+  test("devant un terminal : la connexion GitHub sous le compte brigade, puis la connexion Max — et rien d'autre ne se demande", (t) => {
     const machine = doublures(t, { ...debian, runuser: runuser(false) });
-    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t) });
+    const lib = paquetPose(t, join(machine.bin, "appels"));
+    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t), BRIGADE_STATION_LIB: lib });
     assert.equal(rendu.code, 0, rendu.sortie);
     const compte = "runuser -u brigade -- env -i HOME=/home/brigade PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8";
     assert.deepEqual(
-      machine.appels().filter((a) => a.startsWith("runuser")),
-      [`${compte} gh auth status --hostname github.com`, `${compte} gh auth login --hostname github.com --web --git-protocol https`, `${compte} gh auth setup-git`],
+      machine.appels().filter((a) => a.startsWith("runuser") || a.startsWith("node")),
+      [
+        `${compte} gh auth status --hostname github.com`,
+        `${compte} gh auth login --hostname github.com --web --git-protocol https`,
+        `${compte} gh auth setup-git`,
+        `node ${lib}/runtime/src/connexion-max/connecter-cli.ts`,
+      ],
     );
-    assert.match(rendu.sortie, /la station est connectée à GitHub — la connexion Max se fait à la main/);
+    assert.match(rendu.sortie, /la station est connectée à GitHub et à Claude/);
   });
 
   test("rejouée sur une station installée et connectée : rien ne se redemande, et la station reste active", (t) => {
     const machine = doublures(t, { ...debian, runuser: runuser(true) });
-    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t) });
+    const lib = paquetPose(t, join(machine.bin, "appels"));
+    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t), BRIGADE_STATION_LIB: lib });
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = machine.appels();
     assert.ok(!appels.some((a) => a.includes("gh auth login")), appels.join("\n"));
     assert.ok(appels.some((a) => a.endsWith("gh auth setup-git")), appels.join("\n"));
+    // L'étape Max ne refait pas un jeton déjà rangé (connexion-max/connecter-cli.ts).
+    assert.ok(appels.some((a) => a.startsWith("node ")), appels.join("\n"));
     assert.ok(!appels.some((a) => /^systemctl (stop|restart|disable)/.test(a)), appels.join("\n"));
     assert.match(rendu.sortie, /GitHub : déjà connecté — rien à refaire/);
   });
 
-  test("une connexion GitHub ratée est dite", (t) => {
+  test("une connexion GitHub ratée est dite, et la connexion Max n'est pas tentée", (t) => {
     const machine = doublures(t, { ...debian, runuser: 'case "$*" in *"gh auth status"* | *"gh auth login"*) exit 1 ;; esac' });
-    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t) });
+    const lib = paquetPose(t, join(machine.bin, "appels"));
+    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t), BRIGADE_STATION_LIB: lib });
     assert.equal(rendu.code, 1);
     assert.match(rendu.sortie, /la station est installée, mais sa connexion GitHub n'est pas faite.*relance la même commande/);
+    assert.deepEqual(machine.appels().filter((a) => a.startsWith("node")), []);
   });
 
+  test("une connexion Max ratée est dite, avec de quoi la reprendre : rejouer la même commande", (t) => {
+    const machine = doublures(t, { ...debian, runuser: runuser(true) });
+    const lib = paquetPose(t, join(machine.bin, "appels"), { code: 1 });
+    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t), BRIGADE_STATION_LIB: lib });
+    assert.equal(rendu.code, 1);
+    assert.match(rendu.sortie, /la station est installée, mais sa connexion Max n'est pas faite.*relance la même commande pour la reprendre/);
+    assert.deepEqual(machine.appels().filter((a) => a.startsWith("node")), [`node ${lib}/runtime/src/connexion-max/connecter-cli.ts`]);
+    assert.doesNotMatch(rendu.sortie, /la station est connectée à GitHub et à Claude/);
+  });
+
+  test("un paquet sans l'étape de connexion Max le dit, sans rien lancer, et dit de rejouer la même commande", (t) => {
+    const machine = doublures(t, { ...debian, runuser: runuser(true) });
+    const lib = paquetPose(t, join(machine.bin, "appels"), { etape: false });
+    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t), BRIGADE_STATION_LIB: lib });
+    assert.equal(rendu.code, 1);
+    assert.match(rendu.sortie, new RegExp(`la station est installée, mais l'étape de sa connexion Max manque au paquet \\(${lib}/runtime/src/connexion-max/connecter-cli\\.ts\\).*relance la même commande`));
+    assert.deepEqual(machine.appels().filter((a) => a.startsWith("node")), []);
+    assert.doesNotMatch(rendu.sortie, /la station est connectée à GitHub et à Claude/);
+  });
 });
 
 describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh through `sh` on a fake macOS whose uname, curl and launchctl are #!/bin/sh doubles first in a PATH joined with “:”, and runs the #!/bin/sh node it installs: on Windows that PATH is one unknown directory, so neither `sh` nor the doubles are found, and the node stand-in cannot be launched") }, () => {

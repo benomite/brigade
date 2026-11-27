@@ -29,12 +29,15 @@ dependency. Design and reasons: [`2026-11-26-agents-in-prompts.md`](../superpowe
 the kitchen needs lives in its own module (`bac-a-sable/kitchen-launch.ts`, `bac-a-sable/kitchen-sandbox.ts`,
 `porte-journal.ts`), and the kitchen only calls it.
 
-The rest of `runtime/src` is only what the kitchen imports, directly or not, and the programs the kitchen launches beside it. `runtime/test/kitchen/fermeture-des-imports.test.ts` fails when a
-file of `runtime/src` is not reached from `kitchen/main.ts` (by an import, a `new URL("./x.ts", import.meta.url)` or a quoted sibling name):
+The rest of `runtime/src` is only what the kitchen imports, directly or not, and the programs the kitchen, the package's systemd units and `installer-station.sh` launch beside it. `runtime/test/kitchen/fermeture-des-imports.test.ts` fails when a
+file of `runtime/src` is not reached from `kitchen/main.ts`, an `ExecStart` of `runtime/paquet/systemd/` or the installer's Max connection (by an import, a `new URL("./x.ts", import.meta.url)` or a quoted sibling name):
 
 | Entry point | Launched by |
 |---|---|
 | `relais.ts`, `moteur/codex-en-flux.ts` | the kitchen, for each agent |
+| `station/tenir-portes.ts` | `brigade-station-porte.service`: the station's network gates |
+| `mise-a-jour/main.ts` | `brigade-station-mise-a-jour.timer`: the station's update |
+| `connexion-max/connecter-cli.ts` | `installer-station.sh`, under Linux: the Max connection of the station's account |
 | `garde-cook/crochet.ts`, `bac-a-sable/crochet-bash.ts`, `bac-a-sable/crochet-brigade.ts` | the agent's hooks, through its settings |
 
 ## Declaring a project

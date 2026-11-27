@@ -57,7 +57,7 @@ const DEPENDANCES = ["adduser", "ca-certificates", "git", "gh", "bubblewrap", "l
 // L'architecture Debian de chaque architecture de `node`.
 const ARCHITECTURES: Record<string, string> = { x64: "amd64", arm64: "arm64" };
 
-const UNITES = ["brigade-station.service"];
+const UNITES = ["brigade-station.service", "brigade-station-porte.service", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"];
 
 function refuser(motif: string): never {
   console.error(`brigade : paquet non construit — ${motif}`);
@@ -169,6 +169,12 @@ try {
   for (const prompt of readdirSync(join(RACINE, "agents", "kitchen"))) poser(join(RACINE, "agents", "kitchen", prompt), join(runtime, "agents", "kitchen", prompt), 0o644);
   poser(node, dans(INSTALLATION.slice(1), "node", "bin", "node"), 0o755);
   for (const unite of UNITES) poser(join(ICI, "systemd", unite), dans("usr", "lib", "systemd", "system", unite), 0o644);
+  // La source de la mise à jour : le dépôt qui publie ce paquet.
+  const miseAJour = dans("usr", "lib", "systemd", "system", "brigade-station-mise-a-jour.service");
+  const ancre = "Environment=BRIGADE_STATION_DIR=/var/lib/brigade\n";
+  const unite = readFileSync(miseAJour, "utf8");
+  if (!unite.includes(ancre)) echouer("l'unité de mise à jour ne porte plus la ligne BRIGADE_STATION_DIR : la source des versions n'a nulle part où se poser");
+  writeFileSync(miseAJour, unite.replace(ancre, `${ancre}Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:${depotPublie}\n`));
   poser(join(RACINE, "LICENSE"), dans("usr", "share", "doc", PAQUET, "copyright"), 0o644);
 
   // Des droits qui ne dépendent ni du masque de la machine ni du clone.

@@ -12,6 +12,8 @@ import { attendrePorteDeLaStation, ecrirePortes, lirePortes, tenirPortes } from 
 import { jusqua, lancer, repertoireTemporaire } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
+const TENIR = join(import.meta.dirname, "../../src/station/tenir-portes.ts");
+
 const ecouter = (serveur: Server) => new Promise<number>((resoudre) => serveur.listen(0, "127.0.0.1", () => resoudre((serveur.address() as AddressInfo).port)));
 
 // Un « extérieur » qui accepte tout et ne dit rien.
@@ -149,6 +151,27 @@ describe("les portes de la station", { concurrency: 4 }, () => {
     assert.deepEqual([apres.station, apres.projets.calcul], [avant.station, avant.projets.calcul]);
     assert.notEqual(apres.projets.espace, pris);
     assert.ok(troisiemes.lignes.includes(`brigade [espace] : le port ${pris} de sa porte est pris (EADDRINUSE) : elle en prend un autre`), troisiemes.lignes.join("\n"));
+  });
+
+  test("le process des portes, tel que son unité le lance : il écrit ses ports, relit sa configuration, et se ferme sur SIGTERM ; sans fichier des ports, il refuse de démarrer", { skip: posixOnly("runs the doors process as its unit does and expects it to write its ports, reread its configuration on SIGHUP, close on SIGTERM and refuse to start without a ports file; Windows cannot send SIGHUP, and kill('SIGTERM') ends the process before its handler runs") }, async (t) => {
+    const { racine, fichier, configurer } = uneStation(t, { calcul: [], espace: [] });
+    configurer(["calcul"]);
+    const tenues = lancer(t, TENIR, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });
+    await tenues.attendre("portes de la station ouvertes");
+    assert.match(tenues.sortie(), new RegExp(`portes de la station ouvertes — pid ${tenues.process.pid}, ports écrits dans ${fichier} ; 1 projet : calcul`));
+    assert.deepEqual(Object.keys(lirePortes(fichier).projets), ["calcul"]);
+    configurer(["calcul", "espace"]);
+    tenues.process.kill("SIGHUP");
+    await jusqua(() => "espace" in lirePortes(fichier).projets);
+    tenues.process.kill("SIGTERM");
+    assert.equal(await tenues.fin, 0);
+    assert.match(tenues.sortie(), /portes de la station fermées \(SIGTERM\)/);
+    // Les ports restent écrits : relancées, les portes les reprennent.
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(fichier, "utf8")).projets), ["calcul", "espace"]);
+
+    const sans = lancer(t, TENIR, [], { BRIGADE_STATION_DIR: racine });
+    assert.equal(await sans.fin, 2);
+    assert.match(sans.sortie(), /les portes de la station refusent de démarrer — BRIGADE_STATION_PORTES n'est pas défini/);
   });
 });
 

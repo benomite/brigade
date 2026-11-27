@@ -15,7 +15,7 @@
 #
 # **Linux** (Debian, Ubuntu, ou un dérivé, avec systemd). La commande télécharge
 # le paquet brigade-station et le remet à apt — qui pose ses dépendances, ses
-# unités (le service), crée le
+# unités (le service, ses portes, son renouvellement, sa mise à jour), crée le
 # compte brigade et démarre brigade-station.service. Hors root, elle passe par
 # sudo pour ces gestes-là, et seulement pour eux. Elle attend que la station
 # soit active et le dit.
@@ -32,18 +32,18 @@
 # répertoire que celle de l'app (~/.config/brigade/station) : une seule tourne
 # à la fois, l'autre attend qu'elle s'arrête.
 #
-# Puis, si quelqu'un est devant le terminal, les connexions, une fois chacune,
-# et rien d'autre :
+# Puis, sur les deux, si quelqu'un est devant le terminal, les deux connexions,
+# une fois chacune, et rien d'autre :
 #   - GitHub : `gh auth login --web`, sous le compte de la station (brigade
 #     sous Linux, le tien sous macOS), puis `gh auth setup-git` ;
-#   - Claude, sous macOS seulement : `claude auth login`, comme le bouton de
-#     l'app. Sous Linux, la connexion Max se fait à la main, sous le compte
-#     brigade (`claude setup-token`).
+#   - Claude : sous Linux, `claude setup-token`, dont le jeton est rangé sans
+#     être montré (runtime/src/connexion-max/connecter-cli.ts) ; sous macOS,
+#     `claude auth login`, comme le bouton de l'app.
 #
 # La relancer est sans risque : elle n'installe que ce qui a changé, laisse la
 # station tourner si rien n'a changé, et ne refait pas une connexion déjà
 # faite. C'est aussi par elle qu'une station macOS passe à la dernière
-# version .
+# version ; sous Linux, la station s'y met seule (brigade-station-mise-a-jour).
 #
 # Codes de sortie :
 #   0  station installée et active — connectée, ou sans terminal pour l'être
@@ -128,6 +128,11 @@ connexion_github() {
 
 SERVICE=brigade-station.service
 COMPTE=brigade
+# Ce que le paquet pose : son node, et l'étape de connexion Max. Les tests le
+# posent ailleurs.
+LIB="${BRIGADE_STATION_LIB:-/usr/lib/brigade-station}"
+NODE="$LIB/node/bin/node"
+CONNEXION="$LIB/runtime/src/connexion-max/connecter-cli.ts"
 # Le PATH des unités de la station : celui où le compte trouve `gh`.
 PATH_DU_COMPTE=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -191,7 +196,11 @@ linux() {
   MAISON="$(getent passwd "$COMPTE" | cut -d: -f6)"
   [ -n "$MAISON" ] || refuser "le compte $COMPTE n'existe pas après l'installation du paquet"
   connexion_github sous_le_compte || non_connectee "sa connexion GitHub n'est pas faite"
-  dire "la station est connectée à GitHub — la connexion Max se fait à la main, sous le compte $COMPTE (claude setup-token) ; la suite : tes projets, une ligne chacun dans /var/lib/brigade/kitchen/projects (le guide : docs/installation-station.md, dépôt $DEPOT)"
+  [ -x "$NODE" ] && [ -f "$CONNEXION" ] || non_connectee "l'étape de sa connexion Max manque au paquet ($CONNEXION)"
+  echo
+  dire "la connexion Max du compte $COMPTE"
+  en_root "$NODE" "$CONNEXION" <"$TERMINAL" || non_connectee "sa connexion Max n'est pas faite"
+  dire "la station est connectée à GitHub et à Claude — la suite : tes projets, une ligne chacun dans /var/lib/brigade/kitchen/projects (le guide : docs/installation-station.md, dépôt $DEPOT)"
 }
 
 # ----------------------------------------------------------------------------

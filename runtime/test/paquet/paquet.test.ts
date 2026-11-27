@@ -93,9 +93,12 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     for (const dependance of ["git", "gh", "bubblewrap", "libatomic1", "adduser", "systemd"]) assert.ok(champ("Depends").split(/,\s*/).some((d) => d.split(" ")[0] === dependance), `Depends sans ${dependance} : ${champ("Depends")}`);
   });
 
-  test("le dépôt et le mainteneur sont ceux qu'on a donnés", () => {
+  test("le dépôt et le mainteneur sont ceux qu'on a donnés, et la mise à jour lit les versions de ce dépôt", () => {
     assert.equal(champ("Maintainer"), "Test <test@example.org>");
     assert.equal(champ("Homepage"), "https://github.com/acme/brigade");
+    const unite = spawnSync("dpkg-deb", ["--fsys-tarfile", deb], { maxBuffer: 64 * 1024 * 1024 });
+    const lu = spawnSync("tar", ["-xOf", "-", "./usr/lib/systemd/system/brigade-station-mise-a-jour.service"], { input: unite.stdout, encoding: "utf8" });
+    assert.match(lu.stdout, /^Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:acme\/brigade$/m);
   });
 
   test("il porte le runtime, son node, ses unités — ni tests, ni rien sous /etc, aucune règle sudoers", () => {
@@ -131,7 +134,7 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.match(lu.stdout, /Dans le doute, c'est `refuse`/);
   });
 
-  test("le runtime du paquet démarre la cuisine telle que son unité la lance", async (t) => {
+  test("le runtime du paquet démarre la cuisine et ses portes telles que leurs unités les lancent — la cuisine filtrée, ses portes non", async (t) => {
     const arbre = repertoireTemporaire(t);
     assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
     const lireUnite = (nom: string) => {
@@ -142,8 +145,6 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     const machine = repertoireTemporaire(t);
     const HOME = join(machine, "home");
     mkdirSync(HOME);
-    // systemd creates the unit's state directory (StateDirectory=brigade) before it starts.
-    mkdirSync(join(machine, "var/lib/brigade"), { recursive: true });
     const lancerUnite = (nom: string) => {
       const valeur = lireUnite(nom);
       const [dossierDeTravail = ""] = valeur("WorkingDirectory");
@@ -165,8 +166,15 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
 
     const station = lireUnite("brigade-station.service");
     assert.deepEqual(station("KillMode"), ["process"]);
-    // La station ne joint que la boucle locale.
+    // La station ne joint que la boucle locale ; ses portes, qu'elle réclame, sortent.
     assert.deepEqual([station("IPAddressDeny"), station("IPAddressAllow")], [["any"], ["localhost"]]);
+    assert.ok(station("Wants").includes("brigade-station-porte.service"), station("Wants").join(" "));
+    assert.ok(station("After").includes("brigade-station-porte.service"), station("After").join(" "));
+    const portes = lireUnite("brigade-station-porte.service");
+    assert.deepEqual([portes("IPAddressDeny"), portes("IPAddressAllow")], [[], []]);
+
+    const lanceesPortes = lancerUnite("brigade-station-porte.service");
+    await lanceesPortes.attendre("portes de la station ouvertes");
     assert.deepEqual(lireUnite("brigade-station.service")("ExecStart"), ["/usr/lib/brigade-station/node/bin/node src/kitchen/main.ts"]);
     const lancee = lancerUnite("brigade-station.service");
     // The kitchen says it is in service, under its own pid: what the station's update waits for.
@@ -269,11 +277,30 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     assert.deepEqual(systeme.appels().filter((a) => a.startsWith("adduser")), ["adduser --quiet --system --ingroup brigade --home /home/brigade --shell /bin/bash brigade"]);
   });
 
-  test("une mise à jour relance ce qui est activé sur le nouveau code, sans rien réactiver", (t) => {
-    // La station est activée.
+  test("une mise à jour relance ce qui est activé sur le nouveau code, sans rien réactiver — les portes d'abord, quand elles tournent", (t) => {
+    // La station est activée, ses portes tournent.
     const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; exit 0' });
     const rendu = jouer(postinst(t), ["configure", "1.2.2"], systeme.env);
     assert.equal(rendu.code, 0, rendu.sortie);
+    assert.deepEqual(
+      systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
+      [
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
+        "systemctl daemon-reload",
+        "systemctl reset-failed brigade-station-renouvellement.service",
+        "systemctl reset-failed brigade-station-renouvellement.timer",
+        "systemctl restart brigade-station-porte.service",
+        "systemctl restart brigade-station.service",
+      ],
+    );
+  });
+
+  test("une mise à jour depuis une version sans portes ne les démarre pas elle-même : la station les réclame en repartant", (t) => {
+    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
+    assert.equal(jouer(postinst(t), ["configure", "1.2.2"], systeme.env).code, 0);
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
       [
@@ -390,10 +417,10 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     ]);
   });
 
-  test("le retrait arrête la station, sans toucher à son état", (t) => {
+  test("le retrait arrête la station et ses portes, sans toucher à son état", (t) => {
     const systeme = doublures(t, { systemctl: "" });
     assert.equal(jouer(join(PAQUET, "debian/prerm"), ["remove"], systeme.env).code, 0);
-    assert.deepEqual(systeme.appels(), ["systemctl stop brigade-station.service"]);
+    assert.deepEqual(systeme.appels(), ["systemctl stop brigade-station.service brigade-station-porte.service"]);
   });
 
   test("une mise à jour n'arrête pas la station avant de poser le nouveau code", (t) => {

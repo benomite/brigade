@@ -1,0 +1,45 @@
+# La mise à jour de la station : brigade-station-mise-a-jour.service, joué par
+# brigade-station-mise-a-jour.timer. Une seule par machine, pour tous ses
+# projets : la machine n'a qu'une version de brigade.
+#
+# Chaque passage lit les versions publiées (les releases `station-<version>`
+# du dépôt de brigade) et, s'il y en a une plus récente que celle installée,
+# remet son paquet à apt : dpkg pose le nouveau code et ces unités, son
+# postinst recharge systemd et relance la station — son seul process : les
+# cooks en cours finissent. Si la station ne se dit pas en service sur la
+# nouvelle version, le paquet d'avant est réinstallé, et la station revient
+# dessus. Ce que chaque passage a donné est dans /var/lib/brigade-station
+# (etat.json, issues), et la file de chaque projet le dit.
+#
+# Pour geler la version : `gel=oui` dans /var/lib/brigade/reglages.
+#
+# Elle tourne sous root : c'est elle, et elle seule, qui installe un paquet.
+# Elle n'est jamais relancée par une mise à jour — c'est elle qui la fait.
+#
+# Livrée par le paquet brigade-station, et remplacée à chacune de ses mises à
+# jour : ne pas l'éditer. Guide : docs/installation-station.md.
+
+[Unit]
+Description=brigade — mise à jour de la station
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/lib/brigade-station/runtime
+ExecStart=/usr/lib/brigade-station/node/bin/node src/mise-a-jour/main.ts
+
+# Son répertoire, à root et lisible de tous : la station y relit ce que
+# chaque mise à jour a donné.
+StateDirectory=brigade-station
+StateDirectoryMode=0755
+Environment=BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station
+# Le répertoire de la station : ses réglages (le gel), sa configuration, et ce
+# qu'elle dit de son démarrage.
+Environment=BRIGADE_STATION_DIR=/var/lib/brigade
+
+PrivateTmp=yes
+
+# Télécharger, installer, attendre que la station démarre — puis, au pire,
+# revenir à la version d'avant et l'attendre aussi.
+TimeoutStartSec=30min
