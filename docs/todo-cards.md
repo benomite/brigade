@@ -10,7 +10,7 @@ Rule 13 of [the simplified process](superpowers/specs/2026-11-24-simplified-proc
 
 ### Why a ticket is parked for the chef
 
-The kitchen (`runtime/src/kitchen/`) parks a ticket for the chef with a comment that starts with `Parked for the chef` and says why: a cook answered `PARK:` with its question, the manager parked it, or its tries ran out. A pull request the pass approves in a risk zone is parked for the chef too, with `approved` beside `parked:chef`: it waits for the chef's `merge` answer (`runtime/src/kitchen/kitchen.ts`).
+The kitchen (`runtime/src/kitchen/`) parks a ticket for the chef with a comment that starts with `Parked for the chef` and says why: a cook answered `PARK:` with its question, or the manager parked it. A ticket whose tries ran out is not parked for the chef: at the third refusal it gets `parked` for the supervisor, never `parked:chef`, so it stays out of the chef's TODO (#4600). A pull request the pass approves in a risk zone is parked for the chef too, with `approved` beside `parked:chef`: it waits for the chef's `merge` answer (`runtime/src/kitchen/kitchen.ts`).
 
 ### A TODO entry
 
