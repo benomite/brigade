@@ -6,6 +6,7 @@
 // request adds and removes, and that pull request, which opens on GitHub. No station: the kitchen writes none on GitHub.
 // This module does not touch `document`: it receives what creates an element — the view gives its own, the tests a fake.
 
+import { cardWait } from "../components/card-wait/card-wait.js";
 import { slip } from "../components/slip/slip.js";
 import { pill } from "../components/pill/pill.js";
 
@@ -14,6 +15,9 @@ import { pill } from "../components/pill/pill.js";
 /** @typedef {import("../components/pill/pill.js").State} State */
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 /** @typedef {{ openIssue(ticket: number): void, openPr(ticket: number): void }} BoardGestures */
+
+/** @param {BoardCard} card */
+const isRed = (card) => card.forTheChef === true;
 
 // The tone and the state of each column: the colour never carries the information alone (components/pill).
 /** @type {Record<string, { ton: string, etat?: State }>} */
@@ -67,7 +71,8 @@ const link = (doc, text, title, gesture) => {
 function boardCard(doc, card, column, gestures) {
   const number = link(doc, `#${card.ticket}`, `open issue #${card.ticket} on GitHub`, () => gestures.openIssue(card.ticket));
   number.className = "ticket mono";
-  const voucher = slip(doc, { numero: number });
+  // A card parked for the chef is red, as on the old rail (ticket 3458): the same card as `cardWait` draws there.
+  const voucher = card.forTheChef === true ? cardWait(doc, { numero: number }) : slip(doc, { numero: number });
   voucher.dataset.ticket = String(card.ticket);
   voucher.append(block(doc, "strong", card.title));
   const said = [];
@@ -117,13 +122,17 @@ export function kitchenBoardGrid(doc, board, gestures) {
       column.dataset.ton = your;
       column.dataset.colonne = title;
       if (key === "served") column.dataset.defile = "";
+      // As on the old rail (vue.js): a red card marks its column, and a column with a card for the chef is in view when the board opens.
+      const red = cards.some(isRed);
+      if (red) column.dataset.attend = "";
+      if (red) column.dataset.actif = "";
       const head = doc.createElement("h4");
       head.append(pill(doc, state, title), block(doc, "span", String(cards.length)));
       column.append(head);
       if (cards.length === 0) column.append(block(doc, "p", EMPTY[key] ?? "no ticket"));
       else {
         const list = doc.createElement("ol");
-        list.append(...cards.map((card) => boardCard(doc, card, key, gestures)));
+        list.append(...[...cards.filter(isRed), ...cards.filter((card) => !isRed(card))].map((card) => boardCard(doc, card, key, gestures)));
         column.append(list);
       }
       return column;
