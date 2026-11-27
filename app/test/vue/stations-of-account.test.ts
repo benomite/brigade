@@ -237,16 +237,15 @@ describe("sans aucune station dans la liste : dessous, comment en installer une"
     assert.ok(texts().some((text) => text.startsWith(NO)), texts().join(" | "));
     assert.deepEqual(block.dessous("code").map(({ textContent }) => textContent), INSTALLER.map(({ commande: command }) => command));
     assert.match(INSTALLER[0]?.commande ?? "", /installer-station\.sh \| sh$/);
-    assert.match(INSTALLER[1]?.commande ?? "", /installer-station\.ps1 \| iex$/);
     const copy = block.dessous("button").filter(({ textContent }) => textContent === COPY);
-    assert.equal(copy.length, 2);
-    copy[1]?.click();
-    assert.deepEqual(facts, [`copier ${INSTALLER[1]?.commande}`]);
+    assert.equal(copy.length, 1);
+    copy[0]?.click();
+    assert.deepEqual(facts, [`copier ${INSTALLER[0]?.commande}`]);
   });
 
   test("copiée, son bouton le dit ; « read again » relit", () => {
     const { bloc: block, bouton: button, faits: facts } = oneBlock({ stations: NO_LISTED, copiee: INSTALLER[0]?.commande ?? "" }, true);
-    assert.deepEqual(block.dessous("button").filter(({ textContent }) => textContent === COPY || textContent === COPIED).map(({ textContent }) => textContent), [COPIED, COPY]);
+    assert.deepEqual(block.dessous("button").filter(({ textContent }) => textContent === COPY || textContent === COPIED).map(({ textContent }) => textContent), [COPIED]);
     button(REREAD).click();
     assert.deepEqual(facts, ["relire"]);
   });

@@ -8,14 +8,16 @@
 //   issues      ce que chaque mise à jour a donné, une ligne JSON chacune,
 //               en ajout seul — la station les relaie au journal de chaque
 //               projet, d'où la file les dit ;
-//   paquets/    le paquet de la version installée et de la précédente : de
-//               quoi revenir en arrière sans rien télécharger.
+//   archives/   l'archive en cours de téléchargement, effacée une fois posée.
+//
+// Les versions elles-mêmes sont sous /opt/brigade-station/<version>/ : la
+// courante et la précédente, de quoi revenir en arrière sans rien télécharger.
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export const ETAT = "etat.json";
 export const ISSUES = "issues";
-export const PAQUETS = "paquets";
+export const ARCHIVES = "archives";
 
 // Ce qu'une mise à jour a donné. `le` : l'instant où cela s'est su — pour un
 // passage, celui où la station a démarré sur la nouvelle version.

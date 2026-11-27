@@ -4,16 +4,16 @@
 #
 # Chaque passage lit les versions publiées (les releases `station-<version>`
 # du dépôt de brigade) et, s'il y en a une plus récente que celle installée,
-# remet son paquet à apt : dpkg pose le nouveau code et ces unités, son
-# postinst recharge systemd et relance la station — son seul process : les
-# cooks en cours finissent. Si la station ne se dit pas en service sur la
-# nouvelle version, le paquet d'avant est réinstallé, et la station revient
-# dessus. Ce que chaque passage a donné est dans /var/lib/brigade-station
+# défait son archive sous /opt/brigade-station/<version>, joue son install.sh
+# en mode mise à jour, bascule `current` et relance la station — son seul
+# process : les cooks en cours finissent. Si la station ne se dit pas en
+# service sur la nouvelle version, `current` revient sur la version d'avant,
+# et la station aussi. Ce que chaque passage a donné est dans /var/lib/brigade-station
 # (etat.json, issues), et la file de chaque projet le dit.
 #
 # Pour geler la version : `gel=oui` dans /var/lib/brigade/reglages.
 #
-# Elle tourne sous root : c'est elle, et elle seule, qui installe un paquet.
+# Elle tourne sous root : c'est elle, et elle seule, qui pose une version.
 # Elle n'est jamais relancée par une mise à jour — c'est elle qui la fait.
 #
 # Livrée par le paquet brigade-station, et remplacée à chacune de ses mises à

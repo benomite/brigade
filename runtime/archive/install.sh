@@ -30,10 +30,22 @@
 # BRIGADE_PROJECTS_FILE=<file> gives the project lines (name, repository, base, places;
 # no CLONE=) a station moved from the chef's app: they are written to
 # /var/lib/brigade/kitchen/projects when the station has none, and it clones afresh.
+# `sh install.sh --update` is the mode the station's own update plays, as root, on the
+# archive it just unpacked under /opt/brigade-station/<version>/: it only refreshes the
+# units or the plists. It never touches `current`, the account, the state, the tokens,
+# and never starts nor restarts a service — the update does that, and goes back by itself
+# if the station does not come up.
 #
 # BRIGADE_RACINE=<dir> prefixes every path it writes (tests); BRIGADE_TERMINAL is
 # where the tokens are asked (default /dev/tty).
 set -eu
+
+UPDATE=
+case "${1:-}" in
+  "") ;;
+  --update) UPDATE=yes ;;
+  *) printf 'brigade: install refused — unknown argument: %s\n' "$1" >&2; exit 1 ;;
+esac
 
 RACINE="${BRIGADE_RACINE:-}"
 TERMINAL="${BRIGADE_TERMINAL:-/dev/tty}"
@@ -70,16 +82,16 @@ refuse() {
 [ -n "$RACINE" ] || [ "$(id -u)" = 0 ] || refuse "run it as root (sudo sh install.sh)"
 case "$OS" in
   Linux)
-    command -v bwrap >/dev/null 2>&1 || refuse "bwrap is missing, so the cooks would have no sandbox — install bubblewrap"
-    command -v useradd >/dev/null 2>&1 || refuse "useradd is missing, so the account $ACCOUNT cannot be created"
+    [ -n "$UPDATE" ] || command -v bwrap >/dev/null 2>&1 || refuse "bwrap is missing, so the cooks would have no sandbox — install bubblewrap"
+    [ -n "$UPDATE" ] || command -v useradd >/dev/null 2>&1 || refuse "useradd is missing, so the account $ACCOUNT cannot be created"
     command -v systemctl >/dev/null 2>&1 || refuse "systemctl is missing, so the station and its gate cannot run as services"
-    [ -n "$RACINE" ] || [ -d /run/systemd/system ] || refuse "systemd is not running, so the gate and the network filter of the station cannot be set up"
+    [ -n "$RACINE" ] || [ -n "$UPDATE" ] || [ -d /run/systemd/system ] || refuse "systemd is not running, so the gate and the network filter of the station cannot be set up"
     SERVICES="brigade-station.service brigade-station-porte.service brigade-station-mise-a-jour.service brigade-station-mise-a-jour.timer"
     SERVICES_DIR="$ARCHIVE/services"
     ;;
   Darwin)
-    command -v dscl >/dev/null 2>&1 || refuse "dscl is missing, so the account $ACCOUNT cannot be created"
-    command -v launchctl >/dev/null 2>&1 || refuse "launchctl is missing, so the station and its gate cannot run as services"
+    [ -n "$UPDATE" ] || command -v dscl >/dev/null 2>&1 || refuse "dscl is missing, so the account $ACCOUNT cannot be created"
+    [ -n "$UPDATE" ] || command -v launchctl >/dev/null 2>&1 || refuse "launchctl is missing, so the station and its gate cannot run as services"
     SERVICES="com.brigade.station.plist com.brigade.station.gate.plist com.brigade.station.update.plist"
     SERVICES_DIR="$ARCHIVE/services/launchd"
     ;;
@@ -116,8 +128,12 @@ directory() {
   chown "$3" "$1"
 }
 
+# The update mode skips to the units (6): the version is already in place, `current` and
+# the machine's state are the running station's.
 # 1. The account.
-if [ "$OS" = Darwin ]; then
+if [ -n "$UPDATE" ]; then
+  :
+elif [ "$OS" = Darwin ]; then
   # First number from 300 up to 499 that no user and no group has: below 500, so the
   # login window never lists the account, and it is hidden besides.
   if ! dscl . -read "/Users/$ACCOUNT" >/dev/null 2>&1; then
@@ -143,6 +159,7 @@ elif ! id -u "$ACCOUNT" >/dev/null 2>&1; then
   say "account $ACCOUNT created"
 fi
 
+install_machine() {
 # 2. The versions, and `current`.
 mkdir -p "$OPT"
 if [ ! -d "$OPT/$VERSION" ]; then
@@ -217,6 +234,8 @@ else
   printf 'BRIGADE_CLAUDE_TOKEN_FILE=%s\n' "$CLAUDE_TOKEN_FILE" | put_text "$SECRETS/jeton.env" 644
 fi
 chown "$SECRET_OWNER" "$SECRETS/github.env"
+}
+if [ -z "$UPDATE" ]; then install_machine; fi
 
 # 6. The services, started.
 mkdir -p "$UNITS"
@@ -229,6 +248,12 @@ for unit in $SERVICES; do
   [ -z "$CHANGED" ] || UNITS_CHANGED="$UNITS_CHANGED $unit"
   CHANGED=${CHANGED:-$before}
 done
+if [ -n "$UPDATE" ]; then
+  # A refreshed unit is read at the next daemon-reload or bootstrap; the update restarts the station.
+  if [ "$OS" = Linux ] && [ -n "$UNITS_CHANGED" ]; then systemctl daemon-reload || refuse "systemd did not reload its units"; fi
+  say "units of $VERSION refreshed"
+  exit 0
+fi
 if [ "$OS" = Darwin ]; then
   # launchd reads a plist when it is bootstrapped: a changed one is booted out and in again
   # (the station restarts on its new code), an unchanged one is only loaded if it is not.

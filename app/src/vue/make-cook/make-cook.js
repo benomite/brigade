@@ -1,16 +1,17 @@
 // @ts-check
-// "Make this computer cook": on a computer that is not a station, a line offers to install one. Its button asks the main
+// `Make ${THIS_COMPUTER} cook`: on a computer that is not a station, a line offers to install one. Its button asks the main
 // process to open the install command in a terminal (a Mac) and shows that command, for the chef to paste where no
 // terminal opens. Nothing is shown with a station installed, or while the offer is not read. This module does not touch
 // `document`.
 
 import { buttonAction } from "../bricks.js";
+import { THIS_COMPUTER } from "../lexicon.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
 /** @typedef {{ stage: "offered" } | { stage: "shown", command: string } | { stage: "refused", reason: string }} State */
 
-export const OFFER = "Make this computer cook";
-export const ACTION = "make this computer cook";
+export const OFFER = `Make ${THIS_COMPUTER} cook`;
+export const ACTION = `make ${THIS_COMPUTER} cook`;
 export const PASTE = "Run this in a terminal:";
 
 /**

@@ -50,8 +50,8 @@ function machine(t: TestContext, without: string[] = []) {
   return {
     racine,
     calls: () => readFileSync(calls, "utf8").trim().split("\n").filter(Boolean),
-    run: (dir: string, extra: NodeJS.ProcessEnv = {}) => {
-      const r = spawnSync("sh", [join(dir, "install.sh")], {
+    run: (dir: string, extra: NodeJS.ProcessEnv = {}, args: string[] = []) => {
+      const r = spawnSync("sh", [join(dir, "install.sh"), ...args], {
         encoding: "utf8",
         env: { ...process.env, PATH: bin, BRIGADE_RACINE: racine, BRIGADE_TERMINAL: "/nonexistent", BRIGADE_GITHUB_TOKEN: "ghp_x", BRIGADE_CLAUDE_TOKEN: "sk-ant-x", ...extra },
       });
@@ -100,6 +100,39 @@ describe("install.sh on Linux", { skip: posixOnly("install.sh is a POSIX script 
       if (!unit.endsWith(".timer")) assert.match(text, /\/opt\/brigade-station\/current\//, unit);
     }
     assert.ok(m.calls().some((c) => c.startsWith("systemctl enable --now") && c.includes("brigade-station.service") && c.includes("brigade-station-porte.service")));
+  });
+
+  test("--update refreshes the units only: `current`, the account, the tokens and the services stay as they are", (t) => {
+    const m = machine(t);
+    const first = archive(t);
+    assert.equal(m.run(first).code, 0);
+    // A newer version, unpacked where the station's update puts it, with a changed unit.
+    const next = join(m.racine, "opt/brigade-station/1.3.0");
+    cpSync(first, next, { recursive: true });
+    writeFileSync(join(next, "version"), "1.3.0\n");
+    const unit = join(next, "services/brigade-station.service");
+    writeFileSync(unit, `${readFileSync(unit, "utf8")}# 1.3.0\n`);
+    const before = m.calls().length;
+    const r = m.run(next, { BRIGADE_GITHUB_TOKEN: "", BRIGADE_CLAUDE_TOKEN: "" }, ["--update"]);
+    assert.equal(r.code, 0, r.out);
+    assert.equal(readlinkSync(join(m.racine, "opt/brigade-station/current")), "1.2.3");
+    assert.match(readFileSync(join(m.racine, "etc/systemd/system/brigade-station.service"), "utf8"), /# 1\.3\.0/);
+    assert.deepEqual(m.calls().slice(before), ["systemctl daemon-reload"]);
+  });
+
+  test("--update needs no bwrap and writes no state on a machine without the station", (t) => {
+    const m = machine(t, ["bwrap", "useradd"]);
+    const r = m.run(archive(t), {}, ["--update"]);
+    assert.equal(r.code, 0, r.out);
+    assert.ok(!existsSync(join(m.racine, "opt")) && !existsSync(join(m.racine, "etc/brigade")));
+    assert.deepEqual(m.calls(), ["systemctl daemon-reload"]);
+  });
+
+  test("an unknown argument is refused", (t) => {
+    const m = machine(t);
+    const r = m.run(archive(t), {}, ["--nope"]);
+    assert.equal(r.code, 1);
+    assert.match(r.out, /unknown argument/);
   });
 
   test("a second run changes nothing", (t) => {
@@ -155,8 +188,8 @@ esac`);
   return {
     racine,
     calls: () => readFileSync(calls, "utf8").trim().split("\n").filter(Boolean),
-    run: (dir: string, extra: NodeJS.ProcessEnv = {}) => {
-      const r = spawnSync("sh", [join(dir, "install.sh")], {
+    run: (dir: string, extra: NodeJS.ProcessEnv = {}, args: string[] = []) => {
+      const r = spawnSync("sh", [join(dir, "install.sh"), ...args], {
         encoding: "utf8",
         env: { ...process.env, PATH: bin, BRIGADE_RACINE: racine, BRIGADE_TERMINAL: "/nonexistent", BRIGADE_GITHUB_TOKEN: "ghp_x", BRIGADE_CLAUDE_TOKEN: "sk-ant-x", ...extra },
       });
@@ -219,6 +252,16 @@ describe("install.sh on macOS", { skip: posixOnly("install.sh is a POSIX script"
       assert.ok(calls.includes(`launchctl bootstrap system ${daemons}/${name}`), name);
     }
     assert.ok(!existsSync(join(racine, "etc/systemd")));
+  });
+
+  test("--update rewrites the plists only: no account, no `current`, no launchctl", (t) => {
+    const m = mac(t);
+    const dir = archive(t);
+    const r = m.run(dir, {}, ["--update"]);
+    assert.equal(r.code, 0, r.out);
+    assert.ok(m.calls().every((c) => c.startsWith("chown root:wheel ")), m.calls().join("\n"));
+    assert.ok(existsSync(join(m.racine, "Library/LaunchDaemons/com.brigade.station.plist")));
+    assert.ok(!existsSync(join(m.racine, "opt")));
   });
 
   test("a second run changes nothing and reloads nothing", (t) => {

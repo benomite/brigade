@@ -105,7 +105,6 @@ child carrying the reason and the epic stays `in-pass` (#4702).
 |---|---|
 | A Linux server (the box) | The Debian package `brigade-station` ([`runtime/paquet/`](../../runtime/paquet/README.md)): `brigade-station.service` runs `src/kitchen/main.ts` with `BRIGADE_STATION_DIR=/var/lib/brigade`, agents in `bwrap`, the unit reaching only localhost; `brigade-station-porte.service` holds the gates, its only way out. Installed by `installer-station.sh` ([`docs/installation-station.md`](../installation-station.md)) |
 | A Mac | The app, which runs it as this computer's station (`PRINCIPAL`, `app/src/workstation/role.ts`), or the launchd agent `installer-station.sh` writes. Agents run in Claude Code's sandbox: [`mac-new-kitchen.md`](mac-new-kitchen.md) |
-| Windows | `installer-station.ps1` starts it. No sandbox is available there: the kitchen launches no agent, and says why in the station's log |
 
 Once started, the kitchen writes `<BRIGADE_STATION_DIR>/en-service` (its version, its pid, since when, the projects
 it serves) and rewrites it when that changes: the station's update keeps a new version only when the kitchen says it
@@ -113,8 +112,11 @@ is in service on it, and the app reads it too. Stopping the kitchen stops no age
 and the next kitchen takes it back (`KillMode=process`).
 
 The box's update: every ten minutes `brigade-station-mise-a-jour.timer` installs the latest `station-<version>`
-release; if the kitchen does not say it is in service on it within two minutes, or serves fewer projects than before,
-the previous package comes back. `gel=oui` in `/var/lib/brigade/reglages` freezes the version.
+release's archive (`brigade-station-<version>-<os>-<arch>.tar.gz`), unpacks it into `/opt/brigade-station/<version>/`,
+runs that version's `install.sh --update`, switches `current` and restarts the station; if the kitchen does not say it
+is in service on it within two minutes, or serves fewer projects than before, `current` goes back to the previous
+version (the last two are kept). `node src/mise-a-jour/main.ts --check` (`brigade update --check`) says which version
+a pass would install, changing nothing. `gel=oui` in `/var/lib/brigade/reglages` freezes the version.
 
 ## Variables
 

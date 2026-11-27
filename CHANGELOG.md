@@ -8,6 +8,7 @@ Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new
 
 ### Added
 
+- The station is one thing to install and operate: an archive per platform (`brigade-station-<version>-linux-x64.tar.gz`, `…-darwin-arm64.tar.gz`) with an `install.sh`, one `brigade` account, and a `brigade` command — `status`, `logs`, `restart`, `project add`/`remove`, `update [--check]`, `uninstall` — used locally or through `ssh <host> brigade …`. `docs/station.md` is its one page; the second reads and restarts a station with `brigade status`, `brigade logs`, `brigade restart` and `brigade update --check`, no longer through the journal, a service name or a counter read by hand. The app is 1.1.0 (#4245)
 - A project added with open issues opens on `Brigade read your N open issues — here are the ones to cook first`: the second's triage proposes issues with a priority and a reason, the chef changes or drops lines, and one button puts the rest on the rail (#3268)
 - A TODO card can be answered by replying to, or quote-replying, its comment on GitHub: a choice or the chef's own words, from the chef or the human whose role answers it (#3253)
 
