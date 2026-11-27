@@ -21,12 +21,10 @@ const UNREADABLE = "The agents' reading is not readable";
 
 /** @param {unknown} readOne @returns {readOne is import("./source.js").AgentsAtWork} */
 const isReading = (readOne) => {
-  const { agents, stations } = /** @type {any} */ (readOne) ?? {};
+  const { agents } = /** @type {any} */ (readOne) ?? {};
   return (
     Array.isArray(agents) &&
-    agents.every((one) => typeof one?.agent === "string" && (one.ticket === null || typeof one.ticket === "number") && (one.since === null || typeof one.since === "string") && (one.station === null || typeof one.station === "string")) &&
-    Array.isArray(stations) &&
-    stations.every((one) => typeof one?.station === "string" && typeof one.why === "string")
+    agents.every((one) => typeof one?.agent === "string" && (one.ticket === null || typeof one.ticket === "number") && (one.since === null || typeof one.since === "string") && (one.station === null || typeof one.station === "string"))
   );
 };
 
@@ -64,8 +62,7 @@ export function holdTheAgents(doc, { maintenant: now = Date.now } = {}) {
     });
     const list = doc.createElement("ul");
     list.append(...lines);
-    const troubles = state.stations.map(({ why }) => lineEmpty(doc, why, { classe: "station-illisible" }));
-    element.replaceChildren(...(lines.length === 0 ? [lineEmpty(doc, NO_AGENT)] : [list]), ...troubles);
+    element.replaceChildren(...(lines.length === 0 ? [lineEmpty(doc, NO_AGENT)] : [list]));
   };
 
   /** @param {string} name */

@@ -1311,12 +1311,12 @@ const kitchenOfProject = (name: unknown) => {
   const kitchen = aims === undefined ? undefined : kitchens.cuisineDe(aims);
   return { vise: aims, lu: aims === undefined || kitchen === undefined ? undefined : { nom: aims.nom, cuisine: kitchen } };
 };
-// Les agents au travail que lit l'onglet Agents (ticket 4569) : le kanban de GitHub (`taken`, `in-pass`) et ce que la cuisine
-// écrit sur sa station, sans rien demander à l'ancien runtime (team-of-the-box.ts).
+// Les agents au travail que lit l'onglet Agents (ticket 4569) : le kanban de GitHub (`taken`, `in-pass`), rien d'autre
+// (team-of-the-box.ts).
 ipcMain.handle("agentsAtWork", (_, name: unknown) => {
   const { vise: aims, lu: readOne } = kitchenOfProject(name);
   if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
-  return readTheAgents({ station: hostname(), readOne, launch: launchOnTheKitchen, board: () => boards.lire(aims), now: Date.now });
+  return readTheAgents({ station: hostname(), cooksHere: readOne !== undefined, board: () => boards.lire(aims), now: Date.now });
 });
 // "Since you last looked" (#4649, since-last-looked.ts): the vue asks it each time the chef opens a project, and this opening
 // becomes the last look, kept per project beside the configuration. Read from GitHub alone, through the board's conditional
