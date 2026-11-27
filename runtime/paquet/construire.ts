@@ -1,7 +1,9 @@
-// Construit le paquet Debian de la station : un seul fichier .deb, qui porte
-// le runtime, le `node` qui le fait tourner, les unités systemd et ce que dpkg
-// joue à l'installation et à chaque mise à jour. Rien de ce que la station
-// demande au système ne vit hors de ce paquet.
+// Construit ce que la station publie : une archive par plateforme, et le .deb, qui n'est plus
+// qu'un pont à sens unique vers l'archive (#4741). La station s'installe et se met à jour par
+// l'archive (`install.sh`, runtime/archive/) ; le .deb ne porte que l'archive linux-x64
+// et un `postinst` qui la défait et joue son `install.sh --migrate` : la machine qui n'a que
+// l'ancienne mise à jour (elle ne sait poser qu'un .deb) passe ainsi au layout /opt, puis le
+// .deb est retiré de la base de dpkg sans toucher à ce qui est sous /opt.
 //
 //   node runtime/paquet/construire.ts --repo <compte>/<dépôt> --maintainer "Nom <courriel>"
 //                                                     le paquet de cette machine
@@ -9,12 +11,12 @@
 //   node runtime/paquet/construire.ts --node <binaire node> --arch arm64
 //   node runtime/paquet/construire.ts --sortie <dossier>
 //
-// À côté du .deb, une archive par plateforme, `brigade-station-<version>-<os>-<arch>.tar.gz`
-// (linux-x64 et darwin-arm64) : `runtime/` (ce que le .deb porte), `node/`, `bin/brigade`,
+// L'archive de chaque plateforme, `brigade-station-<version>-<os>-<arch>.tar.gz`
+// (linux-x64 et darwin-arm64) : `runtime/`, `node/`, `bin/brigade`, `version`,
 // `install.sh` et `services/`. Le node de chacune est téléchargé de nodejs.org (la version de
 // celui qui lance cette commande, somme de contrôle vérifiée), ou donné par `--node-linux-x64` /
 // `--node-darwin-arm64`; son en-tête doit être celui de la plateforme. `--sans-archives` ne
-// construit que le .deb.
+// construit que le .deb, sans l'archive qu'il porte (pour les tests de la construction : un pont vide).
 //
 // `--repo` (ou BRIGADE_PAQUET_DEPOT) nomme le dépôt GitHub qui publie ce paquet :
 // il devient la page du paquet et la source de sa mise à jour. `--maintainer`
@@ -41,7 +43,7 @@
 // invalide) — rien n'est écrit.
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
@@ -51,8 +53,10 @@ const REFUS = 2;
 const ECHEC = 1;
 
 export const PAQUET = "brigade-station";
-// Là où le paquet pose ce qui est à lui.
+// Là où l'ancien paquet posait la station : les unités qu'on réécrit pour l'archive y pointent.
 export const INSTALLATION = `/usr/lib/${PAQUET}`;
+// Où le pont pose l'archive qu'il porte, sous le nom que son postinst lit.
+const ARCHIVE_DU_PONT = `/usr/share/${PAQUET}/${PAQUET}-linux-x64.tar.gz`;
 
 const ICI = import.meta.dirname;
 const RUNTIME = resolve(ICI, "..");
@@ -160,7 +164,7 @@ async function telechargerNode(os: string, arch: string, dossier: string): Promi
 
 // L'archive d'une plateforme : le .deb sans son système (runtime/ et ce qu'il importe), le node de
 // la plateforme, `bin/brigade` et `install.sh` (des amorces, la suite les complète) et `services/`.
-function composerArchive({ archive, runtime, unites, node }: { archive: string; runtime: string; unites: string; node: string }) {
+function composerArchive({ archive, runtime, unites, node, version }: { archive: string; runtime: string; unites: string; node: string; version: string }) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-archive-"));
   try {
     for (const entree of readdirSync(runtime)) if (entree !== "node") cpSync(join(runtime, entree), join(racine, entree), { recursive: true });
@@ -168,9 +172,14 @@ function composerArchive({ archive, runtime, unites, node }: { archive: string; 
     copyFileSync(node, join(racine, "node", "bin", "node"));
     chmodSync(join(racine, "node", "bin", "node"), 0o755);
     mkdirSync(join(racine, "bin"));
-    writeFileSync(join(racine, "bin", "brigade"), "#!/bin/sh\necho 'brigade : la commande n'\\''est pas encore écrite' >&2\nexit 1\n", { mode: 0o755 });
-    writeFileSync(join(racine, "install.sh"), "#!/bin/sh\necho 'install.sh : pas encore écrit' >&2\nexit 1\n", { mode: 0o755 });
+    writeFileSync(join(racine, "bin", "brigade"), '#!/bin/sh\nhere=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)\nexec "$here/node/bin/node" "$here/runtime/src/brigade-command/main.ts" "$@"\n', { mode: 0o755 });
+    copyFileSync(join(ICI, "..", "archive", "install.sh"), join(racine, "install.sh"));
+    chmodSync(join(racine, "install.sh"), 0o755);
+    writeFileSync(join(racine, "version"), `${version}\n`);
     cpSync(join(ICI, "..", "archive", "services", "launchd"), join(racine, "services", "launchd"), { recursive: true });
+    // L'ancre pf et ses plists : `installer-station.sh` les lit sous runtime/paquet/macos de l'archive.
+    cpSync(join(ICI, "macos"), join(racine, "runtime", "paquet", "macos"), { recursive: true });
+    chmodSync(join(racine, "runtime", "paquet", "macos", "charger-pf.sh"), 0o755);
     for (const unite of UNITES) {
       const texte = readFileSync(join(unites, unite), "utf8").replaceAll(INSTALLATION, INSTALLATION_ARCHIVE);
       writeFileSync(join(racine, "services", unite), texte, { mode: 0o644 });
@@ -194,7 +203,7 @@ const fichier = join(sortie, `${PAQUET}_${version}_${arch}.deb`);
 
 if (lancer("dpkg-deb", ["--version"]).status !== 0) echouer("`dpkg-deb` manque sur cette machine (apt install dpkg, ou brew install dpkg)");
 
-// L'arbre du paquet, posé à côté puis remis à dpkg-deb.
+// Ce que les archives portent, posé à côté ; l'arbre du .deb, lui, est fait plus bas.
 const arbre = mkdtempSync(join(tmpdir(), "brigade-paquet-"));
 try {
   const dans = (...chemin: string[]) => join(arbre, ...chemin);
@@ -246,8 +255,6 @@ try {
   const unite = readFileSync(miseAJour, "utf8");
   if (!unite.includes(ancre)) echouer("l'unité de mise à jour ne porte plus la ligne BRIGADE_STATION_DIR : la source des versions n'a nulle part où se poser");
   writeFileSync(miseAJour, unite.replace(ancre, `${ancre}Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:${depotPublie}\n`));
-  poser(join(RACINE, "LICENSE"), dans("usr", "share", "doc", PAQUET, "copyright"), 0o644);
-
   // Des droits qui ne dépendent ni du masque de la machine ni du clone.
   const normaliser = (repertoire: string) => {
     chmodSync(repertoire, 0o755);
@@ -259,49 +266,70 @@ try {
   };
   normaliser(arbre);
 
-  const taille = (chemin: string): number =>
-    statSync(chemin).isDirectory() ? readdirSync(chemin).reduce((somme, nom) => somme + taille(join(chemin, nom)), 0) : Math.ceil(statSync(chemin).size / 1024);
-
-  mkdirSync(dans("DEBIAN"));
-  for (const script of ["postinst", "prerm", "postrm"]) poser(join(ICI, "debian", script), dans("DEBIAN", script), 0o755);
-  writeFileSync(
-    dans("DEBIAN", "control"),
-    [
-      `Package: ${PAQUET}`,
-      `Version: ${version}`,
-      `Architecture: ${arch}`,
-      `Maintainer: ${mainteneur}`,
-      `Installed-Size: ${taille(arbre)}`,
-      `Depends: ${DEPENDANCES.join(", ")}`,
-      "Section: devel",
-      "Priority: optional",
-      `Homepage: https://github.com/${depotPublie}`,
-      "Description: brigade — la station d'une machine",
-      " Un seul service par machine, brigade-station : la cuisine, qui sert tous les",
-      " projets de /var/lib/brigade/kitchen/projects : elle prend leurs tickets sur",
-      " GitHub et y fait travailler des agents, sous la connexion Max du compte",
-      " brigade. Le paquet porte le runtime, son node, et ses unités systemd ;",
-      " il n'écrit aucune règle sudoers.",
-      "",
-    ].join("\n"),
-  );
-  chmodSync(dans("DEBIAN", "control"), 0o644);
-
-  mkdirSync(sortie, { recursive: true });
-  const construit = lancer("dpkg-deb", ["--root-owner-group", "--build", arbre, fichier]);
-  if (construit.status !== 0) echouer(`dpkg-deb a rendu ${construit.status} : ${(construit.stderr || construit.stdout).trim()}`);
-
+  // Les unités de l'archive : les mêmes que celles du paquet d'avant, sous /opt (composerArchive).
+  const archives: Record<string, string> = {};
   if (!options["sans-archives"]) {
     const unitesPosees = join(arbre, "usr", "lib", "systemd", "system");
+    mkdirSync(sortie, { recursive: true });
     for (const plateforme of PLATEFORMES) {
       const nodeDonne = options[plateforme.option];
       const nodeDeLArchive = nodeDonne === undefined ? await telechargerNode(plateforme.os, plateforme.arch, tmpdir()) : resolve(nodeDonne);
       const cible = cibleDuBinaire(nodeDeLArchive);
       if (cible?.os !== plateforme.os || cible.arch !== plateforme.arch) echouer(`le node de l'archive ${plateforme.os}-${plateforme.arch} (${nodeDeLArchive}) est ${cible ? `${cible.os}-${cible.arch}` : "d'un format inconnu"}`);
       const archive = join(sortie, `${PAQUET}-${version}-${plateforme.os}-${plateforme.arch}.tar.gz`);
-      composerArchive({ archive, runtime: join(arbre, INSTALLATION.slice(1)), unites: unitesPosees, node: nodeDeLArchive });
+      composerArchive({ archive, runtime: join(arbre, INSTALLATION.slice(1)), unites: unitesPosees, node: nodeDeLArchive, version });
+      archives[`${plateforme.os}-${plateforme.arch}`] = archive;
       console.log(`brigade : archive construite — ${archive}`);
     }
+  }
+
+  // Le pont : l'archive linux-x64, la licence, et les scripts de dpkg. Rien d'autre — ni runtime, ni
+  // node, ni unité : ils viennent de l'archive, que le postinst défait.
+  const pont = mkdtempSync(join(tmpdir(), "brigade-pont-"));
+  try {
+    const dans = (...chemin: string[]) => join(pont, ...chemin);
+    const poser = (source: string, cible: string, mode: number) => {
+      mkdirSync(join(cible, ".."), { recursive: true });
+      copyFileSync(source, cible);
+      chmodSync(cible, mode);
+    };
+    poser(join(RACINE, "LICENSE"), dans("usr", "share", "doc", PAQUET, "copyright"), 0o644);
+    const archiveLinux = archives["linux-x64"];
+    if (archiveLinux !== undefined) poser(archiveLinux, dans(ARCHIVE_DU_PONT.slice(1)), 0o644);
+    for (const repertoire of ["usr", "usr/share", "usr/share/doc", `usr/share/doc/${PAQUET}`, `usr/share/${PAQUET}`]) if (existsSync(dans(repertoire))) chmodSync(dans(repertoire), 0o755);
+
+    const taille = (chemin: string): number =>
+      statSync(chemin).isDirectory() ? readdirSync(chemin).reduce((somme, nom) => somme + taille(join(chemin, nom)), 0) : Math.ceil(statSync(chemin).size / 1024);
+
+    mkdirSync(dans("DEBIAN"));
+    for (const script of ["postinst"]) poser(join(ICI, "debian", script), dans("DEBIAN", script), 0o755);
+    writeFileSync(
+      dans("DEBIAN", "control"),
+      [
+        `Package: ${PAQUET}`,
+        `Version: ${version}`,
+        `Architecture: ${arch}`,
+        `Maintainer: ${mainteneur}`,
+        `Installed-Size: ${taille(pont)}`,
+        `Depends: ${DEPENDANCES.join(", ")}`,
+        "Section: devel",
+        "Priority: optional",
+        `Homepage: https://github.com/${depotPublie}`,
+        "Description: brigade — la station d'une machine (pont vers l'archive)",
+        " Ce paquet est un pont à sens unique : il pose la station en archive sous",
+        " /opt/brigade-station/<version>, garde l'état (/var/lib/brigade) et les secrets",
+        " (/etc/brigade) tels quels, puis se retire de dpkg. La station se met ensuite à",
+        " jour seule, par l'archive. Il n'écrit aucune règle sudoers.",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(dans("DEBIAN", "control"), 0o644);
+
+    mkdirSync(sortie, { recursive: true });
+    const construit = lancer("dpkg-deb", ["--root-owner-group", "--build", pont, fichier]);
+    if (construit.status !== 0) echouer(`dpkg-deb a rendu ${construit.status} : ${(construit.stderr || construit.stdout).trim()}`);
+  } finally {
+    rmSync(pont, { recursive: true, force: true });
   }
 } finally {
   rmSync(arbre, { recursive: true, force: true });

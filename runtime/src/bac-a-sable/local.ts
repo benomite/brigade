@@ -42,7 +42,7 @@ export type Verification = { ok: true; version: string } | { ok: false; raison: 
 // pas ; `etat` : le répertoire d'état du runtime, qu'aucun dossier déclaré ne
 // touche ; `cachees` : les répertoires que la station cache à ses cooks
 // (`BRIGADE_SANDBOX_HIDDEN`) ; `avertir` : où se dit une déclaration refusée ou illisible.
-export type BacASableLocal = { version: string; home: string; caches: string[]; hotes: () => Regle[]; services?: () => ServiceLocal[]; cachees?: string[] } & Partial<Declaree>;
+export type BacASableLocal = { sousPf?: boolean; version: string; home: string; caches: string[]; hotes: () => Regle[]; services?: () => ServiceLocal[]; cachees?: string[] } & Partial<Declaree>;
 
 // Ce que la cuisine sait de la déclaration de bac à sable de son projet.
 export type Declaree = { declaration: () => string | null; etat: string; avertir: (message: string) => void };
@@ -92,7 +92,7 @@ export function configBacASableLocal(sondes: Sondes, lieux: Lieux, hotes: () => 
 // reçus, son `--permission-mode` remplacé par celui de la configuration et ses
 // réglages — ou, s'il n'en avait pas (reviewer, jugement), ceux-ci posés devant
 // `--setting-sources`. Rien d'autre ne change.
-export function poserLeBacASable(args: readonly string[], config: ConfigDeBacASable): string[] {
+export function poserLeBacASable(args: readonly string[], config: Parameters<typeof argumentsDuBacASable>[0]): string[] {
   const mode = args.indexOf("--permission-mode");
   if (mode !== -1 && mode + 1 < args.length) return [...args.slice(0, mode), ...argumentsDuBacASable(config), ...args.slice(mode + 2)];
   const sources = args.indexOf("--setting-sources");
@@ -111,7 +111,7 @@ export function poserLeBacASable(args: readonly string[], config: ConfigDeBacASa
 // lancement part avec le bac à sable d'avant, et le refus se dit.
 export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = [], brigade = false, ecrit = true): string[] {
   if (!bac) return args;
-  const cook: Cook = { worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.(), ...(bac.cachees === undefined ? {} : { cachees: bac.cachees }), ...(bac.etat === undefined ? {} : { etat: bac.etat }), ...(ecrit ? {} : { lecture: true }) };
+  const cook: Cook = { worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.(), ...(bac.sousPf ? { sousPf: true } : {}), ...(bac.cachees === undefined ? {} : { cachees: bac.cachees }), ...(bac.etat === undefined ? {} : { etat: bac.etat }), ...(ecrit ? {} : { lecture: true }) };
   if (bac.declaration !== undefined) {
     try {
       const declaration = lireDeclarationBacASable(bac.declaration());

@@ -1,4 +1,5 @@
 // Point d'entrée des portes de la station : `brigade-station-porte.service`.
+// Sur Mac, il tourne sous root (`paquet/macos/com.brigade.gate.plist`), le compte que l’ancre `pf` ne bloque pas.
 // Un process, hors du filtre réseau de l'unité de la station — c'est lui, la
 // sortie —, qui tient la porte de la station et celle de chaque projet de sa
 // configuration (`portes.ts`). Il ne lance rien : ni `claude`, ni `git`, ni le

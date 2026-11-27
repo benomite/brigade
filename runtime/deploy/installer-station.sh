@@ -20,25 +20,26 @@
 # sudo pour ces gestes-là, et seulement pour eux. Elle attend que la station
 # soit active et le dit.
 #
-# **macOS** (Apple Silicon ou Intel). Sous le compte de qui la lance, sans
-# sudo : la station y tourne comme l'app la ferait tourner, avec le `claude` et
-# le `gh` de ce compte. La commande pose sous ~/.local/share/brigade-station le
-# runtime de la version publiée et le `node` qu'il réclame (nodejs.org,
-# vérifié contre ses empreintes), écrit l'agent launchd qui la lance à
-# l'ouverture de session et la relance si elle tombe
-# (~/Library/LaunchAgents/brigade.station.plist), la démarre, et attend qu'elle
-# tourne. `gh` et `claude` sont posés s'ils manquent (Homebrew ou la release
-# de `gh`, l'installeur officiel de `claude`). La station tient le même
-# répertoire que celle de l'app (~/.config/brigade/station) : une seule tourne
-# à la fois, l'autre attend qu'elle s'arrête.
+# **macOS** (Apple Silicon ou Intel). Hors root, elle passe par sudo pour les
+# gestes système, et seulement pour eux. La station y tourne sous un compte
+# `brigade`, créé s'il manque, que l'ancre `pf` `brigade` enferme : tout ce
+# qu'il émet est bloqué, sauf vers la boucle locale — ses cooks ne sortent que
+# par la porte du projet (HTTPS_PROXY), tenue sous root, le seul compte que
+# l'ancre ne bloque pas. La commande pose sous /opt/brigade-station le runtime
+# de la version publiée et le `node` qu'il réclame (nodejs.org, vérifié contre
+# ses empreintes), charge l'ancre (et la recharge à chaque démarrage), pose la
+# règle sudo par laquelle la station relit son ancre, écrit les démons launchd
+# de la porte (root) et de la station (brigade), les démarre, et attend que la
+# station tourne. `gh` et `claude` sont posés s'ils manquent (Homebrew ou la
+# release de `gh`, l'installeur officiel de `claude`). Sans l'ancre chargée, la
+# station refuse de faire cuire.
 #
 # Puis, sur les deux, si quelqu'un est devant le terminal, les deux connexions,
 # une fois chacune, et rien d'autre :
-#   - GitHub : `gh auth login --web`, sous le compte de la station (brigade
-#     sous Linux, le tien sous macOS), puis `gh auth setup-git` ;
+#   - GitHub : `gh auth login --web`, sous le compte brigade de la station, puis `gh auth setup-git` ;
 #   - Claude : sous Linux, `claude setup-token`, dont le jeton est rangé sans
 #     être montré (runtime/src/connexion-max/connecter-cli.ts) ; sous macOS,
-#     `claude auth login`, comme le bouton de l'app.
+#     `claude auth login`, sous le compte brigade.
 #
 # La relancer est sans risque : elle n'installe que ce qui a changé, laisse la
 # station tourner si rien n'a changé, et ne refait pas une connexion déjà
@@ -204,10 +205,19 @@ linux() {
 }
 
 # ----------------------------------------------------------------------------
-# macOS : le runtime, son node, et un agent launchd, sous le compte de qui
-# lance la commande.
+# macOS : le runtime, son node, l'ancre `pf` et deux démons launchd. La
+# station tourne sous le compte `brigade`, que l'ancre enferme : tout ce que
+# ses cooks lancent ne sort que par la porte du projet, tenue sous root — le
+# seul compte que l'ancre ne bloque pas.
 
-ETIQUETTE=brigade.station
+ETIQUETTE=com.brigade.station
+# Où la station se pose et range son état, où launchd et sudo cherchent leurs
+# fichiers. Les tests les posent ailleurs.
+OPT="${BRIGADE_MAC_OPT:-/opt/brigade-station}"
+APPUI="${BRIGADE_MAC_APPUI:-/Library/Application Support/brigade}"
+DEMONS="${BRIGADE_MAC_DEMONS:-/Library/LaunchDaemons}"
+SUDOERS="${BRIGADE_MAC_SUDOERS:-/etc/sudoers.d}"
+MAISON_MAC="${BRIGADE_MAC_MAISON:-/Users/$COMPTE}"
 # Le node que le runtime réclame (`engines` de son package.json).
 NODE_MAJEUR=26
 NODE_DIST=https://nodejs.org/dist/latest-v$NODE_MAJEUR.x
@@ -222,20 +232,50 @@ empreinte() {
   if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256sum "$1"; fi | cut -d' ' -f1
 }
 
-# Remplace $2 par $1 s'ils diffèrent ; dit s'il a changé.
+# Pose $1 en $2 (root:wheel, mode $3 ou 0644) s'ils diffèrent ; dit s'il a changé.
 poser() {
   if [ -f "$2" ] && cmp -s "$1" "$2"; then
-    rm -f "$1"
     return 1
   fi
-  mv "$1" "$2" || refuser "$2 ne s'écrit pas"
+  en_root install -m "${3:-0644}" -o root -g wheel "$1" "$2" || refuser "$2 ne s'écrit pas"
 }
 
-tourne() { launchctl print "$DOMAINE/$ETIQUETTE" 2>/dev/null | grep -q 'state = running'; }
+# Un geste sous le compte brigade, dans son environnement.
+sous_brigade() {
+  en_root sudo -u "$COMPTE" -H env HOME="$MAISON_MAC" PATH="$PATH" "$@"
+}
+
+tourne() { en_root launchctl print "system/$1" 2>/dev/null | grep -q 'state = running'; }
+
+# Charge le démon $1 (son plist $2) : bootstrap la première fois, rechargé si son
+# plist a changé ($3), relancé si ce qu'il lance a changé ($4) ou s'il est tombé.
+charger_demon() {
+  if ! en_root launchctl print "system/$1" >/dev/null 2>&1; then
+    en_root launchctl enable "system/$1" || true
+    en_root launchctl bootstrap system "$2" || refuser "launchd refuse le démon $2"
+  elif [ -n "$3" ]; then
+    # Un plist changé ne se relit qu'en rechargeant le démon.
+    en_root launchctl bootout "system/$1" || true
+    attendu=0
+    while en_root launchctl print "system/$1" >/dev/null 2>&1; do
+      attendu=$((attendu + 1))
+      [ $attendu -le $GARDE ] || refuser "l'ancien démon ne s'arrête pas — launchctl print system/$1"
+      sleep 1
+    done
+    en_root launchctl bootstrap system "$2" || refuser "launchd refuse le démon $2"
+  elif [ -n "$4" ] || ! tourne "$1"; then
+    en_root launchctl kickstart -k "system/$1" || refuser "launchd ne relance pas $1"
+  else
+    return 1
+  fi
+}
 
 mac() {
-  [ "$(id -u)" != 0 ] || refuser "sur un Mac, elle se fait sous ton compte, sans sudo : la station tourne sous lui, avec son claude et son gh"
   [ -n "${HOME:-}" ] || refuser "HOME n'est pas défini"
+  if [ "$(id -u)" != 0 ]; then
+    command -v sudo >/dev/null || refuser "elle installe l'ancre pf et des démons système : relancer la commande sous root, ou installer sudo"
+    dire "les gestes root de l'installation passent par sudo : il peut te demander ton mot de passe"
+  fi
   case "$(uname -m)" in
     arm64) narch=arm64 ;;
     x86_64) narch=x64 ;;
@@ -243,21 +283,23 @@ mac() {
   esac
   source="$(source_de "${1:-}" brigade-station-mac.tar.gz)"
 
-  BASE="$HOME/.local/share/brigade-station"
-  RACINE="$HOME/.config/brigade/station"
-  PLIST="$HOME/Library/LaunchAgents/$ETIQUETTE.plist"
-  JOURNAL="$HOME/Library/Logs/brigade-station.log"
-  DOMAINE="gui/$(id -u)"
+  BASE="$OPT/current"
+  JOURNAL=/var/log/brigade-station.log
   # Le PATH de la station : son node, le gh qu'elle a pu poser, le claude de
   # l'installeur officiel, Homebrew, le système. launchd n'en donne pas d'autre.
-  PATH_STATION="$BASE/node/bin:$BASE/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  PATH_STATION="$BASE/node/bin:$BASE/bin:$MAISON_MAC/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   PATH="$PATH:$PATH_STATION"
   export PATH
 
-  mkdir -p "$BASE" "$RACINE" "$(dirname "$PLIST")" "$(dirname "$JOURNAL")"
-  travail="$(mktemp -d "$BASE/.travail.XXXXXX")"
+  travail="$(mktemp -d)"
   trap 'rm -rf "$travail"' EXIT
   change=""
+
+  # Le compte de la station : celui que l'ancre enferme. Sans lui, pas d'ancre.
+  if ! dscl . -read "/Users/$COMPTE" >/dev/null 2>&1; then
+    dire "création du compte $COMPTE"
+    en_root sysadminctl -addUser "$COMPTE" -fullName "Brigade station" -home "$MAISON_MAC" -shell /bin/zsh -password "$(openssl rand -hex 16)" || refuser "le compte $COMPTE ne se crée pas (sysadminctl)"
+  fi
 
   # Ce que la station lance : git (les outils de ligne de commande d'Apple),
   # gh et claude.
@@ -275,15 +317,15 @@ mac() {
       v="${derniere##*/v}"
       telecharger "https://github.com/cli/cli/releases/download/v$v/gh_${v}_macOS_$( [ $narch = x64 ] && echo amd64 || echo arm64).zip" "$travail/gh.zip" || refuser "gh ne se télécharge pas"
       (cd "$travail" && unzip -q gh.zip) || refuser "l'archive de gh ne s'ouvre pas"
-      rm -rf "$BASE/gh"
-      mv "$travail"/gh_* "$BASE/gh"
-      mkdir -p "$BASE/bin"
-      ln -sf "$BASE/gh/bin/gh" "$BASE/bin/gh"
+      mkdir -p "$travail/gh-bin"
+      cp "$travail"/gh_*/bin/gh "$travail/gh-bin/gh"
+      en_root mkdir -p "$BASE/bin"
+      en_root install -m 0755 -o root -g wheel "$travail/gh-bin/gh" "$BASE/bin/gh"
     fi
   fi
-  if ! command -v claude >/dev/null; then
-    dire "installation de claude, par l'installeur officiel"
-    curl -fsSL https://claude.ai/install.sh | bash || refuser "l'installeur de claude a échoué (sa sortie est au-dessus)"
+  if ! sous_brigade sh -c 'command -v claude' >/dev/null 2>&1; then
+    dire "installation de claude, par l'installeur officiel, sous le compte $COMPTE"
+    sous_brigade sh -c 'curl -fsSL https://claude.ai/install.sh | bash' || refuser "l'installeur de claude a échoué (sa sortie est au-dessus)"
   fi
 
   # Le node de la station, gardé tant qu'il est de la version réclamée.
@@ -297,64 +339,56 @@ mac() {
     [ "$(empreinte "$travail/$archive")" = "$(sed -n "s/^\([0-9a-f]\{64\}\)  $archive$/\1/p" "$travail/SHASUMS256.txt")" ] || refuser "l'empreinte de $archive n'est pas celle que nodejs.org publie"
     mkdir "$travail/node"
     tar -xzf "$travail/$archive" -C "$travail/node" --strip-components 1 || refuser "l'archive de node ne s'ouvre pas"
-    rm -rf "$BASE/node"
-    mv "$travail/node" "$BASE/node"
+    en_root mkdir -p "$BASE"
+    en_root rm -rf "$BASE/node"
+    en_root mv "$travail/node" "$BASE/node"
+    en_root chown -R root:wheel "$BASE/node"
     change=oui
   fi
 
-  # Le runtime de la version publiée, posé s'il n'est pas déjà celui-là.
+  # Le runtime de la version publiée, posé s'il n'est pas déjà celui-là. Il
+  # appartient à root : la porte, qui tourne sous root, en lance le code.
   obtenir "$source" "$travail/runtime.tar.gz"
   mkdir "$travail/neuf"
   tar -xzf "$travail/runtime.tar.gz" -C "$travail/neuf" || refuser "l'archive de la station ne s'ouvre pas ($source)"
   [ -f "$travail/neuf/runtime/src/kitchen/main.ts" ] || refuser "l'archive ne porte pas la cuisine de la station ($source)"
+  PF="$travail/neuf/runtime/paquet/macos"
+  for f in brigade.pf.conf brigade.sudoers charger-pf.sh com.brigade.pf.plist com.brigade.gate.plist; do
+    [ -f "$PF/$f" ] || refuser "l'archive ne porte pas $f, de l'ancre pf ($source)"
+  done
   version="$(version_de "$travail/neuf/runtime/package.json")"
   if [ ! -d "$BASE/runtime" ] || [ "$version" != "$(version_de "$BASE/runtime/package.json")" ]; then
-    [ ! -d "$BASE/runtime" ] || mv "$BASE/runtime" "$travail/ancien"
-    mv "$travail/neuf/runtime" "$BASE/runtime"
+    en_root rm -rf "$BASE/runtime"
+    en_root mv "$travail/neuf/runtime" "$BASE/runtime"
+    en_root chown -R root:wheel "$BASE/runtime"
     change=oui
   fi
+  PF="$BASE/runtime/paquet/macos"
 
-  # Ce que launchd lance : la station, quand l'app ne la tient pas déjà. Elle
-  # prend le répertoire comme l'app le prend (`app.pid`, app/src/workstation/station.ts)
-  # et garde son pid jusqu'au bout (`exec`) : l'app ouverte ensuite la voit
-  # tenue, et n'en lance pas une deuxième.
-  cat >"$travail/lancer-station" <<'LANCER'
-#!/bin/sh
-# Écrit par installer-station.sh, et réécrit à chaque passage : ne pas l'éditer.
-set -eu
-ici="$(cd "$(dirname "$0")" && pwd)"
-tenue="$BRIGADE_STATION_DIR/app.pid"
-mkdir -p "$BRIGADE_STATION_DIR"
-dit=""
-while ! (set -C && echo $$ >"$tenue") 2>/dev/null; do
-  pid="$(cat "$tenue" 2>/dev/null || true)"
-  case "$pid" in
-    $$) break ;;
-    "" | *[!0-9]*)
-      # En cours d'écriture, ou illisible pour de bon.
-      sleep 1
-      [ "$(cat "$tenue" 2>/dev/null || true)" != "$pid" ] || rm -f "$tenue"
-      ;;
-    *)
-      if kill -0 "$pid" 2>/dev/null; then
-        [ -n "$dit" ] || echo "brigade : la station de cet ordinateur est tenue par l'app (pid $pid) — celle-ci la reprend quand l'app se ferme"
-        dit=oui
-        sleep 30
-      else
-        rm -f "$tenue"
-      fi
-      ;;
-  esac
-done
-cd "$ici/runtime"
-exec "$ici/node/bin/node" src/kitchen/main.ts
-LANCER
-  chmod 0755 "$travail/lancer-station"
-  if poser "$travail/lancer-station" "$BASE/lancer-station"; then change=oui; fi
+  # Le répertoire d'état de la station : à elle, que la porte (root) lit aussi.
+  en_root install -d -m 0755 -o "$COMPTE" -g staff "$APPUI"
 
-  # L'agent launchd : lancé à l'ouverture de session, relancé s'il tombe.
-  # `AbandonProcessGroup` : son arrêt n'emporte pas les cooks, qui finissent
-  # leur travail — la station suivante les reprend (KillMode=process sous Linux).
+  # La règle sudo qui laisse la station relire son ancre, rien d'autre — posée
+  # seulement si sudo la lit.
+  if ! cmp -s "$PF/brigade.sudoers" "$SUDOERS/brigade" 2>/dev/null; then
+    if command -v visudo >/dev/null; then
+      visudo -cf "$PF/brigade.sudoers" >/dev/null || refuser "visudo refuse la règle sudo de la station ($PF/brigade.sudoers)"
+    fi
+    poser "$PF/brigade.sudoers" "$SUDOERS/brigade" 0440 || true
+  fi
+
+  # L'ancre pf, chargée maintenant et à chaque démarrage : sans elle, la station
+  # ne fait cuire rien. Un démon la recharge au boot, un autre tient la porte.
+  poser "$PF/com.brigade.pf.plist" "$DEMONS/com.brigade.pf.plist" || true
+  en_root "$PF/charger-pf.sh" || refuser "l'ancre pf ne se charge pas ($PF/charger-pf.sh)"
+  en_root pfctl -a brigade -sr 2>/dev/null | grep -q '^block' || refuser "l'ancre pf $COMPTE est chargée mais ne bloque rien : la station ne démarre pas sans elle"
+  if poser "$PF/com.brigade.gate.plist" "$DEMONS/com.brigade.gate.plist"; then porte_change=oui; else porte_change=""; fi
+  charger_demon com.brigade.gate "$DEMONS/com.brigade.gate.plist" "$porte_change" "$change" || true
+
+  # Le démon de la station : sous le compte brigade, lancé au démarrage de la
+  # machine, relancé s'il tombe. `AbandonProcessGroup` : son arrêt n'emporte pas
+  # les cooks, qui finissent leur travail — la station suivante les reprend
+  # (KillMode=process sous Linux).
   cat >"$travail/plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -363,17 +397,23 @@ LANCER
 <dict>
   <key>Label</key>
   <string>$ETIQUETTE</string>
+  <key>UserName</key>
+  <string>$COMPTE</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/sh</string>
-    <string>$(xml "$BASE/lancer-station")</string>
+    <string>$(xml "$BASE/node/bin/node")</string>
+    <string>src/kitchen/main.ts</string>
   </array>
+  <key>WorkingDirectory</key>
+  <string>$(xml "$BASE/runtime")</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>BRIGADE_STATION_DIR</key>
-    <string>$(xml "$RACINE")</string>
+    <string>$(xml "$APPUI")</string>
+    <key>BRIGADE_STATION_PORTES</key>
+    <string>$(xml "$APPUI/portes.json")</string>
     <key>HOME</key>
-    <string>$(xml "$HOME")</string>
+    <string>$(xml "$MAISON_MAC")</string>
     <key>PATH</key>
     <string>$(xml "$PATH_STATION")</string>
     <key>LANG</key>
@@ -397,53 +437,34 @@ LANCER
 </dict>
 </plist>
 PLIST
-  plist_change=""
-  if poser "$travail/plist" "$PLIST"; then plist_change=oui; fi
-
-  if ! launchctl print "$DOMAINE/$ETIQUETTE" >/dev/null 2>&1; then
-    launchctl enable "$DOMAINE/$ETIQUETTE" || true
-    launchctl bootstrap "$DOMAINE" "$PLIST" || refuser "launchd refuse l'agent $PLIST"
-  elif [ -n "$plist_change" ]; then
-    # Un plist changé ne se relit qu'en rechargeant l'agent.
-    launchctl bootout "$DOMAINE/$ETIQUETTE" || true
-    attendu=0
-    while launchctl print "$DOMAINE/$ETIQUETTE" >/dev/null 2>&1; do
-      attendu=$((attendu + 1))
-      [ $attendu -le $GARDE ] || refuser "l'ancien agent ne s'arrête pas — launchctl print $DOMAINE/$ETIQUETTE"
-      sleep 1
-    done
-    launchctl bootstrap "$DOMAINE" "$PLIST" || refuser "launchd refuse l'agent $PLIST"
-  elif [ -n "$change" ] || ! tourne; then
-    launchctl kickstart -k "$DOMAINE/$ETIQUETTE" || refuser "launchd ne relance pas la station"
-  else
-    dire "rien de neuf : la station tourne déjà sur cette version"
-  fi
+  if poser "$travail/plist" "$DEMONS/$ETIQUETTE.plist"; then plist_change=oui; else plist_change=""; fi
+  charger_demon "$ETIQUETTE" "$DEMONS/$ETIQUETTE.plist" "$plist_change" "$change" || dire "rien de neuf : la station tourne déjà sur cette version"
 
   attendu=0
-  until tourne; do
+  until tourne "$ETIQUETTE"; do
     attendu=$((attendu + 1))
     [ $attendu -le $GARDE ] || {
-      tail -n 20 "$JOURNAL" >&2 2>/dev/null || true
+      en_root tail -n 20 "$JOURNAL" >&2 2>/dev/null || true
       refuser "la station ne tourne pas $GARDE s après l'installation — son journal : $JOURNAL"
     }
     sleep 1
   done
   echo
-  dire "station installée et active — $version (launchctl print $DOMAINE/$ETIQUETTE ; son journal : $JOURNAL)"
+  dire "station installée et active — $version (launchctl print system/$ETIQUETTE ; son journal : $JOURNAL)"
 
   if ! terminal; then
-    dire "la suite : la connexion GitHub et la connexion Claude, puis tes projets — pas de terminal ici pour les connexions : relance la même commande depuis un terminal (le guide : docs/installation-station.md, dépôt $DEPOT)"
+    dire "la suite : la connexion GitHub et la connexion Claude du compte $COMPTE, puis tes projets — pas de terminal ici pour les connexions : relance la même commande depuis un terminal (le guide : docs/installation-station.md, dépôt $DEPOT)"
     return 0
   fi
-  connexion_github env || non_connectee "sa connexion GitHub n'est pas faite"
-  if claude auth status >/dev/null 2>&1; then
+  connexion_github sous_brigade || non_connectee "sa connexion GitHub n'est pas faite"
+  if sous_brigade claude auth status >/dev/null 2>&1; then
     dire "Claude : déjà connecté — rien à refaire"
   else
     echo
-    dire "la connexion Claude — la page de connexion s'ouvre dans ton navigateur, une seule fois"
-    claude auth login <"$TERMINAL" || non_connectee "sa connexion Claude n'est pas faite"
+    dire "la connexion Claude du compte $COMPTE — la page de connexion s'ouvre dans ton navigateur, une seule fois"
+    sous_brigade claude auth login <"$TERMINAL" || non_connectee "sa connexion Claude n'est pas faite"
   fi
-  dire "la station est connectée à GitHub et à Claude — la suite : tes projets, une ligne chacun dans $RACINE/kitchen/projects (le guide : docs/installation-station.md, dépôt $DEPOT)"
+  dire "la station est connectée à GitHub et à Claude — la suite : tes projets, une ligne chacun dans $APPUI/kitchen/projects (le guide : docs/installation-station.md, dépôt $DEPOT)"
 }
 
 case "$(uname -s)" in
