@@ -97,10 +97,8 @@ export function startRun(root: string, meta: Omit<RunMeta, "started">, launch: L
   writeFileSync(files(dir).meta, JSON.stringify(full));
   const relay = spawn(process.execPath, [RELAY, name], { detached: true, stdio: ["pipe", "ignore", "ignore"], env: process.env });
   relay.stdin?.on("error", () => {});
-  const order: ConsigneDuRelais = {
-    commande: launch.command, args: launch.args, entree: launch.input, cwd: launch.cwd, env: launch.env,
-    flux: files(dir).stream, pid: files(dir).pid, fin: files(dir).end, secrets: launch.secrets, graceMs: 10_000,
-  };
+  const { stream: flux, pid, end: fin } = files(dir);
+  const order: ConsigneDuRelais = { commande: launch.command, args: launch.args, entree: launch.input, cwd: launch.cwd, env: launch.env, flux, pid, fin, secrets: launch.secrets, graceMs: 10_000 };
   relay.stdin?.end(`${JSON.stringify(order)}\n`);
   ecrireAtomique(files(dir).relay, JSON.stringify({ pid: relay.pid, run: name }));
   relay.unref();
