@@ -102,6 +102,14 @@ export async function trustedComments(gh: Gh, repo: string, issue: number): Prom
   return pages.flat().filter((one) => TRUSTED.has(one.author_association)).map((one) => ({ author: one.user?.login ?? "?", body: one.body }));
 }
 
+// What the supervisor sees of the base branch (its last `tests` run, its last merge) and of each parked ticket (its last comment).
+export async function mainFacts(gh: Gh, repo: string, base: string, issues: Issue[]): Promise<{ main: string; parked: string[] }> {
+  const read = (path: string) => gh(["api", `repos/${repo}/${path}`]).then(JSON.parse, () => null);
+  const run = (await read(`actions/workflows/tests.yml/runs?branch=${base}&event=push&status=completed&per_page=1`))?.workflow_runs[0];
+  const parked = issues.filter((one) => one.labels.includes("parked")).map(async (one) => `#${one.number}: ${(await trustedComments(gh, repo, one.number).catch(() => [])).at(-1)?.body.slice(0, 1500) ?? "(no comment)"}`);
+  return { main: `dernier run \`tests\` : ${run ? `${run.conclusion} à ${run.updated_at}` : "inconnu"}\ndernière fusion : ${(await read(`commits?sha=${base}&per_page=1`))?.[0]?.commit.committer.date ?? "inconnue"}`, parked: await Promise.all(parked) };
+}
+
 export function gestures(gh: Gh, repo: string) {
   const r = ["-R", repo];
   return {

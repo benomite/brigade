@@ -1,9 +1,5 @@
-// The kitchen's entry point on a station: one loop that serves every project
-// of `<BRIGADE_STATION_DIR>/kitchen`, one line each:
-//   <name> <owner/repo> <base> [PLACES=<n>] [CLONE=<path>]
-// The file is read at every turn: adding a project needs no restart.
-// The risk zones of a project are in `.brigade/kitchen.json` on its base
-// branch: {"risk": ["runtime/"]}.
+// The kitchen's entry point on a station: one loop that serves every project of `<BRIGADE_STATION_DIR>/kitchen/projects`
+// (format in projects.ts, read at every turn: no restart). Risk zones: `.brigade/kitchen.json` on the base branch, {"risk": ["runtime/"]}.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";

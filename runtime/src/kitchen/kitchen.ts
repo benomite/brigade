@@ -5,7 +5,7 @@ import { execFile } from "../sans-invite.ts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
-import { branchOf, gestures, readState, ticketText, trustedComments, type Gh } from "./github.ts";
+import { branchOf, gestures, mainFacts, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
 import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
@@ -87,9 +87,9 @@ export function openKitchen(options: KitchenOptions) {
     const tries = triesOf(issue.labels) + (counts ? 1 : 0);
     const old = issue.labels.filter((label) => /^try:\d+$/.test(label));
     if (counts && tries >= TRIES_MAX) {
-      await act.labels(issue.number, [LABELS.parkedChef], [LABELS.inPass, LABELS.taken]);
-      await act.comment(issue.number, `Parked for the chef: refused ${tries} times. Last reason: ${reason}${details}`);
-      return log(`#${issue.number} parked for the chef after ${tries} tries — ${reason}`);
+      await act.labels(issue.number, [LABELS.parked], [LABELS.inPass, LABELS.taken]);
+      await act.comment(issue.number, `Parked for the supervisor: refused ${tries} times. Last reason: ${reason}${details}`);
+      return log(`#${issue.number} parked for the supervisor after ${tries} tries — ${reason}`);
     }
     const waiting = issue.labels.includes(LABELS.approved) ? [LABELS.parkedChef, LABELS.approved] : [];
     await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, ...waiting, ...(counts ? old : [])]);
@@ -97,9 +97,7 @@ export function openKitchen(options: KitchenOptions) {
     log(`#${issue.number} sent back — ${reason}`);
   }
 
-  // The worktree of a ticket, on its branch, with the base merged in. A merge
-  // that conflicts is left in progress: the cook resolves it.
-  // For a review, the worktree is exactly the pushed delivery.
+  // The worktree of a ticket, on its branch, with the base merged in (a conflict is left to the cook); for a review, exactly the pushed delivery.
   async function prepare(issue: number, forReview = false): Promise<string> {
     const wt = worktreeOf(issue);
     const branch = branchOf(issue);
@@ -232,7 +230,7 @@ export function openKitchen(options: KitchenOptions) {
       case "supervisor": {
         writeFileSync(lastSupervisorFile, String(now()));
         const { running } = listRuns(runs);
-        startRun(runs, { kind: "supervisor", issue: null, pr: null, worktree: null }, options.launch("supervisor", options.clone, false, JUDGE, text.supervisor({ issues: [...issues.values()], running, now: now() })));
+        startRun(runs, { kind: "supervisor", issue: null, pr: null, worktree: null }, options.launch("supervisor", options.clone, false, JUDGE, text.supervisor({ issues: [...issues.values()], running, now: now(), ...(await mainFacts(gh, repo, base, [...issues.values()])) })));
         return log("supervisor called");
       }
     }
@@ -243,7 +241,7 @@ export function openKitchen(options: KitchenOptions) {
   async function turn() {
     await publishAllowlist();
     if (!labelled) {
-      await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.approved, LABELS.epic, "try:1", "try:2"]);
+      await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.parked, LABELS.approved, LABELS.epic, "try:1", "try:2"]);
       labelled = true;
     }
     const listed = listRuns(runs);
