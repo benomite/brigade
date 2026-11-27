@@ -343,7 +343,7 @@ export class FakeScreen {
 
 // Le module de la vue, tel qu'il est — moins ses deux imports de xterm, que le navigateur résout par
 // l'import map de index.html : ici, les faux prennent leur place. Ses modules à elle (`./bricks.js`,
-// `./cost/head.js`), le navigateur les résout à côté d'elle : ici, ils sont chargés par leur adresse sur
+// `./log/log.js`), le navigateur les résout à côté d'elle : ici, ils sont chargés par leur adresse sur
 // le disque, une fois par process comme dans la page, et chacun de ses imports devient la lecture
 // du module chargé — une ligne pour une ligne, les lignes d'une erreur restent celles de vue.js.
 // Le reste est joué tel quel, comme le corps d'une fonction asynchrone en mode strict — ce qu'est
@@ -434,7 +434,7 @@ export async function playTheVue(answers: Answers & Required<Pick<Answers, "dema
       getElementById: find,
       querySelector: (selector: string) => (selector === "main" ? principal : null),
       createElement: (balise: string) => new Fake(balise),
-      // Le tracé de la page des coûts (cost/curve.js) : un élément SVG s'y pose comme un autre.
+      // Un élément SVG s'y pose comme un autre.
       createElementNS: (_namespace: string, balise: string) => new Fake(balise),
     },
     getComputedStyle: () => ({ getPropertyValue: (name: string) => tokens.get(name) ?? "" }),
@@ -527,7 +527,7 @@ export async function openRead(vue: Played, title: string): Promise<Fake> {
   return click(vue.element("onglets-du-projet"), "Settings");
 }
 
-// Les lignes de tous les projets, « Cost » et « Closer », sont en bas du bandeau de santé de chaque projet (#2638, #2921), une
+// La ligne de tous les projets, « Autonomy », est en bas du bandeau de santé de chaque projet (#2638, #2921), une
 // section de Settings (#3014) : le premier projet de la barre s'ouvre, puis Settings, comme le chef le fait. Rend la ligne qui
 // porte ce nom.
 async function lineOfAllTheProjects(vue: Played, name: string): Promise<Fake> {
@@ -539,10 +539,10 @@ async function lineOfAllTheProjects(vue: Played, name: string): Promise<Fake> {
   return line;
 }
 
-// Ouvre la page des coûts de tous les projets comme le chef le fait (#1022) : par sa ligne « Cost », sous Health (#2638).
-// Rend la page.
+// Ouvre la page des chiffres d'autonomie de tous les projets comme le chef le fait (#3222) : par sa ligne « Autonomy »,
+// sous Health (#2638). Rend la page.
 export async function openTheCosts(vue: Played): Promise<Fake> {
-  (await lineOfAllTheProjects(vue, "the cost of all projects")).click();
+  (await lineOfAllTheProjects(vue, "the autonomy of all projects")).click();
   await repos();
   return vue.element("cout");
 }

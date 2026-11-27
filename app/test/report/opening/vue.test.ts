@@ -160,18 +160,6 @@ describe("les cartes du rail", () => {
     assert.equal(refusal.textContent, "the browser did not open: nothing was sent?");
     assert.equal(refusal.dessous("button").find(({ className }) => className === "aide")?.ariaLabel, "no default browser");
   });
-
-  test("la panne en tête du rail porte le bouton ; sans panne, rien", async () => {
-    const vue = await openParade();
-    receive(vue, { ...FACTS, rail: FACTS.rail.filter(({ etat: state }) => state === "en attente"), attend: [], cooks: [], cuisineOisive: { depuis: "2026-11-02T08:18:00.000Z", cartes: [21] } });
-    await repos();
-    const outage = vue.element("rail").children.find(({ className }) => className === "panne-du-rail") ?? assert.fail("pas de panne en tête du rail");
-    assert.equal(report(outage).length, 1);
-    assert.equal(report(vue.element("rail")).length, 1);
-    receive(vue, { ...FACTS, rail: FACTS.rail.filter(({ etat: state }) => state === "en attente"), attend: [], cooks: [], cuisineOisive: null });
-    await repos();
-    assert.deepEqual(report(vue.element("rail")), []);
-  });
 });
 
 describe("une station en panne", () => {

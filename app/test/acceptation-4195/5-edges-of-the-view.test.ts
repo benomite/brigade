@@ -12,10 +12,10 @@ import { dropTheVue } from "../../src/second/vue-of-project.ts";
 const base = { attendu: false, attend: [], fiche: {}, ouvrable: true, dit: [] };
 const card = (ticket: number, more: Record<string, unknown>) => ({ ...base, ticket, titre: `t${ticket}`, ...more });
 
-function dropped(cards: unknown[], alerts: unknown[] = []): VueOfProject {
+function dropped(cards: unknown[]): VueOfProject {
   const views = mkdtempSync(join(tmpdir(), "vue-4195-"));
   try {
-    const board = { rail: { colonnes: [{ nom: "X", ton: "", compte: "", cartes: cards, vide: "" }], hors: [] }, alertesDuRail: alerts } as unknown as Board;
+    const board = { rail: { colonnes: [{ nom: "X", ton: "", compte: "", cartes: cards, vide: "" }], hors: [] } } as unknown as Board;
     dropTheVue("p", board, views);
     return JSON.parse(readFileSync(join(views, "p.json"), "utf8")) as VueOfProject;
   } finally {
@@ -46,10 +46,7 @@ test("qui est attendu : chaque raison, seule", () => {
   assert.match(awaiting(9), /third party/);
 });
 
-test("« base rouge » : attendu tel quel quand le rail dit la base rouge, sinon ramené à « in pass »", () => {
-  const red = dropped([card(5, { etat: "base rouge" })], [{ sorte: "base-rouge", geree: null, fait: {}, phrase: "main is red" }]);
-  assert.equal(red.rail[0]!.waitsOn, "main to be green");
-  assert.equal(red.rail[0]!.displayed, "base rouge");
+test("« base rouge » : le rail ne dit plus la base rouge (#4509), la carte est ramenée à « in pass »", () => {
   const green = dropped([card(5, { etat: "base rouge" })]);
   assert.equal(green.rail[0]!.displayed, "in pass");
   assert.match(green.rail[0]!.waitsOn, /pass/);

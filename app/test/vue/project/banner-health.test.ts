@@ -368,7 +368,7 @@ describe("le bandeau de santé, dans la vue", () => {
     assert.deepEqual(section.children.filter(({ balise }) => balise === "details"), [], "rien à déplier pour les voir");
   });
 
-  test("tout ce que la ligne repliée montrait est dans Settings : chaque plafond, les parties du closer, Cost et Closer de tous les projets", async () => {
+  test("tout ce que la ligne repliée montrait est dans Settings : chaque plafond, les parties du closer, Autonomy de tous les projets", async () => {
     const { vue } = await play();
     await repos();
     for (const { cle: key } of CAPS) assert.ok(lineOf(block(vue), key), key);
@@ -376,7 +376,7 @@ describe("le bandeau de santé, dans la vue", () => {
     assert.match(text(partOf(ofCloser, "passes")), /#2477Oct 8its PR merged/);
     assert.ok(partOf(ofCloser, "en-plus"));
     assert.ok(lineOf(ofCloser, "maxRemovedLines"));
-    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the cost of all projects", "the weekly summaries of all projects"]);
+    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the autonomy of all projects"]);
   });
 
   test("ni sur Rail, ni sur Stations : la section n'est posée que Settings ouvert, et se repose à sa réouverture", async () => {

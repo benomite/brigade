@@ -25,11 +25,9 @@ import type { SeenOfProjects } from "./projects/projects.ts";
 import { capsOf, type CapSeen } from "./cap.ts";
 import { reasonOf, type ReasonOfStation } from "./stations/reason.ts";
 import { LIMIT, type StationVue, type SeenOfStations } from "./stations/stations.ts";
-import { blockedOf, saysALHome } from "./vue/rail-blocked/rail-blocked.ts";
-import { inProgress, SAME_REASON, OUTAGES_OUTSIDE_PAUSE } from "./vue/pause-quota/line-of-the-pause.js";
 
-// Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris ; bleu, le calme de la
-// pause de quota GitHub du compte (vue/pause-quota/, #3482).
+// Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris ; bleu, le calme d'une
+// pause.
 export type Your = "vert" | "jaune" | "rouge" | "gris" | "bleu";
 // Une ligne de l'accueil : ce qu'elle dit, sa pastille, et ce qui se lit au survol.
 // `attend` : combien de décisions attendent le chef, absent quand aucune (la pastille « N awaiting you » de l'accueil, #2912).
@@ -126,31 +124,23 @@ function cooked(facts: Facts, repaired: number | undefined): string[] {
 
 export function lineOfProject(project: ProjectOfTheHome, readOne: ReadFacts | undefined, status: StatusRead | undefined): LineOfProject {
   const { nom: name } = project;
-  // Le rail bloqué (vue/rail-blocked/, #3358) : des tickets qu'aucun manager ne prend — aussi quand aucune station ne le
-  // sert, puisque c'est sa cause. Il bloque le projet, en tête de sa ligne ; sa phrase entière au survol.
-  // Pendant la pause de quota GitHub du compte (vue/pause-quota/, #3482), le projet dit seulement qu'il est en pause pour la
-  // même raison, d'une pastille calme : son rail bloqué n'en est pas un — sauf une panne que la pause n'explique pas.
-  const inPause = readOne !== undefined && "faits" in readOne && inProgress(readOne.faits.pauseQuota, Date.parse(readOne.faits.lu));
-  const blockedRead = readOne !== undefined && "faits" in readOne ? blockedOf(readOne.faits.railBloque) : undefined;
-  const railBlocked = inPause && blockedRead !== undefined && !OUTAGES_OUTSIDE_PAUSE.includes(blockedRead.cause) ? undefined : blockedRead;
-  if (!project.servi && railBlocked === undefined) return { nom: name, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
+  if (!project.servi) return { nom: name, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
   if (readOne === undefined) return { nom: name, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's station every 30 s" };
   if ("injoignable" in readOne) return { nom: name, ton: "rouge", dit: "station unreachable", survol: `its station did not answer at ${hour(readOne.a)} — the app tries again every 30 s; open it to see why` };
   if ("illisible" in readOne) return { nom: name, ton: "gris", dit: "not read: its station does not answer as the app expects", survol: `tried at ${hour(readOne.a)} — open it to see what its station returned` };
   const { faits: facts } = readOne;
-  const blocking = [...(railBlocked === undefined ? [] : [saysALHome(railBlocked, Date.parse(facts.lu))]), ...blockers(facts, status?.texte)];
+  const blocking = blockers(facts, status?.texte);
   const expected = awaiting(facts, status);
   // La dérive se lit dans les lignes `drift` de `status` : un mot sur la ligne, ce qu'elle dit au survol.
   // Elle ne change pas la pastille — rien n'attend le chef, rien ne bloque.
   const drift = status === undefined ? [] : driftOf(status.texte);
-  const inPauseOnly = inPause && blocking.length === 0;
-  const parties = [...blocking, ...(inPauseOnly ? [SAME_REASON] : []), ...expected, ...cooked(facts, repair(status?.texte))];
+  const parties = [...blocking, ...expected, ...cooked(facts, repair(status?.texte))];
   const said = parties.length === 0 ? "nothing cooking, nothing waits for you" : parties.join(" · ");
   return {
     nom: name,
-    ton: blocking.length > 0 ? "rouge" : expected.length > 0 ? "jaune" : inPauseOnly ? "bleu" : "vert",
+    ton: blocking.length > 0 ? "rouge" : expected.length > 0 ? "jaune" : "vert",
     dit: drift.length === 0 ? said : `${said} · drifting`,
-    survol: `read at ${hour(readOne.a)} — ${railBlocked === undefined ? "" : `${railBlocked.phrase} — `}${drift.length === 0 ? "" : `reliability drifting: ${drift.join(" · ")} — `}open it to act`,
+    survol: `read at ${hour(readOne.a)} — ${drift.length === 0 ? "" : `reliability drifting: ${drift.join(" · ")} — `}open it to act`,
     ...(facts.compteurs.attend > 0 ? { attend: facts.compteurs.attend } : {}),
   };
 }

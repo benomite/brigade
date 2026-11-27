@@ -1,8 +1,0 @@
-/* Le bandeau de la cuisine arrêtée (ticket 3924), en tête du rail : une panne, comme le rail bloqué (vue.css,
-   `.panne-du-rail`) — rouge, marquée STOPPED —, sa phrase prend la place. Son hôte ne pèse rien quand il est vide. */
-#rail .hote-bandeau-arret {
-  display: contents;
-}
-#rail .bandeau-arret strong {
-  flex: 1;
-}
