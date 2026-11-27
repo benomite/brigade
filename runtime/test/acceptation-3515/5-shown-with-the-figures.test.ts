@@ -11,12 +11,12 @@ import { ECHANTILLON, MAINTENANT } from "./echantillon.ts";
 // The view is plain JavaScript with no declaration: its one call is typed here.
 type Bloc = { poser: () => unknown };
 const VUE = "../../../app/src/vue/autonomy/figures.js";
-const { tenirLesChiffresDAutonomie } = (await import(VUE)) as { tenirLesChiffresDAutonomie: (doc: unknown, options: { lire: (jours: number) => Promise<unknown>; ouvrir: () => void }) => Bloc };
+const { holdTheFiguresOfAutonomy } = (await import(VUE)) as { holdTheFiguresOfAutonomy: (doc: unknown, options: { lire: (jours: number) => Promise<unknown>; ouvrir: () => void }) => Bloc };
 const doc = { createElement: (balise: string) => new Fake(balise) };
 
 test("the autonomy block shows 'escaped bugs' and 'reverts' next to its figures, each with its tickets and shas", async () => {
   const lire = (jours: number) => Promise.resolve({ jours, chiffres: nameTheProjects(chiffresDAutonomie([ECHANTILLON], jours, MAINTENANT), () => "parade"), manquants: [], partiels: [] });
-  const bloc = tenirLesChiffresDAutonomie(doc, { lire, ouvrir: () => undefined }).poser() as Fake;
+  const bloc = holdTheFiguresOfAutonomy(doc, { lire, ouvrir: () => undefined }).poser() as Fake;
   await repos();
   const cadres = bloc.dessous("div").filter(({ className }) => className.split(" ").includes("figure"));
   const textes = (nom: string) => cadres.find(({ textContent }) => textContent.startsWith(nom))?.dessous("p").map(({ textContent }) => textContent);

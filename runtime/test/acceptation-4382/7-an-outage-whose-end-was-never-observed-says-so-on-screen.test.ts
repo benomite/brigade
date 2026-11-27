@@ -7,12 +7,12 @@ import { A, CHEF, cuisine } from "./cuisine.ts";
 
 // The app's view module is plain JavaScript with no declaration file: its one export is typed here.
 const VUE = "../../../app/src/vue/project/banner-health/PostMortems.js";
-const { poserBlocPostMortems } = (await import(VUE)) as { poserBlocPostMortems: (doc: unknown, vue: unknown) => unknown };
+const { setBlockPostMortems } = (await import(VUE)) as { setBlockPostMortems: (doc: unknown, vue: unknown) => unknown };
 
 // The Settings section of the project, as the app draws it from what `facts` publishes: one line per field.
 function ecran(c: ReturnType<typeof cuisine>, maintenant: string): string[] {
   const doc = { createElement: (balise: string) => new Fake(balise) };
-  const bloc = poserBlocPostMortems(doc, vueOfPostMortems(c.publies(), new Date(maintenant))) as unknown as Fake;
+  const bloc = setBlockPostMortems(doc, vueOfPostMortems(c.publies(), new Date(maintenant))) as unknown as Fake;
   const lignes: string[] = [];
   const parcourir = (noeud: Fake) => (noeud.tagName.toLowerCase() === "div" ? lignes.push(noeud.textContent) : noeud.children.forEach(parcourir));
   parcourir(bloc);

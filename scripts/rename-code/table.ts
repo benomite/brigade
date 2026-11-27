@@ -4,6 +4,8 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { NAMES } from "./names.ts";
+import { translate } from "./words.ts";
 
 // The French → English mapping of words, `mapping.json` — the one source that
 // the rename applies, that the naming gate (`gate.ts`) checks, and that the
@@ -44,6 +46,11 @@ export const WORDS: Record<string, string> = { ...mapping.glossary, ...mapping.c
 // Whole names, for the names the word-by-word translation would leave half
 // French: names.ts.
 export { NAMES } from "./names.ts";
+
+// The new name of a name declared in `file` (its path before the rename): its whole name in NAMES, for that file or
+// for any, or else its word-by-word translation. The rename gives this name, and the pass's gate reads it to tell a
+// renamed export from a new one (runtime/src/passe/gates/controle.ts, #4413).
+export const newNameOf = (file: string, name: string): string => NAMES[`${file}#${name}`] ?? NAMES[name] ?? translate(name, { words: WORDS });
 
 // Files and folders whose word-by-word name would be wrong, or would land on
 // another's: their new name (the last part only), keyed by their path.

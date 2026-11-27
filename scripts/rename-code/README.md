@@ -1264,7 +1264,6 @@ from `mapping.json`.
 | `noter` | `note` |
 | `notifiee` | `notified` |
 | `notifiees` | `notified` |
-| `notifier` | `notify` |
 | `notifieur` | `notifier` |
 | `nous` | `we` |
 | `nouveau` | `new` |
@@ -1490,11 +1489,9 @@ from `mapping.json`.
 | `projet` | `project` |
 | `projets` | `projects` |
 | `promesse` | `promise` |
-| `propose` | `proposes` |
 | `proposee` | `proposed` |
 | `proposees` | `proposed` |
 | `proposer` | `propose` |
-| `proposition` | `proposal` |
 | `propositions` | `proposals` |
 | `propre` | `own` |
 | `propres` | `own` |

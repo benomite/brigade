@@ -20,7 +20,7 @@ import { FILE, readTheFile, proposeTheFile, textOfFile, type FileRead } from "..
 import type { ClientOfThePriority } from "../../priority.ts";
 import { detailOf, withoutTheCommand } from "../../settings-of-project.ts";
 
-export { JOURS_DU_RESUME, JOUR_PAR_DEFAUT, type JourDuResume };
+export { JOURS_DU_RESUME as DAYS_OF_RESUME, JOUR_PAR_DEFAUT as DAY_BY_DEFAULT, type JourDuResume as DayOfResume };
 
 // Le nombre de semaines dont l'app cherche le résumé, la plus récente d'abord.
 export const WEEKS = 6;

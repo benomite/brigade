@@ -1163,7 +1163,6 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `noter` | `note` |
 | `notifiee` | `notified` |
 | `notifiees` | `notified` |
-| `notifier` | `notify` |
 | `notifieur` | `notifier` |
 | `nous` | `we` |
 | `nouveau` | `new` |
@@ -1389,11 +1388,9 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `projet` | `project` |
 | `projets` | `projects` |
 | `promesse` | `promise` |
-| `propose` | `proposes` |
 | `proposee` | `proposed` |
 | `proposees` | `proposed` |
 | `proposer` | `propose` |
-| `proposition` | `proposal` |
 | `propositions` | `proposals` |
 | `propre` | `own` |
 | `propres` | `own` |

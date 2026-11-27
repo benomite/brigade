@@ -147,4 +147,28 @@ describe("le contrôle dans les gates, avant les tests et avant la relecture", (
     assert.doesNotMatch(sortie, /^FAIL.*ancien/m);
     assert.equal(code, 0, sortie);
   });
+
+  // Le renommage du code en anglais (#4413) déplace les fichiers et renomme leurs exports : un export renommé par la
+  // table de scripts/rename-code n'est pas neuf ; un export neuf du même changement l'est toujours.
+  test("un export que le renommage du code a renommé n'est pas neuf ; un export neuf du même changement rougit", { skip: SKIP }, (t) => {
+    const racine = projet(t);
+    for (const module of ["table.ts", "names.ts", "words.ts", "mapping.json"]) {
+      mkdirSync(join(racine, "scripts/rename-code"), { recursive: true });
+      copyFileSync(join(RACINE, "scripts/rename-code", module), join(racine, "scripts/rename-code", module));
+    }
+    poser(racine, "runtime/src/journal.ts", "export function lireJournal() {}\n");
+    poser(racine, "runtime/test/journal.test.ts", 'import { lireJournal } from "../src/journal.ts";\nlireJournal();\n');
+    git(racine, "add", "-A");
+    git(racine, "commit", "-q", "-m", "un export déjà là, en français");
+    git(racine, "branch", "-f", "main", "HEAD");
+    git(racine, "mv", "runtime/src/journal.ts", "runtime/src/log.ts");
+    poser(racine, "runtime/src/log.ts", "export function readLog() {}\nexport function fabrique() {}\n");
+    poser(racine, "runtime/test/journal.test.ts", 'import { readLog, fabrique } from "../src/log.ts";\nreadLog();\nfabrique();\n');
+
+    const { code, sortie } = jouer(racine);
+
+    assert.doesNotMatch(sortie, /^FAIL.*readLog/m);
+    assert.match(sortie, /^FAIL {2}export « fabrique » de runtime\/src\/log\.ts : seuls des tests l'importent/m);
+    assert.equal(code, 1, sortie);
+  });
 });

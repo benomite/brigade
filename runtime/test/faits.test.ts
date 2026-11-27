@@ -681,10 +681,10 @@ test("la carte d'un ticket pris dit ce que son cook fait en ce moment, et depuis
 
   noter({ type: "cook.progressed", payload: { run: "14-a", turns: 3, tokens: 300, activity: { doing: "reading", target: "runtime/src/etat.ts", since: `${JOUR_HORLOGE}T10:00:03.500Z` } } }, 14);
   assert.deepEqual(activite(), { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts", depuis: `${JOUR_HORLOGE}T10:00:03.500Z` });
-  noter({ type: "cook.progressed", payload: { run: "14-a", turns: 9, tokens: 900, activity: { doing: "fixing-tests", target: "app/src/slip.ts", since: `${JOUR_HORLOGE}T10:00:04.500Z` } } }, 14);
-  assert.deepEqual(activite(), { fait: "tests rouges, corrige", faitEn: "tests red, fixing", cible: "app/src/slip.ts", depuis: `${JOUR_HORLOGE}T10:00:04.500Z` });
+  noter({ type: "cook.progressed", payload: { run: "14-a", turns: 9, tokens: 900, activity: { doing: "fixing-tests", target: "app/src/bon.ts", since: `${JOUR_HORLOGE}T10:00:04.500Z` } } }, 14);
+  assert.deepEqual(activite(), { fait: "tests rouges, corrige", faitEn: "tests red, fixing", cible: "app/src/bon.ts", depuis: `${JOUR_HORLOGE}T10:00:04.500Z` });
   // `status` le dit aussi, sur la ligne du cook : là où il en est, depuis quand.
-  assert.ok(lire(`${JOUR_HORLOGE}T10:10:00.000Z`).texte.some((ligne) => ligne.startsWith("  #14  14-a  ") && ligne.endsWith("right now: tests red, fixing app/src/slip.ts, since 9 min")));
+  assert.ok(lire(`${JOUR_HORLOGE}T10:10:00.000Z`).texte.some((ligne) => ligne.startsWith("  #14  14-a  ") && ligne.endsWith("right now: tests red, fixing app/src/bon.ts, since 9 min")));
 
   noter({ type: "cook.exited", payload: { run: "14-a", outcome: "ok", code: 0, signal: null, turns: 10, tokens: 1000, durationMs: 1 } }, 14);
   assert.equal(ticket()?.state, "taken");

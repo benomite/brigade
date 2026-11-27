@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 import { exchangedMembers, findNode } from "./exchanged.ts";
-import { FIXUPS, KEPT_FILES, KEPT_MEMBERS, KEPT_NAMES, NAMES, PATHS, WORDS } from "./table.ts";
+import { FIXUPS, KEPT_FILES, KEPT_MEMBERS, KEPT_NAMES, newNameOf, PATHS, WORDS } from "./table.ts";
 import { translate } from "./words.ts";
 
 // The tree the tool works on: the repository it lives in, or the copy a dry
@@ -177,7 +177,7 @@ function declarations(program: ts.Program, files: string[]): Declared[] {
   return found;
 }
 
-const newName = (declared: Pick<Declared, "name" | "file">): string => NAMES[`${declared.file}#${declared.name}`] ?? NAMES[declared.name] ?? translate(declared.name, translator);
+const newName = (declared: Pick<Declared, "name" | "file">): string => newNameOf(declared.file, declared.name);
 const keptName = (name: string) => KEPT_NAMES.some((kept) => kept.names.includes(name));
 const keptMember = (name: string) => KEPT_MEMBERS.some((kept) => kept.names.includes(name));
 
