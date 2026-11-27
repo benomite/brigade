@@ -15,7 +15,7 @@ import { waitingFor } from "./records.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
 /** @typedef {import("./records.js").ParkedRecord} ParkedRecord */
-/** @typedef {{ texte: string, recommande?: boolean }} Choice */
+/** @typedef {{ texte: string, recommande?: boolean, ouvre?: boolean }} Choice */
 /**
  * @typedef {{ records: readonly ParkedRecord[], chef: string, choices: readonly string[] | ((record: ParkedRecord) => readonly Choice[]),
  *   answer: (ticket: number, choice: string) => unknown, readOnly?: string, open?: (ticket: number) => void,
@@ -64,11 +64,13 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
       /** @type {readonly Choice[]} */
       const theChoice = typeof choices === "function" ? choices(record) : choices.map((text) => ({ texte: text }));
       let answered = false;
-      const buttons = theChoice.map(({ texte: text, recommande: recommended }) =>
+      const buttons = theChoice.map(({ texte: text, recommande: recommended, ouvre: opens }) =>
         button(
           doc,
           text,
           () => {
+            // Un bouton qui ouvre la carte (la réponse s'y écrit) ne quitte pas le TODO : la carte, une fois répondue, le fera.
+            if (opens === true && open !== undefined) return open(ticket);
             if (answered) return;
             answered = true;
             item.remove();

@@ -350,8 +350,8 @@ fi
 # de 40 s à une minute à la station, une recuisson tout un cook de plus.
 # `BRIGADE_GATES_TESTS=proches` ne joue que les tests proches, hors CI : au
 # poste du dev, pendant le travail.
-# Mais un changement qui lance la CI Windows y joue toutes les suites : les
-# chemins de `pull_request.paths` de `.github/workflows/runtime-windows.yml`,
+# Mais un changement qui lançait la CI Windows (sur une PR jusqu’à #4607) y joue toutes les suites : les
+# anciens chemins de `pull_request.paths` de `.github/workflows/runtime-windows.yml`,
 # ci-dessous à l'identique. Les gates y jouent donc tout, elles aussi (#3996) :
 # les tests de loin — ceux qui parcourent un dossier au lieu d'importer ce
 # qu'ils gardent, ceux qu'un module du produit touche par ses imports — et la

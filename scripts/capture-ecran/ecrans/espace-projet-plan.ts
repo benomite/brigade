@@ -3,7 +3,6 @@
 // il est aussi dans son TODO, avec #12 — une ligne, « 2 wait for you » (#4354). En haut, l'équipe de la fixture, un badge d'une
 // ligne par agent.
 import type { Facts } from "../../../app/src/facts.ts";
-import { TEAM } from "../../../app/test/autonomy/team-fixture.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -33,7 +32,7 @@ export const ecran: Ecran = {
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],
   donnees: () => ({
     maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), lireLesAgents: TEAM },
+    reponses: { demarrage: demarrage(configuration(PROJETS)) },
     envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } }),
   }),
 };
