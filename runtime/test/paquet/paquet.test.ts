@@ -255,8 +255,10 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
       systeme.appels().filter((a) => !a.startsWith("getent")),
       [
         "adduser --quiet --system --group --home /home/brigade --shell /bin/bash brigade",
-        "systemctl disable --now brigade-station-renouvellement.service",
-        "systemctl disable --now brigade-station-renouvellement.timer",
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
         "systemctl daemon-reload",
         "systemctl reset-failed brigade-station-renouvellement.service",
         "systemctl reset-failed brigade-station-renouvellement.timer",
@@ -285,8 +287,10 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
       [
-        "systemctl disable --now brigade-station-renouvellement.service",
-        "systemctl disable --now brigade-station-renouvellement.timer",
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
         "systemctl daemon-reload",
         "systemctl reset-failed brigade-station-renouvellement.service",
         "systemctl reset-failed brigade-station-renouvellement.timer",
@@ -302,8 +306,10 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
       [
-        "systemctl disable --now brigade-station-renouvellement.service",
-        "systemctl disable --now brigade-station-renouvellement.timer",
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
         "systemctl daemon-reload",
         "systemctl reset-failed brigade-station-renouvellement.service",
         "systemctl reset-failed brigade-station-renouvellement.timer",
@@ -321,9 +327,12 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
       [
-        "systemctl disable --now brigade-station-renouvellement.service",
-        "systemctl disable --now brigade-station-renouvellement.timer",
-        "systemctl disable --now brigade-kitchen.service",
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
+        "systemctl stop brigade-kitchen.service",
+        "systemctl disable brigade-kitchen.service",
         "systemctl daemon-reload",
         "systemctl reset-failed brigade-station-renouvellement.service",
         "systemctl reset-failed brigade-station-renouvellement.timer",
@@ -348,22 +357,30 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
       symlinkSync("/dev/null", join(unites, "timers.target.wants", `brigade-sauvegarde@${projet}.timer`));
     }
     symlinkSync("/dev/null", join(unites, "timers.target.wants", "brigade-station-renouvellement.timer"));
-    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
+    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$1" = disable ] && exit 1; [ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
     const rendu = jouer(postinst(t, unites), ["configure", "1.2.2"], systeme.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active"));
     assert.deepEqual(
-      appels.filter((a) => a.startsWith("systemctl disable")).sort(),
+      appels.filter((a) => a.startsWith("systemctl disable") || a.startsWith("systemctl stop")).sort(),
       [
-        "systemctl disable --now brigade-arbitre.service",
-        "systemctl disable --now brigade-sauvegarde@brigade.service",
-        "systemctl disable --now brigade-sauvegarde@brigade.timer",
-        "systemctl disable --now brigade-sauvegarde@calculus-workspace.timer",
-        "systemctl disable --now brigade-sauvegarde@espace.service",
-        "systemctl disable --now brigade-sauvegarde@espace.timer",
-        "systemctl disable --now brigade-station-renouvellement.service",
-        "systemctl disable --now brigade-station-renouvellement.timer",
-      ],
+        "systemctl stop brigade-arbitre.service",
+        "systemctl disable brigade-arbitre.service",
+        "systemctl stop brigade-sauvegarde@brigade.service",
+        "systemctl disable brigade-sauvegarde@brigade.service",
+        "systemctl stop brigade-sauvegarde@brigade.timer",
+        "systemctl disable brigade-sauvegarde@brigade.timer",
+        "systemctl stop brigade-sauvegarde@calculus-workspace.timer",
+        "systemctl disable brigade-sauvegarde@calculus-workspace.timer",
+        "systemctl stop brigade-sauvegarde@espace.service",
+        "systemctl disable brigade-sauvegarde@espace.service",
+        "systemctl stop brigade-sauvegarde@espace.timer",
+        "systemctl disable brigade-sauvegarde@espace.timer",
+        "systemctl stop brigade-station-renouvellement.service",
+        "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+        "systemctl disable brigade-station-renouvellement.timer",
+      ].sort(),
     );
     const reload = appels.indexOf("systemctl daemon-reload");
     assert.equal(appels.at(-1), "systemctl restart brigade-station.service");
@@ -386,13 +403,15 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
 
   test("une mise à jour depuis une version qui livrait le renouvellement sous /usr/lib l'arrête sans condition et oublie son état failed, après le daemon-reload", (t) => {
     // Aucun fichier sous /etc : seule la machine (systemd) porte encore l'unité.
-    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
+    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$1" = disable ] && exit 1; [ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
     const rendu = jouer(postinst(t), ["configure", "1.2.2"], systeme.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active"));
     assert.deepEqual(appels, [
-      "systemctl disable --now brigade-station-renouvellement.service",
-      "systemctl disable --now brigade-station-renouvellement.timer",
+      "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+      "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
       "systemctl daemon-reload",
       "systemctl reset-failed brigade-station-renouvellement.service",
       "systemctl reset-failed brigade-station-renouvellement.timer",

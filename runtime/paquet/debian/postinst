@@ -26,13 +26,20 @@ UNITES_A_LA_MAIN=/etc/systemd/system
 # est oublié après le daemon-reload.
 RETIREES=
 
+# Le « stop » est à part : « disable --now » échoue sans rien arrêter quand le
+# fichier de l'unité n'existe plus (dpkg l'a retiré), et l'unité resterait active.
+arreter_et_desactiver() {
+  systemctl stop "$1" || true
+  systemctl disable "$1" || true
+  RETIREES="$RETIREES $1"
+}
+
 # Arrête, désactive et supprime chaque unité de l'ancien runtime que la machine
 # porte encore, avec ses drop-ins ; ce que la machine n'a pas n'est pas touché.
 retirer_anciennes() {
   liste="$ANCIENNES"
   for unite in $LIVREES; do
-    systemctl disable --now "$unite" || true
-    RETIREES="$RETIREES $unite"
+    arreter_et_desactiver "$unite"
   done
   for lien in "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.timer "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.service \
       "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.service.d "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.timer.d; do
@@ -48,7 +55,7 @@ retirer_anciennes() {
     [ -n "$presente" ] || continue
     case "$unite" in
       *@.*) ;;
-      *) case " $LIVREES " in *" $unite "*) ;; *) systemctl disable --now "$unite" || true; RETIREES="$RETIREES $unite" ;; esac ;;
+      *) case " $LIVREES " in *" $unite "*) ;; *) arreter_et_desactiver "$unite" ;; esac ;;
     esac
     rm -rf "$UNITES_A_LA_MAIN/$unite" "$UNITES_A_LA_MAIN/$unite.d" "$UNITES_A_LA_MAIN"/*.wants/"$unite"
   done
