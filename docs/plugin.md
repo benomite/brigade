@@ -14,7 +14,7 @@ needs, and sends you to the app. The kitchen itself runs from the app; the plugi
 On Claude Code 2.1.275 or later, one line does both: `/plugin install brigade --marketplace benomite/brigade`.
 A session already open keeps the commands it started with: Claude Code loads plugins at startup.
 
-The V1 plugin (the `/brigade:po`, `/brigade:manager`, `/brigade:dev` and `/brigade:designer` roles) is no longer
+The V1 plugin (its roles and its Codex mirror) is no longer
 published from `main`. It stays installable from the tag `v1-final`:
 `/plugin marketplace add benomite/brigade@v1-final`, then `/plugin install brigade@brigade`.
 
@@ -34,33 +34,13 @@ published from `main`. It stays installable from the tag `v1-final`:
   repository you are in, oldest first, and answers them one by one, as the app's Answer does. It writes to GitHub
   only once you have answered.
 
-All four are written in English and answer in your language. `/brigade:ask` has a Codex mirror,
-`codex/skills/ask/`, that carries the same text (the gates check it).
+All four are written in English and answer in your language.
 
 The manifest declares these four files and an empty `agents` list. Both keys are needed: when a manifest does not
-name `commands` or `agents`, Claude Code loads every `.md` of the plugin's `commands/` or `agents/` folder, and
-those folders still hold the V1 files (below).
-
-## The V1 files still in the repository
-
-They stay on disk, out of the manifest, until a later ticket deletes them. The gates list them
-(`NOT_PUBLISHED` in `.claude/brigade/gates.sh`): any other file of `commands/` or `agents/` must be declared.
-What still reads each one:
-
-| File | Still read by |
-|---|---|
-| `commands/po.md` | the gates (a V1 role: its Codex mirror `codex/skills/po/` must exist and stay fresh); `runtime/test/ste.test.ts` (reads its text) |
-| `commands/manager.md` | the gates (role and mirror); `runtime/test/ste.test.ts` |
-| `commands/dev.md` | the gates (role and mirror); `runtime/test/ste.test.ts` |
-| `commands/designer.md` | the gates (role and mirror) |
-| `commands/sync.md` | nothing but the V1 texts that name it (the Codex mirrors, `commands/manager.md`, `scripts/update-partout.sh`) |
-| `commands/init.md` | nothing reads the file; the app sets a repository up with its own session, not this command (`app/src/setup/`) |
-| `agents/dev-teammate.md`, `-low`, `-medium` | `commands/manager.md` (V1) spawns them as `brigade:dev-teammate*`; the gates check their three bodies are the same |
-
-The other agents of `agents/` are not V1 and stay: the runtime and its tests read them as files, never as plugin
-agents — `agents/kitchen/second-judge.md` (the second judge's brief, `runtime/src/second-juge.ts`), `agents/cook.md`,
-`agents/triage.md`, `agents/manager.md`, `agents/product.md` and `agents/closer.md` (evals and tests). The new
-kitchen reads `agents/kitchen/` itself.
+name `commands` or `agents`, Claude Code loads every `.md` of the plugin's `commands/` or `agents/` folder. The gates
+check that every file the manifest names exists. `agents/` holds only `kitchen/`: the runtime reads
+`agents/kitchen/second-judge.md` (the second judge's brief, `runtime/src/second-juge.ts`) as a file, never as a plugin
+agent.
 
 ## Publishing a change
 

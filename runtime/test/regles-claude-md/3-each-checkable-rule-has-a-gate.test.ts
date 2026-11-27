@@ -7,7 +7,6 @@ import { describe, test, type TestContext } from "node:test";
 import { ENV_ENFANT, git, repertoireTemporaire } from "../outils.ts";
 
 const GATES = join(import.meta.dirname, "../../../.claude/brigade/gates.sh");
-const ROLES = ["po", "manager", "dev", "designer"];
 
 // Un projet aux gates vertes, commité ; le test y pose ensuite sa violation.
 function projet(t: TestContext): string {
@@ -18,14 +17,10 @@ function projet(t: TestContext): string {
   };
   poser("CLAUDE.md", "## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `main`\n");
   poser(".gitignore", ".brigade-state/\n");
-  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ROLES.map((role) => `./commands/${role}.md`) }));
+  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ["./commands/ask.md"] }));
   poser(".claude-plugin/marketplace.json", "{}");
   poser(".claude/settings.json", "{}");
-  for (const role of ROLES) {
-    poser(`commands/${role}.md`, `# ${role}\n`);
-    poser(`codex/skills/${role}/SKILL.md`, `# ${role}\n`);
-    poser(`codex/skills/${role}/agents/openai.yaml`, "");
-  }
+  poser("commands/ask.md", "# ask\n");
   git(racine, "init", "-q", "-b", "main");
   git(racine, "add", "-A");
   git(racine, "commit", "-q", "-m", "projet d'essai");
@@ -61,14 +56,5 @@ describe("the gates refuse a broken CLAUDE.md rule and name it", { concurrency: 
     const { code, sortie } = jouer(racine);
     assert.notEqual(code, 0, sortie);
     assert.match(sortie, /^FAIL.*(pkill|killall|process name|by (its |their )?name|par son nom|nom du processus)/im, sortie);
-  });
-
-  test("a Codex mirror that differs from its role fails the gates, and the message names the Codex mirror", (t) => {
-    const racine = projet(t);
-    poser(racine, "commands/dev.md", "# dev\nune règle de plus\n");
-    poser(racine, "codex/skills/dev/SKILL.md", "# dev\nune AUTRE règle\n");
-    const { code, sortie } = jouer(racine);
-    assert.notEqual(code, 0, sortie);
-    assert.match(sortie, /^FAIL.*(miroir Codex|Codex mirror)/im, sortie);
   });
 });
