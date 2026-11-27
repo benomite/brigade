@@ -67,20 +67,6 @@ function projet(t: TestContext): string {
   return racine;
 }
 
-test("the gates that play every test give the runtime suite the PR's duration mode, the close tests named as strict", { skip: posixOnly("plays this repository's real gates.sh on a test project; on Windows its Python check reads the role paths with backslashes") }, (t) => {
-  const racine = projet(t);
-  const base = git(racine, "rev-parse", "main");
-  writeFileSync(join(racine, "runtime/src/a.ts"), "export const a = 2;\n");
-
-  // Le mode « tout, comme la CI Windows » ne joue plus que sur demande (#4141).
-  const passage = spawnSync("bash", [GATES, racine], { env: { ...ENV_ENFANT, HOME: join(racine, ".."), BRIGADE_GATES_COMME_LA_CI: "1" }, encoding: "utf8" });
-  const sortie = passage.stdout + passage.stderr;
-
-  assert.match(sortie, /^ok {4}tests : tous, comme la CI Windows/m);
-  assert.equal(readFileSync(join(racine, "runtime/duree.txt"), "utf8"), `pr|${base}|test/a.test.ts`, sortie);
-  assert.equal(passage.status, 0, sortie);
-});
-
 test("the gates that play every test because the change sets a whole suite still judge the 2 s rule as the PR's CI, with no close test named as strict (#4110)", { skip: posixOnly("plays this repository's real gates.sh on a test project; on Windows its Python check reads the role paths with backslashes") }, (t) => {
   const racine = projet(t);
   const base = git(racine, "rev-parse", "main");

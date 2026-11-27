@@ -5,10 +5,16 @@
 # Chaque check rend son verdict en moins de 60 s après le démarrage de son job (#2086) : la suite est
 # coupée en parts qui courent en parallèle, une part rouge arrête les autres (`fail-fast`), les
 # dépendances viennent du cache de npm, et `timeout-minutes: 3` plafonne un job qui pend. Les checks :
+#   - `choice`                         : les parts et les contrôles de types que ce changement demande ;
 #   - `gates`                          : les gates du dépôt, sans leurs suites (jouées par les parts) ;
 #   - `tests <zone> (<i>/<n>)`         : la part i de n des tests de la zone, ceux que la PR touche ;
 #   - `types (<zone>)`                 : le contrôle de types de la zone.
-# Le nombre de parts se règle dans la matrice de `tests` : plus de parts, des parts plus courtes.
+# Sur une PR, seules partent les parts qui ont des fichiers à jouer (#4607) : `choice` lit la sélection de
+# `tests-touches.mjs` une fois, et donne à chaque zone autant de parts que sur `main` pour le même nombre de
+# fichiers par part. Une PR de docs ne lance aucune part ; ses types ne partent que si elle touche `runtime/`
+# ou `app/` (chacune importe des fichiers de l'autre). Avant, chaque push lançait les 22 jobs, la plupart
+# pour dire « aucun fichier » : ~130 jobs par ticket mergé, contre 20 jobs simultanés chez GitHub.
+# Sur `main`, la suite entière : `MAX` parts par zone, les deux contrôles de types.
 name: tests
 
 # Une branche de cook ne déclenche ce workflow qu'en tête d'une PR ouverte (`pull_request`) : aucun `push`
@@ -30,6 +36,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  choice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      tests: ${{ steps.choice.outputs.tests }}
+      types: ${{ steps.choice.outputs.types }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Parts et types de ce changement
+        id: choice
+        env:
+          EVENEMENT: ${{ github.event_name }}
+          # Les parts de chaque zone sur `main` : une PR en lance au plus autant.
+          MAX: '{"runtime":16,"app":3}'
+        run: |
+          set -euo pipefail
+          if [ "$EVENEMENT" = pull_request ]; then
+            changes="$(git diff --name-only HEAD^1 HEAD)"
+            sel="$(printf '%s\n' "$changes" | node .claude/brigade/tests-touches.mjs --souche HEAD^1)" \
+              || { echo "tests-touches.mjs a échoué : sélection des tests impossible" >&2; exit 1; }
+          else
+            changes=""
+            sel="$(printf 'runtime tout\napp tout\n')"
+          fi
+          printf '%s\n' "$sel"
+          CHANGES="$changes" SEL="$sel" node --input-type=module -e '
+            import { execFileSync } from "node:child_process";
+            import { appendFileSync } from "node:fs";
+            const max = JSON.parse(process.env.MAX);
+            const pr = process.env.EVENEMENT === "pull_request";
+            const changes = process.env.CHANGES.split("\n").filter(Boolean);
+            const rules = Object.fromEntries(process.env.SEL.split("\n").filter(Boolean).map((line) => [line.split(" ")[0], line.split(" ").slice(1)]));
+            const all = (zone) => execFileSync("git", ["ls-files", ":(glob)test/**/*.test.ts"], { cwd: zone, encoding: "utf8" }).split("\n").filter(Boolean).length;
+            const tests = [];
+            for (const [zone, most] of Object.entries(max)) {
+              const rule = rules[zone] ?? ["tout"];
+              if (rule[0] === "rien") continue;
+              const total = all(zone);
+              const files = rule[0] === "fichiers" ? rule.length - 1 : total;
+              const of = Math.max(1, Math.min(most, Math.ceil((files * most) / total)));
+              for (let part = 1; part <= of; part++) tests.push({ zone, part, of });
+            }
+            const code = changes.some((path) => /^(runtime|app)\//.test(path) || path === ".github/workflows/tests.yml");
+            const types = !pr || code ? Object.keys(max) : [];
+            appendFileSync(process.env.GITHUB_OUTPUT, `tests=${JSON.stringify(tests)}\ntypes=${JSON.stringify(types)}\n`);
+            console.log(`parts : ${tests.length}, types : ${types.join(", ") || "aucun"}`);
+          '
+
   # Les gates sans leurs suites : sans `package.json`, une zone n'a « aucun test à jouer » (ce n'est
   # pas un échec) et ses types ne partent pas. Les suites se jouent dans `tests`, les types dans `types`.
   # Ce contournement est fragile : il suppose que `gates.sh` traite une zone sans `package.json` comme
@@ -38,7 +97,7 @@ jobs:
   # Il attend `tests` et `types` (`always()` : même quand l'un échoue ou est annulé par `fail-fast`)
   # et est rouge si l'un d'eux n'est pas `success`.
   gates:
-    needs: [tests, types]
+    needs: [choice, tests, types]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -51,9 +110,11 @@ jobs:
         with:
           node-version: 26
       - name: Verdict de tests et de types
+        # Une part ou un type que `choice` n'a pas demandé est sauté : c'est vert, et seulement dans ce cas.
         run: |
-          test "${{ needs.tests.result }}" = success || { echo "tests : ${{ needs.tests.result }}" >&2; exit 1; }
-          test "${{ needs.types.result }}" = success || { echo "types : ${{ needs.types.result }}" >&2; exit 1; }
+          test "${{ needs.choice.result }}" = success || { echo "choice : ${{ needs.choice.result }}" >&2; exit 1; }
+          test "${{ needs.tests.result }}" = success || { test "${{ needs.tests.result }}" = skipped && test '${{ needs.choice.outputs.tests }}' = '[]'; } || { echo "tests : ${{ needs.tests.result }}" >&2; exit 1; }
+          test "${{ needs.types.result }}" = success || { test "${{ needs.types.result }}" = skipped && test '${{ needs.choice.outputs.types }}' = '[]'; } || { echo "types : ${{ needs.types.result }}" >&2; exit 1; }
       - name: Gates (suites et types joués par les autres jobs)
         run: |
           rm runtime/package.json app/package.json
@@ -61,11 +122,13 @@ jobs:
 
   types:
     name: types (${{ matrix.zone }})
+    needs: choice
+    if: ${{ needs.choice.outputs.types != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     strategy:
       matrix:
-        zone: [runtime, app]
+        zone: ${{ fromJSON(needs.choice.outputs.types) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,32 +144,15 @@ jobs:
 
   tests:
     name: tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})
+    needs: choice
+    if: ${{ needs.choice.outputs.tests != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     strategy:
       # Une part rouge arrête les autres : le verdict ne se fait pas attendre.
       fail-fast: true
       matrix:
-        include:
-          - { zone: runtime, part: 1, of: 16 }
-          - { zone: runtime, part: 2, of: 16 }
-          - { zone: runtime, part: 3, of: 16 }
-          - { zone: runtime, part: 4, of: 16 }
-          - { zone: runtime, part: 5, of: 16 }
-          - { zone: runtime, part: 6, of: 16 }
-          - { zone: runtime, part: 7, of: 16 }
-          - { zone: runtime, part: 8, of: 16 }
-          - { zone: runtime, part: 9, of: 16 }
-          - { zone: runtime, part: 10, of: 16 }
-          - { zone: runtime, part: 11, of: 16 }
-          - { zone: runtime, part: 12, of: 16 }
-          - { zone: runtime, part: 13, of: 16 }
-          - { zone: runtime, part: 14, of: 16 }
-          - { zone: runtime, part: 15, of: 16 }
-          - { zone: runtime, part: 16, of: 16 }
-          - { zone: app, part: 1, of: 3 }
-          - { zone: app, part: 2, of: 3 }
-          - { zone: app, part: 3, of: 3 }
+        include: ${{ fromJSON(needs.choice.outputs.tests) }}
     steps:
       # Deux commits suffisent : sur une PR, le premier parent du commit de merge est la base.
       - uses: actions/checkout@v4
