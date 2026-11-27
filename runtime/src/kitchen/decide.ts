@@ -94,6 +94,7 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
     const pr = prOf.get(issue.number);
     if (has(issue, LABELS.epic)) {
       if (epicBlock(issue, pr, issues) !== "") actions.push({ kind: "epic-child", epic: issue.number, reason: epicBlock(issue, pr, issues) });
+      else if (pr !== undefined && pr.checks !== "pending" && !issues.some((one) => one.epic === issue.number) && passFree-- > 0) actions.push({ kind: "review", issue: issue.number, pr: pr.number });
       continue;
     }
     if (pr === undefined) actions.push({ kind: "requeue", issue: issue.number, reason: "it is in pass with no open pull request" });
@@ -107,8 +108,13 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
 
   // An approved pull request waiting for the chef's merge that stops being mergeable goes back to a cook (#4492).
   for (const issue of issues.filter((one) => has(one, LABELS.parkedChef) && has(one, LABELS.approved)).sort(byPriorityThenAge)) {
-    if (prOf.get(issue.number)?.conflicting === true) actions.push({ kind: "send-back", issue: issue.number, reason: "its branch conflicts with the base branch", counts: false });
+    if (prOf.get(issue.number)?.conflicting !== true) continue;
+    if (!has(issue, LABELS.epic)) actions.push({ kind: "send-back", issue: issue.number, reason: "its branch conflicts with the base branch", counts: false });
+    else if (epicBlock(issue, prOf.get(issue.number), issues) !== "") actions.push({ kind: "epic-child", epic: issue.number, reason: epicBlock(issue, prOf.get(issue.number), issues) });
   }
+
+  // An approved epic the chef answered (no longer parked) is merged by a take, or judged again.
+  for (const issue of issues.filter((one) => has(one, LABELS.epic) && has(one, LABELS.approved) && !parked(one) && prOf.has(one.number))) actions.push({ kind: "take", issue: issue.number });
 
   // A ticket marked taken that no cook of this kitchen holds lost its cook.
   for (const issue of issues) {

@@ -91,3 +91,27 @@ export async function openFinishedEpics(state: { issues: Issue[]; prs: Array<{ i
     }
   }
 }
+
+// A PR the pass approves waits for the chef when it touches a risk zone, or when it is an epic's and the project's release is the chef's.
+// The chef's merge answer holds for that PR until a pass refuses the ticket: a branch only brought up to date keeps it (#4489).
+export const riskZoneComment = (pr: number) => `The pass approves PR #${pr}, but `;
+const answerText = (body: string) => body.replace(/^\s*<!--\s*brigade:reponse\b[^>]*-->/, "").trim();
+export function chefSaidMerge(comments: readonly string[], pr: number): boolean {
+  let asked = false, granted = false;
+  for (const body of comments) {
+    if (body.startsWith(riskZoneComment(pr))) asked = true;
+    else if (body.startsWith("Sent back to a cook (try ") || body.startsWith("Parked for the chef: refused")) asked = granted = false;
+    else if (asked && /^merge\b/i.test(answerText(body))) granted = true;
+  }
+  return granted;
+}
+
+// The pass's `## What changes for the user` on an epic PR: the release notes read it from the PR's body (#4698); a later pass replaces it.
+const USER_SECTION = /^## What changes for the user\n[\s\S]*?(?=^#{1,2} |^VERDICT:|(?![\s\S]))/m;
+export const userChanges = (answer: string): string => USER_SECTION.exec(answer)?.[0].trim() ?? "";
+export async function userChangesInBody(gh: Gh, repo: string, pr: number, answer: string): Promise<void> {
+  const section = userChanges(answer);
+  if (section === "") return;
+  const body = (JSON.parse(await gh(["pr", "view", String(pr), "-R", repo, "--json", "body"])) as { body: string }).body;
+  await gh(["pr", "edit", String(pr), "-R", repo, "--body-file", "-"], `${body.replace(USER_SECTION, "").trimEnd()}\n\n${section}\n`);
+}
