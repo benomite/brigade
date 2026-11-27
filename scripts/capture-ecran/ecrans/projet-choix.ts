@@ -3,11 +3,11 @@
 // une station qui l'a, le fournir sur la box, adapter les tests —, chacune avec ce qui en suit. Les choix sont ceux
 // que la box publie dans son suivi (runtime/src/installation/besoins/), sous `choix`, avec le blocage qui attend
 // chacun, sous `blocages`.
-import type { Blocage, Choix } from "../../../app/src/projets/demande.ts";
+import type { Blockage, Choice } from "../../../app/src/projects/request.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
-export const CHOIX: Choix[] = [
+export const CHOIX: Choice[] = [
   {
     id: "need:postgres",
     need: "postgres",
@@ -37,7 +37,7 @@ export const CHOIX: Choix[] = [
 ];
 
 // Le blocage qui attend chaque choix, tel que la box le publie à côté (`choose-need`).
-export const BLOCAGES: Blocage[] = CHOIX.map(({ id, message, cause }) => ({ id, message, cause, action: "choose-need" }));
+export const BLOCAGES: Blockage[] = CHOIX.map(({ id, message, cause }) => ({ id, message, cause, action: "choose-need" }));
 
 export const ecran: Ecran = {
   dit: "L'espace de « parade » à qui manquent un Postgres et Docker : une carte par besoin, ses quatre issues et ce qui suit de chacune (#1400)",

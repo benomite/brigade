@@ -12,9 +12,11 @@ export type Translator = {
   words: Readonly<Record<string, string>>;
 };
 
+// A name in capitals is a constant even with one word (`ALLUMAGE` → `POWER_UP`,
+// never `POWERUp`), as long as it has a word of two letters (#4413).
 const styleOf = (name: string): Style => {
   if (name.includes("-")) return "kebab";
-  if (name.includes("_") && !/[a-z]/.test(name)) return "const";
+  if (!/[a-z]/.test(name) && (name.includes("_") || /[A-Z]{2}/.test(name))) return "const";
   return "camel";
 };
 
@@ -42,9 +44,14 @@ const caseLike = (model: string, word: string, first: boolean, style: Style): st
 };
 
 // The longest French sequence of the table starting at `at`, if any.
+// A one-letter word (`d` in `bilanDEpique`, `l` in `ouvrirLEcran`) is French
+// only beside another word: alone, with digits at most, it is a name of its own
+// (`d`, `L1`), never translated (#4413).
 const match = (pieces: Piece[], at: number, translator: Translator, longest: number): { length: number; english: string } | undefined => {
+  const words = pieces.filter((piece) => /[a-z]/.test(piece.lower)).length;
   for (let length = Math.min(longest, pieces.length - at); length > 0; length--) {
     const key = pieces.slice(at, at + length).map((piece) => piece.lower).join(" ");
+    if (key.length === 1 && words === 1) continue;
     const english = translator.words[key];
     if (english !== undefined) return { length, english };
   }

@@ -9,47 +9,47 @@ import { dirname } from "node:path";
 
 // `depuisLe` : nul tant que l'app n'a pas vu la version changer.
 export type VersionVue = { version: string; depuisLe: string | null };
-export type VersionsVues = { lire(): Record<string, VersionVue>; ecrire(vues: Record<string, VersionVue>): void };
+export type VersionsViews = { lire(): Record<string, VersionVue>; ecrire(views: Record<string, VersionVue>): void };
 
 // Le tout dans un fichier. Absent ou illisible, il ne retient rien : au pire, un « depuis » n'est plus dit.
-export function versionsDansFichier(chemin: string, dire: (ligne: string) => void = (ligne) => console.error(ligne)): VersionsVues {
+export function versionsInFile(path: string, tell: (line: string) => void = (line) => console.error(line)): VersionsViews {
   return {
     lire() {
       try {
-        const lu: unknown = JSON.parse(readFileSync(chemin, "utf8"));
-        if (typeof lu !== "object" || lu === null) return {};
+        const readOne: unknown = JSON.parse(readFileSync(path, "utf8"));
+        if (typeof readOne !== "object" || readOne === null) return {};
         return Object.fromEntries(
-          Object.entries(lu).flatMap(([id, vue]) => {
-            const { version, depuisLe } = (vue ?? {}) as Partial<Record<keyof VersionVue, unknown>>;
-            return typeof version === "string" ? [[id, { version, depuisLe: typeof depuisLe === "string" && !Number.isNaN(Date.parse(depuisLe)) ? depuisLe : null }]] : [];
+          Object.entries(readOne).flatMap(([id, vue]) => {
+            const { version, depuisLe: sinceThe } = (vue ?? {}) as Partial<Record<keyof VersionVue, unknown>>;
+            return typeof version === "string" ? [[id, { version, depuisLe: typeof sinceThe === "string" && !Number.isNaN(Date.parse(sinceThe)) ? sinceThe : null }]] : [];
           }),
         );
       } catch {
         return {};
       }
     },
-    ecrire(vues) {
+    ecrire(views) {
       try {
-        mkdirSync(dirname(chemin), { recursive: true });
-        writeFileSync(`${chemin}.neuf`, `${JSON.stringify(vues, null, 2)}\n`);
-        renameSync(`${chemin}.neuf`, chemin);
-      } catch (erreur) {
-        dire(`brigade: the versions seen on your stations could not be remembered — ${(erreur as Error).message}`);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(`${path}.neuf`, `${JSON.stringify(views, null, 2)}\n`);
+        renameSync(`${path}.neuf`, path);
+      } catch (error) {
+        tell(`brigade: the versions seen on your stations could not be remembered — ${(error as Error).message}`);
       }
     },
   };
 }
 
-export function suivreLesVersions(memoire: VersionsVues | undefined) {
-  const vues = memoire?.lire() ?? {};
+export function followTheVersions(memory: VersionsViews | undefined) {
+  const views = memory?.lire() ?? {};
   return {
     // La date à laquelle l'app a vu cette station passer à `version`, ou nulle. Note la version vue.
     vue(id: string, version: string, instant: number): string | null {
-      const avant = vues[id];
-      if (avant?.version === version) return avant.depuisLe;
-      vues[id] = { version, depuisLe: avant === undefined ? null : new Date(instant).toISOString() };
-      memoire?.ecrire(vues);
-      return vues[id].depuisLe;
+      const before = views[id];
+      if (before?.version === version) return before.depuisLe;
+      views[id] = { version, depuisLe: before === undefined ? null : new Date(instant).toISOString() };
+      memory?.ecrire(views);
+      return views[id].depuisLe;
     },
   };
 }

@@ -2,14 +2,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkControl } from "../../src/vue/parked/park-control.js";
-import { Faux, repos } from "../aides/fausse-vue.ts";
+import { Fake, repos } from "../helpers/false-vue.ts";
 
-const doc = { createElement: (balise: string) => new Faux(balise) };
+const doc = { createElement: (balise: string) => new Fake(balise) };
 
 for (const project of ["parade", "atelier"]) {
   test(`for ${project}, park and unpark pass the same project and ticket to the shared gesture`, async () => {
     const calls: any[][] = [];
-    const control = parkControl(doc, { project, ticket: 51, step: "pris", gesture: (...args: unknown[]) => void calls.push(args) }) as unknown as Faux;
+    const control = parkControl(doc, { project, ticket: 51, step: "pris", gesture: (...args: unknown[]) => void calls.push(args) }) as unknown as Fake;
     const field = (name: string) => control.dessous("input").find(({ dataset }) => dataset.field === name) ?? assert.fail(`no field ${name}`);
     field("who").value = "Camille";
     field("what").value = "the invoice";

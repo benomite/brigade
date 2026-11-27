@@ -2,70 +2,70 @@
 // à un écran qui montre le chemin du retour.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE } from "../../src/config.ts";
-import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
-import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import type { StationsDuChef } from "../../src/premier-lancement.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { BIENVENUE } from "../../src/vue/premier-lancement.js";
-import { type Faux, FauxStockage, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { POWER_UP } from "../../src/power-up.ts";
+import { forTheBar } from "../../src/bar.ts";
+import { EXAMPLE } from "../../src/config.ts";
+import { PALETTE } from "../../src/colors.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNER } from "../../src/facts.ts";
+import { CONFIRMED, DIRECT } from "../../src/actions.ts";
+import { TABS, HEADINGS } from "../../src/tabs.ts";
+import type { StationsOfChef } from "../../src/first-launch.ts";
+import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
+import { WELCOME } from "../../src/vue/first-launch.js";
+import { type Fake, FakeStorage, playTheVue, repos } from "../helpers/false-vue.ts";
 
 // A new computer: no project added, no station, the welcome screen is the first screen.
-const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/home/chef/.config/brigade/app.json", projets: [] }, () => false),
+const startup = () => ({
+  configuration: forTheBar({ chemin: "/home/chef/.config/brigade/app.json", projets: [] }, () => false),
   poste: { nom: "this computer", mac: false },
   palette: PALETTE,
-  exemple: EXEMPLE,
-  onglets: ONGLETS,
-  rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
-  banniere: BANNIERE,
-  calibrage: { modeles: MODELES, efforts: EFFORTS },
+  exemple: EXAMPLE,
+  onglets: TABS,
+  rubriques: HEADINGS,
+  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  banniere: BANNER,
+  calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
 });
-const AUCUNE: StationsDuChef = { state: "listed", unreadable: [], stations: [] };
-async function ordinateurNeuf() {
-  const stockage = new FauxStockage();
-  const vue = await jouerLaVue({ demarrage, stationsDuChef: () => AUCUNE, compteGitHub: () => ({ login: "chef" }), depotsDuChef: () => ({ depots: [] }), espace: () => [] }, { stockage });
+const NO: StationsOfChef = { state: "listed", unreadable: [], stations: [] };
+async function computerNew() {
+  const storage = new FakeStorage();
+  const vue = await playTheVue({ demarrage: startup, stationsDuChef: () => NO, compteGitHub: () => ({ login: "chef" }), depotsDuChef: () => ({ depots: [] }), espace: () => [] }, { stockage: storage });
   await repos();
   return vue;
 }
-const surLAccueil = (vue: { element(id: string): Faux }) => {
-  const tous = vue.element("tous");
-  return !tous.hidden && [tous, ...tous.descendants()].some(({ textContent }) => textContent === BIENVENUE) && vue.element("ajout").hidden;
+const onTheHome = (vue: { element(id: string): Fake }) => {
+  const all = vue.element("tous");
+  return !all.hidden && [all, ...all.descendants()].some(({ textContent }) => textContent === WELCOME) && vue.element("ajout").hidden;
 };
 // Everything the newcomer can click in one go from where they stand: the sidebar entries and the buttons of the open screen.
-const clicables = (vue: { element(id: string): Faux }) => [vue.element("projets"), vue.element("tous"), vue.element("ajout")].flatMap((racine) => (racine.hidden ? [] : racine.dessous("button")));
+const clicables = (vue: { element(id: string): Fake }) => [vue.element("projets"), vue.element("tous"), vue.element("ajout")].flatMap((root) => (root.hidden ? [] : root.dessous("button")));
 
-const places = (vue: { element(id: string): Faux }) => vue.element("projets").dessous("button");
+const places = (vue: { element(id: string): Fake }) => vue.element("projets").dessous("button");
 // Plays a fresh new computer, clicks the given places in order, then the \`candidat\`-th thing in reach: is the welcome screen back?
-async function apresLesClics(chemin: number[], candidat?: number) {
-  const vue = await ordinateurNeuf();
-  for (const place of chemin) {
+async function afterTheClics(path: number[], candidate?: number) {
+  const vue = await computerNew();
+  for (const place of path) {
     (places(vue)[place] ?? assert.fail(`no place #${place} in the sidebar`)).click();
     await repos();
   }
-  if (candidat === undefined) return { vue, revenu: surLAccueil(vue), enPortee: clicables(vue).length };
-  clicables(vue)[candidat]?.click();
+  if (candidate === undefined) return { vue, revenu: onTheHome(vue), enPortee: clicables(vue).length };
+  clicables(vue)[candidate]?.click();
   await repos();
-  return { vue, revenu: surLAccueil(vue), enPortee: 0 };
+  return { vue, revenu: onTheHome(vue), enPortee: 0 };
 }
 // From where the clicks led, does ONE more click bring the welcome screen back (or are they already on it)?
-async function unClicRamene(chemin: number[]) {
-  const ici = await apresLesClics(chemin);
-  if (ici.revenu) return true;
-  for (let candidat = 0; candidat < ici.enPortee; candidat++) if ((await apresLesClics(chemin, candidat)).revenu) return true;
+async function oneClickBringsBack(path: number[]) {
+  const here = await afterTheClics(path);
+  if (here.revenu) return true;
+  for (let candidate = 0; candidate < here.enPortee; candidate++) if ((await afterTheClics(path, candidate)).revenu) return true;
   return false;
 }
 test("the Brigade mark, clicked from the welcome screen, keeps them there or shows the way back", async () => {
-  const depart = await apresLesClics([]);
-  assert.ok(depart.revenu, "a new computer opens on the welcome screen");
-  const marque = places(depart.vue).findIndex((bouton) => bouton.id === "entree-tous");
-  assert.ok(marque >= 0, "the sidebar carries the Brigade mark");
-  assert.ok(await unClicRamene([marque]), "after the mark, the newcomer is neither on the welcome screen nor one click from it");
+  const departure = await afterTheClics([]);
+  assert.ok(departure.revenu, "a new computer opens on the welcome screen");
+  const brand = places(departure.vue).findIndex((button) => button.id === "entree-tous");
+  assert.ok(brand >= 0, "the sidebar carries the Brigade mark");
+  assert.ok(await oneClickBringsBack([brand]), "after the mark, the newcomer is neither on the welcome screen nor one click from it");
 });

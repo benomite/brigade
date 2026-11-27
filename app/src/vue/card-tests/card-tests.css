@@ -1,0 +1,67 @@
+/* Le test et le chemin de chaque critère d'acceptation, sur la fiche d'un ticket (ticket 3728, card-tests.js) : une ligne par
+   critère, ses trois étapes dessous dans l'ordre. Le marqueur d'une étape est celui de la pastille (forme et ton) : done =
+   disque vert, failed = carré rouge, pending = anneau gris. */
+#fiche .tests-de-fiche {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+}
+#fiche .tests-de-fiche p {
+  margin: 0;
+  font-size: var(--taille-corps);
+}
+#fiche .tests-de-fiche .renvoi {
+  font-weight: 600;
+  color: var(--rouge-clair);
+}
+#fiche .tests-de-fiche .sans {
+  font-style: italic;
+  color: var(--discret);
+}
+#fiche .tests-de-fiche ol,
+#fiche .tests-de-fiche ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#fiche .criteres-testes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-3);
+}
+#fiche .critere-teste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pas-1);
+  padding-top: var(--pas-3);
+  border-top: 1px solid var(--trait-doux);
+}
+#fiche .critere-test {
+  font-family: var(--police-mono);
+  font-size: var(--taille-meta);
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+#fiche .critere-etapes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pas-1) var(--pas-4);
+}
+#fiche .critere-etapes li {
+  display: flex;
+  gap: var(--pas-2);
+  font-size: var(--taille-corps);
+}
+#fiche .critere-etapes [data-etat="failed"] span {
+  color: var(--rouge-clair);
+  font-weight: 600;
+}
+#fiche .critere-etapes [data-etat="pending"] span {
+  color: var(--discret);
+}
+#fiche .critere-survivantes code {
+  font-family: var(--police-mono);
+  font-size: var(--taille-meta);
+  color: var(--rouge-clair);
+  overflow-wrap: anywhere;
+}

@@ -1,6 +1,6 @@
 // Le rail de « parade » quand deux stations refusent le projet (#3198, épique #3196) : une ligne chacune sous la ligne d'alerte
 // — son nom, sa raison et le geste qui la lève, tels que la station les écrit (runtime/src/projets/refus.ts).
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { FACTS } from "./cooks-stations-commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
@@ -27,7 +27,7 @@ export const ecran: Ecran = {
     return {
       maintenant: MAINTENANT,
       reponses: { ...base.reponses, demarrage: { ...demarrage(configuration(PROJETS), (nom) => nom === "parade"), stations: lues.stations, projetsDesStations: lues.projetsDesStations }, espace: [] },
-      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...FACTS, stations: STATIONS_REFUSANT } as Faits } }),
+      envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...FACTS, stations: STATIONS_REFUSANT } as Facts } }),
     };
   },
 };

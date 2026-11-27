@@ -18,7 +18,7 @@ export type Produit = "app" | "station";
 export type Plateforme = "Mac" | "Windows" | "Linux" | "Android";
 
 export type Paquet = {
-  // The name the build writes (the updater's own, app/src/mise-a-jour/flux.ts).
+  // The name the build writes (the updater's own, app/src/update/flux.ts).
   construit: string;
   // The name the release carries: it includes the platform.
   nom: string;

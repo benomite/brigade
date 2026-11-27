@@ -1,14 +1,14 @@
 // La page de « parade », le bandeau de santé dans Settings (#2490, #2920, #3014) : le chef a tapé 150 dans la durée des gates et quitté
 // le champ — le réglage s'applique à son `change`, sans « save ». Gardé dans le dépôt, il s'y propose par une pull
 // request : la rangée la dit, son lien l'ouvre, et la valeur montrée reste celle en vigueur jusqu'au merge.
-import type { RenduDuPlafond } from "../../../app/src/plafonds-duree.ts";
-import { PROPOSE } from "../../../app/src/reglages-du-projet.ts";
+import type { RenderedOfCap } from "../../../app/src/caps-duration.ts";
+import { PROPOSES } from "../../../app/src/settings-of-project.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { PLAFONDS_LUS, SETTINGS } from "./projet-sante.ts";
 import { NORMAL } from "./projet-temps-commun.ts";
 
-const PROPOSE_PAR_PR: RenduDuPlafond = { propose: PROPOSE, pr: "https://github.com/chef/parade/pull/2612", numero: 2612, cle: "gatesSeconds", valeur: 150 };
+const PROPOSE_PAR_PR: RenderedOfCap = { propose: PROPOSES, pr: "https://github.com/chef/parade/pull/2612", numero: 2612, cle: "gatesSeconds", valeur: 150 };
 // Les plafonds sont repliés derrière une ligne du bandeau : le chef la déplie d'abord.
 const CHAMP = '[data-bloc="plafonds-duree"] .reglage[data-cle="gatesSeconds"] input';
 

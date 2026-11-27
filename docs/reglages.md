@@ -1,7 +1,7 @@
 # The three levels of settings
 
 Brigade has three places for a setting, and each setting lives at exactly one of them. The level
-is written next to each setting in the app (`app/src/vue/niveaux.js`, ticket 1310), so you can see
+is written next to each setting in the app (`app/src/vue/levels.js`, ticket 1310), so you can see
 where a value is kept before you change it. The three levels are named with the glossary words
 ([`glossary.md`](glossary.md), §7 — *level*): **project**, **this computer** and **you**.
 
@@ -195,7 +195,7 @@ These are the settings the writer of `projet.json` refuses: a project's file nev
 
 The app keeps its own preferences in `~/.config/brigade/app.json`, outside any repository, and in
 a **secret gist of your GitHub account**. Every `you` setting is one of two kinds, and the split is
-the list of device-bound keys in `app/src/reglages-perso/partage.ts`: a key on that list stays on
+the list of device-bound keys in `app/src/settings-personal/share.ts`: a key on that list stays on
 the machine it was set on; any other key of the file is a preference, and follows you from one
 device to another — including one added later, with no change to this page. The app draws the
 colors and writes them itself; see [`app.md`](app.md), "A project's colors" and "Your preferences
@@ -205,10 +205,10 @@ follow you from one device to another".
 
 | Setting | Key in `app.json` | Note |
 |---|---|---|
-| The colors of a project (tab and accent) | `projets[].couleurs` | shown under `you` in the Settings screen (`app/src/vue/niveaux.js`) |
-| The short label of a project's tile in the bar | `projets[].sigle` | shown under `you` in the Settings screen; absent, the app derives one from the names (`app/src/sigle.ts`) |
+| The colors of a project (tab and accent) | `projets[].couleurs` | shown under `you` in the Settings screen (`app/src/vue/levels.js`) |
+| The short label of a project's tile in the bar | `projets[].sigle` | shown under `you` in the Settings screen; absent, the app derives one from the names (`app/src/acronym.ts`) |
 | The order of your projects in the bar | the order of `projets` | set by arranging the bar; the order of two devices is merged, not overwritten |
-| The kitchen's state in the menu bar (Mac) or the notification area (Windows) | `barreDeMenus` | `false` hides it; absent, it is shown. Set in Settings, under `you` (`app/src/vue/niveaux.js`); see [`app.md`](app.md), "The kitchen's state in the menu bar and the notification area" |
+| The kitchen's state in the menu bar (Mac) or the notification area (Windows) | `barreDeMenus` | `false` hides it; absent, it is shown. Set in Settings, under `you` (`app/src/vue/levels.js`); see [`app.md`](app.md), "The kitchen's state in the menu bar and the notification area" |
 | Other display preferences | none yet | the app has no theme, density or font size; one added later follows you by default |
 | Any other personal key | any key not listed below | follows you by default |
 

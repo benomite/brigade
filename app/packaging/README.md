@@ -63,7 +63,7 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
    `node app/packaging/android.ts --version <v>`. Ce sont les mêmes jobs des deux chemins : seules
    leurs étapes « Signature (Mac) » et « Signature (Windows) » ne jouent que sur le chemin signé.
 4. Le job `publier`, une fois les constructions faites, crée le tag et la release `app-v<v>` sur le
-   commit du merge, aux noms que lit l'app installée (`app/src/mise-a-jour/flux.ts`), tous à la
+   commit du merge, aux noms que lit l'app installée (`app/src/update/flux.ts`), tous à la
    racine. Les constructions écrivent `Brigade-<v>-arm64.dmg`, `Brigade-<v>-x64-setup.exe` et
    `Brigade-<v>.apk` ; `scripts/app-release/paquets.ts renommer` leur donne les noms de la release,
    qui disent la plateforme (`-mac-arm64`, `-windows-x64-setup`, `-android`), et réécrit ces noms dans
@@ -97,7 +97,7 @@ Quatre fichiers sur chaque chemin, publiés par `publier-app`. Le workflow
 `publier-app` et attache à la même release un cinquième, l'AppImage Linux ([`LINUX.md`](LINUX.md),
 « Publish »). Sur le chemin non signé, avant de publier `latest-mac.yml`, le job
 `mac` vérifie l'app du .dmg comme le fera l'installeur des apps installées (`codesign --verify --deep
---strict`, `app/src/mise-a-jour/installation.ts`) : une app signée ad hoc qui ne s'y vérifie pas
+--strict`, `app/src/update/installation.ts`) : une app signée ad hoc qui ne s'y vérifie pas
 arrête le run, au lieu de partir vers des apps qui refuseraient de s'y mettre à jour. Un jeu de secrets incomplet n'est
 pas un chemin : il arrête le run.
 
@@ -146,7 +146,7 @@ renommée.
 
 ## Ce que l'app installée fait autrement
 
-Le code est le même ; seuls changent les chemins (`app/src/emplacements.ts`). L'app se sait
+Le code est le même ; seuls changent les chemins (`app/src/locations.ts`). L'app se sait
 installée quand ses sources sont `Resources/app/src` du paquet qui la joue.
 
 - **Sa station** est le runtime de `Resources/runtime/`, jouée par `Resources/node/bin/node` —
@@ -161,11 +161,11 @@ installée quand ses sources sont `Resources/app/src` du paquet qui la joue.
 - **Pas de clone** : elle ne dit rien du retard de son code, et ne se met pas à jour par `git`.
   Elle se tient à jour sur les releases `app-v*` : elle lit leur `latest-mac.yml`, télécharge le
   `.dmg` et le vérifie, puis l'installe au geste du chef ou à son ouverture suivante
-  (`app/src/mise-a-jour/`, et [`docs/app.md`](../../docs/app.md), « Lancer l'app »).
+  (`app/src/update/`, et [`docs/app.md`](../../docs/app.md), « Lancer l'app »).
 
 ## Éprouver sur un Mac
 
-Les tests (`app/test/packaging/`, `app/test/emplacements.test.ts`) assemblent `Brigade.app` depuis
+Les tests (`app/test/packaging/`, `app/test/locations.test.ts`) assemblent `Brigade.app` depuis
 une doublure d'Electron, vérifient ce qu'il porte, y lancent la station du paquet par l'enveloppe
 de l'app, et jouent la construction du `.dmg` sur des doublures de `codesign`, `otool` et `hdiutil`.
 Ils ne remplacent pas l'essai sur un Mac, de préférence un compte sans clone ni `node` :
@@ -309,7 +309,7 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
   la construction dans les modules d'`app/src/` (`demarrageDuPont`, dans `android.ts`), jamais
   recopiés —, une liste de projets vide, et `telephone` : `github`, le compte sous lequel le téléphone
   est connecté à GitHub (#2500) — aucun sur une installation neuve, et la vue s'ouvre sur l'écran de
-  connexion (`app/src/vue/connexion-github.js`) ; connecté, les projets de la dernière liste lue sur GitHub
+  connexion (`app/src/vue/connection-github.js`) ; connecté, les projets de la dernière liste lue sur GitHub
   et l'état de sa lecture (`liste`).
 - `seConnecterAGitHub` mène le « device flow » de GitHub par le HTTP natif de Capacitor
   (`CapacitorHttp`) — github.com ne répond pas à une WebView (CORS) — : il demande un code à usage
@@ -320,12 +320,12 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
   le jeton. L'App OAuth est celle de la GitHub CLI (`CLIENT_GITHUB`), que le desktop emploie déjà par
   `gh auth login`. `ouvrirLaPage` rouvre la page de GitHub, et nulle autre.
 - Connecté, `faits`, `tous`, `regarder` et `relireBox` lisent les projets du chef, le rail et TODO de
-  chacun sur GitHub seul (#2501) : la lecture d'`app/src/lecture-github-telephone.ts`, celle du desktop,
+  chacun sur GitHub seul (#2501) : la lecture d'`app/src/read-github-phone.ts`, celle du desktop,
   avec le jeton du coffre, par le même HTTP natif, à `api.github.com` et nulle part ailleurs. Aucune
   station n'est lue : pas connecté, le téléphone ne lit rien.
 - Connecté, `gestesDeFiche`, `gesteDeFiche`, `attente` et `repondreCarte` écrivent les gestes du chef
   sur GitHub seul (#2502) : répondre à une carte de TODO, reprendre, mettre en suspens, par le code
-  d'écriture du desktop (`app/src/gestes-github-telephone.ts`, posé à `www/src/gestes-github-telephone.js`),
+  d'écriture du desktop (`app/src/actions-github-phone.ts`, posé à `www/src/gestes-github-telephone.js`),
   avec le jeton du coffre, par le même HTTP natif. Aucune station n'est jointe pour un geste.
 - Aucun appairage ne se tire : ni code, ni lecteur de QR, ni lien `brigade://pair`, ni http en clair — le téléphone ne parle
   qu'à GitHub, en https.
@@ -333,9 +333,9 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
 - Un abonnement (`sur…`) ne reçoit rien ; tout autre geste ne fait rien et ne rend rien.
 
 Le tableau de la cuisine d'un projet se lit de GitHub, sans station (`ouvrirLaLectureGitHub`,
-`app/src/lecture-github-telephone.ts`, posé à `www/src/lecture-github-telephone.js` par
+`app/src/read-github-phone.ts`, posé à `www/src/lecture-github-telephone.js` par
 `poserLesModules`) : les projets dans les gists des stations du chef, puis le module du desktop
-(`app/src/tableau/`) et le lecteur du bloc machine que le runtime partage avec les apps
+(`app/src/board/`) et le lecteur du bloc machine que le runtime partage avec les apps
 (`runtime/src/tableau/rendu/bloc.ts`, posé à `www/runtime/src/`), la demande portée par `CapacitorHttp`,
 avec le jeton GitHub que garde le coffre du téléphone (`Coffre.java` : chiffré par une clé du Keystore
 d'Android, qui ne sort pas du téléphone).

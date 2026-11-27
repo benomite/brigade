@@ -30,7 +30,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, stat
 import { stripTypeScriptTypes } from "node:module";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
-import type { Pont } from "../src/vue/pont.d.ts";
+import type { Bridge } from "../src/vue/bridge.d.ts";
 import { APP, Arret, executerVraiment, versionDuCommit, type Executer } from "./construire.ts";
 
 const REFUS = 2;
@@ -112,27 +112,27 @@ export function verifierPrerequis(machine: Machine, natif = NATIF, app = APP): P
 // Ce que le process principal du desktop rend à la vue au démarrage (main.ts, « demarrage »), sans
 // ce qui s'y lit des projets et des stations : les constantes des modules d'app/src/, telles
 // quelles. Le pont d'attente y ajoute une liste de projets vide.
-export type Demarrage = Omit<Awaited<ReturnType<Pont["demarrage"]>>, "configuration">;
+export type Demarrage = Omit<Awaited<ReturnType<Bridge["demarrage"]>>, "configuration">;
 export async function demarrageDuPont(): Promise<Demarrage> {
-  const [{ PALETTE }, { EXEMPLE }, { ONGLETS, RUBRIQUES }, { ALLUMAGE }, { GESTES_DE_LA_CUISINE }, { CONFIRMES, DIRECTS }, { GESTES_D_ATTENTE }, { BANNIERE }, { MODELES, EFFORTS }] = await Promise.all([
-    import("../src/couleurs.ts"),
+  const [{ PALETTE }, { EXAMPLE }, { TABS, HEADINGS }, { POWER_UP }, { KITCHEN_ACTIONS }, { CONFIRMED, DIRECT }, { ACTIONS_OF_WAIT }, { BANNER }, { MODELS, EFFORTS }] = await Promise.all([
+    import("../src/colors.ts"),
     import("../src/config.ts"),
-    import("../src/onglets.ts"),
-    import("../src/allumage.ts"),
-    import("../src/cuisine.ts"),
-    import("../src/gestes.ts"),
-    import("../src/attente.ts"),
-    import("../src/faits.ts"),
-    import("../src/projets/projets.ts"),
+    import("../src/tabs.ts"),
+    import("../src/power-up.ts"),
+    import("../src/kitchen.ts"),
+    import("../src/actions.ts"),
+    import("../src/wait.ts"),
+    import("../src/facts.ts"),
+    import("../src/projects/projects.ts"),
   ]);
   return {
     palette: PALETTE,
-    exemple: EXEMPLE,
-    onglets: ONGLETS,
-    rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
-    banniere: BANNIERE,
-    calibrage: { modeles: MODELES, efforts: EFFORTS },
+    exemple: EXAMPLE,
+    onglets: TABS,
+    rubriques: HEADINGS,
+    gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED, attente: ACTIONS_OF_WAIT },
+    banniere: BANNER,
+    calibrage: { modeles: MODELS, efforts: EFFORTS },
     code: undefined,
   };
 }
@@ -180,9 +180,9 @@ export function poserLaVue(demarrage: Demarrage, www = WWW, app = APP): void {
 // `runtime/src/<chemin>.js` : à côté de l'app, comme dans le paquet du desktop. Rend les fichiers posés, relatifs à `www`.
 // Et ceux du sondage des cartes de TODO (#2747) : `src/notifications-todo.js`, que le pont (la réponse retire la notification)
 // et android/sonde.html chargent, et le client de GitHub que sonde.html compose.
-export const LECTURE_GITHUB = join(APP, "src", "lecture-github-telephone.ts");
+export const LECTURE_GITHUB = join(APP, "src", "read-github-phone.ts");
 export const NOTIFICATIONS_TODO = join(APP, "src", "notifications-todo.ts");
-export const CLIENT_GITHUB = join(APP, "src", "tableau", "client.ts");
+export const CLIENT_GITHUB = join(APP, "src", "board", "client.ts");
 export function poserLesModules(www = WWW, app = APP, entrees: string | readonly string[] = [LECTURE_GITHUB, NOTIFICATIONS_TODO, CLIENT_GITHUB]): string[] {
   const posee = (source: string): string => {
     const relatif = relative(app, source).split(sep).join("/");

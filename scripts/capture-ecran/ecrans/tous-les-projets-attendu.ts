@@ -1,7 +1,7 @@
 // « Tous les projets » tel que Home.dc.html le dessine (#2912) : une ligne par projet — son état, ce qui s'y passe, et la
 // pastille « N awaiting you » quand le chef est attendu —, « Add a project » à droite du titre, et la carte de la station de
 // cet ordinateur, installée, sa version en retard d'une.
-import type { Accueil } from "../../../app/src/accueil.ts";
+import type { Home } from "../../../app/src/home.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { stationsDuChef } from "./stations-une-liste.ts";
@@ -17,7 +17,7 @@ export const ecran: Ecran = {
     const base = stationsDuChef("x").donnees();
     const lu = base.reponses.demarrage as { stations: { stations: Array<{ id: string; nom: string }> } };
     const mac = lu.stations.stations.find(({ nom }) => nom === "macbook-air-de-benoit");
-    const accueil: Accueil = {
+    const accueil: Home = {
       projets: [
         { nom: "parade", ton: "jaune", dit: "1 decision awaits you, for 2 d · #14 cooking", survol: LU, attend: 1 },
         { nom: "cantine", ton: "vert", dit: "nothing cooking, nothing waits for you", survol: LU },

@@ -2,9 +2,9 @@
 // ses capacités, et si elle prend les tickets ordinaires — chacun avec son niveau. « parade » cuit
 // sur ce Mac (mac/claude) ; deux autres postes le servent, l'un en prenant les tickets ordinaires (pc/claude), l'autre non
 // (studio/claude). La déclaration arrive par le contrôle de l'installation, comme dans l'app (service.ts).
-import { blocDesOrdinaires, type StationDesFaits } from "../../../app/src/ordinaires.ts";
-import type { Faits } from "../../../app/src/faits.ts";
-import type { StationsLues } from "../../../app/src/service.ts";
+import { blockOfOrdinary, type FactsStation } from "../../../app/src/ordinary.ts";
+import type { Facts } from "../../../app/src/facts.ts";
+import type { StationsRead } from "../../../app/src/service.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { guide } from "./cooks-stations-commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -12,7 +12,7 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 const PARADE = { ...PROJETS[0]!, ordinaires: true, limiteCooks: 2 };
 const RENDU = RENDUS.parade as Rendu;
 
-export const DECLAREES: StationsLues = {
+export const DECLAREES: StationsRead = {
   proposees: [{ nom: "mac/claude", moteur: "claude", fournit: ["code", "macos"] }],
   absent: null,
   declarees: [
@@ -23,7 +23,7 @@ export const DECLAREES: StationsLues = {
 };
 
 const base = { plafond: null, bacASable: null, prendOrdinaires: false, cuisson: "cooking", cooks: [] };
-const STATIONS: StationDesFaits[] = [
+const STATIONS: FactsStation[] = [
   { ...base, station: "mac/claude", distante: false, ordinaires: true, prendOrdinaires: true },
   { ...base, station: "pc/claude", distante: true, ordinaires: true, prendOrdinaires: true },
   { ...base, station: "studio/claude", distante: true, ordinaires: false },
@@ -40,8 +40,8 @@ export const ecran: Ecran = {
       demarrage: demarrage(configuration([PARADE, ...PROJETS.slice(1)]), (nom) => nom === "parade"),
       espace: [],
       service: guide(DECLAREES),
-      ordinaires: blocDesOrdinaires(PARADE, "darwin", STATIONS, true),
+      ordinaires: blockOfOrdinary(PARADE, "darwin", STATIONS, true),
     },
-    envois: cuisine({ ...RENDUS, parade: { ...RENDU, facts: { ...RENDU.facts, stations: STATIONS } as Faits } }),
+    envois: cuisine({ ...RENDUS, parade: { ...RENDU, facts: { ...RENDU.facts, stations: STATIONS } as Facts } }),
   }),
 };

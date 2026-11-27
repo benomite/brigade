@@ -1,17 +1,17 @@
 // L'espace de « parade », un projet de la nouvelle cuisine (#4482) : son état n'est que dans ses labels GitHub — `fire`,
-// `taken`, `in-pass`, `try:N`, `parked:chef`. Ce que la vue reçoit est lu par la lecture même de l'app (tableau/lecture.ts,
+// `taken`, `in-pass`, `try:N`, `parked:chef`. Ce que la vue reçoit est lu par la lecture même de l'app (board/read.ts,
 // puis ce qui attend le chef), devant un GitHub figé qui répond selon le chemin : une issue dans chaque colonne. Joué sur
 // une branche d'avant #4482, le même écran montre ce que l'app tirait de ces labels avec le runtime d'avant.
-import type { Faits } from "../../../app/src/faits.ts";
-import { avecCeQuiAttendLeChef } from "../../../app/src/tableau/attente-du-chef.ts";
-import type { AppelGitHub, ReponseGitHub } from "../../../app/src/tableau/client.ts";
-import { lireLeTableauDuDepot } from "../../../app/src/tableau/lecture.ts";
-import { statusDuTableau } from "../../../app/src/tableau/rail.ts";
+import type { Facts } from "../../../app/src/facts.ts";
+import { withWhatAwaitingTheChef } from "../../../app/src/board/wait-of-chef.ts";
+import type { CallGitHub, AnswerGitHub } from "../../../app/src/board/client.ts";
+import { readTheBoardOfRepository } from "../../../app/src/board/read.ts";
+import { statusOfBoard } from "../../../app/src/board/rail.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const DEPOT = "chef/parade";
-const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
+const ok = (data: unknown): AnswerGitHub => ({ status: 200, data });
 const issue = (number: number, title: string, labels: string[]) => ({ number, title, html_url: `https://github.com/${DEPOT}/issues/${number}`, created_at: "2026-10-13T08:00:00Z", labels: labels.map((name) => ({ name })), body: "" });
 const pr = (number: number, ticket: number, title: string, extra: object = {}) => ({ number, title: `#${ticket} — ${title}`, html_url: `https://github.com/${DEPOT}/pull/${number}`, created_at: "2026-10-13T09:30:00Z", updated_at: MAINTENANT, head: { ref: `cook/${ticket}-github` }, body: `Closes #${ticket}`, ...extra });
 const OUVERTES = [
@@ -21,7 +21,7 @@ const OUVERTES = [
   issue(34, "SIRET validation", ["fire", "in-pass", "try:1", "model:sonnet", "effort:medium"]),
   issue(35, "Free tier: keep the CSV export?", ["fire", "parked:chef", "try:1", "try:2", "try:3"]),
 ];
-const appeler: AppelGitHub = async (chemin) => {
+const appeler: CallGitHub = async (chemin) => {
   if (chemin === `/repos/${DEPOT}/contents/.brigade/kitchen.json`) return ok({ type: "file", content: Buffer.from('{"risk": []}').toString("base64") });
   if (chemin.startsWith(`/repos/${DEPOT}/issues?state=open`)) {
     const label = /[?&]labels=([^&]+)/.exec(chemin)?.[1];
@@ -38,9 +38,9 @@ const appeler: AppelGitHub = async (chemin) => {
   return { status: 404, data: { message: "Not Found" } };
 };
 
-const lu = await avecCeQuiAttendLeChef(await lireLeTableauDuDepot({ depot: DEPOT, appeler, maintenant: () => new Date(MAINTENANT) }), appeler);
+const lu = await withWhatAwaitingTheChef(await readTheBoardOfRepository({ depot: DEPOT, appeler, maintenant: () => new Date(MAINTENANT) }), appeler);
 if (!lu.lu) throw new Error(lu.raison);
-const parade: Rendu = { ...(RENDUS.parade as Rendu), facts: lu.faits as unknown as Faits, status: statusDuTableau(lu) };
+const parade: Rendu = { ...(RENDUS.parade as Rendu), facts: lu.faits as unknown as Facts, status: statusOfBoard(lu) };
 
 export const ecran: Ecran = {
   dit: "L'espace de « parade », un projet de la nouvelle cuisine : son kanban lu des labels GitHub seuls — une issue par colonne (#4482)",

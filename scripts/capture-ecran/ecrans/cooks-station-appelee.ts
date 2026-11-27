@@ -2,14 +2,14 @@
 // sa carte (#1511, épique #1506) : le formulaire de pc/claude, la station de ce poste, s'ouvre sous sa ligne avec
 // `navigateur-headless` offert, décoché, à côté de code et raisonnement qu'elle fournit. Chaque case s'applique dès
 // qu'elle change (#2920) : rien n'est écrit tant que le chef ne l'a pas cochée.
-import type { Blocage, Choix } from "../../../app/src/projets/demande.ts";
+import type { Blockage, Choice } from "../../../app/src/projects/request.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { DEFAUTS } from "./ajouter-station.ts";
 import { DECLAREES as TOUTES, FACTS, guide } from "./cooks-stations-commun.ts";
 import { donnees, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
-const NAVIGATEUR: Choix = {
+const NAVIGATEUR: Choice = {
   id: "need:browser",
   need: "browser",
   message: "The tests of parade need a headless browser, which box does not have.",
@@ -21,7 +21,7 @@ const NAVIGATEUR: Choix = {
   ],
   status: "pending",
 };
-const BLOCAGES: Blocage[] = [{ id: NAVIGATEUR.id, message: NAVIGATEUR.message, cause: NAVIGATEUR.cause, action: "choose-need" }];
+const BLOCAGES: Blockage[] = [{ id: NAVIGATEUR.id, message: NAVIGATEUR.message, cause: NAVIGATEUR.cause, action: "choose-need" }];
 
 // La cuisine de parade tourne sur ce poste, que sert pc/claude, qui ne fournit pas de navigateur : les autres stations sont ailleurs.
 const DECLAREES = { ...TOUTES, declarees: TOUTES.declarees.map((station) => ({ ...station, distante: station.nom !== "pc/claude" })) };

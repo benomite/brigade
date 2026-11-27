@@ -2,7 +2,7 @@
 # les mêmes écrans et les mêmes gestes que sur le Mac. À chaque push sur `main` qui touche app/ (ou ce
 # fichier), et à la demande. Les dépendances sont posées sans leurs scripts, comme par le setup de worktree : pas
 # de binaire d'Electron, qu'aucun test ne lance. Les tests dont les doublures sont des scripts POSIX
-# (`#!/bin/sh`, un `.ts` à shebang) sont sautés là, en le disant (app/test/aides/posix.ts).
+# (`#!/bin/sh`, un `.ts` à shebang) sont sautés là, en le disant (app/test/helpers/posix.ts).
 # Le job `installeur` construit l'installeur Windows et l'éprouve (plus bas) ; rien n'y est signé ni publié :
 # ce sont d'autres tickets (#1156, #1157).
 # Pas sur `pull_request` (#2086) : un check qu'une PR attend rend son verdict dans les 60 s du départ
@@ -46,7 +46,7 @@ jobs:
   # cassait aussi sous Linux, et 59af979 est revenu au vert sans le checkout clairsemé ; de 8a1dd00 à
   # 8bb7f98, un test de #3746 attendait le mode 0600 de la clé d'API, que Node rend 0o666 sous Windows.
   # Passé le plafond du pas, le job est rouge, et son journal dit lequel : `test:en-cours` joue la
-  # même suite avec un reporter qui écrit chaque DEBUT de test (app/test/aides/reporter-en-cours.ts) ;
+  # même suite avec un reporter qui écrit chaque DEBUT de test (app/test/helpers/reporter-in-progress.ts) ;
   # le dernier DEBUT sans FIN du journal est le test qui bloque.
   tests:
     # « windows » en tête : la station GitHub seul ne lit pas ces checks pour

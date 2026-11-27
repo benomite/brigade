@@ -2,139 +2,139 @@
 // commentaires de deux projets, une mémoire qui survit au « redémarrage », et un faux système de notifications.
 import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
-import { carteRepondue, identifiantDe, sonder, type Memoire, type Notifiees, type Notification, type Notifieur } from "../src/notifications-todo.ts";
-import type { AppelGitHub, ReponseGitHub } from "../src/tableau/client.ts";
+import { cardAnswered, identifierOf, probe, type Memory, type NotifiedEntries, type Notification, type Notifier } from "../src/notifications-todo.ts";
+import type { CallGitHub, AnswerGitHub } from "../src/board/client.ts";
 
 type Issue = { labels: string[]; commentaires: string[] };
-const PROJETS = [
+const PROJECTS = [
   { nom: "parade", depot: "chef/parade" },
   { nom: "atelier", depot: "chef/atelier" },
 ];
-const carte = (question: string) => `<!-- brigade:todo kind=product-question -->\n${question}\n- [resume] Yes\n- [drop] No`;
-const toDo = (question: string): Issue => ({ labels: ["chef-todo"], commentaires: ["chatter", carte(question)] });
+const card = (question: string) => `<!-- brigade:todo kind=product-question -->\n${question}\n- [resume] Yes\n- [drop] No`;
+const toDo = (question: string): Issue => ({ labels: ["chef-todo"], commentaires: ["chatter", card(question)] });
 
-let monde: Record<string, Record<number, Issue>>;
-let injoignable: Set<string>;
+let world: Record<string, Record<number, Issue>>;
+let unreachable: Set<string>;
 let notifications: Map<number, Notification>;
-let montrees: Notification[];
-let retirees: number[];
-let enregistre: Notifiees;
+let shown: Notification[];
+let removed: number[];
+let records: NotifiedEntries;
 
 // Un faux GitHub : les issues ouvertes au label demandé, leurs commentaires, leurs événements.
-const github: AppelGitHub = async (chemin) => {
-  const ok = (data: unknown): ReponseGitHub => ({ status: 200, data });
-  const depot = /\/repos\/([^/]+\/[^/]+)\//.exec(chemin)?.[1] ?? "";
-  if (injoignable.has(depot)) return { status: 502, data: {} };
-  const issues = monde[depot] ?? {};
-  const label = /\/issues\?.*\blabels=([^&]+)/.exec(chemin)?.[1];
+const github: CallGitHub = async (path) => {
+  const ok = (data: unknown): AnswerGitHub => ({ status: 200, data });
+  const repository = /\/repos\/([^/]+\/[^/]+)\//.exec(path)?.[1] ?? "";
+  if (unreachable.has(repository)) return { status: 502, data: {} };
+  const issues = world[repository] ?? {};
+  const label = /\/issues\?.*\blabels=([^&]+)/.exec(path)?.[1];
   if (label !== undefined) {
-    return ok(Object.entries(issues).filter(([, i]) => i.labels.includes(label)).map(([n, i]) => ({ number: Number(n), title: `Ticket ${n}`, html_url: `https://github.com/${depot}/issues/${n}`, created_at: "2026-11-01T00:00:00Z", labels: i.labels.map((name) => ({ name })) })));
+    return ok(Object.entries(issues).filter(([, i]) => i.labels.includes(label)).map(([n, i]) => ({ number: Number(n), title: `Ticket ${n}`, html_url: `https://github.com/${repository}/issues/${n}`, created_at: "2026-11-01T00:00:00Z", labels: i.labels.map((name) => ({ name })) })));
   }
-  const [, numero, quoi] = /\/issues\/(\d+)\/(comments|events)/.exec(chemin) ?? [];
-  if (numero !== undefined && quoi === "comments") return ok((issues[Number(numero)]?.commentaires ?? []).map((body, i) => ({ body, created_at: `2026-11-05T0${i}:00:00Z`, author_association: "OWNER" })));
-  if (numero !== undefined) return ok([]);
+  const [, number, what] = /\/issues\/(\d+)\/(comments|events)/.exec(path) ?? [];
+  if (number !== undefined && what === "comments") return ok((issues[Number(number)]?.commentaires ?? []).map((body, i) => ({ body, created_at: `2026-11-05T0${i}:00:00Z`, author_association: "OWNER" })));
+  if (number !== undefined) return ok([]);
   return { status: 404, data: {} };
 };
-const memoire: Memoire = { lire: () => structuredClone(enregistre), ecrire: (n) => void (enregistre = structuredClone(n)) };
-const notifier: Notifieur = {
-  montrer: (n) => void (montrees.push(n), notifications.set(n.id, n)),
-  retirer: (id) => void (retirees.push(id), notifications.delete(id)),
+const memory: Memory = { lire: () => structuredClone(records), ecrire: (n) => void (records = structuredClone(n)) };
+const notify: Notifier = {
+  montrer: (n) => void (shown.push(n), notifications.set(n.id, n)),
+  retirer: (id) => void (removed.push(id), notifications.delete(id)),
 };
-const sonde = () => sonder({ appeler: github, memoire, notifier, projets: async () => PROJETS });
+const prober = () => probe({ appeler: github, memoire: memory, notifier: notify, projets: async () => PROJECTS });
 
 beforeEach(() => {
-  monde = { "chef/parade": { 1: { labels: ["fire"], commentaires: [] } }, "chef/atelier": {} };
-  injoignable = new Set();
+  world = { "chef/parade": { 1: { labels: ["fire"], commentaires: [] } }, "chef/atelier": {} };
+  unreachable = new Set();
   notifications = new Map();
-  montrees = [];
-  retirees = [];
-  enregistre = {};
+  shown = [];
+  removed = [];
+  records = {};
 });
 
 describe("la notification d'une carte de TODO", () => {
   test("une nouvelle carte notifie une fois, avec le nom du projet et sa question", async () => {
-    monde["chef/parade"]![40] = toDo("Keep the old export?");
-    assert.deepEqual(await sonde(), { lu: true, notifiees: 1, retirees: 0 });
-    assert.equal(montrees.length, 1);
-    assert.ok(montrees[0]!.texte.includes("parade") && montrees[0]!.texte.includes("Keep the old export?"), montrees[0]!.texte);
-    assert.deepEqual([montrees[0]!.projet, montrees[0]!.ticket], ["parade", 40]);
+    world["chef/parade"]![40] = toDo("Keep the old export?");
+    assert.deepEqual(await prober(), { lu: true, notifiees: 1, retirees: 0 });
+    assert.equal(shown.length, 1);
+    assert.ok(shown[0]!.texte.includes("parade") && shown[0]!.texte.includes("Keep the old export?"), shown[0]!.texte);
+    assert.deepEqual([shown[0]!.projet, shown[0]!.ticket], ["parade", 40]);
   });
 
   test("une carte sur un autre projet du chef notifie aussi", async () => {
-    monde["chef/atelier"]![7] = toDo("Which token?");
-    await sonde();
-    assert.ok(montrees[0]!.texte.includes("atelier") && montrees[0]!.texte.includes("Which token?"));
+    world["chef/atelier"]![7] = toDo("Which token?");
+    await prober();
+    assert.ok(shown[0]!.texte.includes("atelier") && shown[0]!.texte.includes("Which token?"));
   });
 
   test("le trafic de la cuisine reste silencieux : issues, commentaires, labels, statuts", async () => {
-    await sonde();
-    const parade = monde["chef/parade"]!;
+    await prober();
+    const parade = world["chef/parade"]!;
     parade[2] = { labels: ["fire", "in-pass"], commentaires: ["Station `box/claude`: taken"] };
     parade[1]!.commentaires.push("a comment");
     parade[1]!.labels.push("prio:1", "parked");
     parade[3] = { labels: ["fire", "served-elsewhere"], commentaires: ["<!-- brigade:renvoi n=1 -->\nnothing to ask"] };
     parade[4] = { labels: ["chef-todo"], commentaires: ["a label without a marked question"] };
     delete parade[2];
-    assert.deepEqual(await sonde(), { lu: true, notifiees: 0, retirees: 0 });
-    assert.deepEqual(montrees, []);
+    assert.deepEqual(await prober(), { lu: true, notifiees: 0, retirees: 0 });
+    assert.deepEqual(shown, []);
   });
 
   test("jamais deux fois : sondages successifs, puis redémarrage de l'app", async () => {
-    monde["chef/parade"]![40] = toDo("Keep the old export?");
-    await sonde();
-    await sonde();
-    assert.equal(montrees.length, 1);
+    world["chef/parade"]![40] = toDo("Keep the old export?");
+    await prober();
+    await prober();
+    assert.equal(shown.length, 1);
     // Le redémarrage perd tout sauf la mémoire.
     notifications = new Map();
-    await sonde();
-    assert.equal(montrees.length, 1);
+    await prober();
+    assert.equal(shown.length, 1);
   });
 
   test("une carte qui pose une autre question notifie de nouveau, et remplace l'ancienne", async () => {
-    monde["chef/parade"]![40] = toDo("Keep the old export?");
-    await sonde();
-    monde["chef/parade"]![40] = toDo("Drop the export instead?");
-    await sonde();
-    assert.equal(montrees.length, 2);
+    world["chef/parade"]![40] = toDo("Keep the old export?");
+    await prober();
+    world["chef/parade"]![40] = toDo("Drop the export instead?");
+    await prober();
+    assert.equal(shown.length, 2);
     assert.equal(notifications.size, 1);
     assert.ok([...notifications.values()][0]!.texte.includes("Drop the export instead?"));
   });
 
   test("la réponse donnée dans l'app retire la notification, tout de suite", async () => {
-    monde["chef/parade"]![40] = toDo("Keep the old export?");
-    monde["chef/parade"]![41] = toDo("Another one?");
-    await sonde();
-    assert.equal(await carteRepondue({ memoire, notifier }, "parade", 40), 1);
+    world["chef/parade"]![40] = toDo("Keep the old export?");
+    world["chef/parade"]![41] = toDo("Another one?");
+    await prober();
+    assert.equal(await cardAnswered({ memoire: memory, notifier: notify }, "parade", 40), 1);
     assert.deepEqual([...notifications.values()].map((n) => n.ticket), [41]);
-    assert.equal(await carteRepondue({ memoire, notifier }, "parade", 40), 0);
+    assert.equal(await cardAnswered({ memoire: memory, notifier: notify }, "parade", 40), 0);
   });
 
   test("la réponse donnée sur GitHub retire la notification au sondage suivant", async () => {
-    monde["chef/parade"]![40] = toDo("Keep the old export?");
-    monde["chef/atelier"]![7] = toDo("Which token?");
-    await sonde();
-    delete monde["chef/parade"]![40];
+    world["chef/parade"]![40] = toDo("Keep the old export?");
+    world["chef/atelier"]![7] = toDo("Which token?");
+    await prober();
+    delete world["chef/parade"]![40];
     assert.equal(notifications.size, 2, "rien ne change avant le sondage");
-    assert.deepEqual(await sonde(), { lu: true, notifiees: 0, retirees: 1 });
+    assert.deepEqual(await prober(), { lu: true, notifiees: 0, retirees: 1 });
     assert.deepEqual([...notifications.values()].map((n) => n.projet), ["atelier"]);
-    assert.deepEqual(retirees, [identifiantDe("parade#40")]);
+    assert.deepEqual(removed, [identifierOf("parade#40")]);
   });
 
   test("un projet que GitHub ne lit pas ne retire rien : l'absence de lecture n'est pas une réponse", async () => {
-    monde["chef/parade"]![40] = toDo("Keep the old export?");
-    await sonde();
-    injoignable.add("chef/parade");
-    const fait = await sonde();
-    assert.equal(fait.lu, false);
+    world["chef/parade"]![40] = toDo("Keep the old export?");
+    await prober();
+    unreachable.add("chef/parade");
+    const done = await prober();
+    assert.equal(done.lu, false);
     assert.equal(notifications.size, 1);
-    assert.deepEqual(retirees, []);
+    assert.deepEqual(removed, []);
   });
 
   test("une liste de projets qui ne se lit pas ne notifie ni ne retire rien", async () => {
-    monde["chef/parade"]![40] = toDo("Keep the old export?");
-    await sonde();
-    const fait = await sonder({ appeler: github, memoire, notifier, projets: async () => Promise.reject(new Error("offline")) });
-    assert.equal(fait.lu, false);
+    world["chef/parade"]![40] = toDo("Keep the old export?");
+    await prober();
+    const done = await probe({ appeler: github, memoire: memory, notifier: notify, projets: async () => Promise.reject(new Error("offline")) });
+    assert.equal(done.lu, false);
     assert.equal(notifications.size, 1);
   });
 });
@@ -143,13 +143,13 @@ describe("la notification d'une carte de TODO", () => {
 // notification d'une carte qui nomme une PR la dit par son ticket.
 describe("la notification dit la PR par son ticket (ticket 3716)", () => {
   test("la revue avant merge de #3709, sa PR 3710 : « the PR of #3709 », jamais « #3710 »", async () => {
-    monde["chef/parade"]![3709] = {
+    world["chef/parade"]![3709] = {
       labels: ["chef-todo"],
       commentaires: ["<!-- brigade:todo kind=review-before-merge pr=3710 ticket=3709 sha=abcdef1 -->\n#3709 is sensitive: review PR #3710 before it is merged. Merge it and the kitchen merges PR #3710; send it back with a note and a cook takes #3709 up again with your note."],
     };
-    await sonde();
-    const texte = montrees.find(({ ticket }) => ticket === 3709)?.texte ?? assert.fail("#3709 is not notified");
-    assert.match(texte, /review the PR of #3709 before it is merged/);
-    assert.doesNotMatch(texte, /#3710/);
+    await prober();
+    const text = shown.find(({ ticket }) => ticket === 3709)?.texte ?? assert.fail("#3709 is not notified");
+    assert.match(text, /review the PR of #3709 before it is merged/);
+    assert.doesNotMatch(text, /#3710/);
   });
 });
