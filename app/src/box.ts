@@ -9,6 +9,7 @@ import { execFile, type ExecFileException } from "node:child_process";
 import { join } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import type { Project } from "./config.ts";
+import type { PauseOfReads } from "./board/read.ts";
 import { count } from "./format.ts";
 
 export type Output = { commande: string; texte: string };
@@ -27,7 +28,7 @@ export type Command = string | ((readEntries: readonly Output[]) => string);
 export type Case = "projet-inconnu" | "sans-droit" | "commande-manque" | "node-inapte";
 // `duTableau` : ce n'est pas la station d'ici qui a échoué, mais la lecture du projet sur GitHub (board/rail.ts,
 // #1694) — `erreur` est alors sa raison, en une phrase.
-export type Failure = { erreur: string; atteinte: boolean; cas: Case | null; duTableau?: true; pasPublie?: true; horsLigne?: true };
+export type Failure = { erreur: string; atteinte: boolean; cas: Case | null; duTableau?: true; pasPublie?: true; horsLigne?: true; pause?: PauseOfReads };
 // `demande` : celle à laquelle la lecture répond, telle que `regarder` l'a reçue.
 // `a` : l'instant où la lecture a fini. Une lecture a des sorties, ou une
 // erreur — jamais les deux.
