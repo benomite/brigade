@@ -899,8 +899,18 @@ and pull request were read again whenever a comment changed them. In `app/test/b
 whose every path changes every 20 s cost, in one hour: 8,658 counted requests before (a read every 5 s), 780 now
 (a read every 60 s, `vue/served/freshness.ts`; a card's timeline is read again only when its labels change, its
 pull request's lines only when its head commit changes, `board/kitchen-board.ts`). A merge shows in Served within a
-minute; a gesture of the chef still reads at once. The kitchen itself costs the account about nothing: one GraphQL
-query per turn and per project (60 an hour, its own quota), REST only for the ticket text it hands a cook.
+minute; a gesture of the chef still reads at once.
+
+The kitchen is not the consumer (read in `runtime/src/kitchen/github.ts`, not counted on a real hour: a cook's sandbox
+sees no station counter): a turn is one GraphQL query per project (60 an hour, GraphQL's own quota); REST is only
+`ticketText` (2 per ticket handed to an agent), `trustedComments` (1 per ticket the chef may have answered `merge`),
+`failedLogs` (2 + one per red job), and `ensureLabels` (8 once per start). Measured on 2026-11-27 from the box, with the
+kitchen at work and no app of this version open: `core.used` rose 4,112 → 4,143 in 3.5 minutes (about 9 a minute, 530
+an hour), counted by reading `gh api rate_limit` (which is not counted) every 30 s; the kitchen's share of that is a few
+calls per ticket, so the rest comes from outside the box (the chef's app at its old 5 s cadence, the second's `gh`).
+The ~100 calls a minute seen at rest, then 334 in four minutes followed by 2 in a minute, fit the app's reading at 5 s
+(about 7 changed paths per read, a 304 being free): this is an inference from that fit, not a count per caller on the
+real hour, which only the chef's Mac (`budget-github.ts`) and the station's `appels-github/compteur.db` can give.
 
 - **The head lines** the view reads from `status` are only `rail` (the counts by state) and `cooks`, and the `awaiting`
   block is one head line counting the TODO cards (below). What only a station's log carries — the project switch and
