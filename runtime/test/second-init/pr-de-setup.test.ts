@@ -11,7 +11,7 @@ import { carteEnCours, CHEF_TODO } from "../../src/github-seul/carte-todo/carte-
 import { BRANCHE, MARQUEUR, MESSAGE_INCHANGE, ouvrirLaPrDeSetup, principal, type GitHubDuSetup, type Script } from "../../src/second-init/pr-de-setup.ts";
 import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
 
-const PLUGIN_DE_L_APP = join(import.meta.dirname, "..", "..", "..", "app", "src", "plugin");
+const PLUGIN_DE_L_APP = join(import.meta.dirname, "..", "..", "..", "app", "src", "setup");
 const URL = "https://github.com/acme/shop/pull/7";
 const SANS_BASH = process.platform === "win32" && "le script de /brigade:init et son `gh` doublure sont joués par bash";
 

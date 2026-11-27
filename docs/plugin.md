@@ -43,15 +43,15 @@ those folders still hold the V1 files (below).
 
 ## Beside the app's plugin
 
-The app installs its own plugin in every project it opens (`app/src/plugin-app.ts`, see "`/brigade:dev`,
-`/brigade:ask` and `/brigade:init` in every project the app opens" in [app.md](app.md)). The two can be enabled in
+The app installs its own plugin in every project it opens (`app/src/plugin-app.ts`, see "`/brigade:dev` and
+`/brigade:ask` in every project the app opens" in [app.md](app.md)). The two can be enabled in
 the same project, and nothing collides:
 
 - **Two marketplaces, two plugin ids**: `brigade@brigade` (this one, user's choice of scope) and
   `brigade-app@brigade-app` (the app's, local scope, marketplace under `~/.config/brigade/plugin-app/`). Installing,
   updating or removing one never touches the other.
 - **One command name space, `brigade`**, on purpose: the commands are typed `/brigade:…` whichever plugin brings
-  them. `/brigade:start`, `/brigade:ticket` and `/brigade:todo` come only from this plugin; `/brigade:dev` and `/brigade:init` only from the app's.
+  them. `/brigade:start`, `/brigade:ticket` and `/brigade:todo` come only from this plugin; `/brigade:dev` only from the app's.
 - **The one command both carry, `/brigade:ask`, is the same file**: the app copies `commands/ask.md` of this
   repository into its marketplace (`COMMANDS` in `plugin-app.ts`). Whichever copy Claude Code loads, the command
   says the same thing — at most one release apart, when the app and the installed plugin are not at the same
@@ -72,7 +72,7 @@ What still reads each one:
 | `commands/dev.md` | **the app**: `app/src/plugin-app.ts` copies it as `/brigade:dev`, and the app's packaging ships it (`app/packaging/construire.ts`, `linux.ts`, `windows.ts`; their tests compare it); the gates (role and mirror); `runtime/test/ste.test.ts` |
 | `commands/designer.md` | the gates (role and mirror) |
 | `commands/sync.md` | nothing but the V1 texts that name it (the Codex mirrors, `commands/manager.md`, `scripts/update-partout.sh`) |
-| `commands/init.md` | nothing reads the file; `app/test/plugin-app.test.ts` reads it to check the app's own `/brigade:init` differs from it |
+| `commands/init.md` | nothing reads the file; the app sets a repository up with its own session, not this command (`app/src/setup/`) |
 | `agents/dev-teammate.md`, `-low`, `-medium` | `commands/manager.md` (V1) spawns them as `brigade:dev-teammate*`; the gates check their three bodies are the same |
 
 The other agents of `agents/` are not V1 and stay: the runtime and its tests read them as files, never as plugin

@@ -3,7 +3,7 @@
 // choisit, le parcours le vérifie (`checkRepoSetup`) et le dit en une phrase :
 //   - prêt : la phrase, et le parcours continue comme avant, sans geste de plus ;
 //   - pas prêt : ce qui manque — ses bindings, ses labels, ou les deux, leur liste au survol — et un seul bouton qui
-//     le prépare (`runRepoSetup`) : le chef ne voit ni ne tape jamais la commande d'init du plugin ;
+//     le prépare (`runRepoSetup`) : le chef ne voit ni ne tape jamais de commande de préparation ;
 //   - en cours : une phrase, aucun bouton ;
 //   - échoué : une phrase, la raison au survol, et « try again ».
 // Préparé, la phrase le dit et le parcours continue, sans quitter l'écran.

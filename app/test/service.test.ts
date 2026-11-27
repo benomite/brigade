@@ -33,6 +33,7 @@ import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { commandOfStartup, COMMANDS, INIT, JUDGMENT, judgmentOf, readCurrent, readSteps, readJudgment, readProtection, readStations, gapsOf, holdServices, VERIFICATION, verdictOf, type Guide } from "../src/service.ts";
 import { openTerminals, type Launch, type Terminal } from "../src/terminals.ts";
+import { START_OF_SETUP } from "../src/setup/setup.ts";
 import { playTheVue, openTab, repos, type Fake } from "./helpers/false-vue.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 import { STOP, YES_STOP } from "../src/vue/stations-tab/stations-tab.js";
@@ -108,6 +109,11 @@ const NOTE = `echo "$*" >>"$D/appels"`;
 type FakePty = Launch & { ecrits: string[] };
 
 // De faux pty : chaque terminal lancé, et ce qui y a été écrit.
+// Les instructions de la préparation d'un dépôt, telles que l'app les a posées (setup/setup.ts), et la session qui les
+// reçoit dans le second : une conversation neuve, aucune commande tapée.
+const SETUP = "/config/setup/instructions.md";
+const SETUP_SESSION = `claude --append-system-prompt-file ${SETUP} ${START_OF_SETUP} /projets/calculus`;
+
 function fakeTerminals() {
   const launched: FakePty[] = [];
   const terminals = openTerminals({
@@ -120,6 +126,7 @@ function fakeTerminals() {
     },
     surSortie: () => {},
     surEtat: () => {},
+    preparation: () => SETUP,
   });
   // Ce que les terminaux ont reçu : chaque pty lancé, et ce qui y a été écrit.
   const terminal = () => launched.map(({ commande: command, args, dossier: folder, ecrits: writtenOnes }) => ({ lance: [command, ...args, folder].join(" "), ecrits: writtenOnes }));
@@ -496,7 +503,7 @@ function boxSimulated(t: TestContext, setting: { admin?: boolean; calibrage?: bo
 function app(box: ReturnType<typeof boxSimulated>) {
   const { terminaux: terminals, terminal } = fakeTerminals();
   const pushed: Guide[] = [];
-  const services = holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: box.lancer, session: terminals.session, shell: terminals.shell, surGuide: (guide) => void pushed.push(guide) });
+  const services = holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: box.lancer, setup: terminals.setup, shell: terminals.shell, surGuide: (guide) => void pushed.push(guide) });
   return { services, terminal, pousses: pushed };
 }
 
@@ -537,6 +544,9 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
     assert.equal(readOne.courante, "init");
     assert.equal(readOne.etapes.find(({ courante: current }) => current)?.id, "init");
     assert.equal((await box.etapesAuJournal())?.courante, "init");
+    // L'étape d'init dit la session qui prépare le dépôt : aucune commande à taper n'y est montrée (#4632).
+    assert.match(readOne.etapes.find(({ id }) => id === "init")?.lignes.join("\n") ?? "", /^The repository setup is a Claude Code session, not a command/);
+    assert.doesNotMatch(JSON.stringify(readOne), /brigade:/);
   });
 
   test("sur une box sans geste à jour, la commande unique et sa raison sont dites d'emblée, sans qu'aucun bouton ait été pressé — et la vérification attend le chef", async (t) => {
@@ -578,7 +588,7 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
 });
 
 describe("chaque geste est un bouton ou une réponse", () => {
-  test("init : la session `/brigade:init` s'ouvre dans le second ; « mergé » est noté par la box, et l'étape suivante devient la courante", async (t) => {
+  test("init : la session qui prépare le dépôt s'ouvre dans le second, ses instructions données ; « mergé » est noté par la box, et l'étape suivante devient la courante", async (t) => {
     const box = boxSimulated(t);
     const { services, terminal } = app(box);
     services.suivre(CALCULUS);
@@ -586,7 +596,8 @@ describe("chaque geste est un bouton ou une réponse", () => {
 
     const second = services.amorcer(CALCULUS);
     assert.ok(!("refus" in second) && second.genre === "second");
-    assert.deepEqual(terminal(), [{ lance: `claude ${INIT} /projets/calculus`, ecrits: [] }]);
+    assert.deepEqual(terminal(), [{ lance: SETUP_SESSION, ecrits: [] }]);
+    assert.doesNotMatch(terminal()[0]?.lance ?? "", /brigade:/);
 
     assert.equal(await services.direMerge(CALCULUS, true), undefined);
     const readOne = await guide(services);
@@ -594,7 +605,8 @@ describe("chaque geste est un bouton ou une réponse", () => {
     assert.ok(box.appels.includes("installation etapes init faite"));
     assert.equal(states(readOne).init, "done");
     assert.equal(readOne.courante, "stations");
-    assert.match(readOne.fait?.titre ?? "", /merge of `\/brigade:init` is recorded/);
+    assert.equal(readOne.fait?.titre, `The merge of ${INIT} is recorded on the station`);
+    assert.doesNotMatch(readOne.fait?.titre ?? "", /brigade:/);
   });
 
   test("stations : celles que la box fournit sont proposées, sans plafond ; déclarées au plafond choisi, l'étape est faite", async (t) => {
@@ -751,7 +763,7 @@ describe("de « Ajouter le projet » à « installation terminée »", () => {
 
     assert.match(refusal(await services.demarrer(CALCULUS)), /^nothing is written: .*there is no service to start/);
     // Ce que l'app a mis dans un terminal : la session d'init, et rien d'autre.
-    assert.deepEqual(terminal(), [{ lance: `claude ${INIT} /projets/calculus`, ecrits: [] }]);
+    assert.deepEqual(terminal(), [{ lance: SETUP_SESSION, ecrits: [] }]);
     // Chaque commande partie vers la station est une commande du runtime, sous `installation`.
     assert.ok(box.appels.every((command) => command === "installation" || command.startsWith("installation ")), box.appels.join("\n"));
   });
@@ -787,7 +799,7 @@ describe("ce que la box ne rend pas", () => {
     const { services } = (() => {
       const { terminaux: terminals } = fakeTerminals();
       const launch = async (): Promise<Rendered> => ({ lance: "$ node", erreur: Object.assign(new Error("spawn node ENOENT"), { code: "ENOENT", killed: false, cmd: "node" }), sortie: "", erreurs: "spawn node ENOENT\n" });
-      return { services: holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: launch, session: terminals.session, shell: terminals.shell, surGuide: () => {} }) };
+      return { services: holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: launch, setup: terminals.setup, shell: terminals.shell, surGuide: () => {} }) };
     })();
 
     const readOne = await guide(services);
@@ -801,7 +813,7 @@ describe("ce que la box ne rend pas", () => {
   test("un runtime d'avant les étapes : ce qu'il a rendu est montré, et ce qui l'explique", async (t) => {
     const { terminaux: terminals } = fakeTerminals();
     const launch = async (): Promise<Rendered> => ({ lance: "$ node", erreur: Object.assign(new Error("usage"), { code: 2, killed: false, cmd: "node" }), sortie: "", erreurs: "brigade : usage : … installation -- [labels | setup [<cooks>] | desinstaller [--confirmer]]\n" });
-    const services = holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: launch, session: terminals.session, shell: terminals.shell, surGuide: () => {} });
+    const services = holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: launch, setup: terminals.setup, shell: terminals.shell, surGuide: () => {} });
 
     const readOne = await guide(services);
 
@@ -813,7 +825,7 @@ describe("ce que la box ne rend pas", () => {
   test("un projet dont la station de cet ordinateur ne se lit pas n'a pas d'installation : rien à lire, rien à faire", async (t) => {
     const box = boxSimulated(t);
     const { terminaux: terminals, terminal } = fakeTerminals();
-    const services = holdServices({ delaiMs: 60_000, cuisine: () => undefined, lancer: box.lancer, session: terminals.session, shell: terminals.shell, surGuide: () => {} });
+    const services = holdServices({ delaiMs: 60_000, cuisine: () => undefined, lancer: box.lancer, setup: terminals.setup, shell: terminals.shell, surGuide: () => {} });
 
     assert.equal(await services.guide(CALCULUS), undefined);
     assert.match((await services.direMerge(CALCULUS, true))?.refus ?? "", /does not say where its station is/);
@@ -944,7 +956,7 @@ describe("un projet installé n'affiche jamais l'écran d'installation", () => {
       if (state.muette) return { lance: "$ node", erreur: Object.assign(new Error("spawn node ENOENT"), { code: "ENOENT", killed: false, cmd: "node" }), sortie: "", erreurs: "spawn node ENOENT\n" };
       return { lance: `$ node ${command}`, erreur: null, sortie: command === COMMANDS.etapes ? `${finished}\n` : "", erreurs: "" };
     };
-    const services = holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: launch, session: terminals.session, shell: terminals.shell, surGuide: () => {} });
+    const services = holdServices({ delaiMs: 60_000, cuisine: () => KITCHEN, lancer: launch, setup: terminals.setup, shell: terminals.shell, surGuide: () => {} });
     return { services, etat: state };
   }
 
@@ -1009,7 +1021,7 @@ describe("l'onglet Stations : une station déclarée, changée seule", () => {
       delaiMs: 60_000,
       cuisine: () => KITCHEN,
       lancer: box.lancer,
-      session: fakeTerminals().terminaux.session,
+      setup: fakeTerminals().terminaux.setup,
       shell: fakeTerminals().terminaux.shell,
       surGuide: (guide) => vue?.dire("surGuide", guide),
     });

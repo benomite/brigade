@@ -9,6 +9,7 @@ import { describe, test, type TestContext } from "node:test";
 import { ligneDeCmd } from "../../../runtime/src/sans-invite.ts";
 import { hooksOfTurns, openTurns, settingsFile } from "../../src/input.ts";
 import { argumentsOfSecond, settingsOfSecond, ROLE_OF_SECOND } from "../../src/second/launch.ts";
+import { START_OF_SETUP } from "../../src/setup/setup.ts";
 import { openTerminals, type Launch } from "../../src/terminals.ts";
 
 const SRC = join(import.meta.dirname, "..", "..", "src");
@@ -22,6 +23,9 @@ function folder(t: TestContext, prefix = "brigade-second-"): string {
 
 // Un registre comme celui de l'app, contre de faux pty : chaque lancement est relevé. `tours` : les fichiers où
 // les seconds disent leurs tours — sans eux, l'app ne les suit pas.
+// Les instructions de la préparation d'un dépôt, telles que l'app les a posées (setup/setup.ts).
+const SETUP_INSTRUCTIONS = "/config/setup/instructions.md";
+
 function registry(turns?: ReturnType<typeof openTurns>) {
   const launched: Launch[] = [];
   const terminals = openTerminals({
@@ -33,6 +37,7 @@ function registry(turns?: ReturnType<typeof openTurns>) {
     },
     surSortie: () => {},
     surEtat: () => {},
+    preparation: () => SETUP_INSTRUCTIONS,
     ...(turns === undefined ? {} : { tours: (id: number) => turns.de(id) }),
   });
   const launches = (rank: number): Launch => launched.at(rank) ?? assert.fail(`aucun lancement au rang ${rank}`);
@@ -156,13 +161,14 @@ describe("l'onglet Second lance `claude` avec le rôle dans son prompt système"
 });
 
 describe("le rôle n'existe que dans l'onglet Second", () => {
-  test("un shell ouvert à côté, et une session ouverte sur une commande de `claude` (`/brigade:init`), ne reçoivent pas le rôle", () => {
+  test("un shell ouvert à côté, et la session qui prépare le dépôt — ses instructions à la place du rôle, aucune commande —, ne reçoivent pas le rôle", () => {
     const { terminaux: terminals, lance: launches } = registry();
-    terminals.session(BRIGADE, "/brigade:init");
+    terminals.setup(BRIGADE);
     terminals.shell(BRIGADE);
 
-    assert.deepEqual(launches(0).args, ["/brigade:init"]);
-    assert.equal(roleOf(launches(0).args), undefined);
+    assert.deepEqual(launches(0).args, [OPTION_OF_ROLE, SETUP_INSTRUCTIONS, START_OF_SETUP]);
+    assert.notEqual(roleOf(launches(0).args), ROLE_OF_SECOND);
+    assert.deepEqual(invokes(launches(0).args), []);
     assert.equal(launches(1).commande, "/bin/zsh");
     assert.equal(roleOf(launches(1).args), undefined);
   });
@@ -182,7 +188,7 @@ describe("le rôle n'existe que dans l'onglet Second", () => {
     const [second] = terminals.espace({ nom: "projet", dossier: project });
     assert.ok(second);
     launches(0).surFin(1);
-    terminals.session({ nom: "projet", dossier: project }, "/brigade:init");
+    terminals.setup({ nom: "projet", dossier: project });
 
     assert.deepEqual(tree(project), before);
     for (const { args } of launched.slice(0, 2)) {

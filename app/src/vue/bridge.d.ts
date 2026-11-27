@@ -57,7 +57,7 @@ export type Bridge = {
   service(project: string): Promise<Guide | undefined>;
   // Le chef déplie l'installation : elle se lit en entier, vérification d'ouverture comprise.
   deplierService(project: string): Promise<Guide | undefined>;
-  // Ouvre dans le second du projet la session qui amorce son dépôt (`/brigade:init`) : rend le
+  // Ouvre dans le second du projet la session qui amorce son dépôt, ses instructions données : rend le
   // second, dont la note dit ce qui a été lancé — ou pourquoi rien ne l'a été.
   amorcer(project: string): Promise<Terminal | { refus: string }>;
   // Le chef dit le résultat de l'init mergé sur la branche d'intégration, ou s'en dédit : la box le note.

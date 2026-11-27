@@ -106,6 +106,7 @@ import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_PLUGIN, launchReally, withoutPluginApp, holdThePluginApp } from "./plugin-app.ts";
+import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
 import { holdServices } from "./service.ts";
 import { installerTheStation } from "./workstation/installer.ts";
 import { memoriesInFile } from "./memories.ts";
@@ -215,6 +216,8 @@ const terminals = openTerminals({
   planDuSecond: (folder, args) => ({ state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: folder, env: {} }, missing: [], tools: [] }),
   souvenirs: memoriesInFile(join(dirname(pathConfiguration()), "shells.json")),
   node: locations.node,
+  // La session qui prépare un dépôt : ses instructions, posées à côté du fichier des projets (setup/setup.ts, #4632).
+  preparation: () => setTheSetup(join(dirname(pathConfiguration()), FOLDER_OF_SETUP), { node: locations.node, runtime: locations.runtime }),
   // La file que le second lit à son ouverture vient de GitHub seul, par le `gh` du poste (second/file.ts, #2460).
   gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
@@ -488,7 +491,7 @@ const services = holdServices({
     return rendered;
   },
   cuisine: kitchens.cuisineDe,
-  session: terminals.session,
+  setup: terminals.setup,
   shell: terminals.shell,
   surGuide: (guide) => {
     tell("guide", guide);
@@ -515,7 +518,6 @@ const pluginApp = process.env.BRIGADE_CLAUDE_BIN
       marketplace: join(dirname(pathConfiguration()), FOLDER_OF_PLUGIN),
       commandes: locations.commandes,
       versionDeLApp: app.getVersion(),
-      lieux: { node: locations.node, runtime: locations.runtime },
       dire: (line) => console.error(line),
     });
 // Retirer un projet de l'app (removal.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et
@@ -764,7 +766,7 @@ ipcMain.handle("ranger", (_, name: unknown, rank: unknown) => {
   return typeof rank === "number" ? tracking.ranger(aims.nom, rank) : `nothing was done: “${String(rank)}” is not a place in the bar`;
 });
 // L'installation guidée : la vue nomme le projet et le geste, ce qu'il en advient se décide
-// dans service.ts — les étapes lues sur la box, la session `/brigade:init` dans le second,
+// dans service.ts — les étapes lues sur la box, la session qui prépare le dépôt dans le second,
 // chaque étape faite par la commande du runtime qui la fait, et le démarrage, écrit dans un
 // shell et refusé tant que la box n'a pas terminé l'installation. Ce qui change arrive par `surGuide`.
 const gone = (name: unknown) => ({ refus: `nothing was done: “${String(name)}” is no longer in the projects file` });
