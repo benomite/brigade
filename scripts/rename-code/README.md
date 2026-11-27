@@ -253,6 +253,7 @@ from `mapping.json`.
 |---|---|
 | `a l` | `at the` |
 | `a la` | `at the` |
+| `a part` | `aside` |
 | `abord` | `first` |
 | `abscisse` | `abscissa` |
 | `absente` | `absent` |
@@ -393,6 +394,7 @@ from `mapping.json`.
 | `avertis` | `warned` |
 | `avertissement` | `warning` |
 | `avis` | `opinion` |
+| `bac` | `sandbox` |
 | `bac a sable` | `sandbox` |
 | `bande` | `band` |
 | `bandeau` | `banner` |
@@ -673,6 +675,7 @@ from `mapping.json`.
 | `deja` | `already` |
 | `delai` | `delay` |
 | `delais` | `delays` |
+| `delegue` | `delegated` |
 | `demandait` | `asked` |
 | `demande` | `request` |
 | `demandee` | `requested` |
@@ -806,8 +809,10 @@ from `mapping.json`.
 | `empecher` | `prevent` |
 | `emplacements` | `locations` |
 | `empreinte` | `fingerprint` |
+| `en` | `in` |
 | `en cours` | `in progress` |
 | `en plus` | `extra` |
+| `en service` | `in service` |
 | `en tant que` | `as` |
 | `enchaines` | `chained` |
 | `encore` | `still` |
@@ -883,6 +888,7 @@ from `mapping.json`.
 | `explique` | `explained` |
 | `expliques` | `explained` |
 | `extraire` | `extract` |
+| `faire` | `do` |
 | `fait` | `done` |
 | `faite` | `done` |
 | `faites` | `done` |
@@ -1025,6 +1031,7 @@ from `mapping.json`.
 | `installees` | `installed` |
 | `installes` | `installed` |
 | `installeur` | `installer` |
+| `intacte` | `intact` |
 | `interdit` | `forbidden` |
 | `interroge` | `queries` |
 | `interroges` | `queried` |
@@ -1080,6 +1087,7 @@ from `mapping.json`.
 | `lancer` | `launch` |
 | `lances` | `launched` |
 | `lanceur` | `launcher` |
+| `lapi` | `the api` |
 | `laquelle` | `which` |
 | `largeur` | `width` |
 | `le` | `the` |
@@ -1173,6 +1181,9 @@ from `mapping.json`.
 | `memes` | `same` |
 | `memoire` | `memory` |
 | `memoires` | `memories` |
+| `mes` | `my` |
+| `metadonnees` | `metadata` |
+| `methode` | `method` |
 | `mettre` | `put` |
 | `mien` | `mine` |
 | `milieu` | `middle` |
@@ -1184,8 +1195,10 @@ from `mapping.json`.
 | `mis` | `put` |
 | `mis a jour` | `updated` |
 | `mis de cote` | `set aside` |
+| `mise` | `putting` |
 | `mise a jour` | `update` |
 | `mise de cote` | `set aside` |
+| `mise en place` | `setup` |
 | `mises` | `put` |
 | `modele` | `model` |
 | `modeles` | `models` |
@@ -1318,6 +1331,8 @@ from `mapping.json`.
 | `papiers` | `papers` |
 | `paquet` | `package` |
 | `paquets` | `packages` |
+| `par` | `by` |
+| `par defaut` | `by default` |
 | `paragraphe` | `paragraph` |
 | `paragraphes` | `paragraphs` |
 | `parallele` | `parallel` |
@@ -1471,6 +1486,7 @@ from `mapping.json`.
 | `profonde` | `deep` |
 | `profondeur` | `depth` |
 | `programmes` | `programs` |
+| `progres` | `progress` |
 | `projet` | `project` |
 | `projets` | `projects` |
 | `promesse` | `promise` |
@@ -1640,6 +1656,7 @@ from `mapping.json`.
 | `renvoye` | `sent back` |
 | `renvoyer` | `send back` |
 | `renvoyes` | `sent back` |
+| `reouverture` | `reopening` |
 | `reparation` | `repair` |
 | `repare` | `repaired` |
 | `repartie` | `spread` |
@@ -1742,6 +1759,7 @@ from `mapping.json`.
 | `saute` | `skips` |
 | `sauts` | `jumps` |
 | `sauver` | `save` |
+| `savoir` | `knowledge` |
 | `savoir faire` | `know how` |
 | `se` | `itself` |
 | `secondaire` | `secondary` |
@@ -1868,6 +1886,7 @@ from `mapping.json`.
 | `tenants` | `holders` |
 | `tendance` | `trend` |
 | `tenir` | `hold` |
+| `tenu` | `held` |
 | `tenue` | `held` |
 | `tenues` | `held` |
 | `tenus` | `held` |

@@ -152,6 +152,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 |---|---|
 | `a l` | `at the` |
 | `a la` | `at the` |
+| `a part` | `aside` |
 | `abord` | `first` |
 | `abscisse` | `abscissa` |
 | `absente` | `absent` |
@@ -292,6 +293,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `avertis` | `warned` |
 | `avertissement` | `warning` |
 | `avis` | `opinion` |
+| `bac` | `sandbox` |
 | `bac a sable` | `sandbox` |
 | `bande` | `band` |
 | `bandeau` | `banner` |
@@ -572,6 +574,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `deja` | `already` |
 | `delai` | `delay` |
 | `delais` | `delays` |
+| `delegue` | `delegated` |
 | `demandait` | `asked` |
 | `demande` | `request` |
 | `demandee` | `requested` |
@@ -705,8 +708,10 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `empecher` | `prevent` |
 | `emplacements` | `locations` |
 | `empreinte` | `fingerprint` |
+| `en` | `in` |
 | `en cours` | `in progress` |
 | `en plus` | `extra` |
+| `en service` | `in service` |
 | `en tant que` | `as` |
 | `enchaines` | `chained` |
 | `encore` | `still` |
@@ -782,6 +787,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `explique` | `explained` |
 | `expliques` | `explained` |
 | `extraire` | `extract` |
+| `faire` | `do` |
 | `fait` | `done` |
 | `faite` | `done` |
 | `faites` | `done` |
@@ -924,6 +930,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `installees` | `installed` |
 | `installes` | `installed` |
 | `installeur` | `installer` |
+| `intacte` | `intact` |
 | `interdit` | `forbidden` |
 | `interroge` | `queries` |
 | `interroges` | `queried` |
@@ -979,6 +986,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `lancer` | `launch` |
 | `lances` | `launched` |
 | `lanceur` | `launcher` |
+| `lapi` | `the api` |
 | `laquelle` | `which` |
 | `largeur` | `width` |
 | `le` | `the` |
@@ -1072,6 +1080,9 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `memes` | `same` |
 | `memoire` | `memory` |
 | `memoires` | `memories` |
+| `mes` | `my` |
+| `metadonnees` | `metadata` |
+| `methode` | `method` |
 | `mettre` | `put` |
 | `mien` | `mine` |
 | `milieu` | `middle` |
@@ -1083,8 +1094,10 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `mis` | `put` |
 | `mis a jour` | `updated` |
 | `mis de cote` | `set aside` |
+| `mise` | `putting` |
 | `mise a jour` | `update` |
 | `mise de cote` | `set aside` |
+| `mise en place` | `setup` |
 | `mises` | `put` |
 | `modele` | `model` |
 | `modeles` | `models` |
@@ -1217,6 +1230,8 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `papiers` | `papers` |
 | `paquet` | `package` |
 | `paquets` | `packages` |
+| `par` | `by` |
+| `par defaut` | `by default` |
 | `paragraphe` | `paragraph` |
 | `paragraphes` | `paragraphs` |
 | `parallele` | `parallel` |
@@ -1370,6 +1385,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `profonde` | `deep` |
 | `profondeur` | `depth` |
 | `programmes` | `programs` |
+| `progres` | `progress` |
 | `projet` | `project` |
 | `projets` | `projects` |
 | `promesse` | `promise` |
@@ -1539,6 +1555,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `renvoye` | `sent back` |
 | `renvoyer` | `send back` |
 | `renvoyes` | `sent back` |
+| `reouverture` | `reopening` |
 | `reparation` | `repair` |
 | `repare` | `repaired` |
 | `repartie` | `spread` |
@@ -1641,6 +1658,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `saute` | `skips` |
 | `sauts` | `jumps` |
 | `sauver` | `save` |
+| `savoir` | `knowledge` |
 | `savoir faire` | `know how` |
 | `se` | `itself` |
 | `secondaire` | `secondary` |
@@ -1767,6 +1785,7 @@ Taken from the file and directory names of `runtime/src` and `app/src`: every Fr
 | `tenants` | `holders` |
 | `tendance` | `trend` |
 | `tenir` | `hold` |
+| `tenu` | `held` |
 | `tenue` | `held` |
 | `tenues` | `held` |
 | `tenus` | `held` |
