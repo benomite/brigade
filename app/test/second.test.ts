@@ -234,6 +234,29 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.equal(copies.length, 2);
   });
 
+  test("la molette d'un shell persistant que tmux tient sur l'écran alterné remonte l'historique de sa session ; ailleurs, elle reste à xterm", async () => {
+    const vue = await open({ shell: () => ({ ...SHELL, scrollsSession: true }) });
+    await click(vue, vue.element("terminaux"), "+ shell");
+    const [second, shell] = vue.xterms;
+    const scrolled = () => vue.appels.filter(({ geste: action }) => action === "scroll").map(({ args }) => args);
+    const LINES = 1;
+    const PIXELS = 0;
+
+    // Sur l'écran normal — un shell sous `screen` —, xterm garde ce qui a défilé : la molette lui reste.
+    assert.equal(shell?.molette?.({ deltaY: -3, deltaMode: LINES }), true);
+    shell!.buffer.active.type = "alternate";
+    // Vers le haut, elle remonte ; vers le bas, elle redescend. Les fractions d'un trackpad s'additionnent.
+    assert.equal(shell?.molette?.({ deltaY: -3, deltaMode: LINES }), false);
+    assert.equal(shell?.molette?.({ deltaY: 2, deltaMode: LINES }), false);
+    assert.equal(shell?.molette?.({ deltaY: -8, deltaMode: PIXELS }), false);
+    assert.equal(shell?.molette?.({ deltaY: -8, deltaMode: PIXELS }), false);
+    assert.deepEqual(scrolled(), [[SHELL.id, 3], [SHELL.id, -2], [SHELL.id, 1]]);
+    // Le second, même sur l'écran alterné, défile comme xterm le fait.
+    second!.buffer.active.type = "alternate";
+    assert.equal(second?.molette?.({ deltaY: -3, deltaMode: LINES }), true);
+    assert.equal(scrolled().length, 3);
+  });
+
   test("chaque projet montre son second ; revenir sur un projet rend le sien, tel qu'il était", async () => {
     const vue = await open();
     vue.dire("surSortie", SECOND.id, "le fil de parade\r\n");

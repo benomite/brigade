@@ -11,7 +11,7 @@
 import { accountOf, textBanner } from "./banner.ts";
 import type { Project } from "./config.ts";
 import { HERE, WITHOUT_SESSION } from "./platform.ts";
-import { destroy as destroySession, nameOfSession, attachment, type Target, type Session } from "./persistence.ts";
+import { destroy as destroySession, scroll as scrollSession, nameOfSession, attachment, type Target, type Session } from "./persistence.ts";
 import { hooksOfTurns, SAYS, PROOF, settingsFile, followInput, type Input, type Turns } from "./input.ts";
 import { hooksOfTheFile } from "./second/hook-of-the-file.ts";
 import { hooksOfRole } from "./second/hook-of-role.ts";
@@ -75,6 +75,9 @@ export type Terminal = {
   // La fenêtre s'est rechargée (#3159) et ce second ne tournait plus : il n'a pas pu être rattaché. Sa note le dit, et la
   // vue pose à côté de quoi le reprendre — comme une touche, qui le relance.
   aReprendre?: true;
+  // Un shell persistant : la molette y remonte l'historique de sa session (`scroll`), que tmux garde sur l'écran
+  // alterné, où xterm.js n'en a aucun.
+  scrollsSession?: true;
 };
 
 // Un terminal tel qu'une vue rechargée le retrouve (#3159) : ce qu'elle en montre, et ce qu'il a écrit — la fin seulement.
@@ -108,6 +111,11 @@ type Held = Terminal & {
   ici?: string;
   // Ce qu'il a écrit depuis son ouverture, relancements compris — comme le terminal de la vue, qui le garde aussi.
   ecrit: string;
+  // Le défilement de la session d'un shell persistant : ce qui part vers elle, dans l'ordre — un défilement, puis ce
+  // que le chef tape —, les lignes qui attendent le prochain, et si son historique a pu être remonté depuis la dernière frappe.
+  queue?: Promise<void>;
+  notches?: number;
+  inHistory?: boolean;
 };
 
 // Ce qui ne s'écrit jamais dans un terminal à la place du chef : un retour à la
@@ -151,6 +159,8 @@ export function openTerminals(options: {
   compte?(target: Target): string;
   // Détruit la session d'un shell fermé pour de bon (persistence.ts).
   detruire?(session: Session): Promise<{ detruite: true } | { erreur: string }>;
+  // Fait défiler la session d'un shell persistant (persistence.ts, `scroll`) : > 0 remonte, < 0 redescend, 0 en sort.
+  scroll?(session: Session, lines: number): Promise<void>;
   // Le plan du second, tel que main.ts le donne (#1433) : ce qui lance `claude`
   // sur ce poste — son chemin, et sous Windows ce qui le lance —, ou pourquoi il ne part pas. Sans lui, `claude` est
   // lancé par son nom.
@@ -165,8 +175,9 @@ export function openTerminals(options: {
   let closes = false;
 
   const destroy = options.detruire ?? ((session: Session) => destroySession(session));
+  const scrolls = options.scroll ?? ((session: Session, lines: number) => scrollSession(session, lines));
 
-  const shows = ({ id, projet: project, genre: kind, titre: title, note, arrete: stops, bandeau: banner, demandeEcrite: requestWritten, nonParti: notGone, empeche: prevents, manque: lack, aReprendre: aResume }: Held): Terminal => ({
+  const shows = ({ id, projet: project, genre: kind, titre: title, note, arrete: stops, bandeau: banner, demandeEcrite: requestWritten, nonParti: notGone, empeche: prevents, manque: lack, aReprendre: aResume, persistant: persistent }: Held): Terminal => ({
     id,
     projet: project,
     genre: kind,
@@ -179,7 +190,17 @@ export function openTerminals(options: {
     ...(prevents === undefined ? {} : { empeche: prevents }),
     ...(lack === undefined ? {} : { manque: lack }),
     ...(aResume === undefined ? {} : { aReprendre: aResume }),
+    ...(persistent === undefined ? {} : { scrollsSession: true as const }),
   });
+  // Ce qui part vers la session d'un shell persistant passe après ce qui y est déjà parti : une frappe ne
+  // double jamais le défilement qui la précède.
+  function inOrder(held: Held, step: () => Promise<void> | void): void {
+    const next = (held.queue ?? Promise.resolve()).then(step);
+    held.queue = next;
+    void next.then(() => {
+      if (held.queue === next) delete held.queue;
+    });
+  }
   const of = (project: string) => [...heldOnes.values()].filter((held) => held.projet === project);
 
   function hold(project: Project, kind: Terminal["genre"], title: string): Held {
@@ -566,7 +587,14 @@ export function openTerminals(options: {
       if (held.pty !== undefined) {
         // Ce que le chef tape dans le second se compte : sa saisie n'est dite vide qu'après son Entrée.
         held.saisie?.frappe(data);
-        held.pty.ecrire(data);
+        // L'historique remonté, la frappe en sort d'abord : elle va au shell, pas au mode de copie.
+        if (held.inHistory === true && held.persistant !== undefined) {
+          const { session } = held.persistant;
+          held.inHistory = false;
+          inOrder(held, () => scrolls(session, 0));
+        }
+        if (held.queue === undefined) held.pty.ecrire(data);
+        else inOrder(held, () => held.pty?.ecrire(data));
         // La demande est envoyée : son bandeau n'a plus de raison d'être.
         if (data === "\r" && held.demandeEcrite !== undefined) {
           delete held.demandeEcrite;
@@ -577,6 +605,23 @@ export function openTerminals(options: {
         launchSecond(held, true);
         options.surEtat(shows(held));
       }
+    },
+
+    // La molette dans un shell persistant : l'historique de sa session. Les crans qui arrivent pendant qu'un
+    // défilement part s'additionnent : un seul part ensuite, avec leur somme.
+    scroll(id: number, lines: number): void {
+      const held = heldOnes.get(id);
+      if (held?.persistant === undefined || held.pty === undefined || !Number.isInteger(lines) || lines === 0) return;
+      const { session } = held.persistant;
+      const waiting = (held.notches ?? 0) !== 0;
+      held.notches = (held.notches ?? 0) + lines;
+      if (lines > 0) held.inHistory = true;
+      if (waiting) return;
+      inOrder(held, () => {
+        const sum = held.notches ?? 0;
+        held.notches = 0;
+        return sum === 0 ? undefined : scrolls(session, sum);
+      });
     },
 
     inscrire: register,

@@ -21,6 +21,7 @@ import {
   WITHOUT_MULTIPLEXER,
   scriptOfDestruction,
   scriptOfAttachment,
+  scroll,
   type Target,
   type Command,
   type Session,
@@ -99,7 +100,7 @@ function plays(t: TestContext, fake: "tmux" | "screen" | "aucun"): { appels: str
 }
 
 describe("la configuration appliquée à la session", () => {
-  test("avec `tmux` : ni souris, ni préfixe, ni barre, écran normal pour le défilement de la vue — et rien qui active un mode de copie", { skip: WITHOUT_POSIX }, (t) => {
+  test("avec `tmux` : ni souris, ni préfixe, ni barre — et rien qui active un mode de copie", { skip: WITHOUT_POSIX }, (t) => {
     const { appels: calls } = plays(t, "tmux");
     const root = calls.find((call) => call.startsWith("tmux -u new-session"))?.match(/-c (\S+)$/)?.[1];
     assert.deepEqual(calls, [
@@ -109,8 +110,6 @@ describe("la configuration appliquée à la session", () => {
       "tmux -u set-option -t =brigade-essai-1: prefix None",
       "tmux -u set-option -t =brigade-essai-1: prefix2 None",
       "tmux -u set-option -t =brigade-essai-1: status off",
-      "tmux -u show-options -sv terminal-overrides",
-      "tmux -u set-option -sa terminal-overrides ,*:smcup@:rmcup@",
       "tmux -u attach-session -t =brigade-essai-1",
     ]);
     assert.deepEqual(SETTINGS_TMUX, ["mouse off", "prefix None", "prefix2 None", "status off"]);
@@ -226,7 +225,7 @@ describe(`une session persistante sur ce poste${multiplexer === undefined ? "" :
     await until(() => (withoutEscapes(second.sortie()).match(/apres-retour/g) ?? []).length >= 2, () => second.sortie());
   });
 
-  test("le terminal reste sur son écran normal : une sortie plus longue qu'un écran défile dans son historique, que la molette remonte", async (t) => {
+  test("avec `screen`, le terminal reste sur son écran normal : une sortie plus longue qu'un écran défile dans son historique, que la molette remonte", { skip: multiplexer !== "screen" && "tmux tient la session" }, async (t) => {
     const { ouvrir: open } = workstation(t);
 
     const view = open();
@@ -236,6 +235,22 @@ describe(`une session persistante sur ce poste${multiplexer === undefined ? "" :
     assert.ok(!/\x1b\[\?(1047|1049|47)[hl]/.test(view.sortie()), JSON.stringify(view.sortie()));
     // Ce qui a défilé hors de l'écran de 24 lignes est passé par le terminal : sa première ligne y est.
     assert.ok(withoutEscapes(view.sortie()).includes("ligne-1\n"), view.sortie());
+  });
+
+  test("avec `tmux`, la molette remonte l'historique de la session jusqu'à la première ligne d'une sortie plus longue qu'un écran, et la frappe suivante va au shell", { skip: multiplexer !== "tmux" && "screen tient la session" }, async (t) => {
+    const { ouvrir: open, session, env } = workstation(t);
+
+    const view = open();
+    view.ecrire("seq 1 100 | sed s/^/ligne-/; echo FIN-$((6*7))\r");
+    await until(() => withoutEscapes(view.sortie()).includes("FIN-42"), () => view.sortie());
+    // La molette : tmux redessine l'écran depuis son historique, jusqu'à la première ligne.
+    const before = view.sortie().length;
+    await scroll(session, 200, { env });
+    await until(() => /ligne-1(?!\d)/.test(withoutEscapes(view.sortie().slice(before))), () => view.sortie().slice(before));
+    // Avant une frappe, l'app en sort : ce qui est tapé va au shell, pas au mode de copie.
+    await scroll(session, 0, { env });
+    view.ecrire("echo APRES-$((6*7))\r");
+    await until(() => withoutEscapes(view.sortie()).includes("APRES-42"), () => view.sortie());
   });
 
   test("détruite, la session n'est plus : le rattachement suivant en crée une neuve, vide", async (t) => {

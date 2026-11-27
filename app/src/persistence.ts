@@ -8,8 +8,9 @@
 // lui-même la destruction, qui n'a pas besoin de terminal.
 //
 // La session est réglée pour se comporter comme un terminal ordinaire : rien n'y
-// capture la souris, et le défilement de la vue remonte l'historique (la sélection, la copie et le collage restent ceux de la vue), aucun
-// mode de copie n'est à apprendre, et aucune touche n'est prise par le multiplexeur.
+// capture la souris (la sélection, la copie et le collage restent ceux de la vue), la molette
+// remonte l'historique, aucun mode de copie n'est à apprendre, et aucune touche n'est prise par le
+// multiplexeur.
 // Le second ne passe jamais par ici.
 import { execFile, type ExecFileException } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -61,15 +62,13 @@ const LOCALE_UTF8 = [
   "esac",
 ];
 
-// Le multiplexeur écrit sur l'écran normal du terminal, pas sur l'écran alterné (`smcup`/`rmcup`
-// retirés) : ce qui défile alimente alors le défilement de xterm.js, et la molette le remonte comme
-// pour le second — sans que le multiplexeur prenne la souris, la sélection reste celle de la vue.
-// `terminal-overrides` est une option du serveur, lue au rattachement d'un client : elle se pose avant
-// lui, une seule fois.
-export const OVERRIDE_TMUX = "*:smcup@:rmcup@";
-// `screen` ne le lit qu'à la création de la session, par un fichier de réglage (`-c`) : ni `-X`, ni
-// `-c` au rattachement n'y changent rien. Une session créée avant ce réglage garde l'écran alterné
-// jusqu'à sa destruction.
+// Le défilement d'un shell. `screen` écrit sur l'écran normal du terminal (`ti`/`te` retirés) : ce qui
+// défile passe par xterm.js, qui le garde, et la molette le remonte comme pour le second. Il ne le lit
+// qu'à la création de la session, par un fichier de réglage (`-c`) : ni `-X`, ni `-c` au rattachement
+// n'y changent rien. Une session créée avant ce réglage garde l'écran alterné jusqu'à sa destruction.
+// tmux, lui, garde l'écran alterné : sur l'écran normal, il ne passerait pas tout au terminal — ce qui
+// défile vite s'y regroupe, et seul le dernier écran s'en écrit. Sa molette remonte l'historique de
+// la session (`scriptOfScroll`).
 export const RC_SCREEN_NORMAL_SCREEN = "termcapinfo * ti@:te@";
 
 // Le script qui crée la session ou s'y rattache. Il est lu par `sh`.
@@ -82,7 +81,6 @@ export function scriptOfAttachment(name: string): string {
     "if command -v tmux >/dev/null 2>&1; then",
     `  tmux -u has-session -t =${name} 2>/dev/null || tmux -u new-session -d -s ${name} -c "$PWD" || exit`,
     ...SETTINGS_TMUX.map((setting) => `  tmux -u set-option -t =${name}: ${setting}`),
-    `  tmux -u show-options -sv terminal-overrides | grep -qF "${OVERRIDE_TMUX}" || tmux -u set-option -sa terminal-overrides ",${OVERRIDE_TMUX}"`,
     `  exec tmux -u attach-session -t =${name}`,
     "elif command -v screen >/dev/null 2>&1; then",
     `  ${screenExists(name)} || {`,
@@ -115,11 +113,38 @@ export function scriptOfDestruction(name: string): string {
   ].join("\n");
 }
 
+// Le script qui fait défiler un shell tmux : l'historique de sa session, par son mode de copie, que la
+// ligne de commande de tmux pilote — la souris reste à la vue, et sa sélection avec. `lignes` > 0
+// remonte, < 0 redescend : au bas, le mode se quitte de lui-même (`-e`). 0 le quitte, avant une frappe :
+// aucune touche n'est prise par le mode de copie. Un programme sur l'écran alterné de la session
+// (`vim`, `less`) reçoit des flèches, comme xterm.js les lui enverrait. Sans session tmux — `screen`,
+// qui défile dans xterm.js —, rien n'est fait.
+export function scriptOfScroll(name: string, lines: number): string {
+  check(name);
+  const count = Math.abs(Math.trunc(lines));
+  const pane = `-t =${name}:`;
+  const command =
+    lines > 0
+      ? `-F '#{alternate_on}' 'send-keys ${pane} -N ${count} Up' 'copy-mode -e ${pane} ; send-keys -X ${pane} -N ${count} scroll-up'`
+      : lines < 0
+        ? `-F '#{pane_in_mode}' 'send-keys -X ${pane} -N ${count} scroll-down' 'if-shell -F "#{alternate_on}" "send-keys ${pane} -N ${count} Down"'`
+        : `-F '#{pane_in_mode}' 'send-keys -X ${pane} cancel'`;
+  return ["unset TMUX STY", "command -v tmux >/dev/null 2>&1 || exit 0", `tmux -u has-session -t =${name} 2>/dev/null || exit 0`, `exec tmux -u if-shell ${pane} ${command}`].join("\n");
+}
+
 // La commande que le pty d'un shell persistant lance : la même crée la session ou s'y rattache.
 export const attachment = ({ nom: name }: Session): Command => ({ commande: "/bin/sh", args: ["-c", scriptOfAttachment(name)] });
 
 // La commande qui détruit la session.
 export const destruction = ({ nom: name }: Session): Command => ({ commande: "/bin/sh", args: ["-c", scriptOfDestruction(name)] });
+
+// Fait défiler le shell de la session (`scriptOfScroll`). Jamais d'exception : un défilement qui
+// échoue n'a rien bougé.
+export function scroll(session: Session, lines: number, settings: { env?: NodeJS.ProcessEnv } = {}): Promise<void> {
+  return new Promise((done) => {
+    execFile("/bin/sh", ["-c", scriptOfScroll(session.nom, lines)], { windowsHide: true, timeout: 5_000, env: settings.env ?? process.env }, () => done());
+  });
+}
 
 // Détruit la session pour de bon : un rattachement ultérieur en crée une neuve. Jamais
 // d'exception : un échec rend ce qui a été lancé, et ce qui en est revenu.
