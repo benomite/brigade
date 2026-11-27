@@ -17,9 +17,8 @@ const FACTS: Facts = {
   cooks: [],
   attend: [],
 };
-const MANAGER = { allume: true, mot: "ALLUMÉ", dit: "" };
 const band = (...heads: string[]) => ["projet     parade", ...heads, "", "rail       vide", ""].join("\n");
-const readEntry = (status: string) => alerts({ projet: "parade", faits: FACTS, status, manager: MANAGER });
+const readEntry = (status: string) => alerts({ projet: "parade", faits: FACTS, status });
 // Ce que dit une bande : le geste que la box nomme est dans sa langue, il suffit qu'il soit repris.
 const saidOnes = (status: string) => readEntry(status).map(({ sujet: subject, dit: said, ton: your, appel: call }) => ({ sujet: subject, dit: said, ton: your, appel: call }));
 const actions = (status: string) => readEntry(status).map(({ geste: action }) => action);

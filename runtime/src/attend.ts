@@ -574,7 +574,7 @@ function direFermetureEn({ since, sansIssue }: DemandeDeFermeture, retenue: Refu
   if (!faitAttendre(retenue)) return `${demandee}: ${refus} — the runtime refuses it at its next wake-up, nothing leaves`;
   const renoncer = `withdraw it: ${SANS_BOUTON}`;
   if (sansIssue === null) return `${demandee}, it waits — ${refus}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
-  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold on GitHub (Kitchen > Health), switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold on GitHub (Kitchen > Health), switch the project off while the rail empties, or ${renoncer}`;
 }
 
 // Une phrase reprise au milieu d'une ligne.

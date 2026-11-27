@@ -79,10 +79,8 @@ time, at your local time: `GitHub is rate-limiting calls: too many writes per mi
 entry, with no reload. A limit name the app does not know still makes the line, without its plain words
 (`app/src/vue/banner-limit-github.ts`).
 **The project switch is no longer in the app** (#4681): the app has no switch at the head of the space and launches
-no `switch` command. A project that is off is still told, in one line: the head of the rail is marked as stopped — a
-hatched bar, `project off — nothing new is taken, split or merged` — with no button, and the `manager` line of the box
-(`OFF since … (by chef) — …`) on hover. Not yet read, or not read, says neither; a read that fails makes its "unchecked"
-line in the band. On the bar, the tile of a project switched off keeps its signal.
+no `switch` command. It no longer reads whether the project is on or off either (#4682: the app launches no `manager`): the head of the rail
+carries no `project off` line, the band no "project switch" line, and the tile on the bar no off signal.
 **"All projects" is the overview of
 brigade**: one line per project, one per station, each with its pill and what is going on there in
 a few words, and one click opens it — you do not act there, you look, then go where it is decided.
@@ -474,7 +472,6 @@ the app" below.
 |---|---|---|---|
 | A station cooks it | `Cooked by <station> · online · N cooks at work`, or `… · online · idle, nothing on the rail` | yes | `Add a station` (#3402) |
 | A move in progress | `Moving from <A> to <B>: waiting for <what>, since <HH:MM> UTC`; not done after a minute, a second line: `Not done after a minute: <what blocks it>` | no (yellow) | none |
-| The project is off (#3454) | `Project off — nothing new is taken, split or merged` — the sentence of the head of the rail; never `Cooked by` nor `cooks this project`, whatever its stations say; the box's `manager` line and where to switch it on, on hover. Not yet read, or not read, it is not off: the line says who cooks it | no (grey) | `Add a station` when a station serves it, else `Choose who cooks it` |
 | The station that serves it is offline | `<station> cooks this project, but it is offline for <duration>: nothing cooks`; how to bring it back on hover | no (red) | `Move to this computer`, one click, when this computer can take it; `Add a station` (#3402) |
 | Nobody serves it | `No station cooks this project · N fire tickets waiting` — the count is the rail counter of its last reading, left out when the rail is not read | no (grey) | `Cook it on this computer` (recommended), when this computer's station does not serve it yet; then `Choose who cooks it` |
 
@@ -3384,9 +3381,7 @@ section. With the section laid, `right now` is not repeated under it.
 
   **Nothing on the rail** — no card outside Served —, the On the rail column says so in plain words (#2486):
   `nothing on the rail, nothing before it` when there is nothing before it either; otherwise how many issues, state by
-  state, and what the manager does with them, according to its state read (`manager`): on, it reads them at every
-  wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of guessing — and the
-  manager's state is not read from GitHub (only the station's log has it). **The view deduces nothing there**: it
+  state — the line says nothing of what the manager does with them: the app does not read its state (#4682). **The view deduces nothing there**: it
   counts what the reading lists and files each issue under the word it carries. When the open issues could not be read
   from a fresh board, the view says nothing about them, and the rail is still shown.
 - **How long a card has been there (#1811, `app/src/cadence.ts`)**: **each Taken or Pass card** carries
@@ -3414,7 +3409,7 @@ The kanban starts right under the tabs. Above its columns, the Rail tab shows **
 - **One line**: the supervisor's and the closer's cards (see "the top band" above); when the team is read, its badges, one line too, stand at the top of the view instead of the two cards.
 - **The TODO line**, only when something waits for the chef: `2 wait for you`, its entries on click (above).
 - **One status line, only when something holds the kitchen**, the first of these causes, never two stacked: the breaker
-  line (#2140); an issue the kitchen filed about itself (`Kitchen idle: …`); the project off, with its switch (#3454); a
+  line (#2140); an issue the kitchen filed about itself (`Kitchen idle: …`); a
   stale or offline reading.
 
 - **A kitchen-filed issue is never a need.** `The kitchen is idle: …` (`app/src/upstream.ts`, `alerteDeLaCuisine`) is
@@ -3992,7 +3987,7 @@ instructions (`rôle : …`).
   and on the real pty, that nothing is sent), `gestes.ts` (the actions that are written into a shell
   of the space, and the two that go into the second: each command compared, character for
   character, with "Piloter", that nothing sends a written action, and that no action exposes a
-  shell, a `sudo` or a free command), `manager.ts` (the project switch's line, read in the old runtime's `manager` output for the alerts band: on, off, never on; what does not have the shape is never read as "off" — the app launches no `manager` any more, #4710), `amont.ts` (what is not yet on the rail, read from GitHub and sorted into groups without adding anything to it; what does not have the shape or a GitHub that was not read never give a number), `faits.ts` (what gets drawn: the shape read field by field on the example in
+  shell, a `sudo` or a free command), `amont.ts` (what is not yet on the rail, read from GitHub and sorted into groups without adding anything to it; what does not have the shape or a GitHub that was not read never give a number), `faits.ts` (what gets drawn: the shape read field by field on the example in
   `docs/runtime/README.md`, what is not that shape refused without a zero, a color on the
   words of closed lists only, an issue's address, the banner — the rail sorted into five columns,
   Awaiting you from the shape's `awaiting` and the `awaiting` block held next to the facts — the view

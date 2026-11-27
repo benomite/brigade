@@ -1005,10 +1005,6 @@ const repositories = new Map();
 // signaux posés : un seul par case.
 /** @type {Map<string, {etat: string, dit: string} | undefined>} */
 const signals = new Map();
-// L'état de l'interrupteur de chaque projet — le manager le suit, et sa ligne le dit —, tel que sa
-// dernière bande l'a dit (alerts.ts, `EtatDuManager`) : l'onglet Stations le dit. Sans entrée, il n'est pas encore lu.
-/** @type {Map<string, import("../alerts.ts").StateOfManager | undefined>} */
-const statesOfManager = new Map();
 // Les lignes de la bande dont le « detail » est déplié, par projet et par endroit (`endroitDeLAlerte`) :
 // une relecture de la bande ne le replie pas sous les yeux du chef.
 /** @type {Set<string>} */
@@ -3938,10 +3934,7 @@ function topOfProject(project, now) {
   const servingOnes = displacement === null ? without : servingOf({ ...base, vers: displacement.vers });
   // Les tickets `fire` qui attendent : le compteur « rail » de son tableau, lu ; sinon, la ligne n'en dit rien.
   const fire = held !== undefined && "tableau" in held ? held.tableau.compteurs.find(({ libelle: wording }) => wording === "rail")?.nombre : undefined;
-  // Le projet éteint (ticket 3454) : rien n'y cuit, quoi que disent ses stations — la ligne du haut le dit à leur place.
-  const manager = statesOfManager.get(project.nom);
-  const off = manager !== undefined && !("sans" in manager) && !manager.allume ? { dit: manager.dit ?? "project off", releve: manager.releve } : undefined;
-  const top = topOf({ servantes: servingOnes, deplacement: displacement, maintenant: now, ...(fire === undefined ? {} : { fire }), ...(off === undefined ? {} : { eteint: off }) });
+  const top = topOf({ servantes: servingOnes, deplacement: displacement, maintenant: now, ...(fire === undefined ? {} : { fire }) });
   return { vuDuProjet: seenOfProject, lues: readEntries, locale, tenu: held, cuisson: cooking, stations, servantes: servingOnes, deplacement: displacement, haut: top };
 }
 
@@ -7836,7 +7829,7 @@ brigade.surActivites((published) => {
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
 // La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
-brigade.surAlertes(({ projet: project, alertes: alerts, signal, manager: stateOfManager }) => {
+brigade.surAlertes(({ projet: project, alertes: alerts, signal }) => {
   const breakerBefore = JSON.stringify(alertOfBreaker(project));
   bands.set(project, alerts);
   const breaker = alertOfBreaker(project);
@@ -7846,12 +7839,10 @@ brigade.surAlertes(({ projet: project, alertes: alerts, signal, manager: stateOf
   markPill(project);
   // Le disjoncteur a changé : sa ligne à côté de l'entrée TODO aussi.
   if (JSON.stringify(breaker) !== breakerBefore) setTheCardsOfChef();
-  const flip = JSON.stringify(statesOfManager.get(project)) !== JSON.stringify(stateOfManager);
-  statesOfManager.set(project, stateOfManager);
   if (current?.nom !== project) return;
   setAlerts(current);
-  // Le projet s'est allumé ou éteint, ou le disjoncteur a changé : l'onglet Stations et la ligne de TODO le disent aussitôt.
-  if (flip || JSON.stringify(breaker) !== breakerBefore) setRail(current);
+  // Le disjoncteur a changé : l'onglet Stations et la ligne de TODO le disent aussitôt.
+  if (JSON.stringify(breaker) !== breakerBefore) setRail(current);
 });
 // Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
 // s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne

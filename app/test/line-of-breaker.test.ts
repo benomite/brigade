@@ -41,8 +41,7 @@ function bandRead(status: string, state: Facts["etat"] = "retenue", readOnly = f
   const bands = holdBands({ etablir: 1, minimum: 0 });
   bands.ouvrir([PARADE]);
   bands.faits(reading("facts", JSON.stringify({ ...FACTS, etat: state, ...(readOnly ? { lectureSeule: { depot: REPOSITORY } } : {}) })));
-  bands.status(putAside(reading("status", status)));
-  return bands.manager(reading("manager", "manager               ALLUMÉ depuis le 2026-11-03T09:25:21.838Z (par chef) — il juge les issues ouvertes\n"));
+  return bands.status(putAside(reading("status", status)));
 }
 
 const startup = () => ({
