@@ -109,6 +109,7 @@ import { setOpinionOfTodo } from "./todo/opinion-todo.js";
 import { setTheOthers } from "./todo/others.js";
 import { LIST_OF_CHEF, isRed, tidyTheRail } from "./todo/todo.js";
 import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
+import { holdSinceLastLooked } from "./since-last-looked/since-last-looked.js";
 import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "./kitchen/kitchen.js";
 import { lineOfAlerts } from "./line-of-status/line-of-status.js";
 import { setLineOfBreaker } from "./todo-breaker-line.js";
@@ -659,6 +660,15 @@ const delayOfProject = element("delai-du-projet");
 const teamOfProject = holdTheTeam(document, element("equipe-du-projet"), (name) => {
   if (current?.nom === name) setRail(current);
 }, () => chooseTab(AGENTS));
+// "Since you last looked" (ticket 4649, since-last-looked/): read from GitHub at each opening of a project, posed at the top
+// of its view until the next opening.
+const sinceLastLooked = holdSinceLastLooked(document, {
+  read: async (name) => brigade.sinceYouLastLooked?.(name),
+  open: (name, ticket) => void (current?.nom === name ? openIssue(current, ticket) : undefined),
+  redraw: (name) => {
+    if (current?.nom === name) setRail(current);
+  },
+});
 // L'onglet Agents du projet affiché (ticket 4224, agents/) : ses agents au travail, lus à l'ouverture de l'onglet (ticket 4569).
 const agentsOfProject = holdTheAgents(document);
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
@@ -4865,8 +4875,9 @@ function setTheRail(project) {
   /** @type {Map<import("../facts.ts").Card, HTMLElement>} */
   const setEntries = new Map();
   setCooking(project);
+  // At the very top, the card "Since you last looked" (ticket 4649), once the project's opening has read it.
   /** @param {(HTMLElement | string)[]} poses */
-  const set = (...poses) => rail.replaceChildren(...(alertOfKitchen.hidden ? [] : [alertOfKitchen]), ...poses);
+  const set = (...poses) => rail.replaceChildren(...sinceLastLooked.poser(project.nom), ...(alertOfKitchen.hidden ? [] : [alertOfKitchen]), ...poses);
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (project.sansStation === true) return rail.replaceChildren(block("h3", STATION_STOPPED));
@@ -8384,6 +8395,7 @@ async function pasteOneRepository(text) {
 async function open(project) {
   current = project;
   teamOfProject.lire(project.nom);
+  sinceLastLooked.lire(project.nom);
   recordedAReread = true;
   stationOpen = undefined;
   pageOfTheApp = undefined;
