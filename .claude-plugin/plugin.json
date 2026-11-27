@@ -10,7 +10,8 @@
   "homepage": "https://github.com/benomite/brigade",
   "commands": [
     "./commands/start.md",
-    "./commands/ask.md"
+    "./commands/ask.md",
+    "./commands/ticket.md"
   ],
   "agents": []
 }
