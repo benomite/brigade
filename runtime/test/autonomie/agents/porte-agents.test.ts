@@ -124,7 +124,7 @@ test("the manager's split of an epic set to propose is held: no ticket is create
   assert.deepEqual(creees, []);
   assert.deepEqual(enregistrementDe(repertoire, "manager").gestures, []);
   assert.deepEqual(gestesEnAttente(repertoire).map(({ id, agent, line }) => ({ id, agent, line })), [{ id: 1, agent: "manager", line: "split the epic #30 into 2 tickets" }]);
-  assert.match(avertissements[0] ?? "", /split of the epic #30 held for the chef's OK — `brigade <projet> manager approve 1` creates its tickets/);
+  assert.match(avertissements[0] ?? "", /split of the epic #30 held for the chef's OK \(gesture 1\) — it creates its tickets once approved/);
 
   await porte.approuver(1);
   assert.deepEqual(creees, ["The rail counts its tickets", "The doc says the count"]);

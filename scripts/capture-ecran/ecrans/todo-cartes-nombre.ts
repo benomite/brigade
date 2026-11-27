@@ -2,7 +2,7 @@
 // todo-github-seul : `facts.attend[].chef` porte les cartes ; le bloc `awaiting` de `status` est vide. Les titres et les questions
 // diffèrent d'une carte à l'autre, certains longs : la capture montre comment un vrai texte passe à la ligne dans une piste étroite.
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
-import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
+import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { SECOND } from "./rail-waiting-commun.ts";
 
 const PARADE = RENDUS.parade as Rendu;
@@ -39,7 +39,6 @@ export const todoDeNCartes = (nombre: number, dit: string): Ecran => ({
           })),
         },
         status: STATUS,
-        manager: MANAGER_ALLUME,
       },
     }),
   }),

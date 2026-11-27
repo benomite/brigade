@@ -19,7 +19,6 @@ import { avecDiagramme, diagrammeDEpique, entreeDuDiagramme, type RelationDiagra
 import { avecListe, epiqueDe, porteListe, reference, rendreListe, ticketsDeLaListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
-import { geste } from "./geste.ts";
 import { LABEL, type GitHub, type IssueOuverte } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
@@ -283,7 +282,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
     if (porte === undefined || porte === null) return creer(epic, connu);
     const dit = { line: `split the epic #${epic.number} into ${connu.tickets.length} tickets`, reason: connu.reason, outcome: OUTCOME.FIXED_BY_SELF };
     const passage = await porte.passer({ agent: "manager", reglable: "manager split-epic" }, dit, () => creer(epic, connu), (fait) => (fait ? dit : null));
-    if (passage.etat === "held") avertir(`brigade : split of the epic #${epic.number} held for the chef's OK — \`${geste(`manager approve ${passage.id}`)}\` creates its tickets`);
+    if (passage.etat === "held") avertir(`brigade : split of the epic #${epic.number} held for the chef's OK (gesture ${passage.id}) — it creates its tickets once approved`);
     return passage.etat === "done" && passage.valeur;
   };
 

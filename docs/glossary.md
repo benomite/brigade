@@ -99,7 +99,6 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `faits` | `facts` | The machine-readable form of `status`, for the app | — |
 | `rail` | `rail` | The ticket rail | `remove <ticket>` is new, with no old name |
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
-| `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` and `approve <n>` are new, with no old name |
 | — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
 | — | `human-cooks` | The tickets waiting on a human cook, read on GitHub, with who holds each (#4276) | new, with no old name |
 | — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |

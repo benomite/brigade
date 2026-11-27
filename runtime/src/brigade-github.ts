@@ -101,7 +101,6 @@ import { relancerLesRouges } from "./superviseur/gestes.ts";
 import { OUTCOME } from "./autonomie/agents/gestes.ts";
 import { genreDuTicket, ouvrirLePass } from "./risque/risque.ts";
 import type { PorteDesGestes } from "./autonomie/agents/porte.ts";
-import { geste as gesteDeBox } from "./geste.ts";
 import { ligneDuMotif } from "./renvoi-sur-le-fond/motif.ts";
 import { verdictDeLaRelecture } from "./renvoi-sur-le-fond/regle.ts";
 import { briefDuRenvoi, lireLeRenvoi, type Renvoi } from "./brief-renvoi.ts";
@@ -2630,7 +2629,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         }
         if (passage.etat === "done") cuit = passage.valeur;
         else {
-          sauter(ticket.number, direSaut(ticket.number, passage.etat === "held" ? `its cook waits for the chef's OK — \`${gesteDeBox(`manager approve ${passage.id}`)}\`` : "the cooks observe: no cook takes it"));
+          sauter(ticket.number, direSaut(ticket.number, passage.etat === "held" ? `its cook waits for the chef's OK (gesture ${passage.id})` : "the cooks observe: no cook takes it"));
           continue;
         }
       }
