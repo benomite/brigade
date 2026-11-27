@@ -11,13 +11,13 @@ import type { Gh } from "../../src/kitchen/github.ts";
 import type { Kind } from "../../src/kitchen/runs.ts";
 
 type FakeIssue = { number: number; title: string; body: string; labels: string[]; comments: string[]; closed: boolean };
-type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; running?: boolean; conflicting?: boolean; log?: string; body?: string };
+type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; base?: string; running?: boolean; conflicting?: boolean; log?: string; body?: string };
 
 function fakeGh() {
   const issues = new Map<number, FakeIssue>();
   const prs: FakePr[] = [];
   let next = 1;
-  const options = { files: ["feature.txt"], failMerges: 0, lossyEdits: false };
+  const options = { files: ["feature.txt"], failMerges: 0, lossyEdits: false, epicBranches: [] as number[] };
   const gh: Gh = async (args, input) => {
     const flag = (name: string) => args[args.indexOf(name) + 1] ?? "";
     if (args[0] === "api" && args.at(-1)?.includes("/comments")) {
@@ -40,6 +40,7 @@ function fakeGh() {
       return JSON.stringify({
         data: {
           repository: {
+            refs: { nodes: options.epicBranches.map((n) => ({ name: String(n) })) },
             issues: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [...issues.values()].filter((i) => !i.closed).map((i) => ({ number: i.number, title: i.title, body: i.body, authorAssociation: "OWNER", labels: { nodes: i.labels.map((name) => ({ name })) } })),
@@ -71,9 +72,15 @@ function fakeGh() {
       issues.set(number, { number, title: flag("--title"), body: input ?? "", labels: [], comments: [], closed: false });
       return `https://github.com/o/r/issues/${number}\n`;
     }
+    if (args[0] === "issue" && args[1] === "close") {
+      const i = issues.get(n) as FakeIssue;
+      i.closed = true;
+      i.comments.push(flag("--comment"));
+      return "";
+    }
     if (args[0] === "pr" && args[1] === "create") {
       if (prs.some((p) => !p.merged && p.head === flag("--head"))) throw new Error("a pull request already exists");
-      prs.push({ number: 100 + prs.length, head: flag("--head"), checks: "SUCCESS", merged: false, body: input ?? "" });
+      prs.push({ number: 100 + prs.length, head: flag("--head"), checks: "SUCCESS", merged: false, base: flag("--base"), body: input ?? "" });
       return "";
     }
     if (args[0] === "pr" && args[1] === "edit") {
@@ -88,15 +95,16 @@ function fakeGh() {
       }
       const pr = prs.find((p) => p.number === n) as FakePr;
       pr.merged = true;
-      (issues.get(Number(/^cook\/(\d+)-github$/.exec(pr.head)?.[1])) as FakeIssue).closed = true;
+      // GitHub closes `Closes #N` only on the default branch: a child merged into an epic branch stays open.
+      if (pr.base === "main") (issues.get(Number(/^cook\/(\d+)-github$/.exec(pr.head)?.[1])) as FakeIssue).closed = true;
       return "";
     }
     if (args[0] === "label") return "";
     throw new Error(`fake gh: ${args.join(" ")}`);
   };
-  return { gh, issues, prs, options, add: (title: string, labels: string[]) => {
+  return { gh, issues, prs, options, add: (title: string, labels: string[], body = "") => {
     const number = next++;
-    issues.set(number, { number, title, body: "", labels, comments: [], closed: false });
+    issues.set(number, { number, title, body, labels, comments: [], closed: false });
     return number;
   } };
 }
@@ -189,10 +197,14 @@ test("a ticket the manager gives no usable gesture is parked for the chef, not h
   assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), ["manager called on #1", "#1 parked for the chef — the manager gave no usable gesture"]);
 });
 
-async function riskKitchen() {
+async function riskKitchen(body = "") {
   const { root, clone, agent, seed } = origin();
   const fake = fakeGh();
-  const issue = fake.add("Touch the kitchen", ["fire"]);
+  const issue = fake.add("Touch the kitchen", ["fire"], body);
+  if (body !== "") {
+    sh(seed, "push", "-q", "origin", "HEAD:refs/heads/epic/7");
+    fake.options.epicBranches.push(7);
+  }
   const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
   const lines: string[] = [];
   const kitchen = openKitchen({
@@ -209,6 +221,7 @@ async function riskKitchen() {
     supervisorEveryMs: Number.MAX_SAFE_INTEGER,
     log: (line) => lines.push(line),
   });
+  if (body !== "") return { fake, ticket: fake.issues.get(issue) as FakeIssue, kitchen, lines, seed };
   await until(() => fake.issues.get(issue)?.labels.includes("parked:chef") === true, kitchen.turn);
   const ticket = fake.issues.get(issue) as FakeIssue;
   assert.match(ticket.comments.at(-1) ?? "", /^The pass approves PR #100, but it touches a risk zone/);
@@ -486,6 +499,22 @@ test("a pass that ends while the CI's workflow still runs does not merge: the PR
   await until(() => fake.issues.get(issue)?.closed === true, kitchen.turn);
   assert.equal(fake.issues.get(issue)?.closed, true, lines.join("\n"));
   assert.equal(passes, 2);
+});
+
+test("a child is cooked from its epic's branch, its PR goes into it, and once merged it is closed (#4699)", async () => {
+  const { fake, ticket, kitchen, lines } = await riskKitchen("Epic: #7");
+  await until(() => ticket.closed, kitchen.turn);
+  assert.equal(fake.prs[0]?.base, "epic/7", lines.join("\n"));
+  assert.equal(fake.prs[0]?.merged, true);
+  assert.equal(ticket.comments.at(-1), "Merged into epic/7: ships with #7.");
+  assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), ["#1 taken", "#1 delivered", "#1 in review (PR #100)", "#1 merged (PR #100)"]);
+});
+
+test("a child PR touching a risk path is merged without the chef: its risk zones are judged at the epic's PR (#4699)", async () => {
+  const { fake, ticket, kitchen, lines } = await riskKitchen("Epic: #7");
+  await until(() => ticket.closed, kitchen.turn);
+  assert.equal(fake.prs[0]?.merged, true, lines.join("\n"));
+  assert.equal(ticket.labels.includes("parked:chef"), false);
 });
 
 test("the kitchen stays under 1,000 lines", () => {

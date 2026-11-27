@@ -81,6 +81,13 @@ The kitchen also reads each `epic`'s split state (a `Split by the manager into` 
 the repository; a pull request headed `epic/<n>` belongs to epic `<n>` (#4697). The design is in
 `docs/superpowers/specs/2026-11-27-epic-branches-design.md`, its plan in `docs/superpowers/plans/2026-11-27-epic-branches.md`.
 
+A child (`Epic: #<n>` in its body) whose epic has an `epic/<n>` branch goes through the kitchen on that branch, not on
+the base: its cook starts from `origin/epic/<n>`, its pull request is opened with `--base epic/<n>`, the base merged
+into its worktree is `epic/<n>`, and a conflict with it goes back to a cook like a conflict with `main`. Once merged,
+the kitchen closes it with `Merged into epic/<n>: ships with #<n>.` (GitHub's `Closes` acts only on the default
+branch). A child's risk zones are not checked at its merge: they are judged at the epic's pull request. A child of an
+epic with no branch (split before epic branches) and a lone ticket keep the base and its risk zones (#4699).
+
 ## Where it runs
 
 | Station | What starts the kitchen |
