@@ -7,10 +7,7 @@ import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { commanderInterrupteur, etablirLInterrupteur, InterrupteurRefuse } from "../src/interrupteur.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
-import { managerAllume } from "../src/projections/manager.ts";
-import { etatDeLInterrupteur, projetEteint } from "../src/projections/switch.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
 import { aArreter, appeler, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -30,108 +27,19 @@ function journalEcrit(t: TestContext) {
   return { repertoire, journal, noter, types };
 }
 
-const suite = (journal: Journal, depuis: number) => journal.tout().slice(depuis).map((e) => [e.type, e.author, e.payload]);
-
-describe("l'interrupteur posé au démarrage du runtime", () => {
-  test("un projet qui n'a jamais touché aux anciens interrupteurs — tout projet ajouté depuis l'app — part allumé", (t) => {
-    const { journal } = journalEcrit(t);
-    const avant = journal.tout().length;
-
-    const dit = etablirLInterrupteur(journal, "brigade");
-
-    assert.match(dit ?? "", /allumé par défaut/);
-    assert.deepEqual(suite(journal, avant), [
-      ["project.switched-on", "runtime", { cause: "default" }],
-    ]);
-    assert.equal(managerAllume(journal.base), true);
-    assert.equal(projetEteint(journal.base), false);
-  });
-
-  test("posé une fois, il ne se repose plus : un second démarrage n'écrit rien, même si le chef l'a éteint entre-temps", (t) => {
-    const { journal } = journalEcrit(t);
-    etablirLInterrupteur(journal, "brigade");
-    commanderInterrupteur(journal, "off");
-    const avant = journal.tout().length;
-
-    assert.equal(etablirLInterrupteur(journal, "brigade"), null);
-    assert.equal(journal.tout().length, avant);
-    assert.equal(etatDeLInterrupteur(journal.base)?.on, false);
-  });
-
-  // Un projet d'avant cuisinait quels qu'aient été ses anciens interrupteurs — ses stations prenaient
-  // les tickets lancés sans les lire — : il part allumé, même quand les deux étaient éteints.
-  // Les journaux d'avant portent encore les événements `grant.*` : ils sont ignorés.
-  const AVANT: Array<[string, unknown[]]> = [
-    ["le manager seul allumé", [{ type: "manager.enabled", payload: {} }]],
-    ["les deux", [{ type: "manager.enabled", payload: {} }, { type: "grant.activated", payload: { action: "merge" } }]],
-    ["le manager éteint, le grant révoqué", [{ type: "manager.enabled", payload: {} }, { type: "manager.disabled", payload: {} }, { type: "grant.activated", payload: { action: "merge" } }, { type: "grant.revoked", payload: { action: "merge" } }]],
-    ["le manager éteint, jamais de grant", [{ type: "manager.enabled", payload: {} }, { type: "manager.disabled", payload: {} }]],
-  ];
-  for (const [cas, faitsDAvant] of AVANT) {
-    test(`un projet d'avant — ${cas} — continue de cuisiner : allumé`, (t) => {
-      const { journal, noter } = journalEcrit(t);
-      for (const fait of faitsDAvant) noter(fait as Fait);
-      const avant = journal.tout().length;
-
-      const dit = etablirLInterrupteur(journal, "brigade");
-
-      assert.match(dit ?? "", /allumé — il remplace l'ancien réglage .* un projet d'avant continue de cuisiner/);
-      assert.deepEqual(suite(journal, avant), [
-        ["project.switched-on", "runtime", { cause: "carried-over" }],
-      ]);
-      assert.equal(managerAllume(journal.base), true);
-      assert.equal(projetEteint(journal.base), false);
-    });
-  }
-});
-
-describe("les commandes du chef", () => {
-  test("éteindre écrit l'interrupteur ; rallumer le rétablit — chacun une seule fois", (t) => {
-    const { journal } = journalEcrit(t);
-    etablirLInterrupteur(journal, "brigade");
-    const avant = journal.tout().length;
-
-    assert.match(commanderInterrupteur(journal, "off"), /^project off: nothing new is taken, judged, split or merged — running cooks finish, their deliveries are judged and wait\. /);
-    assert.match(commanderInterrupteur(journal, "off"), /^nothing to switch off: the project is off since /);
-    assert.equal(managerAllume(journal.base), false);
-    assert.match(commanderInterrupteur(journal, "on"), /^project on: fired tickets are taken, the manager judges and splits the open issues, a green delivery is merged\. The deliveries that were waiting are merged/);
-    assert.match(commanderInterrupteur(journal, "on"), /^project already on since /);
-
-    assert.deepEqual(suite(journal, avant), [
-      ["project.switched-off", "chef", {}],
-      ["project.switched-on", "chef", {}],
-    ]);
-    assert.equal(managerAllume(journal.base), true);
-  });
-
-  test("le manager suit l'interrupteur, quel que soit l'ancien : allumé à la main, il s'éteint avec le projet", (t) => {
-    const { journal, noter } = journalEcrit(t);
-    noter({ type: "manager.enabled", payload: {} });
-    commanderInterrupteur(journal, "off");
-    assert.equal(managerAllume(journal.base), false);
-  });
-
-  test("sur un journal vide, la commande est refusée et n'écrit rien", (t) => {
-    const journal = ouvrirJournal(repertoireTemporaire(t));
-    aArreter(t, () => journal.fermer());
-    assert.throws(() => commanderInterrupteur(journal, "on"), InterrupteurRefuse);
-    assert.equal(journal.tout().length, 0);
-  });
-});
-
 describe("ce que `status`, les faits et `switch` en disent", () => {
   test("allumé, `status` porte sa ligne `switch` ; éteint, la ligne le dit, la cuisine se dit SWITCHED OFF et les faits la disent retenue", (t) => {
-    const { journal } = journalEcrit(t);
+    const { journal, noter } = journalEcrit(t);
     const lire = () => {
       const etat = lireEtat(journal, A);
       return { texte: decrireEtat(etat, A).join("\n"), etat: faits(etat, A).etat };
     };
     assert.doesNotMatch(lire().texte, /^switch/m, "pas encore posé : pas de ligne");
 
-    etablirLInterrupteur(journal, "brigade");
+    noter({ type: "project.switched-on", payload: { cause: "default" } }, "runtime");
     assert.match(lire().texte, /^switch {5}ON since \S+ \(by runtime, on by default\) — fired tickets are taken, the manager judges and splits the open issues, a green delivery is merged$/m);
 
-    commanderInterrupteur(journal, "off");
+    noter({ type: "project.switched-off", payload: {} });
     const eteint = lire();
     assert.match(eteint.texte, /^switch {5}OFF since \S+ \(by chef\) — nothing new is taken, judged, split or merged — running cooks finish, their deliveries are judged and wait$/m);
     assert.match(eteint.texte, /^kitchen {4}SWITCHED OFF 0 s ago · /m);
@@ -143,10 +51,10 @@ describe("ce que `status`, les faits et `switch` en disent", () => {
 // Une cuisine sous l'interrupteur : `basculer` joue la commande du chef depuis une autre connexion.
 function enCuisine(t: TestContext, options: Parameters<typeof cuisine>[1] = {}) {
   const lieu = cuisine(t, options);
-  const basculer = (commande: "on" | "off") => {
+  const basculer = (commande: "on" | "off"): void => {
     const journal = ouvrirJournal(lieu.repertoire);
     try {
-      return commanderInterrupteur(journal, commande);
+      journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: commande === "on" ? "project.switched-on" : "project.switched-off", payload: {} });
     } finally {
       journal.fermer();
     }
