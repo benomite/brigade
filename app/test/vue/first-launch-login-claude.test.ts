@@ -3,7 +3,6 @@
 // relance l'ouverture : connecté, la copie part et la cuisine démarre. Le login rendu se dit sous la phrase.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { StationsDuChef } from "../../../runtime/src/appairage/stations-du-chef.ts";
 import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
@@ -12,13 +11,13 @@ import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import { NOT_CONNECTED, type Opening } from "../../src/first-launch.ts";
+import { NOT_CONNECTED, type Opening, type StationsOfChef } from "../../src/first-launch.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { openingOf, openingSaid, RETRY, ITSELF_CONNECT_A_CLAUDE } from "../../src/vue/first-launch.js";
 import { Fake, playTheVue, repos } from "../helpers/false-vue.ts";
 
 const SEEN = "2026-11-24T09:00:00.000Z";
-const LISTED: StationsDuChef = {
+const LISTED: StationsOfChef = {
   state: "listed",
   unreadable: [],
   stations: [{ id: "gbox", name: "parade-box", machine: "Debian 12", kind: "ordinateur", cooks: true, version: "2.4.0", online: true, lastSeen: SEEN, stoppedAt: null, projects: [{ name: "parade", repository: "benomite/parade" }] }],

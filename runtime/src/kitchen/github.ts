@@ -9,6 +9,8 @@ export type Gh = (args: string[], input?: string) => Promise<string>;
 export const ghCli = (bin: string, env: NodeJS.ProcessEnv): Gh => (args, input) =>
   new Promise((resolve, reject) => {
     const child = execFile(bin, args, { env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => (error ? reject(new Error(`gh ${args.slice(0, 3).join(" ")}: ${stderr.trim() || error.message}`)) : resolve(stdout)));
+    // A `gh` that exits before reading its input fails through the callback, never the kitchen (EPIPE).
+    child.stdin?.on("error", () => {});
     child.stdin?.end(input ?? "");
   });
 
@@ -32,19 +34,24 @@ const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
       nodes { number title body authorAssociation labels(first: 30) { nodes { name } } blockedBy(first: 20) { nodes { number state } } }
     }
     pullRequests(states: OPEN, first: 100) {
-      nodes { number headRefName mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 60) { nodes {
+      nodes { number headRefName mergeable commits(last: 1) { nodes { commit { checkSuites(first: 20) { nodes { status app { slug } } } statusCheckRollup { state contexts(first: 60) { nodes {
         __typename ... on CheckRun { name conclusion status } ... on StatusContext { context state } } } } } } } }
     }
   }
 }`;
 
 type Context = { __typename: string; name?: string; conclusion?: string | null; status?: string; context?: string; state?: string };
-type RawPr = { number: number; headRefName: string; mergeable: string; commits: { nodes: Array<{ commit: { statusCheckRollup: { state: string; contexts: { nodes: Context[] } } | null } }> } };
+type Suite = { status: string; app: { slug: string } | null };
+type RawPr = { number: number; headRefName: string; mergeable: string; commits: { nodes: Array<{ commit: { checkSuites?: { nodes: Suite[] }; statusCheckRollup: { state: string; contexts: { nodes: Context[] } } | null } }> } };
 type RawIssue = { number: number; title: string; body: string; authorAssociation: string; labels: { nodes: Array<{ name: string }> }; blockedBy?: { nodes: Array<{ number: number; state: string }> } };
 
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "ACTION_REQUIRED", "ERROR"]);
 
-export function checksOf(rollup: { state: string; contexts: { nodes: Context[] } } | null): { checks: Checks; failing: string[] } {
+// A workflow still running is pending even when every check it has created so far is green: jobs that wait on
+// another job's output (a planned matrix) appear only later (#4589 was merged red that way). Other apps' suites
+// can stay queued forever, so only GitHub Actions' count.
+export function checksOf(rollup: { state: string; contexts: { nodes: Context[] } } | null, suites: Suite[] = []): { checks: Checks; failing: string[] } {
+  if (suites.some((one) => one.app?.slug === "github-actions" && one.status !== "COMPLETED")) return { checks: "pending", failing: [] };
   if (rollup === null) return { checks: "none", failing: [] };
   const contexts = rollup.contexts.nodes;
   const failing = contexts.filter((one) => FAILED.has(one.conclusion ?? one.state ?? "")).map((one) => one.name ?? one.context ?? "?");
@@ -71,7 +78,7 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
       prs = (data.pullRequests.nodes as RawPr[]).flatMap((raw) => {
         const issue = issueOfBranch(raw.headRefName);
         if (issue === undefined) return [];
-        return [{ number: raw.number, issue: Number(issue), conflicting: raw.mergeable === "CONFLICTING", ...checksOf(raw.commits.nodes[0]?.commit.statusCheckRollup ?? null) }];
+        return [{ number: raw.number, issue: Number(issue), conflicting: raw.mergeable === "CONFLICTING", ...checksOf(raw.commits.nodes[0]?.commit.statusCheckRollup ?? null, raw.commits.nodes[0]?.commit.checkSuites?.nodes) }];
       });
     }
     cursor = data.issues.pageInfo.hasNextPage ? data.issues.pageInfo.endCursor : null;

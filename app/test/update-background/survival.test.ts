@@ -53,8 +53,8 @@ function open(t: TestContext, root: string, principal: string, pid: number) {
 test("l'app fermée pour sa mise à jour laisse la station en route ; l'app rouverte la reprend sans en lancer une seconde, puis l'arrête", { skip: WITHOUT_POSIX }, async (t) => {
   const machine = repertoireTemporaire(t);
   const root = join(machine, "station");
-  const principal = join(machine, "runtime", "src", "station", "main.ts");
-  mkdirSync(join(machine, "runtime", "src", "station"), { recursive: true });
+  const principal = join(machine, "runtime", "src", "kitchen", "main.ts");
+  mkdirSync(join(machine, "runtime", "src", "kitchen"), { recursive: true });
   writeFileSync(principal, STATION);
   const inService = () => JSON.parse(readFileSync(join(root, "en-service"), "utf8")) as { pid: number };
 
@@ -81,8 +81,8 @@ test("l'app fermée pour sa mise à jour laisse la station en route ; l'app rouv
 test("deux mises à jour de l'app de suite : la station reprise reste en route, et la troisième app la reprend encore", { skip: WITHOUT_POSIX }, async (t) => {
   const machine = repertoireTemporaire(t);
   const root = join(machine, "station");
-  const principal = join(machine, "runtime", "src", "station", "main.ts");
-  mkdirSync(join(machine, "runtime", "src", "station"), { recursive: true });
+  const principal = join(machine, "runtime", "src", "kitchen", "main.ts");
+  mkdirSync(join(machine, "runtime", "src", "kitchen"), { recursive: true });
   writeFileSync(principal, STATION);
   const inService = () => JSON.parse(readFileSync(join(root, "en-service"), "utf8")) as { pid: number };
 

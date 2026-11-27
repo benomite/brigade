@@ -7,8 +7,6 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { TITRE as TITLE_OF_THE_PR_OF_SETUP } from "../../../runtime/src/second-init/pr-de-setup.ts";
-import type { StationEnregistree } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
@@ -51,7 +49,7 @@ import {
 import { RETRY } from "../../src/vue/lexicon.js";
 import { ADD_A_SERVER } from "../../src/vue/add-server/add-server.js";
 import { LATER, setFirstTicket, QUESTION as QUESTION_OF_FIRST } from "../../src/vue/first-ticket/first-ticket.js";
-import { REFUSAL_NETWORK } from "../../src/stations-of-account.ts";
+import { REFUSAL_NETWORK, type StationRecorded } from "../../src/stations-of-account.ts";
 import { CONTINUE, RELEASE, PUT, PASS, setTheDeparture, holdTheDepartures, TITLE as TITLE_OF_DEPARTURE, type State as StateOfDeparture } from "../../src/vue/journey-first-project/departure.js";
 import { launchTheTriage, proposeTheDeparture, type LaunchTheTriage } from "../../src/departure-of-project.ts";
 import type { CallGitHub } from "../../src/board/client.ts";
@@ -63,11 +61,13 @@ const MISSING = { ready: false, missingBindings: ["Gates"], missingLabels: ["fir
 const READY = { ready: true, missingBindings: [], missingLabels: [] };
 const NOT_READY = { etape: "manque" as const, verif: { ready: false, missingBindings: ["Gates"], missingLabels: ["fire"] } };
 const HERE_CHOICE: Choice = { cle: HERE, nom: "this computer", horsLigne: false, recommande: true };
+// Le titre de l'issue qui attend le merge de la PR de mise en place.
+const TITLE_OF_THE_PR_OF_SETUP = "Merge the setup pull request";
 // 22 min après le dernier signe de vie des stations hors ligne.
 const TWENTY_TWO = Date.parse("2026-11-11T10:22:00.000Z");
 const ATELIER_ABSENT = "Offline for 22 min: switch atelier on, or start its brigade-station service there: it starts with the machine";
 
-const station = (id: string, name: string, available: boolean, selection: string[] | null = null): StationEnregistree => ({
+const station = (id: string, name: string, available: boolean, selection: string[] | null = null): StationRecorded => ({
   id,
   name,
   platform: "linux",
@@ -240,7 +240,7 @@ describe("ce que le parcours lit et tient", () => {
     assert.equal(workOfSecond(undefined), undefined);
   });
 
-  test("la carte de la PR de mise en place, par le titre que le runtime donne à son issue", () => {
+  test("la carte de la PR de mise en place, par le titre de son issue", () => {
     assert.equal(TITLE_OF_THE_CARD_OF_SETUP, TITLE_OF_THE_PR_OF_SETUP);
     assert.equal(cardOfSetup([{ cartes: [{ ticket: 3, titre: "Other" }] }, { cartes: [], autres: [{ ticket: 40, fiche: { titre: TITLE_OF_THE_PR_OF_SETUP } }] }])?.ticket, 40);
     assert.equal(cardOfSetup([{ cartes: [{ ticket: 3, titre: "Other" }] }]), undefined);

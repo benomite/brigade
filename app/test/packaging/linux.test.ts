@@ -63,7 +63,7 @@ function sources(t: TestContext) {
   write(join(pty, "src", "unix", "pty.cc"));
   for (const machine of ["darwin-arm64", "win32-x64"]) write(join(pty, "prebuilds", machine, "pty.node"));
   const runtime = join(root, "runtime");
-  write(join(runtime, "src", "station", "main.ts"), "// la station");
+  write(join(runtime, "src", "kitchen", "main.ts"), "// la station");
   write(join(runtime, "package.json"), JSON.stringify({ name: "brigade-runtime", version: "0.0.0", type: "module", engines: { node: ">=26" } }));
   const node = join(root, "node");
   write(node, inHeadElf(0x3e));
@@ -136,7 +136,7 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
   for (const remains of ["build", "src", "scripts", "binding.gyp"]) assert.equal(existsSync(join(pty, remains)), false, `${remains} n'est pas porté`);
   assert.equal(existsSync(join(pty, "lib", "index.js")), true);
 
-  assert.equal(readFileSync(join(resources, "runtime", "src", "station", "main.ts"), "utf8"), "// la station");
+  assert.equal(readFileSync(join(resources, "runtime", "src", "kitchen", "main.ts"), "utf8"), "// la station");
   assert.equal(JSON.parse(readFileSync(join(resources, "runtime", "package.json"), "utf8")).version, "1.2.3+gabc");
   assert.deepEqual(readdirSync(join(resources, "plugin", "commands")).sort(), ["ask.md", "dev.md"]);
   assert.deepEqual(readFileSync(join(resources, NODE_OF_PACKAGE)), readFileSync(node));

@@ -2,8 +2,7 @@
 // finit #15 —, puis « Add a station ». Le Mac de l'écran a sa station, qui ne sert pas encore parade (`projetsServis`) ;
 // le compte du chef a deux stations appairées : parade-box, à qui parade est choisi, et atelier, à qui rien ne l'est.
 import type { Facts } from "../../../app/src/facts.ts";
-import * as contrat from "../../../runtime/src/enregistrement-station/contrat.ts";
-import { stationDuGist, type StationEnregistree, type StationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationRecorded, StationsOfAccount } from "../../../app/src/stations-of-account.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -30,20 +29,22 @@ const FACTS: Facts = {
   ],
 } as Facts;
 
-function lue(id: string, name: string, machine: string, repositories: string[]): StationEnregistree {
-  const station = stationDuGist(
-    id,
-    {
-      [contrat.FICHIER_ENREGISTREMENT]: JSON.stringify({ brigade: "station-registration", format: 1, name, platform: "linux", machine, version: "2.4.0", registeredAt: "2026-10-01T08:00:00.000Z", lastSeen: IL_Y_A(1), refreshMs: 120_000, stoppedAt: null }),
-      [contrat.FICHIER_SELECTION]: JSON.stringify({ brigade: "station-selection", format: 1, repositories, updatedAt: IL_Y_A(60) }),
-    },
-    "chef",
-    INSTANT,
-  );
-  if ("illisible" in station) throw new Error(station.illisible);
-  return station;
-}
-const COMPTE: StationsDuCompte = { state: "listed", stations: [lue("a1b2c3", "parade-box", "Linux 6.1.0", ["chef/parade"]), lue("f7e8d9", "atelier", "Linux 6.8.0", [])], unreadable: [] };
+// Une station enregistrée sous le compte, telle que l'app la reçoit de son gist (`StationRecorded`) : vue il y a une minute.
+const lue = (id: string, name: string, machine: string, repositories: string[]): StationRecorded => ({
+  id,
+  name,
+  platform: "linux",
+  machine,
+  version: "2.4.0",
+  account: "chef",
+  available: true,
+  registeredAt: "2026-10-01T08:00:00.000Z",
+  lastSeen: IL_Y_A(1),
+  stoppedAt: null,
+  refreshMs: 120_000,
+  selection: repositories,
+});
+const COMPTE: StationsOfAccount = { state: "listed", stations: [lue("a1b2c3", "parade-box", "Linux 6.1.0", ["chef/parade"]), lue("f7e8d9", "atelier", "Linux 6.8.0", [])], unreadable: [] };
 
 export function ongletStations(dit: string, etapes: Etape[] = [], quotaGithub?: unknown): Ecran {
   return {

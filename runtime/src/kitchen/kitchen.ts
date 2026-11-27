@@ -165,6 +165,9 @@ export function openKitchen(options: KitchenOptions) {
     if (verdict === null) return sendBack(issue, "the pass gave no verdict", true);
     if (verdict.merge === false) return sendBack(issue, verdict.reason, true);
     if (pr === undefined) return;
+    // The CI read now, not when the pass started: red goes back to a cook, unfinished waits for the next pass.
+    if (pr.checks === "failure") return sendBack(issue, `the CI is red: ${pr.failing.slice(0, 5).join(", ")}`, true);
+    if (pr.checks === "pending") return;
     const files = await act.prFiles(pr.number);
     const risky = files.filter((file) => options.riskPaths().some((zone) => file.startsWith(zone)));
     if (risky.length > 0 && !(await chefSays(issue.number, pr.number))) {

@@ -7,11 +7,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { AUTRES_HOTES, compterLesRefus, ENTETE_DE_REFUS, garderLaListe, ouvrirPorte } from "../src/porte.ts";
 import { autorise, reglesDuProjet } from "../src/reseau.ts";
-import { demarrer } from "../src/runtime.ts";
-import { horloge, jusqua, lancer, lancerSurPortPose, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
-
-const TENIR = join(import.meta.dirname, "../src/tenir-porte.ts");
+import { jusqua } from "./outils.ts";
 
 const ecouter = (serveur: Server) => new Promise<number>((resoudre) => serveur.listen(0, "127.0.0.1", () => resoudre((serveur.address() as AddressInfo).port)));
 
@@ -329,36 +325,4 @@ describe("la porte", { concurrency: 8 }, () => {
     assert.equal(autorise(regles(true), "registry.npmjs.org", 443), false);
   });
 
-  test("la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process", { skip: posixOnly("runs the project's door in its own process, tunnels to a host off its list and expects the 403 refusal in the journal, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the door without running its handler, so it exits with no code") }, async (t) => {
-    const repertoireEtat = repertoireTemporaire(t);
-    const runtime = demarrer({ repertoireEtat, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
-    t.after(() => runtime.arreter("test"));
-    runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "network.declared", payload: { base: "v2", hosts: ["registry.npmjs.org"], problems: [] } });
-
-    // La porte n'en choisit pas : c'est le chef qui pose le port, et la porte dit celui qu'elle tient.
-    const { enfant: tenue, port } = await lancerSurPortPose(t, TENIR, {
-      env: (port) => ({ BRIGADE_STATE_DIR: repertoireEtat, BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: String(port) }),
-      ouvert: (port) => `door of project “brigade” open — 127.0.0.1:${port}`,
-    });
-
-    assert.match((await tunnel(port, "pirate.exemple.test:443")).reponse, /^HTTP\/1\.1 403/);
-    const refus = () => runtime.journal.duType("network.refused", 10);
-    await jusqua(() => refus().length === 1);
-    assert.deepEqual(refus()[0]?.payload, { host: "pirate.exemple.test", port: 443, count: 1 });
-    assert.equal(refus()[0]?.author, "porte");
-    assert.match(tenue.sortie(), /outgoing connection refused — pirate\.exemple\.test:443/);
-
-    tenue.process.kill("SIGTERM");
-    assert.equal(await tenue.fin, 0);
-  });
-
-  test("sans port, sans projet ou sans état, la porte refuse de démarrer et dit ce qui manque", async (t) => {
-    const sans = async (env: Record<string, string>) => {
-      const tenue = lancer(t, TENIR, [], env);
-      return { code: await tenue.fin, sortie: tenue.sortie() };
-    };
-    assert.deepEqual(await sans({}), { code: 2, sortie: "brigade : the door refuses to start — BRIGADE_STATE_DIR is not set\n" });
-    assert.match((await sans({ BRIGADE_STATE_DIR: "/x", BRIGADE_PROJECT: "brigade" })).sortie, /BRIGADE_PROXY_PORT is not set/);
-    assert.match((await sans({ BRIGADE_STATE_DIR: "/x", BRIGADE_PROJECT: "brigade", BRIGADE_PROXY_PORT: "porte" })).sortie, /BRIGADE_PROXY_PORT/);
-  });
 });

@@ -2,15 +2,15 @@
 // à l'installation, que cet ordinateur ne sert aucun projet, puis une ligne par projet de l'app, `served` ou `not served`.
 // La liste ne se change que sur l'onglet Stations d'un projet (#3402) : l'écran la lit, sans case ni bouton. Un projet
 // ajouté à la liste s'y lit servi, et la ligne « aucun projet » s'en va ; rouvert, l'écran le montre encore servi ;
-// retiré, la ligne revient. L'écran est joué devant un faux document ; derrière son pont, la station lit pour de bon, par
-// `lireProjetsServis` du runtime, la liste qu'`ajouterProjetServi` et `retirerProjetServi` écrivent, dans un répertoire du
-// test.
+// retiré, la ligne revient. L'écran est joué devant un faux document ; derrière son pont, la station lit pour de bon, comme
+// le process principal (main.ts), le fichier des projets de sa cuisine par `projectsOfTheKitchen` du runtime
+// (runtime/src/kitchen/projects.ts) : le test y écrit et en retire les lignes, dans un répertoire du test.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
-import { ajouterProjetServi, cheminDesProjetsServis, lireProjetsServis, ProjetsServisIllisibles, retirerProjetServi } from "../../../runtime/src/station-ordinateur/projets-servis.ts";
+import { projectsFile, projectsOfTheKitchen } from "../../../runtime/src/kitchen/projects.ts";
 import {
   HELP,
   NO,
@@ -22,7 +22,6 @@ import {
   SERVES,
   SERVED,
   holdTheProjectsServed,
-  type ReadOfProjectsServed,
   type ProjectOfTheApp,
   type BridgeOfProjectsServed,
 } from "../../src/vue/projects-served/projects-served.js";
@@ -42,20 +41,19 @@ after(() => {
   for (const station of stations) rmSync(station, { recursive: true, force: true });
 });
 
-// Ce que le process principal fait de la station (main.ts) : lire sa liste. Ses écritures, l'onglet Stations les fait.
-const refusalOf = (error: unknown): ReadOfProjectsServed => {
-  if (error instanceof ProjetsServisIllisibles) return { refus: error.message };
-  throw error;
-};
+// Le fichier des projets de la cuisine, tel que la station l'écrit : une ligne `<nom> <owner/repo> <base>` par projet.
+const linesOf = (root: string) => (existsSync(projectsFile(root)) ? readFileSync(projectsFile(root), "utf8").split("\n").filter((line) => line !== "") : []);
+function writeLines(root: string, lines: string[]) {
+  mkdirSync(dirname(projectsFile(root)), { recursive: true });
+  writeFileSync(projectsFile(root), lines.map((line) => `${line}\n`).join(""));
+}
+const serve = (root: string, repository: string) => writeLines(root, [...linesOf(root), `${repository.split("/")[1]?.toLowerCase()} ${repository} main`]);
+const stopServing = (root: string, repository: string) => writeLines(root, linesOf(root).filter((line) => line.split(/\s+/)[1] !== repository));
+
+// Ce que le process principal fait de la station (main.ts) : lire les dépôts du fichier des projets de sa cuisine.
 function bridgeInFront(station: string, calls: { depot: string; servi: boolean }[] = []): BridgeOfProjectsServed {
   return {
-    projetsServis: () => {
-      try {
-        return Promise.resolve({ depots: lireProjetsServis(station) });
-      } catch (error) {
-        return Promise.resolve(refusalOf(error));
-      }
-    },
+    projetsServis: () => Promise.resolve({ depots: projectsOfTheKitchen(station).map(({ repo }) => repo) }),
     servirUnProjet: (repository, served) => {
       calls.push({ depot: repository, servi: served });
       return Promise.resolve({ refus: "Settings does not write the list" });
@@ -100,7 +98,7 @@ describe("à l'installation", () => {
     assert.deepEqual(lines(screen).map((rank) => rank.dataset.projet), ["parade", "cantine", "brouillon"]);
     for (const project of ["parade", "cantine"]) assert.equal(valueOf(line(screen, project)), NOT_SERVED);
     // Lire n'écrit rien : la station n'a toujours pas de liste.
-    assert.equal(existsSync(cheminDesProjetsServis(root)), false);
+    assert.equal(existsSync(projectsFile(root)), false);
     assert.deepEqual(app.appels, []);
     // Chaque ligne est la rangée de réglage (#2920), sans « save » ni PR. Le dépôt se lit à côté du nom.
     for (const rank of lines(screen)) {
@@ -123,7 +121,7 @@ describe("à l'installation", () => {
 describe("la liste se lit ici, elle se change sur l'onglet Stations (#3402)", () => {
   test("aucune ligne n'a de contrôle : l'aide dit où un projet s'ajoute ou se retire", async () => {
     const root = station();
-    ajouterProjetServi(root, "chef/parade");
+    serve(root, "chef/parade");
     const app = opens(root);
     await app.tenue.lire();
     const screen = app.ecran();
@@ -139,10 +137,10 @@ describe("la liste se lit ici, elle se change sur l'onglet Stations (#3402)", ()
     await app.tenue.lire();
     assert.ok(saysNo(app.ecran()));
     // L'onglet Stations de parade l'ajoute ; l'écran relu le dit.
-    ajouterProjetServi(root, "chef/parade");
+    serve(root, "chef/parade");
     await app.tenue.lire();
-    // La station l'a pour de bon, dans sa configuration.
-    assert.equal(readFileSync(cheminDesProjetsServis(root), "utf8"), "parade chef/parade\n");
+    // La station l'a pour de bon, dans le fichier des projets de sa cuisine.
+    assert.equal(readFileSync(projectsFile(root), "utf8"), "parade chef/parade main\n");
     let screen = app.ecran();
     assert.equal(saysNo(screen), false, "la ligne « aucun projet » est partie");
     assert.ok(head(screen).textContent.includes(SERVES(1)));
@@ -159,15 +157,15 @@ describe("la liste se lit ici, elle se change sur l'onglet Stations (#3402)", ()
 
   test("le dernier projet retiré de la liste, la ligne « aucun projet » revient", async () => {
     const root = station();
-    ajouterProjetServi(root, "chef/parade");
-    ajouterProjetServi(root, "chef/cantine");
+    serve(root, "chef/parade");
+    serve(root, "chef/cantine");
     const app = opens(root);
     await app.tenue.lire();
     assert.ok(head(app.ecran()).textContent.includes(SERVES(2)));
-    retirerProjetServi(root, "chef/cantine");
+    stopServing(root, "chef/cantine");
     await app.tenue.lire();
     assert.equal(saysNo(app.ecran()), false, "parade est encore servi");
-    retirerProjetServi(root, "chef/parade");
+    stopServing(root, "chef/parade");
     await app.tenue.lire();
     const screen = app.ecran();
     assert.ok(saysNo(screen), "la ligne « aucun projet » est revenue");
@@ -176,7 +174,7 @@ describe("la liste se lit ici, elle se change sur l'onglet Stations (#3402)", ()
 
   test("un dépôt de la liste qu'aucun projet de l'app ne porte garde sa ligne, servi, et dit au survol comment le changer", async () => {
     const root = station();
-    ajouterProjetServi(root, "chef/ailleurs");
+    serve(root, "chef/ailleurs");
     const app = opens(root);
     await app.tenue.lire();
     const elsewhere = line(app.ecran(), "chef/ailleurs");
@@ -187,7 +185,7 @@ describe("la liste se lit ici, elle se change sur l'onglet Stations (#3402)", ()
 
   test("un dépôt écrit autrement (casse) est reconnu comme celui du projet", async () => {
     const root = station();
-    ajouterProjetServi(root, "Chef/Parade");
+    serve(root, "Chef/Parade");
     const app = opens(root);
     await app.tenue.lire();
     assert.equal(valueOf(line(app.ecran(), "parade")), SERVED);
@@ -198,9 +196,9 @@ describe("la liste se lit ici, elle se change sur l'onglet Stations (#3402)", ()
 describe("ce qui ne se lit pas", () => {
   test("une liste illisible ne se lit pas comme vide : l'écran dit qu'elle est indisponible, sans ligne ni « aucun projet »", async () => {
     const root = station();
-    // Un répertoire à la place de la configuration : elle ne se lit pas.
-    mkdirSync(cheminDesProjetsServis(root));
-    const app = opens(root);
+    // Le pont dit qu'elle ne se lit pas.
+    const unreadable: BridgeOfProjectsServed = { projetsServis: () => Promise.resolve({ refus: `${projectsFile(root)} cannot be read` }), servirUnProjet: () => assert.fail("rien ne s'écrit") };
+    const app = opens(root, { pont: unreadable });
     await app.tenue.lire();
     const screen = app.ecran();
     assert.ok(head(screen).textContent.includes(UNREADABLE));

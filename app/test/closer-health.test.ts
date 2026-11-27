@@ -6,7 +6,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { brancheDuTicket } from "../../runtime/src/brigade-github.ts";
-import { corpsDeLaFermeture, estUneFermeture, marqueDeFermeture, titreDeLaFermeture } from "../../runtime/src/closer-github-passe/closer-github-passe.ts";
 import { COOKS_PAR_DEFAUT, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "../../runtime/src/closing/settings.ts";
 import { CLES_DU_CLOSER, reglagesDuTexte } from "../../runtime/src/reglages-projet/reglages.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser, readPass, SETTINGS, textOfVerifications, VERIFICATIONS, verificationsOf } from "../src/closer-health.ts";
@@ -19,25 +18,60 @@ const REPOSITORY = "chef/parade";
 const PROJECT = { version: 1, integrationBranch: "main", defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, closer: { maxTokens: 300000 }, drift: { ticketTokens: 900 } };
 const SHA = "9f3c2a17b4e0d6c5a8b1f2e3d4c5b6a7f8e9d0c1";
 
-// Le corps d'une issue de fermeture, tel que le runtime l'écrit.
+// Le corps d'une issue de fermeture, tel que l'ancien runtime l'écrivait (`corpsDeLaFermeture` de
+// runtime/src/closer-github-passe/closer-github-passe.ts, supprimé avec lui, #4499) : la base `main` à `SHA`,
+// 21 merges, deux fenêtres de dérive, deux candidats et trois écartés ; `time`, la section des temps.
+const BODY_BEFORE_THE_CANDIDATES = [
+    "<!-- brigade:fermeture sha=9f3c2a17b4e0d6c5a8b1f2e3d4c5b6a7f8e9d0c1 -->",
+    "",
+    "## Context",
+    "",
+    "The closer's pass over `main`, opened by a station on the GitHub-only path after 21 merges since the last one. Its goal is to remove as much as it safely can: delete the dead code, factor the duplicated passages into one shared place — and add nothing else, no feature, no file. A cook that errs adds bad code and the pass catches it; a closer that errs removes good code, and the gates still say green, since what is gone was tested by nothing. When in doubt, leave it and say why.",
+    "",
+    "## Drift",
+    "",
+    "Lines added and removed by the latest merges of `main` (added:removed):",
+    "",
+    "- last 20 merges: +3,120 / −840 (3.7:1)",
+    "- last 21 merges: +3,300 / −900 (3.7:1)",
+    "",
+    "",
+  ].join("\n");
+const BODY_FROM_THE_CANDIDATES = [
+    "## Candidates",
+    "",
+    "What the observation spots on `9f3c2a17b4e0d6c5a8b1f2e3d4c5b6a7f8e9d0c1`. Candidates, not verdicts: text compared with text. An export a framework reads by convention is named by nobody and lives anyway; two identical passages are not always to be joined.",
+    "",
+    "- D1 — 24 identical lines of code: `a.js:1-24` = `b.js:40-63`",
+    "- M1 — export `vieux` of `c.ts:12` — referenced nowhere",
+    "",
+    "3 more are left for a next pass.",
+    "",
+    "- A dead export (`M…`): delete it, and with it what existed only for it — the test that exercises only it, the doc sentence that describes it. Never remove or weaken a test of living code to make a removal pass.",
+    "- A duplicate (`D…`): factor it. Keep one copy, in one of the files of the zone, under a name that says what it does, and have the other place call it. Two passages that look alike but must each evolve on their own are left, saying so.",
+    "- Leave whatever a framework or a tool may read by convention: entry points, the exported API that `docs/` names, files loaded by name. Before each gesture, look for the candidate's uses in the whole repository, including those not written as an import.",
+    "",
+    "## Zone",
+    "",
+    "- `a.js`",
+    "- `b.js`",
+    "- `c.ts`",
+    "",
+    "## Acceptance criteria",
+    "",
+    "- Each candidate is deleted, factored, or left with its reason: the report has one line per candidate left, `LEFT <candidate>: <why>`.",
+    "- No more than 500 lines removed in all, factorings included: a short and safe pass is better.",
+    "- Only the files of the zone are written, and no file is created.",
+    "- The gates and the CI stay green after each gesture: a gesture that turns them red is undone, and its candidate left.",
+    "",
+    "---",
+    "",
+    "_Opened by the closer of a station, with no gesture from the chef._",
+  ].join("\n");
 const bodyText = (time?: string[]) =>
-  corpsDeLaFermeture({
-    base: "main",
-    sha: SHA,
-    merges: 21,
-    pente: [
-      { fenetre: 20, merges: 20, ajoute: 3120, retire: 840 },
-      { fenetre: 100, merges: 21, ajoute: 3300, retire: 900 },
-    ] as never,
-    proposes: [
-      { id: "D1", quoi: "24 identical lines of code: `a.js:1-24` = `b.js:40-63`" },
-      { id: "M1", quoi: "export `vieux` of `c.ts:12` — referenced nowhere" },
-    ] as never,
-    ecartes: 3,
-    zone: ["a.js", "b.js", "c.ts"],
-    retraits: 500,
-    ...(time === undefined ? {} : { temps: time }),
-  });
+  BODY_BEFORE_THE_CANDIDATES + (time === undefined ? "" : `## Times\n\n${time.join("\n")}\n\n`) + BODY_FROM_THE_CANDIDATES;
+// Le titre de cette issue, tel que l'ancien runtime l'écrivait (`titreDeLaFermeture("main")`).
+const TITLE_OF_THE_CLOSING = "Closing pass on `main`: prune dead code and duplicates";
 
 // Un GitHub en mémoire : les fichiers de chaque branche (contenu et `sha` qui change à chaque écriture) — `main` au
 // départ, une branche créée part de la tête d'une autre et en copie les fichiers —, les issues que la recherche rend, les
@@ -99,7 +133,7 @@ function github({ fichiers: files = {}, issues = [], prs = {}, refus: refusal = 
   return { client, demandes: requests, ecrits: writtenOnes, ouvertes: openEntries, texte: text };
 }
 const json = (object: unknown) => `${JSON.stringify(object, null, 2)}\n`;
-const issue = (number: number, body: string, others: Record<string, unknown> = {}) => ({ number, title: titreDeLaFermeture("main"), html_url: `https://github.com/${REPOSITORY}/issues/${number}`, created_at: "2026-10-10T08:00:00Z", state: "closed", author_association: "OWNER", body, ...others });
+const issue = (number: number, body: string, others: Record<string, unknown> = {}) => ({ number, title: TITLE_OF_THE_CLOSING, html_url: `https://github.com/${REPOSITORY}/issues/${number}`, created_at: "2026-10-10T08:00:00Z", state: "closed", author_association: "OWNER", body, ...others });
 
 describe("le closer, dans le dépôt du projet", () => {
   test("l'app connaît exactement les réglages du closer du runtime, et ses défauts", () => {
@@ -108,9 +142,8 @@ describe("le closer, dans le dépôt du projet", () => {
     assert.deepEqual(defaults, { calibration: null, cooksBelow: COOKS_PAR_DEFAUT, maxTokens: TOKENS_PAR_DEFAUT, maxRemovedLines: RETRAITS_PAR_DEFAUT });
   });
 
-  test("une passe se lit dans le corps que le runtime écrit : sa base, ses candidats, la dérive, les temps", () => {
+  test("une passe se lit dans le corps que le runtime écrivait : sa base, ses candidats, la dérive, les temps", () => {
     const body = bodyText(["Times stable: 4 tickets measured since the last pass, and no drift. No correction ticket is opened or changed."]);
-    assert.ok(estUneFermeture(body) && body.startsWith(marqueDeFermeture(SHA)));
     const readEntry = readPass({ number: 2531, created_at: "2026-10-10T08:00:00Z", state: "open", body }) ?? assert.fail("pas lue");
     assert.equal(readEntry.sha, SHA);
     assert.equal(readEntry.ouverte, true);

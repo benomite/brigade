@@ -6,7 +6,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
-import { ajouterProjetServi, lireProjetsServis } from "../../../../runtime/src/station-ordinateur/projets-servis.ts";
 import type { Home } from "../../../src/home.ts";
 import { POWER_UP } from "../../../src/power-up.ts";
 import { putAside } from "../../../src/awaiting.ts";
@@ -43,7 +42,6 @@ after(() => {
 async function thePage(engine: string | undefined, line: object) {
   const root = mkdtempSync(join(tmpdir(), "moteur-onglet-"));
   roots.push(root);
-  ajouterProjetServi(root, REPOSITORY);
   const file = join(root, "station-reglages.json");
   if (engine !== undefined) assert.ok(!("refus" in writeSettingsOfTheStation(file, { engine })));
   const vue = await playTheVue({
@@ -62,7 +60,7 @@ async function thePage(engine: string | undefined, line: object) {
       projetsDesStations: SEEN,
     }),
     espace: () => [],
-    projetsServis: () => ({ depots: lireProjetsServis(root) }),
+    projetsServis: () => ({ depots: [REPOSITORY] }),
     lireReglagesDeLaStation: () => readSettingsOfTheStation(file, { clone: "/st/clones", worktrees: "/st/worktrees" }),
   } as never);
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();

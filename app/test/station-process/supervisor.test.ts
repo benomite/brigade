@@ -46,7 +46,7 @@ const WHO_REFUSES = `console.error("brigade : refus de démarrer la station — 
 const WHO_FALLS = `throw new Error("une version cassée");\n`;
 
 function setRuntime(folder: string, version: string, body: string): void {
-  mkdirSync(join(folder, "src", "station"), { recursive: true });
+  mkdirSync(join(folder, "src", "kitchen"), { recursive: true });
   writeFileSync(join(folder, "package.json"), `${JSON.stringify({ name: "brigade-runtime", version })}\n`);
   writeFileSync(join(folder, PRINCIPAL), body);
 }
