@@ -13,27 +13,23 @@ import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts
 import { posixOnly } from "../support/plateforme.ts";
 
 const TICKET = 12;
-const ROLES = ["po", "manager", "dev", "designer"];
 const GATES = join(import.meta.dirname, "../../../.claude/brigade/gates.sh");
 const SELECTION = join(import.meta.dirname, "../../../.claude/brigade/tests-touches.mjs");
 const SKIP = posixOnly("plays this repository's real gates.sh in the cook's worktree; on Windows its Python check reads the role paths with backslashes");
 
-// Le projet que le cook livre : des gates vertes en tout, sauf le contrôle de types de `zone`, rouge sur un fichier de test
-// qui porte la marque TYPE_ERROR (le faux `tsc` que les gates cherchent est un fichier exécutable).
+// Le projet que le cook livre : le contrôle de types de `zone` y est rouge sur un fichier de test qui porte la marque
+// TYPE_ERROR (le faux `tsc` que les gates cherchent est un fichier exécutable). Sans rôle V1, les contrôles plugin des
+// gates y sont rouges aussi (#4630) : le test lit dans le commentaire d'échec que le rouge vient bien des types.
 function poserLeProjet(cwd: string, zone: "runtime" | "app", trace: string) {
   const poser = (fichier: string, contenu: string) => {
     mkdirSync(dirname(join(cwd, fichier)), { recursive: true });
     writeFileSync(join(cwd, fichier), contenu);
   };
   poser("CLAUDE.md", `## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : \`${BASE}\`\n`);
-  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ROLES.map((role) => `./commands/${role}.md`) }));
+  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ["./commands/start.md"], agents: [] }));
   poser(".claude-plugin/marketplace.json", "{}");
   poser(".claude/settings.json", "{}");
-  for (const role of ROLES) {
-    poser(`commands/${role}.md`, "");
-    poser(`codex/skills/${role}/SKILL.md`, "");
-    poser(`codex/skills/${role}/agents/openai.yaml`, "");
-  }
+  poser("commands/start.md", "");
   mkdirSync(join(cwd, ".claude/brigade"), { recursive: true });
   copyFileSync(GATES, join(cwd, ".claude/brigade/gates.sh"));
   copyFileSync(SELECTION, join(cwd, ".claude/brigade/tests-touches.mjs"));
@@ -69,19 +65,22 @@ async function livrer(t: TestContext, zone: "runtime" | "app") {
     await station.tour();
     await station.calme();
   }
-  return { poussee: git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)) !== "", jouee: existsSync(trace) };
+  const dit = [...(faux.commentaires.get(TICKET) ?? [])].map((c) => c.body).join("\n");
+  return { poussee: git(lieux.origine, "branch", "--list", brancheDuTicket(TICKET)) !== "", jouee: existsSync(trace), dit };
 }
 
 describe("a type error in the branch's own test file", () => {
   test("in the runtime zone turns the gates red before the delivery is pushed", { skip: SKIP }, async (t) => {
-    const { poussee, jouee } = await livrer(t, "runtime");
+    const { poussee, jouee, dit } = await livrer(t, "runtime");
     assert.equal(jouee, true, "the gates played the type check");
+    assert.match(dit, /FAIL  contrôle de types du runtime en échec[\s\S]*TS2345 type error/, "the type check is what turned the gates red");
     assert.equal(poussee, false, "nothing was pushed");
   });
 
   test("in the app zone turns the gates red before the delivery is pushed", { skip: SKIP }, async (t) => {
-    const { poussee, jouee } = await livrer(t, "app");
+    const { poussee, jouee, dit } = await livrer(t, "app");
     assert.equal(jouee, true, "the gates played the type check");
+    assert.match(dit, /FAIL  contrôle de types de l'app en échec[\s\S]*TS2345 type error/, "the type check is what turned the gates red");
     assert.equal(poussee, false, "nothing was pushed");
   });
 });
