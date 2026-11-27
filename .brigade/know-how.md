@@ -12,3 +12,4 @@
 - The pass's gate on test-only exports (runtime/src/passe/gates/controle.ts) tells a renamed export from a new one through `scripts/rename-code/table.ts` (`newNameOf`): a name the table gives must be the one the rename gave, so give a refused name in `names.ts`, never by hand (#4413)
 - The new kitchen has a hard cap: `runtime/src/kitchen/` stays under 1,000 lines (`kitchen.test.ts`); a safeguard it needs lives in its own zone (e.g. `bac-a-sable/kitchen-sandbox.ts`), the kitchen only calls it (#4483)
 - A ticket the pass approved and parked for the chef's merge carries `approved` beside `parked:chef` (runtime/src/kitchen/decide.ts): only those go back to a cook when their PR starts conflicting; any other `parked:chef` holds a question and stays (#4492)
+- A capture step that clicks a `buttonAction` must target `button.recommande` (or its class): the action carries a second `button` for its price hover (`?`), and `cliquer` wants exactly one element (#4494)
