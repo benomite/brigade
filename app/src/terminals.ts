@@ -18,6 +18,7 @@ import { hooksOfRole } from "./second/hook-of-role.ts";
 import { hooksOfParking } from "./second/hook-of-parking.ts";
 import { hooksOfRefusal } from "./second/refusal.ts";
 import { argumentsOfSecond, settingsOfSecond, type Hooks } from "./second/launch.ts";
+import { argumentsOfSetup, setupInWords, setTheSetupInTemporary } from "./setup/setup.ts";
 import type { Reminder, Memory, Memories } from "./memories.ts";
 
 export type Pty = {
@@ -155,6 +156,9 @@ export function openTerminals(options: {
   node?: string;
   // Le `gh` par lequel ce crochet lit la file sur GitHub — jamais posé hors des essais.
   gh?: string;
+  // Pose les instructions de la session qui prépare un dépôt (setup/setup.ts) et rend leur chemin. Par défaut, dans un
+  // dossier temporaire, avec le runtime à côté de l'app et le `node` du PATH.
+  preparation?(): string;
   // Le compte de ce poste, pour le bandeau d'un shell. Par défaut : celui de la session ouverte.
   compte?(target: Target): string;
   // Détruit la session d'un shell fermé pour de bon (persistence.ts).
@@ -291,8 +295,9 @@ export function openTerminals(options: {
   const ROLE = "with the second's role in its system prompt";
   // Un onglet nommé Second est un onglet où le rôle est établi.
   const TITLE_SECOND = "Second";
-  // Une session ouverte sur une autre commande (`/brigade:init`) n'est pas le second : l'onglet ne le prétend pas.
+  // La session qui prépare le dépôt n'est pas le second : l'onglet ne le prétend pas.
   const TITLE_OTHER = "Claude";
+  const preparation = options.preparation ?? setTheSetupInTemporary;
 
   // Le second reprend le fil de ce dossier si `claude` en a un, avec le rôle.
   // Ce fil est la dernière conversation du dossier, pas forcément celle
@@ -566,15 +571,22 @@ export function openTerminals(options: {
       return shows(held);
     },
 
-    // Une session du second ouverte sur une commande de `claude` — `/brigade:init`,
-    // pour amorcer le dépôt : une conversation neuve, pas le fil repris. Un second
-    // qui tourne déjà n'est pas remplacé : la commande y est écrite, comme par un bouton.
-    session(project: Project, command: string): Terminal {
+    // La session qui prépare le dépôt, dans l'onglet du second : une conversation neuve, pas le fil repris, avec les
+    // instructions de la préparation dans son prompt système — aucune commande n'est tapée. Un second qui tourne déjà
+    // n'est pas remplacé : la demande d'une ligne qui nomme ces instructions y est écrite, comme par un bouton.
+    setup(project: Project): Terminal {
       const second = secondOf(project);
-      if (second.pty !== undefined || CONTROL.test(command)) return register(project, command);
+      let instructions: string;
+      try {
+        instructions = preparation();
+      } catch (error) {
+        second.note = `the setup session was not opened: its instructions could not be written (${error instanceof Error ? error.message : String(error)})`;
+        return shows(second);
+      }
+      if (second.pty !== undefined) return register(project, setupInWords(instructions));
       second.titre = TITLE_OTHER;
-      second.note = `session launched on \`${command}\`: \`claude ${command}\`, a new conversation in this folder — it is not the second: it runs without the second's role`;
-      launch(second, options.claude, [command], (code) => {
+      second.note = "setup session launched: `claude`, a new conversation in this folder with the repository setup instructions in its system prompt — it is not the second: it runs without the second's role";
+      launch(second, options.claude, argumentsOfSetup(instructions), (code) => {
         second.arrete = true;
         second.note = stops(code);
       });

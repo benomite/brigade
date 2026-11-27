@@ -13,11 +13,12 @@
 //
 // Ce que porte `Brigade.app/Contents/Resources/` :
 //   app/            `src/`, son package.json et ses dépendances de production — ni tests, ni
-//                   dépendances de dev ; node-pty n'y garde que ce qui est compilé pour darwin-arm64
+//                   dépendances de dev ; node-pty n'y garde que ce qui est compilé pour darwin-arm64.
+//                   `src/setup/` y est : les instructions et le script de la préparation d'un dépôt
 //   runtime/        `src/` et package.json du runtime — il n'a pas d'autres dépendances
 //   node/bin/node   le `node` qui joue la station : celui de la machine n'y est pour rien
 //   plugin/commands/  `dev.md` et `ask.md` de `commands/`, ce que l'app installe dans les projets
-//                   qu'elle ouvre (src/plugin-app.ts) ; son `/brigade:init` est dans `app/src/plugin/`
+//                   qu'elle ouvre (src/plugin-app.ts)
 // Le reste est l'Electron officiel pour darwin-arm64, de la version que l'app déclare, renommé.
 //
 // Electron vient, sans `--electron`, du dépôt de ses versions sur GitHub, vérifié contre les
