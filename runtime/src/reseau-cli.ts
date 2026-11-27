@@ -1,7 +1,7 @@
 // Écrit la déclaration réseau d'un projet, depuis son worktree-setup.sh :
 //   node runtime/src/reseau-cli.ts <dossier du projet>
 //
-// `/brigade:init` la lance après avoir écrit les scripts. Elle ne laisse
+// Elle se lance à la main, une fois les scripts écrits. Elle ne laisse
 // jamais le fichier absent : un setup sans hôte externe donne un fichier vide
 // commenté, un setup qu'elle ne sait pas traduire un fichier « NON DÉTERMINÉ ».
 // Les hôtes viennent des lignes d'installation connues (`INSTALLEURS`) et de
@@ -10,7 +10,9 @@
 //
 // Un fichier déjà là n'est jamais réécrit : elle dit les hôtes qui lui
 // manquent, et c'est l'humain qui les ajoute. Elle n'est pas une commande de
-// `package.json`, pour la même raison que `mode-auto-cli.ts`.
+// `package.json`, exprès : le geste de la box lance toutes celles-là, et
+// celle-ci écrit dans un dossier qu'on lui nomme — elle n'a rien à faire sur la
+// box.
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
@@ -69,11 +71,11 @@ export function rediger({ hotes, inconnues }: Deduction): string {
   const tete = `# ${DECLARATION_RESEAU} — un hôte par ligne`;
   const lignes = [tete];
   if (inconnues.length > 0) {
-    for (const ligne of inconnues) lignes.push(`# NON DÉTERMINÉ : /brigade:init n'a pas su traduire \`${ligne}\` en registre.`);
+    for (const ligne of inconnues) lignes.push(`# NON DÉTERMINÉ : la déduction n'a pas su traduire \`${ligne}\` en registre.`);
     lignes.push(hotes.length === 0 ? "# Aucun hôte n'est ouvert." : "# Seuls les hôtes ci-dessous sont ouverts.");
     lignes.push("# Un cook qui échoue à son setup nomme l'hôte refusé : ajoute-le ici, puis merge.");
   } else if (hotes.length === 0) {
-    lignes.push("# Rien à ouvrir : le setup de worktree ne joint aucun hôte externe. Vérifié par /brigade:init.");
+    lignes.push("# Rien à ouvrir : le setup de worktree ne joint aucun hôte externe. Vérifié par la déduction de reseau-cli.ts.");
   } else {
     lignes.push("# Le setup de worktree de ce dépôt joint les hôtes ci-dessous ; sous cloison, ils doivent être nommés ici.");
   }

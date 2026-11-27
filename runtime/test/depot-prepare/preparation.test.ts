@@ -150,10 +150,13 @@ describe("le geste", { concurrency: 4 }, () => {
     assert.deepEqual(ecritures, []);
   });
 
-  test("sans CLAUDE.md, il le crée avec la seule section, sur la branche du dépôt", async (t) => {
+  test("sans CLAUDE.md, il le crée avec la seule section, sur la branche du dépôt, sans nommer de commande pour la compléter", async (t) => {
     const repo = { ...depot(t, null), branch: "develop" };
     assert.equal((await runRepoSetup(repo, github(TOUS).client)).ready, true);
-    assert.match(readFileSync(join(repo.dir, "CLAUDE.md"), "utf8"), /^## Équipe multi-agents \(plugin brigade\)\n\n- \*\*Branche d'intégration\*\* : `develop`\n/);
+    assert.equal(
+      readFileSync(join(repo.dir, "CLAUDE.md"), "utf8"),
+      "## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `develop`\n\nThe rest of the bindings (file zones, local dev, gates) is still to be stated here.\n",
+    );
   });
 
   test("GitHub refusant un label : il rejette en une phrase, et le CLAUDE.md reste tel quel", async (t) => {

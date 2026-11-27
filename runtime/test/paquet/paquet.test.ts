@@ -132,9 +132,9 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
   test("il porte la consigne du second juge, celle de ce commit, et le runtime installé la lit (#2571)", async (t) => {
     const arbre = repertoireTemporaire(t);
     assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
-    const posee = join(arbre, "usr/lib/brigade-station/runtime/agents/second-juge.md");
-    assert.equal(readFileSync(posee, "utf8"), readFileSync(join(PAQUET, "../../agents/second-juge.md"), "utf8"));
-    assert.equal(contenu().find((f) => f.chemin === "/usr/lib/brigade-station/runtime/agents/second-juge.md")?.droits, "-rw-r--r--");
+    const posee = join(arbre, "usr/lib/brigade-station/runtime/agents/kitchen/second-judge.md");
+    assert.equal(readFileSync(posee, "utf8"), readFileSync(join(PAQUET, "../../agents/kitchen/second-judge.md"), "utf8"));
+    assert.equal(contenu().find((f) => f.chemin === "/usr/lib/brigade-station/runtime/agents/kitchen/second-judge.md")?.droits, "-rw-r--r--");
     const lu = spawnSync(process.execPath, ["--input-type=module", "-e", `import { lireLaConsigne } from ${JSON.stringify(join(arbre, "usr/lib/brigade-station/runtime/src/second-juge.ts"))}; process.stdout.write(lireLaConsigne());`], { encoding: "utf8" });
     assert.equal(lu.status, 0, lu.stderr);
     assert.match(lu.stdout, /Dans le doute, c'est `refuse`/);

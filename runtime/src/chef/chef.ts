@@ -4,7 +4,7 @@
 //   - `declared`   : `chef`, dans `.claude/brigade/projet.json`, relu à chaque fois ;
 //   - `repo owner` : sinon, le propriétaire du dépôt, quand c'est une personne ;
 //   - `set up by`  : sinon — le dépôt est à une organisation —, l'auteur de la
-//                    PR de `/brigade:init`, celle qui a posé les gates.
+//                    PR de la mise en place du dépôt, celle qui a posé les gates.
 //
 // Sans aucun des trois, il n'y a pas de chef, et la raison est dite : rien
 // n'est deviné. Ce qui vient de GitHub se garde une heure ; un échec de GitHub
@@ -28,14 +28,14 @@ const SANS_CHEF = "set `chef` to the chef's GitHub login in `.claude/brigade/pro
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-// Le chef que GitHub donne, sans réglage : le propriétaire, ou l'auteur de l'init.
+// Le chef que GitHub donne, sans réglage : le propriétaire, ou l'auteur de la mise en place.
 export async function chefDeGitHub(github: GitHubDuChef): Promise<ChefResolu> {
   if (github.proprietaire === undefined) return { login: null, reason: `no \`chef\` declared, and this GitHub client cannot read the repo owner: ${SANS_CHEF}` };
   const proprietaire = await github.proprietaire();
   if (!proprietaire.organisation) return { login: proprietaire.login, source: "repo owner" };
   const auteur = (await github.auteurDeLInit?.()) ?? null;
   if (auteur !== null && auteur !== "") return { login: auteur, source: "set up by" };
-  return { login: null, reason: `no \`chef\` declared, the repo belongs to the organization ${proprietaire.login}, and no merged \`/brigade:init\` PR was found: ${SANS_CHEF}` };
+  return { login: null, reason: `no \`chef\` declared, the repo belongs to the organization ${proprietaire.login}, and no merged repository setup PR was found: ${SANS_CHEF}` };
 }
 
 // Le chef, dans l'ordre : déclaré, puis ce que GitHub en dit.

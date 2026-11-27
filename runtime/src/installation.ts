@@ -269,7 +269,7 @@ export function jugerReseau(lu: { setup: string; declaration: string | null }): 
   return {
     etat: "manque",
     texte: `network: the setup reaches ${manquants.join(", ")}, ${lu.declaration === null ? `and \`${DECLARATION_RESEAU}\` is absent` : `missing from \`${DECLARATION_RESEAU}\``} — under the partition, a cook's setup would fail there`,
-    geste: `add ${manquants.length > 1 ? "these hosts" : "this host"} to \`${DECLARATION_RESEAU}\` (\`/brigade:init\` does it), committed on the integration branch`,
+    geste: `add ${manquants.length > 1 ? "these hosts" : "this host"} to \`${DECLARATION_RESEAU}\`, committed on the integration branch`,
     simple: `the repository's setup downloads from ${manquants.length > 1 ? "addresses the repository does not declare" : "an address the repository does not declare"} (${manquants.join(", ")}): it would fail for every cook`,
     remede: dansLApp("init"),
   };
@@ -780,7 +780,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
 
     for (const script of gates) {
       if (!porte.has(script)) {
-        noter("depot", "manque", `\`${script}\` is not on \`${base}\`: without gates, the pass judges no delivery`, `\`/brigade:init\` in the repository, then merge into \`${base}\``, undefined, {
+        noter("depot", "manque", `\`${script}\` is not on \`${base}\`: without gates, the pass judges no delivery`, `the repository setup, then merge its PR into \`${base}\``, undefined, {
           simple: "the repository has no gates: nothing would judge a delivery",
           remede: dansLApp("init"),
         });
@@ -805,7 +805,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
     const claudeMd = await git("show", `${ref}:CLAUDE.md`);
     const bindings = claudeMd.code === 0 ? lireBindings(claudeMd.stdout) : null;
     if (bindings === null) {
-      noter("depot", "manque", `the bindings block (“## Équipe multi-agents”) is not in the \`CLAUDE.md\` of \`${base}\``, `\`/brigade:init\` in the repository, then merge into \`${base}\``, undefined, {
+      noter("depot", "manque", `the bindings block (“## Équipe multi-agents”) is not in the \`CLAUDE.md\` of \`${base}\``, `the repository setup, then merge its PR into \`${base}\``, undefined, {
         simple: "the repository has not been prepared for brigade yet: its `CLAUDE.md` does not carry the block",
         remede: dansLApp("init"),
       });
@@ -824,7 +824,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
       } else noter("depot", "ok", `bindings: block present, integration branch \`${base}\``);
       const absents = BINDINGS_ATTENDUS.filter((nom) => !bindings.has(nom));
       if (absents.length > 0) {
-        noter("depot", "note", `bindings missing from the block: ${absents.join(", ")} — the runtime does not read them, the cook and the gates do`, "`/brigade:init` proposes them");
+        noter("depot", "note", `bindings missing from the block: ${absents.join(", ")} — the runtime does not read them, the cook and the gates do`, "add them to the block");
       }
     }
   }

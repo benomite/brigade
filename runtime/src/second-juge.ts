@@ -4,7 +4,7 @@
 // pourtant se rendre vert seul, et ce reviewer n'est pas plus fort que lui. Un
 // second juge la relit donc, une fois le premier d'accord (#2555) : un autre
 // lancement, qui ne lit ni sa relecture ni son verdict, sous le modèle le plus
-// fort et un effort haut, avec sa propre consigne (`agents/second-juge.md`).
+// fort et un effort haut, avec sa propre consigne (`agents/kitchen/second-judge.md`).
 // Son approbation et une CI verte sur la tête la mergent comme une autre ; son
 // refus la renvoie à un cook, avec ses raisons, comme une relecture qui
 // demande des changements.
@@ -26,8 +26,8 @@ export const CALIBRAGE_DU_SECOND_JUGE: Calibrage = { model: "opus", effort: "hig
 // tourne, jamais dans la livraison jugée : une PR qui l'assouplirait ne
 // s'en juge pas. Dans le dépôt, elle est à la racine (`agents/`) ; dans la
 // station installée, le paquet la pose dans le dossier du runtime
-// (`runtime/agents/`), les archives macOS et Windows ne portant que `runtime`.
-export const CONSIGNE_DU_SECOND_JUGE = "agents/second-juge.md";
+// (`runtime/agents/kitchen/`), les archives macOS et Windows ne portant que `runtime`.
+export const CONSIGNE_DU_SECOND_JUGE = "agents/kitchen/second-judge.md";
 export const CHEMINS_DE_LA_CONSIGNE = [join(import.meta.dirname, "..", CONSIGNE_DU_SECOND_JUGE), join(import.meta.dirname, "../..", CONSIGNE_DU_SECOND_JUGE)];
 
 // La consigne est introuvable : le chemin attendu, pour le dire une fois.

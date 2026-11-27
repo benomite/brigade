@@ -46,9 +46,9 @@ export const ETAPES: readonly Etape[] = [
   {
     id: "init",
     titre: "Amorcer le dépôt",
-    sert: "La session de préparation du dépôt, que l'app ouvre dans le second, pose dans le dépôt les bindings, les gates et le setup de worktree que les cooks, la station et la pass lisent.",
+    sert: "La mise en place du dépôt pose les bindings, les gates et le setup de worktree que les cooks, la station et la pass lisent.",
     sauter: "La pass n'a pas de gates à jouer ni la station de setup à lancer : aucun cook ne peut livrer.",
-    geste: "Répondre à la session de préparation que l'app ouvre dans le second, puis merger sa PR sur la branche d'intégration : l'app ne converse pas et ne merge pas à ta place.",
+    geste: "Faire la mise en place du dépôt dans la session que l'app ouvre dans le second, puis merger sa PR sur la branche d'intégration : l'app ne converse pas et ne merge pas à ta place.",
   },
   {
     id: "verification",

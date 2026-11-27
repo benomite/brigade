@@ -1629,6 +1629,7 @@ ipcMain.handle("ouvrirPrDuCook", (_, name: unknown, ticket: unknown) => {
 });
 ipcMain.on("ecrire", (_, id: number, data: string) => terminals.ecrire(id, data));
 ipcMain.on("redimensionner", (_, id: number, columns: number, lines: number) => terminals.redimensionner(id, columns, lines));
+ipcMain.on("scroll", (_, id: number, lines: number) => terminals.scroll(id, lines));
 
 // Les pty appartiennent à l'app, pas à la fenêtre — mais il n'y a qu'une
 // fenêtre : la fermer, c'est quitter, et quitter arrête tous les terminaux.

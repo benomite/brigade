@@ -188,7 +188,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/manager.test.ts", test: "éteint en cours de route, le manager ne juge plus ce qui arrive" },
   { file: "test/miroir-des-gates.test.ts", test: "un fichier dont le chemin ne fait que contenir celui d'un rôle ou d'un miroir ne compte pas pour lui" },
   { file: "test/mise-a-jour/versions.test.ts", test: "l'ordre est bien celui de `dpkg --compare-versions`" },
-  { file: "test/mode-auto.test.ts", test: "lancée par son fichier, la commande écrit les règles et rend 0" },
   { file: "test/paquet/paquet.test.ts", test: "une commande produit un .deb nommé par sa version et son architecture, et dit son chemin" },
   { file: "test/paquet/paquet.test.ts", test: "sans le dépôt qui publie le paquet, ou sans mainteneur, la construction est refusée en le disant, sans rien écrire" },
   { file: "test/paquet/paquet.test.ts", test: "une version que dpkg n'accepterait pas est refusée, sans rien écrire" },

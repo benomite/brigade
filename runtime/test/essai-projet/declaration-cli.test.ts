@@ -1,5 +1,5 @@
-// `/brigade:init` écrit `.brigade/try.json` depuis ce que le dépôt montre
-// (`essai-projet/declaration-cli.ts`, #3559), joué ici comme l'init le lance :
+// `essai-projet/declaration-cli.ts` écrit `.brigade/try.json` depuis ce que le
+// dépôt montre (#3559), joué ici comme on la lance :
 // un process sur le dossier du projet. Un fichier déjà là reste octet pour
 // octet ; un dépôt qui ne dit pas comment il s'essaie n'en reçoit aucun.
 import assert from "node:assert/strict";

@@ -258,6 +258,14 @@ export class FakeXterm {
   attachCustomKeyEventHandler(filter: NonNullable<FakeXterm["filtre"]>): void {
     this.filtre = filter;
   }
+  // La molette, que la vue filtre : rend faux quand elle n'est pas à xterm. Son écran — normal, ou alterné
+  // (tmux) — et ses lignes, qu'un test pose.
+  molette: ((wheel: { deltaY: number; deltaMode: number }) => boolean) | undefined;
+  attachCustomWheelEventHandler(filter: NonNullable<FakeXterm["molette"]>): void {
+    this.molette = filter;
+  }
+  readonly buffer = { active: { type: "normal" as "normal" | "alternate" } };
+  rows = 24;
   onResize(): void {}
   // Le titre que `claude` donne à son terminal : un test le change, comme `claude` le fait (ticket 3166).
   private titreChange: ((title: string) => void) | undefined;

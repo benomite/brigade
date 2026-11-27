@@ -413,6 +413,8 @@ export type Bridge = {
   ouvrirPrDuCook(project: string, ticket: number): Promise<boolean>;
   ecrire(id: number, data: string): void;
   redimensionner(id: number, columns: number, lines: number): void;
+  // La molette dans un shell persistant : l'historique de sa session, de `lines` lignes — > 0 remonte, < 0 redescend.
+  scroll(id: number, lines: number): void;
   surSortie(receive: (id: number, data: string) => void): void;
   surEtat(receive: (terminal: Terminal) => void): void;
   // Ce que fait chaque cook d'un projet, à chaque lecture de son tableau de la cuisine (ticket 1846) — ou pourquoi

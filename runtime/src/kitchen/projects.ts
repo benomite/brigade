@@ -1,6 +1,4 @@
-// The projects the new kitchen serves on this station: `<station dir>/kitchen/projects`, one line each:
-//   <name> <owner/repo> <base> [PLACES=<n>] [CLONE=<path>]
-// Read by the kitchen, by the station's gates and by its presence; none when the file is absent.
+// The projects the new kitchen serves: `<station dir>/kitchen/projects`, one line `<name> <owner/repo> <base> [PLACES=<n>] [CLONE=<path>]` each (none when absent).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 

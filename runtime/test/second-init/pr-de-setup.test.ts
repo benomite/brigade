@@ -1,5 +1,5 @@
 // La fin de la mise en place par le second (#3169) : la PR de setup ouverte par
-// le script de `/brigade:init` de l'app — le vrai, contre une origine nue et un
+// le script de la mise en place du dépôt, celui de l'app — le vrai, contre une origine nue et un
 // `gh` doublure —, sa carte posée dans le TODO du chef sur un GitHub doublé, et
 // le message qui dit pourquoi c'est au chef de la merger.
 import assert from "node:assert/strict";
@@ -13,14 +13,14 @@ import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts
 
 const PLUGIN_DE_L_APP = join(import.meta.dirname, "..", "..", "..", "app", "src", "setup");
 const URL = "https://github.com/acme/shop/pull/7";
-const SANS_BASH = process.platform === "win32" && "le script de /brigade:init et son `gh` doublure sont joués par bash";
+const SANS_BASH = process.platform === "win32" && "le script de la mise en place du dépôt et son `gh` doublure sont joués par bash";
 
 // Le GitHub du dépôt, doublé : les issues qu'il porte, leurs commentaires, la PR de `brigade/init`.
 function unGitHub(options: { pr?: Partial<PR> | null; enPanne?: "creerIssue" } = {}) {
   const issues = new Map<number, { titre: string; body: string; labels: string[]; association: string; pr?: true }>();
   const commentaires = new Map<number, Commentaire[]>();
   const ecrits: string[] = [];
-  issues.set(7, { titre: "Set the repository up for Brigade", body: "Written by `/brigade:init`.", labels: [], association: "OWNER", pr: true });
+  issues.set(7, { titre: "Set the repository up for Brigade", body: "Written by the repository setup.", labels: [], association: "OWNER", pr: true });
   const pr: PR | null = options.pr === null ? null : { number: 7, url: URL, base: BASE, sha: "abc", state: "open", merged: false, enRetard: false, mergeePar: null, ...options.pr };
   let suivant = 41;
   const github: GitHubDuSetup = {
@@ -88,13 +88,13 @@ function unProjet(t: TestContext) {
 
 const VALEURS = ["--test", "npm test", "--base", BASE, "--zones", "`src/`"];
 
-test("la mise en place finit par la PR de setup, ouverte avec ses fichiers par le script de /brigade:init, sa carte dans le TODO, et le message qui dit pourquoi le chef la merge", { skip: SANS_BASH }, async (t) => {
+test("la mise en place finit par la PR de setup, ouverte avec ses fichiers par le script de la mise en place, sa carte dans le TODO, et le message qui dit pourquoi le chef la merge", { skip: SANS_BASH }, async (t) => {
   const { origine, clone, script, env, appelsDeGh } = unProjet(t);
   const { github, issues, commentaires } = unGitHub();
   const dits: string[] = [];
   const redits: string[] = [];
 
-  // Par la commande que `/brigade:init` lance (init.md).
+  // Par la commande que la mise en place du dépôt lance (app/src/setup/instructions.md).
   await principal({ args: [script, ...VALEURS], env, dire: (ligne) => dits.push(ligne), redire: (ligne) => redits.push(ligne) }, { dossier: clone, github: () => github });
 
   assert.deepEqual(redits, []);

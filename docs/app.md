@@ -1038,7 +1038,7 @@ next reading (within a minute, or after a gesture).
 
 **A ticket the new kitchen parks for the chef (#4474).** The new kitchen parks a ticket for the chef with the label
 `parked:chef` and a comment that starts with `Parked for the chef` and says why: its cook wrote `PARK:`, the manager parked
-it, or it was refused too many times. Its Todo card shows that comment, the latest one from a repository author, as its
+it. A ticket refused too many times is not parked for the chef: after its third refusal the kitchen labels it `parked` (no `:chef`) with a comment `Parked for the supervisor: refused 3 times. Last reason: …`, and the supervisor decides (unparks it with a diagnosis for the cook, or opens a defect ticket and leaves it parked until that one is merged, #4600). Its Todo card shows that comment, the latest one from a repository author, as its
 question — nothing is read from the old runtime. The card has no choices: a field, **Answer**, which posts the chef's text
 as a comment on the issue (from the chef's `gh` account) and removes `parked:chef`, and nothing else — the ticket goes back
 on the rail where it was; and **Open on GitHub**, which opens the issue. The app finds these issues in the list of open
@@ -2622,7 +2622,13 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
 - **`+ shell`** opens a shell on **this workstation** (`this Mac`): the app opens no shell on any other machine and
   asks nothing. Where a project cooks elsewhere, you work on that machine yourself.
 - This shell is **persistent**: it lives in a `tmux` session (or `screen`, where `tmux` is missing)
-  on this workstation, under your account. It opens **on the right, next to the second**: it has its tab (`shell 1`,
+  on this workstation, under your account. The mouse wheel scrolls back through what was printed, as in
+  the second, and the mouse stays the view's (selection and copy). Under `tmux`, the wheel scrolls the
+  session's own history (its copy mode, driven by the app; the next key leaves it before going to the
+  shell); a program on the session's alternate screen (`vim`, `less`) gets arrow keys instead. Under
+  `screen`, the session writes on the terminal's normal screen (`termcapinfo * ti@:te@`, read at the
+  session's creation), so the terminal keeps what scrolled by; a screen session created before keeps
+  its alternate screen until destroyed. It opens **on the right, next to the second**: it has its tab (`shell 1`,
   `shell 2`…) and is shown in place of the second, which does not stop for all that. **A shell never
   replaces the second**: a click on the second's tab brings it back, with its conversation; a
   click on a shell's tab shows it again, as you left it. The terminal shown takes the
@@ -4268,7 +4274,7 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
   `facts` does not carry it, and the app reads of the output of `status` only the edge of the
   `awaiting` block and the number at the head of its lines.
 - Update the runtime: the box moves to the station once, through its package, which then updates
-  itself ([`bascule.md`](bascule.md)) — the app has no action for it.
+  itself — the app has no action for it.
 - Answer from the card anything other than a manager question, or remove a label in your place: an
   issue that carries `question` or `decision` is settled on GitHub, or with the second.
 - Say that a runtime is no longer beating: it shows the gap between its last tick and the read,

@@ -4,8 +4,8 @@
 // chef, et ce que le second lui dit pour finir.
 //
 // Rien n'est refait ici de ce qui existe :
-//   - la PR est celle qu'ouvre le script de la préparation du dépôt de l'app
-//     (`app/src/setup/init.sh`) : ses fichiers, dans un worktree jetable sur
+//   - la PR est celle qu'ouvre le script de la mise en place du dépôt, celui
+//     de l'app (`app/src/setup/init.sh`) : ses fichiers, dans un worktree jetable sur
 //     `brigade/init`, puis la PR — sa dernière ligne dit `pr <url>`, ou
 //     `unchanged` quand la branche d'intégration porte déjà tout ;
 //   - la carte est celle des cartes du chef sur GitHub
@@ -20,10 +20,10 @@
 // mergée, le projet se montre prêt. Les phrases sont en anglais : c'est le
 // second qui les dit, dans la langue du chef.
 //
-// La commande, que la session de préparation de l'app lance depuis le dossier du
-// projet (`app/src/setup/instructions.md`) :
+// La commande, que la mise en place du dépôt lance depuis le dossier du projet,
+// dans la session que l'app ouvre dans le second (`app/src/setup/instructions.md`) :
 //
-//   node runtime/src/second-init/pr-de-setup.ts <script de préparation> [<ses arguments>…]
+//   node runtime/src/second-init/pr-de-setup.ts <script de la mise en place> [<ses arguments>…]
 //
 // Ses arguments passent au script tels quels. Elle rend le message sur sa
 // sortie, code 0 ; ou une phrase sur sa sortie d'erreur, code 1 — rien n'est
@@ -34,7 +34,7 @@ import { ouvrirGitHub, type GitHub, type PR } from "../github.ts";
 import { leverCarte, lireCarte, poserCarte, type Carte, type GitHubDesCartes } from "../github-seul/carte-todo/carte-todo.ts";
 import { execFile } from "../sans-invite.ts";
 
-// La branche sur laquelle le script de préparation ouvre la PR.
+// La branche sur laquelle le script de la mise en place ouvre la PR.
 export const BRANCHE = "brigade/init";
 // Ce qui marque l'issue de la carte : la mise en place rejouée la retrouve.
 export const MARQUEUR = "<!-- brigade:setup-pr -->";
@@ -109,7 +109,7 @@ export async function poserLaCarteDeLaPr(github: GitHubDuSetup, pr: number, base
   return carte;
 }
 
-// Joue le script de préparation dans le dossier du projet : sa sortie, ou
+// Joue le script de la mise en place dans le dossier du projet : sa sortie, ou
 // l'erreur qu'il dit.
 export type Script = (script: string, args: readonly string[], dossier: string, env?: Record<string, string | undefined>) => Promise<string>;
 
@@ -126,7 +126,7 @@ export const jouerLeScript: Script = (script, args, dossier, env = process.env) 
 
 export type OptionsDeLaPr = {
   dossier: string;
-  // Le script de préparation, et ce qu'il reçoit : les valeurs arrêtées.
+  // Le script de la mise en place, et ce qu'il reçoit : les valeurs arrêtées.
   script: string;
   args: readonly string[];
   // Le GitHub du dépôt que la PR nomme.
