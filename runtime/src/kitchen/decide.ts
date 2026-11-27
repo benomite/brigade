@@ -97,9 +97,7 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
     }
   }
 
-  // A pull request the pass approved that waits for the chef's merge and
-  // stopped being mergeable goes back to a cook: the chef is only asked to
-  // merge what can be merged (#4492).
+  // An approved pull request waiting for the chef's merge that stops being mergeable goes back to a cook (#4492).
   for (const issue of issues.filter((one) => has(one, LABELS.parkedChef) && has(one, LABELS.approved)).sort(byPriorityThenAge)) {
     if (prOf.get(issue.number)?.conflicting === true) actions.push({ kind: "send-back", issue: issue.number, reason: "its branch conflicts with the base branch", counts: false });
   }

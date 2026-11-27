@@ -21,9 +21,9 @@ export function prompts(options: Prompts = { dir: DEFAULT_DIR }) {
     pass: (input: { issue: number; base: string; pr: number; ticket: string; description: string }) =>
       [role("pass", input), `# Le ticket de la PR #${input.pr}`, input.ticket, `# La description de la PR #${input.pr} (le compte rendu du cook)`, input.description].join("\n\n"),
     manager: (input: { tickets: string[] }) => [role("manager"), "# Les prochains tickets", ...input.tickets].join("\n\n"),
-    supervisor: (input: { issues: Issue[]; running: Run[]; now: number }) =>
+    supervisor: (input: { issues: Issue[]; running: Run[]; now: number; main: string; parked: string[] }) =>
       [
-        role("supervisor"), "# Les tickets ouverts",
+        role("supervisor"), "# La branche principale", `maintenant : ${new Date(input.now).toISOString()}\n${input.main}`, "# Les tickets garés (`parked`), leur dernier commentaire de la cuisine", input.parked.join("\n\n") || "aucun", "# Les tickets ouverts",
         input.issues.map((issue) => `#${issue.number} [${issue.labels.join(", ")}] ${issue.title}`).join("\n"), "# Les agents qui tournent",
         input.running.map((run) => `${run.name} depuis ${Math.round((input.now - run.started) / 60_000)} min, dernière activité il y a ${lastActivity(run, input.now)} min`).join("\n") || "aucun",
       ].join("\n\n"),
@@ -98,10 +98,11 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
         acted.add(action.split);
         log(`${who}: #${action.split} split into ${children.join(", ")}`);
       } else if ("park" in action && known(action.park) && typeof action.reason === "string") {
-        await act.labels(action.park, [LABELS.parkedChef]);
-        await act.comment(action.park, `Parked for the chef by the ${who}: ${action.reason}`);
+        const forChef = who !== "supervisor" ? " for the chef" : "";
+        await act.labels(action.park, [forChef ? LABELS.parkedChef : LABELS.parked]);
+        await act.comment(action.park, `Parked${forChef} by the ${who}: ${action.reason}`);
         acted.add(action.park);
-        log(`${who}: #${action.park} parked for the chef`);
+        log(`${who}: #${action.park} parked${forChef}`);
       } else if ("unpark" in action && known(action.unpark)) {
         await act.labels(action.unpark, [], [LABELS.parkedChef, LABELS.parked]);
         log(`${who}: #${action.unpark} unparked`);

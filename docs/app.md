@@ -1210,7 +1210,7 @@ next reading (within a minute, or after a gesture).
 
 **A ticket the new kitchen parks for the chef (#4474).** The new kitchen parks a ticket for the chef with the label
 `parked:chef` and a comment that starts with `Parked for the chef` and says why: its cook wrote `PARK:`, the manager parked
-it, or it was refused too many times. Its Todo card shows that comment, the latest one from a repository author, as its
+it. A ticket refused too many times is not parked for the chef: after its third refusal the kitchen labels it `parked` (no `:chef`) with a comment `Parked for the supervisor: refused 3 times. Last reason: …`, and the supervisor decides (unparks it with a diagnosis for the cook, or opens a defect ticket and leaves it parked until that one is merged, #4600). Its Todo card shows that comment, the latest one from a repository author, as its
 question — nothing is read from the old runtime. The card has no choices: a field, **Answer**, which posts the chef's text
 as a comment on the issue (from the chef's `gh` account) and removes `parked:chef`, and nothing else — the ticket goes back
 on the rail where it was; and **Open on GitHub**, which opens the issue. The app finds these issues in the list of open
