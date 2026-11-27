@@ -45,13 +45,13 @@ function zipper(source: string, zip: string) {
 function serveur(t: TestContext, version: string, { empreinteFausse = false } = {}): string {
   const servi = repertoireTemporaire(t);
   const construire = repertoireTemporaire(t);
-  mkdirSync(join(construire, "runtime/src/station"), { recursive: true });
+  mkdirSync(join(construire, "runtime/src/kitchen"), { recursive: true });
   writeFileSync(join(construire, "runtime/package.json"), `{\n  "name": "brigade-runtime",\n  "version": "${version}",\n  "type": "module"\n}\n`);
   // La station : elle dit ce qu'elle voit, puis tourne — ou s'arrête sur le code qu'on lui donne.
   writeFileSync(
-    join(construire, "runtime/src/station/main.ts"),
+    join(construire, "runtime/src/kitchen/main.ts"),
     [
-      'console.log(`station src/station/main.ts dans ${process.cwd()} — BRIGADE_STATION_DIR=${process.env.BRIGADE_STATION_DIR}`);',
+      'console.log(`station src/kitchen/main.ts dans ${process.cwd()} — BRIGADE_STATION_DIR=${process.env.BRIGADE_STATION_DIR}`);',
       "if (process.env.FAUSSE_SORTIE !== undefined) process.exit(Number(process.env.FAUSSE_SORTIE));",
       "setTimeout(() => {}, 120_000);",
       "",
@@ -201,7 +201,7 @@ describe("sous Windows", { skip: saut }, () => {
       appels.filter((a) => a.startsWith("curl.exe")).map((a) => a.split(" ").at(-1)),
       ["https://nodejs.org/dist/latest-v26.x/SHASUMS256.txt", `https://nodejs.org/dist/latest-v26.x/node-${VERSION_NODE}-win-x64.zip`, "https://github.com/acme/brigade/releases/download/station/brigade-station-windows.zip"],
     );
-    assert.ok(existsSync(join(pc.base, "runtime/src/station/main.ts")));
+    assert.ok(existsSync(join(pc.base, "runtime/src/kitchen/main.ts")));
     assert.ok(existsSync(join(pc.base, "node/node.exe")));
     assert.deepEqual(
       appels.filter((a) => a.startsWith("gh") || a.startsWith("claude")),
@@ -223,8 +223,6 @@ describe("sous Windows", { skip: saut }, () => {
     const lancement = `-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "${ps1}"`;
     assert.deepEqual(pc.registre(), [
       `HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\brigade-station="C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ${lancement}`,
-      // La commande `brigade`, sur le PATH du compte (runtime/test/commande-brigade/).
-      `HKCU:\\Environment\\Path=${join(pc.base, "bin")}`,
     ]);
     // Lancée tout de suite comme l'ouverture de session la lancera : cachée, par le même lanceur.
     assert.deepEqual(pc.appels().filter((a) => a.startsWith("Start-Process")), [`Start-Process C:\\Windows/System32/WindowsPowerShell/v1.0/powershell.exe ${lancement} -WindowStyle Hidden`]);
@@ -236,8 +234,8 @@ describe("sous Windows", { skip: saut }, () => {
     // Aucun identifiant n'y est écrit : les connexions sont celles de `gh` et de `claude`.
     assert.doesNotMatch(lanceur + pc.registre().join("\n"), /TOKEN|token|sk-ant/);
     // La station voit le répertoire de celle de l'app, et tourne dans le runtime publié.
-    await jusqua(() => lire(pc.journal).includes("station src/station/main.ts"));
-    assert.equal(lire(pc.journal), `station src/station/main.ts dans ${join(pc.base, "runtime")} — BRIGADE_STATION_DIR=${pc.racine}`);
+    await jusqua(() => lire(pc.journal).includes("station src/kitchen/main.ts"));
+    assert.equal(lire(pc.journal), `station src/kitchen/main.ts dans ${join(pc.base, "runtime")} — BRIGADE_STATION_DIR=${pc.racine}`);
     assert.ok(vivant(pidDe(join(pc.base, "station.pid"))));
   });
 
@@ -433,9 +431,9 @@ describe("la même station que sur un Mac", { skip: saut }, () => {
   function serveurMac(t: TestContext, version: string): string {
     const servi = repertoireTemporaire(t);
     const construire = repertoireTemporaire(t);
-    mkdirSync(join(construire, "runtime/src/station"), { recursive: true });
+    mkdirSync(join(construire, "runtime/src/kitchen"), { recursive: true });
     writeFileSync(join(construire, "runtime/package.json"), `{\n  "name": "brigade-runtime",\n  "version": "${version}",\n  "type": "module"\n}\n`);
-    writeFileSync(join(construire, "runtime/src/station/main.ts"), "// la station\n");
+    writeFileSync(join(construire, "runtime/src/kitchen/main.ts"), "// la station\n");
     const nomNode = `node-${VERSION_NODE}-darwin-arm64`;
     mkdirSync(join(construire, nomNode, "bin"), { recursive: true });
     // Le node posé : il dit sa version, et ce que la station verrait.
@@ -476,7 +474,7 @@ describe("la même station que sur un Mac", { skip: saut }, () => {
     // Le PC, sur la même version.
     const pc = unPC(t, serveur(t, "1.2.3"));
     assert.equal(jouer(pc, { BRIGADE_TERMINAL: unTerminal(t) }).code, 0);
-    await jusqua(() => lire(pc.journal).includes("station src/station/main.ts"));
+    await jusqua(() => lire(pc.journal).includes("station src/kitchen/main.ts"));
 
     // Ce que la station voit, chaque chemin relatif à la maison du compte.
     const vu = (ligne: string, maison: string) => {
@@ -486,7 +484,7 @@ describe("la même station que sur un Mac", { skip: saut }, () => {
     const surMac = vu(vuMac, maisonMac);
     const surPC = vu(lire(pc.journal), pc.maison);
     assert.equal(surPC.entree, surMac.entree);
-    assert.equal(surPC.entree, "src/station/main.ts");
+    assert.equal(surPC.entree, "src/kitchen/main.ts");
     // Le même répertoire : celui de l'app, sous la maison du compte, sur l'un comme sur l'autre.
     assert.equal(surPC.racine, surMac.racine);
     assert.equal(surPC.racine, ".config/brigade/station");

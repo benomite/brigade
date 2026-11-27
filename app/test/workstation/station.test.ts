@@ -103,7 +103,7 @@ test("la station refusée (code 2) est retentée d'elle-même avec un délai qui
   // Son point d'entrée est un process à lui : il reçoit le SIGTERM une fois démarré.
   await jusqua(() => fallen.dit().includes("prête"));
   await fallen.station.arreter();
-  assert.match(fallen.dit(), /arrêtée/);
+  await jusqua(() => /arrêtée/.test(fallen.dit()));
 });
 
 test("une station refusée parce qu'une autre tient encore le répertoire démarre d'elle-même dès que l'autre est partie (mise à jour à chaud)", async (t) => {

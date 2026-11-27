@@ -25,7 +25,7 @@ import { delimiter, join, resolve } from "node:path";
 export type Locations = {
   // `installee` : l'app du .dmg, `depot` : celle du clone.
   facon: "depot" | "installee";
-  // Le dossier du runtime : son point d'entrée de station y est sous `src/kitchen/main.ts`.
+  // Le dossier du runtime : son point d'entrée de station, la cuisine, y est sous `src/kitchen/main.ts`.
   runtime: string;
   // Le `node` qui joue la station.
   node: string;

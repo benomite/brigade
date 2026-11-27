@@ -1,11 +1,11 @@
 // Le premier ticket de `cantine`, écrit dans l'app (#3306) : le projet prêt, cet ordinateur choisi, le chef répond à la
 // question du second au-dessus du rail — son brouillon revient. Ce que le second rédige et ce que la création rend sont
-// figés ici, dans la forme du runtime (`runtime/src/premier-ticket/`).
-import type { Brouillon, Creation, Redaction } from "../../../runtime/src/premier-ticket/premier-ticket.ts";
+// figés ici, dans la forme que l'app reçoit (`app/src/first-ticket.ts`).
+import type { Creation, Draft, Redaction } from "../../../app/src/first-ticket.ts";
 import type { Etape } from "./commun.ts";
 import { CHOISIR_LE_RECOMMANDE } from "./parcours-premier-projet-commun.ts";
 
-export const BROUILLON: Brouillon = {
+export const BROUILLON: Draft = {
   title: "Show today's lunch menu on the home page",
   body: [
     "## Context",

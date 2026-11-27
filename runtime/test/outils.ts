@@ -379,13 +379,6 @@ export function appeler(commande: Commande, args: string[] = [], env: Record<str
   return { sortie: () => sortie, fin: jouer() };
 }
 
-// Un port libre à l'instant où il est tiré — et rien de plus : sous Linux, un
-// port fermé peut être redonné aussitôt à un voisin qui écoute sur le port 0.
-async function portFermeALInstant(): Promise<number> {
-  const [port = 0] = await portsFermesALInstant(1);
-  return port;
-}
-
 // Plusieurs ports libres à l'instant où ils sont tirés, tous différents : ils
 // sont tenus ensemble avant d'être fermés. Qui y lance un process doit savoir
 // se rejouer si un voisin a repris l'un d'eux entre-temps.
@@ -394,40 +387,6 @@ export async function portsFermesALInstant(combien: number): Promise<number[]> {
   const ports = await Promise.all(libres.map((libre) => new Promise<number>((resoudre) => libre.listen(0, "127.0.0.1", () => resoudre((libre.address() as AddressInfo).port)))));
   await Promise.all(libres.map((libre) => new Promise((fini) => libre.close(fini))));
   return ports;
-}
-
-// Ce que dit un process lancé sur un port qu'un autre tient : le refus de
-// l'arbitre, ou l'erreur du système telle que la porte la laisse remonter.
-const PORT_PRIS = /EADDRINUSE|est déjà pris|is already taken/;
-
-// Lance un process qui doit écouter sur un port posé par le chef — connu, donc,
-// avant le lancement. Le port est tiré puis fermé ; s'il a été repris entre-temps,
-// le process le dit en mourant, et un autre port est tiré. La reprise se compte
-// en essais, pas en temps. Rend le process ouvert et le port qu'il tient.
-export async function lancerSurPortPose(
-  t: TestContext,
-  fichier: string,
-  options: {
-    env: (port: number) => Record<string, string>;
-    // Ce que le process écrit une fois à l'écoute sur ce port.
-    ouvert: (port: number) => string;
-    essais?: number;
-    // Pour un test de cet outil : choisir les ports tirés.
-    tirer?: (tirer: () => Promise<number>) => Promise<number>;
-  },
-): Promise<{ enfant: Enfant; port: number }> {
-  const { essais = 5, tirer = (tirer) => tirer() } = options;
-  for (let essai = 1; ; essai++) {
-    const port = await tirer(portFermeALInstant);
-    const enfant = lancer(t, fichier, [], options.env(port));
-    try {
-      await enfant.attendre(options.ouvert(port));
-      return { enfant, port };
-    } catch (erreur) {
-      if (!PORT_PRIS.test(enfant.sortie())) throw erreur;
-      if (essai === essais) throw new Error(`aucun port tenu en ${essais} essais, le dernier sur ${port} : ${enfant.sortie()}`);
-    }
-  }
 }
 
 export const DEPOT = "acme/brigade";

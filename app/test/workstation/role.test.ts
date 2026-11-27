@@ -27,8 +27,8 @@ test("sans runtime à côté d'elle, ou avec BRIGADE_APP_STATION=0, l'app d'un o
   assert.equal(roleOf({ plateforme: "linux", runtime: RUNTIME, env: { BRIGADE_APP_STATION: "1" } }).role, "station");
 });
 
-test("la station d'un ordinateur est la cuisine : le même point d'entrée que l'unité brigade-kitchen de la box (#4603)", () => {
-  const unite = readFileSync(join(RUNTIME, "deploy/brigade-kitchen.service"), "utf8");
+test("la station d'un ordinateur est celle d'un serveur : le même point d'entrée que le service du paquet Debian", () => {
+  const unite = readFileSync(join(RUNTIME, "paquet/systemd/brigade-station.service"), "utf8");
   const [, launches] = /^ExecStart=\S+ (\S+)$/m.exec(unite) ?? [];
   // L'unité écrit le chemin à la façon de la box ; `join` le dit à celle de ce poste.
   assert.equal(join(launches ?? ""), PRINCIPAL);

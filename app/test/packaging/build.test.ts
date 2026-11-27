@@ -212,7 +212,7 @@ test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l
   const { BRIGADE_STATION_DIR: _, ...env } = process.env;
   const launches = spawnSync(process.execPath, [join(resources, "app", "src", "workstation", "envelope.ts"), role.role === "station" ? role.principal : ""], { cwd: locations.runtime, env, encoding: "utf8", input: "" });
   assert.equal(launches.status, 2, launches.stderr);
-  assert.match(launches.stderr, /refus de démarrer la station — BRIGADE_STATION_DIR n'est pas défini/);
+  assert.match(launches.stderr, /kitchen: BRIGADE_STATION_DIR is not set/);
 });
 
 test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le lien vers Applications", { skip: PACKAGES }, (t) => {

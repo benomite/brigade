@@ -58,15 +58,14 @@ The command shows the service's state, then two lines:
 ● brigade-station.service - brigade — la station de cette machine (tous ses projets)
      Loaded: loaded (…/brigade-station.service; enabled; …)
      Active: active (running) since …
-…
-… brigade : station démarrée — pid …, configuration /var/lib/brigade/projets ; aucun projet servi
 
 brigade : station installée et active — <version>
 brigade : tout ce qu'elle demande au système vient avec son paquet : sa vie courante ne demande aucune commande root
 ```
 
-**`active (running)` and `aucun projet servi`: the station is installed.** It is running, it will
-restart with the machine, and it waits for its projects.
+**`active (running)`: the station is installed.** It runs the kitchen (`runtime/src/kitchen/main.ts`), it
+will restart with the machine, and it waits for its projects: one line each in
+`/var/lib/brigade/kitchen/projects` ([`runtime/README.md`](runtime/README.md#declaring-a-project)).
 
 ### The GitHub connection
 
@@ -85,7 +84,7 @@ brigade : la connexion Max du compte brigade — le seul moment où elle te dema
 connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche. Il ne se fait qu'une fois
 …
 connexion Max faite : le jeton est rangé, lisible du seul compte de la station, avec sa date de création à côté — la station n'a plus à se reconnecter
-brigade : la suite : l'appairage avec l'app (…)
+brigade : la station est connectée à GitHub et à Claude — la suite : tes projets, une ligne chacun dans /var/lib/brigade/kitchen/projects (…)
 ```
 
 1. `claude` shows a link: open it in your browser, on any machine.
@@ -231,21 +230,13 @@ installer) if they are missing, then:
   checksums nodejs.org publishes, under `~/.local/share/brigade-station/`;
 - a launchd agent, `~/Library/LaunchAgents/brigade.station.plist`, which starts the station when you
   log in and restarts it if it stops — its log is `~/Library/Logs/brigade-station.log`;
-- the `brigade` command, `~/.local/bin/brigade`, with no administrator right: `brigade <project>
-  status` in a new Terminal. If `~/.local/bin` is not on your `PATH`, the command adds it to your
-  shell profile, once (`~/.zprofile` for zsh; for bash, the first of `~/.bash_profile`,
-  `~/.bash_login` and `~/.profile`); for another shell, it says where the command is;
 - then the GitHub connection (`gh auth login --web`) and the Claude connection (`claude auth login`,
   like the app's button), under your account, once each.
 
 `launchctl print gui/$(id -u)/brigade.station` says `state = running`. The station keeps the same
 directory as the app's (`~/.config/brigade/station`): only one of them runs at a time, and the
 other waits for it to stop. Rerunning the command is how a Mac station moves to the latest version:
-it replaces only what changed, and restarts the station only then. It rewrites the `brigade`
-command, and never adds its profile line twice.
-
-`brigade --help` and `brigade <project> help` say the same text on a Mac, on Windows and on a
-server: on each, the command runs the runtime's `src/station/geste.ts`, which holds it.
+it replaces only what changed, and restarts the station only then.
 
 ## On Windows
 
@@ -269,9 +260,6 @@ Windows** and **`gh`** with `winget` — Windows may ask you to allow their inst
   Task Manager's startup apps) and started right away; it relaunches the station five seconds after
   it stops on a failure, like a server's service — not when it refused to start. The station's log
   is `%LOCALAPPDATA%\brigade-station\brigade-station.log`;
-- the `brigade` command, `%LOCALAPPDATA%\brigade-station\bin\brigade.cmd`, whose directory goes on
-  your user `PATH` (user scope, no administrator right), once: `brigade <project> status` in a new
-  PowerShell or Command Prompt window;
 - then the GitHub connection (`gh auth login --web`, then `gh auth setup-git`) and the Claude
   connection (`claude auth login`, like the app's button), under your account, once each.
 
@@ -280,10 +268,14 @@ keeps the same directory as the app's (`%USERPROFILE%\.config\brigade\station`):
 runs at a time, and the other waits for it to stop. Its messages are in English: Windows PowerShell
 reads the script in the machine's code page, so it is kept plain ASCII.
 
+**A Windows station cooks nothing yet.** Windows has no sandbox the kitchen can put an agent in, so
+the kitchen launches no agent there and its log says why in one line
+([`runtime/isolation-and-network-filter.md`](runtime/isolation-and-network-filter.md)): serve your
+projects from a server or a Mac.
+
 Rerunning the command is safe, and it is how a Windows station moves to the latest version: it
 replaces only what changed, stops and restarts the station only then — leaving its cooks to finish
-their work, as on a server —, and does not redo a connection already made. It rewrites the
-`brigade` command, and never puts its directory on the `PATH` twice. If it stops on
+their work, as on a server —, and does not redo a connection already made. If it stops on
 `brigade: installation refused -- …` or `brigade: the station is installed, but …`, the line says
 why: fix it, and rerun the same command. A station built by hand installs from its archive:
 `powershell -ExecutionPolicy Bypass -File installer-station.ps1 .\brigade-station-windows.zip`.

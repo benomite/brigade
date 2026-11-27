@@ -39,14 +39,6 @@ describe("les raisons de refus en mots simples", () => {
     assert.equal(reasonOfRefusal("attend : mis de côté, sans motif")?.id, "sans-motif");
   });
 
-  test("les raisons de sortie des renvois épuisés (renvois.ts, `raisonDeSortie`) ont toutes leur phrase", () => {
-    const source = read("runtime/src/github-seul/renvois/renvois.ts");
-    const body = /function raisonDeSortie\([^)]*\): string \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? assert.fail("raisonDeSortie ne se lit plus");
-    const returns = body.match(/\breturn\b/g) ?? [];
-    const outputs = REASONS_OF_REFUSAL.filter(({ id }) => ["deja-remis", "ticket-de-fix", "calibrage-incomplet", "calibrage-au-plus-haut"].includes(id));
-    assert.equal(returns.length, outputs.length, "raisonDeSortie a une sortie de plus ou de moins que refusal.ts n'en dit");
-  });
-
   test("les messages de la station sur GitHub : cooks sans livraison, renvois épuisés", () => {
     assert.equal(refusalInClear("off the kitchen after 3 cooks without a delivery — the cook added nothing"), "Will not start: 3 cooks in a row stopped without delivering anything.");
     assert.equal(refusalInClear("still not mergeable after 2 sends back — the CI is red\n\nTaken off the kitchen (`served-elsewhere`): a human decides."), "Will not start: its delivery was sent back to a cook 2 times and is still not mergeable.");
