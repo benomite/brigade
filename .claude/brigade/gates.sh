@@ -839,6 +839,23 @@ ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution 
 # total, et le relevé montrerait une chute au lieu d'une absence.
 if [ "$SUITE_ROUGE" -eq 1 ]; then NB_TESTS=""; MS_TESTS=""; fi
 
+# 6 sexies. Le savoir-faire reste trié (#4549) : une leçon s'insère à sa place
+# alphabétique, pas à la fin, pour que deux PR qui ajoutent une leçon ne
+# s'entrent pas en conflit (GitHub ignore `merge=union`). Ne juge que les
+# entrées que le changement ajoute ou modifie, contre la base.
+if [ -f .brigade/know-how.md ]; then
+  BASE_KH="$(mktemp)"
+  git show "$BASE:.brigade/know-how.md" >"$BASE_KH" 2>/dev/null || : >"$BASE_KH"
+  python3 .claude/brigade/know-how-ordre.py .brigade/know-how.md "$BASE_KH" >&2
+  kh=$?
+  rm -f "$BASE_KH"
+  case $kh in
+    0) ok "savoir-faire trié : chaque leçon ajoutée est à sa place" ;;
+    2) rc=1 ;;
+    *) fail "le contrôle de l'ordre du savoir-faire n'a pas abouti" ;;
+  esac
+fi
+
 # 8. Ce que ce passage a coûté : le temps PROCESSEUR de ce script et de tout ce
 # qu'il a lancé puis attendu, utilisateur et système, l'horloge, et la charge du
 # poste à l'arrivée. Une mesure imprimée, qui ne juge rien.

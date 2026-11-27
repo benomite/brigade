@@ -21,6 +21,7 @@ Chaque projet a un seul fichier de savoir-faire, `.brigade/know-how.md`.
   ```
 
 - **Format d'une entrée** : une seule ligne, `- texte (#ticket)`, placée sous `## Conventions`, `## Pitfalls` ou `## Tools`. Elle commence par `- ` et finit par le numéro du ticket source entre parenthèses, par exemple `- Run the linter before the push. (#1234)`.
+- **Ordre** : dans chaque section, les entrées sont triées par ordre alphabétique de leur ligne (sans tenir compte de la casse). Insère ta leçon à sa place, **jamais à la fin** : deux cooks qui ajoutent chacun une leçon à la fin du même fichier font conflit à la fusion de la seconde PR, et GitHub ignore `merge=union` du `.gitattributes`. Les gates refusent une entrée ajoutée hors de sa place.
 - **Ajout** : si tu as appris quelque chose de réutilisable, ajoute une entrée par leçon, avec le numéro du ticket courant, **dans la même PR que ta livraison** : la pass la relit comme tout autre changement. Si tu n'as rien appris, n'ajoute rien.
 - **Entrées des autres tickets** : tu ne les supprimes ni ne les réécris jamais. Le closer les élague.
 
