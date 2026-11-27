@@ -143,7 +143,7 @@ export function openKitchen(options: KitchenOptions) {
     if (ahead === "0") return sendBack(issue, `the cook delivered nothing${run.end.erreur ? ` (${run.end.erreur})` : ""}: ${run.result.slice(-600) || "no last words"}`, true);
     try {
       await git(wt, ["push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branchOf(issue.number)}`]);
-      await act.openPr(issue.number, base, issue.title).catch((error: Error) => (/already exists/.test(error.message) ? "" : Promise.reject(error)));
+      await act.openPr(issue.number, base, issue.title, mask(run.result));
       await act.labels(issue.number, [LABELS.inPass], [LABELS.taken]);
       log(`#${issue.number} delivered`);
     } catch (error) {
@@ -207,7 +207,7 @@ export function openKitchen(options: KitchenOptions) {
       }
       case "review": {
         const wt = await prepare(action.issue, true);
-        const input = text.pass({ issue: action.issue, base, pr: action.pr, ticket: await ticketText(gh, repo, action.issue) });
+        const input = text.pass({ issue: action.issue, base, pr: action.pr, ticket: await ticketText(gh, repo, action.issue), description: await act.prBody(action.pr) });
         startRun(runs, { kind: "pass", issue: action.issue, pr: action.pr, worktree: wt }, options.launch("pass", wt, false, JUDGE, input));
         return log(`#${action.issue} in review (PR #${action.pr})`);
       }
