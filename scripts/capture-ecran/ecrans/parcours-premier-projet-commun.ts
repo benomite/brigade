@@ -3,13 +3,13 @@
 // cuit, puis sa mise en place s'il le faut, puis prêt. Le second de « cantine » est à droite ; le titre que `claude`
 // donne à son terminal dit s'il tourne.
 import { TITRE as TITRE_DE_LA_PR_DE_SETUP } from "../../../runtime/src/second-init/pr-de-setup.ts";
-import type { Projet } from "../../../app/src/config.ts";
-import type { Terminal } from "../../../app/src/terminaux.ts";
+import type { Project } from "../../../app/src/config.ts";
+import type { Terminal } from "../../../app/src/terminals.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { COMPTE } from "./premier-lancement-commun.ts";
 
-const CANTINE: Projet = { ...(PROJETS.find(({ nom }) => nom === "cantine") ?? PROJETS[0]!), depot: "chef/cantine", base: "main" };
+const CANTINE: Project = { ...(PROJETS.find(({ nom }) => nom === "cantine") ?? PROJETS[0]!), depot: "chef/cantine", base: "main" };
 const SECOND: Terminal = { id: 1, projet: "cantine", genre: "second", titre: "second · claude", note: "", arrete: false };
 // Ce que le second affiche : `claude` qui lit le dépôt, le titre de son terminal au travail (« ◐ »). Pas un vrai.
 const ECRAN_DU_SECOND = ["\x1b]0;◐ Setting up cantine for Brigade\x07\x1b[1msecond · cantine\x1b[0m", "", "  Reading chef/cantine: its default branch, its test scripts, its folders…", ""].join("\r\n");

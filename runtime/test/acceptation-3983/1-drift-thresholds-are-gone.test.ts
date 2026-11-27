@@ -13,7 +13,7 @@ test("the drift thresholds are listed in neither the settings, the app caps list
   const restes = CLES.filter((cle) => cle in SEUILS_DU_PROJET.drift);
   assert.deepEqual(restes, [], "settings still declare drift thresholds");
 
-  const caps = readFileSync(join(RACINE, "app/src/plafonds-duree.ts"), "utf8");
+  const caps = readFileSync(join(RACINE, "app/src/caps-duration.ts"), "utf8");
   const doc = readFileSync(join(RACINE, "docs/reglages.md"), "utf8");
   for (const cle of CLES) {
     assert.ok(!caps.includes(`cle: "${cle}"`), `app caps list still has ${cle}`);

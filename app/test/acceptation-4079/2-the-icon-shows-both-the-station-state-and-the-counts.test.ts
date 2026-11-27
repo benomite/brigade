@@ -9,12 +9,12 @@ const TRAY = join(import.meta.dirname, "../../src/tray");
 
 test("the tray code of app/src/tray/ carries the station state and the counts", () => {
   assert.ok(existsSync(TRAY), "app/src/tray/ exists");
-  const texte = readdirSync(TRAY, { recursive: true, encoding: "utf8" })
+  const text = readdirSync(TRAY, { recursive: true, encoding: "utf8" })
     .filter((f) => f.endsWith(".ts"))
     .map((f) => readFileSync(join(TRAY, f), "utf8"))
     .join("\n");
-  assert.match(texte, /no project on this station/);
-  assert.match(texte, /cooking · /);
-  assert.match(texte, /for you/);
-  assert.match(texte, /setToolTip|setTitle|setContextMenu/);
+  assert.match(text, /no project on this station/);
+  assert.match(text, /cooking · /);
+  assert.match(text, /for you/);
+  assert.match(text, /setToolTip|setTitle|setContextMenu/);
 });

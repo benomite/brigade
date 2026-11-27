@@ -1,4 +1,4 @@
-// L'écran d'une station lit le plafond de cooks de `box` dans son `status` par le code de l'app (plafond.ts) ; l'app ne
+// L'écran d'une station lit le plafond de cooks de `box` dans son `status` par le code de l'app (cap.ts) ; l'app ne
 // lit plus de retenue de saturation (#4285) : l'écran ne la demande plus, et se charge.
 import assert from "node:assert/strict";
 import { test } from "node:test";

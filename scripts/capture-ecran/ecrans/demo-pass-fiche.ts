@@ -1,12 +1,12 @@
 // Scène 5 de la démo (ticket 2875), côté app : la fiche de #21, servi, ouverte par sa carte dans la colonne Served de
 // « parade » — son histoire, de l'arrivée sur le rail au merge de la pass, et son coût.
-import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
-import { situationDe } from "../../../app/src/histoire.ts";
-import { discussionDe, type HistoireBrute, histoireDe } from "../../../app/test/aides/fiches-dites.ts";
+import { actionsOfCard } from "../../../app/src/card-actions.ts";
+import { situationOf } from "../../../app/src/story.ts";
+import { discussionOf, type StoryRaw, storyOf } from "../../../app/test/helpers/cards-said.ts";
 import { carteDe, type Ecran } from "./commun.ts";
 import { donneesDe, OUVRIR_PARADE, SERVI } from "./demo-commun.ts";
 
-const HISTOIRE: HistoireBrute = {
+const HISTOIRE: StoryRaw = {
   ticket: 21,
   steps: [
     { kind: "arrived", at: "2026-10-13T09:20:02.000Z" },
@@ -36,6 +36,6 @@ export const ecran: Ecran = {
   etapes: [OUVRIR_PARADE, { cliquer: "#rail .colonne[data-defile] li.bon:first-child" }],
   donnees: () => {
     const carte = carteDe(SERVI, "parade", 21);
-    return donneesDe(SERVI, { situation: situationDe(carte), gestesDeFiche: gestesDeCarte(carte), lireHistoire: histoireDe(HISTOIRE), lireDiscussion: discussionDe(ISSUE) });
+    return donneesDe(SERVI, { situation: situationOf(carte), gestesDeFiche: actionsOfCard(carte), lireHistoire: storyOf(HISTOIRE), lireDiscussion: discussionOf(ISSUE) });
   },
 };

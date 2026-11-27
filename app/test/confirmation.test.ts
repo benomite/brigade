@@ -4,87 +4,87 @@
 // qui n'écrirait rien refuse à la place. Rien ne part d'ici : confirmation.ts dit, il ne lance rien.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { AVERTISSEMENT as ALLUMER } from "../src/allumage.ts";
-import type { Cuisine } from "../src/box.ts";
-import type { Projet } from "../src/config.ts";
-import { confirmationDe, type Confirmation, type Lus } from "../src/confirmation.ts";
-import type { Faits } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
+import { WARNING as TURN_ON } from "../src/power-up.ts";
+import type { Kitchen } from "../src/box.ts";
+import type { Project } from "../src/config.ts";
+import { confirmationOf, type Confirmation, type Read } from "../src/confirmation.ts";
+import type { Facts } from "../src/facts.ts";
+import { CONFIRMED, DIRECT } from "../src/actions.ts";
 
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
-const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
-const LU = "2026-10-13T10:00:00.000Z";
+const PARADE: Project = { nom: "parade", dossier: "/tmp/parade" };
+const KITCHEN: Kitchen = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
+const READ = "2026-10-13T10:00:00.000Z";
 
-const faits = (plus: Partial<Faits> = {}): Faits => ({
+const facts = (more: Partial<Facts> = {}): Facts => ({
   etat: "ouverte",
-  lu: LU,
-  dernierTick: LU,
+  lu: READ,
+  dernierTick: READ,
   compteurs: { rail: 4, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
   dernierEvenement: null,
   rail: [{ ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "" }],
-  ...plus,
+  ...more,
 });
-const lus = (plus: Partial<Faits> = {}): Lus => ({ faits: faits(plus), a: LU });
-const PAS_LUS: Lus = { sans: "`facts` n'a pas encore été lu pour ce projet" };
+const readOnes = (more: Partial<Facts> = {}): Read => ({ faits: facts(more), a: READ });
+const NOT_READ: Read = { sans: "`facts` n'a pas encore été lu pour ce projet" };
 
 // Une confirmation, pas un refus.
-function confirmee(rendu: ReturnType<typeof confirmationDe>): Confirmation {
-  assert.ok(rendu !== undefined && !("refus" in rendu), JSON.stringify(rendu));
-  return rendu;
+function confirmed(rendered: ReturnType<typeof confirmationOf>): Confirmation {
+  assert.ok(rendered !== undefined && !("refus" in rendered), JSON.stringify(rendered));
+  return rendered;
 }
 
 describe("seul un geste confirmé a une confirmation", () => {
   test("un geste direct, ou que le socle ne connaît pas, n'en a pas : rien n'est à confirmer", () => {
-    for (const id of [...DIRECTS, "inconnu", 3, undefined]) assert.equal(confirmationDe(id, PARADE, lus(), CUISINE), undefined, String(id));
+    for (const id of [...DIRECT, "inconnu", 3, undefined]) assert.equal(confirmationOf(id, PARADE, readOnes(), KITCHEN), undefined, String(id));
   });
 
   test("chaque geste confirmé du socle en a une — ou un refus qui dit pourquoi il ne s'offre pas — avec au moins un « oui » et un « non »", () => {
-    for (const id of CONFIRMES) {
-      const rendu = confirmationDe(id, PARADE, lus({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] }), CUISINE);
-      assert.ok(rendu !== undefined, id);
-      if ("refus" in rendu) continue;
-      assert.notEqual(rendu.titre.trim(), "", id);
-      assert.ok(rendu.prix.length > 0, id);
-      assert.ok(rendu.choix.length > 0 && rendu.choix.every((choix) => CONFIRMES.includes(choix.id)), id);
-      assert.notEqual(rendu.renoncer.trim(), "", id);
+    for (const id of CONFIRMED) {
+      const rendered = confirmationOf(id, PARADE, readOnes({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] }), KITCHEN);
+      assert.ok(rendered !== undefined, id);
+      if ("refus" in rendered) continue;
+      assert.notEqual(rendered.titre.trim(), "", id);
+      assert.ok(rendered.prix.length > 0, id);
+      assert.ok(rendered.choix.length > 0 && rendered.choix.every((choice) => CONFIRMED.includes(choice.id)), id);
+      assert.notEqual(rendered.renoncer.trim(), "", id);
     }
   });
 
   test("un geste qui n'écrirait rien n'a rien à confirmer : un projet dont la cuisine ne tourne pas ici n'en a pas", () => {
-    assert.equal(confirmationDe("stop", PARADE, lus(), undefined), undefined);
+    assert.equal(confirmationOf("stop", PARADE, readOnes(), undefined), undefined);
   });
 });
 
 describe("arrêter la cuisine dit les cooks en vol", () => {
   test("les cooks que `faits` donne sont nommés, ce qu'ils ont dépensé est dit manquant, avec l'heure de la lecture", () => {
-    const rendu = confirmee(confirmationDe("stop", PARADE, lus({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] }), CUISINE));
+    const rendered = confirmed(confirmationOf("stop", PARADE, readOnes({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] }), KITCHEN));
 
-    assert.equal(rendu.titre, "stop the kitchen");
-    assert.match(rendu.prix[0] ?? "", /stopped within the second, and nothing is harvested/);
-    assert.ok(rendu.prix.some((ligne) => /^1 cook running at this reading \(#14\) — what they spent, this station's runtime does not say/.test(ligne)));
-    assert.equal(rendu.lu, LU);
-    assert.deepEqual(rendu.choix.map(({ id }) => id), ["stop"]);
+    assert.equal(rendered.titre, "stop the kitchen");
+    assert.match(rendered.prix[0] ?? "", /stopped within the second, and nothing is harvested/);
+    assert.ok(rendered.prix.some((line) => /^1 cook running at this reading \(#14\) — what they spent, this station's runtime does not say/.test(line)));
+    assert.equal(rendered.lu, READ);
+    assert.deepEqual(rendered.choix.map(({ id }) => id), ["stop"]);
   });
 
   test("ce qui n'est pas lu se dit tel, jamais « aucun cook en vol »", () => {
-    for (const lu of [PAS_LUS, lus()]) {
-      const rendu = confirmee(confirmationDe("stop", PARADE, lu, CUISINE));
-      assert.ok(rendu.prix.some((ligne) => /not read.*This is not “no cook in flight”/.test(ligne)), JSON.stringify(rendu.prix));
+    for (const readOne of [NOT_READ, readOnes()]) {
+      const rendered = confirmed(confirmationOf("stop", PARADE, readOne, KITCHEN));
+      assert.ok(rendered.prix.some((line) => /not read.*This is not “no cook in flight”/.test(line)), JSON.stringify(rendered.prix));
     }
-    assert.equal(confirmee(confirmationDe("stop", PARADE, PAS_LUS, CUISINE)).lu, undefined);
+    assert.equal(confirmed(confirmationOf("stop", PARADE, NOT_READ, KITCHEN)).lu, undefined);
   });
 });
 
 describe("reprendre, allumer : chacun dit ce qu'il engage", () => {
   test("reprendre : les tickets repartent sur ton quota, et combien sont sur le rail", () => {
-    const rendu = confirmee(confirmationDe("reprendre", PARADE, lus(), CUISINE));
-    assert.match(rendu.prix[0] ?? "", /queued tickets start again right away, on your quota/);
-    assert.ok(rendu.prix.includes("4 tickets on the rail at this reading."));
+    const rendered = confirmed(confirmationOf("reprendre", PARADE, readOnes(), KITCHEN));
+    assert.match(rendered.prix[0] ?? "", /queued tickets start again right away, on your quota/);
+    assert.ok(rendered.prix.includes("4 tickets on the rail at this reading."));
   });
 
   test("allumer le projet : l'avertissement de la doc, et ses deux nombres à demander à la station", () => {
-    const rendu = confirmee(confirmationDe("projet-allumer", PARADE, PAS_LUS, CUISINE));
-    assert.deepEqual(rendu.prix, [ALLUMER]);
-    assert.equal(rendu.chiffrer, true);
+    const rendered = confirmed(confirmationOf("projet-allumer", PARADE, NOT_READ, KITCHEN));
+    assert.deepEqual(rendered.prix, [TURN_ON]);
+    assert.equal(rendered.chiffrer, true);
   });
 });

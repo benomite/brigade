@@ -9,7 +9,7 @@ as it is today, and says where the chef's view is not built yet.
 `runtime/src/github-limite.ts` (the kind of limit GitHub named, the entry on the account),
 `runtime/src/appels-github/quota-github.ts` (the `quotaGithub` field), `runtime/src/etat.ts` and
 `runtime/src/status.ts` (`status`), `runtime/src/enregistrement-station/enregistrer.ts` (the heartbeat),
-`app/src/budget-github.ts` and `app/src/alertes.ts` (the app). Background:
+`app/src/budget-github.ts` and `app/src/alerts.ts` (the app). Background:
 [`station-machine.md`](station-machine.md), section "One station per machine".*
 
 ## One quota per account, shared by the whole station
@@ -141,7 +141,7 @@ first successful call of that account after it (an HTTP status below 400) remove
   turn is slowed by the quota, the station does not wait for that turn. It says `GitHub-only turn on <repo> —
   slowed by the low GitHub quota, resumes at HH:MM UTC` and goes on with its other projects. The slowed turn
   ends on its own once the delay is over, and the project gets new turns again after that (#3705).
-- **The app's alert band**, in the chef's local time (`app/src/alertes.ts`): `GitHub is rate-limiting
+- **The app's alert band**, in the chef's local time (`app/src/alerts.ts`): `GitHub is rate-limiting
   calls, back around HH:MM`. Each project of the account says it, since each receives the same entry.
 - **The app's own pause** (`app/src/budget-github.ts`): the app reads GitHub with the chef's token. When
   less than 20% of the hourly GitHub budget is left (`SEUIL_DU_BUDGET`), or after a refusal for going over,

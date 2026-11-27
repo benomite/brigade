@@ -11,21 +11,21 @@ export type Decision = { quoi: string; motif: string | null; cause: string | nul
 
 // Les gestes qui tranchent une décision : la sortir du rail, ouvrir l'issue
 // — là où le chef répond, recalibre ou corrige —, la renvoyer en cuisine.
-export type GesteAttendu = "retirer" | "issue" | "cuisine";
+export type ActionExpected = "retirer" | "issue" | "cuisine";
 // `phrase` : la question, en une phrase. `sansQuestion` : aucune question n'a été trouvée, la phrase le dit.
-export type Attendu = { phrase: string; gestes: GesteAttendu[]; sansQuestion?: true };
+export type Expected = { phrase: string; gestes: ActionExpected[]; sansQuestion?: true };
 
 // Le texte d'une carte dont on ne trouve pas la question : il dit le fait, il n'envoie pas le chef à l'issue.
-export const sansQuestion = (ticket: number): string => `no question found on #${ticket}`;
+export const withoutQuestion = (ticket: number): string => `no question found on #${ticket}`;
 
 // Une livraison verte que la pass ne merge pas elle-même : elle se merge sur sa PR, sur GitHub — aucun geste de l'app.
-const VERTE: Readonly<Record<string, string>> = {
+const GREEN: Readonly<Record<string, string>> = {
   "review-required": "Green, but it touches what judges it or what the project opens: review it, then merge it.",
   "merge-refused": "Green, but GitHub refused the merge: clear what it refuses, then merge it.",
 };
 
 // Les 86 que la station pose sans heure de retour.
-const DE_STATION: Readonly<Record<string, Attendu>> = {
+const OF_STATION: Readonly<Record<string, Expected>> = {
   "no-calibration": { phrase: "It has no calibration: put its model and effort labels on its issue — it starts again on its own.", gestes: ["issue"] },
   "unreadable-card": { phrase: "Its card cannot be read: fix the card on its issue — it starts again on its own.", gestes: ["issue"] },
   refused: { phrase: "The model refused it three times: reword or recalibrate its issue, or take it off the rail.", gestes: ["issue", "retirer"] },
@@ -33,47 +33,47 @@ const DE_STATION: Readonly<Record<string, Attendu>> = {
 
 // Les issues que le manager a parquées pour le chef (`chef-todo`, #4129), comme la box le dit (runtime/src/attend.ts,
 // `GESTES_D_ECART_EN`) : sa carte porte la question ou la décision, et sa réponse la fait reprendre.
-const ECARTEES: Readonly<Record<string, Attendu>> = {
+const ECARTEES: Readonly<Record<string, Expected>> = {
   question: { phrase: "The manager parked it for you with a question: answer its card, the manager judges it again.", gestes: ["issue"] },
   decision: { phrase: "The manager parked it for you, for your decision: answer its card, the manager judges it again.", gestes: ["issue"] },
 };
 
 // Ce qui sort une remontée : le retrait du rail ; la phrase dit en plus que la PR, s'il y en a une, se merge sur GitHub.
-const SORTIR = (pr: string | null): Pick<Attendu, "gestes"> & { suite: string } => ({
+const EXIT = (pr: string | null): Pick<Expected, "gestes"> & { suite: string } => ({
   suite: pr === null ? "take it off the rail, or close its issue." : "merge it anyway, or take it off the rail.",
   gestes: ["retirer"],
 });
 
-function remontee({ motif, cause, pr }: Decision): Attendu {
-  const { suite, gestes } = SORTIR(pr);
-  if (motif === "still-red") return { phrase: `${cause === "manager-escalated" ? "The manager gave up after repeated reds" : "Still red after its returns, the pass gave up"}: ${suite}`, gestes };
-  if (motif === "unjudged") return { phrase: `The pass could not judge it: ${suite}`, gestes };
-  return { phrase: `Sent back to you: ${suite}`, gestes };
+function raised({ motif: motive, cause, pr }: Decision): Expected {
+  const { suite, gestes: actions } = EXIT(pr);
+  if (motive === "still-red") return { phrase: `${cause === "manager-escalated" ? "The manager gave up after repeated reds" : "Still red after its returns, the pass gave up"}: ${suite}`, gestes: actions };
+  if (motive === "unjudged") return { phrase: `The pass could not judge it: ${suite}`, gestes: actions };
+  return { phrase: `Sent back to you: ${suite}`, gestes: actions };
 }
 
 // `question` : celle que la carte de TODO lue de l'issue porte (`CarteLue.question`), quand la `faits` la donne.
-export function attenduDe(decision: Decision | undefined, ticket: number, question?: string | null): Attendu {
-  const sans = (gestes: GesteAttendu[]): Attendu => ({ phrase: sansQuestion(ticket), gestes, sansQuestion: true });
+export function expectedOf(decision: Decision | undefined, ticket: number, question?: string | null): Expected {
+  const without = (actions: ActionExpected[]): Expected => ({ phrase: withoutQuestion(ticket), gestes: actions, sansQuestion: true });
   // Une question que l'issue porte dit ce qu'on attend mieux que toute phrase de sorte : la première, en une phrase.
   // Une décision de carte la porte aussi dans sa `cause` (runtime, `decisionDe`).
-  const dite = question ?? (decision?.quoi === "carte" ? decision.cause : null);
-  const demande = typeof dite === "string" ? premierePhrase(dite) : "";
-  if (decision === undefined) return demande === "" ? sans([]) : { phrase: demande, gestes: [] };
-  const attendu = attenduDeSorte(decision, sans);
-  return demande === "" ? attendu : { phrase: demande, gestes: attendu.gestes };
+  const saidOne = question ?? (decision?.quoi === "carte" ? decision.cause : null);
+  const request = typeof saidOne === "string" ? firstSentence(saidOne) : "";
+  if (decision === undefined) return request === "" ? without([]) : { phrase: request, gestes: [] };
+  const expected = expectedOfKind(decision, without);
+  return request === "" ? expected : { phrase: request, gestes: expected.gestes };
 }
 
-function attenduDeSorte(decision: Decision, sans: (gestes: GesteAttendu[]) => Attendu): Attendu {
-  const { quoi, motif } = decision;
-  switch (quoi) {
+function expectedOfKind(decision: Decision, without: (actions: ActionExpected[]) => Expected): Expected {
+  const { quoi: what, motif: motive } = decision;
+  switch (what) {
     case "merge":
-      return { phrase: (motif === null ? undefined : VERTE[motif]) ?? "Green, but not merged: merge it yourself.", gestes: [] };
+      return { phrase: (motive === null ? undefined : GREEN[motive]) ?? "Green, but not merged: merge it yourself.", gestes: [] };
     case "remontee":
-      return remontee(decision);
+      return raised(decision);
     case "fermee":
       return { phrase: "Its PR was closed without a merge: take it off the rail, or close its issue.", gestes: ["retirer"] };
     case "86":
-      return (motif === null ? undefined : DE_STATION[motif]) ?? sans(["issue"]);
+      return (motive === null ? undefined : OF_STATION[motive]) ?? without(["issue"]);
     case "capacite":
       return { phrase: "No declared station provides what it needs: provide it, and it starts again on its own.", gestes: [] };
     case "absente":
@@ -81,86 +81,86 @@ function attenduDeSorte(decision: Decision, sans: (gestes: GesteAttendu[]) => At
     case "bloque":
       return { phrase: "It waits for a ticket that left the rail unserved: put that ticket back on the rail, or drop it from this ticket's card.", gestes: ["issue"] };
     case "ecartee":
-      return (motif === null ? undefined : ECARTEES[motif]) ?? sans(["issue"]);
+      return (motive === null ? undefined : ECARTEES[motive]) ?? without(["issue"]);
     case "illisible":
-      return motif === "epic"
+      return motive === "epic"
         ? { phrase: "The manager could not read its split: edit the epic and it splits it again, or close the issue.", gestes: ["issue"] }
         : { phrase: "The manager's judgement of it cannot be read: edit the issue and it judges it again, or close the issue.", gestes: ["issue"] };
     case "question":
       return { phrase: "The manager asks a question before splitting this epic: answer it on the issue.", gestes: ["issue"] };
     case "carte":
       // Une carte entrée par la porte de TODO : sa question est dite plus haut ; arrivé ici, elle n'en porte aucune.
-      return sans([]);
+      return without([]);
     case "repris":
       return { phrase: "Back from parked, it waits for you: send it back to the kitchen, or take it off the rail.", gestes: ["cuisine", "retirer"] };
     case "abandon":
       // Sorti du rail par la cuisine sans être servi (#2118) : ses trois gestes sont les choix de sa carte.
       return { phrase: "The kitchen took it off the rail without serving it: put it back, take it in a dev session, or close it — its card says why.", gestes: [] };
     default:
-      return sans([]);
+      return without([]);
   }
 }
 
-const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
-const texteOuRien = (valeur: unknown): valeur is string | null => valeur === null || texte(valeur);
+const text = (value: unknown): value is string => typeof value === "string";
+const textOrNothing = (value: unknown): value is string | null => value === null || text(value);
 
 // La même, venue d'ailleurs — la vue, une sortie de box : ce qui n'a pas la forme d'une décision n'en est pas une.
-export function decisionLue(brute: unknown): Decision | undefined {
-  if (typeof brute !== "object" || brute === null) return undefined;
-  const { quoi, motif, cause, pr } = brute as Record<string, unknown>;
-  return texte(quoi) && texteOuRien(motif) && texteOuRien(cause) && texteOuRien(pr) ? { quoi, motif, cause, pr } : undefined;
+export function decisionRead(raw: unknown): Decision | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { quoi: what, motif: motive, cause, pr } = raw as Record<string, unknown>;
+  return text(what) && textOrNothing(motive) && textOrNothing(cause) && textOrNothing(pr) ? { quoi: what, motif: motive, cause, pr } : undefined;
 }
 
 // Ce que la pass a consigné de la livraison qui attend (runtime/src/attend.ts, `Livraison`) : le
 // résumé de sa relecture, son premier constat bloquant, les fichiers de ses juges qu'elle change.
-export type Juge = { fichier: string; ajoutees: number; retirees: number };
-export type Livraison = { resume?: string; constat?: string; juges?: Juge[] };
+export type Judge = { fichier: string; ajoutees: number; retirees: number };
+export type Delivery = { resume?: string; constat?: string; juges?: Judge[] };
 
 // La tête de la fiche d'une livraison qui attend un merge, en deux lignes : `fait`, ce qu'elle
 // fait — la première phrase du résumé de sa relecture, absente quand la relecture n'en donne pas —,
 // et `pourquoi`, pourquoi elle t'attend. `juges` : les fichiers de ses juges qu'elle change, un par
 // ligne, avec les lignes ajoutées et retirées — rien de rédigé.
-export type Tete = { fait?: string; pourquoi: string; juges: Juge[] };
+export type Head = { fait?: string; pourquoi: string; juges: Judge[] };
 
 // La première phrase d'un texte : jusqu'au premier point suivi d'un blanc, sinon tout, sur une ligne.
-export function premierePhrase(texte: string): string {
-  const une = texte.trim().replace(/\s+/g, " ");
-  const fin = une.search(/[.!?](\s|$)/);
-  return fin === -1 ? une : une.slice(0, fin + 1);
+export function firstSentence(text: string): string {
+  const one = text.trim().replace(/\s+/g, " ");
+  const end = one.search(/[.!?](\s|$)/);
+  return end === -1 ? one : one.slice(0, end + 1);
 }
 
-const encore = (suite: string | undefined) => (suite === undefined ? "" : `: ${premierePhrase(suite)}`);
+const still = (suite: string | undefined) => (suite === undefined ? "" : `: ${firstSentence(suite)}`);
 
 // Rien pour une décision qui n'est pas une livraison, pour une livraison dont la pass n'a rien
 // consigné, ni pour une livraison dont le motif n'est pas l'un des trois : la phrase d'`attenduDe` suffit.
-export function teteDe(decision: Decision | undefined, livraison: Livraison | undefined): Tete | undefined {
-  if (decision === undefined || livraison === undefined || Object.keys(livraison).length === 0) return undefined;
-  const { quoi, motif, cause } = decision;
-  const juges = livraison.juges ?? [];
-  const pourquoi =
-    quoi === "merge" && motif === "review-required" && juges.length > 0
+export function headOf(decision: Decision | undefined, delivery: Delivery | undefined): Head | undefined {
+  if (decision === undefined || delivery === undefined || Object.keys(delivery).length === 0) return undefined;
+  const { quoi: what, motif: motive, cause } = decision;
+  const judges = delivery.juges ?? [];
+  const why =
+    what === "merge" && motive === "review-required" && judges.length > 0
       ? "Green, but it touches the judges: review it."
-      : quoi === "remontee" && motif === "still-red"
+      : what === "remontee" && motive === "still-red"
         ? cause === "manager-escalated"
-          ? `Red, the manager gave up${encore(livraison.constat)}`
-          : `Red after 2 returns${encore(livraison.constat)}`
-        : quoi === "remontee" && motif === "unjudged" && cause === "ci-silent"
+          ? `Red, the manager gave up${still(delivery.constat)}`
+          : `Red after 2 returns${still(delivery.constat)}`
+        : what === "remontee" && motive === "unjudged" && cause === "ci-silent"
           ? "Green, the CI did not conclude."
           : undefined;
-  if (pourquoi === undefined) return undefined;
-  const fait = livraison.resume === undefined || livraison.resume.trim() === "" ? undefined : premierePhrase(livraison.resume);
-  return { ...(fait === undefined ? {} : { fait }), pourquoi, juges };
+  if (why === undefined) return undefined;
+  const done = delivery.resume === undefined || delivery.resume.trim() === "" ? undefined : firstSentence(delivery.resume);
+  return { ...(done === undefined ? {} : { fait: done }), pourquoi: why, juges: judges };
 }
 
-const nombre = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isFinite(valeur);
+const count = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 // La même, venue de la box : ce qui n'a pas sa forme n'est pas lu.
-export function livraisonLue(brute: unknown): Livraison | undefined {
-  if (typeof brute !== "object" || brute === null) return undefined;
-  const { resume, constat, juges } = brute as Record<string, unknown>;
-  const lus = (Array.isArray(juges) ? juges : []).flatMap((juge: unknown): Juge[] => {
-    const { fichier, ajoutees, retirees } = (typeof juge === "object" && juge !== null ? juge : {}) as Record<string, unknown>;
-    return texte(fichier) && nombre(ajoutees) && nombre(retirees) ? [{ fichier, ajoutees, retirees }] : [];
+export function readDelivery(raw: unknown): Delivery | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const { resume, constat: finding, juges: judges } = raw as Record<string, unknown>;
+  const readOnes = (Array.isArray(judges) ? judges : []).flatMap((judge: unknown): Judge[] => {
+    const { fichier: file, ajoutees: added, retirees: removed } = (typeof judge === "object" && judge !== null ? judge : {}) as Record<string, unknown>;
+    return text(file) && count(added) && count(removed) ? [{ fichier: file, ajoutees: added, retirees: removed }] : [];
   });
-  return { ...(texte(resume) ? { resume } : {}), ...(texte(constat) ? { constat } : {}), ...(lus.length > 0 ? { juges: lus } : {}) };
+  return { ...(text(resume) ? { resume } : {}), ...(text(finding) ? { constat: finding } : {}), ...(readOnes.length > 0 ? { juges: readOnes } : {}) };
 }

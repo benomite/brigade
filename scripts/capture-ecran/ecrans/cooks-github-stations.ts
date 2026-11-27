@@ -5,7 +5,7 @@
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { renduDeParade, signe, SUR_GITHUB, TABLEAU_FIGE, ticket } from "./github-seul-commun.ts";
-import { avecLeRail } from "../../../app/src/vue/rail/github.ts";
+import { withTheRail } from "../../../app/src/vue/rail/github.ts";
 
 const RAIL = { ...SUR_GITHUB, tickets: SUR_GITHUB.tickets.map((lu) => (lu.ticket === 16 ? ticket(16, "en attente", { priorite: 2 }) : lu)) };
 const SIGNES = { lus: [signe("box", "2026-10-13T10:03:10.000Z"), signe("MacBook Pro", "2026-10-13T10:03:20.000Z"), signe("PC du salon", "2026-10-10T18:40:00.000Z")] };
@@ -15,5 +15,5 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 900,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
-  donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] }, envois: cuisine({ ...RENDUS, parade: renduDeParade(avecLeRail(TABLEAU_FIGE, RAIL, SIGNES)) }) }),
+  donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] }, envois: cuisine({ ...RENDUS, parade: renduDeParade(withTheRail(TABLEAU_FIGE, RAIL, SIGNES)) }) }),
 };

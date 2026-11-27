@@ -7,9 +7,9 @@ import { test } from "node:test";
 const PACKAGING = join(import.meta.dirname, "../../packaging");
 
 test("app/packaging/ holds a check, besides construire.ts, that reads the built Info.plist and requires the name 'Brigade'", () => {
-  const verifications = readdirSync(PACKAGING).filter((nom) => /\.(ts|mjs|js|sh)$/.test(nom) && nom !== "construire.ts").filter((nom) => {
-    const texte = readFileSync(join(PACKAGING, nom), "utf8");
-    return texte.includes("Info.plist") && texte.includes("CFBundleName") && texte.includes("CFBundleDisplayName") && texte.includes("Brigade") && /exit\(1\)|exit 1|throw|assert|process\.exitCode/.test(texte);
+  const verifications = readdirSync(PACKAGING).filter((name) => /\.(ts|mjs|js|sh)$/.test(name) && name !== "construire.ts").filter((name) => {
+    const text = readFileSync(join(PACKAGING, name), "utf8");
+    return text.includes("Info.plist") && text.includes("CFBundleName") && text.includes("CFBundleDisplayName") && text.includes("Brigade") && /exit\(1\)|exit 1|throw|assert|process\.exitCode/.test(text);
   });
   assert.notDeepEqual(verifications, []);
 });

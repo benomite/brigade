@@ -2,7 +2,7 @@
 // mots ; la commande exacte que le second a publiée par son canal (runtime/src/second-propositions/) est à son survol, entière
 // même longue. Rien n'est lancé : un clic ouvre la confirmation (`second-geste-confirmation`), où elle se lit dans une aide repliée.
 import type { Proposition } from "../../../runtime/src/second-propositions/proposition.ts";
-import type { Terminal } from "../../../app/src/terminaux.ts";
+import type { Terminal } from "../../../app/src/terminals.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 

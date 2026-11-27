@@ -33,12 +33,12 @@ test("a cook sent back after a review gets every remark in full, unabridged — 
 });
 
 test("a cook sent back after a red CI gets each failing check's name and failure output in full", async () => {
-  const sortie = `✖ failing tests:\n\ntest at test/peau.test.ts:57:1\n✖ the skin has no hard-coded colour\n${"AssertionError: long output line\n".repeat(200)}last line of the output`;
+  const sortie = `✖ failing tests:\n\ntest at test/skin.test.ts:57:1\n✖ the skin has no hard-coded colour\n${"AssertionError: long output line\n".repeat(200)}last line of the output`;
   const github = {
     commentaires: async () => [],
     annotationsDuCheck: async (check: Check) => {
       if (check.name === "gates") throw new Error("HTTP 502");
-      return check.name === "tests app (3/3)" ? [{ chemin: "app/test/peau.test.ts", ligne: 57, titre: "tests app (3/3)", message: sortie }] : [];
+      return check.name === "tests app (3/3)" ? [{ chemin: "app/test/skin.test.ts", ligne: 57, titre: "tests app (3/3)", message: sortie }] : [];
     },
   };
   const brief = briefDuRenvoi(await lireLeRenvoi(github, pr, [rouge("tests app (3/3)"), rouge("types (app)", null), rouge("gates")], ""), "main");

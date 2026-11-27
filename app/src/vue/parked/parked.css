@@ -1,4 +1,4 @@
-/* Le TODO du chef fait des tickets parked qui l'attendent (ticket 4281) : sur chaque entrée (cuisine/cuisine.css), qui elle
+/* Le TODO du chef fait des tickets parked qui l'attendent (ticket 4281) : sur chaque entrée (kitchen/kitchen.css), qui elle
    attend et jusqu'à quand ; le contrôle de park s'ouvre sous l'entrée, sur toute sa largeur. */
 #rail .entree-du-todo .qui-jusqua {
   color: var(--discret);

@@ -4,14 +4,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-const DOSSIER = join(import.meta.dirname, "../../src/vue/bandeau-panne");
+const FOLDER = join(import.meta.dirname, "../../src/vue/banner-outage");
 
 test("the bandeau-panne folder never says 'cause is unknown' nor asks to copy anything into the second's tab", () => {
-  const fichiers = readdirSync(DOSSIER, { recursive: true, withFileTypes: true }).filter((f) => f.isFile());
-  assert.ok(fichiers.length > 0, "the folder app/src/vue/bandeau-panne/ holds the banner");
-  for (const f of fichiers) {
-    const texte = readFileSync(join(f.parentPath, f.name), "utf8");
-    assert.doesNotMatch(texte, /cause is unknown/i, f.name);
-    assert.doesNotMatch(texte, /\bcopy\b|\bpaste\b|copier|coller/i, f.name);
+  const files = readdirSync(FOLDER, { recursive: true, withFileTypes: true }).filter((f) => f.isFile());
+  assert.ok(files.length > 0, "the folder app/src/vue/banner-outage/ holds the banner");
+  for (const f of files) {
+    const text = readFileSync(join(f.parentPath, f.name), "utf8");
+    assert.doesNotMatch(text, /cause is unknown/i, f.name);
+    assert.doesNotMatch(text, /\bcopy\b|\bpaste\b|copier|coller/i, f.name);
   }
 });
