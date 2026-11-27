@@ -14,10 +14,6 @@ needs, and sends you to the app. The kitchen itself runs from the app; the plugi
 On Claude Code 2.1.275 or later, one line does both: `/plugin install brigade --marketplace benomite/brigade`.
 A session already open keeps the commands it started with: Claude Code loads plugins at startup.
 
-The V1 plugin (its roles and its Codex mirror) is no longer
-published from `main`. It stays installable from the tag `v1-final`:
-`/plugin marketplace add benomite/brigade@v1-final`, then `/plugin install brigade@brigade`.
-
 ## Its four commands
 
 - **`/brigade:start`** (`commands/start.md`): what brigade is in five lines (the **rail**, the **cook**, the
