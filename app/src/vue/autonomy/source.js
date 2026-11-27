@@ -28,12 +28,9 @@
 const WITHOUT_THE_ACTION = "the app does not take this gesture yet";
 
 export const source = {
-  // Les agents du projet ; null tant que le runtime n'en publie aucun.
-  /** @param {string} project @returns {Promise<unknown[] | null>} */
-  lire: async (project) => {
-    const readOnes = await window.brigade.lireLesAgents?.(project);
-    return readOnes ?? null;
-  },
+  // Les agents du projet : la nouvelle cuisine n'en publie aucun enregistrement (ticket 4569), rien ne se lit.
+  /** @param {string} _project @returns {Promise<unknown[] | null>} */
+  lire: async (_project) => null,
   /** @param {string} agent @param {Level} level @param {string} project @returns {Promise<void>} */
   regler: async (agent, level, project) => {
     if (window.brigade.reglerLAutonomie === undefined) throw new Error(WITHOUT_THE_ACTION);
