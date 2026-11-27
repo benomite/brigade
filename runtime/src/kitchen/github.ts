@@ -20,10 +20,7 @@ export function ghCli(bin: string, env: NodeJS.ProcessEnv): Gh {
 const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 export const ACCEPTED = "accepted";
 export const branchOf = (issue: number) => `cook/${issue}-github`;
-const issueOfBranch = (branch: string): number | null => {
-  const match = /^cook\/(\d+)-github$/.exec(branch);
-  return match === null ? null : Number(match[1]);
-};
+const issueOfBranch = (branch: string): number | null => Number(/^cook\/(\d+)-github$/.exec(branch)?.[1]) || null;
 
 // The tickets this one waits for: every #N after "depends on", "blocked by" or "after" on a line of its body,
 // plus GitHub's own "blocked by" links. A ticket that waits is not a question for the chef: it waits on its own.
@@ -109,15 +106,12 @@ export function gestures(gh: Gh, repo: string) {
     labels: async (issue: number, add: string[], remove: string[] = []) => {
       if (add.length === 0 && remove.length === 0) return;
       const edit = () => gh(["issue", "edit", String(issue), ...r, ...(add.length ? ["--add-label", add.join(",")] : []), ...(remove.length ? ["--remove-label", remove.join(",")] : [])]);
-      try {
-        await edit();
-      } catch (error) {
+      // A label the repo lacks fails the whole edit: create the ones being added and try once more; a second failure is thrown.
+      await edit().catch(async (error) => {
         if (add.length === 0) throw error;
-        // A label that does not exist on the repo makes the whole edit fail: create the ones being added, then try once more.
-        // A second failure is thrown, never swallowed.
         for (const name of add) await gh(["label", "create", name, ...r, "--force"]).catch(() => "");
         await edit();
-      }
+      });
     },
     close: (issue: number, body: string) => gh(["issue", "close", String(issue), ...r, "--reason", "not planned", "--comment", body]),
     // Adds lines at the end of the issue's body.
@@ -147,9 +141,7 @@ export function gestures(gh: Gh, repo: string) {
       }));
     },
     merge: (pr: number) => gh(["pr", "merge", String(pr), ...r, "--merge", "--delete-branch"]),
-    ensureLabels: async (names: string[]) => {
-      for (const name of names) await gh(["label", "create", name, ...r, "--force"]).catch(() => "");
-    },
+    ensureLabels: async (names: string[]) => { for (const name of names) await gh(["label", "create", name, ...r, "--force"]).catch(() => ""); },
   };
 }
 export type Gestures = ReturnType<typeof gestures>;

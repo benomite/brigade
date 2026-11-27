@@ -37,11 +37,7 @@ function kitchenOf(project: KitchenProject) {
   let risk: string[] = [];
   return {
     risk: async () => {
-      try {
-        risk = (JSON.parse(await git(project.clone, ["show", `origin/${project.base}:.brigade/kitchen.json`])) as { risk?: string[] }).risk ?? [];
-      } catch {
-        risk = [];
-      }
+      try { risk = (JSON.parse(await git(project.clone, ["show", `origin/${project.base}:.brigade/kitchen.json`])) as { risk?: string[] }).risk ?? []; } catch { risk = []; }
     },
     kitchen: openKitchen({
       repo: project.repo,

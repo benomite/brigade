@@ -13,7 +13,7 @@ test("adding a label the repo does not have creates it and retries; a second fai
   const calls: string[][] = [];
   const gh = async (args: string[]) => {
     calls.push(args);
-    if (args[0] === "label") { known.add(args[2]); return ""; }
+    if (args[0] === "label") { known.add(String(args[2])); return ""; }
     const add = args[args.indexOf("--add-label") + 1]?.split(",") ?? [];
     if (add.some((name) => !known.has(name))) throw new Error("label not found");
     return "";
