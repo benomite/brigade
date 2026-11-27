@@ -316,3 +316,10 @@ test("un essai noté sans que rien ait été basculé est oublié : le passage c
   const { etat, issue } = await passage(m, publiees(t, ["1.0.0", "1.1.0"]));
   assert.deepEqual([m.relances, issue?.quoi, etat.essai, etat.ratees], [["1.1.0"], "passee", null, []]);
 });
+
+test("la version qui tourne n'est jamais posée par-dessus ni effacée (#4740)", (t) => {
+  const m = machine(t, "1.0.0");
+  const rendu = m.systeme.poser(join(repertoireTemporaire(t), "absente.tar.gz"), "1.0.0");
+  assert.equal(rendu.ok, false);
+  assert.deepEqual([m.courante(), m.posees()], ["1.0.0", ["1.0.0"]]);
+});

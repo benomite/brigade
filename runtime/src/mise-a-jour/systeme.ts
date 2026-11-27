@@ -104,19 +104,22 @@ export function systemeDeLaMachine(options: { opt?: string; gestionnaire?: Gesti
   const gestionnaire = options.gestionnaire ?? (process.platform === "darwin" ? gestionnaireLaunchd() : gestionnaireSystemd());
   const courante = join(opt, CURRENT);
   const posees = () => (existsSync(opt) ? readdirSync(opt, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() && VERSION.test(entree.name) ? [entree.name] : [])) : []);
+  const installee = () => {
+    let cible: string;
+    try {
+      cible = basename(readlinkSync(courante));
+    } catch {
+      return null;
+    }
+    return posees().includes(cible) ? cible : null;
+  };
   return {
-    installee() {
-      let cible: string;
-      try {
-        cible = basename(readlinkSync(courante));
-      } catch {
-        return null;
-      }
-      return posees().includes(cible) ? cible : null;
-    },
+    installee,
     posees,
     poser(archive, version) {
       const cible = join(opt, version);
+      // La version en service n'est jamais défaite ni effacée, quoi qu'il arrive à sa pose.
+      if (installee() === version) return { ok: false, motif: `la version ${version} est celle qui tourne` };
       const enCours = `${cible}.part`;
       rmSync(enCours, { recursive: true, force: true });
       rmSync(cible, { recursive: true, force: true });
@@ -133,6 +136,7 @@ export function systemeDeLaMachine(options: { opt?: string; gestionnaire?: Gesti
       renameSync(enCours, cible);
       const installe = echec("install.sh", lancer("sh", [join(cible, "install.sh"), "--update"], DELAI_INSTALLATION_MS, { ...process.env, BRIGADE_OPT: opt }));
       if (installe !== null) {
+        // `current` n'a pas bougé : seule la version qu'on vient de poser s'efface.
         rmSync(cible, { recursive: true, force: true });
         return { ok: false, motif: `l'install.sh de ${version} a échoué : ${installe}` };
       }
