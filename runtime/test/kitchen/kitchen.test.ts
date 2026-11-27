@@ -295,7 +295,7 @@ test("a delivery's report is the body of its pull request, refreshed at each del
 input=$(cat)
 case "$input" in
   *"Tu es un **cook**"*) date +%N > feature.txt; git add feature.txt; git -c user.email=c@k -c user.name=cook commit -qm "#1 — work"; n=$(git rev-list --count HEAD); printf '{"type":"result","result":"Criterion 1: served, delivery %s\\\\nToken ghp_secretvalue1234 not shown"}\\n' "$n" ;;
-  *"Tu es le **pass**"*) printf '%s' "$input" > ${passInput}; echo '{"type":"result","result":"VERDICT: refuse — again"}' ;;
+  *"Tu es le **pass**"*) printf '%s' "$input" > "${passInput.replaceAll("\\", "/")}"; echo '{"type":"result","result":"VERDICT: refuse — again"}' ;;
 esac
 `, { mode: 0o755 });
   const fake = fakeGh();
