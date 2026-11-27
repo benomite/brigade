@@ -53,3 +53,4 @@
 - A test that writes a temp path into a `#!/bin/sh` fake agent must pass it with forward slashes and quoted: on Windows `C:\Users\…` loses its backslashes in sh and the file is never written (#4566)
 - Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)
 - A kitchen test whose fake cook ends with a short message (under 40 characters) now gets a "delivered without a report" log line and ticket comment: give the fake a real report (#4574)
+- A shell tab scrolls back because the multiplexer draws on the normal screen (tmux `terminal-overrides` `smcup@:rmcup@`, screen `termcapinfo * ti@:te@`); screen reads termcapinfo only from a `-c` rc file at creation, `-X termcapinfo` and `-c` at attach do nothing (#4576)

@@ -99,7 +99,7 @@ function plays(t: TestContext, fake: "tmux" | "screen" | "aucun"): { appels: str
 }
 
 describe("la configuration appliquée à la session", () => {
-  test("avec `tmux` : ni souris, ni préfixe, ni barre — et rien qui active un mode de copie", { skip: WITHOUT_POSIX }, (t) => {
+  test("avec `tmux` : ni souris, ni préfixe, ni barre, écran normal pour le défilement de la vue — et rien qui active un mode de copie", { skip: WITHOUT_POSIX }, (t) => {
     const { appels: calls } = plays(t, "tmux");
     const root = calls.find((call) => call.startsWith("tmux -u new-session"))?.match(/-c (\S+)$/)?.[1];
     assert.deepEqual(calls, [
@@ -109,6 +109,8 @@ describe("la configuration appliquée à la session", () => {
       "tmux -u set-option -t =brigade-essai-1 prefix None",
       "tmux -u set-option -t =brigade-essai-1 prefix2 None",
       "tmux -u set-option -t =brigade-essai-1 status off",
+      "tmux -u show-options -sv terminal-overrides",
+      "tmux -u set-option -sa terminal-overrides ,*:smcup@:rmcup@",
       "tmux -u attach-session -t =brigade-essai-1",
     ]);
     assert.deepEqual(SETTINGS_TMUX, ["mouse off", "prefix None", "prefix2 None", "status off"]);
@@ -119,7 +121,7 @@ describe("la configuration appliquée à la session", () => {
     const { appels: calls } = plays(t, "screen");
     assert.deepEqual(calls, [
       "screen -ls",
-      "screen -U -dmS brigade-essai-1",
+      "screen -U -c /tmp/brigade-essai-1.screenrc -dmS brigade-essai-1",
       "screen -S brigade-essai-1 -X defmousetrack off",
       "screen -S brigade-essai-1 -X mousetrack off",
       "screen -S brigade-essai-1 -X escape ",
@@ -216,6 +218,18 @@ describe(`une session persistante sur ce poste${multiplexer === undefined ? "" :
     // La commande : `cat` est toujours là, il rend ce qui lui est tapé.
     second.ecrire("apres-retour\r");
     await until(() => (withoutEscapes(second.sortie()).match(/apres-retour/g) ?? []).length >= 2, () => second.sortie());
+  });
+
+  test("le terminal reste sur son écran normal : une sortie plus longue qu'un écran défile dans son historique, que la molette remonte", async (t) => {
+    const { ouvrir: open } = workstation(t);
+
+    const view = open();
+    view.ecrire("seq 1 100 | sed s/^/ligne-/; echo FIN-$((6*7))\r");
+    await until(() => withoutEscapes(view.sortie()).includes("FIN-42"), () => view.sortie());
+    // Écran alterné (`?1047`, `?1049`) : xterm.js n'aurait aucun historique à remonter.
+    assert.ok(!/\x1b\[\?(1047|1049|47)[hl]/.test(view.sortie()), JSON.stringify(view.sortie()));
+    // Ce qui a défilé hors de l'écran de 24 lignes est passé par le terminal : sa première ligne y est.
+    assert.ok(withoutEscapes(view.sortie()).includes("ligne-1\n"), view.sortie());
   });
 
   test("détruite, la session n'est plus : le rattachement suivant en crée une neuve, vide", async (t) => {
