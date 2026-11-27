@@ -303,7 +303,8 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
         writeFileSync(join(bin, nom), `#!/bin/sh\necho "${nom} $*" >>"${appels}"\n${corps}\n`);
         chmodSync(join(bin, nom), 0o755);
       };
-      doublure("systemctl", '[ "$1" = --quiet ] && exit 3\nexit 0');
+      // La station tourne : `is-active` répond oui, comme sur la machine qu'on migre.
+      doublure("systemctl", "exit 0");
       doublure("bwrap", "exit 0");
       doublure("chown", "exit 0");
       doublure("useradd", `touch "${bin}/compte"`);
@@ -393,6 +394,7 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
       assert.equal(lstatSync(join(m.racine, "etc/systemd/system/multi-user.target.wants/brigade-station.service"), { throwIfNoEntry: false }), undefined, "le lien d'activation de l'ancienne unité reste");
       const appels = m.appels();
       assert.ok(appels.includes("systemctl daemon-reload"), appels.join("\n"));
+      assert.ok(appels.includes("systemctl restart brigade-station-porte.service brigade-station.service"), `la station et sa porte redémarrent sur l'archive\n${appels.join("\n")}`);
       assert.ok(appels.includes("systemctl enable --now brigade-station-porte.service brigade-station.service brigade-station-mise-a-jour.timer"), appels.join("\n"));
       // Le paquet n'est plus installé pour dpkg ; ce qui est sous /opt n'a pas bougé.
       assert.equal(m.base(), "not-installed");
@@ -410,6 +412,7 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
       assert.equal(rendu.code, 0, rendu.sortie);
       assert.deepEqual(["opt", "etc", "var", "usr"].flatMap((d) => m.photo(d).map((l) => `${d}/${l}`)), avant);
       const nouveaux = m.appels().slice(appelsAvant);
+      assert.ok(nouveaux.some((a) => a.startsWith("systemctl --quiet is-active")), "la station est sondée : l'absence de redémarrage vient du rien à changer");
       assert.deepEqual(nouveaux.filter((a) => /^systemctl (restart|stop)/.test(a)), []);
       assert.equal(m.base(), "not-installed");
     });
