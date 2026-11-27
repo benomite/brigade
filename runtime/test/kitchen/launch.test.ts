@@ -2,7 +2,7 @@
 // sandbox, with the project's network allowlist; elsewhere inside bwrap — or
 // not at all.
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, posix } from "node:path";
 import { test } from "node:test";
@@ -50,6 +50,35 @@ test("on darwin, a cook's launch goes through Claude Code's sandbox with the pro
   assert.equal(launch.env.HTTPS_PROXY, "http://127.0.0.1:4321");
   assert.ok(sandbox.filesystem.allowWrite.includes(wt));
   assert.ok(sandbox.filesystem.allowWrite.every((lieu) => lieu === wt || !lieu.startsWith(root) || lieu.startsWith(home)), sandbox.filesystem.allowWrite.join(" "));
+});
+
+// The environment the launchd station starts with, as its plist writes it.
+function plistEnvironment(): Record<string, string> {
+  const text = readFileSync(join(import.meta.dirname, "../../archive/services/launchd/com.brigade.station.plist"), "utf8");
+  const block = /<key>EnvironmentVariables<\/key>\s*<dict>([\s\S]*?)<\/dict>/.exec(text)?.[1] ?? "";
+  return Object.fromEntries([...block.matchAll(/<key>(.+?)<\/key>\s*<string>(.*?)<\/string>/g)].map((m) => [m[1] as string, m[2] as string]));
+}
+
+test("on darwin, the launchd station's environment starts, and its hidden etc/ is denied to every agent by Claude Code's sandbox", () => {
+  const env = plistEnvironment();
+  const etc = "/Library/Application Support/brigade/etc";
+  assert.equal(env.BRIGADE_SANDBOX_HIDDEN, etc);
+  assert.equal(env.BRIGADE_SANDBOX_BIN, undefined);
+  const station = "/Library/Application Support/brigade";
+  const launcher = launcherOf({ ...place(mac()), env, state: posix.join(station, "state"), clone: posix.join(station, "depot"), worktrees: posix.join(station, "state", "worktrees") });
+  assert.ok("launch" in launcher, "refused" in launcher ? launcher.refused : "");
+  for (const write of [true, false]) {
+    const launch = launcher.launch("cook", posix.join(station, "state", "worktrees", "7-github"), write, CALIBRATION, "ticket");
+    const { sandbox, permissions } = JSON.parse(launch.args[launch.args.indexOf("--settings") + 1] as string) as { sandbox: { filesystem: { denyRead: string[]; denyWrite: string[]; allowWrite: string[] } }; permissions: { deny: string[] } };
+    assert.ok(sandbox.filesystem.denyRead.includes(etc), sandbox.filesystem.denyRead.join(" "));
+    assert.ok(sandbox.filesystem.denyWrite.includes(etc));
+    assert.ok(sandbox.filesystem.allowWrite.every((lieu) => !lieu.startsWith(etc)));
+    assert.ok(permissions.deny.includes(`Read(/${etc})`));
+  }
+});
+
+test("on darwin, a relative BRIGADE_SANDBOX_HIDDEN is refused", () => {
+  assert.throws(() => launcherOf({ ...place(mac()), env: { HOME: home, BRIGADE_SANDBOX_HIDDEN: "etc" } }), /not an absolute path/);
 });
 
 test("on darwin, a read-only launch (reviewer, manager) writes nowhere", () => {

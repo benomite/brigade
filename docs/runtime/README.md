@@ -24,6 +24,7 @@ dependency. Design and reasons: [`2026-11-26-agents-in-prompts.md`](../superpowe
 | `kitchen/agents.ts` | The agents' prompts and what their answers ask for |
 | `kitchen/runs.ts` | Each agent run is a folder under the project's state, launched through the relay (`relais.ts`): it outlives the kitchen, and a restarted kitchen finds it again |
 | `kitchen/projects.ts` | The projects file |
+| `operator-status.ts` | `status.json`, the kitchen's status for its operator (below) |
 
 `runtime/src/kitchen/` stays under 1,000 lines (`runtime/test/kitchen/kitchen.test.ts` counts them): a safeguard
 the kitchen needs lives in its own module (`bac-a-sable/kitchen-launch.ts`, `bac-a-sable/kitchen-sandbox.ts`,
@@ -104,7 +105,6 @@ child carrying the reason and the epic stays `in-pass` (#4702).
 |---|---|
 | A Linux server (the box) | The Debian package `brigade-station` ([`runtime/paquet/`](../../runtime/paquet/README.md)): `brigade-station.service` runs `src/kitchen/main.ts` with `BRIGADE_STATION_DIR=/var/lib/brigade`, agents in `bwrap`, the unit reaching only localhost; `brigade-station-porte.service` holds the gates, its only way out. Installed by `installer-station.sh` ([`docs/installation-station.md`](../installation-station.md)) |
 | A Mac | The app, which runs it as this computer's station (`PRINCIPAL`, `app/src/workstation/role.ts`), or the launchd agent `installer-station.sh` writes. Agents run in Claude Code's sandbox: [`mac-new-kitchen.md`](mac-new-kitchen.md) |
-| Windows | `installer-station.ps1` starts it. No sandbox is available there: the kitchen launches no agent, and says why in the station's log |
 
 Once started, the kitchen writes `<BRIGADE_STATION_DIR>/en-service` (its version, its pid, since when, the projects
 it serves) and rewrites it when that changes: the station's update keeps a new version only when the kitchen says it
@@ -140,6 +140,17 @@ BRIGADE_STATION_DIR="$BRIGADE_STATE_DIR" npm --prefix runtime start   # Ctrl-C t
 `fire` launches a real cook on your Max quota, with no permission prompt, which pushes its branch and opens a pull
 request; the pass judges it and merges what it approves. The tests drive a fake `claude` (`BRIGADE_CLAUDE_BIN`) and a
 fake `gh` (`BRIGADE_GH_BIN`), and use no quota.
+
+## The operator status file
+
+The kitchen writes `status.json` (mode 0644, temporary file then rename) in `BRIGADE_STATUS_DIR`, else in
+`BRIGADE_STATION_DIR`. It rewrites it when a fact changes and at least every minute. On an installed station
+`BRIGADE_STATUS_DIR` is `/var/lib/brigade-status`: `/var/lib/brigade` is in `BRIGADE_SANDBOX_HIDDEN`, and the file is
+for the chef, not for the cooks. It holds no secret. Fields (the shape is documented in `operator-status.ts`):
+`version`, `since`, `updatedAt`, `projects`, `cooks` (`project`, `issue`, `since`), `update` (read from
+`BRIGADE_MISE_A_JOUR_DIR`'s `etat.json`: installed, available, frozen, held, checkedAt, last), `quota` (`gh api
+rate_limit`, which GitHub does not count), `refusal` (one line, null when nothing is refused) and `refused` (the same
+per project).
 
 ## Rules of this repo
 

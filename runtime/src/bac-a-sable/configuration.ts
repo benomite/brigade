@@ -78,8 +78,10 @@ export const LECTURES_INTERDITES = [
 // dans les limites de `ecritureDeclaree`. `etat` : le répertoire où le
 // runtime tient son état — aucun dossier déclaré n'y touche. `lecture` : un
 // lancement qui relit sans écrire (reviewer, manager) — il n'écrit nulle part,
-// ni dans le répertoire où il part, ni dans les caches.
-export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[]; declaration?: DeclarationBacASable; etat?: string; lecture?: boolean; sousPf?: boolean };
+// ni dans le répertoire où il part, ni dans les caches. `cachees` : des
+// répertoires de la station (`BRIGADE_SANDBOX_HIDDEN`, son `etc/` des jetons)
+// que le cook ne lit ni n'écrit — comme les secrets du chef.
+export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[]; declaration?: DeclarationBacASable; etat?: string; lecture?: boolean; cachees?: string[]; sousPf?: boolean };
 // `sousPf` : la station tient son réseau par l'ancre `pf` `brigade` (`pf.ts`) — le cook ne sort que par la porte du
 // projet (`HTTPS_PROXY`), et le filtre réseau de Claude Code, dont le relais tourne sous `brigade` et que `pf` bloquerait, est coupé.
 
@@ -202,7 +204,7 @@ export function configurer(cook: Cook): ConfigDeBacASable;
 export function configurer(cook: Cook): ConfigDeBacASable | ConfigDeBacASable<PfSettings> {
   if (!posix.isAbsolute(cook.home)) throw new BacASableInvalide(`répertoire du compte (« ${cook.home} ») : un chemin absolu est attendu`);
   const home = chemin(cook.home, cook.home, "répertoire du compte");
-  const interdits = unique([...LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif)), ...(cook.prod ?? []).map((acces) => chemin(acces, home, "accès de prod"))]);
+  const interdits = unique([...LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif)), ...(cook.prod ?? []).map((acces) => chemin(acces, home, "accès de prod")), ...(cook.cachees ?? []).map((lieu) => chemin(lieu, home, "répertoire caché"))]);
   const worktree = chemin(cook.worktree, home, "worktree");
   // Les `ports` de la déclaration n'ajoutent rien ici : le bac à sable de
   // Claude Code n'ouvre la boucle locale qu'en entier (`allowLocalBinding`),

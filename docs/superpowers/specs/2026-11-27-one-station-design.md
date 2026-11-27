@@ -136,7 +136,7 @@ station. The second documents the commands in `docs/station.md`, the one page th
 
 ### Windows
 
-- The Windows station code goes (`runtime/deploy/windows/installer-station.ps1` and what only it uses).
+- The Windows station code goes (its PowerShell installer and what only it uses).
 - **Trial, by the chef on his Windows PC with WSL2**: install the Linux archive in an Ubuntu WSL distribution with
   systemd enabled, and check (1) the gate and `IPAddressDeny` work (cgroup v2), (2) `bwrap` runs a cook, (3) the
   station keeps running with no terminal open and starts again at login, (4) clones live in the Linux file system.
@@ -158,7 +158,7 @@ station. The second documents the commands in `docs/station.md`, the one page th
 - The `.deb`, `runtime/paquet/debian/`, and its Debian-only update path.
 - The station embedded in the Mac app (`app/src/station-background/`, `station-process/`, `workstation/`, the runtime
   copied into `Brigade.app`), and `runtime/deploy/installer-station.sh`'s launchd agent under the chef's account.
-- The Windows station (`runtime/deploy/windows/`).
+- The Windows station (its installer directory, removed).
 - The second's `ssh` into systemd, `/tmp` and counters: replaced by `brigade status` and `brigade logs`.
 
 ## Left to the builder

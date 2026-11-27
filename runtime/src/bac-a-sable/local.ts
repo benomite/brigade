@@ -40,8 +40,9 @@ export type Verification = { ok: true; version: string } | { ok: false; raison: 
 // services locaux, relus de même. `declaration` : le contenu de sa
 // déclaration de bac à sable (`declaration.ts`), relu de même — nul, il n'en a
 // pas ; `etat` : le répertoire d'état du runtime, qu'aucun dossier déclaré ne
-// touche ; `avertir` : où se dit une déclaration refusée ou illisible.
-export type BacASableLocal = { sousPf?: boolean; version: string; home: string; caches: string[]; hotes: () => Regle[]; services?: () => ServiceLocal[] } & Partial<Declaree>;
+// touche ; `cachees` : les répertoires que la station cache à ses cooks
+// (`BRIGADE_SANDBOX_HIDDEN`) ; `avertir` : où se dit une déclaration refusée ou illisible.
+export type BacASableLocal = { sousPf?: boolean; version: string; home: string; caches: string[]; hotes: () => Regle[]; services?: () => ServiceLocal[]; cachees?: string[] } & Partial<Declaree>;
 
 // Ce que la cuisine sait de la déclaration de bac à sable de son projet.
 export type Declaree = { declaration: () => string | null; etat: string; avertir: (message: string) => void };
@@ -110,7 +111,7 @@ export function poserLeBacASable(args: readonly string[], config: Parameters<typ
 // lancement part avec le bac à sable d'avant, et le refus se dit.
 export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = [], brigade = false, ecrit = true): string[] {
   if (!bac) return args;
-  const cook: Cook = { worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.(), ...(bac.sousPf ? { sousPf: true } : {}), ...(bac.etat === undefined ? {} : { etat: bac.etat }), ...(ecrit ? {} : { lecture: true }) };
+  const cook: Cook = { worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.(), ...(bac.sousPf ? { sousPf: true } : {}), ...(bac.cachees === undefined ? {} : { cachees: bac.cachees }), ...(bac.etat === undefined ? {} : { etat: bac.etat }), ...(ecrit ? {} : { lecture: true }) };
   if (bac.declaration !== undefined) {
     try {
       const declaration = lireDeclarationBacASable(bac.declaration());

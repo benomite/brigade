@@ -31,9 +31,14 @@ ExecStart=/usr/lib/brigade-station/node/bin/node src/kitchen/main.ts
 # Tout ce que la station tient — sa configuration, l'état et le clone de
 # chaque projet — vit sous un seul répertoire, créé par systemd au compte. Il
 # doit être sur un disque local : le verrou de chaque projet en dépend.
-StateDirectory=brigade
+StateDirectory=brigade brigade-status
 StateDirectoryMode=0750
 Environment=BRIGADE_STATION_DIR=/var/lib/brigade
+# Ce que la station dit à son opérateur (`status.json`, 0644) : hors de la
+# cloison, que `/var/lib/brigade` cache aux cooks. Et l'état de la mise à jour,
+# lisible de tous, d'où elle tire le dernier passage.
+Environment=BRIGADE_STATUS_DIR=/var/lib/brigade-status
+Environment=BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station
 
 # La cloison des cooks, pour tous les projets : chaque lancement part dans
 # `bwrap`, et n'y voit à la place de l'état, des clones, des secrets et des
