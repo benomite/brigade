@@ -2,8 +2,9 @@
 // partition on Linux (`cloison.ts`), unchanged; on macOS, Claude Code's
 // sandbox, where each agent writes only in its worktree (nowhere for a
 // read-only launch) and reaches only the hosts of the project's network
-// allowlist. A Mac without a usable sandbox gets no enclosure: the project's
-// kitchen launches no agent, and the reason says why.
+// allowlist. A Mac without a usable sandbox, or another station without
+// `bwrap` (Windows, a Linux desktop), gets no enclosure: the project's kitchen
+// launches no agent, and the reason says why.
 import { configCloison, envelopper } from "../cloison.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE, type Regle } from "../reseau.ts";
 import type { Sondes } from "./detection.ts";
@@ -40,6 +41,8 @@ export function kitchenEnclosure(place: EnclosurePlace): { wrap: Wrap } | { refu
     const verification = verifier(place.probes, lieux);
     if (!verification.ok) return { refused: `no agent launched: on macOS every agent runs inside Claude Code's sandbox, and it is not usable — ${verification.raison}` };
     sandbox = { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes: place.hosts };
+  } else if (cloison === null) {
+    return { refused: `no agent launched: on ${place.probes.plateforme} every agent runs inside the bwrap partition, and BRIGADE_SANDBOX_BIN is not set` };
   }
   return {
     wrap: (claude, args, cwd, write) => envelopper(cloison, { commande: claude, args: dansLeBacASableLocal(sandbox, args, cwd, [], false, write) }, { cwd, depot: write ? "ecriture" : "lecture" }),

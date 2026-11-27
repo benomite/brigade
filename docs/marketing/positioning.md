@@ -20,14 +20,14 @@ Autonomy is the goal. Trust is what lets you take it: an agent you must watch is
 
 An agent left alone must not run away. Each ticket runs inside limits you did not have to set.
 
-- A cap on duration and tokens, an idle stop, a breaker after repeated failures, and a "stop" that halts every cook within the second. Proof: the table in [`docs/runtime/garde-fous.md`](../runtime/garde-fous.md).
+- A cap on duration and tokens, an idle stop, a breaker after repeated failures, and a "stop" that halts every cook within the second. Proof: the table in [`docs/runtime/README.md`](../runtime/README.md).
 
 ### 2. It is judged
 
 Nothing reaches `main` because a cook says it is done.
 
-- The pass judges every delivery: the project's gates, the CI, and an independent review. A delivery is merged only once its verdict is approved and its CI is green. Proof: [`docs/runtime/pass-merge.md`](../runtime/pass-merge.md).
-- A delivery that changes what judges it is read by a second judge. Proof: [`docs/runtime/pass.md`](../runtime/pass.md).
+- The pass judges every delivery: the project's gates, the CI, and an independent review. A delivery is merged only once its verdict is approved and its CI is green. Proof: [`docs/runtime/README.md`](../runtime/README.md).
+- A delivery that changes what judges it is read by a second judge. Proof: [`docs/runtime/README.md`](../runtime/README.md).
 
 ### 3. It is traceable and reversible
 

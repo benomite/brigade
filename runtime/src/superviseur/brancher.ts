@@ -1,5 +1,5 @@
-// Le superviseur branché sur la boucle du runtime (#3945, spec
-// 2026-11-20-kitchen-spinning, section B), aux deux points d'entrée : `main.ts`
+// Le superviseur branché sur la boucle du runtime (#3945, épique
+// #3904), aux deux points d'entrée : `main.ts`
 // et `station/cuisine.ts`. À chaque réveil, ce que le tour GitHub seul a vu
 // (`tour.ts`) passe au superviseur (`superviseur.ts`) ; quand il se réveille,
 // le manager du projet reçoit son dossier, et le geste qu'il rend se joue.

@@ -2,13 +2,9 @@
 // et `facts` nomme sa ligne, au repos, mais sa liste de projets servis ne porte que d'autres dépôts. L'onglet ne dit pas
 // « Cooked by … idle » : personne ne le cuit, et combien de tickets `fire` attendent. « Cook it on this computer » le met
 // sur la liste que Settings montre ; l'onglet dit alors que ce Mac le cuit, et Settings le dit `served`. Derrière le
-// pont, la liste est celle du runtime, écrite pour de bon dans un répertoire du test.
+// pont, la liste de ce Mac est tenue par le test.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, test } from "node:test";
-import { ajouterProjetServi, lireProjetsServis } from "../../../runtime/src/station-ordinateur/projets-servis.ts";
+import { describe, test } from "node:test";
 import type { Home } from "../../src/home.ts";
 import { POWER_UP } from "../../src/power-up.ts";
 import { putAside } from "../../src/awaiting.ts";
@@ -51,17 +47,11 @@ const FACTS = {
   stations: [lineOfMac],
 } as unknown as Facts;
 
-const roots: string[] = [];
-after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
-});
-
 // La station de ce Mac, dont la liste ne porte que cantine ; `facts` : ce que la cuisine d'ici rend, ou rien de lu (`null`) ;
 // `lue` : sans elle, l'app ne lit pas la liste de ce Mac.
 async function thePage({ facts = FACTS as Facts | null, lue: readEntry = true } = {}) {
-  const root = mkdtempSync(join(tmpdir(), "non-servi-"));
-  roots.push(root);
-  ajouterProjetServi(root, CANTINE.depot ?? "");
+  // La liste de ce Mac : ses dépôts, dans l'ordre où ils y sont entrés.
+  const served: string[] = [CANTINE.depot ?? ""];
   const vue = await playTheVue({
     demarrage: () => ({
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true, (name) => name === "parade"),
@@ -78,10 +68,11 @@ async function thePage({ facts = FACTS as Facts | null, lue: readEntry = true } 
       projetsDesStations: SEEN,
     }),
     espace: () => [],
-    ...(readEntry ? { projetsServis: () => ({ depots: lireProjetsServis(root) }) } : {}),
-    servirUnProjet: (repository: string, served: boolean) => {
-      assert.equal(served, true);
-      return { depots: ajouterProjetServi(root, repository) };
+    ...(readEntry ? { projetsServis: () => ({ depots: [...served] }) } : {}),
+    servirUnProjet: (repository: string, serve: boolean) => {
+      assert.equal(serve, true);
+      if (!served.includes(repository)) served.push(repository);
+      return { depots: [...served] };
     },
   } as never);
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
@@ -94,7 +85,7 @@ async function thePage({ facts = FACTS as Facts | null, lue: readEntry = true } 
     await repos();
   }
   await openTab(vue, "Stations");
-  return { vue, racine: root };
+  return { vue, servis: served };
 }
 
 const tab = (vue: Played) => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "stations-tab") ?? assert.fail("pas d'onglet des stations");
@@ -124,12 +115,12 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
   });
 
   test("« Cook it on this computer » l'ajoute à la liste de ce Mac : l'onglet dit que ce Mac le cuit, et Settings le dit servi", async () => {
-    const { vue, racine: root } = await thePage();
+    const { vue, servis: served } = await thePage();
     assert.equal(lineServed(vue).dessous("span").find(({ className }) => className === "pas-servi")?.textContent, NOT_SERVED);
     button(top(vue), COOK_HERE).click();
     for (let tour = 0; tour < 6; tour++) await repos();
     assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "servirUnProjet").map(({ args }) => args), [[REPOSITORY, true]]);
-    assert.deepEqual(lireProjetsServis(root), [CANTINE.depot, REPOSITORY]);
+    assert.deepEqual(served, [CANTINE.depot, REPOSITORY]);
     assert.equal(sentence(vue), "Cooked by macbook · online · idle, nothing on the rail");
     assert.equal(top(vue).dataset.ton, "vert");
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["macbook"]);

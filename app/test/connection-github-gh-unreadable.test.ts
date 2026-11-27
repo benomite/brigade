@@ -4,8 +4,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { connexionGitHub } from "../../runtime/src/appairage/stations-du-chef.ts";
-import { holdConnectionGitHub, type StartOfConnection, type EndOfConnection } from "../src/connection-github.ts";
+import { holdConnectionGitHub, signInToGitHub, type StartOfConnection, type EndOfConnection } from "../src/connection-github.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
 const fakeGh = (t: TestContext, body: string) => {
@@ -23,7 +22,7 @@ const inSomeSeconds = (promise: Promise<StartOfConnection>) =>
 
 test("un `gh` illisible qui reste en vie : un refus en une phrase, ce que `gh` a dit en détail", { skip: WITHOUT_POSIX }, async (t) => {
   const gh = fakeGh(t, `echo "Quelque chose d'inattendu: ZZZ" >&2\nsleep 30`);
-  const connect = holdConnectionGitHub({ commande: async () => connexionGitHub(gh).command, env: process.env, ouvrir: () => undefined, apres: () => undefined });
+  const connect = holdConnectionGitHub({ commande: async () => signInToGitHub(gh), env: process.env, ouvrir: () => undefined, apres: () => undefined });
   const start = await inSomeSeconds(connect());
   assert.ok("refus" in start, "un refus, pas une attente");
   assert.equal(start.refus.trim().split("\n").length, 1);
