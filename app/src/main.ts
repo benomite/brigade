@@ -33,7 +33,6 @@ import { holdTheTrials } from "./trial.ts";
 import { COMMAND_OF_LOG, openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
 import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
-import { approveTheAction, readTheHeld } from "./held/read.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
@@ -1400,11 +1399,8 @@ ipcMain.handle("proposerUnReglage", async (_, name: unknown, choice: unknown) =>
 });
 // Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humans-of-project.ts).
-// Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
-// et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
 // L'équipe du projet que lit la vue (tickets 4029 et 4327) : les enregistrements que `facts` publie, lus là où sa cuisine tourne.
 ipcMain.handle("lireLesAgents", (_, name: unknown) => readTheAgents(kitchenOfProject(name).lu, launchOnTheKitchen));
-ipcMain.handle("gestesRetenus", (_, name: unknown) => readTheHeld(kitchenOfProject(name).lu, launchOnTheKitchen));
 // L'API des agents que lit l'onglet Agents (ticket 4224) : la vue la demande par `fetch` sur `brigade-agents:`, et chaque
 // demande est une commande `agents` ou `agent-settings` lancée là où la cuisine du projet nommé tourne (agents-of-the-box.ts).
 protocol.registerSchemesAsPrivileged([SCHEMA_PREFERRED]);
@@ -1413,7 +1409,6 @@ const serveTheAgents = () =>
     const { statut: status, corps: body } = await answerAtAgents({ methode: request.method, url: request.url, corps: await request.text() }, kitchenOfProject, launchOnTheKitchen);
     return new Response(JSON.stringify(body), { status: status, headers: { "content-type": "application/json" } });
   });
-ipcMain.handle("approuverGeste", (_, name: unknown, id: unknown) => approveTheAction(String(name), kitchenOfProject(name).lu, id, launchOnTheKitchen));
 ipcMain.handle("listerLesHumains", (_, name: unknown) => {
   const { vise: aims, lu: readOne } = kitchenOfProject(name);
   return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheHumans(aims.nom, readOne, launchOnTheKitchen);

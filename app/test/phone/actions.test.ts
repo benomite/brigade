@@ -56,8 +56,8 @@ const station = (name: string, more: Partial<Station> = {}): Station => ({
   ...more,
 });
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
-// Dans TODO, deux décisions : #12, verte, que la pass ne merge pas elle-même — à merger sur sa PR ; #31, dont la PR a été
-// fermée sans merge — la sortir du rail. #21 est sur le rail ; #14 cuit sur la box.
+// Dans TODO, deux cartes : #12, en pass ; #31, en attente sur le rail — la table du chef propose de l'en sortir. #21 est
+// sur le rail ; #14 cuit sur la box.
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-21T10:04:11.000Z",
@@ -68,12 +68,12 @@ const FACTS: Facts = {
     { ticket: 14, etat: "pris", titre: COOK_14.titre, url: issue(14), activite: null },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: issue(21), activite: null },
     { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: issue(12), activite: null },
-    { ticket: 31, etat: "en pass", titre: "Le tri des fournisseurs", url: issue(31), activite: null },
+    { ticket: 31, etat: "en attente", titre: "Le tri des fournisseurs", url: issue(31), activite: null },
   ],
   cooks: [COOK_14],
   attend: [
-    { ticket: 12, titre: "Validation SIRET", url: issue(12), decision: { quoi: "merge", motif: "review-required", cause: null, pr: PR_12 } },
-    { ticket: 31, titre: "Le tri des fournisseurs", url: issue(31), decision: { quoi: "fermee", motif: null, cause: null, pr: null } },
+    { ticket: 12, titre: "Validation SIRET", url: issue(12) },
+    { ticket: 31, titre: "Le tri des fournisseurs", url: issue(31) },
   ],
   stations: [station("box/claude", { cooks: [COOK_14] })],
 };
@@ -152,10 +152,9 @@ describe("depuis le téléphone, un geste en vol", () => {
 });
 
 describe("depuis le téléphone, trancher une carte", () => {
-  test("TODO : #31, sa PR fermée sans merge — « remove from the rail », recommandé, confirmé : la carte quitte la file à la lecture qui suit", async () => {
+  test("TODO : #31 — « remove from the rail », confirmé : la carte quitte la file à la lecture qui suit", async () => {
     const vue = await open({ gesteDeFiche: () => ({ fait: "#31 left the rail" }) });
     await touchTheCard(vue, 31);
-    assert.equal(action(vue, "retirer").className, "recommande");
     await confirm(vue, "retirer");
     assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "retirer", 31, undefined]);
     assert.deepEqual(issueOfAction(vue), [{ classe: "dit", dit: "#31 left the rail", survol: "" }]);

@@ -15,7 +15,7 @@
 //   mise de côté `Will not start: <raison en mots simples>.` (refusal.ts) ; signal « set aside »
 //   en WAITING   `waiting for <quoi> · from <qui>` ; signal si la relance est passée
 //   répondue     `answered by <qui> · the manager's turn` (#503)
-//   m'attend     ce qu'on attend du chef, en une phrase (decision.ts)
+//   m'attend     ce qu'on attend du chef, en une phrase
 //   livrée       `served at HH:MM · <résumé>`
 import { hourHM } from "./format.ts";
 import { refusalInClear } from "./refusal.ts";

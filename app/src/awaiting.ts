@@ -60,11 +60,10 @@ export function putAside(reading: Reading): Shown {
 export type Expected = { ticket: number; ligne: string; suite: string[] };
 
 // Deux espaces, `#`, des chiffres, puis deux espaces ou la fin de la ligne :
-// la tête qu'écrit `status` pour un ticket (runtime/src/attend.ts,
-// `decrireAttentes`). C'est la seule forme lue dans le bloc.
+// la tête qu'écrit `status` pour un ticket. C'est la seule forme lue dans le bloc.
 const HEAD_OF_TICKET = /^ {2}#(\d+)(?: {2}(.*))?$/;
 // Une entrée est à deux espaces de retrait ; ce qui est plus en retrait qu'elle
-// la précise (`RETRAIT_DE_SUITE`, au même endroit).
+// la précise.
 const SUITE = /^ {3}/;
 
 // Les tickets du bloc, dans son ordre — le plus ancien d'abord. Une ligne sans

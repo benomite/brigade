@@ -110,7 +110,7 @@ export type Bridge = {
   // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (card-actions.ts) :
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
-  gestesDeFiche(card: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; decision?: import("../decision.ts").Decision; pr?: boolean }): Promise<import("../card-actions.ts").Proposes[]>;
+  gestesDeFiche(card: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; pr?: boolean }): Promise<import("../card-actions.ts").Proposes[]>;
   // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second. Là où il n'y a pas de
   // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
   // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
@@ -297,11 +297,6 @@ export type Bridge = {
   listerLesHumains?(project: string): Promise<import("../humans-of-project.ts").ReadOfHumans>;
   enregistrerUnHumain?(project: string, human: import("./settings-humans/humans.js").Human): Promise<import("./settings-humans/humans.js").Rendered>;
   retirerUnHumain?(project: string, login: string): Promise<import("./settings-humans/humans.js").Rendered>;
-  // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet
-  // tourne — rien pour un projet qui ne cuit pas sur cet ordinateur —, et l'OK donné à l'un par son id.
-  // Optionnels : un pont qui ne les porte pas (le téléphone) n'en montre aucun.
-  gestesRetenus?(project: string): Promise<import("../held/contract.ts").ReadOfHeld | undefined>;
-  approuverGeste?(project: string, id: string): Promise<import("../held/contract.ts").Approval>;
   // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
   // `.brigade/fiche-projet.json` (card-project/card-project-folder.ts). `null` : il n'y est pas. Optionnels : un pont qui
   // ne les porte pas (le téléphone) ne montre pas la section.

@@ -38,7 +38,8 @@ const startup = () => ({
   telephone: { github: { compte: "chef" } },
 });
 
-// #21 attend une décision de produit : une carte avec sa question et ses deux choix, comme `facts` la donne.
+// #21 attend une décision de produit : une carte du chef avec sa question et ses deux choix, telle que son issue la pose
+// sur GitHub (board/todo-github.ts).
 const FACTS = {
   etat: "ouverte",
   lu: "2026-10-21T10:04:11.000Z",
@@ -52,8 +53,7 @@ const FACTS = {
       ticket: 21,
       titre: "L'export du journal",
       url: "https://github.com/chef/parade/issues/21",
-      decision: { quoi: "carte", motif: "product", cause: QUESTION, pr: null },
-      carte: { type: "product", resume: "The site, the demo and the posts will all carry it.", question: QUESTION, choix: [{ texte: FIRST, suite: "resume" }, { texte: SECOND, suite: "resume" }], captures: null },
+      chef: { sorte: "product", texte: `${QUESTION}\n- [resume] ${FIRST}\n- [resume] ${SECOND}\n\nThe site, the demo and the posts will all carry it.` },
     },
   ],
   stations: [],
