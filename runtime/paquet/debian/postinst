@@ -1,107 +1,57 @@
 #!/bin/sh
-# Ce que dpkg joue après avoir posé les fichiers du paquet, à l'installation
-# comme à chaque mise à jour : c'est ici, et nulle part ailleurs, que la
-# station prend ce que le système lui doit. Aucune règle sudoers : la vie
-# courante de la station ne passe jamais par root.
+# Le pont (#4741) : ce paquet n'est plus la station, il la fait passer à l'archive.
+# Ce que dpkg joue après avoir posé ses fichiers — l'archive linux-x64 du paquet — tient
+# en une chose : défaire l'archive et jouer son `install.sh --migrate`, qui pose
+# /opt/brigade-station/<version>, garde /var/lib/brigade et /etc/brigade tels quels, retire
+# les unités et l'arbre /usr/lib de l'ancien paquet, et installe et démarre les unités de
+# l'archive. Puis le paquet est retiré de la base de dpkg, sans toucher à ce qui est sous
+# /opt : le sens est unique, la station se met à jour seule par l'archive ensuite.
+#
+# Rejoué (le paquet réinstallé, une seconde configuration), il ne change rien : l'install.sh
+# garde la version que `current` désigne, et le retrait d'un paquet déjà parti se tait.
+#
+# Le paquet n'a ni prerm ni postrm : son retrait ne doit jamais arrêter la station, qui
+# n'est plus à lui.
+#
+# BRIGADE_RACINE=<dossier> préfixe les chemins que ce script lit (les tests).
 set -e
 
-COMPTE=brigade
-UNITES="brigade-station.service"
-# Les portes de la station : pas activées pour elles-mêmes, la station les
-# réclame.
-PORTES=brigade-station-porte.service
-# Les unités de l'ancien runtime, posées à la main ou par une version
-# précédente du paquet : la station fait tourner la cuisine seule (deux cuisines
-# ne servent jamais les mêmes projets), les cooks lisent /etc/brigade/jeton.env
-# (plus de renouvellement), et l'état de l'ancien runtime n'est plus à
-# sauvegarder. Les modèles à instances (brigade-sauvegarde@<projet>) sont
-# retrouvés par leurs liens d'activation et leurs drop-ins.
-ANCIENNES="brigade-kitchen.service brigade-arbitre.service brigade-renouvellement.service brigade-renouvellement.timer brigade-station-renouvellement.service brigade-station-renouvellement.timer brigade-sauvegarde@.service brigade-sauvegarde@.timer"
-# Celles qu'une version précédente du paquet livrait sous /usr/lib : dpkg a déjà
-# retiré leurs fichiers, mais le processus ou l'état « failed » reste chez systemd
-# — elles sont arrêtées sans condition, qu'un fichier de /etc les porte ou non.
-LIVREES="brigade-station-renouvellement.service brigade-station-renouvellement.timer"
-UNITES_A_LA_MAIN=/etc/systemd/system
-# Les unités retirées (ou arrêtées) par retirer_anciennes, dont l'état « failed »
-# est oublié après le daemon-reload.
-RETIREES=
+RACINE="${BRIGADE_RACINE:-}"
+PAQUET=brigade-station
+ARCHIVE="$RACINE/usr/share/$PAQUET/$PAQUET-linux-x64.tar.gz"
 
-# Le « stop » est à part : « disable --now » échoue sans rien arrêter quand le
-# fichier de l'unité n'existe plus (dpkg l'a retiré), et l'unité resterait active.
-arreter_et_desactiver() {
-  systemctl stop "$1" || true
-  systemctl disable "$1" || true
-  RETIREES="$RETIREES $1"
-}
-
-# Arrête, désactive et supprime chaque unité de l'ancien runtime que la machine
-# porte encore, avec ses drop-ins ; ce que la machine n'a pas n'est pas touché.
-retirer_anciennes() {
-  liste="$ANCIENNES"
-  for unite in $LIVREES; do
-    arreter_et_desactiver "$unite"
-  done
-  for lien in "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.timer "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.service \
-      "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.service.d "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.timer.d; do
-    [ -e "$lien" ] || [ -L "$lien" ] || continue
-    nom=${lien##*/}
-    liste="$liste ${nom%.d}"
-  done
-  for unite in $liste; do
-    presente=
-    for chemin in "$UNITES_A_LA_MAIN/$unite" "$UNITES_A_LA_MAIN/$unite.d" "$UNITES_A_LA_MAIN"/*.wants/"$unite"; do
-      if [ -e "$chemin" ] || [ -L "$chemin" ]; then presente=oui; fi
-    done
-    [ -n "$presente" ] || continue
-    case "$unite" in
-      *@.*) ;;
-      *) case " $LIVREES " in *" $unite "*) ;; *) arreter_et_desactiver "$unite" ;; esac ;;
-    esac
-    rm -rf "$UNITES_A_LA_MAIN/$unite" "$UNITES_A_LA_MAIN/$unite.d" "$UNITES_A_LA_MAIN"/*.wants/"$unite"
-  done
-}
+# Retire le paquet de la base de dpkg une fois que dpkg a fini (il tient son verrou tant
+# que ce script tourne : l'appeler d'ici échouerait). `--purge`, pour qu'il ne reste « rc » nulle part.
+# Détaché : le postinst n'attend pas.
+RETRAIT='
+essais=0
+while [ "$essais" -lt 120 ]; do
+  dpkg --purge brigade-station >/dev/null 2>&1 && exit 0
+  etat=$(dpkg-query -W -f="\${db:Status-Status}" brigade-station 2>/dev/null) || exit 0
+  [ "$etat" != not-installed ] || exit 0
+  essais=$((essais + 1))
+  sleep 5
+done
+exit 1
+'
 
 case "$1" in
   configure)
-    # Le compte du service, celui qui fera la connexion Max. Déjà là — une
-    # machine qui servait brigade avant le paquet —, il est gardé tel quel.
-    if ! getent passwd "$COMPTE" >/dev/null; then
-      if getent group "$COMPTE" >/dev/null; then
-        adduser --quiet --system --ingroup "$COMPTE" --home "/home/$COMPTE" --shell /bin/bash "$COMPTE"
-      else
-        adduser --quiet --system --group --home "/home/$COMPTE" --shell /bin/bash "$COMPTE"
-      fi
+    # Sans systemd en marche (un chroot, un conteneur), il n'y a pas de station à passer.
+    if [ -z "$RACINE" ] && [ ! -d /run/systemd/system ]; then
+      echo "brigade-station : systemd ne tourne pas ici, la station n'est pas migrée vers l'archive" >&2
+      exit 0
     fi
+    [ -f "$ARCHIVE" ] || { echo "brigade-station : l'archive du paquet manque ($ARCHIVE)" >&2; exit 1; }
+    travail=$(mktemp -d)
+    trap 'rm -rf "$travail"' EXIT
+    tar -xzf "$ARCHIVE" -C "$travail"
+    sh "$travail/install.sh" --migrate
 
-    # Sans systemd en marche (un chroot, un conteneur), rien à démarrer.
-    if [ -d /run/systemd/system ]; then
-      # Their agents in flight keep running under their relays (KillMode=process):
-      # the station's kitchen takes them back.
-      retirer_anciennes
-      systemctl daemon-reload
-      # Une unité retirée qui avait échoué resterait listée en « failed ».
-      for unite in $RETIREES; do
-        systemctl reset-failed "$unite" || true
-      done
-      if [ -z "${2:-}" ]; then
-        # Première installation : la station démarre, et redémarrera avec la
-        # machine.
-        systemctl enable --now $UNITES
-      else
-        # Une mise à jour : ce qui est activé repart sur le nouveau code — les
-        # agents en cours, eux, finissent (KillMode=process). Ce que
-        # l'administrateur a désactivé le reste. Les portes d'abord, si elles
-        # tournent : chacune reprend son port, et la station la retrouve ; une
-        # station qui ne les connaissait pas les démarre en repartant (Wants=).
-        if systemctl --quiet is-active "$PORTES"; then
-          systemctl restart "$PORTES"
-        fi
-        for unite in $UNITES; do
-          if systemctl --quiet is-enabled "$unite"; then
-            systemctl restart "$unite"
-          fi
-        done
-      fi
+    if [ -z "$RACINE" ] && [ -d /run/systemd/system ] && command -v systemd-run >/dev/null 2>&1; then
+      systemd-run --quiet --collect --unit=brigade-station-pont-retrait sh -c "$RETRAIT" || true
+    else
+      setsid --fork sh -c "$RETRAIT" >/dev/null 2>&1 </dev/null || true
     fi
     ;;
 esac

@@ -1,12 +1,12 @@
-// Le paquet Debian de la station (runtime/paquet) : ce que la commande de
-// construction produit, et ce que dpkg joue à l'installation et à la mise à
-// jour — la commande d'installation du guide a les siens
-// (deploy/installer-station.test.ts). Ni root, ni vraie machine : `dpkg-deb`
-// construit et ouvre le paquet, et les commandes du système que les scripts
-// appellent sont des doublures qui notent leurs appels.
+// Ce que publie la station (runtime/paquet) : les archives et le .deb, pont à sens unique vers
+// elles (#4741) — ce que la commande de construction produit, et ce que le postinst du pont joue
+// sur une machine qui a l'ancien layout. La commande d'installation du guide a ses tests
+// (deploy/installer-station.test.ts). Ni root, ni vraie machine : `dpkg-deb` construit et ouvre le
+// paquet, et les commandes du système que les scripts appellent sont des doublures qui notent
+// leurs appels, sous une racine d'essai (BRIGADE_RACINE).
 import assert from "node:assert/strict";
 import { execFile, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, describe, test, type TestContext } from "node:test";
@@ -18,8 +18,6 @@ const CONSTRUIRE = join(PAQUET, "construire.ts");
 const REFUS = 2;
 
 const sansDpkgDeb = spawnSync("dpkg-deb", ["--version"]).status !== 0 && "`dpkg-deb` manque sur cette machine : le paquet ne s'y construit pas";
-// Les scripts du paquet ne parlent à systemd que là où il tourne.
-const sansSystemd = !existsSync("/run/systemd/system") && "systemd ne tourne pas sur cette machine : les scripts du paquet n'y appellent pas systemctl";
 
 type Rendu = { code: number; sortie: string };
 
@@ -40,22 +38,6 @@ function fauxNode(repertoire: string, version: string): string {
   writeFileSync(fichier, `#!/bin/sh\necho ${version}\n`);
   chmodSync(fichier, 0o755);
   return fichier;
-}
-
-// Des commandes du système qui notent chacun de leurs appels, une ligne
-// chacun, dans `appels`.
-function doublures(t: TestContext, corps: Record<string, string>) {
-  const bin = repertoireTemporaire(t);
-  const appels = join(bin, "appels");
-  writeFileSync(appels, "");
-  for (const [nom, script] of Object.entries(corps)) {
-    writeFileSync(join(bin, nom), `#!/bin/sh\necho "${nom} $*" >>"${appels}"\n${script}\n`);
-    chmodSync(join(bin, nom), 0o755);
-  }
-  return {
-    env: { ...process.env, PATH: `${bin}:/usr/bin:/bin`, BRIGADE_DEPOT: "acme/brigade" },
-    appels: () => readFileSync(appels, "utf8").trim().split("\n").filter(Boolean),
-  };
 }
 
 function jouer(script: string, args: string[], env: NodeJS.ProcessEnv): Rendu {
@@ -95,103 +77,22 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     for (const dependance of ["git", "gh", "bubblewrap", "libatomic1", "adduser", "systemd"]) assert.ok(champ("Depends").split(/,\s*/).some((d) => d.split(" ")[0] === dependance), `Depends sans ${dependance} : ${champ("Depends")}`);
   });
 
-  test("le dépôt et le mainteneur sont ceux qu'on a donnés, et la mise à jour lit les versions de ce dépôt", () => {
+  test("le dépôt et le mainteneur sont ceux qu'on a donnés", () => {
     assert.equal(champ("Maintainer"), "Test <test@example.org>");
     assert.equal(champ("Homepage"), "https://github.com/acme/brigade");
-    const unite = spawnSync("dpkg-deb", ["--fsys-tarfile", deb], { maxBuffer: 64 * 1024 * 1024 });
-    const lu = spawnSync("tar", ["-xOf", "-", "./usr/lib/systemd/system/brigade-station-mise-a-jour.service"], { input: unite.stdout, encoding: "utf8" });
-    assert.match(lu.stdout, /^Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:acme\/brigade$/m);
   });
 
-  test("il porte le runtime, son node, ses unités — ni tests, ni rien sous /etc, aucune règle sudoers", () => {
-    const fichiers = contenu();
-    const chemins = fichiers.map((f) => f.chemin);
-    for (const attendu of [
-      "/usr/lib/brigade-station/node/bin/node",
-      "/usr/lib/brigade-station/runtime/package.json",
-      "/usr/lib/brigade-station/runtime/src/kitchen/main.ts",
-      "/usr/lib/brigade-station/runtime/agents/kitchen/cook.md",
-      "/usr/lib/systemd/system/brigade-station.service",
-    ]) {
-      assert.ok(chemins.includes(attendu), `${attendu} manque au paquet`);
-    }
-    assert.deepEqual(chemins.filter((c) => c.startsWith("/etc") || /sudo/.test(c)), []);
-    assert.deepEqual(chemins.filter((c) => c.includes("/test/") || c.includes("node_modules")), []);
-    assert.deepEqual(fichiers.filter((f) => f.proprietaire !== "root/root"), []);
-    const droits = (chemin: string) => fichiers.find((f) => f.chemin === chemin)?.droits;
-    assert.equal(droits("/usr/lib/brigade-station/node/bin/node"), "-rwxr-xr-x");
-    assert.equal(droits("/usr/lib/brigade-station/runtime/src/kitchen/main.ts"), "-rw-r--r--");
-    // The station is the kitchen: nothing of the old runtime's entry points.
-    assert.deepEqual(chemins.filter((c) => c.endsWith("/src/station/main.ts") || c === "/usr/lib/brigade-station/brigade"), []);
+  test("sans archive (--sans-archives) le pont ne porte que sa licence : ni runtime, ni node, ni unité", () => {
+    const chemins = contenu().map((f) => f.chemin);
+    assert.deepEqual(chemins.filter((c) => c.startsWith("/usr/lib") || c.startsWith("/etc") || /sudo/.test(c)), []);
   });
 
-  test("il porte la consigne du second juge, celle de ce commit, et le runtime installé la lit (#2571)", async (t) => {
-    const arbre = repertoireTemporaire(t);
-    assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
-    const posee = join(arbre, "usr/lib/brigade-station/runtime/agents/kitchen/second-judge.md");
-    assert.equal(readFileSync(posee, "utf8"), readFileSync(join(PAQUET, "../../agents/kitchen/second-judge.md"), "utf8"));
-    assert.equal(contenu().find((f) => f.chemin === "/usr/lib/brigade-station/runtime/agents/kitchen/second-judge.md")?.droits, "-rw-r--r--");
-    const lu = spawnSync(process.execPath, ["--input-type=module", "-e", `import { lireLaConsigne } from ${JSON.stringify(join(arbre, "usr/lib/brigade-station/runtime/src/second-juge.ts"))}; process.stdout.write(lireLaConsigne());`], { encoding: "utf8" });
-    assert.equal(lu.status, 0, lu.stderr);
-    assert.match(lu.stdout, /Dans le doute, c'est `refuse`/);
-  });
-
-  test("le runtime du paquet démarre la cuisine et ses portes telles que leurs unités les lancent — la cuisine filtrée, ses portes non", async (t) => {
-    const arbre = repertoireTemporaire(t);
-    assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
-    const lireUnite = (nom: string) => {
-      const unite = readFileSync(join(arbre, "usr/lib/systemd/system", nom), "utf8");
-      return (cle: string) => [...unite.matchAll(new RegExp(`^${cle}=(.*)$`, "gm"))].map((m) => m[1] ?? "");
-    };
-    // L'environnement d'une unité, la machine remplacée par un répertoire d'essai.
-    const machine = repertoireTemporaire(t);
-    const HOME = join(machine, "home");
-    mkdirSync(HOME);
-    const lancerUnite = (nom: string) => {
-      const valeur = lireUnite(nom);
-      const [dossierDeTravail = ""] = valeur("WorkingDirectory");
-      const [binaire = "", script = ""] = (valeur("ExecStart")[0] ?? "").split(" ");
-      assert.equal(binaire, "/usr/lib/brigade-station/node/bin/node", nom);
-      assert.ok(existsSync(join(arbre, binaire)), `${nom} : ExecStart lance ${binaire}, absent du paquet`);
-      assert.ok(existsSync(join(arbre, dossierDeTravail, script)), `${nom} : ExecStart lance ${script} depuis ${dossierDeTravail}, absent du paquet`);
-      assert.deepEqual(valeur("User"), ["brigade"], nom);
-      const env: Record<string, string> = { HOME };
-      for (const affectation of valeur("Environment")) {
-        const [cle = "", ...reste] = affectation.split("=");
-        env[cle] = reste.join("=").replaceAll("/var/lib/brigade", join(machine, "var/lib/brigade"));
-      }
-      assert.equal(env.BRIGADE_STATION_DIR, join(machine, "var/lib/brigade"), nom);
-      assert.equal(env.BRIGADE_STATION_PORTES, join(machine, "var/lib/brigade/portes.json"), nom);
-      // Le node du test, faute du vrai dans le paquet : c'est le code livré qui est éprouvé.
-      return lancer(t, join(arbre, dossierDeTravail, script), [], env);
-    };
-
-    const station = lireUnite("brigade-station.service");
-    assert.deepEqual(station("KillMode"), ["process"]);
-    // La station ne joint que la boucle locale ; ses portes, qu'elle réclame, sortent.
-    assert.deepEqual([station("IPAddressDeny"), station("IPAddressAllow")], [["any"], ["localhost"]]);
-    assert.ok(station("Wants").includes("brigade-station-porte.service"), station("Wants").join(" "));
-    assert.ok(station("After").includes("brigade-station-porte.service"), station("After").join(" "));
-    const portes = lireUnite("brigade-station-porte.service");
-    assert.deepEqual([portes("IPAddressDeny"), portes("IPAddressAllow")], [[], []]);
-
-    const lanceesPortes = lancerUnite("brigade-station-porte.service");
-    await lanceesPortes.attendre("portes de la station ouvertes");
-    assert.deepEqual(lireUnite("brigade-station.service")("ExecStart"), ["/usr/lib/brigade-station/node/bin/node src/kitchen/main.ts"]);
-    const lancee = lancerUnite("brigade-station.service");
-    // The kitchen says it is in service, under its own pid: what the station's update waits for.
-    const enService = join(machine, "var/lib/brigade/en-service");
-    await jusqua(() => existsSync(enService) && (JSON.parse(readFileSync(enService, "utf8")) as { pid: number }).pid === lancee.process.pid);
-    assert.deepEqual((JSON.parse(readFileSync(enService, "utf8")) as { servis: string[] }).servis, []);
-  });
-
-  test("ses scripts dpkg sont du sh valide", (t) => {
+  test("son seul script dpkg est le postinst, du sh valide : ni prerm ni postrm, que le retrait ne touche pas la station", (t) => {
     const arbre = repertoireTemporaire(t);
     assert.equal(spawnSync("dpkg-deb", ["--control", deb, arbre]).status, 0);
-    for (const script of ["postinst", "prerm", "postrm"]) {
-      const lu = spawnSync("sh", ["-n", join(arbre, script)], { encoding: "utf8" });
-      assert.equal(lu.status, 0, `${script} : ${lu.stderr}`);
-    }
+    assert.deepEqual(readdirSync(arbre).filter((f) => f !== "control" && f !== "md5sums").sort(), ["postinst"]);
+    const lu = spawnSync("sh", ["-n", join(arbre, "postinst")], { encoding: "utf8" });
+    assert.equal(lu.status, 0, lu.stderr);
   });
 });
 
@@ -233,205 +134,6 @@ describe("les refus de la construction", { skip: sansDpkgDeb }, () => {
   });
 });
 
-describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: sansSystemd }, () => {
-  // Le postinst du paquet, joué dans une copie dont seul le dossier des unités posées à la main change : celui de
-  // la machine qui joue les tests n'est jamais touché.
-  const ORIGINAL = readFileSync(join(PAQUET, "debian/postinst"), "utf8");
-  const postinst = (t: TestContext, unites = repertoireTemporaire(t)) => {
-    const copie = join(repertoireTemporaire(t), "postinst");
-    const local = ORIGINAL.replace(/^UNITES_A_LA_MAIN=.*$/m, `UNITES_A_LA_MAIN=${unites}`);
-    assert.notEqual(local, ORIGINAL);
-    writeFileSync(copie, local);
-    return copie;
-  };
-  // Un système vierge : ni compte ni groupe brigade.
-  const vierge = { getent: "exit 2", adduser: "", systemctl: 'case "$1" in is-enabled|--quiet) exit 1 ;; esac' };
-
-  test("la première installation crée le compte, puis active et démarre la station", (t) => {
-    const systeme = doublures(t, vierge);
-    const rendu = jouer(postinst(t), ["configure", ""], systeme.env);
-    assert.equal(rendu.code, 0, rendu.sortie);
-    assert.deepEqual(
-      systeme.appels().filter((a) => !a.startsWith("getent")),
-      [
-        "adduser --quiet --system --group --home /home/brigade --shell /bin/bash brigade",
-        "systemctl stop brigade-station-renouvellement.service",
-      "systemctl disable brigade-station-renouvellement.service",
-        "systemctl stop brigade-station-renouvellement.timer",
-      "systemctl disable brigade-station-renouvellement.timer",
-        "systemctl daemon-reload",
-        "systemctl reset-failed brigade-station-renouvellement.service",
-        "systemctl reset-failed brigade-station-renouvellement.timer",
-        "systemctl enable --now brigade-station.service",
-      ],
-    );
-  });
-
-  test("un compte brigade déjà là est gardé tel quel", (t) => {
-    const systeme = doublures(t, { ...vierge, getent: "exit 0" });
-    assert.equal(jouer(postinst(t), ["configure", ""], systeme.env).code, 0);
-    assert.deepEqual(systeme.appels().filter((a) => a.startsWith("adduser")), []);
-  });
-
-  test("un groupe brigade sans compte : le compte le rejoint", (t) => {
-    const systeme = doublures(t, { ...vierge, getent: '[ "$1" = group ] && exit 0; exit 2' });
-    assert.equal(jouer(postinst(t), ["configure", ""], systeme.env).code, 0);
-    assert.deepEqual(systeme.appels().filter((a) => a.startsWith("adduser")), ["adduser --quiet --system --ingroup brigade --home /home/brigade --shell /bin/bash brigade"]);
-  });
-
-  test("une mise à jour relance ce qui est activé sur le nouveau code, sans rien réactiver — les portes d'abord, quand elles tournent", (t) => {
-    // La station est activée, ses portes tournent.
-    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; exit 0' });
-    const rendu = jouer(postinst(t), ["configure", "1.2.2"], systeme.env);
-    assert.equal(rendu.code, 0, rendu.sortie);
-    assert.deepEqual(
-      systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
-      [
-        "systemctl stop brigade-station-renouvellement.service",
-      "systemctl disable brigade-station-renouvellement.service",
-        "systemctl stop brigade-station-renouvellement.timer",
-      "systemctl disable brigade-station-renouvellement.timer",
-        "systemctl daemon-reload",
-        "systemctl reset-failed brigade-station-renouvellement.service",
-        "systemctl reset-failed brigade-station-renouvellement.timer",
-        "systemctl restart brigade-station-porte.service",
-        "systemctl restart brigade-station.service",
-      ],
-    );
-  });
-
-  test("une mise à jour depuis une version sans portes ne les démarre pas elle-même : la station les réclame en repartant", (t) => {
-    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
-    assert.equal(jouer(postinst(t), ["configure", "1.2.2"], systeme.env).code, 0);
-    assert.deepEqual(
-      systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
-      [
-        "systemctl stop brigade-station-renouvellement.service",
-      "systemctl disable brigade-station-renouvellement.service",
-        "systemctl stop brigade-station-renouvellement.timer",
-      "systemctl disable brigade-station-renouvellement.timer",
-        "systemctl daemon-reload",
-        "systemctl reset-failed brigade-station-renouvellement.service",
-        "systemctl reset-failed brigade-station-renouvellement.timer",
-        "systemctl restart brigade-station.service",
-      ],
-    );
-  });
-
-  test("la cuisine qu'une unité posée à la main faisait tourner s'arrête et part avant que la station ne la serve : jamais deux cuisines", (t) => {
-    const unites = repertoireTemporaire(t);
-    writeFileSync(join(unites, "brigade-kitchen.service"), "[Service]\nExecStart=node src/kitchen/main.ts\n");
-    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
-    const rendu = jouer(postinst(t, unites), ["configure", "1.2.2"], systeme.env);
-    assert.equal(rendu.code, 0, rendu.sortie);
-    assert.deepEqual(
-      systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
-      [
-        "systemctl stop brigade-station-renouvellement.service",
-      "systemctl disable brigade-station-renouvellement.service",
-        "systemctl stop brigade-station-renouvellement.timer",
-      "systemctl disable brigade-station-renouvellement.timer",
-        "systemctl stop brigade-kitchen.service",
-        "systemctl disable brigade-kitchen.service",
-        "systemctl daemon-reload",
-        "systemctl reset-failed brigade-station-renouvellement.service",
-        "systemctl reset-failed brigade-station-renouvellement.timer",
-        "systemctl reset-failed brigade-kitchen.service",
-        "systemctl restart brigade-station.service",
-      ],
-    );
-    assert.equal(existsSync(join(unites, "brigade-kitchen.service")), false);
-  });
-
-  test("les unités de l'ancien runtime — arbitre, renouvellement, sauvegardes quotidiennes — s'arrêtent, se désactivent et partent avec leurs drop-ins ; la station reste", (t) => {
-    const unites = repertoireTemporaire(t);
-    const poser = (...chemin: string[]) => {
-      mkdirSync(dirname(join(unites, ...chemin)), { recursive: true });
-      writeFileSync(join(unites, ...chemin), "[Service]\n");
-    };
-    for (const f of ["brigade-arbitre.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer", "brigade-station.service"]) poser(f);
-    for (const d of ["brigade-arbitre.service.d", "brigade-sauvegarde@brigade.service.d", "brigade-sauvegarde@espace.service.d", "brigade-station.service.d"]) poser(d, "reglage.conf");
-    poser("brigade-station-renouvellement.timer");
-    for (const projet of ["brigade", "calculus-workspace", "espace"]) {
-      mkdirSync(join(unites, "timers.target.wants"), { recursive: true });
-      symlinkSync("/dev/null", join(unites, "timers.target.wants", `brigade-sauvegarde@${projet}.timer`));
-    }
-    symlinkSync("/dev/null", join(unites, "timers.target.wants", "brigade-station-renouvellement.timer"));
-    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$1" = disable ] && exit 1; [ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
-    const rendu = jouer(postinst(t, unites), ["configure", "1.2.2"], systeme.env);
-    assert.equal(rendu.code, 0, rendu.sortie);
-    const appels = systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active"));
-    assert.deepEqual(
-      appels.filter((a) => a.startsWith("systemctl disable") || a.startsWith("systemctl stop")).sort(),
-      [
-        "systemctl stop brigade-arbitre.service",
-        "systemctl disable brigade-arbitre.service",
-        "systemctl stop brigade-sauvegarde@brigade.service",
-        "systemctl disable brigade-sauvegarde@brigade.service",
-        "systemctl stop brigade-sauvegarde@brigade.timer",
-        "systemctl disable brigade-sauvegarde@brigade.timer",
-        "systemctl stop brigade-sauvegarde@calculus-workspace.timer",
-        "systemctl disable brigade-sauvegarde@calculus-workspace.timer",
-        "systemctl stop brigade-sauvegarde@espace.service",
-        "systemctl disable brigade-sauvegarde@espace.service",
-        "systemctl stop brigade-sauvegarde@espace.timer",
-        "systemctl disable brigade-sauvegarde@espace.timer",
-        "systemctl stop brigade-station-renouvellement.service",
-        "systemctl disable brigade-station-renouvellement.service",
-        "systemctl stop brigade-station-renouvellement.timer",
-        "systemctl disable brigade-station-renouvellement.timer",
-      ].sort(),
-    );
-    const reload = appels.indexOf("systemctl daemon-reload");
-    assert.equal(appels.at(-1), "systemctl restart brigade-station.service");
-    assert.deepEqual(
-      appels.slice(reload + 1, -1).sort(),
-      [
-        "systemctl reset-failed brigade-arbitre.service",
-        "systemctl reset-failed brigade-sauvegarde@brigade.service",
-        "systemctl reset-failed brigade-sauvegarde@brigade.timer",
-        "systemctl reset-failed brigade-sauvegarde@calculus-workspace.timer",
-        "systemctl reset-failed brigade-sauvegarde@espace.service",
-        "systemctl reset-failed brigade-sauvegarde@espace.timer",
-        "systemctl reset-failed brigade-station-renouvellement.service",
-        "systemctl reset-failed brigade-station-renouvellement.timer",
-      ],
-    );
-    assert.deepEqual(readdirSync(unites).sort(), ["brigade-station.service", "brigade-station.service.d", "timers.target.wants"]);
-    assert.deepEqual(readdirSync(join(unites, "timers.target.wants")), []);
-  });
-
-  test("une mise à jour depuis une version qui livrait le renouvellement sous /usr/lib l'arrête sans condition et oublie son état failed, après le daemon-reload", (t) => {
-    // Aucun fichier sous /etc : seule la machine (systemd) porte encore l'unité.
-    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$1" = disable ] && exit 1; [ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
-    const rendu = jouer(postinst(t), ["configure", "1.2.2"], systeme.env);
-    assert.equal(rendu.code, 0, rendu.sortie);
-    const appels = systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active"));
-    assert.deepEqual(appels, [
-      "systemctl stop brigade-station-renouvellement.service",
-      "systemctl disable brigade-station-renouvellement.service",
-      "systemctl stop brigade-station-renouvellement.timer",
-      "systemctl disable brigade-station-renouvellement.timer",
-      "systemctl daemon-reload",
-      "systemctl reset-failed brigade-station-renouvellement.service",
-      "systemctl reset-failed brigade-station-renouvellement.timer",
-      "systemctl restart brigade-station.service",
-    ]);
-  });
-
-  test("le retrait arrête la station et ses portes, sans toucher à son état", (t) => {
-    const systeme = doublures(t, { systemctl: "" });
-    assert.equal(jouer(join(PAQUET, "debian/prerm"), ["remove"], systeme.env).code, 0);
-    assert.deepEqual(systeme.appels(), ["systemctl stop brigade-station.service brigade-station-porte.service"]);
-  });
-
-  test("une mise à jour n'arrête pas la station avant de poser le nouveau code", (t) => {
-    const systeme = doublures(t, { systemctl: "" });
-    assert.equal(jouer(join(PAQUET, "debian/prerm"), ["upgrade", "1.2.4"], systeme.env).code, 0);
-    assert.deepEqual(systeme.appels(), []);
-  });
-});
-
 // Des binaires qui n'ont de `node` que l'en-tête : celui d'un ELF ou d'un Mach-O 64 bits.
 function binaireFactice(fichier: string, os: "linux" | "darwin", arch: "x64" | "arm64"): string {
   const tete = Buffer.alloc(64);
@@ -453,6 +155,15 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
   let sortie = "";
   let rendu: Rendu = { code: -1, sortie: "" };
   const archive = (os: string, arch: string) => join(sortie, `brigade-station-1.2.3-${os}-${arch}.tar.gz`);
+  const pont = () => join(sortie, readdirSync(sortie).find((f) => f.endsWith(".deb")) ?? "");
+  const contenuDuPont = () =>
+    spawnSync("dpkg-deb", ["--contents", pont()], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+      .stdout.trim()
+      .split("\n")
+      .map((ligne) => {
+        const [droits = "", proprietaire = "", , , , chemin = ""] = ligne.split(/\s+/);
+        return { droits, proprietaire, chemin: chemin.replace(/^\.\//, "/") };
+      });
   const liste = (os: string, arch: string) => spawnSync("tar", ["-tzf", archive(os, arch)], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\n").map((l) => l.replace(/^\.\//, ""));
 
   before(async () => {
@@ -488,6 +199,242 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
     assert.match(lu.stdout, /^ExecStart=\/opt\/brigade-station\/current\/node\/bin\/node src\/kitchen\/main\.ts$/m);
     assert.doesNotMatch(lu.stdout, /\/usr\/lib\/brigade-station/);
     assert.ok(liste("darwin", "arm64").some((f) => f.startsWith("services/launchd/")));
+  });
+
+  // L'archive linux-x64 défaite, et l'emplacement que ses unités nomment (/opt/brigade-station/current) ramené dessus.
+  const defaite = (t: TestContext) => {
+    const arbre = repertoireTemporaire(t);
+    assert.equal(spawnSync("tar", ["-xzf", archive("linux", "x64"), "-C", arbre]).status, 0);
+    return arbre;
+  };
+
+  test("l'archive porte l'install.sh du dépôt, sa version et une commande brigade qui lance celle du runtime", (t) => {
+    const arbre = defaite(t);
+    assert.equal(readFileSync(join(arbre, "install.sh"), "utf8"), readFileSync(join(PAQUET, "../archive/install.sh"), "utf8"));
+    assert.equal(readFileSync(join(arbre, "version"), "utf8"), "1.2.3\n");
+    assert.match(readFileSync(join(arbre, "bin/brigade"), "utf8"), /brigade-command\/main\.ts/);
+    assert.ok(existsSync(join(arbre, "runtime/src/brigade-command/main.ts")));
+    const unite = readFileSync(join(arbre, "services/brigade-station-mise-a-jour.service"), "utf8");
+    assert.match(unite, /^Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:acme\/brigade$/m);
+  });
+
+  test("elle porte la consigne du second juge, celle de ce commit, et le runtime installé la lit (#2571)", (t) => {
+    const arbre = defaite(t);
+    assert.equal(readFileSync(join(arbre, "runtime/agents/kitchen/second-judge.md"), "utf8"), readFileSync(join(PAQUET, "../../agents/kitchen/second-judge.md"), "utf8"));
+    const lu = spawnSync(process.execPath, ["--input-type=module", "-e", `import { lireLaConsigne } from ${JSON.stringify(join(arbre, "runtime/src/second-juge.ts"))}; process.stdout.write(lireLaConsigne());`], { encoding: "utf8" });
+    assert.equal(lu.status, 0, lu.stderr);
+    assert.match(lu.stdout, /Dans le doute, c'est `refuse`/);
+  });
+
+  test("le runtime de l'archive démarre la cuisine et ses portes telles que leurs unités les lancent — la cuisine filtrée, ses portes non", async (t) => {
+    const arbre = defaite(t);
+    const lireUnite = (nom: string) => {
+      const unite = readFileSync(join(arbre, "services", nom), "utf8");
+      return (cle: string) => [...unite.matchAll(new RegExp(`^${cle}=(.*)$`, "gm"))].map((m) => m[1] ?? "");
+    };
+    const dansArchive = (chemin: string) => join(arbre, chemin.replace("/opt/brigade-station/current", ""));
+    // L'environnement d'une unité, la machine remplacée par un répertoire d'essai.
+    const machine = repertoireTemporaire(t);
+    const HOME = join(machine, "home");
+    mkdirSync(HOME);
+    const lancerUnite = (nom: string) => {
+      const valeur = lireUnite(nom);
+      const [dossierDeTravail = ""] = valeur("WorkingDirectory");
+      const [binaire = "", script = ""] = (valeur("ExecStart")[0] ?? "").split(" ");
+      assert.equal(binaire, "/opt/brigade-station/current/node/bin/node", nom);
+      assert.ok(existsSync(dansArchive(binaire)), `${nom} : ExecStart lance ${binaire}, absent de l'archive`);
+      assert.ok(existsSync(join(dansArchive(dossierDeTravail), script)), `${nom} : ExecStart lance ${script} depuis ${dossierDeTravail}, absent de l'archive`);
+      assert.deepEqual(valeur("User"), ["brigade"], nom);
+      const env: Record<string, string> = { HOME };
+      for (const affectation of valeur("Environment")) {
+        const [cle = "", ...reste] = affectation.split("=");
+        env[cle] = reste.join("=").replaceAll("/var/lib/brigade", join(machine, "var/lib/brigade"));
+      }
+      assert.equal(env.BRIGADE_STATION_DIR, join(machine, "var/lib/brigade"), nom);
+      assert.equal(env.BRIGADE_STATION_PORTES, join(machine, "var/lib/brigade/portes.json"), nom);
+      // Le node du test, faute du vrai dans l'archive : c'est le code livré qui est éprouvé.
+      return lancer(t, join(dansArchive(dossierDeTravail), script), [], env);
+    };
+
+    const station = lireUnite("brigade-station.service");
+    assert.deepEqual(station("KillMode"), ["process"]);
+    // La station ne joint que la boucle locale ; ses portes, qu'elle réclame, sortent.
+    assert.deepEqual([station("IPAddressDeny"), station("IPAddressAllow")], [["any"], ["localhost"]]);
+    assert.ok(station("Wants").includes("brigade-station-porte.service"), station("Wants").join(" "));
+    assert.ok(station("After").includes("brigade-station-porte.service"), station("After").join(" "));
+    const portes = lireUnite("brigade-station-porte.service");
+    assert.deepEqual([portes("IPAddressDeny"), portes("IPAddressAllow")], [[], []]);
+
+    const lanceesPortes = lancerUnite("brigade-station-porte.service");
+    await lanceesPortes.attendre("portes de la station ouvertes");
+    assert.deepEqual(station("ExecStart"), ["/opt/brigade-station/current/node/bin/node src/kitchen/main.ts"]);
+    const lancee = lancerUnite("brigade-station.service");
+    // The kitchen says it is in service, under its own pid: what the station's update waits for.
+    const enService = join(machine, "var/lib/brigade/en-service");
+    await jusqua(() => existsSync(enService) && (JSON.parse(readFileSync(enService, "utf8")) as { pid: number }).pid === lancee.process.pid);
+    assert.deepEqual((JSON.parse(readFileSync(enService, "utf8")) as { servis: string[] }).servis, []);
+  });
+
+  test("le pont porte l'archive linux-x64 et rien du système : ni runtime, ni node, ni unité, ni /etc, ni sudoers", () => {
+    const fichiers = contenuDuPont();
+    const chemins = fichiers.map((f) => f.chemin);
+    assert.ok(chemins.includes("/usr/share/brigade-station/brigade-station-linux-x64.tar.gz"), chemins.join("\n"));
+    assert.deepEqual(chemins.filter((c) => c.startsWith("/usr/lib") || c.startsWith("/etc") || /sudo/.test(c)), []);
+    assert.deepEqual(fichiers.filter((f) => f.proprietaire !== "root/root"), []);
+    const portee = spawnSync("tar", ["-tzf", "-"], { input: readFileSync(archive("linux", "x64")), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    const dansLePont = spawnSync("dpkg-deb", ["--fsys-tarfile", pont()], { maxBuffer: 256 * 1024 * 1024 });
+    const extrait = spawnSync("tar", ["-xOf", "-", "./usr/share/brigade-station/brigade-station-linux-x64.tar.gz"], { input: dansLePont.stdout, maxBuffer: 256 * 1024 * 1024 });
+    assert.deepEqual(extrait.stdout, readFileSync(archive("linux", "x64")), "l'archive du pont n'est pas celle de la release");
+    assert.ok(portee.stdout.includes("install.sh"));
+  });
+
+  describe("le postinst du pont, sur une machine au layout du .deb (#4741)", () => {
+    const POSTINST = "postinst";
+    // Une machine d'essai : la racine, des doublures de `dpkg`, `systemctl` et du reste, qui notent leurs appels.
+    function machineDuDeb(t: TestContext, ecart: { sansArchive?: boolean } = {}) {
+      const racine = repertoireTemporaire(t);
+      const bin = join(repertoireTemporaire(t), "bin");
+      mkdirSync(bin);
+      const appels = join(bin, "appels");
+      const base = join(bin, "base");
+      writeFileSync(appels, "");
+      writeFileSync(base, "installed\n");
+      const doublure = (nom: string, corps: string) => {
+        writeFileSync(join(bin, nom), `#!/bin/sh\necho "${nom} $*" >>"${appels}"\n${corps}\n`);
+        chmodSync(join(bin, nom), 0o755);
+      };
+      // La station tourne : `is-active` répond oui, comme sur la machine qu'on migre.
+      doublure("systemctl", "exit 0");
+      doublure("bwrap", "exit 0");
+      doublure("chown", "exit 0");
+      doublure("useradd", `touch "${bin}/compte"`);
+      doublure("id", `[ "$2" = brigade ] && [ ! -e "${bin}/compte" ] && exit 1\nexec /usr/bin/id "$@"`);
+      // dpkg : sa base est un fichier ; `dpkg -l` ne trouve plus le paquet une fois purgé (code 1, comme le vrai).
+      doublure("dpkg", `case "$1" in\n  --purge) echo not-installed >"${base}" ;;\n  -l) grep -qx installed "${base}" && echo "ii  brigade-station" || { echo "dpkg-query: no packages found matching $2" >&2; exit 1; } ;;\nesac`);
+      doublure("dpkg-query", `s=$(cat "${base}"); [ "$s" = not-installed ] && exit 1; echo "$s"`);
+      // `setsid --fork` rend la main tout de suite ; la doublure joue le retrait sur place.
+      doublure("setsid", 'shift\n"$@"');
+      const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}:/usr/bin:/bin`, BRIGADE_RACINE: racine, BRIGADE_TERMINAL: "/nonexistent" };
+      delete env.BRIGADE_GITHUB_TOKEN;
+      delete env.BRIGADE_CLAUDE_TOKEN;
+
+      // Ce que dpkg a posé : le pont (son archive, le postinst).
+      const deb = pont();
+      assert.equal(spawnSync("dpkg-deb", ["--extract", deb, racine]).status, 0);
+      const controle = join(racine, "DEBIAN");
+      assert.equal(spawnSync("dpkg-deb", ["--control", deb, controle]).status, 0);
+      if (ecart.sansArchive) rmSync(join(racine, "usr/share/brigade-station/brigade-station-linux-x64.tar.gz"));
+
+      // Ce que l'ancien paquet avait posé : son arbre, ses unités activées, l'état et les secrets de la machine.
+      const ecrire = (chemin: string, texte: string, droits = 0o644) => {
+        mkdirSync(dirname(join(racine, chemin)), { recursive: true });
+        writeFileSync(join(racine, chemin), texte);
+        chmodSync(join(racine, chemin), droits);
+      };
+      ecrire("usr/lib/brigade-station/runtime/package.json", '{"version":"0.old"}\n');
+      ecrire("usr/lib/brigade-station/node/bin/node", "#!/bin/sh\n", 0o755);
+      for (const unite of ["brigade-station.service", "brigade-station-porte.service", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"]) ecrire(`usr/lib/systemd/system/${unite}`, `# ancienne ${unite}\nExecStart=/usr/lib/brigade-station/node/bin/node\n`);
+      mkdirSync(join(racine, "etc/systemd/system/multi-user.target.wants"), { recursive: true });
+      symlinkSync("/usr/lib/systemd/system/brigade-station.service", join(racine, "etc/systemd/system/multi-user.target.wants/brigade-station.service"));
+      ecrire("var/lib/brigade/kitchen/projects", "acme/depot\n");
+      ecrire("var/lib/brigade/kitchen/acme/depot/etat.json", '{"queue":[4741]}\n');
+      ecrire("var/lib/brigade/reglages", "gel=non\n", 0o600);
+      ecrire("etc/brigade/claude-token", "sk-ant-deja-la\n", 0o640);
+      ecrire("etc/brigade/claude-token.cree", "2026-01-01\n");
+      ecrire("etc/brigade/jeton.env", "BRIGADE_CLAUDE_TOKEN_FILE=/etc/brigade/claude-token\n");
+      return {
+        racine,
+        env,
+        appels: () => readFileSync(appels, "utf8").trim().split("\n").filter(Boolean),
+        base: () => readFileSync(base, "utf8").trim(),
+        dpkgL: () => spawnSync("dpkg", ["-l", "brigade-station"], { env, encoding: "utf8" }),
+        jouer: (args: string[] = ["configure", "0.old"]) => jouer(join(controle, POSTINST), args, env),
+        // Chaque chemin sous `dossier` avec son type, ses droits, sa cible ou son contenu.
+        photo: (dossier: string): string[] => {
+          const lire = (rel: string): string[] => {
+            if (!existsSync(join(racine, dossier, rel))) return [];
+            return readdirSync(join(racine, dossier, rel)).sort().flatMap((n) => {
+              const chemin = join(rel, n);
+              const st = lstatSync(join(racine, dossier, chemin));
+              if (st.isSymbolicLink()) return [`${chemin} -> ${readlinkSync(join(racine, dossier, chemin))}`];
+              if (st.isDirectory()) return [chemin + "/", ...lire(chemin)];
+              return [`${chemin} ${(st.mode & 0o777).toString(8)} ${readFileSync(join(racine, dossier, chemin), "utf8")}`];
+            });
+          };
+          return lire("");
+        },
+      };
+    }
+
+    test("depuis le layout du .deb : /opt, le même état et les mêmes secrets, les unités de l'archive activées, les anciennes parties, le paquet retiré de dpkg", (t) => {
+      const m = machineDuDeb(t);
+      const etat = m.photo("var/lib/brigade");
+      const secrets = m.photo("etc/brigade");
+      assert.equal(m.dpkgL().status, 0, "le paquet est d'abord installé");
+
+      const rendu = m.jouer();
+      assert.equal(rendu.code, 0, rendu.sortie);
+
+      // Le layout /opt.
+      const opt = join(m.racine, "opt/brigade-station");
+      assert.equal(readlinkSync(join(opt, "current")), "1.2.3");
+      for (const attendu of ["install.sh", "version", "runtime/src/kitchen/main.ts", "node/bin/node", "bin/brigade", "services/brigade-station.service"]) assert.ok(existsSync(join(opt, "1.2.3", attendu)), `${attendu} manque sous /opt`);
+      assert.equal(readlinkSync(join(m.racine, "usr/local/bin/brigade")), "/opt/brigade-station/current/bin/brigade");
+      // L'état et les secrets, tels quels — pas un token demandé, pas un fichier réécrit.
+      assert.deepEqual(m.photo("var/lib/brigade"), etat);
+      assert.deepEqual(m.photo("etc/brigade"), secrets);
+      // Les unités de l'archive, posées, activées et démarrées ; celles de l'ancien paquet, parties.
+      for (const unite of ["brigade-station.service", "brigade-station-porte.service", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"]) {
+        const posee = readFileSync(join(m.racine, "etc/systemd/system", unite), "utf8");
+        assert.doesNotMatch(posee, /\/usr\/lib\/brigade-station/, unite);
+        assert.equal(existsSync(join(m.racine, "usr/lib/systemd/system", unite)), false, `${unite} de l'ancien paquet reste`);
+      }
+      assert.match(readFileSync(join(m.racine, "etc/systemd/system/brigade-station.service"), "utf8"), /^ExecStart=\/opt\/brigade-station\/current\/node\/bin\/node /m);
+      assert.equal(existsSync(join(m.racine, "usr/lib/brigade-station")), false, "l'arbre de l'ancien paquet reste");
+      assert.equal(lstatSync(join(m.racine, "etc/systemd/system/multi-user.target.wants/brigade-station.service"), { throwIfNoEntry: false }), undefined, "le lien d'activation de l'ancienne unité reste");
+      const appels = m.appels();
+      assert.ok(appels.includes("systemctl daemon-reload"), appels.join("\n"));
+      assert.ok(appels.includes("systemctl restart brigade-station-porte.service brigade-station.service"), `la station et sa porte redémarrent sur l'archive\n${appels.join("\n")}`);
+      assert.ok(appels.includes("systemctl enable --now brigade-station-porte.service brigade-station.service brigade-station-mise-a-jour.timer"), appels.join("\n"));
+      // Le paquet n'est plus installé pour dpkg ; ce qui est sous /opt n'a pas bougé.
+      assert.equal(m.base(), "not-installed");
+      assert.notEqual(m.dpkgL().status, 0);
+      assert.ok(appels.includes("dpkg --purge brigade-station"), appels.join("\n"));
+      assert.ok(existsSync(join(opt, "1.2.3/runtime/src/kitchen/main.ts")));
+    });
+
+    test("rejoué, il ne change rien : ni fichier, ni redémarrage", (t) => {
+      const m = machineDuDeb(t);
+      assert.equal(m.jouer().code, 0);
+      const avant = ["opt", "etc", "var", "usr"].flatMap((d) => m.photo(d).map((l) => `${d}/${l}`));
+      const appelsAvant = m.appels().length;
+      const rendu = m.jouer(["configure", "1.2.3"]);
+      assert.equal(rendu.code, 0, rendu.sortie);
+      assert.deepEqual(["opt", "etc", "var", "usr"].flatMap((d) => m.photo(d).map((l) => `${d}/${l}`)), avant);
+      const nouveaux = m.appels().slice(appelsAvant);
+      assert.ok(nouveaux.some((a) => a.startsWith("systemctl --quiet is-active")), "la station est sondée : l'absence de redémarrage vient du rien à changer");
+      assert.deepEqual(nouveaux.filter((a) => /^systemctl (restart|stop)/.test(a)), []);
+      assert.equal(m.base(), "not-installed");
+    });
+
+    test("une station qui s'est déjà mise à jour par l'archive garde sa version courante : le pont rejoué ne la ramène pas en arrière", (t) => {
+      const m = machineDuDeb(t);
+      mkdirSync(join(m.racine, "opt/brigade-station/9.9.9"), { recursive: true });
+      symlinkSync("9.9.9", join(m.racine, "opt/brigade-station/current"));
+      assert.equal(m.jouer().code, 0);
+      assert.equal(readlinkSync(join(m.racine, "opt/brigade-station/current")), "9.9.9");
+    });
+
+    test("un pont sans archive échoue en le disant, et ne touche à rien", (t) => {
+      const m = machineDuDeb(t, { sansArchive: true });
+      const etat = m.photo("var/lib/brigade");
+      const rendu = m.jouer();
+      assert.notEqual(rendu.code, 0);
+      assert.match(rendu.sortie, /l'archive du paquet manque/);
+      assert.deepEqual(m.photo("var/lib/brigade"), etat);
+      assert.equal(existsSync(join(m.racine, "opt")), false);
+      assert.equal(m.base(), "installed");
+    });
   });
 
   test("l'archive darwin porte les cinq fichiers de l'ancre pf, charger-pf.sh exécutable", () => {
