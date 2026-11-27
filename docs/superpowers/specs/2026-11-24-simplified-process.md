@@ -27,9 +27,9 @@ The words stay the kitchen's: a cook is not a developer, the pass is where a dis
 9. **House rules are locked.** No cook, manager or supervisor can skip a check because it suits them. Only the chef changes them, in the project sheet.
 10. **Risk decides where the chef's opinion is required.** Each project ranks its actions: publishing, paying, writing to a client require it; fixing a typo never does. The three existing levels apply: observe, propose, act.
 11. **A ticket may have stages, each through the pass.** One by default. Declared only when the work truly has stages (script, storyboard, render).
-12. **Three tries per ticket, in total.** Each refusal goes back to the cook with its reason (the failing check by name). Nothing resets the count — no claim, rewrite or supervisor pass. At the third, the ticket is parked for the chef, with what was tried.
+12. **Three tries per ticket, in total.** Each refusal goes back to the cook with its reason (the failing check by name). Nothing resets the count — no claim, rewrite or supervisor pass. At the third, the ticket is labelled `parked` for the supervisor (never `parked:chef`), with the tries and the last reason (#4600).
 13. **One state for everything that waits: parked.** Who, for what, until when. Open at every step; the ticket resumes exactly where it was; nothing takes it before. Replaces WAITING, set aside, `blocked-on-human`, `decision`, `question` and the fault banners.
-14. **The supervisor watches the whole kitchen.** Each ticket's progress, loops, load, what is served, tickets parked too long. It repairs an inconsistent state, parks a ticket that goes round in circles, opens a defect ticket. It never relaunches blindly; what it cannot fix, it parks for the chef.
+14. **The supervisor watches the whole kitchen.** Each ticket's progress, loops, load, what is served, tickets parked too long. It repairs an inconsistent state, parks a ticket that goes round in circles, opens a defect ticket. It never relaunches blindly; it never parks a ticket for the chef: only a cook's product or design question goes to the chef (#4600).
 15. **The closer tidies what is served.** Dead code, a stale doc, a duplicate: it tidies them itself, and its work goes through the pass like a cook's; what it cannot do alone becomes a ticket.
 16. **The chef's TODO is the parking that waits for the chef, plus a journal of the day.** Every card has its buttons, and the chef's answer sends the ticket on.
 
@@ -62,7 +62,7 @@ A class may say `hold`: the gesture is then held even at level `act`. No free te
 | The cook's gates plus the station's gates | The pass, only judge |
 | WAITING, set aside, `blocked-on-human`, `decision`, `question`, fault banners | Parked |
 | Frozen acceptance tests written before the code | The cook's tests, judged by the pass |
-| Manager rewrites after failures | Three tries in total, then parked for the chef |
+| Manager rewrites after failures | Three tries in total, then `parked` for the supervisor, never for the chef |
 | The rail's invariant repair that puts `fire` back | Parked holds until its date or fact |
 | One ticket mechanism per agent | One issue in the backlog |
 | The design cook | The project's tools |
