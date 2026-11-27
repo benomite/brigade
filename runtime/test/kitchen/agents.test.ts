@@ -45,3 +45,11 @@ test("a manager split of an epic opens up to 30 children and creates epic/<n> fr
   assert.equal(opened.length, 12);
   assert.equal(branches.length, 1);
 });
+
+test("a split whose ticket body holds a fenced code block is still read: the closing fence is the one at a line's start (#4730)", () => {
+  const body = "Run it:\n```bash\nbrigade status\n```\nThen check.";
+  const answer = `Splitting.\n\n\`\`\`json\n${JSON.stringify({ actions: [{ split: 9, tickets: [{ title: "One", body }, { title: "Two", body: "b" }] }] })}\n\`\`\`\n`;
+  const actions = parseAgentActions(answer);
+  assert.equal(actions.length, 1);
+  assert.deepEqual((actions[0] as { tickets: Array<{ body: string }> }).tickets.map((one) => one.body), [body, "b"]);
+});
