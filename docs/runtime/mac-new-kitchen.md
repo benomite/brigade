@@ -4,6 +4,10 @@ The new kitchen (`runtime/src/kitchen/main.ts`) serves the projects of `<BRIGADE
 On the box, its own systemd unit runs it (`runtime/deploy/brigade-kitchen.service`). On a Mac, the station the app
 launches runs it itself (`runtime/src/station/new-kitchen.ts`, #4484).
 
+An update restarts it on the code it installs (#4604): on the box, the package's `postinst` restarts
+`brigade-kitchen` after the station when the unit is enabled or running; on a Mac, the station's restart stops its
+kitchen and the new station starts it again. Agents in flight keep running in both cases.
+
 ## Declare the project
 
 Add one line to `<BRIGADE_STATION_DIR>/kitchen/projects` (create the `kitchen/` folder if needed):

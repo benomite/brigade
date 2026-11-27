@@ -6,7 +6,7 @@
 // mise à jour —, ses unités et son postinst.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test, type TestContext } from "node:test";
@@ -19,6 +19,7 @@ import { construirePaquet, deriverPaquet, sansDpkgDeb, uneMachine, type Machine 
 
 const UNITE = "usr/lib/systemd/system/brigade-station.service";
 const MAIN = "usr/lib/brigade-station/runtime/src/station/main.ts";
+const CUISINE = "brigade-kitchen.service";
 
 // L'heure d'un instant, à la minute, à l'heure de la machine : « 14:02 ».
 const heure = (instant: string) => {
@@ -101,6 +102,41 @@ async function enService(machine: Machine, version: string): Promise<number> {
   return pid;
 }
 
+// La nouvelle cuisine de la box (runtime/deploy/brigade-kitchen.service), hors du paquet : posée à la main sous
+// la racine d'essai, activée et démarrée. `repartieApres` attend qu'une mise à jour l'ait relancée — un autre
+// process, démarré après que ses fichiers ont été posés, relancé après la station.
+function laCuisine(t: TestContext, machine: Machine) {
+  const systemctl = (...args: string[]) => spawnSync("systemctl", args, { env: machine.env, encoding: "utf8" });
+  mkdirSync(join(machine.racine, "etc/systemd/system"), { recursive: true });
+  copyFileSync(join(import.meta.dirname, "../../deploy", CUISINE), join(machine.racine, "etc/systemd/system", CUISINE));
+  systemctl("daemon-reload");
+  assert.equal(systemctl("enable", "--now", CUISINE).status, 0);
+  const etat = join(machine.racine, "run/faux-systemd");
+  const pid = () => Number(readFileSync(join(etat, `${CUISINE}.pid`), "utf8"));
+  aArreter(t, () => {
+    systemctl("stop", CUISINE);
+    if (vivant(pid())) process.kill(pid(), "SIGKILL");
+  });
+  const avant = pid();
+  assert.equal(vivant(avant), true, readFileSync(join(etat, `${CUISINE}.sortie`), "utf8"));
+  return {
+    async repartieApres(dit: () => string) {
+      const apres = pid();
+      assert.notEqual(apres, avant, dit());
+      assert.equal(vivant(apres), true, readFileSync(join(etat, `${CUISINE}.sortie`), "utf8"));
+      await mort(avant);
+      const posee = statSync(join(machine.racine, "usr/lib/brigade-station/runtime/src/kitchen/main.ts"));
+      const demarree = statSync(join(etat, `${CUISINE}.pid`)).mtimeMs;
+      assert.ok(demarree > Math.max(posee.mtimeMs, posee.ctimeMs), `la cuisine a démarré à ${demarree}, ses fichiers sont posés à ${Math.max(posee.mtimeMs, posee.ctimeMs)}`);
+      const appels = machine.appels();
+      assert.deepEqual(
+        appels.slice(appels.findLastIndex((a) => a.startsWith("apt-get install"))).filter((a) => /^systemctl restart brigade-(station|kitchen)\.service/.test(a)),
+        ["systemctl restart brigade-station.service", `systemctl restart ${CUISINE}`],
+      );
+    },
+  };
+}
+
 describe("la mise à jour de la station, sur une installation de test", { skip: sansDpkgDeb }, () => {
   let dossier = "";
   // Le paquet construit depuis ce dépôt, et ce qu'on en tire, faits une fois
@@ -131,6 +167,8 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(machine.installee(), "1.0.0");
     const pid1 = await enService(machine, "1.0.0");
     await jusqua(() => lireEnService(machine.station)?.servis.includes("brigade") === true);
+    // La nouvelle cuisine de la box : l'unité de runtime/deploy, posée à la main comme sur la box, activée et démarrée.
+    const cuisine = laCuisine(t, machine);
 
     // Rien de publié de plus récent : rien ne bouge.
     machine.publier("1.0.0", premier);
@@ -147,6 +185,8 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(machine.installee(), "1.1.0", dit());
     const pid2 = await enService(machine, "1.1.0");
     assert.notEqual(pid2, pid1);
+    // La cuisine est repartie, après la station, sur les fichiers que 1.1.0 a posés (#4604).
+    await cuisine.repartieApres(dit);
     await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 1);
     const [passage] = faits(machine.etatDuProjet, "update.installed");
     assert.deepEqual([passage?.version, passage?.previous], ["1.1.0", "1.0.0"]);
@@ -174,7 +214,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     );
     const dernier = faits(machine.etatDuProjet, "update.installed").at(-1);
     assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  switched to version 1.2.0 at ${heure(String(dernier?.at))}`]);
-    // Le projet n'a jamais cessé d'être servi, et seule la station a été relancée.
+    // Le projet n'a jamais cessé d'être servi, et des unités du paquet, seule la station a été relancée.
     assert.deepEqual(lireEnService(machine.station)?.servis, ["brigade"]);
     assert.deepEqual(
       machine.appels().filter((a) => /^systemctl (stop|restart|start) brigade-station\.service/.test(a)),

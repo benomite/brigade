@@ -1,7 +1,7 @@
 // On a Mac, the station runs `src/kitchen/main.ts` for the projects of
 // `kitchen/projects`, and its old runtime serves none of them (#4484).
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
@@ -108,6 +108,20 @@ test("a kitchen that exits is started again; stopping the station stops it", (t)
   assert.equal(kills(), 1);
   held.check();
   assert.equal(launches.length, 2);
+});
+
+test("a station update restarts the kitchen on the installed files: the old station's kitchen is stopped, the new one starts it after them (#4604)", (t) => {
+  const root = stationDir(t, "", "baloo acme/baloo main\n");
+  const before = kitchen(t, root, "darwin");
+  assert.equal(before.launches.length, 1);
+  // The update replaces the station's process: its SIGTERM stops what it holds (station/main.ts).
+  before.held.stop();
+  assert.equal(before.kills(), 1);
+  const startedAt = Date.now();
+  const after = kitchen(t, root, "darwin");
+  assert.equal(after.launches.length, 1);
+  const entry = statSync(after.launches[0]?.args[0] ?? "");
+  assert.ok(startedAt >= Math.max(entry.mtimeMs, entry.ctimeMs));
 });
 
 test("off a Mac, the station starts no kitchen: the box has its own unit", (t) => {

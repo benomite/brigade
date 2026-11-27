@@ -10,6 +10,10 @@ UNITES="brigade-station.service brigade-station-renouvellement.timer"
 # Les portes de la station : pas activées pour elles-mêmes, la station les
 # réclame.
 PORTES=brigade-station-porte.service
+# La nouvelle cuisine de la box, son unité posée à la main
+# (runtime/deploy/brigade-kitchen.service) : elle joue le code du paquet, et
+# repart avec lui (#4604).
+CUISINE=brigade-kitchen.service
 # La bascule d'une machine qui servait ses projets avant le paquet, une unité
 # par projet (runtime/src/bascule/) : le node et le code que le paquet pose.
 RACINE=/
@@ -59,6 +63,12 @@ case "$1" in
             systemctl restart "$unite"
           fi
         done
+        # La cuisine aussi, si elle tourne ou est activée : sans quoi elle
+        # garde le code d'avant jusqu'au prochain redémarrage de la machine.
+        # Ses agents finissent (KillMode=process).
+        if systemctl --quiet is-active "$CUISINE" || systemctl --quiet is-enabled "$CUISINE"; then
+          systemctl restart "$CUISINE"
+        fi
       fi
       # La cuisine des projets repris s'est arrêtée à la bascule : elle
       # reprend quand la station les sert. Combien de temps, c'est dit ici.

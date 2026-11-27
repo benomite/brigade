@@ -55,7 +55,10 @@ savoir où il est (`BRIGADE_CLAUDE_TOKEN_FILE`). Puis elle relance la station.
 À l'installation, `postinst` crée le compte système `brigade` (home `/home/brigade`, celui qui fera
 la connexion Max) s'il n'existe pas, puis active et démarre la station et son minuteur. À chaque
 mise à jour, il relance ce qui est activé — les cooks en cours finissent (`KillMode=process`) — et ne
-réactive pas ce que l'administrateur a désactivé. Le retrait arrête la station sans toucher à
+réactive pas ce que l'administrateur a désactivé. La nouvelle cuisine de la box
+(`brigade-kitchen.service`, posée à la main depuis `runtime/deploy/`) joue le code du paquet : activée
+ou en marche, elle est relancée après la station, ses agents finissent (`KillMode=process`) — sans
+quoi elle garderait le code d'avant jusqu'au prochain redémarrage (#4604). Le retrait arrête la station sans toucher à
 `/var/lib/brigade` ni au compte ; la purge retire en plus ses liens d'activation.
 
 La station tourne sous `brigade`, avec `BRIGADE_STATION_DIR=/var/lib/brigade` et la cloison des

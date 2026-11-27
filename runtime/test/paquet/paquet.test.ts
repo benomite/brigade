@@ -281,8 +281,26 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     assert.equal(rendu.code, 0, rendu.sortie);
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
-      ["systemctl daemon-reload", "systemctl restart brigade-station-porte.service", "systemctl restart brigade-station.service"],
+      ["systemctl daemon-reload", "systemctl restart brigade-station-porte.service", "systemctl restart brigade-station.service", "systemctl restart brigade-kitchen.service"],
     );
+  });
+
+  test("une mise à jour relance la nouvelle cuisine de la box, son unité posée à la main, après la station : activée ou en marche, elle prend le nouveau code (#4604)", (t) => {
+    // Activée, arrêtée (tombée) : relancée quand même.
+    const activee = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] || [ "$3" = brigade-kitchen.service ]; exit $?; }; [ "$2" = is-active ] && exit 3; exit 0' });
+    assert.equal(jouer(postinst(t), ["configure", "1.2.2"], activee.env).code, 0);
+    assert.deepEqual(
+      activee.appels().filter((a) => a.startsWith("systemctl restart")),
+      ["systemctl restart brigade-station.service", "systemctl restart brigade-kitchen.service"],
+    );
+    // Absente : rien n'est relancé pour elle.
+    const absente = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ]; exit $?; }; [ "$2" = is-active ] && exit 3; exit 0' });
+    assert.equal(jouer(postinst(t), ["configure", "1.2.2"], absente.env).code, 0);
+    assert.deepEqual(absente.appels().filter((a) => a.includes("brigade-kitchen") && !/is-(active|enabled)/.test(a)), []);
+    // La première installation ne la démarre pas : elle n'est pas au paquet.
+    const premiere = doublures(t, vierge);
+    assert.equal(jouer(postinst(t), ["configure", ""], premiere.env).code, 0);
+    assert.deepEqual(premiere.appels().filter((a) => a.includes("brigade-kitchen")), []);
   });
 
   test("une mise à jour depuis une version sans portes ne les démarre pas elle-même : la station les réclame en repartant", (t) => {
