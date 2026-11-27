@@ -185,7 +185,7 @@ test("under 20% of the budget left, reads pause for every project until the rese
   // The six reads left together: each sent its first request before the first answer said the budget is low, then
   // nothing more left.
   assert.equal(github.demandes.length, before + PROJECTS.length, "one request per project, then nothing");
-  assert.deepEqual(inPause.map(({ pauseJusqua, ...rail }: { pauseJusqua?: string }) => (assert.equal(pauseJusqua, new Date(resumption).toISOString()), rail)), readEntries, "every project keeps its last rail, saying when the reads resume");
+  assert.deepEqual(inPause.map(({ pauseJusqua, ...rail }: any) => (assert.equal(pauseJusqua, new Date(resumption).toISOString()), rail)), readEntries, "every project keeps its last rail, saying when the reads resume");
   for (; clock.t < resumption; clock.t += 30_000) await oneTour(boards);
   clock.t = resumption - 1;
   boards.oublier();
