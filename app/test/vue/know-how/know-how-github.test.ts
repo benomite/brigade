@@ -86,13 +86,13 @@ describe("reading the know-how file", () => {
         ["Tools", "A tool nobody ticketed", null, 11],
       ],
     );
-    assert.deepEqual(requests, [`GET /repos/${REPOSITORY}/contents/${PATH}?ref=main`]);
+    assert.deepEqual(requests, [`GET /repos/${REPOSITORY}/contents/${PATH}?ref=main`, `GET /repos/${REPOSITORY}/contents/.brigade/know-how?ref=main`]);
   });
 
   test("no integration branch known: the repository's default one is read", async () => {
     const { client, demandes: requests } = github();
     await readTheKnowledge(client, REPOSITORY, null).catch(() => undefined);
-    assert.deepEqual(requests, [`GET /repos/${REPOSITORY}/contents/${PATH}`]);
+    assert.deepEqual(requests, [`GET /repos/${REPOSITORY}/contents/${PATH}`, `GET /repos/${REPOSITORY}/contents/.brigade/know-how`]);
   });
 
   test("a missing file, an empty one, or one with its headings only is the empty state", async () => {
@@ -136,7 +136,7 @@ describe("reading the know-how file", () => {
     const byDefault = await readTheKnowledgeOfProject(project(client, null));
     assert.ok(!("sans" in byDefault));
     assert.equal(byDefault.branche, null);
-    assert.deepEqual(requests, [`GET /repos/${REPOSITORY}/contents/${PATH}`]);
+    assert.deepEqual(requests, [`GET /repos/${REPOSITORY}/contents/${PATH}`, `GET /repos/${REPOSITORY}/contents/.brigade/know-how`]);
   });
 });
 

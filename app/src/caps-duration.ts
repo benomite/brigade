@@ -83,7 +83,7 @@ export async function proposeTheFile(
   client: ClientOfThePriority,
   repository: string,
   branch: string | null,
-  { chemin: path = FILE, texte: text, sha, dit: said, ou: or }: { chemin?: string; texte: string; sha: string | null; dit: string; ou: string },
+  { chemin: path = FILE, texte: text, sha, dit: said, ou: or }: { chemin?: string; texte: string | null; sha: string | null; dit: string; ou: string },
 ): Promise<PrOpen> {
   let base = branch;
   if (base === null) {
@@ -105,9 +105,10 @@ export async function proposeTheFile(
   // ouverte garde sa branche.
   let openRead: unknown;
   try {
-    const written = await client.ecrire("PUT", `/repos/${repository}/contents/${path}`, {
+    // `texte` null deletes the file (its `sha` is then required by GitHub).
+    const written = await client.ecrire(text === null ? "DELETE" : "PUT", `/repos/${repository}/contents/${path}`, {
       message: `brigade: ${said} (from the app, ${or})`,
-      content: Buffer.from(text, "utf8").toString("base64"),
+      ...(text === null ? {} : { content: Buffer.from(text, "utf8").toString("base64") }),
       ...(sha === null ? {} : { sha }),
       branch: freshOne,
     });

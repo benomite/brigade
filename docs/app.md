@@ -827,6 +827,37 @@ up. When the team is read, the supervisor and the closer have no card of the Rai
 `app/test/autonomy/team-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
 
+### Since you last looked, at the top of the project view (#4649, epic #4647)
+
+The app remembers, per project, when the chef last opened its view: the time of each opening is kept in
+`last-looked.json`, beside the app's configuration. At the next opening, a card at the very top of the Rail view,
+**Since you last looked**, says what changed on GitHub since then, in three groups, always all three:
+
+- **Merged** — the tickets whose pull request was merged since then (by its branch `cook/<n>-…` or its `Closes #n`); a
+  revert is not counted here;
+- **Sent back or reverted** — the deliveries the kitchen sent back (its comment `Sent back to a cook`, or `Parked for the
+  supervisor: refused` when the tries ran out, written by an owner, member or collaborator of the repository), and the
+  tickets a merged revert undid (`Revert …` in its title, or GitHub's `revert-<pr>-cook/<n>-…` branch); each entry says
+  which (`— sent back`, `— reverted`);
+- **Parked for you** — the open issues that carry `parked:chef` now and got it since then (the `labeled` event of their
+  timeline).
+
+Each heading counts everything its group holds, one per ticket (`Merged · 12`); the group shows its three latest
+tickets, an empty one says `nothing`. A click on an entry opens its issue on GitHub; the time of the last look is on
+the card's hover. The first opening of a project has no card (there is no last look to compare with): it only sets the
+time. A reading GitHub refuses says why in one line in the card, and keeps the last look where it was, so the next
+opening still compares with the last one the chef got. Lists longer than ten pages are cut, and the card says the counts
+stop there.
+
+Nothing is read but GitHub: the open issues by the very path the board reads, the closed pull requests back to the last
+look, the repository's issue comments since then, the timeline of each `parked:chef` issue, and the issue of a shown entry
+whose title the lists did not give — all through the board's conditional memory, so a reread unchanged costs nothing. The
+card is read once per opening, never at the rail's reads.
+
+*Code: `app/src/since-last-looked.ts` (the reading and the last looks), `app/src/vue/since-last-looked/` (the card),
+`sinceYouLastLooked` in `app/src/main.ts`. Tests: `app/test/since-last-looked/reading.test.ts` (the groups and their counts
+from a fake GitHub), `app/test/since-last-looked/vue.test.ts` (the view opened twice, and an entry clicked).*
+
 ### The Know-how tab (#4570, epic #4135)
 
 The project's menu has a **Know-how** tab, between Agents and Settings; the project remembers it like the other tabs. It
