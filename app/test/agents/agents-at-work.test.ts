@@ -7,7 +7,7 @@ import type { AnswerGitHub, CallGitHub } from "../../src/board/client.ts";
 import { readTheBoardOfRepository } from "../../src/board/read.ts";
 import type { Read, Rendered } from "../../src/box.ts";
 import { readTheAgents } from "../../src/team-of-the-box.ts";
-import { holdTheAgents, lineOf } from "../../src/vue/agents/agents.js";
+import { holdTheAgents } from "../../src/vue/agents/agents.js";
 import { source } from "../../src/vue/agents/source.js";
 import { Fake, repos } from "../helpers/false-vue.ts";
 
@@ -113,7 +113,7 @@ test("the tab lists one line per agent: kind, ticket, since when, station", asyn
   assert.match(tab.textContent, /cook · #3 · since 4 h 00 · on box/);
   assert.match(tab.textContent, /pass · #4 · since 2 h 00 · on box/);
   assert.match(tab.textContent, /mac could not be read: timed out\./);
-  assert.equal(lineOf({ agent: "manager", ticket: null, since: null, station: null }, NOW.getTime()), "manager");
+  assert.equal((await shown({ agents: [{ agent: "manager", ticket: null, since: null, station: null }], stations: [] })).textContent, "manager");
 });
 
 test("a reading that fails says the agents were not reached, its detail on hover; one that is not a reading says so", async () => {

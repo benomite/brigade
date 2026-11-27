@@ -35,7 +35,7 @@ const detailOf = (error) => (error instanceof Error ? error.message : String(err
 
 // What one agent at work says, in words: `cook · 4569 · since 12 min · on box`.
 /** @param {AgentAtWork} one @param {number} now */
-export const lineOf = ({ agent, ticket, since, station }, now) => {
+const lineOf = ({ agent, ticket, since, station }, now) => {
   const started = since === null ? Number.NaN : Date.parse(since);
   return [agent, ...(ticket === null ? [] : [`#${ticket}`]), ...(Number.isNaN(started) ? [] : [`since ${duration(Math.max(0, now - started))}`]), ...(station === null ? [] : [`on ${station}`])].join(" · ");
 };
