@@ -43,8 +43,7 @@ export type KitchenOptions = {
 const riskZoneComment = (pr: number) => `The pass approves PR #${pr}, but it touches a risk zone`;
 const answerText = (body: string) => body.replace(/^\s*<!--\s*brigade:reponse\b[^>]*-->/, "").trim();
 function chefSaidMerge(comments: readonly string[], pr: number): boolean {
-  let asked = false;
-  let granted = false;
+  let asked = false, granted = false;
   for (const body of comments) {
     if (body.startsWith(riskZoneComment(pr))) asked = true;
     else if (body.startsWith("Sent back to a cook (try ") || body.startsWith("Parked for the chef: refused")) asked = granted = false;
@@ -72,13 +71,7 @@ export function openKitchen(options: KitchenOptions) {
   const maskSecrets = masqueDesSecrets(options.secrets ?? {});
   const mask = (raw: string) => masquerIdentifiants(maskSecrets(raw)).texte;
 
-  const lastSupervisor = () => {
-    try {
-      return Number(readFileSync(lastSupervisorFile, "utf8")) || 0;
-    } catch {
-      return 0;
-    }
-  };
+  const lastSupervisor = () => (existsSync(lastSupervisorFile) ? Number(readFileSync(lastSupervisorFile, "utf8")) || 0 : 0);
 
   // The failing checks' last log lines, for a cook that has no token to read them.
   async function ciLogs(pr: number): Promise<string> {
@@ -92,10 +85,10 @@ export function openKitchen(options: KitchenOptions) {
     if (counts && tries >= TRIES_MAX) {
       await act.labels(issue.number, [LABELS.parkedChef], [LABELS.inPass, LABELS.taken]);
       await act.comment(issue.number, `Parked for the chef: refused ${tries} times. Last reason: ${reason}${details}`);
-      log(`#${issue.number} parked for the chef after ${tries} tries — ${reason}`);
-      return;
+      return log(`#${issue.number} parked for the chef after ${tries} tries — ${reason}`);
     }
-    await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, ...(counts ? old : [])]);
+    const waiting = issue.labels.includes(LABELS.approved) ? [LABELS.parkedChef, LABELS.approved] : [];
+    await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, ...waiting, ...(counts ? old : [])]);
     await act.comment(issue.number, `Sent back to a cook${counts ? ` (try ${tries}/${TRIES_MAX})` : ""}: ${reason}${details}`);
     log(`#${issue.number} sent back — ${reason}`);
   }
@@ -138,16 +131,10 @@ export function openKitchen(options: KitchenOptions) {
       await git(wt, ["commit", "--quiet", "--no-verify", "-m", `#${issue.number} — work left uncommitted by the cook`]).catch(() => "");
     }
     const ahead = (await git(wt, ["rev-list", "--count", `origin/${base}..HEAD`]).catch(() => "0")).trim();
-    if (ahead === "0") {
-      await sendBack(issue, `the cook delivered nothing${run.end.erreur ? ` (${run.end.erreur})` : ""}: ${run.result.slice(-600) || "no last words"}`, true);
-      return;
-    }
+    if (ahead === "0") return sendBack(issue, `the cook delivered nothing${run.end.erreur ? ` (${run.end.erreur})` : ""}: ${run.result.slice(-600) || "no last words"}`, true);
     try {
       await git(wt, ["push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branchOf(issue.number)}`]);
-      await act.openPr(issue.number, base, issue.title).catch((error: Error) => {
-        if (!/already exists/.test(error.message)) throw error;
-        return "";
-      });
+      await act.openPr(issue.number, base, issue.title).catch((error: Error) => (/already exists/.test(error.message) ? "" : Promise.reject(error)));
       await act.labels(issue.number, [LABELS.inPass], [LABELS.taken]);
       log(`#${issue.number} delivered`);
     } catch (error) {
@@ -164,7 +151,7 @@ export function openKitchen(options: KitchenOptions) {
     const files = await act.prFiles(pr.number);
     const risky = files.filter((file) => options.riskPaths().some((zone) => file.startsWith(zone)));
     if (risky.length > 0 && !(await chefSays(issue.number, pr.number))) {
-      await act.labels(issue.number, [LABELS.parkedChef], [LABELS.inPass]);
+      await act.labels(issue.number, [LABELS.parkedChef, LABELS.approved], [LABELS.inPass]);
       await act.comment(issue.number, `${riskZoneComment(pr.number)} (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`);
       return;
     }
@@ -179,7 +166,7 @@ export function openKitchen(options: KitchenOptions) {
 
   async function merge(issue: number, pr: number) {
     await act.merge(pr);
-    await act.labels(issue, [], [LABELS.inPass]).catch(() => "");
+    await act.labels(issue, [], [LABELS.inPass, LABELS.approved]).catch(() => "");
     await git(options.clone, ["worktree", "remove", "--force", worktreeOf(issue)]).catch(() => "");
     log(`#${issue} merged (PR #${pr})`);
   }
@@ -236,7 +223,7 @@ export function openKitchen(options: KitchenOptions) {
   let labelled = false;
   async function turn() {
     if (!labelled) {
-      await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.epic, "try:1", "try:2"]);
+      await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.approved, LABELS.epic, "try:1", "try:2"]);
       labelled = true;
     }
     const listed = listRuns(runs);
