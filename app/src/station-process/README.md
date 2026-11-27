@@ -21,9 +21,8 @@ station: a restart neither stops nor reattaches them.
   restarts the station on `X`. Requests are not queued: one that arrives during a restart waits
   for the next look.
 - **A release is kept** when the station says it is in service in `X` (`en-service`, written by
-  `runtime/src/mise-a-jour/en-service.ts`: version `X`, a new and live pid, `depuis` after the
-  restart) and still serves the projects the previous release served — the box's rule
-  (`runtime/src/mise-a-jour/mettre-a-jour.ts`). It then becomes `retenue`, and the background station
+  the station: version `X`, a new and live pid, `depuis` after the restart) and still serves the
+  projects the previous release served — the box's rule. It then becomes `retenue`, and the background station
   started again starts on it, unless the app's bundle carries a newer runtime.
 - **Otherwise the previous release runs again** — it refused to start (code 2), it died right
   after its launch, or it did not say it was in service within two minutes. `derniere` reads

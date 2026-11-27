@@ -1,9 +1,9 @@
 // L'API des agents que lit l'onglet Agents (ticket 4224, épique 4117), servie par le process principal : la vue est une
 // page `file://`, et ses `fetch` partent sur le schéma `brigade-agents:` (vue/agents/source.js), que main.ts confie ici.
 // Chaque chemin du contrat est une commande du runtime, lancée là où la cuisine du projet nommé dans `?project=` tourne :
-//   GET /api/agents                  → `agents`                                     (runtime/src/agents-tab/commande.ts)
+//   GET /api/agents                  → `agents`
 //   GET /api/agents/:id/gestures     → `agents /api/agents/<id>/gestures`
-//   GET /api/agents/:id/settings     → `agent-settings <id>`                        (runtime/src/agent-settings/commande.ts)
+//   GET /api/agents/:id/settings     → `agent-settings <id>`
 //   PUT /api/agents/:id/settings     → `agent-settings <id> set <key> <value> --by chef`
 // La réponse est le JSON que la commande écrit, tel quel. Un refus du runtime garde sa raison et son statut — 400 pour un
 // réglage refusé —; une commande qui échoue sans raison lisible, ou une sortie qui ne se lit pas, rend 502 et le dit :

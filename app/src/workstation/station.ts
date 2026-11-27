@@ -1,6 +1,6 @@
 // La station de l'ordinateur, tenue par un process : installer l'app, c'est installer la station de la
 // machine. Elle est lancée comme le système lance celle d'un serveur — le même point d'entrée
-// (runtime/src/station/main.ts), le même répertoire tenu (`BRIGADE_STATION_DIR`), la même
+// (`PRINCIPAL`, role.ts), le même répertoire tenu (`BRIGADE_STATION_DIR`), la même
 // configuration des projets, la même présence sur GitHub —, et rien d'autre ne change. Ce qui la tient
 // est la station de fond (station-background/host.ts, #3630), qui ne dépend pas de l'app.
 //
