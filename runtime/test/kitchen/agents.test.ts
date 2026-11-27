@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { applyAgentActions, type AgentAction } from "../../src/kitchen/agents.ts";
+import { applyAgentActions, parseAgentActions, type AgentAction } from "../../src/kitchen/agents.ts";
 import { closeFinishedEpics } from "../../src/epics.ts";
 import type { Gestures } from "../../src/kitchen/github.ts";
 
@@ -29,4 +29,17 @@ test("an epic whose children are all closed is closed; one with an open child st
   assert.deepEqual(closed, [10]);
   await closeFinishedEpics([issue(10, ["epic"]), issue(11, ["fire"], 10)], comments, act, () => {});
   assert.deepEqual(closed, [10]);
+});
+
+test("a supervisor answer that splits an epic opens its children on the rail, fired (#4685)", async () => {
+  const opened: Array<{ title: string; body: string; labels: string[] }> = [];
+  const comments: string[] = [];
+  const act = { open: async (title: string, body: string, labels: string[] = []) => (opened.push({ title, body, labels }), 20 + opened.length), labels: async () => {}, comment: async (_n: number, body: string) => void comments.push(body) } as unknown as Gestures;
+  const issues = new Map([[7, { number: 7, title: "big", labels: ["epic", "prio:1"], trusted: true, dependsOn: [] }]]);
+  const answer = 'Epic #7 has no child.\n```json\n{"actions": [{"split": 7, "tickets": [{"title": "a", "body": "x"}, {"title": "b", "body": "y"}]}]}\n```';
+  const acted = await applyAgentActions(parseAgentActions(answer), { act, issues, log: () => {}, who: "supervisor" });
+  assert.deepEqual(opened.map((one) => one.labels), [["fire", "prio:1"], ["fire", "prio:1"]]);
+  assert.ok(opened.every((one) => one.body.endsWith("Epic: #7")));
+  assert.deepEqual(comments, ["Split by the manager into #21, #22."]);
+  assert.ok(acted.has(7));
 });
