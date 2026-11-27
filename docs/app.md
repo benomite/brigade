@@ -905,6 +905,34 @@ the pause. In `app/test/budget-github.test.ts`, six projects that each change
 every three minutes, polled for eight simulated hours against a fake GitHub, cost at most 894 counted requests (every
 answer but a 304) in any hour, under the 1,000 the test allows.
 
+On 2026-11-27 the account's 5,000 requests ran out at 16:56 UTC and the kitchen could not take a ticket for half an hour
+(#4627). The app was the consumer that scales with the kitchen's activity: it read each displayed project every 5 s
+(#3925), and a busy kitchen changes its lists at every read — a 200 that GitHub counts — while each card's timeline
+and pull request were read again whenever a comment changed them. In `app/test/budget-github.test.ts`, six projects
+whose every path changes every 20 s cost, in one hour: 8,658 counted requests before (a read every 5 s), 780 now
+(a read every 60 s, `vue/served/freshness.ts`; a card's timeline is read again only when its labels change, its
+pull request's lines only when its head commit changes, `board/kitchen-board.ts`). A merge shows in Served within a
+minute; a gesture of the chef still reads at once.
+
+The kitchen is not the consumer (read in `runtime/src/kitchen/github.ts`, not counted on a real hour: a cook's sandbox
+sees no station counter): a turn is one GraphQL query per project (60 an hour, GraphQL's own quota); REST is only
+`ticketText` (2 per ticket handed to an agent), `trustedComments` (1 per ticket the chef may have answered `merge`),
+`failedLogs` (2 + one per red job), and `ensureLabels` (8 once per start). Measured on 2026-11-27 from the box, with the
+kitchen at work and no app of this version open: `core.used` rose 4,112 → 4,143 in 3.5 minutes (about 9 a minute, 530
+an hour), counted by reading `gh api rate_limit` (which is not counted) every 30 s; the kitchen's share of that is a few
+calls per ticket, so the rest comes from outside the box (the chef's app at its old 5 s cadence, the second's `gh`).
+The ~100 calls a minute seen at rest, then 334 in four minutes followed by 2 in a minute, fit the app's reading at 5 s
+(about 7 changed paths per read, a 304 being free): this is an inference from that fit, not a count per caller on the
+real hour, which only the chef's Mac (`budget-github.ts`) and the station's `appels-github/compteur.db` can give.
+
+Second measure, 17:02–17:12 UTC the same day, after the app's 60 s cadence had merged to main and the kitchen was
+running one cook: `core.used` rose 4,228 → 4,267 in 10.5 minutes (`gh api rate_limit` every 30 s), about 4 a minute,
+220 an hour, against 530 an hour in the first measure and a quota burnt in 60 minutes on the day of the outage. The
+account is far under the 2,500 of the criterion at that rate. Not measured, because no cook's sandbox reaches them: the
+split of those 220 between the kitchen, the stations and the second's `gh` (the station's `compteur.db` is behind a
+`tmpfs`), and a full hour with the app open on the chef's Mac. The chef can close that with `gh api rate_limit` read
+at the start and the end of an hour (`rate.used` difference) and the app's `budget-github.ts` counter for its share.
+
 - **The head lines** the view reads from `status` are only `rail` (the counts by state) and `cooks`, and the `awaiting`
   block is one head line counting the TODO cards (below). What only a station's log carries — the project switch and
   the manager's state, the idle-kitchen fault, a kitchen `held` or stopped, Served — is not read from GitHub, and the
