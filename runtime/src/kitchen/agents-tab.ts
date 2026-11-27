@@ -24,11 +24,7 @@ function done(kitchen: string): Run[] {
   const root = join(kitchen, "done");
   if (!existsSync(root)) return [];
   return readdirSync(root).flatMap((name) => {
-    try {
-      return [{ ...(JSON.parse(readFileSync(join(root, name, "meta.json"), "utf8")) as RunMeta), name, dir: join(root, name) }];
-    } catch {
-      return [];
-    }
+    try { return [{ ...(JSON.parse(readFileSync(join(root, name, "meta.json"), "utf8")) as RunMeta), name, dir: join(root, name) }]; } catch { return []; }
   });
 }
 
