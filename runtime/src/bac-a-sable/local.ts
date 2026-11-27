@@ -104,12 +104,13 @@ export function poserLeBacASable(args: readonly string[], config: ConfigDeBacASa
 // caches du projet, où il écrit.
 // `lit` : les fichiers que la station lui remet à lire hors de ce répertoire.
 // `brigade` : son ticket ne livre que `.claude/brigade/`, il y écrit.
+// `ecrit` : faux, il relit sans écrire (reviewer, manager) — nulle part.
 // La déclaration du projet est relue à chaque lancement. Refusée — une entrée
 // hors des limites — ou illisible, elle ne s'applique pas du tout : le
 // lancement part avec le bac à sable d'avant, et le refus se dit.
-export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = [], brigade = false): string[] {
+export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = [], brigade = false, ecrit = true): string[] {
   if (!bac) return args;
-  const cook: Cook = { worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.(), ...(bac.etat === undefined ? {} : { etat: bac.etat }) };
+  const cook: Cook = { worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit, brigade, services: bac.services?.(), ...(bac.etat === undefined ? {} : { etat: bac.etat }), ...(ecrit ? {} : { lecture: true }) };
   if (bac.declaration !== undefined) {
     try {
       const declaration = lireDeclarationBacASable(bac.declaration());
