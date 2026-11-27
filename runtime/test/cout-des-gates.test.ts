@@ -10,7 +10,7 @@ import type { FaitGates } from "../src/events/gates.ts";
 import { jouerGatesMesurees, processeurDit } from "../src/gates.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
-import { aArreter, appeler, ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
+import { aArreter, ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "espace";

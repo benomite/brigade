@@ -5,7 +5,6 @@
 // (runtime/src/validation-design/commande.ts) sont supprimés avec lui (#4499). Aucun runtime ne tourne, aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { Sortie } from "../../../runtime/src/appel.ts";
 import { corpsDeCeQuiEstFait } from "../../../runtime/src/validation-design/brief.ts";
 import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
@@ -105,7 +104,13 @@ async function readEntry(call: CallGitHub) {
   return wait.lue ? wait.attentes : [];
 }
 
-// Une commande chargée, et la `Sortie` du runtime qui dit son refus.
+// Une commande chargée, et la `Sortie` qui dit son refus (la classe du runtime a été supprimée avec l'ancien runtime).
+class Sortie {
+  readonly code: number;
+  constructor(code: number) {
+    this.code = code;
+  }
+}
 const isOneOutput = (error: unknown): error is Sortie => error instanceof Sortie;
 const loaded = (principal: CommandOfRuntime) => async (): Promise<CommandLoaded> => ({ principal, estUneSortie: isOneOutput });
 
