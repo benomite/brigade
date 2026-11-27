@@ -82,7 +82,7 @@ export function laissesEntre(avant: Images, apres: Images): string {
 }
 
 // Le disque et le répertoire temporaire, dits à la fin de la part et au garde : un runner qui perd l'un ou
-// l'autre fait mourir chaque fichier qui suit, sans qu'aucun test en dise rien (docs/runtime/windows-ci-runner-failure.md).
+// l'autre fait mourir chaque fichier qui suit, sans qu'aucun test en dise rien.
 export function etatDuPoste(disques: Record<string, string>, temporaire = tmpdir()): string {
   const espaces = Object.entries(disques).map(([nom, chemin]) => {
     try {

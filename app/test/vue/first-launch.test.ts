@@ -2,12 +2,10 @@
 // projets qu'elles portent, tels que le runtime les lit (#1428) ; un projet ouvert d'un clic, sans dossier à
 // choisir, sa copie faite par le runtime (#1429) — l'étape dite sous sa station, puis son espace ouvert ; une
 // connexion à GitHub qui manque, une phrase et un bouton qui lance le geste du runtime ; une lecture ou un clone qui
-// échoue, la phrase du runtime, son détail au survol. Jamais un écran vide. Les états sont écrits par les fonctions
-// mêmes du runtime (`echecDeGh`, `lireLEchec`, `connexionGitHub`) : ce que l'écran pose est ce qu'il recevra.
+// échoue, la phrase du runtime, son détail au survol. Jamais un écran vide. Les états sont écrits tels que le process
+// principal les rend (`StationsOfChef`, `Opening`, first-launch.ts) : ce que l'écran pose est ce qu'il recevra.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { connexionGitHub, echecDeGh, type StationsDuChef } from "../../../runtime/src/appairage/stations-du-chef.ts";
-import { lireLEchec } from "../../../runtime/src/projets/copie-locale.ts";
 import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
@@ -16,7 +14,8 @@ import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Opening } from "../../src/first-launch.ts";
+import type { Connection, Opening, StationsOfChef } from "../../src/first-launch.ts";
+import { signInToGitHub } from "../../src/connection-github.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import {
   buttonOfThePage,
@@ -50,7 +49,7 @@ const doc = { createElement: (balise: string) => new Fake(balise) };
 const SEEN = "2026-10-22T09:00:00.000Z";
 
 // Les stations du chef telles que le runtime les rend : son Mac et parade-box, qui portent brigade et parade.
-const LISTED: StationsDuChef = {
+const LISTED: StationsOfChef = {
   state: "listed",
   unreadable: [],
   stations: [
@@ -73,18 +72,35 @@ const LISTED: StationsDuChef = {
     },
   ],
 };
+// Le geste qui connecte le `gh` de cet ordinateur.
+const SIGN_IN: Connection = { id: "github-sign-in", label: "Sign in to GitHub", command: signInToGitHub("gh") };
 // Ce `gh` n'a pas de compte : son code de sortie 4, « authentication required ».
-const WITHOUT_ACCOUNT = echecDeGh("gh", 30_000, { code: 4, message: "Command failed: gh api /gists" }, "To get started with GitHub CLI, please run:  gh auth login\n");
+const WITHOUT_ACCOUNT: StationsOfChef = { state: "sign-in-required", reason: "This computer is not signed in to GitHub, so brigade cannot read the stations you have paired.", action: SIGN_IN };
 // Pas de `gh` du tout sur ce PC.
-const WITHOUT_GH = echecDeGh("gh", 30_000, { code: "ENOENT", message: "spawn gh ENOENT" }, "");
+const WITHOUT_GH: StationsOfChef = { state: "unavailable", cause: "gh-missing", reason: "The GitHub CLI (`gh`) is not installed on this computer, and brigade reads your stations on GitHub through it.", link: "https://cli.github.com", detail: "spawn gh ENOENT" };
 // GitHub injoignable.
-const WITHOUT_NETWORK = echecDeGh("gh", 30_000, { code: 1, message: "Command failed" }, "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com\n");
-
-// Un clone qui échoue, comme le runtime le rend.
-const failureOfClone = (errors: string, action = false): Extract<Opening, { state: "failed" }> => {
-  const failure = lireLEchec("benomite/parade", errors, { compte: "chef", jeton: null, proprietaire: true });
-  return { state: "failed", project: "parade", repository: "benomite/parade", ...failure, ...(action ? { action: connexionGitHub("gh") } : {}) };
+const WITHOUT_NETWORK: StationsOfChef = {
+  state: "unavailable",
+  cause: "network",
+  reason: "GitHub cannot be reached from this computer, so your stations could not be read: check its network connection.",
+  detail: "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com",
 };
+
+// Un clone qui échoue, tel que l'ouverture le rend : sa cause, sa phrase, la page qui la lève, et ce que git a dit au détail.
+const CLONE_FAILURES = {
+  "access-denied": { reason: "GitHub denies chef access to benomite/parade, so it cannot be cloned: ask an owner of benomite/parade to give chef read access.", link: "https://github.com/benomite/parade" },
+  "sign-in-required": { reason: "This computer is not signed in to GitHub, so benomite/parade cannot be cloned." },
+  network: { reason: "GitHub cannot be reached from this computer, so benomite/parade could not be cloned: check its network connection, then open the project again." },
+} as const;
+const failureOfClone = (cause: keyof typeof CLONE_FAILURES, errors: string, action = false): Extract<Opening, { state: "failed" }> => ({
+  state: "failed",
+  project: "parade",
+  repository: "benomite/parade",
+  cause,
+  ...CLONE_FAILURES[cause],
+  detail: errors,
+  ...(action ? { action: SIGN_IN } : {}),
+});
 
 // Les cartes des stations.
 const cards = (screen: Fake) => screen.dessous("section").filter((card) => card.className.split(" ").includes("station-du-chef"));
@@ -170,8 +186,7 @@ describe("les stations listées : chacune avec ses projets, un projet s'ouvre d'
   });
 
   test("le clone qui échoue : la phrase du runtime, son détail au survol, la page qui le lève, et « try again »", () => {
-    const failure = failureOfClone("ERROR: Permission to benomite/parade.git denied to chef.\nfatal: unable to access 'https://github.com/benomite/parade.git/': The requested URL returned error: 403");
-    assert.equal(failure.cause, "access-denied");
+    const failure = failureOfClone("access-denied", "ERROR: Permission to benomite/parade.git denied to chef.\nfatal: unable to access 'https://github.com/benomite/parade.git/': The requested URL returned error: 403");
     const { station, faits: facts, bouton: button } = oneScreen({ stations: LISTED, ouverture: { station: "gbox", projet: "parade", depot: "benomite/parade", echec: failure } });
     const refusal = station("parade-box").dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("pas de raison");
     assert.equal(refusal.dessous("span")[0]?.textContent, failure.reason);
@@ -185,8 +200,7 @@ describe("les stations listées : chacune avec ses projets, un projet s'ouvre d'
   });
 
   test("un clone retenu faute de compte GitHub : le bouton de connexion, aux mots de l'étape du compte, recommandé", () => {
-    const failure = failureOfClone("remote: Invalid username or password.\nfatal: Authentication failed for 'https://github.com/benomite/parade.git/'", true);
-    assert.equal(failure.cause, "sign-in-required");
+    const failure = failureOfClone("sign-in-required", "remote: Invalid username or password.\nfatal: Authentication failed for 'https://github.com/benomite/parade.git/'", true);
     const { faits: facts, bouton: button } = oneScreen({ stations: LISTED, compte: { login: "chef" }, ouverture: { station: "gbox", projet: "parade", depot: "benomite/parade", echec: failure } });
     const connection = button(ITSELF_CONNECT);
     assert.equal(connection.className, "recommande");
@@ -413,8 +427,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
   });
 
   test("le clone qui échoue : la raison reste à l'écran, sous sa station", async () => {
-    const failure = failureOfClone("fatal: unable to access 'https://github.com/benomite/parade.git/': Could not resolve host: github.com");
-    assert.equal(failure.cause, "network");
+    const failure = failureOfClone("network", "fatal: unable to access 'https://github.com/benomite/parade.git/': Could not resolve host: github.com");
     const vue = await playTheVue({ demarrage: () => startup([]), stationsDuChef: () => LISTED, compteGitHub: () => ({ login: "chef" }), ouvrirDUneStation: () => failure, espace: () => [] });
     (vue.element("tous").dessous("button").find((button) => button.textContent === "parade") ?? assert.fail()).click();
     await repos();
@@ -452,7 +465,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     const vue = await playTheVue({
       demarrage: () => startup([]),
       stationsDuChef: () => LISTED,
-      ouvrirDUneStation: () => (++trials === 1 ? failureOfClone("fatal: Authentication failed for 'https://github.com/benomite/parade.git/'", true) : queued(() => {})),
+      ouvrirDUneStation: () => (++trials === 1 ? failureOfClone("sign-in-required", "fatal: Authentication failed for 'https://github.com/benomite/parade.git/'", true) : queued(() => {})),
       seConnecterAGitHub: () => ({ code: "A1B2-C3D4", page: "https://github.com/login/device" }),
       espace: () => [],
     });
