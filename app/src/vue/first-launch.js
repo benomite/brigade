@@ -28,10 +28,10 @@ import { setTheTools } from "./tools-required/tools-required.js";
 export { buttonOfThePage, connectionSaid, CONNECTION_IN_ROUTE, actions, sentenceAndDetail, REOPEN_THE_PAGE, tapeTheCode } from "./journey-project/connection.js";
 
 /** @typedef {import("./bricks.js").Fabrique} Fabrique */
-/** @typedef {import("../first-launch.ts").StationsDuChef} StationsOfChef */
-/** @typedef {import("../first-launch.ts").StationAppairee} Station */
+/** @typedef {import("../first-launch.ts").StationsOfChef} StationsOfChef */
+/** @typedef {import("../first-launch.ts").StationPaired} Station */
 /** @typedef {import("../first-launch.ts").Opening} Opening */
-/** @typedef {import("../first-launch.ts").Progres} Progress */
+/** @typedef {import("../first-launch.ts").Progress} Progress */
 /** @typedef {import("../connection-github.ts").AccountGitHub} AccountGitHub */
 /** @typedef {import("./journey-project/connection.js").Connection} Connection */
 /** @typedef {import("./journey-project/account.js").ActionsOfAccount} ActionsOfAccount */

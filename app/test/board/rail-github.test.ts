@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { TONES_OF_TICKET } from "../../src/facts.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
-import { stateOfTheBaseGithub, readConditional, WORD_OF_THE_STATE, ticketDeLaPR, type MemoryOfReads } from "../../src/board/rail-github.ts";
+import { stateOfTheBaseGithub, readConditional, WORD_OF_THE_STATE, ticketOfThePR, type MemoryOfReads } from "../../src/board/rail-github.ts";
 
 const ok = (data: unknown, etag?: string): AnswerGitHub => ({ status: 200, data, ...(etag === undefined ? {} : { etag }) });
 
@@ -16,9 +16,9 @@ describe("ce que GitHub dit d'un ticket du rail", () => {
   });
 
   test("une PR livre le ticket de sa branche ou de son « Closes »", () => {
-    assert.equal(ticketDeLaPR("cook/2059-1268b49d", ""), 2059);
-    assert.equal(ticketDeLaPR("feature", "Closes #12"), 12);
-    assert.equal(ticketDeLaPR("feature", "rien"), null);
+    assert.equal(ticketOfThePR("cook/2059-1268b49d", ""), 2059);
+    assert.equal(ticketOfThePR("feature", "Closes #12"), 12);
+    assert.equal(ticketOfThePR("feature", "rien"), null);
   });
 
   test("la base : rouge dès qu'un check l'est, en cours dès qu'un court, verte sinon — inconnue sans aucun check", () => {

@@ -109,7 +109,7 @@ import { holdTheStationOfBackground } from "./station-background/attached.ts";
 import { HOST, launchTheBackground } from "./station-background/background.ts";
 import { registerTheStationOfBackground } from "./station-background/registration.ts";
 import { openPty } from "./pty.ts";
-import { claudeOf, connectionOfTheSession, openOfAStation, type StationsDuChef } from "./first-launch.ts";
+import { claudeOf, connectionOfTheSession, openOfAStation, type StationsOfChef } from "./first-launch.ts";
 import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
@@ -1369,7 +1369,7 @@ const holdThePage = <T extends { link?: string }>(rendered: T): T => {
   if (rendered.link !== undefined) pagesOfFirst.add(rendered.link);
   return rendered;
 };
-ipcMain.handle("stationsDuChef", async (): Promise<StationsDuChef> => {
+ipcMain.handle("stationsDuChef", async (): Promise<StationsOfChef> => {
   const { lireLesStationsDuChef: readTheStationsOfChef } = await ofRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
   const readOne = await readTheStationsOfChef({ gh: ghHere, env: process.env });
   return readOne.state === "unavailable" ? holdThePage(readOne) : readOne;

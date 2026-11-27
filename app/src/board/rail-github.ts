@@ -13,7 +13,7 @@ type Raw = Record<string, unknown>;
 
 // Le ticket qu'une PR livre : son nom de branche `cook/<n>-…`, ou un `Closes #n` de son corps — la règle même du
 // récapitulatif du runtime (#3581), qui lit les tickets servis sur les mêmes PR que la colonne Served.
-export { ticketDeLaPR } from "../../../runtime/src/recap/servis.ts";
+export { ticketDeLaPR as ticketOfThePR } from "../../../runtime/src/recap/servis.ts";
 
 // Les checks d'un commit, d'après les *check runs* de GitHub. Une conclusion vide : le check court encore.
 export function stateOfTheBaseGithub(runs: readonly Raw[]): EtatDeLaBase | null {

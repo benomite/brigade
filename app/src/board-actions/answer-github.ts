@@ -31,7 +31,7 @@ import type { CallGitHub, AnswerGitHub } from "../board/client.ts";
 import { LABELS_D_AVANT_PARKED, LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../../../runtime/src/github-etat/etats.ts";
 import { SERVED_ELSEWHERE } from "../board/set-aside-github.ts";
 import { LABEL_PARKED_CHEF, KIND_PARKED_CHEF } from "../board/parked-chef-github.ts";
-import { ticketDeLaPR } from "../board/rail-github.ts";
+import { ticketOfThePR } from "../board/rail-github.ts";
 import { LABEL_OF_CHEF, type CardOfChef, type ActionOfChef } from "../board/todo-github.ts";
 import { refusalOf } from "../board/client.ts";
 import { PR_OF_TICKET } from "../vue/pr-of-ticket.js";
@@ -71,7 +71,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const object = (value: unknown): Record<string, unknown> => (typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 
 // La PR ouverte que la carte nomme : le `#N` du libellé du choix, s'il nomme une PR ouverte ; sinon celle dont la branche
-// ou le corps nomme le ticket (rail-github.ts, `ticketDeLaPR`). Rien : nulle.
+// ou le corps nomme le ticket (rail-github.ts, `ticketOfThePR`). Rien : nulle.
 async function prNamed(repository: string, ticket: number, wording: string, client: ClientOfTheAnswer): Promise<number | null> {
   // « Merge the PR of #T » nomme la PR par son ticket (ticket 3716) : c'est la PR ouverte du ticket, pas la PR #T.
   const named = /PR of #\d+/.test(wording) ? undefined : /#(\d+)\b/.exec(wording)?.[1];
@@ -82,7 +82,7 @@ async function prNamed(repository: string, ticket: number, wording: string, clie
   const openEntries = await client.lire(`/repos/${repository}/pulls?state=open&per_page=100`);
   if (openEntries.status !== 200) throw refusalOf("the reading of the open PRs", openEntries);
   const list = Array.isArray(openEntries.data) ? (openEntries.data as unknown[]).map(object) : [];
-  const itsOwnOne = list.find((pr) => typeof pr.number === "number" && ticketDeLaPR(String(object(pr.head).ref ?? ""), typeof pr.body === "string" ? pr.body : "") === ticket);
+  const itsOwnOne = list.find((pr) => typeof pr.number === "number" && ticketOfThePR(String(object(pr.head).ref ?? ""), typeof pr.body === "string" ? pr.body : "") === ticket);
   return itsOwnOne === undefined ? null : (itsOwnOne.number as number);
 }
 

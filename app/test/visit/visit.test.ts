@@ -15,7 +15,7 @@ import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER, holdFacts, type Facts, type Board } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Opening, StationsDuChef } from "../../src/first-launch.ts";
+import type { Opening, StationsOfChef } from "../../src/first-launch.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { putAside } from "../../src/awaiting.ts";
 import {
@@ -356,7 +356,7 @@ const startup = (projects: Project[]) => ({
   code: undefined,
 });
 // Le chef n'a encore appairé aucune station : l'ordinateur est neuf.
-const NO: StationsDuChef = { state: "listed", unreadable: [], stations: [] };
+const NO: StationsOfChef = { state: "listed", unreadable: [], stations: [] };
 const OPEN: Opening = { state: "open", project: "brigade", repository: REPOSITORY_OF_THE_VISIT, folder: "/home/chef/Brigade/brigade", cloned: true };
 
 // La cuisine de Brigade telle que le process principal la range (visit.ts) : #30 en cuisson, #31 en pass, #12 servi.

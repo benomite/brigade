@@ -10,7 +10,7 @@ import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { StationsDuChef } from "../../src/first-launch.ts";
+import type { StationsOfChef } from "../../src/first-launch.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { WELCOME } from "../../src/vue/first-launch.js";
 import { type Fake, FakeStorage, playTheVue, repos } from "../helpers/false-vue.ts";
@@ -28,7 +28,7 @@ const startup = () => ({
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
 });
-const NO: StationsDuChef = { state: "listed", unreadable: [], stations: [] };
+const NO: StationsOfChef = { state: "listed", unreadable: [], stations: [] };
 async function computerNew() {
   const storage = new FakeStorage();
   const vue = await playTheVue({ demarrage: startup, stationsDuChef: () => NO, compteGitHub: () => ({ login: "chef" }), depotsDuChef: () => ({ depots: [] }), espace: () => [] }, { stockage: storage });

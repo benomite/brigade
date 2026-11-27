@@ -8712,7 +8712,7 @@ async function rereadTheFirst() {
   const requested = ++readOfFirst;
   delete first.stations;
   setTheFirst();
-  /** @type {import("../first-launch.ts").StationsDuChef} */
+  /** @type {import("../first-launch.ts").StationsOfChef} */
   let readOne;
   try {
     readOne = (await brigade.stationsDuChef?.()) ?? { state: "unavailable", cause: "github", reason: "Your stations could not be read: the app gave no answer." };

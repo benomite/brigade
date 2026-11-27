@@ -11,7 +11,7 @@ import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Opening, StationsDuChef } from "../../src/first-launch.ts";
+import type { Opening, StationsOfChef } from "../../src/first-launch.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { Fake, FakeStorage, playTheVue, type Played, repos } from "../helpers/false-vue.ts";
 
@@ -28,7 +28,7 @@ const startup = (projects: Project[]) => ({
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
 });
-const NO: StationsDuChef = { state: "listed", unreadable: [], stations: [] };
+const NO: StationsOfChef = { state: "listed", unreadable: [], stations: [] };
 const OPEN: Opening = { state: "open", project: "brigade", repository: "benomite/brigade", folder: "/home/chef/Brigade/brigade", cloned: true };
 const additions = (vue: Played) => vue.appels.filter(({ geste: action }) => /ouvrirDUneStation|clone|ajouter/i.test(action));
 const finds = (vue: Played, motive: RegExp): Fake | undefined => vue.poses().find((p) => (p.balise === "button" || p.role === "button") && !p.hidden && motive.test(`${p.textContent} ${p.title} ${p.ariaLabel}`));

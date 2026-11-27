@@ -24,7 +24,7 @@ import type { Cook } from "../../facts.ts";
 import type { CallGitHub } from "../../board/client.ts";
 import type { ActivityOfCook, BoardRead } from "../../board/read.ts";
 import { labelOfSetAside, LABEL_OF_BOARD_OF_THE_KITCHEN, setAsideOf, setAsideOn, WITHOUT_REASON, type SetAside } from "../../board/set-aside-github.ts";
-import { stateOfTheBaseGithub, WORD_OF_THE_STATE, ticketDeLaPR } from "../../board/rail-github.ts";
+import { stateOfTheBaseGithub, WORD_OF_THE_STATE, ticketOfThePR } from "../../board/rail-github.ts";
 import { takenOfTheIssue, stationsOfGithub, holdingOfTheIssue, type Taking } from "../cooks/taken.ts";
 import { isSensitive } from "../card-sensitive/label.ts";
 import { PR_OF_TICKET } from "../pr-of-ticket.js";
@@ -152,7 +152,7 @@ async function readTheServedByPages(read: (path: string) => Promise<unknown>, re
       const mergeThe = text(pr.merged_at);
       const instant = Date.parse(mergeThe);
       if (Number.isNaN(instant) || instant < since || instant > now) continue;
-      const ticket = ticketDeLaPR(text(object(pr.head)?.ref), text(pr.body));
+      const ticket = ticketOfThePR(text(object(pr.head)?.ref), text(pr.body));
       if (ticket === null || typeof pr.number !== "number") continue;
       const knownOne = servedOnes.get(ticket);
       if (knownOne !== undefined && Date.parse(knownOne.livre) >= instant) continue;
@@ -229,7 +229,7 @@ export async function readTheRailOnGithub(options: { depot: string; appeler: Cal
   );
   const delivered = new Map<number, PrOfTicket>();
   for (const pr of prs) {
-    const ticket = ticketDeLaPR(text(object(pr.head)?.ref), text(pr.body));
+    const ticket = ticketOfThePR(text(object(pr.head)?.ref), text(pr.body));
     if (ticket !== null && !delivered.has(ticket) && typeof pr.number === "number") delivered.set(ticket, { numero: pr.number, url: text(pr.html_url), le: text(pr.created_at), station: STATION_OF_THE_PR.exec(text(pr.body))?.[1] ?? null });
   }
   const ofRail = issues.flatMap((issue) => {

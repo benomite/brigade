@@ -11,7 +11,7 @@ import type { Canal } from "../../../runtime/src/appairage/canal.ts";
 import type { DemandeDeRemede, IssueDuRemede as IssueOfRuntime } from "../../../runtime/src/remedes/executer.ts";
 import type { GitHubOfStations } from "../stations/github.ts";
 
-export type { DemandeDeRemede };
+export type { DemandeDeRemede as RequestOfRemedy };
 // L'opération du runtime : demander le remède à la station de ce gist, attendre sa réponse.
 export type AskTheRemedy = (options: { canal: Canal; gist: string; demande: DemandeDeRemede }) => Promise<IssueOfRuntime>;
 

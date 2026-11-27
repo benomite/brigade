@@ -12,7 +12,7 @@
 // aucun ne se lit : la lecture le dit, sans chiffre.
 import { chiffresDAutonomie, commitsRevertes, LABEL_BUG, PERIODES, type ChiffresDAutonomie, type Defauts, type DonneesDuDepot } from "../../../../runtime/src/autonomie/chiffres/chiffres.ts";
 import type { CallGitHub } from "../../board/client.ts";
-import { ticketDeLaPR } from "../../board/rail-github.ts";
+import { ticketOfThePR } from "../../board/rail-github.ts";
 import { readTheServedOnTheWindow, allThePages } from "../rail/github.ts";
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -87,7 +87,7 @@ async function readTheDefaults(read: (path: string) => Promise<unknown>, call: C
       if (!(answer.status === 200 && Array.isArray(answer.data))) throw new Error(`GitHub answered HTTP ${answer.status} on ${path}`);
       ticketsOfCommits[reverted] = answer.data.flatMap((raw: unknown) => {
         const pr = object(raw);
-        const ticket = pr === null || text(pr.merged_at) === "" ? null : ticketDeLaPR(text(object(pr.head)?.ref), text(pr.body));
+        const ticket = pr === null || text(pr.merged_at) === "" ? null : ticketOfThePR(text(object(pr.head)?.ref), text(pr.body));
         return ticket === null ? [] : [ticket];
       });
     }

@@ -28,7 +28,7 @@ import type { IssueOfRemedy } from "../projects/remedy.ts";
 import type { Pairing, RemovalOfStation, SeenOfStations } from "../stations/stations.ts";
 import type { Open, Terminal } from "../terminals.ts";
 import type { AccountGitHub, StartOfConnection, EndOfConnection } from "../connection-github.ts";
-import type { Opening, Progres, StationsDuChef } from "../first-launch.ts";
+import type { Opening, Progress, StationsOfChef } from "../first-launch.ts";
 import type { Choice, StationsOfAccount } from "../stations-of-account.ts";
 
 export type Bridge = {
@@ -381,7 +381,7 @@ export type Bridge = {
   // Le premier lancement, sur un ordinateur neuf (ticket 1434, first-launch.ts) : les stations que le chef a
   // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
   // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.
-  stationsDuChef?(): Promise<StationsDuChef>;
+  stationsDuChef?(): Promise<StationsOfChef>;
   // Ouvre un projet qu'une station porte, ou un dépôt choisi dans « Add a project », sans dossier à choisir : sa copie
   // reprise ou clonée par le runtime, puis le projet ajouté au fichier des projets — il arrive par `surConfiguration` —,
   // ou pourquoi il ne l'est pas. `base` : la branche par défaut que GitHub a donnée du dépôt, sa branche d'intégration.
@@ -528,7 +528,7 @@ export type Bridge = {
   // `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(receive: (configuration: Shown, closed: number[]) => void): void;
   // Une étape de la copie d'un projet qu'une station porte, pendant son ouverture : la phrase du runtime, et son pourcentage.
-  surOuverture?(receive: (repository: string, step: Progres) => void): void;
+  surOuverture?(receive: (repository: string, step: Progress) => void): void;
   // La connexion à GitHub finie : connecté, ou pourquoi pas.
   surConnexionGitHub?(receive: (end: EndOfConnection) => void): void;
   // Le login de Claude Code fini, réussi ou non : l'ouverture qu'il retenait se retente.

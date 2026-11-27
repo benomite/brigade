@@ -13,8 +13,8 @@ import type { Configuration, Declare } from "./config.ts";
 import type { CopieLocale, OptionsDOuverture, Progres } from "../../runtime/src/projets/copie-locale.ts";
 import type { Session } from "../../runtime/src/claude.ts";
 
-export type { StationsDuChef, StationAppairee, ProjetPorte, Connexion } from "../../runtime/src/appairage/stations-du-chef.ts";
-export type { CopieLocale, Progres } from "../../runtime/src/projets/copie-locale.ts";
+export type { StationsDuChef as StationsOfChef, StationAppairee as StationPaired, ProjetPorte as ProjectCarried, Connexion as Connection } from "../../runtime/src/appairage/stations-du-chef.ts";
+export type { CopieLocale as LocalCopy, Progres as Progress } from "../../runtime/src/projets/copie-locale.ts";
 
 // Ce que l'ouverture d'un projet rend à la vue : la copie du runtime — ouverte, ou pourquoi elle ne
 // l'est pas —, ou une copie faite que le fichier des projets n'a pas prise (`not-added`), et pourquoi —, ou rien de
