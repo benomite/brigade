@@ -1,6 +1,6 @@
 // La ligne d'état du rail (#3523) : au-dessus des colonnes, la bande du haut et — seulement quand quelque chose retient la
 // cuisine — une seule ligne ; aucun bandeau Backlog (#4354). Une issue que la cuisine a ouverte sur elle-même n'est jamais un besoin du Backlog : son contenu est cette
-// ligne. Et la ligne ne dit jamais « no reason is found » devant une raison connue. Le module pur d'abord, puis la vue jouée.
+// ligne. Le module pur d'abord, puis la vue jouée.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { POWER_UP } from "../../../src/power-up.ts";
@@ -20,7 +20,7 @@ import { readTheBoardOfRepository } from "../../../src/board/read.ts";
 import { readOfBoard } from "../../../src/board/rail.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { Fake, type Played, playTheVue, openTab, repos } from "../../helpers/false-vue.ts";
-import { lineOfAlerts, sentenceOfTheWait, heldKnown } from "../../../src/vue/line-of-status/line-of-status.js";
+import { lineOfAlerts } from "../../../src/vue/line-of-status/line-of-status.js";
 
 const PARADE = "parade";
 const REPOSITORY = "chef/parade";
@@ -105,9 +105,6 @@ const status = (vue: Played): Fake | undefined => children(vue).find(({ classNam
 
 // Les issues que la cuisine a ouvertes sur elle-même (la cuisine oisive, plus ouverte depuis #3945), et #21, mise de côté.
 const INERT = openOne(35, ["bug"], "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)");
-const LONG = "The wait is longer than usual: the oldest queued ticket has waited 3 d and no reason is found. It resolves by itself.";
-const QUEUED_FACTS = { ...FACTS, attenteDuRail: { raison: "normale", phrase: LONG, geste: null } };
-const factsWith = (facts: object): Facts => facts as Facts;
 
 describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoin", () => {
   test("une alerte de la cuisine : son contenu est la ligne d'état, et la carte du supervisor la dit en deux mots", async () => {
@@ -141,18 +138,6 @@ describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoi
     assert.deepEqual(beforeTheColumns(vue).map(({ className }) => className), ["bande-du-haut"]);
   });
 
-  test("la file attend et un ticket est mis de côté : la ligne nomme cette raison, jamais « no reason is found »", async () => {
-    const vue = await open();
-    receiveFacts(vue, factsWith(QUEUED_FACTS));
-    // Sans raison connue de la vue, la phrase du runtime est dite telle quelle ; son geste, relire (#4238).
-    const sentence = () => status(vue)?.dessous("strong")[0]?.textContent;
-    assert.equal(sentence(), LONG);
-    assert.deepEqual(status(vue)?.dessous("button").map(({ textContent }) => textContent), ["read again"]);
-    vue.dire("surAmont", holdUpstream().recevoir(await upstreamOf(ISSUES)));
-    assert.equal(sentence(), "The queue waits: #12, #13 are set aside.");
-    assert.doesNotMatch(vue.element("rail").textContent, /no reason is found/);
-    assert.deepEqual(beforeTheColumns(vue).map(({ className }) => className.split(" ")[0]), ["bande-du-haut", "attente-du-rail"]);
-  });
 });
 
 describe("le TODO du haut est replié par défaut, et ne reste pas ouvert d'une visite à l'autre (#4354)", () => {
@@ -184,14 +169,5 @@ describe("le module pur de la ligne d'état", () => {
     ]);
     assert.equal(line?.textContent, "Kitchen idle: x");
     assert.equal(line?.title, "The kitchen is idle: x — filed by the kitchen on issue #35");
-  });
-  test("les raisons connues : le ticket de côté, la cuisine arrêtée ; la phrase du runtime ne change que pour « normale »", () => {
-    assert.deepEqual(heldKnown({ misDeCote: [], arretee: false }), []);
-    assert.deepEqual(heldKnown({ misDeCote: [21], arretee: true }), ["the kitchen is stopped", "#21 is set aside"]);
-    const normal = { raison: "normale", phrase: LONG, geste: null, stations: [] as string[] } as const;
-    assert.equal(sentenceOfTheWait(normal, []), normal);
-    assert.equal(sentenceOfTheWait(normal, ["#21 is set aside"]).phrase, "The queue waits: #21 is set aside.");
-    const outage = { raison: "arretee", phrase: "The station is stopped.", geste: "demarrer-la-station", stations: [] as string[] } as const;
-    assert.equal(sentenceOfTheWait(outage, ["#21 is set aside"]), outage);
   });
 });

@@ -21,8 +21,7 @@ import { POWER_UP, count } from "./power-up.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
-import { launchHere, launchThe, openStandby, type Read } from "./box.ts";
-import { startTheStationOfProject } from "./tray-background/read.ts";
+import { launchThe, openStandby, type Read } from "./box.ts";
 import { situationOf } from "./story.ts";
 import { LinksRead } from "./links-read.ts";
 import { comment, askAtSecond, noteOfTheQuestion } from "./discussion.ts";
@@ -41,20 +40,18 @@ import { writeInTheProject, readInTheProject } from "./vue/card-project/card-pro
 import { writeTheExplanations, readTheExplanations } from "./vue/explanations/explanations-box.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
 import { plugTheKnowHow } from "./vue/know-how-tab/know-how-box.ts";
-import { readTheRecap, markTheRecap } from "./vue/recap/recap-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
 import { ACTIONS_OF_WAIT } from "./wait.ts";
 import { KITCHEN_ACTIONS } from "./kitchen.ts";
-import { BANNER, COMMAND, holdFacts, type Drawable, type RailOfProjectRead } from "./facts.ts";
+import { BANNER, COMMAND, holdFacts, type Drawable } from "./facts.ts";
 import { holdTheColumns } from "./columns-emptied.ts";
 import { clientGitHub, byFetch, postByFetch } from "./board/client.ts";
 import { withWhatAwaitingTheChef } from "./board/wait-of-chef.ts";
 import { playTheWait } from "./vue/wait/wait-github.ts";
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
-import { holdTheSignsOfLife } from "./vue/cooks/signs-of-life.ts";
-import { withThePresenceLocale, withTheStationLocale } from "./vue/pause-quota/pause-quota.ts";
+import { holdTheSignsOfLife, withThePresenceLocale, withTheStationLocale } from "./vue/cooks/signs-of-life.ts";
 import type { SignsOfLife } from "./vue/rail/github.ts";
 import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-assigned.ts";
 import { tokenOfGh } from "./board/token-gh.ts";
@@ -79,7 +76,6 @@ import { playTheValidation } from "./vue/validation-design/validation-design-git
 import { playTheReview } from "./vue/card-sensitive/card-sensitive-github.ts";
 import { playTheCancellation } from "./vue/undo/undo-github.ts";
 import { readTheAutonomyOfRepository, holdTheAutonomy } from "./vue/autonomy/autonomy-github.ts";
-import { changeTheDay, readTheDay, readTheResumes, publishTheResume, type ResumeWeekly, type ResumesOfProject } from "./vue/resume-weekly/resume-kitchen.ts";
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
@@ -1435,17 +1431,6 @@ ipcMain.handle("compteGitHub", async () => {
 });
 // Le bloc de la station de l'accueil (ticket 2640) : installer celle de cet ordinateur (workstation/installer.ts).
 ipcMain.handle("installerLaStation", () => installerTheStation(stationLocale, () => stations.relire()));
-// « Start this computer's station », sur l'alerte d'un projet dont la station est arrêtée (#3637) : le geste `demarrage` de
-// l'icône de fond (tray-background/read.ts), pour ce projet — `station start <station>` sur la station de cet ordinateur.
-ipcMain.handle("demarrerLaStationIci", async (_, name: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  if (role.role !== "station") return { refus: "this computer is a workstation, not a station: there is no station here to start" };
-  const locale = { node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env };
-  const rendered = await startTheStationOfProject({ nom: aims.nom, faits: facts.dernier(aims.nom)?.faits }, (project, command) => launchHere(locale, project, command, 30_000), 30_000);
-  void stations.relire();
-  return rendered;
-});
 // Les outils que l'app ne livre pas (#4059, tools-required.ts) : la connexion à GitHub, le clone et le login Max les
 // demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation (l'app n'installe rien, #4266).
 const toolsRequired = holdToolsRequired({
@@ -1502,18 +1487,6 @@ ipcMain.handle("lireLaCuisineVisitee", (_, repository: unknown) =>
     return withWhatAwaitingTheChef(readOne, readConditional(callUnderBudget, memoryOfRail(aims)));
   }),
 );
-// Le rail qu'une station publie dans son gist pour un projet qu'aucune station connue ne sert ici (#1435), lu par
-// l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui que l'app lit sur GitHub, pour
-// tout projet. Tant qu'il ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
-// station du compte qui serve le projet, ou la page qui lève l'échec, ouverte depuis l'écran.
-ipcMain.handle("railDuProjet", async (_, name: unknown): Promise<RailOfProjectRead> => {
-  const aims = declare(name);
-  if (aims === undefined) return { state: "unavailable", project: String(name), cause: "unreadable", reason: `The rail of ${String(name)} is not read: it is no longer in the projects file.` };
-  const { lireLeRailDuProjet: readTheRailOfProject } = await ofRuntime<typeof import("../../runtime/src/appairage/rail-du-projet.ts")>("appairage", "rail-du-projet.ts");
-  const readOne = await readTheRailOfProject({ gh: ghHere, env: process.env, project: aims.depot ?? aims.nom });
-  if (readOne.state === "unavailable") return holdThePage(readOne);
-  return readOne;
-});
 // Les labels d'une issue, lus et changés depuis une fiche (priority.ts, actions-github.ts), et le commentaire du chef,
 // avec le jeton du `gh` de ce poste.
 const clientOfLabels = clientOfThePriority({ jeton: tokenOfGh({ gh: ghHere, delaiMs: 10_000 }), appeler: callGitHub, envoyer: sendByFetch() });
@@ -1681,27 +1654,6 @@ ipcMain.handle("remontrerLesExplications", (_, name: unknown) => {
   const { vise: aims, lu: readOne } = kitchenOfProject(name);
   return aims === undefined ? gone(name) : writeTheExplanations(aims.nom, readOne, accountOfExplanations, { effacer: true }, launchOnTheKitchen);
 });
-// Le récapitulatif de chaque projet, sur l'accueil (#3581, vue/recap/recap-box.ts) : lu par `recap` là où sa cuisine tourne,
-// et son marqueur avancé par elle quand la vue l'a montré. Seule l'adresse d'une PR qu'une lecture a rendue s'ouvre.
-const linksOfRecaps = new Set<string>();
-ipcMain.handle("lireLeRecap", async (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return { sans: `${String(name)} is no longer in the projects file` };
-  const readEntry = await readTheRecap(aims.nom, readOne, await repositoryOfProject(aims), launchOnTheKitchen);
-  if ("recap" in readEntry) for (const { prUrl } of readEntry.recap.served) linksOfRecaps.add(prUrl);
-  return readEntry;
-});
-ipcMain.handle("marquerLeRecap", async (_, name: unknown, until: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : markTheRecap(aims.nom, readOne, await repositoryOfProject(aims), until, launchOnTheKitchen);
-});
-ipcMain.handle("ouvrirLaPRDuRecap", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfRecaps.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributors.ts).
 ipcMain.handle("listerLesStationsContributrices", (_, name: unknown) => {
@@ -1714,50 +1666,6 @@ const changeOneStation = (name: unknown, action: { refuse: unknown } | { accept:
 };
 ipcMain.handle("refuserUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { refuse: station }));
 ipcMain.handle("accepterUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { accept: station }));
-// Les résumés hebdomadaires de la cuisine d'un projet (#3263, vue/resume-weekly/resume-kitchen.ts) : le jour du
-// résumé lu dans `projet.json` sur sa branche d'intégration, et changé par une pull request, par le jeton du `gh` de ce
-// poste ; les résumés lus par `report --week` là où sa cuisine tourne, par son passage, et publiés comme les notes d'une
-// version par `release-notes`. Seul un résumé que la dernière lecture a rendu se publie, et seule l'adresse d'un ticket
-// ou d'une release qu'elles ont rendue s'ouvre depuis l'écran.
-const resumesRead = new Map<string, ResumeWeekly[]>();
-const linksOfResumes = new Set<string>();
-ipcMain.handle("lireLesResumesHebdomadaires", async (_, name: unknown): Promise<ResumesOfProject> => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) {
-    const without = { sans: `${String(name)} is no longer in the projects file` };
-    return { projet: String(name), jour: without, resumes: without };
-  }
-  const day = await readTheDay({ depot: await repositoryOfProject(aims), branche: branchOfProject(aims), client: clientOfLabels });
-  const resumes = "sans" in day ? { sans: "weekly summaries unavailable: the summary day was not read", detail: day.detail ?? day.sans } : await readTheResumes({ projet: aims.nom, lu: readOne, jour: day.jour, lancer: launchOnTheKitchen, maintenant: new Date() });
-  if ("resumes" in resumes) {
-    resumesRead.set(aims.nom, resumes.resumes);
-    for (const { themes, waiting } of resumes.resumes) for (const { ticketUrl } of [...themes.flatMap(({ lines }) => lines), ...waiting]) linksOfResumes.add(ticketUrl);
-  }
-  return { projet: aims.nom, jour: day, resumes };
-});
-ipcMain.handle("changerLeJourDuResume", async (_, name: unknown, day: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await changeTheDay({ depot: await repositoryOfProject(aims), branche: branchOfProject(aims), jour: day, client: clientOfLabels });
-  if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
-  return rendered;
-});
-ipcMain.handle("publierLeResumeHebdomadaire", async (_, name: unknown, weekStart: unknown, tag: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return gone(name);
-  const resume = resumesRead.get(aims.nom)?.find((guard) => guard.weekStart === weekStart);
-  if (resume === undefined) return { refus: "nothing was published: this summary is no longer read — open the page again" };
-  const rendered = await publishTheResume({ projet: aims.nom, lu: readOne, resume, tag, lancer: (readOne, command) => launchThe({ delaiMs: 60_000 }, readOne, command) });
-  if ("url" in rendered) linksOfResumes.add(rendered.url);
-  return rendered;
-});
-ipcMain.handle("ouvrirTicketDuResume", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfResumes.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !proposalsOfSetting.has(url)) return false;
   return shell.openExternal(url).then(
@@ -1909,12 +1817,10 @@ ipcMain.handle("ouvrirLectureSeule", (_, name: unknown, page: unknown) => {
 ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
-// La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
-// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/head.js).
 ipcMain.on("onglet", (_, name: unknown, id: unknown, request: number) => {
   const commands = commandsOf(id);
   tabRead = { id, demande: request };
-  const readOnes = projectsRead(id, name, shownEntry().projets);
+  const readOnes = projectsRead(name, shownEntry().projets);
   standbyOfTab.regarder(commands.length === 0 ? [] : readOnes, commands, request);
 });
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
@@ -1956,9 +1862,6 @@ ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
     () => false,
   );
 });
-// Les checks du dépôt d'un projet, d'une alerte du rail qui en nomme un (#4238) : la page que la dernière lecture permet de
-// trouver (facts.ts). Rend si elle a été ouverte.
-ipcMain.handle("ouvrirLesChecks", (_, name: unknown) => facts.ouvrirLesChecks(name, (address) => shell.openExternal(address)));
 // Un ticket de Livré s'ouvre aussi sur sa PR mergée : l'adresse est celle que la box a donnée
 // pour lui (facts.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirPr", (_, name: unknown, ticket: unknown) => {

@@ -265,29 +265,18 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/board/set-aside-github.ts",
     "app/src/board/todo-github.ts",
     "app/src/board/writing.ts",
-    "app/src/rail-blocked/diagnostic.ts",
     // La fraîcheur d'une station enregistrée, de son gist, sans E/S (ticket 4502).
     "app/src/station-freshness.ts",
     // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
     "app/src/vue/backlog/progress-github.ts",
-    "app/src/vue/banner-stop/stop-of-rail.ts",
     // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
     "app/src/vue/card-sensitive/label.ts",
     "app/src/vue/cooks/taken.ts",
-    // La pause de quota GitHub du compte, sans E/S (ticket 3482).
-    "app/src/vue/pause-quota/pause-quota.ts",
     // Une PR dite par son ticket, sans import (ticket 3716).
     "app/src/vue/pr-of-ticket.js",
-    // Le rail bloqué : les tickets qu'aucun manager n'a pris, et le diagnostic, sans E/S (ticket 3358).
-    "app/src/vue/rail-blocked/rail-blocked.ts",
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/send-back.ts",
-    // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).
-    "app/src/vue/wait-of-rail/wait-of-rail.ts",
-    // Les alertes du haut du rail et le diagnostic du rail bloqué, sans E/S, que le runtime ne dit plus (ticket 3945).
-    "app/src/wait-of-rail/alerts.ts",
-    "runtime/src/arret-cuisine/arret-cuisine.ts",
     "runtime/src/attente-du-rail/lecture.ts",
     "runtime/src/attente-du-rail/raison.ts",
     "runtime/src/attente-du-rail/stations.ts",

@@ -18,7 +18,6 @@ import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { holdTheTeam } from "../../../src/vue/autonomy/team.js";
 import { source } from "../../../src/vue/autonomy/source.js";
-import { mountTheBanner } from "../../../src/vue/banner-stop/banner-stop.js";
 import { linesOfRefusal } from "../../../src/vue/project/rail/refusal-of-station.js";
 import { isRed } from "../../../src/vue/todo/todo.js";
 import { type Fake, Fake as Element, type Played, playTheVue, repos } from "../../helpers/false-vue.ts";
@@ -118,45 +117,9 @@ describe("le process principal pose `parque`", () => {
     assert.equal(of(53), undefined);
   });
 
-  test("les checks du dépôt : la page de GitHub Actions d'après une issue lue ; sans issue de GitHub, ou qui ne s'ouvre pas, faux", async () => {
-    const heldOnes = holdFacts();
-    const openEntries: string[] = [];
-    const openThe = async (address: string) => void openEntries.push(address);
-    assert.equal(await heldOnes.ouvrirLesChecks(PARADE, openThe), false);
-    heldOnes.recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts({ rail: [entry(5, "pris", { url: "https://example.org/5" })], attend: [{ ticket: 6, titre: "Six", url: null }], livres: [{ ticket: 7, titre: "Sept", url: "https://github.com/chef/parade/pull/7", livre: A, station: null, pr: null }] })) }] });
-    assert.equal(await heldOnes.ouvrirLesChecks(PARADE, openThe), true);
-    assert.deepEqual(openEntries, ["https://github.com/chef/parade/actions"]);
-    assert.equal(await heldOnes.ouvrirLesChecks(PARADE, async () => Promise.reject(new Error("no browser"))), false);
-    assert.equal(await heldOnes.ouvrirLesChecks(42, openThe), false);
-    heldOnes.recevoir({ projet: "cantine", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts({ rail: [entry(5, "pris", { url: "https://example.org/5" })] })) }] });
-    assert.equal(await heldOnes.ouvrirLesChecks("cantine", openThe), false);
-    assert.equal(openEntries.length, 1);
-  });
 });
 
 describe("chaque message du haut offre un geste", () => {
-  const ALERT = { sorte: "base-rouge", phrase: "Main is red since 08:00.", fait: { depuis: "2026-11-25T08:00:00Z", check: "tests" }, geste: "Open the failing check", geree: null };
-
-  test("une alerte qui nomme un check l'ouvre ; une qui nomme un ticket ouvre son issue", async () => {
-    const vue = await open({ ouvrirLesChecks: () => true });
-    let rail = await show(vue, { rail: [entry(41, "pris")], alertesDuRail: [ALERT] as unknown as NonNullable<Facts["alertesDuRail"]> });
-    buttonNamed(rail, "open the checks").click();
-    await repos();
-    assert.deepEqual(vue.dernier("ouvrirLesChecks"), [PARADE]);
-    rail = await show(vue, { rail: [entry(41, "pris")], alertesDuRail: [{ ...ALERT, fait: { depuis: ALERT.fait.depuis, ticket: 41 } }] as unknown as NonNullable<Facts["alertesDuRail"]> });
-    buttonNamed(rail, "open #41").click();
-    await repos();
-    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 41]);
-  });
-
-  test("les checks qui ne s'ouvrent pas : la vue dit pourquoi", async () => {
-    const vue = await open({ ouvrirLesChecks: () => false });
-    const rail = await show(vue, { rail: [entry(41, "pris")], alertesDuRail: [ALERT] as unknown as NonNullable<Facts["alertesDuRail"]> });
-    buttonNamed(rail, "open the checks").click();
-    await repos();
-    assert.match(vue.poses().map(({ textContent }) => textContent).join("\n"), /the repository's checks were not opened/);
-  });
-
   test("une lecture vieille offre de relire : le bouton relit la box", async () => {
     const vue = await open();
     const rail = await show(vue, { rail: [entry(41, "pris")] }, "2026-10-01T00:00:00.000Z");
@@ -165,27 +128,6 @@ describe("chaque message du haut offre un geste", () => {
     const before = vue.appels.filter(({ geste: action }) => action === "relireBox").length;
     buttonNamed(line, "read again").click();
     assert.equal(vue.appels.filter(({ geste: action }) => action === "relireBox").length, before + 1);
-  });
-
-  test("la cuisine arrêtée : ouvrir le ticket gelé, les checks de main rouge, ou relire quand la cause est inconnue", () => {
-    const calls: string[] = [];
-    const host = new Element("div");
-    const banner = mountTheBanner(doc, host, { ouvrirTicket: (ticket) => void calls.push(`#${ticket}`), ouvrirLesChecks: () => void calls.push("checks"), relire: () => void calls.push("relire") });
-    const action = () => host.dessous("button").map(({ textContent }) => textContent);
-    banner.maj({ cause: { kind: "frozen-zone", ticket: 30, zone: "app/" }, since: A });
-    assert.deepEqual(action(), ["open #30"]);
-    host.dessous("button")[0]?.click();
-    banner.maj({ cause: { kind: "main-red" }, since: A });
-    assert.deepEqual(action(), ["open the checks"]);
-    host.dessous("button")[0]?.click();
-    banner.maj({ cause: { kind: "unknown" }, since: A });
-    assert.deepEqual(action(), ["read again"]);
-    host.dessous("button")[0]?.click();
-    assert.deepEqual(calls, ["#30", "checks", "relire"]);
-    // Sans gestes — monté hors de l'app —, aucun bouton.
-    const only = new Element("div");
-    mountTheBanner(doc, only).maj({ cause: { kind: "main-red" }, since: A });
-    assert.deepEqual(only.dessous("button"), []);
   });
 
   test("une station qui refuse le projet : sa ligne ouvre Stations", () => {
@@ -267,26 +209,6 @@ describe("le plan, colonne par colonne", () => {
 });
 
 describe("le haut du rail, sous la bande", () => {
-  test("une ligne sans geste ne passe pas devant une alerte qui en offre un", async () => {
-    const vue = await open();
-    const railBlocked = { tickets: [41], depuis: "2026-11-24T09:00:00Z", cause: "manager-muet", stations: [], geste: null, constat: "1 ticket waits for a manager.", phrase: "1 ticket waits for a manager." };
-    const rail = await show(vue, { rail: [entry(41, "en attente")], railBloque: railBlocked, alertesDuRail: [{ sorte: "base-rouge", phrase: "Main is red.", fait: { depuis: "2026-11-25T08:00:00Z", ticket: 41 }, geste: "Open it", geree: null }] } as unknown as Facts);
-    assert.doesNotMatch(rail.textContent, /waits for a manager/);
-    assert.match(rail.textContent, /Main is red/);
-  });
-
-  test("la cuisine arrêtée, sur le rail du projet affiché : son bouton ouvre le ticket gelé, ou les checks de main rouge", async () => {
-    const vue = await open({ ouvrirLesChecks: () => true });
-    let rail = await show(vue, { rail: [entry(41, "en attente")], arretCuisine: { cause: { kind: "frozen-zone", ticket: 30, zone: "app/" }, since: A } } as unknown as Facts);
-    buttonNamed(rail, "open #30").click();
-    await repos();
-    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 30]);
-    rail = await show(vue, { rail: [entry(41, "en attente")], arretCuisine: { cause: { kind: "main-red" }, since: A } } as unknown as Facts);
-    buttonNamed(rail, "open the checks").click();
-    await repos();
-    assert.deepEqual(vue.dernier("ouvrirLesChecks"), [PARADE]);
-  });
-
   test("l'équipe lue après le rail : la bande se repose, ses cartes cèdent la place aux badges", async () => {
     let read: (team: unknown) => void = () => {};
     const vue = await open({ lireLesAgents: () => new Promise((resolved) => (read = resolved)) });

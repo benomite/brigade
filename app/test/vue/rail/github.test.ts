@@ -79,8 +79,6 @@ describe("le rail d'un projet : ses issues, leurs labels et leurs PR", () => {
     assert.deepEqual(readEntries["Waiting"], ["#4 waiting"]);
     // Les compteurs sont ceux de GitHub ; ni les livrés ni TODO ne sont comptés par la lecture du rail.
     assert.deepEqual(seenOne.compteurs.map(({ nombre: count }) => count), [5, 1, 1, 0, 0]);
-    // Aucun journal de station n'est lu : aucune panne n'est dite.
-    assert.equal(seenOne.panne, undefined);
   });
 
   test("une épique dont le corps liste les tickets garde `fire` et sa `prio:`, et n'est pas sur le rail (#2618)", async () => {

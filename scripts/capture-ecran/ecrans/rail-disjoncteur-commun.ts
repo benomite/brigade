@@ -1,4 +1,4 @@
-// « parade », le rail bloqué de rail-bloque-commun.ts (#3358), dont le disjoncteur s'est ouvert (#3602) : sa cuisine est
+// « parade », le rail de rail-bloque-commun.ts, dont le disjoncteur s'est ouvert (#3602) : sa cuisine est
 // retenue, la ligne `kitchen` de `status` dit « breaker OPEN » — la cause que l'app reçoit déjà (#3529).
 import type { Rendu } from "./commun.ts";
 import { RENDU_BLOQUE } from "./rail-bloque-commun.ts";

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { StationsDuCompte } from "../../../../runtime/src/enregistrement-station/stations-du-compte.ts";
-import { NOT_OF_SIGNS_MS, signsOf, holdTheSignsOfLife } from "../../../src/vue/cooks/signs-of-life.ts";
+import { NOT_OF_SIGNS_MS, signsOf, holdTheSignsOfLife, withThePresenceLocale, withTheStationLocale } from "../../../src/vue/cooks/signs-of-life.ts";
 
 const station = (name: string, lastSeen: string) => ({ id: `g${name}`, name, platform: "linux", machine: "Linux 6.1.0", version: "1.4.0", account: "chef", available: true, registeredAt: "2026-11-01T00:00:00.000Z", lastSeen, stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] });
 const listed = (...stations: ReturnType<typeof station>[]): StationsDuCompte => ({ state: "listed", stations, unreadable: [] });
@@ -45,5 +45,21 @@ describe("les signes de vie des stations du compte", () => {
     assert.ok("lus" in (await signs.signes()));
     signs.poser({ state: "unavailable", cause: "network", reason: "offline" });
     assert.ok("lus" in (await signs.signes()));
+  });
+});
+
+describe("la station que l'app voit tourner sur cet ordinateur", () => {
+  const NOW = Date.parse("2026-11-05T10:15:00.000Z");
+  const box = station("box", "2026-11-05T10:00:00.000Z");
+
+  test("son signe de vie a quinze minutes, mais elle tourne ici : son dernier signe est cet instant ; sans elle, rien ne change", () => {
+    assert.equal(withTheStationLocale([box], "gbox", NOW)[0]?.lastSeen, "2026-11-05T10:15:00.000Z");
+    assert.deepEqual(withTheStationLocale([box], null, NOW), [box]);
+    assert.deepEqual(withTheStationLocale([box], "gautre", NOW), [box]);
+  });
+
+  test("les présences la disent en ligne, sous le nom de son enregistrement ; sans elle, rien de plus", () => {
+    assert.deepEqual(withThePresenceLocale([], [{ id: "gbox", name: "box" }], "gbox"), [{ nom: "box", etat: "en-ligne" }]);
+    assert.deepEqual(withThePresenceLocale([], [{ id: "gbox", name: "box" }], null), []);
   });
 });

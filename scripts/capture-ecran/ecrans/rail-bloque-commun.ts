@@ -1,6 +1,5 @@
-// Le rail bloqué de « parade » (#3358), projet GitHub seul : huit tickets `fire` (#4 à #11) qu'aucun manager n'a pris —
-// ni prise du manager, ni `model:` ni `effort:` — depuis la veille à 20:00 UTC, quatorze heures avant la lecture. Sa
-// seule station, box/claude, s'est arrêtée juste avant. La vue reçoit ce que l'app en tire (app/src/vue/rail/github.ts,
+// Le rail de « parade », projet GitHub seul : huit tickets `fire` (#4 à #11) en file depuis la veille à 20:00 UTC, quatorze
+// heures avant la lecture. Sa seule station, box/claude, s'est arrêtée juste avant. La vue reçoit ce que l'app en tire (app/src/vue/rail/github.ts,
 // `avecLeRail`) — `facts` et `status` passés par le code de l'app, rien écrit à la main.
 import type { BoardRead } from "../../../app/src/board/read.ts";
 import { withTheRail, type RailOnGithub } from "../../../app/src/vue/rail/github.ts";
@@ -14,7 +13,6 @@ const NUMEROS = [4, 5, 6, 7, 8, 9, 10, 11];
 export const RAIL_BLOQUE: RailOnGithub = {
   lu: MAINTENANT,
   tickets: NUMEROS.map((numero) => ticket(numero, "en attente", { titre: TITRES[numero] as string, creeLe: POSE })),
-  nonPris: NUMEROS.map((numero) => ({ ticket: numero, depuis: POSE })),
 };
 
 // box/claude : vue pour la dernière fois à 19:58 UTC, arrêtée à 19:59.

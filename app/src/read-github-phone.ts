@@ -48,8 +48,7 @@ import { activitiesPublished, readTheBoardOfRepository, type ActivitiesPublished
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
 import { UPSTREAM, FACTS, readOfBoard, STATUS } from "./board/rail.ts";
 import { setTheTrace } from "./phone-connected.ts";
-import { FICHIER_ENREGISTREMENT, FICHIER_SELECTION, selectionLue } from "../../runtime/src/enregistrement-station/contrat.ts";
-import { pauseOfAccount, signOfTheRecording, type PauseOfAccount, type Sign } from "./vue/pause-quota/pause-quota.ts";
+import { FICHIER_SELECTION, selectionLue } from "../../runtime/src/enregistrement-station/contrat.ts";
 
 // Un projet du chef, tel que GitHub le dit : son nom, et son dépôt `<owner>/<repo>`.
 export type ProjectOfAccount = { nom: string; depot: string };
@@ -126,9 +125,8 @@ function dataOf(answer: AnswerGitHub, what: string): unknown {
 }
 
 // Les projets du chef, lus dans les gists de ses stations. Lève un `Refus` quand GitHub refuse, une erreur quand il ne
-// répond pas. `signes` reçoit le signe de vie et le quota GitHub de chaque station que ces gists enregistrent (ticket 3482) :
-// la pause de quota du compte s'en tire, comme au desktop.
-export async function readTheProjectsOfAccount(call: CallGitHub, signs: Sign[] = []): Promise<ProjectOfAccount[]> {
+// répond pas.
+export async function readTheProjectsOfAccount(call: CallGitHub): Promise<ProjectOfAccount[]> {
   const gists: string[] = [];
   for (let page = 1; page <= PAGES_AT_MOST; page++) {
     const renderedOnes = dataOf(await call(`/gists?per_page=${BY_PAGE}&page=${page}`), "the list of your gists, where your stations keep your projects");
@@ -159,8 +157,6 @@ export async function readTheProjectsOfAccount(call: CallGitHub, signs: Sign[] =
       return typeof text === "string" ? text : undefined;
     };
     for (const { nom: name, depot: repository } of readRequest(content(FILE_PROJECTS)) ?? []) add(name, repository);
-    const sign = signOfTheRecording(content(FICHIER_ENREGISTREMENT));
-    if (sign !== null) signs.push(sign);
     const selection = content(FICHIER_SELECTION);
     if (selection !== undefined) bySelection.push(...(selectionLue(selection)?.repositories ?? []));
   }
@@ -221,19 +217,13 @@ export function openTheReadGitHub(options: Options) {
     if (seenOne !== undefined) tell("surAccueil", seenOne);
   };
 
-  // La pause de quota GitHub du compte (ticket 3482), de la dernière liste lue : chaque projet la porte dans `facts`, comme
-  // au desktop. Une liste qui ne se lit pas la garde : la vue la retire d'elle-même à sa reprise.
-  let pause: PauseOfAccount | null = null;
-  const withThePauseOfAccount = (readEntry: ReadOfBoardOfRepository): ReadOfBoardOfRepository => (readEntry.lu && pause !== null ? { ...readEntry, faits: { ...readEntry.faits, pauseQuota: pause } } : readEntry);
-
   // La lecture du desktop pour un projet : son rail, puis ce qui attend le chef. Ne lève pas.
   async function readTheProject({ depot: repository }: ProjectOfAccount): Promise<ReadOfBoardOfRepository> {
     try {
       const readOne = await readTheBoardOfRepository({ depot: repository, appeler: call, memoire: memory(repository), maintenant: now });
       const reader = readConditional(call, memory(repository));
       // Les cartes du compte connecté, et celles d'un autre humain sous « Awaiting others », comme au desktop (#2985).
-      const readEntry = await withWhatAwaitingTheChef(readOne, reader, shareOfCardsAssigned({ appeler: reader, depot: repository, login: async () => options.compte ?? null }));
-      return withThePauseOfAccount(readEntry);
+      return await withWhatAwaitingTheChef(readOne, reader, shareOfCardsAssigned({ appeler: reader, depot: repository, login: async () => options.compte ?? null }));
     } catch (error) {
       return { lu: false, depot: repository, luLe: now().toISOString(), raison: `The rail of ${repository} was not read from GitHub: ${saysOf(error)}.` };
     }
@@ -243,9 +233,7 @@ export function openTheReadGitHub(options: Options) {
   async function readAll(): Promise<void> {
     const a = now().toISOString();
     try {
-      const signs: Sign[] = [];
-      const readOnes = await readTheProjectsOfAccount(readTheGists, signs);
-      pause = pauseOfAccount(signs, now().getTime());
+      const readOnes = await readTheProjectsOfAccount(readTheGists);
       list = { a, lue: true };
       await setTheTraceOneTimes();
       if (JSON.stringify(readOnes) !== JSON.stringify(projects)) {

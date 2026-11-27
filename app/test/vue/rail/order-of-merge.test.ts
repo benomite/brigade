@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CallGitHub, AnswerGitHub } from "../../../src/board/client.ts";
-import { readTheRailOnGithub, ticketsOfTheWait } from "../../../src/vue/rail/github.ts";
+import { readTheRailOnGithub } from "../../../src/vue/rail/github.ts";
 
 const REPOSITORY = "acme/kitchen";
 const ok = (data: unknown): AnswerGitHub => ({ status: 200, data });
@@ -40,6 +40,4 @@ const github: CallGitHub = async (path) => {
 test("only the later card of a declared dependency or a common file says what it comes after", async () => {
   const { tickets } = await readTheRailOnGithub({ depot: REPOSITORY, appeler: github, maintenant: () => new Date("2026-11-04T03:00:00Z") });
   assert.deepEqual(tickets.map(({ ticket, apres: after }) => [ticket, after ?? null]), [[1, null], [2, [1]], [3, null], [4, null], [5, null], [40, null], [41, [40]], [42, null], [7, null]]);
-  const cards = ticketsOfTheWait(tickets);
-  assert.deepEqual(cards.map(({ ticket, apres: after }) => [ticket, after ?? null]), [[1, null], [2, [1]], [3, null], [5, null], [40, null], [41, [40]], [42, null], [7, null]]);
 });

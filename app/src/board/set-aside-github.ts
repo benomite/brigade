@@ -18,7 +18,6 @@
 // GitHub mène de l'une à l'autre.
 
 import { LABEL_PARKED } from "../../../runtime/src/attente-github/marque.ts";
-import type { ZoneHeld } from "../vue/banner-stop/stop-of-rail.ts";
 import { cardOfComment, shapeOfChef, type CardOfChef, type ChoiceOfChef, type Recommended } from "./todo-github.ts";
 import { tellThePrByItsTicket } from "../vue/pr-of-ticket.js";
 
@@ -45,8 +44,7 @@ export type LinkOfLine = { numero: number; url: string };
 // commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
 // `chef` : la question marquée d'un `served-elsewhere`, avec ses boutons.
 // `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
-// `zoneTenue` : la zone que sa fiche déclare et que sa PR ouverte tient, et depuis quand (vue/banner-stop/, ticket 3924).
-export type SetAside = { label: string; raison: string | null; complete?: string; liens: LinkOfLine[]; auChef?: boolean; chef?: CardOfChef; zoneTenue?: ZoneHeld };
+export type SetAside = { label: string; raison: string | null; complete?: string; liens: LinkOfLine[]; auChef?: boolean; chef?: CardOfChef };
 
 type Raw = Record<string, unknown>;
 

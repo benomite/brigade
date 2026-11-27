@@ -18,7 +18,7 @@ const VIDE: BoardRead = {
   lignesDuRail: [],
   activites: [],
 };
-const RAIL_VIDE = renduDeParade(withTheRail(VIDE, { lu: MAINTENANT, tickets: [], nonPris: [] }, { lus: [signe("box", MAINTENANT)] }));
+const RAIL_VIDE = renduDeParade(withTheRail(VIDE, { lu: MAINTENANT, tickets: [] }, { lus: [signe("box", MAINTENANT)] }));
 const geste = (id: string, epique: number, tickets: number) => ({ id, kind: "manager", summary: `split #${epique} into ${tickets} tickets`, reason: "an epic split is held for your OK", approveCommand: `brigade parade manager approve ${id}`, heldAt: MAINTENANT });
 
 export const ecran: Ecran = {

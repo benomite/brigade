@@ -166,13 +166,10 @@ async function settings(): Promise<Plays> {
   return { vue, racine: screen(vue, ...READING) };
 }
 
-// La page des coûts de l'app (#1022), dont la box ne répond pas : ses chiffres disent ce qui n'est pas communiqué. Les
-// chiffres d'autonomie de tous les projets (#3222), que GitHub ne rend pas, le disent en une ligne.
+// La page des chiffres d'autonomie de tous les projets (#3222), que GitHub ne rend pas : elle le dit en une ligne.
 async function costs(): Promise<Plays> {
   const vue = await open({ lireAutonomie: (_projects, days) => ({ jours: days, sans: "Autonomy figures not reached.", detail: RAW }) }, false);
   const page = await openTheCosts(vue);
-  const number = (vue.dernier("onglet") as [undefined, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: number, a: A, erreur: RAW, atteinte: false, cas: null }, undefined);
   await repos();
   return { vue, racine: page };
 }
@@ -193,7 +190,7 @@ const SCREENS: Screen[] = [
   { nom: "accueil", echec: home, lectures: 0 },
   { nom: "bande d'alertes", echec: alerts, lectures: 0 },
   { nom: "fiche d'une carte", echec: failedCard, lectures: 3 },
-  { nom: "Cost, au niveau de l'app", echec: costs, lectures: 1 },
+  { nom: "Autonomy, au niveau de l'app", echec: costs, lectures: 1 },
   { nom: "Settings", echec: settings, lectures: 0 },
   { nom: "bandeau du second", echec: second, lectures: 0 },
 ];

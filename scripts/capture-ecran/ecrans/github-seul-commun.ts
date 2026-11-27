@@ -1,6 +1,5 @@
 // « parade » passé sur GitHub seul (`githubOnlyState`, #2220) : sa box publie encore le tableau de sa cuisine, mais son
-// rail y est celui de l'ancien chemin, figé — six tickets en attente, aucune station déclarée, la cuisine retenue et
-// « oisive ». Sur GitHub, ses stations ont pris #14 (box/claude) et #16 (mac/claude), livré #30 (PR #41, cuisiné par
+// rail y est celui de l'ancien chemin, figé — six tickets en attente, aucune station déclarée, la cuisine retenue. Sur GitHub, ses stations ont pris #14 (box/claude) et #16 (mac/claude), livré #30 (PR #41, cuisiné par
 // box/claude), #40 attend un tiers, #21 et #22 attendent sur le rail ; la box et le Mac y ont donné signe de vie il y a
 // une minute (#2358). La vue reçoit ce que l'app en tire (app/src/vue/rail/github.ts, `avecLeRail`) — `facts` et
 // `status` passés par le code de l'app, rien écrit à la main.
@@ -27,7 +26,6 @@ const FIGE: Facts = {
   attend: [],
   livres: [],
   urgence: null,
-  cuisineOisive: { depuis: "2026-10-13T08:12:40.000Z", cartes: [12, 14, 16, 21, 22, 30] },
 } as unknown as Facts;
 
 const RUBRIQUES = [

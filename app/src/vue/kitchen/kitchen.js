@@ -229,12 +229,11 @@ const itYA = (ms) => {
  * (au travail, au repos, en alerte) et deux ou trois mots. Un clic sur une carte déplie son détail dessous : ce qu'il fait,
  * sa dernière action et son heure ; `deplies` garde ce qui est déplié d'un rendu à l'autre. Un agent que l'équipe lue montre
  * déjà (autonomy/team.js, `montre`) n'a pas de carte ici : son badge est la sienne. `alerte` : l'issue que la cuisine a
- * ouverte sur elle-même, que le supervisor dit. `delai` : la ligne du délai de prise de `status` (ticket 4299), au bout de la
- * ligne, coupée à sa largeur et entière au survol. Le message du haut, s'il y en a un, se pose juste dessous (vue.js).
+ * ouverte sur elle-même, que le supervisor dit. Le message du haut, s'il y en a un, se pose juste dessous (vue.js).
  * @param {Fabrique} doc
- * @param {{ roles: readonly RoleOfKitchen[] | undefined, montre: (name: string) => boolean, alerte: number | undefined, maintenant: number, deplies: Set<string>, delai?: string }} bande
+ * @param {{ roles: readonly RoleOfKitchen[] | undefined, montre: (name: string) => boolean, alerte: number | undefined, maintenant: number, deplies: Set<string> }} bande
  */
-export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, maintenant: now, deplies: unfoldedOnes, delai: delay }) {
+export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, maintenant: now, deplies: unfoldedOnes }) {
   const frame = doc.createElement("div");
   frame.className = "bande-du-haut";
   const line = doc.createElement("div");
@@ -272,7 +271,6 @@ export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, main
   if (!shows("supervisor")) card("supervisor", alert === undefined ? "gris" : "rouge", alert === undefined ? "ok" : `alert: #${alert}`);
   const cleanup = role("closer")?.latest ?? null;
   if (!shows("closer")) card("closer", "gris", cleanup === null ? NOT_STILL("tidy") : `tidied ${itYA(now - Date.parse(cleanup.at))}`);
-  if (delay !== undefined) line.append(Object.assign(doc.createElement("span"), { className: "ligne-du-delai", textContent: delay, title: delay }));
   return frame;
 }
 
@@ -280,29 +278,3 @@ export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, main
 /** @param {readonly any[]} message */
 export const aOneAction = (message) => message.some((element) => element.querySelectorAll("button").length > 0);
 
-/**
- * La ligne d'une alerte du rail, avec un geste ou rien (critère « no banner without an action ») : une alerte que la cuisine
- * prend en charge seule (`geste` nul) ne demande rien au chef, elle n'est pas montrée. Une autre a son bouton, quand le
- * runtime en donne un que l'app sait jouer ; sinon ouvrir son ticket, ou la page des checks du dépôt pour une alerte qui
- * nomme un check. Une alerte sans aucun de ces gestes n'est pas montrée ; la suivante l'est.
- * @param {Fabrique} doc
- * @param {readonly import("../../wait-of-rail/alerts.ts").AlertOfRail[]} alerts
- * @param {(alert: import("../../wait-of-rail/alerts.ts").AlertOfRail) => any[]} lineOf la ligne que la vue en pose
- * @param {{ ouvrirTicket: (ticket: number) => void, ouvrirLesChecks: (() => void) | undefined }} ouvrir
- * @returns {any[]}
- */
-export function messageOfAlerts(doc, alerts, lineOf, { ouvrirTicket: openTicket, ouvrirLesChecks: openTheChecks }) {
-  for (const alert of alerts) {
-    if (alert.geste === null) continue;
-    const lines = lineOf(alert);
-    const [setOne] = lines;
-    if (setOne === undefined) continue;
-    if (aOneAction(lines)) return lines;
-    const { ticket, check } = alert.fait;
-    if (ticket !== undefined) setOne.append(button(doc, `open #${ticket}`, () => openTicket(ticket), { sorte: "recommande" }));
-    else if (check !== undefined && openTheChecks !== undefined) setOne.append(button(doc, "open the checks", () => openTheChecks(), { sorte: "recommande" }));
-    else continue;
-    return lines;
-  }
-  return [];
-}

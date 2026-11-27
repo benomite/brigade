@@ -40,7 +40,6 @@ import { LABEL_PARKED } from "../../../runtime/src/attente-github/marque.ts";
 import { LABELS_D_AVANT_PARKED_SANS_CARTE } from "../../../runtime/src/github-etat/etats.ts";
 import { cardOfTheGap, LABEL_OF_BOARD_OF_THE_KITCHEN, labelOfSetAside, setAsideOf, setAsideOn, recommendedOf, type SetAside } from "./set-aside-github.ts";
 import { blockAwaiting } from "./rail.ts";
-import type { RailBlockedRead } from "../vue/rail-blocked/rail-blocked.ts";
 import { cardOfTheQuestionOfEpic, EPIC_LABEL, questionOfEpicThe } from "./question-of-epic-github.ts";
 import { parkedChefCard, LABEL_PARKED_CHEF, whyParked, KIND_PARKED_CHEF } from "./parked-chef-github.ts";
 import { cardOfComment, shapeOfChef, LABEL_OF_CHEF, type CardOfChef } from "./todo-github.ts";
@@ -320,9 +319,8 @@ export const fileOfChef = (waits: readonly WaitOfChef[]): LineOfTheFile[] =>
 
 // Le bloc `awaiting` de ce qui attend le chef, de sa tête à `end awaiting` : ce que le second relaie, et ce que le TODO
 // de l'app lit.
-// `railBloque` : le rail bloqué (vue/rail-blocked/, #3358), sous la tête du bloc.
-export const blockOfChef = ({ lu: readOne, attentes: waits, illisibles: unreadable, depot: repository, railBloque: railBlocked }: { lu: string; attentes: readonly WaitOfChef[]; illisibles: readonly string[]; depot?: string; railBloque?: RailBlockedRead }): string[] =>
-  blockAwaiting({ file: fileOfChef(waits), bilans: [...unreadable], lu: readOne, ...(repository === undefined ? {} : { depot: repository }), ...(railBlocked === undefined ? {} : { railBloque: railBlocked }) });
+export const blockOfChef = ({ lu: readOne, attentes: waits, illisibles: unreadable }: { lu: string; attentes: readonly WaitOfChef[]; illisibles: readonly string[] }): string[] =>
+  blockAwaiting({ file: fileOfChef(waits), bilans: [...unreadable], lu: readOne });
 
 // Le rail, avec ce qu'attend chaque issue en WAITING : rien à changer sans elles.
 function withInWaiting(rail: unknown, inWaiting: readonly InWaiting[]): { rail?: Raw[] } {
