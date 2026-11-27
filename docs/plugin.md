@@ -76,7 +76,7 @@ What still reads each one:
 | `agents/dev-teammate.md`, `-low`, `-medium` | `commands/manager.md` (V1) spawns them as `brigade:dev-teammate*`; the gates check their three bodies are the same |
 
 The other agents of `agents/` are not V1 and stay: the runtime and its tests read them as files, never as plugin
-agents — `agents/second-juge.md` (the second judge's brief, `runtime/src/second-juge.ts`), `agents/cook.md`,
+agents — `agents/kitchen/second-judge.md` (the second judge's brief, `runtime/src/second-juge.ts`), `agents/cook.md`,
 `agents/triage.md`, `agents/manager.md`, `agents/product.md` and `agents/closer.md` (evals and tests). The new
 kitchen reads `agents/kitchen/` itself.
 
