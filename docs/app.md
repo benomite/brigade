@@ -3992,19 +3992,7 @@ instructions (`rôle : …`).
   and on the real pty, that nothing is sent), `gestes.ts` (the actions that are written into a shell
   of the space, and the two that go into the second: each command compared, character for
   character, with "Piloter", that nothing sends a written action, and that no action exposes a
-  shell, a `sudo` or a free command), `manager.ts` (the manager's state read in the output of
-  `manager`: on, off, never on, no decision, with its decisions and its set-asides — on outputs the
-  test has `runtime/src/manager-cli.ts` itself write, on a real log; what does not have the shape is
-  never read as "off"), `power-up.ts` (what turning it on commits: its warning compared with that of
-  `docs/runtime/README.md`, and the two numbers read on a known backlog — the line is written by
-  `manager backlog` of `runtime/src/manager-cli.ts` itself, in front of a fake `gh`, then returned
-  by a stand-in gesture; a station not reached, a runtime from before the command or an output without the
-  line never give "0"), `amont.ts` (what is not yet on the rail: the output written by
-  `manager upstream` of `runtime/src/manager-cli.ts` itself, on a real log and in front of a fake
-  `gh`, counted and sorted into groups without adding anything to it; what does not have the shape,
-  a box not reached or a runtime from before the command never give a number; and, in the played
-  view, the number at the head of the rail, the list it unfolds, the card an issue opens, and what an
-  empty rail says), `faits.ts` (what gets drawn: the shape read field by field on the example in
+  shell, a `sudo` or a free command), `manager.ts` (the project switch's line, read in the old runtime's `manager` output for the alerts band: on, off, never on; what does not have the shape is never read as "off" — the app launches no `manager` any more, #4710), `amont.ts` (what is not yet on the rail, read from GitHub and sorted into groups without adding anything to it; what does not have the shape or a GitHub that was not read never give a number), `faits.ts` (what gets drawn: the shape read field by field on the example in
   `docs/runtime/README.md`, what is not that shape refused without a zero, a color on the
   words of closed lists only, an issue's address, the banner — the rail sorted into five columns,
   Awaiting you from the shape's `awaiting` and the `awaiting` block held next to the facts — the view

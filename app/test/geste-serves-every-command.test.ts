@@ -5,12 +5,11 @@
 // own, with its usage, and touches nothing — a command without a handler is refused by the gesture itself (code 66), and a
 // handler that lost one of its imports does not load.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { launchHere, words, type Locale } from "../src/box.ts";
-import { COMMAND as MANAGER } from "../src/manager.ts";
 import { CACHE_OF_COMPILATION } from "./helpers/cache-of-compilation.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
@@ -19,9 +18,9 @@ const PROJECT = "calculus";
 // The gesture's own refusals (box.ts `CASE`, docs/runtime/exploitation.md): none of them is the command's answer.
 const OF_THE_GESTURE = [64, 65, 66, 67];
 
-// What the app launches: through the gesture, main.ts launches nothing now; the manager's read (manager.ts) is the one command left.
+// What the app launches through the gesture: nothing (#4710) — `manager` and `send-word` went with the old runtime's commands.
 function commandsTheAppLaunches(): string[] {
-  return [MANAGER];
+  return [];
 }
 
 // A station of this computer serving one project, as the app reads it: its directory, its configuration, this `node`.
@@ -38,15 +37,15 @@ describe("#4499 — the station's gesture serves every command the app launches"
     const importers: string[] = [];
     const places = readFileSync(join(SRC, "main.ts"), "utf8").split("\n").filter((line) => /\blaunchOnTheKitchen\b|\blaunchThe\(/.test(line)).length;
     assert.equal(places, 0, "main.ts launches a command through the gesture: add it to commandsTheAppLaunches");
+    // No source of the app names the commands any more: the backlog, the upstream and a word to a cook go through GitHub.
+    for (const file of readdirSync(SRC, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".ts"))) assert.doesNotMatch(readFileSync(join(SRC, file), "utf8"), /["'`](manager (upstream|backlog)|send-word)["'`]/, file);
     for (const file of importers) assert.match(readFileSync(join(SRC, file), "utf8"), /\b(launchThe|launchHere|ACTION)\b/, file);
   });
 
   test("each command the app launches has a handler behind the real geste.ts: it answers itself, never the gesture's “not a runtime command”", async (t) => {
     const launched = commandsTheAppLaunches();
     const heads = [...new Set(launched.map((command) => words(command)[0] ?? ""))].sort();
-    // What the app launched when this test was written: a command added since is checked too, never one dropped silently.
-    // What the app launched when this test was written: a command added since is checked too, never one dropped silently.
-    for (const known of ["manager"]) assert.ok(heads.includes(known), known);
+    assert.deepEqual(heads, []);
     const { locale, remove } = station();
     t.after(remove);
     for (const head of heads) {
@@ -64,6 +63,6 @@ describe("#4499 — the station's gesture serves every command the app launches"
     t.after(remove);
     const rendered = await launchHere(locale, PROJECT, "status", 60_000);
     assert.equal(rendered.erreur?.code, 66);
-    assert.match(rendered.erreurs, /« status » n'est pas une commande du runtime — celles de cette station : .*\bmanager\b/);
+    assert.match(rendered.erreurs, /« status » n'est pas une commande du runtime — celles de cette station : help\s*$/);
   });
 });

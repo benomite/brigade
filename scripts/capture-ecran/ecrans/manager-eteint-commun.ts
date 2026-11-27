@@ -1,4 +1,4 @@
-// Le projet « parade » éteint, ou allumé, par le chef à 09:25 (#3454) : ce que `manager` rend (runtime/src/manager-cli.ts),
+// Le projet « parade » éteint, ou allumé, par le chef à 09:25 (#3454) : ce que `manager` rend,
 // mot pour mot, posé sur le rendu de « parade » — la vue du projet et son onglet Stations le disent.
 import { MANAGER_ALLUME, RENDUS } from "./cuisine-figee.ts";
 import type { Rendu } from "./commun.ts";

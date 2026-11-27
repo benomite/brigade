@@ -348,7 +348,7 @@ export type OptionsGitHub = {
   // leur fenêtre se rend sans appel, et chaque écriture de ce GitHub les dit
   // périmées. Absentes, rien ne se garde hors du process.
   lecturesDesGestes?: LecturesDesGestes;
-  // Le plus d'appels que ce GitHub fait (gestes/github-du-geste.ts, #3682) : le
+  // Le plus d'appels que ce GitHub fait (#3682) : le
   // suivant est refusé, sans partir. Absent, aucun plafond.
   plafond?: number;
 };
