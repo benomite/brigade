@@ -174,7 +174,7 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
 
     const line = inOutage(band(), "cuisine");
     assert.equal(line.dit, "runtime stopped: nothing is running, no ticket is taken");
-    assert.match(line.geste, /systemctl start brigade@parade/);
+    assert.match(line.geste, /brigade restart/);
     assert.deepEqual(line.appel, { demande: true });
   });
 
