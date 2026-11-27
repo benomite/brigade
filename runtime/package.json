@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit",
     "start": "node src/kitchen/main.ts",
     "facts": "node src/faits.ts",
-    "log": "node src/relire.ts",
     "station": "node src/montrer-station.ts",
     "setting": "node src/reglage-cli.ts",
     "humans": "node src/humains-cli.ts",

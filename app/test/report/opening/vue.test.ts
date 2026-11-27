@@ -42,14 +42,9 @@ const startup = (withIt: With = {}) => ({
 });
 
 // Le process principal joué par le vrai module : ce que le navigateur reçoit est gardé, et le journal est celui-ci.
-const TOKEN = "ghp_Zq8Xw3Lk9Pm2Nb7Vc4Rt6Yh1Ju5Ig0Of3Ea2";
-const LOG = [
-  ["1", "2026-11-02T08:50:00.000Z", "parade", "#22", "cook.exited", "runtime", JSON.stringify({ error: `push refused with ${TOKEN} from /home/alice/parade` })].join("  "),
-  ["2", "2026-11-02T08:51:00.000Z", "parade", "#22", "ticket.86", "runtime", JSON.stringify({ reason: "failed three times" })].join("  "),
-].join("\n");
 function browser() {
   const openOnes: string[] = [];
-  const report = (request: Request) => openTheReport(request, { appVersion: "1.6.0", runtimeVersion: () => "2.9.1", journal: () => LOG, ouvrir: async (url) => void openOnes.push(url) });
+  const report = (request: Request) => openTheReport(request, { appVersion: "1.6.0", runtimeVersion: () => "2.9.1", ouvrir: async (url) => void openOnes.push(url) });
   return { ouverts: openOnes, signaler: report };
 }
 
@@ -140,7 +135,6 @@ describe("les cartes du rail", () => {
     assert.ok(body.startsWith(MARKER));
     assert.match(body, /- App: 1\.6\.0\n- Runtime: 2\.9\.1/);
     assert.match(body, /## Failure\nparade, ticket 22: set aside/);
-    assert.ok(body.includes("ticket.86"));
     assert.ok(!body.includes("ghp_") && !body.includes("alice"));
     // La carte redessinée garde ce que le clic a rendu.
     receive(vue, FACTS);
