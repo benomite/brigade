@@ -1,0 +1,20 @@
+# Joue brigade-station-mise-a-jour.service deux minutes après le démarrage de
+# la station, puis dix minutes après chaque passage.
+#
+# Il n'est pas activé pour lui-même : la station le réclame (`Wants=` de
+# brigade-station.service), et il s'arrête avec elle (`PartOf=`). Une station
+# arrêtée par l'administrateur n'est donc pas mise à jour ; une station
+# installée par un paquet qui ne le connaissait pas le prend à sa première
+# relance.
+#
+# Livré par le paquet brigade-station, et remplacé à chacune de ses mises à
+# jour : ne pas l'éditer.
+
+[Unit]
+Description=brigade — mise à jour de la station, toutes les dix minutes
+PartOf=brigade-station.service
+
+[Timer]
+OnActiveSec=2min
+OnUnitInactiveSec=10min
+RandomizedDelaySec=1min

@@ -9,6 +9,13 @@
 //   node runtime/paquet/construire.ts --node <binaire node> --arch arm64
 //   node runtime/paquet/construire.ts --sortie <dossier>
 //
+// À côté du .deb, une archive par plateforme, `brigade-station-<version>-<os>-<arch>.tar.gz`
+// (linux-x64 et darwin-arm64) : `runtime/` (ce que le .deb porte), `node/`, `bin/brigade`,
+// `install.sh` et `services/`. Le node de chacune est téléchargé de nodejs.org (la version de
+// celui qui lance cette commande, somme de contrôle vérifiée), ou donné par `--node-linux-x64` /
+// `--node-darwin-arm64`; son en-tête doit être celui de la plateforme. `--sans-archives` ne
+// construit que le .deb.
+//
 // `--repo` (ou BRIGADE_PAQUET_DEPOT) nomme le dépôt GitHub qui publie ce paquet :
 // il devient la page du paquet et la source de sa mise à jour. `--maintainer`
 // (ou BRIGADE_PAQUET_MAINTENEUR) est le mainteneur dit dans le paquet. Aucun
@@ -32,11 +39,13 @@
 //
 // Codes de sortie : 0 construit, 1 la construction a échoué, 2 refus (option
 // invalide) — rien n'est écrit.
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
+import { cibleDuBinaire } from "./binaire.ts";
 
 const REFUS = 2;
 const ECHEC = 1;
@@ -57,6 +66,14 @@ const DEPENDANCES = ["adduser", "ca-certificates", "git", "gh", "bubblewrap", "l
 // L'architecture Debian de chaque architecture de `node`.
 const ARCHITECTURES: Record<string, string> = { x64: "amd64", arm64: "arm64" };
 
+// Les archives de la station : leur plateforme, et le nom que nodejs.org donne à son node.
+const PLATEFORMES = [
+  { os: "linux", arch: "x64", option: "node-linux-x64" },
+  { os: "darwin", arch: "arm64", option: "node-darwin-arm64" },
+] as const;
+// Là où une archive installée pose la station : les unités systemd y pointent.
+const INSTALLATION_ARCHIVE = "/opt/brigade-station/current";
+
 const UNITES = ["brigade-station.service", "brigade-station-porte.service", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"];
 
 function refuser(motif: string): never {
@@ -71,14 +88,14 @@ function echouer(motif: string): never {
 
 const lancer = (commande: string, args: string[]) => spawnSync(commande, args, { encoding: "utf8" });
 
-let options: { version?: string; sortie?: string; node?: string; arch?: string; repo?: string; maintainer?: string };
+let options: { version?: string; sortie?: string; node?: string; arch?: string; repo?: string; maintainer?: string; "node-linux-x64"?: string; "node-darwin-arm64"?: string; "sans-archives"?: boolean };
 try {
   options = parseArgs({
-    options: { version: { type: "string" }, sortie: { type: "string" }, node: { type: "string" }, arch: { type: "string" }, repo: { type: "string" }, maintainer: { type: "string" } },
+    options: { version: { type: "string" }, sortie: { type: "string" }, node: { type: "string" }, arch: { type: "string" }, repo: { type: "string" }, maintainer: { type: "string" }, "node-linux-x64": { type: "string" }, "node-darwin-arm64": { type: "string" }, "sans-archives": { type: "boolean" } },
     strict: true,
   }).values;
 } catch (erreur) {
-  refuser(`${erreur instanceof Error ? erreur.message : String(erreur)} — usage : construire.ts [--version <v>] [--sortie <dossier>] [--node <binaire> --arch <amd64|arm64>] --repo <compte>/<dépôt> --maintainer "Nom <courriel>"`);
+  refuser(`${erreur instanceof Error ? erreur.message : String(erreur)} — usage : construire.ts [--version <v>] [--sortie <dossier>] [--node <binaire> --arch <amd64|arm64>] [--node-linux-x64 <binaire>] [--node-darwin-arm64 <binaire>] [--sans-archives] --repo <compte>/<dépôt> --maintainer "Nom <courriel>"`);
 }
 
 const depotPublie = options.repo ?? process.env.BRIGADE_PAQUET_DEPOT ?? "";
@@ -117,6 +134,61 @@ function versionDuCommit(): string {
 const version = options.version ?? versionDuCommit();
 // Ce que dpkg accepte d'une version sans révision Debian.
 if (!/^[0-9][A-Za-z0-9.+~]*$/.test(version)) refuser(`version invalide « ${version} » — un chiffre d'abord, puis lettres, chiffres, « . », « + » ou « ~ »`);
+
+// Le node de nodejs.org pour une plateforme, à la version de celui qui lance cette commande ;
+// sa somme de contrôle est lue dans SHASUMS256.txt, et le fichier refusé si elle diffère.
+async function telechargerNode(os: string, arch: string, dossier: string): Promise<string> {
+  const v = process.version;
+  const base = `https://nodejs.org/dist/${v}`;
+  const nom = `node-${v}-${os}-${arch}.tar.gz`;
+  const lire = async (adresse: string) => {
+    const reponse = await fetch(adresse);
+    if (!reponse.ok) echouer(`${adresse} rend ${reponse.status}`);
+    return Buffer.from(await reponse.arrayBuffer());
+  };
+  const sommes = (await lire(`${base}/SHASUMS256.txt`)).toString("utf8");
+  const attendue = new RegExp(`^([0-9a-f]{64})  ${nom.replaceAll(".", "\\.")}$`, "m").exec(sommes)?.[1];
+  if (!attendue) echouer(`SHASUMS256.txt de node ${v} ne porte pas ${nom}`);
+  const tarball = await lire(`${base}/${nom}`);
+  if (createHash("sha256").update(tarball).digest("hex") !== attendue) echouer(`${nom} : la somme de contrôle ne correspond pas à SHASUMS256.txt`);
+  const travail = mkdtempSync(join(dossier, "brigade-node-"));
+  writeFileSync(join(travail, nom), tarball);
+  const extrait = lancer("tar", ["-xzf", join(travail, nom), "-C", travail, "--strip-components=1", `node-${v}-${os}-${arch}/bin/node`]);
+  if (extrait.status !== 0) echouer(`tar ne lit pas ${nom} : ${extrait.stderr.trim()}`);
+  return join(travail, "bin", "node");
+}
+
+// L'archive d'une plateforme : le .deb sans son système (runtime/ et ce qu'il importe), le node de
+// la plateforme, `bin/brigade` et `install.sh` (des amorces, la suite les complète) et `services/`.
+function composerArchive({ archive, runtime, unites, node }: { archive: string; runtime: string; unites: string; node: string }) {
+  const racine = mkdtempSync(join(tmpdir(), "brigade-archive-"));
+  try {
+    for (const entree of readdirSync(runtime)) if (entree !== "node") cpSync(join(runtime, entree), join(racine, entree), { recursive: true });
+    mkdirSync(join(racine, "node", "bin"), { recursive: true });
+    copyFileSync(node, join(racine, "node", "bin", "node"));
+    chmodSync(join(racine, "node", "bin", "node"), 0o755);
+    mkdirSync(join(racine, "bin"));
+    writeFileSync(join(racine, "bin", "brigade"), "#!/bin/sh\necho 'brigade : la commande n'\\''est pas encore écrite' >&2\nexit 1\n", { mode: 0o755 });
+    writeFileSync(join(racine, "install.sh"), "#!/bin/sh\necho 'install.sh : pas encore écrit' >&2\nexit 1\n", { mode: 0o755 });
+    mkdirSync(join(racine, "services", "launchd"), { recursive: true });
+    writeFileSync(join(racine, "services", "launchd", "LISEZMOI"), "Les plists launchd de la station viendront ici.\n");
+    for (const unite of UNITES) {
+      const texte = readFileSync(join(unites, unite), "utf8").replaceAll(INSTALLATION, INSTALLATION_ARCHIVE);
+      writeFileSync(join(racine, "services", unite), texte, { mode: 0o644 });
+    }
+    const normaliser = (repertoire: string) => {
+      chmodSync(repertoire, 0o755);
+      for (const entree of readdirSync(repertoire, { withFileTypes: true })) if (entree.isDirectory()) normaliser(join(repertoire, entree.name));
+    };
+    normaliser(racine);
+    const gnu = /GNU tar/.test(lancer("tar", ["--version"]).stdout ?? "");
+    const proprietaire = gnu ? ["--owner=0", "--group=0", "--numeric-owner"] : ["--uid", "0", "--gid", "0"];
+    const fait = lancer("tar", [...proprietaire, "-czf", archive, "-C", racine, ...readdirSync(racine).sort()]);
+    if (fait.status !== 0) echouer(`tar n'a pas écrit ${archive} : ${fait.stderr.trim()}`);
+  } finally {
+    rmSync(racine, { recursive: true, force: true });
+  }
+}
 
 const sortie = resolve(options.sortie ?? join(ICI, "construit"));
 const fichier = join(sortie, `${PAQUET}_${version}_${arch}.deb`);
@@ -219,6 +291,19 @@ try {
   mkdirSync(sortie, { recursive: true });
   const construit = lancer("dpkg-deb", ["--root-owner-group", "--build", arbre, fichier]);
   if (construit.status !== 0) echouer(`dpkg-deb a rendu ${construit.status} : ${(construit.stderr || construit.stdout).trim()}`);
+
+  if (!options["sans-archives"]) {
+    const unitesPosees = join(arbre, "usr", "lib", "systemd", "system");
+    for (const plateforme of PLATEFORMES) {
+      const nodeDonne = options[plateforme.option];
+      const nodeDeLArchive = nodeDonne === undefined ? await telechargerNode(plateforme.os, plateforme.arch, tmpdir()) : resolve(nodeDonne);
+      const cible = cibleDuBinaire(nodeDeLArchive);
+      if (cible?.os !== plateforme.os || cible.arch !== plateforme.arch) echouer(`le node de l'archive ${plateforme.os}-${plateforme.arch} (${nodeDeLArchive}) est ${cible ? `${cible.os}-${cible.arch}` : "d'un format inconnu"}`);
+      const archive = join(sortie, `${PAQUET}-${version}-${plateforme.os}-${plateforme.arch}.tar.gz`);
+      composerArchive({ archive, runtime: join(arbre, INSTALLATION.slice(1)), unites: unitesPosees, node: nodeDeLArchive });
+      console.log(`brigade : archive construite — ${archive}`);
+    }
+  }
 } finally {
   rmSync(arbre, { recursive: true, force: true });
 }
