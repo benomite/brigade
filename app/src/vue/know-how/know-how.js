@@ -183,7 +183,7 @@ export function holdTheKnowledge(doc, { lire: read, changer: change, ouvrir: ope
   let reading;
   let readThe = -Infinity;
   let inRead = false;
-  /** @type {Map<number, State>} */
+  /** @type {Map<number | string, State>} */
   const states = new Map();
 
   const reread = () => {
