@@ -25,6 +25,7 @@ dependency. Design and reasons: [`2026-11-26-agents-in-prompts.md`](../superpowe
 | `kitchen/runs.ts` | Each agent run is a folder under the project's state, launched through the relay (`relais.ts`): it outlives the kitchen, and a restarted kitchen finds it again |
 | `kitchen/projects.ts` | The projects file |
 | `operator-status.ts` | `status.json`, the kitchen's status for its operator (below) |
+| `station-gist.ts` | The same facts, written into the station's pairing gist for the app's Stations view (below) |
 
 `runtime/src/kitchen/` stays under 1,000 lines (`runtime/test/kitchen/kitchen.test.ts` counts them): a safeguard
 the kitchen needs lives in its own module (`bac-a-sable/kitchen-launch.ts`, `bac-a-sable/kitchen-sandbox.ts`,
@@ -152,6 +153,12 @@ for the chef, not for the cooks. It holds no secret. Fields (the shape is docume
 `BRIGADE_MISE_A_JOUR_DIR`'s `etat.json`: installed, available, frozen, held, checkedAt, last), `quota` (`gh api
 rate_limit`, which GitHub does not count), `refusal` (one line, null when nothing is refused) and `refused` (the same
 per project).
+
+The same facts go to the station's pairing gist: `station-gist.ts` writes them as `status` in the gist file
+`brigade-station.json` (beside the identity the app's reader requires: name, machine, version, projects, `signeDeVie`).
+It writes when a fact changes, at most every 3 minutes, and at least every 9 minutes; the quota left rides along and
+never causes a write. The gist id is kept in `<station>/gist-id`, the gist is created on the first write. The app reads
+it (`app/src/stations/status.ts`) and shows it on the station's page; it never uses `ssh`.
 
 ## Rules of this repo
 

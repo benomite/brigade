@@ -14,6 +14,7 @@
 import { createHash } from "node:crypto";
 import { readStatesPublished, type StatesPublished } from "../outages/states.ts";
 import { capacitiesRead } from "../projects/request.ts";
+import { readFacts, type FactsOfStation } from "./status.ts";
 
 export const FILE_STATION = "brigade-station.json";
 export const FILE_PAIRING = "brigade-appairage.json";
@@ -37,6 +38,8 @@ export type DocumentStation = {
   appairage: { empreinte: string; expireLe: string } | null;
   // Les empreintes de ses derniers codes échus.
   echus: string[];
+  // Ses faits (`status.json`, #4743) : absents d'une station qui ne les publie pas encore.
+  faits?: FactsOfStation;
   // Sa mise à jour revenue en arrière et sa connexion Max : ses pannes (pannes/).
 } & StatesPublished;
 
@@ -73,6 +76,7 @@ export function readDocument(raw: string): DocumentStation | { illisible: string
   const { nom: name, machine, coeurs: cores, cuisine: kitchen, version, projets: projects, signeDeVie: signOfLife, cadenceMs, arreteeLe: stoppedThe, appairage: pairing, echus } = readOne;
   if (!text(name) || !text(machine) || !text(version) || !date(signOfLife)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
   if (!Array.isArray(projects) || !projects.every(text)) return { illisible: "its state on GitHub does not list its projects" };
+  const facts = readFacts(readOne.status);
   const code = pairing as { empreinte?: unknown; expireLe?: unknown } | null | undefined;
   return {
     nom: name,
@@ -86,6 +90,7 @@ export function readDocument(raw: string): DocumentStation | { illisible: string
     arreteeLe: date(stoppedThe) ? stoppedThe : null,
     appairage: code !== null && typeof code === "object" && text(code.empreinte) && date(code.expireLe) ? { empreinte: code.empreinte, expireLe: code.expireLe } : null,
     echus: Array.isArray(echus) ? echus.filter(text) : [],
+    ...(facts === null ? {} : { faits: facts }),
     ...readStatesPublished(readOne),
   };
 }
