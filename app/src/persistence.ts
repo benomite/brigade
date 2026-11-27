@@ -81,7 +81,7 @@ export function scriptOfAttachment(name: string): string {
     ...LOCALE_UTF8,
     "if command -v tmux >/dev/null 2>&1; then",
     `  tmux -u has-session -t =${name} 2>/dev/null || tmux -u new-session -d -s ${name} -c "$PWD" || exit`,
-    ...SETTINGS_TMUX.map((setting) => `  tmux -u set-option -t =${name} ${setting}`),
+    ...SETTINGS_TMUX.map((setting) => `  tmux -u set-option -t =${name}: ${setting}`),
     `  tmux -u show-options -sv terminal-overrides | grep -qF "${OVERRIDE_TMUX}" || tmux -u set-option -sa terminal-overrides ",${OVERRIDE_TMUX}"`,
     `  exec tmux -u attach-session -t =${name}`,
     "elif command -v screen >/dev/null 2>&1; then",
