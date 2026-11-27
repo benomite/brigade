@@ -177,7 +177,7 @@ function composerArchive({ archive, runtime, unites, node, version }: { archive:
     chmodSync(join(racine, "install.sh"), 0o755);
     writeFileSync(join(racine, "version"), `${version}\n`);
     cpSync(join(ICI, "..", "archive", "services", "launchd"), join(racine, "services", "launchd"), { recursive: true });
-    // L'ancre pf et ses plists : `installer-station.sh` les lit sous runtime/paquet/macos de l'archive.
+    // L'ancre pf et ses plists, sous runtime/paquet/macos de l'archive.
     cpSync(join(ICI, "macos"), join(racine, "runtime", "paquet", "macos"), { recursive: true });
     chmodSync(join(racine, "runtime", "paquet", "macos", "charger-pf.sh"), 0o755);
     for (const unite of UNITES) {
@@ -283,7 +283,8 @@ try {
     }
   }
 
-  // Le pont : l'archive linux-x64, la licence, et les scripts de dpkg. Rien d'autre — ni runtime, ni
+  // Le pont : à retirer, avec runtime/paquet/debian/ et le `dpkg-deb` de ce fichier, dès qu'aucune
+  // station ne fait plus tourner le .deb (#4742). L'archive linux-x64, la licence, et les scripts de dpkg. Rien d'autre — ni runtime, ni
   // node, ni unité : ils viennent de l'archive, que le postinst défait.
   const pont = mkdtempSync(join(tmpdir(), "brigade-pont-"));
   try {

@@ -36,17 +36,14 @@ one command to type.
 On the server, paste:
 
 ```sh
-curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh
+curl -fsSL https://github.com/benomite/brigade/releases/download/station/brigade-station-linux-x64.tar.gz | tar xz && sudo ./install.sh
 ```
 
-That is all: it is the same command on a Mac. Under an ordinary account, it runs its root steps
-through `sudo`, which may ask your password; in a root session, it needs none. Without `curl`, the
-same with `wget -qO-` in place of `curl -fsSL`. (`… | sudo sh` works too.)
-
-The command downloads the `brigade-station` package of the latest published version, hands it to
-`apt` — which installs what it depends on (`git`, `gh`, `bubblewrap`…) —, waits for the station
-to start, then does the **GitHub connection** and the **Max connection** (step 2). Allow one to two
-minutes, plus the time to log in. Nothing is left to edit by hand afterwards: no drop-in, no
+It downloads the archive of the latest published version, unpacks it in the current folder and runs its
+`install.sh` (see [station.md](station.md)): it creates the `brigade` account, installs the station under
+`/opt/brigade-station`, starts its services, then asks for the tokens (step 2). `install.sh` needs root: `sudo`
+may ask your password; in a root session, drop it. Without `curl`, use `wget -qO-` in place of `curl -fsSL`.
+Allow one to two minutes, plus the time to log in. Nothing is left to edit by hand afterwards: no drop-in, no
 environment file.
 
 ## 2. What you should see
@@ -215,15 +212,15 @@ cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIG
 
 ## On a Mac
 
-The same command, in a Terminal, under your account. Its system steps go through `sudo`, and only
-those: it may ask for your password.
+The darwin-arm64 archive, in a Terminal, under your account: `install.sh` runs without `sudo` and goes
+through `sudo` for its system steps only, so it may ask for your password.
 
 ```sh
-curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh
+curl -fsSL https://github.com/benomite/brigade/releases/download/station/brigade-station-darwin-arm64.tar.gz | tar xz && ./install.sh
 ```
 
 It needs the Command Line Tools (`git`): if they are missing, macOS offers to install them, then you
-rerun the command. It creates a `brigade` account if there is none, installs `gh` (by Homebrew, or
+rerun the command. `install.sh` creates a `brigade` account if there is none, installs `gh` (by Homebrew, or
 from its release) and `claude` (by its official installer, under `brigade`) if they are missing, then:
 
 - the station's runtime of the latest version and the `node` it requires, checked against the

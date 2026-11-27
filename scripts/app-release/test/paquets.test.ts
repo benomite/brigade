@@ -13,7 +13,7 @@ const script = fileURLToPath(new URL("../paquets.ts", import.meta.url));
 
 test("every package name includes its platform", () => {
   for (const p of [...paquetsDeLApp("1.2.3", false), ...paquetsDeLaStation("1.2.3")]) {
-    if (p.nom === "installer-station.sh") continue; // named by the install commands everybody copies
+    if (p.nom === "brigade-station_amd64.deb") continue; // the bridge: named by the running stations' update
     assert.match(p.nom.toLowerCase(), new RegExp(p.plateforme === "Mac" ? "mac|darwin" : p.plateforme.toLowerCase()), p.nom);
   }
 });
@@ -64,12 +64,11 @@ test("the app notes list the Linux AppImage with the executable bit, signed or n
 
 test("the station notes list its Linux packages, and its macOS runtime, and the executable bit", () => {
   const texte = notes({ produit: "station", version: "0.1.0" });
-  assert.match(texte, /\| `brigade-station-linux-amd64\.deb` \| Linux \|/);
-  assert.match(texte, /\| `brigade-station-linux-amd64\.deb` \| Linux \|.*one-way bridge to the archive/);
+  assert.match(texte, /\| `brigade-station_amd64\.deb` \| Linux \|.*one-way bridge to the archive/);
   assert.match(texte, /\| `brigade-station-0\.1\.0-linux-x64\.tar\.gz` \| Linux \|/);
   assert.match(texte, /\| `brigade-station-0\.1\.0-darwin-arm64\.tar\.gz` \| Mac \|.*without sudo/);
   assert.doesNotMatch(texte, /brigade-station-mac\.tar\.gz/);
-  assert.match(texte, /\| `installer-station\.sh` \| Linux \|.*chmod \+x/);
+  assert.doesNotMatch(texte, /installer-station|brigade-station-linux-amd64/);
   assert.doesNotMatch(texte, /\.ps1|windows\.zip/);
 });
 

@@ -23,7 +23,7 @@ or just `changed=false`.
 
 ## Packages and release notes — `paquets.ts`
 
-`paquets.ts` knows the packages of a release and the platform of each: the app (`Brigade-<v>-mac-arm64.dmg`, `Brigade-<v>-windows-x64-setup.exe`, `brigade-<v>-linux-x64.AppImage`, and on the unsigned path `Brigade-<v>-android.apk`) and the station (`installer-station.sh`, `brigade-station-linux-amd64.deb`, `brigade-station-<version>-linux-x64.tar.gz`, `brigade-station-<version>-darwin-arm64.tar.gz`; the station runs on Linux and macOS, both installed by `installer-station.sh`). The station's `installer-station.sh` and `brigade-station_amd64.deb` keep their names, which the install command, the script and the running stations read, so the `.deb` is published twice.
+`paquets.ts` knows the packages of a release and the platform of each: the app (`Brigade-<v>-mac-arm64.dmg`, `Brigade-<v>-windows-x64-setup.exe`, `brigade-<v>-linux-x64.AppImage`, and on the unsigned path `Brigade-<v>-android.apk`) and the station (`brigade-station_amd64.deb`, the one-way bridge, `brigade-station-<version>-linux-x64.tar.gz`, `brigade-station-<version>-darwin-arm64.tar.gz`; the station runs on Linux and macOS, both installed by the archive's `install.sh`). `brigade-station_amd64.deb` keeps its name, which the running stations' own update reads.
 
 ```
 node scripts/app-release/paquets.ts notes --produit app --version 1.0.3 [--signe] [--commit <sha>]   # dry run: prints the release notes

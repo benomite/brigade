@@ -7,9 +7,9 @@ a GitHub account and a Claude Max subscription (an API key does not fit).
 
 | System | Command |
 |---|---|
-| Linux (Debian, Ubuntu, systemd) and Mac | `curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh \| sh` |
+| Linux (systemd) | `curl -fsSL https://github.com/benomite/brigade/releases/download/station/brigade-station-linux-x64.tar.gz \| tar xz && sudo ./install.sh` |
 
-It installs the station, starts it, and keeps it up to date. Rerunning it is safe.
+On a Mac, take `brigade-station-darwin-arm64.tar.gz` and run `./install.sh` without `sudo`. It installs the station, starts it, and keeps it up to date. Rerunning it is safe.
 
 **Sign in, once each.** The command asks for them at the end: GitHub (`gh auth login --web`), then
 Claude (your Max account). Nothing else is written by hand.

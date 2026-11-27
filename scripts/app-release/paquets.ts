@@ -29,12 +29,11 @@ export type Paquet = {
   ouverture: string;
 };
 
-// The unsigned-app instructions, worded as #1525 words them in the app's banner. The Linux one is
-// the station's install script; the app's AppImage has its own (`ouvertureAppImage`).
-export const OUVERTURE: Record<Plateforme, string> = {
+// The unsigned-app instructions, worded as #1525 words them in the app's banner. The app's
+// AppImage has its own (`ouvertureAppImage`).
+export const OUVERTURE: Record<Exclude<Plateforme, "Linux">, string> = {
   Mac: "Gatekeeper blocks it: right-click Brigade in Applications, choose Open, then Open again. On macOS 15 and later, open System Settings > Privacy & Security and click Open Anyway.",
   Windows: "SmartScreen warns about an unknown app: click More info, then Run anyway.",
-  Linux: "Make the file executable first: `chmod +x installer-station.sh`, then run it with `sudo ./installer-station.sh`.",
   Android: "Allow your browser or file manager to install unknown apps when Android asks, then open the file. It is signed with a debug key.",
 };
 
@@ -54,14 +53,12 @@ export function paquetsDeLApp(version: string, signe: boolean): Paquet[] {
   ];
 }
 
-// The station runs on Linux and macOS, installed by one script (runtime/deploy/installer-station.sh).
-// `installer-station.sh` and `brigade-station_amd64.deb` keep their names: the install
-// command (`releases/download/station/installer-station.sh`), the script itself and
-// the running stations' own update (runtime/src/mise-a-jour/publications.ts) read them by name.
+// The station runs on Linux and macOS, installed by the `install.sh` of its archive.
+// `brigade-station_amd64.deb` keeps its name: the running stations' own update reads it by name.
+// It is the one-way bridge of the boxes that still run the .deb, and can be removed once no station does.
 export function paquetsDeLaStation(version = "<version>"): Paquet[] {
   return [
-    { construit: "installer-station.sh", nom: "installer-station.sh", plateforme: "Linux", quoi: "Station, install script (Linux and macOS)", ouverture: OUVERTURE.Linux },
-    { construit: "brigade-station_amd64.deb", nom: "brigade-station-linux-amd64.deb", plateforme: "Linux", quoi: "Station, Debian/Ubuntu package (amd64): a one-way bridge to the archive", ouverture: "Only for a box that already runs the .deb: `sudo apt install ./brigade-station-linux-amd64.deb` moves it to the archive layout (/opt/brigade-station), keeps its state and secrets, then removes itself from dpkg. It never goes back: the station updates itself from the archive." },
+    { construit: "brigade-station_amd64.deb", nom: "brigade-station_amd64.deb", plateforme: "Linux", quoi: "Station, Debian/Ubuntu package (amd64): a one-way bridge to the archive", ouverture: "Only for a box that already runs the .deb: `sudo apt install ./brigade-station_amd64.deb` moves it to the archive layout (/opt/brigade-station), keeps its state and secrets, then removes itself from dpkg. It never goes back: the station updates itself from the archive." },
     { construit: `brigade-station-${version}-linux-x64.tar.gz`, nom: `brigade-station-${version}-linux-x64.tar.gz`, plateforme: "Linux", quoi: "Station, archive (x64): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up." },
     { construit: `brigade-station-${version}-darwin-arm64.tar.gz`, nom: `brigade-station-${version}-darwin-arm64.tar.gz`, plateforme: "Mac", quoi: "Station, archive (Apple silicon): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up, under your account, without sudo." },
   ];
@@ -78,7 +75,7 @@ export function notes({ produit, version, signe, commit }: OptionsNotes): string
   // The station has no signing: its row says what to do, not that the build is unsigned.
   const etat =
     produit === "station"
-      ? "The station is a Linux package, and archives for Linux and macOS, and a runtime for Windows, each set up by its install script: nothing is signed by an app store, so there is no warning to click through."
+      ? "The station is archives for Linux and macOS, each set up by its `install.sh`, and a one-way bridge package for the Debian boxes that still run the old one: nothing is signed by an app store, so there is no warning to click through."
       : signe
         ? "These builds are signed: the Mac app is notarized and the Windows installer is signed, so they open without a warning. The steps below only apply to an unsigned build, and to the Linux AppImage, which is not signed."
         : "These builds are unsigned: the first time you open one, your system warns you. Follow the steps of its row.";
