@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 // Ce que l'app pose avant de fermer pour une mise à jour.
 const SURVIVES = "survit-a-l-app";
-// Ce que la station écrit d'elle-même quand elle a démarré (runtime/src/mise-a-jour/en-service.ts).
+// Ce que la station écrit d'elle-même quand elle a démarré.
 const IN_SERVICE = "en-service";
 
 // L'entrée de la station est fermée : doit-elle continuer ? (l'enveloppe, `racine` : son répertoire)

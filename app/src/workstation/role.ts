@@ -2,7 +2,7 @@
 //
 // Sur un ordinateur — Mac, Windows, Linux de bureau —, l'app installée est une
 // station : elle lance la station de la machine, la même que celle d'un serveur
-// (runtime/src/station/main.ts, que le paquet Debian lance aussi), et un projet
+// (`PRINCIPAL`, que le paquet Debian lance aussi), et un projet
 // peut y cuire. Sur un téléphone, elle est un poste : elle pilote, elle ne cuit
 // pas — la station n'y est pas démarrée, et rien n'y lance de cook.
 //

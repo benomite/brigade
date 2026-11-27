@@ -14,7 +14,7 @@
 //   README de ce dossier.
 // - **Une version est gardée quand la station s'y est dite en service** — `en-service` porte X,
 //   sous un pid neuf et vivant, depuis le redémarrage, et sert au moins les projets que la version
-//   d'avant servait —, comme sur la box (runtime/src/mise-a-jour/mettre-a-jour.ts). Sinon la
+//   d'avant servait —, comme sur la box. Sinon la
 //   version d'avant est relancée, et l'issue le dit. Une version ratée n'est pas réessayée.
 // - **Ce qui est gardé survit à son tenant.** La version retenue est notée sous `<versions>/` : la station de
 //   fond relancée relance la station sur elle, sauf si le paquet de l'app en porte une plus récente.
@@ -25,14 +25,14 @@ import { holdStationLocale, type StateStationLocale, type OptionsStationLocale, 
 
 // Ce que la station écrit pour demander son redémarrage, dans son répertoire.
 export const REQUEST = "redemarrage";
-// Ce que la station écrit d'elle-même quand elle a démarré (runtime/src/mise-a-jour/en-service.ts).
+// Ce que la station écrit d'elle-même quand elle a démarré.
 export const IN_SERVICE = "en-service";
 // Ce que l'app retient des versions de la station, sous leur dossier.
 export const STATE = "etat.json";
 // La variable qui dit à la station où poser les versions qu'elle télécharge.
 export const VARIABLE_OF_VERSIONS = "BRIGADE_STATION_VERSIONS";
-// La ligne que la station écrit quand sa mise à jour demande la relance (runtime/src/station-update/mettre-a-jour.ts,
-// `LIGNE_DE_RELANCE` — le test des deux motifs les garde d'accord) : le numéro de la release, puis son point d'entrée.
+// La ligne que la station écrit quand sa mise à jour demande la relance (`LIGNE_DE_RELANCE` de la station — le test des deux
+// motifs les garde d'accord) : le numéro de la release, puis son point d'entrée.
 export const LINE_OF_RELAUNCH = /^brigade: station update — restart with release (\S+): (.+)$/;
 
 // Ce que l'app donne à la station pour qu'elle se tienne à jour (#2287) : les releases publiées sur GitHub — sauf

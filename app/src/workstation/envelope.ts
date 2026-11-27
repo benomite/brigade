@@ -1,5 +1,5 @@
 // La station de l'ordinateur, telle que l'app la lance : `node envelope.ts <main.ts>`. Le
-// point d'entrée est celui d'un serveur (runtime/src/station/main.ts), joué tel quel ; seule sa
+// point d'entrée est celui d'un serveur (`PRINCIPAL`, role.ts), joué tel quel ; seule sa
 // vie change de tenant — l'app, au lieu du système.
 //
 // Son entrée est un tuyau que l'app garde ouvert. Fermé — l'app quitte, ou meurt d'un coup —, la

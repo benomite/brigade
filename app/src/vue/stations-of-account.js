@@ -9,7 +9,7 @@
 // l'app, ceux que ses stations servent ou qui leur sont choisis — parmi les dépôts que le compte atteint ; tout autre dépôt
 // ne s'ajoute que par le champ de recherche, qui ne montre que ceux dont le nom contient ce qui est tapé — jamais la liste
 // entière. Ajouté, il est choisi pour la station, et rejoint les projets du chef. Une case cochée ou décochée s'écrit aussitôt dans le gist de la station
-// (stations-of-account.ts, selon le contrat de runtime/src/enregistrement-station/README.md) ; relue au lancement
+// (stations-of-account.ts) ; relue au lancement
 // suivant, la sélection est celle qui a été écrite. Une station hors ligne se dit telle, et ses cases restent à cocher :
 // elle sert ce qui est choisi à son retour.
 // Sous la liste, ce que la lecture du compte a de plus à dire (`lectureDuCompte`) : sans aucune station, la commande
@@ -78,7 +78,7 @@ export const stateSays = (station) => (station.heldUntil ? HELD(station.heldUnti
 // Le ton de sa pastille : vert en ligne, jaune retenue, gris hors ligne.
 /** @param {Pick<StationRecorded, "available" | "heldUntil">} station */
 export const yourOf = (station) => (station.heldUntil ? "jaune" : station.available ? "vert" : "gris");
-// Ce qu'une station a fait d'un dépôt coché pour elle qu'une autre servait déjà (ticket 1790, l'ancien runtime/src/projets/rejoindre.ts, retiré par le ticket 2713),
+// Ce qu'une station a fait d'un dépôt coché pour elle qu'une autre servait déjà (ticket 1790, retiré par le ticket 2713),
 // sous sa case : elle cuit dans la cuisine qui tourne, ou elle refuse — sa phrase dessous, en entier. Tant qu'elle ne l'a pas
 // lu, la case dit qu'elle va répondre.
 /** @param {string} main */
@@ -139,7 +139,7 @@ export function servesSays(selection) {
 
 // Une ligne par machine (ticket 1778) : les stations appairées, telles que l'accueil les dit, puis celles du compte qu'aucune
 // ne nomme, dans l'ordre des noms. Une machine se reconnaît à son nom — l'enregistrement porte « le même nom que sur sa
-// présence » (runtime/src/enregistrement-station/README.md), sans égard à la casse, comme un nom de machine. Appairée, sa
+// présence », sans égard à la casse, comme un nom de machine. Appairée, sa
 // ligne est celle de sa présence, et son enregistrement l'accompagne (`enregistree`) : ce qui lui est choisi s'y fond
 // (`ligneFondue`). Deux enregistrements d'un même nom — un dossier d'état perdu en laisse un ancien, hors ligne — n'en
 // font qu'un : celui qui est en ligne, sinon le dernier vu.
@@ -170,8 +170,7 @@ export function oneLineByMachine(paired, recorded) {
   return [...lines, ...remaining.map((recordedOne) => ({ enregistree: recordedOne }))];
 }
 
-// Le nom d'un dépôt choisi tel qu'une station nomme le projet qu'elle en fait : celui du dépôt, en minuscules
-// (runtime/src/projets-station/README.md, `nomDuDepot`).
+// Le nom d'un dépôt choisi tel qu'une station nomme le projet qu'elle en fait : celui du dépôt, en minuscules.
 /** @param {string} repository */
 const nameOfChosen = (repository) => (repository.split("/").pop() ?? repository).toLowerCase();
 
