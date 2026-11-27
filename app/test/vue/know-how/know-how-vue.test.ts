@@ -16,7 +16,7 @@ import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { PROPOSES } from "../../../src/settings-of-project.ts";
 import type { ChangeOfKnowledge, ReadOfKnowledge, RenderedOfKnowledge } from "../../../src/vue/know-how/know-how-github.ts";
 import { holdTheKnowledge } from "../../../src/vue/know-how/know-how.js";
-import { Fake, playTheVue, openRead, repos, type Played } from "../../helpers/false-vue.ts";
+import { Fake, playTheVue, openTab, openRead, repos, type Played } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const PR = "https://github.com/chef/parade/pull/77";
@@ -352,22 +352,28 @@ async function play(reading: ReadOfKnowledge): Promise<{ vue: Played; envoyes: u
   });
   (vue.element("projets").children.at(1) ?? assert.fail("no tile for parade")).click();
   await repos();
-  await openRead(vue, "Settings");
-  await repos();
+  await openTab(vue, "Know-how");
   return { vue, envoyes: sent };
 }
-const blockOf = (vue: Played) => vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "know-how") ?? assert.fail("no know-how in Settings");
+const blockOf = (vue: Played) => vue.element("rail").dessous("section").find(({ dataset }) => dataset.bloc === "know-how") ?? assert.fail("no know-how block in the Know-how tab");
 
 describe("the know-how, in the view", () => {
-  test("Settings reads the project's know-how from the main process and lists every entry with its section and ticket", async () => {
+  test("Settings no longer shows the know-how block", async () => {
+    const { vue } = await play(READING);
+    await openRead(vue, "Settings");
+    assert.equal(vue.element("bandeau-sante").dessous("section").some(({ dataset }) => dataset.bloc === "know-how"), false);
+  });
+
+  test("the Know-how tab reads the project's know-how from the main process and lists every entry with its section and ticket", async () => {
     const { vue } = await play(READING);
     assert.deepEqual(vue.dernier("savoirDuProjet"), ["parade"]);
+    assert.equal(vue.element("rail").dataset.onglet, "know-how");
     assert.deepEqual(readOne(blockOf(vue)).map(([section]) => section), ["Conventions", "Pitfalls", "Tools"]);
     assert.equal(entries(blockOf(vue)).length, 5);
     assert.match(entry(blockOf(vue), 11).textContent, /A tool nobody ticketedno source ticket/);
   });
 
-  test("an empty file shows the empty line in Settings", async () => {
+  test("an empty file shows the empty line in the Know-how tab", async () => {
     const { vue } = await play(EMPTY_READ);
     assert.match(blockOf(vue).textContent, /No project know-how yet\. \.brigade\/know-how\.md is missing or has no entry\./);
     assert.equal(entries(blockOf(vue)).length, 0);

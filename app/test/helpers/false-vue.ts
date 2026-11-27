@@ -494,7 +494,7 @@ export async function playTheVue(answers: Answers & Required<Pick<Answers, "dema
 export const repos = (): Promise<void> => new Promise((done) => setImmediate(done));
 
 // Montre un onglet du projet comme le chef : d'un clic sur le menu, à côté de son nom (#1184, #2485, #2921). Rend l'onglet cliqué.
-export async function openTab(vue: Played, title: "Rail" | "Stations"): Promise<Fake> {
+export async function openTab(vue: Played, title: "Rail" | "Stations" | "Agents" | "Know-how"): Promise<Fake> {
   const tab = vue.element("onglets-du-projet").children.find((candidate) => candidate.textContent === title);
   if (tab === undefined) throw new Error(`pas d'onglet « ${title} »`);
   tab.click();
