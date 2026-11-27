@@ -11,7 +11,10 @@ describe("make this computer cook", () => {
   test("with no station, the offer carries the darwin-arm64 archive and install.sh", () => {
     const offer = offerToMakeCook({ isStation: () => false, embeddedProjects: () => undefined, keepMoved: () => "/tmp/x" });
     assert.ok(offer.offered);
-    assert.match(offer.command, /brigade-station-\*-darwin-arm64\.tar\.gz/);
+    assert.match(offer.command, /darwin-arm64\[\.\]tar\[\.\]gz/);
+    // One archive only: the release holds them all, `tar -xzf` takes the single name picked.
+    assert.match(offer.command, /\| sort \| last'/);
+    assert.match(offer.command, /tar -xzf "\$archive"/);
     assert.match(offer.command, /sudo (BRIGADE_PROJECTS_FILE='[^']*' )?\.\/install\.sh/);
   });
 

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export const STATION_COMMAND = "/usr/local/bin/brigade";
-const RELEASE = { repository: "benomite/brigade", tag: "station", archive: "brigade-station-*-darwin-arm64.tar.gz" };
+const RELEASE = { repository: "benomite/brigade", tag: "station", archive: "brigade-station-.*-darwin-arm64[.]tar[.]gz" };
 
 export type Offer = { offered: false } | { offered: true; command: string };
 
@@ -30,8 +30,10 @@ export function installCommand(projectsFile?: string): string {
   return [
     "dir=$(mktemp -d)",
     'cd "$dir"',
-    `gh release download ${RELEASE.tag} --repo ${RELEASE.repository} --pattern '${RELEASE.archive}'`,
-    "tar -xzf brigade-station-*-darwin-arm64.tar.gz",
+    // The release keeps every version's archive: take the newest darwin-arm64 one, a single file for `tar`.
+    `archive=$(gh release view ${RELEASE.tag} --repo ${RELEASE.repository} --json assets --jq '[.assets[].name | select(test("^${RELEASE.archive}$"))] | sort | last')`,
+    `gh release download ${RELEASE.tag} --repo ${RELEASE.repository} --pattern "$archive"`,
+    'tar -xzf "$archive"',
     `sudo ${environment}./install.sh`,
   ].join(" && ");
 }
