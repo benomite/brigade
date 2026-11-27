@@ -23,8 +23,9 @@ const PRODUIT = {
     { texte: "One per project: each project keeps its own file.", suite: "resume" },
     { texte: "A single export, all projects together.", suite: "resume" },
   ],
-  captures: null,
 };
+// Sa carte du chef, telle que son issue la pose sur GitHub (app/src/board/todo-github.ts).
+const CHEF = { sorte: PRODUIT.type, texte: [PRODUIT.question, ...PRODUIT.choix.map(({ texte, suite }) => `- [${suite}] ${texte}`)].join("\n") };
 
 const ligne = (etat: string) => `  #21  ${etat}  ${TITRE}`;
 const status = (rail: string, lignes: string[], attend: string[] = [], cooks = "none running") =>
@@ -58,7 +59,7 @@ export const REPRIS: Rendu = {
 export const QUESTION: Rendu = {
   ...BASE,
   facts: faits(
-    { rail: [carte("en attente")], dernierEvenement: evenement("ticket.queued", "2026-10-13T09:04:12.000Z"), attend: [{ ticket: 21, titre: TITRE, url: ISSUE, decision: { quoi: "carte", motif: "product", cause: PRODUIT.question, pr: null }, carte: PRODUIT }] } as Partial<Facts>,
+    { rail: [carte("en attente")], dernierEvenement: evenement("ticket.queued", "2026-10-13T09:04:12.000Z"), attend: [{ ticket: 21, titre: TITRE, url: ISSUE, chef: CHEF }] } as Partial<Facts>,
     { rail: 1, attend: 1 },
   ),
   status: status(

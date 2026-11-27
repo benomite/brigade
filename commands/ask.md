@@ -1,30 +1,30 @@
 ---
-description: Répond sur l'état d'un ticket (ou à une question à son sujet) à partir de ce qu'on lit sur GitHub
+description: Answers on the state of a ticket (or a question about it) from what GitHub says
 argument-hint: <number> [question]
 ---
 
-Argument : `$ARGUMENTS` — un numéro de ticket, puis éventuellement une question en langage libre. Le premier mot est le numéro (un `#` devant est toléré) ; tout le reste est la question. Numéro absent ou non numérique ? Dis-le en une phrase, rappelle `/brigade:ask <number> [question]` et arrête-toi.
+Argument: `$ARGUMENTS` — a ticket number, then optionally a question in plain words. The first word is the number (a leading `#` is accepted); everything else is the question. No number, or not a number? Say so in one sentence, recall `/brigade:ask <number> [question]` and stop.
 
-Cette commande ne fait que **lire** et **répondre**. Elle peut tourner dans la session du second ou dans n'importe quelle session du projet. Elle n'a besoin ni du tableau ni de la box : seul GitHub compte.
+This command only **reads** and **answers**. It can run in the second's session or in any session of the project. It needs neither the board nor the box: only GitHub counts.
 
-## Lis le ticket
+## Read the ticket
 
-Avec l'outillage GitHub habituel (`gh`), lis :
+With the usual GitHub tooling (`gh`), read:
 
-- le **corps** et le titre, l'état (ouvert, fermé) : `gh issue view <number> --comments` ;
-- les **labels** ;
-- les **derniers commentaires** — les plus récents d'abord, ceux qui disent où on en est ; la fiche du ticket (`<!-- brigade:fiche -->`) compte comme un commentaire ;
-- la **PR liée** : `gh pr list --search "<number>" --state all --json number,title,state,isDraft,mergedAt,reviewDecision,url` ou les références croisées du ticket ; si une PR existe, lis son état, sa relecture et l'état de ses checks (`gh pr view <pr> --json state,reviewDecision,statusCheckRollup`).
+- the **body** and the title, the state (open, closed): `gh issue view <number> --comments`;
+- the **labels**;
+- the **latest comments** — the most recent first, the ones that say where things stand; the ticket's sheet (`<!-- brigade:fiche -->`) counts as a comment;
+- the **linked PR**: `gh pr list --search "<number>" --state all --json number,title,state,isDraft,mergedAt,reviewDecision,url` or the ticket's cross-references; if a PR exists, read its state, its review and the state of its checks (`gh pr view <pr> --json state,reviewDecision,statusCheckRollup`).
 
-Ticket introuvable ? Dis-le et arrête-toi. Ne modifie rien : pas de commentaire, pas de label, pas de commit.
+Ticket not found? Say so and stop. Change nothing: no comment, no label, no commit.
 
-## Réponds, en français
+## Answer, in the user's language
 
-La réponse est **toujours en français**, même si le ticket est en anglais.
+The answer is **always in the user's language**, even if the ticket is in another one: the language of their question, or of this conversation.
 
-- **Avec une question** : réponds à cette question, et à elle seule, à partir de ce que tu as lu. Cite ce qui la fonde (un commentaire, un label, la PR). Ce que le ticket ne dit pas, tu le dis (« le ticket ne le précise pas ») au lieu de le deviner.
-- **Sans question** : quelques lignes (trois à cinq) sur **où en est le ticket** et **ce qu'il attend** (une décision du chef, une relecture, une CI, un autre ticket, un cook…). Pas de récit de l'historique, pas de liste des commentaires.
+- **With a question**: answer that question, and only it, from what you read. Cite what grounds it (a comment, a label, the PR). What the ticket does not say, you say so ("the ticket does not say") instead of guessing.
+- **Without a question**: a few lines (three to five) on **where the ticket stands** and **what it waits for** (a decision from the chef, a review, a CI, another ticket, a cook…). No story of its history, no list of its comments.
 
-Reste court, sans préambule.
+Keep it short, with no preamble.
 
-**Nommer une PR au chef.** Dans tout texte adressé au chef, une PR se nomme d'abord par son ticket : « la livraison de #3709 (PR 3710) », jamais « #3710 » seul (le chef ne sait pas à quel ticket ce numéro renvoie). Toute commande ou tout geste que tu lui demandes de taper pour une PR (merger, relire) prend le **numéro du ticket** (`merge 3709`, `review 3709`), jamais le numéro de la PR ; le numéro nu de la PR reste un alias accepté, mais tu ne le donnes pas.
+**Naming a PR to the chef.** In any text addressed to the chef, a PR is named by its ticket first: "the delivery of #3709 (PR 3710)", never "#3710" alone (the chef does not know which ticket that number points to). Any command or gesture you ask the chef to type for a PR (merge, review) takes the **ticket number** (`merge 3709`, `review 3709`), never the PR number; the bare PR number stays an accepted alias, but you do not give it.

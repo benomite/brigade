@@ -3,19 +3,13 @@
 // ce module les range une à une et dit chacune en une phrase. Une raison que la liste ne connaît pas tombe sur la phrase
 // générique, jamais sur le message brut seul : le message brut, lui, reste derrière « details », en entier.
 //
-// Les raisons que la station sait produire, d'après son code :
-//   - runtime/src/brigade-github.ts : « the cook stopped without a delivery » puis « Taken off the kitchen … after N cooks
-//     without a delivery » (`cooks`) ; « still not mergeable after N sends back » (`renvois`) ;
-//   - runtime/src/github-seul/renvois/renvois.ts, `raisonDeSortie` : les quatre raisons pour lesquelles un ticket aux renvois
-//     épuisés ne peut plus être remis au manager (`deja-remis`, `ticket-de-fix`, `calibrage-incomplet`, `calibrage-au-plus-haut`) ;
-//   - les commentaires que la relance de la guérison (supprimée en #3911) a laissés sur d'anciens tickets : relancé trop de fois pour la même cause (`boucle`) ;
-//   - runtime/src/rail.ts : gelé par la pass sans avoir été jugé (`gele-par-la-pass`) ;
-//   - runtime/src/mise-de-cote.ts, `RAISONS` et `direMiseDeCote` : les raisons d'un ticket 86 sur une station, en français
-//     (quota, connexion, modèle qui refuse, setup, worktree, ticket ou fiche illisibles, secrets, calibrage absent, pass qui
-//     ne juge pas, tiers, station absente ou sans la capacité) ; un motif que `RAISONS` ne connaît pas y est dit « mis de côté (…) » ;
-//   - un label posé à la main, sans commentaire qui dise pourquoi (`sans-raison`, board/set-aside-github.ts).
-// Chaque raison porte un exemple tel que la station l'écrit : le test joue chacun, et compte les raisons de `raisonDeSortie`
-// dans le code du runtime — une raison de plus sans phrase ici fait échouer le test.
+// Les raisons se lisent sur l'issue, dans les commentaires que les stations y ont laissés : un ticket sorti après N cooks
+// sans livraison (`cooks`) ou N renvois (`renvois`), ou que les renvois épuisés ne remettent plus au manager (`deja-remis`,
+// `ticket-de-fix`, `calibrage-incomplet`, `calibrage-au-plus-haut`) ; relancé trop de fois pour la même cause (`boucle`) ;
+// gelé par la pass sans avoir été jugé (`gele-par-la-pass`) ; mis de côté sur une station, en français (quota, connexion,
+// modèle qui refuse, setup, worktree, ticket ou fiche illisibles, secrets, calibrage absent, pass qui ne juge pas, tiers,
+// station absente ou sans la capacité) ; un label posé à la main, sans commentaire qui dise pourquoi (`sans-raison`,
+// board/set-aside-github.ts). Chaque raison porte un exemple tel que la station l'écrit : le test joue chacun.
 import { WITHOUT_REASON } from "./board/set-aside-github.ts";
 
 export const START_OF_REFUSAL = "Will not start:";
