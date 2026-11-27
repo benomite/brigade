@@ -67,6 +67,6 @@ test("pages.yml is the only deploy path: daily, on demand, one generator step be
   const w = read(".github/workflows/pages.yml");
   assert.match(w, /schedule:\n\s+- cron: "\d+ \d+ \* \* \*"/);
   assert.match(w, /workflow_dispatch:/);
-  assert.ok(w.indexOf("replace with #3213 generator") < w.indexOf("actions/upload-pages-artifact"));
+  assert.ok(w.indexOf("name: Generate the autonomy figures") < w.indexOf("actions/upload-pages-artifact"));
   assert.equal(existsSync(join(ROOT, ".github/workflows/autonomie.yml")), false);
 });
