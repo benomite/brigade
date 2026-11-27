@@ -180,7 +180,7 @@ async function twoTimes<R>(ofDesktop: (client: ReturnType<typeof desktop>) => Pr
 }
 // « back to the kitchen » : `parked`, puis les labels d'avant parked que la cuisine lit encore (actions-github.ts).
 const LABELS_BEFORE_PARKED = ["waiting", "blocked-on-human"];
-const UNPARKED = (ticket: number) => ["parked", ...LABELS_BEFORE_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+const UNPARKED = (ticket: number) => ["parked", "parked:chef", ...LABELS_BEFORE_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
 const resume = (received: Received[]) => received.map(({ methode: method, url, corps: body }) => `${method} ${url.slice(API.length - 1)}${body === undefined ? "" : ` ${JSON.stringify(body)}`}`);
 const HEADERS = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${TOKEN}` };
 
