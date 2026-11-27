@@ -14,7 +14,7 @@
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "../sans-invite.ts";
-import { reglesDeLAncre } from "./pf.ts";
+import { anchorRules } from "./pf.ts";
 
 export type Detection = { disponible: true; version: string } | { disponible: false; raison: string };
 
@@ -70,7 +70,7 @@ export function sondesDeLaMachine(bin: string): Sondes {
     plateforme: process.platform,
     existe: existsSync,
     temporaire: tmpdir,
-    ancrePf: reglesDeLAncre,
+    ancrePf: anchorRules,
     versionDeClaude() {
       try {
         return execFileSync(bin, ["--version"], { encoding: "utf8", timeout: 30_000, stdio: ["ignore", "pipe", "ignore"] });

@@ -101,7 +101,7 @@ export type Reglages = {
 };
 
 // Sous `pf`, le réseau du bac à sable ne porte aucun filtre : `pf` le tient.
-export type ReglagesSousPf = Omit<Reglages, "sandbox"> & { sandbox: Omit<Reglages["sandbox"], "network"> & { network: { allowLocalBinding: true; allowAllUnixSockets: false } } };
+export type PfSettings = Omit<Reglages, "sandbox"> & { sandbox: Omit<Reglages["sandbox"], "network"> & { network: { allowLocalBinding: true; allowAllUnixSockets: false } } };
 
 export type ConfigDeBacASable<R = Reglages> = { modeDePermission: "dontAsk" | "default"; reglages: R };
 
@@ -197,9 +197,9 @@ const crochetBrigade = (worktree: string) => [{ matcher: "Write|Edit", hooks: [{
 export const CONSIGNE_DE_REFUS =
   "Si une commande Bash t'est refusée avec « Permission to use Bash has been denied because Claude Code is running in don't ask mode », ce n'est pas une panne : seules les commandes de vérification du projet sont autorisées, dans ton worktree. À la place, joue ses tests et ses linters ainsi : `./node_modules/.bin/<outil> <args>` (vitest, prettier, eslint…, sans `..`), éventuellement précédé de variables (`DATABASE_URL=… LLM_MODE=mock ./node_modules/.bin/vitest run <chemin>`), ou `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm typecheck` (aussi `npm`, `yarn`, `pnpm run <script>`). Pas de `&&`, de `|`, de redirection ni de guillemets dans ces commandes, et pas de `cd` hors du worktree ; les lectures (`ls`, `cat`, `head`, `tail`, `wc`, `pwd`) passent seules, et on peut les enchaîner avec `;`. Ne contourne pas un refus : si rien de cela ne convient, dis dans ton compte-rendu ce que tu voulais lancer.";
 
-export function configurer(cook: Cook & { sousPf: true }): ConfigDeBacASable<ReglagesSousPf>;
+export function configurer(cook: Cook & { sousPf: true }): ConfigDeBacASable<PfSettings>;
 export function configurer(cook: Cook): ConfigDeBacASable;
-export function configurer(cook: Cook): ConfigDeBacASable | ConfigDeBacASable<ReglagesSousPf> {
+export function configurer(cook: Cook): ConfigDeBacASable | ConfigDeBacASable<PfSettings> {
   if (!posix.isAbsolute(cook.home)) throw new BacASableInvalide(`répertoire du compte (« ${cook.home} ») : un chemin absolu est attendu`);
   const home = chemin(cook.home, cook.home, "répertoire du compte");
   const interdits = unique([...LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif)), ...(cook.prod ?? []).map((acces) => chemin(acces, home, "accès de prod"))]);
@@ -275,7 +275,7 @@ export function configurer(cook: Cook): ConfigDeBacASable | ConfigDeBacASable<Re
 
 // Ce que la station ajoute au lancement d'un cook dans le bac à sable, à la
 // place de son `--permission-mode`.
-export function argumentsDuBacASable(config: ConfigDeBacASable | ConfigDeBacASable<ReglagesSousPf>): string[] {
+export function argumentsDuBacASable(config: ConfigDeBacASable | ConfigDeBacASable<PfSettings>): string[] {
   return ["--permission-mode", config.modeDePermission, "--settings", JSON.stringify(config.reglages), "--append-system-prompt", CONSIGNE_DE_REFUS];
 }
 

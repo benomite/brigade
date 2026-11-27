@@ -8,7 +8,7 @@
 import { configCloison, envelopper } from "../cloison.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE, type Regle } from "../reseau.ts";
 import type { Sondes } from "./detection.ts";
-import { verifierAncre } from "./pf.ts";
+import { checkAnchor } from "./pf.ts";
 import { dansLeBacASableLocal, lireCaches, verifier, PLATEFORME_LOCALE, type BacASableLocal } from "./local.ts";
 
 // The project's network allowlist, as its base branch declares it; unreadable or absent, the base hosts alone.
@@ -42,7 +42,7 @@ export function kitchenEnclosure(place: EnclosurePlace): { wrap: Wrap } | { refu
     const verification = verifier(place.probes, lieux);
     if (!verification.ok) return { refused: `no agent launched: on macOS every agent runs inside Claude Code's sandbox, and it is not usable — ${verification.raison}` };
     // The station's network is `pf`'s: no anchor, no cook.
-    const anchor = verifierAncre(place.probes.ancrePf?.() ?? null);
+    const anchor = checkAnchor(place.probes.ancrePf?.() ?? null);
     if (!anchor.ok) return { refused: `no agent launched: ${anchor.raison}` };
     sandbox = { sousPf: true, version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes: place.hosts };
   } else if (cloison === null) {

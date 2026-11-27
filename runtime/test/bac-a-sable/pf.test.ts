@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { configurer, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import type { Sondes } from "../../src/bac-a-sable/detection.ts";
 import { launcherOf } from "../../src/bac-a-sable/kitchen-launch.ts";
-import { verifierAncre } from "../../src/bac-a-sable/pf.ts";
+import { checkAnchor } from "../../src/bac-a-sable/pf.ts";
 import { reglesDuProjet } from "../../src/reseau.ts";
 
 const ancre = readFileSync(new URL("../../paquet/macos/brigade.pf.conf", import.meta.url), "utf8")
@@ -47,5 +47,5 @@ test("the kitchen refuses to cook, in one line, when the anchor is not loaded", 
     assert.ok("refused" in launcher);
     assert.equal(launcher.refused, 'no agent launched: the pf anchor "brigade" is not loaded: on macOS the station goes out through the gate alone, and cooks nothing without it');
   }
-  assert.deepEqual(verifierAncre("block drop out all user = 400\npass out on lo0 to lo0 user = 400"), { ok: true });
+  assert.deepEqual(checkAnchor("block drop out all user = 400\npass out on lo0 to lo0 user = 400"), { ok: true });
 });
