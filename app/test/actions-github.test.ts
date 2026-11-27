@@ -52,10 +52,10 @@ describe("retirer le label du geste de l'issue du ticket", () => {
   test("« back to the kitchen » sur un ticket de TODO : `parked` retiré", async () => {
     const { client, demandes: requests } = github();
     assert.deepEqual(await removeTheLabel(READ, "cuisine", 31, client), {
-      fait: "back to the kitchen on GitHub: #31 no longer carries `parked` — it resumes exactly where it was",
+      fait: "back to the kitchen on GitHub: #31 no longer carries `parked` and `parked:chef` — it resumes exactly where it was",
       detail: "https://github.com/chef/parade/issues/31",
     });
-    assert.deepEqual(requests, ["parked", ...LABELS_BEFORE_PARKED].map((label) => `DELETE /repos/chef/parade/issues/31/labels/${encodeURIComponent(label)}`));
+    assert.deepEqual(requests, ["parked", "parked:chef", ...LABELS_BEFORE_PARKED].map((label) => `DELETE /repos/chef/parade/issues/31/labels/${encodeURIComponent(label)}`));
   });
 
   // #4260 : un ticket qu'un label d'attente d'avant parked parque (`blocked-on-human`) est parqué pour la
