@@ -30,9 +30,8 @@ import { placeAddServer } from "../add-server/add-server.js";
 // (`enCours`, la clé du choix) ; répondue (`ajoutee`) ; ou refusée, sa ligne et son détail.
 /** @typedef {"a-faire" | "inutile" | "ajoutee" | { enCours: string } | { ligne: string, detail: string }} Station */
 /** @typedef {import("../stations-tab/choice.js").Choice} Choice */
-// Ce que la vue sait du second du projet : il ne part pas (`empeche`), il propose des choix au chef (`propose`), et ce
-// que le titre de son terminal dit — au travail, ou au repos à son invite (`travailDuSecond`).
-/** @typedef {{ empeche?: boolean, propose?: boolean, titre?: "travail" | "repos" }} Second */
+// Ce que la vue sait du second du projet : il ne part pas (`empeche`), et ce que le titre de son terminal dit — au travail, ou au repos à son invite (`travailDuSecond`).
+/** @typedef {{ empeche?: boolean, titre?: "travail" | "repos" }} Second */
 // De qui l'attente est : du chef, du second, ou de l'app.
 /** @typedef {"toi" | "second" | "app"} Who */
 /**
@@ -87,7 +86,7 @@ export const STARTUP = "The second is starting, in its column on the right: it r
 export const LIT = "The second is reading your repository, in its column on the right. Nothing is awaited from you yet.";
 export const ANSWER = "The second is waiting for your answer, in its column on the right.";
 export const MERGER = "The setup pull request is waiting for your merge: its card is red on the rail, counted in TODO.";
-// Pourquoi c'est au chef de la merger, comme la carte le dit (runtime/src/second-init/pr-de-setup.ts, `RAISON`).
+// Pourquoi c'est au chef de la merger, comme la carte le dit (`RAISON`).
 export const WHY_MERGER = "Only you merge it: it sets what will judge every future delivery — the integration branch, the checks, the file zones. Once it is merged, the project shows as ready.";
 export const OPEN_THE_CARD = "open its card";
 /** @param {string} repository */
@@ -98,7 +97,7 @@ export const PREVENTS = "The second could not start: its column says why. Waitin
 
 
 // Le titre de la carte qui attend le merge de la PR de mise en place, mot pour mot comme le runtime pose son issue
-// (runtime/src/second-init/pr-de-setup.ts, `TITRE`, ticket 3169).
+// (`TITRE`, ticket 3169).
 export const TITLE_OF_THE_CARD_OF_SETUP = "Merge the setup pull request";
 
 // Les signes que `claude` met en tête du titre de son terminal, relevés par l'app pour sa saisie (input.ts) : « ✳ » au
@@ -138,7 +137,7 @@ export function seenOfJourney({ station, preparation, illisible: unreadable, car
   if (preparation.etape === "en-route") return setup("en-route", "app");
   if (preparation.etape === "refus") return setup("refus", "toi");
   if (second.empeche === true) return setup("empeche", "toi");
-  if (second.propose === true || second.titre === "repos") return setup("repondre", "toi");
+  if (second.titre === "repos") return setup("repondre", "toi");
   if (second.titre === "travail") return setup("lit", "second");
   return setup("demarrage", "second");
 }

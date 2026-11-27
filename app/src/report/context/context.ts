@@ -3,9 +3,9 @@
 // dans le dépôt de l'utilisateur, et rien n'est masqué ici : le masquage est un module à part, appliqué ensuite.
 //
 // Les sources sont celles que l'app a déjà, passées par l'appelant : `appVersion` est `app.getVersion()` (ce que
-// mise-a-jour/etat.ts dit à la vue), `runtimeVersion` est `versionDuRuntime()` (runtime/src/mise-a-jour/en-service.ts),
-// `journal` rend la sortie de la commande `log` (tabs.ts) — une ligne par événement, dans le format de
-// runtime/src/ligne-evenement.ts.
+// mise-a-jour/etat.ts dit à la vue), `runtimeVersion` est `versionDuRuntime()`,
+// `journal` rend la sortie de la commande `log` (tabs.ts) — une ligne par événement, dans le format des
+// lignes d'événement du runtime.
 import { arch, release, type as nameOfSystem, version as versionOfSystem } from "node:os";
 
 // Le nombre maximal de lignes du journal qu'un signalement porte : les plus récentes parmi celles qui parlent de la panne.

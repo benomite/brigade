@@ -1,5 +1,5 @@
 // Les humains du projet, sous Settings (#2930, épique 2926) : ceux que son `.claude/brigade/projet.json` déclare, lus
-// et changés par la commande du runtime `humans` (runtime/src/humains/commande.ts, #2929), là où la cuisine du projet
+// et changés par la commande du runtime `humans` (#2929), là où la cuisine du projet
 // tourne, comme ses réglages (settings-of-project.ts) :
 //   - `humans` : `{"humans":[{login, roles}]}` ;
 //   - `humans save <login> [<role>…]`, `humans remove <login>` : `{"ok":true,"pr":<adresse>}`, ou

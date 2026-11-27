@@ -1,6 +1,6 @@
 // Déménager la cuisine d'un projet depuis sa page, d'un geste : vers cet ordinateur, vers sa box,
 // vers une autre station — sans le retirer ni le rajouter. L'app ne le fait pas elle-même : elle
-// lance l'opération du runtime, sur cet ordinateur (runtime/src/demenagement/demenager.ts), avec le
+// lance l'opération du runtime, sur cet ordinateur, avec le
 // répertoire de sa station et les gists des stations appairées, et rend ce qu'elle a répondu.
 //
 // - **Déménagé** : la demande est écrite sur les deux stations ; le reste se fait entre elles, par

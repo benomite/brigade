@@ -1,6 +1,6 @@
 // @ts-check
 // Les refus des stations, sur l'onglet Rail (ticket 3198, épique 3196) : pour chaque station qui refuse le projet, une seule
-// ligne — son nom, sa raison et le geste qui la lève, tels que la station les écrit (runtime/src/projets/refus.ts, lus par
+// ligne — son nom, sa raison et le geste qui la lève, tels que la station les écrit (lus par
 // cooking.ts : `dit` est la raison, `survol` le geste). Aucune station qui refuse : aucune ligne ; la ligne part quand la
 // station ne refuse plus, puisqu'elle suit la lecture. Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 

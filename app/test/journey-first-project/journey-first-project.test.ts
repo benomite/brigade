@@ -112,7 +112,6 @@ describe("où en est le parcours, d'après ce qui est lu", () => {
       [{ station: "ajoutee", preparation: NOT_READY, second: {} }, "demarrage", "second"],
       [{ station: "ajoutee", preparation: NOT_READY, second: { titre: "travail" } }, "lit", "second"],
       [{ station: "ajoutee", preparation: NOT_READY, second: { titre: "repos" } }, "repondre", "toi"],
-      [{ station: "ajoutee", preparation: NOT_READY, second: { titre: "travail", propose: true } }, "repondre", "toi"],
       [{ station: "ajoutee", preparation: NOT_READY, carte: true, second: { titre: "repos" } }, "merger", "toi"],
       [{ station: "ajoutee", preparation: { ...NOT_READY, etape: "en-route" }, second: { titre: "travail" } }, "en-route", "app"],
       [{ station: "ajoutee", preparation: { ...NOT_READY, etape: "refus", dit: "GitHub refused the labels." }, second: {} }, "refus", "toi"],

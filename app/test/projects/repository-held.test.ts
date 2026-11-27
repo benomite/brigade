@@ -208,9 +208,8 @@ test("lireSuivi ne croit que ce qui a la forme : un accès sans geste, un échec
   assert.deepEqual(slip?.worktree, { ...FAILURE, acces: ACCESS });
 });
 
-// Ce que le runtime publie (runtime/src/projets/refus.ts), tel quel : le refus et le remède qui le lève.
+// Ce que le runtime publie (runtime/src/projets/refus.ts), tel quel.
 const REFUSAL = refusalOfRuntime("proxy-port-set");
-const REMEDY = "remedy" in REFUSAL ? REFUSAL.remedy : assert.fail("le refus du port n'a plus de remède");
 
 test("un projet refusé par la station : la page dit pourquoi et ce que le chef fait, sans le texte brut ni chemin", async () => {
   const raw = "BRIGADE_PROXY_PORT is set in /etc/brigade/en-service: refused";
@@ -220,10 +219,8 @@ test("un projet refusé par la station : la page dit pourquoi et ce que le chef 
   assert.ok(lines.includes(REFUSAL.action), lines.join(" | "));
   assert.doesNotMatch(block.textContent, /en-service|\/etc\//);
   assert.doesNotMatch(block.textContent, /within a minute/);
-  // Le geste attendu est un bouton : celui du remède que la station publie, sa phrase pour libellé (ticket 1205).
-  const buttons = block.dessous("button").filter((b) => b.textContent === REMEDY.description);
-  assert.equal(buttons.length, 1, "le bouton du remède");
-  assert.equal(buttons[0]?.className, "recommande");
+  // Le remède retiré, aucun bouton ne prétend lever le refus d'ici (#4503).
+  assert.equal(block.dessous("button").some((b) => "remedy" in REFUSAL && b.textContent === REFUSAL.remedy.description), false);
 });
 
 test("sans refus, la page est inchangée ; un refus sans phrase ou sans action ne dit rien", async () => {

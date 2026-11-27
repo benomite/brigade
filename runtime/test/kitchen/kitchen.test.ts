@@ -11,7 +11,7 @@ import type { Gh } from "../../src/kitchen/github.ts";
 import type { Kind } from "../../src/kitchen/runs.ts";
 
 type FakeIssue = { number: number; title: string; body: string; labels: string[]; comments: string[]; closed: boolean };
-type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; conflicting?: boolean; log?: string };
+type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; conflicting?: boolean; log?: string; body?: string };
 
 function fakeGh() {
   const issues = new Map<number, FakeIssue>();
@@ -71,10 +71,14 @@ function fakeGh() {
     }
     if (args[0] === "pr" && args[1] === "create") {
       if (prs.some((p) => !p.merged && p.head === flag("--head"))) throw new Error("a pull request already exists");
-      prs.push({ number: 100 + prs.length, head: flag("--head"), checks: "SUCCESS", merged: false });
+      prs.push({ number: 100 + prs.length, head: flag("--head"), checks: "SUCCESS", merged: false, body: input ?? "" });
       return "";
     }
-    if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ files: options.files.map((path) => ({ path })) });
+    if (args[0] === "pr" && args[1] === "edit") {
+      (prs.find((p) => !p.merged && p.head === args[2]) as FakePr).body = input ?? "";
+      return "";
+    }
+    if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ files: options.files.map((path) => ({ path })), body: prs.find((p) => p.number === n)?.body ?? "" });
     if (args[0] === "pr" && args[1] === "merge") {
       if (options.failMerges > 0) {
         options.failMerges -= 1;
@@ -280,6 +284,48 @@ test("a pull request parked for the chef's merge that starts conflicting goes ba
   assert.equal(fake.prs.length, 1);
   assert.equal(fake.prs[0]?.merged, false);
   assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), ["#1 taken", "#1 delivered", "#1 in review (PR #100)", "#1 sent back — its branch conflicts with the base branch", "#1 taken", "#1 delivered", "#1 in review (PR #100)"]);
+});
+
+test("a delivery's report is the body of its pull request, refreshed at each delivery and given to the pass (#4563)", async () => {
+  const { root, clone } = origin();
+  const passInput = join(root, "pass-input");
+  // The cook's last words are its report; the pass keeps the input it was given.
+  const agent = join(root, "reporting-agent.sh");
+  writeFileSync(agent, `#!/bin/sh
+input=$(cat)
+case "$input" in
+  *"Tu es un **cook**"*) date +%N > feature.txt; git add feature.txt; git -c user.email=c@k -c user.name=cook commit -qm "#1 — work"; n=$(git rev-list --count HEAD); printf '{"type":"result","result":"Criterion 1: served, delivery %s\\\\nToken ghp_secretvalue1234 not shown"}\\n' "$n" ;;
+  *"Tu es le **pass**"*) printf '%s' "$input" > ${passInput}; echo '{"type":"result","result":"VERDICT: refuse — again"}' ;;
+esac
+`, { mode: 0o755 });
+  const fake = fakeGh();
+  const issue = fake.add("Report what was removed", ["fire"]);
+  const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: fake.gh,
+    git: gitCli(env),
+    launch: (_kind: Kind, cwd, _write, _calibration, input) => ({ command: agent, args: [], input, cwd, env, secrets: {} }),
+    places: () => 2,
+    riskPaths: () => [],
+    secrets: { GH_TOKEN: "ghp_secretvalue1234" },
+    supervisorEveryMs: Number.MAX_SAFE_INTEGER,
+    log: (line) => lines.push(line),
+  });
+
+  await until(() => fake.prs.length > 0, kitchen.turn);
+  assert.equal(fake.prs[0]?.body, `Closes #${issue}\n\nCriterion 1: served, delivery 2\nToken [secret:GH_TOKEN] not shown\n`, lines.join("\n"));
+  await until(() => (fake.issues.get(issue)?.comments.length ?? 0) > 0, kitchen.turn);
+  assert.match(readFileSync(passInput, "utf8"), /# La description de la PR #100 \(le compte rendu du cook\)\n\nCloses #1\n\nCriterion 1: served, delivery 2\n/);
+
+  await until(() => fake.prs[0]?.body?.includes("delivery 3") === true, kitchen.turn);
+  assert.equal(fake.prs.length, 1, "the same pull request is kept");
+  assert.equal(fake.prs[0]?.body, `Closes #${issue}\n\nCriterion 1: served, delivery 3\nToken [secret:GH_TOKEN] not shown\n`, lines.join("\n"));
 });
 
 test("a red delivery goes back to a cook with the last lines of its failing check's log, secrets masked", async () => {

@@ -1,5 +1,5 @@
 // Ce que l'app demande à une station, et ce que la station en dit — le format
-// est celui de la station (runtime/src/projets/demande.ts). Deux fichiers de
+// est celui de la station. Deux fichiers de
 // plus dans le gist de chaque station appairée (stations/document.ts) :
 //   - `brigade-projets.json`, écrit par l'app seule : les projets que le chef
 //     demande à cette station, et si elle en est la principale — celle qui fait
@@ -9,7 +9,7 @@
 //     préparation, refusé (et pourquoi), ou secondaire — et où il cuit (`cuitSur`, `ici`), et où en
 //     est son déménagement (`bascule`) ; et, pour chaque projet dont elle est la principale, où en
 //     est son onboarding (`onboarding`, #1110).
-// Un déménagement de sa cuisine (runtime/src/demenagement/) ajoute à la demande `remise`, sur la
+// Un déménagement de sa cuisine ajoute à la demande `remise`, sur la
 // station qu'il quitte, et `reprise`, sur celle qui le reprend : l'app les relit et les réécrit tels
 // quels — sans eux, le déménagement en cours ne serait plus qu'un changement de principale.
 // `fournit` : ce que la machine de la station sait faire en plus de coder, coché par le chef à son
@@ -51,39 +51,35 @@ export type ProjectRequest = {
 };
 
 export type StateOfProject = "servi" | "a-autoriser" | "en-preparation" | "refuse" | "secondaire";
-// Où en est un déménagement, vu d'une station (runtime/src/projets/demande.ts) : demandé, accepté
+// Où en est un déménagement, vu d'une station : demandé, accepté
 // par celle qui le reprend, refusé par elle, remis par celle qu'il quitte, reçu — fini.
 export type StepOfToggle = "demandee" | "acceptee" | "refusee" | "remise" | "recue";
 export type Toggle = { de: string; vers: string; demandeLe: string; etape: StepOfToggle };
 // `cuitSur` : la station où il cuit, telle que celle-ci la connaît ; `ici` : il cuit sur celle-ci, et
 // c'est l'ordinateur du chef. Une station d'avant le déménagement (#1094) n'en dit rien.
 // `acces` : le dépôt refuse à la station de le récupérer ou d'y pousser, avec le geste qui le lève
-// (#1117, runtime/src/projets/acces.ts) ; `worktree` : sa cuisine ne parvient pas à préparer un
-// worktree, avec la raison et l'heure du prochain essai (#1118, runtime/src/echec-du-worktree.ts).
+// (#1117) ; `worktree` : sa cuisine ne parvient pas à préparer un
+// worktree, avec la raison et l'heure du prochain essai (#1118).
 // Absents quand la station n'en dit rien.
 // `depot`, `base`, `cooks` : ce que la station sert du projet — son dépôt, sa branche d'intégration et son
 // plafond de cooks —, d'où l'app reprend ce qu'une station de plus doit servir ; nuls quand elle n'en dit rien.
 export type AccessBlocked = { bloque: "fetch" | "push"; raison: string; geste: string };
 export type FailureOfWorktree = { ticket: number; raison: string; prochainEssai: string | null; acces: AccessBlocked | null };
-// `clone` : la station ne parvient pas à cloner le dépôt (#1390, runtime/src/projets/echec-du-clone.ts) —
+// `clone` : la station ne parvient pas à cloner le dépôt (#1390) —
 // la cause en une phrase, le geste, où le faire, ses pages GitHub, le compte GitHub de la station, ce que
 // gh et git ont dit (`detail`, que la page ne montre que derrière « details ») et l'écart entre deux essais,
 // en secondes. Absent quand le clone n'échoue pas, ou d'une station d'avant #1390.
 export type FailureOfClone = { cause: string; raison: string; geste: string; ou: string; liens: string[]; compte: string | null; detail: string; reessaieToutesLes: number };
-// `refus` : pourquoi la station ne sert pas le projet, pour le chef (#1177, runtime/src/projets/refus.ts) —
-// un code stable, une phrase, et ce que le chef fait. Absent quand rien n'est refusé. Et, du remède qui le
-// lève (#1203, runtime/src/remedes/registre.ts), son descripteur (`remedy`) : ce que le bouton fera, en une
-// phrase, s'il retire ou efface quelque chose, son identifiant — ou pourquoi il n'y a pas de bouton
-// (`noRemedy`). Une station d'avant #1203 n'en dit rien : ni l'un ni l'autre.
-export type DescriptorOfRemedy = { id: string; description: string; destructive: boolean };
-export type Refusal = { code: string; message: string; action: string; remedy?: DescriptorOfRemedy; noRemedy?: string };
-// `blocages` : ce qui bloque le projet, de son ajout à son service (#1394, runtime/src/installation/blocages/) —
+// `refus` : pourquoi la station ne sert pas le projet, pour le chef (#1177) — un code stable, une phrase, et ce
+// que le chef fait. Absent quand rien n'est refusé.
+export type Refusal = { code: string; message: string; action: string };
+// `blocages` : ce qui bloque le projet, de son ajout à son service (#1394) —
 // pour chacun, une clé stable, ce qui est bloqué et pourquoi en une phrase chacun, et, s'il y a lieu, le geste que
 // l'app sait faire (`action`, son identifiant), la page de GitHub où le faire hors de l'app (`link`) et ce qu'une
 // commande a dit (`detail`, que la page ne montre que replié). Absent quand rien ne bloque, ou d'une station d'avant #1394.
 export type Blockage = { id: string; message: string; cause: string; action?: string; link?: string; detail?: string };
-// `choix` : ce qui manque à la principale pour les tests du projet, un choix par besoin (#1398,
-// runtime/src/installation/besoins/) — sa clé (`need:<besoin>`, celle du blocage qui l'attend), le besoin, ce qui
+// `choix` : ce qui manque à la principale pour les tests du projet, un choix par besoin (#1398) —
+// sa clé (`need:<besoin>`, celle du blocage qui l'attend), le besoin, ce qui
 // manque et pourquoi en une phrase chacun, ses issues (chacune son libellé et ce qui en suit), et s'il attend le
 // chef (`pending`) ou s'il est tranché (`chosen`, l'issue retenue). Absent quand rien ne manque, ou d'une station
 // d'avant #1398.
@@ -92,22 +88,22 @@ export type OptionOfChoice = { id: string; label: string; consequence: string; r
 export type Choice = { id: string; need: string; message: string; cause: string; options: OptionOfChoice[] } & ({ status: "pending" } | { status: "chosen"; selected: string; selectedAt: string });
 // Ce que le chef retient, par identifiant de choix.
 export type Selections = Record<string, string>;
-// Le temps de l'ajout du projet à son premier ticket servi (#1401, runtime/src/installation/delai/) : `ajouteLe` (ISO),
+// Le temps de l'ajout du projet à son premier ticket servi (#1401) : `ajouteLe` (ISO),
 // `serviLe` (ISO, ou null tant qu'aucun ticket n'est servi) et `duree` (millisecondes, figée, ou null).
 export type Delay = { ajouteLe: string; serviLe: string | null; duree: number | null };
-// Les temps des derniers tickets mesurés du projet, tels que sa principale les lit dans `.claude/brigade/` (#2346,
-// runtime/src/temps-ticket/) : les enregistrements (secondes entières ; la vue écarte les illisibles) et le seuil du temps
+// Les temps des derniers tickets mesurés du projet, tels que sa principale les lit dans `.claude/brigade/` (#2346) :
+// les enregistrements (secondes entières ; la vue écarte les illisibles) et le seuil du temps
 // perdu par ticket en minutes (`lostTimeMaxMin`, #2670 : la médiane du temps perdu des tickets récents ; le temps total n'a pas de plafond).
 // `resume` : le résumé que la mesure écrit dans `temps-tickets.json` (#2659), relayé tel quel — la vue ne le recalcule pas.
-// `passe` : le temps de chaque phase de la pass sur 7 jours (#3512, runtime/src/temps-ticket/passe.ts), relayé tel quel.
-// `chiffres` : les quatre chiffres du projet que la station publie (#2672, runtime/src/chiffres-du-projet.ts), relayés tels quels.
+// `passe` : le temps de chaque phase de la pass sur 7 jours (#3512), relayé tel quel.
+// `chiffres` : les quatre chiffres du projet que la station publie (#2672), relayés tels quels.
 export type TimePublished = { enregistrements: unknown[]; lostTimeMaxMin: number; resume?: unknown; chiffres?: unknown; passe?: unknown };
 // `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
-// tient (#1756, l'ancien runtime/src/projets/secondaires.ts, retiré par #2713 : plus publiées) — déclarées à son journal, chacune par son gist, avec ce qu'elle
+// tient (#1756 ; plus publiées depuis #2713) — déclarées à son journal, chacune par son gist, avec ce qu'elle
 // fournit, si elle est atteinte, et pourquoi en une phrase — pas atteinte, le geste du chef qui y remédie (`geste`, #1758). Seule la principale les publie ; absentes sans elles.
 export type SecondaryHeld = { nom: string; station: string; gist: string; cooks: number; fournit: string[]; atteinte: boolean; dit: string; geste?: string };
-// `rejoindre` : le chef a ajouté le projet à cette station alors qu'une autre le servait déjà (#1789,
-// l'ancien runtime/src/projets/rejoindre.ts, retiré par #2713 : plus écrit) — elle en a rejoint la cuisine, celle que `principale` fait tourner, ou elle refuse
+// `rejoindre` : le chef a ajouté le projet à cette station alors qu'une autre le servait déjà (#1789 ;
+// plus écrit depuis #2713) — elle en a rejoint la cuisine, celle que `principale` fait tourner, ou elle refuse
 // en une phrase (`phrase`), sans en ouvrir une seconde. Absent quand aucune autre station ne le sert.
 export type Join = { issue: "rejointe"; principale: string } | { issue: "refusee"; phrase: string };
 export type TrackingOfProject = { nom: string; etat: StateOfProject; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Toggle | null; acces: AccessBlocked | null; refus: Refusal | null; worktree: FailureOfWorktree | null; clone?: FailureOfClone; blocages?: Blockage[]; delai?: Delay; temps?: TimePublished; choix?: Choice[]; secondaires?: SecondaryHeld[]; rejoindre?: Join; depot: string | null; base: string | null; cooks: number | null };
@@ -117,7 +113,7 @@ const STEPS: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "
 const text = (value: unknown): value is string => typeof value === "string";
 const date = (value: unknown): string | null => (text(value) && !Number.isNaN(Date.parse(value)) ? value : null);
 const nameOfStation = (value: unknown): value is string => text(value) && value.trim() !== "" && value.length <= 100;
-// Une capacité, telle que la station la lit (runtime/src/capacites.ts, `CAPACITE`).
+// Une capacité, telle que la station la lit (`CAPACITE`).
 export const CAPACITY = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
 // Les capacités lisibles, chacune une fois : la station ignore les autres.
 export const capacitiesRead = (readEntries: unknown): string[] =>
@@ -127,16 +123,9 @@ const readAccess = (readOne: unknown): AccessBlocked | null => {
   const { bloque: blocked, raison: reason, geste: action } = (readOne ?? {}) as Record<string, unknown>;
   return (blocked === "fetch" || blocked === "push") && text(reason) && reason.trim() !== "" && text(action) && action.trim() !== "" ? { bloque: blocked, raison: reason, geste: action } : null;
 };
-const readRemedy = (readOne: unknown): DescriptorOfRemedy | null => {
-  const { id, description, destructive } = (readOne ?? {}) as Record<string, unknown>;
-  return text(id) && /^[a-z][a-z0-9-]*$/.test(id) && text(description) && description.trim() !== "" && typeof destructive === "boolean" ? { id, description, destructive } : null;
-};
 const readRefusal = (readOne: unknown): Refusal | null => {
-  const { code, message, action, remedy, noRemedy } = (readOne ?? {}) as Record<string, unknown>;
-  if (!text(code) || !text(message) || message.trim() === "" || !text(action) || action.trim() === "") return null;
-  const fix = readRemedy(remedy);
-  if (fix !== null) return { code, message, action, remedy: fix };
-  return text(noRemedy) && noRemedy.trim() !== "" ? { code, message, action, noRemedy } : { code, message, action };
+  const { code, message, action } = (readOne ?? {}) as Record<string, unknown>;
+  return text(code) && text(message) && message.trim() !== "" && text(action) && action.trim() !== "" ? { code, message, action } : null;
 };
 const readFailure = (readOne: unknown): FailureOfWorktree | null => {
   const { ticket, raison: reason, prochainEssai: nextTrial, acces: access } = (readOne ?? {}) as Record<string, unknown>;
@@ -326,7 +315,7 @@ export function readTracking(raw: string | undefined): TrackingOfProject[] {
   }
 }
 
-// Où en est un projet neuf, de son ajout à son premier ticket (#1110, runtime/src/onboarding/etat.ts,
+// Où en est un projet neuf, de son ajout à son premier ticket (#1110,
 // `Onboarding`) : la station principale l'écrit dans son suivi, sous `onboarding`, par nom de projet.
 // Quatre étapes dans l'ordre, chacune faite, courante ou à venir, avec sa phrase et, courante, le
 // geste attendu du chef ; le ticket qui prépare le dépôt, son état, et, en échec, pourquoi et quand

@@ -1,8 +1,7 @@
 // Le premier lancement de l'app sur un ordinateur neuf (#1434, épique #1427) : le chef y retrouve
 // les stations qu'il a déjà appairées et les projets qu'elles portent, et en ouvre un d'un clic,
-// sans choisir de dossier. L'app n'y lit rien elle-même : les stations sont celles du runtime
-// (`runtime/src/appairage/stations-du-chef.ts`, #1428), la copie locale aussi
-// (`runtime/src/projets/copie-locale.ts`, #1429) — elle reprend une copie qui existe, ou clone le
+// sans choisir de dossier. L'app n'y lit rien elle-même : les stations sont celles que le process principal
+// lit (#1428), la copie locale aussi (#1429) — elle reprend une copie qui existe, ou clone le
 // dépôt dans le dossier que l'app gère, et dit où elle en est. Ce module fait le reste : la copie
 // ouverte, le projet entre dans le fichier des projets (config.ts), avec son dépôt et sa branche
 // d'intégration : la branche par défaut que GitHub a donnée du dépôt, quand la vue la passe (l'écran
@@ -10,24 +9,37 @@
 // Avant la copie, l'app demande si Claude Code est connecté sur cet ordinateur (#4057) : pas connecté, rien ne
 // démarre, et la vue propose « log in » ; la cuisine démarre une fois le chef connecté, à l'ouverture suivante.
 import type { Configuration, Declare } from "./config.ts";
-import type { CopieLocale, OptionsDOuverture, Progres } from "../../runtime/src/projets/copie-locale.ts";
-import type { Session } from "../../runtime/src/claude.ts";
 
-export type { StationsDuChef as StationsOfChef, StationAppairee as StationPaired, ProjetPorte as ProjectCarried, Connexion as Connection } from "../../runtime/src/appairage/stations-du-chef.ts";
-export type { CopieLocale as LocalCopy, Progres as Progress } from "../../runtime/src/projets/copie-locale.ts";
+// Le geste qui connecte le `gh` de cet ordinateur : la commande à lancer, telle quelle.
+export type Connection = { id: "github-sign-in"; label: string; command: string[] };
+// Un projet qu'une station porte, et la station appairée du chef, telle que son gist la dit.
+export type ProjectCarried = { name: string; repository: string | null };
+export type StationPaired = { id: string; name: string; machine: string; kind: string | null; cooks: boolean; version: string; online: boolean; lastSeen: string; stoppedAt: string | null; projects: ProjectCarried[] };
+export type StationsOfChef =
+  | { state: "listed"; stations: StationPaired[]; unreadable: Array<{ id: string; reason: string }>; reason?: string }
+  | { state: "sign-in-required"; reason: string; action: Connection }
+  | { state: "unavailable"; cause: "gh-missing" | "network" | "timeout" | "rate-limit" | "github"; reason: string; link?: string; detail?: string };
+// La copie locale d'un dépôt : ouverte, ou pourquoi elle ne l'est pas ; et chaque étape de son ouverture.
+export type CauseOfFailure = "git-missing" | "gh-missing" | "sign-in-required" | "access-denied" | "repository-missing" | "network" | "timeout" | "folder-taken" | "invalid" | "unknown";
+export type LocalCopy =
+  | { state: "open"; project: string; repository: string; folder: string; cloned: boolean }
+  | { state: "failed"; project: string; repository: string; cause: CauseOfFailure; reason: string; link?: string; action?: Connection; detail?: string };
+export type Progress = { stage: "looking" | "reusing" | "cloning"; sentence: string; folder?: string; percent?: number };
+// Ce que `claude auth status` dit de la session de cet ordinateur.
+export type Session = "connectee" | "absente" | "introuvable" | "inconnue";
 
 // Ce que l'ouverture d'un projet rend à la vue : la copie du runtime — ouverte, ou pourquoi elle ne
 // l'est pas —, ou une copie faite que le fichier des projets n'a pas prise (`not-added`), et pourquoi —, ou rien de
 // commencé tant que Claude Code n'est pas connecté sur cet ordinateur (`login`, #4057).
 export type Opening =
-  | CopieLocale
+  | LocalCopy
   | { state: "failed"; project: string; repository: string; cause: "not-added" | "busy"; reason: string; detail?: string }
   | { state: "login"; project: string; repository: string; cause: "login"; reason: string };
 
 // La connexion de Claude Code sur cet ordinateur, dite comme la station la publie (outages/states.ts).
 export type ConnectionClaude = "connectee" | "perdue" | "inconnue";
 
-// Ce que `claude auth status` a dit (runtime/src/claude.ts, `sessionClaude`), en connexion : seul un « non » net la dit
+// Ce que `claude auth status` a dit (`Session`), en connexion : seul un « non » net la dit
 // perdue. Un binaire muet ou absent la laisse inconnue — l'écran de l'outil manquant, ou le premier cook, le dira.
 export function connectionOfTheSession(session: Session): ConnectionClaude {
   if (session === "connectee") return "connectee";
@@ -41,14 +53,14 @@ export const NOT_CONNECTED = (projectName: string) => `Claude Code is not logged
 
 export type OptionsOfOpen = {
   // L'opération du runtime, chargée depuis son dossier (locations.ts).
-  ouvrirLaCopie: (options: Pick<OptionsDOuverture, "repository" | "project" | "folder" | "progres">) => Promise<CopieLocale>;
+  ouvrirLaCopie: (options: { repository: string; project?: string; folder?: string; progres?: (step: Progress) => void }) => Promise<LocalCopy>;
   // La branche d'intégration que l'origine de la copie désigne (addition.ts, `lireClone`), quand GitHub n'en a pas donné.
   lireLaBase: (folder: string) => Promise<string | undefined>;
   configuration: () => Configuration;
   // Rend la raison, si le projet n'a pas été ajouté (tracking.ts).
   ajouter: (projectName: Declare) => string | undefined;
   // Chaque étape de la copie, pour la vue.
-  progres: (repo: string, step: Progres) => void;
+  progres: (repo: string, step: Progress) => void;
   // Claude Code est-il connecté sur cet ordinateur (`connexionDeLaSession`) — demandé avant que la cuisine démarre.
   connexionClaude: () => Promise<ConnectionClaude>;
 };
