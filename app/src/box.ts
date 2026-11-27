@@ -24,7 +24,7 @@ export type Reading = { projet: string; demande: number; a: string } & ({ sortie
 
 // La station de cet ordinateur, telle que l'app la lance : le `node` qui le joue,
 // le dossier du runtime et le répertoire de la station (`BRIGADE_STATION_DIR`) — ceux avec
-// lesquels l'app la lance (workstation/station.ts).
+// lesquels l'app la lance.
 export type Locale = { node: string; runtime: string; racine: string; env: Record<string, string | undefined> };
 // Où se lit la cuisine d'un projet : la station de cet ordinateur.
 export type Kitchen = { locale: Locale };

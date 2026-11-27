@@ -1,6 +1,6 @@
 // Test d'acceptation gelé (#4080). Critère 5 : la construction du paquet réussit toujours.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -56,11 +56,13 @@ function thePlists(pkg: string): string[] {
 }
 const key = (xml: string, name: string) => new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(xml)?.[1];
 
-test("the packaging build still succeeds: the bundle is assembled with its app, runtime and node", (t) => {
+test("the packaging build still succeeds: the bundle is assembled with its app and node, and no runtime", (t) => {
   const { racine: root, paquet: pkg } = built();
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const path of ["Contents/Info.plist", "Contents/Resources/app/package.json", "Contents/Resources/runtime/package.json", "Contents/Resources/node/bin/brigade-node"])
+  for (const path of ["Contents/Info.plist", "Contents/Resources/app/package.json", "Contents/Resources/node/bin/brigade-node"])
     assert.ok(readFileSync(join(pkg, path)).length > 0, path);
+  // The app carries no kitchen: no runtime/ in the packaged tree (#4745).
+  assert.equal(existsSync(join(pkg, "Contents", "Resources", "runtime")), false);
   // The renamed helpers are still all there, and the app's executable still starts them.
   assert.equal(thePlists(pkg).length, 5);
 });

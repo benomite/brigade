@@ -1,20 +1,16 @@
-// Où l'app trouve ce qu'elle lance hors d'elle : le runtime de la station de la machine, le
-// `node` qui le joue, et le clone de son propre code. Deux façons d'être lancée, et seulement
-// deux :
+// Où l'app trouve ce qu'elle lance hors d'elle : son `node` et le clone de son propre code. Deux
+// façons d'être lancée, et seulement deux :
 //
-// - **Depuis le dépôt** (`npm --prefix app start`) : le runtime est à côté de l'app dans son
-//   clone, et le `node` est celui qui a joué `npm start` — Electron n'en est pas un. L'app lit le
-//   retard de son clone, et se met à jour par lui (delay.ts, catch-up.ts).
+// - **Depuis le dépôt** (`npm --prefix app start`) : le `node` est celui qui a joué `npm start` —
+//   Electron n'en est pas un. L'app lit le retard de son clone, et se met à jour par lui (delay.ts, catch-up.ts).
 // - **Installée** (le .dmg, app/packaging/) : tout est dans le paquet de l'app —
-//   `Contents/Resources/` porte l'app (`app/`), le runtime (`runtime/`), le `node` qui le joue
-//   (`node/bin/brigade-node`). Il n'y a ni clone, ni `node`, ni `npm` à chercher sur la machine : rien
-//   ne s'y lit du retard d'un clone, rien ne s'y met à jour par `git`.
+//   `Contents/Resources/` porte l'app (`app/`) et le `node` qui la sert (`node/bin/brigade-node`). Il n'y a
+//   ni runtime, ni clone, ni `node`, ni `npm` à chercher sur la machine : rien ne s'y lit du retard d'un
+//   clone, rien ne s'y met à jour par `git`. L'app ne porte aucune cuisine : elle lit les stations par leurs gists.
 //
 // Ouverte depuis le Finder, une app ne reçoit pas le PATH du chef : seulement celui du système.
-// `claude`, `gh` — et le `git` d'Homebrew — n'y sont pas, et la station n'y cuirait rien. L'app
-// installée prend donc le PATH du shell de connexion du chef, comme un terminal l'aurait, et y
-// ajoute le dossier de son `node` : ce que la station lance trouve un `node` même sur une machine
-// qui n'en a pas.
+// `claude`, `gh` — et le `git` d'Homebrew — n'y sont pas. L'app installée prend donc le PATH du shell de
+// connexion du chef, comme un terminal l'aurait, et y ajoute le dossier de son `node`.
 //
 // Le fichier des projets et le répertoire de la station ne dépendent pas de cette façon : ce
 // sont ceux de `~/.config/brigade/`, quelle que soit l'app qui les lit (config.ts).
@@ -25,9 +21,7 @@ import { delimiter, join, resolve } from "node:path";
 export type Locations = {
   // `installee` : l'app du .dmg, `depot` : celle du clone.
   facon: "depot" | "installee";
-  // Le dossier du runtime : son point d'entrée de station, la cuisine, y est sous `src/kitchen/main.ts`.
-  runtime: string;
-  // Le `node` qui joue la station.
+  // Le `node` de l'app.
   node: string;
   // Le dossier de l'app dans son clone, dont le retard se lit ; aucun pour l'app installée.
   clone: string | undefined;
@@ -45,7 +39,6 @@ export type OptionsLocations = {
 
 // Ce que le paquet de l'app porte, sous `Contents/Resources` : la forme qu'écrit app/packaging/.
 export const APP_OF_PACKAGE = "app";
-export const RUNTIME_OF_PACKAGE = "runtime";
 export const NODE_OF_PACKAGE = join("node", "bin", "brigade-node");
 
 // L'app est installée quand ses sources sont celles du paquet qui la joue : `Resources/app/src`.
@@ -67,7 +60,6 @@ export function locationsOf(options: OptionsLocations): Locations {
   if (isInstalled(options)) {
     return {
       facon: "installee",
-      runtime: join(options.ressources, RUNTIME_OF_PACKAGE),
       // Une doublure pour les essais, comme depuis le dépôt ; sinon celui du paquet, jamais celui de la machine.
       node: env.BRIGADE_NODE_BIN || join(options.ressources, NODE_OF_PACKAGE),
       clone: undefined,
@@ -75,7 +67,6 @@ export function locationsOf(options: OptionsLocations): Locations {
   }
   return {
     facon: "depot",
-    runtime: join(options.src, "..", "..", "runtime"),
     // Le `node` de `npm start` : Electron n'en est pas un.
     node: env.BRIGADE_NODE_BIN || env.npm_node_execpath || "node",
     clone: join(options.src, ".."),

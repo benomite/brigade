@@ -4,7 +4,7 @@ import type { Configuration, Project } from "./config.ts";
 import { close, type Role } from "./colors.ts";
 import { acronyms } from "./acronym.ts";
 
-// `ici` : sa cuisine tourne sur cet ordinateur — il se lit ici (workstation/kitchen-here.ts).
+// `ici` : sa cuisine tourne sur cet ordinateur — il se lit ici.
 // `etiquette` : ce que sa case écrit — son sigle, trois signes au plus, qu'aucun autre projet n'a.
 // `proches` : par rôle, ce qu'une couleur libre du projet a de trop proche (colors.ts), en une ligne.
 export type Shown = Omit<Configuration, "projets"> & { projets: (Project & { etiquette: string; servi?: true; ici?: true; sansStation?: true; redemarre?: string; proches?: Partial<Record<Role, string>> })[] };

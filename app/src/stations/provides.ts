@@ -1,5 +1,5 @@
 // Ce que la station de cet ordinateur fournit, tel que l'installation le dit (#1757) : l'app qui tient
-// la station de sa machine (workstation/station.ts) l'écrit dans son appairage (document.ts), et le
+// la station de sa machine l'écrit dans son appairage (document.ts), et le
 // reprend dans la demande de chaque projet où la station est ajoutée (projects/projects.ts). La station
 // principale du projet le lit là, et la déclare à son journal avec ces capacités
 // (retiré par #2713) — sans une commande du chef.

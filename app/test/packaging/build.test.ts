@@ -3,7 +3,7 @@
 // `otool` et `hdiutil` des doublures qui relèvent ce qu'on leur demande. Ce qui ne se prouve que
 // sur un Mac — l'app qui s'ouvre, la signature acceptée — est dans app/packaging/README.md.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,7 +30,6 @@ import {
 import { locationsOf, isInstalled } from "../../src/locations.ts";
 import { CATALOG_OF_LABELS, INSTRUCTIONS, OWN, PR_OF_SETUP, SCRIPT, setTheSetup } from "../../src/setup/setup.ts";
 import { defautsDeNom } from "../../packaging/verifier-plist.ts";
-import { roleOf } from "../../src/workstation/role.ts";
 import { PACKAGES } from "../helpers/posix.ts";
 
 const BUILD = join(APP, "packaging", "construire.ts");
@@ -146,7 +145,7 @@ function tools(otool = "node:\n\t/usr/lib/libSystem.B.dylib (compatibility versi
   return { executer: run, appels: calls, volume: () => volume };
 }
 
-test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app installée y trouve sa station", { skip: PACKAGES }, (t) => {
+test("Brigade.app porte l'app et le `node` du paquet, et aucun runtime — l'app installée n'a pas de cuisine de repli", { skip: PACKAGES }, (t) => {
   const root = folder(t);
   const pkg = assembler({ version: "0.20261019.151600+g76f93fe", electron: fakeElectron(root), node: fakeNode(root) }, join(root, "volume"));
   const resources = join(pkg, "Contents", "Resources");
@@ -176,11 +175,9 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   for (const source of ["build", "deps", "src", "third_party"]) assert.ok(!existsSync(join(pty, source)), source);
   assert.ok(existsSync(join(pty, "lib", "index.js")));
 
-  // Le runtime, à la version construite, sans ses tests ; et le `node` du paquet, exécutable.
-  assert.ok(existsSync(join(resources, "runtime", "src", "kitchen", "main.ts")));
-  assert.ok(!existsSync(join(resources, "runtime", "test")));
-  assert.ok(!existsSync(join(resources, "runtime", "node_modules")));
-  assert.equal(JSON.parse(readFileSync(join(resources, "runtime", "package.json"), "utf8")).version, "0.20261019.151600+g76f93fe");
+  // Aucun runtime dans le paquet : l'app lit les stations par leurs gists ; et le `node` du paquet, exécutable.
+  assert.equal(existsSync(join(resources, "runtime")), false);
+  assert.deepEqual(readdirSync(resources).filter((name) => /runtime|kitchen|station/i.test(name)), []);
   assert.equal(statSync(join(resources, "node", "bin", "brigade-node")).mode & 0o755, 0o755);
 
   // Electron, au nom de l'app : son asar par défaut est parti, ses liens sont restés des liens.
@@ -190,42 +187,21 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.equal(readlinkSync(join(framework, "Versions", "Current")), "A");
   assert.match(readFileSync(join(pkg, "Contents", "Info.plist"), "utf8"), /<key>CFBundleName<\/key>\s*<string>Brigade<\/string>/);
 
-  // Ce que l'app installée résout, depuis là où son process principal tourne : la station de son paquet, et son `node`.
+  // Ce que l'app installée résout, depuis là où son process principal tourne : son `node`, et aucun runtime.
   assert.equal(isInstalled({ ressources: resources, src: join(resources, "app", "src") }), true);
   const locations = locationsOf({ ressources: resources, src: join(resources, "app", "src"), env: {} });
   assert.equal(locations.node, join(resources, "node", "bin", "brigade-node"));
   assert.ok(existsSync(locations.node));
-  assert.deepEqual(roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {} }), { role: "station", principal: join(resources, "runtime", "src", "kitchen", "main.ts") });
+  assert.equal("runtime" in locations, false);
   // Le paquet ne porte plus de plugin à installer dans les projets.
   assert.equal(existsSync(join(resources, "plugin")), false);
   // La préparation d'un dépôt (src/setup/, #4632) : ses instructions, son script et son catalogue, tels quels ; rendues
-  // depuis le paquet, ses instructions nomment le `node` et la commande du runtime du paquet.
+  // depuis le paquet, ses instructions nomment le `node` et la commande du runtime qu'on leur donne.
   const packaged = join(resources, "app", "src", "setup");
   for (const name of [INSTRUCTIONS, SCRIPT, CATALOG_OF_LABELS]) assert.equal(readFileSync(join(packaged, name), "utf8"), readFileSync(join(OWN, name), "utf8"), name);
-  const instructions = readFileSync(setTheSetup(join(root, "setup"), { node: locations.node, runtime: locations.runtime }, packaged), "utf8");
-  assert.ok(existsSync(join(locations.runtime, ...PR_OF_SETUP)));
+  const instructions = readFileSync(setTheSetup(join(root, "setup"), { node: locations.node, runtime: join(root, "a-runtime") }, packaged), "utf8");
   const slashes = (path: string) => path.replaceAll("\\", "/");
-  assert.ok(instructions.includes(`"${slashes(locations.node)}" "${slashes(join(locations.runtime, ...PR_OF_SETUP))}" "${slashes(join(root, "setup", SCRIPT))}" --test`));
-});
-
-test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l'app la lance, et elle refuse faute de répertoire", async (t) => {
-  const root = folder(t);
-  const pkg = assembler({ version: "1.0.0", electron: fakeElectron(root), node: fakeNode(root) }, join(root, "volume"));
-  const resources = join(pkg, "Contents", "Resources");
-  const locations = locationsOf({ ressources: resources, src: join(resources, "app", "src"), env: {} });
-  const role = roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {} });
-  assert.equal(role.role, "station");
-  // Lancée comme l'app la lance (workstation/station.ts) — mais par ce `node`-ci : celui du paquet est une doublure.
-  // Son refus vient après l'import de tout ce qu'elle importe : le runtime du paquet est complet.
-  const { BRIGADE_STATION_DIR: _, ...env } = process.env;
-  // L'entrée reste ouverte : fermée, l'enveloppe arrête la cuisine avant qu'elle ait refusé.
-  const child = spawn(process.execPath, [join(resources, "app", "src", "workstation", "envelope.ts"), role.role === "station" ? role.principal : ""], { cwd: locations.runtime, env, stdio: ["pipe", "ignore", "pipe"] });
-  let stderr = "";
-  child.stderr.on("data", (chunk) => (stderr += chunk));
-  const status = await new Promise<number | null>((done) => child.once("exit", done));
-  const launches = { status, stderr };
-  assert.equal(launches.status, 2, launches.stderr);
-  assert.match(launches.stderr, /kitchen: BRIGADE_STATION_DIR is not set/);
+  assert.ok(instructions.includes(`"${slashes(locations.node)}" "${slashes(join(root, "a-runtime", ...PR_OF_SETUP))}" "${slashes(join(root, "setup", SCRIPT))}" --test`));
 });
 
 test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le lien vers Applications", { skip: PACKAGES }, (t) => {

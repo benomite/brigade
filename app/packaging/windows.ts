@@ -1,5 +1,5 @@
-// Construit l'installeur Windows de l'app : un seul .exe, pour x64, qui pose l'app, le runtime de
-// sa station et le `node.exe` qui le joue dans le dossier du compte (%LOCALAPPDATA%\Programs\Brigade),
+// Construit l'installeur Windows de l'app : un seul .exe, pour x64, qui pose l'app et le
+// `node.exe` qui la sert dans le dossier du compte (%LOCALAPPDATA%\Programs\Brigade),
 // avec une entrée dans le menu Démarrer et un désinstalleur. Installée, l'app tourne sans clone du
 // dépôt, sans `node` ni `npm` sur la machine (src/locations.ts) — et sans droits d'administrateur.
 //
@@ -16,7 +16,6 @@
 //   Brigade.exe            l'exécutable d'Electron, renommé ; ses DLL et ses `.pak` à côté
 //   resources/app/         `src/`, son package.json et ses dépendances de production ; node-pty n'y
 //                          garde que ce qui est compilé pour win32-x64
-//   resources/runtime/     `src/` et package.json du runtime
 //   resources/node/bin/brigade-node.exe   le `node` qui joue la station : celui de la machine n'y est pour rien
 //   Uninstall Brigade.exe  le désinstalleur
 //
@@ -40,8 +39,8 @@ import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep 
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { crc32, inflateRawSync } from "node:zlib";
-import { APP_OF_PACKAGE, NODE_OF_PACKAGE, RUNTIME_OF_PACKAGE } from "../src/locations.ts";
-import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, IDENTIFIANT, majeureReclamee, metadonneesDeMiseAJour, NOM, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
+import { APP_OF_PACKAGE, NODE_OF_PACKAGE } from "../src/locations.ts";
+import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, IDENTIFIANT, majeureReclamee, metadonneesDeMiseAJour, NOM, versionCourte, versionDuCommit } from "./construire.ts";
 
 const REFUS = 2;
 const ECHEC = 1;
@@ -157,14 +156,12 @@ export type OptionsAssemblage = {
   // Le `node.exe` win-x64 à porter.
   node: string;
   app?: string;
-  runtime?: string;
 };
 
 // Pose dans `dossier` ce que l'installeur copie dans le dossier de l'app : Electron, l'app, le
 // runtime et le `node.exe`. Rend `dossier`.
 export function assembler(options: OptionsAssemblage, dossier: string): string {
   const app = options.app ?? APP;
-  const runtime = options.runtime ?? RUNTIME;
   versionCourte(options.version);
   if (!existsSync(join(options.electron, "electron.exe"))) refuser(`${options.electron} is not an Electron for Windows (no electron.exe)`);
   mkdirSync(dirname(dossier), { recursive: true });
@@ -198,12 +195,6 @@ export function assembler(options: OptionsAssemblage, dossier: string): string {
     for (const nom of readdirSync(compiles)) if (nom !== visee) rmSync(join(compiles, nom), { recursive: true, force: true });
     for (const nom of readdirSync(join(compiles, visee))) if (nom.endsWith(".pdb")) rmSync(join(compiles, visee, nom));
   }
-
-  // Le runtime : ce que `node` exécute et le package.json qui en fait des modules ES — à la
-  // version construite, celle que la station dit d'elle-même en démarrant.
-  const dansRuntime = join(ressources, RUNTIME_OF_PACKAGE);
-  cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
-  writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
 
   const node = join(ressources, NODE_EXE);
   mkdirSync(dirname(node), { recursive: true });
@@ -438,7 +429,7 @@ async function principal(): Promise<void> {
   const version = options.version ?? versionDuCommit(executer);
   versionCourte(version);
   const reclamee = majeureReclamee();
-  if (options.node === undefined && Number(process.versions.node.split(".")[0]) < reclamee) refuser(`this node is ${process.version}, the runtime needs ${reclamee} at least — run with a newer node, or give one with --node`);
+  if (options.node === undefined && Number(process.versions.node.split(".")[0]) < reclamee) refuser(`this node is ${process.version}, the app needs ${reclamee} at least — run with a newer node, or give one with --node`);
   for (const [option, chemin] of [["--electron", options.electron], ["--node", options.node], ["--nsis", options.nsis]] as const)
     if (chemin !== undefined && !existsSync(chemin)) refuser(`${option} is a missing file (${chemin})`);
   if (options.node !== undefined) verifierNode(resolve(options.node));

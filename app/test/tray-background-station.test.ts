@@ -166,9 +166,9 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
     assert.ok(principal.includes("menuBar.poser(tracking.configuration().barreDeMenus !== false && !iconAtBackground,"));
   });
 
-  test("le process de l'icône lit les projets de la station, la confirmation de quitter — et ne lance aucune commande du runtime", () => {
+  test("le process de l'icône ne lit aucun fichier de projets de la station, la confirmation de quitter — et ne lance aucune commande du runtime", () => {
     const process = read("src/tray-background/process.ts");
-    assert.ok(process.includes("projects = servedBy(root);"));
+    assert.doesNotMatch(process, /servedBy|kitchen-here/);
     assert.ok(process.includes("const text = confirmationOfQuit();"));
     assert.doesNotMatch(process, /launchHere|facts|geste\.ts/);
     assert.equal(existsSync(join(import.meta.dirname, "..", "src", "tray-background", "read.ts")), false);

@@ -92,7 +92,7 @@ function zipOf(entries: { nom: string; contenu?: Buffer; methode?: 0 | 8; crc?: 
   return Buffer.concat([...localOnes, directory, end]);
 }
 
-// Electron pour win32-x64 tel que son zip le livre, l'app et le runtime tels que le dépôt les range,
+// Electron pour win32-x64 tel que son zip le livre, l'app telle que le dépôt la range,
 // et un `node.exe` : de quoi assembler, sans réseau.
 function sources(t: TestContext) {
   const root = temporary(t);
@@ -117,12 +117,9 @@ function sources(t: TestContext) {
   for (const binary of ["pty.node", "pty.pdb", "conpty.node", "conpty.pdb", "conpty/OpenConsole.exe", "conpty/conpty.dll", "winpty.dll", "winpty-agent.exe"]) write(join(pty, "prebuilds", "win32-x64", binary));
   write(join(pty, "prebuilds", "darwin-arm64", "pty.node"));
   write(join(pty, "prebuilds", "win32-arm64", "pty.node"));
-  const runtime = join(root, "runtime");
-  write(join(runtime, "src", "kitchen", "main.ts"), "// la station");
-  write(join(runtime, "package.json"), JSON.stringify({ name: "brigade-runtime", version: "0.0.0", type: "module", engines: { node: ">=26" } }));
   const node = join(root, "node.exe");
   write(node, inHeadPe(0x8664));
-  return { racine: root, electron, app, runtime, node };
+  return { racine: root, electron, app, node };
 }
 
 // Un paquet NSIS comme celui qu'épingle windows.ts : un `makensis` par machine qui construit, et
@@ -169,9 +166,9 @@ test("extraireZip : refuse un nom qui sort du dossier, et une entrée qui ne cor
   assert.throws(() => extraireZip(Buffer.from("pas un zip"), join(folder, "c")), /no central directory/);
 });
 
-test("assembler : Electron renommé, l'app, ses dépendances de production, le runtime et le node.exe", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
-  const tree = assembler({ version: "1.2.3+gabc", electron, node, app, runtime }, join(root, "arbre", "Brigade"));
+test("assembler : Electron renommé, l'app, ses dépendances de production et le node.exe", (t) => {
+  const { racine: root, electron, app, node } = sources(t);
+  const tree = assembler({ version: "1.2.3+gabc", electron, node, app }, join(root, "arbre", "Brigade"));
   assert.equal(existsSync(join(tree, EXE)), true);
   assert.equal(existsSync(join(tree, "electron.exe")), false, "l'exécutable porte le nom de l'app");
   assert.equal(existsSync(join(tree, "ffmpeg.dll")), true);
@@ -195,34 +192,34 @@ test("assembler : Electron renommé, l'app, ses dépendances de production, le r
   for (const source of ["build", "src", "binding.gyp"]) assert.equal(existsSync(join(pty, source)), false, `${source} n'est pas porté`);
   assert.equal(existsSync(join(pty, "lib", "index.js")), true);
 
-  assert.equal(readFileSync(join(resources, "runtime", "src", "kitchen", "main.ts"), "utf8"), "// la station");
+  // Aucune cuisine dans le paquet : l'app lit les stations par leurs gists.
+  assert.equal(existsSync(join(resources, "runtime")), false);
   // Le paquet ne porte plus de plugin à installer dans les projets.
   assert.equal(existsSync(join(resources, "plugin")), false);
-  assert.equal(JSON.parse(readFileSync(join(resources, "runtime", "package.json"), "utf8")).version, "1.2.3+gabc");
   assert.deepEqual(readFileSync(join(resources, NODE_EXE)), readFileSync(node));
 });
 
 test("l'app installée lance le node.exe du paquet : le nom qu'elle donne, plus l'extension que Windows lui trouve", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
-  const resources = join(assembler({ version: "1.2.3", electron, node, app, runtime }, join(root, "Brigade")), "resources");
+  const { racine: root, electron, app, node } = sources(t);
+  const resources = join(assembler({ version: "1.2.3", electron, node, app }, join(root, "Brigade")), "resources");
   const locations = locationsOf({ ressources: resources, src: join(resources, "app", "src"), env: {} });
   assert.equal(locations.facon, "installee");
   assert.equal(locations.clone, undefined);
-  assert.equal(locations.runtime, join(resources, "runtime"));
+  assert.equal("runtime" in locations, false);
   assert.equal(`${locations.node}.exe`, join(resources, NODE_EXE));
   assert.equal(existsSync(`${locations.node}.exe`), true);
 });
 
 test("assembler : refuse un Electron qui n'est pas celui de Windows, et un node-pty sans build win32-x64", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
-  assert.throws(() => assembler({ version: "1.2.3", electron: app, node, app, runtime }, join(root, "a")), /not an Electron for Windows/);
+  const { racine: root, electron, app, node } = sources(t);
+  assert.throws(() => assembler({ version: "1.2.3", electron: app, node, app }, join(root, "a")), /not an Electron for Windows/);
   rmSync(join(app, "node_modules", "node-pty", "prebuilds", "win32-x64", "conpty.node"));
-  assert.throws(() => assembler({ version: "1.2.3", electron, node, app, runtime }, join(root, "b")), /node-pty has no build for win32-x64/);
+  assert.throws(() => assembler({ version: "1.2.3", electron, node, app }, join(root, "b")), /node-pty has no build for win32-x64/);
 });
 
 test("scriptNsis : installé pour le compte, un raccourci au menu Démarrer, un désinstalleur qui ne retire que ce qu'il a posé", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
-  const tree = assembler({ version: "1.2.3+gabc", electron, node, app, runtime }, join(root, "Brigade"));
+  const { racine: root, electron, app, node } = sources(t);
+  const tree = assembler({ version: "1.2.3+gabc", electron, node, app }, join(root, "Brigade"));
   const installer = join(root, "sortie", nomDeLInstalleur("1.2.3+gabc"));
   const script = scriptNsis({ version: "1.2.3+gabc", arbre: tree, installeur: installer });
   const lines = script.split("\n").map((line) => line.trim());
@@ -271,7 +268,7 @@ test("makensisDe : le makensis du paquet pour la machine qui construit, et ses f
 });
 
 test("construire : un seul installeur, au nom de sa version, sous la sortie", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
+  const { racine: root, electron, app, node } = sources(t);
   const nsis = packageNsis(root);
   const calls: { commande: string; args: readonly string[]; nsisdir: string | undefined }[] = [];
   // Le faux makensis écrit le fichier que nomme l'OutFile du script.
@@ -283,7 +280,7 @@ test("construire : un seul installeur, au nom de sa version, sous la sortie", (t
     return { status: 0, stdout: "", stderr: "" };
   };
   const output = join(root, "construit");
-  const installer = construire({ version: "1.2.3+gabc", electron, node, app, runtime, nsis, sortie: output, atelier: join(root, "atelier"), executer: run });
+  const installer = construire({ version: "1.2.3+gabc", electron, node, app, nsis, sortie: output, atelier: join(root, "atelier"), executer: run });
   assert.equal(installer, join(output, "Brigade-1.2.3+gabc-x64-setup.exe"));
   assert.deepEqual(readdirSync(output), ["Brigade-1.2.3+gabc-x64-setup.exe"]);
   assert.equal(calls.length, 1);
@@ -292,20 +289,20 @@ test("construire : un seul installeur, au nom de sa version, sous la sortie", (t
 });
 
 test("construire : un makensis qui échoue fait échouer la construction, en disant pourquoi", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
+  const { racine: root, electron, app, node } = sources(t);
   const run: Executer = () => ({ status: 1, stdout: "", stderr: "Error in script on line 12" });
   assert.throws(
-    () => construire({ version: "1.2.3", electron, node, app, runtime, nsis: packageNsis(root), sortie: join(root, "construit"), atelier: join(root, "atelier"), executer: run }),
+    () => construire({ version: "1.2.3", electron, node, app, nsis: packageNsis(root), sortie: join(root, "construit"), atelier: join(root, "atelier"), executer: run }),
     (error: Error & { code?: number }) => error.code === 1 && /makensis failed .*Error in script on line 12/.test(error.message),
   );
 });
 
 test("construire : refuse un node qui n'est pas un exécutable Windows x64", (t) => {
-  const { racine: root, electron, app, runtime } = sources(t);
+  const { racine: root, electron, app } = sources(t);
   const node = join(root, "node");
   write(node, "#!/bin/sh\n");
   assert.throws(
-    () => construire({ version: "1.2.3", electron, node, app, runtime, nsis: packageNsis(root), sortie: join(root, "construit"), atelier: join(root, "atelier"), executer: executerVraiment }),
+    () => construire({ version: "1.2.3", electron, node, app, nsis: packageNsis(root), sortie: join(root, "construit"), atelier: join(root, "atelier"), executer: executerVraiment }),
     (error: Error & { code?: number }) => error.code === 2 && /not a Windows x64 executable/.test(error.message),
   );
   assert.equal(existsSync(join(root, "construit")), false);
@@ -336,9 +333,9 @@ test("cheminSansNode : le PATH de l'essai, sans aucun dossier qui porte un node.
 });
 
 test("le vrai makensis compile le script de l'installeur", { skip: process.env.BRIGADE_NSIS ? false : "BRIGADE_NSIS (an extracted NSIS bundle) is not set" }, (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
+  const { racine: root, electron, app, node } = sources(t);
   const output = join(root, "construit");
-  const installer = construire({ version: "1.2.3", electron, node, app, runtime, nsis: process.env.BRIGADE_NSIS ?? "", sortie: output, atelier: join(root, "atelier"), executer: executerVraiment });
+  const installer = construire({ version: "1.2.3", electron, node, app, nsis: process.env.BRIGADE_NSIS ?? "", sortie: output, atelier: join(root, "atelier"), executer: executerVraiment });
   const start = readFileSync(installer).subarray(0, 2).toString("latin1");
   assert.equal(start, "MZ", "un exécutable Windows");
 });

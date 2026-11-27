@@ -716,7 +716,6 @@ export const NAMES: Record<string, string> = {
   "app/src/retard.ts#relancer": "rerun",
   "app/src/retard.ts#resoudre": "settle",
   "app/src/second/lancement.ts#crochets": "hookFiles",
-  "app/src/station-process/superviseur.ts#revenue": "returned",
   "app/src/suivi.ts#veiller": "keepWatch",
   "app/src/tableau-gestes/reponse-github.ts#retire": "withdrawn",
   "app/src/terminaux.ts#attacher": "bind",

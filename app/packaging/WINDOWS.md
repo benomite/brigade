@@ -3,7 +3,7 @@
 A single `.exe` for Windows x64. Opened on a PC with no Node and no clone of the repository, it
 installs the app for the current account, with no administrator rights, adds a **Brigade** entry to
 the Start menu and an uninstaller, and the app opens on its main screen. Like the Mac app, it
-carries the runtime of its station and the `node.exe` that runs it. The Mac `.dmg` is described in
+carries the `node.exe` that serves it, and no runtime. The Mac `.dmg` is described in
 [`README.md`](README.md). This page covers what the installer carries, how it is built and how to
 try it.
 
@@ -65,7 +65,6 @@ elsewhere):
 |---|---|
 | `Brigade.exe`, its DLLs, `.pak` files, `locales/` | the official Electron for win32-x64, as is, with `electron.exe` renamed `Brigade.exe` |
 | `resources/app/` | `src/`, the app's `package.json` (named `Brigade`, at the built version, without scripts or dev dependencies) and its production dependencies. node-pty keeps only its win32-x64 build, without debug symbols (`.pdb`) |
-| `resources/runtime/` | `src/` and `package.json` of the runtime, at the built version |
 | `resources/node/bin/brigade-node.exe` | the `node` that runs the station |
 | `Uninstall Brigade.exe` | the uninstaller |
 
@@ -100,8 +99,8 @@ with `/D=` takes nothing else with it. It does not remove the chef's projects an
 The tests (`app/test/packaging/windows.test.ts`) need no network and no Windows. They check:
 
 - the folder the installer copies: Electron renamed, the app and its production dependencies,
-  node-pty for win32-x64 only, the runtime, `node.exe`;
-- that the installed app finds its runtime and its `node.exe` there;
+  node-pty for win32-x64 only, `node.exe`, and no `runtime/`;
+- that the installed app finds its `node.exe` there;
 - the zip extraction of Electron;
 - the NSIS script: per-account install, the shortcut and its ID, the uninstall key, and the entries
   removed;

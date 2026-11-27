@@ -4,79 +4,21 @@
 // suivi de ses stations, pas dans la demande ; et un déménagement en cours, écrit par le runtime
 // dans la demande (`remise`, `reprise`), survit à toute réécriture de l'app.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test } from "node:test";
 import { accepterSansBacASable, decisionAttendue, lireDecisionSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
 import { documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, type ProjectRequest } from "../../src/projects/request.ts";
-import { MOVE, moverOfRuntime, readRendered, type Mover } from "../../src/projects/move.ts";
+import type { Mover } from "../../src/projects/move.ts";
 import { holdProjects, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { Files, GitHubOfStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
-import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
 
 const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
 const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
 const REQUEST_THE = "2026-10-20T10:00:00.000Z";
 const PARADE: ProjectRequest = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "sonnet", effort: "medium" }, ouvertLe: null, demandeLe: REQUEST_THE };
-
-test("le rendu du runtime : déménagé, refusé avec sa phrase, ou ce qui a manqué — jamais rien", () => {
-  assert.deepEqual(readRendered(0, '{"moved":true,"project":"parade","from":"parade-box","to":"macbook","askedAt":"…"}\n', ""), { demenage: { projet: "parade", de: "parade-box", vers: "macbook" } });
-  // Vers cet ordinateur sans bac à sable : la raison du runtime, telle quelle, dit ce qui manque.
-  const said = "sandbox-exec is missing on this computer: the sandbox cannot run";
-  assert.deepEqual(readRendered(1, `${JSON.stringify({ moved: false, said })}\n`, ""), { refus: said });
-  // GitHub injoignable, commande mal appelée, sortie illisible : une ligne, le détail à part.
-  assert.deepEqual(readRendered(3, "", "brigade : les stations n'ont pas pu être lues sur GitHub, rien n'est changé — HTTP 502\n"), {
-    refus: "GitHub could not be read or written: nothing was changed",
-    detail: "brigade : les stations n'ont pas pu être lues sur GitHub, rien n'est changé — HTTP 502",
-  });
-  assert.equal((readRendered(2, "", "usage") as { refus: string }).refus, "the runtime did not understand the request: nothing was changed");
-  assert.deepEqual(readRendered(1, "Error: boom\n", ""), { refus: "the runtime gave no answer (exit code 1): nothing was changed", detail: "Error: boom" });
-});
-
-// Un faux runtime : son opération rend ce que le test lui fait dire, et note comment elle a été lancée.
-function oneRuntime(t: TestContext, body: string) {
-  const runtime = mkdtempSync(join(tmpdir(), "brigade-app-demenagement-"));
-  t.after(() => rmSync(runtime, { recursive: true, force: true }));
-  mkdirSync(join(runtime, "src", "demenagement"), { recursive: true });
-  writeFileSync(join(runtime, MOVE), `import { writeFileSync } from "node:fs";\nwriteFileSync("lance.json", JSON.stringify({ args: process.argv.slice(2), station: process.env.BRIGADE_STATION_DIR, cwd: process.cwd() }));\n${body}\n`);
-  const launches = () => JSON.parse(readFileSync(join(runtime, "lance.json"), "utf8")) as { args: string[]; station: string; cwd: string };
-  return { runtime, lance: launches };
-}
-
-test("l'opération part du runtime de cet ordinateur, avec le répertoire de sa station et les gists de toutes les stations", async (t) => {
-  const { runtime, lance: launches } = oneRuntime(t, `process.stdout.write(JSON.stringify({ moved: true, project: "parade", from: "parade-box", to: "macbook", askedAt: "x" }) + "\\n");`);
-  const relocate = moverOfRuntime({ node: process.execPath, runtime, racine: "/tmp/station-du-mac", env: { ...CACHE_OF_COMPILATION }, delaiMs: 60_000 });
-  assert.deepEqual(await relocate("parade", "gmac", ["gbox", "gmac"]), { demenage: { projet: "parade", de: "parade-box", vers: "macbook" } });
-  const { args, station } = launches();
-  assert.deepEqual(args, ["parade", "gmac", "gbox"]);
-  assert.equal(station, "/tmp/station-du-mac");
-});
-
-test("refusée par le runtime — pas de bac à sable sur ce Mac —, l'opération rend sa phrase", async (t) => {
-  const said = "la configuration du bac à sable ne tient pas sur ce Mac — sandbox-exec is missing";
-  const { runtime } = oneRuntime(t, `process.stdout.write(JSON.stringify({ moved: false, said: ${JSON.stringify(said)} }) + "\\n"); process.exit(1);`);
-  const relocate = moverOfRuntime({ node: process.execPath, runtime, racine: "/tmp/station", env: { ...CACHE_OF_COMPILATION }, delaiMs: 60_000 });
-  assert.deepEqual(await relocate("parade", "gmac", ["gbox", "gmac"]), { refus: said });
-});
-
-test("la station qui remet sa cuisine part avec `--de` ; vers elle-même, rien n'est nommé", async (t) => {
-  const { runtime, lance: launches } = oneRuntime(t, `process.stdout.write(JSON.stringify({ moved: true, project: "parade", from: "parade-box", to: "pi", askedAt: "x" }) + "\\n");`);
-  const relocate = moverOfRuntime({ node: process.execPath, runtime, racine: "/tmp/station", env: { ...CACHE_OF_COMPILATION }, delaiMs: 60_000 });
-  await relocate("parade", "gpi", ["gbox", "gmac", "gpi"], "gbox");
-  assert.deepEqual(launches().args, ["parade", "gpi", "gbox", "gmac", "--de", "gbox"]);
-  await relocate("parade", "gbox", ["gbox", "gmac"], "gbox");
-  assert.deepEqual(launches().args, ["parade", "gbox", "gmac"]);
-});
-
-test("un runtime qui ne se lance pas se dit aussi, en une ligne", async () => {
-  const relocate = moverOfRuntime({ node: "/nulle/part/node", runtime: "/nulle/part", racine: "/tmp/station", env: {}, delaiMs: 60_000 });
-  const rendered = await relocate("parade", "gmac", ["gbox", "gmac"]);
-  assert.ok("refus" in rendered);
-  assert.equal(rendered.refus, "the runtime could not be launched on this computer: nothing was changed");
-  assert.match(rendered.detail ?? "", /\/nulle\/part\/node/);
-});
 
 // GitHub, en mémoire : le gist de chaque station, ses fichiers.
 function oneGitHub(gists: Record<string, Files>): GitHubOfStations {
