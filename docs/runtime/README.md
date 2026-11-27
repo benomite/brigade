@@ -112,8 +112,11 @@ is in service on it, and the app reads it too. Stopping the kitchen stops no age
 and the next kitchen takes it back (`KillMode=process`).
 
 The box's update: every ten minutes `brigade-station-mise-a-jour.timer` installs the latest `station-<version>`
-release; if the kitchen does not say it is in service on it within two minutes, or serves fewer projects than before,
-the previous package comes back. `gel=oui` in `/var/lib/brigade/reglages` freezes the version.
+release's archive (`brigade-station-<version>-<os>-<arch>.tar.gz`), unpacks it into `/opt/brigade-station/<version>/`,
+runs that version's `install.sh --update`, switches `current` and restarts the station; if the kitchen does not say it
+is in service on it within two minutes, or serves fewer projects than before, `current` goes back to the previous
+version (the last two are kept). `node src/mise-a-jour/main.ts --check` (`brigade update --check`) says which version
+a pass would install, changing nothing. `gel=oui` in `/var/lib/brigade/reglages` freezes the version.
 
 ## Variables
 
