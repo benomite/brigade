@@ -11,7 +11,7 @@ import { describe, test, type TestContext } from "node:test";
 import { FILE_PROJECTS, FILE_TRACKING } from "../../src/projects/request.ts";
 import { repositoriesOfChef } from "../../src/projects/github.ts";
 import { plafondDesCoeurs } from "../../../runtime/src/projections/stations.ts";
-import { projetDuClone } from "../../../runtime/src/projets/ajout-de-station.ts";
+import { readClone } from "../../src/addition.ts";
 import type { ProjectRequest } from "../../src/projects/request.ts";
 import { warning, CALIBRATION_MEASURE, calibrationRecommended, cooksOfCores, isOneComputer, mergeTheTime, readTrust, readInput, machineProposed, nameOfProject, stationRecommended, refusalOfTrust, refusalOfInput, holdProjects, type OptionsProjects, type SeenOfProjects } from "../../src/projects/projects.ts";
 import { githubOfStations } from "../../src/stations/github.ts";
@@ -361,19 +361,22 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
   });
 
   // Ajouter une station ne demande que ce qui est à sa machine (#1307) : le dépôt et la branche que la première ne dit
-  // pas, le clone du projet sur cet ordinateur les dit — lu par l'opération même du runtime (#1306).
+  // pas, le clone du projet sur cet ordinateur les dit — lu par `git`, comme le process principal le lit (addition.ts, #1306).
   test("une station de plus prend au clone du projet sur cet ordinateur le dépôt et la branche que la première ne dit pas", { skip: WITHOUT_POSIX }, async (t) => {
     const clone = mkdtempSync(join(tmpdir(), "brigade-app-clone-"));
     t.after(() => rmSync(clone, { recursive: true, force: true }));
     execFileSync("git", ["init", "--quiet", clone]);
     execFileSync("git", ["-C", clone, "remote", "add", "origin", "https://github.com/benomite/parade.git"]);
-    writeFileSync(join(clone, "CLAUDE.md"), "- **Branche d'intégration** : `v2`\n");
+    // La branche que son origine désigne : `origin/v2`.
+    execFileSync("git", ["-C", clone, "-c", "user.name=chef", "-c", "user.email=chef@example.com", "-c", "commit.gpgsign=false", "commit", "--quiet", "--allow-empty", "-m", "v2"]);
+    execFileSync("git", ["-C", clone, "update-ref", "refs/remotes/origin/v2", "HEAD"]);
+    execFileSync("git", ["-C", clone, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/v2"]);
     const readOnes: string[] = [];
     const { projets: projects, demande: request } = oneGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC], {
       leClone: async (name) => {
         readOnes.push(name);
-        const { depot: repository, base } = await projetDuClone(clone);
-        return { depot: repository, base };
+        const { depot: repository, base } = await readClone("git", clone);
+        return { depot: repository ?? null, base: base ?? null };
       },
     });
     assert.deepEqual(await projects.confier({ ...WITHOUT_NOTHING, cooks: "4" }), { ajoute: "parade" });
@@ -381,7 +384,7 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.deepEqual([written?.depot, written?.base, written?.cooks, written?.principale], ["benomite/parade", "v2", 4, false]);
     assert.deepEqual(readOnes, ["parade"]);
     // Rien ne s'écrit dans le clone : il n'est que lu.
-    assert.equal(execFileSync("git", ["-C", clone, "status", "--porcelain"], { encoding: "utf8" }), "?? CLAUDE.md\n");
+    assert.equal(execFileSync("git", ["-C", clone, "status", "--porcelain"], { encoding: "utf8" }), "");
   });
 
   test("ce que la première dit, ou ce que l'app a déjà demandé, dispense de lire le clone ; un clone illisible se tait", { skip: WITHOUT_POSIX }, async (t) => {

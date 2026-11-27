@@ -4,7 +4,7 @@ Date: 2026-11-23 · Epic: #4019 · Status: **validated by the chef on 2026-11-23
 
 ## Why
 
-The spec of 2026-11-20 (`2026-11-20-kitchen-spinning.md`, #3904) froze the self-supervision mechanisms, deleted the ones that filed tickets, and put one supervisor in their place. Everything in it is delivered. Since 2026-11-21 the supervisor has turned a red `main` green by itself three times, with no repair ticket and no human.
+The spec of 2026-11-20 (#3904) froze the self-supervision mechanisms, deleted the ones that filed tickets, and put one supervisor in their place. Everything in it is delivered. Since 2026-11-21 the supervisor has turned a red `main` green by itself three times, with no repair ticket and no human.
 
 That fixed the worst of it, but on 2026-11-22 the chef asked for the next step: make Brigade **much more autonomous**, make it **much more trustworthy** for its user, and give that user **a view of, and control over, every agent**, the autonomous ones above all (supervisor, closer, manager, pass).
 

@@ -1,5 +1,4 @@
-// Les gestes du superviseur (#3944, spec 2026-11-20-kitchen-spinning,
-// section B) : ce que le manager peut faire d'un réveil, sur GitHub, et rien
+// Les gestes du superviseur (#3944, épique #3904) : ce que le manager peut faire d'un réveil, sur GitHub, et rien
 // d'autre. Six gestes, un jeu fermé :
 //   1. `rerun` — relancer les jobs en échec des checks rouges de la base ;
 //   2. `back-on-rail` — remettre un ticket sur le rail, avec une note ;

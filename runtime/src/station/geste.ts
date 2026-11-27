@@ -53,12 +53,10 @@ const scripts = Object.entries((JSON.parse(readFileSync("package.json", "utf8"))
 );
 const script = scripts.find(([nom]) => nom === commande)?.[1];
 if (script === undefined) {
-  const connues = scripts.filter(([, s]) => s !== "node src/ancien-nom.ts").map(([nom]) => nom);
-  refuser(PAS_DU_RUNTIME, `« ${commande} » n'est pas une commande du runtime — celles de cette station : ${connues.join(", ")}`);
+  refuser(PAS_DU_RUNTIME, `« ${commande} » n'est pas une commande du runtime — celles de cette station : ${scripts.map(([nom]) => nom).join(", ")}`);
 }
 
-// `npm run` donnait son nom à la commande : `ancien-nom.ts` le lit pour dire le nouveau.
-const env = { ...environnementDeLaCommande(racine, lu, process.env), npm_lifecycle_event: commande };
+const env = environnementDeLaCommande(racine, lu, process.env);
 const rendu = spawnSync(process.execPath, [script.slice("node ".length), ...args], { env, stdio: "inherit" });
 if (rendu.error) refuser(1, `la commande ${commande} ne part pas — ${rendu.error.message}`);
 if (rendu.signal !== null) process.kill(process.pid, rendu.signal);

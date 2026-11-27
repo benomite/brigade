@@ -44,22 +44,10 @@ For people who run a station on a server.
 ## Understand how brigade works
 
 - [The glossary](glossary.md) — the one English word for each object of the product.
-- [The V2 runtime](runtime/README.md) — the index of the runtime's pages: the log, the rail, the
-  station, the pass.
-- [The rail and the log](runtime/journal-et-rail.md) — what the runtime keeps and how the queue of
-  tickets is built from it.
-- [The pass](runtime/pass.md) — how a delivery is judged, by whom, and what happens after.
-- [The station](runtime/station.md) — where the cooks run, and how a ticket becomes a card.
-- [The guardrails](runtime/garde-fous.md) — the caps, and how to stop and resume the kitchen.
-
-## Look after the running kitchen
-
-- [The state of the kitchen](runtime/etat-et-mesures.md) — what the kitchen is doing now and how it
-  is measured.
-- [Pass and merge](runtime/pass-merge.md) — the merge, seeing the pass, and what the pass
-  does not guarantee.
-- [Looking at an interface delivery](runtime/station-navigateur.md) — why the box no longer serves
-  its page, and how to look at one now.
+- [The kitchen](runtime/README.md) — the runtime: one loop that reads GitHub, decides, and launches
+  the agents; where it runs, and how a ticket's labels say its state.
+- [The agents' sandbox](runtime/bac-a-sable.md) — what an agent may do on the network, on Linux and
+  on a Mac.
 
 ## Contribute to brigade
 
@@ -67,6 +55,6 @@ For people who run a station on a server.
 - [The repository root](../README.md) — the project's overview and the protocol as the chef lives it.
 - [Worktrees, gates and the team's conventions](../CLAUDE.md) — the rules a contributor and a cook
   follow in this repository.
-- [The runtime's operation](runtime/exploitation.md) — how to run and test the runtime on a
-  development workstation.
+- [The kitchen on a development workstation](runtime/README.md#on-the-dev-workstation) — how to run
+  and test the runtime, and the rules of this repo.
 - [The app's development](app.md) — how the app is built and started on a development workstation.

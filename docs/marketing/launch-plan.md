@@ -300,12 +300,12 @@ Use these as answers in the threads. Each ends on what is true today; do not pro
 - Brigade itself costs nothing: MIT, no subscription, no per-ticket fee, no commission ([`site/tarifs.html`](../../site/tarifs.html)).
 - The cooks use the Claude Max session you already pay for. An API key does not fit, so there is no per-token surprise bill; the limit is your plan's.
 - The only other cost is a machine, if you choose a cloud station, paid to your own provider. A station runs only while the rail has servable tickets.
-- You set the ceiling: caps on duration, tokens and simultaneous cooks ([`docs/runtime/garde-fous.md`](../runtime/garde-fous.md)), so a runaway ticket cannot use more than you allowed.
+- You set the ceiling: caps on duration, tokens and simultaneous cooks ([`docs/runtime/README.md`](../runtime/README.md)), so a runaway ticket cannot use more than you allowed.
 - Honest limit: if you do not have Max, Brigade is not for you yet. Say so.
 
 ### 2. "I don't trust auto-merge"
 
-- A PR merges once its verdict is approved and the CI of its head is green; GitHub refuses the merge if the branch moved after it was judged ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)).
+- A PR merges once its verdict is approved and the CI of its head is green; GitHub refuses the merge if the branch moved after it was judged ([`docs/runtime/README.md`](../runtime/README.md)).
 - The brakes are the `stop`, which halts every cook within the second, and a second judge for any delivery that changes what judges it. The verdict is on the PR, so "why is this on `main`?" has an answer.
 - Honest limit, stated in the doc: code lands without a human having read it; its judges are the gates, the CI and a reviewer that is a model.
 
@@ -313,7 +313,7 @@ Use these as answers in the threads. Each ends on what is true today; do not pro
 
 - Brigade has no server of its own. The app and the cooks run on your machine or your own cloud station, with your repo and your accounts. Nothing goes through a Brigade service.
 - Credentials: the app signs you in to GitHub and Claude in your browser.
-- Blast radius: one worktree per ticket, caps, a breaker and a `stop` that halts every cook within the second ([`docs/runtime/garde-fous.md`](../runtime/garde-fous.md)).
+- Blast radius: one worktree per ticket, caps, a breaker and a `stop` that halts every cook within the second ([`docs/runtime/README.md`](../runtime/README.md)).
 - Honest limits: a cook is a `claude` session that runs code on the machine you give it, so use a throwaway repository for a first run, and a dedicated machine for a cloud station. No third-party security audit exists; do not say otherwise. There is no `SECURITY.md` yet: if someone reports a vulnerability, point them to a private GitHub security advisory on the repo.
 
 ## After posting (chef)

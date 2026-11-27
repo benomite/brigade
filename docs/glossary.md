@@ -63,7 +63,7 @@ Related terms built on « cuisine »:
 | `sans progrès` | `no progress` | Time since the worktree last moved |
 | `brûle` | `burns` | What a ticket spends |
 | `fiche` | `card` | The ticket's machine-readable card (`attend`, `zone`) |
-| `fiche du projet` | `project sheet` | What a project declares of its kitchen, in `.brigade/fiche-projet.json`: its eight items. See [runtime/fiche-projet.md](runtime/fiche-projet.md) |
+| `fiche du projet` | `project sheet` | What a project declares of its kitchen, in `.brigade/fiche-projet.json`: its eight items. See [runtime/README.md](runtime/README.md) |
 | `sensible` | `sensitive` | A ticket marked as touching a migration, security, a payment or the deletion of user data. See [sensitive-tickets.md](sensitive-tickets.md) |
 | `relecture avant merge` | `review before merge` | The TODO card a sensitive ticket waits on after the pass. See [sensitive-tickets.md](sensitive-tickets.md) |
 | `carte` (de projet) | `tile` | A project's summary in All projects |

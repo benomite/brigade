@@ -1,5 +1,5 @@
 // La relecture et le merge d'une PR quand GitHub est le seul état de la cuisine
-// (spec `docs/superpowers/specs/2026-11-02-github-only-state.md`). Aucune
+// (épique #2053). Aucune
 // station n'est à part : celle qui a cuisiné, une autre, n'importe laquelle
 // relit la PR et y poste son verdict ; n'importe laquelle la merge. Ce module
 // ne lit et n'écrit que par le client de GitHub qu'on lui passe, et ne demande

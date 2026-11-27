@@ -4,8 +4,7 @@
 // nas n'est qu'enregistrée. Avant #1778, la section les listait deux fois, et les deux lectures se contredisaient.
 import { type Home, lineOfStation } from "../../../app/src/home.ts";
 import type { StationVue, SeenOfStations } from "../../../app/src/stations/stations.ts";
-import * as contrat from "../../../runtime/src/enregistrement-station/contrat.ts";
-import { stationDuGist, type StationEnregistree, type StationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationRecorded, StationsOfAccount } from "../../../app/src/stations-of-account.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -17,19 +16,26 @@ const BOX: StationVue = { id: "f0a1", nom: "parade-box", machine: "Debian 12 · 
 const MAC: StationVue = { id: "f0b2", nom: "macbook-air-de-benoit", machine: "macOS 15 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: [], max: null };
 const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [MAC, BOX] };
 
-// Ce que les gists d'enregistrement disent, écrits par le lecteur du runtime (`stationDuGist`).
-const enregistrement = (name: string, platform: string, machine: string) =>
-  JSON.stringify({ brigade: "station-registration", format: 1, name, platform, machine, version: "2.4.0", registeredAt: "2026-10-01T08:00:00.000Z", lastSeen: IL_Y_A(1), refreshMs: 120_000, stoppedAt: null });
-const selection = (repositories: string[]) => JSON.stringify({ brigade: "station-selection", format: 1, repositories, updatedAt: IL_Y_A(60) });
-function lue(id: string, fichiers: Record<string, string>): StationEnregistree {
-  const station = stationDuGist(id, fichiers, "benomite", INSTANT);
-  if ("illisible" in station) throw new Error(station.illisible);
-  return station;
-}
-const MAC_ENREGISTRE = lue("e1c3", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("macbook-air-de-benoit", "macos", "macOS 24.1.0"), [contrat.FICHIER_SELECTION]: selection(["benomite/brigade"]) });
-const NAS = lue("e2d4", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("nas", "linux", "Linux 6.1.0") });
-const BOX_ENREGISTREE = lue("e3e5", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("parade-box", "linux", "Linux 6.1.0") });
-const DU_COMPTE: StationsDuCompte = { state: "listed", stations: [MAC_ENREGISTRE, NAS, BOX_ENREGISTREE], unreadable: [] };
+// Ce que les gists d'enregistrement disent, tel que l'app le reçoit (`StationRecorded`) : chacune vue il y a une minute,
+// disponible ; `selection`, les dépôts choisis pour elle, null sans sélection écrite.
+const enregistree = (id: string, name: string, platform: string, machine: string, selection: string[] | null): StationRecorded => ({
+  id,
+  name,
+  platform,
+  machine,
+  version: "2.4.0",
+  account: "benomite",
+  available: true,
+  registeredAt: "2026-10-01T08:00:00.000Z",
+  lastSeen: IL_Y_A(1),
+  stoppedAt: null,
+  refreshMs: 120_000,
+  selection,
+});
+const MAC_ENREGISTRE = enregistree("e1c3", "macbook-air-de-benoit", "macos", "macOS 24.1.0", ["benomite/brigade"]);
+const NAS = enregistree("e2d4", "nas", "linux", "Linux 6.1.0", null);
+const BOX_ENREGISTREE = enregistree("e3e5", "parade-box", "linux", "Linux 6.1.0", null);
+const DU_COMPTE: StationsOfAccount = { state: "listed", stations: [MAC_ENREGISTRE, NAS, BOX_ENREGISTREE], unreadable: [] };
 
 const DEPOTS = { depots: ["benomite/brigade", "benomite/parade", "benomite/cantine"].map((depot) => ({ depot, base: "main" })) };
 

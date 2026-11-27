@@ -88,7 +88,7 @@ describe("sous Linux", { skip: sansSystemd }, () => {
     assert.ok(appels.some((a) => /^apt-get install -y -q \/\S+\/brigade-station\.deb$/.test(a)), appels.join("\n"));
     assert.ok(appels.includes("systemctl --quiet is-active brigade-station.service"), appels.join("\n"));
     assert.match(rendu.sortie, /station installée et active — 1\.2\.3/);
-    assert.match(rendu.sortie, /la suite : la connexion GitHub et la connexion Max du compte brigade, puis l'appairage avec l'app — pas de terminal ici/);
+    assert.match(rendu.sortie, /la suite : la connexion GitHub et la connexion Max du compte brigade, puis tes projets — pas de terminal ici/);
     assert.deepEqual(appels.filter((a) => a.startsWith("runuser") || a.startsWith("sudo")), []);
   });
 
@@ -208,9 +208,9 @@ describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh thro
   function serveur(t: TestContext, version: string, { empreinteFausse = false } = {}): string {
     const dossier = repertoireTemporaire(t);
     const construire = repertoireTemporaire(t);
-    mkdirSync(join(construire, "runtime/src/station"), { recursive: true });
+    mkdirSync(join(construire, "runtime/src/kitchen"), { recursive: true });
     writeFileSync(join(construire, "runtime/package.json"), `{\n  "name": "brigade-runtime",\n  "version": "${version}",\n  "type": "module"\n}\n`);
-    writeFileSync(join(construire, "runtime/src/station/main.ts"), "// la station\n");
+    writeFileSync(join(construire, "runtime/src/kitchen/main.ts"), "// la cuisine\n");
     const nomNode = `node-${VERSION_NODE}-darwin-arm64`;
     mkdirSync(join(construire, nomNode, "bin"), { recursive: true });
     // Le node posé : il dit sa version, et note où et comment la station le lance.
@@ -254,7 +254,7 @@ describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh thro
       appels.filter((a) => a.startsWith("curl")).map((a) => a.split(" ").at(-1)),
       ["https://nodejs.org/dist/latest-v26.x/SHASUMS256.txt", `https://nodejs.org/dist/latest-v26.x/node-${VERSION_NODE}-darwin-arm64.tar.gz`, "https://github.com/acme/brigade/releases/download/station/brigade-station-mac.tar.gz"],
     );
-    assert.ok(existsSync(join(mac.base, "runtime/src/station/main.ts")));
+    assert.ok(existsSync(join(mac.base, "runtime/src/kitchen/main.ts")));
     assert.equal(spawnSync(join(mac.base, "node/bin/node"), ["-v"], { encoding: "utf8" }).stdout.trim(), VERSION_NODE);
     assert.ok(appels.includes(`launchctl bootstrap gui/501 ${mac.plist}`), appels.join("\n"));
     assert.deepEqual(
@@ -286,7 +286,7 @@ describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh thro
     assert.doesNotMatch(plist, /TOKEN|token|sk-ant/);
   });
 
-  test("le lanceur prend le répertoire de la station, garde son pid, et lance le point d'entrée du runtime", (t) => {
+  test("le lanceur prend le répertoire de la station, garde son pid, et lance la cuisine", (t) => {
     const mac = unMac(t, serveur(t, "1.2.3"));
     assert.equal(jouer([], mac.env).code, 0);
     const racine = join(mac.home, ".config/brigade/station");
@@ -295,7 +295,7 @@ describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh thro
     writeFileSync(join(racine, "app.pid"), `${mort.pid}\n`);
     const rendu = spawnSync("/bin/sh", [join(mac.base, "lancer-station")], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", BRIGADE_STATION_DIR: racine } });
     assert.equal(rendu.status, 0, rendu.stderr);
-    assert.equal(rendu.stdout.trim(), `node src/station/main.ts dans ${join(mac.base, "runtime")} — BRIGADE_STATION_DIR=${racine}`);
+    assert.equal(rendu.stdout.trim(), `node src/kitchen/main.ts dans ${join(mac.base, "runtime")} — BRIGADE_STATION_DIR=${racine}`);
     assert.equal(readFileSync(join(racine, "app.pid"), "utf8").trim(), String(rendu.pid));
   });
 

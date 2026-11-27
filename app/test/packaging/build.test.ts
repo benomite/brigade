@@ -176,7 +176,7 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.ok(existsSync(join(pty, "lib", "index.js")));
 
   // Le runtime, à la version construite, sans ses tests ; et le `node` du paquet, exécutable.
-  assert.ok(existsSync(join(resources, "runtime", "src", "station", "main.ts")));
+  assert.ok(existsSync(join(resources, "runtime", "src", "kitchen", "main.ts")));
   assert.ok(!existsSync(join(resources, "runtime", "test")));
   assert.ok(!existsSync(join(resources, "runtime", "node_modules")));
   assert.equal(JSON.parse(readFileSync(join(resources, "runtime", "package.json"), "utf8")).version, "0.20261019.151600+g76f93fe");
@@ -194,7 +194,7 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   const locations = locationsOf({ ressources: resources, src: join(resources, "app", "src"), env: {} });
   assert.equal(locations.node, join(resources, "node", "bin", "brigade-node"));
   assert.ok(existsSync(locations.node));
-  assert.deepEqual(roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {} }), { role: "station", principal: join(resources, "runtime", "src", "station", "main.ts") });
+  assert.deepEqual(roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {} }), { role: "station", principal: join(resources, "runtime", "src", "kitchen", "main.ts") });
   // Les commandes du plugin de l'app (src/plugin-app.ts) : `dev.md` et `ask.md` de `commands/`, et rien d'autre.
   assert.deepEqual(readdirSync(locations.commandes).sort(), ["ask.md", "dev.md"]);
   for (const name of ["dev.md", "ask.md"]) assert.equal(readFileSync(join(locations.commandes, name), "utf8"), readFileSync(join(APP, "..", "commands", name), "utf8"));
@@ -212,7 +212,7 @@ test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l
   const { BRIGADE_STATION_DIR: _, ...env } = process.env;
   const launches = spawnSync(process.execPath, [join(resources, "app", "src", "workstation", "envelope.ts"), role.role === "station" ? role.principal : ""], { cwd: locations.runtime, env, encoding: "utf8", input: "" });
   assert.equal(launches.status, 2, launches.stderr);
-  assert.match(launches.stderr, /refus de démarrer la station — BRIGADE_STATION_DIR n'est pas défini/);
+  assert.match(launches.stderr, /kitchen: BRIGADE_STATION_DIR is not set/);
 });
 
 test("le .dmg : l'app signée ad hoc, puis un volume qui porte Brigade.app et le lien vers Applications", { skip: PACKAGES }, (t) => {
