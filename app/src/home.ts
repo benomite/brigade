@@ -57,7 +57,7 @@ export type ReadFacts = { a: string } & ({ faits: Facts } | { injoignable: true 
 export type StatusRead = { texte: string; attend?: string };
 
 const s = (howMany: number) => (howMany > 1 ? "s" : "");
-// Une durée que la box écrit (runtime/src/etat.ts, `duree`) — « 40 s », « 12 min », « 3 h 05 », « 2 j » —, dans les mots de l'app.
+// Une durée que la box écrit (`duree`) — « 40 s », « 12 min », « 3 h 05 », « 2 j » —, dans les mots de l'app.
 const inEnglish = (duration: string) => duration.replace(/ j$/, " d");
 
 // --- Un projet -------------------------------------------------------------------
@@ -73,7 +73,7 @@ function causes(status: string): string[] {
   });
 }
 const baseRed = (status: string | undefined) => status !== undefined && headsOf(status).some(({ titre: title, valeur: value }) => title === "base" && /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u.test(value));
-// Le ticket qui répare la base rouge, quand `status` le dit en tête (runtime/src/etat.ts, `RIEN_NE_CUIT`),
+// Le ticket qui répare la base rouge, quand `status` le dit en tête (`RIEN_NE_CUIT`),
 // en anglais ou en français (#928).
 const repair = (status: string | undefined): number | undefined => {
   const [, english, french] = /^(?:nothing cooks: base red since .*, repair #(\d+) in progress|rien ne cuit : base rouge depuis .*, réparation #(\d+) en cours)$/m.exec(status ?? "") ?? [];
@@ -99,7 +99,7 @@ function blockers(facts: Facts, status: string | undefined): string[] {
   }
 }
 
-// Depuis quand la plus ancienne décision attend le chef : la tête du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`),
+// Depuis quand la plus ancienne décision attend le chef : la tête du bloc `attend` (`decrireAttentes`),
 // en français ou en anglais (`awaiting   2 decisions await the chef — the oldest for 3 d`, #927).
 const since = (awaiting: string | undefined): string | undefined => {
   const [, duration] = /^(?:attend +\d+ décisions? attend(?:ent)? le chef(?: — la plus ancienne)? depuis|awaiting +\d+ decisions? awaits? the chef — (?:the oldest )?for) (.+)$/m.exec(awaiting ?? "") ?? [];
@@ -221,7 +221,7 @@ export function lineOfStation(station: StationVue, cooks: number, elsewhere: rea
 // L'état d'une des deux choses que la ligne dit : bon, en panne — et ce qui ne va pas, en une phrase —, ou pas su.
 type State = { bon: true } | { panne: string[] } | { pas: string };
 
-// Ce que les blocs `attend` des projets disent du jeton et de la session Max (runtime/src/attend.ts) : une entrée qui ne porte pas de ticket.
+// Ce que les blocs `attend` des projets disent du jeton et de la session Max : une entrée qui ne porte pas de ticket.
 // Le bloc se lit en français ou en anglais (`token  for …`, #927).
 function maxOfBlocks(blocks: readonly string[], now: number): string[] {
   return blocks.flatMap((block) =>

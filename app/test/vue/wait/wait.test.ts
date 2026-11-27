@@ -6,7 +6,6 @@
 // `**WAITING: awaiting …**` d'avant #4129 se lit encore. Une carte de WAITING porte « resume » et « it arrived, back to
 // the kitchen », qui retirent `parked`. Joué sur un faux GitHub qui tient ses issues, leurs labels et leurs commentaires,
 // lus et écrits ; la vue est jouée telle qu'elle est (helpers/false-vue.ts).
-import { LABELS_D_AVANT_PARKED } from "../../../../runtime/src/github-etat/etats.ts";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { corpsDuParking } from "../../../../runtime/src/attente-github/marque.ts";
@@ -28,6 +27,8 @@ import { AT_THE_ARRIVAL, waitOnGithub, playTheWait, brandOfWait, thirdOfTheBrand
 import { dayOf, relaunchProposed } from "../../../src/vue/wait/input.ts";
 import { FakeScreen, playTheVue, repos, type Fake, type Played } from "../../helpers/false-vue.ts";
 
+// Les labels d'avant parked que la cuisine lit encore comme parqués (runtime/src/kitchen/decide.ts).
+const LABELS_BEFORE_PARKED = ["waiting", "blocked-on-human"];
 const REPOSITORY = "chef/parade";
 const PROJECT = "parade";
 const READ = "2026-11-09T10:00:00.000Z";
@@ -214,7 +215,7 @@ describe("les gestes : toujours écrits sur l'issue", () => {
     // Le commentaire porte en tête la marque que la station relit : le même que la commande de parking du second écrit.
     assert.match(world.issues.get(20)?.commentaires.at(-1)?.body ?? "", /^<!-- brigade:parked \{"what":"x","who":"y","followUp":"[^"]+"\} -->\n\*\*PARKED: waits for y\.\*\* x\n/);
     // `parked` retiré d'abord, puis chaque label d'attente d'avant parked.
-    const removals = [`DELETE /repos/${REPOSITORY}/issues/40/labels/parked`, ...LABELS_D_AVANT_PARKED.map((label) => `DELETE /repos/${REPOSITORY}/issues/40/labels/${encodeURIComponent(label)}`)];
+    const removals = [`DELETE /repos/${REPOSITORY}/issues/40/labels/parked`, ...LABELS_BEFORE_PARKED.map((label) => `DELETE /repos/${REPOSITORY}/issues/40/labels/${encodeURIComponent(label)}`)];
     assert.ok("fait" in (await play("attente-reprendre", 40)));
     assert.deepEqual(world.ecrites.slice(-removals.length), removals);
     assert.ok("fait" in (await play("attente-arrivee", 40)));
@@ -374,7 +375,7 @@ describe("sur l'écran d'un projet GitHub", () => {
 
   // Déparquer : `parked` retiré, puis chaque label d'attente d'avant parked (runtime/src/github-etat/etats.ts) — un ticket que
   // l'un d'eux parque reprend aussi.
-  const UNPARKED = (ticket: number) => ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+  const UNPARKED = (ticket: number) => ["parked", ...LABELS_BEFORE_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
 
   test("sur une carte de WAITING, « resume » et « it arrived, back to the kitchen » jouent chacun leur geste — `parked` retiré de l'issue", async () => {
     const world = github();

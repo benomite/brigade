@@ -271,8 +271,6 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
     "app/src/vue/backlog/progress-github.ts",
     "app/src/vue/banner-stop/stop-of-rail.ts",
-    // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
-    "app/src/vue/card-sensitive/label.ts",
     "app/src/vue/cooks/taken.ts",
     // La pause de quota GitHub du compte, sans E/S (ticket 3482).
     "app/src/vue/pause-quota/pause-quota.ts",
