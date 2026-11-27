@@ -155,7 +155,7 @@ const bridge = {
   surSortie: (receive) => void ipcRenderer.on("sortie", (_, id, data) => receive(id, data)),
   surEtat: (receive) => void ipcRenderer.on("etat", (_, terminal) => receive(terminal)),
   surActivites: (receive) => void ipcRenderer.on("activites", (_, published) => receive(published)),
-  surContenu: (receive) => void ipcRenderer.on("contenu", (_, reading, manager) => receive(reading, manager)),
+  surContenu: (receive) => void ipcRenderer.on("contenu", (_, reading) => receive(reading)),
   surEssais: (receive) => void ipcRenderer.on("essais", (_, project) => receive(project)),
   surFaits: (receive) => void ipcRenderer.on("faits", (_, receivedOne) => receive(receivedOne)),
   surAlertes: (receive) => void ipcRenderer.on("alertes", (_, band) => receive(band)),

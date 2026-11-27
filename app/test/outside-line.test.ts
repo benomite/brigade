@@ -27,16 +27,15 @@ const readEntry = (command: string, text: string, minute: number): Reading => ({
 const outsideLine = (minute: number): Reading => ({ projet: PARADE, demande: 1, a: a(minute), erreur: "GitHub could not be reached to read the Kitchen board of benomite/parade: fetch failed.", atteinte: true, cas: null, duTableau: true, horsLigne: true });
 const unreadable = (minute: number): Reading => ({ projet: PARADE, demande: 1, a: a(minute), erreur: "The Kitchen board of benomite/parade (issue 7) cannot be read: no machine block.", atteinte: true, cas: null, duTableau: true });
 
-// Un tour de veille : `faits`, le manager et `status`, d'une même lecture du tableau.
+// Un tour de veille : `faits` et `status`, d'une même lecture du tableau.
 function tour(bands: ReturnType<typeof holdBands>, reading: (command: string) => Reading) {
   bands.faits(reading("facts"));
-  bands.manager(reading("manager"));
   return bands.status(putAside(reading("status")));
 }
-const inLine = (minute: number) => (command: string) => readEntry(command, command === "facts" ? JSON.stringify(FACTS) : command === "manager" ? "manager    ON — new tickets are taken\n" : STATUS, minute);
+const inLine = (minute: number) => (command: string) => readEntry(command, command === "facts" ? JSON.stringify(FACTS) : STATUS, minute);
 
 describe("la bande, hors ligne (#1818)", () => {
-  test("ni « not verified », ni signal, ni « open Settings » : la bande se tait, dit depuis quand, et garde l'interrupteur lu", () => {
+  test("ni « not verified », ni signal, ni « open Settings » : la bande se tait et dit depuis quand", () => {
     const bands = holdBands({ minimum: 0 });
     bands.ouvrir([PARADE]);
     assert.deepEqual(tour(bands, inLine(0)).alertes, []);
@@ -46,7 +45,6 @@ describe("la bande, hors ligne (#1818)", () => {
       assert.deepEqual(band.alertes, []);
       assert.equal(band.signal, undefined);
       assert.equal(band.horsLigne, a(1));
-      assert.ok(band.manager !== undefined && "allume" in band.manager && band.manager.allume, JSON.stringify(band.manager));
     }
   });
 
@@ -60,7 +58,7 @@ describe("la bande, hors ligne (#1818)", () => {
     tour(bands, () => unreadable(3));
     const outage = tour(bands, () => unreadable(4));
     assert.equal(outage.horsLigne, undefined);
-    assert.deepEqual(outage.alertes.map(({ dit: said }) => said).sort(), ["kitchen state not verified", "project switch not verified"]);
+    assert.deepEqual(outage.alertes.map(({ dit: said }) => said).sort(), ["kitchen state not verified"]);
     assert.equal(outage.signal?.etat, "non-verifie");
     const back = tour(bands, inLine(5));
     assert.deepEqual(back.alertes, []);
@@ -70,7 +68,7 @@ describe("la bande, hors ligne (#1818)", () => {
   test("une lecture qui n'a pas atteint la station ne dit rien du réseau : l'app reste hors ligne", () => {
     const bands = holdBands({ minimum: 0 });
     tour(bands, () => outsideLine(1));
-    const band = bands.manager({ projet: PARADE, demande: 1, a: a(2), erreur: "$ brigade parade manager\nconnect to host box port 22: Network is unreachable\n→ exit code 255", atteinte: false, cas: null });
+    const band = bands.status({ projet: PARADE, demande: 1, a: a(2), erreur: "$ brigade parade status\nconnect to host box port 22: Network is unreachable\n→ exit code 255", atteinte: false, cas: null });
     assert.equal(band.horsLigne, a(1));
     assert.deepEqual(band.alertes, []);
   });

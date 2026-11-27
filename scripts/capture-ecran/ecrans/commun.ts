@@ -3,7 +3,6 @@
 // principal tels qu'ils sont (faits.ts, attend.ts, alertes.ts). Un écran n'écrit donc que ce
 // qu'une box dit, mot pour mot ; ce que la vue en reçoit est calculé par le code de l'app.
 import { holdBands } from "../../../app/src/alerts.ts";
-import { POWER_UP } from "../../../app/src/power-up.ts";
 import { putAside } from "../../../app/src/awaiting.ts";
 import { forTheBar } from "../../../app/src/bar.ts";
 import type { Kitchen, Reading } from "../../../app/src/box.ts";
@@ -78,7 +77,7 @@ export function demarrage(projets: Configuration, ici: (nom: string) => boolean 
     exemple: EXAMPLE,
     onglets: TABS,
     rubriques: HEADINGS,
-    gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED, attente: ACTIONS_OF_WAIT },
+    gestes: { cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED, attente: ACTIONS_OF_WAIT },
     banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
     code: CODE,
@@ -87,12 +86,11 @@ export function demarrage(projets: Configuration, ici: (nom: string) => boolean 
   };
 }
 
-// Ce qu'une box rend d'un projet : `facts`, `status` et `station`, mot pour mot — et `manager`,
-// que l'app lit elle-même pour chaque projet (main.ts, la veille du manager) : absent, il n'est pas lu.
-export type Rendu = { facts: Facts; status: string; station: string; manager?: string };
+// Ce qu'une box rend d'un projet : `facts`, `status` et `station`, mot pour mot.
+export type Rendu = { facts: Facts; status: string; station: string };
 
 // Les envois d'une cuisine figée, dans l'ordre où main.ts les fait : la barre posée, `facts` de
-// chaque projet, puis `manager` de ceux qui le rendent ; « Tous les projets », `status` et `station` de
+// chaque projet ; « Tous les projets », `status` et `station` de
 // chacun ; un espace ouvert, le `status` de son projet. Chaque lecture passe par les modules de l'app, comme dans main.ts.
 // `ecrites` : les priorités que l'app vient d'écrire sur des issues (app/src/priority.ts), que le rail montre.
 export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string) => PriorityShown): Required<Pick<Donnees["envois"], "faits" | "tous" | "regarder">> {
@@ -113,10 +111,6 @@ export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string
     ...projets.flatMap((projet) => {
       const lue = lecture(projet, { facts: JSON.stringify(rendus[projet]?.facts) });
       return [dessine(faits.recevoir(lue)), alertes(bandes.faits(lue))];
-    }),
-    ...projets.flatMap((projet) => {
-      const manager = rendus[projet]?.manager;
-      return manager === undefined ? [] : [alertes(bandes.manager(lecture(projet, { manager })))];
     }),
   ];
   const tous = projets.flatMap((projet) => statusLu(projet, { status: rendus[projet]?.status ?? "", station: rendus[projet]?.station ?? "" }));

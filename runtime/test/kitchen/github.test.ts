@@ -59,3 +59,21 @@ test("readState tells a split epic and lists the epic branches; an epic branch m
   assert.equal(issueOfBranch("epic/12"), "12");
   assert.equal(issueOfBranch("cook/12-github"), "12");
 });
+
+test("a failed job whose log can't be read is reported from its check-run annotations; cancelled jobs and gates are left out (#4724)", async () => {
+  const runs = [
+    { name: "tests", conclusion: "failure", html_url: "https://github.com/o/r/actions/runs/1/job/11" },
+    { name: "tests-b", conclusion: "cancelled", html_url: "https://github.com/o/r/actions/runs/1/job/12" },
+    { name: "gates", conclusion: "failure", html_url: "https://github.com/o/r/actions/runs/1/job/13" },
+  ];
+  const gh = async (args: string[]) => {
+    const path = args.join(" ");
+    if (path.includes("/pulls/7")) return JSON.stringify({ head: { sha: "abc" } });
+    if (path.includes("check-runs?per_page")) return JSON.stringify({ check_runs: runs });
+    if (args[0] === "run") throw new Error("failed to get run log: zip: not a valid zip file");
+    if (path.includes("check-runs/11/annotations")) return JSON.stringify([{ path: "test/garde.ts", start_line: 96, message: "guard failed" }]);
+    if (path.includes("check-runs/12/annotations")) return JSON.stringify([{ message: 'The strategy configuration was canceled because "tests" failed' }]);
+    throw new Error(`unexpected ${path}`);
+  };
+  assert.deepEqual(await gestures(gh, "o/r").failedLogs(7), [{ name: "tests", log: "test/garde.ts:96: guard failed" }]);
+});

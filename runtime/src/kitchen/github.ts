@@ -18,7 +18,6 @@ const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 export const ACCEPTED = "accepted";
 export const branchOf = (issue: number) => `cook/${issue}-github`;
 export const issueOfBranch = (branch: string) => /^cook\/(\d+)-github$/.exec(branch)?.[1] ?? /^epic\/(\d+)$/.exec(branch)?.[1];
-
 // The tickets this one waits for: every #N after "depends on", "blocked by" or "after" on a line of its body,
 // plus GitHub's own "blocked by" links. A ticket that waits is not a question for the chef: it waits on its own.
 export const dependsOn = (body: string): number[] =>
@@ -40,7 +39,6 @@ const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
     }
   }
 }`;
-
 type Context = { __typename: string; name?: string; conclusion?: string | null; status?: string; context?: string; state?: string };
 type Suite = { status: string; app: { slug: string } | null };
 type RawPr = { number: number; headRefName: string; mergeable: string; commits: { nodes: Array<{ commit: { checkSuites?: { nodes: Suite[] }; statusCheckRollup: { state: string; contexts: { nodes: Context[] } } | null } }> } };
@@ -158,21 +156,24 @@ export function gestures(gh: Gh, repo: string) {
       const now = await gh(["pr", "view", branchOf(issue), ...r, "--json", "body"]).then((out) => (JSON.parse(out) as { body: string }).body, () => null);
       return now?.includes(text) === true ? "" : "the description of the pull request does not contain the report after `gh pr edit`";
     },
+    // The PR of a finished epic, from its branch to the base (#4701).
+    openEpicPr: (epic: number, base: string, title: string, body: string) => gh(["pr", "create", ...r, "--head", `epic/${epic}`, "--base", base, "--title", `#${epic} — ${title}`, "--body-file", "-"], body),
     prFiles: async (pr: number): Promise<string[]> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "files"])).files as Array<{ path: string }>).map((file) => file.path),
     prBody: async (pr: number): Promise<string> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "body"])) as { body: string }).body,
     // The last lines of each failing Actions job's failed steps: the cook has no token to read them.
     failedLogs: async (pr: number, max = 5, lines = 40): Promise<Array<{ name: string; log: string }>> => {
       const sha = (JSON.parse(await gh(["api", `repos/${repo}/pulls/${pr}`])) as { head: { sha: string } }).head.sha;
       const runs = (JSON.parse(await gh(["api", `repos/${repo}/commits/${sha}/check-runs?per_page=100`])) as { check_runs: Array<{ name: string; conclusion: string | null; html_url: string }> }).check_runs;
-      const failed = runs.filter((check) => FAILED.has((check.conclusion ?? "").toUpperCase())).slice(0, max);
-      return Promise.all(failed.map(async (check) => {
-        const job = /\/job\/(\d+)/.exec(check.html_url)?.[1];
-        if (job === undefined) return { name: check.name, log: `(no Actions log: ${check.html_url})` };
-        const raw = await gh(["run", "view", "--job", job, ...r, "--log-failed"]).catch((error: Error) => `(log unreadable: ${error.message})`);
-        // Each line is `<job>\t<step>\t<text>`: only the text is kept.
-        const text = raw.trimEnd().split("\n").map((line) => line.replace(/^[^\t]*\t[^\t]*\t/, "").slice(0, 300));
-        return { name: check.name, log: text.slice(-lines).join("\n") };
+      // `gates` only aggregates the other jobs. A job whose log can't be read is explained by its check-run annotations (the failing test and its assertion), unless it was only cancelled by another failure (#4724).
+      const entries = await Promise.all(runs.filter((check) => FAILED.has((check.conclusion ?? "").toUpperCase()) && check.name !== "gates").map(async (check): Promise<{ name: string; log: string } | null> => {
+        const job = /\/job\/(\d+)/.exec(check.html_url)?.[1]; if (job === undefined) return { name: check.name, log: `(no Actions log: ${check.html_url})` };
+        const raw = await gh(["run", "view", "--job", job, ...r, "--log-failed"]).catch((error: Error) => error);
+        if (typeof raw === "string") return { name: check.name, log: raw.trimEnd().split("\n").map((line) => line.replace(/^[^\t]*\t[^\t]*\t/, "").slice(0, 300)).slice(-lines).join("\n") }; // each line is `<job>\t<step>\t<text>`: only the text is kept
+        const notes = await gh(["api", `repos/${repo}/check-runs/${job}/annotations?per_page=100`]).then((out) => (JSON.parse(out) as Array<{ path?: string; start_line?: number; message?: string }>).filter((note) => note.message), () => []);
+        const cause = notes.filter((note) => !/was cancell?ed/i.test(note.message ?? "")).map((note) => `${note.path ? `${note.path}${note.start_line ? `:${note.start_line}` : ""}: ` : ""}${(note.message ?? "").slice(0, 300)}`);
+        return notes.length > 0 && cause.length === 0 ? null : { name: check.name, log: cause.slice(0, lines).join("\n") || `(log unreadable: ${raw.message})` };
       }));
+      return entries.filter((entry): entry is { name: string; log: string } => entry !== null).slice(0, max);
     },
     merge: (pr: number) => gh(["pr", "merge", String(pr), ...r, "--merge", "--delete-branch"]),
     ensureLabels: async (names: string[]) => { for (const name of names) await gh(["label", "create", name, ...r, "--force"]).catch(() => ""); },
