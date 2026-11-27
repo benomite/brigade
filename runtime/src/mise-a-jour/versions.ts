@@ -1,7 +1,6 @@
-// L'ordre des versions de la station : celui de dpkg, puisque c'est dpkg qui
-// les installe. Comparées ici sans lancer `dpkg --compare-versions` : la
-// station choisit la plus récente des versions publiées, et c'est la même
-// règle que dpkg appliquerait (`deb-version(7)`).
+// L'ordre des versions de la station : celui de Debian (`deb-version(7)`),
+// que les versions publiées suivent déjà. La station choisit la plus récente
+// des versions publiées avec cette règle.
 //
 // Une version : `[époque:]amont[-révision]`. Chaque partie se compare par
 // tranches — des non-chiffres, puis un nombre —, où `~` passe avant tout, même
@@ -48,8 +47,8 @@ function decouper(version: string): { epoque: number; amont: string; revision: s
   return tiret === -1 ? { epoque, amont: reste, revision: "" } : { epoque, amont: reste.slice(0, tiret), revision: reste.slice(tiret + 1) };
 }
 
-// Négatif si `a` passe avant `b`, positif après, zéro si dpkg les tient pour
-// la même version.
+// Négatif si `a` passe avant `b`, positif après, zéro si elles sont la
+// même version.
 export function comparerVersions(a: string, b: string): number {
   const va = decouper(a);
   const vb = decouper(b);
@@ -57,6 +56,6 @@ export function comparerVersions(a: string, b: string): number {
   return comparerPartie(va.amont, vb.amont) || comparerPartie(va.revision, vb.revision);
 }
 
-// Ce que dpkg accepte d'une version sans révision — ce que la construction du
-// paquet accepte aussi. Une version publiée qui n'y répond pas est ignorée.
+// Ce que la règle accepte d'une version sans révision — ce que la construction
+// de l'archive accepte aussi. Une version publiée qui n'y répond pas est ignorée.
 export const VERSION = /^[0-9][A-Za-z0-9.+~]*$/;
