@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { dependsOn, ghCli, gestures } from "../../src/kitchen/github.ts";
+import { checksOf, dependsOn, ghCli, gestures } from "../../src/kitchen/github.ts";
 import { repertoireTemporaire } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -27,6 +27,14 @@ test("adding a label the repo does not have creates it and retries; a second fai
   assert.equal(calls.filter((c) => c[0] === "issue").length, 2);
   const broken = async (args: string[]) => { if (args[0] === "issue") throw new Error("boom"); return ""; };
   await assert.rejects(gestures(broken, "o/r").labels(7, ["approved"]), /boom/);
+});
+
+test("a PR whose GitHub Actions workflow still runs is pending even when every check so far is green; another app's queued suite is ignored (#4589)", () => {
+  const green = { state: "SUCCESS", contexts: { nodes: [{ __typename: "CheckRun", name: "plan", status: "COMPLETED", conclusion: "SUCCESS" }] } };
+  const claude = { status: "QUEUED", app: { slug: "claude" } };
+  assert.deepEqual(checksOf(green, [{ status: "IN_PROGRESS", app: { slug: "github-actions" } }, claude]), { checks: "pending", failing: [] });
+  assert.deepEqual(checksOf(green, [{ status: "COMPLETED", app: { slug: "github-actions" } }, claude]), { checks: "success", failing: [] });
+  assert.deepEqual(checksOf(green), { checks: "success", failing: [] });
 });
 
 test("a `gh` that exits before reading its input is a failed call, not a crash of the kitchen", { skip: posixOnly("the fake gh is a #!/bin/sh script") }, async (t) => {
