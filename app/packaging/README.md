@@ -339,8 +339,7 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
 Le tableau de la cuisine d'un projet se lit de GitHub, sans station (`ouvrirLaLectureGitHub`,
 `app/src/read-github-phone.ts`, posé à `www/src/lecture-github-telephone.js` par
 `poserLesModules`) : les projets dans les gists des stations du chef, puis le module du desktop
-(`app/src/board/`) et le lecteur du bloc machine que le runtime partage avec les apps
-(`runtime/src/tableau/rendu/bloc.ts`, posé à `www/runtime/src/`), la demande portée par `CapacitorHttp`,
+(`app/src/board/`), la demande portée par `CapacitorHttp`,
 avec le jeton GitHub que garde le coffre du téléphone (`Coffre.java` : chiffré par une clé du Keystore
 d'Android, qui ne sort pas du téléphone).
 
