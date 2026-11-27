@@ -634,9 +634,9 @@ reading with the same frozen data, so no server can arrive between two readings;
 `parcours-premier-projet/parcours-premier-projet.js`; its state and gestures in `app/src/vue/vue.js` (`serveurAttendu`,
 `gestesDuServeur`). Tests: `app/test/add-server/`, `app/test/acceptation-4347/`.*
 
-### The account's GitHub quota gauge, on the Stations tab (#3483, epic #3475)
+### The account's GitHub quota gauge, on the Stations tab (#3483, epic #3475, #4645)
 
-Under the top line, when the runtime's `facts` carry `quotaGithub` (`app/src/vue/stations-quota/`), a gauge says `<used> / <limit> calls used` and when the window renews (`renews around 11:00`, the chef's local time; `renewal time unknown` when it does not read). It is **green** under 80 % used and **orange** from 80 %: a warning before any pause, neither the yellow of GitHub's pause line nor red. Behind it, a folded `Calls over the last hour` lists the calls per station and per project in plain words (`Mac station, secondes: 39 writes on issues`), the biggest user first; with no calls it says `No GitHub calls recorded over the last hour.` A quota that does not read (no limit, a count that is not a number) says `GitHub quota unreadable`, with no figure made up. Without `quotaGithub`, no gauge.
+The app reads the account's quota from GitHub itself (#4645, `app/src/quota-github.ts`): `GET /rate_limit`, the one call GitHub does not count against the quota, at most once a minute, alongside each rail reading but outside the app's read budget, so the pause does not hold it back. It is put in the read's `facts` as `quotaGithub` (`core`: the token's REST calls). Under the top line (`app/src/vue/stations-quota/`), a gauge says `<used> / <limit> calls used (reads and writes)` and when the window renews (`renews around 11:00`, the chef's local time; `renewal time unknown` when it does not read). It is **green** under 80 % used and **orange** from 80 %: a warning before any pause, neither the yellow of GitHub's pause line nor red. When the quota carries `parStationEtProjet` (GitHub's `rate_limit` does not), behind it a folded `Calls over the last hour` lists the calls per station and per project in plain words (`Mac station, secondes: 39 writes on issues`), the biggest user first; with no calls it says `No GitHub calls recorded over the last hour.` A quota that does not read (no limit, a count that is not a number) says `GitHub quota unreadable`, with no figure made up. Without `quotaGithub`, no gauge.
 
 ### Every setting of each station, on the Stations tab (#2488, epic #2484)
 
@@ -887,8 +887,11 @@ the project's repository alone — nothing comes from a box —, at most once a 
 That token's hourly budget (5,000 requests) is shared with the chef's own `gh`, so the app keeps its own reads far below
 it (#3007, `app/src/budget-github.ts`): when GitHub says less than 20% of the budget is left (`x-ratelimit-remaining`),
 or refuses a read for going over the rate limit, the app sends no read for any project until the time GitHub gives
-(`x-ratelimit-reset`, or `retry-after`; one minute when it gives none). Each project keeps its last rail meanwhile; one
-never read says the reads are paused and until when. In `app/test/budget-github.test.ts`, six projects that each change
+(`x-ratelimit-reset`, or `retry-after`; one minute when it gives none). Each project keeps its last rail meanwhile. While
+the pause holds, the project view says so in one line above the rail, kept rail or none (#4645,
+`app/src/vue/cooks/github-pause.js`): `GitHub quota: 0 of 5,000 left — reading resumes at 17:27` (the chef's local time;
+`GitHub quota: reads paused — …` when GitHub did not say what is left); the line goes away with the first reading after
+the pause. In `app/test/budget-github.test.ts`, six projects that each change
 every three minutes, polled for eight simulated hours against a fake GitHub, cost at most 894 counted requests (every
 answer but a 304) in any hour, under the 1,000 the test allows.
 

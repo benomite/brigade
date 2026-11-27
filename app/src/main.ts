@@ -50,6 +50,7 @@ import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-a
 import { tokenOfGh } from "./board/token-gh.ts";
 import { keptReadsInFile } from "./board/kept-reads.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
+import { holdTheQuotaGitHub, withTheQuota } from "./quota-github.ts";
 import { ticketOfTheBiggest } from "./spenders-of-token.ts";
 import { REPOSITORY_OF_THE_VISIT } from "./visit.ts";
 import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
@@ -260,8 +261,15 @@ const signalTheBiggest = (report: Parameters<typeof ticketOfTheBiggest>[0], unti
   const ticket = ticketOfTheBiggest(report);
   if (ticket !== null) void clientOfLabels.ecrire("POST", `/repos/${REPOSITORY_OF_THE_VISIT}/issues`, { title: ticket.title, body: ticket.body, labels: ["product"] }).catch(() => undefined);
 };
+// Le quota du compte, pour la jauge de l'onglet Stations (#4645) : lu par `/rate_limit`, hors du budget — GitHub ne le compte
+// pas, et la pause ne le retient pas.
+const quotaOfAccount = holdTheQuotaGitHub({ appeler: callGitHub });
 const readTheBoard = async (project: Project): Promise<ReadOfBoardOfRepository> => {
   const repository = await repositoryOfProject(project);
+  const [readOne, quota] = await Promise.all([readTheBoardUnderBudget(project, repository), quotaOfAccount.lire()]);
+  return withTheQuota(readOne, quota);
+};
+const readTheBoardUnderBudget = (project: Project, repository: string): Promise<ReadOfBoardOfRepository> => {
   return readingUnderBudget({
     signaler: signalTheBiggest,
     budget: budgetGitHub,
