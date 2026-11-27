@@ -12,8 +12,6 @@
 // Le manager n'a plus de geste à lui : l'interrupteur du projet, en tête de son espace, l'allume
 // et l'éteint avec le reste (actions.ts, `projet-allumer`, `projet-eteindre`). Ce module ne lance
 // rien — il lit ce que la veille a déjà rendu.
-import type { Reading } from "./box.ts";
-
 // Sans argument : la commande montre, elle n'allume ni n'éteint rien.
 export const COMMAND = "manager";
 
@@ -109,33 +107,4 @@ export function managerOf(output: string): Manager | { informe: string } {
     ...(decisions === undefined ? {} : { decisions }),
     ...(ecartees === undefined ? {} : { ecartees }),
   };
-}
-
-// Une liste, prête à poser. `vide` : ce qui se lit à la place de ses lignes quand elle n'en a pas.
-export type List<Line> = { lignes: Line[]; illisibles: string[]; vide?: string };
-// Ce que l'onglet Manager pose au-dessus du texte de sa lecture : la vue n'y calcule rien.
-// `ton` : la couleur de l'interrupteur. `sans` : pourquoi l'état n'est pas posé — ce n'est jamais « éteint ».
-export type Seen = { projet: string; demande: number; a: string } & ({ interrupteur: Switch & { ton: string }; decisions: List<Decision>; ecartees: List<Gap> } | { sans: string });
-
-const NOT_READ = "the manager's state was not read: what the app got in its place is below. This is not “off”";
-const withoutShape = (informs: string) => `the manager's state was not read in this output: ${informs}. This is not “off” — it is shown below, in full`;
-const withoutSection = (title: string) => `not read: the output has no \`${title}\` line. This is not “none” — it is shown below, in full`;
-
-function list<Line>(title: string, section: Section<Line> | undefined): List<Line> {
-  if (section === undefined) return { lignes: [], illisibles: [], vide: withoutSection(title) };
-  const { dit: said, lignes: lines, illisibles: unreadable } = section;
-  // Sans ligne, c'est le mot du runtime qui se lit : l'app n'en écrit pas d'autre.
-  return { lignes: lines, illisibles: unreadable, ...(lines.length === 0 && unreadable.length === 0 && said !== "" ? { vide: said } : {}) };
-}
-
-// Ce qu'une lecture de l'onglet Manager donne à poser. Ratée, ou sans la forme, elle
-// ne dit rien du manager : ce que l'app a obtenu se lit dans l'onglet, comme pour les autres.
-export function see(reading: Reading): Seen {
-  const { projet: project, demande: request, a } = reading;
-  const output = "erreur" in reading ? undefined : reading.sorties.find(({ commande: command }) => command === COMMAND)?.texte;
-  if (output === undefined) return { projet: project, demande: request, a, sans: NOT_READ };
-  const manager = managerOf(output);
-  if ("informe" in manager) return { projet: project, demande: request, a, sans: withoutShape(manager.informe) };
-  const { interrupteur: toggle } = manager;
-  return { projet: project, demande: request, a, interrupteur: { ...toggle, ton: toggle.allume ? "vert" : "gris" }, decisions: list(DECISIONS, manager.decisions), ecartees: list(ECARTEES, manager.ecartees) };
 }

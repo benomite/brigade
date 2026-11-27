@@ -13,7 +13,7 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { principal as manager } from "../../runtime/src/manager-cli.ts";
+import { managerOutput } from "./helpers/manager-output.ts";
 import { alerts, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Band } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
@@ -64,9 +64,7 @@ function kitchen(t: TestContext) {
   const render = (h: string) => {
     const now = new Date(hour(h));
     const state = lireEtat(log, now);
-    const lines: string[] = [];
-    void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return { faits: runtimeFacts(state, now), status: `${decrireEtat(state, now).join("\n")}\n`, manager: `${lines.join("\n")}\n` };
+    return { faits: runtimeFacts(state, now), status: `${decrireEtat(state, now).join("\n")}\n`, manager: managerOutput(log) };
   };
   // La bande, d'après `faits` tel que la box l'a rendu — ou tel qu'un `retoucher` le donne.
   const band = (h: string, retoucher: (facts: Record<string, unknown>) => Record<string, unknown> = (facts) => facts): Band => {
