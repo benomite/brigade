@@ -1,5 +1,5 @@
 // @ts-check
-// Ce que dit la page d'un projet dont le rail n'est pas lu parce que GitHub est en pause (#4620) : le quota horaire du jeton
+// Ce que dit la page d'un projet dont le rail n'est pas lu parce que GitHub est en pause (ticket 4620) : le quota horaire du jeton
 // du chef est presque épuisé, l'app ne lit plus rien jusqu'à l'heure où il se remplit. Une station sert le projet : la phrase
 // ne dit pas le contraire.
 

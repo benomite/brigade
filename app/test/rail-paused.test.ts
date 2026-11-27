@@ -13,7 +13,7 @@ import { BANNER, holdFacts, type Drawable } from "../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { NO_STATION } from "../src/vue/cooks/without-station.ts";
+import { NO_STATION } from "../src/vue/cooks/without-station.js";
 import { holdReadsOfBoard } from "../src/board/rail.ts";
 import { keptReadsInFile } from "../src/board/kept-reads.ts";
 import { holdTheBudgetGitHub, readingUnderBudget } from "../src/budget-github.ts";
@@ -69,7 +69,7 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
     const clock = { t: Date.parse(a(30)) };
     const budget = holdTheBudgetGitHub({ maintenant: () => clock.t });
     await budget.appeler(async () => ({ status: 200, data: {}, limite: { restant: 734, total: 5_000, repriseLe: clock.t + 30 * 60_000 } }))("/x", {});
-    const after = holdReadsOfBoard<{ nom: string }>({
+    const after: ReturnType<typeof holdReadsOfBoard<{ nom: string }>> = holdReadsOfBoard<{ nom: string }>({
       lire: (project) => readingUnderBudget({ budget, depot: "chef/parade", lire: async () => assert.fail("en pause, rien ne part"), dernier: () => after.dernier(project.nom), maintenant: () => clock.t }),
       fraicheurMs: 0,
       garde: keptReadsInFile(path),
