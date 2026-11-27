@@ -26,7 +26,6 @@ import { linesOfCooks } from "../stations-of-cooking.js";
 import { setTheQuota } from "../stations-quota/stations-quota.js";
 import { setTheChoice } from "./choice.js";
 import { BLOCKED, CHOOSE, COOK_HERE, sentenceOfTop, TO_HERE } from "./state.js";
-import { lineOfStandby, standbyHeld } from "../standby-machine/standby-machine.js";
 import { linesOfEngine } from "../engine/CardEngine.js";
 
 /** @typedef {import("../components/pan/pan.js").Fabrique} Fabrique */
@@ -53,8 +52,6 @@ import { linesOfEngine } from "../engine/CardEngine.js";
  *   `lecture`     l'écran étroit : il se lit sans rien régler (ticket 1186) — ni geste, ni « Details ».
  *   `quota`       le quota GitHub du compte (`quotaGithub` des faits) : la affiche, en tête, et son détail par station et projet
  *                 (stations-quota/, ticket 3483) ; absent, pas de quota affiché.
- *   `veille`      ce que la station de cet ordinateur écrit de sa veille (veille-machine/, ticket 3642) : sa carte dit qu'elle
- *                 garde l'ordinateur éveillé tant que c'est vrai.
  *   `moteurIci`   le moteur que la station de cet ordinateur a choisi dans ses réglages (moteur/, ticket 3746) : sa carte le
  *                 dit quand le runtime n'en publie rien.
  *   `serveur`     « Add a server » (add-server/, ticket 4347) : son panneau, ouvert ou non, et où en est le serveur attendu ;
@@ -80,7 +77,6 @@ import { linesOfEngine } from "../engine/CardEngine.js";
  *   lecture?: boolean,
  *   quiCuit?: boolean,
  *   quota?: import("../stations-quota/stations-quota.js").QuotaGithub,
- *   veille?: import("../standby-machine/standby-machine.js").Standby,
  *   moteurIci?: string,
  *   serveur?: import("../add-server/add-server.js").StateOfServer,
  * }} SeenOfTheTab
@@ -279,7 +275,6 @@ function card(doc, seenOne, station, actions) {
     lack.className = "manque";
     root.append(lack);
   }
-  if (station.ici && standbyHeld(seenOne.veille)) root.append(lineOfStandby(doc));
   // Ce qu'elle tient du projet : les tickets de ses cooks, ce qu'elle fait tourner d'autre ; rien, elle est au repos.
   const holds = station.cooks.length + station.agents.length > 0;
   root.append(

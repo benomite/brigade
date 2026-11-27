@@ -1,7 +1,7 @@
 // Où tourne la cuisine d'un projet : sur cet ordinateur, ou nulle part. Ce n'est pas `app.json`
 // qui le dit, c'est la station de cet ordinateur : un projet qu'elle sert a sa ligne dans sa
-// configuration (`<BRIGADE_STATION_DIR>/projets`, une ligne par projet — runtime/src/station/
-// configuration.ts), qu'il y ait été ajouté depuis l'app ou écrit à la main. Une station qui n'en
+// configuration (`<BRIGADE_STATION_DIR>/projets`, une ligne par projet), qu'il y ait été ajouté depuis
+// l'app ou écrit à la main. Une station qui n'en
 // est pas la principale ne lui écrit aucune ligne.
 //
 // - **Un projet que la station de cet ordinateur sert se lit ici**, par son geste. Les autres
