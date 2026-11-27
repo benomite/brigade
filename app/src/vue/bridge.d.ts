@@ -359,9 +359,9 @@ export type Bridge = {
   // Un téléphone déjà connecté au compte GitHub de cet ordinateur (ticket 3303, phone-connected.ts) : la trace que
   // l'app Android pose dans un gist ; `illisible` quand la liste des gists ne se lit pas.
   telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
-  // Les agents d'un projet (ticket 4029, autonomy/source.js) : un enregistrement par agent, tel que le runtime le publie ;
-  // le niveau d'autonomie d'un agent, réglé ; un geste en attente, approuvé. Le côté runtime vient d'un autre ticket.
-  lireLesAgents?(project: string): Promise<unknown[] | undefined>;
+  // Les agents au travail d'un projet (ticket 4569, agents/source.js) : lus sur GitHub et sur sa station.
+  agentsAtWork?(project: string): Promise<unknown>;
+  // Le niveau d'autonomie d'un agent, réglé ; un geste en attente, approuvé. Le côté runtime vient d'un autre ticket.
   reglerLAutonomie?(project: string, agent: string, level: import("./autonomy/source.js").Level): Promise<void>;
   approuverLeGeste?(project: string, agent: string, id: string): Promise<void>;
   // La cuisine que la visite montre (ticket 4087, visit.ts) : son rail, lu sur GitHub en lectures seules — rien n'est

@@ -1,26 +1,65 @@
-// L'équipe d'un projet que lit la vue (ticket 4327, suite du 4029) : un enregistrement par agent, tel que `facts` le publie
-// sous `equipe`, lancé là où la cuisine du projet tourne. Rien n'y est deviné : un
-// refus de la commande, une sortie qui ne se lit pas, une équipe que le runtime dit illisible ou qu'il ne publie pas encore
-// font échouer la lecture — la vue dit alors `The agents not reached.`, jamais une équipe vide.
+// The agents at work on a project of the new kitchen, for the Agents tab (#4569): read from what already exists, with nothing
+// asked of the old runtime — GitHub (the board: a ticket `taken` has a cook, a ticket `in-pass` has the pass, since the label was
+// put on) and what the kitchen writes on its station (the `agents` command reads its run files: the manager and the supervisor
+// at work, and the runs the board does not show yet). A station that cannot be read is said in one sentence beside the agents
+// GitHub gave; no agent at work is an empty list, never an error.
 import type { Read, Rendered } from "./box.ts";
-import { detailOf, withoutTheCommand } from "./settings-of-project.ts";
+import type { KitchenBoard } from "./board/kitchen-board.ts";
+import { withoutTheCommand } from "./settings-of-project.ts";
 
-const COMMAND = "facts";
+const COMMAND = "agents";
 
-// Les agents du projet ; `undefined` pour un projet qui ne cuit pas sur cet ordinateur : sa cuisine ne s'y lit pas.
-export async function readTheAgents(readOne: Read | undefined, launch: (readOne: Read, command: string) => Promise<Rendered>): Promise<unknown[] | undefined> {
-  if (readOne === undefined) return undefined;
-  const rendered = await launch(readOne, COMMAND);
-  if (withoutTheCommand(rendered)) throw new Error("this station's runtime does not serve the agents yet — update it");
-  if (rendered.erreur !== null) throw new Error(`\`${COMMAND}\` failed on this computer's station: ${detailOf(rendered).slice(0, 400)}`);
-  let facts: unknown;
+export type AgentAtWork = { agent: string; ticket: number | null; since: string | null; station: string | null };
+export type AgentsAtWork = { agents: AgentAtWork[]; stations: { station: string; why: string }[] };
+
+type Options = {
+  // The computer's station: its name, and where the project's kitchen is read — `undefined` for a project that does not cook here.
+  station: string;
+  readOne: Read | undefined;
+  launch: (readOne: Read, command: string) => Promise<Rendered>;
+  board: () => Promise<{ lu: true; faits: { kitchenBoard?: KitchenBoard } } | { lu: false; raison: string }>;
+  now: () => number;
+};
+
+// What the station's `agents` says is working, one entry per agent kind and ticket.
+function atWorkOnTheStation(output: string): { agent: string; ticket: number | null }[] {
+  let list: unknown;
   try {
-    facts = JSON.parse(rendered.sortie);
+    list = JSON.parse(output);
   } catch {
-    throw new Error(`the answer of \`${COMMAND}\` could not be read: ${rendered.sortie.trim().slice(0, 200)}`);
+    throw new Error("its answer could not be read");
   }
-  const team = (facts as { equipe?: unknown } | null)?.equipe;
-  if (Array.isArray(team)) return team;
-  const unreadable = (team as { illisible?: unknown } | undefined)?.illisible;
-  throw new Error(typeof unreadable === "string" ? `the runtime cannot read the agents: ${unreadable}` : "this station's runtime does not publish the agents yet — update it");
+  if (!Array.isArray(list)) throw new Error("its answer is not a list");
+  return list.flatMap((one: { id?: unknown; state?: unknown; workingOn?: unknown } | null) =>
+    typeof one?.id === "string" && one.state === "working" ? [{ agent: one.id, ticket: typeof one.workingOn === "number" ? one.workingOn : null }] : [],
+  );
+}
+
+function ofTheBoard(board: KitchenBoard | undefined, station: string | null, now: number): AgentAtWork[] {
+  const kinds = [["cooking", "cook"], ["pass", "pass"]] as const;
+  return kinds.flatMap(([column, agent]) =>
+    (board?.columns.find(({ key }) => key === column)?.cards ?? []).map((card) => ({ agent, ticket: card.ticket, since: card.durationMs === undefined ? null : new Date(now - card.durationMs).toISOString(), station })),
+  );
+}
+
+export async function readTheAgents({ station, readOne, launch, board, now }: Options): Promise<AgentsAtWork> {
+  const read = await board();
+  if (!read.lu) throw new Error(read.raison);
+  const here = readOne === undefined ? null : station;
+  const agents = ofTheBoard(read.faits.kitchenBoard, here, now());
+  const stations: AgentsAtWork["stations"] = [];
+  if (readOne !== undefined) {
+    const rendered = await launch(readOne, COMMAND).catch((error: unknown) => error as Error);
+    try {
+      if (rendered instanceof Error) throw rendered;
+      if (withoutTheCommand(rendered)) throw new Error("its runtime does not serve the agents yet");
+      if (rendered.erreur !== null) throw new Error(rendered.erreurs.trim().split("\n")[0]?.slice(0, 200) || "the command failed");
+      for (const one of atWorkOnTheStation(rendered.sortie)) {
+        if (!agents.some(({ agent, ticket }) => agent === one.agent && ticket === one.ticket)) agents.push({ ...one, since: null, station });
+      }
+    } catch (error) {
+      stations.push({ station, why: `${station} could not be read: ${(error as Error).message.replace(/[.\s]+$/, "")}.` });
+    }
+  }
+  return { agents, stations };
 }
