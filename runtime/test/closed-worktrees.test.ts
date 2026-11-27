@@ -52,6 +52,7 @@ test("un dossier de worktrees absent n'est pas une erreur (#4658)", async (t) =>
 test("l'unité de la station a son /tmp, et chaque mise à jour la redémarre (#4658)", () => {
   const unite = readFileSync(new URL("../paquet/systemd/brigade-station.service", import.meta.url), "utf8");
   assert.match(unite, /^PrivateTmp=yes$/m);
-  const postinst = readFileSync(new URL("../paquet/debian/postinst", import.meta.url), "utf8");
-  assert.match(postinst, /systemctl restart "\$unite"/);
+  // The .deb is a bridge now: the archive's install.sh is what restarts the units, on every install.
+  const installer = readFileSync(new URL("../archive/install.sh", import.meta.url), "utf8");
+  assert.match(installer, /systemctl restart brigade-station-porte\.service brigade-station\.service/);
 });

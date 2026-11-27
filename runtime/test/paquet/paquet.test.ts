@@ -313,7 +313,7 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
       doublure("dpkg-query", `s=$(cat "${base}"); [ "$s" = not-installed ] && exit 1; echo "$s"`);
       // `setsid --fork` rend la main tout de suite ; la doublure joue le retrait sur place.
       doublure("setsid", 'shift\n"$@"');
-      const env = { ...process.env, PATH: `${bin}:/usr/bin:/bin`, BRIGADE_RACINE: racine, BRIGADE_TERMINAL: "/nonexistent" };
+      const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}:/usr/bin:/bin`, BRIGADE_RACINE: racine, BRIGADE_TERMINAL: "/nonexistent" };
       delete env.BRIGADE_GITHUB_TOKEN;
       delete env.BRIGADE_CLAUDE_TOKEN;
 
@@ -432,6 +432,15 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
       assert.equal(existsSync(join(m.racine, "opt")), false);
       assert.equal(m.base(), "installed");
     });
+  });
+
+  test("l'archive darwin porte les cinq fichiers de l'ancre pf, charger-pf.sh exécutable", () => {
+    const detail = spawnSync("tar", ["-tvzf", archive("darwin", "arm64")], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\n");
+    for (const f of ["brigade.pf.conf", "brigade.sudoers", "charger-pf.sh", "com.brigade.pf.plist", "com.brigade.gate.plist"]) {
+      const ligne = detail.find((l) => l.endsWith(`runtime/paquet/macos/${f}`));
+      assert.ok(ligne, `${f} absent de l'archive darwin`);
+      assert.equal(ligne.startsWith("-rwxr-xr-x"), f === "charger-pf.sh", `${f} : mode ${ligne.slice(0, 10)}`);
+    }
   });
 
   test("un node d'une autre plateforme est refusé, et rien n'est écrit", async () => {

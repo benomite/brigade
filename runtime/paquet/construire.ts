@@ -177,6 +177,9 @@ function composerArchive({ archive, runtime, unites, node, version }: { archive:
     chmodSync(join(racine, "install.sh"), 0o755);
     writeFileSync(join(racine, "version"), `${version}\n`);
     cpSync(join(ICI, "..", "archive", "services", "launchd"), join(racine, "services", "launchd"), { recursive: true });
+    // L'ancre pf et ses plists : `installer-station.sh` les lit sous runtime/paquet/macos de l'archive.
+    cpSync(join(ICI, "macos"), join(racine, "runtime", "paquet", "macos"), { recursive: true });
+    chmodSync(join(racine, "runtime", "paquet", "macos", "charger-pf.sh"), 0o755);
     for (const unite of UNITES) {
       const texte = readFileSync(join(unites, unite), "utf8").replaceAll(INSTALLATION, INSTALLATION_ARCHIVE);
       writeFileSync(join(racine, "services", unite), texte, { mode: 0o644 });
