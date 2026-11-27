@@ -12,7 +12,6 @@
 
 import { recommendationOf } from "../bricks.js";
 import { seenOfTheCard } from "../card-todo.js";
-import { isOneReview, MERGER } from "../card-sensitive/card-sensitive.js";
 import { button } from "../components/button/button.js";
 import { hourUtc } from "../activity-of-cook.js";
 import { brand } from "../components/pill/pill.js";
@@ -132,8 +131,8 @@ export function lineParked(doc, parked) {
 }
 
 // Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix, valider
-// un écran, merger une revue, reprendre une carte de WAITING ou dire arrivé ce qu'elle attendait.
-/** @typedef {"repondre" | "valider" | "merger" | "attente-reprendre" | "attente-arrivee"} KindOfAction */
+// un écran, reprendre une carte de WAITING ou dire arrivé ce qu'elle attendait.
+/** @typedef {"repondre" | "valider" | "attente-reprendre" | "attente-arrivee"} KindOfAction */
 /** @typedef {{ texte: string, recommande: boolean, sorte: KindOfAction, reponse?: import("../../card-todo.ts").Answer }} ActionOfTodo */
 /**
  * Ce que le TODO sait de la vue pour trancher ses cartes : où en est la réponse d'une carte (`etat`), les gestes de WAITING
@@ -148,7 +147,7 @@ const DECIDE = ["attente-reprendre", "attente-arrivee"];
 const READ_ONLY = "read-only: nothing is decided from here";
 
 /**
- * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider, « Merge » d'une revue,
+ * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider,
  * un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici ; ou les gestes de
  * WAITING qu'elle a. Aucun sur une carte qui ne se tranche qu'en mots : un clic sur son entrée ouvre sa carte et son champ.
  * @param {Card} card @param {ActionsOfTodo} actions @returns {ActionOfTodo[]}
@@ -156,9 +155,8 @@ const READ_ONLY = "read-only: nothing is decided from here";
 export function actionsOfTodo(card, actions) {
   const { todo } = card;
   if (todo === undefined) return actions.attente.filter(({ id }) => DECIDE.includes(id) && card.gestes?.includes(/** @type {never} */ (id))).map(({ id, libelle: wording }) => ({ texte: wording, recommande: false, sorte: /** @type {KindOfAction} */ (id) }));
-  // Un écran à valider, une revue : leur bouton, quand leur carte dit la PR qu'ils tranchent — sinon aucun, comme sur leur carte.
+  // Un écran à valider : son bouton, quand sa carte dit la PR qu'il tranche — sinon aucun, comme sur sa carte.
   if (isOneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDATE, recommande: true, sorte: "valider" }] : [];
-  if (isOneReview(todo)) return "pr" in (todo.revue ?? {}) ? [{ texte: MERGER, recommande: true, sorte: "merger" }] : [];
   if (!["repos", "refus"].includes(seenOfTheCard(todo, actions.etat(card.ticket, todo)).vu)) return [];
   const recommended = recommendationOf(todo)?.rang;
   return todo.choix.map(({ texte: text }, rank) => ({ texte: text, recommande: rank + 1 === recommended, sorte: "repondre", reponse: { question: todo.question, choix: rank + 1 } }));

@@ -36,11 +36,8 @@ import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
 import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { approveTheAction, readTheHeld } from "./held/read.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
-import { writeOneRecurring, readTheRecurring } from "./vue/recurring/recurring-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
-import { writeTheExplanations, readTheExplanations } from "./vue/explanations/explanations-box.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
-import { plugTheKnowHow } from "./vue/know-how-tab/know-how-box.ts";
 import { readTheRecap, markTheRecap } from "./vue/recap/recap-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
@@ -79,7 +76,6 @@ import { changeTheDay, readTheDay, readTheResumes, publishTheResume, type Resume
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub, signInToGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
-import { setTheCommand } from "./command-brigade.ts";
 import { searchOneUpdate, workstationOf, type Opinion as OpinionOfVersion } from "./update/opinion.ts";
 import { holdUpdate } from "./update/state.ts";
 import { apkLink, RELEASES_URL } from "./update/android.ts";
@@ -1445,38 +1441,11 @@ const writeOneHuman = async (name: unknown, action: { save: unknown } | { remove
 };
 ipcMain.handle("enregistrerUnHumain", (_, name: unknown, human: unknown) => writeOneHuman(name, { save: human }));
 ipcMain.handle("retirerUnHumain", (_, name: unknown, login: unknown) => writeOneHuman(name, { remove: login }));
-// Les tickets récurrents du projet, sous Settings (#3231) : lus par `recurring` là où sa cuisine tourne, et chacun suspendu,
-// repris ou retiré par elle (vue/recurring/recurring-box.ts).
-ipcMain.handle("listerLesRecurrents", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheRecurring(aims.nom, readOne, launchOnTheKitchen);
-});
-ipcMain.handle("changerUnRecurrent", (_, name: unknown, action: unknown, id: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeOneRecurring(aims.nom, readOne, action, id, launchOnTheKitchen);
-});
 // La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
 // poste (vue/card-project/card-project-folder.ts).
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, name: unknown, path: unknown, text: unknown) => writeInTheProject(knownOne(name), path, text));
 plugTheWordAtCook(ipcMain, kitchenOfProject, launchOnTheKitchen); // le mot au cook (#4048, vue/word-at-cook/word-at-cook-box.ts)
-plugTheKnowHow(ipcMain, kitchenOfProject, launchOnTheKitchen); // le savoir-faire du projet, sous Know-how (#4241, vue/know-how-tab/know-how-box.ts)
-// Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
-// marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
-// (vue/explanations/explanations-box.ts).
-const accountOfExplanations = () => accountConnected.login();
-ipcMain.handle("lireLesExplications", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheExplanations(aims.nom, readOne, accountOfExplanations, launchOnTheKitchen);
-});
-ipcMain.handle("marquerUneExplication", (_, name: unknown, word: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeTheExplanations(aims.nom, readOne, accountOfExplanations, { vu: word }, launchOnTheKitchen);
-});
-ipcMain.handle("remontrerLesExplications", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeTheExplanations(aims.nom, readOne, accountOfExplanations, { effacer: true }, launchOnTheKitchen);
-});
 // Le récapitulatif de chaque projet, sur l'accueil (#3581, vue/recap/recap-box.ts) : lu par `recap` là où sa cuisine tourne,
 // et son marqueur avancé par elle quand la vue l'a montré. Seule l'adresse d'une PR qu'une lecture a rendue s'ouvre.
 const linksOfRecaps = new Set<string>();
@@ -1778,8 +1747,6 @@ void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installedAtLaunch) return app.quit();
   serveTheAgents();
-  // La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
-  setTheCommand({ plateforme: platform, facon: locations.facon, maison: homedir(), version: app.getVersion(), runtime: locations.runtime, node: locations.node, racine: rootOfTheStation, chemin: process.env.PATH ?? "" });
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.
   // Windows : l'exécutable garde l'icône d'Electron, la fenêtre reçoit donc toujours la sienne — le
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.
