@@ -22,10 +22,8 @@ export function prompts(options: Prompts = { dir: DEFAULT_DIR }) {
     manager: (input: { tickets: string[] }) => [role("manager"), "# Les prochains tickets", ...input.tickets].join("\n\n"),
     supervisor: (input: { issues: Issue[]; running: Run[]; now: number }) =>
       [
-        role("supervisor"),
-        "# Les tickets ouverts",
-        input.issues.map((issue) => `#${issue.number} [${issue.labels.join(", ")}] ${issue.title}`).join("\n"),
-        "# Les agents qui tournent",
+        role("supervisor"), "# Les tickets ouverts",
+        input.issues.map((issue) => `#${issue.number} [${issue.labels.join(", ")}] ${issue.title}`).join("\n"), "# Les agents qui tournent",
         input.running.map((run) => `${run.name} depuis ${Math.round((input.now - run.started) / 60_000)} min, dernière activité il y a ${lastActivity(run, input.now)} min`).join("\n") || "aucun",
       ].join("\n\n"),
   };
@@ -33,18 +31,14 @@ export function prompts(options: Prompts = { dir: DEFAULT_DIR }) {
 
 // Minutes since the agent last wrote to its stream: a long run that still writes is working, not stuck.
 const lastActivity = (run: Run, now: number): number => {
-  try {
-    return Math.round((now - statSync(join(run.dir, "stream.jsonl")).mtimeMs) / 60_000);
-  } catch {
-    return Math.round((now - run.started) / 60_000);
-  }
+  const stream = join(run.dir, "stream.jsonl");
+  return Math.round((now - (existsSync(stream) ? statSync(stream).mtimeMs : run.started)) / 60_000);
 };
 
 export type Verdict = { merge: true } | { merge: false; reason: string };
 
 export function parseVerdict(result: string): Verdict | null {
-  const lines = result.trim().split("\n").filter((line) => line.trim().startsWith("VERDICT:"));
-  const last = lines.at(-1)?.trim();
+  const last = result.trim().split("\n").filter((line) => line.trim().startsWith("VERDICT:")).at(-1)?.trim();
   if (last === undefined) return null;
   if (/^VERDICT:\s*merge\b/i.test(last)) return { merge: true };
   const refused = /^VERDICT:\s*refuse\b\s*[—:-]?\s*(.*)$/i.exec(last);
@@ -65,8 +59,7 @@ export type AgentAction =
   | { open: { title: string; body: string } };
 
 export function parseAgentActions(result: string): AgentAction[] {
-  const blocks = [...result.matchAll(/```json\s*([\s\S]*?)```/g)];
-  const last = blocks.at(-1)?.[1];
+  const last = [...result.matchAll(/```json\s*([\s\S]*?)```/g)].at(-1)?.[1];
   if (last === undefined) return [];
   try {
     const parsed = JSON.parse(last) as { actions?: unknown };

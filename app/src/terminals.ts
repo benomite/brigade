@@ -19,8 +19,6 @@ import { hooksOfParking } from "./second/hook-of-parking.ts";
 import { hooksOfRefusal } from "./second/refusal.ts";
 import { argumentsOfSecond, settingsOfSecond, type Hooks } from "./second/launch.ts";
 import type { Reminder, Memory, Memories } from "./memories.ts";
-import type { OutilVu } from "../../runtime/src/second/outils.ts";
-import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 
 export type Pty = {
   ecrire(data: string): void;
@@ -36,15 +34,21 @@ export type Launch = {
   lignes: number;
   surSortie(data: string): void;
   surFin(code: number): void;
-  // Ce que le plan du second y ajoute (runtime/src/second/lancement.ts, #1433) : `verbatim`, les `args` sont une
+  // Ce que le plan du second y ajoute (#1433) : `verbatim`, les `args` sont une
   // ligne déjà écrite pour Windows, que rien ne doit plus citer ; `env`, ce qui s'ajoute à l'environnement du chef.
   verbatim?: boolean;
   env?: Record<string, string>;
 };
 
-// Un outil qui manque au second (runtime/src/second/outils.ts, #1433) : son nom, pourquoi le second en a besoin, la
-// phrase qui dit comment l'obtenir sur ce poste, et la page qui l'explique.
+// Un outil qui manque au second (#1433) : son nom, pourquoi le second en a besoin, la phrase qui dit comment l'obtenir
+// sur ce poste, et la page qui l'explique.
 export type ToolMissing = { tool: string; reason: string; install: string; link: string };
+// Un outil tel que le plan du second l'a vu : là, ou ce qui manque.
+type ToolSeen = { tool: string; present: true } | ({ present: false } & ToolMissing);
+// Le plan du second, tel que main.ts le donne : ce qui lance `claude`, ou pourquoi il ne part pas.
+type PlanOfSecond =
+  | { state: "ready"; launch: { command: string; args: string[]; verbatim: boolean; env: Record<string, string> }; missing: readonly string[]; reason?: string; tools: readonly ToolSeen[] }
+  | { state: "cannot-start"; reason: string; tools?: readonly ToolSeen[] };
 // Ce que le plan du second dit de lui, en une phrase, et chaque outil qui manque (#1435).
 export type SaysOfSecond = { reason: string; tools: ToolMissing[] };
 
@@ -83,7 +87,7 @@ export const HELD = 1_000_000;
 export type Terminals = ReturnType<typeof openTerminals>;
 
 // Les outils que le plan dit absents, avec ce qui les obtient — rien d'autre de ce qu'il a vu.
-const missing = (tools: readonly OutilVu[]): ToolMissing[] =>
+const missing = (tools: readonly ToolSeen[]): ToolMissing[] =>
   tools.flatMap((seenOne) => (seenOne.present ? [] : [{ tool: seenOne.tool, reason: seenOne.reason, install: seenOne.install, link: seenOne.link }]));
 
 // `saisie` : ce que l'app sait de la saisie d'un second qui tourne (input.ts).
@@ -147,10 +151,10 @@ export function openTerminals(options: {
   compte?(target: Target): string;
   // Détruit la session d'un shell fermé pour de bon (persistence.ts).
   detruire?(session: Session): Promise<{ detruite: true } | { erreur: string }>;
-  // Le plan du second, tel que le runtime le fait (runtime/src/second/lancement.ts, #1433) : ce qui lance `claude`
+  // Le plan du second, tel que main.ts le donne (#1433) : ce qui lance `claude`
   // sur ce poste — son chemin, et sous Windows ce qui le lance —, ou pourquoi il ne part pas. Sans lui, `claude` est
   // lancé par son nom.
-  planDuSecond?(folder: string, args: readonly string[]): PlanDuSecond;
+  planDuSecond?(folder: string, args: readonly string[]): PlanOfSecond;
 }) {
   const heldOnes = new Map<number, Held>();
   const argsOfShell = options.argsDuShell ?? ["-l"];
@@ -186,7 +190,7 @@ export function openTerminals(options: {
 
   // Le second ne part pas : sa note dit pourquoi, en une phrase, et la vue montre à la place du terminal chaque outil
   // qui manque, avec ce qui l'obtient (#1435). Une touche — ou « try again » — refait le plan.
-  function prevent(held: Held, reason: string, tools: readonly OutilVu[] = []): void {
+  function prevent(held: Held, reason: string, tools: readonly ToolSeen[] = []): void {
     held.pty = undefined;
     held.saisie = undefined;
     held.arrete = true;

@@ -7,10 +7,11 @@ import { describe, test } from "node:test";
 import { comment, PRICE } from "../src/discussion.ts";
 import { commentTheIssue, removeTheLabel, WITHOUT_DONE, onGithub, ticketsRead } from "../src/actions-github.ts";
 import type { ClientOfThePriority } from "../src/priority.ts";
-import { LABELS_D_AVANT_PARKED } from "../../runtime/src/github-etat/etats.ts";
 import type { AnswerGitHub } from "../src/board/client.ts";
 import type { BoardRead } from "../src/board/read.ts";
 
+// Les labels d'avant parked que la cuisine lit encore comme parqués (runtime/src/kitchen/decide.ts).
+const LABELS_BEFORE_PARKED = ["waiting", "blocked-on-human"];
 const REPOSITORY = "chef/parade";
 const PROJECT = { nom: "parade", dossier: "/tmp/parade" };
 
@@ -54,13 +55,13 @@ describe("retirer le label du geste de l'issue du ticket", () => {
       fait: "back to the kitchen on GitHub: #31 no longer carries `parked` — it resumes exactly where it was",
       detail: "https://github.com/chef/parade/issues/31",
     });
-    assert.deepEqual(requests, ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/chef/parade/issues/31/labels/${encodeURIComponent(label)}`));
+    assert.deepEqual(requests, ["parked", ...LABELS_BEFORE_PARKED].map((label) => `DELETE /repos/chef/parade/issues/31/labels/${encodeURIComponent(label)}`));
   });
 
-  // #4260 : un ticket qu'un label d'attente d'avant parked parque (`blocked-on-human`, `set-aside:failures`…) est parqué pour la
-  // cuisine (runtime/src/github-etat/etats.ts, `estParque`) : « back to the kitchen » le lui retire aussi, ou il ne reprendrait jamais.
+  // #4260 : un ticket qu'un label d'attente d'avant parked parque (`blocked-on-human`) est parqué pour la
+  // cuisine (runtime/src/kitchen/decide.ts) : « back to the kitchen » le lui retire aussi, ou il ne reprendrait jamais.
   test("« back to the kitchen » sur un ticket parqué par un label d'avant parked : ce label retiré aussi — il reprend ; refusé, la phrase dit que `parked` est retiré, pas lui", async () => {
-    const [old] = LABELS_D_AVANT_PARKED.filter((label) => label !== "waiting");
+    const [old] = LABELS_BEFORE_PARKED.filter((label) => label !== "waiting");
     const door = new Set(["fire", old as string]);
     const { client, demandes: requests } = github((method, path) => {
       const label = decodeURIComponent(path.split("/labels/")[1] ?? "");

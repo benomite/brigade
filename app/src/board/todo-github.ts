@@ -11,7 +11,6 @@
 // commentaire marqué porte ses choix, un par ligne après la question : `- [<geste>] <libellé>`, le geste parmi ceux de la
 // forme unique (runtime/src/carte-todo/forme.ts) — `formeDuChef`. Un commentaire sans choix se lit comme avant ; sa réponse
 // libre joue `resume`. La réponse part du `gh` du chef (board-actions/answer-github.ts).
-import type { ReviewSensitive } from "../vue/card-sensitive/card-sensitive-github.ts";
 import type { ValidationDesign } from "../vue/validation-design/validation-design-github.ts";
 
 export const LABEL_OF_CHEF = "chef-todo";
@@ -24,13 +23,12 @@ const BRAND = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)(?:\s+[a-z]+=[^\s>
 // Ce que la vue pose sur une carte du chef : la sorte (`blocked`, `merge-by-hand`, `product-question`, `abandoned`, ou
 // ce que le runtime ajoute un jour) et le texte du commentaire.
 // `design` : sur la carte « Validate its screen » (sorte `design-validation`, ticket 3185), ce que le corps de son issue dit
-// — sa PR, son ticket, ses captures (vue/validation-design/validation-design-github.ts). `sensible` : sur la carte « review
-// before merge » (sorte `review-before-merge`, ticket 3224), sa PR et son ticket (vue/card-sensitive/card-sensitive-github.ts).
+// — sa PR, son ticket, ses captures (vue/validation-design/validation-design-github.ts).
 // `recommandee` : sur la carte d'un écart du manager (#3434, set-aside-github.ts, `carteDeLEcart`), le choix qu'il
 // recommande et pourquoi, en une ligne — nulle quand il n'en recommande aucun : aucun choix n'est alors mis en avant. Absente
 // des autres cartes, dont le premier choix reste la réponse recommandée.
 export type Recommended = { texte: string; pourquoi: string };
-export type CardOfChef = { sorte: string; texte: string; design?: ValidationDesign; sensible?: ReviewSensitive; recommandee?: Recommended | null };
+export type CardOfChef = { sorte: string; texte: string; design?: ValidationDesign; recommandee?: Recommended | null };
 
 // Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`), `rail`, et
 // `wait`, la mise en WAITING qu'une carte du manager propose quand sa question attend un tiers (#3434).
