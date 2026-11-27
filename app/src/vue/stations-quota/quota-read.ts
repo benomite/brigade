@@ -1,5 +1,5 @@
-// Le quota GitHub du compte, tel que `facts` le porte (`quotaGithub`, ticket 3483) : l'app le lit de GitHub (quota-github.ts, #4645),
-// et sans lui l'onglet Stations n'affiche pas le quota. `parStationEtProjet` absent : rien ne dit qui l'use, la jauge n'a pas de détail. Présent mais mal formé, il se lit quand même : un nombre qui n'en est pas un
+// Le quota GitHub du compte, tel que `facts` le porte (`quotaGithub`, ticket 3483) : l'app le lit de GitHub (quota-github.ts, ticket 4645),
+// et sans lui l'onglet Stations n'affiche pas le quota. `parStationEtProjet` absent : rien ne dit qui l'use, l'affichage n'a pas de détail. Présent mais mal formé, il se lit quand même : un nombre qui n'en est pas un
 // devient NaN, que le quota dit « unavailable » plutôt que d'inventer un chiffre ; une ligne d'usage mal formée est omise.
 export type CallOfQuota = { station: string; projet: string; typeAppel: string; nombre: number };
 export type QuotaGithub = { limite: string; pauseJusqua: string | null; utilise: number; maximum: number; renouvellement: string | null; parStationEtProjet?: CallOfQuota[] };

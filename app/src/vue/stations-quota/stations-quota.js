@@ -2,9 +2,9 @@
 // Le quota GitHub affiché du compte, en tête de l'onglet Stations (ticket 3483, épique 3475) : combien est utilisé sur
 // combien, quand la fenêtre se renouvelle, et — d'un clic — ce qui l'use : les appels de la dernière heure, par station et
 // par projet, du plus gros utilisateur au plus petit. Elle vire à l'orange quand le quota est près de manquer, avant toute
-// pause : ni le jaune de la pause, ni le rouge d'une panne. `quotaGithub` vient des faits, que l'app lit de GitHub (quota-github.ts, #4645) :
+// pause : ni le jaune de la pause, ni le rouge d'une panne. `quotaGithub` vient des faits, que l'app lit de GitHub (quota-github.ts, ticket 4645) :
 // `{ limite: 'core' | 'ecriture', pauseJusqua, utilise, maximum, renouvellement, parStationEtProjet?: [{ station, projet, typeAppel, nombre }] }` —
-// sans `parStationEtProjet`, rien ne dit qui l'use : la jauge n'a pas de détail.
+// sans `parStationEtProjet`, rien ne dit qui l'use : l'affichage n'a pas de détail.
 // Rien n'y est cru sur parole : un compte qui ne se lit pas (maximum absent ou nul, utilisé illisible) se dit en une ligne, sans
 // chiffre inventé. Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (bricks.js).
 
