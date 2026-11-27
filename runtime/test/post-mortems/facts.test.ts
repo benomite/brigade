@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { principal as commande } from "../../src/faits.ts";
+import { principal as commande } from "../faits-principal.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { terminerLaPanne } from "../../src/post-mortems/post-mortems.ts";
 import { appeler, repertoireTemporaire } from "../outils.ts";

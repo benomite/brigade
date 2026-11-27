@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import { activiteDeLaCuisine, comptesEntre } from "../../src/activite-cuisine/comptes.ts";
 import type { Ajout } from "../../src/evenements.ts";
 import { REDECOUPE } from "../../src/events/pass.ts";
-import { principal as faits } from "../../src/faits.ts";
+import { principal as faits } from "../faits-principal.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { aArreter, appeler, repertoireTemporaire } from "../outils.ts";
 

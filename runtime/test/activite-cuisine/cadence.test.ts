@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { cadenceDeLaCuisine, HEURES, heuresDeLaCuisine } from "../../src/activite-cuisine/cadence.ts";
 import type { Ajout } from "../../src/evenements.ts";
-import { principal as faits } from "../../src/faits.ts";
+import { principal as faits } from "../faits-principal.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { aArreter, appeler, repertoireTemporaire } from "../outils.ts";
 
