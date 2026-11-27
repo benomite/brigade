@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import type { Captures } from "../src/captures.ts";
 import { decrireEtat, ETATS_DE_PROJET, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { principal as commande } from "../src/faits.ts";
+import { principal as commande } from "./faits-principal.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { ouvrirRail } from "./aides/rail-du-journal.ts";
@@ -549,22 +549,6 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.deepEqual(forme.livres, []);
   assert.ok(Math.abs(Date.parse(forme.lu) - Date.now()) < 3_600_000);
   assert.deepEqual([journal.tout(), photographier(journal, PROJECTIONS)], avant);
-});
-
-test("la commande refuse un argument, un répertoire d'état absent ou sans journal, en le disant", async (t) => {
-  const repertoire = repertoireTemporaire(t);
-
-  const sansEtat = appeler(commande, [], {});
-  assert.equal(await sansEtat.fin, 2);
-  assert.match(sansEtat.sortie(), /^brigade : BRIGADE_STATE_DIR n'est pas défini\nusage : /);
-
-  const avecArgument = appeler(commande, ["--json"], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await avecArgument.fin, 2);
-  assert.match(avecArgument.sortie(), /^brigade : usage : /);
-
-  const sansJournal = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /^brigade : /);
 });
 
 // Un ticket pris par box/claude, son cook lancé à 10:00:04.

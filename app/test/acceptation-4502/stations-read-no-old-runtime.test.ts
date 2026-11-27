@@ -45,7 +45,7 @@ describe("#4502 — the stations read nothing from the old runtime", () => {
 
   test("keeping a Mac awake is gone: no module, no line nor checkbox in the icon's menu", () => {
     assert.equal(existsSync(join(SRC, "vue", "standby-machine")), false);
-    const entries = menuOfBackground([], "illisible");
+    const entries = menuOfBackground([]);
     assert.deepEqual([...new Set(entries.map(({ genre }) => genre))].sort(), ["geste", "separateur", "texte"]);
     assert.doesNotMatch(JSON.stringify(entries), /awake/);
   });

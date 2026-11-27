@@ -1,10 +1,11 @@
-// L'icône de la station de fond (#3631) : ses comptes, son menu, ce que ses gestes lancent sur la station, et la
-// confirmation que quitter la station demande.
+// L'icône de la station de fond (#3631) : sa ligne, son menu — ouvrir, quitter, rien d'autre : aucune commande du
+// runtime ne part du fond (ticket 4677) —, et la confirmation que quitter la station demande. L'état de la station lu des
+// faits (`stateOfTheStation`) reste celui de l'icône de l'app.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { ProjectRead } from "../src/menu-bar.ts";
 import type { Facts } from "../src/facts.ts";
-import { commandsOfAction, confirmationOfQuit, stateOfTheStation, menuOfBackground, questionsOfBackground } from "../src/tray-background/tray-background.ts";
+import { confirmationOfQuit, lineOfTheStationHere, stateOfTheStation, menuOfBackground } from "../src/tray-background/tray-background.ts";
 import { lineOfBackground } from "../src/tray/line.ts";
 
 type StateOfTheStation = ReturnType<typeof stateOfTheStation>;
@@ -30,10 +31,8 @@ describe("les comptes de l'icône", () => {
   test("les cooks qui cuisent et les questions qui attendent, sur tous les projets, et ils suivent leur changement", () => {
     const projects: ProjectRead[] = [{ nom: "brigade", faits: someFacts(2, 1) }, { nom: "parade", faits: someFacts(1, 0) }];
     assert.equal(lineOfBackground(projects, IN_SERVICE), "3 cooking · 1 for you");
-    assert.equal(questionsOfBackground(projects), 1);
     projects[1] = { nom: "parade", faits: someFacts(0, 2) };
     assert.equal(lineOfBackground(projects, IN_SERVICE), "2 cooking · 3 for you");
-    assert.equal(questionsOfBackground(projects), 3);
   });
 
   test("rien de lu n'est jamais « 0 », et l'état de la station se dit", () => {
@@ -46,46 +45,35 @@ describe("les comptes de l'icône", () => {
 
 describe("l'état de la station, lu de ses projets", () => {
   test("en pause quand chaque projet lu est éteint", () => {
-    const off = someFacts(0, 0, { etat: "éteinte" });
+    const off = someFacts(0, 0, { etat: "éteinte", stations: [station("mac/claude", "cooking"), station("box/claude", "cooking", true)] });
+    const stops = someFacts(1, 0, { stations: [station("mac/claude", "stopped"), station("box/claude", "cooking", true)] });
     assert.deepEqual(stateOfTheStation([{ nom: "a", faits: off }, { nom: "b", faits: undefined }]), { pause: true });
-    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: someFacts(1, 0) }, { nom: "b", faits: off }]), { pause: false });
+    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: stops }, { nom: "b", faits: off }]), { pause: false });
+    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: someFacts(0, 0) }]), { pause: false });
     assert.equal(stateOfTheStation([{ nom: "a", faits: undefined }]), "illisible");
     assert.equal(stateOfTheStation([]), "illisible");
   });
 });
 
-describe("le menu", () => {
-  const actions = (state: StateOfTheStation) =>
-    menuOfBackground([{ nom: "brigade", faits: someFacts(0, 0) }], state).flatMap((entry) => (entry.genre === "geste" ? [`${entry.geste}:${entry.actif}`] : []));
-
-  test("ouvrir l'app, pause, quitter — « Resume » en pause ; aucun geste d'arrêt ni de démarrage", () => {
-    assert.deepEqual(actions(IN_SERVICE), ["ouvrir:true", "pause:true", "quitter:true"]);
-    assert.deepEqual(actions({ pause: true }), ["ouvrir:true", "reprise:true", "quitter:true"]);
-    assert.deepEqual(actions("illisible"), ["ouvrir:true", "pause:false", "quitter:true"]);
-    const wordings = menuOfBackground([], { pause: true }).flatMap((entry) => (entry.genre === "geste" ? [entry.libelle] : []));
-    assert.deepEqual(wordings, ["Open brigade", "Resume the station", "Quit the station…"]);
+describe("la ligne et le menu du fond", () => {
+  test("la ligne dit combien de projets la station sert — ni cooks, ni questions, rien qui ne se lise plus", () => {
+    assert.equal(lineOfTheStationHere([]), "no project on this station");
+    assert.equal(lineOfTheStationHere(["brigade"]), "1 project on this station");
+    assert.equal(lineOfTheStationHere(["brigade", "parade"]), "2 projects on this station");
   });
-});
 
-describe("ce que les gestes lancent", () => {
-  const projects: ProjectRead[] = [
-    { nom: "brigade", faits: someFacts(0, 0, { stations: [station("mac/claude", "cooking"), station("box/claude", "cooking", true)] }) },
-    { nom: "parade", faits: undefined },
-  ];
-
-  test("pause et reprise : l'interrupteur de chaque projet", () => {
-    assert.deepEqual(commandsOfAction("pause", projects), [{ projet: "brigade", commande: "switch off" }, { projet: "parade", commande: "switch off" }]);
-    assert.deepEqual(commandsOfAction("reprise", projects), [{ projet: "brigade", commande: "switch on" }, { projet: "parade", commande: "switch on" }]);
+  test("ouvrir l'app et quitter, seuls : ni pause, ni arrêt, ni démarrage", () => {
+    const entries = menuOfBackground(["brigade"]);
+    assert.deepEqual(entries.flatMap((entry) => (entry.genre === "geste" ? [`${entry.geste}:${entry.actif}`] : [])), ["ouvrir:true", "quitter:true"]);
+    assert.deepEqual(entries.flatMap((entry) => (entry.genre === "geste" ? [entry.libelle] : [])), ["Open brigade", "Quit the station…"]);
   });
 });
 
 describe("la confirmation de quitter", () => {
-  test("elle dit que quitter arrête la cuisine et ses cooks en cours", () => {
-    const { message, detail, quitter: quit, annuler: cancel } = confirmationOfQuit([{ nom: "brigade", faits: someFacts(3, 0) }]);
+  test("elle dit que quitter arrête la cuisine et ses cooks en cours, sans en compter aucun", () => {
+    const { message, detail, quitter: quit, annuler: cancel } = confirmationOfQuit();
     assert.equal(message, "Quit the station? This stops the kitchen.");
-    assert.equal(detail, "The 3 cooks running now stop. Its projects stop cooking on this computer until the station starts again.");
+    assert.equal(detail, "The cooks running now stop. Its projects stop cooking on this computer until the station starts again.");
     assert.deepEqual([quit, cancel], ["Quit the station", "Cancel"]);
-    assert.match(confirmationOfQuit([{ nom: "brigade", faits: someFacts(1, 0) }]).detail, /^The cook running now stops\./);
-    assert.match(confirmationOfQuit([]).detail, /^No cook is running now\./);
   });
 });

@@ -1,83 +1,13 @@
-// L'icône de la station de fond (#3631), sur la station et le système : les `facts` de chaque projet lus par son geste,
-// les gestes joués projet par projet, l'inscription à l'ouverture de session, et ce que « Quit the station » arrête.
+// L'icône de la station de fond (#3631), sur la station et le système : l'inscription à l'ouverture de session, et ce que « Quit the station » arrête.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { ExecFileException } from "node:child_process";
-import type { Rendered } from "../src/box.ts";
-import type { Facts } from "../src/facts.ts";
-import { playTheAction, readTheProjects, type Launch } from "../src/tray-background/read.ts";
 import { keepTheIcon, registerTheBackground, quitTheStation, stationOfBackgroundInstalled } from "../src/tray-background/system.ts";
 
 type System = Parameters<typeof registerTheBackground>[0];
 type Run = System["executer"];
-import { stateOfTheStation } from "../src/tray-background/tray-background.ts";
-import { lineOfBackground } from "../src/tray/line.ts";
-
-const A = "2026-11-15T10:00:00.000Z";
-const facts = (cooks: number, questions: number, state = "ouverte"): Facts => ({
-  etat: state,
-  lu: A,
-  dernierTick: A,
-  compteurs: { rail: 0, auTravail: cooks, aLaPass: 0, attend: questions, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
-  cooks: Array.from({ length: cooks }, (_, i) => ({ ticket: i + 1, titre: `ticket ${i + 1}`, station: "mac/claude" })),
-  attend: Array.from({ length: questions }, (_, i) => ({ ticket: 100 + i, titre: `question ${i}`, url: null })),
-  livres: [],
-  urgence: null,
-  stations: [{ station: "mac/claude", distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking" }],
-});
-const ok = (output: string): Rendered => ({ lance: "$ node geste.ts", erreur: null, sortie: output, erreurs: "" });
-const rate = (code: number, errors: string): Rendered => ({ lance: "$ node geste.ts", erreur: Object.assign(new Error("failed"), { code }) as ExecFileException, sortie: "", erreurs: errors });
-
-describe("les faits de chaque projet, lus par le geste de la station", () => {
-  test("chaque projet lu compte, et la ligne suit ce que la station rend d'une lecture à l'autre", async () => {
-    const renderedOnes = new Map<string, Facts>([["brigade", facts(2, 1)], ["parade", facts(1, 0)]]);
-    const launched: string[] = [];
-    const launch: Launch = async (project, command) => {
-      launched.push(`${project} ${command}`);
-      return ok(JSON.stringify(renderedOnes.get(project)));
-    };
-    let readOnes = await readTheProjects(["brigade", "parade"], launch);
-    assert.deepEqual(launched, ["brigade facts", "parade facts"]);
-    assert.equal(lineOfBackground(readOnes, stateOfTheStation(readOnes)), "3 cooking · 1 for you");
-    renderedOnes.set("parade", facts(0, 2));
-    readOnes = await readTheProjects(["brigade", "parade"], launch);
-    assert.equal(lineOfBackground(readOnes, stateOfTheStation(readOnes)), "2 cooking · 3 for you");
-  });
-
-  test("une station qui ne répond pas, ou une sortie qui n'est pas la forme des faits : le projet n'est pas lu, jamais « 0 »", async () => {
-    const launch: Launch = async (project) => (project === "brigade" ? rate(65, "projet inconnu") : ok("pas du JSON"));
-    const readOnes = await readTheProjects(["brigade", "parade"], launch);
-    assert.deepEqual(readOnes, [{ nom: "brigade", faits: undefined }, { nom: "parade", faits: undefined }]);
-    assert.equal(lineOfBackground(readOnes, stateOfTheStation(readOnes)), "not read yet");
-  });
-});
-
-describe("un geste joué sur la station", () => {
-  test("chaque commande part, projet par projet, et celles qui échouent sont dites", async () => {
-    const launched: string[] = [];
-    const launch: Launch = async (project, command) => {
-      launched.push(`${project} ${command}`);
-      return project === "parade" ? rate(1, "no log") : ok("");
-    };
-    const projects = [{ nom: "brigade", faits: facts(0, 0) }, { nom: "parade", faits: facts(0, 0) }];
-    const failures = await playTheAction("pause", projects, launch, 30_000);
-    assert.deepEqual(launched, ["brigade switch off", "parade switch off"]);
-    assert.equal(failures.length, 1);
-    assert.match(failures[0] ?? "", /^parade: switch off failed — \$ node geste\.ts\nno log\n→ exit code 1$/);
-    assert.deepEqual(await playTheAction("reprise", projects.slice(0, 1), launch, 30_000), []);
-    assert.equal(launched.at(-1), "brigade switch on");
-  });
-
-  test("rien de lu : rien n'est envoyé, et c'est dit", async () => {
-    const failures = await playTheAction("pause", [], async () => assert.fail("rien ne part"), 30_000);
-    assert.deepEqual(failures, ["no project of this station could be read: nothing was sent"]);
-  });
-});
 
 function home(t: TestContext): string {
   const folder = mkdtempSync(join(tmpdir(), "tray-fond-"));
@@ -236,11 +166,12 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
     assert.ok(principal.includes("menuBar.poser(tracking.configuration().barreDeMenus !== false && !iconAtBackground,"));
   });
 
-  test("le process de l'icône lit les projets de la station, et joue ses gestes et la confirmation de quitter", () => {
+  test("le process de l'icône lit les projets de la station, la confirmation de quitter — et ne lance aucune commande du runtime", () => {
     const process = read("src/tray-background/process.ts");
-    assert.ok(process.includes("await readTheProjects(servedBy(root), launch)"));
-    assert.ok(process.includes("await playTheAction(action, projects, launch, DELAY_MS)"));
-    assert.ok(process.includes("const text = confirmationOfQuit(projects);"));
+    assert.ok(process.includes("projects = servedBy(root);"));
+    assert.ok(process.includes("const text = confirmationOfQuit();"));
+    assert.doesNotMatch(process, /launchHere|facts|geste\.ts/);
+    assert.equal(existsSync(join(import.meta.dirname, "..", "src", "tray-background", "read.ts")), false);
     assert.match(process, /if \(response !== 0\) return;\n\s+await tell\(await quitTheStation\(/);
   });
 });
