@@ -1,11 +1,11 @@
 // L'espace de « parade » sur un PC sous Windows (#1154), un shell ouvert par « + shell » sur ce PC et
 // montré à droite : le `bash` de Git for Windows, son bandeau (« this PC · chef ») et sa note — pas de
 // session : ni `tmux` ni `screen` sous Windows, le shell finit avec son terminal.
-import type { Terminal } from "../../../app/src/terminaux.ts";
+import type { Terminal } from "../../../app/src/terminals.ts";
 import type { Ecran } from "./commun.ts";
 import { avecUnShell, ETAPES, SHELL_MAC } from "./shell-ce-mac.ts";
 
-// Ce que terminaux.ts rend d'un shell de ce poste sous Windows (`persistantIci` faux).
+// Ce que terminals.ts rend d'un shell de ce poste sous Windows (`persistantIci` faux).
 const SHELL_PC: Terminal = {
   ...SHELL_MAC,
   note: "shell on this PC, in C:\\Users\\chef\\parade — not persistent: neither tmux nor screen runs on Windows, this shell ends with its terminal",

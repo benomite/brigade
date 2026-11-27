@@ -5,17 +5,17 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { passerLePremierLancement } from "../../src/premier-lancement/index.ts";
+import { passTheFirstLaunch } from "../../src/first-launch/index.ts";
 
 test("after the first launch was confirmed, the second launch does not show the screen", async () => {
-  const marque = join(mkdtempSync(join(tmpdir(), "premier-")), "vu");
-  let ecrans = 0;
+  const brand = join(mkdtempSync(join(tmpdir(), "premier-")), "vu");
+  let screens = 0;
   let actions = 0;
-  const lancement = () =>
-    passerLePremierLancement({ marque, afficher: async () => void ecrans++, declencher: async () => void actions++ });
-  await lancement();
-  assert.equal(ecrans, 1, "first launch shows the screen");
-  await lancement();
-  assert.equal(ecrans, 1, "second launch shows no screen");
+  const launch = () =>
+    passTheFirstLaunch({ marque: brand, afficher: async () => void screens++, declencher: async () => void actions++ });
+  await launch();
+  assert.equal(screens, 1, "first launch shows the screen");
+  await launch();
+  assert.equal(screens, 1, "second launch shows no screen");
   assert.equal(actions, 2);
 });

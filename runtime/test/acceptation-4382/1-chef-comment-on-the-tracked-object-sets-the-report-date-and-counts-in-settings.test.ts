@@ -1,7 +1,7 @@
 // #4382 criterion 1: the chef comments on the tracked object 10 minutes after the red starts: the post-mortem's chef-report date is the comment's own date.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { vueDesPostMortems } from "../../../app/src/projets/post-mortems.ts";
+import { vueOfPostMortems } from "../../../app/src/projects/post-mortems.ts";
 import { lirePostMortems } from "../../src/post-mortems/post-mortems.ts";
 import { A, CHEF, cuisine, rangees } from "./cuisine.ts";
 
@@ -20,7 +20,7 @@ test("the chef's comment on the tracked issue, 10 minutes after the red starts, 
   assert.equal(lus[0]?.signaleeParLeChef, A("10:10"), "the chef-report date is the comment's date, not a runtime tick");
   assert.equal(lirePostMortems(c.repertoire, "shop")[0]?.vuEnPremier, "chef");
   // The Settings section's count, computed by the app's own code from what `facts` publishes.
-  assert.equal(vueDesPostMortems(c.publies(), new Date(A("11:00"))).vusParLeChef, 1);
+  assert.equal(vueOfPostMortems(c.publies(), new Date(A("11:00"))).vusParLeChef, 1);
 });
 
 test("a chef comment on the tracked issue whose title names the failing state is a report, even when its words do not", async (t) => {

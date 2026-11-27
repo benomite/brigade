@@ -1,8 +1,8 @@
 // Le choix de la machine qui cuit un projet (#3187) : « parade », qu'aucune station ne cuit encore, « choose its machine »
 // cliqué. Deux stations appairées : la box, serveur de 8 cœurs, hors ligne depuis 22 min, et ce Mac — la station de cet
 // ordinateur —, en ligne, 10 cœurs. La recommandation est celle que le process principal calcule (`stationRecommandee`).
-import { calibrageRecommande, machineProposee, stationRecommandee, type VuDesProjets } from "../../../app/src/projets/projets.ts";
-import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
+import { calibrationRecommended, machineProposed, stationRecommended, type SeenOfProjects } from "../../../app/src/projects/projects.ts";
+import type { StationVue, SeenOfStations } from "../../../app/src/stations/stations.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
@@ -13,9 +13,9 @@ export const CHOISIR = { cliquer: "#stations-du-projet button.ajout-de-station:n
 
 export function sansStation() {
   const tout = donnees(SUR_LA_BOX, { depotsDuChef: { depots: [{ depot: "benomite/parade", base: "main" }] } });
-  const lu = tout.reponses.demarrage as { stations: VuDesStations; projetsDesStations: VuDesProjets };
+  const lu = tout.reponses.demarrage as { stations: SeenOfStations; projetsDesStations: SeenOfProjects };
   lu.stations = { a: lu.stations.a, stations: [BOX, MAC] };
-  lu.projetsDesStations = { ...lu.projetsDesStations, projets: [], locale: "macbook", recommandee: stationRecommandee([BOX, MAC]) ?? null, machines: { box: machineProposee(BOX), macbook: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
+  lu.projetsDesStations = { ...lu.projetsDesStations, projets: [], locale: "macbook", recommandee: stationRecommended([BOX, MAC]) ?? null, machines: { box: machineProposed(BOX), macbook: machineProposed(MAC) }, calibrage: calibrationRecommended([]) };
   return tout;
 }
 

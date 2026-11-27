@@ -26,7 +26,7 @@
 #     (#2535, #2464, #2622) changeaient runtime/src/ (brigade-github.ts, main.ts, station/*.ts) et des
 #     tests du runtime.
 #   - app/** : les tests de l'app jouent aussi sous Windows ; #2608 (app/test/plugin-app.test.ts) et
-#     #2636 (app/test/poste/station.test.ts) en sont issus, et leurs PR cassantes (#2606,
+#     #2636 (app/test/workstation/station.test.ts) en sont issus, et leurs PR cassantes (#2606,
 #     #2479) changeaient app/src/vue/ (rail/github.ts, parcours-projet/*, vue.css, vue.js).
 #   - docs/runtime/** : des tests du runtime relisent ces pages (ex. exploitation-en-anglais.test.ts) ;
 #     #2535 et #2464 en ont changé (station.md, station-machine.md, settings-ownership.md).

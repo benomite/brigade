@@ -1,6 +1,6 @@
 // Le rail de « parade » dont la dernière lecture de GitHub a raté (#3008) : il se dessine de la lecture d'il y a quatre minutes,
 // et une ligne dit son âge — jamais un renvoi vers un panneau.
-import { tenirFaits } from "../../../app/src/faits.ts";
+import { holdFacts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Envoi, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -16,7 +16,7 @@ export const ecran: Ecran = {
     const envois = cuisine(RENDUS);
     // Toute lecture réussie date d'il y a quatre minutes ; la dernière, celle de GitHub, a raté — après toutes, y compris la relecture à l'ouverture du projet.
     const ancienne = (liste: Envoi[]) => liste.map((envoi) => (envoi.sur === "surFaits" ? { ...envoi, args: [{ ...(envoi.args[0] as object), a: IL_Y_A_QUATRE_MINUTES }] } : envoi));
-    const ratee: Envoi = { sur: "surFaits", args: [tenirFaits().recevoir({ projet: "parade", demande: 0, a: MAINTENANT, erreur: LIMITE, atteinte: true, cas: null, duTableau: true })], demande: "faits" };
+    const ratee: Envoi = { sur: "surFaits", args: [holdFacts().recevoir({ projet: "parade", demande: 0, a: MAINTENANT, erreur: LIMITE, atteinte: true, cas: null, duTableau: true })], demande: "faits" };
     const regarder = Object.fromEntries(Object.entries(envois.regarder).map(([projet, liste]) => [projet, projet === "parade" ? [...ancienne(liste), ratee] : ancienne(liste)]));
     return { maintenant: MAINTENANT, reponses: { demarrage: demarrage(configuration(PROJETS)) }, envois: { ...envois, faits: [...ancienne(envois.faits), ratee], regarder } };
   },

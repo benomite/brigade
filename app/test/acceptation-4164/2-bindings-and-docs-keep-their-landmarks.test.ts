@@ -7,21 +7,21 @@ import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const racine = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const lire = (p: string) => readFileSync(resolve(racine, p), "utf8");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const read = (p: string) => readFileSync(resolve(root, p), "utf8");
 
 test("CLAUDE.md keeps its French labels and its Interface binding names the project's tools", () => {
-  const claude = lire("CLAUDE.md");
-  for (const repere of ["**Acteurs**", "**Interface**", "**Branche d'intégration**", "**Zones de fichiers**", "**Doc vivante**"]) {
-    assert.ok(claude.includes(repere), repere);
+  const claude = read("CLAUDE.md");
+  for (const marker of ["**Acteurs**", "**Interface**", "**Branche d'intégration**", "**Zones de fichiers**", "**Doc vivante**"]) {
+    assert.ok(claude.includes(marker), marker);
   }
-  const interfaceLigne = claude.split("\n").find((l) => l.startsWith("- **Interface**")) ?? "";
-  assert.match(interfaceLigne, /\btools?\b/i);
-  assert.doesNotMatch(interfaceLigne, /design cook|#837/i);
+  const interfaceLine = claude.split("\n").find((l) => l.startsWith("- **Interface**")) ?? "";
+  assert.match(interfaceLine, /\btools?\b/i);
+  assert.doesNotMatch(interfaceLine, /design cook|#837/i);
 });
 
 test("the pages the docs rewrite touches still exist", () => {
   for (const p of ["docs/reglages.md", "docs/runtime/station.md", "docs/runtime/station-cook.md", "docs/runtime/manager.md", "docs/runtime/pass.md", "docs/maquettes/app/README.md", "docs/superpowers/specs/2026-11-24-simplified-process.md"]) {
-    assert.ok(existsSync(resolve(racine, p)), p);
+    assert.ok(existsSync(resolve(root, p)), p);
   }
 });

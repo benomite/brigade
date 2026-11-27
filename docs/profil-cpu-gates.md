@@ -60,7 +60,7 @@ Les fichiers joués seuls paient chacun leur démarrage de Node et ne comptent n
 | 26.0 | 11.7 | `app/test/runner.test.ts` |
 | 24.3 | 31.6 | `runtime/test/installation.test.ts` |
 | 22.4 | 17.2 | `runtime/test/exploitation-en-anglais.test.ts` |
-| 20.5 | 4.0 | `app/test/projets/projets.test.ts` |
+| 20.5 | 4.0 | `app/test/projects/projects.test.ts` |
 | 20.4 | 20.2 | `runtime/test/fusion.test.ts` |
 | 20.1 | 8.5 | `runtime/test/reaction.test.ts` |
 | 16.1 | 7.9 | `runtime/test/desinstallateur.test.ts` |
@@ -98,7 +98,7 @@ Fichiers joués seuls, CPU en secondes (`cpu_s`, horloge entre parenthèses).
 | 5 | 25.7 (5.5) `runtime/test/geste.test.ts` | 16.4 (9.0) `runtime/test/installation.test.ts` |
 | 6 | 20.6 (8.2) `app/test/runner.test.ts` | 16.1 (6.4) `runtime/test/exploitation-en-anglais.test.ts` |
 | 7 | 20.5 (25.5) `runtime/test/mise-a-jour/machine.test.ts` | 16.1 (7.6) `runtime/test/lectures-sous-condition.test.ts` |
-| 8 | 20.2 (3.2) `app/test/projets/projets.test.ts` | 15.9 (23.9) `runtime/test/mise-a-jour/machine.test.ts` |
+| 8 | 20.2 (3.2) `app/test/projects/projects.test.ts` | 15.9 (23.9) `runtime/test/mise-a-jour/machine.test.ts` |
 | 9 | 18.9 (8.0) `runtime/test/reaction.test.ts` | 13.6 (9.3) `runtime/test/station/main.test.ts` |
 | 10 | 17.6 (9.6) `runtime/test/installation.test.ts` | 12.4 (5.7) `runtime/test/desinstallateur.test.ts` |
 | 11 | 16.7 (7.2) `runtime/test/exploitation-en-anglais.test.ts` | 11.6 (4.7) `app/test/runner.test.ts` |
@@ -118,25 +118,25 @@ Ce n'est pas un effet des optimisations de test seules : `v2` a reçu entre-temp
 **Les 65 lignes retirées**, en entier (`fichier | nom complet`) :
 
 ```
-app/test/alertes.test.ts | le manager : sain, éteint, non dit > éteint : la ligne dit ce que le runtime en écrit, mot pour mot, et propose de l'allumer — en disant ce que ça engage
-app/test/apprentissage.test.ts | la section, telle que la vue la pose > ni leçon ni profil : une phrase, et aucune liste
-app/test/bande-une-ligne.test.ts | le grant `merge` est un interrupteur > la bande porte son état, lu dans `status` : actif, éteint seul, ou sans ligne — pas actif ; `status` pas lu, ce n'est pas « éteint »
-app/test/bande-une-ligne.test.ts | le grant `merge` est un interrupteur > le même rendu que celui du manager : une glissière et son mot, « merge on » ou « merge off », sa ligne de `status` au survol
-app/test/bande-une-ligne.test.ts | le grant `merge` est un interrupteur > pas lu : ni « on » ni « off », et un clic ne bascule rien
-app/test/bande-une-ligne.test.ts | le grant `merge` est un interrupteur > un clic le bascule : éteint, il ouvre la confirmation d'accorder, qui dit son prix ; allumé, celle de révoquer — rien ne part avant le « oui »
-app/test/bande-une-ligne.test.ts | le grant `merge` est un interrupteur > éteint de lui-même, il le marque — et la bande ne pose plus sa ligne : l'interrupteur la dit, et la lève ; « bientôt éteint » reste une ligne, à prolonger
+app/test/alerts.test.ts | le manager : sain, éteint, non dit > éteint : la ligne dit ce que le runtime en écrit, mot pour mot, et propose de l'allumer — en disant ce que ça engage
+app/test/learning.test.ts | la section, telle que la vue la pose > ni leçon ni profil : une phrase, et aucune liste
+app/test/band-one-line.test.ts | le grant `merge` est un interrupteur > la bande porte son état, lu dans `status` : actif, éteint seul, ou sans ligne — pas actif ; `status` pas lu, ce n'est pas « éteint »
+app/test/band-one-line.test.ts | le grant `merge` est un interrupteur > le même rendu que celui du manager : une glissière et son mot, « merge on » ou « merge off », sa ligne de `status` au survol
+app/test/band-one-line.test.ts | le grant `merge` est un interrupteur > pas lu : ni « on » ni « off », et un clic ne bascule rien
+app/test/band-one-line.test.ts | le grant `merge` est un interrupteur > un clic le bascule : éteint, il ouvre la confirmation d'accorder, qui dit son prix ; allumé, celle de révoquer — rien ne part avant le « oui »
+app/test/band-one-line.test.ts | le grant `merge` est un interrupteur > éteint de lui-même, il le marque — et la bande ne pose plus sa ligne : l'interrupteur la dit, et la lève ; « bientôt éteint » reste une ligne, à prolonger
 app/test/confirmation.test.ts | reprendre, accorder, révoquer, allumer : chacun dit ce qu'il engage > allumer le manager : l'avertissement de la doc, et ses deux nombres à demander à la box
-app/test/couleurs.test.ts | la palette > la vue nomme un rôle et une couleur de la palette : rien d'autre ne s'écrit depuis elle
-app/test/couleurs.test.ts | les couleurs dans la vue > un choix refusé le dit sous les couleurs ; une couleur écrite à la main hors de la palette se montre, sans geste
-app/test/ecrans-restants.test.ts | Settings : la confirmation d'un geste coûteux dit son prix en une ligne > allumer le manager : le prix est une phrase — ce qu'il va juger —, ce qu'il engage et la source sont au survol
-app/test/ecrans-restants.test.ts | Settings : la confirmation d'un geste coûteux dit son prix en une ligne > le titre du manager ne porte pas sa commande, et un état illisible tient en une ligne
-app/test/faits.test.ts | Livré, d'après `livres` > ce que `livres` ne dit pas est écrit sur la carte : ni cuisinier ni PR, ni titre ni issue pour une livraison hors du rail
-app/test/faits.test.ts | Livré, d'après `livres` > ce qui a été livré est le résumé de la relecture, mot pour mot, avec le nombre de ses constats en clair — sans relecture, la carte dit pourquoi, et ne met pas le titre à sa place
-app/test/faits.test.ts | Livré, d'après `livres` > une relecture qui n'a pas la forme refuse la forme entière : un résumé, des constats en liste, chacun avec sa gravité, son fichier ou rien, son texte
-app/test/gestes-ici.test.ts | les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans ssh > un geste confirmé s'offre à confirmer pour un projet sans « hote » servi ici : arrêter, reprendre, accorder et révoquer `merge`, allumer le manager
-app/test/gestes.test.ts | les gestes du chef > deux gestes sont directs — éteindre le manager, vérifier l'installation : aucun n'engage ni ne détruit ; les cinq autres sont confirmés
-app/test/gestes.test.ts | les gestes du chef > « manager-allumer » écrit `ssh box brigade parade manager on` — caractère pour caractère la commande de docs/runtime/ : `brigade <projet> manager on`, dans sa forme de poste
-app/test/gestes.test.ts | les gestes du chef > « manager-eteindre » écrit `ssh box brigade parade manager off` — caractère pour caractère la commande de docs/runtime/ : `brigade <projet> manager off`, dans sa forme de poste
+app/test/colors.test.ts | la palette > la vue nomme un rôle et une couleur de la palette : rien d'autre ne s'écrit depuis elle
+app/test/colors.test.ts | les couleurs dans la vue > un choix refusé le dit sous les couleurs ; une couleur écrite à la main hors de la palette se montre, sans geste
+app/test/remaining-screens.test.ts | Settings : la confirmation d'un geste coûteux dit son prix en une ligne > allumer le manager : le prix est une phrase — ce qu'il va juger —, ce qu'il engage et la source sont au survol
+app/test/remaining-screens.test.ts | Settings : la confirmation d'un geste coûteux dit son prix en une ligne > le titre du manager ne porte pas sa commande, et un état illisible tient en une ligne
+app/test/facts.test.ts | Livré, d'après `livres` > ce que `livres` ne dit pas est écrit sur la carte : ni cuisinier ni PR, ni titre ni issue pour une livraison hors du rail
+app/test/facts.test.ts | Livré, d'après `livres` > ce qui a été livré est le résumé de la relecture, mot pour mot, avec le nombre de ses constats en clair — sans relecture, la carte dit pourquoi, et ne met pas le titre à sa place
+app/test/facts.test.ts | Livré, d'après `livres` > une relecture qui n'a pas la forme refuse la forme entière : un résumé, des constats en liste, chacun avec sa gravité, son fichier ou rien, son texte
+app/test/actions-here.test.ts | les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans ssh > un geste confirmé s'offre à confirmer pour un projet sans « hote » servi ici : arrêter, reprendre, accorder et révoquer `merge`, allumer le manager
+app/test/actions.test.ts | les gestes du chef > deux gestes sont directs — éteindre le manager, vérifier l'installation : aucun n'engage ni ne détruit ; les cinq autres sont confirmés
+app/test/actions.test.ts | les gestes du chef > « manager-allumer » écrit `ssh box brigade parade manager on` — caractère pour caractère la commande de docs/runtime/ : `brigade <projet> manager on`, dans sa forme de poste
+app/test/actions.test.ts | les gestes du chef > « manager-eteindre » écrit `ssh box brigade parade manager off` — caractère pour caractère la commande de docs/runtime/ : `brigade <projet> manager off`, dans sa forme de poste
 app/test/interrupteur-manager.test.ts | l'interrupteur, en tête de l'espace > allumé : « manager on », et la tête du rail n'est plus marquée ; une bascule lue se voit aussitôt, sans attendre les faits
 app/test/interrupteur-manager.test.ts | l'interrupteur, en tête de l'espace > allumé, un clic l'éteint : le geste part dans le second, sans confirmation
 app/test/interrupteur-manager.test.ts | l'interrupteur, en tête de l'espace > la phrase compte ce qu'il va vraiment juger : `blocked-on-human` retient, et rien d'ouvert, c'est rien à juger
@@ -148,21 +148,21 @@ app/test/interrupteur-manager.test.ts | l'interrupteur, en tête de l'espace > �
 app/test/interrupteur-manager.test.ts | la bande porte l'état du manager, pour son interrupteur > allumé, éteint, pas encore lu : l'état tel qu'il vient d'être lu, la ligne du runtime mot pour mot — jamais « éteint » faute de lecture
 app/test/manager.test.ts | l'onglet Manager et ses deux gestes > « allumer » et « éteindre » sont deux gestes du socle : la vue les nomme, elle ne sait pas ce qu'ils écrivent
 app/test/manager.test.ts | l'onglet Manager et ses deux gestes > « éteindre », direct, et « allumer », confirmé, envoient la commande de docs/runtime/, « Le manager », dans le second — sans « oui », allumer ne part pas ; d'un second qui démarre, rien ne part, et aucun shell ne s'ouvre
-app/test/page-etroite.test.ts | sur un écran large, rien ne change > deux onglets, et le second à droite quel que soit l'onglet ; Cooks porte la carte et la lecture de `station`
-app/test/projets/page-du-projet.test.ts | confiée, la page nomme les stations qui font sa cuisine, et « + station » n'offre que des renforts, sans principale ni calibrage à redire
-app/test/projets/page-du-projet.test.ts | un projet d'avant l'app : cocher une machine et confirmer l'ajoute sans qu'aucun champ soit redit ni montré
-app/test/projets/page-du-projet.test.ts | une valeur que la première station ne dit pas se montre, posée de ce qu'on devine : seuls les champs visibles se demandent
-app/test/projets/projets.test.ts | l'ajout, la lecture et le retrait d'un projet, contre un GitHub de test > ce que la première station sert l'emporte sur ce que la saisie dit
-app/test/status-en-anglais.test.ts | l'app lit le haut de `status` en français comme en anglais > le merge, actif ou éteint seul : l'interrupteur se lit dans les deux langues
+app/test/page-narrow.test.ts | sur un écran large, rien ne change > deux onglets, et le second à droite quel que soit l'onglet ; Cooks porte la carte et la lecture de `station`
+app/test/projects/page-of-project.test.ts | confiée, la page nomme les stations qui font sa cuisine, et « + station » n'offre que des renforts, sans principale ni calibrage à redire
+app/test/projects/page-of-project.test.ts | un projet d'avant l'app : cocher une machine et confirmer l'ajoute sans qu'aucun champ soit redit ni montré
+app/test/projects/page-of-project.test.ts | une valeur que la première station ne dit pas se montre, posée de ce qu'on devine : seuls les champs visibles se demandent
+app/test/projects/projects.test.ts | l'ajout, la lecture et le retrait d'un projet, contre un GitHub de test > ce que la première station sert l'emporte sur ce que la saisie dit
+app/test/status-in-english.test.ts | l'app lit le haut de `status` en français comme en anglais > le merge, actif ou éteint seul : l'interrupteur se lit dans les deux langues
 app/test/telephone/appairage.test.ts | hors d'une installation neuve > le desktop, qui ne rend aucun `telephone` : rien n'est posé, et sans projet l'app s'ouvre sur l'ajout, comme avant
 app/test/telephone/conversation.test.ts | ce qui n'est pas parti, ou ne se lit pas, se dit en une ligne, le détail au survol > la station refuse la lecture : la ligne dit « conversation unavailable », sa phrase et son détail au survol
 app/test/telephone/conversation.test.ts | ce qui n'est pas parti, ou ne se lit pas, se dit en une ligne, le détail au survol > le pont ne porte pas la conversation — celui de l'app Android d'aujourd'hui : « conversation unavailable », pourquoi au survol, pas de champ, et « read again » la relit
 app/test/telephone/conversation.test.ts | ce qui n'est pas parti, ou ne se lit pas, se dit en une ligne, le détail au survol > un pont qui ne porte pas l'envoi — celui de l'app Android d'aujourd'hui : le texte reste dans le champ, la conversation ne bouge pas, et « send » se rejoue
-app/test/telephone/file.test.ts | sur un écran étroit, rien ne défile de côté > la confirmation d'un interrupteur s'ouvre sous la tête de l'espace, de toute sa largeur, et non à 440 px sous lui
-app/test/telephone/file.test.ts | sur un écran étroit, rien ne défile de côté > les colonnes de Rail s'empilent sur toute la largeur, TODO en tête : ni grille plus large que l'écran, ni défilement de côté
-app/test/terminaux.test.ts | le registre des terminaux > le second est lancé sur le rôle, pas sur un `claude` nu : `/brigade:po` suit `--continue`, et une session neuve le porte aussi
-app/test/terminaux.test.ts | un geste direct part vraiment dans le second, et dit quand il ne peut pas > le second est lancé avec les crochets qui disent ses tours, à la suite du rôle — et repart d'un fichier vide ; un shell n'en reçoit pas
-app/test/urgence.test.ts | sans urgence, rien ne change > une décision qui ne retient qu'une partie du rail : pas de ligne d'urgence, la bande et la case sont celles d'avant l'urgence
+app/test/phone/file.test.ts | sur un écran étroit, rien ne défile de côté > la confirmation d'un interrupteur s'ouvre sous la tête de l'espace, de toute sa largeur, et non à 440 px sous lui
+app/test/phone/file.test.ts | sur un écran étroit, rien ne défile de côté > les colonnes de Rail s'empilent sur toute la largeur, TODO en tête : ni grille plus large que l'écran, ni défilement de côté
+app/test/terminals.test.ts | le registre des terminaux > le second est lancé sur le rôle, pas sur un `claude` nu : `/brigade:po` suit `--continue`, et une session neuve le porte aussi
+app/test/terminals.test.ts | un geste direct part vraiment dans le second, et dit quand il ne peut pas > le second est lancé avec les crochets qui disent ses tours, à la suite du rôle — et repart d'un fichier vide ; un shell n'en reçoit pas
+app/test/emergency.test.ts | sans urgence, rien ne change > une décision qui ne retient qu'une partie du rail : pas de ligne d'urgence, la bande et la case sont celles d'avant l'urgence
 app/test/vue/activite-cuisine.test.ts | l'activité de la cuisine, en tête de l'onglet Cooks > sans activité, les six nombres disent 0, jamais un blanc
 app/test/vue/triage.test.ts | le triage, jour par jour, dans la file > chaque jour montre « decided alone » et « sent to TODO », le plus récent d'abord
 app/test/vue/triage.test.ts | le triage, jour par jour, dans la file > le module se lit seul, sur un faux document : un titre, et une ligne par jour
@@ -185,4 +185,4 @@ runtime/test/rail.test.ts | un ticket remonté au chef puis mergé par lui reste
 runtime/test/runtime.test.ts | le nom de projet « benomite/brigade » est refusé, et rien n'est écrit
 ```
 
-**Les 1211 lignes ajoutées** ne sont pas recopiées ici : 1211 noms de tests longs (environ 200 ko) noieraient la page, et ce sont pour l'essentiel les tests des 111 fichiers nouveaux (par exemple `runtime/test/autonomie/decision/aiguillage.test.ts` 33, `app/test/vue/premier-lancement.test.ts` 26, `runtime/test/autonomie/table.test.ts` 24, `runtime/test/relance-de-ci.test.ts` 23, `runtime/test/installation/besoins/besoins.test.ts` 23) et des remplaçants renommés de lignes retirées. Les obtenir : poser un worktree sur `6e165c3` et un sur `95a69d6`, copier `scripts/mesure-cpu-gates/` dans le premier, y jouer le script de mesure dans chacun (son étape 2, le relevé par fichier, écrit `tests.txt`), puis `diff avant/tests.txt apres/tests.txt | grep '^>'`.
+**Les 1211 lignes ajoutées** ne sont pas recopiées ici : 1211 noms de tests longs (environ 200 ko) noieraient la page, et ce sont pour l'essentiel les tests des 111 fichiers nouveaux (par exemple `runtime/test/autonomie/decision/aiguillage.test.ts` 33, `app/test/vue/first-launch.test.ts` 26, `runtime/test/autonomie/table.test.ts` 24, `runtime/test/relance-de-ci.test.ts` 23, `runtime/test/installation/besoins/besoins.test.ts` 23) et des remplaçants renommés de lignes retirées. Les obtenir : poser un worktree sur `6e165c3` et un sur `95a69d6`, copier `scripts/mesure-cpu-gates/` dans le premier, y jouer le script de mesure dans chacun (son étape 2, le relevé par fichier, écrit `tests.txt`), puis `diff avant/tests.txt apres/tests.txt | grep '^>'`.

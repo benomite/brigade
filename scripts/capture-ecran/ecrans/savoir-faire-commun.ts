@@ -1,6 +1,6 @@
 // L'onglet Know-how de « parade » (#4241), ouvert depuis le menu du projet : ce que les trois écrans `savoir-faire-*` ont en
 // commun — l'espace de `espace-projet.ts`, et la réponse de `lireLeSavoirFaire`, telle que le process principal la rend
-// (vue/savoir-faire/savoir-faire-box.ts). Ce fichier n'est pas un écran.
+// (vue/know-how-tab/know-how-box.ts). Ce fichier n'est pas un écran.
 import type { Ecran } from "./commun.ts";
 import { configuration, cuisine, demarrage, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";

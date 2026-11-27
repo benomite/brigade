@@ -1,12 +1,12 @@
 // L'espace de « parade », un shell ouvert par « + shell » sur ce Mac et montré à droite : son bandeau
 // (« this Mac · chef »), sa note — un shell persistant, dans sa session `tmux` — et ce qu'il affiche.
 // Le pendant Mac de `shell-ce-pc` (#1154).
-import type { Terminal } from "../../../app/src/terminaux.ts";
+import type { Terminal } from "../../../app/src/terminals.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris : la session d'hier", arrete: false };
-// Ce que terminaux.ts rend d'un shell persistant de ce poste.
+// Ce que terminals.ts rend d'un shell persistant de ce poste.
 export const SHELL_MAC: Terminal = {
   id: 2,
   projet: "parade",

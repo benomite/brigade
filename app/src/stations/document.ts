@@ -7,21 +7,21 @@
 //
 // L'appairage porte aussi ce que la station fournit (`fournit`, #1757), quand
 // c'est l'app de sa machine qui l'appaire — elle seule voit la machine : un Mac
-// fournit `macos`, plus ce que l'installation y détecte (fournit.ts).
+// fournit `macos`, plus ce que l'installation y détecte (provides.ts).
 // L'app le reprend dans la demande de chaque projet où la station est ajoutée
-// (projets/projets.ts) : c'est là que la station principale du projet le lit.
+// (projects/projects.ts) : c'est là que la station principale du projet le lit.
 // Une station appairée d'ailleurs, ou avant #1757, n'en dit rien.
 import { createHash } from "node:crypto";
-import { lireEtatsPublies, type EtatsPublies } from "../pannes/etats.ts";
-import { capacitesLues } from "../projets/demande.ts";
+import { readStatesPublished, type StatesPublished } from "../outages/states.ts";
+import { capacitiesRead } from "../projects/request.ts";
 
-export const FICHIER_STATION = "brigade-station.json";
-export const FICHIER_APPAIRAGE = "brigade-appairage.json";
+export const FILE_STATION = "brigade-station.json";
+export const FILE_PAIRING = "brigade-appairage.json";
 
 export type DocumentStation = {
   nom: string;
   machine: string;
-  // Les cœurs de sa machine : l'app en tire le nombre de cooks qu'elle propose (projets/projets.ts).
+  // Les cœurs de sa machine : l'app en tire le nombre de cooks qu'elle propose (projects/projects.ts).
   // Absents d'une station qui ne les publie pas encore.
   coeurs?: number;
   // Faux : elle ne fait tourner aucun cook — un téléphone (#1158). Une station qui ne le publie pas cuisine.
@@ -38,74 +38,74 @@ export type DocumentStation = {
   // Les empreintes de ses derniers codes échus.
   echus: string[];
   // Sa mise à jour revenue en arrière et sa connexion Max : ses pannes (pannes/).
-} & EtatsPublies;
+} & StatesPublished;
 
 // Les huit signes d'un code, dans l'alphabet de Crockford.
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-const LONGUEUR = 8;
+const LENGTH = 8;
 
 // Le code tel qu'il se compare : sans blancs ni tirets, en majuscules, les
 // lettres qu'on confond ramenées à leur chiffre. Null s'il n'a pas la forme d'un code.
-export function normaliser(tape: string): string | null {
-  const signes = tape
+export function normalize(tape: string): string | null {
+  const signs = tape
     .toUpperCase()
     .replace(/[\s-]/g, "")
     .replace(/O/g, "0")
     .replace(/[IL]/g, "1");
-  return signes.length === LONGUEUR && [...signes].every((signe) => ALPHABET.includes(signe)) ? signes : null;
+  return signs.length === LENGTH && [...signs].every((sign) => ALPHABET.includes(sign)) ? signs : null;
 }
 
 // Ce que la station publie d'un code : son empreinte, jamais le code.
-export const empreinte = (code: string): string => createHash("sha256").update(normaliser(code) ?? code).digest("hex");
+export const fingerprint = (code: string): string => createHash("sha256").update(normalize(code) ?? code).digest("hex");
 
-const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
-const date = (valeur: unknown): valeur is string => texte(valeur) && !Number.isNaN(Date.parse(valeur));
+const text = (value: unknown): value is string => typeof value === "string";
+const date = (value: unknown): value is string => text(value) && !Number.isNaN(Date.parse(value));
 
 // Le document d'une station, ou en quoi ce qu'on a lu n'en a pas la forme.
-export function lireDocument(brut: string): DocumentStation | { illisible: string } {
-  let lu: Record<string, unknown>;
+export function readDocument(raw: string): DocumentStation | { illisible: string } {
+  let readOne: Record<string, unknown>;
   try {
-    lu = JSON.parse(brut) as Record<string, unknown>;
+    readOne = JSON.parse(raw) as Record<string, unknown>;
   } catch {
     return { illisible: "its state on GitHub is not JSON" };
   }
-  if (lu === null || typeof lu !== "object" || lu.brigade !== "station") return { illisible: "its state on GitHub is not a brigade station's" };
-  const { nom, machine, coeurs, cuisine, version, projets, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
-  if (!texte(nom) || !texte(machine) || !texte(version) || !date(signeDeVie)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
-  if (!Array.isArray(projets) || !projets.every(texte)) return { illisible: "its state on GitHub does not list its projects" };
-  const code = appairage as { empreinte?: unknown; expireLe?: unknown } | null | undefined;
+  if (readOne === null || typeof readOne !== "object" || readOne.brigade !== "station") return { illisible: "its state on GitHub is not a brigade station's" };
+  const { nom: name, machine, coeurs: cores, cuisine: kitchen, version, projets: projects, signeDeVie: signOfLife, cadenceMs, arreteeLe: stoppedThe, appairage: pairing, echus } = readOne;
+  if (!text(name) || !text(machine) || !text(version) || !date(signOfLife)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
+  if (!Array.isArray(projects) || !projects.every(text)) return { illisible: "its state on GitHub does not list its projects" };
+  const code = pairing as { empreinte?: unknown; expireLe?: unknown } | null | undefined;
   return {
-    nom,
+    nom: name,
     machine,
-    ...(typeof coeurs === "number" && Number.isSafeInteger(coeurs) && coeurs > 0 ? { coeurs } : {}),
-    ...(cuisine === false ? { cuisine: false as const } : {}),
+    ...(typeof cores === "number" && Number.isSafeInteger(cores) && cores > 0 ? { coeurs: cores } : {}),
+    ...(kitchen === false ? { cuisine: false as const } : {}),
     version,
-    projets,
-    signeDeVie,
+    projets: projects,
+    signeDeVie: signOfLife,
     cadenceMs: typeof cadenceMs === "number" && cadenceMs > 0 ? cadenceMs : 60_000,
-    arreteeLe: date(arreteeLe) ? arreteeLe : null,
-    appairage: code !== null && typeof code === "object" && texte(code.empreinte) && date(code.expireLe) ? { empreinte: code.empreinte, expireLe: code.expireLe } : null,
-    echus: Array.isArray(echus) ? echus.filter(texte) : [],
-    ...lireEtatsPublies(lu),
+    arreteeLe: date(stoppedThe) ? stoppedThe : null,
+    appairage: code !== null && typeof code === "object" && text(code.empreinte) && date(code.expireLe) ? { empreinte: code.empreinte, expireLe: code.expireLe } : null,
+    echus: Array.isArray(echus) ? echus.filter(text) : [],
+    ...readStatesPublished(readOne),
   };
 }
 
 // L'appairage, tel que l'app l'écrit : quand, par quel code — son empreinte —, et ce que la station fournit.
-export type DocumentAppairage = { appaireeLe: string; empreinte: string; fournit?: string[] };
+export type DocumentPairing = { appaireeLe: string; empreinte: string; fournit?: string[] };
 
-export function documentDAppairage(appairage: DocumentAppairage): string {
-  const fournit = capacitesLues(appairage.fournit);
-  return `${JSON.stringify({ appaireeLe: appairage.appaireeLe, empreinte: appairage.empreinte, ...(fournit.length === 0 ? {} : { fournit }) }, null, 2)}\n`;
+export function documentOfPairing(pairing: DocumentPairing): string {
+  const provides = capacitiesRead(pairing.fournit);
+  return `${JSON.stringify({ appaireeLe: pairing.appaireeLe, empreinte: pairing.empreinte, ...(provides.length === 0 ? {} : { fournit: provides }) }, null, 2)}\n`;
 }
 
 // L'appairage relu : illisible, ou d'une app d'avant #1757, il ne fournit rien.
-export function lireAppairage(brut: string | undefined): DocumentAppairage | null {
-  if (brut === undefined) return null;
+export function readPairing(raw: string | undefined): DocumentPairing | null {
+  if (raw === undefined) return null;
   try {
-    const { appaireeLe, empreinte, fournit } = (JSON.parse(brut) ?? {}) as Record<string, unknown>;
-    if (!date(appaireeLe) || !texte(empreinte)) return null;
-    const capacites = capacitesLues(fournit);
-    return { appaireeLe, empreinte, ...(capacites.length === 0 ? {} : { fournit: capacites }) };
+    const { appaireeLe: pairedThe, empreinte: fingerprint, fournit: provides } = (JSON.parse(raw) ?? {}) as Record<string, unknown>;
+    if (!date(pairedThe) || !text(fingerprint)) return null;
+    const capacities = capacitiesRead(provides);
+    return { appaireeLe: pairedThe, empreinte: fingerprint, ...(capacities.length === 0 ? {} : { fournit: capacities }) };
   } catch {
     return null;
   }

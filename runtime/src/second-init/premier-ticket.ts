@@ -13,7 +13,7 @@
 //                                    dit le projet prêt.
 //   messageDuPremierTicket()         ce que le second fait à ce moment-là — quand
 //                                    l'app lui redonne son rôle après le merge
-//                                    (`app/src/second/role-apres-init.ts`,
+//                                    (`app/src/second/role-after-init.ts`,
 //                                    #2689) : rien de plus. Le premier ticket
 //                                    s'écrit dans l'app, au-dessus du rail : la
 //                                    question au chef, le brouillon, et la
