@@ -56,3 +56,6 @@
 - Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)
 - A kitchen test whose fake cook ends with a short message (under 40 characters) now gets a "delivered without a report" log line and ticket comment: give the fake a real report (#4574)
 - docs/captures/ keeps only the files a test, a workflow or a doc names by their full path (app/test/captures-kept.test.ts); the proofs of merged PRs live in git history, and the `Captures: docs/captures/<n>/` lines of docs/app.md point there (#4578)
+- A TODO entry of a card answered in words only (`parked:chef`, `todo.repondre`) has no choice buttons: its `Answer` opens the card (fiche or phone list), where the field and the posting Answer live; the kanban draws no `bon`, so `renderCard` carries the TODO card itself (#4593)
+- A comment in a vue file must not carry a `#1234` ticket number: `app/test/skin.test.ts` reads it as a hard-coded colour (#4593)
+- The CI plans its matrix in tests.yml's `plan` job from tests-touches.mjs: a zone with no test touched has no shard (skipped jobs count as success for `gates`); Windows runs on main only (#4607)
