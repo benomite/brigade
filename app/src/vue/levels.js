@@ -16,17 +16,9 @@ export { LEVELS_SAID };
 // Chaque réglage montré, et son niveau.
 /** @type {Readonly<Record<string, Level>>} */
 export const LEVELS = {
-  // Le projet : son dépôt, sa branche d'intégration, les calibrages par défaut de son manager et de son reviewer, son plafond,
-  // et les réglages de son closer (ticket 1685).
+  // Le projet : son dépôt et sa branche d'intégration.
   depot: "project",
   branche: "project",
-  manager: "project",
-  reviewer: "project",
-  plafond: "project",
-  closer: "project",
-  "closer-cooks": "project",
-  "closer-tokens": "project",
-  "closer-lines": "project",
   // Cette machine : ses cooks, le dossier de ses espaces de travail, ce qu'elle sait faire, ses tickets ordinaires — et,
   // pour la station de cet ordinateur (ticket 2489), sa connexion à Claude.
   cooks: "machine",

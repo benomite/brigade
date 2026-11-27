@@ -100,9 +100,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `rail` | `rail` | The ticket rail | `remove <ticket>` is new, with no old name |
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
 | `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` and `approve <n>` are new, with no old name |
-| — | `setting` | The project's settings, from its repository | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
 | — | `human-cooks` | The tickets waiting on a human cook, read on GitHub, with who holds each (#4276) | new, with no old name |
-| — | `humans` | The project's humans, from its repository (#2929) | `save <login> [<role>…]`, `remove <login>` — new, with no old name |
 | — | `recurring` | The project's recurring tickets: on its next date, each becomes an issue with `fire` (#3230) | `declare --title <title> [--body <body>] --rhythm daily \| weekly --weekday <1-7> \| monthly --day <1-31>`, `pause <id>`, `resume <id>`, `remove <id>` — new, with no old name |
 | — | `explanations` | The explanations of the kitchen's words a chef has seen in the app, kept per chef (#3308) | `--chef <login>`, `seen <word> --chef <login>`, `reset --chef <login>` — new, with no old name |
 | — | `agent-settings` | Each agent's settings, for the app's Agents tab (#4222): model, effort, autonomy level, pause and the agent's own limits, with who changed what and when | `<agent>`, `<agent> set <key> <value> --by <author>` — new, with no old name |

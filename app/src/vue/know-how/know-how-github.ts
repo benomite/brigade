@@ -10,7 +10,7 @@ import { readTheMarkdown } from "../../closer-health.ts";
 import { refusalOf } from "../../board/client.ts";
 import { proposeTheFile, type PrOpen } from "../../caps-duration.ts";
 import type { ClientOfThePriority } from "../../priority.ts";
-import { PROPOSES } from "../../settings-of-project.ts";
+import { PROPOSES } from "../../box.ts";
 import { NOT_REACHED } from "../lexicon.js";
 
 // `file`: the file of the repository an entry lives in — `.brigade/know-how.md` or one `.brigade/know-how/<n>.md`.

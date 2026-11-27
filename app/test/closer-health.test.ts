@@ -10,7 +10,7 @@ import { COOKS_PAR_DEFAUT, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "../../
 import { CLES_DU_CLOSER, reglagesDuTexte } from "../../runtime/src/reglages-projet/reglages.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser, readPass, SETTINGS, textOfVerifications, VERIFICATIONS, verificationsOf } from "../src/closer-health.ts";
 import { FILE } from "../src/caps-duration.ts";
-import { PROPOSES } from "../src/settings-of-project.ts";
+import { PROPOSES } from "../src/box.ts";
 import type { ClientOfThePriority } from "../src/priority.ts";
 import type { AnswerGitHub } from "../src/board/client.ts";
 

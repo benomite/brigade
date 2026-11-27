@@ -44,8 +44,7 @@ tool launches beside it:
 | `station/geste.ts` | the app (`ACTION`, `app/src/box.ts`): `node src/station/geste.ts <project> <command> [arguments…]`, run from `runtime/` with `BRIGADE_STATION_DIR` |
 | the scripts of `runtime/package.json` but `start`, `test` and `typecheck` | `station/geste.ts`, which runs the file its command's script names |
 
-The commands behind the gesture are the ones the app launches, and only those: `setting`, `humans`,
-`contributor-stations`, `manager`, and
+The commands behind the gesture are the ones the app launches, and only those: `manager`, and
 `help`, which lists them (`commandes.ts`). `app/test/geste-serves-every-command.test.ts` collects what the app
 launches and runs each one through the real `geste.ts`: a command dropped while the app still launches it fails there.
 
@@ -158,5 +157,6 @@ check some of them, and their `FAIL` line names the rule; they judge only the fi
 - **No process launched by a station asks a question.** Every process the runtime launches goes through
   `runtime/src/sans-invite.ts` (`GIT_TERMINAL_PROMPT=0`, a failing askpass, `GH_PROMPT_DISABLED=1`, `ssh -o
   BatchMode=yes`). A module that imports `node:child_process` directly fails `test/sans-invite.test.ts`.
+- **Cooks do not write `CHANGELOG.md`**: the changelog is the release notes `publier-app` writes from the merged PR (an epic's "What changes for the user", a lone ticket's title); an epic's release raises the app's minor version, a lone ticket's the patch. Design: [`2026-11-27-epic-branches-design.md`](../superpowers/specs/2026-11-27-epic-branches-design.md), plan: [`2026-11-27-epic-branches.md`](../superpowers/plans/2026-11-27-epic-branches.md).
 - **A conflict with the base is resolved by the ticket's cook**, in its own branch: it merges the base, resolves the
   conflicts and commits the merge. A conflict is never handed to a new ticket.

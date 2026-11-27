@@ -14,7 +14,7 @@
 // L'app ne juge que ce que le runtime refuserait de lire (`SEUILS_DU_PROJET`) : un nombre au-dessus de zéro, entier
 // quand le seuil l'est. Ce module compose les demandes ; ce qui les porte est donné (`ClientDeLaPriorite`).
 import type { ClientOfThePriority } from "./priority.ts";
-import { PROPOSES } from "./settings-of-project.ts";
+import { PROPOSES } from "./box.ts";
 import { refusalOf } from "./board/client.ts";
 
 export const FILE = ".claude/brigade/projet.json";

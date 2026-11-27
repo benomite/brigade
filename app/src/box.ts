@@ -194,3 +194,6 @@ export function openStandby(options: {
     fermer: stop,
   };
 }
+
+// Ce que dit une proposition de réglage qui ouvre une pull request.
+export const PROPOSES = "proposed as a pull request — it applies once merged";
