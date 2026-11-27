@@ -22,3 +22,7 @@ export async function closeFinishedEpics(
     }
   }
 }
+
+// An epic's children are cooked, judged and merged on its branch; every other ticket goes to the base branch.
+export const epicBranch = (epic: number): string => `epic/${epic}`;
+export const baseOf = (issue: Issue, base: string): string => (issue.epic === undefined ? base : epicBranch(issue.epic));

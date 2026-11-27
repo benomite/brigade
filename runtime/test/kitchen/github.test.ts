@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { checksOf, dependsOn, ghCli, gestures } from "../../src/kitchen/github.ts";
+import { checksOf, dependsOn, ghCli, gestures, issueOfBranch, readState } from "../../src/kitchen/github.ts";
 import { repertoireTemporaire } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -43,4 +43,19 @@ test("a `gh` that exits before reading its input is a failed call, not a crash o
   chmodSync(gh, 0o755);
   // More than a pipe holds: the write is still pending when `gh` is gone.
   await assert.rejects(ghCli(gh, process.env)(["api", "graphql"], "x".repeat(4 * 1024 * 1024)), /gh api graphql: refused/);
+});
+
+test("readState tells a split epic and lists the epic branches; an epic branch maps to its issue (#4697)", async () => {
+  const node = (number: number, labels: string[], comments: string[]) => ({ number, title: "t", body: "", authorAssociation: "OWNER", labels: { nodes: labels.map((name) => ({ name })) }, comments: { nodes: comments.map((body) => ({ body })) } });
+  const answer = { data: { repository: {
+    issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [node(7, ["epic"], ["hello", "Split by the manager into #8."]), node(9, ["epic"], [])] },
+    pullRequests: { nodes: [{ number: 50, headRefName: "epic/7", mergeable: "MERGEABLE", commits: { nodes: [] } }] },
+    refs: { nodes: [{ name: "7" }] },
+  } } };
+  const state = await readState(async () => JSON.stringify(answer), "o/r");
+  assert.deepEqual(state.issues.map((one) => one.split), [true, undefined]);
+  assert.deepEqual(state.epicBranches, [7]);
+  assert.equal(state.prs[0]?.issue, 7);
+  assert.equal(issueOfBranch("epic/12"), "12");
+  assert.equal(issueOfBranch("cook/12-github"), "12");
 });
