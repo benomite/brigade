@@ -15,6 +15,8 @@ export type Issue = {
   dependsOn: number[];
   // The epic it was split from (`Epic: #N` in its body).
   epic?: number;
+  // An epic the manager split (a `Split by the manager into` comment).
+  split?: boolean;
 };
 
 export type PullRequest = {
