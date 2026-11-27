@@ -1,8 +1,8 @@
 // La page d'un projet en deux onglets (#1184, #2921) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris,
 // sous le bandeau de santé — et Stations. Un seul est montré au centre ; le second reste à droite,
 // le même, quel que soit l'onglet. L'app rouvre un projet sur le dernier onglet que le chef y a ouvert.
-// Le menu de la page (#2485) n'a que Rail · Stations · Agents · Settings (#2921 : Kitchen et ses sous-onglets ont disparu ;
-// #4224 : Agents ; #4505 : plus de Know-how), et un bloc monté par onglet.
+// Le menu de la page (#2485) n'a que Rail · Stations · Agents · Know-how · Settings (#2921 : Kitchen et ses sous-onglets ont disparu ;
+// #4224 : Agents ; #4505 : Know-how retiré, #4570 : revenu), et un bloc monté par onglet.
 // La vue est jouée telle qu'elle est, devant un faux document (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -114,7 +114,7 @@ describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
     const vue = await open();
 
     assert.equal(vue.element("onglets-du-projet").hidden, false);
-    assert.deepEqual(tabs(vue).map((tab) => [tab.textContent, tab.role]), [["Rail", "tab"], ["Stations", "tab"], ["Agents", "tab"], ["Settings", "tab"]]);
+    assert.deepEqual(tabs(vue).map((tab) => [tab.textContent, tab.role]), [["Rail", "tab"], ["Stations", "tab"], ["Agents", "tab"], ["Know-how", "tab"], ["Settings", "tab"]]);
     assert.deepEqual(shows(vue), ["Rail"]);
     assert.equal(center(vue).dataset.onglet, "rail");
 
@@ -254,10 +254,10 @@ describe("l'app rouvre un projet sur le dernier onglet que le chef y a ouvert", 
 });
 
 describe("le menu de la page d'un projet (#2485, #2921)", () => {
-  test("exactement quatre entrées, Rail · Stations · Agents · Settings (#4224, #4505) ; Rail est ouvert par défaut, sans Kitchen ni sous-onglets", async () => {
+  test("exactement cinq entrées, Rail · Stations · Agents · Know-how · Settings (#4224, #4570) ; Rail est ouvert par défaut, sans Kitchen ni sous-onglets", async () => {
     const vue = await open();
 
-    assert.deepEqual(tabs(vue).map((tab) => tab.textContent), ["Rail", "Stations", "Agents", "Settings"]);
+    assert.deepEqual(tabs(vue).map((tab) => tab.textContent), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.deepEqual(shows(vue), ["Rail"]);
     assert.equal(vue.element("rail").dataset.onglet, "rail");
     // Plus de Kitchen, donc plus de sous-onglets Health et Cooks.
@@ -279,7 +279,7 @@ describe("le menu de la page d'un projet (#2485, #2921)", () => {
     await repos();
     // Leur section de Settings : les plafonds, le closer, puis les lignes « Cost » et « Closer » de tous les projets (#2638).
     assert.equal(vue.element("etat").hidden, false);
-    assert.deepEqual(blocksOfBanner(vue), ["plafonds-duree", "closer", "know-how", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
+    assert.deepEqual(blocksOfBanner(vue), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
 
     await openTab(vue, "Rail");
     assert.equal(vue.element("etat").hidden, true);
