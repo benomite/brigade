@@ -61,6 +61,6 @@ test("a split's `Depends on ticket K` becomes `Depends on #<K-th child>`; a K th
   const issues = new Map([[5, { number: 5, title: "t", labels: [], trusted: true, dependsOn: [] }]]);
   const tickets = [{ title: "a", body: "A" }, { title: "b", body: "B\n\nDepends on ticket 3" }, { title: "c", body: "C\n\nDepends on ticket 1" }];
   await applyAgentActions([{ split: 5, tickets }], { act, issues, log: () => {}, who: "manager" });
-  assert.match(bodies[2], /Depends on #100\b/);
-  assert.doesNotMatch(bodies[1], /Depends on/);
+  assert.match(bodies[2]!, /Depends on #100\b/);
+  assert.doesNotMatch(bodies[1]!, /Depends on/);
 });
