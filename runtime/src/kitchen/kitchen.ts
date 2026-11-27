@@ -62,8 +62,7 @@ const calibrationOf = (labels: readonly string[], fallback: { model: string; eff
 const WORKTREE_SWEEP_EVERY_MS = 10 * 60_000;
 const COOK = { model: "sonnet", effort: "medium" };
 const JUDGE = { model: "opus", effort: "medium" };
-// Under this many characters, a cook's last message is not a report.
-const MIN_REPORT = 40;
+const MIN_REPORT = 40; // under this many characters, a cook's last message is not a report
 
 export function openKitchen(options: KitchenOptions) {
   const { repo, base, gh, git, log } = options;
@@ -77,7 +76,6 @@ export function openKitchen(options: KitchenOptions) {
   const maskSecrets = masqueDesSecrets(options.secrets ?? {});
   const mask = (raw: string) => masquerIdentifiants(maskSecrets(raw)).texte;
   const lastSupervisor = () => (existsSync(lastSupervisorFile) ? Number(readFileSync(lastSupervisorFile, "utf8")) || 0 : 0);
-
   // The failing checks' last log lines, for a cook that has no token to read them.
   async function ciLogs(pr: number): Promise<string> {
     const logs = await act.failedLogs(pr).catch((error: Error) => [{ name: "CI logs", log: `unreadable: ${error.message}` }]);
@@ -98,11 +96,10 @@ export function openKitchen(options: KitchenOptions) {
     log(`#${issue.number} sent back — ${reason}`);
   }
 
-  // The worktree of a ticket, on its branch, with the base merged in (a conflict is left to the cook); for a review, exactly the pushed delivery.
-  // A child goes to its epic's branch once that branch exists; an epic split before epic branches (no branch) still goes to the base.
+  // A child goes to its epic's branch once it exists; an older epic without one still goes to the base.
   let epicBranches: number[] = [];
   const baseFor = (issue: Issue | undefined) => (issue?.epic !== undefined && epicBranches.includes(issue.epic) ? baseOf(issue, base) : base);
-
+  // The worktree of a ticket, on its branch, with the target merged in (a conflict is left to the cook); for a review, exactly the pushed delivery.
   async function prepare(issue: number, target: string, forReview = false): Promise<string> {
     const wt = worktreeOf(issue);
     const branch = branchOf(issue);
@@ -184,7 +181,6 @@ export function openKitchen(options: KitchenOptions) {
   }
 
   const chefSays = async (issue: number, pr: number) => chefSaidMerge((await trustedComments(gh, repo, issue)).map((one) => one.body), pr);
-
   async function merge(issue: Issue, pr: number) {
     await act.merge(pr);
     await act.labels(issue.number, [], [LABELS.inPass, LABELS.approved]).catch(() => "");
@@ -209,11 +205,8 @@ export function openKitchen(options: KitchenOptions) {
         if (pr !== undefined && (await chefSays(action.issue, pr.number))) {
           if (pr.checks === "pending") return;
           if (!pr.conflicting && pr.checks !== "failure") {
-            try {
-              return await merge(issue as Issue, pr.number);
-            } catch (error) {
-              log(`#${action.issue} could not be merged as the chef answered, a cook brings it up to date — ${(error as Error).message}`);
-            }
+            const merged = await merge(issue as Issue, pr.number).then(() => true, (error: Error) => (log(`#${action.issue} could not be merged as the chef answered, a cook brings it up to date — ${error.message}`), false));
+            if (merged) return;
           }
         }
         await act.labels(action.issue, [LABELS.taken]);
