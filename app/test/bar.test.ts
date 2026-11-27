@@ -19,8 +19,8 @@ describe("la barre d'icônes", () => {
     const vue = readFileSync(new URL("../src/vue/vue.js", import.meta.url), "utf8");
 
     assert.match(css, /#projets \{\s*flex: 0 0 64px;/);
-    assert.match(vue, /etiquette\.textContent = projet\.etiquette;/);
-    assert.match(vue, /cree\.title = nom;/);
+    assert.match(vue, /label\.textContent = project\.etiquette;/);
+    assert.match(vue, /created\.title = name;/);
   });
 
   test("chaque projet du fichier garde son nom, et reçoit son sigle — le reste de ce que le fichier dit passe tel quel", () => {

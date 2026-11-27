@@ -52,7 +52,7 @@ const STATIONS = [
 
 const step = (doneIn: string, target: string | null, since: string): StepOfCook => ({ fait: doneIn, faitEn: doneIn, cible: target, depuis: since });
 const LIT = step("reading", "runtime/src/etat.ts", "2026-10-23T09:55:00.000Z");
-const WRITTEN = step("writing", "app/src/slip.ts", "2026-10-23T10:02:30.000Z");
+const WRITTEN = step("writing", "app/src/bon.ts", "2026-10-23T10:02:30.000Z");
 const TESTS = step("running the tests", null, "2026-10-23T10:04:00.000Z");
 const IN_PROGRESS_14: ActivityOfCook = {
   ticket: 14,
@@ -120,7 +120,7 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     vue.dire("surActivites", readOne([{ ...IN_PROGRESS_14, maintenant: TESTS, etapes: [LIT, WRITTEN, TESTS], tours: 15 }]));
     await repos();
     assert.equal(now(vue), "nowrunning the testsfor 30 s");
-    assert.deepEqual(steps(vue), ["reading runtime/src/etat.ts", "writing app/src/slip.ts"]);
+    assert.deepEqual(steps(vue), ["reading runtime/src/etat.ts", "writing app/src/bon.ts"]);
     assert.match(saidOne(vue).textContent, /15 turns/);
     // Sa source, en dernière ligne : GitHub, à l'heure de la lecture — le reste au survol.
     const source = saidOne(vue).dessous("small").find((pose) => pose.className === "source") ?? assert.fail("pas de source");
@@ -137,7 +137,7 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     assert.match(saidOne(vue).textContent, /finished/);
     assert.doesNotMatch(saidOne(vue).textContent, new RegExp(IN_PROGRESS));
     assert.equal(now(vue), undefined);
-    assert.deepEqual(steps(vue), ["reading runtime/src/etat.ts", "writing app/src/slip.ts", "running the tests"]);
+    assert.deepEqual(steps(vue), ["reading runtime/src/etat.ts", "writing app/src/bon.ts", "running the tests"]);
     const pr = buttonPr(vue) ?? assert.fail("pas de bouton vers sa PR");
     assert.equal(pr.textContent, "open the PR of #14");
     pr.click();

@@ -38,6 +38,6 @@ test("a failed command, an unreadable answer, or no team is a failed reading, ne
 });
 
 test("the main process answers the bridge's `lireLesAgents`, and the preload exposes it", () => {
-  assert.match(readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8"), /ipcMain\.handle\("lireLesAgents", \(_, nom: unknown\) => lireLesAgents\(cuisineDuProjet\(nom\)\.lu, lancerSurLaCuisine\)\)/);
-  assert.match(readFileSync(new URL("../../src/preload.cjs", import.meta.url), "utf8"), /lireLesAgents: \(projet\) => ipcRenderer\.invoke\("lireLesAgents", projet\)/);
+  assert.match(readFileSync(new URL("../../src/main.ts", import.meta.url), "utf8"), /ipcMain\.handle\("lireLesAgents", \(_, name: unknown\) => readTheAgents\(kitchenOfProject\(name\)\.lu, launchOnTheKitchen\)\)/);
+  assert.match(readFileSync(new URL("../../src/preload.cjs", import.meta.url), "utf8"), /lireLesAgents: \(project\) => ipcRenderer\.invoke\("lireLesAgents", project\)/);
 });

@@ -150,19 +150,19 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
   test("elles sont embarquées : chaque police déclarée est un fichier de l'app, à côté de sa licence", () => {
     assert.deepEqual([...new Set(faces.map(({ declarations }) => declarations.get("font-family")))], ['"Archivo"', '"JetBrains Mono"']);
     for (const { declarations } of faces) {
-      const [, path] = /^url\("(polices\/[a-z-]+\.woff2)"\) format\("woff2"\)$/.exec(declarations.get("src") ?? "") ?? [];
-      assert.ok(path !== undefined, `une police ne vient pas de polices/ : ${declarations.get("src")}`);
+      const [, path] = /^url\("(fonts\/[a-z-]+\.woff2)"\) format\("woff2"\)$/.exec(declarations.get("src") ?? "") ?? [];
+      assert.ok(path !== undefined, `une police ne vient pas de fonts/ : ${declarations.get("src")}`);
       // Un vrai fichier de police, pas un renvoi.
       assert.equal(readFileSync(join(VUE, path)).subarray(0, 4).toString("latin1"), "wOF2", path);
     }
-    for (const licence of ["OFL-Archivo.txt", "OFL-JetBrainsMono.txt"]) assert.match(readFileSync(join(VUE, "polices", licence), "utf8"), /SIL OPEN FONT LICENSE Version 1\.1/, licence);
+    for (const licence of ["OFL-Archivo.txt", "OFL-JetBrainsMono.txt"]) assert.match(readFileSync(join(VUE, "fonts", licence), "utf8"), /SIL OPEN FONT LICENSE Version 1\.1/, licence);
   });
 
   test("rien n'est demandé au réseau : ni adresse dans la vue, ni origine ouverte par la page", () => {
     for (const file of files.filter((named) => /\.(css|html)$/.test(named))) {
       const text = file.endsWith(".css") ? withoutComments(read(file)) : read(file);
       assert.doesNotMatch(text, /https?:|@import|(?:href|src)="\/\//, `${file} nomme une adresse`);
-      for (const [, target = ""] of text.matchAll(/url\(\s*["']?([^"')]*)/g)) assert.match(target, /^polices\//, `${file} : url(${target})`);
+      for (const [, target = ""] of text.matchAll(/url\(\s*["']?([^"')]*)/g)) assert.match(target, /^fonts\//, `${file} : url(${target})`);
     }
     const html = read("index.html");
     // Ce que la page charge est à côté d'elle, ou dans les dépendances de l'app.
@@ -469,12 +469,12 @@ describe("rien de ce qui est au parking n'apparaît", () => {
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {
     // Les seules requêtes admises sont la largeur de la page étroite (#1186), qui change la mise en page, et « reduce
     // motion », qui fige la poêle (#2984) : ni l'une ni l'autre ne change le thème.
-    const withoutThePageNarrow = (text: string) => text.replaceAll(/@media \(max-width: \d+px\)/g, "").replaceAll("@media (prefers-reduced-motion: reduce)", "").replaceAll("window.matchMedia?.(ECRAN_ETROIT)", "");
+    const withoutThePageNarrow = (text: string) => text.replaceAll(/@media \(max-width: \d+px\)/g, "").replaceAll("@media (prefers-reduced-motion: reduce)", "").replaceAll("window.matchMedia?.(SCREEN_NARROW)", "");
     for (const file of files) assert.doesNotMatch(withoutThePageNarrow(read(file)), /@media|color-scheme:(?!\s*dark;)|data-theme|matchMedia|prefers-color-scheme/, file);
   });
 
   test("la page étroite (#1186) a un seul seuil, le même dans la vue et dans sa peau", () => {
-    const threshold = /^const ECRAN_ETROIT = "(\(max-width: \d+px\))";$/m.exec(read("vue.js"))?.[1];
+    const threshold = /^const SCREEN_NARROW = "(\(max-width: \d+px\))";$/m.exec(read("vue.js"))?.[1];
     assert.ok(threshold !== undefined, "vue.js nomme le seuil de la page étroite");
     assert.deepEqual([...read("vue.css").matchAll(/@media ([^{]*?)\s*\{/g)].map(([, request]) => request), [threshold]);
   });
@@ -501,7 +501,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
     // La vue, ses briques, et les blocs de ses onglets (cost/…) : tout module de la vue qui pose un élément.
     const source = files.filter((file) => file.endsWith(".js")).map(read).join("\n");
     const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g), ...source.matchAll(/\.id = "([^"]+)"/g)].map(([, id = ""]) => id));
-    const classes = new Set([...html.matchAll(/\bclass="([^"]+)"/g), ...source.matchAll(/className = "([^"]+)"/g), ...source.matchAll(/\bnoeud\(\w+, "\w+", "([^"]+)"/g), ...source.matchAll(/classList\.toggle\("([^"]+)"/g)].flatMap(([, names = ""]) => names.split(" ")));
+    const classes = new Set([...html.matchAll(/\bclass="([^"]+)"/g), ...source.matchAll(/className = "([^"]+)"/g), ...source.matchAll(/\bnode\(\w+, "\w+", "([^"]+)"/g), ...source.matchAll(/classList\.toggle\("([^"]+)"/g)].flatMap(([, names = ""]) => names.split(" ")));
     for (const { selecteurs: selectors } of rules(read("vue.css"))) {
       for (const selector of selectors) {
         for (const [, id = ""] of selector.matchAll(/#([a-z-]+)/g)) assert.ok(ids.has(id), `${selector} : aucun élément « #${id} »`);
@@ -594,6 +594,6 @@ describe("la forme se lit sans la couleur", () => {
 
   test("la vue ne pose une forme que d'un ton de la liste fermée, et ne la déduit de rien d'autre", () => {
     const source = readFileSync(join(VUE, "components/pill/pill.js"), "utf8");
-    assert.match(source, /FORMES = \{ vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau", orange: "pause" \}/);
+    assert.match(source, /SHAPES = \{ vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau", orange: "pause" \}/);
   });
 });

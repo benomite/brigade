@@ -60,7 +60,7 @@ const SHAPE = [
   (oneOf) => Array.isArray(oneOf.gestures),
   (oneOf) => Array.isArray(oneOf.pending),
 ];
-/** @param {unknown} readOnes @returns {lus is Agent[]} */
+/** @param {unknown} readOnes @returns {readOnes is Agent[]} */
 const itselfLit = (readOnes) => Array.isArray(readOnes) && readOnes.every((oneOf) => SHAPE.every((door) => door(oneOf)));
 
 /** @param {Agent[]} agents */

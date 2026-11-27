@@ -46,7 +46,7 @@ test("rien pour un autre message, sans vue déposée, ou avec une vue illisible"
 
 test("le crochet de la vue est déclaré à UserPromptSubmit", () => {
   const commands = (hooksOfRole({ node: "node", gh: "gh", cible: { nom: "espace" } }).UserPromptSubmit ?? []).flatMap((c) => c.hooks.map((h) => h.command));
-  assert.ok(commands.some((c) => /role-apres-init\.ts' 'vue' 'espace'/.test(c)));
+  assert.ok(commands.some((c) => /role-after-init\.ts' 'vue' 'espace'/.test(c)));
 });
 
 test("le crochet lancé au moment `vue` écrit la vue du projet, et rien au moment `debut`", () => {

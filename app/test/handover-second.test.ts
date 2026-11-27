@@ -96,8 +96,8 @@ describe("la passation d'une carte au second (#3133)", () => {
   test("le canal du process principal lit l'issue de GitHub et écrit dans le second du projet, et le pont l'expose", () => {
     const main = readFileSync(join(ROOT, "app/src/main.ts"), "utf8");
     const channel = /ipcMain\.handle\("passerAuSecond"[\s\S]*?\n\}\);/.exec(main)?.[0] ?? assert.fail("pas de canal « passerAuSecond »");
-    assert.match(channel, /discussionDeGitHub\(reglagesGh\(\), await depotDuProjet\(vise\), numero\)/);
-    assert.match(channel, /passerAuSecond\(\(message\) => terminaux\.inscrire\(vise, message, noteDeLaPassation\), lire, vise, ticket, question\)/);
-    assert.match(readFileSync(join(ROOT, "app/src/preload.cjs"), "utf8"), /passerAuSecond: \(projet, ticket, question\) => ipcRenderer\.invoke\("passerAuSecond", projet, ticket, question\)/);
+    assert.match(channel, /discussionOfGitHub\(settingsGh\(\), await repositoryOfProject\(aims\), number\)/);
+    assert.match(channel, /passAtSecond\(\(message\) => terminals\.inscrire\(aims, message, noteOfTheHandover\), read, aims, ticket, question\)/);
+    assert.match(readFileSync(join(ROOT, "app/src/preload.cjs"), "utf8"), /passerAuSecond: \(project, ticket, question\) => ipcRenderer\.invoke\("passerAuSecond", project, ticket, question\)/);
   });
 });

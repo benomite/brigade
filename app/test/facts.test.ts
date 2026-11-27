@@ -209,7 +209,7 @@ describe("les faits que l'app dessine", () => {
     const readOne = "2026-10-12T10:04:11.000Z";
     const of = (state: string, activity?: Facts["rail"][number]["activite"]) => tellInThisMoment({ ticket: 1, etat: state, titre: "", url: "", ...(activity === undefined ? {} : { activite: activity }) }, readOne);
 
-    assert.equal(of("pris", { fait: "tests rouges, corrige", cible: "app/src/slip.ts", depuis: "2026-10-12T10:01:11.000Z" }), "tests rouges, corrige app/src/slip.ts, for 3 min");
+    assert.equal(of("pris", { fait: "tests rouges, corrige", cible: "app/src/bon.ts", depuis: "2026-10-12T10:01:11.000Z" }), "tests rouges, corrige app/src/bon.ts, for 3 min");
     assert.equal(of("en pass", { fait: "relecture en cours", cible: null, depuis: "2026-10-12T10:04:01.000Z" }), "relecture en cours, for 10 s");
     assert.equal(of("pris", null), ACTIVITY_NOT_COMMUNICATED);
     assert.equal(ACTIVITY_NOT_COMMUNICATED, "activity not given");

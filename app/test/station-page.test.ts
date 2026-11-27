@@ -28,7 +28,7 @@ type Context = { ici: boolean; lectureSeule: boolean; niveau(key: string): Fake 
 // Un chargeur qui rend, pour chaque section, un élément qui dit ce qu'elle a reçu.
 function witnesses(receivedOnes: Map<string, Context>) {
   return async (file: string) => ({
-    poserSection(fabrique: typeof doc, context: Context) {
+    setSection(fabrique: typeof doc, context: Context) {
       receivedOnes.set(file, context);
       const body = fabrique.createElement("p");
       body.append(context.niveau("cooks"));
@@ -62,7 +62,7 @@ describe("la coque de la page d'une station", () => {
       locale: "gist-mac",
       charger: async (file) => {
         if (file === "identite") throw new SyntaxError("Unexpected token");
-        if (file === "connexions") return { poserSection: () => { throw new Error("lecture ratée"); } };
+        if (file === "connexions") return { setSection: () => { throw new Error("lecture ratée"); } };
         if (file === "capacites") return {};
         return witnesses(new Map())(file);
       },
@@ -93,7 +93,7 @@ describe("la coque de la page d'une station", () => {
     const page = (await setPageOfStation(doc, { station: STATION, locale: "gist-mac", charger: witnesses(new Map()) })) as Fake;
     assert.deepEqual(page.children.map((section) => section.children[1]?.children[0]?.dataset.niveau), SECTIONS.map(() => "machine"));
     for (const key of Object.keys(LEVELS).filter((one) => LEVELS[one] === "project")) {
-      const project = (file: string) => (file === "cooks" ? Promise.resolve({ poserSection: (_: typeof doc, context: Context) => context.niveau(key) }) : witnesses(new Map())(file));
+      const project = (file: string) => (file === "cooks" ? Promise.resolve({ setSection: (_: typeof doc, context: Context) => context.niveau(key) }) : witnesses(new Map())(file));
       const renderedOne = (await setPageOfStation(doc, { station: STATION, locale: "gist-mac", charger: project })) as Fake;
       assert.doesNotMatch(renderedOne.textContent, /\bproject\b(?! setting)/, `${key} : aucune marque « project »`);
       assert.ok(!renderedOne.descendants().some((element) => element.dataset.niveau === "project"), key);

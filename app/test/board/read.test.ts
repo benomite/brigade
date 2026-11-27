@@ -256,20 +256,16 @@ function graph(entry: string): string[] {
 
 test("la lecture du rail ne joint ni box ni station : ses modules ne chargent que les états de GitHub du runtime, et la règle des stations vues de GitHub (#2358)", () => {
   assert.deepEqual(graph("app/src/board/read.ts"), [
-    // Les alertes du haut du rail et le diagnostic du rail bloqué, sans E/S, que le runtime ne dit plus (ticket 3945).
-    "app/src/wait-of-rail/alerts.ts",
-    "app/src/rail-blocked/diagnostic.ts",
-    "app/src/board/writing.ts",
     // Le kanban de la nouvelle cuisine, de ses labels seuls, sans E/S (ticket 4482).
     "app/src/board/kitchen-board.ts",
-    "app/src/board/read.ts",
-    "app/src/board/set-aside-github.ts",
     // Le label `parked:chef` de la nouvelle cuisine, sans E/S : TODO lit ses issues de la liste des issues ouvertes (ticket 4474).
     "app/src/board/parked-chef-github.ts",
     "app/src/board/rail-github.ts",
+    "app/src/board/read.ts",
+    "app/src/board/set-aside-github.ts",
     "app/src/board/todo-github.ts",
-    // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).
-    "app/src/vue/wait-of-rail/wait-of-rail.ts",
+    "app/src/board/writing.ts",
+    "app/src/rail-blocked/diagnostic.ts",
     // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
     "app/src/vue/backlog/progress-github.ts",
     "app/src/vue/banner-stop/stop-of-rail.ts",
@@ -285,6 +281,10 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/vue/rail/github.ts",
     // Le dernier renvoi d'un ticket, des commentaires déjà lus, sans import : le récit du premier ticket le dit (ticket 3302).
     "app/src/vue/rail/send-back.ts",
+    // Pourquoi la file ne part pas : la raison et ses phrases, sans E/S (ticket 3433).
+    "app/src/vue/wait-of-rail/wait-of-rail.ts",
+    // Les alertes du haut du rail et le diagnostic du rail bloqué, sans E/S, que le runtime ne dit plus (ticket 3945).
+    "app/src/wait-of-rail/alerts.ts",
     "runtime/src/arret-cuisine/arret-cuisine.ts",
     "runtime/src/attente-du-rail/lecture.ts",
     "runtime/src/attente-du-rail/raison.ts",

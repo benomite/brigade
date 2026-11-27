@@ -74,7 +74,7 @@ async function play(project, state, id, action, apply, rest) {
   delete state.edition;
   delete state.aRetirer;
   // Un geste ne part que d'une entrée lue : la lecture de cet état a ses entrées.
-  state.lecture = { entrees: apply(/** @type {{ entrees: Entree[] }} */ (state.lecture).entrees) };
+  state.lecture = { entrees: apply(/** @type {{ entrees: Entry[] }} */ (state.lecture).entrees) };
   rest();
 }
 

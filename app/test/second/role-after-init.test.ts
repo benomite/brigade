@@ -110,8 +110,8 @@ describe("le rôle du second, redit après l'init", () => {
     const args = launched.at(0)?.args ?? assert.fail("aucun lancement");
     const { hooks } = JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as { hooks: Record<string, { matcher?: string; hooks: { command: string }[] }[]> };
     const commands = (event: string) => (hooks[event] ?? []).flatMap((c) => c.hooks.map((h) => h.command));
-    assert.ok(commands("UserPromptSubmit").some((c) => /role-apres-init\.ts' 'prompt' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
-    assert.ok(commands("SessionStart").some((c) => /role-apres-init\.ts' 'debut' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
+    assert.ok(commands("UserPromptSubmit").some((c) => /role-after-init\.ts' 'prompt' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
+    assert.ok(commands("SessionStart").some((c) => /role-after-init\.ts' 'debut' 'baloo' 'benomite\/baloo' 'main' 'gh'$/.test(c)));
     assert.deepEqual(hooksOfRole({ node: "node", gh: "gh", cible: { nom: "baloo" } }).SessionStart?.[0]?.matcher, "startup|resume|compact");
   });
 

@@ -224,24 +224,24 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
   test("son entrée lance l'icône avec `--tray-fond`, l'app sans — et l'app inscrit l'icône quand la station de fond est là", () => {
     assert.equal(JSON.parse(read("package.json")).main, "src/tray-background/entry.ts");
     const entry = read("src/tray-background/entry.ts");
-    assert.match(entry, /if \(process\.argv\.includes\(ARGUMENT\)\) \{\n  await import\("\.\/processus\.ts"\);\n\} else \{/);
+    assert.match(entry, /if \(process\.argv\.includes\(ARGUMENT\)\) \{\n  await import\("\.\/process\.ts"\);\n\} else \{/);
     assert.ok(entry.includes('await import(' + '"../main.ts");'));
-    assert.ok(entry.includes("if (installee && stationDeFondInstallee(systeme))"));
-    assert.ok(entry.includes("await inscrireLeFond("));
+    assert.ok(entry.includes("if (installedOne && stationOfBackgroundInstalled(system))"));
+    assert.ok(entry.includes("await registerTheBackground("));
   });
 
   test("l'app ne pose pas sa propre icône quand celle de fond la tient", () => {
     const principal = read("src/main.ts");
-    assert.ok(principal.includes('const iconeAuFond = emplacements.facon === "installee" && stationDeFondInstallee('));
-    assert.ok(principal.includes("barreDeMenus.poser(suivi.configuration().barreDeMenus !== false && !iconeAuFond,"));
+    assert.ok(principal.includes('const iconAtBackground = locations.facon === "installee" && stationOfBackgroundInstalled('));
+    assert.ok(principal.includes("menuBar.poser(tracking.configuration().barreDeMenus !== false && !iconAtBackground,"));
   });
 
   test("le process de l'icône lit les projets de la station, et joue ses gestes et la confirmation de quitter", () => {
     const process = read("src/tray-background/process.ts");
-    assert.ok(process.includes("await lireLesProjets(servisPar(racine), lancer)"));
-    assert.ok(process.includes("await jouerLeGeste(geste, projets, lancer, DELAI_MS)"));
-    assert.ok(process.includes("const texte = confirmationDeQuitter(projets);"));
-    assert.match(process, /if \(response !== 0\) return;\n\s+await dire\(await quitterLaStation\(/);
+    assert.ok(process.includes("await readTheProjects(servedBy(root), launch)"));
+    assert.ok(process.includes("await playTheAction(action, projects, launch, DELAY_MS)"));
+    assert.ok(process.includes("const text = confirmationOfQuit(projects);"));
+    assert.match(process, /if \(response !== 0\) return;\n\s+await tell\(await quitTheStation\(/);
   });
 });
 

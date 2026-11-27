@@ -118,8 +118,8 @@ describe("le câblage des tickets récurrents", () => {
 
   test("le process principal tient les deux canaux, et les passe au runtime du projet par `recurring`", () => {
     const main = readFileSync(join(APP, "src", "main.ts"), "utf8");
-    assert.match(main, /import \{ ecrireUnRecurrent, lireLesRecurrents \} from "\.\/vue\/recurrents\/recurrents-box\.ts";/);
-    assert.match(main, /ipcMain\.handle\("listerLesRecurrents", [\s\S]*?lireLesRecurrents\(vise\.nom, lu, lancerSurLaCuisine\)/);
-    assert.match(main, /ipcMain\.handle\("changerUnRecurrent", [\s\S]*?ecrireUnRecurrent\(vise\.nom, lu, geste, id, lancerSurLaCuisine\)/);
+    assert.match(main, /import \{ writeOneRecurring, readTheRecurring \} from "\.\/vue\/recurring\/recurring-box\.ts";/);
+    assert.match(main, /ipcMain\.handle\("listerLesRecurrents", [\s\S]*?readTheRecurring\(aims\.nom, readOne, launchOnTheKitchen\)/);
+    assert.match(main, /ipcMain\.handle\("changerUnRecurrent", [\s\S]*?writeOneRecurring\(aims\.nom, readOne, action, id, launchOnTheKitchen\)/);
   });
 });

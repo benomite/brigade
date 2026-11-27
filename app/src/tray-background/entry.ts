@@ -35,7 +35,7 @@ if (process.argv.includes(ARGUMENT_BACKGROUND)) {
   };
   const passTheMain = installedOne && oneOtherAppRuns();
   // Ouverte d'un lieu en lecture seule (l'image disque, #4269) : une phrase, puis on quitte sans erreur.
-  const readOnly = !passTheMain && (await import("../pty.ts")).aideInutilisable;
+  const readOnly = !passTheMain && (await import("../pty.ts")).helpUnusable;
   if (readOnly) {
     dialog.showErrorBox("Brigade", "Drag Brigade into the Applications folder first, then open it from there.");
     app.exit(0);

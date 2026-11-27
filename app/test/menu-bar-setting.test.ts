@@ -142,9 +142,9 @@ describe("la ligne de Settings", () => {
 describe("une question cliquée dans le menu", () => {
   test("le process principal l'envoie par `ouvrirCarte`, que le pont donne à `surOuvrirCarte`", () => {
     const principal = readFileSync(join(import.meta.dirname, "../src/main.ts"), "utf8");
-    assert.ok(principal.includes('dire("ouvrirCarte", entree.projet, entree.ticket)'));
+    assert.ok(principal.includes('tell("ouvrirCarte", entry.projet, entry.ticket)'));
     const bridge = readFileSync(join(import.meta.dirname, "../src/preload.cjs"), "utf8");
-    assert.ok(bridge.includes('surOuvrirCarte: (recevoir) => void ipcRenderer.on("ouvrirCarte", (_, projet, ticket) => recevoir(projet, ticket)),'));
+    assert.ok(bridge.includes('surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),'));
   });
 
   test("la vue ouvre le projet, puis la fiche de sa carte", async () => {
