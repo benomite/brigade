@@ -8,8 +8,7 @@
 //   sentBack  les tickets que la pass a renvoyés ou refusés, avec leur raison (renvois.ts) ;
 //   stops     ce qu'un garde-fou a arrêté, et lequel (arrets.ts).
 //
-// Ce qui attend le chef dans TODO n'est pas lu ici : l'app le prend au TODO
-// qu'elle montre à cet instant, la même lecture (app/src/vue/recap/).
+// Ce qui attend le chef dans TODO n'est pas lu ici.
 //
 // Sans marqueur — aucun récapitulatif encore montré —, il couvre les
 // `PREMIERE_FENETRE_MS` d'avant. Une lecture qui échoue lève : jamais un

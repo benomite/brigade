@@ -23,8 +23,8 @@ describe("les mots d'état, en anglais, d'une seule table", () => {
     assert.equal(wordOfState("un mot inconnu"), "un mot inconnu");
   });
 
-  test("la vue et le rail publié ne gardent aucune copie de la table", () => {
-    for (const file of ["vue.js", "rail-published.js"]) {
+  test("la vue ne garde aucune copie de la table", () => {
+    for (const file of ["vue.js"]) {
       const source = readFileSync(join(VUE, file), "utf8");
       assert.ok(!/["'`](pris|en attente|en pass|servi|ouverte|retenue|arrêtée|éteinte)["'`]\s*[:)]?\s*[?:]\s*["'`](taken|queued|open)/.test(source), file);
       assert.ok(!/"86"\s*\?\s*"set aside"/.test(source), `${file} traduit « 86 »`);

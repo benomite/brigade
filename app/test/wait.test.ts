@@ -74,7 +74,7 @@ describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
     const [[, path, workstation] = [], [, pathOfLabel, label] = []] = writtenOnes;
     assert.equal(path, "/repos/o/r/issues/8/comments");
     const body = (workstation as { body: string }).body;
-    // La marque que la cuisine relit (runtime/src/attente-github/marque.ts) : rien ne prend un ticket parqué avant sa date.
+    // La marque que la carte relit (vue/wait/wait-github.ts) : qui, quoi, jusqu'à quand.
     assert.match(body, /^<!-- brigade:parked \{"what":"sa validation écrite du devis","who":"le client","followUp":"2026-10-2[12]T\d\d:00:00\.000Z"\} -->\n\*\*PARKED: waits for le client\.\*\*/);
     assert.match(body, /- \*\*until\*\*: 2026-10-2[12] \d\d:00 UTC/);
     assert.deepEqual([pathOfLabel, label], ["/repos/o/r/issues/8/labels", { labels: ["parked"] }]);

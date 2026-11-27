@@ -1,6 +1,6 @@
 // La ligne d'état du rail (#3523) : au-dessus des colonnes, la bande du haut et — seulement quand quelque chose retient la
 // cuisine — une seule ligne ; aucun bandeau Backlog (#4354). Une issue que la cuisine a ouverte sur elle-même n'est jamais un besoin du Backlog : son contenu est cette
-// ligne. Et la ligne ne dit jamais « no reason is found » devant une raison connue. Le module pur d'abord, puis la vue jouée.
+// ligne. Le module pur d'abord, puis la vue jouée.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { POWER_UP } from "../../../src/power-up.ts";
@@ -15,7 +15,7 @@ import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { Fake, type Played, playTheVue, openTab, repos } from "../../helpers/false-vue.ts";
-import { lineOfAlerts, sentenceOfTheWait, heldKnown } from "../../../src/vue/line-of-status/line-of-status.js";
+import { lineOfAlerts } from "../../../src/vue/line-of-status/line-of-status.js";
 
 const PARADE = "parade";
 const REPOSITORY = "chef/parade";
@@ -65,8 +65,6 @@ const children = (vue: Played): Fake[] => vue.element("rail").children;
 const beforeTheColumns = (vue: Played): Fake[] => children(vue).slice(0, children(vue).findIndex(({ className }) => className === "colonnes"));
 const status = (vue: Played): Fake | undefined => children(vue).find(({ className }) => className.split(" ").includes("statut-du-rail") || className.split(" ").includes("attente-du-rail"));
 
-const LONG = "The wait is longer than usual: the oldest queued ticket has waited 3 d and no reason is found. It resolves by itself.";
-
 describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoin", () => {
   test("rien ne retient la cuisine : aucune ligne d'état — la bande du haut est seule au-dessus des colonnes (#4354)", async () => {
     const vue = await open();
@@ -104,14 +102,5 @@ describe("le module pur de la ligne d'état", () => {
     ]);
     assert.equal(line?.textContent, "Kitchen idle: x");
     assert.equal(line?.title, "The kitchen is idle: x — filed by the kitchen on issue #35");
-  });
-  test("les raisons connues : le ticket de côté, la cuisine arrêtée ; la phrase du runtime ne change que pour « normale »", () => {
-    assert.deepEqual(heldKnown({ misDeCote: [], arretee: false }), []);
-    assert.deepEqual(heldKnown({ misDeCote: [21], arretee: true }), ["the kitchen is stopped", "#21 is set aside"]);
-    const normal = { raison: "normale", phrase: LONG, geste: null, stations: [] as string[] } as const;
-    assert.equal(sentenceOfTheWait(normal, []), normal);
-    assert.equal(sentenceOfTheWait(normal, ["#21 is set aside"]).phrase, "The queue waits: #21 is set aside.");
-    const outage = { raison: "arretee", phrase: "The station is stopped.", geste: "demarrer-la-station", stations: [] as string[] } as const;
-    assert.equal(sentenceOfTheWait(outage, ["#21 is set aside"]), outage);
   });
 });
