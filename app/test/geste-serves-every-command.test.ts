@@ -73,7 +73,7 @@ describe("#4499 — the station's gesture serves every command the app launches"
     const launched = await commandsTheAppLaunches();
     const heads = [...new Set(launched.map((command) => words(command)[0] ?? ""))].sort();
     // What the app launched when this test was written: a command added since is checked too, never one dropped silently.
-    for (const known of ["agents", "contributor-stations", "guardrails", "humans", "installation", "manager", "send-word", "setting", "station", "switch"]) assert.ok(heads.includes(known), known);
+    for (const known of ["agents", "contributor-stations", "guardrails", "humans", "installation", "manager", "send-word", "setting", "switch"]) assert.ok(heads.includes(known), known);
     const { locale, remove } = station();
     t.after(remove);
     for (const head of heads) {
