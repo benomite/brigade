@@ -122,7 +122,8 @@ export async function readingUnderBudget(options: { budget: BudgetGitHub; depot:
   const inPause = (): ReadOfBoardOfRepository | null => {
     const until = budget.enPauseJusqua();
     if (until === null) return null;
-    return options.dernier() ?? readInPause(budget, repository, until, options.maintenant?.() ?? Date.now());
+    const kept = options.dernier();
+    return kept === undefined ? readInPause(budget, repository, until, options.maintenant?.() ?? Date.now()) : { ...kept, pauseJusqua: new Date(until).toISOString() };
   };
   const before = inPause();
   if (before !== null) return before;

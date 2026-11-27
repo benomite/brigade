@@ -48,6 +48,7 @@ import { playTheWait } from "./vue/wait/wait-github.ts";
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
 import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-assigned.ts";
 import { tokenOfGh } from "./board/token-gh.ts";
+import { holdTheLastRailsOnDisk } from "./board/last-rail-on-disk.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
 import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
 import { activitiesPublished, readTheBoardOfRepository, type ReadOfBoardOfRepository } from "./board/read.ts";
@@ -249,16 +250,19 @@ const accountConnected = holdTheLogin(() => readTheAccountGitHub({ gh: process.e
 // presque épuisé ou refuse pour dépassement — jusqu'à l'heure où il se remplit.
 const budgetGitHub = holdTheBudgetGitHub();
 const callUnderBudget = budgetGitHub.appeler(callGitHub);
+const lastRails = holdTheLastRailsOnDisk(join(rootOfTheStation, "last-rails"));
 const readTheBoard = async (project: Project): Promise<ReadOfBoardOfRepository> => {
   const repository = await repositoryOfProject(project);
   return readingUnderBudget({
     budget: budgetGitHub,
     depot: repository,
-    dernier: () => boards.dernier(project.nom),
+    dernier: () => boards.dernier(project.nom) ?? lastRails.load(repository),
     lire: async () => {
       const readOne = await readTheBoardOfRepository({ depot: repository, appeler: callUnderBudget, memoire: memoryOfRail(repository) });
       const call = readConditional(callUnderBudget, memoryOfRail(repository));
-      return withWhatAwaitingTheChef(readOne, call, shareOfCardsAssigned({ appeler: call, depot: repository, login: accountConnected.login }));
+      const read = await withWhatAwaitingTheChef(readOne, call, shareOfCardsAssigned({ appeler: call, depot: repository, login: accountConnected.login }));
+      if (read.lu) lastRails.save(read);
+      return read;
     },
   });
 };

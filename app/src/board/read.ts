@@ -62,6 +62,8 @@ export type BoardRead = {
   // Les issues ouvertes que la cuisine parque pour le chef (`parked:chef`, #4474), tirées de la liste du kanban : TODO les
   // lit sans une lecture de plus (wait-of-chef.ts). Absent quand cette liste n'a pas été lue.
   parqueesPourLeChef?: IssueParkedForTheChef[];
+  // Posé quand ce rail est celui que la pause du budget garde (budget-github.ts, #4624) : l'heure ISO où GitHub rend le budget et où la lecture reprend.
+  pauseJusqua?: string;
 };
 export type IssueParkedForTheChef = { ticket: number; titre: string; url: string; creee: string | null; labels: string[]; assignes?: string[] };
 // Ce que `facts` porte d'un dépôt où le compte GitHub de l'app ne peut pas écrire (#3163) : la vue ouvre alors le projet en

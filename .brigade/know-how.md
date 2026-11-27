@@ -57,3 +57,4 @@
 - A TODO entry of a card answered in words only (`parked:chef`, `todo.repondre`) has no choice buttons: its `Answer` opens the card (fiche or phone list), where the field and the posting Answer live; the kanban draws no `bon`, so `renderCard` carries the TODO card itself (#4593)
 - A comment in a vue file must not carry a `#1234` ticket number: `app/test/skin.test.ts` reads it as a hard-coded colour (#4593)
 - The CI plans its matrix in tests.yml's `plan` job from tests-touches.mjs: a zone with no test touched has no shard (skipped jobs count as success for `gates`); Windows runs on main only (#4607)
+- The app keeps each repository's last rail in `<station dir>/last-rails/` (app/src/board/last-rail-on-disk.ts); a rail kept by the budget pause carries `pauseJusqua` (ISO resume hour), so a test comparing it with the original read must strip that field (#4624)

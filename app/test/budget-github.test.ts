@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readingUnderBudget, ReadsInPause, PAUSE_WITHOUT_HOUR_MS, refusalForOverrun, holdTheBudgetGitHub, type BudgetGitHub } from "../src/budget-github.ts";
+import type { BoardRead } from "../src/board/read.ts";
 import { withWhatAwaitingTheChef } from "../src/board/wait-of-chef.ts";
 import { byFetch, type CallGitHub, type LimitGitHub, type AnswerGitHub } from "../src/board/client.ts";
 import { readTheBoardOfRepository, type ReadOfBoardOfRepository } from "../src/board/read.ts";
@@ -184,7 +185,7 @@ test("under 20% of the budget left, reads pause for every project until the rese
   // The six reads left together: each sent its first request before the first answer said the budget is low, then
   // nothing more left.
   assert.equal(github.demandes.length, before + PROJECTS.length, "one request per project, then nothing");
-  assert.deepEqual(inPause, readEntries, "every project keeps its last rail");
+  assert.deepEqual(inPause.map(({ pauseJusqua, ...rail }: { pauseJusqua?: string }) => (assert.equal(pauseJusqua, new Date(resumption).toISOString()), rail)), readEntries, "every project keeps its last rail, saying when the reads resume");
   for (; clock.t < resumption; clock.t += 30_000) await oneTour(boards);
   clock.t = resumption - 1;
   boards.oublier();
@@ -325,4 +326,30 @@ test("the pause says something else uses the quota when the app counted only a s
   const without = await readUnderBudget(only, almost, clock);
   assert.match(without.lu ? "" : without.raison, /is not read until/);
   assert.doesNotMatch(without.lu ? "" : without.raison, /Something else/);
+});
+
+test("after a restart during a quota pause, the rail saved on disk is shown with its read time and the hour the reads resume (#4624)", async () => {
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { holdTheLastRailsOnDisk } = await import("../src/board/last-rail-on-disk.ts");
+  const directory = mkdtempSync(join(tmpdir(), "last-rails-"));
+  try {
+    const saved = { lu: true, depot: "chef/un", luLe: "2026-11-27T15:50:00.000Z", cuisine: { rubriques: [] }, faits: {}, file: [], bilans: [], lignesDuRail: [], activites: [] } as unknown as BoardRead;
+    holdTheLastRailsOnDisk(directory).save(saved);
+    // The app restarts: a new holder, nothing in memory, GitHub says 0 requests left until 16:27.
+    const afterRestart = holdTheLastRailsOnDisk(directory);
+    const clock = { t: Date.parse("2026-11-27T15:57:00Z") };
+    const budget = holdTheBudgetGitHub({ maintenant: () => clock.t });
+    const reset = Date.parse("2026-11-27T16:27:00Z");
+    await budget.appeler(async () => ({ status: 403, data: { message: "API rate limit exceeded" }, limite: { total: 5000, restant: 0, repriseLe: reset } }))("/x", {}).catch(() => {});
+    let reads = 0;
+    const shown = await readingUnderBudget({ budget, depot: "chef/un", maintenant: () => clock.t, dernier: () => afterRestart.load("chef/un"), lire: async () => (reads++, saved) });
+    assert.equal(reads, 0);
+    assert.equal(shown.lu, true);
+    assert.equal(shown.luLe, "2026-11-27T15:50:00.000Z");
+    assert.equal((shown as BoardRead).pauseJusqua, "2026-11-27T16:27:00.000Z");
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
