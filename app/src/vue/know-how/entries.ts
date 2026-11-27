@@ -57,11 +57,27 @@ export function entryText(saisie: unknown): string {
 }
 
 // The file with the entry at `line` rewritten to `newText`: its ` (#ticket)` kept, its line ending kept, every other line
-// unchanged.
+// unchanged. The file's entries stay sorted (.claude/brigade/know-how-ordre.py, #4549): when the new text no longer sits
+// between neighbours it sat between, the entry moves to its place in its run of entries, so the gates do not refuse the edit.
 export function editEntry(text: string, line: number, newText: string): string {
   const { lines, raw, entry } = lineToChange(text, line);
   const ending = raw.endsWith("\r") ? "\r" : "";
-  lines[line] = `- ${entryText(newText)}${entry.ticket === null ? "" : ` (#${entry.ticket})`}${ending}`;
+  const written = `- ${entryText(newText)}${entry.ticket === null ? "" : ` (#${entry.ticket})`}${ending}`;
+  const was = raw.toLowerCase();
+  lines[line] = written;
+  const isEntry = (at: number) => lines[at] !== undefined && lines[at]!.startsWith("- ");
+  const key = (at: number) => lines[at]!.toLowerCase();
+  const before = isEntry(line - 1) && key(line - 1) <= was && key(line - 1) > written.toLowerCase();
+  const after = isEntry(line + 1) && key(line + 1) >= was && key(line + 1) < written.toLowerCase();
+  if (!before && !after) return lines.join("\n");
+  lines.splice(line, 1);
+  let first = line;
+  while (isEntry(first - 1)) first--;
+  let last = line;
+  while (isEntry(last)) last++;
+  let at = first;
+  while (at < last && key(at) <= written.toLowerCase()) at++;
+  lines.splice(at, 0, written);
   return lines.join("\n");
 }
 

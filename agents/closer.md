@@ -26,6 +26,7 @@ Two things, and nothing else:
 - **The source ticket on every entry you keep.** An entry keeps its `(#ticket)`.
 - **A merged entry keeps the source ticket numbers of all the entries it replaces**: `(#12, #40)`. A ticket number never disappears in a merge.
 - The three sections, and the one-line format `- text (#ticket)`.
+- **The alphabetical order of each section** (the entries are sorted by their line, case ignored, so that two lessons added in parallel do not conflict; the gates refuse an entry out of place). Removing an entry keeps the order; a merged entry goes to its sorted place, not where the first duplicate stood.
 
 ## You never add
 

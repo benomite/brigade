@@ -73,3 +73,12 @@ test("an entry's new text that ends with a ticket is refused: the source ticket 
   assert.equal(entryText("See (#12) first"), "See (#12) first");
   assert.equal(editEntry(FILE, 7, "See (#12) first").split("\n")[7], "- See (#12) first (#205)");
 });
+
+// #4549 : an edit that would leave the entry out of its sorted place moves it to its place, so the gates accept it.
+test("editEntry keeps the file sorted: an entry rewritten out of order moves to its place in its section", async () => {
+  const { editEntry } = await import("../../../src/vue/know-how/entries.ts");
+  const file = ["## Pitfalls", "- Alpha (#1)", "- Bravo (#2)", "- Charlie (#3)", "", "## Tools", "- Zed (#4)", ""].join("\n");
+  const after = editEntry(file, 1, "Delta");
+  assert.deepEqual(after.split("\n"), ["## Pitfalls", "- Bravo (#2)", "- Charlie (#3)", "- Delta (#1)", "", "## Tools", "- Zed (#4)", ""]);
+  assert.equal(editEntry(file, 2, "Bravo, reworded"), file.replace("- Bravo (#2)", "- Bravo, reworded (#2)"));
+});
