@@ -8,16 +8,14 @@ const project = (facts: ProjectRead["faits"]): ProjectRead => ({ nom: "brigade",
 
 test("aucun projet : la station le dit", () => {
   assert.equal(lineOfBackground([], "illisible"), "no project on this station");
-  assert.equal(lineOfBackground([], { pause: false, arret: false }), "no project on this station");
+  assert.equal(lineOfBackground([], { pause: false }), "no project on this station");
 });
 
-test("des projets : les comptes, puis la pause et l'arrêt de la station", () => {
+test("des projets : les comptes, puis la pause de la station", () => {
   const A = "2026-11-15T10:00:00.000Z";
   const readOne = project({ etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [], urgence: null });
-  assert.equal(lineOfBackground([readOne], { pause: false, arret: false }), "0 cooking · 0 for you");
-  assert.equal(lineOfBackground([readOne], { pause: true, arret: false }), "0 cooking · 0 for you · paused");
-  assert.equal(lineOfBackground([readOne], { pause: false, arret: true }), "0 cooking · 0 for you · stopped");
-  assert.equal(lineOfBackground([readOne], { pause: true, arret: true }), "0 cooking · 0 for you · paused · stopped");
+  assert.equal(lineOfBackground([readOne], { pause: false }), "0 cooking · 0 for you");
+  assert.equal(lineOfBackground([readOne], { pause: true }), "0 cooking · 0 for you · paused");
   assert.equal(lineOfBackground([readOne], "illisible"), "0 cooking · 0 for you");
   assert.equal(lineOfBackground([project(undefined)], "illisible"), "not read yet");
 });

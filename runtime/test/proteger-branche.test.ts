@@ -10,9 +10,8 @@ import { test } from "node:test";
 import { ETAPES, installationDe, noterEtape } from "../src/etapes.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { commande, constater, lire, PROTECTION, type ClientGitHub, type RequeteGitHub } from "../src/proteger-branche.ts";
-import { appeler, BASE, DEPOT, fauxGh, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, BASE, DEPOT, repertoireTemporaire } from "./outils.ts";
 
-const INSTALLATION = join(import.meta.dirname, "../src/installation-cli.ts");
 const PROJET = "espace";
 const CHEMIN_PROTECTION = `repos/${DEPOT}/branches/${BASE}/protection`;
 
@@ -261,40 +260,4 @@ test("sans journal ni projet nommé, rien n'est essayé sur GitHub", async (t) =
   assert.equal(await appel.fin, 1);
   assert.match(appel.sortie(), /BRIGADE_PROJECT n'est pas défini/);
   assert.deepEqual(gh.requetes, []);
-});
-
-// La commande du chef, dans son propre process, par `gh` : le chemin réel.
-test("la commande du chef, par `gh` : une branche déjà protégée, l'étape faite, aucune écriture", async (t) => {
-  const etat = repertoireTemporaire(t);
-  const gh = fauxGh(t);
-  gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT, permissions: { admin: true, push: true }, security_and_analysis: { secret_scanning_push_protection: { status: "enabled" } } } });
-  gh.repondre(CHEMIN_PROTECTION, { corps: { required_pull_request_reviews: { required_approving_review_count: 0 }, enforce_admins: { enabled: true } } });
-
-  const posee = lancer(t, INSTALLATION, ["protection", "poser"], env(etat, { BRIGADE_GH_BIN: gh.bin }));
-  assert.equal(await posee.fin, 0, posee.sortie());
-  assert.match(posee.sortie(), /est déjà protégée sur .* — rien n'est réécrit/);
-  assert.deepEqual(gh.appels().filter((appel) => appel.includes("PUT") || appel.includes("PATCH")), []);
-  assert.equal(etatDeLEtape(etat), "done");
-
-  const lue = lancer(t, INSTALLATION, ["protection"], env(etat, { BRIGADE_GH_BIN: gh.bin }));
-  assert.equal(await lue.fin, 0, lue.sortie());
-  assert.match(lue.sortie(), /^brigade : « Protéger la branche d'intégration » — faite$/m);
-  assert.match(lue.sortie(), /à quoi elle sert : .+/);
-  assert.match(lue.sortie(), /si tu la sautes  : .+/);
-  assert.match(lue.sortie(), new RegExp(`\`${BASE}\` est protégée sur ${DEPOT}`));
-});
-
-test("la commande du chef, par `gh`, sans le rôle d'administrateur : bloquée, et aucune écriture ne part", async (t) => {
-  const etat = repertoireTemporaire(t);
-  const gh = fauxGh(t);
-  gh.repondre(`repos/${DEPOT}`, { corps: { full_name: DEPOT, permissions: { admin: false, push: true } } });
-  gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: false } });
-
-  const commandee = lancer(t, INSTALLATION, ["protection", "poser"], env(etat, { BRIGADE_GH_BIN: gh.bin }));
-
-  assert.equal(await commandee.fin, 1, commandee.sortie());
-  assert.match(commandee.sortie(), /bloquée — .*rien n'est essayé/);
-  assert.match(commandee.sortie(), /le rôle Admin sur/);
-  assert.deepEqual(gh.appels().filter((appel) => appel.includes("PUT")), []);
-  assert.equal(etatDeLEtape(etat), "waiting");
 });

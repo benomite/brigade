@@ -38,7 +38,6 @@ const ACTIONS_OF_THE_DOC: readonly [id: string, citee: string, ecrite: string][]
   ["projet-eteindre", "brigade <projet> switch off", written("switch off")],
   ["reprendre", "brigade <projet> guardrails resume", written("guardrails resume")],
   ["stop", "brigade <projet> guardrails stop", written("guardrails stop")],
-  ["installation", "brigade <projet> installation", written("installation")],
 ];
 
 // La commande écrite : le test échoue net si le geste a refusé d'écrire.
@@ -121,8 +120,8 @@ describe("les gestes du chef", () => {
     });
   }
 
-  test("deux gestes sont directs — éteindre le projet, vérifier l'installation : aucun n'engage ni ne détruit ; les trois autres sont confirmés", () => {
-    assert.deepEqual(DIRECT, ["projet-eteindre", "installation"]);
+  test("un geste est direct — éteindre le projet : il n'engage ni ne détruit ; les trois autres sont confirmés", () => {
+    assert.deepEqual(DIRECT, ["projet-eteindre"]);
     assert.deepEqual(CONFIRMED, ["projet-allumer", "reprendre", "stop"]);
     // Chaque geste a l'une des deux formes, et une seule.
     assert.deepEqual([...DIRECT, ...CONFIRMED].toSorted(), ACTIONS.map(({ id }) => id).toSorted());
@@ -204,7 +203,7 @@ describe("les gestes du chef", () => {
   });
 
   test("un nom que le shell du Mac découperait s'écrit cité : il arrive entier, et rien n'en est exécuté", () => {
-    assert.equal(command("installation", { nom: "mon projet", dossier: "/p" }), written("installation", `'mon projet'`));
+    assert.equal(command("projet-eteindre", { nom: "mon projet", dossier: "/p" }), written("switch off", `'mon projet'`));
     assert.equal(command("projet-allumer", { nom: "box; rm -rf ~", dossier: "/p" }), written("switch on", `'box; rm -rf ~'`));
   });
 
@@ -265,11 +264,10 @@ async function open(action: NonNullable<Answers["geste"]>, others: Answers = {})
 }
 
 describe("vérifier l'installation n'est plus dans l'app (#1700)", () => {
-  test("ni en tête de l'espace ni dans Settings : aucun bouton « check the installation », et rien ne lance la vérification", async () => {
-    const vue = await open(() => SECOND, { verifier: () => undefined });
+  test("ni en tête de l'espace ni dans Settings : aucun bouton « check the installation »", async () => {
+    const vue = await open(() => SECOND);
     assert.throws(() => vue.element("gestes-projet"));
     await openRead(vue, "Settings");
     for (const or of ["etat", "onglets-du-projet", "interrupteur-projet"]) assert.deepEqual(vue.element(or).dessous("button").map(({ textContent }) => textContent).filter((text) => /installation/.test(text)), [], or);
-    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "verifier"), []);
   });
 });

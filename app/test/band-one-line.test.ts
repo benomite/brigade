@@ -193,14 +193,14 @@ describe("le prix est dans la confirmation, au clic", () => {
   test("une demande dont le geste ne coûte rien s'écrit au clic, sans confirmation", async () => {
     const vue = await open({ demanderAlerte: () => undefined });
     const readEntry = bandRead(statusWith());
-    vue.dire("surAlertes", { ...readEntry, alertes: [{ sujet: "station", verifie: true, ton: "rouge", dit: "station “box” missing", geste: "put `claude` back on the box", bouton: "ask the second", appel: { demande: true }, prix: "none for the kitchen: it is done on the box itself" }] });
+    vue.dire("surAlertes", { ...readEntry, alertes: [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "station “box” missing", geste: "put `claude` back on the box", bouton: "ask the second", appel: { demande: true }, prix: "none for the kitchen: it is done on the box itself" }] });
     await repos();
 
     const control = controlOf(lineOf(vue, "station"));
     assert.equal(control.textContent, "ask the second");
     control.click();
     await repos();
-    assert.deepEqual(callsOf(vue, "demanderAlerte"), [["demanderAlerte", "parade", "station", "station “box” missing"]]);
+    assert.deepEqual(callsOf(vue, "demanderAlerte"), [["demanderAlerte", "parade", "cuisine", "station “box” missing"]]);
     assert.equal(confirmationOf_(lineOf(vue, "station")), undefined);
   });
 });
