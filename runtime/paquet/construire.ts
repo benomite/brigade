@@ -170,8 +170,7 @@ function composerArchive({ archive, runtime, unites, node }: { archive: string; 
     mkdirSync(join(racine, "bin"));
     writeFileSync(join(racine, "bin", "brigade"), "#!/bin/sh\necho 'brigade : la commande n'\\''est pas encore écrite' >&2\nexit 1\n", { mode: 0o755 });
     writeFileSync(join(racine, "install.sh"), "#!/bin/sh\necho 'install.sh : pas encore écrit' >&2\nexit 1\n", { mode: 0o755 });
-    mkdirSync(join(racine, "services", "launchd"), { recursive: true });
-    writeFileSync(join(racine, "services", "launchd", "LISEZMOI"), "Les plists launchd de la station viendront ici.\n");
+    cpSync(join(ICI, "..", "archive", "services", "launchd"), join(racine, "services", "launchd"), { recursive: true });
     for (const unite of UNITES) {
       const texte = readFileSync(join(unites, unite), "utf8").replaceAll(INSTALLATION, INSTALLATION_ARCHIVE);
       writeFileSync(join(racine, "services", unite), texte, { mode: 0o644 });

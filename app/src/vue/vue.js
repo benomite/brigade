@@ -1790,10 +1790,10 @@ const ACTION = [
   "The station was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
   "What the app got is above; it knows no more.",
   "",
-  "The step that brings a runtime up to date, on its station:",
-  "  sudo git -C <brigade clone> pull",
-  "  sudo systemctl restart brigade@<project>",
-  "(docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”)",
+  "What the station says, and the step that brings it up to date, on its host:",
+  "  brigade status",
+  "  brigade update --check",
+  "(docs/station.md)",
 ].join("\n");
 
 // Ce que l'app dit quand le geste de la box a refusé le projet : le nom qu'elle

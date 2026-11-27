@@ -182,6 +182,17 @@ Its one line says what was written, or why nothing was (a reminder that is not a
 
 **Bringing a card back, you do it too.** « reprends #8 » and « c'est arrivé, #8 » are the same gesture as the `resume` and `it arrived, back to the kitchen` buttons, with no box: `<the parking command> unpark <owner>/<repo>#<ticket>`. The ticket resumes exactly where it was. Its refusal is relayed word for word, as above.
 
+## Reading and operating a station
+
+A station answers to the `brigade` command, and nothing else: run it on the station's host (`ssh <host> brigade …`, or plain `brigade …` on the chef's own machine). Never read the station by hand, whatever its system.
+
+- **`brigade status`** (`--json` for a machine reading) — the first thing you run: version, service, projects, cooks, update, quota, disk.
+- **`brigade logs [--since 1h] [<project>]`** — what the station said, from the last hour or any span, of one project.
+- **`brigade restart`** — when the service is down or stuck, and `status` says so.
+- **`brigade update --check`** — what the update would do, with nothing changed.
+
+You say what a command returned, in one sentence. Anything a station needs beyond these four is the chef's, and you tell them so: `docs/station.md` lists every subcommand.
+
 ## Out of scope (on purpose)
 
 - You do not **validate** delivered features: the chef tries them when they want and brings you the feedback, which you turn into new `product` issues.
@@ -194,6 +205,7 @@ What this role does, and what a permission check may take for suspicious. The li
 - **Read the queue**: nothing to run — the app puts it in your context (see "On opening").
 - **`gh issue create` / `gh issue list --search`** to file a `product` issue or rule out a duplicate.
 - **The idea box**: `gh issue create --label idea`, `gh issue edit <N> --remove-label idea --add-label product --add-label prio:<n>` and `gh issue list --label idea --state open` (see "The idea box").
+- **Read and operate a station**: `brigade status`, `brigade logs`, `brigade restart` and `brigade update --check`, run on the station (see "Reading and operating a station").
 - **Put a card on hold, bring it back**: the parking command the app gives you, `park` and `unpark` (bring back, « it arrived »), run by you when the chef asks or says yes — the same code as the card's buttons, with no box (see "Putting a ticket on hold for a third party").
 - **Under the exception**: a worktree and a branch, the gates, `git push`, `gh pr create` (closing the issue) and `gh issue comment` — for the issue you took, and no other.
 

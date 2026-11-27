@@ -54,11 +54,9 @@ export function paquetsDeLApp(version: string, signe: boolean): Paquet[] {
   ];
 }
 
-// The station runs on Linux and macOS, installed by one script (runtime/deploy/installer-station.sh),
-// and on Windows, installed by its PowerShell twin (runtime/deploy/windows/installer-station.ps1).
-// `installer-station.sh`, `installer-station.ps1`, `brigade-station_amd64.deb`,
-// and `brigade-station-windows.zip` keep their names: the install
-// commands (`releases/download/station/installer-station.sh` and `.ps1`), the scripts themselves and
+// The station runs on Linux and macOS, installed by one script (runtime/deploy/installer-station.sh).
+// `installer-station.sh` and `brigade-station_amd64.deb` keep their names: the install
+// command (`releases/download/station/installer-station.sh`), the script itself and
 // the running stations' own update (runtime/src/mise-a-jour/publications.ts) read them by name.
 export function paquetsDeLaStation(version = "<version>"): Paquet[] {
   return [
@@ -66,8 +64,6 @@ export function paquetsDeLaStation(version = "<version>"): Paquet[] {
     { construit: "brigade-station_amd64.deb", nom: "brigade-station-linux-amd64.deb", plateforme: "Linux", quoi: "Station, Debian/Ubuntu package (amd64)", ouverture: "No executable bit to set: install it with `sudo apt install ./brigade-station-linux-amd64.deb`." },
     { construit: `brigade-station-${version}-linux-x64.tar.gz`, nom: `brigade-station-${version}-linux-x64.tar.gz`, plateforme: "Linux", quoi: "Station, archive (x64): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up." },
     { construit: `brigade-station-${version}-darwin-arm64.tar.gz`, nom: `brigade-station-${version}-darwin-arm64.tar.gz`, plateforme: "Mac", quoi: "Station, archive (Apple silicon): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up, under your account, without sudo." },
-    { construit: "installer-station.ps1", nom: "installer-station.ps1", plateforme: "Windows", quoi: "Station, install script (Windows)", ouverture: "Nothing to unblock: paste `irm <its address> | iex` into PowerShell, under your account, as an ordinary user." },
-    { construit: "brigade-station-windows.zip", nom: "brigade-station-windows.zip", plateforme: "Windows", quoi: "Station, runtime for Windows (the install script sets it up)", ouverture: "Nothing to open: `installer-station.ps1` downloads and sets it up." },
   ];
 }
 

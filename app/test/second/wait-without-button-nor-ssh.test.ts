@@ -8,7 +8,9 @@ const ROLE = readFileSync(join(import.meta.dirname, "..", "..", "src", "second",
 
 test("le rôle ne renvoie ni vers un bouton ni vers la boîte pour mettre en attente", () => {
   const start = ROLE.indexOf("Putting a ticket on hold");
-  const section = ROLE.slice(ROLE.indexOf("A ticket that waits for someone else"));
+  const from = ROLE.indexOf("A ticket that waits for someone else");
+  const next = ROLE.indexOf("\n## ", from);
+  const section = ROLE.slice(from, next < 0 ? undefined : next);
   assert.ok(start >= 0);
   assert.ok(!/ssh/i.test(section), "la section d'attente parle de SSH");
   assert.ok(!/needs the box|only runs on the box/i.test(section));

@@ -20,7 +20,7 @@
 // Le geste d'une ligne est collé à l'état qu'il change, sous l'une de ses trois formes : un
 // geste du socle (actions.ts), direct ou confirmé — la confirmation dit son prix
 // (confirmation.ts) ; ou, quand le lever demande de lire, juger ou agir sur la box à côté du
-// runtime — déclarer une station, `claude /login`, `systemctl` —, une demande en prose,
+// runtime — déclarer une station, `claude /login`, `brigade restart` —, une demande en prose,
 // écrite dans le second sans Entrée (request.ts) : l'app ne la fait jamais partir. Une
 // ligne « non vérifié » mène à l'onglet qui lit l'état que la file ne dit pas. Ce module ne lance rien.
 // Au-dessus de tout, une ligne à part : l'urgence — plus rien ne cuit, et c'est le chef que toute la
@@ -384,7 +384,7 @@ function ofTheKitchen(project: string, facts: Facts | Without, status: string | 
           ton: "rouge",
           dit: "runtime stopped: nothing is running, no ticket is taken",
           pourquoi: tick(facts),
-          geste: `start it on the station: \`systemctl start brigade@${project}\``,
+          geste: `start it on the station, with \`brigade restart\``,
           appel: REQUEST,
           prix: "no cook is interrupted: nothing is running — queued tickets start again, on your quota",
         },
