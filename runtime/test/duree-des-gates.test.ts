@@ -91,11 +91,11 @@ describe("la durée des gates", { concurrency: 8 }, () => {
   });
 
   test("une étape qui plante au lieu de rapporter écrit sa ligne FAIL : aucun rouge de ces gates n'est muet", async () => {
-    // Sans manifest, le contrôle de cohérence ne rapporte rien : il lève, et ne laisse qu'une trace.
+    // Sans manifest, le contrôle des fichiers nommés par plugin.json ne rapporte rien : il lève, et ne laisse qu'une trace.
     const { lignes } = await temoin;
 
     assert.ok(lignes.some((ligne) => /^Traceback /.test(ligne)), lignes.join("\n"));
-    assert.ok(lignes.some((ligne) => /^FAIL {2}contrôle de cohérence .* planté/.test(ligne)), lignes.join("\n"));
+    assert.ok(lignes.some((ligne) => /^FAIL {2}contrôle des fichiers nommés par plugin.json planté/.test(ligne)), lignes.join("\n"));
     assert.equal(lignes.at(-2), "gates : ROUGE");
     // Dans le script, le rouge ne se pose que par `fail`, ou après des lignes FAIL déjà écrites.
     const poses = readFileSync(GATES, "utf8").split("\n").filter((ligne) => /\brc=1\b/.test(ligne)).map((ligne) => ligne.trim());

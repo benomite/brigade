@@ -1,4 +1,0 @@
-interface:
-  display_name: "Ask"
-  short_description: "Where a ticket stands"
-  default_prompt: "Use $ask with a ticket number and, if needed, a question."
