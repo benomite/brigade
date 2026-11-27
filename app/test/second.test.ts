@@ -98,7 +98,7 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.deepEqual(seenOfSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
     assert.equal(vue.element("rail").hidden, false);
     // En haut, un onglet de pages, Paramètres : ni « Second », ni shell — ni Cost, qui vit au niveau de l'app (#1022).
-    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Settings"]);
+    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     // À droite, le second, montré, et au même niveau, de quoi ouvrir un shell.
     assert.deepEqual(terminals(vue), ["second · claude", "+ shell"]);
     assert.deepEqual(shows(vue), ["second · claude"]);
@@ -427,7 +427,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
   test("à l'ouverture : ni l'état du projet, ni le consommé, ni le journal ; un onglet, et le geste du journal", async () => {
     const vue = await open();
 
-    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Settings"]);
+    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
@@ -486,7 +486,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
 
     assert.throws(() => vue.element("journal"));
     assert.doesNotMatch(readFileSync(join(VUE, "index.html"), "utf8"), /id="journal"/);
-    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Settings"]);
+    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
   });
 
   test("une ligne d'alerte dont la cause se règle dans Settings y mène en un clic", async () => {
