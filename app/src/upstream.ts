@@ -4,8 +4,7 @@
 // avec ce qui la retient en une ligne. Ce module n'y déduit rien : il compte ce que la lecture liste, range chaque
 // issue sous le mot qu'elle porte, et pose ce qu'elle en dit, mot pour mot. Une lecture ratée n'est jamais « rien avant
 // le rail ».
-// La vue en tire, quand le rail est vide, ce qu'il y a avant lui, et si le manager le lit — son état vient de `manager`
-// (manager.ts) ; les issues mises de côté et celles que la cuisine a ouvertes sur elle-même. Le bandeau Backlog qui en
+// La vue en tire, quand le rail est vide, ce qu'il y a avant lui ; les issues mises de côté et celles que la cuisine a ouvertes sur elle-même. Le bandeau Backlog qui en
 // posait une étiquette par besoin au-dessus des colonnes n'est plus (#4354) : la colonne Backlog montre le backlog.
 import type { Reading } from "./box.ts";
 import { isOutsideLine, titleOfFailure, type Card } from "./facts.ts";

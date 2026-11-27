@@ -125,12 +125,8 @@ One example for each frequency:
 ```
 
 The file is written in one fixed form (two spaces, keys in this order), so the same settings give
-the same bytes. Edit it by hand only if you know this form; otherwise change it from the app — the
-project's page, Settings, `Project settings`, one row per setting above, the closer's included
-([`app.md`](app.md), "The project's settings, changed by a pull request") — or propose the change
-with `brigade <projet> setting` (see [`runtime/README.md`](runtime/README.md), "setting").
-Both open the pull request, and neither sets anything on the box. A value the file would refuse is
-refused before any pull request, by the same check as the file's, in one sentence.
+the same bytes. Edit it by hand only if you know this form, and change it by a pull request on GitHub: nothing is set on the box.
+A value the file would refuse is refused by the same check, in one sentence.
 
 ### How a collaborator gets them
 

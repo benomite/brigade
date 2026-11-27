@@ -260,7 +260,6 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
 const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
 export const BOUTON_REPRENDRE_LA_CUISINE = "resuming the kitchen (no app button for it yet)";
 // Un réglage du projet gardé dans son dépôt se change sur sa ligne de Settings : changée, elle ouvre sa PR (#2920).
-const LIGNE_DU_PROJET = (reglage: string) => `on the \`${reglage}\` line of the project's Settings`;
 const SANS_BOUTON = "no app button for it yet";
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
@@ -559,7 +558,7 @@ function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): stri
 function direRefusDeLaFermetureEn(retenue: Refus): string {
   switch (retenue.reason) {
     case "unconfigured":
-      return `the closer is not set on this project — set its calibration ${LIGNE_DU_PROJET("Closer’s calibration")}: the change opens a pull request, it applies once merged`;
+      return `the closer is not set on this project — set its calibration in \`.claude/brigade/projet.json\` (\`closer\`) by a pull request: it applies once merged`;
     case "stopped":
       return `the kitchen has been stopped by the chef since ${retenue.detail} — ${BOUTON_REPRENDRE_LA_CUISINE} first`;
     case "breaker":
@@ -575,7 +574,7 @@ function direFermetureEn({ since, sansIssue }: DemandeDeFermeture, retenue: Refu
   if (!faitAttendre(retenue)) return `${demandee}: ${refus} — the runtime refuses it at its next wake-up, nothing leaves`;
   const renoncer = `withdraw it: ${SANS_BOUTON}`;
   if (sansIssue === null) return `${demandee}, it waits — ${refus}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
-  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold ${LIGNE_DU_PROJET("Closer’s start threshold (cooks in flight)")}, switch the project off while the rail empties (the \`project\` switch at the head of the space), or ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold on GitHub (Kitchen > Health), switch the project off while the rail empties, or ${renoncer}`;
 }
 
 // Une phrase reprise au milieu d'une ligne.

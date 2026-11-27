@@ -10,14 +10,10 @@
 // les transcripts.
 // **Le silence est prouvé, jamais supposé** : un état que la box ne dit pas — pas encore
 // lu, pas joint, une sortie qui n'a pas la forme, un runtime d'avant le champ — donne une
-// ligne « non vérifié » qui le nomme, jamais « tout va bien ». Le manager n'est pas dit par
-// la file (#438) : l'app lit elle-même `manager`, pour chaque projet, au rythme de `faits`,
-// quel que soit l'onglet affiché. Il n'est « non vérifié » que le temps de la première
-// lecture, ou quand cette lecture échoue — et la ligne dit pourquoi.
+// ligne « non vérifié » qui le nomme, jamais « tout va bien ».
 // D'où vient chaque état : la cuisine de `faits` (facts.ts), la cause d'une
 // cuisine retenue des lignes de tête de `status` — celles que le runtime écrit
-// d'un titre et d'une valeur (`decrireEtat`) —, le manager de la
-// sortie de `manager` (manager.ts). Le setup du projet bloqué est une cause de la cuisine :
+// d'un titre et d'une valeur (`decrireEtat`). Le setup du projet bloqué est une cause de la cuisine :
 // sa ligne de tête dit qu'il l'est, son entrée `setup` du bloc `attend` en dit la cause et le
 // geste — c'est elle que la ligne de la bande reprend. Ce que la box dit se pose mot pour mot ; l'app n'y
 // ajoute que ses propres mots, à part. Aucun fait nouveau n'est demandé au runtime.
@@ -32,12 +28,11 @@
 import type { Shown } from "./awaiting.ts";
 import type { Failure, Reading } from "./box.ts";
 import { COMMAND as FACTS, understand, duration, isOutsideLine, tick, titleOfFailure, type DecisionUrgent, type Facts } from "./facts.ts";
-import { COMMAND as MANAGER, managerOf, type Switch } from "./manager.ts";
 import { hourHM } from "./format.ts";
 import { lineOfTheLimit } from "./vue/banner-limit-github.ts";
 
 // `urgence` : toute la cuisine attend le chef.
-export type Subject = "urgence" | "github" | "manager" | "cuisine" | "injoignable";
+export type Subject = "urgence" | "github" | "cuisine" | "injoignable";
 // Ce que le bouton d'une ligne appelle : une demande au second, faite de ce que la ligne dit (request.ts) ; un onglet de
 // contenu (tabs.ts).
 // `relire` : relire la box tout de suite, au lieu d'attendre le tour de la veille (#728).
@@ -57,22 +52,14 @@ export type Alert = { sujet: Subject; verifie: boolean; ton: string; dit: string
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
 // ont été lus, et vont bien.
 export type Signal = { etat: "urgence" | "alerte" | "non-verifie" | "injoignable"; dit: string };
-// L'état de l'interrupteur du projet, pour l'interrupteur de son espace (#906, #1406) : allumé ou
-// éteint, tel qu'il vient d'être lu — sans le délai d'affichage d'une ligne de la bande. Un seul pour
-// tout le projet : le manager le suit, et c'est sa ligne qui le dit —
-// allumé, les tickets lancés sont pris, le manager juge et découpe, une livraison verte est mergée.
-// `dit` : ce que la tête du rail en dit, éteint — la même phrase que la ligne de la bande.
-// `releve` : la ligne `manager` du runtime, mot pour mot, que l'interrupteur montre au survol.
-// `sans` : pourquoi il n'est pas lu — ce n'est jamais « éteint ».
-export type StateOfManager = { allume: boolean; dit?: string; releve: string } | Without;
 // `horsLigne` : l'app n'a pas joint GitHub depuis cet instant (#1818) — la bande est alors vide, sans signal.
-export type Band = { projet: string; alertes: Alert[]; signal?: Signal; manager?: StateOfManager; horsLigne?: string };
+export type Band = { projet: string; alertes: Alert[]; signal?: Signal; horsLigne?: string };
 
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
 export type Without = { sans: string };
 // Ce que la bande lit d'un projet. `status` : sa sortie, le bloc `attend` mis à part ou non ;
 // `attend` : ce bloc, quand il a été mis à part (awaiting.ts, `mettreAPart`).
-export type Read = { projet: string; faits: Facts | Without; status: string | Without; attend?: string; manager: Switch | Without; limite?: LimitOfTheApp };
+export type Read = { projet: string; faits: Facts | Without; status: string | Without; attend?: string; limite?: LimitOfTheApp };
 
 // Ce que l'app a lu de sa propre limite : GitHub refuse ses appels, et `reprise` est l'instant où il les rend, nul s'il ne le dit pas.
 export type LimitOfTheApp = { reprise: string | null };
@@ -81,6 +68,7 @@ const s = (howMany: number) => (howMany > 1 ? "s" : "");
 const court = (commit: string) => commit.slice(0, 12);
 const NO = "none: nothing changes on the station";
 const READ = "none: reading changes nothing on the station";
+const RESUME = "queued tickets start again at once, on your quota";
 const REREAD_FACTS = `wait for it to be read: \`${FACTS}\` is re-read every 30 s`;
 // Le geste d'une ligne qui demande de lire, de juger ou d'agir sur la box : une demande au second.
 const REQUEST = { demande: true } as const;
@@ -225,39 +213,6 @@ function ofRefusalOfGitHubOnly(facts: Facts | Without): Alert[] {
     },
   ];
 }
-
-// --- Le manager ---------------------------------------------------------------
-
-// L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit. Tant que la file ne porte
-// pas son état (#438), l'app le lit elle-même : avant sa première lecture, il n'est pas dit.
-export const MANAGER_NOT_SAYS = "first reading of `manager` in progress: the queue does not say whether the project is on (#438). This is not “on”";
-
-const RESUME = "queued tickets start again at once, on your quota";
-
-// Éteint, ce que la tête du rail en dit, et la ligne de la bande : une seule phrase, la même partout.
-export const MANAGER_OFF = "project off — nothing new is taken, split or merged";
-// La ligne `manager` telle que le runtime l'écrit.
-const readingOf = ({ mot: word, depuis: since, par: by, dit: said }: Switch) => `${word}${since === undefined ? "" : ` since ${since} (by ${by})`} — ${said}`;
-
-// Éteint, le projet reste une ligne de la bande : c'est elle qui fait le signal de la case du projet,
-// dans la barre. Dans l'espace du projet, la vue ne la pose pas : son interrupteur et la tête du rail
-// le disent (#906, #1406) — `manager`, sur la bande.
-function ofManager(manager: Switch | Without): Alert[] {
-  if ("sans" in manager) return [notChecks("manager", "project switch not verified", { pourquoi: manager.sans, geste: "wait for it to be read: `manager` is re-read every 30 s", prix: READ })];
-  if (manager.allume) return [];
-  return [
-    {
-      sujet: "manager",
-      verifie: true,
-      ton: "rouge",
-      dit: MANAGER_OFF,
-      releve: readingOf(manager),
-      geste: "nothing to do from the app: the project is off on its station",
-      prix: "none: the app writes nothing here",
-    },
-  ];
-}
-const stateOfManager = (manager: Switch | Without): StateOfManager => ("sans" in manager ? manager : { allume: manager.allume, ...(manager.allume ? {} : { dit: MANAGER_OFF }), releve: readingOf(manager) });
 
 // --- La cuisine -------------------------------------------------------------
 
@@ -473,14 +428,14 @@ const withButton = (alert: Alert): Alert => {
   return button === undefined ? alert : { ...alert, bouton: button };
 };
 
-// La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
+// La bande d'un projet, d'après ce qui en a été lu : l'urgence, la cuisine — et
 // et son setup.
-export function alerts({ projet: project, faits: facts, status, attend: awaiting, manager, limite: limit }: Read): Alert[] {
-  return byGravite([...ofTheEmergency(facts), ...ofRefusalOfGitHubOnly(facts), ...ofHeld(facts), ...ofTheLimit(facts, limit), ...ofWritesHeld(status), ...ofManager(manager), ...ofTheKitchen(project, facts, status), ...ofSetup(facts, status, awaiting)].map(withButton));
+export function alerts({ projet: project, faits: facts, status, attend: awaiting, limite: limit }: Read): Alert[] {
+  return byGravite([...ofTheEmergency(facts), ...ofRefusalOfGitHubOnly(facts), ...ofHeld(facts), ...ofTheLimit(facts, limit), ...ofWritesHeld(status), ...ofTheKitchen(project, facts, status), ...ofSetup(facts, status, awaiting)].map(withButton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
-// le rouge avant le reste. Le tri est stable : à gravité égale, l'ordre de la bande (manager, cuisine) tient.
+// le rouge avant le reste. Le tri est stable : à gravité égale, l'ordre de la bande (cuisine) tient.
 const GRAVITE = (alert: Alert) => (alert.sujet === "urgence" ? -1 : (alert.verifie ? 0 : 10) + (alert.ton === "rouge" ? 0 : alert.ton === "jaune" ? 1 : 2));
 const byGravite = (band: Alert[]): Alert[] => band.map((alert, rank) => ({ alerte: alert, rang: rank })).sort((a, b) => GRAVITE(a.alerte) - GRAVITE(b.alerte) || a.rang - b.rang).map(({ alerte: alert }) => alert);
 
@@ -562,14 +517,13 @@ export const READS_FOR_ESTABLISH = 2;
 // Elle part à la première réception qui suit — `faits` est relu toutes les 30 s.
 export const DISPLAY_MINIMUM = 20_000;
 // Ce qui est dit « pas encore lu » le temps d'une première lecture ne se montre jamais : l'app attend son résultat.
-const IN_PROGRESS = [FACTS_NOT_YET, STATUS_NOT_STILL, MANAGER_NOT_SAYS];
+const IN_PROGRESS = [FACTS_NOT_YET, STATUS_NOT_STILL];
 
-type Source = "faits" | "status" | "manager";
+type Source = "faits" | "status";
 // Quelles lectures disent chaque sujet : une réception ne compte que pour les alertes qu'elle a relues.
 const READS_OF: Record<Subject, readonly Source[]> = {
   urgence: ["faits"],
   github: ["faits", "status"],
-  manager: ["manager"],
   cuisine: ["faits", "status"],
   injoignable: ["faits"],
 };
@@ -580,7 +534,6 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
   const statuses = new Map<string, string | Without>();
   // Le bloc `attend` du dernier `status` lu, mis à part : il ne vit qu'avec lui.
   const attends = new Map<string, string>();
-  const managers = new Map<string, Switch | Without>();
   // La limite que l'app a lue elle-même sur GitHub : elle vaut jusqu'à la lecture suivante des stations.
   let limitOfTheApp: LimitOfTheApp | undefined;
   // Ce que la bande de chaque projet dit maintenant : le suivi de chaque ligne, et la bande rendue.
@@ -609,7 +562,6 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
       faits: facts.get(project) ?? { sans: FACTS_NOT_YET },
       status: statuses.get(project) ?? { sans: STATUS_NOT_READ },
       ...(awaiting === undefined ? {} : { attend: awaiting }),
-      manager: managers.get(project) ?? { sans: MANAGER_NOT_SAYS },
       ...(limitOfTheApp === undefined ? {} : { limite: limitOfTheApp }),
     });
   };
@@ -623,8 +575,6 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
     if (f !== undefined && "sans" in f) without.faits = f.sans;
     const st = statuses.get(project);
     if (st !== undefined && typeof st !== "string") without.status = st.sans;
-    const m = managers.get(project);
-    if (m !== undefined && "sans" in m) without.manager = m.sans;
     const why = alert.pourquoi ?? "";
     const found = READS_OF[alert.sujet].find((source) => without[source] !== undefined && why.includes(without[source]));
     return found ?? READS_OF[alert.sujet][0] ?? "faits";
@@ -632,20 +582,18 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
   const band = (project: string, source?: Source): Band => {
     const since = outsideLine.get(project);
     if (since !== undefined) {
-      const manager = stateOfManager(managers.get(project) ?? { sans: MANAGER_NOT_SAYS });
       const before = renderedEntries.get(project);
-      if (before !== undefined && before.horsLigne === since && before.alertes.length === 0 && JSON.stringify(before.manager) === JSON.stringify(manager)) return before;
-      const renderedOne: Band = { projet: project, alertes: [], manager, horsLigne: since };
+      if (before !== undefined && before.horsLigne === since && before.alertes.length === 0) return before;
+      const renderedOne: Band = { projet: project, alertes: [], horsLigne: since };
       renderedEntries.set(project, renderedOne);
       return renderedOne;
     }
     const silence = silences.get(project);
     if (silence !== undefined && silence.lectures >= READS_FOR_UNREACHABLE) {
       const triees = [ofTheBoxSilent(silence)];
-      const manager = stateOfManager(managers.get(project) ?? { sans: MANAGER_NOT_SAYS });
       const before = renderedEntries.get(project);
-      if (before !== undefined && before.horsLigne === undefined && JSON.stringify(before.alertes) === JSON.stringify(triees) && JSON.stringify(before.manager) === JSON.stringify(manager)) return before;
-      const renderedOne: Band = { projet: project, alertes: triees, signal: signalOf(triees), manager };
+      if (before !== undefined && before.horsLigne === undefined && JSON.stringify(before.alertes) === JSON.stringify(triees)) return before;
+      const renderedOne: Band = { projet: project, alertes: triees, signal: signalOf(triees) };
       renderedEntries.set(project, renderedOne);
       return renderedOne;
     }
@@ -681,10 +629,9 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
       else tracking.delete(k);
     }
     const triees = byGravite(saidEntries);
-    const manager = stateOfManager(managers.get(project) ?? { sans: MANAGER_NOT_SAYS });
     const before = renderedEntries.get(project);
-    if (before !== undefined && before.horsLigne === undefined && JSON.stringify(before.alertes) === JSON.stringify(triees) && JSON.stringify(before.manager) === JSON.stringify(manager)) return before;
-    const renderedOne: Band = { projet: project, alertes: triees, signal: signalOf(triees), manager };
+    if (before !== undefined && before.horsLigne === undefined && JSON.stringify(before.alertes) === JSON.stringify(triees)) return before;
+    const renderedOne: Band = { projet: project, alertes: triees, signal: signalOf(triees) };
     renderedEntries.set(project, renderedOne);
     return renderedOne;
   };
@@ -705,7 +652,7 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projects: readonly string[]): Band[] {
       facts.clear();
-      for (const heldOnes of [statuses, attends, managers, silences, outsideLine, tracked, renderedEntries]) for (const project of heldOnes.keys()) if (!projects.includes(project)) heldOnes.delete(project);
+      for (const heldOnes of [statuses, attends, silences, outsideLine, tracked, renderedEntries]) for (const project of heldOnes.keys()) if (!projects.includes(project)) heldOnes.delete(project);
       return projects.map((project) => band(project));
     },
     // Une lecture de `faits`.
@@ -744,18 +691,6 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
         else statuses.delete(project);
       }
       return [...keys].map((project) => band(project));
-    },
-    // Une lecture de `manager` — celle de la veille du manager, ou celle de l'onglet : l'état du manager, ou pourquoi il n'est pas lu.
-    manager(reading: Reading): Band {
-      if (outside(reading)) return band(reading.projet, "manager");
-      note(reading, false);
-      const output = "erreur" in reading ? undefined : reading.sorties.find(({ commande: command }) => command === MANAGER)?.texte;
-      const readOne = output === undefined ? undefined : managerOf(output);
-      managers.set(
-        reading.projet,
-        "erreur" in reading ? { sans: rate(MANAGER, reading) } : readOne === undefined ? { sans: "the reading did not return `manager`" } : "informe" in readOne ? { sans: `the output of \`manager\` does not have the expected shape: ${readOne.informe}` } : readOne.interrupteur,
-      );
-      return band(reading.projet, "manager");
     },
     // La ligne que la vue nomme par son sujet et ce qu'elle dit, telle que la bande la dit
     // maintenant — rien, si elle n'y est plus : la vue ne fait pas dire à la bande ce qu'elle a cessé de dire.

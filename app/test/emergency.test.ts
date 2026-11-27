@@ -2,7 +2,7 @@
 // passe en tête de la bande, au-dessus de tout, marquée à part, avec ce qui est attendu, son geste et
 // depuis combien de temps tout est à l'arrêt ; la case du projet la dit, autrement qu'une alerte
 // (alerts.ts, « L'urgence »). Une décision qui ne retient qu'une partie du rail ne change rien.
-// Ce que la box rend est écrit ici par le runtime lui-même — `faits`, `status` et `manager`, joués
+// Ce que la box rend est écrit ici par le runtime lui-même — `faits` et `status`, joués
 // dans ce process sur un vrai journal (runtime/src/etat.ts) : la forme que
 // la bande lit est tenue contre celle que le runtime écrit.
 import assert from "node:assert/strict";
@@ -13,8 +13,7 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { principal as manager } from "../../runtime/src/manager-cli.ts";
-import { alerts, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Band } from "../src/alerts.ts";
+import { alerts, signalOf, holdBands, type Alert, type Band } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
@@ -33,7 +32,7 @@ const hour = (h: string) => `${DAY}T${h}.000Z`;
 const reading = (command: string, text: string, a: string): Reading => ({ projet: "parade", demande: 1, a, sorties: [{ commande: command, texte: text }] });
 
 // Une cuisine dont le test tient l'horloge, où tout va bien hors du rail — runtime en marche,
-// version à jour, manager allumé —, et ce que l'app en dessine : `faits`, `status` et `manager`
+// version à jour —, et ce que l'app en dessine : `faits` et `status`
 // écrits par le runtime, lus comme le process principal les lit.
 function kitchen(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "brigade-app-urgence-"));
@@ -64,9 +63,7 @@ function kitchen(t: TestContext) {
   const render = (h: string) => {
     const now = new Date(hour(h));
     const state = lireEtat(log, now);
-    const lines: string[] = [];
-    void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return { faits: runtimeFacts(state, now), status: `${decrireEtat(state, now).join("\n")}\n`, manager: `${lines.join("\n")}\n` };
+    return { faits: runtimeFacts(state, now), status: `${decrireEtat(state, now).join("\n")}\n` };
   };
   // La bande, d'après `faits` tel que la box l'a rendu — ou tel qu'un `retoucher` le donne.
   const band = (h: string, retoucher: (facts: Record<string, unknown>) => Record<string, unknown> = (facts) => facts): Band => {
@@ -76,8 +73,7 @@ function kitchen(t: TestContext) {
     bands.ouvrir(["parade"]);
     bands.veiller(["parade"]);
     bands.faits(reading("facts", `${JSON.stringify(retoucher({ ...rendered.faits }))}\n`, readOne));
-    bands.status(putAside(reading("status", rendered.status, readOne)));
-    return bands.manager(reading("manager", rendered.manager, readOne));
+    return bands.status(putAside(reading("status", rendered.status, readOne)));
   };
   note({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } } as Fait);
   note({ type: "manager.enabled", payload: {} }, null, "chef");
@@ -112,7 +108,7 @@ describe("l'urgence dans la bande", () => {
       }),
     );
     if ("informe" in facts) assert.fail(facts.informe);
-    const [first] = alerts({ projet: "parade", faits: facts, status: { sans: "pas lu" }, manager: { sans: MANAGER_NOT_SAYS } });
+    const [first] = alerts({ projet: "parade", faits: facts, status: { sans: "pas lu" } });
     assert.equal(first?.dit, "the whole kitchen is waiting for you on #9 (question) — at a standstill for 1 min");
     assert.equal(first.pourquoi, "1 ticket held, none can cook until you act: #10");
   });
@@ -121,9 +117,7 @@ describe("l'urgence dans la bande", () => {
 describe("sans urgence, rien ne change", () => {
   test("une cuisine qui va bien : la bande reste vide, la case sans signal", (t) => {
     const { bande: band } = kitchen(t);
-    const { manager, ...readEntry } = band("10:00:00");
-    assert.deepEqual(readEntry, { projet: "parade", alertes: [], signal: undefined });
-    assert.equal(manager !== undefined && "allume" in manager && manager.allume, true);
+    assert.deepEqual(band("10:00:00"), { projet: "parade", alertes: [], signal: undefined });
   });
 
   test("le « stop » du chef retient la cuisine lui-même : sa ligne, pas celle de l'urgence", (t) => {

@@ -1,9 +1,9 @@
 // La bande d'alertes : vide quand tout va bien, chaque ligne avec son geste et son prix, et
-// l'inconnu est dit. Trois états y entrent — le manager, la version en service, la cuisine —
+// l'inconnu est dit. Deux états y entrent — la version en service, la cuisine —
 // et chacun s'y éprouve sain (rien n'est posé), en panne (une ligne, sa cause, son
 // geste, son prix) et non dit (une ligne « non vérifié » qui le nomme).
-// Ce que la box rend est écrit ici par le runtime lui-même — `faits`, `status` et `manager`,
-// joués dans ce process sur un vrai journal (runtime/src/etat.ts, runtime/src/manager-cli.ts) :
+// Ce que la box rend est écrit ici par le runtime lui-même — `faits` et `status`,
+// joués dans ce process sur un vrai journal (runtime/src/etat.ts) :
 // la forme que la bande lit est tenue contre celle que le runtime écrit.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -13,9 +13,8 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "../../runtime/src/stations-declarees.ts";
-import { DISPLAY_MINIMUM, alerts, buttonOf, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Subject } from "../src/alerts.ts";
+import { DISPLAY_MINIMUM, alerts, buttonOf, signalOf, holdBands, type Alert, type Subject } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import type { Reading } from "../src/box.ts";
 import { forTheBar } from "../src/bar.ts";
@@ -34,9 +33,9 @@ const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp
 const MISSED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, erreur: "$ station parade facts\nnpm error Missing script: facts\n\n→ code de sortie 1", atteinte: true, cas: null };
 const NOT_JOINED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, erreur: "$ station parade facts\nconnection refused\n\n→ code de sortie 255", atteinte: false, cas: null };
 
-// Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits`, `status` et
-// `manager`, écrits par le runtime. `bande` : ce que l'app en dessine, lu comme le process
-// principal le lit — `faits`, puis `status` son bloc `attend` mis à part, puis l'onglet Manager.
+// Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits` et `status`,
+// écrits par le runtime. `bande` : ce que l'app en dessine, lu comme le process
+// principal le lit — `faits`, puis `status` son bloc `attend` mis à part.
 function kitchen(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "brigade-app-alertes-"));
   let instant = `${DAY}T09:00:00.000Z`;
@@ -52,23 +51,20 @@ function kitchen(t: TestContext) {
   const render = (hour: string) => {
     const now = new Date(when(hour));
     const state = lireEtat(log, now);
-    const lines: string[] = [];
-    void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: `${lines.join("\n")}\n` };
+    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n` };
   };
-  const band = (hour = "10:00:00", { avecManager: withManager = true } = {}): Alert[] => {
+  const band = (hour = "10:00:00"): Alert[] => {
     const rendered = render(hour);
     const bands = holdBands({ etablir: 1, minimum: 0 });
     bands.ouvrir(["parade"]);
     bands.veiller(["parade"]);
     bands.faits(reading("facts", rendered.faits));
-    const readEntry = bands.status(putAside(reading("status", rendered.status)));
-    return withManager ? bands.manager(reading("manager", rendered.manager)).alertes : readEntry.alertes;
+    return bands.status(putAside(reading("status", rendered.status))).alertes;
   };
   return { noter: note, a, rendre: render, bande: band };
 }
 
-// Une cuisine qui tourne, et où tout va bien : runtime en marche, manager allumé.
+// Une cuisine qui tourne, et où tout va bien : runtime en marche.
 function healthy(t: TestContext) {
   const served = kitchen(t);
   served.noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
@@ -107,8 +103,7 @@ describe("l'interrupteur GitHub seul refusé par le runtime (ticket 2161)", () =
       bands.ouvrir(["parade"]);
       bands.veiller(["parade"]);
       bands.faits(reading("facts", `${JSON.stringify({ ...JSON.parse(rendered.faits), githubSeul: githubOnly })}\n`));
-      bands.status(putAside(reading("status", rendered.status)));
-      return bands.manager(reading("manager", rendered.manager)).alertes;
+      return bands.status(putAside(reading("status", rendered.status))).alertes;
     };
     const line = inOutage(withIt({ etat: "refused", reason: "the station name \"a/b\" cannot sign a claim or a verdict", since: `${DAY}T09:00:00.000Z` }), "cuisine");
     assert.match(line.dit, /^GitHub-only state refused: the station name .* cannot sign a claim or a verdict — nothing is cooked for this project$/);
@@ -118,7 +113,7 @@ describe("l'interrupteur GitHub seul refusé par le runtime (ticket 2161)", () =
 });
 
 describe("la bande d'alertes : vide quand tout va bien", () => {
-  test("manager allumé, version à jour, cuisine ouverte : la bande est vide", (t) => {
+  test("version à jour, cuisine ouverte : la bande est vide", (t) => {
     assert.deepEqual(healthy(t).bande(), []);
   });
 
@@ -132,66 +127,6 @@ describe("la bande d'alertes : vide quand tout va bien", () => {
     assert.match(render("10:00:00").status, /^backup {5}TOO OLD/m);
     // Ni l'âge de la sauvegarde, ni rien de ce qui se dit d'elle.
     assert.deepEqual(band("10:00:00"), []);
-  });
-});
-
-describe("le manager : sain, éteint, non dit", () => {
-  test("allumé : rien", (t) => {
-    assert.deepEqual(of(healthy(t).bande(), "manager"), []);
-  });
-
-  test("éteint : la ligne dit ce que le runtime en écrit, mot pour mot, et propose d'allumer le projet — en disant ce que ça engage", (t) => {
-    const { noter: note, bande: band } = healthy(t);
-    note({ type: "manager.disabled", payload: {} }, "chef");
-
-    const line = inOutage(band(), "manager");
-    assert.equal(line.ton, "rouge");
-    assert.equal(line.dit, "project off — nothing new is taken, split or merged");
-    assert.equal(line.releve, `OFF since ${DAY}T09:00:00.000Z (by chef) — no issue is judged, what it set stays set`);
-    // L'app n'a plus de geste pour l'allumer : la ligne le dit, sans bouton.
-    assert.equal(line.appel, undefined);
-    assert.equal(line.bouton, undefined);
-    assert.match(line.geste, /nothing to do from the app/);
-  });
-
-  // L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit.
-  test("l'interrupteur du projet éteint : la ligne du manager le dit, une seule — la cuisine retenue par lui n'en fait pas une seconde", (t) => {
-    const { noter: note, bande: band } = healthy(t);
-    note({ type: "project.switched-off", payload: {} }, "chef");
-
-    const lines = band();
-    assert.deepEqual(lines.map(({ sujet: subject, dit: said }) => [subject, said]), [["manager", "project off — nothing new is taken, split or merged"]]);
-    assert.match(lines[0]?.releve ?? "", /^OFF since \S+ \(by chef\) — the project switch is off: `brigade \S+ switch on` turns it on — no issue is judged/);
-    note({ type: "project.switched-on", payload: {} }, "chef");
-    assert.deepEqual(band(), []);
-  });
-
-  test("jamais allumé : éteint aussi", (t) => {
-    const { noter: note, bande: band } = kitchen(t);
-    note({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-    assert.match(inOutage(band(), "manager").releve ?? "", /^OFF — never turned on/);
-  });
-
-  test("pas encore lu par l'app : la première lecture en cours n'affiche rien — ni « allumé », ni « non vérifié » (#721)", (t) => {
-    assert.deepEqual(of(healthy(t).bande("10:00:00", { avecManager: false }), "manager"), []);
-  });
-
-  test("non dit — la lecture de `manager` a échoué, ou n'a pas la forme : non vérifié, avec ce qui en a été obtenu", () => {
-    const bands = holdBands({ etablir: 1, minimum: 0 });
-    bands.ouvrir(["parade"]);
-    assert.match(notChecks(bands.manager({ ...NOT_JOINED, erreur: NOT_JOINED.erreur.replace("faits", "manager") }).alertes, "manager", "project switch").pourquoi ?? "", /^`manager` was not read: not reached/);
-    assert.match(notChecks(bands.manager(reading("manager", "erreur\n")).alertes, "manager", "project switch").pourquoi ?? "", /does not have the expected shape/);
-  });
-
-  test("lu par la veille de l'app, sans onglet : un manager allumé ne dit rien, éteint se dit, et un onglet quitté n'y change rien", (t) => {
-    const { noter: note, rendre: render } = healthy(t);
-    const bands = holdBands({ etablir: 1, minimum: 0 });
-    bands.ouvrir(["parade"]);
-    assert.deepEqual(of(bands.manager(reading("manager", render("10:00:00").manager)).alertes, "manager"), []);
-    // Rien ne lâche l'état lu : la veille le rafraîchit, quel que soit l'onglet affiché.
-    assert.deepEqual(of(bands.faits(reading("facts", render("10:00:30").faits)).alertes, "manager"), []);
-    note({ type: "manager.disabled", payload: {} }, "chef");
-    inOutage(bands.manager(reading("manager", render("10:01:00").manager)).alertes, "manager");
   });
 });
 
@@ -273,8 +208,7 @@ describe("il n'y a plus de grant : `status` n'en dit rien, et l'app n'en dit rie
     const rendered = render("10:00:00");
     bands.faits(reading("facts", rendered.faits));
     const [head, ...suite] = rendered.status.split("\n");
-    bands.status(putAside(reading("status", [head, ...addition, ...suite].join("\n"))));
-    return bands.manager(reading("manager", rendered.manager)).alertes;
+    return bands.status(putAside(reading("status", [head, ...addition, ...suite].join("\n")))).alertes;
   };
 
   test("un `status` sans ligne `grant` : aucune alerte, et rien n'y parle de grant", (t) => {
@@ -345,8 +279,7 @@ describe("la bande, à l'écran", () => {
     const bands = holdBands({ etablir: 1, minimum: 0 });
     bands.ouvrir(["parade"]);
     bands.faits(reading("facts", render("10:00:00").faits));
-    bands.status(putAside(reading("status", render("10:00:00").status)));
-    vue.dire("surAlertes", bands.manager(reading("manager", render("10:00:00").manager)));
+    vue.dire("surAlertes", bands.status(putAside(reading("status", render("10:00:00").status))));
     assert.equal(band.hidden, false);
     const [line] = band.children;
     assert.equal(line?.dataset.sujet, "cuisine");
@@ -363,8 +296,7 @@ describe("la bande, à l'écran", () => {
     const bands = holdBands({ etablir: 1, minimum: 0 });
     bands.ouvrir(["parade"]);
     bands.faits(reading("facts", render("10:00:00").faits));
-    bands.status(putAside(reading("status", render("10:00:00").status)));
-    const readEntry = bands.manager(reading("manager", render("10:00:00").manager));
+    const readEntry = bands.status(putAside(reading("status", render("10:00:00").status)));
     const writtenOne = { id: 1, projet: "parade", genre: "second" as const, titre: "second · claude", note: "écrit dans le second, sans Entrée", arrete: false };
     const vue = await open({ demanderAlerte: () => writtenOne });
     vue.dire("surAlertes", readEntry);
@@ -472,7 +404,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
   });
 
   test("la bande dit la plus grave d'abord : une alerte lue avant un état non vérifié, le rouge avant le jaune", () => {
-    const readOne = alerts({ projet: "baloo", faits: { sans: "pas lu" }, status: { sans: "pas lu" }, manager: { sans: MANAGER_NOT_SAYS } });
+    const readOne = alerts({ projet: "baloo", faits: { sans: "pas lu" }, status: { sans: "pas lu" } });
     const ranks = readOne.map(({ verifie: checks }) => checks);
     assert.deepEqual(ranks, [...ranks].sort((a, b) => Number(b) - Number(a)));
   });
@@ -561,7 +493,7 @@ describe("le mot du bouton d'une alerte", () => {
   });
 
   test("toute alerte de la bande qui appelle un geste porte le mot de son bouton, sans commande", () => {
-    const band = alerts({ projet: "parade", faits: { sans: "first reading in progress" }, status: { sans: "x" }, manager: { sans: "y" } });
+    const band = alerts({ projet: "parade", faits: { sans: "first reading in progress" }, status: { sans: "x" } });
     assert.ok(band.length > 0);
     for (const alert of band) if (alert.appel !== undefined) assert.ok(alert.bouton !== undefined && !alert.bouton.includes("`"), alert.dit);
   });
@@ -608,9 +540,8 @@ describe("le budget d'écritures de la box (#2226)", () => {
   test("la ligne `github` de `status` se dit mot pour mot dans la bande, et tombe avec elle", (t) => {
     const { rendre: render } = healthy(t);
     const facts = JSON.parse(render("10:00:00").faits) as Facts;
-    const manager = { sans: MANAGER_NOT_SAYS };
-    const saidOne = alerts({ projet: "parade", faits: facts, status: status(true), manager });
+    const saidOne = alerts({ projet: "parade", faits: facts, status: status(true) });
     assert.deepEqual(of(saidOne, "github").map(({ dit: said, ton: your, verifie: checks }) => ({ dit: said, ton: your, verifie: checks })), [{ dit: LINE, ton: "jaune", verifie: true }]);
-    assert.deepEqual(of(alerts({ projet: "parade", faits: facts, status: status(false), manager }), "github"), []);
+    assert.deepEqual(of(alerts({ projet: "parade", faits: facts, status: status(false) }), "github"), []);
   });
 });

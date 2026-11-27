@@ -19,7 +19,7 @@ import { readFire } from "./fire.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
-import { launchThe, openStandby, type Read } from "./box.ts";
+import { openStandby, type Read } from "./box.ts";
 import { situationOf } from "./story.ts";
 import { LinksRead } from "./links-read.ts";
 import { comment, askAtSecond, noteOfTheQuestion } from "./discussion.ts";
@@ -28,12 +28,9 @@ import { discussionOfGitHub, storyOfGitHub } from "./card-github.ts";
 import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
 import { holdTheTrials } from "./trial.ts";
 import { openTheReport, versionAimed } from "./vue/report/opening.ts";
-import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
-import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
-import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
 import { ACTIONS_OF_WAIT } from "./wait.ts";
@@ -76,7 +73,6 @@ import { holdUpdate } from "./update/state.ts";
 import { apkLink, RELEASES_URL } from "./update/android.ts";
 import { fluxOf, formatOf } from "./update/flux.ts";
 import { installerOfWorkstation } from "./update/installation.ts";
-import { see as seeManager } from "./manager.ts";
 import { machineChosen, machinesOf } from "./machines.ts";
 import { commandsOf, TABS, projectsRead, HEADINGS } from "./tabs.ts";
 import { playOutage } from "./outages/actions.ts";
@@ -306,20 +302,13 @@ const standby = openStandbyOfBoard({
 // réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
 // l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
 // La page des coûts de l'app (#1022) est lue par elle aussi : elle prend la place d'un onglet, l'espace fermé.
-// La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
-// manager, lu dans cette sortie (manager.ts).
-// `ongletLu` : l'onglet que la veille lit, et sa demande.
-let tabRead: { id: unknown; demande: number } | undefined;
 const standbyOfTab = openStandby({
   intervalleMs: 30_000,
   delaiMs: 30_000,
   passage,
   cuisine: kitchens.cuisineDe,
   surLecture: (reading) => {
-    const readOne = tabRead?.demande === reading.demande ? tabRead.id : undefined;
-    tell("contenu", reading, readOne === "manager" ? seeManager(reading) : undefined);
-    // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
-    if (readOne === "manager") tellTheBand(bands.manager(reading));
+    tell("contenu", reading);
   },
 });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
@@ -1273,33 +1262,13 @@ ipcMain.handle("signaler", (_, request: unknown) =>
     ouvrir: (url) => shell.openExternal(url),
   }),
 );
-// Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.
-const launchOnTheKitchen = (readOne: Read, command: string) => {
-  const rendered = (passage.get(readOne.nom) ?? Promise.resolve()).then(() => launchThe({ delaiMs: 30_000 }, readOne, command));
-  passage.set(readOne.nom, rendered);
-  return rendered;
-};
-// Les réglages du projet, sur sa page (#1309) : lus par `setting` là où sa cuisine tourne, et changés par une PR sur
-// son dépôt — rien ne se pose sur la box (settings-of-project.ts). La proposition attend que le runtime du projet ait
-// ouvert la PR — il l'attend lui-même deux minutes au plus — : elle ne passe pas par le passage du projet, que ses
-// lectures ne restent pas derrière elle. Seule l'adresse d'une PR qu'elle a rendue s'ouvre depuis l'écran.
+// Les adresses des pull requests que l'app a ouvertes — plafonds, closer, savoir : seule l'une d'elles s'ouvre depuis l'écran.
 const proposalsOfSetting = new Set<string>();
 const kitchenOfProject = (name: unknown) => {
   const aims = knownOne(name);
   const kitchen = aims === undefined ? undefined : kitchens.cuisineDe(aims);
   return { vise: aims, lu: aims === undefined || kitchen === undefined ? undefined : { nom: aims.nom, cuisine: kitchen } };
 };
-ipcMain.handle("reglagesDuProjet", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheSettings(aims.nom, readOne, launchOnTheKitchen);
-});
-ipcMain.handle("proposerUnReglage", async (_, name: unknown, choice: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await proposeTheSetting(aims.nom, readOne, choice, (readOne, command) => launchThe({ delaiMs: 150_000 }, readOne, command));
-  if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
-  return rendered;
-});
 // Les agents au travail que lit l'onglet Agents (ticket 4569) : le kanban de GitHub (`taken`, `in-pass`), rien d'autre
 // (team-of-the-box.ts).
 ipcMain.handle("agentsAtWork", (_, name: unknown) => {
@@ -1320,37 +1289,10 @@ ipcMain.handle("sinceYouLastLooked", async (_, name: unknown) => {
   if ("groups" in read) addressesLooked.set(aims.nom, new Map(read.groups.flatMap(({ entries }) => entries.map(({ ticket, url }) => [ticket, url] as const))));
   return read;
 });
-// Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
-// changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humans-of-project.ts).
-ipcMain.handle("listerLesHumains", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheHumans(aims.nom, readOne, launchOnTheKitchen);
-});
-const writeOneHuman = async (name: unknown, action: { save: unknown } | { remove: unknown }) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await writeTheHumans(aims.nom, readOne, action, (readOne, command) => launchThe({ delaiMs: 150_000 }, readOne, command));
-  if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
-  return rendered;
-};
-ipcMain.handle("enregistrerUnHumain", (_, name: unknown, human: unknown) => writeOneHuman(name, { save: human }));
-ipcMain.handle("retirerUnHumain", (_, name: unknown, login: unknown) => writeOneHuman(name, { remove: login }));
 // La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
 // poste (vue/card-project/card-project-folder.ts).
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, name: unknown, path: unknown, text: unknown) => writeInTheProject(knownOne(name), path, text));
-// Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
-// refusées ou réacceptées par elle (stations-contributors.ts).
-ipcMain.handle("listerLesStationsContributrices", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheStations(aims.nom, readOne, launchOnTheKitchen);
-});
-const changeOneStation = (name: unknown, action: { refuse: unknown } | { accept: unknown }) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeTheStations(aims.nom, readOne, action, launchOnTheKitchen);
-};
-ipcMain.handle("refuserUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { refuse: station }));
-ipcMain.handle("accepterUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { accept: station }));
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !proposalsOfSetting.has(url)) return false;
   return shell.openExternal(url).then(
@@ -1442,7 +1384,6 @@ ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 ipcMain.on("onglet", (_, name: unknown, id: unknown, request: number) => {
   const commands = commandsOf(id);
-  tabRead = { id, demande: request };
   const readOnes = projectsRead(name, shownEntry().projets);
   standbyOfTab.regarder(commands.length === 0 ? [] : readOnes, commands, request);
 });
@@ -1476,7 +1417,7 @@ ipcMain.handle("lireFeu", async (_, name: unknown) => {
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
-// qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (upstream.ts). Rend si elle a été ouverte.
+// qui n'est pas encore sur le rail, celle que la lecture de GitHub a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
   const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket) ?? addressesLooked.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(

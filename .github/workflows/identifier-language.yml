@@ -5,7 +5,7 @@ name: identifier-language
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "epic/**"]
 
 permissions:
   contents: read

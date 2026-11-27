@@ -30,9 +30,6 @@ const GRANT_OF_BEFORE = "grant      merge ACTIF, BIENTÔT ÉTEINT : encore 30 mi
 const statusWith = (...heads: string[]) => ["projet     parade", "cuisine    ouverte", ...heads, "", "rail       vide", ""].join("\n");
 const value = (line: string) => line.slice(11);
 
-// `manager`, tel que le runtime l'écrit, allumé par le chef (runtime/src/manager-cli.ts).
-const MANAGER_LIT = "manager               ALLUMÉ depuis le 2026-10-13T09:25:21.838Z (par chef) — il juge les issues ouvertes, pose `fire` et le calibrage\n";
-
 const FACTS: Facts = {
   etat: "retenue",
   lu: A,
@@ -44,14 +41,13 @@ const FACTS: Facts = {
   attend: [],
 };
 
-// La bande que le process principal dirait : `facts`, `status` (sans lui, rien n'est lu) et `manager` lus.
+// La bande que le process principal dirait : `facts`, et `status` (sans lui, rien n'est lu) lus.
 // `etat` : celui de la cuisine dans `facts` — retenue, ce qui la retient fait ses lignes.
 function bandRead(status?: string, state: Facts["etat"] = "retenue"): Band {
   const bands = holdBands({ etablir: 1, minimum: 0 });
   bands.ouvrir(["parade"]);
   bands.faits(reading("facts", JSON.stringify({ ...FACTS, etat: state })));
-  if (status !== undefined) bands.status(putAside(reading("status", status)));
-  return bands.manager(reading("manager", MANAGER_LIT));
+  return status === undefined ? bands.faits(reading("facts", JSON.stringify({ ...FACTS, etat: state }))) : bands.status(putAside(reading("status", status)));
 }
 
 async function open(answers: Answers = {}): Promise<Played> {

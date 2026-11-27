@@ -157,7 +157,7 @@ describe("un projet qui cuit ici se lit par le geste de la station de ce poste",
 
   test("les mots d'une commande sont ceux qu'un shell donnerait au geste", () => {
     assert.deepEqual(words("measures --last 7d --by 1"), ["measures", "--last", "7d", "--by", "1"]);
-    assert.deepEqual(words("  setting  --last 200 "), ["setting", "--last", "200"]);
+    assert.deepEqual(words("  manager  --last 200 "), ["manager", "--last", "200"]);
     assert.deepEqual(words(`pass 14 comment 'l'\\''export, enfin'`), ["pass", "14", "comment", "l'export, enfin"]);
   });
 });

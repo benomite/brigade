@@ -92,22 +92,12 @@ const bridge = {
   demenagerLaCuisine: (name, to) => ipcRenderer.invoke("demenagerLaCuisine", name, to),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, key) => ipcRenderer.invoke("panne", id, key),
-  reglagesDuProjet: (project) => ipcRenderer.invoke("reglagesDuProjet", project),
-  proposerUnReglage: (project, choice) => ipcRenderer.invoke("proposerUnReglage", project, choice),
-  // Les humains du projet, sous Settings (ticket 2930) : lus, et chaque changement écrit par une PR (humans-of-project.ts).
-  listerLesHumains: (project) => ipcRenderer.invoke("listerLesHumains", project),
-  enregistrerUnHumain: (project, human) => ipcRenderer.invoke("enregistrerUnHumain", project, human),
-  retirerUnHumain: (project, login) => ipcRenderer.invoke("retirerUnHumain", project, login),
   agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),
   // What changed since the chef last opened the project (ticket 4649, since-last-looked/): this opening becomes the last look.
   sinceYouLastLooked: (project) => ipcRenderer.invoke("sinceYouLastLooked", project),
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),
-  // Les stations contributrices du projet, sous Settings (ticket 2936) : lues, refusées ou réacceptées (stations-contributors.ts).
-  listerLesStationsContributrices: (project) => ipcRenderer.invoke("listerLesStationsContributrices", project),
-  refuserUneStationContributrice: (project, station) => ipcRenderer.invoke("refuserUneStationContributrice", project, station),
-  accepterUneStationContributrice: (project, station) => ipcRenderer.invoke("accepterUneStationContributrice", project, station),
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
   plafondsDuree: (project) => ipcRenderer.invoke("plafondsDuree", project),
   changerPlafondDuree: (project, key, input) => ipcRenderer.invoke("changerPlafondDuree", project, key, input),

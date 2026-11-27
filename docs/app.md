@@ -79,10 +79,8 @@ time, at your local time: `GitHub is rate-limiting calls: too many writes per mi
 entry, with no reload. A limit name the app does not know still makes the line, without its plain words
 (`app/src/vue/banner-limit-github.ts`).
 **The project switch is no longer in the app** (#4681): the app has no switch at the head of the space and launches
-no `switch` command. A project that is off is still told, in one line: the head of the rail is marked as stopped — a
-hatched bar, `project off — nothing new is taken, split or merged` — with no button, and the `manager` line of the box
-(`OFF since … (by chef) — …`) on hover. Not yet read, or not read, says neither; a read that fails makes its "unchecked"
-line in the band. On the bar, the tile of a project switched off keeps its signal.
+no `switch` command, and (#4682) it no longer launches `manager`: it does not read whether the project is on or off, so the
+head of the rail carries no `project off` line, the band no "project switch" line, and the tile on the bar no off signal.
 **"All projects" is the overview of
 brigade**: one line per project, one per station, each with its pill and what is going on there in
 a few words, and one click opens it — you do not act there, you look, then go where it is decided.
@@ -474,7 +472,6 @@ the app" below.
 |---|---|---|---|
 | A station cooks it | `Cooked by <station> · online · N cooks at work`, or `… · online · idle, nothing on the rail` | yes | `Add a station` (#3402) |
 | A move in progress | `Moving from <A> to <B>: waiting for <what>, since <HH:MM> UTC`; not done after a minute, a second line: `Not done after a minute: <what blocks it>` | no (yellow) | none |
-| The project is off (#3454) | `Project off — nothing new is taken, split or merged` — the sentence of the head of the rail; never `Cooked by` nor `cooks this project`, whatever its stations say; the box's `manager` line and where to switch it on, on hover. Not yet read, or not read, it is not off: the line says who cooks it | no (grey) | `Add a station` when a station serves it, else `Choose who cooks it` |
 | The station that serves it is offline | `<station> cooks this project, but it is offline for <duration>: nothing cooks`; how to bring it back on hover | no (red) | `Move to this computer`, one click, when this computer can take it; `Add a station` (#3402) |
 | Nobody serves it | `No station cooks this project · N fire tickets waiting` — the count is the rail counter of its last reading, left out when the rail is not read | no (grey) | `Cook it on this computer` (recommended), when this computer's station does not serve it yet; then `Choose who cooks it` |
 
@@ -2730,60 +2727,9 @@ one line.
 
 An alert-band line whose cause is fixed on the Stations tab leads to it in one click.
 
-**The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings, in its **project** group,
-one row per project setting, in the order and with the labels of the artboard `Settings.dc.html` (Integration branch, Manager’s calibration, Reviewer’s calibration, Calibration ceiling, Closer’s tokens cap, then the label and the colors in the bar); the closer's other three settings, which the artboard does not draw, follow under the colors as rows of the same component, and the kitchen is its own *Kitchen* section below. The rows: the integration branch, the manager's and the reviewer's
-default calibrations, the calibration ceiling, and the closer's four settings (#1685) — its calibration, its start
-threshold (`cooksBelow`), its tokens cap and its removed-lines cap. Each row says the value in force and where it comes from — `from the
-repository` (`.claude/brigade/projet.json`), `set on the station`, `from CLAUDE.md`, `default` — and has its edit control —
-a text field for the branch and for a closer's number, a model and an effort for a calibration —, with no button: the row
-says a change opens a pull request. They are read when the project opens, by the runtime's `setting` where its kitchen
-runs. **A change proposes at once** (#2920): a text field when it changes (Enter, or leaving it) with a non-empty value
-other than the one in force, a calibration when either of its two lists changes and the pair differs. It plays `setting ceiling
-<model> <effort>` (or `manager`, `reviewer`, `closer`, `closer-cooks <n>`, `closer-tokens <n>`, `closer-lines <n>`,
-`branch <name>`) there: the runtime checks the value against the settings writer — the check the file itself passes, so
-a value the file would refuse (a closer's `0`, a branch git would refuse, a path) is refused there, before any request
-and any pull request —, opens a pull request on the project's repository and hands it to the pass, which holds it for you. The row
-says `proposing…` under it, its control waiting, until the runtime has answered. Opened, the row says `<value> proposed
-in` with a `pull request #<n>` button that opens it; refused — a value that belongs to the machine, a change
-the repository already carries —, the runtime's sentence is said under the row, its detail on hover, and the field
-goes back to the value in force. **The value shown never changes on a proposal**: it is the one in force, until the pull
-request is merged. Nothing is saved on the box. The app itself refuses only what does not write as the command's words
-(a branch name with a blank, a closer's number that is not digits: `nothing was sent: this value is a whole number,
-written in digits`), all of which the file would refuse too. A runtime that does not have `setting` yet says `settings
-unavailable` in one line, the detail on hover; one from before #1685, which does not give the closer's settings, shows
-the first four rows only. The modules are `app/src/settings-of-project.ts` and `app/src/vue/project/settings.js`;
-the command, `runtime/src/reglage-cli.ts`.
+**The project's settings are no longer in Settings** (#4680, epic #4673). The app launches no old-runtime `setting`, `humans` or `contributor-stations` command: the project's integration branch, calibrations, ceiling and closer rows, the humans section and the contributor stations block are gone from the **project** group, and so are their bridge methods. The project's settings live in `.claude/brigade/projet.json` and change by a pull request on GitHub (`docs/reglages.md`); the duration caps and the closer are changed on Kitchen > Health, on GitHub too.
 
-**The project's humans, each change by a pull request** (#2930, epic #2926). Under the project's settings, a `humans`
-section lists the humans the project's `.claude/brigade/projet.json` declares (`humans`, #2759): one row each, its login
-and its roles as four checkboxes — `product`, `design`, `review`, `client-contact` — and `remove`. Every change applies
-as you make it, with no Save button: ticking or unticking a role sends the human with its new roles; `add a human` opens a
-new row, which sends nothing until its login is written (Enter, or leaving the field), then sends it with the roles ticked
-on it — `cancel` drops it; `remove` sends the removal. Each row is the settings row (#2920): its login, the roles
-`projet.json` declares — the value in force until a pull request is merged —, its checkboxes, and the line every
-repository-kept row carries, `a change opens a pull request, applied once merged`. Under it,
-`writing to projet.json…` while the service answers, then `proposed in` (or `removal proposed in`) with a `pull request
-#<n>` button that opens the pull request. A refusal — an unknown login, no access to the repository — is said in one line
-under that row only, the rest on hover, under a pull request the row had already opened; the row goes back to its roles before the change and names no pull request. With no
-declared human, the section says `No human is declared for this project.` with `add the first human`; a list that cannot
-be read says `humans unavailable` in one line, the detail on hover. The section is `app/src/vue/settings-humans/`; it calls
-the service through three bridge methods — `listerLesHumains(project)`, `enregistrerUnHumain(project, {login, roles})`
-and `retirerUnHumain(project, login)`, each write answering `{pr}` or `{refus}`. The desktop app carries them to the
-runtime's `humans` command (#2929) where the project's kitchen runs — `humans`, `humans save <login> [<role>…]`, `humans
-remove <login>` — in `app/src/humans-of-project.ts`; a project with no station, or a runtime from before the command, is
-said in one line. A bridge without `listerLesHumains` (the phone) does not show the section.
-
-Under the humans, the **contributor stations** block (#2936) lists each contributor station that claimed a ticket — its name,
-its GitHub account, `refused` when it is — with a `Refuse` button, or `Accept again` once refused. The gesture is sent at once;
-a refusal of the runtime (a role other than `chef`, say) is one line on that row, which stays as it was. With none, the block
-says `No contributor station has taken a ticket yet.`; a list that cannot be read says `contributor stations unavailable`, the
-detail on hover. The block is `app/src/vue/settings-stations/`; it calls three bridge methods —
-`listerLesStationsContributrices(project)`, `refuserUneStationContributrice(project, station)` and
-`accepterUneStationContributrice(project, station)`, each write answering `{ok}` or `{refus}`. The desktop app carries them to the
-runtime's `contributor-stations` command where the project's kitchen runs, in `app/src/stations-contributors.ts`. A bridge
-without `listerLesStationsContributrices` (the phone) does not show the block.
-
-Under the contributor stations, the **project sheet** section (#4240, epic #4136) shows the eight items of the open project's
+Under the project's colors, the **project sheet** section (#4240, epic #4136) shows the eight items of the open project's
 `.brigade/fiche-projet.json` (see "The project sheet" in `docs/superpowers/specs/2026-11-24-simplified-process.md`), one
 row each with the spec's words: `The cook's work`, `Stages`, `Tools`, `House rules`, `Risks`, `Served`, `Recurring`,
 `Humans in the kitchen`. An item written as a text is one line; an item written as a list is one entry per line (`one per
@@ -2913,7 +2859,7 @@ none.
 - A project whose kitchen does not run on this workstation has no button: there is no command to write. A project whose
   folder is not there has no second: its column says why (`folder not found: …`).
 - **Only these buttons exist**, each where what it changes is read — and, apart, the project switch. The
-  rest of "Piloter" (`manager return`, `base replay`…) is typed. "All projects" has
+  rest of "Piloter" (`base replay`…) is typed. "All projects" has
   none. Going live with a project just added has its own, apart: `installation`
   is run for you there.
 - **The stop banner carries `guardrails resume`**: the same button, the same written command,
@@ -3435,9 +3381,7 @@ section. With the section laid, `right now` is not repeated under it.
 
   **Nothing on the rail** — no card outside Served —, the On the rail column says so in plain words (#2486):
   `nothing on the rail, nothing before it` when there is nothing before it either; otherwise how many issues, state by
-  state, and what the manager does with them, according to its state read (`manager`): on, it reads them at every
-  wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of guessing — and the
-  manager's state is not read from GitHub (only the station's log has it). **The view deduces nothing there**: it
+  state (#4682: the line no longer says what the manager does with them — its state is not read). **The view deduces nothing there**: it
   counts what the reading lists and files each issue under the word it carries. When the open issues could not be read
   from a fresh board, the view says nothing about them, and the rail is still shown.
 - **How long a card has been there (#1811, `app/src/cadence.ts`)**: **each Taken or Pass card** carries
@@ -4043,19 +3987,7 @@ instructions (`rôle : …`).
   and on the real pty, that nothing is sent), `gestes.ts` (the actions that are written into a shell
   of the space, and the two that go into the second: each command compared, character for
   character, with "Piloter", that nothing sends a written action, and that no action exposes a
-  shell, a `sudo` or a free command), `manager.ts` (the manager's state read in the output of
-  `manager`: on, off, never on, no decision, with its decisions and its set-asides — on outputs the
-  test has `runtime/src/manager-cli.ts` itself write, on a real log; what does not have the shape is
-  never read as "off"), `power-up.ts` (what turning it on commits: its warning compared with that of
-  `docs/runtime/README.md`, and the two numbers read on a known backlog — the line is written by
-  `manager backlog` of `runtime/src/manager-cli.ts` itself, in front of a fake `gh`, then returned
-  by a stand-in gesture; a station not reached, a runtime from before the command or an output without the
-  line never give "0"), `amont.ts` (what is not yet on the rail: the output written by
-  `manager upstream` of `runtime/src/manager-cli.ts` itself, on a real log and in front of a fake
-  `gh`, counted and sorted into groups without adding anything to it; what does not have the shape,
-  a box not reached or a runtime from before the command never give a number; and, in the played
-  view, the number at the head of the rail, the list it unfolds, the card an issue opens, and what an
-  empty rail says), `faits.ts` (what gets drawn: the shape read field by field on the example in
+  shell, a `sudo` or a free command), `faits.ts` (what gets drawn: the shape read field by field on the example in
   `docs/runtime/README.md`, what is not that shape refused without a zero, a color on the
   words of closed lists only, an issue's address, the banner — the rail sorted into five columns,
   Awaiting you from the shape's `awaiting` and the `awaiting` block held next to the facts — the view

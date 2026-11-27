@@ -2,7 +2,7 @@
 // et cliqué « add » — l'ajout à `.claude/brigade/closer-checks.md` est proposé par une pull request, que la partie dit et
 // ouvre ; la liste reste celle en vigueur jusqu'au merge.
 import type { RenderedOfVerifications } from "../../../app/src/closer-health.ts";
-import { PROPOSES } from "../../../app/src/settings-of-project.ts";
+import { PROPOSES } from "../../../app/src/box.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { PLAFONDS_LUS, SETTINGS } from "./projet-sante.ts";

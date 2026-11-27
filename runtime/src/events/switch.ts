@@ -7,7 +7,7 @@
 // merged: the running cooks finish, their deliveries are judged and wait.
 //
 // `cause`, when the runtime writes it itself at its start, on a log that has
-// none yet (`interrupteur.ts`, `etablirLInterrupteur`): `default`, the project
+// none yet: `default`, the project
 // never had either of the old switches set — on, by default; `carried-over`,
 // it had, whatever their position — on all the same: its stations took the
 // fired tickets without reading either, it was cooking and keeps cooking.

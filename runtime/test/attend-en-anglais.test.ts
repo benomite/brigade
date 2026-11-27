@@ -253,9 +253,6 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
 // bouton inventé.
 const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
   "log in": ["outages/outages.ts", 'libelle: "log in"'],
-  "Closer’s calibration": ["settings-of-project.ts", `closer: "Closer’s calibration"`],
-  "Closer’s start threshold (cooks in flight)": ["settings-of-project.ts", `"closer-cooks": "Closer’s start threshold (cooks in flight)"`],
-  "project off": ["vue/vue.js", '"project off"'],
 };
 const NOMMES_DE_L_APP = [/the `([^`]+)` (?:button|switch)\b/g, /on the `([^`]+)` line of the project's Settings/g];
 
