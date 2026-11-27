@@ -229,7 +229,7 @@ const codeModifie = new Set(modifies.map(normalize).filter((m) => connus.has(m))
 // Des scripts changés touchent ce qui peut les lire : tout fichier qui nomme
 // `package.json` hors de ses commentaires, au large — le chemin dans une
 // constante, lu plus loin, ou par un autre moyen que `readFileSync`. Le code
-// du produit compte aussi : un test qui lance `src/station/geste.ts` dépend des
+// du produit compte aussi : un test qui lance un fichier de `runtime/src` dépend des
 // scripts qu'il lit, sans les lire lui-même (#1611). Un commentaire, lui, ne lit
 // rien : seules en tombent les lignes qui commencent par `//`, `/*` ou `*`.
 const COMMENTAIRE = /^\s*(?:\/\/|\/\*|\*).*$/gm;

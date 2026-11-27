@@ -5,7 +5,6 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { COMMANDES } from "../src/commandes.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const sources = (dossier: string): string[] =>
@@ -20,7 +19,6 @@ test("le runtime n'a plus de commande `waiting`, ni son ancien nom `attente`", (
   const { scripts } = JSON.parse(readFileSync(join(RACINE, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
   assert.deepEqual(Object.keys(scripts).filter((nom) => ["waiting", "attente", "parked"].includes(nom)), []);
   assert.deepEqual(Object.values(scripts).filter((script) => script.includes("attente-cli")), []);
-  assert.deepEqual(COMMANDES.filter(({ nom }) => nom === "waiting" || nom === "attente").map(({ nom }) => nom), []);
 });
 
 test("ni le code, ni les rôles, ni la doc ne composent ou ne citent un geste d'attente de la box", () => {

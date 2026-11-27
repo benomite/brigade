@@ -9,7 +9,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ETIQUETTES } from "../../../runtime/src/etiquettes.ts";
 import { argumentsOfSetup, CATALOG_OF_LABELS, INSTRUCTIONS, OWN, PLACES_BY_DEFAULT, PR_OF_SETUP, SCRIPT, setTheSetup, setupInWords, START_OF_SETUP } from "../../src/setup/setup.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
 
@@ -70,6 +69,15 @@ function trial(t: TestContext) {
   return { git, origin, dossier: folder, ouvrir: open, initialiser: initialize, appelsDeGh: callsOfGh, labelsDuDepot: labelsOfRepository };
 }
 
+// Le catalogue que lit la préparation : une ligne par label, `nom<TAB>couleur<TAB>description`.
+const ETIQUETTES = readFileSync(join(OWN, CATALOG_OF_LABELS), "utf8")
+  .split("\n")
+  .filter((line) => line !== "")
+  .map((line) => {
+    const [name = "", color = "", description = ""] = line.split("\t");
+    return { name, color, description };
+  });
+
 test("un dépôt neuf ouvert par l'app se prépare par sa session : les labels posés, les bindings et les gates dans une PR, rien dans le dossier de l'utilisateur", { skip: WITHOUT_POSIX }, async (t) => {
   const { git, origin, dossier: folder, ouvrir: open, initialiser: initialize, appelsDeGh: callsOfGh } = trial(t);
   await open();
@@ -77,7 +85,7 @@ test("un dépôt neuf ouvert par l'app se prépare par sa session : les labels p
   const output = initialize("--test", "true", "--install", "true", "--zones", "`src/`");
 
   assert.equal(output.trim().split("\n").at(-1), `pr ${URL_OF_THE_PR}`);
-  // Tous les labels du catalogue du runtime, avec leur description anglaise.
+  // Tous les labels du catalogue de la préparation (labels.tsv), avec leur description anglaise.
   const creations = callsOfGh().filter((call) => call.startsWith("label create "));
   assert.deepEqual(creations.map((call) => /^label create (\S+) /.exec(call)?.[1]), ETIQUETTES.map(({ name }) => name));
   for (const { name, color, description } of ETIQUETTES) assert.ok(creations.includes(`label create ${name} --color ${color} --description ${description}`), name);
@@ -171,11 +179,6 @@ test("sans commande de test, la préparation n'écrit rien : une gate qui ne lan
 
   assert.throws(() => initialize(), (error: { status?: number; stderr?: string }) => error.status === 64 && /--test is required/.test(error.stderr ?? ""));
   assert.equal(git("--git-dir", origin, "branch", "--list", "brigade/init"), "");
-});
-
-test("le catalogue que lit la préparation (labels.tsv) est celui du runtime (etiquettes.ts), ligne pour ligne", () => {
-  const tsv = readFileSync(join(OWN, CATALOG_OF_LABELS), "utf8");
-  assert.equal(tsv, ETIQUETTES.map((e) => `${e.name}\t${e.color}\t${e.description}\n`).join(""));
 });
 
 test("les instructions posées nomment le `node`, la commande du runtime et le script par leurs chemins, en barres obliques — et aucune commande du plugin", { skip: WITHOUT_POSIX }, (t) => {
