@@ -2,6 +2,7 @@
 // and which agents run, the gestures of this turn. No memory: a restarted
 // kitchen reads the same state and decides the same thing.
 // Spec: docs/superpowers/specs/2026-11-26-agents-in-prompts.md.
+import { epicBlock } from "../epics.ts";
 
 export type Checks = "pending" | "success" | "failure" | "none";
 
@@ -44,6 +45,7 @@ export type Action =
   | { kind: "review"; issue: number; pr: number }
   | { kind: "send-back"; issue: number; reason: string; counts: boolean }
   | { kind: "requeue"; issue: number; reason: string }
+  | { kind: "epic-child"; epic: number; reason: string }
   | { kind: "manager"; issues: number[] }
   | { kind: "supervisor" };
 
@@ -92,6 +94,11 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
   for (const issue of issues.filter((one) => has(one, LABELS.inPass)).sort(byPriorityThenAge)) {
     if (reviewing.has(issue.number)) continue;
     const pr = prOf.get(issue.number);
+    if (has(issue, LABELS.epic)) {
+      const reason = epicBlock(issue, pr, issues);
+      if (reason !== "") actions.push({ kind: "epic-child", epic: issue.number, reason });
+      continue;
+    }
     if (pr === undefined) actions.push({ kind: "requeue", issue: issue.number, reason: "it is in pass with no open pull request" });
     else if (pr.conflicting) actions.push({ kind: "send-back", issue: issue.number, reason: "its branch conflicts with the base branch", counts: false });
     else if (pr.checks === "failure") actions.push({ kind: "send-back", issue: issue.number, reason: `the CI is red: ${pr.failing.slice(0, 5).join(", ") || "a check failed"}${pr.failing.length > 5 ? ` and ${pr.failing.length - 5} more` : ""}`, counts: true });

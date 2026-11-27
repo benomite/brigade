@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
 import { branchOf, gestures, mainFacts, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
-import { baseOf, closeFinishedEpics, closeMergedChild } from "../epics.ts";
+import { baseOf, closeFinishedEpics, closeMergedChild, epicChildOfAction, openFinishedEpics } from "../epics.ts";
 import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
@@ -190,12 +190,13 @@ export function openKitchen(options: KitchenOptions) {
   }
 
   async function execute(action: Action, issues: Map<number, Issue>, prs: Map<number, PullRequest>) {
-    const issue = action.kind === "manager" || action.kind === "supervisor" ? undefined : issues.get(action.issue);
+    const issue = "issue" in action ? issues.get(action.issue) : undefined;
     switch (action.kind) {
       case "send-back": {
         const pr = prs.get(action.issue);
         return sendBack(issue as Issue, action.reason, action.counts, pr !== undefined && !pr.conflicting && pr.checks === "failure" ? await ciLogs(pr.number) : "");
       }
+      case "epic-child": return epicChildOfAction(act, issues.get(action.epic) as Issue, action.reason, log);
       case "requeue":
         await act.labels(action.issue, [], [LABELS.taken, LABELS.inPass]);
         return log(`#${action.issue} back on the rail — ${action.reason}`);
@@ -270,7 +271,8 @@ export function openKitchen(options: KitchenOptions) {
       }
       state = await readState(gh, repo);
     }
-    await closeFinishedEpics(state.issues, (n) => trustedComments(gh, repo, n), act, log);
+    await closeFinishedEpics(state.issues, (n) => trustedComments(gh, repo, n), act, log, state.epicBranches);
+    await openFinishedEpics(state, { act, git, gh, repo, clone: options.clone, worktrees: options.worktrees, base, log });
     const { running } = listRuns(runs);
     const actions = decide(state.issues, state.prs, {
       places: options.places(),

@@ -11,9 +11,7 @@ import type { Run } from "./runs.ts";
 export type Prompts = { dir: string };
 // Next to the runtime in a station's package, at the repository's root in a clone.
 const DEFAULT_DIR = [join(import.meta.dirname, "..", "..", "agents", "kitchen"), join(import.meta.dirname, "..", "..", "..", "agents", "kitchen")].find((dir) => existsSync(dir)) ?? "";
-
 const fill = (template: string, values: Record<string, string | number>) => template.replace(/\{\{(\w+)\}\}/g, (all, key: string) => (key in values ? String(values[key]) : all));
-
 export function prompts(options: Prompts = { dir: DEFAULT_DIR }) {
   // Read at each launch: a prompt changed on the base branch acts at the next agent.
   const role = (name: string, values: Record<string, string | number> = {}) => fill(readFileSync(join(options.dir, `${name}.md`), "utf8"), values);
@@ -38,7 +36,6 @@ const lastActivity = (run: Run, now: number): number => {
 };
 
 export type Verdict = { merge: true } | { merge: false; reason: string };
-
 export function parseVerdict(result: string): Verdict | null {
   const last = result.trim().split("\n").filter((line) => line.trim().startsWith("VERDICT:")).at(-1)?.trim();
   if (last === undefined) return null;
@@ -59,7 +56,6 @@ export type AgentAction =
   | { comment: number; body: string }
   | { close: number; reason: string }
   | { open: { title: string; body: string; labels?: string[] } };
-
 export function parseAgentActions(result: string): AgentAction[] {
   const last = [...result.matchAll(/```json\s*([\s\S]*?)```/g)].at(-1)?.[1];
   if (last === undefined) return [];
