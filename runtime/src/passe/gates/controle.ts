@@ -55,13 +55,13 @@ function retiresDepuis(racine: string, souche: string): string[] {
 
 // Le nouveau nom d'un nom déclaré dans un fichier, tel que le renommage du code le donne (scripts/rename-code,
 // `newNameOf`) : absent, aucun export n'est vu renommé.
-export type NouveauNom = (fichier: string, nom: string) => string;
+export type NewName = (fichier: string, nom: string) => string;
 
 // Le changement ne répond que de ce qu'il exporte de neuf : un export plus
 // ancien dont seuls des tests se servent n'est pas le sien. Un export renommé
 // non plus (#4413) : un fichier que le changement touche ou retire l'exportait
 // à la souche sous le nom que le renommage traduit en celui-ci.
-export function controler(racine: string, touches: readonly string[], souche: string, nouveauNom?: NouveauNom): string[] {
+export function controler(racine: string, touches: readonly string[], souche: string, nouveauNom?: NewName): string[] {
   const fichiers = lireLesZones(racine);
   const anciens = new Map<string, string[]>();
   const ancien = (fichier: string) => anciens.get(fichier) ?? anciens.set(fichier, exportsALaSouche(racine, souche, fichier)).get(fichier) ?? [];
@@ -80,7 +80,7 @@ if (import.meta.main) {
     if (souche === undefined) throw new Error("la souche du changement manque (argument 1)");
     // La table du renommage, là où le dépôt la porte (#4413).
     const table = join(process.cwd(), "scripts", "rename-code", "table.ts");
-    const nouveauNom = existsSync(table) ? ((await import(pathToFileURL(table).href)) as { newNameOf: NouveauNom }).newNameOf : undefined;
+    const nouveauNom = existsSync(table) ? ((await import(pathToFileURL(table).href)) as { newNameOf: NewName }).newNameOf : undefined;
     const echecs = controler(process.cwd(), touches, souche, nouveauNom);
     for (const echec of echecs) console.error(`FAIL  ${echec}`);
     process.exit(echecs.length === 0 ? 0 : 2);
