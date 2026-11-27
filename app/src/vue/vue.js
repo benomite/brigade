@@ -658,9 +658,8 @@ const delayOfProject = element("delai-du-projet");
 const teamOfProject = holdTheTeam(document, element("equipe-du-projet"), (name) => {
   if (current?.nom === name) setRail(current);
 }, () => chooseTab(AGENTS));
-// L'onglet Agents du projet affiché (ticket 4224, agents/) : ses agents lus au runtime à l'ouverture de l'onglet, une carte
-// chacun ; les listes du modèle et de l'effort sont celles du calibrage que l'app connaît.
-const agentsOfProject = holdTheAgents(document, { valeurs: () => PROJECT_CALIBRATION });
+// L'onglet Agents du projet affiché (ticket 4224, agents/) : ses agents au travail, lus à l'ouverture de l'onglet (ticket 4569).
+const agentsOfProject = holdTheAgents(document);
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
