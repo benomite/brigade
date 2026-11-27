@@ -70,10 +70,10 @@ class Component extends DCLogic {
   renderVals() {
     return {
       projects: [
-        { name: 'brigade', mono: 'BR', tint: '#f2994a', dot: '#6cc28a', kitchen: 'kitchen open', now: '2 cooks · #2746 in pass · last merge 4 min ago', awaits: true, awaitCount: 1, awaitLabel: '1 awaiting you' },
-        { name: 'espace', mono: 'ES', tint: '#7fb2f0', dot: '#6cc28a', kitchen: 'kitchen open', now: 'Rail empty · 3 tickets waiting for the client', awaits: false, awaitCount: 0, awaitLabel: '' },
-        { name: 'mirrorlab', mono: 'ML', tint: '#c792ea', dot: '#6cc28a', kitchen: 'kitchen open', now: '1 cook · #655 taken', awaits: false, awaitCount: 0, awaitLabel: '' },
-        { name: 'baloo', mono: 'BA', tint: '#6cc28a', dot: '#7a808a', kitchen: 'kitchen held', now: 'Held until a review is answered', awaits: true, awaitCount: 1, awaitLabel: '1 awaiting you' }
+        { name: 'brigade', mono: 'BR', tint: '#f2994a', dot: '#6cc28a', kitchen: 'cooking', now: '2 cooks · #2746 in pass', awaits: true, awaitCount: 1, awaitLabel: '1 awaiting you' },
+        { name: 'espace', mono: 'ES', tint: '#7fb2f0', dot: '#6cc28a', kitchen: 'idle', now: 'Rail empty.', awaits: false, awaitCount: 0, awaitLabel: '' },
+        { name: 'mirrorlab', mono: 'ML', tint: '#c792ea', dot: '#6cc28a', kitchen: 'cooking', now: '1 cook · #655 cooking', awaits: false, awaitCount: 0, awaitLabel: '' },
+        { name: 'baloo', mono: 'BA', tint: '#6cc28a', dot: '#7a808a', kitchen: 'held', now: 'Held until a review is answered', awaits: true, awaitCount: 1, awaitLabel: '1 awaiting you' }
       ]
     };
   }

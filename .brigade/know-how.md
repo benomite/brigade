@@ -53,3 +53,4 @@
 - A test that writes a temp path into a `#!/bin/sh` fake agent must pass it with forward slashes and quoted: on Windows `C:\Users\…` loses its backslashes in sh and the file is never written (#4566)
 - Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)
 - A kitchen test whose fake cook ends with a short message (under 40 characters) now gets a "delivered without a report" log line and ticket comment: give the fake a real report (#4574)
+- `docs/maquettes/app/*.dc.html` are read by `app/test/skin.test.ts` (every color of tokens.css must appear in some artboard, `#ffb4a8` included) and by `lexicon.test.ts`: cut a removed screen from an artboard by changing its text, and rerun those two tests before deleting a block whose color nothing else writes (#4585)

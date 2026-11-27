@@ -19,7 +19,7 @@ On the first-run screen, type the repository as `owner/repo` and click **open th
 
 ## 2. Choose the station and start the kitchen
 
-The first question is `Who cooks <owner/repo>?`. Pick **this computer** (listed first, and recommended when no server of yours is online), keep the presets, and click **Start the kitchen on this computer**.
+The first question is `Who cooks <owner/repo>?`. Pick **this computer** (listed first, and recommended when no server of yours is online), keep the presets, and confirm.
 
 **You see**: the question answered, and the page moving on to `2 of 2: its setup for Brigade`.
 
@@ -27,7 +27,7 @@ The first question is `Who cooks <owner/repo>?`. Pick **this computer** (listed 
 
 Before your own ticket, a repository must be set up for brigade: its bindings and its labels, among them `fire`. Brigade does it itself, with a pull request of its own, `Merge the setup pull request`. The page says at each moment what is awaited and from whom: the second reads your repository (`Nothing is awaited from you yet`), and may ask you a question in its column on the right. Then it says `The setup pull request is waiting for your merge`: open its card (**open its card**, red on the rail, counted in **TODO**) and merge it. Only you merge it: it sets what will judge every future delivery.
 
-**You see**: the page say the project is ready, the **Rail** taking its place, and the project's **project** switch reading `project on` (green).
+**You see**: the page say the project is ready, and the **Rail** taking its place: the project's board, in six columns (**Backlog**, **Ready**, **Cooking**, **Pass**, **Parked**, **Served**).
 
 ## 4. Open your own ticket
 
@@ -35,37 +35,38 @@ Before your own ticket, a repository must be set up for brigade: its bindings an
 2. The second writes the issue on the throwaway repository and shows it to you.
 3. Say yes: the ticket goes on the rail.
 
-**You see**: the ticket as a card in **On the rail**.
+**You see**: the ticket as a card in **Backlog**, then in **Ready** once the manager has calibrated it (labels `fire`, `model:`, `effort:`).
 
-**Alternative, on GitHub**: open an issue on the throwaway repository, for example titled `Add a CONTRIBUTING.md`, with the same body, and add the label **`fire`**, which puts it on the rail. The setup already created that label: nothing else has to be set on the issue.
+**Alternative, on GitHub**: open an issue on the throwaway repository, for example titled `Add a CONTRIBUTING.md`, with the same body, and add the label **`fire`**, which puts it straight in **Ready**. The setup already created that label: nothing else has to be set on the issue.
 
 ## 5. Watch the cook work
 
-The card moves to **Taken**, with the cook's name. **Cooks** shows the station's state and the ticket in flight; a click on its card opens its sheet. The cook works in its own worktree, pushes a branch and opens a pull request.
+The card moves to **Cooking** (label `taken`). The **Agents** tab shows the cook at work. The cook works in its own worktree, on a branch `cook/<n>-github`; the kitchen pushes it and opens a pull request.
 
-**You see**: the card go from **Taken** to **Pass** once the pull request is open.
+**You see**: the card go from **Cooking** to **Pass** once the pull request is open.
 
 ## 6. Review at the pass
 
-The pass runs the gates and the review on the pull request and writes its verdict on the issue. Open the pull request from the **Pass** card to read the diff and the verdict.
+The pass waits for the pull request's CI, then reviews the diff. A red CI, a conflict or a refused review sends the ticket back to a cook, with the reason in a comment on the issue. Open the pull request from the **Pass** card to read the diff.
 
-**Do not merge by hand unless the pass stops.** A green delivery, with its verdict approved and its CI green, is merged by the pass itself (`docs/runtime/pass-merge.md`).
+**Do not merge by hand.** A delivery whose CI is green and whose verdict is `merge` is merged by the kitchen itself.
 
-A delivery waits for you, in **TODO** with the buttons `send back to the kitchen` and `remove from the rail`, only when:
+A ticket waits for you, in **Parked** and counted in **TODO**, only when:
 
-- the pass escalates it (a verdict it cannot settle alone);
-- the project switch is off (`project off`). Switch it back on and waiting deliveries are merged.
+- it was refused three times (`try:3`);
+- the manager needs a product or design choice from you;
+- its pull request touches a risk zone the project declares in `.brigade/kitchen.json`: approved by the pass, it waits for your merge.
 
 ## 7. The PR is merged
 
-For a green delivery the pass merges. Otherwise merge the pull request on GitHub yourself.
+For a green delivery the kitchen merges. For a delivery parked in a risk zone, answer `merge` on the ticket, or merge the pull request on GitHub yourself.
 
 **You see**: the card in **Served**; on GitHub, the pull request merged and the issue closed.
 
 ## What you get
 
 - A merged pull request on your throwaway repository, with the cook's `CONTRIBUTING.md`.
-- The ticket closed, with the pass's verdict and the merge written on it.
-- In the app: the card in **Served**, counted in `served 24 h` on the project's tile; the project's Settings page keeps the log.
+- The ticket closed by the merge of its pull request.
+- In the app: the card in **Served**.
 
-Further: [`docs/app.md`](../app.md) for every screen, [`docs/runtime/`](../runtime/README.md) for the runtime.
+Further: [`docs/app.md`](../app.md) for every screen.

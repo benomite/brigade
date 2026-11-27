@@ -22,18 +22,11 @@ a{color:#ece9e3}a:hover{color:#f2994a}
       <nav aria-label="Project" style="display: flex; gap: 4px; align-self: stretch">
         <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 600; color: #ece9e3; text-decoration: none; border-bottom: 2px solid #f2994a">Rail</a>
         <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Stations</a>
+        <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Agents</a>
+        <a href="#" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Know-how</a>
         <a href="Settings.dc.html" style="display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #c9c4bc; text-decoration: none; border-bottom: 2px solid transparent">Settings</a>
       </nav>
-      <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid #3a3f47; font-size: 11px; font-weight: 600; color: #c9c4bc"><span style="width: 8px; height: 8px; border-radius: 999px; background: #6cc28a"></span>kitchen open</span>
-      <button type="button" style="height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid #ee6b5b; background: transparent; color: #ffb4a8; font: 600 13px Archivo, sans-serif">Stop the kitchen</button>
     </header>
-
-    <div style="display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 10px 24px; border-bottom: 1px solid #23272d; font-size: 13px; color: #c9c4bc">
-      <span>Ticket time <strong style="color: #ece9e3">5.6 min</strong> median</span>
-      <span>First try <strong style="color: #ece9e3">57%</strong> · goal 70%</span>
-      <span>Cooks <strong style="color: #ece9e3">2</strong> running on box/claude</span>
-      <span>Last merge <strong style="color: #ece9e3">4 min</strong> ago</span>
-    </div>
 
     <div style="overflow-x: auto; padding: 16px 24px">
       <div style="display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 12px; min-width: 1240px">
@@ -51,7 +44,7 @@ a{color:#ece9e3}a:hover{color:#f2994a}
                   <div style="font-size: 15px; font-weight: 600">{{t.question}}</div>
                   <button type="button" style="min-height: 32px; padding: 6px 12px; border-radius: 8px; border: 1px solid #f2994a; background: #f2994a; color: #121418; font: 600 13px Archivo, sans-serif; text-align: left">{{t.reco}}</button>
                   <button type="button" style="min-height: 32px; padding: 6px 12px; border-radius: 8px; border: 1px solid #3a3f47; background: #22262c; color: #ece9e3; font: 500 13px Archivo, sans-serif; text-align: left">{{t.other}}</button>
-                  <button type="button" style="align-self: flex-start; height: 28px; padding: 0 4px; border: 0; background: transparent; color: #c9c4bc; font: 500 13px Archivo, sans-serif; text-decoration: underline">Answer in my own words</button>
+                  <button type="button" style="align-self: flex-start; height: 28px; padding: 0 4px; border: 0; background: transparent; color: #c9c4bc; font: 500 13px Archivo, sans-serif; text-decoration: underline">Or answer in your own words</button>
                 </article>
               </sc-if>
               <sc-if value="{{t.voucher}}" hint-placeholder-val="{{ true }}">
@@ -94,21 +87,21 @@ class Component extends DCLogic {
     const v = (num, title, meta, prio) => ({ voucher: true, awaiting: false, num, title, meta, prio });
     return {
       columns: [
-        { title: 'On the rail', count: 2, color: '#7a808a', path: 'M5 1.5 A3.5 3.5 0 1 1 4.99 1.5 Z', empty: false, emptyLine: '', cards: [
-          v('#2872', 'Publish site/ to GitHub Pages with an Actions workflow', 'queued 3 min', 'prio:1'),
-          v('#2905', 'The epic-done comment lists merged tickets as abandoned', 'queued 9 min', 'prio:2') ] },
-        { title: 'Taken', count: 2, color: '#7fb2f0', path: 'M5 1 L9 9 L1 9 Z', empty: false, emptyLine: '', cards: [
-          v('#2894', 'A cook’s technical block goes to the manager first', 'box/claude · 6 min', 'prio:0'),
-          v('#2873', 'Social preview image and a README first screen', 'box/claude · 2 min', 'prio:1') ] },
+        { title: 'Backlog', count: 1, color: '#7a808a', path: 'M5 1.5 A3.5 3.5 0 1 1 4.99 1.5 Z', empty: false, emptyLine: '', cards: [
+          v('#2905', 'The epic-done comment lists merged tickets as abandoned', 'opened 9 min ago', 'prio:2') ] },
+        { title: 'Ready', count: 1, color: '#7a808a', path: 'M5 1.5 A3.5 3.5 0 1 1 4.99 1.5 Z', empty: false, emptyLine: '', cards: [
+          v('#2872', 'Publish site/ to GitHub Pages with an Actions workflow', 'sonnet · medium', 'prio:1') ] },
+        { title: 'Cooking', count: 2, color: '#7fb2f0', path: 'M5 1 L9 9 L1 9 Z', empty: false, emptyLine: '', cards: [
+          v('#2894', 'A cook’s technical block goes to the manager first', '6 min', 'prio:0'),
+          v('#2873', 'Social preview image and a README first screen', '2 min · try 2', 'prio:1') ] },
         { title: 'Pass', count: 1, color: '#e9c46a', path: 'M5 0.5 L9.5 5 L5 9.5 L0.5 5 Z', empty: false, emptyLine: '', cards: [
-          v('#2875', 'Demo video sources: real captures of each scene', 'review in progress', 'prio:1') ] },
-        { title: 'Awaiting you', count: 1, color: '#ee6b5b', path: 'M1.5 1.5 H8.5 V8.5 H1.5 Z', empty: false, emptyLine: '', cards: [
+          v('#2875', 'Write the demo video script', 'PR #2880 · +120 −4', 'prio:1') ] },
+        { title: 'Parked', count: 1, color: '#ee6b5b', path: 'M1.5 1.5 H8.5 V8.5 H1.5 Z', empty: false, emptyLine: '', cards: [
           { voucher: false, awaiting: true, num: '#2771', title: 'Marketing: write the positioning', question: 'Which angle leads the launch?', reco: 'You are no longer at your computer', other: 'An AI dev team on your GitHub' } ] },
-        { title: 'Waiting', count: 0, color: '#f2994a', path: 'M2 1.5 H4 V8.5 H2 Z M6 1.5 H8 V8.5 H6 Z', empty: true, emptyLine: 'No ticket waits for a third party yet.', cards: [] },
         { title: 'Served', count: 3, color: '#6cc28a', path: 'M5 1 A4 4 0 1 1 4.99 1 Z', empty: false, emptyLine: '', cards: [
-          v('#2868', 'Quality tickets wait for 20 new merged tickets', 'merged 12 min ago', 'prio:0'),
-          v('#2749', 'Write Brigade’s product vision', 'merged 1 h ago', 'prio:1'),
-          v('#2746', 'Mention the chef on GitHub on each TODO card', 'merged 2 h ago', 'prio:1') ] }
+          v('#2868', 'Quality tickets wait for 20 new merged tickets', '14 min · +32 −10', 'prio:0'),
+          v('#2749', 'Write Brigade’s product vision', '22 min · +210 −0', 'prio:1'),
+          v('#2746', 'Mention the chef on GitHub on each TODO card', '9 min · +48 −6', 'prio:1') ] }
       ]
     };
   }
