@@ -14,20 +14,12 @@ export type EntryOfBackground =
   | { genre: "separateur" }
   | { genre: "geste"; geste: Action; libelle: string; actif: boolean };
 
-// Un projet tel que le fond le lit : `ProjetLu`, et les stations de cet ordinateur que ses faits déclarent.
-const stationsHere = ({ faits: facts }: ProjectRead): { station: string; cuisson?: string }[] => (facts?.stations ?? []).filter(({ distante: remote }) => !remote);
-
-// La station de fond, d'après les faits de ses projets : en pause quand chacun est éteint, arrêtée quand chaque station
-// de cet ordinateur l'est sur chacun — ou rien d'elle ne se lit.
+// La station de fond, d'après les faits de ses projets : en pause quand chacun est éteint — ou rien d'elle ne se lit.
 export function stateOfTheStation(projects: readonly ProjectRead[]): StateOfTheStation {
   const readOnes = projects.filter(({ faits: facts }) => facts !== undefined);
   if (readOnes.length === 0) return "illisible";
   return {
     pause: readOnes.every(({ faits: facts }) => facts?.etat === "éteinte"),
-    arret: readOnes.every((project) => {
-      const here = stationsHere(project);
-      return here.length > 0 && here.every(({ cuisson: cooking }) => cooking === "stopped");
-    }),
   };
 }
 

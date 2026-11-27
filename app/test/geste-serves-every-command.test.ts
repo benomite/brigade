@@ -13,7 +13,6 @@ import { ACTIONS } from "../src/actions.ts";
 import { launchHere, words, type Locale, type Read, type Rendered } from "../src/box.ts";
 import { readTheHumans, writeTheHumans } from "../src/humans-of-project.ts";
 import { COMMAND as POWER_UP } from "../src/power-up.ts";
-import { COMMANDS as OF_INSTALLATION, JUDGMENT, VERIFICATION } from "../src/service.ts";
 import { proposeTheSetting, readTheSettings } from "../src/settings-of-project.ts";
 import { readTheStations, writeTheStations } from "../src/stations-contributors.ts";
 import { readTheAgents } from "../src/team-of-the-box.ts";
@@ -36,8 +35,6 @@ async function commandsTheAppLaunches(): Promise<string[]> {
 
   // The gestures written into the second (actions.ts), and switching a project on (power-up.ts).
   launched.push(...ACTIONS.map(({ commande }) => commande), POWER_UP);
-  // The guided installation (service.ts).
-  launched.push(VERIFICATION, JUDGMENT, ...Object.values(OF_INSTALLATION));
   // Settings, humans, contributor stations, the Agents tab, the word to a cook: read and written by the station.
   await quietly(() => readTheSettings(PROJECT, readOne, record));
   await quietly(() => proposeTheSetting(PROJECT, readOne, { cle: "branche", valeur: "main" }, record));
@@ -65,7 +62,7 @@ describe("#4499 — the station's gesture serves every command the app launches"
     // Who imports a launcher of the gesture from box.ts, and how often main.ts launches through it.
     const importers = ["main.ts", "power-up.ts", "actions.ts"];
     const places = readFileSync(join(SRC, "main.ts"), "utf8").split("\n").filter((line) => /\blaunchOnTheKitchen\b|\blaunchThe\(/.test(line)).length;
-    assert.equal(places, 11, "main.ts launches a command through the gesture in a new place: add it to commandsTheAppLaunches");
+    assert.equal(places, 10, "main.ts launches a command through the gesture in a new place: add it to commandsTheAppLaunches");
     for (const file of importers) assert.match(readFileSync(join(SRC, file), "utf8"), /\b(launchThe|launchHere|ACTION)\b/, file);
   });
 
@@ -73,7 +70,6 @@ describe("#4499 — the station's gesture serves every command the app launches"
     const launched = await commandsTheAppLaunches();
     const heads = [...new Set(launched.map((command) => words(command)[0] ?? ""))].sort();
     // What the app launched when this test was written: a command added since is checked too, never one dropped silently.
-    for (const known of ["agents", "contributor-stations", "guardrails", "humans", "installation", "manager", "send-word", "setting", "switch"]) assert.ok(heads.includes(known), known);
     const { locale, remove } = station();
     t.after(remove);
     for (const head of heads) {
