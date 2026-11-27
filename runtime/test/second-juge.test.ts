@@ -82,9 +82,9 @@ test("its verdict on the PR holds for the head it judged only, the latest wins, 
 test("a brief that cannot be read is an error naming the path it looked for, and the installed layout (runtime/agents) is read before the repository's", () => {
   const dossier = mkdtempSync(join(tmpdir(), "consigne-"));
   try {
-    const absent = join(dossier, "absent", "second-juge.md");
+    const absent = join(dossier, "absent", "second-judge.md");
     assert.throws(() => lireLaConsigne([absent]), (erreur: unknown) => erreur instanceof ConsigneIllisible && erreur.chemin === absent && erreur.message.includes(absent));
-    const installe = join(dossier, "second-juge.md");
+    const installe = join(dossier, "second-judge.md");
     writeFileSync(installe, "---\nmodel: opus\n---\nINSTALLEE\n");
     assert.equal(lireLaConsigne([installe, absent]), "INSTALLEE");
   } finally {

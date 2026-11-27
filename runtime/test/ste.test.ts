@@ -18,7 +18,7 @@ test("la consigne dit les cinq règles : phrases courtes, une idée, voix active
 });
 
 test("chaque rôle qui écrit pour un humain la porte, une seule fois", () => {
-  for (const role of ["commands/po.md", "commands/manager.md", "commands/dev.md", "agents/manager.md", "agents/triage.md", "agents/product.md", "agents/second-juge.md", "codex/skills/po/SKILL.md", "codex/skills/manager/SKILL.md", "codex/skills/dev/SKILL.md"]) {
+  for (const role of ["commands/po.md", "commands/manager.md", "commands/dev.md", "agents/manager.md", "agents/triage.md", "agents/product.md", "agents/kitchen/second-judge.md", "codex/skills/po/SKILL.md", "codex/skills/manager/SKILL.md", "codex/skills/dev/SKILL.md"]) {
     const texte = readFileSync(new URL(role, RACINE), "utf8");
     assert.equal(texte.split("**Écrire pour un humain.**").length - 1, 1, role);
     assert.ok(texte.includes("environ 80 % d'ASD-STE100"), role);

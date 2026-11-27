@@ -162,11 +162,10 @@ try {
   };
   parcourir(join(RUNTIME, "src"));
   for (const chemin of horsDuRuntime) poser(chemin, dans(INSTALLATION.slice(1), relative(RACINE, chemin)), 0o644);
-  // La consigne du second juge, lue dans la version du runtime qui tourne
-  // (jamais dans la livraison jugée) : dans le dossier du runtime, que les
-  // archives macOS et Windows portent aussi.
-  poser(join(RACINE, "agents", "second-juge.md"), join(runtime, "agents", "second-juge.md"), 0o644);
-  // The prompts of the new kitchen (`runtime/src/kitchen/`), next to it the same way.
+  // The prompts of the new kitchen (`runtime/src/kitchen/`), next to it the same way. The
+  // second judge's brief is one of them (`agents/kitchen/second-judge.md`): read from the
+  // running runtime's version, never from the judged delivery; the macOS and Windows
+  // archives carry it too.
   for (const prompt of readdirSync(join(RACINE, "agents", "kitchen"))) poser(join(RACINE, "agents", "kitchen", prompt), join(runtime, "agents", "kitchen", prompt), 0o644);
   poser(node, dans(INSTALLATION.slice(1), "node", "bin", "node"), 0o755);
   // Le renouvellement de la session Max.

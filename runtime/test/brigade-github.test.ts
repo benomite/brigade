@@ -847,7 +847,7 @@ test("a station that launches no second judge never merges a delivery that chang
   await a.calme();
   const pr = faux.prs.find((p) => p.issue === 40);
   assert.ok(pr);
-  pr.fichiers = ["agents/second-juge.md"];
+  pr.fichiers = ["agents/kitchen/second-judge.md"];
   for (let i = 0; i < 5; i += 1) await a.tour();
   assert.equal(faux.mergee(40), undefined);
   assert.deepEqual(dits, [`brigade : PR #${pr.number} (#40) changes what judges it and waits for a second judge, which station A does not launch`]);
@@ -858,19 +858,19 @@ test("a station whose second judge's brief cannot be read says so once per head 
   faux.feu(42);
   const a = faux.station("A", {
     jugerEnSecond: async () => {
-      throw new ConsigneIllisible("/usr/lib/brigade-station/agents/second-juge.md", new Error("ENOENT"));
+      throw new ConsigneIllisible("/usr/lib/brigade-station/agents/kitchen/second-judge.md", new Error("ENOENT"));
     },
   });
   await a.tour();
   await a.calme();
   const pr = faux.prs.find((p) => p.issue === 42);
   assert.ok(pr);
-  pr.fichiers = ["agents/second-juge.md"];
+  pr.fichiers = ["agents/kitchen/second-judge.md"];
   for (let i = 0; i < 5; i += 1) await a.tour();
   assert.equal(faux.mergee(42), undefined);
   const dits = (faux.commentaires.get(42) ?? []).filter((c) => c.body.includes("second-juge-sans-consigne"));
   assert.equal(dits.length, 1);
-  assert.match(dits[0]?.body ?? "", /\/usr\/lib\/brigade-station\/agents\/second-juge\.md/);
+  assert.match(dits[0]?.body ?? "", /\/usr\/lib\/brigade-station\/agents\/kitchen\/second-judge\.md/);
 });
 
 test("the card a station posted before #2555 on a delivery that changes what judges it keeps it parked until the chef lifts it, then the second judge decides (#2555, #4260)", async () => {
@@ -1624,7 +1624,7 @@ test("the station of this runtime: a cook that exits loses its worktree, build o
   assert.doesNotThrow(() => process.kill(vivant.pid ?? 0, 0), "son process tourne encore");
 });
 
-test("the station of this runtime: a delivery that changes what judges it is reviewed, then judged by a second, separate launch under opus / high with the brief of agents/second-juge.md, and merged on its approval (#2555)", async (t) => {
+test("the station of this runtime: a delivery that changes what judges it is reviewed, then judged by a second, separate launch under opus / high with the brief of agents/kitchen/second-judge.md, and merged on its approval (#2555)", async (t) => {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-github-"));
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const faux = new FauxGitHub();
@@ -1689,7 +1689,7 @@ test("the station of this runtime: a delivery that changes what judges it is rev
   assert.notEqual(second.flux, relecture.flux);
   assert.deepEqual(fait, ["reprendre review-12-github cook/12-github", "retirer review-12-github", "reprendre second-judge-12-github cook/12-github", "retirer second-judge-12-github"]);
   const texte = second.entree ?? "";
-  assert.ok(texte.startsWith(lireLaConsigne()), "the brief of agents/second-juge.md, read from the runtime");
+  assert.ok(texte.startsWith(lireLaConsigne()), "the brief of agents/kitchen/second-judge.md, read from the runtime");
   assert.match(texte, /## La livraison\n\nDépôt faux\/depot, PR #\d+[\s\S]*- \.github\/workflows\/tests\.yml\n[\s\S]*\+ {6}- run: npm run lint/);
   // Rien de la relecture ne lui est donné.
   assert.doesNotMatch(texte, /Looks right/);
