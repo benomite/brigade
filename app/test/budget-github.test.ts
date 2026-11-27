@@ -4,7 +4,8 @@
 // projet —, contre un GitHub en mémoire qui donne ses ETag, répond 304 et dit son budget (`x-ratelimit-*`). L'heure est
 // simulée : aucun test n'attend l'horloge.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, test } from "node:test";
+import { spendersOfToken, ticketOfTheBiggest } from "../src/spenders-of-token.ts";
 import { readingUnderBudget, ReadsInPause, PAUSE_WITHOUT_HOUR_MS, refusalForOverrun, holdTheBudgetGitHub, type BudgetGitHub } from "../src/budget-github.ts";
 import { withWhatAwaitingTheChef } from "../src/board/wait-of-chef.ts";
 import { byFetch, type CallGitHub, type LimitGitHub, type AnswerGitHub } from "../src/board/client.ts";
@@ -184,7 +185,8 @@ test("under 20% of the budget left, reads pause for every project until the rese
   // The six reads left together: each sent its first request before the first answer said the budget is low, then
   // nothing more left.
   assert.equal(github.demandes.length, before + PROJECTS.length, "one request per project, then nothing");
-  assert.deepEqual(inPause, readEntries, "every project keeps its last rail");
+  assert.deepEqual(inPause.map((one) => { if (!one.lu) return one; const { pause: _pause, ...kept } = one; return kept; }), readEntries, "every project keeps its last rail");
+  assert.ok(inPause.every((one) => one.lu && one.pause?.jusqua === new Date(resumption).toISOString()), "each says the pause it is shown under");
   for (; clock.t < resumption; clock.t += 30_000) await oneTour(boards);
   clock.t = resumption - 1;
   boards.oublier();
@@ -325,4 +327,30 @@ test("the pause says something else uses the quota when the app counted only a s
   const without = await readUnderBudget(only, almost, clock);
   assert.match(without.lu ? "" : without.raison, /is not read until/);
   assert.doesNotMatch(without.lu ? "" : without.raison, /Something else/);
+});
+
+describe("who spent the chef's token this hour (#4620)", () => {
+  test("the report splits what GitHub counts, and names the app as the biggest spender above half", () => {
+    const report = spendersOfToken({ spent: 4_458, app: 3_000 });
+    assert.match(report.sentence, /the app 3000, the Mac station's runtime and the agents' `gh` 1458/);
+    assert.deepEqual(report.biggest, { who: "the app", count: 3_000 });
+    assert.match(ticketOfTheBiggest(report)?.title ?? "", /^The app spends more than its share/);
+  });
+
+  test("with the station's runtime told apart from the agents' gh, the biggest is named; within its share, no ticket", () => {
+    const heavy = spendersOfToken({ spent: 4_000, app: 500, station: 3_000 });
+    assert.deepEqual(heavy.spenders.map(({ who, count }) => [who, count]), [["the app", 500], ["the Mac station's runtime", 3_000], ["the agents' `gh`", 500]]);
+    assert.equal(heavy.biggest?.who, "the Mac station's runtime");
+    assert.equal(ticketOfTheBiggest(spendersOfToken({ spent: 4_000, app: 1_500, station: 1_500 })), null);
+  });
+
+  test("a pause says who spent, and signals the report once per read under it", async () => {
+    const clock = { t: Date.parse("2026-11-27T15:48:00.000Z") };
+    const budget = holdTheBudgetGitHub({ maintenant: () => clock.t });
+    await budget.appeler(async () => ({ status: 200, data: {}, limite: { restant: 734, total: 5_000, repriseLe: clock.t + 39 * 60_000 } }))("/x", {});
+    const signalled: unknown[] = [];
+    const readEntry = await readingUnderBudget({ budget, depot: "chef/parade", lire: async () => assert.fail("en pause"), dernier: () => undefined, maintenant: () => clock.t, signaler: (report) => signalled.push(report.biggest) });
+    assert.match(readEntry.lu ? "" : readEntry.raison, /Who spent the token this hour, of 4266 requests GitHub counts: the app 1, /);
+    assert.equal(signalled.length, 1);
+  });
 });

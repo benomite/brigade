@@ -7,7 +7,7 @@
 // postinst.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test, type TestContext } from "node:test";
@@ -105,6 +105,11 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(machine.installee(), "1.1.0", dit());
     const pid2 = await enService(machine, "1.1.0");
     assert.notEqual(pid2, pid1);
+    // La cuisine est repartie sur les fichiers que 1.1.0 a posés : son départ
+    // suit leur installation, sans quoi elle garderait le code d'avant (#4604).
+    const pose = statSync(join(machine.racine, MAIN));
+    const depuis = Date.parse(lireEnService(machine.station)?.depuis ?? "");
+    assert.ok(depuis >= Math.floor(Math.max(pose.mtimeMs, pose.ctimeMs)), `la cuisine est partie à ${new Date(depuis).toISOString()}, avant ses fichiers (${new Date(pose.ctimeMs).toISOString()})`);
     const passage = lireEtatMiseAJour(machine.miseAJour)?.derniere;
     assert.deepEqual(passage?.quoi === "passee" && [passage.version, passage.depuis], ["1.1.0", "1.0.0"], dit());
 
