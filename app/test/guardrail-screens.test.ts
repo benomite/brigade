@@ -157,7 +157,7 @@ async function settings(): Promise<Plays> {
   const vue = await open();
   await openRead(vue, "Settings");
   const number = (vue.dernier("onglet") as [string, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: number, a: A, erreur: RAW, atteinte: false, cas: null }, undefined);
+  vue.dire("surContenu", { projet: "parade", demande: number, a: A, erreur: RAW, atteinte: false, cas: null });
   await repos();
   return { vue, racine: screen(vue, ...READING) };
 }

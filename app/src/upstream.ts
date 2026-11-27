@@ -4,8 +4,7 @@
 // avec ce qui la retient en une ligne. Ce module n'y déduit rien : il compte ce que la lecture liste, range chaque
 // issue sous le mot qu'elle porte, et pose ce qu'elle en dit, mot pour mot. Une lecture ratée n'est jamais « rien avant
 // le rail ».
-// La vue en tire, quand le rail est vide, ce qu'il y a avant lui, et si le manager le lit — son état vient de `manager`
-// (manager.ts) ; les issues mises de côté et celles que la cuisine a ouvertes sur elle-même. Le bandeau Backlog qui en
+// La vue en tire, quand le rail est vide, ce qu'il y a avant lui, ; les issues mises de côté et celles que la cuisine a ouvertes sur elle-même. Le bandeau Backlog qui en
 // posait une étiquette par besoin au-dessus des colonnes n'est plus (#4354) : la colonne Backlog montre le backlog.
 import type { Reading } from "./box.ts";
 import { isOutsideLine, titleOfFailure, type Card } from "./facts.ts";
@@ -181,15 +180,14 @@ function hoverOf(issues: number, groups: Group[]): string {
   return `${pluriel(issues, "issue")} before the rail — ${detailOf(groups)}`;
 }
 
-// Ce qui se lit à la place du rail quand aucun ticket n'y est : rien avant lui, ce qui est avant lui et ce que le
-// manager en fait — ou pourquoi ce qui est avant lui n'a pas été lu.
+// Ce qui se lit à la place du rail quand aucun ticket n'y est : rien avant lui, ce qui est avant lui — ou pourquoi ce qui est avant lui n'a pas été lu.
 function tellEmpty(account: { issues: number; groupes: Group[] } | { sans: string }): string {
   if ("sans" in account) return `nothing on the rail — ${account.sans}`;
   if (account.issues === 0) return "nothing on the rail, nothing before it";
   return `nothing on the rail — ${pluriel(account.issues, "issue")} before it (${detailOf(account.groupes)}).`;
 }
 
-// Ce qu'une lecture de ce qui est avant le rail donne à poser, avec le dernier état du manager lu.
+// Ce qu'une lecture de ce qui est avant le rail donne à poser.
 export function see(reading: Reading): Seen {
   const { projet: project, demande: request, a } = reading;
   // Le tableau est frais et lisible, mais ne publie pas ce qui est avant le rail : la vue n'en dit rien (#1770). Hors ligne
@@ -206,8 +204,7 @@ export function see(reading: Reading): Seen {
   return { projet: project, demande: request, a, compte: needs.length, lu: upstream.lu, groupes: groups, survol: hoverOf(needs.length, groups), vide: tellEmpty({ issues: needs.length, groupes: groups }), ...(alerts.length === 0 ? {} : { alertes: alerts }) };
 }
 
-// Ce qui est en amont de chaque projet, tenu par le process principal : la dernière lecture, le
-// dernier état du manager — de quoi redire la phrase du rail vide quand l'un ou l'autre change —,
+// Ce qui est en amont de chaque projet, tenu par le process principal : la dernière lecture,
 // et l'adresse de chaque issue, que la vue ne voit jamais.
 export function holdUpstream() {
   const readings = new Map<string, Reading>();

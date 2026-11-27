@@ -9,7 +9,7 @@ import { ticketsOf } from "../src/fire.ts";
 
 const silentOne = (message: string, a: string): Reading => ({ projet: "parade", demande: 1, a, erreur: `$ brigade parade facts\n${message}\n→ exit code 1`, atteinte: false, cas: null });
 const SILENCE = "connect to host box port 22: Connection timed out during banner exchange";
-const MANAGER_OK: Reading = { projet: "parade", demande: 1, a: "2026-10-15T10:00:00.000Z", sorties: [{ commande: "manager", texte: "manager    ALLUMÉ\n" }] };
+const STATUS_OK: Reading = { projet: "parade", demande: 1, a: "2026-10-15T10:00:00.000Z", sorties: [{ commande: "status", texte: "project    parade\n" }] };
 
 describe("box injoignable (#728)", () => {
   test("une seule lecture ratée ne suffit pas, deux disent une seule ligne qui couvre les états non lus", () => {
@@ -18,8 +18,7 @@ describe("box injoignable (#728)", () => {
     assert.equal(READS_FOR_UNREACHABLE, 2);
     const first = bands.faits(silentOne(SILENCE, "2026-10-15T10:00:00.000Z"));
     assert.ok(first.alertes.every(({ sujet: subject }) => subject !== "injoignable"));
-    // Le manager et `status` ratés dans la même minute ne comptent pas pour des lectures de plus.
-    bands.manager(silentOne(SILENCE, "2026-10-15T10:00:01.000Z"));
+    // `status` raté dans la même minute ne compte pas pour une lecture de plus.
     assert.ok(bands.status({ projet: "parade", demande: 1, a: "2026-10-15T10:00:02.000Z", erreur: "$ brigade parade status\n→ exit code 1", atteinte: false, cas: null }).alertes.every(({ sujet: subject }) => subject !== "injoignable"));
     const band = bands.faits(silentOne(SILENCE, "2026-10-15T10:01:30.000Z"));
     assert.equal(band.alertes.length, 1);
@@ -38,8 +37,8 @@ describe("box injoignable (#728)", () => {
     const bands = holdBands();
     bands.faits(silentOne(SILENCE, "2026-10-15T10:00:00.000Z"));
     assert.equal(bands.faits(silentOne(SILENCE, "2026-10-15T10:00:30.000Z")).signal?.etat, "injoignable");
-    // Une lecture du manager qui aboutit : la box répond.
-    assert.ok(bands.manager(MANAGER_OK).alertes.every(({ sujet: subject }) => subject !== "injoignable"));
+    // Une lecture de `status` qui aboutit : la box répond.
+    assert.ok(bands.status({ ...STATUS_OK, attend: undefined }).alertes.every(({ sujet: subject }) => subject !== "injoignable"));
     assert.ok(bands.faits(silentOne(SILENCE, "2026-10-15T10:01:00.000Z")).alertes.every(({ sujet: subject }) => subject !== "injoignable"));
   });
 

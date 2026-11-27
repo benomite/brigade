@@ -3,9 +3,6 @@
 import type { PauseOfReads } from "./board/read.ts";
 
 export type Output = { commande: string; texte: string };
-// Une commande à lancer : son texte, ou ce qui le compose d'après les sorties lues avant elle
-// dans la même lecture — `measures` sur la fenêtre que `station` vient de dire (reliability.ts).
-export type Command = string | ((readEntries: readonly Output[]) => string);
 // `atteinte` : la station a été jointe, et c'est la commande qui a échoué, ou qui
 // n'a rien rendu. Fausse : rien ne le prouve — la commande n'a pas pu être lancée, ou
 // il a fallu l'arrêter sans qu'elle ait dit jusqu'où elle était allée.

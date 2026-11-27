@@ -196,8 +196,7 @@ describe("le haut du rail, sous la bande", () => {
     const bands = holdBands({ etablir: 1, minimum: 0 });
     bands.ouvrir([PARADE]);
     bands.faits(readOne("facts", JSON.stringify(facts({ rail: [entry(21, "en attente")], etat: "retenue" }))));
-    bands.status(putAside(readOne("status", ["project    parade", "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)", ""].join("\n"))));
-    vue.dire("surAlertes", bands.manager(readOne("manager", "manager               ÉTEINT depuis le 2026-11-03T09:25:21.838Z (par chef) — aucune issue n'est jugée, ce qu'il a posé reste posé\n")));
+    vue.dire("surAlertes", bands.status(putAside(readOne("status", ["project    parade", "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)", ""].join("\n")))));
     await repos();
     assert.match(vue.element("alertes").textContent, /breaker open/);
     assert.doesNotMatch(vue.element("rail").textContent, /breaker open/);
