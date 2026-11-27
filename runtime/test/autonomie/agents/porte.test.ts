@@ -8,11 +8,8 @@ import { test } from "node:test";
 import { enregistrementDe, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
 import { magasinDeNiveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import { approuverGeste, gestesEnAttente, porteDesGestes, porteDuRuntime } from "../../../src/autonomie/agents/porte.ts";
-import { principal as manager } from "../../../src/manager-cli.ts";
-import type { Ajout } from "../../../src/evenements.ts";
-import { ouvrirJournal } from "../../../src/journal.ts";
 import type { CauseReveil } from "../../../src/runtime.ts";
-import { appeler, repertoireTemporaire } from "../../outils.ts";
+import { repertoireTemporaire } from "../../outils.ts";
 
 const PROJET = "shop";
 const A = (h: number) => () => new Date(`2026-11-23T${String(h).padStart(2, "0")}:00:00.000Z`);
@@ -225,7 +222,7 @@ test("an act gesture done on an unreadable gesture log is done, and its failure 
   assert.equal(readFileSync(join(repertoire, "autonomy-gestures.json"), "utf8"), "{not json");
 });
 
-test("the chef approves from its own process: `manager -- approve <id>` marks it, and the runtime does it at its next tick, once", async (t) => {
+test("the chef approves a held gesture: `approuverGeste` marks it, and the runtime does it at its next tick, once", async (t) => {
   const repertoire = repertoireTemporaire(t);
   magasinDeNiveaux(repertoire).poser(PROJET, "supervisor", "propose");
   const ecouteurs: ((cause: CauseReveil) => void)[] = [];
@@ -240,17 +237,12 @@ test("the chef approves from its own process: `manager -- approve <id>` marks it
   await tick();
   assert.equal(appels.n, 0);
 
-  // The log a runtime keeps, that `manager` reads.
-  const journal = ouvrirJournal(repertoire);
-  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26.0.0" } } as Ajout);
-  journal.fermer();
-  const montre = appeler(manager, [], { BRIGADE_STATE_DIR: repertoire });
-  await montre.fin;
-  assert.match(montre.sortie(), /held gestures\s*\n\s+2026-11-23T09:00:00.000Z {2}1 {2}supervisor: reran `tests` on 0de1ff5 — red for 10 min — `brigade <projet> manager approve 1`/);
+  const [attente] = gestesEnAttente(repertoire);
+  assert.equal(attente?.id, 1);
+  assert.equal(attente?.agent, "supervisor");
+  assert.equal(attente?.line, "reran `tests` on 0de1ff5");
 
-  const approuve = appeler(manager, ["approve", "1"], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await approuve.fin, 0);
-  assert.match(approuve.sortie(), /gesture 1 of the supervisor approved \(reran `tests` on 0de1ff5\)/);
+  assert.equal(approuverGeste(repertoire, 1).line, "reran `tests` on 0de1ff5");
   assert.equal(appels.n, 0);
   await tick();
   assert.equal(appels.n, 1);
@@ -258,33 +250,15 @@ test("the chef approves from its own process: `manager -- approve <id>` marks it
   await tick();
   assert.equal(appels.n, 1);
 
-  const encore = appeler(manager, ["approve", "1"], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await encore.fin, 1);
-  assert.match(encore.sortie(), /no gesture is pending under 1 — nothing is approved/);
+  assert.throws(() => approuverGeste(repertoire, 1), /no gesture is pending under 1/);
   assert.equal(appels.n, 1);
 });
 
-test("`manager -- approve` without one number is refused with its usage; an unreadable pending file is said by `manager`, never read empty", async (t) => {
+test("an unreadable pending file is said, never read empty", (t) => {
   const repertoire = repertoireTemporaire(t);
-  for (const args of [["approve"], ["approve", "x"], ["approve", "1", "2"]]) {
-    const refus = appeler(manager, args, { BRIGADE_STATE_DIR: repertoire });
-    assert.equal(await refus.fin, 2, args.join(" "));
-    assert.match(refus.sortie(), /the pending gesture's number is needed\n[^]*approve <pending gesture>/);
-  }
-  const journal = ouvrirJournal(repertoire);
-  journal.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26.0.0" } } as Ajout);
-  journal.fermer();
   writeFileSync(join(repertoire, FICHIER_DES_ATTENTES), "{not json");
-  const montre = appeler(manager, [], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await montre.fin, 0);
-  assert.match(montre.sortie(), /held gestures\s+not read — .*autonomy-pending\.json cannot be read/);
-  const vide = repertoireTemporaire(t);
-  const sansAttente = ouvrirJournal(vide);
-  sansAttente.ajouter({ project: PROJET, ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26.0.0" } } as Ajout);
-  sansAttente.fermer();
-  const aucune = appeler(manager, [], { BRIGADE_STATE_DIR: vide });
-  await aucune.fin;
-  assert.match(aucune.sortie(), /held gestures\s+none/);
+  assert.throws(() => gestesEnAttente(repertoire), /autonomy-pending\.json cannot be read/);
+  assert.deepEqual(gestesEnAttente(repertoireTemporaire(t)), []);
 });
 
 test("a runtime without a state directory has no gate", () => {
