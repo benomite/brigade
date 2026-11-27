@@ -1,7 +1,7 @@
 # The station, redone from scratch: one installation per machine, then projects, and never a command again
 
 *Product spec, 2026-10-15. Drawn with the chef in session (the second). It says the **what**; the
-**how** is the manager's. It takes precedence over [the stations spec of the same day](2026-10-15-stations-globales-design.md)
+**how** is the manager's. It takes precedence over the stations spec of the same day (`2026-10-15-stations-globales-design.md`, deleted by #4582: read it in the git history)
 wherever they differ; what this one does not say (station / workstation vocabulary, capabilities,
 `requiert`, the partition of desktop stations, cases of `space`) remains valid.*
 
@@ -26,7 +26,7 @@ The chef:
 
 > the logic must be the same for Windows and mobile (and other futures)
 
-Study #739 ([2026-10-15-etude-brigade-sur-hermes.md](2026-10-15-etude-brigade-sur-hermes.md))
+Study #739 (`2026-10-15-etude-brigade-sur-hermes.md`, deleted by #4582: read it in the git history)
 ruled out Hermes, but concluded in the same direction: the generic plumbing (installation, service, update)
 is what costs us most, and it must be bought as standard tools rather than
 written by hand.
