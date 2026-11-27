@@ -18,7 +18,7 @@ export type StartOfConnection = { code: string; page: string } | Connected | { r
 export type EndOfConnection = Connected | { refus: string; detail?: string };
 
 export type ConnectionOptions = {
-  // La commande que le runtime nomme, telle quelle : son premier mot est le `gh` de l'ordinateur.
+  // La commande de connexion (`signInToGitHub`), telle quelle : son premier mot est le `gh` de l'ordinateur.
   commande: () => Promise<string[]>;
   env: Record<string, string | undefined>;
   // Ouvre une page dans le navigateur du chef.
@@ -124,15 +124,34 @@ export function holdConnectionGitHub(options: ConnectionOptions): () => Promise<
   };
 }
 
+// Le geste qui connecte ce `gh` : dans le navigateur, sans rien demander au terminal que la connexion ne demande pas, et en
+// HTTPS — le protocole des clones (#1390).
+export const signInToGitHub = (gh: string): string[] => [gh, "auth", "login", "--hostname", "github.com", "--web", "--git-protocol", "https"];
+
 // Le compte GitHub que ce `gh` tient (#2475, épique #2473) : le premier lancement et « Add a project » le disent, « Connected to
 // GitHub as … », sans que le chef ait rien à taper. La question est `gh api user --jq .login` ; son échec se lit par le
-// jugement d'un `gh` en échec que le process principal passe (`echecDeGh`) — un `gh` sans compte n'est pas une panne, c'est
-// l'étape à faire.
+// jugement d'un `gh` en échec (`failureOfGh`) — un `gh` sans compte n'est pas une panne, c'est l'étape à faire.
 export type AccountGitHub = { login: string } | { nonConnecte: true } | { refus: string; detail?: string; lien?: string };
 
 // Ce qu'un `gh` en échec veut dire : le compte à connecter, ou pourquoi GitHub ne se lit pas.
-type FailureOfGh = (gh: string, delayMs: number, error: { code?: string | number | null; message: string }, errors: string) => { state: "sign-in-required" } | { state: "unavailable"; cause: string; detail?: string; link?: string };
-export type OptionsOfAccount = { gh: string; env: Record<string, string | undefined>; echecDeGh: FailureOfGh; delaiMs?: number };
+type FailureOfGh = (gh: string, delayMs: number, error: { code?: string | number | null; killed?: boolean; message: string }, errors: string) => { state: "sign-in-required" } | { state: "unavailable"; cause: string; detail?: string; link?: string };
+export type OptionsOfAccount = { gh: string; env: Record<string, string | undefined>; echecDeGh?: FailureOfGh; delaiMs?: number };
+
+// Ce que `gh` dit quand il n'a pas de compte, ou un jeton refusé — et son code de sortie dans ce cas (« authentication
+// required ») ; quand GitHub limite le compte ; quand le réseau manque.
+const SIGNED_OUT = /gh auth login|not logged in|authentication required|requires authentication|bad credentials|HTTP 401/i;
+const CODE_SIGNED_OUT = 4;
+const LIMITED = /rate limit|HTTP 429/i;
+const NETWORK = /error connecting|could not resolve|no such host|dial tcp|network is unreachable|connection refused|connection reset|i\/o timeout|TLS handshake|EAI_AGAIN|ENOTFOUND|ECONNREFUSED/i;
+export const failureOfGh: FailureOfGh = (_gh, _delayMs, error, errors) => {
+  const detail = errors.trim() || error.message;
+  if (error.code === "ENOENT") return { state: "unavailable", cause: "gh-missing", link: "https://cli.github.com", detail };
+  if (error.killed === true) return { state: "unavailable", cause: "timeout", detail };
+  if (error.code === CODE_SIGNED_OUT || SIGNED_OUT.test(errors)) return { state: "sign-in-required" };
+  if (LIMITED.test(errors)) return { state: "unavailable", cause: "rate-limit", detail };
+  if (NETWORK.test(errors)) return { state: "unavailable", cause: "network", detail };
+  return { state: "unavailable", cause: "github", detail };
+};
 
 const DELAY_OF_ACCOUNT_MS = 30_000;
 // Ce qui retient la lecture, en une phrase : le détail — ce que `gh` a écrit — reste au survol.
@@ -149,7 +168,7 @@ export function readTheAccountGitHub(options: OptionsOfAccount): Promise<Account
     execFile(options.gh, ["api", "user", "--jq", ".login"], { timeout: delayMs, windowsHide: true, env: { ...options.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (error, output, errors) => {
       const login = String(output).trim();
       if (error === null && login !== "") return render({ login });
-      const readOne = options.echecDeGh(options.gh, delayMs, error ?? { message: "gh gave no login" }, String(errors));
+      const readOne = (options.echecDeGh ?? failureOfGh)(options.gh, delayMs, error ?? { message: "gh gave no login" }, String(errors));
       if (readOne.state === "sign-in-required") return render({ nonConnecte: true });
       const reason = REASONS[readOne.cause]?.(options.gh, delayMs) ?? "GitHub did not say which account this computer is connected to.";
       render({ refus: reason, ...(readOne.detail === undefined ? {} : { detail: readOne.detail }), ...(readOne.link === undefined ? {} : { lien: readOne.link }) });

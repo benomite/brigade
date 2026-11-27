@@ -73,23 +73,6 @@ export function withThePause<S extends Sign>(signs: readonly S[], now: number): 
   });
 }
 
-// La station de cet ordinateur, que l'app voit tourner (son process, workstation/station.ts), n'est pas tue, même quand le quota
-// GitHub l'empêche d'écrire son signe de vie : son dernier signe est cet instant. `id` : son gist (outages/login.ts,
-// `gistLocal`), nul quand elle ne tourne pas ici — rien ne change alors.
-export function withTheStationLocale<S extends Sign & { id?: string }>(signs: readonly S[], id: string | null, now: number): S[] {
-  if (id === null) return [...signs];
-  const instant = new Date(now).toISOString();
-  return signs.map((sign) => (sign.id === id && Date.parse(sign.lastSeen) < now ? { ...sign, lastSeen: instant } : sign));
-}
-
-// Les présences qui disent une station du compte en ligne (stations-of-account.ts, `avecLeurEtat`), et celle de la station de
-// cet ordinateur quand l'app la voit tourner : son nom, celui de son enregistrement.
-export type Presence = { nom: string; etat: string };
-export function withThePresenceLocale(presences: readonly Presence[], stations: readonly { id: string; name: string }[], id: string | null): Presence[] {
-  const here = id === null ? undefined : stations.find((station) => station.id === id);
-  return here === undefined ? [...presences] : [...presences, { nom: here.name, etat: "en-ligne" }];
-}
-
 // Le téléphone (read-github-phone.ts) lit l'enregistrement de chaque station dans son gist, tel quel : son signe de
 // vie et son quota GitHub, ou null quand il ne se lit pas — il ne dit alors aucune pause.
 export function signOfTheRecording(raw: string | undefined): Sign | null {

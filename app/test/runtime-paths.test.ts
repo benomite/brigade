@@ -12,6 +12,7 @@ test("every runtime file the app loads by a string path exists", () => {
   const main = readFileSync(join(SRC, "main.ts"), "utf8");
   const calls = [...main.matchAll(/(?:ofRuntime(?:<[^>]*>)?\(|join\(locations\.runtime, "src", )((?:"[^"]+"(?:, )?)+)\)/g)];
   const paths = calls.map((call) => [...(call[1] ?? "").matchAll(/"([^"]+)"/g)].map((part) => part[1]).join("/"));
-  assert.ok(paths.length > 10, `the scan found only ${paths.length} paths: its pattern no longer matches main.ts`);
+  // Since #4511 main.ts loads only the kitchen's files (runtime/src/kitchen/): one path found is enough to prove the pattern.
+  assert.ok(paths.length > 0, "the scan found no path: its pattern no longer matches main.ts");
   assert.deepEqual(paths.filter((path) => !existsSync(join(RUNTIME_SRC, path))), []);
 });
