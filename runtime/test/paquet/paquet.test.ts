@@ -108,6 +108,8 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
       "/usr/lib/brigade-station/node/bin/node",
       "/usr/lib/brigade-station/runtime/package.json",
       "/usr/lib/brigade-station/runtime/src/station/main.ts",
+      // Hors de runtime/src, mais importé par lui : sans lui la station ne démarre pas (#4552).
+      "/usr/lib/brigade-station/app/src/vue/autonomy/compute.ts",
       "/usr/lib/brigade-station/renouvellement",
       "/usr/lib/brigade-station/brigade",
       "/usr/lib/systemd/system/brigade-station.service",
