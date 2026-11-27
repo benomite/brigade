@@ -119,8 +119,14 @@ export function gestures(gh: Gh, repo: string) {
       const url = await gh(["issue", "create", ...r, "--title", title, "--body-file", "-", ...(labels.length ? ["--label", labels.join(",")] : [])], body);
       return Number(url.trim().split("/").pop());
     },
-    openPr: (issue: number, base: string, title: string) => gh(["pr", "create", ...r, "--head", branchOf(issue), "--base", base, "--title", `#${issue} — ${title}`, "--body-file", "-"], `Closes #${issue}`),
+    // The body holds the cook's report under `Closes #N`; a PR already open gets the new delivery's report (#4563).
+    openPr: async (issue: number, base: string, title: string, report = "") => {
+      const body = `Closes #${issue}${report.trim() === "" ? "" : `\n\n${report.trim()}`}\n`;
+      await gh(["pr", "create", ...r, "--head", branchOf(issue), "--base", base, "--title", `#${issue} — ${title}`, "--body-file", "-"], body).catch((error: Error) =>
+        /already exists/.test(error.message) ? (report.trim() === "" ? "" : gh(["pr", "edit", branchOf(issue), ...r, "--body-file", "-"], body)) : Promise.reject(error));
+    },
     prFiles: async (pr: number): Promise<string[]> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "files"])).files as Array<{ path: string }>).map((file) => file.path),
+    prBody: async (pr: number): Promise<string> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "body"])) as { body: string }).body,
     // The last lines of each failing Actions job's failed steps: the cook has no token to read them.
     failedLogs: async (pr: number, max = 5, lines = 40): Promise<Array<{ name: string; log: string }>> => {
       const sha = (JSON.parse(await gh(["api", `repos/${repo}/pulls/${pr}`])) as { head: { sha: string } }).head.sha;

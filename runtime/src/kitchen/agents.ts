@@ -18,7 +18,8 @@ export function prompts(options: Prompts = { dir: DEFAULT_DIR }) {
   const role = (name: string, values: Record<string, string | number> = {}) => fill(readFileSync(join(options.dir, `${name}.md`), "utf8"), values);
   return {
     cook: (input: { issue: number; base: string; worktree: string; ticket: string }) => [role("cook", input), "# Ton ticket", input.ticket].join("\n\n"),
-    pass: (input: { issue: number; base: string; pr: number; ticket: string }) => [role("pass", input), `# Le ticket de la PR #${input.pr}`, input.ticket].join("\n\n"),
+    pass: (input: { issue: number; base: string; pr: number; ticket: string; description: string }) =>
+      [role("pass", input), `# Le ticket de la PR #${input.pr}`, input.ticket, `# La description de la PR #${input.pr} (le compte rendu du cook)`, input.description].join("\n\n"),
     manager: (input: { tickets: string[] }) => [role("manager"), "# Les prochains tickets", ...input.tickets].join("\n\n"),
     supervisor: (input: { issues: Issue[]; running: Run[]; now: number }) =>
       [
