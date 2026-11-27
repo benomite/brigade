@@ -15,6 +15,8 @@ export type Issue = {
   dependsOn: number[];
   // The epic it was split from (`Epic: #N` in its body).
   epic?: number;
+  // An epic the manager split (a `Split by the manager into` comment).
+  split?: boolean;
 };
 
 export type PullRequest = {
@@ -116,9 +118,10 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
 
   // The manager calibrates, splits or parks the next ones when few are ready.
   const uncalibrated = issues.filter((issue) => !has(issue, LABELS.ready) && free(issue, open)).sort(byPriorityThenAge);
-  if (!context.running.manager && ready.length - places < context.places && uncalibrated.length > 0) {
-    actions.push({ kind: "manager", issues: uncalibrated.slice(0, 5).map((issue) => issue.number) });
-  }
+  // With nothing left to calibrate, it splits the top epic not yet split, whole (never a split one).
+  const unsplit = issues.filter((issue) => issue.trusted && has(issue, LABELS.epic) && issue.split !== true && !parked(issue) && !has(issue, LABELS.human) && !has(issue, LABELS.idea)).sort(byPriorityThenAge);
+  const asked = uncalibrated.length > 0 ? uncalibrated.slice(0, 5) : unsplit.slice(0, 1);
+  if (!context.running.manager && ready.length - places < context.places && asked.length > 0) actions.push({ kind: "manager", issues: asked.map((issue) => issue.number) });
 
   if (!context.running.supervisor && context.now - context.lastSupervisor >= context.supervisorEveryMs) actions.push({ kind: "supervisor" });
   return actions;
