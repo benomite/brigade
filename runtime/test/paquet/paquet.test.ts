@@ -365,7 +365,21 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
         "systemctl disable --now brigade-station-renouvellement.timer",
       ],
     );
-    assert.deepEqual(appels.slice(-2), ["systemctl daemon-reload", "systemctl restart brigade-station.service"]);
+    const reload = appels.indexOf("systemctl daemon-reload");
+    assert.equal(appels.at(-1), "systemctl restart brigade-station.service");
+    assert.deepEqual(
+      appels.slice(reload + 1, -1).sort(),
+      [
+        "systemctl reset-failed brigade-arbitre.service",
+        "systemctl reset-failed brigade-sauvegarde@brigade.service",
+        "systemctl reset-failed brigade-sauvegarde@brigade.timer",
+        "systemctl reset-failed brigade-sauvegarde@calculus-workspace.timer",
+        "systemctl reset-failed brigade-sauvegarde@espace.service",
+        "systemctl reset-failed brigade-sauvegarde@espace.timer",
+        "systemctl reset-failed brigade-station-renouvellement.service",
+        "systemctl reset-failed brigade-station-renouvellement.timer",
+      ],
+    );
     assert.deepEqual(readdirSync(unites).sort(), ["brigade-station.service", "brigade-station.service.d", "timers.target.wants"]);
     assert.deepEqual(readdirSync(join(unites, "timers.target.wants")), []);
   });
