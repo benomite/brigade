@@ -2,8 +2,8 @@
 // The kanban of a project on the new kitchen (ticket 4482): the six columns the main process reads from the GitHub labels alone
 // (board/kitchen-board.ts) — Backlog, Ready, Cooking, Pass, Parked, Served —, drawn in place of the plan of the kitchen
 // (kitchen/kitchen.js). A card is its voucher (components/slip): its number opens its issue, its title, its try count when a
-// refusal was counted (`try:N`), and its pull request, which opens on GitHub. Nothing else is said: the kitchen writes
-// nothing else on GitHub.
+// refusal was counted (`try:N`), how long it has been in its column (how long it took, when served), the lines its pull
+// request adds and removes, and that pull request, which opens on GitHub. No station: the kitchen writes none on GitHub.
 // This module does not touch `document`: it receives what creates an element — the view gives its own, the tests a fake.
 
 import { slip } from "../components/slip/slip.js";
@@ -37,6 +37,16 @@ const EMPTY = {
   served: "nothing served in the last 24 h",
 };
 
+// A duration, short: "<1 min", "42 min", "3 h", "2 d".
+/** @param {number} ms */
+export const shortDuration = (ms) => {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "<1 min";
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 48 * 60) return `${Math.floor(minutes / 60)} h`;
+  return `${Math.floor(minutes / 1440)} d`;
+};
+
 /** @param {Fabrique} doc @param {string} balise @param {string} text */
 const block = (doc, balise, text) => {
   const made = doc.createElement(balise);
@@ -67,6 +77,18 @@ function boardCard(doc, card, column, gestures) {
     tries.className = "essais-du-kanban mono";
     tries.title = `${card.tries} ${card.tries === 1 ? "refusal" : "refusals"} so far (\`try:${card.tries}\`): at ${TRIES_MAX}, the kitchen parks it for the chef`;
     said.push(tries);
+  }
+  if (card.durationMs !== undefined) {
+    const time = block(doc, "span", column === "served" ? `took ${shortDuration(card.durationMs)}` : shortDuration(card.durationMs));
+    time.className = "duree-du-kanban mono";
+    time.title = column === "served" ? "from the cook taking it to the merge" : "time since it entered this column (its label's date on GitHub)";
+    said.push(time);
+  }
+  if (card.lines !== undefined) {
+    const lines = block(doc, "span", `+${card.lines.added} / \u2212${card.lines.removed}`);
+    lines.className = "lignes-du-kanban mono";
+    lines.title = "lines its pull request adds and removes";
+    said.push(lines);
   }
   if (card.pr !== null) {
     const pr = link(doc, `PR #${card.pr.number}`, `open pull request #${card.pr.number} on GitHub`, () => gestures.openPr(card.ticket));
