@@ -43,7 +43,7 @@ function fakeGh() {
             refs: { nodes: options.epicBranches.map((n) => ({ name: String(n) })) },
             issues: {
               pageInfo: { hasNextPage: false, endCursor: null },
-              nodes: [...issues.values()].filter((i) => !i.closed).map((i) => ({ number: i.number, title: i.title, body: i.body, authorAssociation: "OWNER", labels: { nodes: i.labels.map((name) => ({ name })) } })),
+              nodes: [...issues.values()].filter((i) => !i.closed).map((i) => ({ number: i.number, title: i.title, body: i.body, authorAssociation: "OWNER", labels: { nodes: i.labels.map((name) => ({ name })) }, comments: { nodes: i.comments.map((body) => ({ body })) } })),
             },
             pullRequests: {
               nodes: prs.filter((p) => !p.merged).map((p) => ({ number: p.number, headRefName: p.head, mergeable: p.conflicting === true ? "CONFLICTING" : "MERGEABLE", commits: { nodes: [{ commit: { checkSuites: { nodes: [{ status: p.running === true ? "IN_PROGRESS" : "COMPLETED", app: { slug: "github-actions" } }, { status: "QUEUED", app: { slug: "claude" } }] }, statusCheckRollup: { state: p.checks, contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: p.checks }] } } } }] } })),
@@ -84,7 +84,7 @@ function fakeGh() {
       return "";
     }
     if (args[0] === "pr" && args[1] === "edit") {
-      if (!options.lossyEdits) (prs.find((p) => !p.merged && p.head === args[2]) as FakePr).body = input ?? "";
+      if (!options.lossyEdits) (prs.find((p) => !p.merged && (p.head === args[2] || String(p.number) === args[2])) as FakePr).body = input ?? "";
       return "";
     }
     if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ files: options.files.map((path) => ({ path })), body: prs.find((p) => p.number === n || p.head === args[2])?.body ?? "" });
@@ -96,7 +96,7 @@ function fakeGh() {
       const pr = prs.find((p) => p.number === n) as FakePr;
       pr.merged = true;
       // GitHub closes `Closes #N` only on the default branch: a child merged into an epic branch stays open.
-      if (pr.base === "main") (issues.get(Number(/^cook\/(\d+)-github$/.exec(pr.head)?.[1])) as FakeIssue).closed = true;
+      if (pr.base === "main") (issues.get(Number(/^(?:cook\/(\d+)-github|epic\/(\d+))$/.exec(pr.head)?.slice(1).find(Boolean))) as FakeIssue).closed = true;
       return "";
     }
     if (args[0] === "label") return "";
@@ -531,6 +531,67 @@ test("an in-pass epic whose PR conflicts with main gets one child, and nothing e
   const children = [...fake.issues.values()].filter((one) => one.number !== epic);
   assert.equal(children.length, 1, lines.join("\n"));
   assert.match(children[0]?.body ?? "", new RegExp(`^Epic: #${epic}\\n\\n.*conflicts with main`));
+});
+
+// An epic whose branch is pushed and whose PR into main is open: the pass answers `answer`, the project releases as `release`.
+function epicKitchen(release: "auto" | "chef", riskPaths: string[], answer: string) {
+  const { root, clone, agent, seed } = origin();
+  const fake = fakeGh();
+  const epic = fake.add("Big thing", ["epic", "in-pass", "prio:1"]);
+  (fake.issues.get(epic) as FakeIssue).comments.push("Split by the manager into #8.");
+  sh(seed, "push", "-q", "origin", `HEAD:refs/heads/epic/${epic}`);
+  fake.options.epicBranches.push(epic);
+  fake.prs.push({ number: 50, head: `epic/${epic}`, checks: "SUCCESS", merged: false, base: "main", body: "Epic PR.\n" });
+  const pass = join(root, "pass.sh");
+  writeFileSync(pass, `#!/bin/sh\ncat >/dev/null\ncat <<'EOF_ANSWER'\n${JSON.stringify({ type: "result", result: answer })}\nEOF_ANSWER\n`, { mode: 0o755 });
+  const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
+  const lines: string[] = [];
+  const kitchen = openKitchen({ repo: "o/r", base: "main", clone, worktrees: join(root, "wt"), state: join(root, "state"), gh: fake.gh, git: gitCli(env), launch: (kind: Kind, cwd, _write, _calibration, input) => ({ command: kind === "pass" ? pass : agent, args: [], input, cwd, env, secrets: {} }), places: () => 2, riskPaths: () => riskPaths, release: () => release, supervisorEveryMs: Number.MAX_SAFE_INTEGER, log: (line) => lines.push(line) });
+  return { fake, epic, ticket: fake.issues.get(epic) as FakeIssue, kitchen, lines };
+}
+const SOUND = "All of Done when is there.\n## What changes for the user\nYou can now do the big thing.\nVERDICT: merge";
+
+test("an approved epic PR with release auto and no risk path is merged and the epic closes (#4702)", async () => {
+  const { fake, ticket, kitchen, lines } = epicKitchen("auto", [], SOUND);
+  await until(() => ticket.closed, kitchen.turn);
+  assert.equal(fake.prs[0]?.merged, true, lines.join("\n"));
+  assert.equal(ticket.closed, true);
+  assert.equal(ticket.labels.includes("parked:chef"), false);
+  assert.match(fake.prs[0]?.body ?? "", /## What changes for the user\nYou can now do the big thing\./);
+});
+
+test("with release chef an approved epic PR waits with parked:chef + approved and is merged on the chef's merge (#4702)", async () => {
+  const { fake, ticket, kitchen, lines } = epicKitchen("chef", [], SOUND);
+  await until(() => ticket.labels.includes("parked:chef"), kitchen.turn);
+  assert.ok(ticket.labels.includes("approved"), lines.join("\n"));
+  assert.equal(fake.prs[0]?.merged, false);
+  ticket.comments.push("<!-- brigade:reponse gesture=resume -->\nmerge");
+  ticket.labels = ticket.labels.filter((label) => label !== "parked:chef");
+  await until(() => ticket.closed, kitchen.turn);
+  assert.equal(fake.prs[0]?.merged, true, lines.join("\n"));
+  assert.deepEqual(ticket.labels.filter((label) => label === "parked:chef" || label === "approved"), []);
+});
+
+test("a risk path in the epic's diff makes it wait for the chef even with release auto (#4702)", async () => {
+  const { fake, ticket, kitchen, lines } = epicKitchen("auto", ["feature"], SOUND);
+  await until(() => ticket.labels.includes("parked:chef"), kitchen.turn);
+  assert.ok(ticket.labels.includes("approved"), lines.join("\n"));
+  assert.equal(fake.prs[0]?.merged, false);
+  assert.equal(ticket.closed, false);
+  assert.match(ticket.comments.at(-1) ?? "", /touches a risk zone/);
+});
+
+test("a refused epic PR opens one child carrying the reason, the epic stays in-pass, and the user changes join the PR's body (#4702)", async () => {
+  const { fake, epic, ticket, kitchen, lines } = epicKitchen("auto", [], "Not there yet.\n## What changes for the user\nHalf of it.\nVERDICT: refuse — the export is missing");
+  await until(() => fake.issues.size > 1, kitchen.turn);
+  await kitchen.turn();
+  const children = [...fake.issues.values()].filter((one) => one.number !== epic);
+  assert.equal(children.length, 1, lines.join("\n"));
+  assert.match(children[0]?.body ?? "", new RegExp(`^Epic: #${epic}\\n\\n.*the export is missing`));
+  assert.ok(ticket.labels.includes("in-pass"));
+  assert.equal(ticket.closed, false);
+  assert.equal(fake.prs[0]?.merged, false);
+  assert.match(fake.prs[0]?.body ?? "", /## What changes for the user\nHalf of it\./);
 });
 
 test("the kitchen stays under 1,000 lines", () => {

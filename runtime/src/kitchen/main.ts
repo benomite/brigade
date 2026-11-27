@@ -1,5 +1,5 @@
 // The kitchen's entry point on a station: one loop that serves every project of `<BRIGADE_STATION_DIR>/kitchen/projects`
-// (format in projects.ts, read at every turn: no restart). Risk zones: `.brigade/kitchen.json` on the base branch, {"risk": ["runtime/"]}.
+// (format in projects.ts, read at every turn: no restart). Risk zones: `.brigade/kitchen.json` on the base branch, {"risk": ["runtime/"], "release": "auto"|"chef"} (who merges an epic's PR).
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
@@ -31,6 +31,7 @@ function kitchenOf(project: KitchenProject) {
   // Read at each launch: the gate may open the project's port after the kitchen started.
   const portOf = () => (portsFile && existsSync(portsFile) ? (lirePortes(portsFile).projets[project.name] ?? null) : null);
   let risk: string[] = [];
+  let release: "auto" | "chef" = "auto";
   let hosts: Regle[] = REGLES_DE_BASE;
   const worktrees = join(state, "worktrees");
   const launcher = launcherOf({ project: project.name, env: process.env, claude: claudeBin, state, clone: project.clone, worktrees, hosts: () => hosts, probes: sondesDeLaMachine(claudeBin), portsFile, portOf });
@@ -38,7 +39,9 @@ function kitchenOf(project: KitchenProject) {
   return {
     // What the base branch declares, read before each turn.
     readBase: async () => {
-      risk = await git(project.clone, ["show", `origin/${project.base}:.brigade/kitchen.json`]).then((text) => (JSON.parse(text) as { risk?: string[] }).risk ?? []).catch(() => []);
+      const declared = await git(project.clone, ["show", `origin/${project.base}:.brigade/kitchen.json`]).then((text) => JSON.parse(text) as { risk?: string[]; release?: string }, () => ({}) as { risk?: string[]; release?: string });
+      risk = declared.risk ?? [];
+      release = declared.release === "chef" ? "chef" : "auto";
       hosts = await projectHosts(git, project.clone, project.base);
     },
     kitchen: openKitchen({
@@ -51,6 +54,7 @@ function kitchenOf(project: KitchenProject) {
       git,
       places: () => project.places,
       riskPaths: () => risk,
+      release: () => release,
       secrets: Object.fromEntries(["GH_TOKEN", "GITHUB_TOKEN"].flatMap((name) => (process.env[name] ? [[name, process.env[name] as string]] : []))),
       log: log(project.name),
       launch: launcher.launch,

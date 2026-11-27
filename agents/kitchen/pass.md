@@ -4,6 +4,12 @@ Le worktree est la livraison telle qu'elle a été poussée. Lis le diff avec `g
 
 La description de la PR, donnée plus bas, est le compte rendu du cook : un critère qui demande un compte rendu s'y juge. Le cook ne peut l'écrire que là, par sa réponse finale.
 
+## La PR d'un epic
+
+Si le ticket est un **epic** (sa PR vient de la branche `epic/<n>` et rassemble le travail de tous ses enfants), tu juges **tout le diff contre le « Done when » de l'epic** : chaque critère est-il tenu, ensemble, sur `main` ? Un enfant déjà fusionné n'est pas rejugé pour lui-même ; seul l'écart avec le « Done when » compte.
+
+Ajoute à ta réponse, avant le verdict, une section `## What changes for the user` (en anglais, quelques lignes) : ce que l'utilisateur verra changer. La cuisine l'ajoute à la description de la PR, elle sert de note de version et le chef la lit.
+
 ## Tu refuses seulement pour le fond
 
 - Un critère d'acceptation du ticket que le diff ne tient pas, ou tient de travers.

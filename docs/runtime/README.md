@@ -58,7 +58,7 @@ One line per project in `<BRIGADE_STATION_DIR>/kitchen/projects`, read again at 
 What the project's base branch declares, read before each turn:
 
 - `.brigade/kitchen.json` — its risk zones, `{"risk": ["runtime/"]}`: a pull request that touches one waits for the
-  chef's merge;
+  chef's merge; `"release": "auto" | "chef"` says who merges an epic's pull request (default `auto`: the pass);
 - `.claude/brigade/reseau` — its network allowlist, one host per line (see [`bac-a-sable.md`](bac-a-sable.md)). The
   kitchen publishes it to `<BRIGADE_STATION_DIR>/kitchen/<name>/network.json`, where the station's gate reads it.
 
@@ -89,6 +89,13 @@ body `Closes #<n>`, the epic's "Done when", the list of its children) and labels
 child, `Epic #<n>: merge main into epic/<n>` (`fire`, the epic's priority). An `in-pass` epic whose PR is red or conflicting
 gets one such child too, and nothing else happens on that epic while a child is open: never a loop. `closeFinishedEpics`
 closes only the epics with no branch (#4701).
+
+An `in-pass` epic with no open child and a finished CI gets a pass on its PR, which judges the whole diff against the epic's
+"Done when" and writes `## What changes for the user`; the kitchen puts that section in the PR's body (a later pass
+replaces it). Approved, the PR is merged and `Closes #<n>` closes the epic, unless it touches a risk zone, or the
+project declares `"release": "chef"` in `.brigade/kitchen.json` (default `"auto"`): the epic then gets `parked:chef` +
+`approved` and is merged on the chef's `merge` answer, as a risk-zone PR is. Refused (or red, or no verdict), the PR gets one
+child carrying the reason and the epic stays `in-pass` (#4702).
 
 ## Where it runs
 
