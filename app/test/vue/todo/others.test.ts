@@ -32,7 +32,8 @@ const startup = () => ({
   code: undefined,
 });
 
-const CARD = (question: string) => ({ type: "product", question, choix: [{ texte: "Yes.", suite: "resume" }, { texte: "No.", suite: "resume" }], captures: null });
+// Une carte du chef lue de GitHub (board/todo-github.ts) : sa question, puis un choix par ligne.
+const CARD = (question: string) => ({ sorte: "product", texte: `${question}\n- [resume] Yes.\n- [resume] No.` });
 
 // #12 attend le compte connecté ; #22, mis de côté sur le rail, attend bob ; #23 attend le chef et carol.
 const FACTS: Facts = {
@@ -47,8 +48,8 @@ const FACTS: Facts = {
   ],
   attend: [{ ticket: 12, titre: "Validation SIRET", url: issue(12) }],
   attendAutres: [
-    { ticket: 22, titre: "Drop the importer", url: issue(22), carte: CARD("Drop the legacy importer?"), qui: ["bob"] },
-    { ticket: 23, titre: "Open the beta", url: issue(23), carte: CARD("Open the beta to everyone?"), qui: ["benomite", "carol"] },
+    { ticket: 22, titre: "Drop the importer", url: issue(22), chef: CARD("Drop the legacy importer?"), qui: ["bob"] },
+    { ticket: 23, titre: "Open the beta", url: issue(23), chef: CARD("Open the beta to everyone?"), qui: ["benomite", "carol"] },
   ],
 };
 

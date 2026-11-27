@@ -715,7 +715,7 @@ describe("la question qui t'attend, posée telle quelle, sans LLM (#681)", () =>
 describe("une question du manager se lit sur sa carte, et la carte quitte TODO dès qu'elle est répondue (#503)", () => {
   const ISSUE = "https://github.com/benomite/brigade/issues/60";
   const ENTRY = "  #60  depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
-  const FACTS_60: Facts = { ...FACTS, attend: [...(FACTS.attend ?? []), { ticket: 60, titre: "Le popup des questions", url: ISSUE, decision: { quoi: "question", motif: null, cause: null, pr: null } }] };
+  const FACTS_60: Facts = { ...FACTS, attend: [...(FACTS.attend ?? []), { ticket: 60, titre: "Le popup des questions", url: ISSUE }] };
   const STATUS_60 = STATUS.replace("fin attend", `${ENTRY}\nfin attend`);
   const QUESTION: Read = {
     a: "2026-10-15T10:00:00.000Z",
@@ -1195,13 +1195,13 @@ const choose = (vue: Played, value: string) => {
 
 // La fiche d'une carte qui t'attend (#832), sur le cas de #824 : le manager a renoncé après des
 // rouges, la livraison a sa PR. En tête, ce qu'on attend de toi, en une phrase — pas la ligne de la
-// file ; ses gestes sont des boutons, le recommandé distingué ; aucune commande à recopier ni à
+// file, ni rien que l'app devinerait ; ses gestes sont des boutons ; aucune commande à recopier ni à
 // envoyer ; et une lecture qui échoue tient en une ligne, son détail au survol.
 describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en boutons, rien de brut (#832)", () => {
   const PR = "https://github.com/benomite/brigade/pull/840";
   const GIVES_UP = `  #12  depuis 40 min  remontée par le manager, rouge — à trancher : merger ${PR} à la main, ou retirer \`fire\` — \`brigade parade pass 12\``;
   const WITH_GIVES_UP = STATUS.replace(/attend {5}1 décision[^]*?fin attend/, `attend     1 décision attend le chef depuis 40 min\n${GIVES_UP}\nfin attend`);
-  const DECIDE: Facts = { ...FACTS, rail: FACTS.rail.map((ticket) => (ticket.ticket === 12 ? { ...ticket, etat: "86" } : ticket)), attend: [{ ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", decision: { quoi: "remontee", motif: "still-red", cause: "manager-escalated", pr: PR } }] };
+  const DECIDE: Facts = { ...FACTS, rail: FACTS.rail.map((ticket) => (ticket.ticket === 12 ? { ...ticket, etat: "86" } : ticket)), attend: [{ ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12" }] };
   // Ce que la station rend quand elle ne sait pas lire : la commande lancée, son usage, son code de sortie.
   const OUTAGE = "not read: $ node src/station/geste.ts parade pass 12 --json\nusage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket> [--json]]\n→ exit code 2";
   const openTheCard = async (answers: Answers = {}) => {
@@ -1221,20 +1221,17 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     const vue = await openTheCard();
     const panel = card(vue).children[0] ?? assert.fail("pas de panneau");
     assert.equal(panel.children[1]?.className, "attendu", "la phrase vient juste sous le numéro, avant tout le reste");
-    assert.equal(panel.children[1]?.textContent, "The manager gave up after repeated reds: merge it anyway, or take it off the rail.");
+    assert.equal(panel.children[1]?.textContent, "no question found on #12");
     assert.doesNotMatch(visible(vue), /remontée|à trancher|depuis 40 min/);
   });
 
-  test("chaque geste attendu est un bouton — retirer du rail —, le recommandé distingué ; merger se fait sur la PR, aucun bouton n'est proposé pour le faire ; aucune commande `brigade` n'est à recopier", async () => {
+  test("chaque geste est un bouton, ceux de tous et rien de plus ; merger se fait sur la PR, aucun bouton n'est proposé pour le faire ; aucune commande `brigade` n'est à recopier", async () => {
     const vue = await openTheCard();
     assert.deepEqual(openCardActions(vue).map(([id, wording]) => [id, wording]), [
-      ["retirer", "remove from the rail"],
       ["issue", "open the issue"],
       ["second", "ask the second"],
       ["priorite", undefined],
     ]);
-    assert.equal(cardAction(vue, "retirer").className, "recommande");
-    assert.deepEqual(cardButtons(vue).filter((pose) => pose.className.split(" ").includes("recommande")).map((pose) => pose.textContent), ["remove from the rail"]);
     assert.ok(!cardButtons(vue).some((pose) => /merge/.test(pose.textContent)), "aucun bouton de merge n'est offert");
     assert.doesNotMatch(visible(vue), /brigade parade|geste\.ts/);
     assert.equal(card(vue).dessous("button").filter((pose) => pose.className === "mono").length, 0);
@@ -1249,13 +1246,4 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     assert.ok(visible(vue).includes(OUTAGE), "le détail, au survol");
   });
 
-  test("une box d'avant la décision dans `faits` : une phrase qui ne devine rien, et pas d'autre geste que ceux de tous", async () => {
-    const vue = await open();
-    receive(vue, drawable(FACTS, WITH_GIVES_UP));
-    await openCard(vue, 12);
-    const panel = card(vue).children[0] ?? assert.fail("pas de panneau");
-    assert.equal(panel.children[1]?.textContent, "no question found on #12");
-    assert.deepEqual(openCardActions(vue).map(([id]) => id), ["issue", "second", "priorite"]);
-    assert.doesNotMatch(visible(vue), /brigade parade|remontée/);
-  });
 });

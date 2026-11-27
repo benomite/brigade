@@ -16,12 +16,11 @@ import { count } from "./format.ts";
 export { choiceOf, bodyOfChoice, type Choice };
 
 // Ce qui marque, parmi les commentaires du manager, une question posée au chef : les deux
-// marqueurs qu'il écrit en tête (runtime/src/juger.ts, `MARQUEUR_MANAGER` ; runtime/src/decouper.ts,
-// `MARQUEUR_QUESTION`). Le runtime ne les écrit qu'en commentaire HTML : invisibles sur GitHub.
+// marqueurs qu'il écrit en tête, en commentaire HTML : invisibles sur GitHub.
 export const MARKER_MANAGER = "<!-- brigade:manager -->";
 export const MARKER_QUESTION = "<!-- brigade:question -->";
 
-// Ceux dont le manager lit les commentaires (runtime/src/manager.ts, `DE_CONFIANCE`) : une
+// Ceux qui ont la main sur le dépôt, d'après GitHub (`author_association`) : une
 // question n'est prise que d'eux — le marqueur se recopie, pas le droit d'écrire sur le dépôt.
 const OF_TRUST = ["OWNER", "MEMBER", "COLLABORATOR"];
 
@@ -71,7 +70,7 @@ export function questionOf(comments: readonly Comment[]): Question | undefined {
   const text = withoutMarkers(setOne.corps);
   const after = comments.slice(rank + 1);
   const since = after.map(({ auteur: writer, a, url, corps: body }) => ({ auteur: writer, a, url, corps: withoutMarkers(body) }));
-  // Ce que le manager lit comme une réponse : un commentaire de confiance qui n'est pas de lui (runtime/src/manager.ts).
+  // Ce que le manager lit comme une réponse : un commentaire de confiance qui n'est pas de lui.
   const answeredOne = since[after.findIndex(({ association, corps: body }) => OF_TRUST.includes(association) && !body.includes(MARKER_MANAGER))];
   return {
     url: setOne.url,
