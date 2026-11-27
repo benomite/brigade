@@ -57,7 +57,7 @@ export type AgentAction =
   | { close: number; reason: string }
   | { open: { title: string; body: string; labels?: string[] } };
 export function parseAgentActions(result: string): AgentAction[] {
-  const last = [...result.matchAll(/```json\s*([\s\S]*?)```/g)].at(-1)?.[1];
+  const last = [...result.matchAll(/```json\s*\n([\s\S]*?)\n\s*```/g)].at(-1)?.[1];
   if (last === undefined) return [];
   try {
     const parsed = JSON.parse(last) as { actions?: unknown };
