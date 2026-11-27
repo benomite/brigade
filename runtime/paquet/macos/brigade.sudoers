@@ -1,0 +1,2 @@
+# Lets the station read back its anchor (`bac-a-sable/pf.ts`) without a password: that command, nothing else.
+brigade ALL=(root) NOPASSWD: /sbin/pfctl -a brigade -sr

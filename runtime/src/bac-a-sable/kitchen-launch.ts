@@ -3,6 +3,7 @@ import { argumentsClaude, environnementCook } from "../claude.ts";
 import { kitchenEnclosure, type EnclosurePlace } from "./kitchen-sandbox.ts";
 import { environnementClaude } from "../jeton-claude.ts";
 import { variablesDeRelais } from "../reseau.ts";
+import { PLATEFORME_LOCALE } from "./local.ts";
 import type { KitchenOptions } from "../kitchen/kitchen.ts";
 
 // The station's gates file, and the project's port in it, read at each launch.
@@ -17,7 +18,7 @@ export function launcherOf(place: LaunchPlace): { launch: KitchenOptions["launch
       const { GH_TOKEN: _gh, GITHUB_TOKEN: _github, ...base } = environnementCook(place.env);
       const port = place.portOf();
       // On a station with gates, an agent never leaves without its project's.
-      if (place.portsFile && port === null) throw new Error(`no network gate is open for ${place.project}: no agent leaves without one`);
+      if ((place.portsFile || place.probes.plateforme === PLATEFORME_LOCALE) && port === null) throw new Error(`no network gate is open for ${place.project}: no agent leaves without one`);
       const env = environnementClaude({ ...base, ...(port === null ? {} : variablesDeRelais(port)) }, place.env);
       const launch = enclosure.wrap(place.claude, argumentsClaude(calibration), cwd, write);
       return { command: launch.commande, args: launch.args, input, cwd, env, secrets: {} };

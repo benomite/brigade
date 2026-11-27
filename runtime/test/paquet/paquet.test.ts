@@ -490,6 +490,15 @@ describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
     assert.ok(liste("darwin", "arm64").some((f) => f.startsWith("services/launchd/")));
   });
 
+  test("l'archive darwin porte les cinq fichiers de l'ancre pf, charger-pf.sh exécutable", () => {
+    const detail = spawnSync("tar", ["-tvzf", archive("darwin", "arm64")], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\n");
+    for (const f of ["brigade.pf.conf", "brigade.sudoers", "charger-pf.sh", "com.brigade.pf.plist", "com.brigade.gate.plist"]) {
+      const ligne = detail.find((l) => l.endsWith(`runtime/paquet/macos/${f}`));
+      assert.ok(ligne, `${f} absent de l'archive darwin`);
+      assert.equal(ligne.startsWith("-rwxr-xr-x"), f === "charger-pf.sh", `${f} : mode ${ligne.slice(0, 10)}`);
+    }
+  });
+
   test("un node d'une autre plateforme est refusé, et rien n'est écrit", async () => {
     const autre = join(dossier, "refus");
     const refus = await construire(["--sortie", autre, "--version", "1.2.3", "--node", fauxNode(dossier, "v99.0.0"), "--node-linux-x64", binaireFactice(join(dossier, "mauvais"), "darwin", "arm64"), "--node-darwin-arm64", binaireFactice(join(dossier, "node-darwin"), "darwin", "arm64")]);

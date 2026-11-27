@@ -171,6 +171,9 @@ function composerArchive({ archive, runtime, unites, node }: { archive: string; 
     writeFileSync(join(racine, "bin", "brigade"), "#!/bin/sh\necho 'brigade : la commande n'\\''est pas encore écrite' >&2\nexit 1\n", { mode: 0o755 });
     writeFileSync(join(racine, "install.sh"), "#!/bin/sh\necho 'install.sh : pas encore écrit' >&2\nexit 1\n", { mode: 0o755 });
     cpSync(join(ICI, "..", "archive", "services", "launchd"), join(racine, "services", "launchd"), { recursive: true });
+    // L'ancre pf et ses plists : `installer-station.sh` les lit sous runtime/paquet/macos de l'archive.
+    cpSync(join(ICI, "macos"), join(racine, "runtime", "paquet", "macos"), { recursive: true });
+    chmodSync(join(racine, "runtime", "paquet", "macos", "charger-pf.sh"), 0o755);
     for (const unite of UNITES) {
       const texte = readFileSync(join(unites, unite), "utf8").replaceAll(INSTALLATION, INSTALLATION_ARCHIVE);
       writeFileSync(join(racine, "services", unite), texte, { mode: 0o644 });

@@ -81,7 +81,9 @@ export const LECTURES_INTERDITES = [
 // ni dans le répertoire où il part, ni dans les caches. `cachees` : des
 // répertoires de la station (`BRIGADE_SANDBOX_HIDDEN`, son `etc/` des jetons)
 // que le cook ne lit ni n'écrit — comme les secrets du chef.
-export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[]; declaration?: DeclarationBacASable; etat?: string; lecture?: boolean; cachees?: string[] };
+export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[]; declaration?: DeclarationBacASable; etat?: string; lecture?: boolean; cachees?: string[]; sousPf?: boolean };
+// `sousPf` : la station tient son réseau par l'ancre `pf` `brigade` (`pf.ts`) — le cook ne sort que par la porte du
+// projet (`HTTPS_PROXY`), et le filtre réseau de Claude Code, dont le relais tourne sous `brigade` et que `pf` bloquerait, est coupé.
 
 export type Reglages = {
   env: { npm_config_manage_package_manager_versions: "false" };
@@ -100,7 +102,10 @@ export type Reglages = {
   permissions: { allow: string[]; deny: string[]; disableBypassPermissionsMode: "disable" };
 };
 
-export type ConfigDeBacASable = { modeDePermission: "dontAsk" | "default"; reglages: Reglages };
+// Sous `pf`, le réseau du bac à sable ne porte aucun filtre : `pf` le tient.
+export type PfSettings = Omit<Reglages, "sandbox"> & { sandbox: Omit<Reglages["sandbox"], "network"> & { network: { allowLocalBinding: true; allowAllUnixSockets: false } } };
+
+export type ConfigDeBacASable<R = Reglages> = { modeDePermission: "dontAsk" | "default"; reglages: R };
 
 export class BacASableInvalide extends Error {}
 
@@ -194,7 +199,9 @@ const crochetBrigade = (worktree: string) => [{ matcher: "Write|Edit", hooks: [{
 export const CONSIGNE_DE_REFUS =
   "Si une commande Bash t'est refusée avec « Permission to use Bash has been denied because Claude Code is running in don't ask mode », ce n'est pas une panne : seules les commandes de vérification du projet sont autorisées, dans ton worktree. À la place, joue ses tests et ses linters ainsi : `./node_modules/.bin/<outil> <args>` (vitest, prettier, eslint…, sans `..`), éventuellement précédé de variables (`DATABASE_URL=… LLM_MODE=mock ./node_modules/.bin/vitest run <chemin>`), ou `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm typecheck` (aussi `npm`, `yarn`, `pnpm run <script>`). Pas de `&&`, de `|`, de redirection ni de guillemets dans ces commandes, et pas de `cd` hors du worktree ; les lectures (`ls`, `cat`, `head`, `tail`, `wc`, `pwd`) passent seules, et on peut les enchaîner avec `;`. Ne contourne pas un refus : si rien de cela ne convient, dis dans ton compte-rendu ce que tu voulais lancer.";
 
-export function configurer(cook: Cook): ConfigDeBacASable {
+export function configurer(cook: Cook & { sousPf: true }): ConfigDeBacASable<PfSettings>;
+export function configurer(cook: Cook): ConfigDeBacASable;
+export function configurer(cook: Cook): ConfigDeBacASable | ConfigDeBacASable<PfSettings> {
   if (!posix.isAbsolute(cook.home)) throw new BacASableInvalide(`répertoire du compte (« ${cook.home} ») : un chemin absolu est attendu`);
   const home = chemin(cook.home, cook.home, "répertoire du compte");
   const interdits = unique([...LECTURES_INTERDITES.map((relatif) => posix.join(home, relatif)), ...(cook.prod ?? []).map((acces) => chemin(acces, home, "accès de prod")), ...(cook.cachees ?? []).map((lieu) => chemin(lieu, home, "répertoire caché"))]);
@@ -245,7 +252,9 @@ export function configurer(cook: Cook): ConfigDeBacASable {
         filesystem: { allowWrite: ecrits, denyWrite: interdits, denyRead: interdits },
         // `strictAllowlist` : un hôte hors de la liste est refusé, quel que
         // soit le mode — sans lui, `bypassPermissions` le laisserait passer.
-        network: { allowedDomains: unique([...hotes.flatMap(({ noms }) => noms), ...entreesReseau(cook.services ?? [])]), strictAllowlist: true, allowLocalBinding: true, allowAllUnixSockets: false },
+        network: (cook.sousPf === true
+          ? { allowLocalBinding: true, allowAllUnixSockets: false }
+          : { allowedDomains: unique([...hotes.flatMap(({ noms }) => noms), ...entreesReseau(cook.services ?? [])]), strictAllowlist: true, allowLocalBinding: true, allowAllUnixSockets: false }) as Reglages["sandbox"]["network"],
       },
       hooks: { PreToolUse: CROCHET_BASH, ...(setup ? { PermissionRequest: crochetBrigade(ecrits[0]!) } : {}) },
       permissions: {
@@ -268,7 +277,7 @@ export function configurer(cook: Cook): ConfigDeBacASable {
 
 // Ce que la station ajoute au lancement d'un cook dans le bac à sable, à la
 // place de son `--permission-mode`.
-export function argumentsDuBacASable(config: ConfigDeBacASable): string[] {
+export function argumentsDuBacASable(config: ConfigDeBacASable | ConfigDeBacASable<PfSettings>): string[] {
   return ["--permission-mode", config.modeDePermission, "--settings", JSON.stringify(config.reglages), "--append-system-prompt", CONSIGNE_DE_REFUS];
 }
 
