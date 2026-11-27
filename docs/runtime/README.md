@@ -29,18 +29,13 @@ dependency. Design and reasons: [`2026-11-26-agents-in-prompts.md`](../superpowe
 the kitchen needs lives in its own module (`bac-a-sable/kitchen-launch.ts`, `bac-a-sable/kitchen-sandbox.ts`,
 `porte-journal.ts`), and the kitchen only calls it.
 
-The rest of `runtime/src` is only what the kitchen imports, directly or not, and the few programs a station or a
-tool launches beside it:
+The rest of `runtime/src` is only what the kitchen imports, directly or not, and the programs the kitchen launches beside it. `runtime/test/kitchen/fermeture-des-imports.test.ts` fails when a
+file of `runtime/src` is not reached from `kitchen/main.ts` (by an import, a `new URL("./x.ts", import.meta.url)` or a quoted sibling name):
 
 | Entry point | Launched by |
 |---|---|
 | `relais.ts`, `moteur/codex-en-flux.ts` | the kitchen, for each agent |
-| `station/tenir-portes.ts` | `brigade-station-porte.service`: the station's network gates |
-| `mise-a-jour/main.ts` | `brigade-station-mise-a-jour.timer`: the station's update |
-| `connexion-max/connecter-cli.ts` | `installer-station.sh`, under Linux: the Max connection of the station's account |
-| `reseau-cli.ts`, `bac-a-sable/detection-projet.ts`, `essai-projet/declaration-cli.ts` | by hand, from the project folder: they write `.claude/brigade/reseau`, `.claude/brigade/bac-a-sable.json` and `.brigade/try.json` when absent |
-| `second-init/pr-de-setup.ts` | the repository setup, in the session the app opens in the second (`app/src/setup/instructions.md`) |
-| `fermeture-alerte-publication.ts` | `.github/workflows/publier-app.yml`: closes the alerts of a release once it is published |
+| `garde-cook/crochet.ts`, `bac-a-sable/crochet-bash.ts`, `bac-a-sable/crochet-brigade.ts` | the agent's hooks, through its settings |
 
 ## Declaring a project
 

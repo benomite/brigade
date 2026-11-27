@@ -2570,8 +2570,8 @@ The app sets a repository up for Brigade on the GitHub-only path — no box, no 
 session it opens in the project's second, with **no slash command**: the session gets its instructions the way the
 second gets its role, appended to its system prompt (`--append-system-prompt-file`), and a one-line first message
 starts it. The instructions are `app/src/setup/instructions.md`; the app renders them next to the projects file
-(`~/.config/brigade/setup/`), their `@NODE@`, `@SETUP_PR@` and `@SCRIPT@` marks replaced by this computer's `node`,
-the runtime's `pr-de-setup.ts` and the setup script copied there, executable (`app/src/setup/setup.ts`).
+(`~/.config/brigade/setup/`), their `@SCRIPT@` mark replaced by the setup script copied there, executable
+(`app/src/setup/setup.ts`).
 
 - The session deduces the test and install commands (and asks only for what it cannot deduce), then the script
   (`app/src/setup/init.sh`, its label catalogue `labels.tsv` beside it) does the writing: the rail's labels on the
@@ -2580,12 +2580,9 @@ the runtime's `pr-de-setup.ts` and the setup script copied there, executable (`a
   **a pull request you merge**, its commit and body saying they were written by the Brigade app's repository setup;
   the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see
   `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
-- The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
-  puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
-  card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
-  gives the session its last message: the pull request's address, why you are the one to merge it (it sets what
-  will judge every future delivery: the integration branch, the checks, the file zones), and that the project
-  shows as ready once it is merged. Replayed on the same pull request, it adds no second issue or card.
+- The session runs that script with `bash`; its last line says `pr <url>`, and the session gives the pull
+  request's address, why you are the one to merge it (it sets what will judge every future delivery: the
+  integration branch, the checks, the file zones), and that the project shows as ready once it is merged.
 - The packaged app carries `src/` whole, so `src/setup/` ships with it (`app/packaging/construire.ts`, `linux.ts`,
   `windows.ts`).
 
@@ -3964,8 +3961,7 @@ instructions (`rôle : …`).
 - **No test launches Electron.** What can be proven lives in twenty modules run by
   `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
   moving one to another place in it — a legacy key naming a host, boxes or played stations is read and ignored),
-  `nom.ts` (the shape of the name, held against the rule of the installation action: the test calls
-  `lireDemande` of `runtime/src/installateur.ts`), `ajout.ts` (adding a project: the fields
+  `nom.ts` (the shape of the name), `ajout.ts` (adding a project: the fields
   with no default, the repository and the branch read from the chosen clone, and the project written to the real projects file),
   `service.ts` (the
   commissioning: its states — init not merged, check incomplete, all ready —, what `Check` launches

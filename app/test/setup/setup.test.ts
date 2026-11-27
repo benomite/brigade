@@ -9,8 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ETIQUETTES } from "../../../runtime/src/etiquettes.ts";
-import { argumentsOfSetup, CATALOG_OF_LABELS, INSTRUCTIONS, OWN, PLACES_BY_DEFAULT, PR_OF_SETUP, SCRIPT, setTheSetup, setupInWords, START_OF_SETUP } from "../../src/setup/setup.ts";
+import { argumentsOfSetup, CATALOG_OF_LABELS, INSTRUCTIONS, OWN, SCRIPT, setTheSetup, setupInWords, START_OF_SETUP } from "../../src/setup/setup.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
 
 const URL_OF_THE_PR = "https://github.com/benomite/calculus/pull/1";
@@ -61,7 +60,7 @@ function trial(t: TestContext) {
   // Ce que la session joue : le script que les instructions posées nomment, depuis le dossier du projet.
   const initialize = (...args: string[]) => {
     const instructions = readFileSync(join(setup, INSTRUCTIONS), "utf8");
-    const script = /pr-de-setup\.ts" "([^"]+)"/.exec(instructions)?.[1];
+    const script = /bash "([^"]+)" --test/.exec(instructions)?.[1];
     assert.ok(script !== undefined && script.startsWith(setup), `the instructions name its script: ${script}`);
     return execFileSync("bash", [script, ...args], { cwd: folder, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   };
@@ -70,6 +69,12 @@ function trial(t: TestContext) {
   return { git, origin, dossier: folder, ouvrir: open, initialiser: initialize, appelsDeGh: callsOfGh, labelsDuDepot: labelsOfRepository };
 }
 
+// The catalogue the setup reads (labels.tsv): name, colour, description.
+const ETIQUETTES = readFileSync(join(OWN, CATALOG_OF_LABELS), "utf8").trim().split("\n").map((line) => {
+  const [name = "", color = "", description = ""] = line.split("\t");
+  return { name, color, description };
+});
+
 test("un dépôt neuf ouvert par l'app se prépare par sa session : les labels posés, les bindings et les gates dans une PR, rien dans le dossier de l'utilisateur", { skip: WITHOUT_POSIX }, async (t) => {
   const { git, origin, dossier: folder, ouvrir: open, initialiser: initialize, appelsDeGh: callsOfGh } = trial(t);
   await open();
@@ -77,7 +82,7 @@ test("un dépôt neuf ouvert par l'app se prépare par sa session : les labels p
   const output = initialize("--test", "true", "--install", "true", "--zones", "`src/`");
 
   assert.equal(output.trim().split("\n").at(-1), `pr ${URL_OF_THE_PR}`);
-  // Tous les labels du catalogue du runtime, avec leur description anglaise.
+  // Tous les labels du catalogue, avec leur description anglaise.
   const creations = callsOfGh().filter((call) => call.startsWith("label create "));
   assert.deepEqual(creations.map((call) => /^label create (\S+) /.exec(call)?.[1]), ETIQUETTES.map(({ name }) => name));
   for (const { name, color, description } of ETIQUETTES) assert.ok(creations.includes(`label create ${name} --color ${color} --description ${description}`), name);
@@ -173,22 +178,17 @@ test("sans commande de test, la préparation n'écrit rien : une gate qui ne lan
   assert.equal(git("--git-dir", origin, "branch", "--list", "brigade/init"), "");
 });
 
-test("le catalogue que lit la préparation (labels.tsv) est celui du runtime (etiquettes.ts), ligne pour ligne", () => {
-  const tsv = readFileSync(join(OWN, CATALOG_OF_LABELS), "utf8");
-  assert.equal(tsv, ETIQUETTES.map((e) => `${e.name}\t${e.color}\t${e.description}\n`).join(""));
-});
-
-test("les instructions posées nomment le `node`, la commande du runtime et le script par leurs chemins, en barres obliques — et aucune commande du plugin", { skip: WITHOUT_POSIX }, (t) => {
+test("les instructions posées nomment le script par son chemin, en barres obliques — et aucune commande du plugin", { skip: WITHOUT_POSIX }, (t) => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "brigade-setup-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const folder = join(root, "setup");
 
-  const path = setTheSetup(folder, { node: "/opt/brigade/node", runtime: "/opt/brigade/runtime" });
+  const path = setTheSetup(folder);
 
   assert.equal(path, join(folder, INSTRUCTIONS));
   const instructions = readFileSync(path, "utf8");
-  assert.ok(instructions.includes(`"/opt/brigade/node" "/opt/brigade/runtime/${PR_OF_SETUP.join("/")}" "${join(folder, SCRIPT)}" --test`));
-  assert.doesNotMatch(instructions, /@(?:NODE|SETUP_PR|SCRIPT)@/);
+  assert.ok(instructions.includes(`bash "${join(folder, SCRIPT)}" --test`));
+  assert.doesNotMatch(instructions, /@[A-Z_]+@/);
   assert.doesNotMatch(instructions, /\/brigade:/);
   // Un prompt système, pas une commande : aucun en-tête de commande de Claude Code.
   assert.doesNotMatch(instructions, /^---/);
@@ -197,17 +197,8 @@ test("les instructions posées nomment le `node`, la commande du runtime et le s
   assert.equal(statSync(join(folder, SCRIPT)).mode & 0o755, 0o755);
   assert.equal(readFileSync(join(folder, CATALOG_OF_LABELS), "utf8"), readFileSync(join(OWN, CATALOG_OF_LABELS), "utf8"));
   // Reposée telle quelle, rien ne change.
-  assert.equal(setTheSetup(folder, { node: "/opt/brigade/node", runtime: "/opt/brigade/runtime" }), path);
+  assert.equal(setTheSetup(folder), path);
   assert.equal(readFileSync(path, "utf8"), instructions);
-});
-
-test("par défaut, les instructions lancent la commande du runtime du dépôt par le `node` du PATH", (t) => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "brigade-setup-")));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const prOfSetup = join(PLACES_BY_DEFAULT.runtime, ...PR_OF_SETUP);
-  assert.ok(existsSync(prOfSetup), prOfSetup);
-  const instructions = readFileSync(setTheSetup(root), "utf8");
-  assert.ok(instructions.includes(`"node" "${prOfSetup.replaceAll("\\", "/")}" "${join(root, SCRIPT).replaceAll("\\", "/")}" --test`));
 });
 
 test("la session s'ouvre avec les instructions dans son prompt système et un premier message d'une ligne, sans commande", () => {
