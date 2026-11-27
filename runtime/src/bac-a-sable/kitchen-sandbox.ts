@@ -5,7 +5,9 @@
 // allowlist. A Mac without a usable sandbox, or another station without
 // `bwrap` (Windows, a Linux desktop), gets no enclosure: the project's kitchen
 // launches no agent, and the reason says why.
+import { delimiter, isAbsolute } from "node:path";
 import { configCloison, envelopper } from "../cloison.ts";
+import { ConfigInvalide } from "../runtime.ts";
 import { DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE, type Regle } from "../reseau.ts";
 import type { Sondes } from "./detection.ts";
 import { dansLeBacASableLocal, lireCaches, verifier, PLATEFORME_LOCALE, type BacASableLocal } from "./local.ts";
@@ -34,13 +36,19 @@ export type Wrap = (claude: string, args: string[], cwd: string, write: boolean)
 
 export function kitchenEnclosure(place: EnclosurePlace): { wrap: Wrap } | { refused: string } {
   const { env } = place;
-  const cloison = configCloison(env, { repertoireEtat: place.state, clone: place.clone });
+  const mac = place.probes.plateforme === PLATEFORME_LOCALE;
+  // On macOS there is no `bwrap`: BRIGADE_SANDBOX_HIDDEN goes to Claude Code's sandbox, which denies those directories (the tokens of etc/) to every agent.
+  const { BRIGADE_SANDBOX_HIDDEN: hidden, ...withoutHidden } = env;
+  const cloison = configCloison(mac ? withoutHidden : env, { repertoireEtat: place.state, clone: place.clone });
   let sandbox: BacASableLocal | null = null;
-  if (place.probes.plateforme === PLATEFORME_LOCALE) {
+  if (mac) {
+    const cachees = [...new Set((hidden ?? "").split(delimiter).filter(Boolean))];
+    const relatif = cachees.find((lieu) => !isAbsolute(lieu));
+    if (relatif !== undefined) throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_HIDDEN: “${relatif}” is not an absolute path`);
     const lieux = { home: env.HOME, worktrees: place.worktrees, caches: lireCaches(env) };
     const verification = verifier(place.probes, lieux);
     if (!verification.ok) return { refused: `no agent launched: on macOS every agent runs inside Claude Code's sandbox, and it is not usable — ${verification.raison}` };
-    sandbox = { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes: place.hosts };
+    sandbox = { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes: place.hosts, cachees };
   } else if (cloison === null) {
     return { refused: `no agent launched: on ${place.probes.plateforme} every agent runs inside the bwrap partition, and BRIGADE_SANDBOX_BIN is not set` };
   }
