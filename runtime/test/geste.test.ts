@@ -431,7 +431,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  const REFUS = (qui: string) => `brigade : « ${qui} » n'a pas le droit de lancer le geste sur cette machine — sans terminal, \`sudo\` ne le lui donne pas sous le compte « brigade » sans mot de passe (docs/bascule.md, « Le geste brigade »)\n`;
+  const REFUS = (qui: string) => `brigade : « ${qui} » n'a pas le droit de lancer le geste sur cette machine — sans terminal, \`sudo\` ne le lui donne pas sous le compte « brigade » sans mot de passe\n`;
 
   test("sans terminal, celui à qui aucune règle ne donne le geste est refusé en le disant, avec son code : `sudo` ne demande rien", { skip: posixOnly("Runs the gesture without a terminal as `associe`, to whom the fake sudo grants nothing, and checks exit 68 with the refusal message; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
     const m = machine(t);
@@ -489,7 +489,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     const fin = await m.lancer(["calculus", "status"]);
 
     assert.equal(fin.code, SUDO_ABSENT);
-    assert.equal(fin.erreur, "brigade : `sudo` manque sur cette machine — le geste passe par lui sous le compte « brigade » (docs/bascule.md, « Le geste brigade »)\n");
+    assert.equal(fin.erreur, "brigade : `sudo` manque sur cette machine — le geste passe par lui sous le compte « brigade »\n");
     assert.equal(fin.sortie, "");
     assert.equal(m.commande(), null);
   });
@@ -514,7 +514,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
 
     assert.equal(fin.code, NODE_INAPTE);
     assert.match(fin.erreur, new RegExp(`^brigade : le \`node\` de la station \\(${node.replaceAll("/", "\\/")}\\) ne démarre pas — .*No such file or directory\n`));
-    assert.match(fin.erreur, /\n {10}→ le paquet brigade-station le pose à côté de ce geste : `sudo apt install --reinstall brigade-station` \(docs\/bascule\.md, « Le geste brigade »\)\n$/);
+    assert.match(fin.erreur, /\n {10}→ le paquet brigade-station le pose à côté de ce geste : `sudo apt install --reinstall brigade-station`\n$/);
     assert.equal(fin.sortie, "");
     assert.equal(m.commande(), null);
   });
@@ -526,7 +526,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     const fin = await m.lancer(["calculus", "status"], "brigade");
 
     assert.equal(fin.code, NODE_INAPTE);
-    assert.match(fin.erreur, /ne démarre pas — node: error while loading shared libraries: libatomic\.so\.1: cannot open shared object file: No such file or directory\n {10}→ `sudo apt install libatomic1` \(docs\/bascule\.md, « Le geste brigade »\)\n$/);
+    assert.match(fin.erreur, /ne démarre pas — node: error while loading shared libraries: libatomic\.so\.1: cannot open shared object file: No such file or directory\n {10}→ `sudo apt install libatomic1`\n$/);
     assert.equal(m.commande(), null);
   });
 
@@ -537,7 +537,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     const fin = await m.lancer(["calculus", "status"], "brigade");
 
     assert.equal(fin.code, NODE_INAPTE);
-    assert.equal(fin.erreur, `brigade : le runtime de la station (${m.runtime}) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` (docs/bascule.md, « Le geste brigade »)\n`);
+    assert.equal(fin.erreur, `brigade : le runtime de la station (${m.runtime}) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`\n`);
     assert.equal(m.commande(), null);
   });
 });

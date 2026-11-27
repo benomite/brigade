@@ -117,7 +117,7 @@ describe("sous Linux, la commande du paquet", { skip: posixOnly("runs the extens
     const r = lancer(["--help"]);
 
     assert.equal(r.code, 70);
-    assert.equal(r.erreur, `brigade : le \`node\` de la station (${join(dossier, "node/bin/node")}) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` (docs/bascule.md, « Le geste brigade »)\n`);
+    assert.equal(r.erreur, `brigade : le \`node\` de la station (${join(dossier, "node/bin/node")}) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`\n`);
   });
 
   test("sans le runtime du paquet, `brigade --help` le dit, avec le même code", () => {
@@ -127,6 +127,6 @@ describe("sous Linux, la commande du paquet", { skip: posixOnly("runs the extens
     const r = lancer(["--help"]);
 
     assert.equal(r.code, 70);
-    assert.equal(r.erreur, `brigade : le runtime de la station (${join(dossier, "runtime")}) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` (docs/bascule.md, « Le geste brigade »)\n`);
+    assert.equal(r.erreur, `brigade : le runtime de la station (${join(dossier, "runtime")}) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`\n`);
   });
 });

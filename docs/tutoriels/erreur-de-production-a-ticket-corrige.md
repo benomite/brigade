@@ -60,7 +60,7 @@ Concrete rules, set on the Sentry alert rule:
 
 ### Errors in sensitive code wait for the chef
 
-Some fixes should never land on their own: a **migration**, **security**, a **payment** or the **deletion of user data** ([`docs/sensitive-tickets.md`](../sensitive-tickets.md)). For such an error, add the label `sensitive` next to `fire` in the Sentry action (a dedicated rule for the sensitive part of your code), or let the manager propose it when it qualifies the ticket.
+Some fixes should never land on their own: a **migration**, **security**, a **payment** or the **deletion of user data**. For such an error, add the label `sensitive` next to `fire` in the Sentry action (a dedicated rule for the sensitive part of your code), or let the manager propose it when it qualifies the ticket.
 
 A ticket labelled `sensitive` goes through the kitchen as any other: a cook fixes it and the pass judges it. But the pass does not merge it. It waits in TODO as one **review before merge** card, with the pull request and two answers: **merge**, or **send back with a note**. This is the behaviour of the epic #3214, which is in the repository at the time of writing (#3223 the hold, #3224 the card, #3225 the manager's proposal, #3226 the doc).
 

@@ -13,8 +13,8 @@
 #                  seuls un par un : `cpu_s user_s sys_s horloge_s code zone/fichier`,
 #                  trié par cpu_s décroissant
 # et imprime le résumé de mesure.txt et les 15 fichiers les plus coûteux.
-# Pour comparer deux passages : diff <A>/tests.txt <B>/tests.txt (voir
-# docs/profil-cpu-gates.md). Compte environ 40 minutes : à lancer en arrière-plan,
+# Pour comparer deux passages : diff <A>/tests.txt <B>/tests.txt
+# Compte environ 40 minutes : à lancer en arrière-plan,
 # sur un poste calme. Ne modifie ni les gates ni aucun test.
 set -uo pipefail
 ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

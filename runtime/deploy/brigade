@@ -6,7 +6,7 @@
 #   brigade --help
 #
 # C'est par lui que l'app lit et pilote, par `ssh`, les projets d'une machine
-# qui les servait avant la station (docs/bascule.md). Une commande se tape sous
+# qui les servait avant la station. Une commande se tape sous
 # son nom anglais (docs/glossary.md) ; son ancien nom français est accepté, mais
 # ni l'aide ni le refus d'une commande inconnue ne le nomment.
 #
@@ -40,7 +40,6 @@ SYSTEMD_MUET=67
 SANS_DROIT=68
 SUDO_ABSENT=69
 NODE_INAPTE=70
-DOC="docs/bascule.md, « Le geste brigade »"
 # Le `PATH` qu'une unité reçoit quand elle n'en pose pas.
 PATH_DE_SYSTEMD=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 UNITE=brigade-station.service
@@ -57,11 +56,11 @@ au_paquet() {
 if [ $# -lt 2 ] || [ "$1" = -h ] || [ "$1" = --help ]; then
   au_paquet
   [ -x "$node" ] || {
-    echo "brigade : le \`node\` de la station ($node) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
+    echo "brigade : le \`node\` de la station ($node) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`" >&2
     exit $NODE_INAPTE
   }
   cd "$ici/runtime" 2>/dev/null || {
-    echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
+    echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`" >&2
     exit $NODE_INAPTE
   }
   exec env -i "PATH=$PATH_DE_SYSTEMD" "$node" src/station/geste.ts "$@"
@@ -91,7 +90,7 @@ compte="${lu:-root}"
 qui="$(id -un)"
 if [ "$qui" != "$compte" ]; then
   command -v sudo >/dev/null || {
-    echo "brigade : \`sudo\` manque sur cette machine — le geste passe par lui sous le compte « $compte » ($DOC)" >&2
+    echo "brigade : \`sudo\` manque sur cette machine — le geste passe par lui sous le compte « $compte »" >&2
     exit $SUDO_ABSENT
   }
   # `sudo` demande son mot de passe sur le terminal, pas sur l'entrée. Sans
@@ -102,7 +101,7 @@ if [ "$qui" != "$compte" ]; then
   if ! (: </dev/tty) 2>/dev/null; then
     sudo -n -u "$compte" -- "$0" >/dev/null 2>&1
     if [ $? != $USAGE ]; then
-      echo "brigade : « $qui » n'a pas le droit de lancer le geste sur cette machine — sans terminal, \`sudo\` ne le lui donne pas sous le compte « $compte » sans mot de passe ($DOC)" >&2
+      echo "brigade : « $qui » n'a pas le droit de lancer le geste sur cette machine — sans terminal, \`sudo\` ne le lui donne pas sous le compte « $compte » sans mot de passe" >&2
       exit $SANS_DROIT
     fi
   fi
@@ -153,11 +152,11 @@ raison="$(env -i "${environnement[@]}" "$node" --version 2>&1)" || {
     *) remede="le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`" ;;
   esac
   echo "brigade : le \`node\` de la station ($node) ne démarre pas — ${raison:-sans rien dire}" >&2
-  echo "          → $remede ($DOC)" >&2
+  echo "          → $remede" >&2
   exit $NODE_INAPTE
 }
 cd "$ici/runtime" 2>/dev/null || {
-  echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\` ($DOC)" >&2
+  echo "brigade : le runtime de la station ($ici/runtime) n'est pas là — le paquet brigade-station le pose à côté de ce geste : \`sudo apt install --reinstall brigade-station\`" >&2
   exit $NODE_INAPTE
 }
 exec env -i "${environnement[@]}" "$node" src/station/geste.ts "$@"
