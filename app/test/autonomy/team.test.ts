@@ -249,7 +249,7 @@ test("an approval that fails keeps the gesture pending, with its OK, and says it
   assert.ok(!badgeOf(frame, "closer").textContent.includes("awaits your OK"));
 });
 
-test("the real source reads the agents through the bridge, null when the bridge has none, and a gesture it does not carry is refused", async () => {
+test("the real source reads no team (the new kitchen publishes none), and a gesture it does not carry is refused", async () => {
   Object.assign(source, THE_REAL);
   const receivedOnes: unknown[][] = [];
   const bridge: Record<string, unknown> = {};
@@ -258,20 +258,12 @@ test("the real source reads the agents through the bridge, null when the bridge 
   await assert.rejects(source.regler("closer", "act", "parade"), { message: WITHOUT_THE_ACTION });
   await assert.rejects(source.approuver("closer", "p-1", "parade"), { message: WITHOUT_THE_ACTION });
   Object.assign(bridge, {
-    lireLesAgents: async (...args: unknown[]) => (receivedOnes.push(["lire", ...args]), undefined),
-  });
-  assert.equal(await source.lire("parade"), null);
-  Object.assign(bridge, {
-    lireLesAgents: async (...args: unknown[]) => (receivedOnes.push(["lire", ...args]), copy()),
     reglerLAutonomie: async (...args: unknown[]) => void receivedOnes.push(["regler", ...args]),
     approuverLeGeste: async (...args: unknown[]) => void receivedOnes.push(["approuver", ...args]),
   });
-  assert.deepEqual(await source.lire("parade"), copy());
   await source.regler("closer", "act", "parade");
   await source.approuver("closer", "p-1", "parade");
   assert.deepEqual(receivedOnes, [
-    ["lire", "parade"],
-    ["lire", "parade"],
     ["regler", "parade", "closer", "act"],
     ["approuver", "parade", "closer", "p-1"],
   ]);

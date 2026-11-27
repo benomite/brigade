@@ -931,9 +931,8 @@ agent at `act`, which has no move left (`progress: null`); a record without `pro
 **Agents** tab (#4224, below).
 
 The view reads the agents through one module, `app/src/vue/autonomy/source.js` (`lire`, `regler`, `approuver`), which
-calls the bridge (`lireLesAgents`, `reglerLAutonomie`, `approuverLeGeste`). The main process answers `lireLesAgents` (#4327,
-`app/src/team-of-the-box.ts`) with the `equipe` of `facts`, run where the project's kitchen runs; a project that does not
-cook on this computer gives nothing and shows no badge. `reglerLAutonomie` and `approuverLeGeste` are not carried yet. A reading that
+calls the bridge (`reglerLAutonomie`, `approuverLeGeste`). Since #4569 the bridge has no `lireLesAgents`
+(it ran `facts`, which the new kitchen does not have): the source reads no team and shows no badge. `reglerLAutonomie` and `approuverLeGeste` are not carried yet. A reading that
 fails says `The agents not reached.`, and a record missing a field says the reading is not readable: no value is made
 up. When the team is read, the supervisor and the closer have no card of the Rail tab's top band: their badge is theirs
 (#4354). Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
@@ -949,35 +948,30 @@ from GitHub, by section, each with its source ticket, edited or removed by pull 
 Nothing of the old runtime is read and nothing is added to `runtime/`. Screenshots: `docs/captures/4570/`
 (`savoir-faire-liste`, `savoir-faire-edition`, `savoir-faire-vide`). Test: `app/test/vue/know-how/know-how-vue.test.ts`.
 
-### The Agents tab (#4224, epic #4117)
+### The Agents tab (#4224, epic #4117, rebuilt for the new kitchen in #4569)
 
 The project's menu has an **Agents** tab, between Stations and Settings; the project remembers it like Rail and
-Stations. It shows **one card per agent** that the runtime returns, read when the tab opens (`GET /api/agents`):
+Stations. It shows **one line per agent at work**, read when the tab opens: its **kind** (`cook`, `pass`, `manager`,
+`supervisor`), its **ticket** (`#N`, none for the manager and the supervisor), **since when** (`since 42 min`) and **on
+which station** (`on box`). With none at work it says `No agent at work`, never an error. A station that cannot be read
+says why in one sentence beneath (`box could not be read: its runtime does not serve the agents yet.`) while the agents
+GitHub gave stay listed; a reading that fails (GitHub refuses, the project left the file) says `The agents not
+reached.`, its detail on hover.
 
-- **its name**, **its role** in one sentence, **its state now** — `idle`, `working on #N` with its issue, or `broken`,
-  in red, the card's left edge red too — and **its next run**, as the runtime words it;
-- **its figures for the last 7 days**, two or three, each with its value, its label and, next to it, **what it means**;
-- **its settings**, one settings row each (`app/src/vue/components/setting/`), read per agent
-  (`GET /api/agents/:id/settings`). An editable setting has its control — a list for the model, the effort and the
-  autonomy level (`observe`, `propose`, `act`), a switch for a yes / no setting (the pause), a number field for a limit,
-  a text field otherwise — which applies as soon as it changes, with no save (`PUT /api/agents/:id/settings`,
-  `{ key, value }`). `Saving…` shows while the change is on its way; once done, the row shows the new value and
-  `changed <day>, <time> UTC by <who>`. A refused change (400) shows the runtime's reason under the row and keeps the
-  value in force. A setting that is not editable has no control: the row says where it lives instead (`livesIn`).
-- **A click on the agent's name opens its last gestures** (`GET /api/agents/:id/gestures`), newest first, one line
-  each with its reason, its time and its issue; an agent with none says `No gesture yet.` A second click closes them.
+Nothing is added to the runtime and nothing asks the old runtime's `facts`: the main process answers the bridge's
+`agentsAtWork` (`app/src/team-of-the-box.ts`) from **GitHub** — the board the rail already reads: a ticket with the
+`taken` label has a cook, a ticket `in-pass` has the pass, since the label was put on (the timeline's `labeled` event) —
+and from **what the kitchen writes on its station**: the `agents` command reads its run files
+(`runtime/src/agents-tab/kitchen.ts`), and an agent it says at work that the board does not show (the manager, the
+supervisor) is listed too, with no time. The kitchen writes no station on GitHub, so a station is the computer's own
+(`hostname`), and none for a project that does not cook on this computer.
 
-The view reads the runtime through one module, `app/src/vue/agents/source.js`, by these paths. The window is a
-`file://` page, so it asks them on the `brigade-agents:` scheme, with the project shown in `?project=`; the main
-process serves that scheme (`app/src/agents-of-the-box.ts`) by running the runtime's commands where the project's
-kitchen runs, through its passage like the other readings: `agents` for `/api/agents` and `agents
-/api/agents/<id>/gestures`, `agent-settings <id>` for the settings, and `agent-settings <id> set <key> <value> --by
-chef` for a change. A refusal keeps the runtime's reason and status (400 for a refused value); a project that does not
-cook on this computer answers 503 and says so; an answer that cannot be read is 502, never an empty list. A reading that fails says it in one line (`The agents
-not reached.`, `Its settings not reached.`), and a reading missing a field says it is not readable: no value is made
-up. This tab replaces **the closer's figures** that the project view used to show: the lines a closing pass removed
-and added, in Settings, and the `Closer` row of All projects with the page of the added / removed ratio of all projects
-(#1682), both removed. Captures: `docs/captures/4224/`.
+What the old tab showed and the new kitchen does not produce is gone: the agent cards with their role and next run, the
+figures of the last 7 days, the settings (model, effort, autonomy, pause) and their changes, the gestures thread, the
+`brigade-agents:` scheme (`agents-of-the-box.ts`), and the team badges above the project view (`lireLesAgents`, which
+ran `facts`; `autonomy/source.js` reads no team any more). The `closer` and `reviewer` are not listed: the kitchen runs
+neither. Captures: `docs/captures/4569/` (`onglet-agents-avant.png` — the tab saying `The agents not reached.` —,
+`onglet-agents-apres.png`, `onglet-agents-vide-apres.png`).
 
 ### The logbook of the day and the morning digest card (#4274, epic #4025)
 
@@ -2876,7 +2870,10 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
 - **`+ shell`** opens a shell on **this workstation** (`this Mac`): the app opens no shell on any other machine and
   asks nothing. Where a project cooks elsewhere, you work on that machine yourself.
 - This shell is **persistent**: it lives in a `tmux` session (or `screen`, where `tmux` is missing)
-  on this workstation, under your account. It opens **on the right, next to the second**: it has its tab (`shell 1`,
+  on this workstation, under your account. The multiplexer writes on the terminal's normal screen (tmux
+  `terminal-overrides` `smcup@:rmcup@`, screen `termcapinfo * ti@:te@` at the session's creation), so the
+  mouse wheel scrolls back through what was printed, as in the second, and the mouse stays the view's
+  (selection and copy); a screen session created before keeps its alternate screen until destroyed. It opens **on the right, next to the second**: it has its tab (`shell 1`,
   `shell 2`…) and is shown in place of the second, which does not stop for all that. **A shell never
   replaces the second**: a click on the second's tab brings it back, with its conversation; a
   click on a shell's tab shows it again, as you left it. The terminal shown takes the
