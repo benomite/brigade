@@ -1,18 +1,15 @@
-// La carte « Validate its screen » sur le téléphone (ticket 3185) : la WebView ne charge pas la commande du runtime, le
-// téléphone écrit sur l'API de GitHub ce qu'elle écrit (`validerSurGithub`). Chaque geste est joué deux fois, sur deux
-// copies du même faux GitHub, où le runtime a posé la carte comme la pass la pose (`retenirLeDesign`) : par la vraie
-// commande du runtime (`principal`, comme le desktop la joue), puis par le téléphone, sur l'API ; ce que chaque GitHub en
-// garde est comparé — la PR mergée ou non, les commentaires, les labels, la carte fermée ou non. Aucun runtime ne tourne,
-// aucun `gh` n'est lancé.
+// La carte « Validate its screen » sur le téléphone (ticket 3185) : le téléphone écrit sur l'API de GitHub
+// (`validerSurGithub`). Chaque geste est joué sur un faux GitHub où le runtime a posé la carte comme la pass la pose
+// (`retenirLeDesign`) ; ce que GitHub en garde est vérifié — la PR mergée ou non, les commentaires, les labels, la carte
+// fermée ou non. La commande de l'ancien runtime à laquelle chaque geste était comparé est supprimée avec lui (#4499).
+// Aucun runtime ne tourne, aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { DE_CONFIANCE as OF_TRUST_OF_RUNTIME } from "../../../runtime/src/alimenter.ts";
-import { Sortie } from "../../../runtime/src/appel.ts";
 import { brancheDuTicket as branchOfRuntime } from "../../../runtime/src/brigade-github.ts";
 import { LABEL_IN_PASS as IN_PASS_OF_RUNTIME } from "../../../runtime/src/github-etat/etats.ts";
 import { CHEF_TODO } from "../../../runtime/src/github-seul/carte-todo/carte-todo.ts";
 import { MARQUE_DE_RENVOI as SEND_BACK_OF_RUNTIME } from "../../../runtime/src/qualite-github.ts";
-import { principal } from "../../../runtime/src/validation-design/commande.ts";
 import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
 import { readCaptureOnTHEApi } from "../../src/captures.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
@@ -25,7 +22,6 @@ import {
   branchOfTicket,
   OF_TRUST,
   UNKNOWN,
-  playTheValidation,
   LABEL_IN_PASS,
   BRAND_OF_SEND_BACK,
   WITHOUT_CAPTURE,
@@ -154,9 +150,7 @@ function fakeGitHub(outage: Outage = () => undefined) {
   }
   const call: CallGitHub = async (path) => api("GET", path);
   const client: ClientOfTheValidation = { lire: call, ecrire: async (method, path, bodyText) => api(method, path, bodyText) };
-  // Ce que GitHub garde de la carte et de son ticket.
-  const state = () => ({ issues: Object.fromEntries([...issues].map(([number, { labels, state, comments }]) => [number, { labels: [...labels].sort(), state, comments: comments.map(({ body }) => body) }])), merges: [...merges], pr: { state: pr.state, merged: pr.merged } });
-  return { github, api, appeler: call, client, issues, pr, merges, refus: refusal, ecrites: writtenEntries, etat: state };
+  return { github, api, appeler: call, client, issues, pr, merges, refus: refusal, ecrites: writtenEntries };
 }
 type World = ReturnType<typeof fakeGitHub>;
 
@@ -185,30 +179,21 @@ async function designRead(world: World): Promise<ValidationDesign> {
   return card?.chef?.design ?? assert.fail("la carte ne dit pas ce qu'elle valide");
 }
 
-const isOneOutput = (error: unknown): error is Sortie => error instanceof Sortie;
-const byTheRuntime = async (world: World, design: ValidationDesign, action: unknown) => playTheValidation({ depot: REPOSITORY, design, geste: action, env: {}, commande: async () => ({ principal: (call) => principal(call, () => world.github as never), estUneSortie: isOneOutput }) });
 const byThePhone = async (world: World, design: ValidationDesign, action: unknown) => validateOnGithub({ depot: REPOSITORY, carte: CARD, design, geste: action, client: world.client });
 
-// Le même geste, par la commande du runtime puis par le téléphone, chacun sur son GitHub où la carte vient d'être posée —
-// `avant` le prépare de la même façon sur les deux : GitHub en garde le même état.
-async function twoTimes(action: unknown, before: (world: World) => void | Promise<void> = () => undefined): Promise<{ runtime: RenderedOfValidation; telephone: RenderedOfValidation; monde: World }> {
-  const atRuntime = await cardOfTrial();
-  const designOfRuntime = await designRead(atRuntime);
-  await before(atRuntime);
-  const runtime = await byTheRuntime(atRuntime, designOfRuntime, action);
+// Le geste, par le téléphone, sur un GitHub où la carte vient d'être posée — `avant` le prépare.
+async function onTheCard(action: unknown, before: (world: World) => void | Promise<void> = () => undefined): Promise<{ telephone: RenderedOfValidation; monde: World }> {
   const world = await cardOfTrial();
   const design = await designRead(world);
   await before(world);
   const phone = await byThePhone(world, design, action);
-  assert.deepEqual(world.etat(), atRuntime.etat(), "GitHub ends up as the runtime's command leaves it");
-  return { runtime, telephone: phone, monde: world };
+  return { telephone: phone, monde: world };
 }
 const SEND_BACK = { geste: "renvoyer", commentaire: "  The export button is cut off.\r\nKeep it on one line.  " };
 
-describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la commande du runtime y écrit", () => {
+describe("sur le téléphone, les deux gestes écrivent sur GitHub", () => {
   test("« Validate » : la PR mergée à la tête jugée verte, la carte fermée — elle quitte TODO", async () => {
-    const { runtime, telephone: phone, monde: world } = await twoTimes({ geste: "valider" });
-    assert.deepEqual(phone, runtime);
+    const { telephone: phone, monde: world } = await onTheCard({ geste: "valider" });
     assert.deepEqual(phone, { fait: `${REPOSITORY}: the delivery of #${TICKET} (PR ${PR}) validated: merged, card #${CARD} closed — ticket #${TICKET} is served` });
     assert.deepEqual(world.merges, [[PR, SHA]]);
     assert.equal(world.issues.get(CARD)?.labels.has(LABEL_OF_CHEF), false);
@@ -217,8 +202,7 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   });
 
   test("« Send back to the kitchen » : le commentaire posté sur le ticket comme ce qu'il faut changer, `in-pass` retiré, rien de mergé, la carte fermée", async () => {
-    const { runtime, telephone: phone, monde: world } = await twoTimes(SEND_BACK);
-    assert.deepEqual(phone, runtime);
+    const { telephone: phone, monde: world } = await onTheCard(SEND_BACK);
     assert.match("fait" in phone ? phone.fait : assert.fail(JSON.stringify(phone)), /sent back: #58 goes back to a cook with your comment, card #58 closed/);
     assert.deepEqual(world.merges, []);
     assert.ok(world.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`${BRAND_OF_SEND_BACK} n=1 sha=${SHA} -->`) && body.includes("The export button is cut off.\nKeep it on one line.")));
@@ -227,8 +211,7 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   });
 
   test("la branche mise à jour depuis sa base depuis la carte (ticket 3332) : rien n'est mergé tout de suite, la validation est gardée sur le ticket, la carte se ferme et le dit", async () => {
-    const { runtime, telephone: phone, monde: world } = await twoTimes({ geste: "valider" }, (world) => void (world.pr.sha = "b".repeat(40)));
-    assert.deepEqual(phone, runtime);
+    const { telephone: phone, monde: world } = await onTheCard({ geste: "valider" }, (world) => void (world.pr.sha = "b".repeat(40)));
     assert.deepEqual(phone, { fait: `${REPOSITORY}: the delivery of #${TICKET} (PR ${PR}) validated: your validation is kept, card #${CARD} closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
     assert.deepEqual(world.merges, []);
     assert.ok(world.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=${CARD} pr=${PR} sha=${SHA} -->\nValidated by the chef on card #${CARD} — merge pending.`)));
@@ -237,7 +220,7 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
 
   test("la livraison est repartie en cuisine depuis la carte : rien n'est mergé, la carte se ferme", async () => {
     const sendBack = (world: World) => void world.issues.get(TICKET)?.comments.push({ body: `${BRAND_OF_SEND_BACK} n=1 sha=${SHA} -->\nThe CI went red.`, association: "OWNER" });
-    const { telephone: phone, monde: world } = await twoTimes({ geste: "valider" }, sendBack);
+    const { telephone: phone, monde: world } = await onTheCard({ geste: "valider" }, sendBack);
     assert.match("refus" in phone ? phone.refus : assert.fail("validée"), /the delivery of #58 \(PR 60\) went back to a cook since card #58: nothing merged, card #58 closed/);
     assert.deepEqual(world.merges, []);
     assert.equal(world.issues.get(CARD)?.labels.has(LABEL_OF_CHEF), false);
@@ -245,22 +228,21 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
 
   test("la PR fermée sans merge : rien à valider ni à renvoyer", async () => {
     const closedOne = (world: World) => void (world.pr.state = "closed");
-    const validate = await twoTimes({ geste: "valider" }, closedOne);
+    const validate = await onTheCard({ geste: "valider" }, closedOne);
     assert.match("refus" in validate.telephone ? validate.telephone.refus : "", /^nothing was done: the delivery of #58 \(PR 60\) is closed without being merged/);
-    const sendBack = await twoTimes(SEND_BACK, closedOne);
+    const sendBack = await onTheCard(SEND_BACK, closedOne);
     assert.match("refus" in sendBack.telephone ? sendBack.telephone.refus : "", /^nothing was done: the delivery of #58 \(PR 60\) is no longer open: there is nothing to send back/);
   });
 
   test("la PR déjà mergée : « Validate » ferme la carte, sans merger une seconde fois", async () => {
-    const { telephone: phone, monde: world } = await twoTimes({ geste: "valider" }, (world) => void Object.assign(world.pr, { state: "closed", merged: true }));
+    const { telephone: phone, monde: world } = await onTheCard({ geste: "valider" }, (world) => void Object.assign(world.pr, { state: "closed", merged: true }));
     assert.ok("fait" in phone);
     assert.deepEqual(world.merges, []);
     assert.equal(world.issues.get(CARD)?.labels.has(LABEL_OF_CHEF), false);
   });
 
   test("la PR déjà mergée : « Send back » ouvre un ticket de suite avec le commentaire du chef et ferme la carte, au lieu d'échouer", async () => {
-    const { runtime, telephone: phone, monde: world } = await twoTimes(SEND_BACK, (world) => void Object.assign(world.pr, { state: "closed", merged: true }));
-    assert.deepEqual(phone, runtime);
+    const { telephone: phone, monde: world } = await onTheCard(SEND_BACK, (world) => void Object.assign(world.pr, { state: "closed", merged: true }));
     assert.match("fait" in phone ? phone.fait : assert.fail("renvoyée"), /was already merged: your comment is the follow-up ticket #61, card #58 closed/);
     assert.match(world.issues.get(TRACKING)?.body ?? "", /The export button is cut off\./);
     assert.equal(world.issues.get(CARD)?.labels.has(LABEL_OF_CHEF), false);
@@ -268,14 +250,14 @@ describe("sur le téléphone, les deux gestes écrivent sur GitHub ce que la com
   });
 
   test("un merge que GitHub refuse : la carte reste ouverte, et dit ce que GitHub a répondu", async () => {
-    const { telephone: phone, monde: world } = await twoTimes({ geste: "valider" }, (world) => void (world.refus.merge = { status: 405, message: "Required status check is expected" }));
+    const { telephone: phone, monde: world } = await onTheCard({ geste: "valider" }, (world) => void (world.refus.merge = { status: 405, message: "Required status check is expected" }));
     assert.equal("refus" in phone && phone.refus, "nothing was done: GitHub refused to merge the delivery of #58 (PR 60) — HTTP 405 — Required status check is expected; card #58 stays open");
     assert.equal(world.issues.get(CARD)?.labels.has(LABEL_OF_CHEF), true);
   });
 
   test("une carte fermée ailleurs depuis la lecture : rien ne part", async () => {
-    const { runtime, telephone: phone, monde: world } = await twoTimes({ geste: "valider" }, (world) => void ((world.issues.get(CARD) ?? assert.fail("pas de carte")).state = "closed"));
-    assert.deepEqual(phone, { refus: "refus" in runtime ? runtime.refus : assert.fail("le runtime a validé"), detail: "" });
+    const { telephone: phone, monde: world } = await onTheCard({ geste: "valider" }, (world) => void ((world.issues.get(CARD) ?? assert.fail("pas de carte")).state = "closed"));
+    assert.equal("refus" in phone ? phone.detail : assert.fail("le téléphone a validé"), "");
     assert.equal("refus" in phone && phone.refus, "nothing was done: no open “Validate its screen” card answers to 60: it is neither an open ticket nor the pull request of a held delivery");
     assert.deepEqual(world.ecrites, []);
   });

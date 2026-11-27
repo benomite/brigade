@@ -10,10 +10,8 @@ import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { ACTION, words, openStandby, type Reading, type Locale } from "../src/box.ts";
 import { servedBy, holdKitchensHere } from "../src/workstation/kitchen-here.ts";
-import { CACHE_OF_COMPILATION } from "./helpers/cache-of-compilation.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
-const RUNTIME = join(import.meta.dirname, "../../runtime");
 
 // Un poste d'essai : le répertoire de sa station, un faux `node` qui joue son geste — il note ce
 // qu'il a reçu et répond comme le runtime —, ce qu'il rend est ce que le vrai geste rendrait.
@@ -155,26 +153,6 @@ describe("un projet qui cuit ici se lit par le geste de la station de ce poste",
     const here = await until((reading) => text(reading).startsWith("projet     espace\n"));
     assert.equal(here.projet, "espace");
     assert.match(readOne("node-lance"), /espace status/);
-  });
-
-  test("le vrai geste de la station : lancé ici, un projet qu'elle ne sert pas est refusé par son code — atteinte, et le cas dit", async (t) => {
-    const root = mkdtempSync(join(tmpdir(), "brigade-app-geste-"));
-    t.after(() => rmSync(root, { recursive: true, force: true }));
-    writeFileSync(join(root, "projets"), "autre benomite/autre main\n");
-    const locale: Locale = { node: process.execPath, runtime: RUNTIME, racine: root, env: { PATH: process.env.PATH, HOME: root, ...CACHE_OF_COMPILATION } };
-    let receivedOne: ((reading: Reading) => void) | undefined;
-    const readEntry = new Promise<Reading>((resolve) => (receivedOne = resolve));
-    // Ce que la station sert est lu en vrai : ici, elle croit servir « mirrorlab », sa configuration dit le contraire.
-    const standby = openStandby({ intervalleMs: 3_600_000, delaiMs: 60_000, cuisine: () => ({ locale }), surLecture: (reading) => receivedOne?.(reading) });
-    t.after(() => standby.fermer());
-    standby.regarder([{ nom: "mirrorlab", dossier: "/projets/mirrorlab" }], ["status"], 1);
-
-    const reading = await readEntry;
-    assert.ok("erreur" in reading);
-    assert.equal(reading.atteinte, true);
-    assert.equal(reading.cas, "projet-inconnu");
-    assert.match(reading.erreur, /« mirrorlab » n'a pas de ligne dans sa configuration/);
-    assert.match(reading.erreur, /→ exit code 65$/);
   });
 
   test("les mots d'une commande sont ceux qu'un shell donnerait au geste", () => {

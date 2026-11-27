@@ -24,7 +24,7 @@ function oneSystem(home: string, platform: NodeJS.Platform, answers: Record<stri
     node: "/Applications/brigade.app/Contents/Resources/node/bin/node",
     hote: "/Applications/brigade.app/Contents/Resources/app/src/station-fond/hote.ts",
     racine: join(home, ".config", "brigade", "station"),
-    embarque: "/Applications/brigade.app/Contents/Resources/runtime/src/station/main.ts",
+    embarque: "/Applications/brigade.app/Contents/Resources/runtime/src/kitchen/main.ts",
     chemin: "/opt/homebrew/bin:/usr/bin:/bin",
     binaire: "C:\\Program Files\\brigade\\brigade.exe",
   };
@@ -37,7 +37,7 @@ test("sur un Mac, l'agent launchd de la station joue l'hôte par le node de l'ap
   assert.deepEqual(await registerTheStationOfBackground(system), { par: "launchd" });
   const plist = readFileSync(join(home, "Library", "LaunchAgents", "brigade.station.plist"), "utf8");
   assert.match(plist, /<string>brigade\.station<\/string>/);
-  assert.match(plist, /<string>\/Applications\/brigade\.app\/Contents\/Resources\/node\/bin\/node<\/string>\n {4}<string>[^<]*station-fond\/hote\.ts<\/string>\n {4}<string>[^<]*station<\/string>\n {4}<string>[^<]*runtime\/src\/station\/main\.ts<\/string>/);
+  assert.match(plist, /<string>\/Applications\/brigade\.app\/Contents\/Resources\/node\/bin\/node<\/string>\n {4}<string>[^<]*station-fond\/hote\.ts<\/string>\n {4}<string>[^<]*station<\/string>\n {4}<string>[^<]*runtime\/src\/kitchen\/main\.ts<\/string>/);
   assert.match(plist, /<key>RunAtLoad<\/key>\n {2}<true\/>/);
   assert.match(plist, /<key>PATH<\/key>\n {4}<string>\/opt\/homebrew\/bin:\/usr\/bin:\/bin<\/string>/);
   assert.match(plist, /fond\.log<\/string>/);

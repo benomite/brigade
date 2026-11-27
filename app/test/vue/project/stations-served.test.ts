@@ -1,15 +1,10 @@
 // La liste des projets que sert la station de cet ordinateur se change sur l'onglet Stations d'un projet (#3402) : « Add a
 // station » y ajoute cet ordinateur même quand une autre station le cuit déjà, « Stop cooking here » l'en retire. Après
 // chaque geste, l'onglet montre la liste écrite — et l'app rouverte la montre encore ; un geste qui ne s'applique pas le
-// dit en une ligne, et son bouton reste. La vue est jouée entière contre le faux pont ; derrière lui, la station lit et
-// écrit pour de bon sa liste, sa configuration, par `lireProjetsServis`, `ajouterProjetServi` et `retirerProjetServi` du
-// runtime, dans un répertoire du test — ce que fait le process principal (main.ts).
+// dit en une ligne, et son bouton reste. La vue est jouée entière contre le faux pont ; derrière lui, la liste de la
+// station est tenue par le test, qui la lit, y ajoute ou en retire un dépôt.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, test } from "node:test";
-import { ajouterProjetServi, cheminDesProjetsServis, DepotRefuse, lireProjetsServis, ProjetsServisIllisibles, retirerProjetServi } from "../../../../runtime/src/station-ordinateur/projets-servis.ts";
+import { describe, test } from "node:test";
 import type { Home } from "../../../src/home.ts";
 import { POWER_UP } from "../../../src/power-up.ts";
 import { forTheBar } from "../../../src/bar.ts";
@@ -39,46 +34,27 @@ const station = (id: string, name: string) => ({ id, nom: name, etat: "servi" as
 const ON_THE_BOX: ProjectSeen = { nom: "parade", depot: REPOSITORY, base: "main", suiviPar: { id: "gbox", nom: "parade-box" }, stations: [station("gbox", "parade-box")], servi: null, cuitSur: { id: "gbox", nom: "parade-box", ici: false }, demenagement: null };
 const SEEN: SeenOfProjects = { a: A, projets: [ON_THE_BOX], locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposed(BOX), gmac: machineProposed(MAC) }, calibrage: calibrationRecommended([]) };
 
-const roots: string[] = [];
-after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
-});
-// La station de cet ordinateur dans un répertoire neuf : sa configuration, la seule liste de ses projets.
-function theStation() {
-  const root = mkdtempSync(join(tmpdir(), "stations-servies-"));
-  roots.push(root);
-  return root;
-}
+// La station de cet ordinateur, neuve : la liste de ses projets, vide.
+type Station = { depots: string[] };
+const theStation = (): Station => ({ depots: [] });
 
 type List = { depots: string[] } | { refus: string };
-// Ce que le process principal fait de la liste (main.ts) : la lire, y ajouter ou en retirer un dépôt. `ecrire` remplace
-// l'écriture, pour un refus ou une réponse qui ne change rien.
-function bridgeOfTheList(root: string, write?: (repository: string, served: boolean) => List) {
-  const refusal = (error: unknown): List => {
-    if (error instanceof DepotRefuse || error instanceof ProjetsServisIllisibles) return { refus: error.message };
-    throw error;
-  };
+// La liste derrière le pont : la lire, y ajouter ou en retirer un dépôt. `ecrire` remplace l'écriture, pour un refus ou une
+// réponse qui ne change rien.
+function bridgeOfTheList(root: Station, write?: (repository: string, served: boolean) => List) {
   return {
-    projetsServis: (): List => {
-      try {
-        return { depots: lireProjetsServis(root) };
-      } catch (error) {
-        return refusal(error);
-      }
-    },
+    projetsServis: (): List => ({ depots: [...root.depots] }),
     servirUnProjet: (repository: unknown, served: unknown): List => {
       if (write !== undefined) return write(String(repository), served === true);
-      try {
-        return { depots: served === true ? ajouterProjetServi(root, String(repository)) : retirerProjetServi(root, String(repository)) };
-      } catch (error) {
-        return refusal(error);
-      }
+      const depot = String(repository);
+      root.depots = served === true ? [...root.depots.filter((one) => one !== depot), depot] : root.depots.filter((one) => one !== depot);
+      return { depots: [...root.depots] };
     },
   };
 }
 
 // L'app ouverte sur l'onglet Stations de parade, devant cette station : la box le cuit, et publie le servir.
-async function theTab(root: string, write?: (repository: string, served: boolean) => List) {
+async function theTab(root: Station, write?: (repository: string, served: boolean) => List) {
   const vue = await playTheVue({
     demarrage: () => ({
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }),
@@ -138,8 +114,8 @@ describe("ajouter une station depuis l'onglet (#3402)", () => {
     await repos();
     await repos();
     assert.deepEqual(servedOnes(vue), [[REPOSITORY, true]]);
-    // La station l'a pour de bon : sa configuration porte sa ligne, et ses cuisines la lisent.
-    assert.equal(readFileSync(cheminDesProjetsServis(root), "utf8"), `parade ${REPOSITORY}\n`);
+    // La liste de la station le porte.
+    assert.deepEqual(root.depots, [REPOSITORY]);
     // L'onglet montre ce que la liste dit, avant que la station ne le publie : cet ordinateur le sert.
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["macbook", "parade-box"]);
     assert.equal(said(vue), DONE_HERE(THIS_COMPUTER, "parade"));
@@ -148,34 +124,17 @@ describe("ajouter une station depuis l'onglet (#3402)", () => {
     const reopened = await theTab(root);
     assert.deepEqual(cards(reopened).map(({ ariaLabel }) => ariaLabel), ["macbook", "parade-box"]);
   });
-
-  test("un ajout que la station refuse : rien n'est écrit, le choix reste ouvert et dit pourquoi, son bouton est toujours là", async () => {
-    const root = theStation();
-    // Un autre projet de la station s'appelle déjà parade : son nom est pris.
-    ajouterProjetServi(root, "ailleurs/parade");
-    const vue = await theTab(root);
-    button(top(vue), ADD).click();
-    await repos();
-    button(choice(vue) ?? assert.fail("pas de choix"), THIS_COMPUTER).click();
-    await repos();
-    await repos();
-    assert.equal(readFileSync(cheminDesProjetsServis(root), "utf8"), "parade ailleurs/parade\n");
-    const opened = choice(vue) ?? assert.fail("le choix s'est refermé sans rien changer");
-    assert.match(opened.textContent, /nothing was written: this station already serves a project named parade, from ailleurs\/parade: benomite\/parade would take the same name/);
-    assert.equal(button(opened, THIS_COMPUTER).disabled, false);
-    assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["parade-box"]);
-  });
 });
 
 describe("arrêter une station depuis l'onglet (#3402)", () => {
   test("cet ordinateur le sert : « Stop cooking here » le retire de sa liste, sa carte part et la ligne le dit — encore après une réouverture", async () => {
     const root = theStation();
-    ajouterProjetServi(root, REPOSITORY);
+    root.depots.push(REPOSITORY);
     const vue = await theTab(root);
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["macbook", "parade-box"]);
     await stop(vue, "macbook");
     assert.deepEqual(servedOnes(vue), [[REPOSITORY, false]]);
-    assert.deepEqual(lireProjetsServis(root), []);
+    assert.deepEqual(root.depots, []);
     assert.equal(said(vue), REMOVED("macbook", "parade"));
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["parade-box"]);
 
@@ -186,9 +145,9 @@ describe("arrêter une station depuis l'onglet (#3402)", () => {
 
   test("un retrait qui laisse le projet dans la liste le dit, et la carte garde son bouton", async () => {
     const root = theStation();
-    ajouterProjetServi(root, REPOSITORY);
+    root.depots.push(REPOSITORY);
     // La station répond sans l'avoir retiré : c'est le chef qui cliquait « remove » et lisait encore « served ».
-    const vue = await theTab(root, () => ({ depots: lireProjetsServis(root) }));
+    const vue = await theTab(root, () => ({ depots: [...root.depots] }));
     await stop(vue, "macbook");
     assert.equal(said(vue), STILL_SERVED("macbook", "parade"));
     button(card(vue, "macbook"), STOP);
@@ -196,11 +155,11 @@ describe("arrêter une station depuis l'onglet (#3402)", () => {
 
   test("un retrait que la station refuse le dit en une ligne, et la carte garde son bouton", async () => {
     const root = theStation();
-    ajouterProjetServi(root, REPOSITORY);
+    root.depots.push(REPOSITORY);
     const vue = await theTab(root, () => ({ refus: "the station's configuration cannot be written — EACCES" }));
     await stop(vue, "macbook");
     assert.match(said(vue), /^nothing was changed: the station's configuration cannot be written/);
-    assert.deepEqual(lireProjetsServis(root), [REPOSITORY]);
+    assert.deepEqual(root.depots, [REPOSITORY]);
     button(card(vue, "macbook"), STOP);
   });
 });

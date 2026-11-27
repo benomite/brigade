@@ -2,9 +2,10 @@
 // passe en tête de la bande, au-dessus de tout, marquée à part, avec ce qui est attendu, son geste et
 // depuis combien de temps tout est à l'arrêt ; la case du projet la dit, autrement qu'une alerte
 // (alerts.ts, « L'urgence »). Une décision qui ne retient qu'une partie du rail ne change rien.
-// Ce que la box rend est écrit ici par le runtime lui-même — `faits`, `status` et `manager`, joués
+// Ce que la box rend est écrit ici par le runtime lui-même — `faits` et `status`, joués
 // dans ce process sur un vrai journal (runtime/src/etat.ts) : la forme que
-// la bande lit est tenue contre celle que le runtime écrit.
+// la bande lit est tenue contre celle que le runtime écrit. La sortie de `manager` est recopiée
+// telle que l'ancien runtime l'écrivait (runtime/src/manager-cli.ts, supprimé avec lui, #4499).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,7 +14,6 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { alerts, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Band } from "../src/alerts.ts";
 import { POWER_UP } from "../src/power-up.ts";
 import { putAside } from "../src/awaiting.ts";
@@ -35,9 +35,20 @@ const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 const hour = (h: string) => `${DAY}T${h}.000Z`;
 const reading = (command: string, text: string, a: string): Reading => ({ projet: "parade", demande: 1, a, sorties: [{ commande: command, texte: text }] });
 
+// La sortie de `manager` d'un manager allumé par le chef à 8 h — celle de cette cuisine, telle que l'ancien runtime
+// l'écrivait.
+const MANAGER_ON = [
+  "manager               ON since 2026-10-15T08:00:00.000Z (by chef) — it judges the open issues, sets `fire` and the calibration",
+  "latest decisions      none",
+  "set aside             none",
+  "epics                 none",
+  "reactions             none",
+  "held gestures         none",
+].join("\n") + "\n";
+
 // Une cuisine dont le test tient l'horloge, où tout va bien hors du rail — runtime en marche,
-// version à jour, manager allumé —, et ce que l'app en dessine : `faits`, `status` et `manager`
-// écrits par le runtime, lus comme le process principal les lit.
+// version à jour, manager allumé —, et ce que l'app en dessine : `faits` et `status` écrits par le
+// runtime, et `manager`, lus comme le process principal les lit.
 function kitchen(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "brigade-app-urgence-"));
   let instant = hour("08:00:00");
@@ -67,9 +78,7 @@ function kitchen(t: TestContext) {
   const render = (h: string) => {
     const now = new Date(hour(h));
     const state = lireEtat(log, now);
-    const lines: string[] = [];
-    void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return { faits: runtimeFacts(state, now), status: `${decrireEtat(state, now).join("\n")}\n`, manager: `${lines.join("\n")}\n` };
+    return { faits: runtimeFacts(state, now), status: `${decrireEtat(state, now).join("\n")}\n`, manager: MANAGER_ON };
   };
   // La bande, d'après `faits` tel que la box l'a rendu — ou tel qu'un `retoucher` le donne.
   const band = (h: string, retoucher: (facts: Record<string, unknown>) => Record<string, unknown> = (facts) => facts): Band => {

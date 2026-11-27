@@ -2,15 +2,10 @@
 // l'allume, le geste de l'interrupteur (`switch on`) ; allumé, ni la ligne ni le bouton. L'onglet Stations ne dit jamais
 // « cooks this project » d'un projet éteint : sa ligne du haut dit qu'il est éteint ; allumé, elle dit qui le cuit, comme
 // avant. Les deux suivent la bande dès qu'elle dit le projet allumé, sans rien recharger. L'état vient de la bande
-// (alerts.ts), lue dans ce que `manager` écrit : la commande du runtime, jouée ici sur un vrai journal.
+// (alerts.ts), lue dans ce que `manager` écrit : la sortie de la commande de l'ancien runtime, jouée sur un vrai journal et
+// recopiée telle quelle (runtime/src/manager-cli.ts, supprimé avec lui, #4499).
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import type { Fait } from "../../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../../runtime/src/journal.ts";
-import { principal as manager } from "../../../runtime/src/manager-cli.ts";
+import { describe, test } from "node:test";
 import type { Home } from "../../src/home.ts";
 import { MANAGER_OFF, holdBands, type Band } from "../../src/alerts.ts";
 import { POWER_UP, tell } from "../../src/power-up.ts";
@@ -35,19 +30,13 @@ const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 const reading = (command: string, text: string): Reading => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande: command, texte: text }] });
 
-// `manager`, jouée sur un journal où le chef a allumé, ou éteint, le projet à 9 h 25 : sa sortie, telle quelle.
-function outputOfManager(t: TestContext, lit: boolean): string {
-  const directory = mkdtempSync(join(tmpdir(), "brigade-app-manager-eteint-"));
-  const log = ouvrirJournal(directory, { maintenant: () => new Date("2026-10-13T09:25:00.000Z") });
-  t.after(() => {
-    log.fermer();
-    rmSync(directory, { recursive: true, force: true });
-  });
-  const done: Fait = { type: lit ? "project.switched-on" : "project.switched-off", payload: {} };
-  log.ajouter({ project: "parade", ticket: null, author: "chef", ...done });
-  const lines: string[] = [];
-  void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-  return `${lines.join("\n")}\n`;
+// La sortie de `manager` sur un journal où le chef a allumé, ou éteint, le projet à 9 h 25 : telle que l'ancien runtime
+// l'écrivait.
+function outputOfManager(lit: boolean): string {
+  const switchLine = lit
+    ? "manager               ON since 2026-10-13T09:25:00.000Z (by chef) — the project switch is on: it judges the open issues, sets `fire` and the calibration"
+    : "manager               OFF since 2026-10-13T09:25:00.000Z (by chef) — the project switch is off: `brigade <projet> switch on` turns it on — no issue is judged, what it set stays set";
+  return [switchLine, "latest decisions      none", "set aside             none", "epics                 none", "reactions             none", "held gestures         none"].join("\n") + "\n";
 }
 
 // La bande que le process principal dirait, `manager` lu — ou pas encore.
@@ -112,9 +101,9 @@ const top = (vue: Played) => tab(vue).children.find(({ className }) => className
 const sentence = (vue: Played) => top(vue).dessous("p").find(({ className }) => className === "phrase")?.dessous("strong")[0]?.textContent ?? "";
 
 describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'allume (#3454)", () => {
-  test("éteint : la tête du rail dit qu'il est éteint, et « switch the project on… » est à côté, sur la même ligne", async (t) => {
+  test("éteint : la tête du rail dit qu'il est éteint, et « switch the project on… » est à côté, sur la même ligne", async () => {
     const vue = await open();
-    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(false)));
     await repos();
     const head = headOfRail(vue) ?? assert.fail("la vue du projet ne dit pas le projet éteint");
     assert.equal(head.dessous("strong")[0]?.textContent, MANAGER_OFF);
@@ -125,28 +114,28 @@ describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'al
     assert.match(head.title, /^OFF since 2026-10-13T09:25:00\.000Z \(by chef\)/);
   });
 
-  test("allumé : ni la ligne ni le bouton ; pas encore lu non plus — ce n'est pas « éteint »", async (t) => {
+  test("allumé : ni la ligne ni le bouton ; pas encore lu non plus — ce n'est pas « éteint »", async () => {
     const vue = await open();
     vue.dire("surAlertes", bandRead());
     await repos();
     assert.equal(headOfRail(vue), undefined);
     assert.equal(turnOn(vue), undefined);
 
-    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
+    vue.dire("surAlertes", bandRead(outputOfManager(true)));
     await repos();
     assert.equal(headOfRail(vue), undefined);
     assert.equal(turnOn(vue), undefined);
     assert.doesNotMatch(vue.element("rail").textContent, /project off/);
   });
 
-  test("le bouton l'allume : sa confirmation s'ouvre sous la ligne, « yes » fait partir `switch on`, et la vue passe à allumé sans rien recharger", async (t) => {
+  test("le bouton l'allume : sa confirmation s'ouvre sous la ligne, « yes » fait partir `switch on`, et la vue passe à allumé sans rien recharger", async () => {
     const backlog = { ouvertes: 3, retenues: 0 };
     const vue = await open({
       confirmer: (_, id) => confirmationOf(id, PARADE, { sans: "pas lus" }, KITCHEN),
       compter: () => ({ projet: "parade", a: A, ...backlog, dit: tell(backlog) }),
       geste: () => undefined,
     });
-    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(false)));
     await repos();
 
     (turnOn(vue) ?? assert.fail("pas de bouton")).click();
@@ -161,7 +150,7 @@ describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'al
     assert.deepEqual(actionsGone(vue), [["parade", "projet-allumer", true]]);
 
     // La bande relue dit le projet allumé : la ligne et le bouton partent, l'interrupteur dit « project on ».
-    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
+    vue.dire("surAlertes", bandRead(outputOfManager(true)));
     await repos();
     assert.equal(headOfRail(vue), undefined);
     assert.equal(turnOn(vue), undefined);
@@ -170,9 +159,9 @@ describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'al
 });
 
 describe("l'onglet Stations, le projet éteint : jamais « cooks this project » (#3454)", () => {
-  test("éteint, sa box en ligne : la ligne du haut dit le projet éteint, en gris, et où l'allumer au survol — ni « Cooked by » ni « cooks this project »", async (t) => {
+  test("éteint, sa box en ligne : la ligne du haut dit le projet éteint, en gris, et où l'allumer au survol — ni « Cooked by » ni « cooks this project »", async () => {
     const vue = await open();
-    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(false)));
     await repos();
     await openTab(vue, "Stations");
     assert.equal(sentence(vue), "Project off — nothing new is taken, split or merged");
@@ -184,27 +173,27 @@ describe("l'onglet Stations, le projet éteint : jamais « cooks this project »
     assert.deepEqual(top(vue).dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), [ADD]);
   });
 
-  test("éteint, sa box hors ligne : toujours le projet éteint, jamais « parade-box cooks this project, but… »", async (t) => {
+  test("éteint, sa box hors ligne : toujours le projet éteint, jamais « parade-box cooks this project, but… »", async () => {
     const vue = await open({}, [{ ...BOX, etat: "hors-ligne", dit: "offline for 3 h" }, MAC]);
-    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(false)));
     await repos();
     await openTab(vue, "Stations");
     assert.equal(top(vue).dataset.etat, "eteint");
     assert.doesNotMatch(tab(vue).textContent, /cooks this project/);
   });
 
-  test("allumé, ou pas encore lu : « Cooked by parade-box », comme avant ; allumé sous les yeux du chef, l'onglet passe d'éteint à cuit sans rien recharger", async (t) => {
+  test("allumé, ou pas encore lu : « Cooked by parade-box », comme avant ; allumé sous les yeux du chef, l'onglet passe d'éteint à cuit sans rien recharger", async () => {
     const vue = await open();
     vue.dire("surAlertes", bandRead());
     await repos();
     await openTab(vue, "Stations");
     assert.match(sentence(vue), /^Cooked by parade-box · online/);
 
-    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(false)));
     await repos();
     assert.equal(top(vue).dataset.etat, "eteint");
 
-    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
+    vue.dire("surAlertes", bandRead(outputOfManager(true)));
     await repos();
     assert.equal(top(vue).dataset.etat, "cuit");
     assert.equal(top(vue).dataset.ton, "vert");

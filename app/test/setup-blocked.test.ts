@@ -2,7 +2,8 @@
 // et sa cause et son geste dans l'entrée `setup` du bloc `attend`. L'app le dit dans la bande
 // d'alertes du projet — ce texte-là, mot pour mot — et sur la pastille de sa case ; quand le
 // runtime ne le dit plus, bande et pastille reviennent d'elles-mêmes. Ce que la box rend est écrit
-// ici par le runtime lui-même, sur un vrai journal, comme alertes.test.ts.
+// ici par le runtime lui-même, sur un vrai journal, comme alertes.test.ts — sauf la sortie de `manager`,
+// recopiée telle que l'ancien runtime l'écrivait (runtime/src/manager-cli.ts, supprimé avec lui, #4499).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -11,7 +12,6 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { alerts, entryOfSetup, holdBands, type Alert, type Band } from "../src/alerts.ts";
 import { POWER_UP } from "../src/power-up.ts";
 import { putAside } from "../src/awaiting.ts";
@@ -36,6 +36,17 @@ const REFUSAL_NETWORK =
 const SETUP_A_FIX =
   "setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #15 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
 
+// La sortie de `manager` d'un manager allumé par le chef à 9 h — celle de cette cuisine, telle que l'ancien runtime
+// l'écrivait : ce qu'on y bloque ou débloque n'y change rien.
+const MANAGER_ON = [
+  "manager               ON since 2026-10-14T09:00:00.000Z (by chef) — it judges the open issues, sets `fire` and the calibration",
+  "latest decisions      none",
+  "set aside             none",
+  "epics                 none",
+  "reactions             none",
+  "held gestures         none",
+].join("\n") + "\n";
+
 // Une cuisine saine — runtime en marche, une station, version à jour, manager allumé — dont le
 // test tient l'horloge. `bande` : ce que l'app en dessine, lu comme le process principal le lit.
 function kitchen(t: TestContext) {
@@ -53,9 +64,7 @@ function kitchen(t: TestContext) {
   const render = () => {
     const now = new Date(`${DAY}T10:00:00.000Z`);
     const state = lireEtat(log, now);
-    const lines: string[] = [];
-    void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: `${lines.join("\n")}\n` };
+    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: MANAGER_ON };
   };
   const bands = holdBands({ etablir: 1, minimum: 0 });
   bands.ouvrir(["parade"]);

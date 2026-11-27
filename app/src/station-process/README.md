@@ -11,7 +11,7 @@ station: a restart neither stops nor reattaches them.
 | What | Where | Who writes it |
 |---|---|---|
 | The releases folder | the `BRIGADE_STATION_VERSIONS` variable the station receives — a folder in the app's user data, never inside the app bundle | the app |
-| Release `X` | `<BRIGADE_STATION_VERSIONS>/<X>/`: a runtime folder, with `src/station/main.ts` and a `package.json` whose `version` is `X` | the station's updater, once downloaded and complete |
+| Release `X` | `<BRIGADE_STATION_VERSIONS>/<X>/`: a runtime folder, with `src/kitchen/main.ts` and a `package.json` whose `version` is `X` | the station's updater, once downloaded and complete |
 | The restart request | `<BRIGADE_STATION_DIR>/redemarrage`, `{"version":"X"}`, written in one go (write a temporary file, then rename) | the station's updater, once its cooks are drained |
 | The outcome | `<BRIGADE_STATION_VERSIONS>/etat.json`: `{ retenue, ratees, derniere }` | the app |
 

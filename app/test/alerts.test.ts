@@ -2,9 +2,10 @@
 // l'inconnu est dit. Trois états y entrent — le manager, la version en service, la cuisine —
 // et chacun s'y éprouve sain (rien n'est posé), en panne (une ligne, sa cause, son
 // geste, son prix) et non dit (une ligne « non vérifié » qui le nomme).
-// Ce que la box rend est écrit ici par le runtime lui-même — `faits`, `status` et `manager`,
-// joués dans ce process sur un vrai journal (runtime/src/etat.ts, runtime/src/manager-cli.ts) :
-// la forme que la bande lit est tenue contre celle que le runtime écrit.
+// Ce que la box rend est écrit ici par le runtime lui-même — `faits` et `status`, joués dans ce
+// process sur un vrai journal (runtime/src/etat.ts) : la forme que la bande lit est tenue contre
+// celle que le runtime écrit. La sortie de `manager` est recopiée telle que l'ancien runtime
+// l'écrivait (runtime/src/manager-cli.ts, supprimé avec lui, #4499).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,7 +14,6 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "../../runtime/src/stations-declarees.ts";
 import { DISPLAY_MINIMUM, alerts, buttonOf, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Subject } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
@@ -38,8 +38,25 @@ const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp
 const MISSED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, erreur: "$ station parade facts\nnpm error Missing script: facts\n\n→ code de sortie 1", atteinte: true, cas: null };
 const NOT_JOINED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, erreur: "$ station parade facts\nconnection refused\n\n→ code de sortie 255", atteinte: false, cas: null };
 
-// Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits`, `status` et
-// `manager`, écrits par le runtime. `bande` : ce que l'app en dessine, lu comme le process
+// La sortie de `manager`, telle que l'ancien runtime l'écrivait : sa ligne dit le dernier geste sur le manager ou sur
+// l'interrupteur du projet — quand, et par qui —, ou qu'il n'a jamais été allumé ; aucune décision dans ces cuisines-là.
+type SwitchEvent = { type: "manager.enabled" | "manager.disabled" | "project.switched-on" | "project.switched-off"; a: string; par: string };
+function outputOfManager(last: SwitchEvent | undefined): string {
+  const said =
+    last === undefined
+      ? "OFF — never turned on: no issue is judged, `fire` and the calibration are set by hand"
+      : {
+          "manager.enabled": `ON since ${last.a} (by ${last.par}) — it judges the open issues, sets \`fire\` and the calibration`,
+          "manager.disabled": `OFF since ${last.a} (by ${last.par}) — no issue is judged, what it set stays set`,
+          "project.switched-on": `ON since ${last.a} (by ${last.par}) — the project switch is on: it judges the open issues, sets \`fire\` and the calibration`,
+          "project.switched-off": `OFF since ${last.a} (by ${last.par}) — the project switch is off: \`brigade <projet> switch on\` turns it on — no issue is judged, what it set stays set`,
+        }[last.type];
+  return [`manager               ${said}`, "latest decisions      none", "set aside             none", "epics                 none", "reactions             none", "held gestures         none"].join("\n") + "\n";
+}
+const SWITCHES: readonly string[] = ["manager.enabled", "manager.disabled", "project.switched-on", "project.switched-off"];
+
+// Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits` et `status`, écrits
+// par le runtime, et `manager`. `bande` : ce que l'app en dessine, lu comme le process
 // principal le lit — `faits`, puis `status` son bloc `attend` mis à part, puis l'onglet Manager.
 function kitchen(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "brigade-app-alertes-"));
@@ -49,16 +66,18 @@ function kitchen(t: TestContext) {
     log.fermer();
     rmSync(directory, { recursive: true, force: true });
   });
-  const note = (done: Fait, author = "runtime") => void log.ajouter({ project: "parade", ticket: null, author, ...done });
+  let lastSwitch: SwitchEvent | undefined;
+  const note = (done: Fait, author = "runtime") => {
+    log.ajouter({ project: "parade", ticket: null, author, ...done });
+    if (SWITCHES.includes(done.type)) lastSwitch = { type: done.type as SwitchEvent["type"], a: instant, par: author };
+  };
   // Une heure du jour du test, ou un instant entier.
   const when = (hour: string) => (hour.includes("T") ? hour : `${DAY}T${hour}.000Z`);
   const a = (hour: string) => void (instant = when(hour));
   const render = (hour: string) => {
     const now = new Date(when(hour));
     const state = lireEtat(log, now);
-    const lines: string[] = [];
-    void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: `${lines.join("\n")}\n` };
+    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: outputOfManager(lastSwitch) };
   };
   const band = (hour = "10:00:00", { avecManager: withManager = true } = {}): Alert[] => {
     const rendered = render(hour);

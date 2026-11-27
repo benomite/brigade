@@ -1,7 +1,7 @@
 // Le quota Max n'est consommé que par le binaire `claude` officiel : rien
 // dans le runtime ne parle à Anthropic autrement. Ce que la connexion Max
-// ajoute à la station — sa veille, son branchement sur les cuisines, l'étape
-// de connexion — ne lance rien d'autre que `claude` et le renouvellement.
+// ajoute à la station — l'étape de connexion — ne lance rien d'autre que
+// `claude` et le renouvellement.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -24,18 +24,11 @@ test("le runtime n'embarque aucune bibliothèque : ni SDK d'Anthropic, ni client
 test("aucun code du runtime ne joint l'API d'Anthropic : son nom n'y sert qu'à la porte réseau, qui laisse passer `claude`", () => {
   assert.deepEqual(qui(/anthropic\.com/), ["reseau.ts"]);
   // claude.ai : la porte, et l'installeur officiel du binaire `claude`.
-  assert.deepEqual(qui(/https:\/\/claude\.ai/), ["connexion-max/connecter-cli.ts", "installation.ts", "outils-requis/outils-requis.ts", "second/outils.ts"]);
-  // Les outils du second (#1433) n'en écrivent que la commande, dans la phrase qui dit au chef comment obtenir
-  // `claude` : ils ne lancent rien et ne joignent rien.
-  // Les outils requis (#4059) de même : la commande de l'installeur, que l'app lance — le runtime ne joint rien.
-  for (const nom of ["second/outils.ts", "outils-requis/outils-requis.ts"]) {
-    const outils = lues.find((lue) => lue.nom === nom)?.texte ?? "";
-    assert.doesNotMatch(outils, /from\s+["']node:(child_process|http|https|net|tls|dgram)["']|\bfetch\s*\(/, nom);
-  }
+  assert.deepEqual(qui(/https:\/\/claude\.ai/), ["connexion-max/connecter-cli.ts"]);
 });
 
-test("la veille de la connexion Max et son branchement sur les cuisines ne lancent rien et ne joignent rien : ils lisent un fichier", () => {
-  for (const nom of ["connexion-max/connexion.ts", "connexion-max/veille.ts", "connexion-max/cuisine.ts", "connexion-max/connecter.ts"]) {
+test("la connexion Max ne lance rien et ne joint rien : elle lit un fichier", () => {
+  for (const nom of ["connexion-max/connexion.ts", "connexion-max/connecter.ts"]) {
     const texte = lues.find((lue) => lue.nom === nom)?.texte ?? "";
     assert.doesNotMatch(texte, /from\s+["']node:(child_process|http|https|net|tls|dgram)["']|\bfetch\s*\(/, nom);
   }

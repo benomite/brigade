@@ -51,7 +51,7 @@ type Event = { evenement: string; t: number; [key: string]: unknown };
 async function oneMac(t: TestContext, options: { versionDeLHote?: string } = {}) {
   const machine = repertoireTemporaire(t);
   const resources = join(machine, "Brigade.app", "Contents", "Resources");
-  mkdirSync(join(resources, "runtime", "src", "station"), { recursive: true });
+  mkdirSync(join(resources, "runtime", "src", "kitchen"), { recursive: true });
   writeFileSync(join(resources, "runtime", "package.json"), `${JSON.stringify({ name: "brigade-runtime", version: "1.0.0" })}\n`);
   writeFileSync(join(resources, "runtime", PRINCIPAL), STATION);
   symlinkSync(APP, join(resources, "app"));
