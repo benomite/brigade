@@ -96,6 +96,7 @@ import { registerTheStationOfBackground } from "./station-background/registratio
 import { openPty } from "./pty.ts";
 import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch.ts";
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
+import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
 import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
 import { readCapture } from "./captures.ts";
@@ -1230,7 +1231,24 @@ const NOT_DONE = { refus: "nothing was done: stations are no longer paired", det
 ipcMain.handle("stationsDuChef", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("stationsDuCompte", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("choisirLesProjets", () => NOT_DONE);
-ipcMain.handle("servirUnProjet", () => ({ refus: "nothing was written: a project is served by its line in the kitchen/projects file of this computer's station, with its clone" }));
+// « This computer » sur un projet (#4568) : sa ligne entre dans le fichier des projets de la cuisine de cet ordinateur
+// (serve-here.ts), que la station relit seule. Le retirer ne se fait pas d'ici.
+ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no kitchen to serve a project" };
+  if (served !== true) return { refus: "a project is given back to the box from its own Stations tab, not from this computer's list" };
+  const repo = typeof repository === "string" ? repository.trim() : "";
+  const known = projects().find((project) => project.depot?.toLowerCase() === repo.toLowerCase());
+  const probes = await probesOfTheRuntime(locations.runtime, claudeHere);
+  const git = process.env.BRIGADE_GIT_BIN || "git";
+  return serveHere({
+    stationDir: rootOfTheStation,
+    repository: repo,
+    project: known === undefined ? undefined : { nom: known.nom, dossier: known.dossier, ...(known.base === undefined ? {} : { base: known.base }) },
+    probes,
+    openCopy: ({ root, ...options }) => openTheLocalCopy({ ...options, gh: ghHere, git, env: { ...process.env, BRIGADE_PROJECTS_DIR: root } }),
+    readBase: async (folder) => (await readClone(git, folder)).base ?? undefined,
+  });
+});
 ipcMain.handle("appsDeLaStation", () => undefined);
 ipcMain.handle("rangerUneApp", () => ({ refus: "this computer's kitchen keeps no GitHub App" }));
 ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be read", detail: NOT_PAIRED }));
