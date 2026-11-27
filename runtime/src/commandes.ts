@@ -17,14 +17,11 @@ export const FIN_DES_ANCIENS_NOMS = "2027-01-14";
 export type DeLaBox = { nom: string; description: string; mots?: Readonly<Record<string, string>>; rang?: number };
 
 export const COMMANDES: readonly DeLaBox[] = [
-  { nom: "facts", description: "The project's facts, machine-readable, for the app" },
   { nom: "log", description: "Read the log: [<ticket> | --ticks] [--last <N>]", mots: { "--derniers": "--last" } },
-  { nom: "station", description: "A station's settings: cooks <N>, stop <station>, start <station>, a chef's decision, remove <setting>, help", mots: { retirer: "remove", aide: "help" } },
   { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },
   { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream; approve <n> does once a gesture an agent holds for the chef's OK", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
   { nom: "send-word", description: "A word to the cook of a taken ticket: <owner>/<repo>#<ticket> <word…> posts it on the issue and queues it; it reaches the cook at the end of its current turn, never in the middle of it. Answers {\"ok\":true} or {\"ok\":false,\"reason\":\"…\"} on one line" },
   { nom: "guardrails", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
-  { nom: "installation", description: "Check that a project is ready to be served (--json: the verdict for a program); labels, setup, uninstall [--confirm]", mots: { desinstaller: "uninstall", "--confirmer": "--confirm" } },
   { nom: "agents", description: "The Agents tab, for the app: [/api/agents] lists every agent with its state, next run and 7-day figures; /api/agents/<id>/gestures gives its last gestures, newest first" },
   { nom: "help", description: "List these commands" },
 ];

@@ -6,8 +6,7 @@
 // Cet ordinateur : sa station n'a qu'une liste, sa configuration, que
 // le process principal écrit (`retirerIci`). Si la sélection que l'app tient pour elle sur GitHub le porte aussi, il en
 // est d'abord retiré (`choisir`) : sans quoi la station réécrirait sa ligne à sa lecture suivante. Une station du compte :
-// sa sélection. Une station que le projet déclare : son retrait, sauf la seule (stations-declared.js). Aucun : rien ne
-// part, la ligne dit pourquoi.
+// sa sélection. Aucun : rien ne part, la ligne dit pourquoi.
 //
 // Ce module ne touche ni `document` ni le pont : la vue lui donne ce qu'elle a lu et les gestes.
 
@@ -17,22 +16,19 @@
 /**
  * `station` : la carte cliquée — son nom, et si c'est cet ordinateur. `liste` : la liste de la station de cet ordinateur,
  * telle que lue — indéfinie si elle ne l'est pas. `selection` : la sélection que l'app tient sur GitHub pour cette station,
- * si elle en a une (pour cet ordinateur, celle de sa station du compte). `declaree` : la station que le projet déclare sous
- * ce nom, et s'il en déclare d'autres.
+ * si elle en a une (pour cet ordinateur, celle de sa station du compte).
  * @typedef {{
  *   projet: string,
  *   depot: string,
  *   station: { nom: string, ici: boolean },
  *   liste?: readonly string[],
  *   selection?: { id: string, depots: readonly string[] },
- *   declaree?: { nom: string, seule: boolean },
  * }} StopRequest
  */
 /**
  * @typedef {{
  *   retirerIci(repository: string): Promise<ListWritten>,
  *   choisir(id: string, repositories: string[]): Promise<{ selection: string[] } | Refusal>,
- *   retirerDeclaree(name: string): Promise<object | Refusal>,
  * }} ActionsOfTheStop
  */
 
@@ -46,9 +42,9 @@ const alike = (/** @type {string} */ a, /** @type {string} */ b) => a.toLowerCas
 /** @param {Refusal} rendered @returns {Says} */
 const refusalSays = (rendered) => ({ texte: `nothing was changed: ${String(rendered.refus).replace(/^not saved: /, "").replace(/^brigade: /, "")}`, refus: true, detail: rendered.detail ?? "" });
 
-// Le geste qui arrête la station, ou `undefined` : l'app n'en a aucun pour elle. `seule` : la seule station déclarée.
-/** @param {StopRequest} demande @param {ActionsOfTheStop} actions @returns {{ ecrire: () => Promise<Says> } | { seule: true } | undefined} */
-export function actionOfStop({ projet: project, depot: repository, station, liste: list, selection, declaree: declaredOne }, actions) {
+// Le geste qui arrête la station, ou `undefined` : l'app n'en a aucun pour elle.
+/** @param {StopRequest} demande @param {ActionsOfTheStop} actions @returns {{ ecrire: () => Promise<Says> } | undefined} */
+export function actionOfStop({ projet: project, depot: repository, station, liste: list, selection }, actions) {
   const chosenOne = selection !== undefined && selection.depots.some((chosen) => alike(chosen, repository)) ? selection : undefined;
   // Retiré de la sélection : rendu tel quel, ou ce qui l'a refusé.
   const ofTheSelection = async () => {
@@ -59,9 +55,8 @@ export function actionOfStop({ projet: project, depot: repository, station, list
     );
     return "refus" in rendered ? refusalSays(rendered) : undefined;
   };
-  // Cet ordinateur, quand sa liste ou sa sélection le porte. Sinon, il le sert par une déclaration du projet ; ou, sa liste
-  // pas encore lue, sa réponse dira ce qu'il en est (`parSaListe`, plus bas).
-  const byItsList = station.ici && (list?.some((served) => alike(served, repository)) === true || chosenOne !== undefined || (list === undefined && declaredOne === undefined));
+  // Cet ordinateur, quand sa liste ou sa sélection le porte. Sinon, sa liste pas encore lue, sa réponse dira ce qu'il en est (`parSaListe`, plus bas).
+  const byItsList = station.ici && (list?.some((served) => alike(served, repository)) === true || chosenOne !== undefined || list === undefined);
   if (byItsList) {
     return {
       ecrire: async () => {
@@ -80,15 +75,7 @@ export function actionOfStop({ projet: project, depot: repository, station, list
       ecrire: async () => (await ofTheSelection()) ?? { texte: REMOVED(station.nom, project), refus: false, detail: "" },
     };
   }
-  if (declaredOne !== undefined && !declaredOne.seule) {
-    return {
-      ecrire: async () => {
-        const rendered = await actions.retirerDeclaree(declaredOne.nom);
-        return "refus" in rendered ? refusalSays(/** @type {Refusal} */ (rendered)) : { texte: REMOVED(station.nom, project), refus: false, detail: "" };
-      },
-    };
-  }
-  return declaredOne !== undefined ? { seule: true } : undefined;
+  return undefined;
 }
 
 // Joue le geste, et rend ce que la ligne en dit : un geste qui lève dit que l'app a échoué, son détail au survol.

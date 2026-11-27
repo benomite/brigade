@@ -7,7 +7,6 @@ import { test } from "node:test";
 import { DECISIONS, OBLIGATOIRES, type Decision } from "../src/decisions.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { configManager } from "../src/manager.ts";
-import { GESTES } from "../src/montrer-station.ts";
 import { configReviewer } from "../src/reviewer.ts";
 import { EXEMPLE, lireStations } from "../src/stations-declarees.ts";
 

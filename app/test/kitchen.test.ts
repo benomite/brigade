@@ -1,8 +1,7 @@
-// Les trois gestes de la cuisine et de l'installation : reprendre, arrêter, vérifier
-// l'installation. Chacun envoie la commande de docs/runtime/, « Piloter », dans le
+// Les deux gestes de la cuisine : reprendre, arrêter. Chacun envoie la commande de docs/runtime/, « Piloter », dans le
 // second, s'il est dit libre (terminals.test.ts) — sinon rien n'est écrit, nulle part.
-// Vérifier l'installation part au clic ; reprendre et arrêter sont confirmés : sans le
-// « oui » du chef, rien ne part, et la confirmation dit leur prix (confirmation.test.ts).
+// Reprendre et arrêter sont confirmés : sans le « oui » du chef, rien ne part, et la
+// confirmation dit leur prix (confirmation.test.ts).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,18 +20,17 @@ const IN_WORKSTATION = (suite: string) => `(cd '/r/runtime' && BRIGADE_STATION_D
 const EXPECTED: Record<string, string> = {
   reprendre: IN_WORKSTATION("guardrails resume"),
   stop: IN_WORKSTATION("guardrails stop"),
-  installation: IN_WORKSTATION("installation"),
 };
 
-describe("les gestes de la cuisine et de l'installation", () => {
-  test("trois gestes, nommés par le socle : la vue les nomme, elle ne sait pas ce qu'ils écrivent", () => {
-    assert.deepEqual(KITCHEN_ACTIONS.map(({ id }) => id), ["reprendre", "stop", "installation"]);
-    assert.deepEqual(KITCHEN_ACTIONS.map(({ libelle: wording }) => wording), ["resume the kitchen", "stop the kitchen", "check the installation"]);
+describe("les gestes de la cuisine", () => {
+  test("deux gestes, nommés par le socle : la vue les nomme, elle ne sait pas ce qu'ils écrivent", () => {
+    assert.deepEqual(KITCHEN_ACTIONS.map(({ id }) => id), ["reprendre", "stop"]);
+    assert.deepEqual(KITCHEN_ACTIONS.map(({ libelle: wording }) => wording), ["resume the kitchen", "stop the kitchen"]);
     for (const { id } of KITCHEN_ACTIONS) assert.ok(ACTIONS.some((action) => action.id === id), `« ${id} » n'est pas un geste du socle`);
   });
 
-  test("reprendre et arrêter sont confirmés, vérifier l'installation est direct ; chacun envoie sa commande mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
-    assert.deepEqual(KITCHEN_ACTIONS.map(({ id }) => (CONFIRMED.includes(id) ? "confirmé" : DIRECT.includes(id) ? "direct" : "?")), ["confirmé", "confirmé", "direct"]);
+  test("reprendre et arrêter sont confirmés ; chacun envoie sa commande mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
+    assert.deepEqual(KITCHEN_ACTIONS.map(({ id }) => (CONFIRMED.includes(id) ? "confirmé" : DIRECT.includes(id) ? "direct" : "?")), ["confirmé", "confirmé"]);
 
     for (const { id } of KITCHEN_ACTIONS) {
       const writtenOnes: string[][] = [];

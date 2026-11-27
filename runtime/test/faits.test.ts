@@ -5,8 +5,7 @@ import { test, type TestContext } from "node:test";
 import type { Captures } from "../src/captures.ts";
 import { decrireEtat, ETATS_DE_PROJET, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { principal as commande } from "../src/faits.ts";
-import { principal as montrerStation } from "../src/montrer-station.ts";
+import { principal as commande } from "./faits-principal.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { ouvrirRail } from "./aides/rail-du-journal.ts";
@@ -245,28 +244,6 @@ test("les cooks en cours sont figés eux aussi : pour chacun son ticket, le titr
     `[{"ticket":15,"titre":"Ticket 15","station":"box/claude-opus"},` +
       `{"ticket":16,"titre":"Ticket 16","station":"box/claude-sonnet"},` +
       `{"ticket":14,"titre":"Ticket 14","station":"box/claude-sonnet"}]`,
-  );
-});
-
-test("la forme et le texte de `station` disent les mêmes cooks en cours, dans le même ordre", async (t) => {
-  const { repertoire, lire } = auxFourneaux(t);
-
-  const lancee = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await lancee.fin, 0);
-
-  // Le texte : une ligne de tête par station, puis une ligne par cook en cours.
-  const dits: Array<[string, string]> = [];
-  let station = "";
-  let enCours = false;
-  for (const ligne of lancee.sortie().split("\n")) {
-    if (ligne.startsWith("station ")) station = ligne.slice("station".length).trim().split(" — ")[0] ?? "";
-    if (!ligne.startsWith("  ")) enCours = ligne.startsWith("cooks running");
-    else if (enCours) dits.push([ligne.trim().split("  ")[0] ?? "", station]);
-  }
-  assert.equal(dits.length, 3);
-  assert.deepEqual(
-    lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.cooks.map(({ ticket, station }) => [`#${ticket}`, station]),
-    dits,
   );
 });
 
@@ -572,87 +549,6 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.deepEqual(forme.livres, []);
   assert.ok(Math.abs(Date.parse(forme.lu) - Date.now()) < 3_600_000);
   assert.deepEqual([journal.tout(), photographier(journal, PROJECTIONS)], avant);
-});
-
-test("le plafond de calibrage se règle d'un geste de `station`, sans redémarrage : `facts` et `station` disent sa valeur et d'où elle vient", async (t) => {
-  const { repertoire } = garnie(t);
-  const lire = async () => {
-    const lancee = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
-    assert.equal(await lancee.fin, 0);
-    return JSON.parse(lancee.sortie().split("\n")[0] ?? "").plafondDeCalibrage;
-  };
-  const station = async (...args: string[]) => {
-    const lancee = appeler(montrerStation, args, { BRIGADE_STATE_DIR: repertoire });
-    assert.equal(await lancee.fin, 0, lancee.sortie());
-    return lancee.sortie();
-  };
-
-  assert.match(await station(), /^calibration ceiling +opus \/ high — default — `station -- ceiling-modele <model>`/m);
-  assert.match(await station(), /^  ceiling-modele +not set — the default, opus — source: default$/m);
-
-  const posee = await station("ceiling-modele", "sonnet");
-  assert.match(posee, /^brigade : ceiling-modele: sonnet \(was: not set\) — read by the runtime at its next read, without a restart/);
-  assert.match(posee, /^source: box$/m);
-  assert.match(await station(), /^  ceiling-modele +sonnet — source: box$/m);
-  assert.deepEqual(await lire(), { modele: "sonnet", effort: "high", parLeChef: { modele: true, effort: false } });
-  assert.match(await station(), /^calibration ceiling +sonnet \(set by you\) \/ high \(default\)/m);
-
-  await station("ceiling-effort", "max");
-  assert.deepEqual(await lire(), { modele: "sonnet", effort: "max", parLeChef: { modele: true, effort: true } });
-  assert.match(await station(), /^calibration ceiling +sonnet \/ max — set by you, replaces the default opus \/ high/m);
-
-  // Retiré, c'est le défaut qui revient.
-  const retiree = await station("remove", "ceiling-modele");
-  assert.match(retiree, /^brigade : ceiling-modele: withdrawn \(was: sonnet\) — back to the default, opus/);
-  assert.match(retiree, /^source: default$/m);
-  assert.deepEqual(await lire(), { modele: "opus", effort: "max", parLeChef: { modele: false, effort: true } });
-
-  // Une valeur que le runtime ne lirait pas est refusée, et rien n'est écrit.
-  const refusee = appeler(montrerStation, ["ceiling-effort", "extreme"], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await refusee.fin, 2);
-  assert.match(refusee.sortie(), /ceiling-effort refused, nothing is written — BRIGADE_CEILING_EFFORT invalid/);
-  assert.deepEqual(await lire(), { modele: "opus", effort: "max", parLeChef: { modele: false, effort: true } });
-});
-
-test("le plafond et le calibrage que porte le dépôt du projet passent avant ceux de la box : `facts` et `station` le disent, et un geste qui les pose sur la box est dit ignoré", async (t) => {
-  const { repertoire } = garnie(t);
-  const { clone } = projetSurGit(t, { reglages: { integrationBranch: "v2", defaultCalibrations: { manager: { model: "opus", effort: "high" } }, calibrationCeiling: { model: "sonnet", effort: "low" } } });
-  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: "v2" };
-  const lire = async () => {
-    const lancee = appeler(commande, [], env);
-    assert.equal(await lancee.fin, 0);
-    return JSON.parse(lancee.sortie().split("\n")[0] ?? "").plafondDeCalibrage;
-  };
-  const station = async (...args: string[]) => {
-    const lancee = appeler(montrerStation, args, env);
-    assert.equal(await lancee.fin, 0, lancee.sortie());
-    return lancee.sortie();
-  };
-
-  assert.deepEqual(await lire(), { modele: "sonnet", effort: "low", parLeChef: { modele: false, effort: false }, depuisLeDepot: true });
-  assert.match(await station(), /^calibration ceiling +sonnet \/ low — from the project's repository \(\.claude\/brigade\/projet\.json\), replaces what is set on the box — a pull request on \.claude\/brigade\/projet\.json to change it$/m);
-  assert.match(await station(), /^  manager-modele +opus — from the project's repository \(\.claude\/brigade\/projet\.json\)$/m);
-
-  // Posé sur la box, il est écrit — et dit ignoré tant que le dépôt le porte.
-  assert.match(await station("ceiling-modele", "opus"), /^brigade : ceiling-modele: opus \(was: not set\) — read by the runtime.*\nbut the project's repository sets it \(\.claude\/brigade\/projet\.json: sonnet\): this decision is ignored while it does\nsource: project decisions$/m);
-  assert.deepEqual(await lire(), { modele: "sonnet", effort: "low", parLeChef: { modele: false, effort: false }, depuisLeDepot: true });
-  assert.match(await station(), /^  ceiling-modele +sonnet — from the project's repository \(\.claude\/brigade\/projet\.json\); set on the box: opus, ignored — source: project decisions$/m);
-});
-
-test("la commande refuse un argument, un répertoire d'état absent ou sans journal, en le disant", async (t) => {
-  const repertoire = repertoireTemporaire(t);
-
-  const sansEtat = appeler(commande, [], {});
-  assert.equal(await sansEtat.fin, 2);
-  assert.match(sansEtat.sortie(), /^brigade : BRIGADE_STATE_DIR n'est pas défini\nusage : /);
-
-  const avecArgument = appeler(commande, ["--json"], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await avecArgument.fin, 2);
-  assert.match(avecArgument.sortie(), /^brigade : usage : /);
-
-  const sansJournal = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await sansJournal.fin, 1);
-  assert.match(sansJournal.sortie(), /^brigade : /);
 });
 
 // Un ticket pris par box/claude, son cook lancé à 10:00:04.

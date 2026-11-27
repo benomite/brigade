@@ -1,5 +1,5 @@
 // Les gestes de la cuisine d'un projet qui cuit sur cet ordinateur (#1123) : arrêter et reprendre
-// la cuisine, merger une livraison, vérifier l'installation. Ils
+// la cuisine, merger une livraison. Ils
 // partent au geste de la station de ce poste, ici.
 //
 // Chaque commande écrite dans le second est jouée pour de bon, par un `sh`, comme le `!` du second
@@ -11,12 +11,10 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { verdictDeLaPanne } from "../../runtime/src/verdict.ts";
 import { confirmationOf } from "../src/confirmation.ts";
-import { ACTION, launchThe, openStandby, type Kitchen, type Reading, type Locale } from "../src/box.ts";
+import { ACTION, openStandby, type Kitchen, type Reading, type Locale } from "../src/box.ts";
 import type { Project } from "../src/config.ts";
 import { commandOfAction, writeAction } from "../src/actions.ts";
-import { JUDGMENT, holdServices, type Guide } from "../src/service.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
@@ -32,10 +30,8 @@ function workstation(t: TestContext) {
   const station = join(root, "station");
   const node = join(root, "node");
   for (const folder of [bin, runtime, station]) mkdirSync(folder, { recursive: true });
-  // La cuisine tourne tant que rien ne l'arrête ; ce qui est rendu à `installation --json`, et son code.
+  // La cuisine tourne tant que rien ne l'arrête .
   writeFileSync(join(root, "cuisine"), "running\n");
-  writeFileSync(join(root, "code"), "0\n");
-  writeFileSync(join(root, "sortie"), "");
   // Le faux geste de station : un mot reçu par ligne, puis ce que le runtime ferait de la commande.
   writeFileSync(
     node,
@@ -46,7 +42,6 @@ case "$*" in
   "guardrails stop") echo stopped > '${root}/cuisine'; echo "brigade : the kitchen is stopped" ;;
   "guardrails resume") echo running > '${root}/cuisine'; echo "brigade : the kitchen is resumed" ;;
   status) printf 'cuisine    %s\\n' "$(cat '${root}/cuisine')" ;;
-  "${JUDGMENT}") cat '${root}/sortie'; exit "$(cat '${root}/code')" ;;
   *) echo "brigade : $*" ;;
 esac
 `,
@@ -68,11 +63,7 @@ esac
     assert.ok(writtenOne.startsWith("!"), writtenOne);
     return execFileSync("/bin/sh", ["-c", writtenOne.slice(1)], { cwd: root, env: locale.env, encoding: "utf8" });
   };
-  const reply = (output: string, code: number) => {
-    writeFileSync(join(root, "sortie"), output);
-    writeFileSync(join(root, "code"), `${code}\n`);
-  };
-  return { racine: root, locale, ici: { locale } as Kitchen, lu: readOne, lances: launched, jouer: play, repondre: reply };
+  return { racine: root, locale, ici: { locale } as Kitchen, lu: readOne, lances: launched, jouer: play };
 }
 
 // Un projet que la station de cet ordinateur sert.
@@ -142,37 +133,6 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
     }
     // Sans dire où la cuisine tourne, il n'y aurait rien à confirmer — ni à arrêter.
     assert.equal(confirmationOf("stop", PARADE, { sans: "pas lus" }, undefined), undefined);
-  });
-
-  test("vérifier l'installation : lancée ici, elle rend le verdict — et l'erreur — du geste de la station", { skip: WITHOUT_POSIX }, async (t) => {
-    const trial = workstation(t);
-    const checks = async () => {
-      const guides: Guide[] = [];
-      const services = holdServices({
-        delaiMs: 60_000,
-        lancer: (readOne, command) => launchThe({ delaiMs: 60_000 }, readOne, command),
-        cuisine: () => trial.ici,
-        setup: () => SECOND,
-        shell: () => SECOND,
-        surGuide: (guide) => void guides.push(guide),
-      });
-      assert.equal(await services.verifier(PARADE), undefined);
-      const { verification } = guides.at(-1) ?? assert.fail("aucune installation poussée");
-      return verification ?? assert.fail("aucune vérification poussée");
-    };
-
-    // Un verdict : la vérification a planté.
-    trial.repondre(JSON.stringify(verdictDeLaPanne(new Error("the journal is unreadable"))), 1);
-    const here = await checks();
-    assert.equal(here.etat, "plantee");
-    // La veille et la vérification lancent le geste par son chemin entier, comme `lancerIci`.
-    assert.deepEqual(trial.lances(), [{ ...received(trial, "installation", "--json"), args: [join(trial.locale.runtime, ACTION), "parade", "installation", "--json"] }]);
-
-    // Une erreur : le geste refuse de lancer le runtime (70) — dite en une ligne.
-    trial.repondre("", 70);
-    const refusal = await checks();
-    assert.equal(refusal.etat, "sans-verdict");
-    assert.deepEqual("echec" in refusal ? { ...refusal.echec, erreur: "" } : undefined, { erreur: "", atteinte: true, cas: "node-inapte" });
   });
 });
 

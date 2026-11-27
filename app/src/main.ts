@@ -108,7 +108,6 @@ import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
-import { holdServices } from "./service.ts";
 import { installerTheStation } from "./workstation/installer.ts";
 import { memoriesInFile } from "./memories.ts";
 import { githubOfStations } from "./stations/github.ts";
@@ -492,37 +491,6 @@ function look(seenOnes: Parameters<typeof standby.regarder>[0], commands: readon
   tellTheHome(home.veiller(seenOnes.map(({ nom: name }) => name)));
 }
 
-// L'installation guidée d'un projet (service.ts) : ses étapes, lues et faites par les
-// commandes `installation` du runtime de sa box, lancées une à une par le passage du projet
-// comme les veilles — par la station de cet ordinateur, quand c'est elle qui fait
-// tourner sa cuisine. Chacune a deux minutes : la vérification joint l'origine du dépôt et
-// GitHub, la protection aussi. Sa session s'ouvre dans le second, son démarrage s'écrit dans
-// un shell. Chaque installation qui change est poussée à la vue — et à la bande d'alertes du
-// projet : installé, ce que son contrôle dit qu'il a perdu y entre (alerts.ts), jamais l'écran
-// d'installation. Le contrôle d'un projet installé ne se refait pas plus d'une fois par minute.
-const services = holdServices({
-  delaiMs: 120_000,
-  lancer: (readOne, command) => {
-    const rendered = (passage.get(readOne.nom) ?? Promise.resolve()).then(() => launchThe({ delaiMs: 120_000 }, readOne, command));
-    passage.set(readOne.nom, rendered);
-    return rendered;
-  },
-  cuisine: kitchens.cuisineDe,
-  setup: terminals.setup,
-  shell: terminals.shell,
-  surGuide: (guide) => {
-    tell("guide", guide);
-    tell("alertes", bands.controle(guide.projet, guide.controle));
-  },
-  controleMs: 60_000,
-});
-// Ce qu'un projet installé a perdu — une station, un geste de box — se relit pour chacun,
-// quel que soit l'écran : sa pastille dans la barre le dit aussi. Dès que la barre est posée, et
-// plus à intervalle : c'est un état de l'ancien runtime. Un contrôle en route ne se double pas.
-const checkAll = () => {
-  for (const project of projects()) if (kitchens.cuisineDe(project) !== undefined) void services.controler(project);
-};
-
 // Retirer un projet de l'app (removal.ts) : n'écrit que le fichier des projets — rien ne part vers sa station.
 const removals = holdRemovals({
   chemin: pathConfiguration(),
@@ -550,7 +518,6 @@ const preferences = holdPreferences({
 const tracking = followConfiguration({
   chemin: pathConfiguration(),
   surChangement: (configuration, gone) => {
-    gone.forEach(services.oublier);
     tell("configuration", shownEntry(), gone.flatMap((name) => terminals.quitter(name)));
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
     void delays.relire(true);
@@ -762,57 +729,7 @@ ipcMain.handle("ranger", (_, name: unknown, rank: unknown) => {
   if (aims === undefined) return gone(name).refus;
   return typeof rank === "number" ? tracking.ranger(aims.nom, rank) : `nothing was done: “${String(rank)}” is not a place in the bar`;
 });
-// L'installation guidée : la vue nomme le projet et le geste, ce qu'il en advient se décide
-// dans service.ts — les étapes lues sur la box, la session qui prépare le dépôt dans le second,
-// chaque étape faite par la commande du runtime qui la fait, et le démarrage, écrit dans un
-// shell et refusé tant que la box n'a pas terminé l'installation. Ce qui change arrive par `surGuide`.
 const gone = (name: unknown) => ({ refus: `nothing was done: “${String(name)}” is no longer in the projects file` });
-ipcMain.handle("service", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? undefined : services.guide(aims);
-});
-ipcMain.handle("deplierService", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? undefined : services.deplier(aims);
-});
-ipcMain.handle("amorcer", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.amorcer(aims);
-});
-ipcMain.handle("direMerge", (_, name: unknown, merge: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.direMerge(aims, merge === true);
-});
-ipcMain.handle("verifier", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.verifier(aims);
-});
-ipcMain.handle("declarerStations", (_, name: unknown, choice: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.declarerStations(aims, choice);
-});
-// Une station déclarée, changée seule depuis l'onglet Stations (#1510) : son plafond, ses capacités, ce poste qui la joue,
-// ou son retrait (service.ts, `changerUneStation`).
-ipcMain.handle("changerUneStation", (_, name: unknown, station: unknown, wanted: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.changerUneStation(aims, station, wanted);
-});
-ipcMain.handle("proteger", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.proteger(aims);
-});
-ipcMain.handle("repondre", (_, name: unknown, values: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.repondre(aims, values);
-});
-ipcMain.handle("passerDecisions", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.passerDecisions(aims);
-});
-ipcMain.handle("demarrer", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : services.demarrer(aims);
-});
 // Retirer un projet : la vue nomme le projet, ce qu'il en advient se décide dans retrait.ts. « Retirer de l'app »
 // n'écrit que le fichier des projets — rien ne part vers sa station.
 ipcMain.handle("retrait", (_, name: unknown) => {
@@ -1535,7 +1452,6 @@ ipcMain.on("faits", (_, request: number) => {
   // Chaque projet qui se lit — sur sa box ou ici — a sa bande dès maintenant : rien n'y est encore vérifié.
   for (const band of bands.ouvrir(projects().filter(readable).map(({ nom: name }) => name))) { lastBands.set(band.projet, band); tell("alertes", band); }
   factsWatch.regarder(projects(), [COMMAND], request);
-  checkAll();
 });
 // « réessayer maintenant » (#728) : le tableau est relu tout de suite, sur GitHub — pas la lecture
 // d'il y a quelques secondes —, sans effacer ce qui en était tenu.

@@ -7,7 +7,7 @@ import { describe, test, type TestContext } from "node:test";
 import { enregistrerRetro } from "../../src/apprentissage/provisoires.ts";
 import { apprentissageDuProjet } from "../../src/apprentissage/projet.ts";
 import { CARNET_PATH, saveCarnet } from "../../src/carnet/carnet.ts";
-import { principal as faits } from "../../src/faits.ts";
+import { principal as faits } from "../faits-principal.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { saveDefinition } from "../../src/profils/definition.ts";
 import { appeler, repertoireTemporaire } from "../outils.ts";

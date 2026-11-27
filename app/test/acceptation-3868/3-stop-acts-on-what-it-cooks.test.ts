@@ -26,7 +26,6 @@ test("stopping the box's card removes the project from the station that really c
     {
       retirerIci: () => Promise.resolve({ depots: [] }),
       choisir: (id, repositories) => (calls.push(`${id} ${repositories.join(",")}`), Promise.resolve({ selection: repositories })),
-      retirerDeclaree: () => Promise.resolve({}),
     },
   );
   assert.ok(action !== undefined && "ecrire" in action, "a stop gesture exists");
