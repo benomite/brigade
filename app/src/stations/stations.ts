@@ -12,6 +12,8 @@ import type { PublishedConnection } from "../outages/states.ts";
 import { capacitiesRead } from "../projects/request.ts";
 import { outagesOf, type Outage } from "../outages/outages.ts";
 import { documentOfPairing, fingerprint, FILE_PAIRING, FILE_STATION, readPairing, readDocument, normalize, type DocumentPairing, type DocumentStation } from "./document.ts";
+import { duration } from "./duration.ts";
+import { linesOfFacts } from "./status.ts";
 import { followTheVersions, type VersionsViews } from "./versions.ts";
 import type { GistOfStation, GitHubOfStations } from "./github.ts";
 
@@ -24,7 +26,7 @@ export type StateOfStation = "en-ligne" | "hors-ligne" | "illisible";
 // telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
 // mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire. `fournit` : ce que son appairage
 // dit qu'elle fournit (document.ts, #1757) — absent quand il n'en dit rien.
-export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: StateOfStation; ligne: string; pannes: Outage[]; dit: string; version: string; projets: string[]; max: PublishedConnection["etat"] | null; maxDepuis?: string | null; versionDit?: string };
+export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: StateOfStation; ligne: string; pannes: Outage[]; dit: string; version: string; projets: string[]; max: PublishedConnection["etat"] | null; maxDepuis?: string | null; versionDit?: string; faits?: string[] };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.
@@ -41,15 +43,7 @@ export const CADENCE_MS = 30_000;
 // clignoter.
 export const outsideLineAfter = (cadenceMs: number) => 2 * cadenceMs + 30_000;
 
-// Une durée, telle que la ligne la dit.
-export function duration(ms: number): string {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  if (minutes < 1) return "less than a minute";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 48) return minutes % 60 === 0 ? `${hours} h` : `${hours} h ${String(minutes % 60).padStart(2, "0")}`;
-  return `${Math.floor(hours / 24)} days`;
-}
+export { duration };
 
 export const projectsOf = (projects: readonly string[]) => (projects.length === 0 ? "no project" : `${projects.length} project${projects.length > 1 ? "s" : ""}: ${projects.join(", ")}`);
 
@@ -139,6 +133,7 @@ export function holdStations(options: OptionsStations): Stations {
             // Une station qui se tait ne dit plus sa connexion : ce qu'elle en a publié avant n'est plus sûr.
             max: stateOf(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
             maxDepuis: stateOf(document, instant).etat === "en-ligne" ? (document.connexionMax?.depuis ?? null) : null,
+            ...(document.faits === undefined || stateOf(document, instant).etat !== "en-ligne" ? {} : { faits: linesOfFacts(document.faits, document.version, instant) }),
             versionDit: lineOfVersion(document, instant, versions.vue(id, document.version, instant)),
           },
     );

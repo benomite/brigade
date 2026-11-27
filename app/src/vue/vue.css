@@ -1313,6 +1313,12 @@ main > header,
   margin: var(--pas-1) 0;
   color: var(--discret);
 }
+#station .faits-de-la-station {
+  color: var(--discret);
+}
+#station .faits-de-la-station p {
+  margin: var(--pas-1) 0;
+}
 #station .version-de-station:empty {
   display: none;
 }

@@ -101,7 +101,7 @@ export function readStatus(station: string, facts: StatusFacts, extra: { since: 
 export function publishStatus(
   station: string,
   facts: () => StatusFacts,
-  options: { gh: Gh; updateDir?: string; dir?: string; version?: string; now?: () => Date; checkMs?: number; say?: (line: string) => void },
+  options: { gh: Gh; updateDir?: string; dir?: string; version?: string; now?: () => Date; checkMs?: number; onWrite?: (status: Status) => void; say?: (line: string) => void },
 ): () => void {
   const now = options.now ?? (() => new Date());
   const since = now().toISOString();
@@ -121,6 +121,7 @@ export function publishStatus(
         quota = await quotaOf(options.gh);
       }
       const status = readStatus(station, facts(), { since, version: options.version ?? versionDuRuntime(), now: now(), quota, updateDir: options.updateDir });
+      options.onWrite?.(status);
       const content = JSON.stringify({ ...status, updatedAt: "" });
       if (content === wrote && now().getTime() - wroteAt < EVERY_MS) return;
       writeStatus(dir, status);

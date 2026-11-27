@@ -554,13 +554,16 @@ capOfStation.ariaLive = "polite";
 // La ligne de mise à jour, sous l'en-tête ; et, au bas de la page, « remove the station » et sa confirmation.
 const versionOfStation = document.createElement("p");
 versionOfStation.className = "version-de-station";
+// Les faits que la station écrit d'elle dans son gist (stations/status.ts) : une ligne chacun.
+const factsOfStation = document.createElement("div");
+factsOfStation.className = "faits-de-la-station";
 const removalOfStation = document.createElement("div");
 removalOfStation.className = "retrait-de-station";
 // Ses sections, sous ses pannes (ticket 2641, épique 2497) : identité, connexions, dossiers et bac à sable, capacités,
 // cooks — posées par la coque de station/page/StationPage.js.
 const sectionsOfStation = document.createElement("div");
 sectionsOfStation.className = "sections-de-station";
-pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, outagesOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
+pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, outagesOfStation, factsOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
 // Les chiffres d'autonomie de tous les projets (ticket 3222) : ils valent pour l'ensemble, ils vivent donc au niveau de
 // l'app, pas dans un projet. Une ligne « Autonomy » ouvre leur page, en bas du bandeau de santé de chaque projet. Le coût
 // en tokens qu'elle montrait avant (ticket 1022), que seul l'ancien runtime calculait, en est retiré (ticket 4509).
@@ -5357,6 +5360,7 @@ function setPageOfStation() {
     outagesOfStation.replaceChildren();
     capOfStation.replaceChildren();
     versionOfStation.replaceChildren();
+    factsOfStation.replaceChildren();
     removalOfStation.replaceChildren();
   } else if (station === undefined) {
     inHeadOfStation.replaceChildren(block("p", stationsViews === undefined ? READ_OF("your stations on GitHub") : "this station is no longer paired with this app"));
@@ -5364,6 +5368,7 @@ function setPageOfStation() {
     outagesOfStation.replaceChildren();
     capOfStation.replaceChildren();
     versionOfStation.replaceChildren();
+    factsOfStation.replaceChildren();
     removalOfStation.replaceChildren();
   } else {
     const title = block("h2", station.nom);
@@ -5378,6 +5383,7 @@ function setPageOfStation() {
     inHeadOfStation.replaceChildren(title, pill(sentence, line?.ton), ...(alreadySays ? [] : [stateSays]), ...(details === "" ? [] : [hover(document, details)]), ...(line?.note === undefined ? [] : [block("p", line.note)]), setTheCalls(document, line?.appels));
     setCap(line);
     versionOfStation.replaceChildren(...(station.versionDit ? [block("span", station.versionDit)] : []));
+    factsOfStation.replaceChildren(...(station.faits ?? []).map((fact) => block("p", fact)));
     outagesOfStation.replaceChildren(...station.pannes.map((outage) => setOutage(station, outage)));
     setTheSectionsOfStation({ id: station.id, nom: station.nom });
     setRemovedTheStation(station);
