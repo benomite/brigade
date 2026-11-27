@@ -24,7 +24,7 @@ describe("l'avis de dépôt", () => {
       const opinion = (place === "page" ? setOpinionOfRepository(doc, "page", state, () => clics++) : setOpinionOfTodo(doc, state, () => clics++)) ?? assert.fail("pas d'avis");
       assert.equal(opinion.dataset.lieu, place);
       assert.match(text(opinion), /Not set up for Brigade: 2 bindings and 1 label missing\./);
-      assert.doesNotMatch(text(opinion), /brigade:init/);
+      assert.doesNotMatch(text(opinion), /\/brigade:/);
       const [button, ...others] = buttons(opinion);
       assert.equal(others.length, 0);
       assert.equal(button?.textContent, PREPARE);

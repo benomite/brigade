@@ -9,7 +9,7 @@ import { test, type TestContext } from "node:test";
 import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
 
 const RACINE = join(import.meta.dirname, "..", "..", "..");
-const PLUGIN_DE_L_APP = join(RACINE, "app", "src", "plugin");
+const PLUGIN_DE_L_APP = join(RACINE, "app", "src", "setup");
 const SANS_BASH = process.platform === "win32" && "le script de la mise en place du dépôt et son `gh` doublure sont joués par bash";
 const README = "# Shop\n\nA small shop.\nno final newline";
 const SVG_VALIDE_FILL = /fill="(#[0-9a-f]{3,6}|url\(#\w+\)|none)"/;

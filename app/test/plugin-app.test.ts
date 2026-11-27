@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Project } from "../src/config.ts";
-import { COMMANDS, SPACE, PLACES_BY_DEFAULT, PR_OF_SETUP, OWN, SCRIPT_INIT, ID, launchReally, MARKETPLACE, setTheMarketplace, SETTINGS_LOCAL, withoutPluginApp, holdThePluginApp, versionOfPlugin, type Launch } from "../src/plugin-app.ts";
+import { COMMANDS, SPACE, ID, launchReally, MARKETPLACE, setTheMarketplace, SETTINGS_LOCAL, withoutPluginApp, holdThePluginApp, versionOfPlugin, type Launch } from "../src/plugin-app.ts";
 
 const COMMANDS_OF_REPOSITORY = join(import.meta.dirname, "..", "..", "commands");
 const CLAUDE = "claude-doublure";
@@ -91,7 +91,7 @@ test("ouvrir un projet y installe brigade-app en scope local, et git status n'en
   assert.match(readFileSync(join(calculus.dossier, ".git", "info", "exclude"), "utf8"), /^\/\.claude\/settings\.local\.json$/m);
 });
 
-test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiées de commands/, et son propre /brigade:init — aucun rôle V1", async (t) => {
+test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiées de commands/ — ni commande de préparation, ni rôle V1", async (t) => {
   const { clone, plugin, marketplace } = trial(t);
 
   await plugin("1.2.3").suivre([clone("calculus")]);
@@ -100,23 +100,12 @@ test("le marketplace de l'app ne porte que /brigade:dev et /brigade:ask, copiée
   assert.equal(manifest.name, "brigade");
   assert.equal(manifest.name, SPACE);
   assert.equal(manifest.version, "1.2.3");
-  assert.deepEqual(manifest.commands, ["./commands/dev.md", "./commands/ask.md", "./commands/init.md"]);
+  assert.deepEqual(manifest.commands, ["./commands/dev.md", "./commands/ask.md"]);
   assert.equal(manifest.agents, undefined);
-  assert.deepEqual(readdirSync(join(marketplace, "commands")).sort(), ["ask.md", "dev.md", "init.md"]);
+  assert.deepEqual(readdirSync(join(marketplace, "commands")).sort(), ["ask.md", "dev.md"]);
   for (const name of COMMANDS) assert.equal(readFileSync(join(marketplace, "commands", name), "utf8"), readFileSync(join(COMMANDS_OF_REPOSITORY, name), "utf8"));
-  // `/brigade:init` est celui de l'app, pas le V1 de commands/ : il nomme le script posé à côté, par son chemin, en
-  // barres obliques — sous Windows aussi, où `bash` est celui de Git (#2608).
-  const script = join(marketplace, "scripts", SCRIPT_INIT);
-  assert.equal(readFileSync(script, "utf8"), readFileSync(join(OWN, SCRIPT_INIT), "utf8"));
-  // Il lance le script par la commande du runtime qui pose la carte de sa PR dans le TODO (#3169), avec le `node` donné.
-  const prOfSetup = join(PLACES_BY_DEFAULT.runtime, ...PR_OF_SETUP);
-  assert.ok(existsSync(prOfSetup), prOfSetup);
-  assert.equal(
-    readFileSync(join(marketplace, "commands", "init.md"), "utf8"),
-    readFileSync(join(OWN, "init.md"), "utf8").replaceAll("@SCRIPT@", script.replaceAll("\\", "/")).replaceAll("@SETUP_PR@", prOfSetup.replaceAll("\\", "/")).replaceAll("@NODE@", "node"),
-  );
-  assert.ok(readFileSync(join(marketplace, "commands", "init.md"), "utf8").includes(`"node" "${prOfSetup.replaceAll("\\", "/")}" "${script.replaceAll("\\", "/")}" --test`));
-  assert.notEqual(readFileSync(join(marketplace, "commands", "init.md"), "utf8"), readFileSync(join(COMMANDS_OF_REPOSITORY, "init.md"), "utf8"));
+  // La préparation d'un dépôt n'est plus une commande du plugin (#4632) : son script n'est pas posé ici.
+  assert.equal(existsSync(join(marketplace, "scripts")), false);
   const catalog = JSON.parse(readFileSync(join(marketplace, ".claude-plugin", "marketplace.json"), "utf8"));
   assert.equal(catalog.name, MARKETPLACE);
   assert.deepEqual(catalog.plugins.map(({ name, source, version }: { name: string; source: string; version: string }) => ({ name, source, version })), [{ name: "brigade-app", source: "./", version: "1.2.3" }]);
@@ -256,5 +245,5 @@ test("lancée avec un `claude` de remplacement, l'app ne pose ni ne retire le pl
 
   assert.equal(existsSync(join(calculus.dossier, SETTINGS_LOCAL)), false);
   assert.equal(status(calculus), "");
-  assert.deepEqual(saidOnes, ["brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask, /brigade:init) is installed in no project"]);
+  assert.deepEqual(saidOnes, ["brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask) is installed in no project"]);
 });

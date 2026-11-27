@@ -1296,21 +1296,23 @@ matter, **in this order**, and the app skips none:
 
 | | The action | What the app does | What stays with you |
 |---|---|---|---|
-| 1 | **Prime the repo** — `Run /brigade:init in the second` | opens the space's second on the session: `claude /brigade:init`, a fresh conversation in the project folder | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
-| 2 | **Merge** — the box `The result of /brigade:init is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
+| 1 | **Prime the repo** — `Run the repository setup in the second` | opens the space's second on the setup session: a fresh `claude` conversation in the project folder, with the setup instructions in its system prompt — no command is typed | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
+| 2 | **Merge** — the box `The result of the repository setup is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
 | 3 | **Check** | runs `installation` through the project's station, for you, and displays **everything** it returned | settle what it names, and check again |
 | 4 | **Start** | writes nothing: this computer's station runs in the background, started at login or by the app when it opens, there is no service to start | — |
 
 **Three states**, and the check is possible only once init is said merged: **init is not said merged** (`Check` is
-inactive: `No check: the result of /brigade:init is not said merged…`); **the check is incomplete** (`NOT READY`, or
+inactive: `No check: the result of the repository setup is not said merged…`); **the check is incomplete** (`NOT READY`, or
 nothing yet, or what the app got instead); **everything is ready** (`installation` exited with `0`: `READY — checked
 at 14:32:07`). An inactive button has its reason written below, and the main process refuses likewise.
 
-**`/brigade:init` — the app puts you there.** If the space's second is not running, it is launched on the
-session, and the line under the right-hand tabs says so (``session launched on `/brigade:init`: `claude
-/brigade:init`, a fresh conversation in this folder``). If it is already running, it is not replaced:
-`/brigade:init` is written there, without Enter, as by a button. The session can be replayed without harm. The
-brigade plugin is needed on your workstation: without it, it is `claude` that says it does not know the command.
+**The repository setup — the app puts you there (#4632).** If the space's second is not running, it is launched on the
+setup session: `claude` with the setup instructions appended to its system prompt (`app/src/setup/instructions.md`,
+rendered next to the projects file with the paths of this computer's `node`, runtime and setup script) and a
+one-line first message that starts it; the line under the right-hand tabs says so (`setup session launched: …`). No
+slash command is typed or shown, and no plugin is needed. If the second is already running, it is not replaced: a
+one-line request naming the instructions file is written there, without Enter, as by a button. The session can be
+replayed without harm.
 
 **Merging is you.** The station sees of the repo only what its origin carries: as long as the result of init is not
 on the integration branch, it can serve nothing. A repo **already primed and merged** does not have to replay the
@@ -2545,7 +2547,7 @@ The command plays the same two functions as the app's buttons (`parquer`, `depar
 computer's `gh` token: no box, on any project. It says in one line what was written, or why nothing was, and exits 0
 (done), 1 (refused by the form or by GitHub) or 2 (a malformed command). The hook always exits 0.
 
-**The role is given again once `/brigade:init` is merged (#2689).** A second opened on a project not set up yet has no
+**The role is given again once the setup's pull request is merged (#2689).** A second opened on a project not set up yet has no
 bindings in its context: it starts the setup, which ends with a PR to merge (#3167, below). So the launch settings also carry
 `app/src/second/role-after-init.ts` twice. At each start (`SessionStart`), it notes whether the folder's `CLAUDE.md` has the
 `## Équipe multi-agents` section — what `claude` just loaded — in a file of the computer's temporary folder, per session.
@@ -2554,7 +2556,7 @@ project's integration branch (`base`, or the repository's default branch) with `
 — the init's PR merged — that message carries, as additional context, the role's text, the section as read on GitHub, and
 the queue read fresh: the same session answers as the second, with nothing to type or invoke. Once only; a session born
 with the section costs its messages nothing — no `gh`, no output. The hook always exits 0. Neither the role nor the end
-of `/brigade:init` points to `/brigade:po` or any V1 role, and model and effort are left to the manager.
+of the repository setup points to `/brigade:po` or any V1 role, and model and effort are left to the manager.
 
 **The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
 `PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refusal.ts`. It denies any
@@ -2592,8 +2594,8 @@ fold button. The logic is in `app/src/vue/project/panel-second/`.
 **Each shell carries a banner, at the top of its terminal: where it is, with which account** —
 `this Mac · benoit`. Its color is the project's tab color: changing space changes it.
 
-**A session that does not have the role is not called Second.** When the app opens a session on
-another command (`/brigade:init`, to prime the repo), the second's tab is called **Claude**;
+**A session that does not have the role is not called Second.** When the app opens the repository setup session
+(to prime the repo), the second's tab is called **Claude**;
 it becomes **Second** again if you relaunch it with one key, which launches it with the second's role.
 
 - **`+ shell`** opens a shell on **this workstation** (`this Mac`): the app opens no shell on any other machine and
@@ -2633,35 +2635,47 @@ at the head of its TODO: one sentence saying what is missing (`Not set up for Br
 missing.`, the names on hover) and one recommended button, `Set up for Brigade` — the same single gesture as adding a
 project (`runRepoSetup`). While it runs the button waits and the notice says so; on failure the notice gives one
 sentence and `Try again`; once done it leaves on both views without a reload. The state is read once per project with
-`checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. The bindings section counts when
+`checkRepoSetup`; a set up project shows nothing, and no setup command is ever shown. The bindings section counts when
 the local copy's `CLAUDE.md` has it, or else the `CLAUDE.md` of the integration branch on GitHub: once the setup's PR is
 merged, the next reading says the project is set up, without pulling the copy (#3170). Modules:
 `app/src/vue/page-project/repository-not-prepare.js`, `app/src/vue/todo/opinion-todo.js`. Captures (in git history):
 `docs/captures/2628/`.
 
-### `/brigade:dev`, `/brigade:ask` and `/brigade:init` in every project the app opens (#2160, #2595)
+### The repository setup session (#2595, #4632)
 
-Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
-second, a shell of the app, or a terminal of your own — `/brigade:dev <number>`, `/brigade:ask <number>` and
-`/brigade:init` answer, with nothing to install by hand. These three commands, and only these: no V1 role
-(`/brigade:po`, `/brigade:manager`, `/brigade:designer`, `/brigade:sync`) and no agent — the app and the
-stations replace them.
+The app sets a repository up for Brigade on the GitHub-only path — no box, no ssh, no plugin — in a Claude Code
+session it opens in the project's second, with **no slash command**: the session gets its instructions the way the
+second gets its role, appended to its system prompt (`--append-system-prompt-file`), and a one-line first message
+starts it. The instructions are `app/src/setup/instructions.md`; the app renders them next to the projects file
+(`~/.config/brigade/setup/`), their `@NODE@`, `@SETUP_PR@` and `@SCRIPT@` marks replaced by this computer's `node`,
+the runtime's `pr-de-setup.ts` and the setup script copied there, executable (`app/src/setup/setup.ts`).
 
-- **`/brigade:init` is the app's own, not the V1 one** (`app/src/plugin/init.md`): it sets a repository up on
-  the GitHub-only path — no box, no ssh, no V1 plugin. The session deduces the test and install commands (and
-  asks only for what it cannot deduce), then a script the app writes into its marketplace
-  (`app/src/plugin/init.sh`, under `scripts/`) does the writing: the rail's labels on the repository at once,
-  then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
-  `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
-  **a pull request you merge**; the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
-  The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
+- The session deduces the test and install commands (and asks only for what it cannot deduce), then the script
+  (`app/src/setup/init.sh`, its label catalogue `labels.tsv` beside it) does the writing: the rail's labels on the
+  repository at once, then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end
+  of `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
+  **a pull request you merge**, its commit and body saying they were written by the Brigade app's repository setup;
+  the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see
+  `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
+- The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
   puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
   card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
   gives the session its last message: the pull request's address, why you are the one to merge it (it sets what
   will judge every future delivery: the integration branch, the checks, the file zones), and that the project
   shows as ready once it is merged. Replayed on the same pull request, it adds no second issue or card.
-It leaves the plugin once adding a project sets
-  the repository up in one gesture (#2584), not before.
+- The packaged app carries `src/` whole, so `src/setup/` ships with it (`app/packaging/construire.ts`, `linux.ts`,
+  `windows.ts`).
+
+*Code: `app/src/setup/`; tests: `app/test/setup/setup.test.ts`, a fresh repository set up against a bare `origin`
+and a stand-in `gh` by the script the rendered instructions name.*
+
+### `/brigade:dev` and `/brigade:ask` in every project the app opens (#2160)
+
+Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
+second, a shell of the app, or a terminal of your own — `/brigade:dev <number>` and `/brigade:ask <number>`
+answer, with nothing to install by hand. These two commands, and only these: no V1 role
+(`/brigade:po`, `/brigade:manager`, `/brigade:designer`, `/brigade:sync`), no setup command and no agent — the app
+and the stations replace them.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
   `.claude/settings.local.json` of the project's folder. If git does not already ignore that file, the app adds
@@ -2674,9 +2688,9 @@ It leaves the plugin once adding a project sets
 - **Beside the published plugin, nothing collides** (#4525). A project can also have `brigade@brigade`, the plugin
   published from `main` (`/brigade:start`, `/brigade:ask`, `/brigade:ticket`, `/brigade:todo`). Both type their commands as `/brigade:…`: the only
   command both carry, `/brigade:ask`, is the same `commands/ask.md`, so either copy says the same thing;
-  `/brigade:dev` and `/brigade:init` come only from the app's, `/brigade:start`, `/brigade:ticket` and `/brigade:todo` only from the published one.
+  `/brigade:dev` comes only from the app's, `/brigade:start`, `/brigade:ticket` and `/brigade:todo` only from the published one.
 - **The version is the app's.** The installed app installs its own version; launched from the repository
-  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the commands and the init script. At launch, each
+  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the two commands. At launch, each
   project at another version is updated: after an app update, the installed version is the new app's. A
   project added while the app runs gets it at once.
 - **Removing a project from the app uninstalls `brigade-app`** from its folder's local scope, and nothing
@@ -2688,10 +2702,8 @@ It leaves the plugin once adding a project sets
 - **A trial launched with `BRIGADE_CLAUDE_BIN` installs the plugin nowhere**, and removes it from nowhere: the
   stand-in `claude` is a session, not Claude Code's plugin manager. The app says so once in its terminal.
 
-*Code: `app/src/plugin-app.ts`, `app/src/plugin/`; tests: `app/test/plugin-app.test.ts`, against the real `git`
-and a stand-in `claude` that keeps its registry like the real one (claude 2.1.300), and
-`app/test/plugin-init.test.ts`, a fresh repository opened by the app and set up against a bare `origin` and a
-stand-in `gh`.*
+*Code: `app/src/plugin-app.ts`; tests: `app/test/plugin-app.test.ts`, against the real `git`
+and a stand-in `claude` that keeps its registry like the real one (claude 2.1.300).*
 
 ### A project's colors
 
@@ -4102,7 +4114,8 @@ trial file.
 has a `fire` ticket for it — on your quota, with no permission prompt, in a worktree of its folder. To try it without a
 quota: use the stand-in `claude` above, and a trial file whose projects have no station on this computer.
 
-The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
+The fake `claude` says `reçu : <first message>` when it is opened on the setup session, and the first line of its
+instructions (`rôle : …`).
 
 - **No build.** The main process is TypeScript run as is by Electron (its Node strips the types, like
   the runtime's); the view is JavaScript checked by `tsc` (`// @ts-check`), which imports xterm.js
@@ -4225,7 +4238,7 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
   (`docs/installer.md`, "Prepare the box"). The app says what to do and where, it does not do it.
 - Start a service for you: this computer's station runs in the background, started at login or by the app when it
   opens, and a station on another machine is started on that machine.
-- Know whether the result of `/brigade:init` is merged, or whether the session succeeded: you say
+- Know whether the result of the repository setup is merged, or whether the session succeeded: you say
   so, and `installation` verifies it on the origin.
 - Fix what `installation` names — create the labels, protect the branch: it shows the arrow, the
   action is typed (`docs/installer.md`, "Check that the project is ready").
