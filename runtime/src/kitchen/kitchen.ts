@@ -112,6 +112,17 @@ export function openKitchen(options: KitchenOptions) {
   async function onCookEnd(run: Finished, issue: Issue | undefined) {
     if (issue === undefined || run.issue === null || run.worktree === null) return;
     const wt = run.worktree;
+    // A ticket that must wait for others goes back to the backlog and waits on its own: no try, no question.
+    const waits = /^DEPENDS:\s*(.+)$/m.exec(run.result);
+    if (waits !== null) {
+      const on = [...(waits[1] ?? "").matchAll(/#(\d+)/g)].map((match) => `#${match[1]}`);
+      if (on.length > 0) {
+        await act.appendToBody(issue.number, `Depends on ${on.join(", ")} (noted by its cook).`);
+        await act.labels(issue.number, [], [LABELS.taken]);
+        log(`#${issue.number} waits for ${on.join(", ")}`);
+        return;
+      }
+    }
     const park = /^PARK:\s*(.+)$/m.exec(run.result);
     if (park !== null) {
       await act.labels(issue.number, [LABELS.parkedChef], [LABELS.taken]);
