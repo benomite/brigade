@@ -17,7 +17,7 @@ function fakeGh() {
   const issues = new Map<number, FakeIssue>();
   const prs: FakePr[] = [];
   let next = 1;
-  const options = { files: ["feature.txt"], failMerges: 0 };
+  const options = { files: ["feature.txt"], failMerges: 0, lossyEdits: false };
   const gh: Gh = async (args, input) => {
     const flag = (name: string) => args[args.indexOf(name) + 1] ?? "";
     if (args[0] === "api" && args.at(-1)?.includes("/comments")) {
@@ -75,10 +75,10 @@ function fakeGh() {
       return "";
     }
     if (args[0] === "pr" && args[1] === "edit") {
-      (prs.find((p) => !p.merged && p.head === args[2]) as FakePr).body = input ?? "";
+      if (!options.lossyEdits) (prs.find((p) => !p.merged && p.head === args[2]) as FakePr).body = input ?? "";
       return "";
     }
-    if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ files: options.files.map((path) => ({ path })), body: prs.find((p) => p.number === n)?.body ?? "" });
+    if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ files: options.files.map((path) => ({ path })), body: prs.find((p) => p.number === n || p.head === args[2])?.body ?? "" });
     if (args[0] === "pr" && args[1] === "merge") {
       if (options.failMerges > 0) {
         options.failMerges -= 1;
@@ -105,7 +105,7 @@ const sh = (cwd: string, ...args: string[]) => execFileSync("git", ["-C", cwd, .
 const AGENT = `#!/bin/sh
 input=$(cat)
 case "$input" in
-  *"Tu es un **cook**"*) echo work > feature.txt; git add feature.txt; git -c user.email=c@k -c user.name=cook commit -qm "#1 — work"; echo '{"type":"result","result":"done"}' ;;
+  *"Tu es un **cook**"*) echo work > feature.txt; git add feature.txt; git -c user.email=c@k -c user.name=cook commit -qm "#1 — work"; echo '{"type":"result","result":"Done: the work is committed, and this report is long enough to be one"}' ;;
   *"Tu es le **pass**"*) printf '%s\\n' '{"type":"result","result":"fine\\nVERDICT: merge"}' ;;
   *) echo '{"type":"result","result":"none"}' ;;
 esac
@@ -295,7 +295,7 @@ test("a delivery's report is the body of its pull request, refreshed at each del
 input=$(cat)
 case "$input" in
   *"Tu es un **cook**"*) date +%N > feature.txt; git add feature.txt; git -c user.email=c@k -c user.name=cook commit -qm "#1 — work"; n=$(git rev-list --count HEAD); printf '{"type":"result","result":"Criterion 1: served, delivery %s\\\\nToken ghp_secretvalue1234 not shown"}\\n' "$n" ;;
-  *"Tu es le **pass**"*) printf '%s' "$input" > ${passInput}; echo '{"type":"result","result":"VERDICT: refuse — again"}' ;;
+  *"Tu es le **pass**"*) printf '%s' "$input" > "${passInput.replaceAll("\\", "/")}"; echo '{"type":"result","result":"VERDICT: refuse — again"}' ;;
 esac
 `, { mode: 0o755 });
   const fake = fakeGh();
@@ -326,6 +326,45 @@ esac
   await until(() => fake.prs[0]?.body?.includes("delivery 3") === true, kitchen.turn);
   assert.equal(fake.prs.length, 1, "the same pull request is kept");
   assert.equal(fake.prs[0]?.body, `Closes #${issue}\n\nCriterion 1: served, delivery 3\nToken [secret:GH_TOKEN] not shown\n`, lines.join("\n"));
+});
+
+async function deliverOnOpenPr(agentResult: string, lossyEdits: boolean) {
+  const { root, clone } = origin();
+  const agent = join(root, "agent.sh");
+  writeFileSync(agent, `#!/bin/sh
+input=$(cat)
+case "$input" in
+  *"Tu es un **cook**"*) echo work > feature.txt; git add feature.txt; git -c user.email=c@k -c user.name=cook commit -qm "#1 — work"; printf '%s\\n' '{"type":"result","result":"${agentResult}"}' ;;
+  *"Tu es le **pass**"*) echo '{"type":"result","result":"VERDICT: refuse — again"}' ;;
+esac
+`, { mode: 0o755 });
+  const fake = fakeGh();
+  fake.options.lossyEdits = lossyEdits;
+  const issue = fake.add("Report it", ["fire"]);
+  fake.prs.push({ number: 100, head: `cook/${issue}-github`, checks: "SUCCESS", merged: false, body: `Closes #${issue}\n` });
+  const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r", base: "main", clone, worktrees: join(root, "wt"), state: join(root, "state"), gh: fake.gh, git: gitCli(env),
+    launch: (_kind: Kind, cwd, _write, _calibration, input) => ({ command: agent, args: [], input, cwd, env, secrets: {} }),
+    places: () => 2, riskPaths: () => [], secrets: {}, supervisorEveryMs: Number.MAX_SAFE_INTEGER, log: (line) => lines.push(line),
+  });
+  await until(() => lines.includes(`#${issue} delivered`), kitchen.turn);
+  return { fake, issue, lines };
+}
+
+test("a delivery without a report leaves the PR description as it is and says so on the ticket and in the log (#4574)", async () => {
+  const { fake, issue, lines } = await deliverOnOpenPr("done", false);
+  assert.equal(fake.prs[0]?.body, `Closes #${issue}\n`);
+  assert.match(fake.issues.get(issue)?.comments.join("\n") ?? "", /delivered without a report .*: the PR description stays as it is/);
+  assert.ok(lines.some((line) => line.includes("delivered without a report")), lines.join("\n"));
+});
+
+test("a report that does not reach the PR description after `gh pr edit` is said on the ticket (#4574)", async () => {
+  const { fake, issue, lines } = await deliverOnOpenPr("Criterion 1: served, with a report long enough to be one", true);
+  assert.equal(fake.prs[0]?.body, `Closes #${issue}\n`);
+  assert.match(fake.issues.get(issue)?.comments.join("\n") ?? "", /does not contain the report after `gh pr edit`/);
+  assert.ok(lines.some((line) => line.includes("does not contain the report")), lines.join("\n"));
 });
 
 test("a red delivery goes back to a cook with the last lines of its failing check's log, secrets masked", async () => {

@@ -3,7 +3,7 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**The project's menu is four entries, Rail · Stations · Agents · Settings** (#2485, #2921, #4224, #4505), next to the project name; **Rail is the
+**The project's menu is five entries, Rail · Stations · Agents · Know-how · Settings** (#2485, #2921, #4224, #4505, #4570), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
 the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **What the folded
 line `Caps, closer and all projects` held** (#2921, `app/src/vue/project/banner-health/`) — the duration caps (#2490), the
@@ -939,6 +939,15 @@ up. When the team is read, the supervisor and the closer have no card of the Rai
 (#4354). Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomy/team-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
+
+### The Know-how tab (#4570, epic #4135)
+
+The project's menu has a **Know-how** tab, between Agents and Settings; the project remembers it like the other tabs. It
+shows the block of **The project know-how** (#4239, `holdTheKnowledge`): the entries of `.brigade/know-how.md` read
+from GitHub, by section, each with its source ticket, edited or removed by pull request. The block lives there only:
+**Settings no longer shows it** (#4505 had taken the old tab away, #4239's block stayed in Settings; one place now).
+Nothing of the old runtime is read and nothing is added to `runtime/`. Screenshots: `docs/captures/4570/`
+(`savoir-faire-liste`, `savoir-faire-edition`, `savoir-faire-vide`). Test: `app/test/vue/know-how/know-how-vue.test.ts`.
 
 ### The Agents tab (#4224, epic #4117)
 
@@ -2583,9 +2592,9 @@ the removed lines cap: the two others say `not read on GitHub yet`, the reason o
 closer rows, which propose the same keys by a pull request (#1685). Screenshots: `docs/captures/2491/`. Module:
 `app/src/vue/project/banner-health/Closer.js`.
 
-**The project know-how** (#4239, epic #4135). Under the closer, the **Project know-how** block: the entries of
+**The project know-how** (#4239, epic #4135; its own tab since #4570, below). The **Project know-how** block: the entries of
 `.brigade/know-how.md` (the file each cook reads first and adds to, `agents/cook.md`), read on the project's integration
-branch on GitHub with the chef's `gh` token, like the closer — when Settings opens, then at most once a minute. The entries
+branch on GitHub with the chef's `gh` token — when the Know-how tab opens, then at most once a minute. The entries
 are grouped by section, `Conventions`, `Pitfalls` and `Tools` first, then any other section of the file; each row says the
 entry's text and its source ticket (`#205`, or `no source ticket` for a line without one), with **Edit** and **Remove**. A
 missing file, or one with no entry, is one empty line (`No project know-how yet. .brigade/know-how.md is missing or has
