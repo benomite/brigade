@@ -119,7 +119,6 @@ export function additionsOfProject(readEntries, { nom: name, depot: repository }
 /** @type {readonly { systeme: string, commande: string }[]} */
 export const INSTALLER = [
   { systeme: "Linux or macOS", commande: "curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh" },
-  { systeme: "Windows, in PowerShell", commande: "irm https://github.com/benomite/brigade/releases/download/station/installer-station.ps1 | iex" },
 ];
 
 // La plateforme telle que le contrat la publie, dite comme on la nomme.
