@@ -1,5 +1,5 @@
-// L'état d'un ticket, lu sur GitHub seul (spec
-// `docs/superpowers/specs/2026-11-02-github-only-state.md`) : deux stations
+// L'état d'un ticket, lu sur GitHub seul (épique #2053) :
+// deux stations
 // qui lisent la même issue, la même PR et le même statut de la base disent le
 // même état, sans boîte, sans relais, sans journal.
 //

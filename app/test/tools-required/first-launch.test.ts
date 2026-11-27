@@ -12,9 +12,8 @@ import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { ToolMissing } from "../../src/tools-required.ts";
-import { echecDeGh } from "../../../runtime/src/appairage/stations-du-chef.ts";
-import { choisirInstallation, type OutilRequis } from "../../../runtime/src/outils-requis/outils-requis.ts";
+import type { ToolMissing, ToolRequired } from "../../src/tools-required.ts";
+import type { StationsOfChef } from "../../src/first-launch.ts";
 import type { Outage } from "../../src/outages/outages.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
@@ -34,10 +33,19 @@ const base = () => ({
   code: undefined,
 });
 const fresh = () => ({ ...base(), configuration: forTheBar({ chemin: "/home/chef/.config/brigade/app.json", projets: [] }), poste: { nom: "this Mac", mac: true } });
-// Le `gh` de ce Mac n'est connecté à aucun compte, tel que le runtime le lit.
-const WITHOUT_ACCOUNT = echecDeGh("gh", 30_000, { code: 4, message: "Command failed: gh api /gists" }, "To get started with GitHub CLI, please run:  gh auth login\n");
-// Ce qui manque, tel que le runtime le rend pour un Mac nu.
-const missing = (tool: OutilRequis): ToolMissing => ({ outil: tool, installation: choisirInstallation(tool, { plateforme: "darwin", presents: [] }) });
+// Le `gh` de ce Mac n'est connecté à aucun compte, tel que le process principal le lit.
+const WITHOUT_ACCOUNT: StationsOfChef = {
+  state: "sign-in-required",
+  reason: "This computer is not signed in to GitHub, so brigade cannot read the stations you have paired.",
+  action: { id: "github-sign-in", label: "Sign in to GitHub", command: ["gh", "auth", "login", "--hostname", "github.com", "--web", "--git-protocol", "https"] },
+};
+// Ce qui manque à un Mac nu, et le pas qui l'installe.
+const INSTALLATIONS: Record<ToolRequired, ToolMissing["installation"]> = {
+  gh: { texte: "Install the GitHub CLI with its macOS installer: on its latest release, download the file ending in `macOS_universal.pkg` and open it.", lien: "https://cli.github.com" },
+  git: { texte: "Install Git with Apple's command line developer tools: run `xcode-select --install` in a terminal, then follow the installer macOS opens.", lien: "https://git-scm.com/download/mac" },
+  claude: { texte: "Install Claude Code with its official installer: run `curl -fsSL https://claude.ai/install.sh | bash` in a terminal.", lien: "https://code.claude.com/docs/en/setup" },
+};
+const missing = (tool: ToolRequired): ToolMissing => ({ outil: tool, installation: INSTALLATIONS[tool] });
 
 const all = (vue: Played) => vue.element("tous");
 const buttons = (or: Fake) => or.dessous("button").map((b) => b.textContent);

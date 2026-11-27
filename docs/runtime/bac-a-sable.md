@@ -1,22 +1,23 @@
-# The cook's sandbox
+# The agents' sandbox
 
-On the chef's Mac, every command a cook runs goes through the sandbox of Claude Code. Brigade writes its
-configuration (`runtime/src/bac-a-sable/configuration.ts`) and hands it to `claude` with `--settings`.
+On a Mac, every command an agent runs goes through the sandbox of Claude Code. Brigade writes its configuration
+(`runtime/src/bac-a-sable/configuration.ts`) and hands it to `claude` with `--settings`. On Linux, every agent runs
+inside the `bwrap` partition (`runtime/src/cloison.ts`), which hides the state, the clones and the secrets of every
+project, and goes out only through its project's gate.
 
-## The new kitchen on a Mac
+## The kitchen on a Mac
 
-The new kitchen (`runtime/src/kitchen/`, #4483) launches every agent — cook, closer, reviewer, manager — inside
+The kitchen (`runtime/src/kitchen/`, #4483) launches every agent — cook, pass, manager, supervisor — inside
 the same sandbox when it runs on macOS (`runtime/src/bac-a-sable/kitchen-launch.ts`). The network list is the project's
 `.claude/brigade/reseau` on its base branch, read before each turn. A cook writes only in its worktree (and the
-project's caches); a read-only launch (reviewer, manager, supervisor) writes nowhere. When the detection fails
+project's caches); a read-only launch (pass, manager, supervisor) writes nowhere. When the detection fails
 (`runtime/src/bac-a-sable/detection.ts`: no Seatbelt, or a `claude` too old), the kitchen launches no agent for
 the project and logs why in one line, `no agent launched: on macOS every agent runs inside Claude Code's sandbox,
-and it is not usable — <reason>`, again only when the reason changes; it tries again each turn. On Linux, the
-launch keeps the `bwrap` partition unchanged.
+and it is not usable — <reason>`, again only when the reason changes; it tries again each turn.
 
-## What a cook may do on the network
+## What an agent may do on the network, on a Mac
 
-| A cook may | Detail |
+| An agent may | Detail |
 |---|---|
 | Reach the allowed hosts | Only the hosts of the project's network list, plus the ones Claude Code and GitHub need to work (`anthropic.com`, `claude.ai`, `claude.com`, `github.com`, `githubusercontent.com` and their subdomains). A host outside the list is refused in every permission mode (`strictAllowlist`). An empty project list adds none. |
 | Open a local port, on loopback only | `allowLocalBinding` is `true`: a command may listen on a port of `localhost` (`127.0.0.1`, `::1`). Examples: Gradle, which talks to its daemon through a local port; a local test server started by a test suite. |
@@ -27,28 +28,9 @@ What stays closed:
 - Unix sockets stay refused (`allowAllUnixSockets: false`).
 - Loopback only is the sandbox's own rule (Seatbelt, as Claude Code applies it for `allowLocalBinding`), not a setting of Brigade: the configuration has no field that picks the address, and this was not verified on a Mac: Brigade's tests run on Linux and cannot probe the kernel. They assert that the configuration sets `allowLocalBinding` and adds no host.
 
-## When the machine has no sandbox: restricted mode
+## When the machine has no sandbox
 
-The sandbox is the kernel's. Where Claude Code cannot apply it, the station does not guess. What triggers the
-missing-sandbox path is the **detection** of the machine, not a platform rule: a machine that passes it keeps the
-sandbox, whatever its system. The hold and the chef's two choices (`continue without sandbox`, or another station)
-are described in [What a cook may and may not do](../limites-du-cook.md).
-
-If the chef continues, the cook is not unbounded. The target is **restricted mode** (the launch is the work of the
-sibling tickets of #4349):
-
-- `--permission-mode dontAsk` with a `--settings` set, instead of `bypassPermissions`: a tool that no rule allows is
-  refused, with no prompt.
-- A deny rule for every path of `LECTURES_INTERDITES`.
-- `WebFetch` and `WebSearch` limited to the project's host list.
-- The #3506 guard hook (`runtime/src/garde-cook/`), which is the boundary of Bash: writes and deletions outside the
-  worktree and the temporary folders, and `gh` beyond the cook's own ticket, are refused.
-
-**State of the code today.** The launch of restricted mode is not shipped yet. Without a sandbox,
-`dansLeBacASableLocal` returns the arguments unchanged, so the cook still runs in `bypassPermissions`, with the
-guard hook as its only boundary: the deny rules, `dontAsk` and the host limit above come from the sandbox
-configuration, which is only written when a sandbox exists. Until restricted mode lands, the cook reads whatever the
-station's account reads, and the station's message says so.
-
-What restricted mode does not give is the kernel's precision. The guard reads a shell command only as far as it
-knows it; the list of what passes unchecked is in [station-cook.md](station-cook.md), which stays the reference.
+The kitchen does not guess. On macOS, when the detection fails, and on any other system without `bwrap`
+(`BRIGADE_SANDBOX_BIN` not set — Windows, a Linux desktop), the kitchen launches **no agent** for the project, and the
+station's log says why in one line, again only when the reason changes. Serve the project from a station that has
+its sandbox: the box, or a Mac with a recent `claude`.

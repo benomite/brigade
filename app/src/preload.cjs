@@ -111,7 +111,7 @@ const bridge = {
   listerLesHumains: (project) => ipcRenderer.invoke("listerLesHumains", project),
   enregistrerUnHumain: (project, human) => ipcRenderer.invoke("enregistrerUnHumain", project, human),
   retirerUnHumain: (project, login) => ipcRenderer.invoke("retirerUnHumain", project, login),
-  lireLesAgents: (project) => ipcRenderer.invoke("lireLesAgents", project),
+  agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),

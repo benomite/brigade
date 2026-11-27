@@ -97,7 +97,7 @@ On a project brigade runs in open source, a contributor who has no write access 
 - **Open an issue.** Planned: the manager proposes a triage, and the project's `product` human answers before anything is cooked.
 - **Run a station from a fork, and claim a ticket.** The project's `chef` can refuse any contributor station in its settings: a refused station claims no ticket.
 
-How the kitchen runs an open-source project is in [`docs/runtime/github-seul.md`](docs/runtime/github-seul.md#running-brigade-on-an-open-source-project).
+Which tickets the kitchen takes — only those of the repository's writers, or labelled `accepted` by one — is in [`docs/runtime/README.md`](docs/runtime/README.md#on-github).
 
 ## Contributing and project files
 
