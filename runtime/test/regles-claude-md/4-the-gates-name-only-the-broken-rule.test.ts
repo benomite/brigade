@@ -135,4 +135,20 @@ describe("the gates name the broken CLAUDE.md rule, and only it", () => {
     ], sortie);
     assert.notEqual(code, 0, sortie);
   });
+
+  test("the V1 roles and the runtime's agents kept on disk may stay out of plugin.json; a new command may not (#4525)", { skip: SKIP }, (t) => {
+    const racine = projet(t);
+    poser(racine, ".claude-plugin/plugin.json", JSON.stringify({ commands: ["./commands/start.md", "./commands/ask.md"], agents: [] }));
+    poser(racine, "commands/start.md", "# start\n");
+    poser(racine, "commands/ask.md", "# ask\n");
+    for (const kept of ["commands/sync.md", "commands/init.md", "agents/cook.md", "agents/dev-teammate.md"]) poser(racine, kept, "---\nname: kept\n---\nbody\n");
+    poser(racine, "commands/todo.md", "# todo\n");
+
+    const { code, echecs, sortie } = jouer(racine);
+
+    assert.deepEqual(echecs, [
+      "FAIL  present sur le disque mais absent de plugin.json[commands] : commands/todo.md — un rôle ajouté doit être déclaré dans plugin.json, sinon il ne se charge jamais",
+    ], sortie);
+    assert.notEqual(code, 0, sortie);
+  });
 });

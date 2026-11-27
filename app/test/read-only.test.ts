@@ -52,8 +52,9 @@ const PRODUCT = {
     { texte: "One per project.", suite: "resume" },
     { texte: "A single export.", suite: "resume" },
   ],
-  captures: null,
 };
+// Sa carte du chef, telle que son issue la pose sur GitHub (board/todo-github.ts).
+const CHEF = { sorte: PRODUCT.type, texte: [PRODUCT.question, ...PRODUCT.choix.map(({ texte: text, suite }) => `- [${suite}] ${text}`)].join("\n") };
 type OfRuntime = FactsOfRuntime["stations"][number];
 const BOX: OfRuntime = { station: "box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, cooks: [] };
 const facts = (readOnly: boolean) => ({
@@ -69,7 +70,7 @@ const facts = (readOnly: boolean) => ({
   ],
   cooks: [{ ticket: 23, titre: "La recherche", station: "box/claude" }],
   stations: [BOX],
-  attend: [{ ticket: 21, titre: "L'export du journal", url: ISSUE(21), decision: { quoi: "carte", motif: "product", cause: PRODUCT.question, pr: null }, carte: PRODUCT }],
+  attend: [{ ticket: 21, titre: "L'export du journal", url: ISSUE(21), chef: CHEF }],
   ...(readOnly ? { lectureSeule: { depot: REPOSITORY } } : {}),
 }) satisfies Facts;
 

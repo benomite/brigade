@@ -295,9 +295,6 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
   test("la fiche propose sur le téléphone les gestes qu'il écrit sur GitHub, avec le prix du desktop", () => {
     const { gestes: actions } = phone(github());
     assert.deepEqual(actions.gestesDeFiche({ ticket: 22, etat: "en attente", ouvrable: true, attendu: false }).map(({ id }) => id), ["retirer"]);
-    // Revenu de WAITING, il attend le chef : le renvoyer en cuisine d'abord, ou le retirer du rail.
-    const back = actions.gestesDeFiche({ ticket: 31, etat: "en attente", ouvrable: true, attendu: true, decision: { quoi: "repris", motif: null, cause: null, pr: null } });
-    assert.deepEqual(back.map(({ id, recommande: recommended }) => (recommended ? `${id}*` : id)), ["cuisine*", "retirer"]);
   });
 });
 

@@ -27,7 +27,7 @@ export const FACTS = {
     { ticket: 22, etat: "86", titre: "Un ticket libre", url: ISSUE(22), activite: null, attente: { raison: "attend : le chef — revenu de WAITING", colonne: "86", retour: null }, tiers: null },
     ...APRES,
   ],
-  attend: [...(PARADE.facts.attend ?? []), { ticket: 22, titre: "Un ticket libre", url: ISSUE(22), decision: { quoi: "repris", motif: null, cause: null, pr: null } }],
+  attend: [...(PARADE.facts.attend ?? []), { ticket: 22, titre: "Un ticket libre", url: ISSUE(22) }],
 } as Facts;
 
 export const STATUS = [
