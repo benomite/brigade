@@ -22,8 +22,18 @@ function liaisons(texte: string): string | null {
 // #4164 réécrit, avec la règle 4 du process simplifié, la ligne Interface et la ligne App (le cook design n'existe plus) :
 // ces deux lignes sont écartées de la comparaison, le reste des liaisons reste mot pour mot celui de `origin/main`.
 // #4331 réécrit de même la ligne Runtime de Dev local (ses tests : les gates, jamais une suite entière) : elle est écartée aussi.
+// #4638 retire le plugin V1 (décision du chef, 27 nov.) : la phrase sur `/brigade:init`, les deux lignes Plugin V1, et la
+// ligne Runtime des zones qui nommait la zone plugin sont écartées, avec la ligne vide qui suivait la phrase.
+const RETIREES_4638 = ["The section title and the bold labels of the bindings below stay in French on purpose:", "  - **Plugin V1**", "  - **Runtime** — `runtime/`"];
 function sansReecrites(texte: string | null): string | null {
-  return texte === null ? null : texte.split("\n").filter((l) => !l.startsWith("- **Interface**") && !l.startsWith("  - **App**") && !l.startsWith("  - **Runtime** — Node 26, no build.")).join("\n");
+  return texte === null
+    ? null
+    : texte
+        .split("\n")
+        .filter((l) => !l.startsWith("- **Interface**") && !l.startsWith("  - **App**") && !l.startsWith("  - **Runtime** — Node 26, no build."))
+        .filter((l) => !RETIREES_4638.some((debut) => l.startsWith(debut)))
+        .filter((l, i, lignes) => !(l === "" && lignes[i - 1] === ""))
+        .join("\n");
 }
 
 function lire(ref: string): string | null {

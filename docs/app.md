@@ -239,7 +239,7 @@ Open one of your projects on this PC: one click, no folder to choose.
 
 *Code: `app/src/first-launch.ts` and `app/src/connection-github.ts` (main process),
 `app/src/vue/first-launch.js` (the screen), `app/src/tools-required.ts` and `app/src/vue/tools-required/` (the
-missing-tool screen). Captures: `docs/captures/1434/`, `docs/captures/4059/`, `docs/captures/4057/`.*
+missing-tool screen). Captures (in git history): `docs/captures/1434/`, `docs/captures/4059/`, `docs/captures/4057/`.*
 
 ### On first launch: visit a real kitchen, or add my project (#4087, epic #4086; born as the tour of #3165)
 
@@ -280,7 +280,7 @@ again from its first step, read-only and without clone, whatever the projects fi
 *Code: `app/src/vue/home/choice/choice.js` (the two choices), `app/src/vue/visit/visit.js` (the kitchen's screen,
 steps, bubble), `app/src/visit.ts` (the read-only read of `benomite/brigade`, its channel in `app/src/main.ts` and
 `app/src/preload.cjs`) and the wiring in `app/src/vue/vue.js` (`commencerLaVisite`, `lireLaCuisineVisitee`,
-`poserLaVisite`). Tests: `app/test/visit/`. Captures: `docs/captures/4087/`.*
+`poserLaVisite`). Tests: `app/test/visit/`. Captures (in git history): `docs/captures/4087/`.*
 
 ### Add a project: pick a repository, one click opens it (#3181)
 
@@ -430,7 +430,7 @@ project reopened after a restart opens on its rail, with the notice of #2628 if 
 *Code: `app/src/vue/journey-first-project/` (the questions, their states), `app/src/vue/first-ticket/` (the first
 ticket), `app/src/first-ticket.ts` (the draft and the creation, played by `app/src/main.ts`), their wiring in
 `app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/journey-first-project/`,
-`app/test/first-ticket/`, `app/test/acceptation-4511/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
+`app/test/first-ticket/`, `app/test/acceptation-4511/`. Captures (in git history): `docs/captures/3166/`, `docs/captures/3306/`.*
 
 ### Your first ticket, told step by step as it really happens (#3302)
 
@@ -457,7 +457,7 @@ nothing: nothing is told, and nothing is written over it.
 
 *Code: `app/src/vue/story-first-ticket/`, `etapesDesTickets` in `app/src/facts.ts`, its wiring in `app/src/vue/vue.js`
 (`suivreLeParcours`, `poserLeRecitDuPremierTicket`). Tests: `app/test/story-first-ticket/`.
-Captures: `docs/captures/3302/`.*
+Captures (in git history): `docs/captures/3302/`.*
 
 ### The age of the rail is on hover, and visible only when stale (#2054, #3523)
 
@@ -579,7 +579,7 @@ The station and its state are a tag beside the tab (#3523). Before the stations 
 no gesture and no `Details` (#1186). **All stations** and its `+ station`, which list every paired station, belong to
 the account, not to a project, and are the last block of the home (#3195).
 
-Captures, before and after, of each of the four states: `docs/captures/stations-tab/` (`cuit`, `deplacement`, `hors-ligne`,
+Captures, before and after, of each of the four states (in git history): `docs/captures/stations-tab/` (`cuit`, `deplacement`, `hors-ligne`,
 `personne`), from the screens `stations-tab-*` of `scripts/capture-ecran/`.
 
 *Code: `app/src/vue/stations-tab/` — `state.js` (the stations that serve, the move followed, the top line: `servantesDe`,
@@ -625,7 +625,7 @@ then the panel closes and the tab says `<name> was given <project>: it gets its 
 project's page, through that page's own choice, which then moves on to `2 of 2: its setup for Brigade`. On the Stations tab,
 the button is there only when `Choose who cooks it` is offered (the app knows the project's repository and can write to it).
 
-Captures, before and after: `docs/captures/4347/` — the Stations tab with no station (`stations-tab-personne`) and
+Captures, before and after (in git history): `docs/captures/4347/` — the Stations tab with no station (`stations-tab-personne`) and
 cooked by its box (`stations-tab-cuit`), the new project's page (`parcours-premier-projet`), and, after only, the panel
 open while it waits (`stations-tab-ajout-serveur`). The checked-in state has no capture: the capture tool answers each
 reading with the same frozen data, so no server can arrive between two readings; the played tests show it.
@@ -665,7 +665,7 @@ Each line is the app's settings row (`rangeeDeReglage`, `app/src/vue/components/
 settings lives on a station, none in the project's repository: no change opens a pull request. Nothing is stored by the
 block: each change goes through the storage that already existed, and a reload of the app shows it as written. The boxes
 offer what the station declares, what the other stations provide, and what this computer can declare (read once per
-project). Captures: `docs/captures/2488/` (before #3195).
+project). Captures (in git history): `docs/captures/2488/` (before #3195).
 
 *Code: `app/src/vue/project/stations/StationSettings.js` (`reglagesDeLaStation`), `reglagesDeLaStationDeclaree` in `app/src/vue/vue.js`. Test:
 `app/test/vue/project/settings-station.test.ts`.*
@@ -786,7 +786,7 @@ still show something, always:
   with `try again`.
 
 *Code: `app/src/vue/tools-of-second.js` (the screen), `poserRail` in `app/src/vue/vue.js` (which view a project gets),
-the rail's watches in `app/src/main.ts`, the plan of the second in `app/src/terminals.ts`. Captures: `docs/captures/1435/`.*
+the rail's watches in `app/src/main.ts`, the plan of the second in `app/src/terminals.ts`. Captures (in git history): `docs/captures/1435/`.*
 
 ### The project view is the rail view (#1692)
 
@@ -798,7 +798,7 @@ with no other machine to reach; the app only has to be connected to GitHub. The 
 card's history and discussion"). The others send nothing and say where to act instead (`SANS_FAIT`): a delivery is merged on its PR on GitHub, or
 by the station's pass, and the app has no button for it; a TODO card's choice or text has nowhere to go. Since #2076, this is true of
 every project, whichever station serves it: the repository of a project served by another station is read too, and its
-rail is this same view, in the same order. Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
+rail is this same view, in the same order. Captures (in git history): `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket, offering its gestures). A TODO sheet offers the gestures every card has, nothing more.
 
@@ -823,7 +823,7 @@ calls the bridge (`reglerLAutonomie`, `approuverLeGeste`). Since #4569 the bridg
 (it ran `facts`, which the new kitchen does not have): the source reads no team and shows no badge. `reglerLAutonomie` and `approuverLeGeste` are not carried yet. A reading that
 fails says `The agents not reached.`, and a record missing a field says the reading is not readable: no value is made
 up. When the team is read, the supervisor and the closer have no card of the Rail tab's top band: their badge is theirs
-(#4354). Captures: `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
+(#4354). Captures (in git history): `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
 `app/test/autonomy/team-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
 
@@ -833,7 +833,7 @@ The project's menu has a **Know-how** tab, between Agents and Settings; the proj
 shows the block of **The project know-how** (#4239, `holdTheKnowledge`): the entries of `.brigade/know-how.md` read
 from GitHub, by section, each with its source ticket, edited or removed by pull request. The block lives there only:
 **Settings no longer shows it** (#4505 had taken the old tab away, #4239's block stayed in Settings; one place now).
-Nothing of the old runtime is read and nothing is added to `runtime/`. Screenshots: `docs/captures/4570/`
+Nothing of the old runtime is read and nothing is added to `runtime/`. Screenshots (in git history): `docs/captures/4570/`
 (`savoir-faire-liste`, `savoir-faire-edition`, `savoir-faire-vide`). Test: `app/test/vue/know-how/know-how-vue.test.ts`.
 
 ### The Agents tab (#4224, epic #4117, rebuilt for the new kitchen in #4569)
@@ -854,7 +854,7 @@ and from **what the kitchen writes on its station**: the `agents` command reads 
 supervisor) is listed too, with no time. The kitchen writes no station on GitHub, so a station is the computer's own
 (`hostname`), and none for a project that does not cook on this computer.
 
-The `closer` and `reviewer` are not listed: the kitchen runs neither. Captures: `docs/captures/4569/` (`onglet-agents-avant.png` — the tab saying `The agents not reached.` —,
+The `closer` and `reviewer` are not listed: the kitchen runs neither. Captures (in git history): `docs/captures/4569/` (`onglet-agents-avant.png` — the tab saying `The agents not reached.` —,
 `onglet-agents-apres.png`, `onglet-agents-vide-apres.png`).
 
 ### The logbook of the day and the morning digest card (#4274, epic #4025)
@@ -876,7 +876,7 @@ another shape, or of an unknown kind, is counted in one line, never sorted; a `d
 `yesterday's digest is not readable`. The line about outages is the one that holds the words `seen first by the
 chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/log/threads.ts`, the words the runtime's digest must write); a
 digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
-the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures: `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
+the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures (in git history): `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
@@ -929,7 +929,7 @@ answer but a 304) in any hour, under the 1,000 the test allows.
 *Code: `app/src/board/read.ts`, `app/src/vue/rail/github.ts`, `app/src/vue/cooks/taken.ts`,
 `app/src/vue/cooks/signs-of-life.ts`, `lireLeTableau` in `app/src/main.ts`. Tests: `app/test/vue/rail/github.test.ts`,
 `app/test/vue/cooks/taken.test.ts`, `app/test/vue/limit-github-of-the-station.test.ts`, `app/test/vue/cooks/signs-of-life.test.ts`,
-`runtime/test/stations-github/stations.test.ts`, `app/test/board/read.test.ts`. Captures: `docs/captures/2220/` —
+`runtime/test/stations-github/stations.test.ts`, `app/test/board/read.test.ts`. Captures (in git history): `docs/captures/2220/` —
 `rail-github-seul-avant.png` and `-apres.png`, `cooks-github-seul-avant.png` and `-apres.png`; `docs/captures/2358/` —
 `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and `-apres.png` (one station cooking,
 one idle, one silent).*
@@ -967,7 +967,7 @@ line above the columns. It holds the `parked:chef` issues, taken from the same l
 *Code: `app/src/board/kitchen-board.ts`, `app/src/vue/kitchen-board/kitchen-board.js`, `readTheBoardOfRepository` in
 `app/src/board/read.ts`. Tests: `app/test/board/kitchen-board.test.ts`, `app/test/board/read.test.ts`,
 `app/test/acceptation-4507/no-old-runtime.test.ts`, `app/test/acceptation-4482/kitchen-board.test.ts`
-(a fake `gh` and a fake GitHub, one issue in each column, played in the view). Captures: `docs/captures/4482/` —
+(a fake `gh` and a fake GitHub, one issue in each column, played in the view). Captures (in git history): `docs/captures/4482/` —
 `espace-projet-cuisine-neuve-avant.png` (the same labels, read as the old runtime's rail) and
 `espace-projet-cuisine-neuve-apres.png`, from the screen `espace-projet-cuisine-neuve`.*
 
@@ -1044,7 +1044,7 @@ as a comment on the issue (from the chef's `gh` account) and removes `parked:che
 on the rail where it was; and **Open on GitHub**, which opens the issue. The app finds these issues in the list of open
 issues its rail reading already makes, with no request of its own (`app/test/budget-github.test.ts`); the second and the
 notifications, which do not read the rail, list the label. Screens: `todo-parked-chef-avant`, `todo-parked-chef`,
-`todo-parked-chef-repondu` (`docs/captures/4474/`).
+`todo-parked-chef-repondu` (git history: `docs/captures/4474/`).
 *Code: `app/src/board/parked-chef-github.ts`, `app/src/board/wait-of-chef.ts`, `app/src/board/read.ts`
 (`parqueesPourLeChef`), `app/src/board-actions/answer-github.ts`, `app/src/card-todo.ts`, `app/src/vue/card-todo.js`.
 Test: `app/test/acceptation-4474/parked-chef-todo.test.ts`.*
@@ -1138,7 +1138,7 @@ The Android app does not run the runtime: with the GitHub sign-in of the phone, 
 command writes, with the same checks — `Validate` merges the pull request at the head the card carries and closes the
 card; `Send back to the kitchen` posts the comment on the ticket as what to change, takes `in-pass` off and closes the
 card. Done, the card leaves Todo and its notification goes. The phone reads each capture through the GitHub API, at the
-head the card carries. Captures: `docs/captures/3185/`.
+head the card carries. Captures (in git history): `docs/captures/3185/`.
 *Code: `app/src/vue/validation-design/` (`validation-design.js`, the card; `validation-design-github.ts`, the reading of the
 body, `jouerLaValidation` for the desktop and `validerSurGithub` for the phone), channel `gesteDeValidation`
 (`app/src/main.ts`; `app/src/actions-github-phone.ts` and `app/android/web/pont.js` on the phone). Tests:
@@ -1165,7 +1165,7 @@ to Todo. When the ticket asks for several screens, the detail shows one at a tim
 the brief, the captures and the gestures stay whichever screen is shown. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
 one under the other, pinch to zoom, its two gestures 44 px high, the brief in one column and the detail scrolling so
 the captures keep half the screen. On a read-only project the detail shows no gesture.
-Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
+Captures (in git history): `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 *Code: `app/src/vue/validation-design/detail-of-validation.js` (the detail and its zoom), opened from `validation-design.js`
 (the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-of-validation.test.ts`.*
 
@@ -1176,7 +1176,7 @@ repository's owner. A signed-in human sees in their own list only the cards that
 Todo. A card they see is the chef's card unchanged, answered with the same buttons and the same answer flow (above). An
 account or a `projet.json` that cannot be read splits nothing: every card is in the list. The account is read again at
 most every five minutes, and right after a GitHub sign-in. *Code: `app/src/vue/cards-assigned/cards-assigned.ts`,
-used by `lireLeTableau` (`app/src/main.ts`). Test: `app/test/cards-assigned/cards-assigned.test.ts`. Captures:
+used by `lireLeTableau` (`app/src/main.ts`). Test: `app/test/cards-assigned/cards-assigned.test.ts`. Captures (in git history):
 `docs/captures/2761/` — `todo-cartes-assignees-avant.png` (the human sees all four cards) and
 `todo-cartes-assignees-apres.png` (only their two).*
 
@@ -1200,7 +1200,7 @@ Tests: `app/test/cards-assigned/cards-assigned.test.ts`, `app/test/vue/todo/othe
 **What goes into Todo (#2422):** only what asks something of the chef, and each card asks it. A technical
 `hors-cuisine` ticket (sends back exhausted, cooks without a delivery) is the second's work: it stays on the rail, in its
 set-aside column, with its reason line, and only one whose marked comment is a `product-question` enters Todo; an issue
-carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures:
+carrying `kitchen-board` is never a card (the rule, with its reading, is in the rail section above). Captures (in git history):
 `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
 `todo-github-seul-apres.png`.
 
@@ -1222,7 +1222,7 @@ nothing, and asks for no confirmation.
   on hover. A refusal after the new label is put (the old one could not be removed) says which `prio:` labels the issue
   now carries. The chosen value stays chosen: one click tries again.
 
-The box has no command for it: the label is read like any other (`docs/runtime/README.md`). Captures:
+The box has no command for it: the label is read like any other (`docs/runtime/README.md`). Captures (in git history):
 `docs/captures/1739/` — `fiche-priorite-avant.png` (the old path: the command went into the second, through the box),
 `fiche-priorite-apres.png` (the label changed on GitHub, the sheet showing `prio:1`) and `fiche-priorite-echec-apres.png`
 (GitHub refused: the sheet keeps `prio:2` and says why).
@@ -1242,7 +1242,7 @@ queued, without going through TODO.
   latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `parked` from #<n>``,
   GitHub's answer on hover). One click tries again.
 
-Captures: `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
+Captures (in git history): `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
 through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the card),
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
@@ -1281,7 +1281,7 @@ closes it. The buttons and the form are `app/src/vue/wait/wait.js`; what the che
   of these issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications
   do not pay for this reading.
 
-Captures: `docs/captures/3075/` — `attente-github-avant.png` / `attente-github-apres.png` (the rail: the button on each
+Captures (in git history): `docs/captures/3075/` — `attente-github-avant.png` / `attente-github-apres.png` (the rail: the button on each
 TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-github-dialogue-apres.png` (the form opened on
 #41; before, there was no button to open it), `attente-github-fiche-avant.png` / `attente-github-fiche-apres.png` (the
 sheet of #41), `attente-github-telephone-*.png` and `attente-github-waiting-telephone-*.png` (the same cards at phone
@@ -1479,7 +1479,7 @@ are each their own component: `app/src/vue/home/projects/ProjectsBlock.js` and `
   your account are read again each time the home opens.
 
 With no project at all, the first launch takes the home's place on a computer and shows its stations and their
-projects (`first-launch.js`). Captures: `docs/captures/2638/`.
+projects (`first-launch.js`). Captures (in git history): `docs/captures/2638/`.
 
 **The station block (#2640, epic #2497).** Three states, in `StationBlock.js`. **No station on this computer**: one
 recommended button, **Install this computer's station**, and no other setting. A click runs `installerLaStation` of the
@@ -1569,7 +1569,7 @@ recomputed by the app):
 
 With no delivery measured in the 7 days, the block says only `No measure yet. No delivery merged in the last 7 days has its
 pass measured.` How each stage is measured: "How long each stage of the pass takes" in [`runtime/README.md`](runtime/README.md).
-Captures: `docs/captures/3512/`.
+Captures (in git history): `docs/captures/3512/`.
 
 *Code: `app/src/vue/project/banner-health/PassTime.js`, `poserLeBandeauDeSante` in `app/src/vue/vue.js`. Test:
 `app/test/vue/project/time-of-the-pass.test.ts`.*
@@ -1607,7 +1607,7 @@ and the tickets of the commits it reverts. With none, `0` and `none`. They are r
 `bug` issues updated in the 30 days, GitHub's commit search for the trailer (it searches the default branch only, up to
 1,000 commits), and the pull requests of each reverted commit. When that reading fails, both counts say `not read`, with
 the project and the reason, never `0`, and the other figures still count; the reading is not kept, the next one redoes it.
-Captures: `docs/captures/3515/`.
+Captures (in git history): `docs/captures/3515/`.
 
 ### The app's code: up to date, or behind
 
@@ -1693,9 +1693,9 @@ Brigade 1.0.102 is running — 1.0.105 is out · it could not update itself — 
 Brigade 1.0.102 is running — 1.0.105 is out — Download
 ```
 
-The suite follows the state of the installed app's update (`miseAJour`, "Launching the app", *Updating it*): downloading, ready, installing — with **Update now** (recommended; its price on hover: it closes the app's terminals and relaunches it on the latest version — a refusal takes the suite's place) until the install starts. **Update now** installs the latest version (#4494): clicked while it downloads, the line says it installs at the end of the download, and the app installs it and relaunches with no second click. The line never names two versions to come: when the update holds a version lower than the latest (a newer one came out since), it says nothing of it — **Update now** reads the feed again, downloads the latest in its place and installs it. Captures: `docs/captures/4494/` (screens `mise-a-jour-depassee-mac`, `mise-a-jour-depassee-installer-mac`). When the app does not update itself to it — the update failed (the reason on hover of the line), the release carries no `latest-mac.yml` (one published before #2431), or Android —, the line ends with **Download**, a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser, and its hover says how to open the unsigned build the first time (*right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows; nothing on Android). **Nothing dismisses the line**: it stays until the app runs the latest version, and a check that finds nothing (GitHub silent) does not remove a newer version already known — the running version does not change while the app runs. With the app on the latest version there is no line.
+The suite follows the state of the installed app's update (`miseAJour`, "Launching the app", *Updating it*): downloading, ready, installing — with **Update now** (recommended; its price on hover: it closes the app's terminals and relaunches it on the latest version — a refusal takes the suite's place) until the install starts. **Update now** installs the latest version (#4494): clicked while it downloads, the line says it installs at the end of the download, and the app installs it and relaunches with no second click. The line never names two versions to come: when the update holds a version lower than the latest (a newer one came out since), it says nothing of it — **Update now** reads the feed again, downloads the latest in its place and installs it. Captures (in git history): `docs/captures/4494/` (screens `mise-a-jour-depassee-mac`, `mise-a-jour-depassee-installer-mac`). When the app does not update itself to it — the update failed (the reason on hover of the line), the release carries no `latest-mac.yml` (one published before #2431), or Android —, the line ends with **Download**, a link to the package of this device itself — the `.dmg` on a Mac, the `.exe` installer on Windows, the `.apk` on Android —, never the releases page; a click opens it in the browser, and its hover says how to open the unsigned build the first time (*right-click Brigade, then Open* on a Mac; *in SmartScreen, click More info, then Run anyway* on Windows; nothing on Android). **Nothing dismisses the line**: it stays until the app runs the latest version, and a check that finds nothing (GitHub silent) does not remove a newer version already known — the running version does not change while the app runs. With the app on the latest version there is no line.
 
-The check is `app/src/update/opinion.ts` (#1527), run by the main process at launch and every fifteen minutes, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no line. Its notice carries the latest version, the running one (`courante`) and the package link. Together with the update's own check, it reads GitHub's API at most three times every fifteen minutes. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, the gesture `telechargerVersion` (opens the link of the current notice, and only it), and the update's `surMiseAJour` and `installerMiseAJour`. The view is `app/src/vue/update/banner.js`; its tests, against a mocked release list and the update's states, are in `app/test/banner-update/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (`docs/captures/1528/`, taken before #2431). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the line is built and tested for Android but nothing sends it a notice there.
+The check is `app/src/update/opinion.ts` (#1527), run by the main process at launch and every fifteen minutes, only for the installed app on a Mac or on Windows: launched from the repository, the app updates through its clone and shows no line. Its notice carries the latest version, the running one (`courante`) and the package link. Together with the update's own check, it reads GitHub's API at most three times every fifteen minutes. The bridge gives the view `avisDeVersion` and `surAvisDeVersion`, the gesture `telechargerVersion` (opens the link of the current notice, and only it), and the update's `surMiseAJour` and `installerMiseAJour`. The view is `app/src/vue/update/banner.js`; its tests, against a mocked release list and the update's states, are in `app/test/banner-update/`; the captures are the `scripts/capture-ecran` screens `nouvelle-version-mac`, `nouvelle-version-windows` and `telephone-nouvelle-version` (git history: `docs/captures/1528/`, taken before #2431). The Android bridge (`app/android/web/pont.js`) does not run the check yet: until it does, the line is built and tested for Android but nothing sends it a notice there.
 
 ### Signing the phone in to GitHub (#2500, epic #2498)
 
@@ -1728,7 +1728,7 @@ replace it in one line (`CLIENT_GITHUB`, `app/android/web/pont.js`). It reaches 
 HTTP — github.com does not answer a WebView (CORS) —, asks again at the pace GitHub gives (`interval`, `slow_down`),
 and keeps asking through a lost network until the code expires. On the desktop, nothing of this is shown. The screen is
 `app/src/vue/connection-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
-`telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (`docs/captures/2500/`).
+`telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (git history: `docs/captures/2500/`).
 
 ### Right after the first served ticket: the phone offer (#3303)
 
@@ -1760,7 +1760,7 @@ another project, before that ticket is served, on the phone itself, or when a ph
 *Code: `app/src/vue/offer-phone/offer-phone.js`, its wiring in `app/src/vue/vue.js`, `app/src/main.ts`
 (`lienDeLApk`, `telephoneConnecte`) and `app/src/preload.cjs`; the trace in `app/src/phone-connected.ts`, posed by
 `app/src/read-github-phone.ts`. Tests: `app/test/vue/offer-phone.test.ts`, `app/test/phone-connected.test.ts`,
-`app/test/stations/stations.test.ts`, `app/test/update/android.test.ts`. Captures: `docs/captures/3303/`.*
+`app/test/stations/stations.test.ts`, `app/test/update/android.test.ts`. Captures (in git history): `docs/captures/3303/`.*
 
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
@@ -1824,7 +1824,7 @@ bridge with no station reachable — are `app/test/actions-github-phone.test.ts`
 desktop's plan of the kitchen (#4238), the TODO above its columns — and Stations — each station, its state and its running cooks.
 It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
 and nothing on it scrolls sideways at phone width. Screen: `telephone-file` of
-`scripts/capture-ecran` (`docs/captures/1163/`).
+`scripts/capture-ecran` (git history: `docs/captures/1163/`).
 
 **The phone opens on the cards that await you** (#2915, epic #2897; artboard `Phone.dc.html`, 390 × 844). At a narrow width
 (the same threshold, `ECRAN_ETROIT`), "All projects" gives its place to **Awaiting you**: the cards of every project that
@@ -1837,7 +1837,7 @@ included, is the answer: it goes through `repondreCarte` like the card of TODO (
 says **Sent to the kitchen.** with *`#N` is back on the rail* and **Back to the list**. A refusal is one line on the card,
 which keeps its buttons. Every button is the family's 44 px, a choice 52, and nothing scrolls sideways at 390 px. The
 module is `app/src/vue/cards-of-chef/` (its tests: `app/test/cards-of-chef/`); the captures are the screens
-`cartes-du-chef-liste`, `cartes-du-chef-carte` and `cartes-du-chef-envoyee` of `scripts/capture-ecran` (`docs/captures/2915/`).
+`cartes-du-chef-liste`, `cartes-du-chef-carte` and `cartes-du-chef-envoyee` of `scripts/capture-ecran` (git history: `docs/captures/2915/`).
 The artboard's line *5 tickets served today* is not drawn: no reading the app holds counts them.
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
@@ -1894,7 +1894,7 @@ its name, its state, what it is doing and the projects it carries; its machine a
 runs a project's cooks: it is not offered among the machines of "Choose the machine that runs … kitchen"
 (nor in the backups, nor in "move the kitchen"), the app never recommends it, and a request that
 names it is refused (`pixel does not cook: choose a station that does.`). The station says it by
-publishing `cuisine: false` in its gist (#1158); a station that does not publish it cooks. Screens:
+publishing `cuisine: false` in its gist (#1158); a station that does not publish it cooks. Screens (in git history):
 `docs/captures/1162/`.
 
 **This computer's station version, beside the box's** (#2191, epic #2182). Under the list, one line "Station
@@ -1911,7 +1911,7 @@ bridge (`statutDeLaStation`, then `surStatutDeLaStation`): behind, it says so in
 date, in green. With no status — a bridge that does not read it yet, or a status that does not keep the contract —
 it says `version unknown`, grey, the reason on hover: never an error, never an empty cell. With no box read yet, the
 box's cell says `version unknown` too. The phone shows no such line. The view is `app/src/vue/station-version/`, its
-tests `app/test/vue-station-version/`; screens: `docs/captures/2191/` (`scripts/capture-ecran` screen
+tests `app/test/vue-station-version/`; screens (in git history): `docs/captures/2191/` (`scripts/capture-ecran` screen
 `stations-version-inconnue`).
 
 **A click on its line opens the station's page**: at the top, its name, its dot and its state in
@@ -1935,7 +1935,7 @@ Every setting of the page is the app's single settings row (#2920, `app/src/vue/
 name and level mark, its value, its control. There is no Save button: a field applies when it changes (Enter, or leaving
 it), through the same gesture the section always used (`station/page/appliquer.js`); while it runs the row says
 `applying…` and its controls are disabled, then a refusal is the error line under the row, its detail on hover. All of
-them live on the machine, none in the repository, so no row opens a pull request. Screens: `docs/captures/2641/`.
+them live on the machine, none in the repository, so no row opens a pull request. Screens (in git history): `docs/captures/2641/`.
 Folders and sandbox (#2644, `sections/dossiers-et-bac-a-sable.js`): the clones folder, the worktrees folder, the sandbox
 state (on / off) and the network door — the hosts a cook may reach, each with what opens it on hover — each with the
 `this computer` mark. On this computer's station a folder changes from its field, and a host opens from the network
@@ -1944,7 +1944,7 @@ Removing a host the chef opened (`remove`) is confirmed inline under the door (`
 kept in `station-reglages.json` beside the app file (`app/src/settings-of-the-station.ts`) and read back at every load. On another station the section shows the same, with nothing to change. The station does not
 read that file yet: it is the app's side of the setting (each setting's hover says so). The sandbox state is read from
 the projects' onboarding: off once a project cooked here continued without it. On another station the section shows
-"not available for this station" — the app reads nothing of a station it does not run. Screens: `docs/captures/2644/`.
+"not available for this station" — the app reads nothing of a station it does not run. Screens (in git history): `docs/captures/2644/`.
 Engine (#3746, epic #3518, `app/src/vue/engine/EngineSection.js`, loaded from `moteur/` by the shell): what the
 station's cooks run on — a list of exactly three engines, `Claude subscription` (the default), `Claude API key`, `Codex` —
 and the `fallback engine`: `none`, or one of the two others. Choosing as engine the current fallback clears the fallback
@@ -1955,7 +1955,7 @@ kept in `station-reglages.json` as `engine` and `fallbackEngine` (values `claude
 `codex`); the key in its own file beside it, `station-cle-api`, readable only by the account (0600) — the read says only
 whether a key is kept. Like the folders, the station does not read them yet: this is the app's side of the setting.
 An unknown engine in the file reads as `“<value>” — an engine this app does not know`; an unreadable file says so in one
-line. On another station: "not available for this station". Screens: `docs/captures/3746/`.
+line. On another station: "not available for this station". Screens (in git history): `docs/captures/3746/`.
 
 ```
 box      ●  online · 2 cooks running   ?
@@ -2097,17 +2097,18 @@ are in the list of stations** (#1778, #3195), read each time the home opens — 
   detail on hover, the page that fixes it when there is one, and "read again". **Unreadable registrations**: one
   line, "1 more station cannot be read", the reasons on hover, and "read again".
 
-Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (the single list, before and after), `docs/captures/1780/` (your projects first, the others by search), `docs/captures/1790/` (a computer added to a project another station serves: joined, or refused).
+Screens (in git history): `docs/captures/1706/` (before the single list), `docs/captures/1778/` (the single list, before and after), `docs/captures/1780/` (your projects first, the others by search), `docs/captures/1790/` (a computer added to a project another station serves: joined, or refused).
 
 ### This computer is a station; a phone is a workstation
 
 *Spec: [the station rebuilt from scratch](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
 
 **On a computer — Mac, Windows, desktop Linux —, the installed app is a station.** Once open,
-it finds the machine's station running, or starts it: **the same as a server's**, the same entry point
-(`runtime/src/station/main.ts`, the one the Debian package's service starts), the same held directory,
-the same project configuration (one line each, in `projets`), the same presence on
-GitHub. Only the installation differs: a package on a server, the app here (`app/src/workstation/`).
+it finds the machine's station running, or starts it: **the new kitchen**, the same entry point as the box's
+`brigade-kitchen` unit (`runtime/src/kitchen/main.ts`, #4603), the same held directory, the same project list
+(one line each, in `kitchen/projects`). Only the installation differs: a unit on a server, the app here
+(`app/src/workstation/`). The login item the app writes (`brigade.station.plist`) is rewritten at each opening when it
+carries one of the app's brands, including the one from before the English rename.
 
 - **Its directory** is `station/`, next to the projects file (`~/.config/brigade/station`) —
   or `BRIGADE_STATION_DIR`, if it is set. It runs under your account, with your `gh` and your
@@ -2256,7 +2257,7 @@ longer stated. With neither, nothing changes. **The station's refusal** (#1178):
 project with no refused access to state, its tracking carries `refus` (#1177: a stable code, a sentence, the
 chef's action); the same block puts down the sentence (`This project's settings choose a network port that the station reserves
 for itself.`, the code on hover) then the action below — never the raw text of the `en-service` file, nor a
-path. Screenshots:
+path. Screenshots (in git history):
 `docs/captures/1178/`. The station clears it when the gesture is done: the page re-read
 (each read of the stations) goes back to its message, without reloading the app. The module is
 `app/src/vue/onboarding/repository-held.js`.
@@ -2273,14 +2274,14 @@ row carries a link naming the exact page (`open github.com/settings/personal-acc
 browser through the main process; as everywhere in the app, only a GitHub page is a link — another one is dropped,
 the blocker stays. What a command said (`detail`) is never the message: it stays folded behind `details`, and a
 row the chef unfolds stays unfolded from one read to the next. A resolved blocker leaves the card; no blocker, no
-card. Screenshots: `docs/captures/1399/`. The module is `app/src/vue/project/blockages.js`.
+card. Screenshots (in git history): `docs/captures/1399/`. The module is `app/src/vue/project/blockages.js`.
 
 **Time to the first served ticket** (#1401, epic #1393): one line above the blockers, from the `delai` the principal
 station publishes in its tracking. Before any ticket of the chef is served it says how long ago the project was added
 (« Added 2 h 14 min ago, no ticket served yet »), recounted at each read and every 30 s; after the first one it says
 the final duration the station froze (« First ticket served 2 h 34 min after the project was added »), which a second
 served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
-Screenshots: `docs/captures/1401/`. The module is `app/src/vue/project/delay.js`.
+Screenshots (in git history): `docs/captures/1401/`. The module is `app/src/vue/project/delay.js`.
 
 **Health strip: duration caps** (#2490, epic #2484), in the `Caps, closer and all projects` section of the project's
 Settings (#3014), then the closer's; they are read on GitHub when Settings opens, then at most once a minute while it stays open.
@@ -2303,7 +2304,7 @@ a whole threshold) proposes nothing and says so under the field, what was typed 
 its detail on hover — nothing claims success.
 **The lost-time threshold is not editable here yet**: `lostTimeMaxMin` is not a `drift.*` threshold, the only keys this
 block writes, and the station reads it from its clone's working tree — its row says so, the reason on hover. The caps
-are edited nowhere else in the project view. Screenshots: `docs/captures/2490/`. Module:
+are edited nowhere else in the project view. Screenshots (in git history): `docs/captures/2490/`. Module:
 `app/src/vue/project/banner-health/DurationCaps.js`.
 
 **Health strip: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
@@ -2337,7 +2338,7 @@ emptied, its removal is proposed), its **start condition** (`cooksBelow`, `none 
 pull request towards the integration branch, which the row announces and then links (`opus / high proposed in` `pull
 request #<n>`); the runtime reads it at its next fetch once merged, a value it would refuse proposes nothing and says so. The closer on GitHub reads only the calibration and
 the removed lines cap: the two others say `not read on GitHub yet`, the reason on hover. Settings still carries its
-closer rows, which propose the same keys by a pull request (#1685). Screenshots: `docs/captures/2491/`. Module:
+closer rows, which propose the same keys by a pull request (#1685). Screenshots (in git history): `docs/captures/2491/`. Module:
 `app/src/vue/project/banner-health/Closer.js`.
 
 **The project know-how** (#4239, epic #4135; its own tab since #4570, below). The **Project know-how** block: the entries of
@@ -2368,7 +2369,7 @@ request, until the station publishes the choice as chosen. While the write runs,
 says `recording your choice…`; a refused write leaves the card with one line saying why, what GitHub said on hover.
 The option is written only if the page still shows the choice as pending and the choice offers it. A need with a card
 has no blocker row as well (the blocker waiting for it shares its id, `need:<need>`). No pending choice, no card.
-Every other gesture rewrites the selections as they are. Screenshots: `docs/captures/1400/`. The module is
+Every other gesture rewrites the selections as they are. Screenshots (in git history): `docs/captures/1400/`. The module is
 `app/src/vue/project/choice.js`; the write is `choisir` in `app/src/projects/projects.ts`.
 
 **"Cook it on a station that has it" opens the station form** (#1511, epic #1506): that one option writes nothing. It
@@ -2377,14 +2378,14 @@ plays for the project, else the first the project declares — with the capabili
 to what the station provides (`browser` → `navigateur-headless`, `postgres` → `postgres`, …: the first capability the
 runtime gives the need, `CAPACITE_DU_BESOIN` in `app/src/vue/stations-declared.js`). Since #2920 each box applies as soon
 as it changes: ticking it declares it like any other edit, and the capability shows on the station's row; the card stays until the station publishes the choice as
-answered. No station read yet, one line under the card says so. Screenshots: `docs/captures/1511/`.
+answered. No station read yet, one line under the card says so. Screenshots (in git history): `docs/captures/1511/`.
 
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
 the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
 would run in `restricted mode: no sandbox` (what it covers and what it cannot, named), nothing goes out before the chef's choice — and two buttons: "choose another
 station" (recommended: it opens the choice of machines for the move) and "continue without sandbox"
 (`continuerSansBacASable` of the bridge, whose answer is stated under the stations line). Since #4511 the app has no
-runtime beside it to record the choice: it says so in one sentence, and nothing is recorded. Screenshot:
+runtime beside it to record the choice: it says so in one sentence, and nothing is recorded. Screenshot (in git history):
 `docs/captures/1113/`.
 
 ### Where a project cooks, and moving it in one gesture (#1095)
@@ -2652,7 +2653,7 @@ sentence and `Try again`; once done it leaves on both views without a reload. Th
 `checkRepoSetup`; a set up project shows nothing, and no setup command is ever shown. The bindings section counts when
 the local copy's `CLAUDE.md` has it, or else the `CLAUDE.md` of the integration branch on GitHub: once the setup's PR is
 merged, the next reading says the project is set up, without pulling the copy (#3170). Modules:
-`app/src/vue/page-project/repository-not-prepare.js`, `app/src/vue/todo/opinion-todo.js`. Captures:
+`app/src/vue/page-project/repository-not-prepare.js`, `app/src/vue/todo/opinion-todo.js`. Captures (in git history):
 `docs/captures/2628/`.
 
 ### The repository setup session (#2595, #4632)
@@ -2748,7 +2749,7 @@ a space ("All projects", the add form), the accent is the skin's.
   `--fond`), and **each is at ΔE ≥ 15 of every state color**: the skin's green, yellow, red, blue and
   gray — an alert, a "not verified", a healthy project — do not change from one project to another,
   and no project color stands in for them. Each reads on the dark background and under the dark text
-  of a selected tile (contrast ≥ 4.5). `app/test/colors.test.ts` measures all of it. Captures:
+  of a selected tile (contrast ≥ 4.5). `app/test/colors.test.ts` measures all of it. Captures (in git history):
   `docs/captures/1106/`.
 
 ### Your preferences follow you from one device to another (#1677)
@@ -2979,7 +2980,7 @@ station and are never sent to the repository** (what the Apps are for on hover).
 
 Only this computer's station is reached: a phone has no station, and the lines are not laid there. The modules are
 `app/src/vue/identities-github.js` and, in the main process, `appsDeLaStation` / `rangerUneApp` (`app/src/main.ts`).
-Captures: `docs/captures/2317/`.
+Captures (in git history): `docs/captures/2317/`.
 
 ### The projects this computer serves, in Settings (#2359, epic #2356)
 
@@ -3004,7 +3005,7 @@ were under **This machine**. It lays a line `projects this Mac serves` (`this PC
 Only this computer's station is reached: a phone has no station, and the block is not laid there. The modules are
 `app/src/vue/projects-served/projects-served.js` and, in the main process, `projetsServis` (`app/src/main.ts`, which reads
 `runtime/src/kitchen/projects.ts`) and `servirUnProjet` (`app/src/serve-here.ts`, #4568).
-Captures: `docs/captures/2359/`, `docs/captures/3402/`.
+Captures (in git history): `docs/captures/2359/`, `docs/captures/3402/`.
 
 ## Buttons write, they do not send
 
@@ -3219,7 +3220,7 @@ closer's badges stand at the top of the view instead, and the band has no card f
 most one message, the
 first cause that offers the chef an action: a message with none is not shown (the breaker line); a stale reading reads
 again; the line of an issue the kitchen opened on itself opens that issue. Where the paragraphs below
-speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures:
+speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures (in git history):
 `docs/captures/4238/`.
 
 **Each TODO entry says who, for what and until when, and opens its park control (#4281).** The entries are drawn by
@@ -3232,7 +3233,7 @@ buttons, opens the park control under the entry: who (a person, or the chef), fo
 call one gesture, with the same project, ticket and step, for any project (`park-control.js`). Until the shared park
 gesture of #4129 exists, that gesture goes through the waiting gestures (`park-gesture.js`): `park` is `waiting for…`,
 which takes only a date for now (a fact comes back refused, with its reason, under the form); `unpark` is `it arrived,
-back to the kitchen`. Read-only, the entry has no buttons and no park control. Captures: `docs/captures/4281/`.
+back to the kitchen`. Read-only, the entry has no buttons and no park control. Captures (in git history): `docs/captures/4281/`.
 
 **TODO is not a column (#3458).** Tickets move left to right, from On the rail to Served; what awaits the chef is a
 property of a ticket, not a place on the rail. **A card that awaits you stays in the column of its stage** — On the rail
@@ -3250,7 +3251,7 @@ project's line, the count of the red cards once its rail is read; before that, t
 `facts`). **What awaits you without being a ticket of the rail is under the columns, outside them**: the repository not set
 up for Brigade, an answer kept from a card that left meanwhile, then **Awaiting others (N)**, folded; the breaker line and
 its `Resume` is the status line (below), and the project switched off is too (#3454). The phone draws the same rail: no TODO
-column, the red cards in their stage. Captures: `docs/captures/3458/`. Where the sections below still speak of the Awaiting
+column, the red cards in their stage. Captures (in git history): `docs/captures/3458/`. Where the sections below still speak of the Awaiting
 you (Todo) column, read: the red cards, in the column of their stage.
 
 **It is the main view of the space: in the middle of the screen, under the project name, whatever
@@ -3270,7 +3271,7 @@ every column but Awaiting you. There a ticket is the warm card of what awaits yo
 border, a card's radius): its number, its title, its question in large type, then its choices — **the first choice is
 the recommended answer**, the only button filled with the accent, the others ordinary buttons — then `answer in my own
 words`, which opens the free-text field and its `send`. A card with no choices keeps its field open (it is its only
-answer), and so does a card on which the chef already typed. Captures: `docs/captures/2922/`.
+answer), and so does a card on which the chef already typed. Captures (in git history): `docs/captures/2922/`.
 
 **The cooking pan** (#2984, `app/src/vue/components/pan/`): a small 8-bit pan, drawn for Brigade, sizzles at the end
 of a voucher's head while an agent works on that ticket — its cook holds it (Taken), or the pass runs its gates,
@@ -3618,7 +3619,7 @@ The kanban starts right under the tabs. Above its columns, the Rail tab shows **
   a station is added from the Stations tab (`Add a station`). The age of the reading is on hover of the status line, and
   visible only when the reading is stale.
 
-Captures: `docs/captures/4354/` — `rail-avant.png` / `rail-apres.png` (a project read on GitHub with its backlog),
+Captures (in git history): `docs/captures/4354/` — `rail-avant.png` / `rail-apres.png` (a project read on GitHub with its backlog),
 `rail-equipe-avant.png` / `rail-equipe-apres.png` (its team read: the badges, one line), `rail-todo-avant.png` /
 `rail-todo-ouvert-apres.png` (no team read: the two cards, and `2 wait for you` unfolded).
 

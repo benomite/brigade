@@ -22,6 +22,7 @@ import { sTries } from "./trial.ts";
 import { lineAtWork, lineBaseRed, lineOfHead, queuedLine, lineInWaiting, lineUnreadable, lineDelivered, lineSetAside, lineAwaitingMe, lineRefused, lineAnswered, type LineOfCard } from "./line-card.ts";
 import type { FactsStation } from "./ordinary.ts";
 import type { Failure, Reading } from "./box.ts";
+import type { PauseOfReads } from "./board/read.ts";
 import { capturesOfCard, type CapturesOfCard, type CapturesRead, type Moment } from "./captures.ts";
 import { learningOf, learningInforms, learningRead, type Learning, type LearningRead } from "./learning.ts";
 import { engineRead, type EngineOfDelivery } from "./vue/delivery-engine/engine.ts";
@@ -420,7 +421,7 @@ export type StepOfTicket = { ticket: number; etat: string; pr: { numero: number 
 // qui dit lequel, ce que la box a `rendu` à la place des faits, mot pour mot, et
 // en quoi ce n'est pas la forme (`informe`) ; ou l'échec de la veille, tel quel.
 // `publieLe` : l'heure où la box a lu l'état que ce rail montre (#2054) — absent d'une lecture qui ne vient pas du tableau.
-export type Drawable = { projet: string; demande: number; a: string; publieLe?: string } & ({ tableau: Board } | { titre: string; informe: string; rendu: string } | ({ titre: string } & Failure));
+export type Drawable = { projet: string; demande: number; a: string; publieLe?: string; pause?: PauseOfReads } & ({ tableau: Board } | { titre: string; informe: string; rendu: string } | ({ titre: string } & Failure));
 
 class Informs extends Error {}
 
@@ -831,7 +832,8 @@ function read(reading: Reading, awaiting?: BlockRead, status?: StatusRead, answe
   const facts = understand(rendered);
   if ("informe" in facts) return { recue: { projet: project, demande: request, a, titre: "THE STATION DID NOT RETURN THE SHAPE OF `facts`", informe: facts.informe, rendu: rendered } };
   const publishedThe = "publieLe" in reading && typeof reading.publieLe === "string" ? { publieLe: reading.publieLe } : {};
-  return { faits: facts, recue: { projet: project, demande: request, a, ...publishedThe, tableau: board(facts, awaiting, status, answeredEntries, writtenEntries) } };
+  const paused = "pause" in reading && typeof reading.pause === "object" && reading.pause !== null ? { pause: reading.pause as PauseOfReads } : {};
+  return { faits: facts, recue: { projet: project, demande: request, a, ...publishedThe, ...paused, tableau: board(facts, awaiting, status, answeredEntries, writtenEntries) } };
 }
 
 export const draw = (reading: Reading): Drawable => read(reading).recue;

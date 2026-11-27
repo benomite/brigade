@@ -12,7 +12,6 @@ import { posixOnly } from "../support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../../.claude/brigade/gates.sh");
 const SELECTION = join(import.meta.dirname, "../../../.claude/brigade/tests-touches.mjs");
-const ROLES = ["po", "manager", "dev", "designer"];
 
 test("in the pr mode, a slow close test the gates name fails as before, a slow far-away test is only reported", (t) => {
   const avant = { mode: process.env.BRIGADE_DUREE_MODE, base: process.env.BRIGADE_DUREE_BASE, stricts: process.env.BRIGADE_DUREE_STRICTS };
@@ -33,7 +32,7 @@ test("in the pr mode, a slow close test the gates name fails as before, a slow f
   assert.equal(mode.touche({ test: "lent", ms: 3000, fichiers: ["test/loin.test.ts"] }), false, "a far-away test the change does not touch is reported");
 });
 
-// Un projet aux gates vertes, sur `main`, puis sur une branche qui change `runtime/src/a.ts`, qu'importe `test/a.test.ts`.
+// Un projet aux tests verts (sans rôle V1, ses contrôles plugin sont rouges, #4630), sur `main`, puis sur une branche qui change `runtime/src/a.ts`, qu'importe `test/a.test.ts`.
 // Sa suite du runtime note la garde de durée que les gates lui donnent.
 function projet(t: TestContext): string {
   const racine = join(repertoireTemporaire(t), "projet");
@@ -43,14 +42,10 @@ function projet(t: TestContext): string {
   };
   poser("CLAUDE.md", "## Équipe multi-agents (plugin brigade)\n\n- **Branche d'intégration** : `main`\n");
   poser(".gitignore", ".brigade-state/\nnode_modules/\nduree.txt\n");
-  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ROLES.map((role) => `./commands/${role}.md`) }));
+  poser(".claude-plugin/plugin.json", JSON.stringify({ commands: ["./commands/start.md"], agents: [] }));
   poser(".claude-plugin/marketplace.json", "{}");
   poser(".claude/settings.json", "{}");
-  for (const role of ROLES) {
-    poser(`commands/${role}.md`, "");
-    poser(`codex/skills/${role}/SKILL.md`, "");
-    poser(`codex/skills/${role}/agents/openai.yaml`, "");
-  }
+  poser("commands/start.md", "");
   mkdirSync(join(racine, ".claude/brigade"), { recursive: true });
   copyFileSync(SELECTION, join(racine, ".claude/brigade/tests-touches.mjs"));
   const noter = "require('fs').writeFileSync('duree.txt', [process.env.BRIGADE_DUREE_MODE, process.env.BRIGADE_DUREE_BASE, process.env.BRIGADE_DUREE_STRICTS].join('|'))";
@@ -78,7 +73,8 @@ test("the gates that play every test give the runtime suite the PR's duration mo
 
   assert.match(sortie, /^ok {4}tests : tous, comme la CI Windows/m);
   assert.equal(readFileSync(join(racine, "runtime/duree.txt"), "utf8"), `pr|${base}|test/a.test.ts`, sortie);
-  assert.equal(passage.status, 0, sortie);
+  // The project carries no V1 role: the plugin checks of gates.sh stay red on it (#4630); the runtime suite passed.
+  assert.match(sortie, /^ok {4}tests du runtime$/m, sortie);
 });
 
 test("the gates that play every test because the change sets a whole suite still judge the 2 s rule as the PR's CI, with no close test named as strict (#4110)", { skip: posixOnly("plays this repository's real gates.sh on a test project; on Windows its Python check reads the role paths with backslashes") }, (t) => {
