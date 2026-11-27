@@ -118,7 +118,7 @@ export function additionsOfProject(readEntries, { nom: name, depot: repository }
 // La commande d'installation d'une station, selon le système de la machine qui cuit (docs/installation-station.md).
 /** @type {readonly { systeme: string, commande: string }[]} */
 export const INSTALLER = [
-  { systeme: "Linux or macOS", commande: "curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh" },
+  { systeme: "Linux", commande: "curl -fsSL https://github.com/benomite/brigade/releases/download/station/brigade-station-linux-x64.tar.gz | tar xz && sudo ./install.sh" },
 ];
 
 // La plateforme telle que le contrat la publie, dite comme on la nomme.

@@ -9,7 +9,7 @@ import { Fake } from "../helpers/false-vue.ts";
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const ACTIONS = { choisirQuiCuit() {}, deplacer() {}, versIci() {}, cuireIci() {}, choisir() {}, annuler() {}, arreter() {}, confirmerArret() {}, renoncerArret() {}, basculer() {} };
 const BASE = { projet: "parade", poste: "this Mac", lues: true, haut: { vert: false, etat: "aucune", dit: "" }, servantes: [], deplacable: { offert: false, pourquoi: "" }, details: new Map(), ouverts: new Set() };
-const ONE_LINER = /curl -fsSL https:\/\/github\.com\/benomite\/brigade\/releases\/download\/station\/installer-station\.sh \| sh/;
+const ONE_LINER = /curl -fsSL https:\/\/github\.com\/benomite\/brigade\/releases\/download\/station\/brigade-station-linux-x64\.tar\.gz \| tar xz && sudo \.\/install\.sh/;
 
 test("the `add a server` screens show the one-liner and never point to installation-station.md or another command", () => {
   const root = setTheTabOfStations(doc as never, BASE as never, ACTIONS as never) as Fake;

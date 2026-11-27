@@ -2,8 +2,8 @@
 
 The kitchen (`runtime/src/kitchen/main.ts`) serves the projects of `<BRIGADE_STATION_DIR>/kitchen/projects`. On a
 Mac, it is the station itself: the app runs it as this computer's station (`PRINCIPAL`,
-`app/src/workstation/role.ts`), with `BRIGADE_STATION_DIR` set to the station's folder, or the launchd agent that
-`installer-station.sh` writes runs it when the app does not. Only one runs at a time (`app.pid`).
+`app/src/workstation/role.ts`), with `BRIGADE_STATION_DIR` set to the station's folder, or the launchd daemon of the
+station archive runs it when the app does not. Only one runs at a time (`app.pid`).
 
 ## Declare the project
 

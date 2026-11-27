@@ -15,7 +15,7 @@ const asset = (name: string, extra: Record<string, unknown> = {}) => ({ name, br
 test("des releases de GitHub, seules comptent celles de la station, publiées, qui portent l'archive de la plateforme", () => {
   const empreinte = "a".repeat(64);
   const releases = [
-    { tag_name: "station-1.2.0", draft: false, prerelease: false, assets: [asset(nom("1.2.0"), { digest: `sha256:${empreinte}` }), asset("installer-station.sh")] },
+    { tag_name: "station-1.2.0", draft: false, prerelease: false, assets: [asset(nom("1.2.0"), { digest: `sha256:${empreinte}` }), asset("brigade-station_amd64.deb")] },
     { tag_name: "station-1.3.0", draft: true, prerelease: false, assets: [asset(nom("1.3.0"))] },
     { tag_name: "station-1.4.0~rc1", draft: false, prerelease: true, assets: [asset(nom("1.4.0~rc1"))] },
     { tag_name: "station-1.1.0", draft: false, prerelease: false, assets: [asset(nom("1.1.0", MAC))] },

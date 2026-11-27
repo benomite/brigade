@@ -35,7 +35,7 @@ export const ADD_A_SERVER = "Add a server";
 // La ligne d'installation de Linux et de macOS, celle que la page d'installation publie.
 export const INSTALL_COMMAND = INSTALLER[0]?.commande ?? "";
 export const WHERE_TO_RUN = "Paste this one line in a terminal on any always-on Linux server (Debian or Ubuntu): it installs the station, then signs the server in to GitHub — use this same account — and to your Claude Max subscription.";
-export const ON_A_MAC = "On a Mac, it is the same command; the station cooks only while that Mac stays on and connected.";
+export const ON_A_MAC = "On a Mac, take the darwin-arm64 archive and run ./install.sh under your own account; the station cooks only while that Mac stays on and connected.";
 export const WAITING = "Waiting for its first check-in: the server appears here within a minute after the command ends.";
 export const CHECK_AGAIN = "check again";
 export const UNREADABLE = "your stations could not be read";

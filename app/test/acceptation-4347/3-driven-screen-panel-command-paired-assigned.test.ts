@@ -40,7 +40,7 @@ const SERVER: StationRecorded = { id: "g9", name: "parade-box", platform: "linux
 const text = (root: Fake) => [...root.descendants()].map((n) => n.textContent).join("\n");
 
 test("the station tab: `add a server` panel, documented command, server seen paired, project assigned to it", async () => {
-  const documented = /curl -fsSL \S+\/station\/installer-station\.sh \| sh/.exec(readFileSync(new URL("../../../docs/installation-station.md", import.meta.url), "utf8"))?.[0] ?? assert.fail("no documented command");
+  const documented = /curl -fsSL \S+\/station\/brigade-station-linux-x64\.tar\.gz \| tar xz && sudo \.\/install\.sh/.exec(readFileSync(new URL("../../../docs/installation-station.md", import.meta.url), "utf8"))?.[0] ?? assert.fail("no documented command");
   assert.ok(existsSync(process.env.BRIGADE_CLAUDE_BIN ?? ""), "the fake claude of the repo is missing");
   let stations: StationRecorded[] = [];
   const vue = await playTheVue({ demarrage: startup, stationsDuCompte: () => LISTED(stations), choisirLesProjets: (_id, repositories) => ({ selection: repositories }), espace: () => [] });

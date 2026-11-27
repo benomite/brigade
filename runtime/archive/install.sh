@@ -33,7 +33,7 @@
 # and never starts nor restarts a service — the update does that, and goes back by itself
 # if the station does not come up.
 #
-# `sh install.sh --migrate` is the mode the bridge `.deb` plays (runtime/paquet/debian/postinst),
+# `sh install.sh --migrate` is the mode the bridge `.deb` plays (runtime/paquet/debian/postinst, the bridge, removable once no station runs the `.deb`),
 # as root, on a box that runs the `.deb`'s layout (Linux only). It installs the archive as
 # above, keeps /var/lib/brigade and /etc/brigade as they are (asks for no token), then retires
 # the `.deb`'s layout: its units under /usr/lib/systemd/system (and the links that enable

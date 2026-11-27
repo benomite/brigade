@@ -572,10 +572,10 @@ line's gestures are not laid. The panel says:
 
 - one sentence: `Paste this one line in a terminal on any always-on Linux server (Debian or Ubuntu): it installs the
   station, then signs the server in to GitHub — use this same account — and to your Claude Max subscription.`;
-- the line itself, `curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh`
+- the line itself, `curl -fsSL https://github.com/benomite/brigade/releases/download/station/brigade-station-linux-x64.tar.gz | tar xz && sudo ./install.sh`
   — the one installation-station.md publishes (`INSTALLER`, `stations-of-account.js`) —, and `copy`, which puts it on the
   clipboard and then reads `copied`. It is the only command the panel shows: no other line, no Windows line, no page to open;
-- for a Mac: `On a Mac, it is the same command; the station cooks only while that Mac stays on and connected.`;
+- for a Mac: `On a Mac, take the darwin-arm64 archive and run ./install.sh under your own account; the station cooks only while that Mac stays on and connected.`;
 - then where the server stands: `Waiting for its first check-in: the server appears here within a minute after the command
   ends.` and `check again`.
 

@@ -1,7 +1,6 @@
 // Ce que publie la station (runtime/paquet) : les archives et le .deb, pont à sens unique vers
 // elles (#4741) — ce que la commande de construction produit, et ce que le postinst du pont joue
-// sur une machine qui a l'ancien layout. La commande d'installation du guide a ses tests
-// (deploy/installer-station.test.ts). Ni root, ni vraie machine : `dpkg-deb` construit et ouvre le
+// sur une machine qui a l'ancien layout. Ni root, ni vraie machine : `dpkg-deb` construit et ouvre le
 // paquet, et les commandes du système que les scripts appellent sont des doublures qui notent
 // leurs appels, sous une racine d'essai (BRIGADE_RACINE).
 import assert from "node:assert/strict";

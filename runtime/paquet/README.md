@@ -11,6 +11,8 @@ l'archive linux-x64 sous `/usr/share/brigade-station/`, et son `postinst` — se
 Rejoué, il ne change rien, et il laisse `current` où une station déjà mise à jour l'a mis. Le sens est
 unique : la station se met ensuite à jour seule, par l'archive. Les notes de la release le disent.
 
+Le pont, `runtime/paquet/debian/postinst` et le `dpkg-deb` de `construire.ts` peuvent être retirés dès qu'aucune station ne fait plus tourner le `.deb`. Tout le reste de l'ancien chemin Debian (scripts `prerm`/`postrm`, l'arbre `/usr/lib`, l'ancien script d'installation) est parti avec #4742.
+
 ## Construire
 
 ```sh

@@ -157,7 +157,7 @@ station. The second documents the commands in `docs/station.md`, the one page th
 
 - The `.deb`, `runtime/paquet/debian/`, and its Debian-only update path.
 - The station embedded in the Mac app (`app/src/station-background/`, `station-process/`, `workstation/`, the runtime
-  copied into `Brigade.app`), and `runtime/deploy/installer-station.sh`'s launchd agent under the chef's account.
+  copied into `Brigade.app`), and the old install script's launchd agent under the chef's account.
 - The Windows station (its installer directory, removed).
 - The second's `ssh` into systemd, `/tmp` and counters: replaced by `brigade status` and `brigade logs`.
 

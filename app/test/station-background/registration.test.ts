@@ -106,11 +106,11 @@ test("sur un Mac, l'agent posé par l'installeur de la station est laissé tel q
   const home = repertoireTemporaire(t);
   const plist = join(home, "Library", "LaunchAgents", "brigade.station.plist");
   mkdirSync(join(home, "Library", "LaunchAgents"), { recursive: true });
-  writeFileSync(plist, "<!-- Écrit par installer-station.sh -->");
+  writeFileSync(plist, "<!-- Écrit par le script d installation -->");
   const installs = oneSystem(home, "darwin");
   assert.deepEqual(await registerTheStationOfBackground(installs.systeme), { par: "installeur" });
   assert.deepEqual(installs.appels, []);
-  assert.equal(readFileSync(plist, "utf8"), "<!-- Écrit par installer-station.sh -->");
+  assert.equal(readFileSync(plist, "utf8"), "<!-- Écrit par le script d installation -->");
 
   const other = repertoireTemporaire(t);
   const refuses = oneSystem(other, "darwin", { "launchctl print": 113, "launchctl bootstrap": 5 });

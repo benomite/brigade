@@ -78,7 +78,7 @@ describe("le serveur attendu, d'après la lecture du compte", () => {
 
 describe("le panneau", () => {
   test("la ligne est celle que la page d'installation publie, et la seule", () => {
-    const published = /^curl -fsSL \S+\/station\/installer-station\.sh \| sh$/m.exec(readFileSync(new URL("../../../docs/installation-station.md", import.meta.url), "utf8"))?.[0];
+    const published = /^curl -fsSL \S+\/station\/brigade-station-linux-x64\.tar\.gz \| tar xz && sudo \.\/install\.sh$/m.exec(readFileSync(new URL("../../../docs/installation-station.md", import.meta.url), "utf8"))?.[0];
     assert.equal(INSTALL_COMMAND, published);
   });
 
@@ -142,7 +142,8 @@ describe("aucune autre commande, aucune page d'installation, sur chaque écran q
   const withoutOther = (root: Fake) => {
     assert.ok(text(root).includes(INSTALL_COMMAND));
     assert.deepEqual(commands(root), [INSTALL_COMMAND]);
-    assert.doesNotMatch(text(root), /installation-station|installer-station\.ps1|\birm\b|\bssh\b|\bsudo\b/i);
+    // The one line itself carries its `sudo`: what is refused is any other command around it.
+    assert.doesNotMatch(text(root).replaceAll(INSTALL_COMMAND, ""), /installation-station|installer-station\.ps1|\birm\b|\bssh\b|\bsudo\b/i);
   };
 
   test("l'onglet Stations : sous la ligne du haut, dont les gestes s'effacent tant que le panneau est ouvert", () => {

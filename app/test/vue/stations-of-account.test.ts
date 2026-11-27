@@ -236,7 +236,7 @@ describe("sans aucune station dans la liste : dessous, comment en installer une"
     // La phrase, puis son aide au survol.
     assert.ok(texts().some((text) => text.startsWith(NO)), texts().join(" | "));
     assert.deepEqual(block.dessous("code").map(({ textContent }) => textContent), INSTALLER.map(({ commande: command }) => command));
-    assert.match(INSTALLER[0]?.commande ?? "", /installer-station\.sh \| sh$/);
+    assert.match(INSTALLER[0]?.commande ?? "", /brigade-station-linux-x64\.tar\.gz \| tar xz && sudo \.\/install\.sh$/);
     const copy = block.dessous("button").filter(({ textContent }) => textContent === COPY);
     assert.equal(copy.length, 1);
     copy[0]?.click();

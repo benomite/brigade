@@ -39,7 +39,7 @@ tool launches beside it:
 | `station/tenir-portes.ts` | `brigade-station-porte.service`: the station's network gates |
 | `brigade-command/main.ts` | `runtime/bin/brigade`, linked to `/usr/local/bin/brigade`: the station's operator command, run by the chef or over `ssh` (`status [--json]`, `logs`, `restart`, `project add\|remove`, `update [--check]`, `uninstall [--purge]`); same output on Linux and Mac |
 | `mise-a-jour/main.ts` | `brigade-station-mise-a-jour.timer`: the station's update |
-| `connexion-max/connecter-cli.ts` | `installer-station.sh`, under Linux: the Max connection of the station's account |
+| `connexion-max/connecter-cli.ts` | Under Linux: the Max connection of the station's account, replayed by hand to remake the token |
 | `reseau-cli.ts`, `bac-a-sable/detection-projet.ts`, `essai-projet/declaration-cli.ts` | by hand, from the project folder: they write `.claude/brigade/reseau`, `.claude/brigade/bac-a-sable.json` and `.brigade/try.json` when absent |
 | `second-init/pr-de-setup.ts` | the repository setup, in the session the app opens in the second (`app/src/setup/instructions.md`) |
 | `fermeture-alerte-publication.ts` | `.github/workflows/publier-app.yml`: closes the alerts of a release once it is published |
@@ -103,8 +103,8 @@ child carrying the reason and the epic stays `in-pass` (#4702).
 
 | Station | What starts the kitchen |
 |---|---|
-| A Linux server (the box) | The Debian package `brigade-station` ([`runtime/paquet/`](../../runtime/paquet/README.md)): `brigade-station.service` runs `src/kitchen/main.ts` with `BRIGADE_STATION_DIR=/var/lib/brigade`, agents in `bwrap`, the unit reaching only localhost; `brigade-station-porte.service` holds the gates, its only way out. Installed by `installer-station.sh` ([`docs/installation-station.md`](../installation-station.md)) |
-| A Mac | The app, which runs it as this computer's station (`PRINCIPAL`, `app/src/workstation/role.ts`), or the launchd agent `installer-station.sh` writes. Agents run in Claude Code's sandbox: [`mac-new-kitchen.md`](mac-new-kitchen.md) |
+| A Linux server (the box) | The station archive, installed by its `install.sh` ([`docs/station.md`](../station.md)): `brigade-station.service` runs `src/kitchen/main.ts` with `BRIGADE_STATION_DIR=/var/lib/brigade`, agents in `bwrap`, the unit reaching only localhost; `brigade-station-porte.service` holds the gates, its only way out. See [`docs/installation-station.md`](../installation-station.md) |
+| A Mac | The app, which runs it as this computer's station (`PRINCIPAL`, `app/src/workstation/role.ts`) (the station archive's launchd daemons are the other way). Agents run in Claude Code's sandbox: [`mac-new-kitchen.md`](mac-new-kitchen.md) |
 
 Once started, the kitchen writes `<BRIGADE_STATION_DIR>/en-service` (its version, its pid, since when, the projects
 it serves) and rewrites it when that changes: the station's update keeps a new version only when the kitchen says it
