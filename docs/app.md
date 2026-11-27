@@ -857,27 +857,6 @@ supervisor) is listed too, with no time. The kitchen writes no station on GitHub
 The `closer` and `reviewer` are not listed: the kitchen runs neither. Captures (in git history): `docs/captures/4569/` (`onglet-agents-avant.png` — the tab saying `The agents not reached.` —,
 `onglet-agents-apres.png`, `onglet-agents-vide-apres.png`).
 
-### The logbook of the day and the morning digest card (#4274, epic #4025)
-
-Above the columns of the rail, **Today's logbook** reads the day (the UTC day of the last `facts` reading) from the
-agents' threads (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, T1): four groups, always all
-four — **Delivered**, **Broke**, **Fixed by the system**, **Not fixed**, with **The system's own mistakes** under Not
-fixed. Each entry is one gesture of a thread: its time, the agent, its line and its outcome, its reason on hover; an
-empty group says `nothing`. At the first opening of a project in a day (the day of the computer's clock), a card with
-**yesterday**'s digest sits at the top of the view, the number of outages seen first by the chef as its first line; it
-stays while the app stays open that day, and another opening that day does not show it. Both are readings: neither
-asks for a notification.
-
-Both come from `facts`, like the rest of the view: `fils` (one list of gestures per agent, each `at`, `line`,
-`reason`, `outcome`, `kind` — `delivered`, `broke`, `fixed`, `unfixed` or `mistake`) and `digest` (a text, one line
-per thing said), read by `app/src/log/threads.ts` and sorted by `app/src/projects/log-of-day.ts`. A runtime that
-does not give them shows neither. `fils` of another shape says `the agents' threads are not readable`; a gesture of
-another shape, or of an unknown kind, is counted in one line, never sorted; a `digest` that is not a text says
-`yesterday's digest is not readable`. The line about outages is the one that holds the words `seen first by the
-chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/log/threads.ts`, the words the runtime's digest must write); a
-digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
-the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures (in git history): `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
-
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail is drawn from

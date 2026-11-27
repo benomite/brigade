@@ -12,8 +12,6 @@
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (slip.ts).
 // Ce sont les deux seules choses lues hors de la forme.
 import { vueOfPostMortems, type VueOfPostMortems } from "./projects/post-mortems.ts";
-import { digestRead, threadsRead, type DigestRead, type ThreadsRead } from "./log/threads.ts";
-import { logOfDay, type LogOfDay } from "./projects/log-of-day.ts";
 import { kitchenBoardRead, type KitchenBoard } from "./board/kitchen-board.ts";
 import type { ActionOfWait } from "./wait.ts";
 import { saysOf, ticketsOf, type Shown } from "./awaiting.ts";
@@ -296,10 +294,6 @@ export type Facts = {
   // Ce que les cooks ont appris au projet, ses leçons et ses profils (learning.ts) : absent quand il
   // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
   apprentissage?: LearningRead;
-  // Les fils des agents du projet, et le digest de la veille (log/threads.ts, ticket 4274) : le journal du jour et la carte
-  // du matin de sa vue — absents d'un runtime qui ne les donne pas.
-  fils?: ThreadsRead;
-  digest?: DigestRead;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -405,11 +399,6 @@ export type Board = {
   // Où en est chaque ticket pris, en pass ou servi, que le récit du premier ticket suit (ticket 3302,
   // vue/first-ticket/) — absent d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ).
   etapesDesTickets?: StepOfTicket[];
-  // Le journal du jour, tiré des fils des agents à cette lecture (projects/log-of-day.ts, ticket 4274), avec les gestes
-  // illisibles qu'il n'a pas pu ranger — ou pourquoi les fils ne se lisent pas ; et le digest de la veille. Absents d'un
-  // runtime qui ne les donne pas.
-  journal?: (LogOfDay & { illisibles: number }) | { illisible: string };
-  digest?: DigestRead;
 };
 
 // Un ticket tel que le récit du premier ticket le suit (ticket 3302) : son mot d'état (`pris`, `en pass`, `base rouge`,
@@ -789,8 +778,6 @@ export function understand(output: string): Facts | { informe: string } {
       ...(rolesKitchenRead(root.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesKitchenRead(root.rolesCuisine) }),
       ...(postMortemsRead(root.postMortems) === undefined ? {} : { postMortems: postMortemsRead(root.postMortems) }),
       ...(root.apprentissage === undefined ? {} : { apprentissage: learningRead(root.apprentissage) }),
-      ...(threadsRead(root.fils) === undefined ? {} : { fils: threadsRead(root.fils) }),
-      ...(digestRead(root.digest) === undefined ? {} : { digest: digestRead(root.digest) }),
     };
   } catch (error) {
     if (error instanceof Informs || learningInforms(error)) return { informe: error.message };
@@ -1371,8 +1358,6 @@ export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, a
     ...(facts.postMortems === undefined ? {} : { postMortems: vueOfPostMortems(facts.postMortems, new Date(facts.lu)) }),
     apprentissage: learningOf(facts.apprentissage),
     etapesDesTickets: stepsOfTickets(facts),
-    ...(facts.fils === undefined ? {} : { journal: "illisible" in facts.fils ? facts.fils : { ...logOfDay(facts.fils.fils, new Date(facts.lu)), illisibles: facts.fils.illisibles } }),
-    ...(facts.digest === undefined ? {} : { digest: facts.digest }),
   };
 }
 
