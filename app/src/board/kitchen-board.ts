@@ -67,16 +67,18 @@ const labelsOfColumn = (column: BoardColumnKey, labels: readonly string[]): stri
 // changes (#4627): the times its column's labels were put, while the issue's labels are the same — a busy cook's comments
 // change the timeline's ETag at every read, and each read then paid a counted request per card —; the lines of its pull
 // request, while its head commit is the same.
-type Kept = Map<string, unknown>;
+// One entry per slot (a ticket, or a pull request), replaced when its key changes: a card back to the same labels reads again (the priority is no step of a card: it changes no time).
+type Kept = Map<string, { key: string; value: unknown }>;
 async function detailsOf(board: KitchenBoard, issues: readonly Raw[], openPrs: readonly Raw[], closedPrs: readonly Raw[], read: (path: string) => Promise<unknown>, repository: string, now: number, kept: Kept): Promise<KitchenBoard> {
   const labelsOfTicket = new Map(issues.map((issue) => [issue.number as number, labelsOf(issue)]));
   const mergedAt = new Map(closedPrs.flatMap((pr) => (typeof pr.number === "number" ? [[pr.number, Date.parse(text(pr.merged_at))] as const] : [])));
   const headOfPr = new Map([...openPrs, ...closedPrs].flatMap((pr) => (typeof pr.number === "number" && text(object(pr.head)?.sha) !== "" ? [[pr.number, text(object(pr.head)?.sha)] as const] : [])));
   // What is kept for `key`; else what `readIt` gives, kept too unless it is undefined (a read that failed) or `key` is null.
-  const once = async <T>(key: string | null, readIt: () => Promise<T | undefined>): Promise<T | undefined> => {
-    if (key !== null && kept.has(key)) return kept.get(key) as T;
+  const once = async <T>(slot: string, key: string | null, readIt: () => Promise<T | undefined>): Promise<T | undefined> => {
+    const had = kept.get(slot);
+    if (key !== null && had !== undefined && had.key === key) return had.value as T;
     const value = await readIt();
-    if (key !== null && value !== undefined) kept.set(key, value);
+    if (key !== null && value !== undefined) kept.set(slot, { key, value });
     return value;
   };
   const columns = await Promise.all(
@@ -90,12 +92,12 @@ async function detailsOf(board: KitchenBoard, issues: readonly Raw[], openPrs: r
           const wanted = column.key === "served" ? [TAKEN] : labelsOfColumn(column.key, labels);
           const sha = card.pr === null ? undefined : headOfPr.get(card.pr.number);
           const [puts, lines] = await Promise.all([
-            once(`${repository}#${card.ticket}|${column.key}|${[...labels].sort().join(",")}|${card.pr?.number ?? ""}`, async () => {
+            once(`${repository}#${card.ticket}`, `${column.key}|${labels.filter((label) => !/^prio:/.test(label)).sort().join(",")}|${card.pr?.number ?? ""}`, async () => {
               const timeline = await read(`/repos/${repository}/issues/${card.ticket}/timeline?per_page=100`).catch(() => null);
               if (timeline === null) return undefined;
               return list(timeline).flatMap((event) => (event.event === "labeled" && wanted.includes(text(object(event.label)?.name)) ? [Date.parse(text(event.created_at))] : [])).filter((time) => !Number.isNaN(time));
             }),
-            card.pr === null ? null : once(sha === undefined ? null : `${repository}!${card.pr.number}|${sha}`, async () => {
+            card.pr === null ? null : once(`${repository}!${card.pr.number}`, sha ?? null, async () => {
               const done = object(await read(`/repos/${repository}/pulls/${card.pr!.number}`).catch(() => null));
               return typeof done?.additions === "number" && typeof done.deletions === "number" ? { added: done.additions, removed: done.deletions } : undefined;
             }),
@@ -176,7 +178,7 @@ async function pages(read: (path: string) => Promise<unknown>, path: string, unt
 
 // The board of a project on the new kitchen, and its open issues (the TODO of the chef reads them). A reading GitHub refuses
 // throws: the rail reading says why (read.ts).
-export async function readKitchenBoard({ depot: repository, appeler: call, now, kept = new Map() }: { depot: string; appeler: CallGitHub; now: number; kept?: Map<string, unknown> }): Promise<{ board: KitchenBoard; open: OpenIssue[] }> {
+export async function readKitchenBoard({ depot: repository, appeler: call, now, kept = new Map() }: { depot: string; appeler: CallGitHub; now: number; kept?: Kept }): Promise<{ board: KitchenBoard; open: OpenIssue[] }> {
   const read = async (path: string) => {
     const answer = await call(path);
     if (answer.status !== 200) throw new Error(`GitHub answered HTTP ${answer.status}`);

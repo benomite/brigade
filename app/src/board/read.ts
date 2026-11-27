@@ -88,8 +88,8 @@ export type OptionsOfRead = {
 };
 
 // What a card's details read gave (kitchen-board.ts), kept as long as the repository's conditional reads are.
-const cardsKept = new WeakMap<MemoryOfReads, Map<string, unknown>>();
-const keptOfTheCards = (memory: MemoryOfReads): Map<string, unknown> => cardsKept.get(memory) ?? cardsKept.set(memory, new Map()).get(memory)!;
+const cardsKept = new WeakMap<MemoryOfReads, Map<string, { key: string; value: unknown }>>();
+const keptOfTheCards = (memory: MemoryOfReads): Map<string, { key: string; value: unknown }> => cardsKept.get(memory) ?? cardsKept.set(memory, new Map()).get(memory)!;
 
 const REPOSITORY = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 
