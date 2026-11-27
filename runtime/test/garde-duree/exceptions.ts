@@ -324,7 +324,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/relire.test.ts", test: "le journal d'un ticket se relit en entier et dans l'ordre, pendant que le runtime tourne" },
   { file: "test/bac-a-sable/configuration.test.ts", garde: "timeout: 90_000" },
   { file: "test/cloison.test.ts", garde: "delaiMs: 60_000" },
-  { file: "test/connexion-max/connecter.test.ts", garde: "delaiMuet: 60_000" },
   { file: "test/gates.test.ts", garde: "delaiMs: 60_000" },
   { file: "test/quota-reel/delai-lineaire.test.ts", garde: "plafond: 5000" },
   { file: "test/quota-reel/gestes-jamais-ralentis.test.ts", garde: "plafond: 5000" },
