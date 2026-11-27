@@ -1,9 +1,8 @@
 // Les gates d'un projet neuf, tant que son ticket de fondation n'est pas servi
-// (#3188, épique #3183). `/brigade:init` prépare un dépôt sans code (#3186) : il
-// dépose le ticket de fondation — labellisé `foundation`, titré « Lay the
-// project's foundation with <stack> » — qui apporte le code et ses tests, et il
-// note que les gates n'ont encore rien à jouer par une ligne des bindings de
-// `CLAUDE.md` (`commands/init.md`, étape 5) :
+// (#3188, épique #3183). Un dépôt sans code (#3186) a son ticket de fondation
+// — labellisé `foundation`, titré « Lay the project's foundation with
+// <stack> » — qui apporte le code et ses tests, et une ligne des bindings de
+// `CLAUDE.md` note que ses gates n'ont encore rien à jouer :
 //
 //   - **Gates provisoires** : until #<n> ("Lay the project's foundation with <stack>") is merged — …
 //
