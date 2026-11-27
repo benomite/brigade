@@ -22,7 +22,7 @@
 import { resolve } from "node:path";
 import { lireEtatMiseAJour } from "./etat.ts";
 import { decrireEtatMiseAJour } from "./dire.ts";
-import { GARDE_MS, passer, verifier } from "./mettre-a-jour.ts";
+import { GARDE_MS, passer, check } from "./mettre-a-jour.ts";
 import { publications } from "./publications.ts";
 import { systemeDeLaMachine } from "./systeme.ts";
 
@@ -58,7 +58,7 @@ try {
 }
 
 if (commande === "--check") {
-  console.log(`brigade : mise à jour — ${await verifier({ racine, dossier, systeme: systemeDeLaMachine(), publications: source })}`);
+  console.log(`brigade : mise à jour — ${await check({ racine, dossier, systeme: systemeDeLaMachine(), publications: source })}`);
   process.exit(0);
 }
 

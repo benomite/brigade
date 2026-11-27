@@ -14,8 +14,8 @@ import { VERSION } from "./versions.ts";
 
 export const ETIQUETTE = "station-";
 // La plateforme d'une station : `<os>-<arch>`, `linux-x64` ou `darwin-arm64`.
-export type Plateforme = { os: string; arch: string };
-export const archiveDe = (version: string, { os, arch }: Plateforme) => `brigade-station-${version}-${os}-${arch}.tar.gz`;
+export type Platform = { os: string; arch: string };
+export const archiveName = (version: string, { os, arch }: Platform) => `brigade-station-${version}-${os}-${arch}.tar.gz`;
 
 // `archive` : son adresse, ou son chemin. `empreinte` : son sha256, quand la
 // publication le dit.
@@ -36,19 +36,19 @@ type Release = { tag_name?: unknown; draft?: unknown; prerelease?: unknown; body
 
 // Les versions que portent les releases d'un dépôt, telles que l'API de GitHub
 // les rend.
-export function lirePublicationsGitHub(releases: unknown, plateforme: Plateforme): Publication[] {
+export function lirePublicationsGitHub(releases: unknown, plateforme: Platform): Publication[] {
   if (!Array.isArray(releases)) throw new Error("GitHub n'a pas rendu une liste de releases");
   return (releases as Release[]).flatMap((release) => {
     if (typeof release.tag_name !== "string" || !release.tag_name.startsWith(ETIQUETTE) || release.draft === true || release.prerelease === true) return [];
     const version = release.tag_name.slice(ETIQUETTE.length);
-    const archive = release.assets?.find((asset) => asset.name === archiveDe(version, plateforme));
+    const archive = release.assets?.find((asset) => asset.name === archiveName(version, plateforme));
     if (!VERSION.test(version) || typeof archive?.browser_download_url !== "string") return [];
     const empreinte = typeof archive.digest === "string" && /^sha256:[0-9a-f]{64}$/.test(archive.digest) ? archive.digest.slice("sha256:".length) : null;
     return [{ version, archive: archive.browser_download_url, empreinte }];
   });
 }
 
-function depuisGitHub(depot: string, plateforme: Plateforme): Publications {
+function depuisGitHub(depot: string, plateforme: Platform): Publications {
   const entetes = { accept: "application/vnd.github+json", "user-agent": "brigade-station" };
   return {
     nom: `les releases de ${depot}`,
@@ -69,13 +69,13 @@ function depuisGitHub(depot: string, plateforme: Plateforme): Publications {
   };
 }
 
-function depuisRepertoire(repertoire: string, plateforme: Plateforme): Publications {
+function depuisRepertoire(repertoire: string, plateforme: Platform): Publications {
   return {
     nom: `le répertoire ${repertoire}`,
     async lister() {
       if (!existsSync(repertoire)) throw new Error(`le répertoire des versions publiées (${repertoire}) n'existe pas`);
       return readdirSync(repertoire, { withFileTypes: true }).flatMap((entree) => {
-        const archive = join(repertoire, entree.name, archiveDe(entree.name, plateforme));
+        const archive = join(repertoire, entree.name, archiveName(entree.name, plateforme));
         if (!entree.isDirectory() || !VERSION.test(entree.name) || !existsSync(archive)) return [];
         return [{ version: entree.name, archive, empreinte: null }];
       });
@@ -93,7 +93,7 @@ function depuisRepertoire(repertoire: string, plateforme: Plateforme): Publicati
 }
 
 // `source` : `github:<owner>/<repo>`, ou le chemin d'un répertoire.
-export function publications(source: string | undefined, plateforme: Plateforme): Publications {
+export function publications(source: string | undefined, plateforme: Platform): Publications {
   if (source === undefined || source === "") throw new Error("BRIGADE_MISE_A_JOUR_SOURCE is not set — say where the published versions are: github:<owner>/<repo> (the GitHub account and repository that publish brigade), or the path of a directory");
   if (isAbsolute(source)) return depuisRepertoire(source, plateforme);
   const depot = /^github:([\w.-]+\/[\w.-]+)$/.exec(source)?.[1];

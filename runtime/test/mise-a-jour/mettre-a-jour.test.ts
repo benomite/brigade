@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { annoncerEnService } from "../../src/mise-a-jour/en-service.ts";
 import { ecrireEtatMiseAJour, lireEtatMiseAJour, lireIssues } from "../../src/mise-a-jour/etat.ts";
-import { passer, verifier } from "../../src/mise-a-jour/mettre-a-jour.ts";
+import { passer, check } from "../../src/mise-a-jour/mettre-a-jour.ts";
 import type { Publication, Publications } from "../../src/mise-a-jour/publications.ts";
 import { systemeDeLaMachine, type Gestionnaire } from "../../src/mise-a-jour/systeme.ts";
 import { repertoireTemporaire } from "../outils.ts";
@@ -153,12 +153,12 @@ test("à jour, rien n'est installé ni téléchargé", async (t) => {
 test("`--check` dit la version qu'un passage installerait, sans rien changer", async (t) => {
   const m = machine(t, "1.0.0");
   const publications = publiees(t, ["1.0.0", "1.1.0"]);
-  const dit = await verifier({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications });
+  const dit = await check({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications });
   assert.equal(dit, "installerait la version 1.1.0 (installée : 1.0.0)");
   assert.deepEqual([m.courante(), m.posees(), m.relances, publications.telecharges, existsSync(m.dossier)], ["1.0.0", ["1.0.0"], [], [], false]);
   m.reglages("gel=oui\n");
-  assert.equal(await verifier({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications }), "version gelée en 1.0.0 : 1.1.0 attend que le gel soit levé");
-  assert.equal(await verifier({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications: publiees(t, ["1.0.0"]) }), "à jour en 1.0.0");
+  assert.equal(await check({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications }), "version gelée en 1.0.0 : 1.1.0 attend que le gel soit levé");
+  assert.equal(await check({ racine: m.racine, dossier: m.dossier, systeme: m.systeme, publications: publiees(t, ["1.0.0"]) }), "à jour en 1.0.0");
 });
 
 test("gelée, une version plus récente n'est pas installée, et l'état le dit ; le gel levé, elle l'est", async (t) => {

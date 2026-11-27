@@ -10,9 +10,9 @@ import { spawnSync } from "../sans-invite.ts";
 import { VERSION } from "./versions.ts";
 
 export const SERVICE = "brigade-station.service";
-export const ETIQUETTE_LAUNCHD = "brigade.station";
+export const LAUNCHD_LABEL = "brigade.station";
 export const OPT = "/opt/brigade-station";
-export const COURANTE = "current";
+export const CURRENT = "current";
 
 // `actif` : l'ActiveState de systemd (`active`, `activating`, `failed`…).
 // `pid` : son MainPID, 0 sans process. `redemarrages` : ceux que le
@@ -84,7 +84,7 @@ export function gestionnaireSystemd(): Gestionnaire {
 }
 
 export function gestionnaireLaunchd(): Gestionnaire {
-  const cible = `system/${ETIQUETTE_LAUNCHD}`;
+  const cible = `system/${LAUNCHD_LABEL}`;
   return {
     redemarrer() {
       const motif = echec("launchctl kickstart", lancer("launchctl", ["kickstart", "-k", cible]));
@@ -102,7 +102,7 @@ export function gestionnaireLaunchd(): Gestionnaire {
 export function systemeDeLaMachine(options: { opt?: string; gestionnaire?: Gestionnaire } = {}): Systeme {
   const opt = options.opt ?? OPT;
   const gestionnaire = options.gestionnaire ?? (process.platform === "darwin" ? gestionnaireLaunchd() : gestionnaireSystemd());
-  const courante = join(opt, COURANTE);
+  const courante = join(opt, CURRENT);
   const posees = () => (existsSync(opt) ? readdirSync(opt, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() && VERSION.test(entree.name) ? [entree.name] : [])) : []);
   return {
     installee() {

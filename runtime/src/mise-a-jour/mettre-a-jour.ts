@@ -97,7 +97,7 @@ export async function prevoir(options: Pick<OptionsMiseAJour, "racine" | "dossie
 
 // Ce que `update --check` dit : la version que le passage installerait, ou
 // pourquoi il n'en installerait aucune. Rien n'est changé, pas même l'état.
-export async function verifier(options: Pick<OptionsMiseAJour, "racine" | "dossier" | "systeme" | "publications">): Promise<string> {
+export async function check(options: Pick<OptionsMiseAJour, "racine" | "dossier" | "systeme" | "publications">): Promise<string> {
   const prevision = await prevoir(options);
   if (prevision.verification !== null) return prevision.verification;
   if (prevision.visee !== null) return `installerait la version ${prevision.visee.version} (installée : ${prevision.installee})`;
