@@ -2,6 +2,7 @@
 // an issue — set aside by the code, judged by the LLM —, with its reason, then
 // what was put and said about it on GitHub.
 
+import { geste } from "../geste.ts";
 // What an issue is, according to the judgment. Only `ticket` goes onto the rail.
 // `incomplete`: a unit of work, but one that lacks what it needs to start.
 // `settled` and `stalled` are never the model's answer: the code gives them to a
@@ -12,8 +13,8 @@ export const NATURES_DU_MODELE = ["ticket", "epic", "question", "decision", "inc
 export const NATURES = [...NATURES_DU_MODELE, "settled", "stalled"] as const;
 export type Nature = (typeof NATURES)[number];
 
-// Each nature as it is told in English: the
-// comments the manager puts on GitHub (#3033).
+// Each nature as it is told in English: what `manager` and `manager upstream`
+// say of them, and the comments the manager puts on GitHub (#3033).
 export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
   ticket: "a ticket",
   epic: "an epic",
@@ -39,6 +40,10 @@ export const NOMS_DE_NATURE_EN: Record<Nature, string> = {
 // `parked` (#4129) : le ticket attend quelqu'un — `parked`, ou `chef-todo` pour le chef ; le manager ne le juge pas avant
 // qu'il reprenne.
 export type Ecart = "roadmap" | "epic" | "question" | "decision" | "served-elsewhere" | "untrusted-author" | "chef-changed" | "already-split" | "vision" | "idea" | "kitchen-alert" | "parked";
+
+// The command by which the chef hands a `chef-changed` issue back to the
+// manager, as it is told on the issue and in the report.
+export const commandeRendre = (numero: number) => geste(`manager return ${numero}`);
 
 // A ticket as the split plans it, before it exists on GitHub.
 // `waitsFor`: the ranks, from 1, of the tickets of the same split that it

@@ -1,16 +1,17 @@
 // Ce qui est avant le rail (#1836) : un rail vide ne veut pas dire un projet fini. L'app le lit sur GitHub
-// (`avantLeRail`, board/read.ts, #2061), que board/rail.ts rend dans la forme de la sortie de the upstream read :
+// (`avantLeRail`, board/read.ts, #2061), que board/rail.ts rend dans la forme de la sortie de l'amont :
 // les issues ouvertes du dépôt que le rail ne porte pas encore, chacune dans l'un des cinq états que ses labels disent,
 // avec ce qui la retient en une ligne. Ce module n'y déduit rien : il compte ce que la lecture liste, range chaque
 // issue sous le mot qu'elle porte, et pose ce qu'elle en dit, mot pour mot. Une lecture ratée n'est jamais « rien avant
 // le rail ».
-// La vue en tire, quand le rail est vide, ce qu'il y a avant lui ; les issues mises de côté et celles que la cuisine a ouvertes sur elle-même. Le bandeau Backlog qui en
+// La vue en tire, quand le rail est vide, ce qu'il y a avant lui, ; les issues mises de côté et celles que la cuisine a ouvertes sur elle-même. Le bandeau Backlog qui en
 // posait une étiquette par besoin au-dessus des colonnes n'est plus (#4354) : la colonne Backlog montre le backlog.
 import type { Reading } from "./box.ts";
 import { isOutsideLine, titleOfFailure, type Card } from "./facts.ts";
 import { header, type Header } from "./card.ts";
+import { UPSTREAM } from "./board/rail.ts";
 
-export const COMMAND = "upstream";
+export const COMMAND = UPSTREAM;
 
 // Une issue telle que le tableau la donne. `priorite` : celle de son label `prio:`, nulle sans. Ce que le bandeau Backlog
 // lit d'un besoin (#3460), quand la lecture de GitHub le donne — la box ne le donne pas : `tickets`, ceux de son
@@ -21,7 +22,7 @@ export const COMMAND = "upstream";
 export type Progress = { servis: number; total: number };
 export type Need = { tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string; avancement?: Progress; horizon?: number; idee?: true };
 export type Data = { ticket: number; titre: string; url: string; priorite: number | null; etat: string; dit: string } & Need;
-// La sortie de the upstream read : l'heure de la box à la lecture des issues, le dépôt lu, les issues.
+// La sortie de l'amont : l'heure de la box à la lecture des issues, le dépôt lu, les issues.
 export type Upstream = { lu: string; depot: string; issues: Data[] };
 
 // Les cinq états de la liste fermée (`ETATS_AVANT_LE_RAIL`), dans l'ordre où le bandeau Backlog
@@ -83,7 +84,7 @@ function needOf(issue: Record<string, unknown>, field: string): Need {
   };
 }
 
-// La sortie de the upstream read, champ pour champ — ou en quoi elle n'en est pas la forme. Rien
+// La sortie de l'amont, champ pour champ — ou en quoi elle n'en est pas la forme. Rien
 // n'y est complété : un champ qui manque refuse la forme entière ; un champ de plus est laissé de côté.
 export function understand(output: string): Upstream | { informe: string } {
   if (output.trim() === "") return { informe: "the command returned nothing" };
@@ -162,13 +163,11 @@ const NOT_NOTHING = "This is not “nothing before the rail”";
 // La sortie de la commande, dans une lecture qui en a une.
 const outputOf = (reading: Reading) => ("erreur" in reading ? undefined : understand(reading.sorties.find(({ commande: command }) => command === COMMAND)?.texte ?? ""));
 
-// Pourquoi la lecture ne compte rien : une sortie qui n'a pas la forme, ou l'échec de la veille.
+// Pourquoi la lecture ne compte rien : une sortie qui n'a pas la forme, ou l'échec de la lecture de GitHub (#1694) —
+// sa raison, en une phrase.
 function withoutRead(reading: Reading, informs: string | undefined): string {
   if (!("erreur" in reading)) return `${NOT_READ} in what GitHub gave: ${informs ?? "it has no output"}. ${NOT_NOTHING}`;
-  // Lue de GitHub (#1694) : sa raison, en une phrase — aucune station n'a été jointe.
-  const why = reading.duTableau === true
-    ? reading.erreur.replace(/[.\s]+$/, "")
-    : titleOfFailure(reading, "REACHED, BUT THE READ OF WHAT IS BEFORE THE RAIL DID NOT ANSWER");
+  const why = reading.duTableau === true ? reading.erreur.replace(/[.\s]+$/, "") : titleOfFailure(reading, "REACHED, BUT THE UPSTREAM READING DID NOT ANSWER");
   return `${NOT_READ}: ${why}. ${NOT_NOTHING}`;
 }
 
@@ -181,11 +180,11 @@ function hoverOf(issues: number, groups: Group[]): string {
   return `${pluriel(issues, "issue")} before the rail — ${detailOf(groups)}`;
 }
 
-// Ce qui se lit à la place du rail quand aucun ticket n'y est : rien avant lui, ou ce qui est avant lui — ou pourquoi ce qui est avant lui n'a pas été lu.
+// Ce qui se lit à la place du rail quand aucun ticket n'y est : rien avant lui, ce qui est avant lui — ou pourquoi ce qui est avant lui n'a pas été lu.
 function tellEmpty(account: { issues: number; groupes: Group[] } | { sans: string }): string {
   if ("sans" in account) return `nothing on the rail — ${account.sans}`;
   if (account.issues === 0) return "nothing on the rail, nothing before it";
-  return `nothing on the rail — ${pluriel(account.issues, "issue")} before it (${detailOf(account.groupes)})`;
+  return `nothing on the rail — ${pluriel(account.issues, "issue")} before it (${detailOf(account.groupes)}).`;
 }
 
 // Ce qu'une lecture de ce qui est avant le rail donne à poser.
@@ -205,7 +204,7 @@ export function see(reading: Reading): Seen {
   return { projet: project, demande: request, a, compte: needs.length, lu: upstream.lu, groupes: groups, survol: hoverOf(needs.length, groups), vide: tellEmpty({ issues: needs.length, groupes: groups }), ...(alerts.length === 0 ? {} : { alertes: alerts }) };
 }
 
-// Ce qui est en amont de chaque projet, tenu par le process principal : la dernière lecture, le
+// Ce qui est en amont de chaque projet, tenu par le process principal : la dernière lecture,
 // et l'adresse de chaque issue, que la vue ne voit jamais.
 export function holdUpstream() {
   const readings = new Map<string, Reading>();

@@ -42,7 +42,7 @@ test("a cook on propose takes no ticket until the chef's approval, then takes an
   await tours(2);
   assert.deepEqual(faux.cuissons, []);
   assert.deepEqual(faux.pris(), []);
-  assert.ok(sauts.some((ligne) => ligne.includes("its cook waits for the chef's OK (gesture 1)")), sauts.join("\n"));
+  assert.ok(sauts.some((ligne) => ligne.includes("its cook waits for the chef's OK — `brigade <projet> manager approve 1`")), sauts.join("\n"));
   assert.deepEqual(gestesEnAttente(repertoire).map(({ id, agent, line }) => ({ id, agent, line })), [{ id: 1, agent: "cook #1", line: "take #1 and cook it" }]);
   assert.deepEqual(enregistrementDe(repertoire, "cook #1").gestures, []);
 

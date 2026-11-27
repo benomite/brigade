@@ -18,6 +18,7 @@ import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
 import { readTheBoardOfRepository, type ReadOfBoardOfRepository, type LineOfTheFile, type BoardRead } from "../../src/board/read.ts";
 import {
   readOfBoard,
+  UPSTREAM,
   openStandbyOfBoard,
   outputOfBoard,
   statusOfBoard,
@@ -192,9 +193,9 @@ test("le bloc `awaiting` de `status` : ce qui attend le chef, une ligne par entr
 });
 
 // La cuisine n'a pas d'avant le rail (#4507) : son Backlog est une colonne du kanban.
-test("ce qui est avant le rail n'est pas lu : `manager upstream` n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
+test("ce qui est avant le rail n'est pas lu : l'amont n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
   const launched = withoutProcess(t);
-  const reading = readOfBoard(await readOne(), "brigade", 1, ["manager upstream"]);
+  const reading = readOfBoard(await readOne(), "brigade", 1, [UPSTREAM]);
   assert.ok("erreur" in reading && reading.duTableau === true && reading.pasPublie === true);
   const seenOne = seeUpstream(reading);
   assert.ok("nonPublie" in seenOne);

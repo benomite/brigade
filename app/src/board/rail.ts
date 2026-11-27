@@ -9,7 +9,7 @@
 //   - `status`  ses rubriques, le bloc `awaiting` de ce qui attend le chef, et la ligne `rail` suivie de la ligne de
 //               chaque ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box.
 // Ce que GitHub ne porte pas (l'interrupteur du projet, que seul le journal de sa station tient ; ce qui est avant le
-// rail : la cuisine n'en a pas, son Backlog est une colonne du kanban ; une commande composée
+// rail, the upstream reading : la cuisine n'en a pas, son Backlog est une colonne du kanban ; une commande composée
 // d'après d'autres sorties) n'est pas lu : la lecture échoue en `pasPublie`, et la vue n'en dit rien — ni nombre, ni
 // « pas lu » (#1770), jamais un rail vide.
 //

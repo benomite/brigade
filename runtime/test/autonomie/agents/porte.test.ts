@@ -8,10 +8,8 @@ import { test } from "node:test";
 import { enregistrementDe, OUTCOME } from "../../../src/autonomie/agents/gestes.ts";
 import { magasinDeNiveaux } from "../../../src/autonomie/agents/niveaux.ts";
 import { approuverGeste, gestesEnAttente, porteDesGestes, porteDuRuntime } from "../../../src/autonomie/agents/porte.ts";
-import type { Ajout } from "../../../src/evenements.ts";
-import { ouvrirJournal } from "../../../src/journal.ts";
 import type { CauseReveil } from "../../../src/runtime.ts";
-import { appeler, repertoireTemporaire } from "../../outils.ts";
+import { repertoireTemporaire } from "../../outils.ts";
 
 const PROJET = "shop";
 const A = (h: number) => () => new Date(`2026-11-23T${String(h).padStart(2, "0")}:00:00.000Z`);
@@ -222,6 +220,45 @@ test("an act gesture done on an unreadable gesture log is done, and its failure 
   await assert.rejects(porteDesGestes({ repertoire, projet: PROJET, horloge: A(9) }).passer(SUPERVISEUR, DIT, faire), /its gesture was done but not logged \(reran/);
   assert.equal(appels.n, 1);
   assert.equal(readFileSync(join(repertoire, "autonomy-gestures.json"), "utf8"), "{not json");
+});
+
+test("the chef approves a held gesture: `approuverGeste` marks it, and the runtime does it at its next tick, once", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  magasinDeNiveaux(repertoire).poser(PROJET, "supervisor", "propose");
+  const ecouteurs: ((cause: CauseReveil) => void)[] = [];
+  const porte = porteDuRuntime({ projet: PROJET, repertoireEtat: repertoire, surReveil: (ecouter) => (ecouteurs.push(ecouter), () => {}) }, A(9));
+  assert.ok(porte !== null);
+  const { appels, faire } = fauxGeste(1);
+  await porte.passer(SUPERVISEUR, DIT, faire);
+  const tick = async () => {
+    for (const ecouter of ecouteurs) ecouter("tick");
+    await new Promise((fin) => setImmediate(fin));
+  };
+  await tick();
+  assert.equal(appels.n, 0);
+
+  const [attente] = gestesEnAttente(repertoire);
+  assert.equal(attente?.id, 1);
+  assert.equal(attente?.agent, "supervisor");
+  assert.equal(attente?.line, "reran `tests` on 0de1ff5");
+
+  assert.equal(approuverGeste(repertoire, 1).line, "reran `tests` on 0de1ff5");
+  assert.equal(appels.n, 0);
+  await tick();
+  assert.equal(appels.n, 1);
+  assert.equal(enregistrementDe(repertoire, "supervisor").gestures.length, 1);
+  await tick();
+  assert.equal(appels.n, 1);
+
+  assert.throws(() => approuverGeste(repertoire, 1), /no gesture is pending under 1/);
+  assert.equal(appels.n, 1);
+});
+
+test("an unreadable pending file is said, never read empty", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  writeFileSync(join(repertoire, FICHIER_DES_ATTENTES), "{not json");
+  assert.throws(() => gestesEnAttente(repertoire), /autonomy-pending\.json cannot be read/);
+  assert.deepEqual(gestesEnAttente(repertoireTemporaire(t)), []);
 });
 
 test("a runtime without a state directory has no gate", () => {

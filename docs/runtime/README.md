@@ -44,9 +44,9 @@ tool launches beside it:
 | `station/geste.ts` | the app (`ACTION`, `app/src/box.ts`): `node src/station/geste.ts <project> <command> [arguments…]`, run from `runtime/` with `BRIGADE_STATION_DIR` |
 | the scripts of `runtime/package.json` but `start`, `test` and `typecheck` | `station/geste.ts`, which runs the file its command's script names |
 
-The app launches no command through the gesture any more (#4682 took the last, `manager`); only `help` is left, which lists
-them (`commandes.ts`). `app/test/geste-serves-every-command.test.ts` collects what the app launches (none) and would run
-each one through the real `geste.ts`: a command the app launches again without a handler fails there.
+The commands behind the gesture are the ones the app launches, and only those: `manager`, and
+`help`, which lists them (`commandes.ts`). `app/test/geste-serves-every-command.test.ts` collects what the app
+launches and runs each one through the real `geste.ts`: a command dropped while the app still launches it fails there.
 
 ## Declaring a project
 

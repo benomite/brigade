@@ -99,6 +99,7 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `faits` | `facts` | The machine-readable form of `status`, for the app | — |
 | `rail` | `rail` | The ticket rail | `remove <ticket>` is new, with no old name |
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
+| `manager` | `manager` | The manager's decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` and `approve <n>` are new, with no old name |
 | — | `human-cooks` | The tickets waiting on a human cook, read on GitHub, with who holds each (#4276) | new, with no old name |
 | — | `recurring` | The project's recurring tickets: on its next date, each becomes an issue with `fire` (#3230) | `declare --title <title> [--body <body>] --rhythm daily \| weekly --weekday <1-7> \| monthly --day <1-31>`, `pause <id>`, `resume <id>`, `remove <id>` — new, with no old name |
 | — | `explanations` | The explanations of the kitchen's words a chef has seen in the app, kept per chef (#3308) | `--chef <login>`, `seen <word> --chef <login>`, `reset --chef <login>` — new, with no old name |
