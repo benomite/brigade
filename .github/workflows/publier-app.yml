@@ -68,8 +68,14 @@ jobs:
         env:
           AVANT: ${{ github.event.before }}
           EVENEMENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          # Un merge d'epic (la PR mergée part de `epic/*`) monte la version mineure ; un ticket seul, le correctif.
+          mineure=()
+          gh pr list --state merged --search "$GITHUB_SHA" --json number,title,body,headRefName > "$RUNNER_TEMP/prs.json" || echo '[]' > "$RUNNER_TEMP/prs.json"
+          if [ "$(node scripts/app-release/changements.ts epic < "$RUNNER_TEMP/prs.json")" = true ]; then mineure=(--minor); fi
           tags=$(git tag --list 'app-v*' --sort=-version:refname)
           derniere=$(echo "$tags" | head -n 1)
           if [ -n "$derniere" ]; then
@@ -84,7 +90,7 @@ jobs:
           fi
           arguments=()
           for tag in $tags; do arguments+=(--tag "$tag"); done
-          node scripts/app-release/decider.ts "${arguments[@]}" < "$RUNNER_TEMP/changes" > "$RUNNER_TEMP/decision"
+          node scripts/app-release/decider.ts "${mineure[@]}" "${arguments[@]}" < "$RUNNER_TEMP/changes" > "$RUNNER_TEMP/decision"
           tee -a "$GITHUB_OUTPUT" < "$RUNNER_TEMP/decision"
           if [ "$EVENEMENT" != push ]; then
             # Lancé à la main : aucun merge à qui le dire.
@@ -503,7 +509,12 @@ jobs:
           fi
           # Les noms de la release disent la plateforme ; les fichiers de mise à jour suivent.
           node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" renommer --version "$version" --dossier .
-          node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" notes --produit app --version "$version" --commit "$GITHUB_SHA" "${signe[@]}" > "$RUNNER_TEMP/notes.md"
+          # Les notes disent d'abord ce qui change : la section « What changes for the user » de la PR
+          # d'epic, le titre de la PR d'un ticket seul ; puis le tableau des paquets.
+          gh pr list --state merged --search "$GITHUB_SHA" --json number,title,body,headRefName > "$RUNNER_TEMP/prs.json" || echo '[]' > "$RUNNER_TEMP/prs.json"
+          node "$GITHUB_WORKSPACE/scripts/app-release/changements.ts" notes < "$RUNNER_TEMP/prs.json" > "$RUNNER_TEMP/notes.md"
+          if [ -s "$RUNNER_TEMP/notes.md" ]; then echo >> "$RUNNER_TEMP/notes.md"; fi
+          node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" notes --produit app --version "$version" --commit "$GITHUB_SHA" "${signe[@]}" >> "$RUNNER_TEMP/notes.md"
           if [ "$NON_SIGNE" = true ]; then
             fichiers=("Brigade-$version-mac-arm64.dmg" latest-mac.yml "Brigade-$version-windows-x64-setup.exe" latest.yml "Brigade-$version-android.apk")
             resume="The builds are unsigned. Published $TAG: ${fichiers[*]}."

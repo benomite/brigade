@@ -1,5 +1,7 @@
 # Changelog
 
+> **The changelog now lives in the [GitHub releases](https://github.com/benomite/brigade/releases).** Cooks no longer add lines here: each release's notes are written by `publier-app` from the merged pull request (an epic's "What changes for the user", a lone ticket's title). This file keeps the history up to now.
+
 Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new V2 release adds a section here, above the previous one, in the style of [Keep a Changelog](https://keepachangelog.com): the date of its tag and its merged pull requests, as Added / Changed / Fixed. What is merged since the last tag stays under Unreleased. The history of V1 is kept at the bottom, below its own separator.
 
 ## [Unreleased]

@@ -146,5 +146,6 @@ check some of them, and their `FAIL` line names the rule; they judge only the fi
 - **No process launched by a station asks a question.** Every process the runtime launches goes through
   `runtime/src/sans-invite.ts` (`GIT_TERMINAL_PROMPT=0`, a failing askpass, `GH_PROMPT_DISABLED=1`, `ssh -o
   BatchMode=yes`). A module that imports `node:child_process` directly fails `test/sans-invite.test.ts`.
+- **Cooks do not write `CHANGELOG.md`**: the changelog is the release notes `publier-app` writes from the merged PR (an epic's "What changes for the user", a lone ticket's title); an epic's release raises the app's minor version, a lone ticket's the patch.
 - **A conflict with the base is resolved by the ticket's cook**, in its own branch: it merges the base, resolves the
   conflicts and commits the merge. A conflict is never handed to a new ticket.
