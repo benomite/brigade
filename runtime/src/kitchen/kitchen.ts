@@ -60,6 +60,9 @@ const calibrationOf = (labels: readonly string[], fallback: { model: string; eff
 const COOK = { model: "sonnet", effort: "medium" };
 const JUDGE = { model: "opus", effort: "medium" };
 
+// Under this many characters, a cook's last message is not a report.
+const MIN_REPORT = 40;
+
 export function openKitchen(options: KitchenOptions) {
   const { repo, base, gh, git, log } = options;
   const act = gestures(gh, repo);
@@ -143,7 +146,14 @@ export function openKitchen(options: KitchenOptions) {
     if (ahead === "0") return sendBack(issue, `the cook delivered nothing${run.end.erreur ? ` (${run.end.erreur})` : ""}: ${run.result.slice(-600) || "no last words"}`, true);
     try {
       await git(wt, ["push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branchOf(issue.number)}`]);
-      await act.openPr(issue.number, base, issue.title, mask(run.result));
+      const report = mask(run.result).trim();
+      const unreached = await act.openPr(issue.number, base, issue.title, report.length < MIN_REPORT ? "" : report);
+      // A report that does not reach the description is said on the ticket, never left as a silent `Closes #N`.
+      const lost = report.length < MIN_REPORT ? `delivered without a report (${report.length} characters): the PR description stays as it is` : unreached;
+      if (lost !== "") {
+        log(`#${issue.number} ${lost}`);
+        await act.comment(issue.number, `The kitchen: ${lost}.`).catch(() => "");
+      }
       await act.labels(issue.number, [LABELS.inPass], [LABELS.taken]);
       log(`#${issue.number} delivered`);
     } catch (error) {
