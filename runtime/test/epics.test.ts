@@ -58,7 +58,7 @@ function setup(ahead: boolean, conflict = false) {
   const act = {
     labels: async (n: number, add: string[]) => void labelled.push([n, add]),
     open: async (title: string, body: string, labels: string[] = []) => (opened.push({ title, body, labels }), 20),
-    openEpicPr: async (n: number, base: string, title: string, body: string) => void prs.push(`${n} ${base} ${title}\n${body}`),
+    openEpicPr: async (n: number, base: string, title: string, body: string) => (prs.push(`${n} ${base} ${title}\n${body}`), ""),
   };
   const deps = { act, git: gitCli, gh, repo: "o/r", clone, worktrees: join(root, "wt"), base: "main", log: () => {} };
   return { deps, opened, labelled, prs, sh, clone };
@@ -99,7 +99,7 @@ test("an epic with an open child, an open PR, no branch, or a branch not ahead o
 
 test("closeFinishedEpics closes a split epic with no branch and every child closed, never one with a branch (#4701)", async () => {
   const closed: number[] = [];
-  const act = { close: async (n: number) => void closed.push(n) };
+  const act = { close: async (n: number) => (closed.push(n), "") };
   const comments = async () => [{ body: "Split by the manager into #8." }];
   await closeFinishedEpics([epic], comments, act, () => {}, [7]);
   assert.deepEqual(closed, []);
