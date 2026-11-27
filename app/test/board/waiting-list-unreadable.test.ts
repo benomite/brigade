@@ -22,7 +22,7 @@ test("the `parked` list refused by GitHub: the chef's reading still stands, the 
   };
   const reading = await readWhatAwaitingTheChef({ depot: REPOSITORY, appeler: call, maintenant: () => new Date(READ), enWaiting: true });
   assert.ok(reading.lue, JSON.stringify(reading));
-  const block = blockOfChef({ lu: READ, attentes: reading.attentes, illisibles: reading.illisibles, depot: REPOSITORY }).join("\n");
+  const block = blockOfChef({ lu: READ, attentes: reading.attentes, illisibles: reading.illisibles }).join("\n");
   assert.match(block, /the `parked` issues were not listed from GitHub: GitHub answered HTTP 502/);
   assert.match(block, /#41 {2}WAITING {2}awaiting the client: “the client's production API key” — resumes where it was on its own on 2026-11-25 00:00 UTC/);
   assert.match(block, /nothing awaits the chef/);

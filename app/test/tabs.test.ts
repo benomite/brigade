@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ACTION, openStandby, type Kitchen, type Reading } from "../src/box.ts";
-import { COMMAND_OF_COSTS, COSTS, commandOf, commandsOf, EVENTS_OF_LOG, TABS, projectsRead, HEADINGS } from "../src/tabs.ts";
+import { commandOf, commandsOf, EVENTS_OF_LOG, TABS, projectsRead, HEADINGS } from "../src/tabs.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
 // Un poste d'essai : un faux `node` qui note les mots qu'il reçoit et répond « sortie de … ».
@@ -31,8 +31,6 @@ describe("les onglets de contenu d'un espace", () => {
 
     assert.deepEqual(TABS.map(({ commande: command }) => command), [`log --last ${EVENTS_OF_LOG}`]);
     for (const { commande: command } of TABS) assert.ok((command.split(" ")[0] as string) in scripts, `« ${command} » n'est pas un script du runtime`);
-    // Et ce que lit la page des coûts de l'app (`station`).
-    for (const command of [COMMAND_OF_COSTS]) assert.ok((command.split(" ")[0] as string) in scripts, `« ${command} » n'est pas un script du runtime`);
   });
 
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
@@ -42,22 +40,18 @@ describe("les onglets de contenu d'un espace", () => {
       assert.equal(commandOf(other), undefined);
       assert.deepEqual(commandsOf(other), []);
     }
-    assert.deepEqual(commandsOf(COSTS), [COMMAND_OF_COSTS]);
   });
 
-  test("un onglet ne lit que la cuisine de son projet ; la page des coûts de l'app lit chaque projet qui cuit ici (#1022)", () => {
+  test("un onglet ne lit que la cuisine de son projet ; aucun onglet n'est Cost (#4509)", () => {
     const projects = [
       { nom: "parade", ici: true },
       { nom: "cantine", ici: true },
       { nom: "local" },
     ];
-    for (const { id } of TABS) assert.deepEqual(projectsRead(id, "parade", projects).map(({ nom: name }) => name), ["parade"], id);
-    assert.deepEqual(projectsRead(COSTS, undefined, projects).map(({ nom: name }) => name), ["parade", "cantine"]);
-    assert.deepEqual(projectsRead(COSTS, "parade", projects).map(({ nom: name }) => name), ["parade", "cantine"]);
-    // Elle lit `station`, une commande du runtime ; elle n'est l'onglet d'aucun projet, et aucun onglet n'est Cost.
-    assert.equal(COMMAND_OF_COSTS, "station");
-    assert.equal(commandOf(COSTS), undefined);
-    assert.ok(!HEADINGS.some(({ titre: title, lectures: readings }) => title === "Cost" || readings.includes(COSTS)));
+    assert.deepEqual(projectsRead("parade", projects).map(({ nom: name }) => name), ["parade"]);
+    assert.deepEqual(projectsRead(undefined, projects), []);
+    assert.equal(commandOf("couts"), undefined);
+    assert.ok(!HEADINGS.some(({ titre: title }) => title === "Cost"));
   });
 
   test("seul l'onglet affiché est lu : une commande du geste, pour cet onglet — pas une par onglet", { skip: WITHOUT_POSIX }, async (t) => {

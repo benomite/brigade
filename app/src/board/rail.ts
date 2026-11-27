@@ -19,7 +19,6 @@
 import { setTimeout as wait } from "node:timers/promises";
 import { FRESHNESS_MAX_OF_A_READ_MS, INTERVAL_OF_THE_STANDBY_MS } from "../vue/served/freshness.ts";
 import type { ReadOfBoardOfRepository, LineOfTheFile, HeadingOfBoard, BoardRead } from "./read.ts";
-import { linesOfTheFile, type RailBlockedRead } from "../vue/rail-blocked/rail-blocked.ts";
 
 // Les commandes que la lecture remplace, comme la veille des box les nomme (facts.ts, `COMMANDE` ; upstream.ts) : la vue
 // du rail les demande, la lecture en rend la sortie.
@@ -64,8 +63,8 @@ const linesOfHeading = ({ titre: title, lignes: lines }: HeadingOfBoard): string
 // Le bloc `awaiting` de `status` : sa tête, une ligne par attente — son nom,
 // depuis combien de temps, ce qui attend et le geste, son titre —, puis ce qui n'est pas une décision. Les durées se
 // comptent jusqu'à la lecture (`lu`). Ce qui attend le chef lu de GitHub (wait-of-chef.ts, #2460) passe par lui :
-// l'app et le second en lisent le même bloc. `railBloque` : le rail bloqué (#3358), sa ligne sous la tête.
-export function blockAwaiting({ file, bilans, lu: readOne, depot: repository = "", railBloque: railBlocked }: { file: readonly LineOfTheFile[]; bilans: readonly string[]; lu: string; depot?: string; railBloque?: RailBlockedRead }): string[] {
+// l'app et le second en lisent le même bloc.
+export function blockAwaiting({ file, bilans, lu: readOne }: { file: readonly LineOfTheFile[]; bilans: readonly string[]; lu: string }): string[] {
   const since = (instant: string) => durationIn(Date.parse(readOne) - Date.parse(instant));
   const [first] = file;
   const head =
@@ -76,7 +75,6 @@ export function blockAwaiting({ file, bilans, lu: readOne, depot: repository = "
         : `${file.length} decisions await the chef — the oldest for ${since(first.depuis)}`;
   return [
     line(HEAD_AWAITING, head),
-    ...linesOfTheFile(repository, railBlocked),
     ...file.map(({ nom: name, depuis: instant, ligne: said, titre: title }) => `  ${name}  for ${since(instant)}  ${said}${title === null ? "" : `  ${title}`}`),
     ...bilans.map((bilan) => `  ${bilan}`),
     END_AWAITING,
@@ -87,7 +85,7 @@ export function blockAwaiting({ file, bilans, lu: readOne, depot: repository = "
 // La sortie de `status` que la lecture porte : ses rubriques dans l'ordre de `status`, le bloc `awaiting` juste avant la
 // ligne `rail`, et sous elle la ligne de chaque ticket. Sans ce que la box seule lit (les serveurs, les worktrees, les
 // transcripts, les derniers événements) : GitHub ne le porte pas.
-export function statusOfBoard(readOne: Pick<BoardRead, "file" | "bilans" | "cuisine" | "lignesDuRail" | "luLe"> & Partial<Pick<BoardRead, "depot" | "faits">>): string {
+export function statusOfBoard(readOne: Pick<BoardRead, "file" | "bilans" | "cuisine" | "lignesDuRail" | "luLe">): string {
   const { rubriques: headings } = readOne.cuisine;
   const rankOfRail = headings.findIndex(({ titre: title }) => title === "rail");
   const before = rankOfRail === -1 ? headings : headings.slice(0, rankOfRail);
@@ -96,7 +94,7 @@ export function statusOfBoard(readOne: Pick<BoardRead, "file" | "bilans" | "cuis
   return [
     ...before.flatMap(linesOfHeading),
     "",
-    ...blockAwaiting({ file: readOne.file, bilans: readOne.bilans, lu: readOne.luLe, depot: readOne.depot, railBloque: readOne.faits?.railBloque as RailBlockedRead | undefined }),
+    ...blockAwaiting({ file: readOne.file, bilans: readOne.bilans, lu: readOne.luLe }),
     line("rail", rail.lignes[0] ?? ""),
     ...readOne.lignesDuRail.map(({ ligne: itsOwnOne }) => itsOwnOne),
     "",

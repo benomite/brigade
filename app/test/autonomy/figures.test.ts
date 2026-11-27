@@ -213,15 +213,15 @@ describe("les chiffres d'autonomie dans la vue (#3222)", () => {
       lireAutonomie: (projects, days) => (requests.push([projects, days]), readOne(days)),
     });
 
-  test("ceux de tous les projets sont sur la page de leur coût, juste après les tokens", async () => {
+  test("ceux de tous les projets sont sur leur page, seuls : le coût n'y est plus (#4509)", async () => {
     const requests: unknown[][] = [];
     const vue = await play(requests);
     const page = await openTheCosts(vue);
     await repos();
     const body = page.children[1];
-    assert.deepEqual(body?.children.slice(0, 2).map(({ className }) => className), ["tete-cout", "chiffres-autonomie"]);
-    assert.equal(body?.children[1]?.ariaLabel, "Autonomy of all projects");
-    assert.deepEqual(values(body?.children[1] as Fake), ["100 %", "3 h", "50 %"]);
+    assert.deepEqual(body?.children.map(({ className }) => className), ["chiffres-autonomie"]);
+    assert.equal(body?.children[0]?.ariaLabel, "Autonomy of all projects");
+    assert.deepEqual(values(body?.children[0] as Fake), ["100 %", "3 h", "50 %"]);
     assert.deepEqual(requests.at(-1), [["parade"], 7]);
   });
 

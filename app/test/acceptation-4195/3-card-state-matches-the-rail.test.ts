@@ -9,11 +9,8 @@ import type { VueOfProject } from "../../src/second/context-of-blockage.ts";
 import { dropTheVue } from "../../src/second/vue-of-project.ts";
 
 const base = { attendu: false, attend: [], fiche: {}, ouvrable: true, dit: [] };
-// Main est verte : ni `baseRouge`, ni alerte de base ; #4047 est en WAITING, la station a arrêté sa boucle de relances.
+// Main est verte ; #4047 est en WAITING, la station a arrêté sa boucle de relances.
 const board = {
-  alertesDuRail: [
-    { sorte: "relance-en-boucle", phrase: "#4047 was relaunched 5 times in 20 min.", fait: { depuis: "2026-11-24T22:00:00Z", ticket: 4047 }, geste: null, geree: "The station stopped the loop and set the card aside.", cause: undefined },
-  ],
   rail: {
     colonnes: [
       { nom: "WAITING", ton: "", compte: "1", cartes: [{ ...base, ticket: 4047, etat: "waiting", titre: "Set aside", ligne: "set aside by the station", enWaiting: true, relancePassee: true }], vide: "" },

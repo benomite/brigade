@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Card, Column } from "../../../src/facts.ts";
-import { aOneAction, whatAwaitingYou, columnOfPlan, lineParked, messageOfAlerts, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
+import { aOneAction, whatAwaitingYou, columnOfPlan, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
 import { Fake } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -172,46 +172,16 @@ describe("la bande du haut : une carte du supervisor et une du closer, sur une l
     assert.deepEqual([...unfoldedOnes], []);
   });
 
-  test("un agent que l'équipe lue montre déjà n'a pas de carte ici ; la ligne du délai de prise vient au bout", () => {
-    const setOne = band({ montre: (name) => name === "supervisor", delai: "40 % merged within 10 min of their claim" });
+  test("un agent que l'équipe lue montre déjà n'a pas de carte ici", () => {
+    const setOne = band({ montre: (name) => name === "supervisor" });
     assert.deepEqual(cards(setOne), [["closer", "closertidied 3 h ago"]]);
-    const [delay] = setOne.dessous("span").filter(({ className }) => className === "ligne-du-delai");
-    assert.deepEqual([delay?.textContent, delay?.title], ["40 % merged within 10 min of their claim", "40 % merged within 10 min of their claim"]);
   });
 });
 
-describe("aucun message sans un geste que le chef peut faire", () => {
-  type Alert = Parameters<typeof messageOfAlerts>[1][number];
-  const alert = (more: Partial<Alert>): Alert => ({ sorte: "base-rouge", phrase: "Main is red.", fait: { depuis: "2026-11-25T08:00:00Z" }, geste: "Open the failing check", geree: null, ...more }) as Alert;
-  const lineOf = (withButton: boolean) => (one: Alert) => {
+describe("un message porte un geste", () => {
+  test("un bouton, à lui ou à ce qui le suit", () => {
     const line = new Fake("p");
-    line.append(one.phrase, ...(withButton ? [new Fake("button")] : []));
-    return [line] as unknown as HTMLElement[];
-  };
-
-  test("une alerte que la cuisine prend en charge seule n'est pas montrée ; la suivante l'est", () => {
-    const views = messageOfAlerts(doc, [alert({ geste: null, geree: "The kitchen repairs it.", phrase: "Handled.", fait: { depuis: "x", ticket: 4 } }), alert({ phrase: "Shown.", bouton: "ajouter-a-une-station" })], lineOf(true), { ouvrirTicket: () => {}, ouvrirLesChecks: () => {} }) as unknown as Fake[];
-    assert.deepEqual(views.map(({ textContent }) => textContent), ["Shown."]);
-  });
-
-  test("sans bouton du runtime : ouvrir son ticket, sinon les checks du dépôt ; sans l'un ni l'autre, rien", () => {
-    const calls: string[] = [];
-    const actions = { ouvrirTicket: (ticket: number) => void calls.push(`#${ticket}`), ouvrirLesChecks: () => void calls.push("checks") };
-    const [ofTicket] = messageOfAlerts(doc, [alert({ fait: { depuis: "x", ticket: 12, check: "tests" } })], lineOf(false), actions) as unknown as Fake[];
-    assert.deepEqual(ofTicket?.dessous("button").map(({ textContent }) => textContent), ["open #12"]);
-    ofTicket?.dessous("button")[0]?.click();
-    const [ofCheck] = messageOfAlerts(doc, [alert({ fait: { depuis: "x", check: "tests" } })], lineOf(false), actions) as unknown as Fake[];
-    assert.deepEqual(ofCheck?.dessous("button").map(({ textContent }) => textContent), ["open the checks"]);
-    ofCheck?.dessous("button")[0]?.click();
-    assert.deepEqual(calls, ["#12", "checks"]);
-    assert.deepEqual(messageOfAlerts(doc, [alert({ fait: { depuis: "x", check: "tests" } })], lineOf(false), { ...actions, ouvrirLesChecks: undefined }), []);
-    assert.deepEqual(messageOfAlerts(doc, [alert({ fait: { depuis: "x" } })], lineOf(false), actions), []);
-    assert.deepEqual(messageOfAlerts(doc, [alert({})], () => [], actions), []);
-  });
-
-  test("le bouton du runtime suffit : la ligne est montrée telle quelle", () => {
-    const [line] = messageOfAlerts(doc, [alert({ fait: { depuis: "x", ticket: 3 } })], lineOf(true), { ouvrirTicket: () => {}, ouvrirLesChecks: () => {} }) as unknown as Fake[];
-    assert.equal(line?.dessous("button").length, 1);
+    line.append(new Fake("button"));
     assert.equal(aOneAction([new Fake("p")] as unknown as HTMLElement[]), false);
     assert.equal(aOneAction([new Fake("p"), line] as unknown as HTMLElement[]), true);
   });

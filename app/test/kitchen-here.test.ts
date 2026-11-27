@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { ACTION, words, openStandby, type Reading, type Locale } from "../src/box.ts";
-import { COSTS, projectsRead } from "../src/tabs.ts";
 import { servedBy, holdKitchensHere } from "../src/workstation/kitchen-here.ts";
 import { CACHE_OF_COMPILATION } from "./helpers/cache-of-compilation.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
@@ -186,7 +185,7 @@ describe("un projet qui cuit ici se lit par le geste de la station de ce poste",
 });
 
 describe("ce que la vue en reçoit", () => {
-  test("la barre marque `ici` le projet qui cuit sur cet ordinateur, et seul celui-là est lu par les pages de l'app", () => {
+  test("la barre marque `ici` le projet qui cuit sur cet ordinateur", () => {
     const configuration = {
       chemin: "/tmp/app.json",
       projets: [
@@ -202,10 +201,6 @@ describe("ce que la vue en reçoit", () => {
         ["mirrorlab", true],
         ["espace", undefined],
       ],
-    );
-    assert.deepEqual(
-      projectsRead(COSTS, undefined, seenOnes).map(({ nom: name }) => name),
-      ["mirrorlab"],
     );
   });
 });

@@ -1,7 +1,7 @@
 // @ts-check
 // La connexion de cet ordinateur à GitHub, d'un bouton (ticket 1434) — et ce qui se dit autour : le code à taper sur la
 // page ouverte, ou pourquoi elle n'a pas abouti. Le compte du premier lancement et de « Add a project » la pose (account.js, ticket 2475),
-// comme le rail qu'une station publie (rail-published.js) et les stations du compte (stations-of-account.js) : partout le
+// comme les stations du compte (stations-of-account.js) : partout le
 // même bouton, les mêmes mots. Une phrase y garde ses mots entre accents graves en code, son détail au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 

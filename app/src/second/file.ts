@@ -77,7 +77,7 @@ export async function readTheFile(call: CallGitHub, repository: string, now: () 
   const instant = now();
   const readEntry = await readWhatAwaitingTheChef({ depot: repository, appeler: call, maintenant: () => instant, enWaiting: true });
   if (!readEntry.lue) return { lue: false, raison: readEntry.raison, ...(readEntry.horsLigne === undefined ? {} : { horsLigne: true as const }) };
-  return { lue: true, depot: repository, lu: readEntry.lu, texte: blockOfChef({ ...readEntry, depot: repository }).join("\n") };
+  return { lue: true, depot: repository, lu: readEntry.lu, texte: blockOfChef(readEntry).join("\n") };
 }
 
 // Ce que le crochet écrit : toujours un contexte, même quand la file n'a pas pu être lue. `dossier` : celui de la

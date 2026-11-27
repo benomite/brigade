@@ -22,9 +22,5 @@ export function readProjects(text: string, stationDir: string): KitchenProject[]
 export const projectsFile = (stationDir: string) => join(stationDir, "kitchen", "projects");
 
 export function projectsOfTheKitchen(stationDir: string): KitchenProject[] {
-  try {
-    return readProjects(readFileSync(projectsFile(stationDir), "utf8"), stationDir);
-  } catch {
-    return [];
-  }
+  try { return readProjects(readFileSync(projectsFile(stationDir), "utf8"), stationDir); } catch { return []; }
 }

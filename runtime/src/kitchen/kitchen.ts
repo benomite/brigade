@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
 import { branchOf, gestures, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
+import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
 import { forget, listRuns, startRun, type Finished, type Kind, type Launch } from "./runs.ts";
@@ -120,15 +121,12 @@ export function openKitchen(options: KitchenOptions) {
     if (issue === undefined || run.issue === null || run.worktree === null) return;
     const wt = run.worktree;
     // A ticket that must wait for others goes back to the backlog and waits on its own: no try, no question.
-    const waits = /^DEPENDS:\s*(.+)$/m.exec(run.result);
-    if (waits !== null) {
-      const on = [...(waits[1] ?? "").matchAll(/#(\d+)/g)].map((match) => `#${match[1]}`);
-      if (on.length > 0) {
-        await act.appendToBody(issue.number, `Depends on ${on.join(", ")} (noted by its cook).`);
-        await act.labels(issue.number, [], [LABELS.taken]);
-        log(`#${issue.number} waits for ${on.join(", ")}`);
-        return;
-      }
+    const on = [...(/^DEPENDS:\s*(.+)$/m.exec(run.result)?.[1] ?? "").matchAll(/#(\d+)/g)].map((match) => `#${match[1]}`);
+    if (on.length > 0) {
+      await act.appendToBody(issue.number, `Depends on ${on.join(", ")} (noted by its cook).`);
+      await act.labels(issue.number, [], [LABELS.taken]);
+      log(`#${issue.number} waits for ${on.join(", ")}`);
+      return;
     }
     const park = /^PARK:\s*(.+)$/m.exec(run.result);
     if (park !== null) {
@@ -166,11 +164,7 @@ export function openKitchen(options: KitchenOptions) {
       await act.comment(issue.number, `${riskZoneComment(pr.number)} (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`);
       return;
     }
-    try {
-      await merge(issue.number, pr.number);
-    } catch (error) {
-      await sendBack(issue, `the merge failed: ${(error as Error).message}`, false);
-    }
+    await merge(issue.number, pr.number).catch((error: Error) => sendBack(issue, `the merge failed: ${error.message}`, false));
   }
 
   const chefSays = async (issue: number, pr: number) => chefSaidMerge((await trustedComments(gh, repo, issue)).map((one) => one.body), pr);
@@ -231,8 +225,10 @@ export function openKitchen(options: KitchenOptions) {
     }
   }
 
+  const publishAllowlist = allowlistPublisher(join(options.state, KITCHEN_ALLOWLIST), base, (args) => git(options.clone, args), log);
   let labelled = false;
   async function turn() {
+    await publishAllowlist();
     if (!labelled) {
       await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.approved, LABELS.epic, "try:1", "try:2"]);
       labelled = true;
