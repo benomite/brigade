@@ -30,13 +30,10 @@ import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
 import { confirmationOf } from "./confirmation.ts";
 import { holdTheTrials } from "./trial.ts";
 import { COMMAND_OF_LOG, openTheReport, versionAimed } from "./vue/report/opening.ts";
-import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
-import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
-import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
 import { ACTIONS_OF_WAIT } from "./wait.ts";
@@ -1390,27 +1387,13 @@ const launchOnTheKitchen = (readOne: Read, command: string) => {
   passage.set(readOne.nom, rendered);
   return rendered;
 };
-// Les réglages du projet, sur sa page (#1309) : lus par `setting` là où sa cuisine tourne, et changés par une PR sur
-// son dépôt — rien ne se pose sur la box (settings-of-project.ts). La proposition attend que le runtime du projet ait
-// ouvert la PR — il l'attend lui-même deux minutes au plus — : elle ne passe pas par le passage du projet, que ses
-// lectures ne restent pas derrière elle. Seule l'adresse d'une PR qu'elle a rendue s'ouvre depuis l'écran.
+// Les adresses des pull requests que l'app a ouvertes — plafonds, closer, savoir : seule l'une d'elles s'ouvre depuis l'écran.
 const proposalsOfSetting = new Set<string>();
 const kitchenOfProject = (name: unknown) => {
   const aims = knownOne(name);
   const kitchen = aims === undefined ? undefined : kitchens.cuisineDe(aims);
   return { vise: aims, lu: aims === undefined || kitchen === undefined ? undefined : { nom: aims.nom, cuisine: kitchen } };
 };
-ipcMain.handle("reglagesDuProjet", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheSettings(aims.nom, readOne, launchOnTheKitchen);
-});
-ipcMain.handle("proposerUnReglage", async (_, name: unknown, choice: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await proposeTheSetting(aims.nom, readOne, choice, (readOne, command) => launchThe({ delaiMs: 150_000 }, readOne, command));
-  if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
-  return rendered;
-});
 // Les agents au travail que lit l'onglet Agents (ticket 4569) : le kanban de GitHub (`taken`, `in-pass`) et ce que la cuisine
 // écrit sur sa station, sans rien demander à l'ancien runtime (team-of-the-box.ts).
 ipcMain.handle("agentsAtWork", (_, name: unknown) => {
@@ -1431,38 +1414,11 @@ ipcMain.handle("sinceYouLastLooked", async (_, name: unknown) => {
   if ("groups" in read) addressesLooked.set(aims.nom, new Map(read.groups.flatMap(({ entries }) => entries.map(({ ticket, url }) => [ticket, url] as const))));
   return read;
 });
-// Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
-// changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humans-of-project.ts).
-ipcMain.handle("listerLesHumains", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheHumans(aims.nom, readOne, launchOnTheKitchen);
-});
-const writeOneHuman = async (name: unknown, action: { save: unknown } | { remove: unknown }) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await writeTheHumans(aims.nom, readOne, action, (readOne, command) => launchThe({ delaiMs: 150_000 }, readOne, command));
-  if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
-  return rendered;
-};
-ipcMain.handle("enregistrerUnHumain", (_, name: unknown, human: unknown) => writeOneHuman(name, { save: human }));
-ipcMain.handle("retirerUnHumain", (_, name: unknown, login: unknown) => writeOneHuman(name, { remove: login }));
 // La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
 // poste (vue/card-project/card-project-folder.ts).
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, name: unknown, path: unknown, text: unknown) => writeInTheProject(knownOne(name), path, text));
 plugTheWordAtCook(ipcMain, kitchenOfProject, launchOnTheKitchen); // le mot au cook (#4048, vue/word-at-cook/word-at-cook-box.ts)
-// Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
-// refusées ou réacceptées par elle (stations-contributors.ts).
-ipcMain.handle("listerLesStationsContributrices", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheStations(aims.nom, readOne, launchOnTheKitchen);
-});
-const changeOneStation = (name: unknown, action: { refuse: unknown } | { accept: unknown }) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeTheStations(aims.nom, readOne, action, launchOnTheKitchen);
-};
-ipcMain.handle("refuserUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { refuse: station }));
-ipcMain.handle("accepterUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { accept: station }));
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !proposalsOfSetting.has(url)) return false;
   return shell.openExternal(url).then(

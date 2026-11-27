@@ -13,7 +13,7 @@ import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
-import { PROPOSES } from "../../../src/settings-of-project.ts";
+import { PROPOSES } from "../../../src/box.ts";
 import type { ChangeOfKnowledge, ReadOfKnowledge, RenderedOfKnowledge } from "../../../src/vue/know-how/know-how-github.ts";
 import { holdTheKnowledge } from "../../../src/vue/know-how/know-how.js";
 import { Fake, playTheVue, openTab, openRead, repos, type Played } from "../../helpers/false-vue.ts";

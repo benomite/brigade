@@ -194,3 +194,10 @@ export function openStandby(options: {
     fermer: stop,
   };
 }
+
+// Un runtime d'avant la commande la refuse en la nommant (`geste.ts`, code 66) : il se met à jour.
+export const withoutTheCommand = (rendered: Rendered) => rendered.erreur !== null && (rendered.erreur.code === 66 || /n'est pas une commande du runtime|is not a runtime command/.test(rendered.erreurs));
+export const detailOf = (rendered: Rendered) => `${rendered.lance}\n${rendered.erreurs}${rendered.sortie}`.trim();
+
+// Ce que dit une proposition de réglage qui ouvre une pull request.
+export const PROPOSES = "proposed as a pull request — it applies once merged";

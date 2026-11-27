@@ -19,7 +19,6 @@ const SCOPE = [
   "update-background",
   "outages",
   "stations-of-account.ts",
-  "stations-contributors.ts",
   "settings-of-the-station.ts",
   "box.ts",
   "team-of-the-box.ts",

@@ -17,7 +17,7 @@ import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import type { ReadOfCloser, RenderedOfVerifications, RenderedOfSetting } from "../../../src/closer-health.ts";
 import { CAPS, type ReadOfCaps, type RenderedOfCap } from "../../../src/caps-duration.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
-import { KEYS as KEYS_OF_SETTINGS, PROPOSES } from "../../../src/settings-of-project.ts";
+import { PROPOSES } from "../../../src/box.ts";
 import { setBlockCloser } from "../../../src/vue/project/banner-health/Closer.js";
 import { IN_PROGRESS, setBlockCapsDuration } from "../../../src/vue/project/banner-health/DurationCaps.js";
 import { BY_PR } from "../../../src/vue/components/setting/setting.js";
@@ -453,7 +453,5 @@ describe("le bandeau de santé, dans la vue", () => {
       const caps = [...vue.element("rail").descendants()].filter(({ dataset }) => dataset.bloc === "plafonds-duree" || (dataset.cle !== undefined && CAPS.some(({ cle: key }) => key === dataset.cle)));
       assert.deepEqual(caps, [], tab);
     }
-    // Settings : ses réglages du projet n'en portent aucun.
-    assert.deepEqual(KEYS_OF_SETTINGS.filter((key) => /drift|temps|duration|tests|gates/i.test(key)), []);
   });
 });

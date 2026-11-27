@@ -2,7 +2,7 @@
 // le champ — le réglage s'applique à son `change`, sans « save ». Gardé dans le dépôt, il s'y propose par une pull
 // request : la rangée la dit, son lien l'ouvre, et la valeur montrée reste celle en vigueur jusqu'au merge.
 import type { RenderedOfCap } from "../../../app/src/caps-duration.ts";
-import { PROPOSES } from "../../../app/src/settings-of-project.ts";
+import { PROPOSES } from "../../../app/src/box.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { PLAFONDS_LUS, SETTINGS } from "./projet-sante.ts";

@@ -356,7 +356,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/pause.test.ts", test: "demander la pause pose une carte dans la file : la durée attendue, et les tickets en vol qu'elle retiendra — chacun avec ce qui lui arrivera" },
   { file: "test/proteger-branche.test.ts", test: "la commande du chef, par `gh` : une branche déjà protégée, l'étape faite, aucune écriture" },
   { file: "test/proteger-branche.test.ts", test: "la commande du chef, par `gh`, sans le rôle d'administrateur : bloquée, et aucune écriture ne part" },
-  { file: "test/reglage-cli.test.ts", test: "with no argument, it shows the settings the kitchen applies — the repository's first — and where each comes from" },
   { file: "test/relire.test.ts", test: "sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable" },
   { file: "test/relire.test.ts", test: "le journal d'un ticket se relit en entier et dans l'ordre, pendant que le runtime tourne" },
   { file: "test/station-decisions.test.ts", test: "chaque décision a son geste : la station montre la valeur posée, et le journal porte, au nom du chef, la décision, l'ancienne et la nouvelle valeur" },

@@ -282,28 +282,13 @@ export type Bridge = {
   // Le bouton d'une panne, sur la ligne d'une station (outages/actions.ts) : relire GitHub, écarter la
   // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.
   panne(id: string, key: string): Promise<RenderedOfOutage>;
-  // Les réglages du projet sur sa page (ticket 1309) : lus là où sa cuisine tourne (`setting`), et changés par une PR sur
-  // son dépôt — rien ne se pose sur la box (settings-of-project.ts). La PR rendue s'ouvre par `ouvrirLaProposition`.
-  reglagesDuProjet(project: string): Promise<import("../settings-of-project.ts").ReadOfSettings>;
-  proposerUnReglage(project: string, choice: import("../settings-of-project.ts").ChoiceOfSetting): Promise<import("../settings-of-project.ts").RenderedOfSetting>;
   ouvrirLaProposition(url: string): Promise<boolean>;
-  // Les humains du projet, sous Settings (ticket 2930) : ceux que son `projet.json` déclare, et chaque changement — ajouté, changé
-  // ou retiré — écrit par une PR, qui rend son lien ou un refus d'une ligne (settings-humans/humans.js, humans-of-project.ts).
-  // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre pas la section.
-  listerLesHumains?(project: string): Promise<import("../humans-of-project.ts").ReadOfHumans>;
-  enregistrerUnHumain?(project: string, human: import("./settings-humans/humans.js").Human): Promise<import("./settings-humans/humans.js").Rendered>;
-  retirerUnHumain?(project: string, login: string): Promise<import("./settings-humans/humans.js").Rendered>;
   // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
   // `.brigade/fiche-projet.json` (card-project/card-project-folder.ts). `null` : il n'y est pas. Optionnels : un pont qui
   // ne les porte pas (le téléphone) ne montre pas la section.
   lireUnFichierDuProjet?(project: string, path: string): Promise<string | null>;
   ecrireUnFichierDuProjet?(project: string, path: string, text: string): Promise<void>;
   envoyerUnMot?(project: string, entry: { ticket: number; text: string }): Promise<import("./word-at-cook/source.js").Answer>; // le mot au cook (ticket 4048)
-  // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
-  // chacune (settings-stations/stations.js, stations-contributors.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
-  listerLesStationsContributrices?(project: string): Promise<import("../stations-contributors.ts").ReadOfStations>;
-  refuserUneStationContributrice?(project: string, station: string): Promise<import("../stations-contributors.ts").WritingOfAStation>;
-  accepterUneStationContributrice?(project: string, station: string): Promise<import("../stations-contributors.ts").WritingOfAStation>;
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
   // (`.claude/brigade/projet.json`), lus sur sa branche d'intégration, sur GitHub, et changés par une pull request vers elle
   // (ticket 2920, caps-duration.ts) : la PR rendue s'ouvre par `ouvrirLaProposition`.

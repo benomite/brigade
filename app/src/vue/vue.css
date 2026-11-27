@@ -2570,7 +2570,7 @@ main > header,
   margin: 0;
 }
 /* Settings d'un projet en lecture seule : ce qui se propose à son dépôt par une pull request n'est pas posé. */
-#etat[data-lecture-seule] :is(#reglages-du-projet, #reglages-du-projet-en-plus, #humains-du-projet, #stations-contributrices, [data-bloc="plafonds-duree"], [data-bloc="closer"]) {
+#etat[data-lecture-seule] :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) {
   display: none !important;
 }
 #alertes .alerte + .alerte {

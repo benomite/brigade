@@ -6,7 +6,7 @@
 // Ce qui ne se lit pas ne se devine pas : la vue reçoit toujours `{ok: false, reason}` en une ligne, le détail au survol.
 import type { Read, Rendered } from "../../box.ts";
 import { cite } from "../../box.ts";
-import { detailOf, withoutTheCommand } from "../../settings-of-project.ts";
+import { detailOf, withoutTheCommand } from "../../box.ts";
 import type { Answer } from "./source.js";
 
 

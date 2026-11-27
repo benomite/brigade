@@ -5,7 +5,7 @@
 // GitHub gave; no agent at work is an empty list, never an error.
 import type { Read, Rendered } from "./box.ts";
 import type { KitchenBoard } from "./board/kitchen-board.ts";
-import { withoutTheCommand } from "./settings-of-project.ts";
+import { withoutTheCommand } from "./box.ts";
 
 const COMMAND = "agents";
 

@@ -118,10 +118,7 @@ import { linesOfRefusal } from "./project/rail/refusal-of-station.js";
 import { setDelay } from "./project/delay.js";
 import { setTheOffer, firstProjectServed, holdTheOffer } from "./offer-phone/offer-phone.js";
 import { setChoice, withoutTheChoice } from "./project/choice.js";
-import { setTheSettings } from "./project/settings.js";
-import { mountTheHumans, serviceOfBridge } from "./settings-humans/humans.js";
 import { mountTheCardProject } from "./card-project/mount-card-project.js";
-import { mountTheStations, serviceOfBridge as serviceOfStations } from "./settings-stations/stations.js";
 import { levelOf, LEVELS_SAID } from "./levels.js";
 import { setPageOfStation as setTheShellOfStation } from "./station/page/StationPage.js";
 import { diagramHeld, renderWithMermaid } from "./card-diagram/card-diagram.js";
@@ -470,8 +467,6 @@ function actionsOfServer(project, entrust) {
     },
   };
 }
-const settingsOfProject = element("reglages-du-projet");
-const settingsExtra = element("reglages-du-projet-en-plus");
 const opinion = element("avis");
 // Les stations que la box de chaque projet déclare, telles que le dernier contrôle de son installation les a lues
 // (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
@@ -1032,12 +1027,6 @@ function markRead(project) {
   if (inRead.has(project.nom) && itselfLit(project) && project.sansStation !== true) rail.dataset.lecture = "";
   else delete rail.dataset.lecture;
 }
-// Les réglages de chaque projet (ticket 1309) : leur dernière lecture, et l'état de chacun — ce que le chef écrit sans
-// l'avoir changé, la proposition qui attend sa réponse, ce que la dernière a rendu. Le plafond, sur Cooks, est le même réglage.
-/** @type {Map<string, import("../settings-of-project.ts").ReadOfSettings>} */
-const settingsRead = new Map();
-/** @type {Map<string, Map<import("../settings-of-project.ts").Key, import("./project/settings.js").State>>} */
-const statesOfSettings = new Map();
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alerts.ts).
 /** @type {Map<string, Alert[]>} */
 const bands = new Map();
@@ -2301,7 +2290,7 @@ for (const [level, help] of /** @type {const} */ ([
   title.replaceChildren(LEVELS_SAID[level].libelle, hover(document, help));
 }
 function setTheGroups() {
-  emptyProject.hidden = !settingsOfProject.hidden || !stopKitchen.hidden;
+  emptyProject.hidden = !stopKitchen.hidden;
   emptyProject.textContent = emptyProject.hidden ? "" : "nothing to set: no station reads this project";
 }
 // Le projet dans ton app (ticket 1700) : une ligne du groupe du projet — il est dans la barre, et « Remove from the app »
@@ -2451,88 +2440,6 @@ async function colorIn(project, role, color) {
   if (current?.nom === project.nom) setColors(current);
 }
 
-// Les réglages du projet, sous Paramètres (ticket 1309) : lus là où sa cuisine tourne, à l'ouverture du projet. Un
-// projet qui ne cuit nulle part n'a pas de runtime pour les lire : la section ne se pose pas.
-/** @param {Project} project */
-async function readTheSettings(project) {
-  if (!itselfLit(project)) {
-    settingsRead.delete(project.nom);
-    return setTheSettingsOfProject(project);
-  }
-  /** @type {import("../settings-of-project.ts").ReadOfSettings | undefined} */
-  let receivedOne;
-  try {
-    receivedOne = await brigade.reglagesDuProjet(project.nom);
-  } catch (error) {
-    receivedOne = { sans: NOT_REACHED("settings"), detail: error instanceof Error ? error.message : String(error) };
-  }
-  // Un pont qui ne porte pas la lecture — un téléphone — ne rend rien : la section ne se pose pas.
-  if (receivedOne === undefined) settingsRead.delete(project.nom);
-  else settingsRead.set(project.nom, receivedOne);
-  if (current?.nom !== project.nom) return;
-  setTheSettingsOfProject(project);
-}
-
-// L'état d'un réglage du projet, et ce que ses gestes en font.
-/** @param {Project} project @param {import("../settings-of-project.ts").Key} key */
-function actionsOfSetting(project, key) {
-  const states = statesOfSettings.get(project.nom) ?? new Map();
-  statesOfSettings.set(project.nom, states);
-  return {
-    etat: states.get(key),
-    /** @param {string | { modele: string, effort: string }} chosen */
-    choisir: (chosen) => void states.set(key, { ...states.get(key), choisi: chosen }),
-    /** @param {import("../settings-of-project.ts").ChoiceOfSetting} choice @param {string} said */
-    proposer: (choice, said) => void proposeOneSetting(project, choice, said),
-    /** @param {string} url */
-    ouvrir: (url) => void brigade.ouvrirLaProposition(url),
-  };
-}
-
-/** @param {Project} project */
-function setTheSettingsOfProject(project) {
-  const states = statesOfSettings.get(project.nom) ?? new Map();
-  statesOfSettings.set(project.nom, states);
-  const options = {
-    lecture: settingsRead.get(project.nom),
-    etats: states,
-    choisir: (/** @type {import("../settings-of-project.ts").Key} */ key, /** @type {string | { modele: string, effort: string }} */ chosen) => actionsOfSetting(project, key).choisir(chosen),
-    proposer: (/** @type {import("../settings-of-project.ts").ChoiceOfSetting} */ choice, /** @type {string} */ said) => void proposeOneSetting(project, choice, said),
-    ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaProposition(url),
-  };
-  // Les rangées de l'artboard d'abord ; celles qu'il ne dessine pas suivent, sous le sigle et la couleur.
-  for (const [container, group] of /** @type {const} */ ([[settingsOfProject, "dessines"], [settingsExtra, "en-plus"]])) {
-    const pose = setTheSettings(document, { ...options, groupe: group });
-    container.hidden = pose === null;
-    container.replaceChildren(...(pose === null ? [] : [pose]));
-  }
-}
-
-// Un réglage du projet changé : le changement part par le process principal (settings-of-project.ts), qui attend que le
-// runtime du projet ait ouvert la PR. Tant qu'il n'a pas répondu, la rangée dit qu'il s'y met. Ouverte, la PR se dit sous
-// la rangée ; refusé, le refus — et le champ revient à la valeur en vigueur, qui ne change pas tant que la PR n'est pas
-// mergée.
-/** @param {Project} project @param {import("../settings-of-project.ts").ChoiceOfSetting} choice @param {string} said */
-async function proposeOneSetting(project, choice, said) {
-  const states = statesOfSettings.get(project.nom) ?? new Map();
-  statesOfSettings.set(project.nom, states);
-  if (states.get(choice.cle)?.enCours === true) return;
-  states.set(choice.cle, { ...states.get(choice.cle), enCours: true, dit: undefined });
-  const rest = () => {
-    if (current?.nom !== project.nom) return;
-    setTheSettingsOfProject(project);
-  };
-  rest();
-  /** @type {import("../settings-of-project.ts").RenderedOfSetting} */
-  let rendered;
-  try {
-    rendered = (await brigade.proposerUnReglage(project.nom, choice)) ?? { refus: "nothing was proposed: nothing was sent", detail: WITHOUT_BRIDGE };
-  } catch (error) {
-    rendered = { refus: "nothing was proposed: nothing was sent", detail: error instanceof Error ? error.message : String(error) };
-  }
-  states.set(choice.cle, { dit: "pr" in rendered ? { ...rendered, valeur: said } : rendered });
-  rest();
-}
 
 // Les tickets ordinaires de cet ordinateur, sous cette machine dans Settings (ticket 1700) : deux lignes — les prendre
 // ou non, et combien de cooks à la fois —, ce que ça implique au survol, et, quand la station dit son bac à sable
@@ -8418,11 +8325,7 @@ async function open(project) {
   void setOrdinary(project);
   void identitiesGithub.lire();
   void servedOnes.lire();
-  setTheSettingsOfProject(project);
-  void readTheSettings(project);
-  void mountTheHumans(document, element("humains-du-projet"), { projet: project.nom, service: serviceOfBridge(brigade, project.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
   void mountTheCardProject(document, element("fiche-du-projet"), { projet: project.nom, pont: brigade });
-  void mountTheStations(document, element("stations-contributrices"), { projet: project.nom, service: serviceOfStations(brigade, project.nom) });
   brigade.regarder(project.nom, ++request);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.
   if (project.refus !== undefined) return show();
