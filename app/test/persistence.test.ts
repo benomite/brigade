@@ -6,9 +6,9 @@
 // Aucun test n'attend une durée : chacun attend ce que le terminal affiche.
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, statSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import {
   destruction,
@@ -84,7 +84,7 @@ describe("la commande d'un shell persistant", () => {
 function plays(t: TestContext, fake: "tmux" | "screen" | "aucun"): { appels: string[]; sortie: string } {
   const root = mkdtempSync(join(tmpdir(), "brigade-app-persistance-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  symlinkSync(execFileSync("/bin/sh", ["-c", "command -v grep"], { encoding: "utf8" }).trim(), join(root, "grep"));
+  for (const tool of ["grep", "mkdir", "chmod"]) symlinkSync(execFileSync("/bin/sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim(), join(root, tool));
   if (fake !== "aucun") {
     // `has-session`, `screen -ls` : rien n'existe.
     writeFileSync(join(root, fake), `#!/bin/sh\nprintf '${fake} %s\\n' "$*" >> '${root}/appels'\n[ "$1" = -u ] && shift\ncase "$1" in has-session|-ls) exit 1;; esac\nexit 0\n`);
@@ -119,9 +119,15 @@ describe("la configuration appliquée à la session", () => {
 
   test("avec `screen`, quand `tmux` manque : aucun suivi de la souris, et Ctrl-A reste au shell", { skip: WITHOUT_POSIX }, (t) => {
     const { appels: calls } = plays(t, "screen");
+    // Le réglage est lu depuis un répertoire privé du chef (jamais un nom prévisible de /tmp), qui charge `~/.screenrc` d'abord.
+    const screenCreation = calls.find((call) => call.includes("-dmS")) ?? "";
+    const rc = screenCreation.match(/-c (\S+) -dmS/)?.[1] ?? "";
+    assert.match(rc, /\/\.brigade\/screen\/brigade-essai-1\.screenrc$/);
+    assert.equal(statSync(dirname(rc)).mode & 0o777, 0o700);
+    assert.equal(readFileSync(rc, "utf8"), "termcapinfo * ti@:te@\n");
     assert.deepEqual(calls, [
       "screen -ls",
-      "screen -U -c /tmp/brigade-essai-1.screenrc -dmS brigade-essai-1",
+      screenCreation,
       "screen -S brigade-essai-1 -X defmousetrack off",
       "screen -S brigade-essai-1 -X mousetrack off",
       "screen -S brigade-essai-1 -X escape ",

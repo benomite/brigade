@@ -55,3 +55,4 @@
 - Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)
 - A kitchen test whose fake cook ends with a short message (under 40 characters) now gets a "delivered without a report" log line and ticket comment: give the fake a real report (#4574)
 - A shell tab scrolls back because the multiplexer draws on the normal screen (tmux `terminal-overrides` `smcup@:rmcup@`, screen `termcapinfo * ti@:te@`); screen reads termcapinfo only from a `-c` rc file at creation, `-X termcapinfo` and `-c` at attach do nothing (#4576)
+- `screen -dmS` does not read its `-c` rc at creation but at the first attach: a rc deleted right after `-dmS` is lost (alternate screen comes back); keep it in a 0700 user dir (`~/.brigade/screen`), never a predictable /tmp name (#4576)

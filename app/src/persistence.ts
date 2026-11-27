@@ -85,7 +85,15 @@ export function scriptOfAttachment(name: string): string {
     `  tmux -u show-options -sv terminal-overrides | grep -qF "${OVERRIDE_TMUX}" || tmux -u set-option -sa terminal-overrides ",${OVERRIDE_TMUX}"`,
     `  exec tmux -u attach-session -t =${name}`,
     "elif command -v screen >/dev/null 2>&1; then",
-    `  ${screenExists(name)} || { echo "${RC_SCREEN_NORMAL_SCREEN}" > "\${TMPDIR:-/tmp}/${name}.screenrc" && screen -U -c "\${TMPDIR:-/tmp}/${name}.screenrc" -dmS ${name}; } || exit`,
+    `  ${screenExists(name)} || {`,
+    // Le fichier de réglage vit dans un répertoire du chef (`~/.brigade/screen`, 0700), jamais sous un nom
+    // prévisible d'un répertoire partagé. Il n'est pas supprimé : `screen` ne le lit qu'au premier
+    // rattachement, pas à `-dmS`. `-c` remplace `~/.screenrc` : il le charge d'abord, le réglage du chef reste.
+    '    dir="$HOME/.brigade/screen"; mkdir -p "$dir" && chmod 700 "$dir" || exit',
+    `    rc="$dir/${name}.screenrc"`,
+    '    { [ ! -f "$HOME/.screenrc" ] || echo "source \\"$HOME/.screenrc\\""; echo "' + RC_SCREEN_NORMAL_SCREEN + '"; } > "$rc" || exit',
+    `    screen -U -c "$rc" -dmS ${name} || exit`,
+    "  }",
     ...SETTINGS_SCREEN.map((setting) => `  screen -S ${name} -X ${setting}`),
     `  exec screen -U -x ${name}`,
     "fi",
