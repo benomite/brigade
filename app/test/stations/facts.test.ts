@@ -5,6 +5,8 @@ import { test } from "node:test";
 import { FILE_PAIRING, FILE_STATION } from "../../src/stations/document.ts";
 import { holdStations, type SeenOfStations } from "../../src/stations/stations.ts";
 import type { GitHubOfStations } from "../../src/stations/github.ts";
+import { stationDocument } from "../../../runtime/src/station-gist.ts";
+import type { Status } from "../../../runtime/src/operator-status.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
@@ -81,6 +83,29 @@ test("une station qui ne publie pas ses faits n'en dit aucun", async () => {
   const stations = holdStations({ github: { ...github, lire: async () => ({ [FILE_STATION]: JSON.stringify(without), [FILE_PAIRING]: "{}" }) }, surLecture: () => {}, maintenant: () => NOW, cadenceMs: 3_600_000 });
   try {
     assert.equal((await stations.relire()).stations[0]?.faits, undefined);
+  } finally {
+    stations.fermer();
+  }
+});
+
+test("le gist tel que la station l'écrit s'appaire par le code qu'elle dit, et se lit ensuite avec ses faits", async () => {
+  const code = "7KQ2M9XD";
+  const content = stationDocument(GIST.status as Status, { name: "box", machine: "Linux 6.1" }, { paired: false, code, expiresAt: new Date(NOW + 600_000).toISOString(), expired: [] });
+  const files: Record<string, string> = { [FILE_STATION]: content };
+  const fresh: GitHubOfStations = {
+    lister: async () => [{ id: "g1", misAJour: String(Object.keys(files).length), appairee: FILE_PAIRING in files }],
+    lire: async () => files,
+    ecrire: async (_id, written) => void Object.assign(files, written),
+    supprimer: async () => {},
+  };
+  const stations = holdStations({ github: fresh, surLecture: () => {}, maintenant: () => NOW, cadenceMs: 3_600_000 });
+  try {
+    assert.deepEqual(await stations.appairer("7KQ2-M9XD"), { appairee: "box" });
+    assert.ok(FILE_PAIRING in files);
+    assert.equal(files[FILE_STATION], content, "the app writes its own file only");
+    const [station] = (await stations.relire()).stations;
+    assert.equal(station?.nom, "box");
+    assert.ok(station?.faits);
   } finally {
     stations.fermer();
   }
