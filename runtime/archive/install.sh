@@ -36,14 +36,25 @@
 # and never starts nor restarts a service — the update does that, and goes back by itself
 # if the station does not come up.
 #
+# `sh install.sh --migrate` is the mode the bridge `.deb` plays (runtime/paquet/debian/postinst),
+# as root, on a box that runs the `.deb`'s layout (Linux only). It installs the archive as
+# above, keeps /var/lib/brigade and /etc/brigade as they are (asks for no token), then retires
+# the `.deb`'s layout: its units under /usr/lib/systemd/system (and the links that enable
+# them) and its tree /usr/lib/brigade-station — the archive carries the same runtime, so what
+# `.deb` ran moves to /opt/brigade-station/<version> by this install. The archive's units
+# are enabled and the station restarts on them. It leaves `current` alone when it already
+# points somewhere (a station that has updated itself since). Run twice, it changes nothing.
+#
 # BRIGADE_RACINE=<dir> prefixes every path it writes (tests); BRIGADE_TERMINAL is
 # where the tokens are asked (default /dev/tty).
 set -eu
 
 UPDATE=
+MIGRATE=
 case "${1:-}" in
   "") ;;
   --update) UPDATE=yes ;;
+  --migrate) MIGRATE=yes ;;
   *) printf 'brigade: install refused — unknown argument: %s\n' "$1" >&2; exit 1 ;;
 esac
 
@@ -90,6 +101,7 @@ case "$OS" in
     SERVICES_DIR="$ARCHIVE/services"
     ;;
   Darwin)
+    [ -z "$MIGRATE" ] || refuse "--migrate moves a Debian package's layout: there is none on macOS"
     [ -n "$UPDATE" ] || command -v dscl >/dev/null 2>&1 || refuse "dscl is missing, so the account $ACCOUNT cannot be created"
     [ -n "$UPDATE" ] || command -v launchctl >/dev/null 2>&1 || refuse "launchctl is missing, so the station and its gate cannot run as services"
     SERVICES="com.brigade.station.plist com.brigade.station.gate.plist com.brigade.station.update.plist"
@@ -169,7 +181,9 @@ if [ ! -d "$OPT/$VERSION" ]; then
   say "version $VERSION installed"
   CHANGED=yes
 fi
-if [ "$(readlink "$OPT/current" 2>/dev/null)" != "$VERSION" ]; then
+if [ -n "$MIGRATE" ] && [ -e "$OPT/current" ]; then
+  : # a station that already runs the archive layout keeps the version it runs
+elif [ "$(readlink "$OPT/current" 2>/dev/null)" != "$VERSION" ]; then
   if [ "$OS" = Darwin ]; then
     ln -sfn "$VERSION" "$OPT/current" # BSD mv has no -T
   else
@@ -217,23 +231,29 @@ ask() { # $1 label, $2 value from the environment
   [ -n "$reply" ] || refuse "no $1 given"
   printf '%s' "$reply"
 }
-if [ ! -s "$SECRETS/github.env" ]; then
+if [ -n "$MIGRATE" ]; then
+  : # the secrets of the box stay as they are, and nothing is asked
+elif [ ! -s "$SECRETS/github.env" ]; then
   token=$(ask "the GitHub token" "${BRIGADE_GITHUB_TOKEN:-}")
   printf 'GH_TOKEN=%s\n' "$token" | put_text "$SECRETS/github.env" 600
 fi
-if [ ! -s "$SECRETS/claude-token" ]; then
+if [ -n "$MIGRATE" ]; then
+  :
+elif [ ! -s "$SECRETS/claude-token" ]; then
   token=$(ask "the Claude long-lived token (claude setup-token)" "${BRIGADE_CLAUDE_TOKEN:-}")
   printf '%s\n' "$token" | put_text "$SECRETS/claude-token" "$CLAUDE_TOKEN_MODE"
   chown "$SECRET_OWNER" "$SECRETS/claude-token"
 fi
-if [ "$OS" = Darwin ]; then
+if [ -n "$MIGRATE" ]; then
+  :
+elif [ "$OS" = Darwin ]; then
   # Sourced by the station's shell line: the path has a space, so it is quoted.
   printf 'BRIGADE_CLAUDE_TOKEN_FILE="%s"\n' "$CLAUDE_TOKEN_FILE" | put_text "$SECRETS/jeton.env" 600
   chown "$SECRET_OWNER" "$SECRETS/jeton.env"
 else
   printf 'BRIGADE_CLAUDE_TOKEN_FILE=%s\n' "$CLAUDE_TOKEN_FILE" | put_text "$SECRETS/jeton.env" 644
 fi
-chown "$SECRET_OWNER" "$SECRETS/github.env"
+if [ -z "$MIGRATE" ] && [ -f "$SECRETS/github.env" ]; then chown "$SECRET_OWNER" "$SECRETS/github.env"; fi
 }
 if [ -z "$UPDATE" ]; then install_machine; fi
 
@@ -275,6 +295,20 @@ if [ "$OS" = Darwin ]; then
   done
   say "station $VERSION installed"
   exit 0
+fi
+if [ -n "$MIGRATE" ]; then
+  # The `.deb`'s units, which the archive's in /etc/systemd/system now replace: their files, and the
+  # links that enabled them (they point under /usr/lib). The station restarts below, on the archive.
+  for unit in $SERVICES; do
+    for old in "$RACINE/usr/lib/systemd/system/$unit" "$RACINE/lib/systemd/system/$unit"; do
+      if [ -e "$old" ] || [ -L "$old" ]; then rm -f "$old"; CHANGED=yes; UNITS_CHANGED="$UNITS_CHANGED $unit"; fi
+    done
+    for link in "$UNITS"/*.wants/"$unit"; do
+      [ -L "$link" ] || continue
+      case "$(readlink "$link")" in /usr/lib/* | /lib/*) rm -f "$link" ;; esac
+    done
+  done
+  if [ -d "$RACINE/usr/lib/brigade-station" ]; then rm -rf "$RACINE/usr/lib/brigade-station"; CHANGED=yes; fi
 fi
 if [ -n "$UNITS_CHANGED" ]; then systemctl daemon-reload || refuse "systemd did not reload its units"; fi
 active=

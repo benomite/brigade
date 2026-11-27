@@ -65,6 +65,7 @@ test("the app notes list the Linux AppImage with the executable bit, signed or n
 test("the station notes list its Linux packages, and its macOS runtime, and the executable bit", () => {
   const texte = notes({ produit: "station", version: "0.1.0" });
   assert.match(texte, /\| `brigade-station-linux-amd64\.deb` \| Linux \|/);
+  assert.match(texte, /\| `brigade-station-linux-amd64\.deb` \| Linux \|.*one-way bridge to the archive/);
   assert.match(texte, /\| `brigade-station-0\.1\.0-linux-x64\.tar\.gz` \| Linux \|/);
   assert.match(texte, /\| `brigade-station-0\.1\.0-darwin-arm64\.tar\.gz` \| Mac \|.*without sudo/);
   assert.doesNotMatch(texte, /brigade-station-mac\.tar\.gz/);

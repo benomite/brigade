@@ -5,7 +5,7 @@ server's station, from the command to the running station. It talks about no pro
 project is not an installation, it is a line in a station's configuration, and it is added
 later, from the app.
 
-On a Mac, the same command installs the station under your account, so that it runs even when the
+On a Mac, the same command installs the station under a `brigade` account, so that it runs even when the
 app is closed: see "On a Mac", at the end.
 
 **From the app, you do not need this guide.** On a project's Stations tab, under its `Who cooks
@@ -215,25 +215,31 @@ cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIG
 
 ## On a Mac
 
-The same command, in a Terminal, under your account — **without `sudo`**:
+The same command, in a Terminal, under your account. Its system steps go through `sudo`, and only
+those: it may ask for your password.
 
 ```sh
 curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh
 ```
 
 It needs the Command Line Tools (`git`): if they are missing, macOS offers to install them, then you
-rerun the command. It installs `gh` (by Homebrew, or from its release) and `claude` (by its official
-installer) if they are missing, then:
+rerun the command. It creates a `brigade` account if there is none, installs `gh` (by Homebrew, or
+from its release) and `claude` (by its official installer, under `brigade`) if they are missing, then:
 
 - the station's runtime of the latest version and the `node` it requires, checked against the
-  checksums nodejs.org publishes, under `~/.local/share/brigade-station/`;
-- a launchd agent, `~/Library/LaunchAgents/brigade.station.plist`, which starts the station when you
-  log in and restarts it if it stops — its log is `~/Library/Logs/brigade-station.log`;
-- then the GitHub connection (`gh auth login --web`) and the Claude connection (`claude auth login`,
-  like the app's button), under your account, once each.
+  checksums nodejs.org publishes, under `/opt/brigade-station/current/`;
+- the `pf` anchor `brigade`, loaded now and at every boot: it blocks every outgoing packet of user
+  `brigade` except to loopback, so the station and its cooks go out only through the project's gate
+  (`HTTPS_PROXY`). The gate runs as root, the one account the anchor does not block. A sudoers rule
+  (`/etc/sudoers.d/brigade`) lets the station read its anchor back, nothing else: without the anchor
+  loaded, the station refuses to cook;
+- two launchd daemons in `/Library/LaunchDaemons`: the gate (`com.brigade.gate`, root) and the station
+  (`com.brigade.station`, user `brigade`), which start at boot and restart if they stop — the log of
+  the station is `/var/log/brigade-station.log`;
+- then the GitHub connection (`gh auth login --web`) and the Claude connection (`claude auth login`),
+  under the `brigade` account, once each.
 
-`launchctl print gui/$(id -u)/brigade.station` says `state = running`. The station keeps the same
-directory as the app's (`~/.config/brigade/station`): only one of them runs at a time, and the
-other waits for it to stop. Rerunning the command is how a Mac station moves to the latest version:
-it replaces only what changed, and restarts the station only then.
+`sudo launchctl print system/com.brigade.station` says `state = running`. The station keeps its state
+in `/Library/Application Support/brigade`. Rerunning the command is how a Mac station moves to the
+latest version: it replaces only what changed, and restarts the station only then.
 
