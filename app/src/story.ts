@@ -33,7 +33,7 @@ export const WITHOUT_RETRO = "no retro for this ticket yet";
 // Ce que la fiche d'un ticket vivant dit en plus : ce que son cook fait en ce moment (ticket pris
 // ou en pass), ou ce qui le bloque (ticket en attente). Lu des faits que sa carte porte — mots du
 // runtime, mot pour mot ; ce qui manque est écrit. Jamais la ligne de la file : ce qu'on attend
-// du chef se dit en tête de la fiche, dans les mots de l'app (decision.ts) — et rien ici ne le
+// du chef se dit en tête de la fiche, dans les mots de l'app — et rien ici ne le
 // répète quand la carte ne dit rien d'autre.
 export type Situation = { libelle: string; lignes: string[] } | undefined;
 // `question` : celle qu'une carte du chef lue de GitHub pose (#2434) — la fiche la dit, plutôt que « not communicated ».

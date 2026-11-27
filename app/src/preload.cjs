@@ -115,10 +115,7 @@ const bridge = {
   listerLesHumains: (project) => ipcRenderer.invoke("listerLesHumains", project),
   enregistrerUnHumain: (project, human) => ipcRenderer.invoke("enregistrerUnHumain", project, human),
   retirerUnHumain: (project, login) => ipcRenderer.invoke("retirerUnHumain", project, login),
-  // Les gestes retenus pour l'OK du chef (held/, ticket 4273) : lus, et approuvés un par un.
   lireLesAgents: (project) => ipcRenderer.invoke("lireLesAgents", project),
-  gestesRetenus: (project) => ipcRenderer.invoke("gestesRetenus", project),
-  approuverGeste: (project, id) => ipcRenderer.invoke("approuverGeste", project, id),
   // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus, et chacun suspendu, repris ou retiré (recurring-box.ts).
   listerLesRecurrents: (project) => ipcRenderer.invoke("listerLesRecurrents", project),
   changerUnRecurrent: (project, action, id) => ipcRenderer.invoke("changerUnRecurrent", project, action, id),

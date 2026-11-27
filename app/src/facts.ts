@@ -31,12 +31,12 @@ import type { Failure, Reading } from "./box.ts";
 import { capturesOfCard, type CapturesOfCard, type CapturesRead, type Moment } from "./captures.ts";
 import { learningOf, learningInforms, learningRead, type Learning, type LearningRead } from "./learning.ts";
 import { engineRead, type EngineOfDelivery } from "./vue/delivery-engine/engine.ts";
-import { expectedOf, decisionRead, readDelivery, headOf, type Decision, type Delivery as AwaitedDelivery } from "./decision.ts";
+import { withoutQuestion } from "./handover-second.ts";
 import { header, type Header } from "./card.ts";
 import { agentsOf, cookingOf, type CookingOfProject } from "./cooking.ts";
 import { guardRepeatedRead, lineOfGuard, type GuardRepeatedRead, type LineOfGuard } from "./vue/card-ticket/guard-repeated.ts";
 import { seniority, cadenceRead, trialsRead, points, type Seniority, type TrialRead, type Point, type CadenceRead } from "./cadence.ts";
-import { cardOfTodo, cardOfChefOfTodo, cardRead, type CardOfTodo, type CardRead } from "./card-todo.ts";
+import { cardOfChefOfTodo, type CardOfTodo } from "./card-todo.ts";
 import { LABEL_OF_CHEF, type CardOfChef, type Recommended } from "./board/todo-github.ts";
 import { validationRead } from "./vue/validation-design/validation-design-github.ts";
 import { reviewRead } from "./vue/card-sensitive/card-sensitive-github.ts";
@@ -319,19 +319,13 @@ export { WITHOUT_REASON };
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
-// `decision` : ce que le chef a à trancher, en champs (decision.ts) — absente d'un
-// runtime d'avant ce champ.
-// `livraison` : pour une livraison qui attend, ce que la pass en a consigné (decision.ts) — absente
-// quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
-// `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
-// (card-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
 // `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` met de côté, ce qui le
 // met de côté (board/set-aside-github.ts, #2075) — absente pour toute autre entrée.
 // Une carte qui attend un autre humain du projet que le compte connecté (vue/cards-assigned/, ticket 2985) : TODO la
-// replie sous « Awaiting others » — comme une entrée de `attend` (sa carte, sa décision…), et `qui` elle attend, leurs logins
+// replie sous « Awaiting others » — comme une entrée de `attend` (sa carte…), et `qui` elle attend, leurs logins
 // GitHub : l'assignation ne retient personne, tout humain du projet l'ouvre et y répond (ticket 3071).
 export type ExpectedOfOthers = Expected & { qui: string[] };
-export type Expected = { ticket: number; titre: string; url: string | null; chef?: CardOfChef; decision?: Decision; livraison?: AwaitedDelivery; carte?: CardRead; tache?: TaskHuman; miseDeCote?: SetAside; illisible?: string };
+export type Expected = { ticket: number; titre: string; url: string | null; chef?: CardOfChef; tache?: TaskHuman; miseDeCote?: SetAside; illisible?: string };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
@@ -517,16 +511,15 @@ export type Facts = {
 // du ticket s'ouvre — faux, son adresse n'est pas en https ; absent, il n'en a pas.
 // Et `livraison` : ce qui a été livré. `fiche` : l'en-tête de sa fiche, qu'un clic sur
 // la carte ouvre par-dessus le rail (card.ts) — pour une carte qui t'attend, ce qu'on attend
-// de toi, en une phrase (decision.ts). `decision` : ce que `faits` en donne, d'où se lisent
-// cette phrase et les gestes de la fiche ; absente d'un runtime d'avant ce champ. `gestes` : ceux de WAITING que la carte
+// de toi, en une phrase. `gestes` : ceux de WAITING que la carte
 // porte (wait.ts) — « waiting for… » sur une carte de TODO que le runtime laisse attendre,
 // « resume » et « it arrived » sur une carte de WAITING ; absent, elle n'en porte aucun.
 // `captures` : celles d'un ticket d'interface livré, avant et après (captures.ts) — absentes,
 // le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
 // `question` : sur une carte de TODO, son issue porte une question du manager — avant de découper
 // une épique, ou qui la parque pour le chef (`chef-todo`) —, que la carte dit en deux lignes (question.ts).
-// `todo` : sur une carte de TODO entrée par la porte du runtime, sa question, ses choix et ses captures
-// (card-todo.ts) — ce que le chef tranche sur la carte même, d'un clic ou d'un texte.
+// `todo` : sur une carte du chef lue de GitHub, sa question et ses choix (card-todo.ts) — ce que le chef tranche sur la
+// carte même, d'un clic ou d'un texte.
 // `repondue` : sur une carte de WAITING, sa question est répondue, et elle attend que le manager lise
 // la réponse (answered.ts) — qui y a répondu, et quand.
 // `prio` : sa priorité, telle que sa ligne de `status` l'écrit (`prio:2`), `no prio` quand son issue n'en porte
@@ -547,7 +540,7 @@ export type Facts = {
 // quand GitHub les a donnés (#4051). `TailleDePr` : ce que GitHub en a donné, rien de plus.
 export type SizeOfPr = { additions?: number; deletions?: number; ouvertLe?: string };
 export type DeliveryRead = { numero: number; url: string; lignes?: { ajoutees: number; retirees: number }; age?: string };
-export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraisonLue?: DeliveryRead; livraison?: Delivery; moteur?: EngineOfDelivery; captures?: CapturesOfCard; fiche: Header; gestes?: ActionOfWait[]; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; garde?: LineOfGuard; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Door;
+export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraisonLue?: DeliveryRead; livraison?: Delivery; moteur?: EngineOfDelivery; captures?: CapturesOfCard; fiche: Header; gestes?: ActionOfWait[]; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; garde?: LineOfGuard; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Door;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -866,12 +859,9 @@ function refusalGitHubOnlyRead(value: unknown): { githubSeulRefuse?: { reason: s
 // Une entrée de `attend`, ou de `attendAutres` (qui y ajoute `qui`) : une lue de travers ne tombe que sur elle.
 function expectedRead(readOne: Record<string, unknown>, which: string): Expected {
   return except<Expected>(readOne, which, () => {
-    const decision = readOne.decision === undefined ? undefined : (decisionRead(readOne.decision) ?? refuse(`${which}.decision`, "a decision"));
-    const delivery = readOne.livraison === undefined ? undefined : readDelivery(readOne.livraison);
-    const card = readOne.carte === undefined ? undefined : cardRead(readOne.carte);
     const chef = chefRead(readOne.chef);
     const setAside = setAsideRead(readOne.miseDeCote);
-    return { ticket: whole(readOne.ticket, `${which}.ticket`), titre: text(readOne.titre, `${which}.titre`), url: orNothing(readOne.url, `${which}.url`, text), ...(chef === undefined ? {} : { chef }), ...(setAside === undefined ? {} : { miseDeCote: setAside }), ...(decision === undefined ? {} : { decision }), ...(delivery === undefined ? {} : { livraison: delivery }), ...(card === undefined ? {} : { carte: card }), ...taskRead(readOne.tache) };
+    return { ticket: whole(readOne.ticket, `${which}.ticket`), titre: text(readOne.titre, `${which}.titre`), url: orNothing(readOne.url, `${which}.url`, text), ...(chef === undefined ? {} : { chef }), ...(setAside === undefined ? {} : { miseDeCote: setAside }), ...taskRead(readOne.tache) };
   }, ({ ticket, titre: title }, unreadable) => ({ ticket, titre: title, url: null, illisible: unreadable }));
 }
 
@@ -1236,7 +1226,6 @@ export function remarks(findings: readonly Finding[]): string {
 }
 
 // Ce qu'une carte de Livré dit de ce qui a été livré, d'après ce que la box en a donné.
-const head = (value: ReturnType<typeof headOf>) => (value === undefined ? {} : { tete: value });
 const delivery = (review: Review | null | undefined): Delivery =>
   review === undefined ? { sans: REVIEW_NOT_DATA } : review === null ? { sans: WITHOUT_REVIEW } : { resume: review.resume, remarques: remarks(review.constats), constats: review.constats };
 // La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
@@ -1287,13 +1276,10 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
   for (const entry of awaiting === undefined ? [] : ticketsOf(awaiting.bloc)) saidOnes.set(entry.ticket, [...(saidOnes.get(entry.ticket) ?? []), saysOf(entry)]);
   for (const { ticket } of facts.attend ?? []) if (!saidOnes.has(ticket)) saidOnes.set(ticket, []);
   for (const ticket of inWaiting) saidOnes.delete(ticket);
-  // Une question du manager avant de découper une épique — d'un runtime d'avant `decision`, ce que sa
-  // ligne du bloc en dit —, et une issue que le manager a parquée pour le chef avec sa question (`chef-todo`, que sa ligne
-  // du bloc nomme, runtime/src/attend.ts ; d'abord un label d'attente d'avant parked, #4260) : la carte dit la question.
-  const beforeSplit = (ticket: number) => {
-    const decision = (facts.attend?.find((expected) => expected.ticket === ticket) ?? ofOthers.get(ticket))?.decision;
-    return decision === undefined ? (saidOnes.get(ticket) ?? []).some((said) => EPIC_QUESTION.test(said)) : decision.quoi === "question";
-  };
+  // Une question du manager avant de découper une épique, que sa ligne du bloc dit, et une issue que le manager a parquée
+  // pour le chef avec sa question (`chef-todo`, que sa ligne du bloc nomme ; d'abord un label d'attente d'avant parked,
+  // #4260) : la carte dit la question.
+  const beforeSplit = (ticket: number) => (saidOnes.get(ticket) ?? []).some((said) => EPIC_QUESTION.test(said));
   const queries = (ticket: number) => beforeSplit(ticket) || (saidOnes.get(ticket) ?? []).some((said) => said.includes(`\`${LABEL_OF_CHEF}\``));
   // Répondue, la question avant découpage n'attend plus le chef. Celle qui parque l'issue, si : sa carte reste à répondre.
   const answeredOnes = new Map([...saidOnes.keys()].flatMap((ticket) => {
@@ -1360,7 +1346,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
         : refused
         ? lineRefused(rawOfRefusal)
         : said !== undefined
-        ? lineAwaitingMe(gives?.chef === undefined ? expectedOf(gives?.decision, ticket, gives?.carte?.question).phrase : sentenceOfChef(gives.chef.sorte))
+        ? lineAwaitingMe(gives?.chef === undefined ? withoutQuestion(ticket) : sentenceOfChef(gives.chef.sorte))
         : knownOne?.attente != null
           ? lineSetAside(knownOne.attente.raison)
           : knownOne?.etat === "base rouge"
@@ -1405,7 +1391,6 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       // Une carte qui demande au chef de juger une livraison (validation design, revue sensible) est la passe qui l'attend : elle
       // reste dans Pass, sur la carte de son ticket (#3519).
       ...(said === undefined ? {} : { etape: deliveryAJudge(gives?.chef) !== undefined ? COLUMN_OF_THE_PASS : (factsColumn(knownOne, knownOne?.etat) ?? COLUMN_BY_DEFAULT) }),
-      ...(said === undefined || gives?.decision === undefined ? {} : { decision: gives.decision }),
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(knownOne?.etat === "servi" && facts.livres === undefined ? { livraison: delivery(undefined) } : {}),
       ...(knownOne?.captures === undefined ? {} : { captures: capturesOfCard(knownOne.captures) }),
@@ -1414,8 +1399,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       fiche: {
         ...header({ ...(title === undefined ? {} : { titre: title }), url, ...on(knownOne), ...(itsOwn === undefined ? {} : { lignes: itsOwn }), ...(writtenOne === undefined ? {} : { prio: writtenOne }) }),
         // La carte du chef : la tête dit ce que sa sorte attend, la question est dite dessous (story.ts, `situation`).
-        ...(said === undefined ? {} : { attendu: ofChef !== undefined && gives?.chef !== undefined ? sentenceOfChef(gives.chef.sorte) : (why ?? expectedOf(gives?.decision, ticket, gives?.carte?.question).phrase) }),
-        ...(said === undefined ? {} : head(headOf(gives?.decision, gives?.livraison))),
+        ...(said === undefined ? {} : { attendu: ofChef !== undefined && gives?.chef !== undefined ? sentenceOfChef(gives.chef.sorte) : (why ?? withoutQuestion(ticket)) }),
       },
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers — sur un projet GitHub, toute carte
       // de TODO (vue/wait/, #3075).
@@ -1431,7 +1415,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       // Mis de côté par le runtime, sans question au chef : parked, jusqu'à son retour (#4238).
       ...(said === undefined && knownOne?.attente != null && !refused ? { parque: { qui: knownOne.attente.raison, jusqua: knownOne.attente.retour } } : {}),
       ...(setAside === undefined ? {} : { miseDeCote: { label: setAside.label, liens: setAside.raison === null ? [] : setAside.liens.map(({ numero: number }) => number) } }),
-      ...(ofChef !== undefined ? { todo: ofChef } : said !== undefined && gives?.carte !== undefined ? { todo: cardOfTodo(gives.carte) } : {}),
+      ...(ofChef === undefined ? {} : { todo: ofChef }),
       // Confié à un humain : sa tâche (vue/wait-capacity/).
       ...(said !== undefined && gives?.tache !== undefined ? { tache: gives.tache } : {}),
       ...(prio === undefined ? {} : { prio: prio === "-" ? WITHOUT_PRIO : prio }),
@@ -1784,7 +1768,7 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
       );
     },
     // L'adresse d'une capture d'un ticket d'interface, telle que la box l'a donnée à la dernière
-    // lecture — sa livraison servie d'abord, puis le rail, puis sa carte de TODO. Rien pour une capture
+    // lecture — sa livraison servie d'abord, puis le rail, puis sa carte du chef. Rien pour une capture
     // qu'elle n'a pas.
     capture(project: unknown, ticket: unknown, screen: unknown, moment: unknown): string | undefined {
       const given = typeof project === "string" ? heldOnes.get(project)?.faits : undefined;
@@ -1792,16 +1776,9 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
       const captures =
         given?.livres?.find((candidate) => candidate.ticket === ticket)?.captures ??
         given?.rail.find((candidate) => candidate.ticket === ticket)?.captures ??
-        entryOf(given, ticket)?.carte?.captures ??
         entryOf(given, ticket)?.chef?.design?.captures ??
         undefined;
       return captures?.ecrans.find((candidate) => candidate.ecran === screen)?.[moment as Moment] ?? undefined;
-    },
-    // La carte de TODO d'un ticket, telle que la box l'a donnée à la dernière lecture : la seule à
-    // laquelle le chef répond depuis l'app (card-todo.ts). Rien pour un ticket qui n'en a pas.
-    carte(project: unknown, ticket: unknown): CardRead | undefined {
-      const given = typeof project === "string" ? heldOnes.get(project)?.faits : undefined;
-      return entryOf(given, ticket)?.carte;
     },
     // La carte du chef d'un ticket, lue de GitHub à la dernière lecture (#2434, board/todo-github.ts) : celle à laquelle le
     // chef répond sur GitHub même. Rien pour un ticket qui n'en a pas.
