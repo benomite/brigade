@@ -8,6 +8,7 @@ type Context = Parameters<typeof decide>[2];
 const context = (extra: Partial<Context> = {}): Context => ({
   places: 2,
   passPlaces: 2,
+  baseFailing: [],
   running: { cooks: [], passes: [], manager: false, supervisor: true },
   now: 0,
   lastSupervisor: 0,
@@ -34,6 +35,26 @@ test("a full pass does not block a take (#4460)", () => {
 test("a red delivery goes back to a cook without a review, and counts a try", () => {
   const actions = decide([issue(1, ["fire", "in-pass"])], [pr(1, { checks: "failure", failing: ["runtime tests"] })], context());
   assert.deepEqual(actions, [{ kind: "send-back", issue: 1, reason: "the CI is red: runtime tests", counts: true }]);
+});
+
+test("a delivery red only on checks main has red too is not refused: it waits for main, with no try (#4560)", () => {
+  const red = [issue(1, ["fire", "in-pass"])];
+  const prs = [pr(1, { checks: "failure", failing: ["gates", "tests runtime (13/16)"] })];
+  assert.deepEqual(decide(red, prs, context({ baseFailing: ["gates", "tests runtime (13/16)", "windows tests"] })), [{ kind: "wait-main", issue: 1, checks: ["gates", "tests runtime (13/16)"] }]);
+  // Labelled as waiting, it stays in pass and is neither reviewed nor refused while main stays red.
+  assert.deepEqual(decide([issue(1, ["fire", "in-pass", "waits:main"])], prs, context({ baseFailing: ["gates", "tests runtime (13/16)"] })), []);
+  // While main's run is not over, nothing is decided.
+  assert.deepEqual(decide(red, prs, context({ baseFailing: null })), []);
+});
+
+test("a delivery with a red check that is green on main is refused as before, naming only that check (#4560)", () => {
+  const actions = decide([issue(1, ["fire", "in-pass"])], [pr(1, { checks: "failure", failing: ["gates", "tests app"] })], context({ baseFailing: ["gates"] }));
+  assert.deepEqual(actions, [{ kind: "send-back", issue: 1, reason: "the CI is red: tests app", counts: true }]);
+});
+
+test("a delivery waiting for main has its CI replayed once main is green on those checks (#4560)", () => {
+  const actions = decide([issue(1, ["fire", "in-pass", "waits:main"])], [pr(1, { checks: "failure", failing: ["gates"] })], context({ baseFailing: [] }));
+  assert.deepEqual(actions, [{ kind: "replay", issue: 1 }]);
 });
 
 test("a conflicting delivery goes back without counting a try", () => {

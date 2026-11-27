@@ -17,7 +17,7 @@ function fakeGh() {
   const issues = new Map<number, FakeIssue>();
   const prs: FakePr[] = [];
   let next = 1;
-  const options = { files: ["feature.txt"], failMerges: 0 };
+  const options = { files: ["feature.txt"], failMerges: 0, main: "SUCCESS" as "SUCCESS" | "FAILURE" };
   const gh: Gh = async (args, input) => {
     const flag = (name: string) => args[args.indexOf(name) + 1] ?? "";
     if (args[0] === "api" && args.at(-1)?.includes("/comments")) {
@@ -45,6 +45,7 @@ function fakeGh() {
             pullRequests: {
               nodes: prs.filter((p) => !p.merged).map((p) => ({ number: p.number, headRefName: p.head, mergeable: p.conflicting === true ? "CONFLICTING" : "MERGEABLE", commits: { nodes: [{ commit: { statusCheckRollup: { state: p.checks, contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: p.checks }] } } } }] } })),
             },
+            ref: { target: { statusCheckRollup: { state: options.main, contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: options.main }] } } } },
           },
         },
       });
@@ -317,6 +318,64 @@ test("a red delivery goes back to a cook with the last lines of its failing chec
   assert.doesNotMatch(comment, /Run tests\t/);
   assert.match(comment, /token \[secret:GH_TOKEN\] rejected/);
   assert.doesNotMatch(comment, /ghp_secretvalue1234/);
+  assert.deepEqual(fake.issues.get(issue)?.labels, ["try:1"]);
+});
+
+test("a red delivery whose red check is red on main too waits for main with no try, then its branch takes main's fix and its CI runs again (#4560)", async () => {
+  const { root, clone, seed } = origin();
+  sh(seed, "checkout", "-q", "-b", "cook/1-github");
+  writeFileSync(join(seed, "feature.txt"), "work");
+  sh(seed, "add", "feature.txt");
+  sh(seed, "-c", "user.email=c@k", "-c", "user.name=cook", "commit", "-qm", "#1 — work");
+  sh(seed, "push", "-q", "origin", "cook/1-github");
+  const fake = fakeGh();
+  const issue = fake.add("Add a feature", ["in-pass"]);
+  fake.prs.push({ number: 100, head: "cook/1-github", checks: "FAILURE", merged: false });
+  fake.options.main = "FAILURE";
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: fake.gh,
+    git: gitCli({ ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" }),
+    launch: () => {
+      throw new Error("no agent is launched");
+    },
+    places: () => 0,
+    riskPaths: () => [],
+    supervisorEveryMs: Number.MAX_SAFE_INTEGER,
+    log: (line) => lines.push(line),
+  });
+  await kitchen.turn();
+  await kitchen.turn();
+  assert.deepEqual(fake.issues.get(issue)?.labels, ["in-pass", "waits:main"]);
+  assert.deepEqual(fake.issues.get(issue)?.comments, ["Waits for main: tests is red on main too. No try is used: its CI runs again once main is green."]);
+  // Main is fixed: the branch takes the fix and is pushed, still with no try.
+  sh(seed, "checkout", "-q", "main");
+  writeFileSync(join(seed, "fix.txt"), "fix");
+  sh(seed, "add", "fix.txt");
+  sh(seed, "-c", "user.email=s@s", "-c", "user.name=s", "commit", "-qm", "fix main");
+  sh(seed, "push", "-q", "origin", "main");
+  fake.options.main = "SUCCESS";
+  await kitchen.turn();
+  assert.deepEqual(fake.issues.get(issue)?.labels, ["in-pass"]);
+  sh(clone, "fetch", "-q", "origin");
+  assert.equal(sh(clone, "merge-base", "--is-ancestor", "origin/main", "origin/cook/1-github"), "");
+  assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), ["#1 waits for main — tests", "#1 CI replayed on main"]);
+});
+
+test("a red delivery whose red check is green on main is refused as before, with a try (#4560)", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const fake = fakeGh();
+  const issue = fake.add("Add a feature", ["in-pass"]);
+  fake.prs.push({ number: 100, head: "cook/1-github", checks: "FAILURE", merged: false });
+  // Main is green on `tests` (the fake's default): the delivery broke it.
+  const kitchen = openKitchen({ repo: "o/r", base: "main", clone: root, worktrees: join(root, "wt"), state: join(root, "state"), gh: fake.gh, git: gitCli(process.env), launch: () => { throw new Error("no agent is launched"); }, places: () => 0, riskPaths: () => [], supervisorEveryMs: Number.MAX_SAFE_INTEGER, log: () => {} });
+  await kitchen.turn();
+  assert.match(fake.issues.get(issue)?.comments.at(-1) ?? "", /^Sent back to a cook \(try 1\/3\): the CI is red: tests/);
   assert.deepEqual(fake.issues.get(issue)?.labels, ["try:1"]);
 });
 

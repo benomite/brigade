@@ -29,6 +29,8 @@ export type Running = { cooks: number[]; passes: number[]; manager: boolean; sup
 type Context = {
   places: number;
   passPlaces: number;
+  // The checks red on the base branch's tip; null while its run is not over.
+  baseFailing: readonly string[] | null;
   running: Running;
   now: number;
   lastSupervisor: number;
@@ -40,6 +42,8 @@ export type Action =
   | { kind: "review"; issue: number; pr: number }
   | { kind: "send-back"; issue: number; reason: string; counts: boolean }
   | { kind: "requeue"; issue: number; reason: string }
+  | { kind: "wait-main"; issue: number; checks: string[] }
+  | { kind: "replay"; issue: number }
   | { kind: "manager"; issues: number[] }
   | { kind: "supervisor" };
 
@@ -51,6 +55,8 @@ export const LABELS = {
   parkedChef: "parked:chef",
   // Beside `parked:chef`: the pass approved its pull request, which waits for the chef's merge.
   approved: "approved",
+  // In pass, red only on checks the base branch has red too: it waits for the base, with no try (#4560).
+  waitsMain: "waits:main",
   idea: "idea",
   epic: "epic",
   human: "human",
@@ -90,7 +96,13 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
     const pr = prOf.get(issue.number);
     if (pr === undefined) actions.push({ kind: "requeue", issue: issue.number, reason: "it is in pass with no open pull request" });
     else if (pr.conflicting) actions.push({ kind: "send-back", issue: issue.number, reason: "its branch conflicts with the base branch", counts: false });
-    else if (pr.checks === "failure") actions.push({ kind: "send-back", issue: issue.number, reason: `the CI is red: ${pr.failing.slice(0, 5).join(", ") || "a check failed"}${pr.failing.length > 5 ? ` and ${pr.failing.length - 5} more` : ""}`, counts: true });
+    else if (pr.checks === "failure") {
+      // Only a check the base has green counts; one red on the base too waits for it, then the CI is replayed (#4560).
+      const own = pr.failing.filter((name) => !(context.baseFailing ?? pr.failing).includes(name));
+      if (own.length > 0 && has(issue, LABELS.waitsMain)) actions.push({ kind: "replay", issue: issue.number });
+      else if (own.length > 0) actions.push({ kind: "send-back", issue: issue.number, reason: `the CI is red: ${own.slice(0, 5).join(", ")}${own.length > 5 ? ` and ${own.length - 5} more` : ""}`, counts: true });
+      else if (context.baseFailing !== null && !has(issue, LABELS.waitsMain)) actions.push({ kind: "wait-main", issue: issue.number, checks: pr.failing });
+    }
     else if (pr.checks !== "pending" && passFree > 0) {
       passFree -= 1;
       actions.push({ kind: "review", issue: issue.number, pr: pr.number });

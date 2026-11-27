@@ -25,16 +25,16 @@ export const dependsOn = (body: string): number[] =>
     return at < 0 ? [] : [...line.slice(at).matchAll(/#(\d+)/g)].map((match) => Number(match[1]));
   });
 
-const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
+const ROLLUP = `statusCheckRollup { state contexts(first: 60) { nodes {
+        __typename ... on CheckRun { name conclusion status } ... on StatusContext { context state } } } }`;
+const QUERY = `query($owner: String!, $name: String!, $base: String!, $cursor: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}) {
       pageInfo { hasNextPage endCursor }
       nodes { number title body authorAssociation labels(first: 30) { nodes { name } } blockedBy(first: 20) { nodes { number state } } }
     }
-    pullRequests(states: OPEN, first: 100) {
-      nodes { number headRefName mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 60) { nodes {
-        __typename ... on CheckRun { name conclusion status } ... on StatusContext { context state } } } } } } } }
-    }
+    pullRequests(states: OPEN, first: 100) { nodes { number headRefName mergeable commits(last: 1) { nodes { commit { ${ROLLUP} } } } } }
+    ref(qualifiedName: $base) { target { ... on Commit { ${ROLLUP} } } }
   }
 }`;
 
@@ -54,13 +54,15 @@ export function checksOf(rollup: { state: string; contexts: { nodes: Context[] }
   return failing.length > 0 ? { checks: "failure", failing } : { checks: "success", failing: [] };
 }
 
-export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]; prs: PullRequest[] }> {
+// The state of a turn; `baseFailing` lists the checks red on the base branch's tip, null while its run is not over.
+export async function readState(gh: Gh, repo: string, base: string): Promise<{ issues: Issue[]; prs: PullRequest[]; baseFailing: string[] | null }> {
   const [owner, name] = repo.split("/");
   const issues: Issue[] = [];
   let prs: PullRequest[] = [];
+  let baseFailing: string[] | null = [];
   let cursor: string | null = null;
   do {
-    const args = ["api", "graphql", "-f", `query=${QUERY}`, "-F", `owner=${owner}`, "-F", `name=${name}`];
+    const args = ["api", "graphql", "-f", `query=${QUERY}`, "-F", `owner=${owner}`, "-F", `name=${name}`, "-F", `base=${base}`];
     if (cursor !== null) args.push("-F", `cursor=${cursor}`);
     const data = JSON.parse(await gh(args)).data.repository;
     for (const raw of data.issues.nodes as RawIssue[]) {
@@ -68,6 +70,8 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
       issues.push({ number: raw.number, title: raw.title, labels, trusted: TRUSTED.has(raw.authorAssociation) || labels.includes(ACCEPTED), dependsOn: [...new Set([...dependsOn(raw.body), ...(raw.blockedBy?.nodes ?? []).filter((one) => one.state === "OPEN").map((one) => one.number)])] });
     }
     if (cursor === null) {
+      const main = checksOf(data.ref?.target?.statusCheckRollup ?? null);
+      baseFailing = main.checks === "pending" ? null : main.failing;
       prs = (data.pullRequests.nodes as RawPr[]).flatMap((raw) => {
         const issue = issueOfBranch(raw.headRefName);
         if (issue === undefined) return [];
@@ -76,7 +80,7 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
     }
     cursor = data.issues.pageInfo.hasNextPage ? data.issues.pageInfo.endCursor : null;
   } while (cursor !== null);
-  return { issues, prs };
+  return { issues, prs, baseFailing };
 }
 
 // The ticket as an agent may read it: its title and body, and only the

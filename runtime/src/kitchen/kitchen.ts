@@ -8,6 +8,7 @@ import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullR
 import { branchOf, gestures, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
 import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
+import { waitForMain } from "../wait-for-main.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
 import { forget, listRuns, startRun, type Finished, type Kind, type Launch } from "./runs.ts";
@@ -89,7 +90,7 @@ export function openKitchen(options: KitchenOptions) {
       return log(`#${issue.number} parked for the chef after ${tries} tries — ${reason}`);
     }
     const waiting = issue.labels.includes(LABELS.approved) ? [LABELS.parkedChef, LABELS.approved] : [];
-    await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, ...waiting, ...(counts ? old : [])]);
+    await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, LABELS.waitsMain, ...waiting, ...(counts ? old : [])]);
     await act.comment(issue.number, `Sent back to a cook${counts ? ` (try ${tries}/${TRIES_MAX})` : ""}: ${reason}${details}`);
     log(`#${issue.number} sent back — ${reason}`);
   }
@@ -176,6 +177,7 @@ export function openKitchen(options: KitchenOptions) {
     log(`#${issue} merged (PR #${pr})`);
   }
 
+  const onMain = waitForMain({ act, git, base, log, worktree: (issue) => prepare(issue, true), sendBack });
   async function execute(action: Action, issues: Map<number, Issue>, prs: Map<number, PullRequest>) {
     const issue = action.kind === "manager" || action.kind === "supervisor" ? undefined : issues.get(action.issue);
     switch (action.kind) {
@@ -183,6 +185,8 @@ export function openKitchen(options: KitchenOptions) {
         const pr = prs.get(action.issue);
         return sendBack(issue as Issue, action.reason, action.counts, pr !== undefined && !pr.conflicting && pr.checks === "failure" ? await ciLogs(pr.number) : "");
       }
+      case "wait-main": return onMain.wait(action.issue, action.checks);
+      case "replay": return onMain.replay(issue as Issue);
       case "requeue":
         await act.labels(action.issue, [], [LABELS.taken, LABELS.inPass]);
         return log(`#${action.issue} back on the rail — ${action.reason}`);
@@ -234,7 +238,7 @@ export function openKitchen(options: KitchenOptions) {
       labelled = true;
     }
     const listed = listRuns(runs);
-    let state = await readState(gh, repo);
+    let state = await readState(gh, repo, base);
     if (listed.finished.length > 0) {
       const issues = new Map(state.issues.map((issue) => [issue.number, issue]));
       const prs = new Map(state.prs.map((pr) => [pr.issue, pr]));
@@ -257,12 +261,13 @@ export function openKitchen(options: KitchenOptions) {
         }
         forget(run);
       }
-      state = await readState(gh, repo);
+      state = await readState(gh, repo, base);
     }
     const { running } = listRuns(runs);
     const actions = decide(state.issues, state.prs, {
       places: options.places(),
       passPlaces: options.passPlaces ?? 2,
+      baseFailing: state.baseFailing,
       running: {
         cooks: running.filter((run) => run.kind === "cook").map((run) => run.issue as number),
         passes: running.filter((run) => run.kind === "pass").map((run) => run.issue as number),

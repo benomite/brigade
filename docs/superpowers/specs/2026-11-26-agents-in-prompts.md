@@ -60,6 +60,7 @@ One loop, one turn per minute:
    - **a risk zone:** the ticket is parked for the chef (`parked:chef`). When the chef answers `merge` on it, the scheduler merges the approved PR, with no cook and no new pass; if the branch must first be brought up to date with the base, a cook does it, and after the new pass the answer still holds: the ticket is merged, not parked again. A refusal that counts a try lifts the answer (#4489);
    - **refuse:** a comment, the next `try:n`, `in-pass` removed;
    - **send back on conflict:** treated like a refusal, and it does not count as a try.
+   - **red on main too:** a red check counts only if it is green on the base branch's tip. A PR whose red checks are all red on the base too is not refused and uses no try: it takes `waits:main` and stays in pass. Once the base is green on those checks, the kitchen merges the base into its branch and pushes it, and the CI runs again; a conflict sends it back to a cook without a try (#4560).
 
    The pass serves one dish at a time. A full pass never blocks a take.
 2. **Takes.** While places are free, take the next `fire` ticket. Label it `taken`, create the worktree, and launch the cook through the relay (#4401: it outlives a restart). When the cook ends:
