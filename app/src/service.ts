@@ -2,7 +2,7 @@
 // son panneau, de « Ajouter le projet » à « installation terminée ».
 //
 // Les étapes ne sont pas à l'app : elles sont au runtime du projet, sur sa box
-// (`installation etapes`, runtime/src/etapes.ts) — une liste fixe, connue avant la
+// (`installation etapes`) — une liste fixe, connue avant la
 // première, chacune avec sa phrase « à quoi elle sert », sa phrase « si tu la sautes »
 // et le geste que l'app ne peut pas faire seule. Leur état est au journal du projet :
 // fermer l'app et la rouvrir retrouve les mêmes étapes faites, et la courante. L'app
@@ -43,10 +43,10 @@ import type { Terminal } from "./terminals.ts";
 export const INIT = "/brigade:init";
 // La commande du runtime qui dit si le projet est prêt, et tout ce qui manque d'un coup.
 export const VERIFICATION = "installation";
-// La même, qui rend son verdict structuré (runtime/src/verdict.ts) : c'est elle que « Vérifier »
+// La même, qui rend son verdict structuré : c'est elle que « Vérifier »
 // lance. Le contrôle d'un projet installé lit, lui, la sortie texte.
 export const JUDGMENT = `${VERIFICATION} --json`;
-// Les commandes du runtime que l'écran lance, chacune sous `installation` (runtime/src/installation-cli.ts).
+// Les commandes du runtime que l'écran lance, chacune sous `installation`.
 export const COMMANDS = {
   etapes: "installation etapes --json",
   stations: "installation stations --json",
@@ -59,7 +59,7 @@ const DOC = "docs/installer.md";
 // contrat que le runtime fige dans ses tests ; le test de l'app la tire de ses fonctions.
 
 export type StateOfStep = "todo" | "done" | "waiting";
-// Les mots du runtime (`ETATS_LUS`, runtime/src/etapes-cli.ts).
+// Les mots du runtime (`ETATS_LUS`).
 const STATES: Readonly<Record<string, StateOfStep>> = { "à faire": "todo", faite: "done", "en attente": "waiting" };
 
 export type StepRead = { id: string; titre: string; etat: StateOfStep; sert: string; sauter: string; geste: string | null };
@@ -193,7 +193,7 @@ export function readCurrent(output: string): CurrentRead | undefined {
 
 // Un point que « Vérifier » dit manquer : son texte, la flèche qui dit le geste qui le
 // règle, et l'étape à reprendre qu'il nomme — lus dans la sortie d'`installation`, telle
-// que runtime/src/installation-cli.ts l'écrit. Rien n'y est reformulé. Une box d'avant #933 l'écrit
+// que le runtime l'écrit. Rien n'y est reformulé. Une box d'avant #933 l'écrit
 // en français (`MANQUE`, `étape à reprendre`) : les deux se lisent.
 export type Missing = { texte: string; geste: string | null; etape: string | null };
 
@@ -220,9 +220,9 @@ export function gapsOf(output: string): Missing[] {
   return gaps;
 }
 
-// --- Le verdict de « Vérifier », structuré : ce qu'`installation --json` rend (runtime/src/verdict.ts).
+// --- Le verdict de « Vérifier », structuré : ce qu'`installation --json` rend.
 
-// Les étapes que l'app fait d'un bouton (runtime/src/installation.ts, `ACTIONS_DE_L_APP`).
+// Les étapes que l'app fait d'un bouton (`ACTIONS_DE_L_APP` du runtime).
 export const ACTIONS = ["init", "stations", "protection", "decisions"] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -294,7 +294,7 @@ export function readJudgment(output: string): Judgment | undefined {
 const gapsOfJudgment = (judgment: Judgment): Missing[] => (judgment.verdict === "pas-pret" ? judgment.manques.map(({ constat: finding, geste: gesture, etape: step }) => ({ texte: finding, geste: gesture, etape: step })) : []);
 
 // Le renouvellement de la session Max en échec, tel que la ligne `à savoir` de la vérification le
-// dit (runtime/src/installation.ts, `jugerRenouvellement`) : combien de passages de suite ont
+// dit (`jugerRenouvellement` du runtime) : combien de passages de suite ont
 // échoué — la ligne ne le compte qu'à partir de deux, un seul échec est donc 1 — et pourquoi.
 // Rien quand la ligne dit un passage réussi, un minuteur inactif, ou n'y est pas : ce n'est pas
 // un échec du renouvellement.
@@ -326,7 +326,7 @@ const ON_THE_BOX = ["ajout", "verification"];
 // ce qu'elle a écrit sur sa sortie standard, seul : c'est là que ses manques se lisent.
 export type Verified = { a: string } & ({ etat: "pret" | "incomplete" | "illisible"; obtenu: string; sortie: string } | ({ etat: "sans-verdict" } & Failure));
 
-// Les lignes par lesquelles `installation` dit un projet prêt (runtime/src/installation-cli.ts) :
+// Les lignes par lesquelles `installation` dit un projet prêt :
 // la sienne, et celle d'une box d'avant #933.
 const verdicts = (name: string) => [`brigade : project “${name}” : ready`, `brigade : projet « ${name} » : prêt`];
 
@@ -362,7 +362,7 @@ export function judgmentOf(rendered: RenderedOfBox, delayMs: number, kitchen?: K
   const code = error === null ? 0 : error.killed !== true && (error.code === 1 || error.code === 2) ? error.code : undefined;
   if (error !== null && code === undefined) return { a, etat: "sans-verdict", ...failureOf({ ...rendered, erreur: error }, delayMs) };
   const judgment = readJudgment(rendered.sortie);
-  // Son code est celui du verdict : 0 prêt, 1 sinon (runtime/src/installation-cli.ts, `juger`).
+  // Son code est celui du verdict : 0 prêt, 1 sinon (`juger` du runtime).
   if (judgment === undefined || code !== (judgment.verdict === "pret" ? 0 : 1)) return { a, etat: "illisible", obtenu: `${rendered.lance}\n${rendered.erreurs}${rendered.sortie}\n→ exit code ${code}` };
   return { a, etat: "jugee", jugement: judgment, obtenu: `${rendered.lance}\n${rendered.erreurs}${judgment.brut}\n→ exit code ${code}` };
 }
@@ -383,14 +383,14 @@ export function commandOfStartup(_project: Project): { refus: string } {
 export type Control = { a: string; stations?: StationsRead; manques?: Missing[]; renouvellement?: RenewalInFailure; verification?: Shown };
 
 // Ce que le chef enregistre d'une station déclarée, depuis l'onglet Stations (#1510) : son plafond de cooks, ses capacités
-// — ou son retrait. Chaque geste ne change qu'elle (runtime/src/une-station.ts).
+// — ou son retrait. Chaque geste ne change qu'elle.
 export type StationWanted = { cooks: number; fournit: string[] } | { retiree: true };
 // Ce qu'il en advient, en une ligne : `detail`, ce que la box a rendu d'un refus — pour le survol.
 export type StationChanged = { fait: string } | { refus: string; detail?: string };
 
-// Un nom de capacité, tel que le runtime le lit (runtime/src/capacites.ts, `CAPACITE`) : rien qu'un shell lirait autrement.
+// Un nom de capacité, tel que le runtime le lit (`CAPACITE`) : rien qu'un shell lirait autrement.
 const CAPACITY = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
-// Un nom de station (runtime/src/stations-declarees.ts, `NOM_DE_STATION`).
+// Un nom de station, tel que le runtime le lit (`NOM_DE_STATION`).
 const NAME_OF_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
 
 // --- Ce que la vue pose.

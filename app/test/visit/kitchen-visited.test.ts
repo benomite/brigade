@@ -58,7 +58,8 @@ test("une lecture ratée rend sa raison ; une lecture qui lève aussi — jamais
 
 test("le process principal porte la lecture à la vue, par la lecture du rail et ce qui attend un humain, sans clone", () => {
   const principal = readFileSync(join(import.meta.dirname, "../../src/main.ts"), "utf8");
-  const channel = principal.slice(principal.indexOf('ipcMain.handle("lireLaCuisineVisitee"'), principal.indexOf("// Les labels d'une issue, lus et changés depuis une fiche"));
+  const start = principal.indexOf('ipcMain.handle("lireLaCuisineVisitee"');
+  const channel = principal.slice(start, principal.indexOf("ipcMain.handle(", start + 1));
   assert.match(channel, /readTheKitchenVisited\(repository, async \(aims\) => \{/);
   assert.match(channel, /readTheBoardOfRepository\(\{ depot: aims, appeler: callUnderBudget/);
   assert.match(channel, /withWhatAwaitingTheChef\(readOne, readConditional\(callUnderBudget/);
