@@ -11,7 +11,7 @@ import type { Gh } from "../../src/kitchen/github.ts";
 import type { Kind } from "../../src/kitchen/runs.ts";
 
 type FakeIssue = { number: number; title: string; body: string; labels: string[]; comments: string[]; closed: boolean };
-type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; log?: string };
+type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; conflicting?: boolean; log?: string };
 
 function fakeGh() {
   const issues = new Map<number, FakeIssue>();
@@ -39,7 +39,7 @@ function fakeGh() {
               nodes: [...issues.values()].filter((i) => !i.closed).map((i) => ({ number: i.number, title: i.title, body: i.body, authorAssociation: "OWNER", labels: { nodes: i.labels.map((name) => ({ name })) } })),
             },
             pullRequests: {
-              nodes: prs.filter((p) => !p.merged).map((p) => ({ number: p.number, headRefName: p.head, mergeable: "MERGEABLE", commits: { nodes: [{ commit: { statusCheckRollup: { state: p.checks, contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: p.checks }] } } } }] } })),
+              nodes: prs.filter((p) => !p.merged).map((p) => ({ number: p.number, headRefName: p.head, mergeable: p.conflicting === true ? "CONFLICTING" : "MERGEABLE", commits: { nodes: [{ commit: { statusCheckRollup: { state: p.checks, contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: p.checks }] } } } }] } })),
             },
           },
         },
@@ -66,6 +66,7 @@ function fakeGh() {
       return `https://github.com/o/r/issues/${number}\n`;
     }
     if (args[0] === "pr" && args[1] === "create") {
+      if (prs.some((p) => !p.merged && p.head === flag("--head"))) throw new Error("a pull request already exists");
       prs.push({ number: 100 + prs.length, head: flag("--head"), checks: "SUCCESS", merged: false });
       return "";
     }
@@ -98,6 +99,23 @@ case "$input" in
 esac
 `;
 
+function origin() {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const bare = join(root, "origin.git");
+  execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare]);
+  const seed = join(root, "seed");
+  execFileSync("git", ["clone", "-q", bare, seed], { stdio: "pipe" });
+  writeFileSync(join(seed, "README"), "hi");
+  sh(seed, "add", "README");
+  sh(seed, "-c", "user.email=s@s", "-c", "user.name=s", "commit", "-qm", "seed");
+  sh(seed, "push", "-q", "origin", "HEAD:main");
+  const clone = join(root, "clone");
+  execFileSync("git", ["clone", "-q", bare, clone], { stdio: "pipe" });
+  const agent = join(root, "agent.sh");
+  writeFileSync(agent, AGENT, { mode: 0o755 });
+  return { root, clone, agent };
+}
+
 async function until(condition: () => boolean, turn: () => Promise<void>) {
   for (let i = 0; i < 100 && !condition(); i++) {
     await turn();
@@ -106,20 +124,7 @@ async function until(condition: () => boolean, turn: () => Promise<void>) {
 }
 
 test("a ready ticket is taken, cooked, delivered as a pull request, reviewed and merged", async () => {
-  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
-  const origin = join(root, "origin.git");
-  execFileSync("git", ["init", "-q", "--bare", "-b", "main", origin]);
-  const seed = join(root, "seed");
-  execFileSync("git", ["clone", "-q", origin, seed], { stdio: "pipe" });
-  writeFileSync(join(seed, "README"), "hi");
-  sh(seed, "add", "README");
-  sh(seed, "-c", "user.email=s@s", "-c", "user.name=s", "commit", "-qm", "seed");
-  sh(seed, "push", "-q", "origin", "HEAD:main");
-  const clone = join(root, "clone");
-  execFileSync("git", ["clone", "-q", origin, clone], { stdio: "pipe" });
-  const agent = join(root, "agent.sh");
-  writeFileSync(agent, AGENT, { mode: 0o755 });
-
+  const { root, clone, agent } = origin();
   const fake = fakeGh();
   const issue = fake.add("Add a feature", ["fire"]);
   const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
@@ -168,6 +173,46 @@ test("a ticket the manager gives no usable gesture is parked for the chef, not h
   });
   await until(() => fake.issues.get(issue)?.labels.includes("parked:chef") === true, kitchen.turn);
   assert.deepEqual(lines, ["manager called on #1", "#1 parked for the chef — the manager gave no usable gesture"]);
+});
+
+test("a pull request parked for the chef's merge that starts conflicting goes back to a cook, then waits for the chef again once approved (#4492)", async () => {
+  const { root, clone, agent } = origin();
+  const fake = fakeGh();
+  const issue = fake.add("Touch a risk zone", ["fire"]);
+  const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: fake.gh,
+    git: gitCli(env),
+    launch: (_kind: Kind, cwd, _write, _calibration, input) => ({ command: agent, args: [], input, cwd, env, secrets: {} }),
+    places: () => 2,
+    riskPaths: () => ["feature.txt"],
+    supervisorEveryMs: Number.MAX_SAFE_INTEGER,
+    log: (line) => lines.push(line),
+  });
+  const labels = () => fake.issues.get(issue)?.labels ?? [];
+
+  await until(() => labels().includes("parked:chef"), kitchen.turn);
+  assert.deepEqual(labels().filter((l) => l === "parked:chef" || l === "approved"), ["parked:chef", "approved"], lines.join("\n"));
+  await kitchen.turn();
+  assert.ok(labels().includes("parked:chef"), "a mergeable pull request keeps waiting for the chef");
+
+  (fake.prs[0] as FakePr).conflicting = true;
+  await until(() => !labels().includes("parked:chef"), kitchen.turn);
+  assert.deepEqual(labels().filter((l) => l === "parked:chef" || l === "approved" || /^try:/.test(l)), []);
+  assert.ok(fake.issues.get(issue)?.comments.includes("Sent back to a cook: its branch conflicts with the base branch"));
+
+  (fake.prs[0] as FakePr).conflicting = false;
+  await until(() => labels().includes("parked:chef"), kitchen.turn);
+  assert.deepEqual(labels().filter((l) => l === "parked:chef" || l === "approved"), ["parked:chef", "approved"], lines.join("\n"));
+  assert.equal(fake.prs.length, 1);
+  assert.equal(fake.prs[0]?.merged, false);
+  assert.deepEqual(lines, ["#1 taken", "#1 delivered", "#1 in review (PR #100)", "#1 sent back — its branch conflicts with the base branch", "#1 taken", "#1 delivered", "#1 in review (PR #100)"]);
 });
 
 test("a red delivery goes back to a cook with the last lines of its failing check's log, secrets masked", async () => {
