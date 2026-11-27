@@ -49,6 +49,9 @@ jobs:
     # Seule la branche d'intégration se publie, même lancé à la main.
     if: github.ref_name == 'main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     outputs:
       changed: ${{ steps.decision.outputs.changed }}
       tag: ${{ steps.decision.outputs.tag }}
@@ -74,7 +77,7 @@ jobs:
           set -euo pipefail
           # Un merge d'epic (la PR mergée part de `epic/*`) monte la version mineure ; un ticket seul, le correctif.
           mineure=()
-          gh pr list --state merged --search "$GITHUB_SHA" --json number,title,body,headRefName > "$RUNNER_TEMP/prs.json" || echo '[]' > "$RUNNER_TEMP/prs.json"
+          gh pr list --state merged --search "$GITHUB_SHA" --json number,title,body,headRefName > "$RUNNER_TEMP/prs.json"
           if [ "$(node scripts/app-release/changements.ts epic < "$RUNNER_TEMP/prs.json")" = true ]; then mineure=(--minor); fi
           tags=$(git tag --list 'app-v*' --sort=-version:refname)
           derniere=$(echo "$tags" | head -n 1)
@@ -478,6 +481,9 @@ jobs:
       && needs.mac.result == 'success' && needs.windows.result == 'success'
       && (needs.android.result == 'success' || (needs.android.result == 'skipped' && needs.detecter-secrets.outputs.non_signe != 'true'))
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     env:
       TAG: ${{ needs.decider.outputs.tag }}
       NON_SIGNE: ${{ needs.detecter-secrets.outputs.non_signe }}
@@ -511,7 +517,7 @@ jobs:
           node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" renommer --version "$version" --dossier .
           # Les notes disent d'abord ce qui change : la section « What changes for the user » de la PR
           # d'epic, le titre de la PR d'un ticket seul ; puis le tableau des paquets.
-          gh pr list --state merged --search "$GITHUB_SHA" --json number,title,body,headRefName > "$RUNNER_TEMP/prs.json" || echo '[]' > "$RUNNER_TEMP/prs.json"
+          gh pr list --state merged --search "$GITHUB_SHA" --json number,title,body,headRefName > "$RUNNER_TEMP/prs.json"
           node "$GITHUB_WORKSPACE/scripts/app-release/changements.ts" notes < "$RUNNER_TEMP/prs.json" > "$RUNNER_TEMP/notes.md"
           if [ -s "$RUNNER_TEMP/notes.md" ]; then echo >> "$RUNNER_TEMP/notes.md"; fi
           node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" notes --produit app --version "$version" --commit "$GITHUB_SHA" "${signe[@]}" >> "$RUNNER_TEMP/notes.md"
