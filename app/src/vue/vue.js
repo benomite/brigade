@@ -112,10 +112,8 @@ import { lineOfTheWait } from "./wait-of-rail/line-of-the-wait.js";
 import { lineOfAlertsOfRail } from "./wait-of-rail/line-of-alerts.js";
 import { mountTheBanner } from "./banner-stop/banner-stop.js";
 import { whatTheRailSays, lineOfProjectInPause, pauseOfProjects, holdThePause } from "./pause-quota/line-of-the-pause.js";
-import { afterRendered as afterTheReview, CONFIRMATION_MS as CONFIRMATION_REVIEW_MS, isOneReview, markSensitive, setCardSensitive, REPOS as REVIEW_AT_REST, WITHOUT_BRIDGE as REVIEW_WITHOUT_BRIDGE } from "./card-sensitive/card-sensitive.js";
 import { parkControl } from "./parked/park-control.js";
 import { parkGesture } from "./parked/park-gesture.js";
-import { afterRendered as afterTheCancellation, setCancellation, REPOS as CANCELLATION_AT_REST, WITHOUT_BRIDGE as CANCELLATION_WITHOUT_BRIDGE } from "./undo/undo.js";
 import { afterRendered as afterTheCard, FIELD_OF_CARD, detailsOfCard, setCardOfTodo, REPOS as CARD_AT_REST, seenOfTheCard } from "./card-todo.js";
 import { rowOfSecond } from "./todo-card/ask-at-second.js";
 import { afterTheRead as afterTheReadOfRepository, UNKNOWN as REPOSITORY_UNKNOWN, sentenceOfRefusal, setOpinionOfRepository } from "./page-project/repository-not-prepare.js";
@@ -134,7 +132,6 @@ import { setTheOffer, firstProjectServed, holdTheOffer } from "./offer-phone/off
 import { setChoice, withoutTheChoice } from "./project/choice.js";
 import { setTheSettings } from "./project/settings.js";
 import { mountTheHumans, serviceOfBridge } from "./settings-humans/humans.js";
-import { mountTheRecurring, serviceOfRecurring } from "./recurring/recurring.js";
 import { mountTheCardProject } from "./card-project/mount-card-project.js";
 import { mountTheStations, serviceOfBridge as serviceOfStations } from "./settings-stations/stations.js";
 import { levelOf, LEVELS_SAID } from "./levels.js";
@@ -178,8 +175,7 @@ import { setChoiceOfSecond, answerTyped, holdTheChoice } from "./second/choice.j
 import { NO_STATION } from "./cooks/without-station.js";
 import { brandAfter } from "./card-wait/card-wait.js";
 import { waitExhausted, RAIL_NOT_READ } from "./wait-of-rail.js";
-import { AGENTS, MENU, KNOW_HOW, STATIONS } from "./project/menu/menu.js";
-import { setTheKnowHow, rereadTheKnowHow } from "./know-how-tab/know-how.js";
+import { AGENTS, MENU, STATIONS } from "./project/menu/menu.js";
 import { toggleSwitch as switchOfTheApp } from "./components/switch/switch.js";
 import { DONE_SAYS, stationsAPropose, holdTheAdditionOfStation } from "./project/stations/AddStation.js";
 import { haltStation, actionOfStop, WITHOUT_ACTION } from "./project/stations/StopStation.js";
@@ -199,7 +195,6 @@ import { holdTheReport } from "./report/action.js";
 import { casesOfVersions, caseOfHere, setVersionsOfStations, statusRead } from "./station-version/station-version.js";
 import { lineEmpty } from "./components/line-empty/line-empty.js";
 import { lineReadOnly } from "./read-only/read-only.js";
-import { WORD_OF_THE_COLUMN, setExplanation, setTheRowOfExplanations, serviceOfExplanations, holdTheExplanations } from "./explanations/explanations.js";
 import { THIS_COMPUTER, CANCEL, YES, RETRY, ADD_ONE_PROJECT, NOT_STILL, READ_OF, NOT_REACHED } from "./lexicon.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -299,8 +294,6 @@ const closeShell = element("fermer-shell");
 const listMachines = element("machines");
 const columnSecond = element("second");
 const noteSecond = element("note-second");
-const explanationSecond = element("explication-second");
-const explanationsOfChef = element("explications-du-chef");
 const toolsOfSecond = element("outils-du-second");
 const choiceOfSecond = element("choix-du-second");
 // Le stockage de la vue, ou rien quand son accès est refusé : la lecture de `window.localStorage` lève alors (SecurityError),
@@ -894,7 +887,7 @@ function retainedOnes() {
   tabsHeld = new Map();
   try {
     const readOnes = JSON.parse(window.localStorage?.getItem(KEY_OF_TABS) ?? "{}");
-    for (const [name, id] of Object.entries(readOnes ?? {})) if ([RAIL, STATIONS, AGENTS, KNOW_HOW, CONVERSATION].includes(id)) tabsHeld.set(name, id);
+    for (const [name, id] of Object.entries(readOnes ?? {})) if ([RAIL, STATIONS, AGENTS, CONVERSATION].includes(id)) tabsHeld.set(name, id);
   } catch {
     // Illisible : chaque projet s'ouvre sur Rail, et le prochain choix le réécrit.
   }
@@ -928,41 +921,6 @@ const closed = new Set();
 /** @type {Project | undefined} */
 let current;
 
-// Les explications des mots de la cuisine (ticket 3308, explications/) : la première fois que le chef rencontre rail, pass,
-// cook, second, TODO ou WAITING, une ligne l'explique à côté du mot. Ce qu'il en a vu est gardé par le runtime du projet,
-// pour lui, sur tous ses appareils ; lu à chaque ouverture du projet. Ce qui change à l'écran se repose.
-const explanations = holdTheExplanations({ service: serviceOfExplanations(brigade), rendre: (project) => renderTheExplanations(project) });
-/** @param {string} project */
-function renderTheExplanations(project) {
-  if (current?.nom !== project) return;
-  setRail(current);
-  setTheExplanationOfSecond();
-  setTheExplanationsOfChef(project);
-}
-// Sous l'onglet du second, l'explication du mot « second », quand sa colonne est à l'écran, dépliée.
-function setTheExplanationOfSecond() {
-  const explained = current !== undefined && current.refus === undefined && !columnSecond.hidden && !columnSecond.hasAttribute("data-replie") && phoneSeen === undefined ? explanationOf(current.nom, "second") : [];
-  explanationSecond.hidden = explained.length === 0;
-  explanationSecond.replaceChildren(...explained);
-}
-// L'explication d'un mot à l'écran, si elle s'y montre : marquée vue à ce moment-là.
-/** @param {string} project @param {import("./explanations/explanations-box.ts").WordExplained} word @returns {HTMLElement[]} */
-function explanationOf(project, word) {
-  return explanations.aMontrer(project, word) ? [setExplanation(document, word, () => explanations.ecarter(project, word))] : [];
-}
-// Celle d'un mot du rail, seulement quand le rail est à l'écran : posé sous Settings ou une page, il n'est pas rencontré.
-/** @param {string} project @param {import("./explanations/explanations-box.ts").WordExplained} word @returns {HTMLElement[]} */
-function explanationOfRail(project, word) {
-  const visible = active();
-  return visible === PARAMETERS || TABS.some(({ id }) => id === visible) ? [] : explanationOf(project, word);
-}
-// Sa rangée de Settings, qui les remontre toutes ; cachée tant que le registre n'est pas lu, et sur un pont qui ne le porte pas.
-/** @param {string} project */
-function setTheExplanationsOfChef(project) {
-  const state = explanations.etat(project);
-  explanationsOfChef.hidden = state === undefined || (state.vus === null && state.sans === undefined);
-  explanationsOfChef.replaceChildren(...(explanationsOfChef.hidden ? [] : [setTheRowOfExplanations(document, { etat: state, remontrer: () => void explanations.effacer(project) })]));
-}
 let adds = false;
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let request = 0;
@@ -1054,16 +1012,6 @@ const answersAtCards = new Map();
 const validations = new Map();
 /** @type {Map<string, string>} */
 const commentsOfValidation = new Map();
-// Les cartes « review before merge » (carte-sensible/, ticket 3224) : la même chose — le geste en route et la note tapée ;
-// mergées ou renvoyées d'ici, elles quittent TODO avec les validées (`validees`).
-/** @type {Map<string, import("./card-sensitive/card-sensitive.js").State>} */
-const reviews = new Map();
-/** @type {Map<string, string>} */
-const notesOfReview = new Map();
-// « undo » sur la carte d'un ticket servi (undo/, ticket 3274) : le geste en route d'ici, ou ce qu'il en est advenu — la
-// ligne reste sur la carte tant qu'elle est dans Served.
-/** @type {Map<string, import("./undo/undo.js").State>} */
-const cancellations = new Map();
 /** @type {Map<string, Set<number>>} */
 const validated = new Map();
 /** @param {string} project */
@@ -1618,8 +1566,6 @@ function setSecond(openable, shows) {
   principal.toggleAttribute("data-conversation", conversation);
   // Le téléphone n'a ni terminal ni shell ni second.
   headOfSecond.hidden = phoneSeen !== undefined;
-  // Sous son onglet, l'explication du mot « second » (ticket 3308).
-  setTheExplanationOfSecond();
   const note =
     current !== undefined && current.refus !== undefined
       ? `“${current.nom}” does not open: ${current.refus} — it has no second`
@@ -2034,19 +1980,11 @@ function chooseTab(id) {
   retain(current.nom, id);
   if (id === STATIONS) recordedAReread = true;
   if (id === AGENTS) agentsOfProject.lire(current.nom);
-  // Know-how relit ses entrées à chaque ouverture (ticket 4241).
-  if (id === KNOW_HOW) rereadTheKnowHow(current.nom, restTheKnowHow(current.nom));
   leaves.delete(current.nom);
   notWritten = "";
   if (openOne !== undefined) closeCard();
   show();
 }
-
-// L'onglet Know-how se repose quand ses entrées arrivent ou qu'un geste a répondu, s'il est encore celui du projet montré.
-/** @param {string} name */
-const restTheKnowHow = (name) => () => {
-  if (current?.nom === name && tabOf(current) === KNOW_HOW) setRail(current);
-};
 
 // Settings s'ouvre par-dessus le rail. Recliqué, il se referme.
 /** @param {string} id */
@@ -2985,8 +2923,7 @@ function renderSlip(project, cardItem, stateOfColumn, withStation = false, outsi
     const { phrase: sentence, details } = lineOfRefusal(document, cardItem.ligne ?? "", cardItem.refus.brut);
     head.after(...(details === undefined ? [sentence] : [sentence, details]));
   }
-  // Un ticket au label `sensitive` (ticket 3224) : sa marque, la première de ses étiquettes.
-  const labels = cardItem.sensible === true ? markSensitive(document, setLabels(document, cardItem, withStation)) : setLabels(document, cardItem, withStation);
+  const labels = setLabels(document, cardItem, withStation);
   if (labels !== null) slip.append(labels);
   // Sur le rail, en attente : sa priorité, sous son numéro
   if (cardItem.prio !== undefined) {
@@ -3093,8 +3030,6 @@ function renderSlip(project, cardItem, stateOfColumn, withStation = false, outsi
     opens.title = `open #${ticket}'s merged PR in the browser`;
     slip.append(opens);
   }
-  // Servi, sa PR mergée : « undo » l'annule d'un clic (undo/, ticket 3274) — jamais d'un projet en lecture seule.
-  if (pr === true && readOnlyOf(project) === undefined) slip.append(...setCancellation(document, ticket, cancellations.get(slipKey) ?? CANCELLATION_AT_REST, () => void cancelTheServed(project, ticket)));
   if (pr === false) slip.append(block("small", "merged PR: the address the station returned is not https, the app does not open it"));
   if (cardItem.refus !== undefined && readOnlyOf(project) === undefined) slip.append(setTheActionsOfRefusal(project, ticket));
   // En pass ou livrée : « try it » quand le projet dit comment il s'essaie (trial.ts) — sa phrase, sinon.
@@ -5051,7 +4986,7 @@ function setTheRail(project) {
   rail.hidden = false;
   const tab = tabOf(project);
   rail.dataset.onglet = [STATIONS, AGENTS].includes(tab) ? tab : RAIL;
-  rail.ariaLabel = tab === STATIONS ? "The stations" : tab === AGENTS ? "The agents" : tab === KNOW_HOW ? "The know-how" : "The rail";
+  rail.ariaLabel = tab === STATIONS ? "The stations" : tab === AGENTS ? "The agents" : "The rail";
   // Settings ouvert par-dessus : sa section des plafonds et du closer suit la lecture, comme elle le faisait sur l'onglet
   // (ticket 3014) ; un champ en cours de frappe n'est pas reposé.
   restTheHealth(project, true);
@@ -5068,13 +5003,6 @@ function setTheRail(project) {
     agentsOfProject.montrer(project.nom);
     if (rail.children[0] !== agentsOfProject.element) rail.replaceChildren(agentsOfProject.element);
     return;
-  }
-  // Know-how : les entrées du savoir-faire du projet, chacune réécrite ou retirée sur place (ticket 4241, savoir-faire/).
-  if (tab === KNOW_HOW) {
-    setCooking(project);
-    const resumption = resumptionOfKeyboard();
-    rail.replaceChildren(setTheKnowHow(document, project.nom, restTheKnowHow(project.nom)));
-    return renderTheKeyboard(resumption);
   }
   const outsideLine = outsideLines.get(project.nom);
   const outdated = stale.get(project.nom);
@@ -5184,9 +5112,6 @@ function setTheRail(project) {
       const head = document.createElement("h4");
       head.append(pillOfState(document, stateOfYour(your), name), block("span", account));
       column.append(head);
-      // Pass, et la première colonne où une carte est parked : l'explication de leur mot, sous leur titre (ticket 3308).
-      const wordOfTheColumn = WORD_OF_THE_COLUMN[name] ?? (name === columnParked ? "WAITING" : undefined);
-      if (wordOfTheColumn !== undefined && silent === undefined) column.append(...explanationOfRail(project.nom, wordOfTheColumn));
       // Le backlog : le rail en tête, ce qui est prêt à cuire ; dessous, le reste, s'il y en a.
       if (readyEntries !== undefined) {
         const ofRail = document.createElement("div");
@@ -5321,11 +5246,10 @@ function setTheRail(project) {
   const age = held.publieLe === undefined ? undefined : ageOfRail(held.publieLe, held.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   for (const carrier of age === undefined ? [] : [status[0], grid]) if (carrier !== undefined && !carrier.title) carrier.title = age;
-  // Les explications de Rail, de Cook et de TODO, qui étaient au-dessus des colonnes, sont dessous : une fois vues, elles partent.
   // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
   const { journal: log, digest } = held.tableau;
   const ofMorning = digest !== undefined && cardOfMorning.aMontrer(project.nom, dayOf(new Date())) ? [setTheCardOfDigest(document, digest)] : [];
-  set(...ofMorning, bandOfTop, ...status, ...(log === undefined ? [] : [setTheLog(document, log)]), grid, ...underTheColumns, ...explanationOfRail(project.nom, "rail"), ...explanationOfRail(project.nom, "cook"), ...explanationOfRail(project.nom, "TODO"), ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
+  set(...ofMorning, bandOfTop, ...status, ...(log === undefined ? [] : [setTheLog(document, log)]), grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
   // La cuisine arrêtée (ticket 3924) : en tête du rail, au-dessus de la ligne d'état — aucune autre ligne ne la tait.
   if (held.tableau.arretCuisine) rail.prepend(hostOfTheStop);
   renderTheKeyboard(resumption);
@@ -5392,7 +5316,6 @@ function forgetTheValidated(project, columns) {
     if (scopes.has(ticket)) continue;
     done.delete(ticket);
     validations.delete(`${project.nom}#${ticket}`);
-    reviews.delete(`${project.nom}#${ticket}`);
   }
 }
 
@@ -5535,7 +5458,6 @@ function stateOfTheCard(project, ticket, todo) {
 function setTheCardOfTodo(project, ticket, todo) {
   const key = `${project.nom}#${ticket}`;
   if (isOneValidation(todo)) return setTheValidation(project, ticket, todo, false);
-  if (isOneReview(todo)) return setTheReview(project, ticket, todo, false);
   const state = stateOfTheCard(project, ticket, todo);
   const second = requestsAtSecond.get(key);
   return setCardOfTodo(
@@ -5580,86 +5502,6 @@ function setTheValidation(project, ticket, todo, grand) {
       ...(grand ? {} : { demander: () => void askAtSecond(project, ticket, () => brigade.passerAuSecond(project.nom, ticket, todo.question)) }),
     },
   );
-}
-
-// La carte « review before merge » d'un ticket sensible (carte-sensible/, ticket 3224) : « PR of #<ticket> » l'ouvre d'un
-// clic ; « Merge » et « Send back » jouent la commande `sensitive` du runtime par le process principal. `grand` : à la
-// largeur d'un téléphone, sur la carte ouverte depuis la liste.
-/** @param {Project} project @param {number} ticket @param {import("../card-todo.ts").CardOfTodo} todo @param {boolean} grand */
-function setTheReview(project, ticket, todo, grand) {
-  const key = `${project.nom}#${ticket}`;
-  const second = requestsAtSecond.get(key);
-  return setCardSensitive(
-    document,
-    ticket,
-    todo,
-    reviews.get(key) ?? REVIEW_AT_REST,
-    { note: notesOfReview.get(key) ?? "", cle: key, grand, ...(second === undefined ? {} : { second }), ...(readOnlyOf(project) === undefined ? {} : { lectureSeule: true }) },
-    {
-      merger: () => void answerAtTheReview(project, ticket, { geste: "merger" }),
-      renvoyer: (note) => void answerAtTheReview(project, ticket, { geste: "renvoyer", note }),
-      ecrire: (text) => void notesOfReview.set(key, text),
-      ouvrirPr: () => void brigade.ouvrirPr(project.nom, ticket),
-      ...(grand ? {} : { demander: () => void askAtSecond(project, ticket, () => brigade.passerAuSecond(project.nom, ticket, todo.question)) }),
-    },
-  );
-}
-
-// Une réponse du chef sur une carte « review before merge », une seule à la fois : faite, la carte quitte TODO et les faits
-// sont relus ; refusée, elle garde ses gestes et sa note, et dit pourquoi.
-/** @param {Project} project @param {number} ticket @param {import("./card-sensitive/card-sensitive-github.ts").ActionSensitive} gesture */
-async function answerAtTheReview(project, ticket, gesture) {
-  const key = `${project.nom}#${ticket}`;
-  if (reviews.get(key)?.etape === "envoi" || reviews.get(key)?.etape === "fait") return;
-  releaseTheCardOf(project.nom, ticket);
-  /** @param {import("./card-sensitive/card-sensitive.js").State} state */
-  const set = (state) => {
-    reviews.set(key, state);
-    if (current?.nom === project.nom) setRail(project);
-    setTheCardsOfChef();
-  };
-  set({ etape: "envoi", geste: gesture.geste });
-  /** @type {import("./card-sensitive/card-sensitive-github.ts").RenderedSensitive | undefined} */
-  let rendered;
-  try {
-    rendered = brigade.gesteSensible === undefined ? { refus: REVIEW_WITHOUT_BRIDGE, detail: "" } : await brigade.gesteSensible(project.nom, ticket, gesture);
-  } catch (error) {
-    rendered = { refus: "nothing was done: the app could not play the gesture", detail: error instanceof Error ? error.message : String(error) };
-  }
-  const renderedOne = afterTheReview(rendered);
-  if (renderedOne.etape !== "fait") return set(renderedOne);
-  // Fait : la carte garde un court moment la confirmation de ce qui a été fait (ticket 3386), puis quitte TODO.
-  set({ ...renderedOne, geste: gesture.geste });
-  await new Promise((finished) => setTimeout(finished, CONFIRMATION_REVIEW_MS));
-  notesOfReview.delete(key);
-  validated.set(project.nom, validatedOf(project.nom).add(ticket));
-  if (vueOfCards.vu === "carte" && vueOfCards.carte.projet === project.nom && vueOfCards.carte.ticket === ticket) vueOfCards = { vu: "liste" };
-  set(renderedOne);
-  readTheFacts();
-}
-
-// « undo » sur la carte d'un ticket servi (undo/, ticket 3274), un seul à la fois : fait, la carte garde la ligne de ce qui
-// s'est passé et les faits sont relus — rouvert, le ticket quitte Served ; refusé, le bouton revient et la carte dit pourquoi.
-/** @param {Project} project @param {number} ticket */
-async function cancelTheServed(project, ticket) {
-  const key = `${project.nom}#${ticket}`;
-  if (cancellations.get(key)?.etape === "envoi" || cancellations.get(key)?.etape === "fait") return;
-  /** @param {import("./undo/undo.js").State} state */
-  const set = (state) => {
-    cancellations.set(key, state);
-    if (current?.nom === project.nom) setRail(project);
-  };
-  set({ etape: "envoi" });
-  /** @type {import("./undo/undo-github.ts").RenderedOfCancellation | undefined} */
-  let rendered;
-  try {
-    rendered = brigade.annulerServi === undefined ? { refus: CANCELLATION_WITHOUT_BRIDGE, detail: "" } : await brigade.annulerServi(project.nom, ticket);
-  } catch (error) {
-    rendered = { refus: "nothing was undone: the app could not play the gesture", detail: error instanceof Error ? error.message : String(error) };
-  }
-  const renderedOne = afterTheCancellation(rendered);
-  set(renderedOne);
-  if (renderedOne.etape === "fait") readTheFacts();
 }
 
 // Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont
@@ -5823,7 +5665,7 @@ function theCardsOfChef() {
       const { todo } = cardItem;
       if (!cardItem.attendu || todo === undefined || (todo.question === null && todo.choix.length === 0)) return [];
       // Validée ou renvoyée d'ici (ticket 3185) : elle a quitté la liste.
-      if (isOneValidation(todo) || isOneReview(todo)) return validatedOf(project.nom).has(cardItem.ticket) ? [] : [{ projet: project.nom, ticket: cardItem.ticket, age: cardItem.age?.court ?? "", todo }];
+      if (isOneValidation(todo)) return validatedOf(project.nom).has(cardItem.ticket) ? [] : [{ projet: project.nom, ticket: cardItem.ticket, age: cardItem.age?.court ?? "", todo }];
       const state = stateOfTheCard(project, cardItem.ticket, todo);
       const seenOne = seenOfTheCard(todo, state).vu;
       return state.etape === "postee" || seenOne === "attente" || seenOne === "jouee" ? [] : [{ projet: project.nom, ticket: cardItem.ticket, age: cardItem.age?.court ?? "", todo }];
@@ -5871,13 +5713,6 @@ function setTheCardsOfChef() {
       renderTheField();
       return;
     }
-    // La carte « review before merge » (ticket 3224) : la même que dans TODO, ses boutons en 44 px.
-    if (isOneReview(readEntry.todo)) {
-      const renderTheField = keepTheKeyboard(document.activeElement, cardsOfChef);
-      cardsOfChef.replaceChildren(...setTheCardAside(document, { carte: readEntry, total: cards.length, retour: back }, setTheReview(project, ticket, readEntry.todo, true)));
-      renderTheField();
-      return;
-    }
     const state = stateOfTheCard(project, ticket, readEntry.todo);
     const refusal = state.etape === "refus" ? { dit: state.dit, detail: state.detail } : undefined;
     const renderTheField = keepTheKeyboard(document.activeElement, cardsOfChef);
@@ -5915,12 +5750,11 @@ function setTheCardsOfChef() {
 }
 
 // Chaque geste d'une entrée du TODO (cuisine/, `gestesDuTodo`, ticket 4261), joué comme sur sa carte : la réponse d'un
-// choix, la validation d'un écran, le merge d'une revue, la reprise d'une carte de WAITING ou son « it arrived ».
+// choix, la validation d'un écran, la reprise d'une carte de WAITING ou son « it arrived ».
 /** @type {Record<import("./kitchen/kitchen.js").KindOfAction, (project: Project, ticket: number, answer?: import("../card-todo.ts").Answer) => void>} */
 const ACTIONS_OF_TODO = {
   repondre: (project, ticket, answer) => void answerAtTheCard(project, ticket, /** @type {import("../card-todo.ts").Answer} */ (answer)),
   valider: (project, ticket) => void validateTheCard(project, ticket, { geste: "valider" }),
-  merger: (project, ticket) => void answerAtTheReview(project, ticket, { geste: "merger" }),
   "attente-reprendre": (project, ticket) => void writeWait(project, "attente-reprendre", ticket),
   "attente-arrivee": (project, ticket) => void arrive(project, ticket),
 };
@@ -9014,10 +8848,7 @@ async function open(project) {
   setTheSettingsOfProject(project);
   void readTheSettings(project);
   void mountTheHumans(document, element("humains-du-projet"), { projet: project.nom, service: serviceOfBridge(brigade, project.nom), ouvrir: (url) => void brigade.ouvrirLaProposition(url) });
-  void mountTheRecurring(document, element("recurrents-du-projet"), { projet: project.nom, service: serviceOfRecurring(brigade, project.nom) });
   void mountTheCardProject(document, element("fiche-du-projet"), { projet: project.nom, pont: brigade });
-  setTheExplanationsOfChef(project.nom);
-  void explanations.lire(project.nom);
   void mountTheStations(document, element("stations-contributrices"), { projet: project.nom, service: serviceOfStations(brigade, project.nom) });
   brigade.regarder(project.nom, ++request);
   if (!itselfLit(project) && project.sansStation !== true) void readTheRailPublished(project);

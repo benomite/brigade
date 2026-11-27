@@ -23,7 +23,7 @@
 // jour ne produit rien. Chaque cas se dit sur le journal de service.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chiffresDAutonomie, type ChiffresDAutonomie, type DonneesDuDepot } from "../autonomie/chiffres/chiffres.ts";
+import { chiffresDAutonomie, type ChiffresDAutonomie, type DonneesDuDepot } from "../../../app/src/vue/autonomy/compute.ts";
 import type { Base } from "../base.ts";
 import { epiqueDe } from "../epique.ts";
 import type { GitHub } from "../github.ts";

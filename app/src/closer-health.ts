@@ -4,7 +4,7 @@
 // (caps-duration.ts) : ni box. Ses réglages, gardés dans `projet.json`, et ses vérifications en plus, gardées dans
 // `closer-checks.md`, s'y proposent par une pull request (#2920).
 //
-// - **Ses passes** : le closer passe sur GitHub (#2361, runtime/src/closer-github-passe/) — une passe est une issue
+// - **Ses passes** : le closer passe sur GitHub (#2361) — une passe est une issue
 //   `fire`, au titre `Closing pass on …` et au corps marqué `<!-- brigade:fermeture sha=<base> -->`, qu'un cook cuit
 //   comme un ticket, sur sa branche `cook/<n>-…`. Ce qu'elle a retiré, c'est la PR de cette branche, mergée : ses
 //   lignes retirées et ajoutées, telles que GitHub les compte.
@@ -13,7 +13,7 @@
 // - **Ce qu'il vérifie en plus** : une ligne par vérification, dans `.claude/brigade/closer-checks.md` du dépôt. Le
 //   runtime ne les met pas encore dans l'issue d'une passe : elles attendent
 //   dans le dépôt.
-// - **Ses réglages** : `closer.*` de `.claude/brigade/projet.json` (runtime/src/reglages-projet/reglages.ts) — son
+// - **Ses réglages** : `closer.*` de `.claude/brigade/projet.json` — son
 //   calibrage, sa condition de départ, ses plafonds ; le runtime les relit à chaque rapatriement. Sur GitHub, seuls le
 //   calibrage et le plafond des lignes retirées sont lus (docs/reglages.md) : la page le dit.
 //
@@ -27,7 +27,7 @@ import { refusalOf } from "./board/client.ts";
 // --- Les réglages ------------------------------------------------------------------
 
 // Les réglages du closer, dans l'ordre où la page les montre. `defaut` : ce que le runtime prend quand ni le dépôt ni la
-// station n'en disent rien (runtime/src/closing/settings.ts) ; le calibrage n'en a pas. `surGithub` : le closer sur
+// station n'en disent rien ; le calibrage n'en a pas. `surGithub` : le closer sur
 // GitHub le lit (closer-github-passe.ts ne lit que `calibration` et `removedLines`).
 export const SETTINGS = [
   { cle: "calibration", nom: "Calibration", unite: "", defaut: null, surGithub: true },
@@ -55,7 +55,7 @@ const HEADER = [
 // Combien de passes la page montre, les plus récentes.
 export const PASSES = 5;
 const BRAND = /^\s*<!--\s*brigade:fermeture(?:\s+sha=([0-9a-f]*))?\s*-->\s*$/m;
-// Les auteurs dont le runtime croit une marque (runtime/src/alimenter.ts, `DE_CONFIANCE`).
+// Les auteurs dont le runtime croit une marque (`DE_CONFIANCE`).
 const OF_TRUST = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 export type Candidate = { id: string; quoi: string };

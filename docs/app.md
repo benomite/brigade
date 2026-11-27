@@ -3,7 +3,7 @@
 A window on the Mac: your projects in an icon bar, and in each one a real terminal where the
 second runs. You no longer open a terminal, you no longer move into a folder.
 
-**The project's menu is five entries, Rail · Stations · Agents · Know-how · Settings** (#2485, #2921, #4224, #4241), next to the project name; **Rail is the
+**The project's menu is four entries, Rail · Stations · Agents · Settings** (#2485, #2921, #4224, #4505), next to the project name; **Rail is the
 tab opened by default**. The Kitchen entry and its two sub-tabs (Health and Cooks) are gone: **the kitchen's figures sit in
 the band at the top of the rail** (#3013, below), the only line between the tabs and the columns. **What the folded
 line `Caps, closer and all projects` held** (#2921, `app/src/vue/project/banner-health/`) — the duration caps (#2490), the
@@ -378,31 +378,6 @@ steps, bubble), `app/src/visit.ts` (the read-only read of `benomite/brigade`, it
 `app/src/preload.cjs`) and the wiring in `app/src/vue/vue.js` (`commencerLaVisite`, `lireLaCuisineVisitee`,
 `poserLaVisite`). Tests: `app/test/visit/`. Captures: `docs/captures/4087/`.*
 
-### The kitchen's words, explained the first time you meet them (#3308, epic #3304)
-
-The first time you meet one of the six kitchen words in a project's space, a line explains it next to it: the word, then
-its line of [`glossary.md`](glossary.md) word for word, and `got it`. Where each is met: **Pass** under its column's
-title; WAITING, shown as **Parked**, under the title of the first column where a card is parked (#4238); **Second** under the second's tab. The Rail, Cooks and TODO lines no longer stand above the columns (#3523). The lines are those of the glossary's entry —
-`The ticket rail`, `The ticket is being judged`, `Your product assistant, who helps you write the tickets` — or the first
-sentence of an entry that has several (cook: `A station takes a ticket and runs a cook on it.`; TODO: `What waits for the
-chef's decision.`; parked, #4129: `A ticket that waits for someone: who it waits for, for what, and until when — a date
-or a fact; nothing takes it before, and it resumes exactly where it was.`).
-
-- **Shown once.** An explanation shown is seen: it is written in your record at once, and stays on screen until `got it`
-  or until the app reloads. Reloaded, or opened on another device, the app does not show it again; a word you have not
-  met yet still shows its own. A word of the rail is met only when the rail is on screen — not under Settings.
-- **Kept per chef, by the runtime.** The record is kept where the project's kitchen runs (`explanations.json` in its state
-  directory), under this computer's GitHub account — the runtime's `explanations --chef <login>`, `explanations seen
-  <word> --chef <login>` and `explanations reset --chef <login>` (`runtime/src/explications/`). It is read each time the
-  project opens.
-- **Nothing to read, nothing shown.** A project with no station, no GitHub account signed in, a runtime from before the
-  command, or a record that cannot be read: no explanation is shown and nothing is written — Settings says why. A bridge
-  without `lireLesExplications` (the phone) shows none, and Settings has no row.
-
-*Code: `app/src/vue/explanations/explanations.js` (the lines, the record held per project, the Settings row), its wiring
-in `app/src/vue/vue.js`, `app/src/vue/explanations/explanations-box.ts` (the runtime command, from the main process).
-Tests: `app/test/explanations/`, `runtime/test/explications/`. Captures: `docs/captures/3308/`.*
-
 ### Coming back after some days: "Since you were away" (#3305)
 
 *Ticket: #3305 (builds on #3251 and #3213).* **When the chef opens the app more than 3 days (72 hours) after the previous
@@ -658,21 +633,6 @@ tickets in other steps (in pass, served…) have no field. An app whose bridge d
 
 *Code: `app/src/vue/word-at-cook/` — `word-at-cook.js` (the field), `source.js` (the call), `word-at-cook-box.ts` (the command,
 main process).*
-
-### The Know-how tab: what the project's cooks learned (#4241, epic #4140)
-
-**Know-how**, between Stations and Settings in the project's menu, lists the project's know-how: the lessons its cooks
-receive when they start (the latest ones, up to the project's cap), each with the ticket it came from (`from #4002`). Each
-opening of the tab reads them again, with the runtime command `know-how` where the project's kitchen runs. **edit** opens
-an entry's text in a field, in place; **save** writes it (on one line), **Cancel** leaves it as it was. **remove** asks
-"Remove this entry? No cook will receive it any more.", and **Yes, remove** removes it. Each change is a fact of the
-project's log (`know-how.edited`, `know-how.removed`): the next cooks receive the new text, or no longer the removed entry.
-With no entry, the tab says "No know-how yet. The project has no entry." A reading or a gesture that fails is said on
-one line, the detail on hover; the typed text stays in its field. A bridge that does not carry these gestures (the phone)
-says so on the tab.
-
-*Code: `app/src/vue/know-how-tab/` — `know-how.js` (the tab), `source.js` (the calls), `know-how-box.ts` (the
-command, main process); runtime: `runtime/src/savoir-faire/`.*
 
 ### The line of figures is gone (#2486, #3013, #3523)
 
@@ -1239,7 +1199,7 @@ repository, and the project opens read-only:
   something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
   to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
   that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
-  its humans, its contributing stations, its recurring tickets, the duration caps and the closer — is not laid.
+  its humans, its contributing stations, the duration caps and the closer — is not laid.
 - **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
   <owner/repo>.`, with two links: `how to get write access` (GitHub's page on inviting a collaborator: the owner invites
   you) and `fork it` (the repository's fork page on GitHub). The main process — on the phone, its bridge
@@ -1424,30 +1384,6 @@ Captures: `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
 *Code: `app/src/vue/validation-design/detail-of-validation.js` (the detail and its zoom), opened from `validation-design.js`
 (the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-of-validation.test.ts`.*
 
-**A sensitive ticket, and its card `review before merge` (#3224, epic #3214).** A ticket labelled `sensitive`
-([sensitive-tickets.md](sensitive-tickets.md)) carries the tag `sensitive` on its card of the rail, first of its tags,
-outlined in red, what it means on hover; a ticket without the label carries none. The pass does not merge its green
-delivery (#3223, `docs/runtime/pass.md`): since #3615, the ticket itself, labelled `chef-todo`, its marked comment of kind
-`review-before-merge` carrying the pull request (before, a `chef-todo` issue titled `review before merge`). In Todo, its line says `A sensitive ticket waits for your review before merge.`, then the card shows,
-in this order: the question (`#<ticket> is sensitive: review the delivery of #<ticket> (PR <PR>) before it is merged. …`); `PR of #<ticket>` (#3716), which
-opens the pull request in one click; then its two answers, each with its price on hover:
-
-| answer | what it plays | then |
-|---|---|---|
-| `Merge` (the recommended button) | the runtime's `sensitive` command, `merge <owner>/<repo>#<PR>`: the pull request is merged, the card is closed | the card leaves Todo |
-| `Send back`, under a note field — off while the note is empty | `send-back <owner>/<repo>#<PR> --note <note>`: a cook takes the ticket up again with the note, the card is closed | the card leaves Todo |
-
-As for `Validate its screen`, the app plays the command itself, with this computer's `gh`; done, the card leaves Todo at
-once and the project is read again; refused, the card stays, says why in one line, the runtime's answer on hover, and
-keeps the note and both buttons. The pull request and its ticket are read from the issue's body (`<!-- brigade:sensitive-review
-pr=<PR> ticket=<ticket> sha=<sha> -->`); a body that does not say its pull request is said on the card in one line, with no
-answer. In the list of cards that await the chef it reads `Review before merge`. The Android app does not run the runtime
-and does not answer this card yet: its two buttons say in one line to answer it from the desktop app. Captures:
-`docs/captures/3224/`.
-*Code: `app/src/vue/card-sensitive/` (`card-sensitive.js`, the tag and the card; `card-sensitive-github.ts`, the reading of
-the body and `jouerLaRevue`; `label.ts`, the label read by `app/src/vue/rail/github.ts`), channel `gesteSensible`
-(`app/src/main.ts`). Tests: `app/test/card-sensitive.test.ts`.*
-
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
 signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without
 an assignee, it awaits the chef — `chef` in the repository's `.claude/brigade/projet.json`, or, without it, the
@@ -1566,10 +1502,6 @@ TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-gith
 #41; before, there was no button to open it), `attente-github-fiche-avant.png` / `attente-github-fiche-apres.png` (the
 sheet of #41), `attente-github-telephone-*.png` and `attente-github-waiting-telephone-*.png` (the same cards at phone
 width).
-
-### The `brigade` command on the chef's Mac (#4072)
-
-The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/command-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `status` and `rail`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
 
 ### The second's choices, as buttons under its terminal (#1520)
 
@@ -1945,7 +1877,7 @@ period (up to 10,000), not only the latest 1,000. The issues already read are ke
 block again only reads the pull requests and tickets served since (#3379). **When GitHub stops a reading** (quota, error, more
 than 10,000 pull requests), the figures are computed on the part read, and a line above them says from when each project is
 counted: never figures presented as the whole period over a shorter span. The
-computation is the runtime's, `runtime/src/autonomie/chiffres/chiffres.ts`; the reading is `app/src/vue/autonomy/autonomy-github.ts`,
+computation is `app/src/vue/autonomy/compute.ts` (#4505: pure, with no import, so the `pages` workflow can run it too); the reading is `app/src/vue/autonomy/autonomy-github.ts`,
 the block `app/src/vue/autonomy/figures.js`.
 
 **What the pass let through** (#3515): after the three figures, two counts on the same tickets — those merged in the
@@ -2844,7 +2776,7 @@ the integration branch (`proposerLeFichier` with that path): only that line chan
 the file is read again first, and a row whose text moved since the reading proposes nothing and says so. The row says
 `opening the pull request…`, then `the new text proposed in` (or `the removal proposed in`) and a `pull request #<n>`
 link; the list keeps the text in force until the PR is merged. Both states (entries, empty) are rendered by `app/test/vue/know-how/know-how-vue.test.ts`. Modules:
-`app/src/vue/know-how/` (the block, and its reading and pull request), `runtime/src/know-how/know-how.ts` (the parser and
+`app/src/vue/know-how/` (the block, and its reading and pull request), `app/src/vue/know-how/entries.ts` (the parser and
 writer of the file).
 
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
@@ -3407,21 +3339,7 @@ detail on hover. The block is `app/src/vue/settings-stations/`; it calls three b
 runtime's `contributor-stations` command where the project's kitchen runs, in `app/src/stations-contributors.ts`. A bridge
 without `listerLesStationsContributrices` (the phone) does not show the block.
 
-Under the contributor stations, the **recurring tickets** section (#3231, epic #3216) lists the project's recurring tickets
-(`recurring`, #3230) — one row each: its title, its rhythm in words (`every day`, `every week on Monday`, `every month on
-the 15th`) and `next` with the date of its next occurrence (`next Mon, Oct 19`, the year added when it is not this one); a
-paused one says `paused` and shows no date. Each row has two one-click gestures, with no confirmation: `pause` (or `resume`
-on a paused one) and `remove`. The row changes on what the runtime answers — paused, resumed with its next date, or gone;
-a refusal is one line on that row, the detail on hover, and the row stays as it was. With none, the section says `No
-recurring tickets yet.`; a list that cannot be read says `recurring tickets unavailable` in one line, the detail on hover.
-The section is `app/src/vue/recurring/recurring.js`; it calls two bridge methods — `listerLesRecurrents(project)` and
-`changerUnRecurrent(project, pause | resume | remove, id)`, a gesture answering `{recurrent}`, `{retire}` or `{refus}`. The
-desktop app carries them to the runtime's `recurring` command where the project's kitchen runs — `recurring`, `recurring
-pause <id>`, `recurring resume <id>`, `recurring remove <id>` — in `app/src/vue/recurring/recurring-box.ts`; a project
-with no station, or a runtime from before the command, is said in one line. A bridge without `listerLesRecurrents` (the
-phone) does not show the section.
-
-Under the recurring tickets, the **project sheet** section (#4240, epic #4136) shows the eight items of the open project's
+Under the contributor stations, the **project sheet** section (#4240, epic #4136) shows the eight items of the open project's
 `.brigade/fiche-projet.json` (see "The project sheet" in `docs/superpowers/specs/2026-11-24-simplified-process.md`), one
 row each with the spec's words: `The cook's work`, `Stages`, `Tools`, `House rules`, `Risks`, `Served`, `Recurring`,
 `Humans in the kitchen`. An item written as a text is one line; an item written as a list is one entry per line (`one per
@@ -3434,13 +3352,6 @@ the detail on hover, and shows no field, so nothing overwrites it. The section i
 mounted by `mount-card-project.js`; it calls two bridge methods, `lireUnFichierDuProjet(project, path)` and `ecrireUnFichierDuProjet(project, path, text)`,
 which the desktop app serves from the project's folder on this computer, for that one path only
 (`app/src/vue/card-project/card-project-folder.ts`). A bridge without them (the phone) does not show the section.
-
-Under the project sheet, the row **Explanations of the kitchen's words** (#3308, epic #3304) says how many of the six
-words — rail, pass, cook, second, TODO, WAITING — you have seen explained (`3 of 6 seen`, what it means on hover), with
-one button, `show all the explanations again`: it clears your record, and each word is explained again the next time you
-meet it, on this device and on your other ones (`each explanation shows again the next time you meet its word, on all
-your devices` under the row). A record that cannot be read says why in one line, the button off; a seen explanation the
-runtime did not keep is said under the row. See "The kitchen's words, explained the first time you meet them".
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): Backlog, Manager,
 Cooks, Pass and Served (#4238), all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
@@ -3975,13 +3886,6 @@ section. With the section laid, `right now` is not repeated under it.
   process, like that of the issue. A ticket served without a merge has no PR: the card says so
   (`PR  none — served without merge`). An issue closed **without** having been served — dropped,
   set aside — is not there.
-- **Under "open the merged PR", "undo" undoes the served ticket in one click** (#3274). Only a card whose PR is
-  merged carries it, never in a read-only project; its cost is in its hover. The main process plays the runtime's `undo`
-  command under this workstation's `gh` (`runtime/src/undo/`): a pull request reverts the ticket's merge, on the branch of
-  a new ticket `Undo #N` set `in-pass`, and the pass judges and merges it like any other delivery; the ticket is reopened
-  off the rail, with a comment saying it was undone and by whom. When later work builds on it, the revert does not apply
-  cleanly: no pull request is left open, a ticket is filed for the kitchen to undo it by hand, naming the original, and
-  the card says so in one line instead of the button. A refusal brings the button back, with its reason in one line.
 - **Under its title, the card says what was served: the review summary, word for word.** The
   title says what was asked; the summary, what the reviewer read in what was served — the one
   it wrote on the issue. It is laid down whole, in its words: neither cut nor reworded, and a

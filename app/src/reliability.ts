@@ -5,7 +5,7 @@
 
 // --- La dérive, dans `status` ---------------------------------------------------------
 
-// Ce que la file dit d'une fiabilité qui a dérivé : ses lignes `drift` (runtime/src/etat.ts) — les tokens
+// Ce que la file dit d'une fiabilité qui a dérivé : ses lignes `drift` — les tokens
 // perdus au-delà de leur seuil —, sans le geste qui les
 // suit. Les autres seuils franchis (gates, ticket le plus cher) ne sont pas la fiabilité des cooks.
 export function driftOf(status: string): string[] {

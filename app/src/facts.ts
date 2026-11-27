@@ -39,7 +39,6 @@ import { seniority, cadenceRead, trialsRead, points, type Seniority, type TrialR
 import { cardOfChefOfTodo, type CardOfTodo } from "./card-todo.ts";
 import { LABEL_OF_CHEF, type CardOfChef, type Recommended } from "./board/todo-github.ts";
 import { validationRead } from "./vue/validation-design/validation-design-github.ts";
-import { reviewRead } from "./vue/card-sensitive/card-sensitive-github.ts";
 import { WITHOUT_REASON, SERVED_ELSEWHERE, type SetAside } from "./board/set-aside-github.ts";
 import { requiredRead, taskRead, type TaskHuman } from "./vue/wait-capacity/read.ts";
 import { limitRead, type LimitOfAccount } from "./vue/banner-limit-github.ts";
@@ -267,12 +266,10 @@ function chefRead(raw: unknown): CardOfChef | undefined {
   if (typeof readOne?.sorte !== "string" || typeof readOne.texte !== "string") return undefined;
   // La carte « Validate its screen » (ticket 3185) garde ce que le corps de son issue dit, s'il a sa forme.
   const design = validationRead(readOne.design);
-  // La carte « review before merge » (ticket 3224) aussi.
-  const sensitive = reviewRead(readOne.sensible);
   // La recommandation d'un écart du manager (#3434) : nulle, il n'en recommande aucun — ni quand elle n'a pas sa forme : aucun
   // choix n'est mis en avant à sa place.
   const recommended = recommendedRead(readOne.recommandee);
-  return { sorte: readOne.sorte, texte: readOne.texte, ...(design === undefined ? {} : { design }), ...(sensitive === undefined ? {} : { sensible: sensitive }), ...(recommended === undefined ? {} : { recommandee: recommended }) };
+  return { sorte: readOne.sorte, texte: readOne.texte, ...(design === undefined ? {} : { design }), ...(recommended === undefined ? {} : { recommandee: recommended }) };
 }
 function recommendedRead(raw: unknown): Recommended | null | undefined {
   if (raw === undefined) return undefined;
@@ -286,7 +283,6 @@ const WHO_M_AWAITING_OF_CHEF: Readonly<Record<string, string>> = {
   "product-question": "A product question waits for your answer.",
   abandoned: "The kitchen gave this ticket up.",
   "design-validation": "A design delivery waits for you to validate its screen.",
-  "review-before-merge": "A sensitive ticket waits for your review before merge.",
   // La question du manager avant de découper une épique (board/question-of-epic-github.ts).
   "manager-epic-question": "The manager asked you a question before splitting this epic: it waits for your answer.",
   // Un ticket parqué pour le chef par un label d'attente d'avant parked (#3370, #4129, board/set-aside-github.ts, `carteDeLEcart`).
@@ -449,7 +445,7 @@ export type Facts = {
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
   // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
   // absents sans eux, et d'un runtime d'avant ces champs.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: TrialRead[]; gardeRepetee?: GuardRepeatedRead; activite?: Activity | null; attente?: Wait | null; tiers?: Third | null; revenu?: string | null; raison?: string | null; captures?: CapturesRead; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; sensible?: true; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: TrialRead[]; gardeRepetee?: GuardRepeatedRead; activite?: Activity | null; attente?: Wait | null; tiers?: Third | null; revenu?: string | null; raison?: string | null; captures?: CapturesRead; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Expected[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -528,7 +524,6 @@ export type Facts = {
 // d'un runtime qui ne dit pas l'entrée du ticket dans sa colonne.
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
 // `essai` : le rang de l'essai en cours d'un ticket pris plus d'une fois (#3923) — absent pour un premier essai.
-// `sensible` : son ticket porte le label `sensitive` (ticket 3224) — la carte le marque.
 // `etape` : sur une carte qui attend le chef, la colonne de son étape, où la vue la pose en rouge (#3458) — TODO n'est
 // pas une colonne. `relancePassee` : sur une carte de WAITING, sa relance est passée — sa ligne le signale ; parked jusqu'à
 // une date, elle n'attend pas le chef pour autant : ni rouge, ni dans son TODO (#4261).
@@ -540,7 +535,7 @@ export type Facts = {
 // quand GitHub les a donnés (#4051). `TailleDePr` : ce que GitHub en a donné, rien de plus.
 export type SizeOfPr = { additions?: number; deletions?: number; ouvertLe?: string };
 export type DeliveryRead = { numero: number; url: string; lignes?: { ajoutees: number; retirees: number }; age?: string };
-export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraisonLue?: DeliveryRead; livraison?: Delivery; moteur?: EngineOfDelivery; captures?: CapturesOfCard; fiche: Header; gestes?: ActionOfWait[]; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; garde?: LineOfGuard; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sensible?: true; sansCook?: true } & Door;
+export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraisonLue?: DeliveryRead; livraison?: Delivery; moteur?: EngineOfDelivery; captures?: CapturesOfCard; fiche: Header; gestes?: ActionOfWait[]; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; garde?: LineOfGuard; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sansCook?: true } & Door;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -953,8 +948,6 @@ export function understand(output: string): Facts | { informe: string } {
           ...(readOne.requires == null ? {} : { requires: textsRead(readOne.requires, `${which}.requires`) }),
           // Les tickets qu'il attend (l'ordonnancement du rail, #3502) : « after #N » sur sa carte.
           ...(readOne.attend == null ? {} : { attend: numbersRead(readOne.attend, `${which}.attend`) }),
-          // Un ticket au label `sensitive` (ticket 3224) : sa carte le dit.
-          ...(readOne.sensible === true ? { sensible: true as const } : {}),
           ...(readOne.pr === undefined
             ? {}
             : {
@@ -1163,9 +1156,9 @@ const FACTS_COLUMNS = [
 ] as const;
 const COLUMN_BY_DEFAULT = "On the rail";
 const COLUMN_OF_THE_PASS = "Pass";
-// Le ticket livré qu'une carte du chef lui demande de juger — la validation du design, la revue d'un ticket sensible —, ou rien.
+// Le ticket livré qu'une carte du chef lui demande de juger — la validation du design —, ou rien.
 function deliveryAJudge(chef: CardOfChef | undefined): number | undefined {
-  return chef?.design?.ticket ?? chef?.sensible?.ticket;
+  return chef?.design?.ticket;
 }
 // Les mots d'état d'un ticket en attente sur le rail.
 const IN_FILE: readonly string[] = FACTS_COLUMNS[0].etats;
@@ -1309,8 +1302,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
     const pr: (NonNullable<Facts["rail"][number]["pr"]> & SizeOfPr) | undefined = knownOne?.pr;
     const gives = facts.attend?.find((expected) => expected.ticket === ticket) ?? ofOthers.get(ticket);
     const url = knownOne?.url ?? gives?.url;
-    // Une carte qui demande de juger une livraison est la carte du ticket livré (#3519) : elle en porte le titre, la marque
-    // sensible et la station.
+    // Une carte qui demande de juger une livraison est la carte du ticket livré (#3519) : elle en porte le titre et la station.
     const judged = deliveryAJudge(gives?.chef);
     const delivered = judged === undefined || judged === ticket ? undefined : knownOnes.get(judged);
     const title = [delivered?.titre, knownOne?.titre, gives?.titre].find((candidate) => candidate !== undefined && candidate !== "");
@@ -1382,13 +1374,12 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       ...((knownOne?.station ?? delivered?.station) === undefined ? {} : { station: knownOne?.station ?? delivered?.station }),
       ...(knownOne?.requires === undefined ? {} : { requiert: knownOne.requires }),
       ...(!inFile || knownOne?.attend === undefined || knownOne.attend.length === 0 ? {} : { apres: knownOne.attend }),
-      ...(knownOne?.sensible === true || delivered?.sensible === true ? { sensible: true as const } : {}),
       ouvrable: url != null && openable(url),
       attendu: said !== undefined,
       attend: said ?? [],
       // Qui attend le chef reste dans la colonne de son étape, en rouge (#3458) : celle de son mot d'état — ou, mis de côté,
       // celle où le runtime dit qu'il attend —, et sur le rail quand il n'y est pas encore.
-      // Une carte qui demande au chef de juger une livraison (validation design, revue sensible) est la passe qui l'attend : elle
+      // Une carte qui demande au chef de juger une livraison (validation design) est la passe qui l'attend : elle
       // reste dans Pass, sur la carte de son ticket (#3519).
       ...(said === undefined ? {} : { etape: deliveryAJudge(gives?.chef) !== undefined ? COLUMN_OF_THE_PASS : (factsColumn(knownOne, knownOne?.etat) ?? COLUMN_BY_DEFAULT) }),
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
@@ -1469,7 +1460,6 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       ...lineInWaiting(third, third?.relance != null && relaunch < 0),
       ...colored(TONES_OF_TICKET, knownOne.etat),
       ...(title === "" ? {} : { titre: title }),
-      ...(knownOne.sensible === true ? { sensible: true as const } : {}),
       ouvrable: openable(url),
       attendu: false,
       attend: [],
@@ -1789,9 +1779,9 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(project: unknown, ticket: unknown): string | undefined {
       const given = typeof project === "string" ? heldOnes.get(project)?.faits : undefined;
-      // Ou la PR qu'une carte « Validate its screen » valide (ticket 3185), ou qu'une carte « review before merge » retient (ticket 3224).
+      // Ou la PR qu'une carte « Validate its screen » valide (ticket 3185).
       const chef = entryOf(given, ticket)?.chef;
-      const url = given?.livres?.find((candidate) => candidate.ticket === ticket)?.pr ?? chef?.design?.url ?? chef?.sensible?.url ?? cardOfKanban(given, ticket)?.pr?.url;
+      const url = given?.livres?.find((candidate) => candidate.ticket === ticket)?.pr ?? chef?.design?.url ?? cardOfKanban(given, ticket)?.pr?.url;
       return url != null && openable(url) ? url : undefined;
     },
     // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une

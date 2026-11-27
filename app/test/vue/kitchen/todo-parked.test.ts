@@ -108,20 +108,16 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
     assert.equal(actionsOfTodo(card(50, { todo: todo() }), actions("refus").gestes as never).length, 2);
   });
 
-  test("un écran à valider : « Validate » ; une revue : « Merge » — chacun joue le sien", () => {
+  test("un écran à valider : « Validate », qui joue le sien", () => {
     const { joues: played, gestes: itsOwn } = actions();
     const validation = card(60, { todo: todo({ sorte: "design-validation", choix: [], validation: { pr: 9, ticket: 60 } }) });
-    const review = card(62, { todo: todo({ sorte: "sensitive-review", choix: [], revue: { pr: 8, ticket: 62 } }) });
-    const setOne = setTheTodo(doc, { deplie: { ouvert: true }, cartes: [validation, review], ouvrir: () => {}, gestes: itsOwn as never }) as unknown as Fake;
-    const [first, second] = setOne.dessous("li");
+    const setOne = setTheTodo(doc, { deplie: { ouvert: true }, cartes: [validation], ouvrir: () => {}, gestes: itsOwn as never }) as unknown as Fake;
+    const [first] = setOne.dessous("li");
     assert.deepEqual(buttons(first as Fake).map(({ textContent, className }) => [textContent, className]), [["Validate", "recommande"]]);
-    assert.deepEqual(buttons(second as Fake).map(({ textContent, className }) => [textContent, className]), [["Merge", "recommande"]]);
     buttons(first as Fake)[0]?.click();
-    buttons(second as Fake)[0]?.click();
-    assert.deepEqual(played, [[60, "valider", undefined], [62, "merger", undefined]]);
+    assert.deepEqual(played, [[60, "valider", undefined]]);
     // Une carte qui ne dit pas sa PR n'a pas de bouton, comme sur la carte : elle se tranche sur GitHub.
     assert.deepEqual(actionsOfTodo(card(63, { todo: todo({ sorte: "design-validation", choix: [], validation: { illisible: "no PR named" } }) }), itsOwn as never), []);
-    assert.deepEqual(actionsOfTodo(card(64, { todo: todo({ sorte: "sensitive-review", choix: [], revue: { illisible: "no PR named" } }) }), itsOwn as never), []);
   });
 
   test("une carte de WAITING parked pour le chef : « resume » et « it arrived » ; « waiting for… » n'y répond pas", () => {

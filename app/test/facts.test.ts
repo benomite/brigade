@@ -609,11 +609,10 @@ describe("le rail en six colonnes", () => {
     });
   });
 
-  test("une carte qui demande au chef de juger une livraison — validation du design, revue sensible — est dans Pass, sur la carte du ticket livré : une carte, jamais sur le rail (#3519)", () => {
+  test("une carte qui demande au chef de juger une livraison — validation du design — est dans Pass, sur la carte du ticket livré : une carte, jamais sur le rail (#3519)", () => {
     const design = { sorte: "design-validation", texte: "Validate its screen", design: { pr: 31, ticket: 15, sha: "abcdef1", url: "https://github.com/benomite/brigade/pull/31", captures: { complet: true, ecrans: [] } } };
-    const sensitive = { sorte: "review-before-merge", texte: "Review before merge", sensible: { pr: 31, ticket: 15, sha: "abcdef1", url: "https://github.com/benomite/brigade/pull/31" } };
-    for (const chef of [design, sensitive]) {
-      const draws = rail({ ...WITHOUT_DELIVERED, rail: RAIL, attend: [{ ticket: 93, titre: "Validate #15", url: "https://github.com/benomite/brigade/issues/93", chef }] });
+    {
+      const draws = rail({ ...WITHOUT_DELIVERED, rail: RAIL, attend: [{ ticket: 93, titre: "Validate #15", url: "https://github.com/benomite/brigade/issues/93", chef: design }] });
 
       // La carte rouge de la validation est la seule de ce ticket : celle du ticket livré (15) n'est plus dans Pass.
       assert.deepEqual(ranks(draws)[2], ["Pass", "1", [12]]);
