@@ -12,7 +12,7 @@ import { masquerLaConsole } from "../jeton-claude.ts";
 import { REGLES_DE_BASE, passerParLaPorte, type Regle } from "../reseau.ts";
 import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
-import { launcherOf } from "./launch.ts";
+import { launcherOf } from "../bac-a-sable/kitchen-launch.ts";
 import { gitCli, openKitchen } from "./kitchen.ts";
 import { projectsFile, readProjects, type KitchenProject } from "./projects.ts";
 

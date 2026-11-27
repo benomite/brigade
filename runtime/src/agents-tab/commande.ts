@@ -3,7 +3,7 @@
 // is not served gives its reason on the error output, in 1. Played by agents-cli.ts.
 // Each agent's settings are those `agent-settings` serves (#4222), read the same way.
 import { LectureImpossible, Sortie, type Appel } from "../appel.ts";
-import { kitchenDirOf, serveKitchenAgents } from "../kitchen/agents-tab.ts";
+import { kitchenDirOf, serveKitchenAgents } from "./kitchen.ts";
 import { repondre } from "./api.ts";
 import { reglagesDuProjet, sourcesDuProjet } from "./sources.ts";
 

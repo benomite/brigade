@@ -6,7 +6,7 @@ configuration (`runtime/src/bac-a-sable/configuration.ts`) and hands it to `clau
 ## The new kitchen on a Mac
 
 The new kitchen (`runtime/src/kitchen/`, #4483) launches every agent — cook, closer, reviewer, manager — inside
-the same sandbox when it runs on macOS (`runtime/src/kitchen/launch.ts`). The network list is the project's
+the same sandbox when it runs on macOS (`runtime/src/bac-a-sable/kitchen-launch.ts`). The network list is the project's
 `.claude/brigade/reseau` on its base branch, read before each turn. A cook writes only in its worktree (and the
 project's caches); a read-only launch (reviewer, manager, supervisor) writes nowhere. When the detection fails
 (`runtime/src/bac-a-sable/detection.ts`: no Seatbelt, or a `claude` too old), the kitchen launches no agent for

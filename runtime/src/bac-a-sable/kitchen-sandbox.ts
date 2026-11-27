@@ -1,4 +1,4 @@
-// The enclosure of the new kitchen's agents (`kitchen/launch.ts`): the `bwrap`
+// The enclosure of the new kitchen's agents (`kitchen-launch.ts`): the `bwrap`
 // partition on Linux (`cloison.ts`), unchanged; on macOS, Claude Code's
 // sandbox, where each agent writes only in its worktree (nowhere for a
 // read-only launch) and reaches only the hosts of the project's network

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { kitchenDirOf, serveKitchenAgents } from "../../src/kitchen/agents-tab.ts";
+import { kitchenDirOf, serveKitchenAgents } from "../../src/agents-tab/kitchen.ts";
 
 test("the Agents tab of a project on the new kitchen lists its four agents and each one's last runs", () => {
   const station = mkdtempSync(join(tmpdir(), "station-"));

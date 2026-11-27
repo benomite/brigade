@@ -8,7 +8,7 @@ import { test } from "node:test";
 import type { Sondes } from "../../src/bac-a-sable/detection.ts";
 import type { Git } from "../../src/kitchen/kitchen.ts";
 import { projectHosts } from "../../src/bac-a-sable/kitchen-sandbox.ts";
-import { launcherOf } from "../../src/kitchen/launch.ts";
+import { launcherOf } from "../../src/bac-a-sable/kitchen-launch.ts";
 
 // The simulated Mac's places are a Mac's: on Windows, the host's temporary
 // directory is not a path the sandbox profile takes. Only Linux's bwrap test
