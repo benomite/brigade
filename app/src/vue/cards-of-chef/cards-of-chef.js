@@ -134,7 +134,7 @@ export function setTheCard(doc, { carte: card, total, brouillon: draft, enRoute:
   input.rows = 3;
   input.value = draft;
   input.disabled = inRoute;
-  const send = button(doc, SEND, () => reply({ question: todo.question, texte: input.value }));
+  const send = button(doc, todo.repondre ?? SEND, () => reply({ question: todo.question, texte: input.value }));
   send.className = `${send.className} envoi-du-chef`.trim();
   send.disabled = inRoute || draft.trim() === "";
   input.addEventListener("input", () => {
