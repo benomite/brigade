@@ -50,7 +50,9 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
 1. Le job `decider` prend les fichiers changés depuis le dernier tag `app-v*` (sans tag encore, ceux
    du push) et les passe à [`scripts/app-release/decider.ts`](../../scripts/app-release/README.md),
    avec tous les tags `app-v*`. L'app a changé quand un fichier d'`app/` hors d'`app/test/` a changé ;
-   la version est le correctif du plus haut tag plus un (`1.0.0` pour le premier). Sinon, le run
+   la version est le correctif du plus haut tag plus un (`1.0.0` pour le premier) — ou, quand la PR mergée
+   part d'une branche `epic/*`, la mineure plus un et le correctif à 0 (`app-v1.1.4` donne `app-v1.2.0`, avec
+   `--minor`). Sinon, le run
    finit vert, sans rien construire ni publier, et son résumé dit « nothing to publish ».
 2. Le job `detecter-secrets` regarde la seule présence des six secrets de signature
    ([`docs/app-signing-secrets.md`](../../docs/app-signing-secrets.md)) et choisit le chemin. Aucun
@@ -68,7 +70,8 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
    `Brigade-<v>.apk` ; `scripts/app-release/paquets.ts renommer` leur donne les noms de la release,
    qui disent la plateforme (`-mac-arm64`, `-windows-x64-setup`, `-android`), et réécrit ces noms dans
    `latest-mac.yml` et `latest.yml` (les octets, donc le sha512, ne changent pas). Les notes de la
-   release viennent de `paquets.ts notes` : un tableau, une ligne par paquet, avec sa plateforme et
+   release commencent par ce qui change (`scripts/app-release/changements.ts` : la section `## What changes for the
+   user` de la PR d'epic, le titre de la PR d'un ticket seul), puis viennent de `paquets.ts notes` : un tableau, une ligne par paquet, avec sa plateforme et
    comment l'ouvrir quand il n'est pas signé (Gatekeeper, SmartScreen, bit d'exécution de l'AppImage,
    clés inconnues d'Android).
    Pour voir ces notes sans rien publier : `node scripts/app-release/paquets.ts notes --produit app
@@ -103,7 +106,9 @@ pas un chemin : il arrête le run.
 
 C'est le seul chemin de publication : un tag `app-v*` poussé à la main ne publie rien. Il devient la
 base du merge suivant — pousser `app-v1.1.0` fait publier `app-v1.1.1` au prochain merge qui change
-l'app : c'est ainsi qu'on monte une version mineure ou majeure. Les publications passent une à une
+l'app : c'est ainsi qu'on monte une version majeure. Une version mineure se monte seule : la release
+d'un epic (PR mergée depuis `epic/*`) passe `--minor` au décideur. Le journal des changements est ces
+notes de release, plus `CHANGELOG.md`. Les publications passent une à une
 (`concurrency`) ; un run annulé ou échoué ne perd rien, puisque le suivant compare au dernier tag
 publié. `workflow_dispatch` rejoue la décision à la main, sur `main` seulement.
 

@@ -53,3 +53,12 @@ test("the command reads the files on stdin and the tags from --tag", () => {
   assert.equal(joue("docs/a.md\napp/test/b.ts\n", "--tag", "app-v1.2.3"), "changed=false\n");
   assert.equal(joue("app/src/b.ts\n"), "changed=true\ntag=app-v1.0.0\n");
 });
+
+test("--minor raises the minor and resets the patch; without it the patch is raised", () => {
+  const joue = (...args: string[]) => execFileSync("node", [script, ...args], { input: "app/src/b.ts\n", encoding: "utf8" });
+  assert.equal(joue("--tag", "app-v1.1.4", "--minor"), "changed=true\ntag=app-v1.2.0\n");
+  assert.equal(joue("--minor", "--tag", "app-v1.1.4"), "changed=true\ntag=app-v1.2.0\n");
+  assert.equal(joue("--tag", "app-v1.1.4"), "changed=true\ntag=app-v1.1.5\n");
+  assert.equal(versionSuivante(["app-v1.1.4", "app-v1.0.9"], true), "1.2.0");
+  assert.equal(versionSuivante([], true), VERSION_DE_DEPART);
+});
