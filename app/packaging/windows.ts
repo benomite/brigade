@@ -18,8 +18,6 @@
 //                          garde que ce qui est compilé pour win32-x64
 //   resources/runtime/     `src/` et package.json du runtime
 //   resources/node/bin/brigade-node.exe   le `node` qui joue la station : celui de la machine n'y est pour rien
-//   resources/plugin/commands/    `dev.md` et `ask.md` de `commands/`, ce que l'app installe dans
-//                          les projets qu'elle ouvre (src/plugin-app.ts)
 //   Uninstall Brigade.exe  le désinstalleur
 //
 // Electron vient, sans `--electron`, du dépôt de ses versions sur GitHub, vérifié contre les
@@ -43,7 +41,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { crc32, inflateRawSync } from "node:zlib";
 import { APP_OF_PACKAGE, NODE_OF_PACKAGE, RUNTIME_OF_PACKAGE } from "../src/locations.ts";
-import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, IDENTIFIANT, majeureReclamee, metadonneesDeMiseAJour, NOM, porterLesCommandes, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
+import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, IDENTIFIANT, majeureReclamee, metadonneesDeMiseAJour, NOM, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
 
 const REFUS = 2;
 const ECHEC = 1;
@@ -160,8 +158,6 @@ export type OptionsAssemblage = {
   node: string;
   app?: string;
   runtime?: string;
-  // Le dossier des commandes du plugin de l'app : `commands/` du dépôt.
-  commandes?: string;
 };
 
 // Pose dans `dossier` ce que l'installeur copie dans le dossier de l'app : Electron, l'app, le
@@ -208,8 +204,6 @@ export function assembler(options: OptionsAssemblage, dossier: string): string {
   const dansRuntime = join(ressources, RUNTIME_OF_PACKAGE);
   cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
   writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
-
-  porterLesCommandes(ressources, options.commandes);
 
   const node = join(ressources, NODE_EXE);
   mkdirSync(dirname(node), { recursive: true });

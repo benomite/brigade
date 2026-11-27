@@ -55,7 +55,7 @@ const settingsOf = (args: readonly string[]) => {
   return JSON.parse(args[(ranks[0] ?? 0) + 1] ?? "") as { hooks?: Record<string, unknown[]> };
 };
 // Une invocation de skill ou de commande de `claude` : un argument qui commence par `/`, ou le rôle de la V1.
-const invokes = (args: readonly string[]) => args.filter((arg, rank) => args[rank - 1] !== OPTION_OF_ROLE && (arg.startsWith("/") || arg.includes("brigade:po")));
+const invokes = (args: readonly string[]) => args.filter((arg, rank) => args[rank - 1] !== OPTION_OF_ROLE && (arg.startsWith("/") || arg.includes("brigade:")));
 
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
 
@@ -67,8 +67,9 @@ describe("le rôle du second, livré avec l'app", () => {
     for (const rule of ["brigade <name> status", "you write no application code", "You never merge a pull request", "`.env.local`", "BRIGADE_CLAUDE_TOKEN_FILE", "A refusal is said, in one sentence", "waiting for…", "An urgent blocker", "needs a human", "cannot unblock", "Closes #N"]) {
       assert.ok(text.includes(rule), rule);
     }
-    // Rien qui renvoie au skill du plugin : ni `/brigade:po`, ni `$ARGUMENTS`, ni le workflow que le skill Codex relit.
-    for (const plugin of ["/brigade:po", "$ARGUMENTS", "references/workflow.md", "/brigade:manager"]) assert.ok(!text.includes(plugin), plugin);
+    // Rien qui renvoie au plugin : ni une de ses commandes, ni `$ARGUMENTS`, ni le workflow que le skill Codex relit.
+    assert.doesNotMatch(text, /\/brigade:[a-z]/);
+    for (const plugin of ["$ARGUMENTS", "references/workflow.md"]) assert.ok(!text.includes(plugin), plugin);
   });
 });
 

@@ -7,7 +7,7 @@
 //   retard de son clone, et se met à jour par lui (delay.ts, catch-up.ts).
 // - **Installée** (le .dmg, app/packaging/) : tout est dans le paquet de l'app —
 //   `Contents/Resources/` porte l'app (`app/`), le runtime (`runtime/`), le `node` qui le joue
-//   (`node/bin/brigade-node`) et les commandes du plugin de l'app (`plugin/commands/`). Il n'y a ni clone, ni `node`, ni `npm` à chercher sur la machine : rien
+//   (`node/bin/brigade-node`). Il n'y a ni clone, ni `node`, ni `npm` à chercher sur la machine : rien
 //   ne s'y lit du retard d'un clone, rien ne s'y met à jour par `git`.
 //
 // Ouverte depuis le Finder, une app ne reçoit pas le PATH du chef : seulement celui du système.
@@ -31,9 +31,6 @@ export type Locations = {
   node: string;
   // Le dossier de l'app dans son clone, dont le retard se lit ; aucun pour l'app installée.
   clone: string | undefined;
-  // Le dossier des commandes que l'app installe dans les projets qu'elle ouvre (plugin-app.ts) :
-  // `commands/` du dépôt, ou leur copie dans le paquet.
-  commandes: string;
 };
 
 export type OptionsLocations = {
@@ -50,8 +47,6 @@ export type OptionsLocations = {
 export const APP_OF_PACKAGE = "app";
 export const RUNTIME_OF_PACKAGE = "runtime";
 export const NODE_OF_PACKAGE = join("node", "bin", "brigade-node");
-// Les commandes du plugin de l'app (plugin-app.ts), copiées de `commands/` du dépôt.
-export const COMMANDS_OF_PACKAGE = join("plugin", "commands");
 
 // L'app est installée quand ses sources sont celles du paquet qui la joue : `Resources/app/src`.
 // Depuis le dépôt, Electron est celui de `app/node_modules`, et les sources sont à côté. Ce n'est
@@ -76,7 +71,6 @@ export function locationsOf(options: OptionsLocations): Locations {
       // Une doublure pour les essais, comme depuis le dépôt ; sinon celui du paquet, jamais celui de la machine.
       node: env.BRIGADE_NODE_BIN || join(options.ressources, NODE_OF_PACKAGE),
       clone: undefined,
-      commandes: join(options.ressources, COMMANDS_OF_PACKAGE),
     };
   }
   return {
@@ -85,7 +79,6 @@ export function locationsOf(options: OptionsLocations): Locations {
     // Le `node` de `npm start` : Electron n'en est pas un.
     node: env.BRIGADE_NODE_BIN || env.npm_node_execpath || "node",
     clone: join(options.src, ".."),
-    commandes: join(options.src, "..", "..", "commands"),
   };
 }
 

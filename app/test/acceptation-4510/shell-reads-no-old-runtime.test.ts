@@ -12,7 +12,7 @@ import type { BoardRead } from "../../src/board/read.ts";
 import type { ClientOfThePriority } from "../../src/priority.ts";
 
 const SRC = join(import.meta.dirname, "..", "..", "src");
-const SCOPE = ["home.ts", "manager.ts", "notification.ts", "plugin-app.ts", "setup/init.sh", "read-github-phone.ts", "actions-github.ts", "name.ts", "ordinary.ts", "power-up.ts", "cooking.ts", "caps-duration.ts", "closer-health.ts", "reliability.ts", "terminals.ts", "alerts.ts"];
+const SCOPE = ["home.ts", "manager.ts", "notification.ts", "setup/init.sh", "read-github-phone.ts", "actions-github.ts", "name.ts", "ordinary.ts", "power-up.ts", "cooking.ts", "caps-duration.ts", "closer-health.ts", "reliability.ts", "terminals.ts", "alerts.ts"];
 
 describe("#4510 — the shell's small modules read nothing from the old runtime", () => {
   test("no file of the ticket names a path of runtime/src other than runtime/src/kitchen/", () => {

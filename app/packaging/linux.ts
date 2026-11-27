@@ -19,7 +19,6 @@
 //                          garde que son `pty.node`, compilé pour linux-x64 (`prebuilds/linux-x64/`)
 //   resources/runtime/     `src/` et package.json du runtime
 //   resources/node/bin/brigade-node   le `node` qui joue la station : celui de la machine n'y est pour rien
-//   resources/plugin/commands/   `dev.md` et `ask.md` de `commands/` (src/plugin-app.ts)
 //
 // Une AppImage est le runtime d'AppImage (un exécutable ELF qui monte ce qui le suit), suivi de
 // l'AppDir en squashfs. Monté par FUSE, ce dossier appartient à root : le bac à sable SUID de
@@ -48,7 +47,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { APP_OF_PACKAGE, NODE_OF_PACKAGE, RUNTIME_OF_PACKAGE } from "../src/locations.ts";
-import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, majeureReclamee, NOM, porterLesCommandes, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
+import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, majeureReclamee, NOM, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
 import { extraireZip } from "./windows.ts";
 
 const REFUS = 2;
@@ -146,8 +145,6 @@ export type OptionsAssemblage = {
   pty?: string;
   app?: string;
   runtime?: string;
-  // Le dossier des commandes du plugin de l'app : `commands/` du dépôt.
-  commandes?: string;
   executer: Executer;
 };
 
@@ -218,8 +215,6 @@ export function assembler(options: OptionsAssemblage, dossier: string): string {
   const dansRuntime = join(ressources, RUNTIME_OF_PACKAGE);
   cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
   writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
-
-  porterLesCommandes(ressources, options.commandes);
 
   const node = join(ressources, NODE_OF_PACKAGE);
   mkdirSync(dirname(node), { recursive: true });

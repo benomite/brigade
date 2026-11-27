@@ -1,5 +1,5 @@
 // The project know-how file (tickets 4234, 4239, epic 4135): one file per project, `.brigade/know-how.md`, that every cook
-// reads first and adds to (agents/cook.md). Markdown with three sections, `## Conventions`, `## Pitfalls`, `## Tools`;
+// reads first and adds to (agents/kitchen/cook.md). Markdown with three sections, `## Conventions`, `## Pitfalls`, `## Tools`;
 // each entry is one line, `- text (#ticket)`. This module reads its entries and rewrites one of them — the text of an
 // entry, or the entry removed —, leaving every other line of the file byte for byte. It writes nothing anywhere: the
 // caller delivers the new text (the app proposes it by a pull request, know-how-github.ts).

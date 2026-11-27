@@ -196,9 +196,8 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   assert.equal(locations.node, join(resources, "node", "bin", "brigade-node"));
   assert.ok(existsSync(locations.node));
   assert.deepEqual(roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {} }), { role: "station", principal: join(resources, "runtime", "src", "kitchen", "main.ts") });
-  // Les commandes du plugin de l'app (src/plugin-app.ts) : `dev.md` et `ask.md` de `commands/`, et rien d'autre.
-  assert.deepEqual(readdirSync(locations.commandes).sort(), ["ask.md", "dev.md"]);
-  for (const name of ["dev.md", "ask.md"]) assert.equal(readFileSync(join(locations.commandes, name), "utf8"), readFileSync(join(APP, "..", "commands", name), "utf8"));
+  // Le paquet ne porte plus de plugin à installer dans les projets.
+  assert.equal(existsSync(join(resources, "plugin")), false);
   // La préparation d'un dépôt (src/setup/, #4632) : ses instructions, son script et son catalogue, tels quels ; rendues
   // depuis le paquet, ses instructions nomment le `node` et la commande du runtime du paquet.
   const packaged = join(resources, "app", "src", "setup");

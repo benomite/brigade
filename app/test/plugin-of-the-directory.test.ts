@@ -1,13 +1,9 @@
 // The brigade plugin published from main (#4525): `.claude-plugin/` of the repository, the one a user installs with
-// `/plugin marketplace add benomite/brigade`. It carries `/brigade:start`, `/brigade:ask`, `/brigade:ticket` (#4526) and `/brigade:todo` (#4527), nothing of V1, no agent;
-// and it lives beside the app's own plugin (plugin-app.ts) in a project that has both: two marketplaces, two plugin
-// ids, one command name space `brigade`, where the only command they share is the same file of `commands/`.
+// `/plugin marketplace add benomite/brigade`. It carries `/brigade:start`, `/brigade:ask`, `/brigade:ticket` (#4526) and `/brigade:todo` (#4527), nothing of V1, no agent.
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { COMMANDS, ID, MARKETPLACE, SPACE, setTheMarketplace } from "../src/plugin-app.ts";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -32,22 +28,6 @@ test("the marketplace publishes this plugin from the repository's own branch, in
   assert.match(catalog.description, /main/);
   assert.match(catalog.description, /\/plugin marketplace add benomite\/brigade@v1-final/);
   for (const text of [catalog.description, ...catalog.plugins.map(({ description }: { description: string }) => description)]) assert.doesNotMatch(text, FRENCH);
-});
-
-test("beside the app's plugin, nothing collides: other marketplace, other id, and the one shared command is the same file", (t) => {
-  assert.notEqual(MARKETPLACE, catalog.name);
-  assert.notEqual(ID, `${plugin.name}@${catalog.name}`);
-  assert.equal(SPACE, plugin.name);
-  const folder = mkdtempSync(join(tmpdir(), "plugin-app-"));
-  t.after(() => rmSync(folder, { recursive: true, force: true }));
-  setTheMarketplace(folder, join(ROOT, "commands"), "1.0.0");
-  const ofTheApp = readdirSync(join(folder, "commands"));
-  const shared = plugin.commands.map((path: string) => path.replace("./commands/", "")).filter((name: string) => ofTheApp.includes(name));
-  assert.deepEqual(shared, ["ask.md"]);
-  for (const name of shared) {
-    assert.ok((COMMANDS as readonly string[]).includes(name), name);
-    assert.equal(readFileSync(join(folder, "commands", name), "utf8"), read(`commands/${name}`));
-  }
 });
 
 test("/brigade:start reads only, checks gh and the repository, and names the newest app-v* build for each system", () => {

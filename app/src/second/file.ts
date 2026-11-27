@@ -28,9 +28,8 @@ export const DELAY_MS = 30_000;
 export type Reading = { lue: true; depot: string; lu: string; texte: string } | { lue: false; raison: string; horsLigne?: true; sansDepot?: true };
 
 // Ce que le crochet dit au second — la file, ou pourquoi elle n'est pas lue, dans les mots de role.md.
-// `moment` : quand l'app l'a lue — au début de la session par défaut, ou après le merge de l'init (role-after-init.ts).
-export function contextOfTheFile(target: Target, reading: Reading, moment = "at the start of this session (or after a compaction)"): string {
-  const header = `The project's queue, read by the app ${moment} from GitHub only — the issues of the project, their labels and their comments, not the Kitchen board: what awaits the chef, the same items as the app's Todo, each with its question and its gesture, in the \`awaiting\` block of \`brigade ${target.nom} status\`. This is your reading: do not run it again.`;
+export function contextOfTheFile(target: Target, reading: Reading): string {
+  const header = `The project's queue, read by the app at the start of this session (or after a compaction) from GitHub only — the issues of the project, their labels and their comments, not the Kitchen board: what awaits the chef, the same items as the app's Todo, each with its question and its gesture, in the \`awaiting\` block of \`brigade ${target.nom} status\`. This is your reading: do not run it again.`;
   const not = (sentence: string, suite = "") => `${header}\n\n${sentence}${suite === "" ? "" : `\n${suite}`}`;
   if (!reading.lue && reading.sansDepot === true) return not("file non lue : aucun dépôt GitHub pour ce projet — ni `depot` dans ~/.config/brigade/app.json, ni `origin` GitHub dans son dossier");
   if (!reading.lue && reading.horsLigne === true) return not("file non lue : GitHub pas joint", reading.raison);
