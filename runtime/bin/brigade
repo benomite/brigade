@@ -1,0 +1,4 @@
+#!/bin/sh
+# The `brigade` command of a station: /usr/local/bin/brigade links here. It runs the archive's own node, as whoever calls it.
+here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
+exec "$here/../node/bin/node" "$here/../runtime/src/brigade-command/main.ts" "$@"
