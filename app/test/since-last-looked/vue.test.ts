@@ -7,13 +7,10 @@ import { test } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { holdLastLooks, sinceYouLastLooked } from "../../src/since-last-looked.ts";
@@ -24,7 +21,7 @@ const PARADE = "parade";
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
 });
 

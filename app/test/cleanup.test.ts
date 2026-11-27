@@ -5,13 +5,10 @@
 // rejoué événement par événement, sur la case puis sur la barre, comme ils remontent.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { type Fake, FakeTransfer, playTheVue, type Played, repos } from "./helpers/false-vue.ts";
@@ -28,7 +25,7 @@ const play = (projects: Project[], tidy: (name: string, rank: number) => string 
       exemple: EXAMPLE,
       onglets: TABS,
       rubriques: HEADINGS,
-      gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+      gestes: {},
       banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
       code: undefined,

@@ -10,13 +10,10 @@ import type { EchecDuWorktree as OfRuntime } from "../../../runtime/src/echec-du
 import type { AccesBloque as AccessOfRuntime } from "../../../runtime/src/projets/acces.ts";
 import { refus as refusalOfRuntime } from "../../../runtime/src/projets/refus.ts";
 import type { Home } from "../../src/home.ts";
-import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import type { Outage } from "../../src/outages/outages.ts";
 import { readTracking } from "../../src/projects/request.ts";
@@ -63,7 +60,7 @@ const startup = (projectsOfStations: SeenOfProjects) => ({
   exemple: EXAMPLE,
   onglets: TABS,
   rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,

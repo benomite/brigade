@@ -63,13 +63,13 @@ describe("le menu", () => {
   const actions = (state: StateOfTheStation) =>
     menuOfBackground([{ nom: "brigade", faits: someFacts(0, 0) }], state).flatMap((entry) => (entry.genre === "geste" ? [`${entry.geste}:${entry.actif}`] : []));
 
-  test("ouvrir l'app, pause, arrêt, quitter — « Resume » en pause, « Start » à l'arrêt", () => {
-    assert.deepEqual(actions(IN_SERVICE), ["ouvrir:true", "pause:true", "arret:true", "quitter:true"]);
-    assert.deepEqual(actions({ pause: true, arret: false }), ["ouvrir:true", "reprise:true", "arret:true", "quitter:true"]);
-    assert.deepEqual(actions({ pause: false, arret: true }), ["ouvrir:true", "pause:true", "demarrage:true", "quitter:true"]);
-    assert.deepEqual(actions("illisible"), ["ouvrir:true", "pause:false", "arret:false", "quitter:true"]);
+  test("ouvrir l'app, arrêt, quitter — « Start » à l'arrêt ; ni pause ni reprise : l'app n'allume ni n'éteint un projet", () => {
+    assert.deepEqual(actions(IN_SERVICE), ["ouvrir:true", "arret:true", "quitter:true"]);
+    assert.deepEqual(actions({ pause: true, arret: false }), ["ouvrir:true", "arret:true", "quitter:true"]);
+    assert.deepEqual(actions({ pause: false, arret: true }), ["ouvrir:true", "demarrage:true", "quitter:true"]);
+    assert.deepEqual(actions("illisible"), ["ouvrir:true", "arret:false", "quitter:true"]);
     const wordings = menuOfBackground([], { pause: true, arret: true }).flatMap((entry) => (entry.genre === "geste" ? [entry.libelle] : []));
-    assert.deepEqual(wordings, ["Open brigade", "Resume the station", "Start the station", "Quit the station…"]);
+    assert.deepEqual(wordings, ["Open brigade", "Start the station", "Quit the station…"]);
   });
 });
 
@@ -78,11 +78,6 @@ describe("ce que les gestes lancent", () => {
     { nom: "brigade", faits: someFacts(0, 0, { stations: [station("mac/claude", "cooking"), station("box/claude", "cooking", true)] }) },
     { nom: "parade", faits: undefined },
   ];
-
-  test("pause et reprise : l'interrupteur de chaque projet", () => {
-    assert.deepEqual(commandsOfAction("pause", projects), [{ projet: "brigade", commande: "switch off" }, { projet: "parade", commande: "switch off" }]);
-    assert.deepEqual(commandsOfAction("reprise", projects), [{ projet: "brigade", commande: "switch on" }, { projet: "parade", commande: "switch on" }]);
-  });
 
   test("arrêt et démarrage : chaque station de cet ordinateur, jamais une station distante", () => {
     assert.deepEqual(commandsOfAction("arret", projects), [{ projet: "brigade", commande: "station stop mac/claude" }]);

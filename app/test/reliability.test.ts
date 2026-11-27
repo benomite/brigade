@@ -7,13 +7,10 @@ import { direJaugeEn } from "../../runtime/src/mesures.ts";
 import { lineOfProject, type ReadFacts } from "../src/home.ts";
 import type { Facts } from "../src/facts.ts";
 import { driftOf } from "../src/reliability.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { playTheVue, repos } from "./helpers/false-vue.ts";
@@ -59,7 +56,7 @@ describe("la fiabilité des cooks n'est plus une page de Settings ni de la vue (
         exemple: EXAMPLE,
         onglets: TABS,
         rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,

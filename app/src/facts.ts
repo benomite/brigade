@@ -1371,11 +1371,10 @@ export function stepsOfTickets(facts: Facts): StepOfTicket[] {
 }
 
 // La bannière d'arrêt : posée sur le « stop » du chef, avec ce qu'il implique
-// (docs/runtime/garde-fous.md, « Les garde-fous ») et le geste du socle qui la relance (actions.ts).
+// (docs/runtime/garde-fous.md, « Les garde-fous »). L'app ne la relance pas.
 export const BANNER = {
   etat: "arrêtée",
-  bouton: "reprendre",
-  texte: ["KITCHEN STOPPED — your “stop” holds", "All running cooks have been stopped, and none is launched any more — runtime restarts included, until “resume”."],
+  texte: ["KITCHEN STOPPED — your “stop” holds", "All running cooks have been stopped, and none is launched any more — runtime restarts included."],
 } as const;
 
 // Les derniers faits de chaque projet, tenus par le process principal : la vue

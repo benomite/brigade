@@ -7,14 +7,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { confirmationOf } from "../src/confirmation.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import type { Terminal } from "../src/terminals.ts";
@@ -36,7 +32,7 @@ async function open(answers: Answers = {}, projects: Project[] = [PARADE, FANFAR
       palette: PALETTE,
       exemple: EXAMPLE,
       onglets: TABS, rubriques: HEADINGS,
-      gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+      gestes: {},
       banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
       code: undefined,
@@ -52,15 +48,6 @@ async function open(answers: Answers = {}, projects: Project[] = [PARADE, FANFAR
 // La case de la barre : « T », puis les projets dans l'ordre du fichier, puis « + ».
 const enter = async (vue: Played, rank: number) => {
   (vue.element("projets").children.at(rank) ?? assert.fail(`pas d'entrée ${rank}`)).click();
-  await repos();
-};
-// Une ligne de la bande dont le bouton est un geste confirmé du socle : « resume the kitchen ».
-const withOneAlert = async (vue: Played) => {
-  vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped", geste: "resume the kitchen", bouton: "resume the kitchen", appel: { geste: "reprendre" }, prix: "queued tickets start again" }] } as never);
-  await repos();
-};
-const toggle = async (vue: Played) => {
-  (vue.element("alertes").dessous("button").find(({ dataset }) => dataset.geste === "confirme") ?? assert.fail("pas de bouton de geste")).click();
   await repos();
 };
 const click = async (vue: Played, or: Fake, text: string) => {
@@ -388,20 +375,6 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     assert.deepEqual(seenOfSecond(vue), { colonne: true, cadres: 1, titre: "second · claude", note: "fil repris" });
   });
 
-  test("un geste qui part dans le second le montre, si un shell le cachait — la note est la sienne", async () => {
-    const written = { ...SECOND, note: "parti dans le second : `!station parade guardrails resume`" };
-    const vue = await open({ confirmer: (_, id) => confirmationOf(id, PARADE, { sans: "pas lus" }, KITCHEN), geste: () => written });
-    await withOneAlert(vue);
-    await click(vue, vue.element("terminaux"), "+ shell");
-    assert.deepEqual(shows(vue), ["shell 1"]);
-
-    await toggle(vue);
-    await click(vue, vue.element("alertes"), "yes, resume the kitchen");
-
-    assert.deepEqual(shows(vue), ["second · claude"]);
-    assert.equal(vue.element("note-second").textContent, written.note);
-  });
-
   test("chaque projet garde le terminal où il a été laissé : revenir dessus rend le shell montré", async () => {
     const vue = await open();
     await click(vue, vue.element("terminaux"), "+ shell");
@@ -409,38 +382,6 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
     assert.deepEqual(shows(vue), ["second · claude"]);
     await enter(vue, 1);
     assert.deepEqual(shows(vue), ["shell 1"]);
-  });
-});
-
-describe("un clic à gauche écrit dans le second sans que le centre change", () => {
-  test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
-    const gone = { ...SECOND, note: "parti dans le second : `!station parade guardrails resume`" };
-    const vue = await open({ confirmer: (_, id) => confirmationOf(id, PARADE, { sans: "pas lus" }, KITCHEN), geste: () => gone });
-    await withOneAlert(vue);
-
-    // Le bouton de la ligne de la bande : son clic ouvre la confirmation, sous la ligne.
-    await toggle(vue);
-
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre"]);
-    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "geste"), []);
-    const openOne = vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(openOne.textContent, /resume the kitchen/);
-    assert.equal(vue.element("note-second").textContent, "fil repris");
-
-    // « non » la referme : rien ne part.
-    await click(vue, openOne, "no, leave it stopped");
-    assert.equal(vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation"), undefined);
-    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "geste"), []);
-
-    // Rouverte, son « oui » le fait partir dans le second ; Settings reste ouvert.
-    await toggle(vue);
-    await click(vue, vue.element("alertes"), "yes, resume the kitchen");
-    assert.deepEqual(
-      vue.appels.filter(({ geste: action }) => action === "geste").map(({ args }) => args),
-      [["parade", "reprendre", true]],
-    );
-    assert.equal(vue.element("note-second").textContent, gone.note);
-    assert.equal(vue.element("alertes").dessous("section").find((pose) => pose.className === "confirmation"), undefined);
   });
 });
 

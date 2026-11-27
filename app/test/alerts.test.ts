@@ -18,14 +18,10 @@ import { GESTE_DE_STATION_A_CHAUD_EN } from "../../runtime/src/stations-declaree
 import { DISPLAY_MINIMUM, alerts, buttonOf, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Subject } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import type { Reading } from "../src/box.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { confirmationOf, type Read } from "../src/confirmation.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, understand, type Facts } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { playTheVue, repos, type Answers } from "./helpers/false-vue.ts";
@@ -152,10 +148,10 @@ describe("le manager : sain, éteint, non dit", () => {
     assert.equal(line.ton, "rouge");
     assert.equal(line.dit, "project off — nothing new is taken, split or merged");
     assert.equal(line.releve, `OFF since ${DAY}T09:00:00.000Z (by chef) — no issue is judged, what it set stays set`);
-    assert.equal(line.geste, "switch the project on");
-    assert.deepEqual(line.appel, { geste: "projet-allumer" });
-    assert.equal(line.bouton, "switch the project on");
-    assert.match(line.prix, /judges the whole open backlog, what it judges executable is taken at once, and green deliveries are merged/);
+    // L'app n'a plus de geste pour l'allumer : la ligne le dit, sans bouton.
+    assert.equal(line.appel, undefined);
+    assert.equal(line.bouton, undefined);
+    assert.match(line.geste, /nothing to do from the app/);
   });
 
   // L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit.
@@ -217,13 +213,13 @@ describe("la cuisine : ouverte, gelée, non dite", () => {
     assert.equal(line.prix, "a runtime restart: what is in flight is interrupted — the station does not say what is");
   });
 
-  test("arrêtée par le « stop » du chef : reprendre, et ce que ça relance", (t) => {
+  test("arrêtée par le « stop » du chef : la ligne le dit, sans geste ni bouton", (t) => {
     const { noter: note, bande: band } = healthy(t);
     note({ type: "kitchen.stopped", payload: {} }, "chef");
 
     const line = inOutage(band(), "cuisine");
-    assert.deepEqual(line.appel, { geste: "reprendre" });
-    assert.match(line.prix, /start again at once/);
+    assert.equal(line.appel, undefined);
+    assert.equal(line.bouton, undefined);
   });
 
   test("le disjoncteur ouvert : la ligne de `status` mot pour mot, sans geste ni bouton — une information (#2140, #3911)", (t) => {
@@ -324,7 +320,7 @@ describe("la bande, à l'écran", () => {
         palette: PALETTE,
         exemple: EXAMPLE,
         onglets: TABS, rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,
@@ -336,13 +332,9 @@ describe("la bande, à l'écran", () => {
     return vue;
   };
 
-  test("vide, elle est cachée : elle ne prend aucune place ; une ligne la montre, et son geste, confirmé, ne part qu'à son « oui »", async (t) => {
+  test("vide, elle est cachée : elle ne prend aucune place ; la ligne de la cuisine à l'arrêt se montre, sans geste à jouer", async (t) => {
     const { rendre: render, noter: note } = healthy(t);
-    const readOnes = (): Read => {
-      const facts = understand(render("10:00:00").faits);
-      return "informe" in facts ? { sans: facts.informe } : { faits: facts, a: `${DAY}T10:00:01.000Z` };
-    };
-    const vue = await open({ confirmer: (_, id) => confirmationOf(id, PARADE, readOnes(), KITCHEN) });
+    const vue = await open();
     const band = vue.element("alertes");
 
     vue.dire("surAlertes", { projet: "parade", alertes: [] });
@@ -358,27 +350,11 @@ describe("la bande, à l'écran", () => {
     assert.equal(band.hidden, false);
     const [line] = band.children;
     assert.equal(line?.dataset.sujet, "cuisine");
-    assert.match(line?.textContent ?? "", /kitchen stopped by your “stop”.*resume the kitchen…/);
-    // Le prix n'est ni écrit à côté du bouton ni à son survol (#907) : c'est la confirmation, au clic, qui le dit.
-    assert.doesNotMatch(line?.textContent ?? "", /cost:|start again/);
-    assert.ok(!(line?.dessous("button") ?? []).some((pose) => /start again/.test(pose.ariaLabel)), "le prix est encore à côté du bouton");
-
-    // Le clic ouvre la confirmation, sous la ligne : elle dit ce qu'il relance, et rien ne part.
-    (line?.dessous("button").find((pose) => pose.dataset.geste === "confirme") ?? assert.fail("pas de bouton")).click();
-    await repos();
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "reprendre"]);
-    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "geste"), []);
-    const openOne = band.children[0]?.dessous("section").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(openOne.textContent, /resume the kitchen/);
-    assert.match(openOne.textContent, /queued tickets start again, on your quota/);
-
-    // Son « oui » le fait partir, une fois, et le dit au process principal.
-    (openOne.dessous("button").find((choice) => choice.dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
-    await repos();
-    assert.deepEqual(
-      vue.appels.filter(({ geste: action }) => action === "geste").map(({ args }) => args),
-      [["parade", "reprendre", true]],
-    );
+    assert.match(line?.textContent ?? "", /kitchen stopped by your “stop”/);
+    // L'app n'a plus de geste pour la reprendre : aucun bouton de geste, aucune confirmation, rien ne part.
+    assert.deepEqual(line?.dessous("button").filter((pose) => pose.dataset.geste !== undefined), []);
+    assert.deepEqual(line?.dessous("section").filter((pose) => pose.className === "confirmation"), []);
+    assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "geste" || action === "confirmer"), []);
   });
 
   test("une ligne dont le geste demande du jugement écrit sa demande dans le second : aucun geste ne part, rien n'est confirmé, rien n'est envoyé", async (t) => {
@@ -439,7 +415,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
         palette: PALETTE,
         exemple: EXAMPLE,
         onglets: TABS, rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,
@@ -577,12 +553,11 @@ describe("la bande ne clignote pas (#721)", () => {
 });
 
 describe("le mot du bouton d'une alerte", () => {
-  test("un geste du socle, une demande au second, un onglet : un mot court, jamais une commande", () => {
-    assert.equal(buttonOf({ geste: "switch the project on", appel: { geste: "projet-allumer" } }), "switch the project on");
-    assert.equal(buttonOf({ geste: "resume the kitchen, once you have read why they fail", appel: { geste: "reprendre" } }), "resume the kitchen");
-    assert.equal(buttonOf({ geste: "start it on the station: `systemctl start brigade@parade`", appel: { demande: true } }), "ask the second");
-    assert.equal(buttonOf({ geste: "read it: Settings reads the project on the station", appel: { onglet: "parametres" } }), "open Settings");
-    assert.equal(buttonOf({ geste: "nothing to do: this is on brigade" }), undefined);
+  test("une demande au second, un onglet, une relecture : un mot court, jamais une commande", () => {
+    assert.equal(buttonOf({ appel: { demande: true } }), "ask the second");
+    assert.equal(buttonOf({ appel: { onglet: "parametres" } }), "open Settings");
+    assert.equal(buttonOf({ appel: { relire: true } }), "try again now");
+    assert.equal(buttonOf({}), undefined);
   });
 
   test("toute alerte de la bande qui appelle un geste porte le mot de son bouton, sans commande", () => {

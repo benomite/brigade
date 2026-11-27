@@ -16,7 +16,6 @@ import { holdHome, type Home } from "./home.ts";
 import { holdBands } from "./alerts.ts";
 import { dropTheVue } from "./second/vue-of-project.ts";
 import { readFire } from "./fire.ts";
-import { POWER_UP, count } from "./power-up.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
@@ -27,7 +26,6 @@ import { comment, askAtSecond, noteOfTheQuestion } from "./discussion.ts";
 import { noteOfTheHandover, passAtSecond } from "./handover-second.ts";
 import { discussionOfGitHub, storyOfGitHub } from "./card-github.ts";
 import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
-import { confirmationOf } from "./confirmation.ts";
 import { holdTheTrials } from "./trial.ts";
 import { COMMAND_OF_LOG, openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
@@ -35,12 +33,10 @@ import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
-import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
 import { ACTIONS_OF_WAIT } from "./wait.ts";
-import { KITCHEN_ACTIONS } from "./kitchen.ts";
 import { BANNER, COMMAND, holdFacts, type Drawable } from "./facts.ts";
 import { holdTheColumns } from "./columns-emptied.ts";
 import { clientGitHub, byFetch } from "./board/client.ts";
@@ -62,7 +58,6 @@ import { openStandbyOfBoard, holdReadsOfBoard } from "./board/rail.ts";
 import { playTheRefusal } from "./actions-refusal.ts";
 import { commentTheIssue, removeTheLabel, WITHOUT_DONE, onGithub } from "./actions-github.ts";
 import { requestOf, requestOfTheAlert, requestOnTheTicket, noteOfTheRequest } from "./request.ts";
-import { CONFIRMED, DIRECT, writeAction } from "./actions.ts";
 import { actionsOfCard } from "./card-actions.ts";
 import { launchTheTriage, putOnTheRail, proposeTheDeparture } from "./departure-of-project.ts";
 import { create as createTheFirstTicket, draft as draftTheFirstTicket } from "./first-ticket.ts";
@@ -726,7 +721,7 @@ function project(name: unknown): Project {
   return finds;
 }
 
-ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS, gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED, attente: ACTIONS_OF_WAIT }, banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: delays.vu(), stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS, gestes: { attente: ACTIONS_OF_WAIT }, banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: delays.vu(), stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
 // Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
 // de la palette, par son nom, ou une couleur libre `#rrggbb` (colors.ts). Écrite, elle arrive par
 // `surConfiguration`, avec ce qu'elle a de trop proche. Rend la raison, si elle ne l'a pas été.
@@ -1088,14 +1083,6 @@ ipcMain.handle("demanderAlerte", (_, name: unknown, subject: unknown, said: unkn
   const written = requestOfTheAlert(aims.nom, alert);
   return "refus" in written ? written : terminals.inscrire(aims, written.demande, noteOfTheRequest);
 });
-// Un geste : sa commande part dans le second du projet, qui est rendu — sa note dit ce qui est
-// parti, ou le refus dit pourquoi rien ne l'est, quand le second n'est pas dit libre. La vue nomme
-// le geste ; ce qui part se décide dans gestes.ts. Rien, pour un projet sans box. Un geste confirmé ne part qu'avec le « oui » du chef, que la
-// vue ne passe qu'une fois sa confirmation montrée : sans lui, rien n'est écrit.
-ipcMain.handle("geste", (_, name: unknown, id: unknown, yes: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? gone(name) : writeAction(terminals, id, aims, yes, kitchens.cuisineDe(aims));
-});
 // Un geste de WAITING, sur une carte du rail ou sa fiche : il s'écrit sur l'issue, jamais par une commande de la box —
 // parqué ou déparqué comme le second le fait (vue/wait/wait-github.ts, #3075, #4262). La vue nomme le geste et le
 // ticket, et donne ce que le chef a rempli.
@@ -1106,14 +1093,6 @@ ipcMain.handle("attente", async (_, name: unknown, id: unknown, ticket: unknown,
   const rendered = await playTheWait({ id, ticket, saisie: input, aujourdhui: today, lu: () => boards.dernier(aims.nom), client: clientOfLabels });
   if ("fait" in rendered) boards.oublier();
   return rendered;
-});
-// Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
-// lus du projet — les cooks en cours, le rail. Rien ne part, rien
-// n'est lu de plus. Rien, pour un geste qui ne se confirme pas.
-ipcMain.handle("confirmer", (_, name: unknown, id: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  return confirmationOf(id, aims, facts.dernier(aims.nom) ?? { sans: "`facts` has not been read yet for this project, or its last read did not return the expected shape" }, kitchens.cuisineDe(aims));
 });
 // Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
 // appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).
@@ -1450,7 +1429,6 @@ ipcMain.handle("retirerUnHumain", (_, name: unknown, login: unknown) => writeOne
 // poste (vue/card-project/card-project-folder.ts).
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, name: unknown, path: unknown, text: unknown) => writeInTheProject(knownOne(name), path, text));
-plugTheWordAtCook(ipcMain, kitchenOfProject, launchOnTheKitchen); // le mot au cook (#4048, vue/word-at-cook/word-at-cook-box.ts)
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributors.ts).
 ipcMain.handle("listerLesStationsContributrices", (_, name: unknown) => {
@@ -1507,17 +1485,6 @@ ipcMain.handle("mettreAJour", (_, clone: unknown) =>
     clone,
   ),
 );
-// Ce qu'engage l'allumage du manager, chiffré (power-up.ts) : `manager backlog`, lancée une fois
-// sur la station de cet ordinateur, par le passage du projet comme les veilles. La vue le demande quand la confirmation
-// d'« allumer » s'ouvre : cette lecture ne retient pas le « oui », et n'écrit rien.
-ipcMain.handle("compter", (_, name: unknown) => {
-  const { lu: readOne } = kitchenOfProject(name);
-  if (readOne === undefined) return undefined;
-  const served = readOne;
-  const rendered = (passage.get(served.nom) ?? Promise.resolve()).then(() => count({ delaiMs: 30_000 }, served));
-  passage.set(served.nom, rendered);
-  return rendered;
-});
 // La réponse du chef à une carte de TODO (card-todo.ts) : la carte du chef lue de GitHub (#2434) — sa réponse est postée
 // sur son issue et son geste joué par l'app même, par le jeton du `gh` de ce poste (board-actions/answer-github.ts) —, ni
 // tableau, ni box. Toute autre carte ne se répond plus de l'app (#2061) : rien ne part, et la phrase dit pourquoi.

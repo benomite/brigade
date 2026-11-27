@@ -65,10 +65,10 @@ describe("un geste joué sur la station", () => {
       return project === "parade" ? rate(1, "no log") : ok("");
     };
     const projects = [{ nom: "brigade", faits: facts(0, 0) }, { nom: "parade", faits: facts(0, 0) }];
-    const failures = await playTheAction("pause", projects, launch, 30_000);
-    assert.deepEqual(launched, ["brigade switch off", "parade switch off"]);
+    const failures = await playTheAction("arret", projects, launch, 30_000);
+    assert.deepEqual(launched, ["brigade station stop mac/claude", "parade station stop mac/claude"]);
     assert.equal(failures.length, 1);
-    assert.match(failures[0] ?? "", /^parade: switch off failed — \$ node geste\.ts\nno log\n→ exit code 1$/);
+    assert.match(failures[0] ?? "", /^parade: station stop mac\/claude failed — \$ node geste\.ts\nno log\n→ exit code 1$/);
     assert.deepEqual(await playTheAction("arret", projects.slice(0, 1), launch, 30_000), []);
     assert.equal(launched.at(-1), "brigade station stop mac/claude");
   });

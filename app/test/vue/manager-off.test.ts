@@ -1,5 +1,5 @@
-// Le projet éteint, dit honnêtement (#3454) : la vue du projet — la tête du rail — le dit en une ligne, à côté du bouton qui
-// l'allume, le geste de l'interrupteur (`switch on`) ; allumé, ni la ligne ni le bouton. L'onglet Stations ne dit jamais
+// Le projet éteint, dit honnêtement (#3454) : la vue du projet — la tête du rail — le dit en une ligne, sans bouton : l'app
+// n'allume ni n'éteint le projet ; allumé, pas de ligne. L'onglet Stations ne dit jamais
 // « cooks this project » d'un projet éteint : sa ligne du haut dit qu'il est éteint ; allumé, elle dit qui le cuit, comme
 // avant. Les deux suivent la bande dès qu'elle dit le projet allumé, sans rien recharger. L'état vient de la bande
 // (alerts.ts), lue dans ce que `manager` écrit : la commande du runtime, jouée ici sur un vrai journal.
@@ -13,15 +13,11 @@ import { ouvrirJournal } from "../../../runtime/src/journal.ts";
 import { principal as manager } from "../../../runtime/src/manager-cli.ts";
 import type { Home } from "../../src/home.ts";
 import { MANAGER_OFF, holdBands, type Band } from "../../src/alerts.ts";
-import { POWER_UP, tell } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import type { Reading } from "../../src/box.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
-import { confirmationOf } from "../../src/confirmation.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import type { Outage } from "../../src/outages/outages.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
@@ -31,7 +27,6 @@ import { ADD } from "../../src/vue/stations-tab/stations-tab.js";
 import { type Fake, type Played, playTheVue, openTab, type Answers, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-10-13T10:00:01.000Z";
-const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 const reading = (command: string, text: string): Reading => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande: command, texte: text }] });
 
@@ -83,7 +78,7 @@ async function open(answers: Answers = {}, stations: StationVue[] = [BOX, MAC]):
       exemple: EXAMPLE,
       onglets: TABS,
       rubriques: HEADINGS,
-      gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+      gestes: {},
       banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
       code: undefined,
@@ -102,70 +97,31 @@ async function open(answers: Answers = {}, stations: StationVue[] = [BOX, MAC]):
   return vue;
 }
 
-const TURN_ON = "switch the project on…";
 const headOfRail = (vue: Played): Fake | undefined => vue.element("rail").dessous("p").find(({ className }) => className === "arret-manager");
-const turnOn = (vue: Played): Fake | undefined => vue.element("rail").dessous("button").find(({ textContent }) => textContent === TURN_ON);
-const toggle = (vue: Played): Fake => vue.element("interrupteur-projet").dessous("button").find(({ className }) => className === "bascule") ?? assert.fail("pas d'interrupteur");
-const actionsGone = (vue: Played) => vue.appels.filter(({ geste: action }) => action === "geste").map(({ args }) => args);
 const tab = (vue: Played) => vue.element("rail").children.find(({ dataset }) => dataset.bloc === "stations-tab") ?? assert.fail("pas d'onglet des stations");
 const top = (vue: Played) => tab(vue).children.find(({ className }) => className === "haut-des-stations") ?? assert.fail("pas de ligne du haut");
 const sentence = (vue: Played) => top(vue).dessous("p").find(({ className }) => className === "phrase")?.dessous("strong")[0]?.textContent ?? "";
 
-describe("la vue du projet, le projet éteint : une ligne, et le bouton qui l'allume (#3454)", () => {
-  test("éteint : la tête du rail dit qu'il est éteint, et « switch the project on… » est à côté, sur la même ligne", async (t) => {
+describe("la vue du projet, le projet éteint : une ligne de la bande, sans bouton (#3454, #4681)", () => {
+  test("éteint : la bande le dit, sans bouton ; la tête du rail n'en fait pas de ligne", async (t) => {
     const vue = await open();
     vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
     await repos();
-    const head = headOfRail(vue) ?? assert.fail("la vue du projet ne dit pas le projet éteint");
-    assert.equal(head.dessous("strong")[0]?.textContent, MANAGER_OFF);
-    const button = turnOn(vue) ?? assert.fail("pas de bouton qui allume le projet");
-    assert.ok(head.dessous("button").includes(button), "le bouton n'est pas sur la ligne qui dit le projet éteint");
-    assert.equal(vue.element("rail").dessous("p").filter(({ className }) => className === "arret-manager").length, 1);
-    // La ligne `manager` de la box, mot pour mot, au survol de la ligne.
-    assert.match(head.title, /^OFF since 2026-10-13T09:25:00\.000Z \(by chef\)/);
+    assert.equal(headOfRail(vue), undefined);
+    const line = vue.element("alertes").children.find(({ dataset }) => dataset.sujet === "manager") ?? assert.fail("la bande ne dit pas le projet éteint");
+    assert.match(line.textContent, new RegExp(MANAGER_OFF.slice(0, 11)));
+    assert.deepEqual(line.dessous("button").filter(({ dataset }) => dataset.geste !== undefined), []);
   });
 
-  test("allumé : ni la ligne ni le bouton ; pas encore lu non plus — ce n'est pas « éteint »", async (t) => {
+  test("allumé, ou pas encore lu : pas de ligne « project off »", async (t) => {
     const vue = await open();
     vue.dire("surAlertes", bandRead());
     await repos();
-    assert.equal(headOfRail(vue), undefined);
-    assert.equal(turnOn(vue), undefined);
-
+    assert.doesNotMatch(vue.element("alertes").textContent, /project off/);
     vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
     await repos();
-    assert.equal(headOfRail(vue), undefined);
-    assert.equal(turnOn(vue), undefined);
+    assert.doesNotMatch(vue.element("alertes").textContent, /project off/);
     assert.doesNotMatch(vue.element("rail").textContent, /project off/);
-  });
-
-  test("le bouton l'allume : sa confirmation s'ouvre sous la ligne, « yes » fait partir `switch on`, et la vue passe à allumé sans rien recharger", async (t) => {
-    const backlog = { ouvertes: 3, retenues: 0 };
-    const vue = await open({
-      confirmer: (_, id) => confirmationOf(id, PARADE, { sans: "pas lus" }, KITCHEN),
-      compter: () => ({ projet: "parade", a: A, ...backlog, dit: tell(backlog) }),
-      geste: () => undefined,
-    });
-    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
-    await repos();
-
-    (turnOn(vue) ?? assert.fail("pas de bouton")).click();
-    await repos();
-    // Le geste de l'interrupteur, le même : rien ne part avant le « oui ».
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "projet-allumer"]);
-    assert.deepEqual(actionsGone(vue), []);
-    const openOne = vue.element("rail").dessous("section").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation sous la ligne");
-    assert.match(openOne.textContent, /it will judge the 3 open issues/);
-    (openOne.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
-    await repos();
-    assert.deepEqual(actionsGone(vue), [["parade", "projet-allumer", true]]);
-
-    // La bande relue dit le projet allumé : la ligne et le bouton partent, l'interrupteur dit « project on ».
-    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
-    await repos();
-    assert.equal(headOfRail(vue), undefined);
-    assert.equal(turnOn(vue), undefined);
-    assert.equal(toggle(vue).textContent, "project on");
   });
 });
 
@@ -179,7 +135,7 @@ describe("l'onglet Stations, le projet éteint : jamais « cooks this project »
     assert.equal(top(vue).dataset.etat, "eteint");
     assert.equal(top(vue).dataset.ton, "gris");
     assert.doesNotMatch(tab(vue).textContent, /cooks this project|Cooked by/);
-    assert.match(top(vue).dessous("button").find(({ className }) => className === "aide")?.ariaLabel ?? "", /OFF since[\s\S]*switch the project on/);
+    assert.match(top(vue).dessous("button").find(({ className }) => className === "aide")?.ariaLabel ?? "", /OFF since/);
     // Ses stations restent à régler : « Add a station », comme quand il cuit.
     assert.deepEqual(top(vue).dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), [ADD]);
   });

@@ -9,13 +9,10 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import { addProject, changeColor, colorProjects, EXAMPLE, readConfiguration, type Project } from "../src/config.ts";
 import { choice, colorsRead, DISTINCT, gap, gapLab, STATES, PALETTE, CLOSE, close, ROLES, draw } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { followConfiguration } from "../src/tracking.ts";
@@ -290,7 +287,7 @@ describe("les couleurs dans la vue", () => {
         exemple: EXAMPLE,
         onglets: TABS,
         rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,

@@ -1,6 +1,6 @@
 // Ce que l'icône de fond (#3631) lit et lance, sans Electron : les projets que la station de cet ordinateur sert
 // (workstation/kitchen-here.ts, `servisPar`), les `facts` de chacun lus par son geste comme la veille de l'app les lit
-// (box.ts, `lancerIci` ; facts.ts, `comprendre`), et les commandes de pause, d'arrêt et de leur retour (tray-background.ts).
+// (box.ts, `lancerIci` ; facts.ts, `comprendre`), et les commandes d'arrêt et de son retour (tray-background.ts).
 //
 // Une lecture qui échoue — la station ne répond pas, sa sortie n'est pas la forme des faits — laisse le projet sans
 // faits : il est compté « not read », jamais pour « 0 ». Une commande qui échoue est rendue avec sa raison, et les

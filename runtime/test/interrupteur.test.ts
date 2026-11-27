@@ -8,7 +8,6 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { commanderInterrupteur, etablirLInterrupteur, InterrupteurRefuse } from "../src/interrupteur.ts";
-import { principal as interrupteurCli } from "../src/interrupteur-cli.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { managerAllume } from "../src/projections/manager.ts";
 import { etatDeLInterrupteur, projetEteint } from "../src/projections/switch.ts";
@@ -138,38 +137,6 @@ describe("ce que `status`, les faits et `switch` en disent", () => {
     assert.match(eteint.texte, /^kitchen {4}SWITCHED OFF 0 s ago · /m);
     assert.equal(eteint.etat, "retenue");
     sansMotFrancais(eteint.texte.split("\n").filter((ligne) => /^(switch|kitchen) /.test(ligne)));
-  });
-
-  test("`switch` montre l'interrupteur, le bascule, et refuse le reste — en anglais", async (t) => {
-    const { repertoire, journal } = journalEcrit(t);
-    const jouer = async (...args: string[]) => {
-      const appel = appeler(interrupteurCli, args, { BRIGADE_STATE_DIR: repertoire });
-      const code = await appel.fin;
-      const sortie = appel.sortie();
-      sansMotFrancais(sortie.trimEnd().split("\n"));
-      return { code, sortie };
-    };
-
-    const pasPose = await jouer();
-    assert.equal(pasPose.code, 0);
-    assert.match(pasPose.sortie, /^switch {5}NOT SET — the runtime sets it at its next start/m);
-
-    const eteindre = await jouer("off");
-    assert.equal(eteindre.code, 0);
-    assert.match(eteindre.sortie, /^brigade : project off: /);
-    const vu = await jouer();
-    assert.match(vu.sortie, /^switch {5}OFF since /m);
-    assert.equal((await jouer("on")).code, 0);
-    assert.equal(etatDeLInterrupteur(journal.base)?.on, true);
-
-    for (const args of [["start"], ["on", "now"]]) {
-      const refus = await jouer(...args);
-      assert.equal(refus.code, 2, args.join(" "));
-      assert.match(refus.sortie, /usage: .*switch -- \[on \| off\]/);
-    }
-    const sansJournal = appeler(interrupteurCli, ["on"], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
-    assert.equal(await sansJournal.fin, 1);
-    assert.match(sansJournal.sortie(), /no log in/);
   });
 });
 

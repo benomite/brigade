@@ -30,7 +30,6 @@ const STORAGE: Record<string, string> = {
   "reglages-du-projet-en-plus": PROJECT_JSON,
   // Les humains du projet (#2930) : la clé `humans`, changée par une PR.
   "humains-du-projet": PROJECT_JSON,
-  "arreter-cuisine": STATION,
   sigle: FILE_OF_PROJECTS,
   couleurs: FILE_OF_PROJECTS,
   retrait: FILE_OF_PROJECTS,
@@ -72,6 +71,6 @@ describe("Settings : les réglages du projet seulement", () => {
   // cette liste se vide — et que tout autre bloc hors de projet.json soit vu.
   test("les blocs qui ne sont pas encore dans projet.json sont ceux-là, et eux seuls", () => {
     const outside = BLOCKS.filter((id) => STORAGE[id] !== PROJECT_JSON).sort();
-    assert.deepEqual(outside, ["arreter-cuisine", "bandeau-sante", "barre-de-menus", "couleurs", "fiche-du-projet", "retrait", "sigle", "stations-contributrices"]);
+    assert.deepEqual(outside, ["bandeau-sante", "barre-de-menus", "couleurs", "fiche-du-projet", "retrait", "sigle", "stations-contributrices"]);
   });
 });

@@ -43,11 +43,10 @@ import type { Control, Shown as Verification } from "./service.ts";
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
 // toute la cuisine attend le chef.
 export type Subject = "urgence" | "github" | "manager" | "cuisine" | "station" | "box" | "renouvellement" | "verification" | "injoignable";
-// Ce que le bouton d'une ligne appelle : un geste du socle (actions.ts) ;
-// une demande au second, faite de ce que la ligne dit (request.ts) ; un onglet de
+// Ce que le bouton d'une ligne appelle : une demande au second, faite de ce que la ligne dit (request.ts) ; un onglet de
 // contenu (tabs.ts).
 // `relire` : relire la box tout de suite, au lieu d'attendre le tour de la veille (#728).
-export type Call = { geste: string } | { demande: true } | { onglet: string } | { relire: true };
+export type Call = { demande: true } | { onglet: string } | { relire: true };
 // Une ligne de la bande. `verifie` faux : la box ne dit pas cet état, et la ligne le dit.
 // `dit` : ce qui ne va pas, dans les mots de l'app ; `pourquoi` : ce qu'elle en sait de plus,
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
@@ -240,8 +239,6 @@ function ofRefusalOfGitHubOnly(facts: Facts | Without): Alert[] {
 // L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit. Tant que la file ne porte
 // pas son état (#438), l'app le lit elle-même : avant sa première lecture, il n'est pas dit.
 export const MANAGER_NOT_SAYS = "first reading of `manager` in progress: the queue does not say whether the project is on (#438). This is not “on”";
-// docs/runtime/manager.md, « Le manager » : ce qu'allumer engage (power-up.ts, `AVERTISSEMENT`).
-const PRICE_TURN_ON = "the manager judges the whole open backlog, what it judges executable is taken at once, and green deliveries are merged — what that commits is counted when you act";
 
 // Éteint, ce que la tête du rail en dit, et la ligne de la bande : une seule phrase, la même partout.
 export const MANAGER_OFF = "project off — nothing new is taken, split or merged";
@@ -261,9 +258,8 @@ function ofManager(manager: Switch | Without): Alert[] {
       ton: "rouge",
       dit: MANAGER_OFF,
       releve: readingOf(manager),
-      geste: "switch the project on",
-      appel: { geste: "projet-allumer" },
-      prix: PRICE_TURN_ON,
+      geste: "nothing to do from the app: the project is off on its station",
+      prix: "none: the app writes nothing here",
     },
   ];
 }
@@ -446,7 +442,7 @@ function ofTheKitchen(project: string, facts: Facts | Without, status: string | 
         },
       ];
     case "arrêtée":
-      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: RESUME }];
+      return [{ sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "nothing to do from the app: the kitchen is stopped on its station", prix: "none: the app writes nothing here" }];
     case "retenue": {
       const readOne = statusRead(status);
       const causes = typeof readOne === "string" ? causesOfHeld(readOne) : [];
@@ -606,16 +602,13 @@ function ofLosses(control: Control | undefined, status: string | Without): Alert
   return losses;
 }
 
-// Le mot du bouton d'un geste, d'après ce que l'alerte appelle : le geste du socle par son nom, une
-// demande au second, un onglet. Un geste que l'app ne sait pas nommer garde le début de sa phrase,
-// avant tout ce qui ressemble à une commande ou à une explication.
-const BUTTONS_OF_ACTION: Readonly<Record<string, string>> = { "projet-allumer": "switch the project on", reprendre: "resume the kitchen" };
-export function buttonOf({ geste: action, appel: call }: Pick<Alert, "geste" | "appel">): string | undefined {
+// Le mot du bouton d'un geste, d'après ce que l'alerte appelle : une
+// demande au second, un onglet, une relecture.
+export function buttonOf({ appel: call }: Pick<Alert, "appel">): string | undefined {
   if (call === undefined) return undefined;
   if ("demande" in call) return "ask the second";
   if ("onglet" in call) return call.onglet === "parametres" ? "open Settings" : `open the ${call.onglet} tab`;
-  if ("relire" in call) return "try again now";
-  return BUTTONS_OF_ACTION[call.geste] ?? (action.split(/[:,—`]/)[0] ?? action).trim();
+  return "try again now";
 }
 const withButton = (alert: Alert): Alert => {
   const button = buttonOf(alert);

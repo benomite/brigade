@@ -47,13 +47,10 @@
 // une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
 // place. Ce qui s'y dit et ce que son bouton appelle se décident dans alerts.ts : la vue pose.
 // Chaque alerte tient en une ligne — ce qui ne va pas — et un contrôle — son geste (ticket 907) :
-// confirmé — reprendre —, ou une demande au second quand il faut lire, juger ou agir sur la box ;
+// une demande au second quand il faut lire, juger ou agir sur la box ;
 // une ligne « non vérifié » mène à la page qui lit l'état, quand il y en a une. Le prix n'est jamais posé à côté : le
 // clic ouvre la confirmation, qui le dit. Ce que la box en écrit est derrière « detail ». Le projet
-// éteint n'y fait pas de ligne : c'est un interrupteur, un seul pour tout le projet (ticket 1406), en tête
-// de l'espace, à droite des onglets — allumé ou éteint, un clic le bascule —, et, éteint, la tête du
-// rail est marquée à l'arrêt d'une ligne (ticket 906).
-// Arrêter la cuisine est une ligne de Settings, sous le projet.
+// éteint est une ligne de la bande, sans bouton : l'app ne l'allume ni ne l'arrête.
 // Posé dans le conteneur caché de ce qui était sous cette machine, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
@@ -136,7 +133,6 @@ import { cookOfTicket, duration as durationOfCook, action as actionOfCook, setTh
 import { setAge, setTrials } from "./cadence.js";
 import { setRankOfTrial } from "./card/trial.js";
 import { setGuardRepeated } from "./card-ticket/card-ticket.js";
-import { setTheWordAtCook } from "./word-at-cook/word-at-cook.js";
 import { setTestsOfCard } from "./card-tests/card-tests.js";
 import { setLabels } from "./labels-of-slip.js";
 import { setTheTrial } from "./trial/trial.js";
@@ -181,7 +177,7 @@ import { holdTheReport } from "./report/action.js";
 import { casesOfVersions, caseOfHere, setVersionsOfStations, statusRead } from "./station-version/station-version.js";
 import { lineEmpty } from "./components/line-empty/line-empty.js";
 import { lineReadOnly } from "./read-only/read-only.js";
-import { THIS_COMPUTER, CANCEL, YES, RETRY, ADD_ONE_PROJECT, NOT_STILL, READ_OF, NOT_REACHED } from "./lexicon.js";
+import { THIS_COMPUTER, CANCEL, YES, ADD_ONE_PROJECT, NOT_STILL, READ_OF, NOT_REACHED } from "./lexicon.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -230,7 +226,6 @@ let railPoseOf = "";
 // La dernière rangée posée de chaque projet : c'est d'elle que la lecture suivante reprend le défilement.
 /** @type {Map<string, HTMLElement>} */
 const rows = new Map();
-/** @typedef {import("../power-up.ts").Account} Account */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
 /** @typedef {import("../removal.ts").Removal} Removal */
@@ -269,9 +264,6 @@ const card = element("fiche");
 const detailOfValidation = element("detail-de-validation");
 const readTab = element("lu-onglet");
 const tabReading = element("lecture-onglet");
-const switchProject = element("interrupteur-projet");
-const stopKitchen = element("arreter-cuisine");
-const sectionKitchen = element("reglages-cuisine");
 const note = element("note");
 const tabsTerminals = element("terminaux");
 const closeShell = element("fermer-shell");
@@ -866,19 +858,11 @@ let HEADINGS = [];
 // L'onglet qui range ce qui est affiché : une lecture, ou Paramètres lui-même. Le journal n'en a pas.
 /** @param {number | string | undefined} id */
 const headingOf = (id) => HEADINGS.find(({ lectures: readings }) => readings.includes(/** @type {string} */ (id)));
-// Ce qu'engage l'allumage du projet, dit de même (power-up.ts) : la lecture qui le chiffre, et ce qui se pose avant elle.
-/** @type {typeof import("../power-up.ts").POWER_UP | undefined} */
-let POWER_UP;
 // La confirmation ouverte : celle d'un geste, pour un projet, à un endroit — la même ne s'ouvre
 // qu'une fois, sous le bouton cliqué. `rendu` : ce qu'elle dit, ou pourquoi le geste ne s'offre
-// pas — absent, la demande est en route. `compte` : ce que la box a compté pour « allumer » —
-// absent, en cours ; nul, pas demandé. Indéfinie : aucune n'est ouverte, et rien ne part.
-/** @type {{ projet: string, cle: string, rendu?: Confirmation | { refus: string }, compte?: Account | null } | undefined} */
+// pas — absent, la demande est en route. Indéfinie : aucune n'est ouverte, et rien ne part.
+/** @type {{ projet: string, cle: string, rendu?: Confirmation | { refus: string } } | undefined} */
 let aConfirm;
-// Les gestes de la cuisine, dits de même (kitchen.ts) : leurs libellés. Arrêter et reprendre sont la ligne de la
-// cuisine, dans Settings ; reprendre est aussi sur ce qui dit la cuisine à l'arrêt.
-/** @type {readonly { id: string, libelle: string }[]} */
-let KITCHEN_ACTIONS = [];
 // Les trois gestes de WAITING, dits de même (wait.ts) : « waiting for… » sur une carte de TODO,
 // « resume » et « it arrived » sur une carte de WAITING. La vue les nomme, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly { id: string, libelle: string }[]} */
@@ -909,13 +893,6 @@ const unfoldsOfTop = new Map();
 const unfoldsOf = (project) => unfoldsOfTop.get(project) ?? unfoldsOfTop.set(project, new Set()).get(project) ?? new Set();
 /** @type {Map<string, import("./parked/park-control.js").Form>} */
 const parkInputs = new Map();
-// Les gestes directs, et les confirmés, dits de même (actions.ts) : le clic d'un direct fait partir
-// sa commande dans le second — ou dit pourquoi elle ne part pas ; celui d'un confirmé ouvre sa
-// confirmation, et rien ne part avant son « oui ». La vue ne le décide pas.
-/** @type {readonly string[]} */
-let DIRECT = [];
-/** @type {readonly string[]} */
-let CONFIRMED = [];
 // La réponse du chef en route sur une carte de TODO (card-todo.js), par projet et ticket
 // (`<projet>#<numéro>`), avec la question à laquelle elle répond. Absente : la carte dit ce que le tableau
 // de la cuisine montre de sa dernière réponse. Postée, la carte reste, envoyée et en attente de la cuisine,
@@ -956,10 +933,6 @@ let cardInMain;
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let notWritten = "";
 let notWrittenSecond = "";
-// Un geste confirmé ou direct qui n'a rien envoyé au second : la phrase qui le dit au centre, et de quoi le rejouer
-// avec le « oui » déjà donné.
-/** @type {{ texte: string, rejouer: () => void } | undefined} */
-let actionRate;
 // Le terminal qui prend le clavier au prochain affichage : celui qu'un geste du chef vient de
 // montrer ou d'écrire. Sans geste, personne ne le prend — le second ne perd pas sa frappe.
 /** @type {number | undefined} */
@@ -1051,8 +1024,7 @@ const repositories = new Map();
 /** @type {Map<string, {etat: string, dit: string} | undefined>} */
 const signals = new Map();
 // L'état de l'interrupteur de chaque projet — le manager le suit, et sa ligne le dit —, tel que sa
-// dernière bande l'a dit (alerts.ts, `EtatDuManager`) : l'interrupteur, en tête de l'espace, et la
-// tête du rail le disent. Sans entrée, il n'est pas encore lu.
+// dernière bande l'a dit (alerts.ts, `EtatDuManager`) : l'onglet Stations le dit. Sans entrée, il n'est pas encore lu.
 /** @type {Map<string, import("../alerts.ts").StateOfManager | undefined>} */
 const statesOfManager = new Map();
 // Les lignes de la bande dont le « detail » est déplié, par projet et par endroit (`endroitDeLAlerte`) :
@@ -1458,9 +1430,7 @@ function show() {
       ? ""
       : `the output of ${gesture(current, tracked.commande)}, as the station returns it${tracked.precision === undefined ? "" : ` (${tracked.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   note.replaceChildren(
-    ...(actionRate !== undefined
-      ? setActionRate(actionRate)
-      : notWritten !== "" ? [notWritten] : explanation === "" ? [] : [hover(document, explanation)]),
+    ...(notWritten !== "" ? [notWritten] : explanation === "" ? [] : [hover(document, explanation)]),
   );
   note.hidden = (note.childElementCount === 0 && note.textContent === "") || conversationShown();
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
@@ -1623,7 +1593,6 @@ async function ask(ticket) {
   const project = current;
   if (project === undefined) return;
   notWritten = notWrittenSecond = "";
-  actionRate = undefined;
   if (project.refus !== undefined) return show();
   try {
     const rendered = await brigade.demander(project.nom, ticket);
@@ -1645,7 +1614,6 @@ async function askAlert({ sujet: subject, dit: said }) {
   const project = current;
   if (project === undefined) return;
   notWritten = notWrittenSecond = "";
-  actionRate = undefined;
   if (project.refus !== undefined) return show();
   try {
     const rendered = await brigade.demanderAlerte(project.nom, subject, said);
@@ -1658,68 +1626,12 @@ async function askAlert({ sujet: subject, dit: said }) {
   show();
 }
 
-// Un geste du socle, collé à l'état qu'il change : son bouton, et — confirmé et ouvert — sa
-// confirmation, dessous. Direct, il part au clic. Confirmé, le clic ouvre ce qu'il coûte, et rien
-// ne part ; recliqué, la confirmation se referme. `ou` : l'endroit où il est posé — la même
-// confirmation ne s'ouvre que sous le bouton cliqué.
-/** @param {Project} project @param {{ id: string, libelle: string, ou: string }} geste */
-function setAction(project, { id, libelle: wording, ou: or }) {
-  if (!CONFIRMED.includes(id)) {
-    const direct = button(wording, () => void writeAction(id));
-    direct.dataset.geste = "direct";
-    direct.title = "goes straight into the second, if it is free — its output is read there";
-    return [direct];
-  }
-  const key = JSON.stringify([id, "", or]);
-  const openOne = aConfirm?.projet === project.nom && aConfirm.cle === key ? aConfirm : undefined;
-  const confirms = button(`${wording}…`, () => void openConfirmation(project, key, id));
-  confirms.dataset.geste = "confirme";
-  confirms.ariaExpanded = String(openOne !== undefined);
-  confirms.title = "says what it costs first: nothing goes before your “yes”";
-  return openOne === undefined ? [confirms] : [confirms, setConfirmation(project, openOne)];
-}
+// Ce que coûte une demande au second, sous son bouton : ce qu'elle fait, son prix en clair — puis un bouton par « oui »,
+// chacun avec ce qu'il engage, et le « non ». Un « oui » fait partir `leave` ; « non » referme. Rien n'y est calculé :
+// tout est dit par la ligne de la bande qui porte la demande (confirmationOfRequest).
 
-// Le clic d'un geste confirmé : sa confirmation s'ouvre — ce qu'elle dit vient du process
-// principal (confirmation.ts) —, et celle qui était ouverte se referme. Rien ne part. Recliqué,
-// il la referme. « Allumer » se chiffre aussi : `manager backlog` est demandée à la box, et ses
-// nombres rejoignent la confirmation quand elle répond — le « oui » ne les attend pas.
-/** @param {Project} project @param {string} key @param {string} id */
-async function openConfirmation(project, key, id) {
-  notWritten = notWrittenSecond = "";
-  actionRate = undefined;
-  if (aConfirm?.projet === project.nom && aConfirm.cle === key) {
-    aConfirm = undefined;
-    return show();
-  }
-  const openOne = { projet: project.nom, cle: key };
-  aConfirm = openOne;
-  show();
-  /** @type {Confirmation | { refus: string } | undefined} */
-  let rendered;
-  try {
-    rendered = await brigade.confirmer(project.nom, id);
-  } catch (error) {
-    rendered = { refus: `nothing offered: ${error instanceof Error ? error.message : String(error)}` };
-  }
-  // Refermée, ou une autre ouverte entre-temps : ce qu'elle dit n'a plus où se poser.
-  if (aConfirm !== openOne) return;
-  aConfirm = { ...openOne, rendu: rendered ?? { refus: "nothing offered: this action is not confirmed" } };
-  show();
-  if (rendered === undefined || "refus" in rendered || rendered.chiffrer !== true) return;
-  const account = await brigade.compter(project.nom).catch(() => undefined);
-  if (aConfirm?.projet !== project.nom || aConfirm.cle !== key) return;
-  aConfirm = { ...aConfirm, compte: account ?? null };
-  show();
-}
-
-// Ce que coûte un geste confirmé, sous son bouton : ce qu'il fait, son prix en clair, les cooks
-// en vol et ce qu'ils ont dépensé, d'où c'est tiré — puis un bouton par « oui », chacun avec ce
-// qu'il engage, et le « non ». Un « oui » fait partir son geste, dans le second ; « non » referme.
-// Rien n'y est calculé : tout est dit par le process principal (confirmation.ts, power-up.ts) — ou,
-// pour une demande au second, par la ligne de la bande qui la porte. `partir` : ce que fait un « oui »,
-// quand ce n'est pas un geste du socle.
-/** @param {Project} project @param {NonNullable<typeof aConfirm>} ouverte @param {(id: string) => void} [leave] */
-function setConfirmation(project, { rendu: rendered, compte: account }, leave) {
+/** @param {Project} project @param {NonNullable<typeof aConfirm>} ouverte @param {(id: string) => void} leave */
+function setConfirmation(project, { rendu: rendered }, leave) {
   const close = () => {
     aConfirm = undefined;
     show();
@@ -1731,86 +1643,28 @@ function setConfirmation(project, { rendu: rendered, compte: account }, leave) {
     else wait.append(lineError(document, rendered.refus, "", { classe: "refus" }), button("close", close, "discret"));
     return wait;
   }
-  // Chiffré (« allumer »), le prix est la phrase des nombres — ce qu'il va juger — et ce que le geste
-  // engage passe au survol (ticket 906). Sinon, il se dit en une ligne ; le reste, et d'où c'est tiré, au survol.
-  let sentence;
-  let help;
-  if (rendered.chiffrer === true && POWER_UP !== undefined) {
-    sentence = account === undefined ? POWER_UP.enCours : account === null ? POWER_UP.parti : "sans" in account ? "the count could not be read" : account.dit;
-    const readOne = account === undefined || account === null ? "" : `according to ${gesture(project, POWER_UP.commande)}, run for you on opening — read at ${hourOf(account.a)}`;
-    const reason = account === undefined || account === null || !("sans" in account) ? "" : [account.sans, account.obtenu].filter((text) => text !== "").join("\n");
-    help = [...rendered.prix, readOne, reason].filter((text) => text !== "").join("\n");
-  } else {
-    const [price = "", ...suite] = rendered.prix;
-    const source = rendered.lu === undefined ? [] : [`according to ${gesture(project, "facts")}, read at ${hourOf(rendered.lu)}`];
-    sentence = price;
-    help = [...suite, ...source].join("\n");
-  }
-  // Chiffrée, la confirmation n'écrit que sa phrase de prix : ce que chaque réponse engage passe au
-  // survol de son bouton, pas à côté de lui (ticket 906).
+  // Le prix se dit en une ligne ; le reste, et d'où c'est tiré, au survol.
+  const [price = "", ...suite] = rendered.prix;
+  const source = rendered.lu === undefined ? [] : [`according to ${gesture(project, "facts")}, read at ${hourOf(rendered.lu)}`];
   return confirmationOfAction(
     document,
     {
       titre: `⚠️ ${rendered.titre}`,
-      phrase: sentence,
-      aide: help,
+      phrase: price,
+      aide: [...suite, ...source].join("\n"),
       non: rendered.renoncer,
-      aCote: rendered.chiffrer !== true,
+      aCote: true,
       choix: rendered.choix.map(({ id, libelle: wording, dit: said }) => ({
         libelle: wording,
         dit: said,
         partir: () => {
           aConfirm = undefined;
-          if (leave === undefined) void writeAction(id, true);
-          else leave(id);
+          leave(id);
         },
       })),
     },
     { non: close },
   );
-}
-
-// Un geste part dans le second, à droite : sa sortie s'y lit, sa note dit ce qui est parti, et le
-// centre ne change pas. Le second n'est pas libre : rien n'y est écrit, et la raison se lit sous
-// son titre — occupé, la commande n'est pas partie. `oui` : le « oui » d'une confirmation — un geste
-// confirmé ne part qu'avec lui.
-/** @param {string} id @param {true} [yes] */
-async function writeAction(id, yes) {
-  const project = current;
-  if (project === undefined) return;
-  notWritten = notWrittenSecond = "";
-  actionRate = undefined;
-  /** @param {string} reason */
-  const rate = (reason) => {
-    notWrittenSecond = reason;
-    actionRate = { texte: reason, rejouer: () => void writeAction(id, yes) };
-  };
-  try {
-    const rendered = await brigade.geste(project.nom, id, yes);
-    if (rendered === undefined) return show();
-    // Le chef a pu changer d'espace entre-temps : le second de ce projet le garde.
-    if ("refus" in rendered) rate(rendered.refus);
-    else {
-      keep(project.nom, rendered);
-      if (rendered.nonParti === true) rate(rendered.note);
-    }
-  } catch (error) {
-    rate(`nothing sent: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  show();
-}
-
-// Un geste confirmé qui n'a rien envoyé ne se perd pas dans la petite note du second : le centre le dit en une
-// phrase, le détail au survol, et un bouton rejoue le même geste.
-/** @param {{ texte: string, rejouer: () => void }} rate */
-function setActionRate({ texte: text, rejouer: replay }) {
-  const head = (text.split(/ — |: |\n|`/)[0] ?? text).trim();
-  const sentence = document.createElement("span");
-  sentence.textContent = `nothing was sent to the second: ${head}`;
-  sentence.title = text;
-  const still = button(RETRY, replay);
-  still.dataset.reessayer = "";
-  return [sentence, still];
 }
 
 // La page cliquée s'ouvre par-dessus le rail ; recliquée, elle se referme, et le rail revient tel qu'il était.
@@ -2265,7 +2119,6 @@ async function offerTheCapacity(project, name, called) {
 /** @param {Project} project @param {Terminal | { refus: string }} rendered */
 function followAction(project, rendered) {
   notWritten = notWrittenSecond = "";
-  actionRate = undefined;
   if (!("refus" in rendered)) keep(project.nom, rendered);
   else notWrittenSecond = rendered.refus;
   if (current?.nom === project.nom) show();
@@ -2301,7 +2154,7 @@ for (const [level, help] of /** @type {const} */ ([
   title.replaceChildren(LEVELS_SAID[level].libelle, hover(document, help));
 }
 function setTheGroups() {
-  emptyProject.hidden = !settingsOfProject.hidden || !stopKitchen.hidden;
+  emptyProject.hidden = !settingsOfProject.hidden;
   emptyProject.textContent = emptyProject.hidden ? "" : "nothing to set: no station reads this project";
 }
 // Le projet dans ton app (ticket 1700) : une ligne du groupe du projet — il est dans la barre, et « Remove from the app »
@@ -2853,8 +2706,6 @@ function renderSlip(project, cardItem, stateOfColumn, withStation = false, outsi
     signal.className = "signal";
     slip.append(signal);
   }
-  // En cuisine : un mot au cook, d'une ligne, sans ouvrir sa session (ticket 4048, mot-au-cook/).
-  slip.append(...setTheWordAtCook(document, project.nom, cardItem));
   // Une carte de TODO entrée par la porte du runtime : sa question, ses captures, un bouton par choix et
   // un champ pour répondre dans tes mots — tranchée sur la carte même, sans ouvrir sa fiche.
   if (expected && cardItem.todo !== undefined) {
@@ -3091,7 +2942,6 @@ const parkByTheBridge = parkGesture((project, id, ticket, input) => brigade.atte
 async function writeWait(project, id, ticket, input) {
   const key = `${project.nom}#${ticket}`;
   notWritten = notWrittenSecond = "";
-  actionRate = undefined;
   /** @type {string | undefined} */
   let refusal;
   /** @type {{ fait: string, detail: string } | undefined} */
@@ -3571,7 +3421,6 @@ async function playCardAction(project, ticket, id, value) {
   const before = issuesOfCards.get(key);
   if (before !== undefined && "envoi" in before) return;
   notWritten = notWrittenSecond = "";
-  actionRate = undefined;
   cardRefusals.delete(key);
   const proposes = cardsActions.get(key);
   issuesOfCards.set(key, { envoi: (Array.isArray(proposes) ? proposes.find((suggests) => suggests.id === id)?.libelle : undefined) ?? id });
@@ -4241,28 +4090,6 @@ const waitsOfRail = new Map();
 setInterval(() => {
   if (current !== undefined && (heldOnes.has(current.nom) || waitsOfRail.has(current.nom)) && !rail.hidden) setRail(current);
 }, 15_000);
-// La cuisine du projet, dans le groupe du projet de Settings (ticket 1700) : en marche ou à l'arrêt, et le seul geste
-// qui la fait changer — « stop the kitchen », le bouton de danger de la famille (ticket 2916), ou « resume the kitchen ».
-// Chacun dit d'abord ce qu'il coûte : rien ne part avant son « oui ».
-/** @param {Project} project @param {boolean} stopped */
-function setStop(project, stopped) {
-  // En lecture seule (ticket 3163), la cuisine ne s'arrête ni ne reprend d'ici.
-  const gesture = readOnlyOf(project) !== undefined ? undefined : KITCHEN_ACTIONS.find(({ id }) => id === (stopped ? "reprendre" : "stop"));
-  stopKitchen.hidden = gesture === undefined;
-  sectionKitchen.hidden = gesture === undefined;
-  if (gesture === undefined) {
-    stopKitchen.replaceChildren();
-    return setTheGroups();
-  }
-  const [declencheur, ...below] = setAction(project, { ...gesture, ou: "parametres" });
-  if (declencheur !== undefined && !stopped) {
-    declencheur.dataset.arret = "";
-    kindOfButton(declencheur, "danger");
-  }
-  stopKitchen.replaceChildren(rowOfSetting("Kitchen", [block("span", stopped ? "stopped" : "running")], declencheur === undefined ? [] : [declencheur], below));
-  setTheGroups();
-}
-
 // Le petit mot à côté de l'onglet Stations (ticket 3523) : la station du projet et son état — cooking, stopped, paused. Rien tant
 // que ce qui le dirait n'est pas lu, ou qu'aucune station ne cuit le projet. Il remplace la barre « Cooks on » de Rail.
 /** @param {Project} project @returns {{ dit: string, survol: string } | undefined} */
@@ -4293,28 +4120,8 @@ function railEmpty(project) {
   return upstreams.get(project.nom)?.vide ?? `${NOT_STILL("ticket on the rail")} What is before it is being read…`;
 }
 
-// Le bouton qui allume le projet, des mots de la ligne de la bande qui le dit éteint (alerts.ts, `BOUTONS_DE_GESTE`).
-const TURN_ON_THE_PROJECT = "switch the project on";
 // Où l'allumer, au survol de ce qui dit le projet éteint hors de Rail (ticket 3454).
-const OR_TURN_ON = "turn it on with its switch, at the top of the space, or with “switch the project on” at the head of the rail";
-
-// La tête du rail, le projet éteint (tickets 906, 1406) : marquée à l'arrêt, d'une ligne courte — rien de
-// neuf n'est pris, découpé ni mergé. Les cooks en cours finissent. À côté, le bouton qui l'allume (ticket 3454) :
-// le geste de l'interrupteur, `switch on`, dont la confirmation s'ouvre sous la ligne — en lecture seule, aucun.
-// Allumé, pas encore lu ou pas lu, rien : l'interrupteur, en tête de l'espace, dit ce qu'il en est.
-/** @param {Project} project @returns {HTMLElement[]} */
-function headOfRail(project) {
-  const readOne = statesOfManager.get(project.nom);
-  if (readOne === undefined || "sans" in readOne || readOne.allume) return [];
-  const head = document.createElement("p");
-  head.className = "arret-manager";
-  head.append(pill("off", "gris"), block("strong", readOne.dit ?? "project off"));
-  head.title = readOne.releve;
-  if (readOnlyOf(project) !== undefined) return [head];
-  const [turnOn, ...confirmation] = setAction(project, { id: "projet-allumer", libelle: TURN_ON_THE_PROJECT, ou: "tete-du-rail" });
-  if (turnOn !== undefined) head.append(turnOn);
-  return [head, ...confirmation];
-}
+const OR_TURN_ON = "the project is off on its station";
 
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
 const STATION_STOPPED = `${THIS_COMPUTER}'s station is not running`;
@@ -4443,7 +4250,7 @@ function tabOfStations(project) {
   const stateOfTheAddition = additionOfStation.etatDe(project.nom);
   const reading = narrow();
   const itsOwnHere = theStationLocale();
-  const broughtBack = top.etat === "hors-ligne" ? BRING_BACK(top.station, top.sorte !== "box") : top.etat === "eteint" ? `${top.releve}\n${OR_TURN_ON}` : "";
+  const broughtBack = top.etat === "hors-ligne" ? BRING_BACK(top.station, top.sorte !== "box") : top.etat === "eteint" ? top.releve : "";
   const toHereByDisplacement = movable.offert && moveChoice.some(({ cle: key }) => key === locale);
   const toHere = !reading && top.etat === "hors-ligne" && !top.ici && (toHereByDisplacement || addition?.donnees.iciOffert === true);
   // Personne ne le cuit : cet ordinateur le sert d'un clic, par sa liste — celle de Settings (ticket 3399).
@@ -4852,8 +4659,6 @@ function setTheRail(project) {
   const outdated = stale.get(project.nom);
   delete rail.dataset.horsLigne;
   markRead(project);
-  stopKitchen.hidden = true;
-  sectionKitchen.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && openOne !== undefined) closeCard();
   if (rail.hidden) return rail.replaceChildren();
@@ -5007,8 +4812,7 @@ function setTheRail(project) {
   const underTheColumns = [...(todo === undefined ? [] : [todo]), ...(aSide.length === 0 ? [] : [outsideTodo])];
   // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail.
   if (silent !== undefined) return set(...brand, grid, ...underTheColumns);
-  // La cuisine, en marche ou à l'arrêt, est une ligne de Settings (ticket 1700).
-  setStop(project, held.tableau.arretee);
+  setTheGroups();
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
   // Celle d'une issue avant le rail suit aussi ce qu'en dit la dernière lecture.
   const before = upstreams.get(project.nom);
@@ -5054,7 +4858,6 @@ function setTheRail(project) {
   const status =
     [
       issueOfTheKitchen === undefined ? [] : withItsAction(lineOfAlerts(document, alerts), `open #${issueOfTheKitchen.ticket}`, () => void openIssue(project, issueOfTheKitchen.ticket)),
-      headOfRail(project),
       rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? [] : freshness(held.a)),
     ].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
   // La bande du haut (ticket 4354) : les cartes du supervisor et du closer sur une ligne.
@@ -5729,58 +5532,6 @@ async function openPrOfCook(project, ticket) {
 async function openPr(project, ticket) {
   notWritten = (await brigade.ouvrirPr(project.nom, ticket)) ? "" : `the PR of #${ticket} was not opened: it is no longer among the served tickets of the latest facts read, its address is not https, or the workstation could not open it`;
   show();
-}
-
-// L'interrupteur de l'espace, en tête, à droite des onglets (tickets 906, 1406) : une glissière et son
-// mot — « project on », « project off » —, lisible sans rien lire d'autre, et un clic le bascule. Ce qui
-// en a été lu, mot pour mot, est au survol, avec ce que le clic fait. Pas encore lu, ou pas lu : il ne
-// dit ni l'un ni l'autre, et ne bascule rien — ce n'est pas « éteint ». Sa confirmation, quand le clic
-// en ouvre une, se pose dessous.
-/**
- * @param {string} name @param {boolean | undefined} lit indéfini : pas lu
- * @param {{ pourquoi: string, eteindre: string, allumer: string, clic: () => void, confirmation?: HTMLElement }} pose
- * @returns {HTMLElement[]}
- */
-function toggle(name, lit, { pourquoi: why, eteindre: turnOff, allumer: turnOn, clic: click, confirmation }) {
-  const flip = switchOfTheApp(
-    document,
-    {
-      texte: `${name} ${lit === undefined ? "…" : lit ? "on" : "off"}`,
-      allume: lit,
-      libelle: `the ${name}: ${lit === undefined ? "not read" : lit ? "on" : "off"}`,
-      titre: `${why}${lit === undefined ? "" : `\n${lit ? turnOff : turnOn}`}`,
-    },
-    click,
-  );
-  return [flip, ...(confirmation === undefined ? [] : [confirmation])];
-}
-
-// L'interrupteur de l'espace du projet, un seul pour tout le projet (ticket 1406) : allumé, les tickets lancés
-// sont pris, le manager juge et découpe, une livraison verte est mergée ; éteint, rien de neuf ne l'est.
-// Éteindre part au clic, dans le second ; allumer ouvre sa confirmation, qui dit en une phrase ce que
-// le manager va juger. Sa ligne `manager` — le manager le suit, et c'est elle qui le dit —, mot pour
-// mot, est au survol.
-function setSwitch() {
-  const project = current;
-  // En lecture seule (ticket 3163), le projet ne s'allume ni ne s'éteint d'ici.
-  const cache = project === undefined || !itselfLit(project) || readOnlyOf(project) !== undefined;
-  switchProject.hidden = cache;
-  if (project === undefined || cache) return switchProject.replaceChildren();
-  const key = JSON.stringify(["projet-allumer", "", "interrupteur"]);
-  const openOne = aConfirm?.projet === project.nom && aConfirm.cle === key ? aConfirm : undefined;
-  const confirmation = openOne === undefined ? undefined : setConfirmation(project, openOne);
-
-  const state = statesOfManager.get(project.nom);
-  const readOne = state !== undefined && !("sans" in state) ? state : undefined;
-  switchProject.replaceChildren(
-    ...toggle("project", readOne?.allume, {
-      pourquoi: state === undefined ? "the project switch: first read in progress" : "sans" in state ? `the project switch is not read: ${state.sans}` : state.releve,
-      eteindre: "click to switch it off — nothing new is taken, split or merged: it goes straight into the second",
-      allumer: "click to switch it on: says first what the manager will judge — nothing goes before your “yes”",
-      clic: () => (readOne?.allume ? void writeAction("projet-eteindre") : void openConfirmation(project, key, "projet-allumer")),
-      ...(confirmation === undefined ? {} : { confirmation }),
-    }),
-  );
 }
 
 // Le code de l'app, et les clones de brigade parmi les projets, sous cette machine dans Settings (ticket 1700) : une
@@ -7211,10 +6962,7 @@ async function putADay(clone) {
 // lu, et l'espace le dit.
 /** @param {Project} project */
 function setAlerts(project) {
-  // La ligne dont le geste est celui de l'interrupteur de l'espace n'est pas posée : l'interrupteur la
-  // dit, et c'est lui qui la lève — le projet éteint (tickets 906, 1406). Non vérifiée, elle se pose :
-  // l'interrupteur ne sait pas, la ligne dit pourquoi.
-  const alerts = !itselfLit(project) ? [] : (bands.get(project.nom) ?? []).filter(({ appel: call }) => !(call !== undefined && "geste" in call && call.geste === "projet-allumer"));
+  const alerts = !itselfLit(project) ? [] : (bands.get(project.nom) ?? []);
   actionOfTheEmergency = undefined;
   const opinion = opinionOfRepository(project, "page");
   // En lecture seule, sa ligne vient en tête du projet (ticket 3163) : elle dit pourquoi aucun geste n'est offert.
@@ -7293,23 +7041,17 @@ function setAlert(project, alert) {
   return line;
 }
 
-// Le contrôle d'une ligne de la bande, et sa confirmation quand elle est ouverte. Un geste du socle :
-// direct, il part au clic ; confirmé, le clic ouvre sa confirmation, qui dit son prix (confirmation.ts).
-// Une demande au second dont le geste coûte : le clic ouvre une confirmation qui dit ce que coûtera le
+// Le contrôle d'une ligne de la bande, et sa confirmation quand elle est ouverte. Une demande au second dont le geste coûte : le clic ouvre une confirmation qui dit ce que coûtera le
 // lever — un « oui » écrit la demande dans le second, sans l'envoyer. Sans prix, elle s'écrit au clic.
 // Un onglet : il s'ouvre. Sans appel, la ligne n'a pas de contrôle : rien à faire depuis l'app.
 /** @param {Project} project @param {Alert} alert @param {string} place @returns {HTMLElement[]} */
 function setControl(project, alert, place) {
   const { sujet: subject, geste: lifted, bouton: wording, appel: call, prix: price } = alert;
   if (call === undefined) return [];
-  // En lecture seule (ticket 3163), pas de geste du socle : rien qui change le projet.
-  if (readOnlyOf(project) !== undefined && "geste" in call) return [];
   const word = wording ?? lifted;
   /** @type {HTMLElement[]} */
   let pose;
-  // L'endroit d'un geste du socle est la ligne par son sujet : la confirmation d'un même geste s'ouvre sous la ligne cliquée.
-  if ("geste" in call) pose = setAction(project, { id: call.geste, libelle: word, ou: `alerte:${subject}` });
-  else if ("demande" in call) {
+  if ("demande" in call) {
     // Un prix « none… » est un prix nul : pas de confirmation, la demande s'écrit au clic.
     const cost = /^none\b/i.test(price.trim()) ? "" : priceSays(price);
     const key = JSON.stringify(["demande", "", place]);
@@ -7317,7 +7059,6 @@ function setControl(project, alert, place) {
     const request = button(cost === "" ? word : `${word}…`, () => {
       if (cost === "") return void askAlert(alert);
       notWritten = notWrittenSecond = "";
-      actionRate = undefined;
       aConfirm = openOne === undefined ? { projet: project.nom, cle: key, rendu: confirmationOfRequest(cost) } : undefined;
       show();
     });
@@ -7348,7 +7089,6 @@ const confirmationOfRequest = (price) => ({
 });
 
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
-// Son geste la reprend : confirmé, il dit d'abord ce qu'il relance.
 /** @param {Project} project */
 function setStopFlag(project) {
   const held = heldOnes.get(project.nom);
@@ -7356,11 +7096,7 @@ function setStopFlag(project) {
   stop.hidden = bannerElement === undefined || held === undefined || !("tableau" in held) || !held.tableau.arretee;
   if (stop.hidden || bannerElement === undefined) return stop.replaceChildren();
   const [title, ...suite] = bannerElement.texte;
-  const relaunch = KITCHEN_ACTIONS.find(({ id }) => id === bannerElement.bouton);
-  const gesture = document.createElement("div");
-  gesture.className = "gestes";
-  if (relaunch !== undefined && readOnlyOf(project) === undefined) gesture.append(...setAction(project, { ...relaunch, ou: "arret" }));
-  stop.replaceChildren(block("strong", title), ...suite.map((line) => block("p", line)), gesture);
+  stop.replaceChildren(block("strong", title), ...suite.map((line) => block("p", line)));
 }
 
 // Tout ce qui se dessine du projet affiché, d'après ses derniers faits. Le rail en est : il est
@@ -7369,7 +7105,6 @@ function draw() {
   band.hidden = true;
   stop.hidden = true;
   rail.hidden = true;
-  setSwitch();
   setStationsOfProject();
   // Settings d'un projet en lecture seule (ticket 3163) : rien de ce qui se propose à son dépôt n'y est posé (vue.css).
   if (current !== undefined && readOnlyOf(current) !== undefined) state.dataset.lectureSeule = "";
@@ -8397,7 +8132,6 @@ async function open(project) {
   pageOfTheApp = undefined;
   if (emergencyChosen !== project.nom) emergencyChosen = "";
   notWritten = notWrittenSecond = "";
-  actionRate = undefined;
   // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
   if (aConfirm?.projet !== project.nom) aConfirm = undefined;
   adds = false;
@@ -8496,11 +8230,8 @@ brigade.surAlertes(({ projet: project, alertes: alerts, signal, manager: stateOf
   statesOfManager.set(project, stateOfManager);
   if (current?.nom !== project) return;
   setAlerts(current);
-  // L'interrupteur a basculé : il le dit aussitôt, et la tête du rail aussi. Le disjoncteur a changé : sa ligne de TODO aussi.
-  if (flip || JSON.stringify(breaker) !== breakerBefore) {
-    setSwitch();
-    setRail(current);
-  }
+  // Le projet s'est allumé ou éteint, ou le disjoncteur a changé : l'onglet Stations et la ligne de TODO le disent aussitôt.
+  if (flip || JSON.stringify(breaker) !== breakerBefore) setRail(current);
 });
 // Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
 // s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne
@@ -8842,11 +8573,7 @@ const example = startup.exemple;
 PALETTE = startup.palette;
 TABS = startup.onglets;
 HEADINGS = startup.rubriques;
-POWER_UP = startup.gestes.allumage;
-KITCHEN_ACTIONS = startup.gestes.cuisine;
-CONFIRMED = startup.gestes.confirmes;
 ACTIONS_OF_WAIT = startup.gestes.attente ?? [];
-DIRECT = startup.gestes.directs;
 BANNER = startup.banniere;
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
 codeSeen ??= startup.code;

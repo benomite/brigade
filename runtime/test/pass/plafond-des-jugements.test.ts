@@ -5,7 +5,6 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { brancherGardeFous, lireReglages, type Reglages } from "../../src/garde-fous.ts";
-import { principal as gardeFous } from "../../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { plafondDesJugements } from "../../src/projections/guardrails.ts";
 import { ConfigInvalide, demarrer } from "../../src/runtime.ts";
@@ -15,12 +14,6 @@ const REGLAGES: Reglages = { plafonds: { durationMs: 3_600_000, tokens: 2_000_00
 
 // Un runtime branché sur ses garde-fous, le temps d'écrire ses réglages.
 const brancher = (repertoire: string, reglages: Partial<Reglages> = {}) => brancherGardeFous({ ...REGLAGES, ...reglages }, demarrer({ repertoireEtat: repertoire, projet: "brigade" })).arreter("test");
-
-const guardrails = async (repertoire: string) => {
-  const appel = appeler(gardeFous, [], { BRIGADE_STATE_DIR: repertoire });
-  assert.equal(await appel.fin, 0);
-  return appel.sortie();
-};
 
 function journal(t: TestContext, repertoire: string) {
   const lu = ouvrirJournal(repertoire, { lectureSeule: true });
@@ -55,17 +48,10 @@ test("il s'écrit au journal avec les autres réglages, et ne s'y réécrit que 
   assert.equal(plafondDesJugements(lu.base), 1);
 });
 
-test("`guardrails` le montre à côté des plafonds, avec la variable qui le règle", async (t) => {
-  const repertoire = repertoireTemporaire(t);
-  brancher(repertoire, { jugements: 2 });
-  assert.match(await guardrails(repertoire), /caps per ticket .*\npass judgements\s+2 at once at most — deliveries whose zones do not overlap are judged side by side \(BRIGADE_MAX_JUDGEMENTS\)\n/);
-});
-
-test("un journal écrit par un runtime d'avant ce plafond le dit : la pass y jugeait une livraison à la fois", async (t) => {
+test("un journal écrit par un runtime d'avant ce plafond le dit : la pass y jugeait une livraison à la fois", (t) => {
   const repertoire = repertoireTemporaire(t);
   const ecrit = ouvrirJournal(repertoire);
   ecrit.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "guard.configured", payload: { limits: REGLAGES.plafonds, breakerThreshold: 3 } });
   ecrit.fermer();
   assert.equal(plafondDesJugements(journal(t, repertoire).base), null);
-  assert.match(await guardrails(repertoire), /pass judgements\s+1 at once — set by a runtime from before this cap; it is written at its next start/);
 });

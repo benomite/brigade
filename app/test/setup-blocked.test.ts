@@ -13,15 +13,12 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { alerts, entryOfSetup, holdBands, type Alert, type Band } from "../src/alerts.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, understand } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { playTheVue, repos } from "./helpers/false-vue.ts";
@@ -194,7 +191,7 @@ describe("le setup du projet bloqué, à l'écran", () => {
         exemple: EXAMPLE,
         onglets: TABS,
         rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,

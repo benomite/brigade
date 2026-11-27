@@ -6,13 +6,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Home } from "../../src/home.ts";
-import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import type { Delay } from "../../src/projects/request.ts";
 import { calibrationRecommended, EFFORTS, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
@@ -245,7 +242,7 @@ describe("sur la page du projet", () => {
     exemple: EXAMPLE,
     onglets: TABS,
     rubriques: HEADINGS,
-    gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+    gestes: {},
     banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
     code: undefined,

@@ -6,14 +6,11 @@
 // manque tient en une ligne, son détail au survol ; chaque geste attendu est un bouton.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { header } from "../src/card.ts";
 import { BANNER, type Drawable, type Facts } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
@@ -43,7 +40,7 @@ const startup = () => ({
   exemple: EXAMPLE,
   onglets: TABS,
   rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
@@ -243,7 +240,7 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
 
 const COMMAND_OF_THE_BOX = "do what #535 waits for, as the box writes it";
 const URGENT: Alert = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: COMMAND_OF_THE_BOX, bouton: "ask the second", appel: { demande: true }, prix: "none" };
-const RESUME: Alert = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen: `brigade parade garde-fous -- resume`", bouton: "resume the kitchen", appel: { geste: "reprendre" }, prix: "cost: queued tickets start again at once, on your quota" };
+const RESUME: Alert = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen: `brigade parade garde-fous -- resume`", bouton: "ask the second", appel: { demande: true }, prix: "cost: queued tickets start again at once, on your quota" };
 const QUEUED = [URGENT, RESUME];
 
 async function bandQueued(): Promise<Plays> {
