@@ -14,6 +14,8 @@
 - **Linux** (x64): download `brigade-<version>-linux-x64.AppImage` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases/latest), then `chmod +x` it and run it ([details](docs/installation-linux.md)).
 - **Windows** (x64): download `Brigade-<version>-windows-x64-setup.exe` from the [newest `app-v*` release](https://github.com/benomite/brigade/releases/latest).
 
+**From Claude Code**: `/plugin marketplace add benomite/brigade`, then `/plugin install brigade@brigade` (on Claude Code 2.1.275 or later, `/plugin install brigade --marketplace benomite/brigade` does both). `/brigade:start` tells what brigade is, checks `gh` and the repository you are in, and names the app download for your computer; `/brigade:ask <number>` answers on any ticket. V1 stays installable from the tag `v1-final`. More in [`docs/plugin.md`](docs/plugin.md).
+
 **[Brigade builds itself — see its live autonomy figures](https://benomite.github.io/brigade/autonomie.html)**
 
 You write the ticket, a **cook** takes it, the **pass** merges it: you are called only for product choices. Open source, free. No Brigade account needed — just GitHub and your Claude subscription.

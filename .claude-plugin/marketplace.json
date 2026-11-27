@@ -1,9 +1,15 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "brigade",
-  "description": "Brigade V1 plugin is no longer published from the default branch. Install it from the tag v1-final: /plugin marketplace add benomite/brigade@v1-final",
+  "description": "Brigade, published from main: /brigade:start and /brigade:ask. The V1 plugin stays installable from the tag v1-final: /plugin marketplace add benomite/brigade@v1-final",
   "owner": {
     "name": "benomite"
   },
-  "plugins": []
+  "plugins": [
+    {
+      "name": "brigade",
+      "source": "./",
+      "description": "You decide. The kitchen ships. /brigade:start tells what brigade is, checks gh and this repository and gives the app download; /brigade:ask <number> answers on a ticket."
+    }
+  ]
 }

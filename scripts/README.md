@@ -19,12 +19,12 @@ Fait descendre la version publiée du plugin dans tous les projets du poste. Ges
 - **`/brigade:sync`** : là où le projet a un miroir Codex (`codex/skills/`), pour qu'il suive les rôles publiés.
 - **`/brigade:init`** : si le bloc de bindings ou les settings du projet doivent suivre cette release.
 
-## Publier une évolution du plugin V1
+## Publishing a change of the plugin
 
-Le marketplace installe le plugin **depuis `main`**, qui est aussi la branche d'intégration : il n'y a qu'un chemin. Un rôle modifié (`commands/`, `agents/`, `codex/skills/`, `evals/`) arrive sur `main` par une PR ordinaire, mais n'atteint les projets installés que lorsque `version` change dans `.claude-plugin/plugin.json` : sans bump, `scripts/update-partout.sh` répond « déjà à jour ».
+The marketplace publishes the `brigade` plugin **from `main`**, which is also the integration branch: there is one path. Since #4525 the plugin carries `/brigade:start` and `/brigade:ask` only ([`docs/plugin.md`](../docs/plugin.md)); the V1 roles stay installable from the tag `v1-final`, and `/brigade:sync` and `/brigade:init` above concern only those V1 installs. A changed command (`commands/start.md`, `commands/ask.md`) reaches `main` through an ordinary PR, but reaches the installed projects only once `version` changes in `.claude-plugin/plugin.json`: without a bump, `scripts/update-partout.sh` answers "already up to date".
 
-Le geste :
+The gesture:
 
-1. **Bumper `version`** dans `.claude-plugin/plugin.json`, dans la même PR que le changement du rôle (et de son miroir Codex).
-2. **PR vers `main`**, branche tirée de `origin/main`. Dire dans la PR quelles gates ont été jouées. Le merge de cette PR **est** la publication.
-3. **`scripts/update-partout.sh`**, au chef, sur son poste, puis redémarrer les sessions, `/brigade:sync` là où il y a un miroir Codex, `/brigade:init` si les bindings ou settings doivent suivre (le « quand » de chacun est ci-dessus).
+1. **Bump `version`** in `.claude-plugin/plugin.json`, in the same PR as the change, and run `claude plugin validate .`.
+2. **PR to `main`**, from a branch of `origin/main`. Say in the PR which gates were run. Merging this PR **is** the publication.
+3. **`scripts/update-partout.sh`**, by the chef, on their workstation, then restart the sessions.

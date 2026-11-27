@@ -5,7 +5,7 @@
 ## What the repo already carries
 
 - `tests.yml`, `publier-app.yml` and `publier-station.yml` trigger on `push` to `main` **and** `v2`, so they work on either side.
-- `.claude-plugin/marketplace.json` lists no plugin (the default branch no longer publishes V1); `plugin.json` stays, the gates and worktree setup read it.
+- `.claude-plugin/marketplace.json` no longer publishes V1: since #4525 it publishes the current `brigade` plugin from `main` (`/brigade:start`, `/brigade:ask`, see [`docs/plugin.md`](../plugin.md)); the gates and worktree setup read `plugin.json`.
 
 ## 1. Check the starting point
 
@@ -61,6 +61,6 @@ git remote set-head origin -a
 
 - [ ] `git ls-remote --heads origin` lists `main`, no `v2`; the tag `v1-final` is there.
 - [ ] The repository page opens on `main`.
-- [ ] `/plugin marketplace add benomite/brigade@v1-final` installs V1; without `@v1-final` it offers no plugin.
+- [ ] `/plugin marketplace add benomite/brigade@v1-final` installs V1; without `@v1-final` it offers the current plugin (`/brigade:start`, `/brigade:ask`).
 - [ ] The next push to `main` starts `tests`; a PR formerly based on `v2` shows `main` as its base.
 - [ ] `npm --prefix runtime run base` reads `main` and the gates are green.

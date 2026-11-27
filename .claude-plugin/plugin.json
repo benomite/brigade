@@ -1,7 +1,7 @@
 {
   "name": "brigade",
-  "version": "0.17.0",
-  "description": "Protocole de travail multi-agents : PO, Manager, Dev, Designer sur un backlog GitHub",
+  "version": "2.0.0",
+  "description": "You decide. The kitchen ships. You write the ticket, a cook takes it, the pass merges it: you are called only for product choices.",
   "author": {
     "name": "benomite",
     "email": "benomite@users.noreply.github.com"
@@ -9,23 +9,8 @@
   "license": "MIT",
   "homepage": "https://github.com/benomite/brigade",
   "commands": [
-    "./commands/init.md",
-    "./commands/po.md",
-    "./commands/manager.md",
-    "./commands/dev.md",
-    "./commands/designer.md",
-    "./commands/sync.md",
+    "./commands/start.md",
     "./commands/ask.md"
   ],
-  "agents": [
-    "./agents/dev-teammate.md",
-    "./agents/dev-teammate-low.md",
-    "./agents/dev-teammate-medium.md",
-    "./agents/cook.md",
-    "./agents/triage.md",
-    "./agents/manager.md",
-    "./agents/product.md",
-    "./agents/second-juge.md",
-    "./agents/closer.md"
-  ]
+  "agents": []
 }
