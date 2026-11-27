@@ -32,23 +32,7 @@ when nothing asks for it. **A station that refuses the project has its own line 
 station — `box/claude refuses the project: <the station's reason> <the gesture that fixes it>` — gone as soon as the station
 no longer refuses. The modules are `app/src/cooking.ts`, `app/src/vue/stations-of-cooking.js` and
 `app/src/vue/project/rail/refusal-of-station.js`.
-**The form of a declared station** (#1510), in its card's `Details` on the Stations tab (#2488, #3195) — two settings rows
-(`composants/reglage`, #2920), each with its `this computer` level: `Cooks at once`, prefilled; `What it provides`, one checkbox per
-capability (the boxes of "+ station", #1307): the ones it declares, ticked, then what the other stations provide and what
-this computer can declare, unticked. Under the boxes (#1959), a field and `Add` take a capability that no box offers — the one a
-ticket in WAITING awaits (``awaiting a station that provides `<capability>` ``): its name is typed (trimmed, inner spaces turned into
-hyphens, the backquotes of a name copied from a card dropped), and it becomes a ticked box of the form, applied at once like
-a ticked box; an empty name, one the runtime would not read, or one already in the form is refused in one line under the
-field, and nothing is added or sent. Once applied, the station provides it, the other stations' forms offer it, and the
-ticket that awaited it goes back on the rail on its own. The rule for the typed name is `runtime/src/capacite-libre/`; the
-view applies the same one (`app/src/vue/capacity-free/`), a test keeps them identical. **There is no Save button**: the
-number applies when it changes (Enter, or leaving the field), each box as soon as it is ticked or unticked; each change
-sends the station's whole declaration with that one value changed, and changes that station only, by the runtime's
-single-station commands run through the project's station (`installation stations set`): the others stay as it wrote them.
-The declaration lives on the project's main station, not in the repository: no change opens a pull request. While a change
-runs, `applying…` reads under its row and the form's controls wait; then the row says what was done, or the refusal in one
-line (the station's answer on hover), the control back to the value in force. It is the same on a
-Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
+**The app no longer reads or changes the stations a project declares** (#4679): the form of a declared station (cooks at once, what it provides, `Add` a capability) is gone, with `Cook it on a station that has it` on a choice card and the guided installation below. A station's card shows what GitHub and `facts` say of it.
 **On a narrow screen — the phone (#1151), or a window under 720 px —, the menu gains a fifth entry** (#1186): after Settings,
 **Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
@@ -536,8 +520,7 @@ goes to has its card, `starting`, without gestures. Each card:
   its cooks in flight finish.`); confirmed, it goes through the gesture the app has for that station
   (`projet/stations/ArretStation.js`, #3402) — this computer's list (`servirUnProjet`), after its station's selection if
   that holds the project too, or the station would write its line back; a paired station's selection
-  (`choisirLesProjets`); or the removal of a declared station (`changerUneStation`, #2914; the project's only declared
-  station is not removed, and the line says why). What it did, or why nothing changed, reads in one line under the top
+  (`choisirLesProjets`). What it did, or why nothing changed, reads in one line under the top
   line: `<station> no longer takes <project>'s tickets`, or `nothing was changed: …` — the list read back still holding
   the project included (`nothing was changed: <station> still has <project> in the projects it serves`). The card and its
   button stay whenever nothing changed;
@@ -633,31 +616,7 @@ In the **`Details`** of the card of each station the project declares (#3195), t
 lines, each the same row as in Settings — the setting's name and its **level** (`this computer`, from
 `app/src/vue/levels.js`), the value in force, and its control:
 
-- **cooks at once** — a number; **what it provides** — the capability boxes, and a field for one no
-  box offers. There is no Save button (#2920): the number applies when it changes (Enter, or leaving the field), each box
-  as soon as it is ticked or unticked, an added capability as soon as it is added. Each change sends the station's whole
-  declaration with that one value changed (`changerUneStation`); `applying…` reads
-  under its row and the controls wait meanwhile, then the row says what was done, or the refusal in one line (its detail on
-  hover) with the control back to the value in force. The re-read declaration then shows the new values.
-- **ordinary tickets** — `taken` or `not taken`, with the app's switch (`composants/interrupteur/interrupteur.js`, the same
-  as the project switch at the head of the project space and the sandbox row below). On the station that runs on this computer, the switch is this computer's
-  option, the same as Settings (`reglerOrdinaires`, its cooks limit kept): it writes at once, `applying…` under the row
-  meanwhile, a refusal under it. On a box station, `taken`,
-  greyed — a box station takes every ticket it can cook. On a remote station, what `facts` says of it, greyed, the
-  reason on hover; `not said` when its main station does not say it.
-
-Removing a station is not one of these rows (#2914): it is `Stop cooking here` on the station's card (#3195), and nowhere
-else. It asks first, inline on the card, with what it costs in one line (`Stop cooking parade on pc/claude?`); confirmed,
-the station is removed from the declaration. The project's only station is not removed: the line says why.
-
-Each line is the app's settings row (`rangeeDeReglage`, `app/src/vue/components/setting/setting.js`). Every one of these
-settings lives on a station, none in the project's repository: no change opens a pull request. Nothing is stored by the
-block: each change goes through the storage that already existed, and a reload of the app shows it as written. The boxes
-offer what the station declares, what the other stations provide, and what this computer can declare (read once per
-project). Captures (in git history): `docs/captures/2488/` (before #3195).
-
-*Code: `app/src/vue/project/stations/StationSettings.js` (`reglagesDeLaStation`), `reglagesDeLaStationDeclaree` in `app/src/vue/vue.js`. Test:
-`app/test/vue/project/settings-station.test.ts`.*
+(The declared station's form — cooks at once, what it provides — was removed in #4679: the app no longer reads declared stations.)
 
 ### This computer's station, on the Stations tab (#2489, epic #2484)
 
@@ -1339,72 +1298,11 @@ The project's name is taken from its repository. A project the file would refuse
 
 ### After the add: the commissioning
 
-A project added is not yet served. The steps that remain are in the project's space, at the head of the panel, under
-**Installation** — unfolded by itself for a project you have just added, folded to one line for the others. The steps
-are the runtime's (`installation etapes`), read through the project's station, which is the one of this computer; their
-state is kept in the project's log, so closing the app and opening it again finds the same steps done. Four actions
-matter, **in this order**, and the app skips none:
-
-| | The action | What the app does | What stays with you |
-|---|---|---|---|
-| 1 | **Prime the repo** — `Run the repository setup in the second` | opens the space's second on the setup session: a fresh `claude` conversation in the project folder, with the setup instructions in its system prompt — no command is typed | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
-| 2 | **Merge** — the box `The result of the repository setup is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
-| 3 | **Check** | runs `installation` through the project's station, for you, and displays **everything** it returned | settle what it names, and check again |
-| 4 | **Start** | writes nothing: this computer's station runs in the background, started at login or by the app when it opens, there is no service to start | — |
-
-**Three states**, and the check is possible only once init is said merged: **init is not said merged** (`Check` is
-inactive: `No check: the result of the repository setup is not said merged…`); **the check is incomplete** (`NOT READY`, or
-nothing yet, or what the app got instead); **everything is ready** (`installation` exited with `0`: `READY — checked
-at 14:32:07`). An inactive button has its reason written below, and the main process refuses likewise.
-
-**The repository setup — the app puts you there (#4632).** If the space's second is not running, it is launched on the
-setup session: `claude` with the setup instructions appended to its system prompt (`app/src/setup/instructions.md`,
-rendered next to the projects file with the paths of this computer's `node`, runtime and setup script) and a
-one-line first message that starts it; the line under the right-hand tabs says so (`setup session launched: …`). No
-slash command is typed or shown, and no plugin is needed. If the second is already running, it is not replaced: a
-one-line request naming the instructions file is written there, without Enter, as by a button. The session can be
-replayed without harm.
-
-**Merging is you.** The station sees of the repo only what its origin carries: as long as the result of init is not
-on the integration branch, it can serve nothing. A repo **already primed and merged** does not have to replay the
-session: tick the box, and check. **Ticking without having merged starts nothing**: it is `installation` that reads
-the integration branch on the origin, and it will say so (`MISSING`, "In the repo").
-
-**Check runs the command that exists**, the same one the bar runs for `status`: `brigade <name> installation`, through
-this computer's station. It launches neither a cook nor a setup, consumes no quota, and can be replayed as often as
-you like (`docs/installer.md`, "Check that the project is ready"). The app waits for its answer two minutes at most,
-and displays **everything it returned, word for word**:
-
-```
-NOT READY — checked at 14:32:07
-
-Dans le dépôt
-  MANQUE    `.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel
-            → `git update-index --chmod=+x .claude/brigade/gates.sh`, commité sur `main`
-
-Sur GitHub
-  MANQUE    labels absents du dépôt : fire, model:opus, model:sonnet, …
-            → la même commande, suivie de `labels`
-
-brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé tant qu'il en reste
-
-→ exit code 1
-```
-
-**Each point that is not ready is a `MANQUE` line, and the arrow below says what remains to be done for it**: it is
-`installation` that names them, the app translates none of them and removes none. A check replayed **removes the
-earlier "ready"** until it has answered.
-
-| What the app says | What happened |
-|---|---|
-| `READY` | `installation` exited with `0`, with its verdict line (`brigade : projet « <nom> » : prêt…`) |
-| `NOT READY` | it was run, and something is missing (code `1`), or it refused its environment (code `2`): its output names it |
-| `NO VERDICT` | a code `0` **without** the verdict line: it is not `installation` that answered |
-| `NOT REACHED`, `REACHED, BUT UNKNOWN TO THE STATION`… | the command did not return its verdict: the same cases and words as under `status` ("What the station says of the project") |
-
-- **A project whose folder is not there** has neither a second nor a shell: the start says `"…" does not open: folder not found: …`.
-- **The commissioning is kept only while the app is open.** Relaunched, the app takes it back at the start, folded:
-  unfold it, tick the box again, check — the station says everything again.
+**The app no longer guides the installation** (#4679). It launched the runtime's `installation` commands (the steps, the
+check, the declared stations, the branch protection, the decisions) through the project's station; it launches none now, so
+the **Installation** block, its **Check** and the lines of what an installed project had lost (a station or a station action
+missing) are gone. What the chef still sees of a project's readiness is what GitHub and the kitchen's `facts` say: the
+repository setup (`page-project`), the stations of the Stations tab, the alerts band's other lines.
 
 ### Removing a project from the app
 
@@ -2400,13 +2298,7 @@ has no blocker row as well (the blocker waiting for it shares its id, `need:<nee
 Every other gesture rewrites the selections as they are. Screenshots (in git history): `docs/captures/1400/`. The module is
 `app/src/vue/project/choice.js`; the write is `choisir` in `app/src/projects/projects.ts`.
 
-**"Cook it on a station that has it" opens the station form** (#1511, epic #1506): that one option writes nothing. It
-switches to Stations and opens the edit form of #1510 in the `Details` of a station of this workstation — the first one this computer
-plays for the project, else the first the project declares — with the capability the need calls offered, unticked, next
-to what the station provides (`browser` → `navigateur-headless`, `postgres` → `postgres`, …: the first capability the
-runtime gives the need, `CAPACITE_DU_BESOIN` in `app/src/vue/stations-declared.js`). Since #2920 each box applies as soon
-as it changes: ticking it declares it like any other edit, and the capability shows on the station's row; the card stays until the station publishes the choice as
-answered. No station read yet, one line under the card says so. Screenshots (in git history): `docs/captures/1511/`.
+**"Cook it on a station that has it" is no longer offered** (#4679): it opened the form of a declared station, which the app no longer reads. The card lists the other issues of the choice.
 
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
 the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine

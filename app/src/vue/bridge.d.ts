@@ -16,7 +16,6 @@ import type { Opinion as OpinionOfVersion } from "../update/opinion.ts";
 import type { Read as QuestionRead, Rendered as AnswerRendered } from "../question.ts";
 import type { Seen as SeenOfCode } from "../delay.ts";
 import type { Opinion, Removal } from "../removal.ts";
-import type { Guide, StationChanged, StationWanted } from "../service.ts";
 import type { Request as RequestOfReport, RenderedOfReport } from "./report/opening.ts";
 import type { RepositoryOfChef } from "../projects/github.ts";
 import type { Addition, Chosen, DefaultsOfTheMachine, Move, EFFORTS, MODELS, Removal as RemovalOfAStation, SeenOfProjects } from "../projects/projects.ts";
@@ -47,35 +46,6 @@ export type Bridge = {
   // Range un projet à la place `rang` de la barre, comptée depuis zéro parmi les projets : les autres
   // se décalent. Rend la raison, s'il ne l'a pas été. Rangé, le nouvel ordre arrive par `surConfiguration`.
   ranger(project: string, rank: number): Promise<string | undefined>;
-  // L'installation guidée d'un projet (service.ts), relue sur sa box : ses étapes, leur état, la
-  // courante et ce qu'elle demande — rien, pour un projet sans box ou qui a quitté le fichier.
-  // Ouverte ou en cours, la vérification d'ouverture part une fois. Ce qui change ensuite arrive par `surGuide`.
-  service(project: string): Promise<Guide | undefined>;
-  // Le chef déplie l'installation : elle se lit en entier, vérification d'ouverture comprise.
-  deplierService(project: string): Promise<Guide | undefined>;
-  // Ouvre dans le second du projet la session qui amorce son dépôt, ses instructions données : rend le
-  // second, dont la note dit ce qui a été lancé — ou pourquoi rien ne l'a été.
-  amorcer(project: string): Promise<Terminal | { refus: string }>;
-  // Le chef dit le résultat de l'init mergé sur la branche d'intégration, ou s'en dédit : la box le note.
-  // Les gestes de l'installation qui suivent rendent la raison s'ils ne sont pas partis ; ce qu'ils
-  // ont fait arrive par `surGuide`.
-  direMerge(project: string, merge: boolean): Promise<{ refus: string } | undefined>;
-  // Lance `installation` sur la box du projet : tout ce qui manque, d'un coup.
-  verifier(project: string): Promise<{ refus: string } | undefined>;
-  // Déclare les stations choisies parmi celles que la box fournit, chacune à son plafond de cooks.
-  declarerStations(project: string, choice: { nom: string; cooks: number }[]): Promise<{ refus: string } | undefined>;
-  // Change une station déclarée, seule (ticket 1510) : son plafond et ses capacités, ce poste qui la joue — ou la retire.
-  // Ses stations relues arrivent par `surGuide` ; ce qu'il en advient, en une ligne.
-  changerUneStation(project: string, station: string, wanted: StationWanted): Promise<StationChanged | { refus: string }>;
-  // Protège la branche d'intégration sur GitHub.
-  proteger(project: string): Promise<{ refus: string } | undefined>;
-  // Répond à la décision courante — deux valeurs quand elle se répond avec une autre.
-  repondre(project: string, values: string[]): Promise<{ refus: string } | undefined>;
-  // Passe les décisions que le démarrage ne réclame pas : l'étape est notée faite.
-  passerDecisions(project: string): Promise<{ refus: string } | undefined>;
-  // La box revérifie tout et termine l'installation si c'est vert ; alors le démarrage du service est
-  // écrit dans un shell de l'espace, sans être envoyé : rend ce shell — ou pourquoi rien n'est écrit.
-  demarrer(project: string): Promise<Terminal | { refus: string }>;
   // Les deux gestes qui retirent un projet, prêts à poser — rien, pour un projet qui a quitté le fichier.
   retrait(project: string): Promise<Removal | undefined>;
   // Retire le projet du fichier des projets, et rien d'autre : rien ne part vers sa box. Rend
@@ -421,8 +391,6 @@ export type Bridge = {
   // Ce qui est avant le rail du projet affiché (upstream.ts) : ses issues par état — le bandeau Backlog, ticket 3460 —, ou
   // pourquoi rien n'est compté — et ce qui se lit à la place du rail quand il est vide.
   surAmont(receive: (seenOne: SeenUpstream) => void): void;
-  // L'installation d'un projet a changé : une lecture de la box, une action partie ou revenue.
-  surGuide(receive: (guide: Guide) => void): void;
   // Le retard du code de l'app sur son origine, et celui des clones de brigade parmi les projets,
   // relus : au démarrage, au retour à la fenêtre, quand le fichier des projets change. La
   // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.

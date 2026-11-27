@@ -1,8 +1,7 @@
 // Sur l'onglet Stations, une carte par station qui sert le projet, chacune une fois (#1786, #3195) : celles que `facts`
-// donne — rattachées à la station appairée qui porte leur nom —, et celles que la principale déclare sans qu'elles s'y
-// soient annoncées. Une station appairée qui ne sert pas le projet n'en a pas. Chacune dit son état — vert seulement en
-// ligne, et jamais pour une station que la cuisine ne voit pas (#1830) —, ce qu'elle cuit, et, dans « Details », ses cooks à
-// la fois — une rangée de réglage, dont le champ s'applique dès qu'il change (#2920). La vue jouée telle qu'elle est,
+// donne, rattachées à la station appairée qui porte leur nom. Une station appairée qui ne sert pas le projet n'en a pas.
+// Chacune dit son état — vert seulement en ligne, et jamais pour une station que la cuisine ne voit pas (#1830) — et ce
+// qu'elle cuit. La vue jouée telle qu'elle est,
 // devant un faux document (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -15,10 +14,7 @@ import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import type { Outage } from "../../src/outages/outages.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
-import { readStations, type Guide, type StationChanged, type StationsRead, type StationWanted } from "../../src/service.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
-import { APPLIES, capSays } from "../../src/vue/stations-declared.js";
-import { NOT_ANNOUNCED } from "../../src/vue/stations-tab/state.js";
 import { type Fake, type Played, playTheVue, openTab, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-10-27T10:04:12.000Z";
@@ -65,33 +61,6 @@ const FACTS: Facts = {
 };
 const STATIONS_OF_FACTS = [station("box/claude", { cooks: [COOK_14] })];
 
-// Ce que la box déclare (`installation stations --json`) : elle-même, et ce Mac que l'app lui a ajouté.
-const DECLARED =
-  readStations(
-    JSON.stringify({
-      etape: { id: "stations", etat: "faite" },
-      proposees: [],
-      absent: null,
-      declarees: [
-        { nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"], cooks: 3, distante: false },
-        { nom: "macbook/claude", moteur: "claude", fournit: ["code", "raisonnement", "navigateur-headless"], cooks: 2, distante: true },
-      ],
-    }),
-  ) ?? assert.fail("la forme de `installation stations --json` n'est plus lue");
-
-const guide = (stations: StationsRead): Guide => ({
-  projet: PARADE,
-  deplie: false,
-  titre: "parade is installed",
-  lecture: { etat: "lue", a: A },
-  etapes: [],
-  courante: null,
-  annonces: { etat: "lues", liste: [] },
-  demarrage: { refus: "nothing to start: the station runs with the app" },
-  termine: true,
-  controle: { a: A, stations },
-});
-
 const PROJECT: Project = { nom: PARADE, dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 const startup = (seenOne: SeenOfProjects) => () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PROJECT] }, () => true),
@@ -111,10 +80,8 @@ const startup = (seenOne: SeenOfProjects) => () => ({
 async function open(
   seenOne: SeenOfProjects = seenOf(ON_THE_BOX),
   stations: OfRuntime[] = STATIONS_OF_FACTS,
-  declaredEntries: StationsRead = DECLARED,
-  changeOneStation: (project: string, name: string, wanted: StationWanted) => StationChanged | Promise<StationChanged> = (_, name) => ({ fait: `${name} saved; the other stations are unchanged` }),
 ): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup(seenOne), espace: () => [], service: () => guide(declaredEntries), defautsDeStation: () => ({ refus: "pas ici" }), changerUneStation: changeOneStation });
+  const vue = await playTheVue({ demarrage: startup(seenOne), espace: () => [], defautsDeStation: () => ({ refus: "pas ici" }) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FACTS, stations }) }] });
@@ -128,24 +95,17 @@ const lines = (vue: Played) => vue.element("rail").dessous("section").filter((po
 const line = (vue: Played, key: string) => lines(vue).find((pose) => pose.dataset.station === key) ?? assert.fail(`pas de carte pour ${key}`);
 const pill = (pose: Fake) => pose.dessous("span").find(({ className }) => className === "pilule etat");
 const stateOf = (pose: Fake) => [pill(pose)?.dessous("strong")[0]?.textContent, pill(pose)?.dataset.ton];
-const capOf = (pose: Fake) => pose.dessous("div").find(({ className, dataset }) => className === "reglage" && dataset.cle === "cooks") ?? assert.fail(`pas de rangée des cooks sous ${pose.dataset.station}`);
-const fieldOfCap = (pose: Fake) => capOf(pose).dessous("input")[0] ?? assert.fail(`pas de champ du plafond sous ${pose.dataset.station}`);
-const saysUnder = (pose: Fake) => capOf(pose).children.filter(({ className }) => className.startsWith("dit")).map(({ className, textContent }) => [className, textContent]);
 
 describe("une carte par station qui sert le projet, chacune une fois (#1786, #3195)", () => {
-  test("celle de `facts`, rattachée à sa station appairée ; celle que la box déclare sans qu'elle s'y soit annoncée ; pas celle qui ne le sert pas", async () => {
+  test("celle de `facts`, rattachée à sa station appairée ; pas celle qui ne le sert pas", async () => {
     const vue = await open();
-    assert.deepEqual(lines(vue).map(({ dataset }) => dataset.station), ["gbox", "macbook/claude"]);
-    // La box est en ligne, et cuit #14 ; le Mac, déclaré, ne s'est pas annoncé : pas de vert. Le PC, ajouté par l'app mais qui
-    // ne sert pas le projet, n'est nulle part dans l'onglet.
-    assert.deepEqual(lines(vue).map(stateOf), [["online", "vert"], [NOT_ANNOUNCED, "gris"]]);
+    assert.deepEqual(lines(vue).map(({ dataset }) => dataset.station), ["gbox"]);
+    // La box est en ligne, et cuit #14. Le Mac et le PC, ajoutés par l'app mais qui ne se sont pas annoncés dans `facts`,
+    // n'ont pas de carte : l'app ne lit plus les stations que le projet déclare.
+    assert.deepEqual(lines(vue).map(stateOf), [["online", "vert"]]);
     assert.match(line(vue, "gbox").textContent, /#14/);
-    assert.match(line(vue, "macbook/claude").textContent, /idle/);
     const tab = vue.element("rail").children.find(({ dataset }) => dataset.bloc === "stations-tab") ?? assert.fail("pas d'onglet");
     assert.doesNotMatch(tab.textContent, /\bpc\b|what each station provides|not received by the station|check again/);
-    // Ses cooks à la fois, dans « Details » : sa rangée, et son champ.
-    assert.equal(capOf(line(vue, "macbook/claude")).children[1]?.children[0]?.textContent, capSays(2));
-    assert.equal(fieldOfCap(line(vue, "macbook/claude")).value, "2");
   });
 
   test("le Mac s'annonce dans `facts` : il a toujours une seule carte, la sienne, et il est en ligne", async () => {
@@ -163,58 +123,21 @@ describe("une carte par station qui sert le projet, chacune une fois (#1786, #31
     const shapes = lines(vue).map((pose) => pose.children.map(({ balise, className }) => className || balise).slice(0, 2));
     assert.deepEqual(shapes, shapes.map(() => ["header", "ce-qu-elle-est"]));
   });
-
-  test("le plafond d'une station se règle dans « Details », sans « Save » : changé, il part aussitôt, la déclaration entière avec lui", async () => {
-    let release = () => {};
-    const retainedOne = new Promise<void>((resolved) => (release = resolved));
-    const vue = await open(seenOf(ON_THE_BOX), STATIONS_OF_FACTS, DECLARED, async (_, name) => {
-      await retainedOne;
-      return { fait: `${name} saved; the other stations are unchanged` };
-    });
-    assert.equal(line(vue, "macbook/claude").dessous("button").some(({ textContent }) => /^(save|saving…|set the cap)$/i.test(textContent)), false);
-    const field = fieldOfCap(line(vue, "macbook/claude"));
-    field.value = "4";
-    field.declencher("input");
-    field.declencher("change");
-    await repos();
-    assert.deepEqual(vue.dernier("changerUneStation"), [PARADE, "macbook/claude", { cooks: 4, fournit: ["code", "raisonnement", "navigateur-headless"] }]);
-    // En route : sa rangée le dit, son champ attend.
-    assert.deepEqual(saysUnder(line(vue, "macbook/claude")), [["dit en-cours", APPLIES]]);
-    assert.equal(fieldOfCap(line(vue, "macbook/claude")).disabled, true);
-    release();
-    await repos();
-    assert.deepEqual(saysUnder(line(vue, "macbook/claude")), [["dit fait", "macbook/claude saved; the other stations are unchanged"]]);
-    assert.equal(fieldOfCap(line(vue, "macbook/claude")).disabled, false);
-  });
-
-  test("un plafond refusé : le refus sous sa rangée, et le champ revient à la valeur en vigueur", async () => {
-    const vue = await open(seenOf(ON_THE_BOX), STATIONS_OF_FACTS, DECLARED, (_, name) => ({ refus: `Nothing was saved: how many cooks ${name} runs at once is a whole number, from 1 to 99.`, detail: "exit 2" }));
-    const field = fieldOfCap(line(vue, "macbook/claude"));
-    field.value = "0";
-    field.declencher("input");
-    field.declencher("change");
-    await repos();
-    const pose = line(vue, "macbook/claude");
-    assert.deepEqual(saysUnder(pose).map(([classe]) => classe), ["dit refus"]);
-    assert.match(capOf(pose).textContent, /whole number, from 1 to 99/);
-    assert.equal(fieldOfCap(pose).value, "2");
-  });
 });
 
 describe("chaque carte dit sa station telle que `facts` la voit (#1830)", () => {
-  // mirrorscreen : la box déclare le Mac mais il ne s'est jamais manifesté à elle ; l'app, elle, le lit en ligne sur GitHub.
-  const WITHOUT_DECLARATION = readStations(JSON.stringify({ etape: { id: "stations", etat: "faite" }, proposees: [], absent: null, declarees: [] })) ?? assert.fail("la forme de `installation stations --json` n'est plus lue");
+  // mirrorscreen : la cuisine lit le Mac mais il ne s'est jamais manifesté à elle ; l'app, elle, le lit en ligne sur GitHub.
   const THE_BOX = station("box/claude", { cooks: [COOK_14], fournit: ["code", "raisonnement"], presente: true, vueLe: null });
   const THE_MAC = station("macbook/claude", { distante: true, ensemble: true, fournit: ["code", "raisonnement", "navigateur-headless", "macos"], presente: false, vueLe: null });
 
   test("que la box ne voit pas, le Mac ne cuit pas — jamais vert, même en ligne sur GitHub ; la box, elle, est en ligne", async () => {
-    const vue = await open(seenOf(ON_THE_BOX), [THE_BOX, THE_MAC], WITHOUT_DECLARATION);
+    const vue = await open(seenOf(ON_THE_BOX), [THE_BOX, THE_MAC]);
     assert.deepEqual(stateOf(line(vue, "gmac")), ["not seen by the kitchen", "rouge"]);
     assert.deepEqual(stateOf(line(vue, "gbox")), ["online", "vert"]);
   });
 
   test("le Mac se manifeste à la box : il est en ligne ; tu depuis, il le redit, et depuis quand", async () => {
-    const vue = await open(seenOf(ON_THE_BOX), [THE_BOX, { ...THE_MAC, presente: true, vueLe: "2026-10-27T10:03:00.000Z" }], WITHOUT_DECLARATION);
+    const vue = await open(seenOf(ON_THE_BOX), [THE_BOX, { ...THE_MAC, presente: true, vueLe: "2026-10-27T10:03:00.000Z" }]);
     assert.deepEqual(stateOf(line(vue, "gmac")), ["online", "vert"]);
     const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FACTS, stations: [THE_BOX, { ...THE_MAC, vueLe: "2026-10-27T10:03:00.000Z" }] }) }] });
     vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });
