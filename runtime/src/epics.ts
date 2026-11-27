@@ -28,5 +28,7 @@ export const epicBranch = (epic: number): string => `epic/${epic}`;
 export const baseOf = (issue: Issue, base: string): string => (issue.epic === undefined ? base : epicBranch(issue.epic));
 
 // A merge into an epic's branch does not close the child by itself (`Closes #N` acts on the default branch only).
-export const closeMergedChild = (act: Pick<Gestures, "close">, issue: Issue): Promise<void> =>
-  issue.epic === undefined ? Promise.resolve() : act.close(issue.number, `Merged into ${epicBranch(issue.epic)}: ships with #${issue.epic}.`, "completed");
+export const closeMergedChild = async (act: Pick<Gestures, "close">, issue: Issue): Promise<void> => {
+  if (issue.epic === undefined) return;
+  await act.close(issue.number, `Merged into ${epicBranch(issue.epic)}: ships with #${issue.epic}.`, "completed");
+};
