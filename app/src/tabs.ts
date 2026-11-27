@@ -1,7 +1,4 @@
-// Les onglets de contenu d'un espace, en haut, leur page par-dessus le rail — le second, lui,
-// est à droite : chacun relaie, en texte, la sortie d'une commande du runtime qui existe
-// (docs/runtime/exploitation.md, « Piloter »). Rien ne s'y ajoute et rien n'y est lu.
-import type { Command } from "./box.ts";
+// Les onglets de contenu d'un espace, en haut. Aucun ne lance de commande : l'app lit GitHub (#4710).
 
 export type Tab = { id: string; titre: string; commande: string; precision?: string };
 
@@ -18,19 +15,3 @@ export const PARAMETERS = "parametres";
 export const HEADINGS: readonly Heading[] = [
   { id: PARAMETERS, titre: "Settings", defaut: PARAMETERS, lectures: [PARAMETERS] },
 ];
-
-// Les projets dont une lecture lit la cuisine : pour un onglet, son projet et lui seul.
-export function projectsRead<P extends { nom: string }>(name: unknown, projects: readonly P[]): P[] {
-  return projects.filter((project) => project.nom === name);
-}
-
-// La vue nomme un onglet, jamais une commande : seule une commande d'ici part vers la box.
-export function commandOf(id: unknown): string | undefined {
-  return TABS.find((tab) => tab.id === id)?.commande;
-}
-
-// Ce que la lecture d'un onglet lance, dans l'ordre : rien pour un nom qui n'en est pas un.
-export function commandsOf(id: unknown): readonly Command[] {
-  const command = commandOf(id);
-  return command === undefined ? [] : [command];
-}

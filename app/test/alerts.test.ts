@@ -3,7 +3,7 @@
 // et chacun s'y éprouve sain (rien n'est posé), en panne (une ligne, sa cause, son
 // geste, son prix) et non dit (une ligne « non vérifié » qui le nomme).
 // Ce que la box rend est écrit ici par le runtime lui-même — `faits`, `status` et `manager`,
-// joués dans ce process sur un vrai journal (runtime/src/etat.ts, runtime/src/manager-cli.ts) :
+// joués dans ce process sur un vrai journal (runtime/src/etat.ts) :
 // la forme que la bande lit est tenue contre celle que le runtime écrit.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -13,7 +13,7 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { principal as manager } from "../../runtime/src/manager-cli.ts";
+import { managerOutput } from "./helpers/manager-output.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "../../runtime/src/stations-declarees.ts";
 import { DISPLAY_MINIMUM, alerts, buttonOf, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Subject } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
@@ -52,9 +52,7 @@ function kitchen(t: TestContext) {
   const render = (hour: string) => {
     const now = new Date(when(hour));
     const state = lireEtat(log, now);
-    const lines: string[] = [];
-    void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: `${lines.join("\n")}\n` };
+    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: managerOutput(log) };
   };
   const band = (hour = "10:00:00", { avecManager: withManager = true } = {}): Alert[] => {
     const rendered = render(hour);

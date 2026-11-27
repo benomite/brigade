@@ -19,7 +19,6 @@ import { readFire } from "./fire.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
-import { openStandby, type Read } from "./box.ts";
 import { situationOf } from "./story.ts";
 import { LinksRead } from "./links-read.ts";
 import { comment, askAtSecond, noteOfTheQuestion } from "./discussion.ts";
@@ -73,9 +72,8 @@ import { holdUpdate } from "./update/state.ts";
 import { apkLink, RELEASES_URL } from "./update/android.ts";
 import { fluxOf, formatOf } from "./update/flux.ts";
 import { installerOfWorkstation } from "./update/installation.ts";
-import { see as seeManager } from "./manager.ts";
 import { machineChosen, machinesOf } from "./machines.ts";
-import { commandsOf, TABS, projectsRead, HEADINGS } from "./tabs.ts";
+import { TABS, HEADINGS } from "./tabs.ts";
 import { playOutage } from "./outages/actions.ts";
 import { gistLocal, holdLogin } from "./outages/login.ts";
 import { moverOfRuntime } from "./projects/move.ts";
@@ -297,26 +295,6 @@ const standby = openStandbyOfBoard({
     tellTheBand(bands.status(shownOne));
     // Et l'accueil : ce qui bloque un projet, et depuis quand ses décisions attendent.
     tellTheHome(home.status(shownOne));
-  },
-});
-// L'onglet de contenu affiché — Manager ou Log — a sa propre veille,
-// réglée pareil : sa commande est lue pour elle-même, et son échec se lit dans
-// l'onglet sans rien retirer à ce que `status` dit à côté. Sur un terminal, elle ne lit rien.
-// La page des coûts de l'app (#1022) est lue par elle aussi : elle prend la place d'un onglet, l'espace fermé.
-// La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
-// manager, lu dans cette sortie (manager.ts).
-// `ongletLu` : l'onglet que la veille lit, et sa demande.
-let tabRead: { id: unknown; demande: number } | undefined;
-const standbyOfTab = openStandby({
-  intervalleMs: 30_000,
-  delaiMs: 30_000,
-  passage,
-  cuisine: kitchens.cuisineDe,
-  surLecture: (reading) => {
-    const readOne = tabRead?.demande === reading.demande ? tabRead.id : undefined;
-    tell("contenu", reading, readOne === "manager" ? seeManager(reading) : undefined);
-    // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
-    if (readOne === "manager") tellTheBand(bands.manager(reading));
   },
 });
 // Ce qui se dessine — la pastille de chaque projet dans la barre, sa carte, son rail,
@@ -1388,14 +1366,8 @@ ipcMain.handle("ouvrirLectureSeule", (_, name: unknown, page: unknown) => {
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request, true))());
-// L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
-// Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
-ipcMain.on("onglet", (_, name: unknown, id: unknown, request: number) => {
-  const commands = commandsOf(id);
-  tabRead = { id, demande: request };
-  const readOnes = projectsRead(name, shownEntry().projets);
-  standbyOfTab.regarder(commands.length === 0 ? [] : readOnes, commands, request);
-});
+// L'onglet de contenu affiché : aucun ne lit plus la box (TABS est vide, #4710) — le canal reste pour la vue, qui n'y lit rien.
+ipcMain.on("onglet", () => {});
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
 // attendent, une station saturée : ce que l'accueil dit en une ligne et que `faits` ne porte pas.
 ipcMain.on("tous", (_, request: number) => (see = () => look(projects(), ["status"], request))());
@@ -1426,7 +1398,7 @@ ipcMain.handle("lireFeu", async (_, name: unknown) => {
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
-// qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (upstream.ts). Rend si elle a été ouverte.
+// qui n'est pas encore sur le rail, celle que la lecture de l'amont a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
   const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket) ?? addressesLooked.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(
@@ -1468,7 +1440,6 @@ app.on("will-quit", () => {
   terminals.fermer();
   turns.fermer();
   standby.fermer();
-  standbyOfTab.fermer();
   factsWatch.fermer();
   standbyOfTheUpstream.fermer();
   delays.fermer();
