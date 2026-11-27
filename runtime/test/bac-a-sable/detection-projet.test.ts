@@ -1,6 +1,6 @@
-// `/brigade:init` écrit `.claude/brigade/bac-a-sable.json` depuis ce que le
-// dépôt montre de sa chaîne d'outils (`bac-a-sable/detection-projet.ts`),
-// joué ici comme l'init le lance : un process sur le dossier du projet.
+// `bac-a-sable/detection-projet.ts` écrit `.claude/brigade/bac-a-sable.json`
+// depuis ce que le dépôt montre de sa chaîne d'outils, joué ici comme on la
+// lance : un process sur le dossier du projet.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

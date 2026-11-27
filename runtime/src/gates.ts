@@ -13,7 +13,7 @@ import type { Depassement, Gates } from "./events/pass.ts";
 import { gatesDuDossier } from "./fiche-projet/fiche.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 
-// Le script des gates d'un projet de code, celui que `/brigade:init` pose : la
+// Le script des gates d'un projet de code, celui que la mise en place du dépôt pose : la
 // pass, elle, joue ceux que la fiche du projet nomme (`gatesDuDossier`).
 export { SCRIPT_GATES } from "./fiche-projet/defauts.ts";
 export const SCRIPT_SETUP = ".claude/brigade/worktree-setup.sh";

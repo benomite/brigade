@@ -26,7 +26,9 @@ function inMemory(departure: Reminder = {}): Memories & { tel(): Reminder } {
 }
 
 // Un registre comme l'app en ouvre un à chaque lancement : ses pty sont faux, ses souvenirs ceux qu'on lui donne.
-function launch(memories: Memories, destroyed: Session[] = [], rendered: { detruite: true } | { erreur: string } = { detruite: true }, settings: { windows?: boolean } = {}) {
+// `defilements` : chaque défilement demandé à une session, qui ne finit que quand le test le dit.
+type Scrolled = { session: string; lignes: number; finir(): void };
+function launch(memories: Memories, destroyed: Session[] = [], rendered: { detruite: true } | { erreur: string } = { detruite: true }, settings: { windows?: boolean; defilements?: Scrolled[] } = {}) {
   const launched: FakePty[] = [];
   const states: Terminal[] = [];
   const outputs = new Map<number, string>();
@@ -36,6 +38,7 @@ function launch(memories: Memories, destroyed: Session[] = [], rendered: { detru
     souvenirs: memories,
     compte: () => "benoit",
     detruire: (session) => (destroyed.push(session), Promise.resolve(rendered)),
+    scroll: (session, lines) => new Promise((finish) => void settings.defilements?.push({ session: session.nom, lignes: lines, finir: finish })),
     // Ce que main.ts donne sous Windows (platform.ts) : le `bash` de Git, et aucune session sur ce poste.
     ...(settings.windows === true ? { shell: "C:\\Program Files\\Git\\bin\\bash.exe", argsDuShell: ["--login", "-i"], persistantIci: false } : {}),
     ouvrirPty(launches) {
@@ -113,6 +116,59 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
     assert.deepEqual(memories.tel(), {});
     // Le rang reste pris : le shell persistant suivant ne porte pas le même titre.
     assert.equal(terminals.ouvrir(BRIGADE, WORKSTATION).titre, "shell 2");
+  });
+});
+
+describe("la molette d'un shell persistant : l'historique de sa session", () => {
+  test("elle le remonte et le redescend ; les crans qui arrivent pendant un défilement partent ensemble ; la frappe suivante en sort d'abord, puis va au shell", async () => {
+    const scrolled: Scrolled[] = [];
+    const { terminaux: terminals, shells } = launch(inMemory(), [], { detruite: true }, { defilements: scrolled });
+    terminals.espace(BRIGADE);
+    const shell = terminals.ouvrir(BRIGADE, WORKSTATION);
+    const written = () => shells()[0]?.ecrits ?? [];
+    const asked = () => scrolled.map(({ session, lignes: lines }) => [session, lines]);
+    const tick = () => new Promise((done) => setImmediate(done));
+    const finish = async (rank: number) => {
+      scrolled[rank]?.finir();
+      await tick();
+    };
+    // La vue le sait : c'est sa molette qui défile, pas celle de xterm.
+    assert.equal(shell.scrollsSession, true);
+
+    terminals.scroll(shell.id, 3);
+    await tick();
+    terminals.scroll(shell.id, 2);
+    terminals.scroll(shell.id, 4);
+    terminals.scroll(shell.id, -1);
+    assert.deepEqual(asked(), [["brigade-brigade-1", 3]]);
+    await finish(0);
+    assert.deepEqual(asked(), [["brigade-brigade-1", 3], ["brigade-brigade-1", 5]]);
+
+    // La frappe attend que le défilement ait fini, et que le mode de copie soit quitté.
+    terminals.ecrire(shell.id, "l");
+    terminals.ecrire(shell.id, "s");
+    assert.deepEqual(written(), []);
+    await finish(1);
+    assert.deepEqual(asked().at(-1), ["brigade-brigade-1", 0]);
+    assert.deepEqual(written(), []);
+    await finish(2);
+    assert.deepEqual(written(), ["l", "s"]);
+    // Sorti, la frappe suivante part tout de suite, sans rien demander à la session.
+    terminals.ecrire(shell.id, "\r");
+    assert.deepEqual(written(), ["l", "s", "\r"]);
+    assert.equal(scrolled.length, 3);
+  });
+
+  test("le second et un shell sans session ne défilent pas ainsi : xterm garde leur molette", () => {
+    const scrolled: Scrolled[] = [];
+    const { terminaux: terminals } = launch(inMemory(), [], { detruite: true }, { windows: true, defilements: scrolled });
+    const [second] = terminals.espace(BRIGADE);
+    const here = terminals.ouvrir(BRIGADE, WORKSTATION);
+    assert.equal(here.scrollsSession, undefined);
+    assert.equal(second?.scrollsSession, undefined);
+    terminals.scroll(here.id, 3);
+    terminals.scroll(second?.id ?? -1, 3);
+    assert.deepEqual(scrolled, []);
   });
 });
 

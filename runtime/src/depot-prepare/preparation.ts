@@ -6,7 +6,7 @@
 // a les labels dont les rôles se servent — `product`, `triage` et les `prio:`.
 //
 //   checkRepoSetup(repo)   → { ready, missingBindings, missingLabels }
-//   runRepoSetup(repo)     fait ce que `/brigade:init` fait de ces deux choses —
+//   runRepoSetup(repo)     fait ce que la mise en place du dépôt fait de ces deux choses —
 //                          met les labels d'après le catalogue (`etiquettes.ts` :
 //                          crée, renomme, corrige la description), écrit la
 //                          fiche du projet si le dépôt n'en a pas (#4237), puis
@@ -89,15 +89,16 @@ export async function checkRepoSetup(repo: Repo, client: ClientGitHub = ghDe(pro
   return { ready: !missingBindings && missingLabels.length === 0, missingBindings, missingLabels };
 }
 
-// La section que le runtime sait écrire seul : celle que `/brigade:init`
-// complète sur une relance, sans en ajouter une seconde — il garde les lignes
-// qu'il trouve.
+// La section que le runtime sait écrire seul : la branche d'intégration. Le
+// reste des bindings (zones, dev local, gates) est à dire à la main ; la mise en
+// place du dépôt ne réécrit pas une section déjà là.
 export function sectionDeBindings(branche: string): string {
   return [
     TITRE,
     "",
     `- **Branche d'intégration** : \`${branche}\``,
-    "- **Rôles actifs** : to be stated — run `/brigade:init` in this repository to fill in the rest of this section",
+    "",
+    "The rest of the bindings (file zones, local dev, gates) is still to be stated here.",
     "",
   ].join("\n");
 }

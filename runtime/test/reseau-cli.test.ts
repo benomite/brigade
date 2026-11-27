@@ -1,4 +1,4 @@
-// `/brigade:init` écrit toujours `.claude/brigade/reseau`, avec les hôtes que
+// `reseau-cli.ts` écrit toujours `.claude/brigade/reseau`, avec les hôtes que
 // le worktree-setup.sh du projet joint — registre d'un outil connu ou URL de
 // dépendance.
 import assert from "node:assert/strict";
@@ -35,7 +35,7 @@ test("un setup sans hôte externe : le fichier existe, vide et commenté", async
   await p.lancer();
   const texte = readFileSync(p.fichier, "utf8");
   assert.deepEqual(lireDeclaration(texte), { hotes: [], problemes: [] });
-  assert.match(texte, /^# .*\n# Rien à ouvrir/);
+  assert.match(texte, /^# .*\n# Rien à ouvrir : le setup de worktree ne joint aucun hôte externe\. Vérifié par la déduction de reseau-cli\.ts\.\n$/);
 });
 
 test("le fichier absent est recréé à la relance ; un fichier posé à la main n'est jamais réécrit", async (t) => {
@@ -54,4 +54,7 @@ test("sans worktree-setup.sh, ou avec un installeur inconnu : le fichier existe 
     await p.lancer();
     assert.match(readFileSync(p.fichier, "utf8"), /NON DÉTERMINÉ/);
   }
+  const inconnu = projet(t, "brew install libvips\n");
+  await inconnu.lancer();
+  assert.match(readFileSync(inconnu.fichier, "utf8"), /^# NON DÉTERMINÉ : la déduction n'a pas su traduire `brew install libvips` en registre\.$/m);
 });

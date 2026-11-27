@@ -174,6 +174,7 @@ const bridge = {
   ouvrirPrDuCook: (project, ticket) => ipcRenderer.invoke("ouvrirPrDuCook", project, ticket),
   ecrire: (id, data) => ipcRenderer.send("ecrire", id, data),
   redimensionner: (id, columns, lines) => ipcRenderer.send("redimensionner", id, columns, lines),
+  scroll: (id, lines) => ipcRenderer.send("scroll", id, lines),
   surSortie: (receive) => void ipcRenderer.on("sortie", (_, id, data) => receive(id, data)),
   surEtat: (receive) => void ipcRenderer.on("etat", (_, terminal) => receive(terminal)),
   surActivites: (receive) => void ipcRenderer.on("activites", (_, published) => receive(published)),

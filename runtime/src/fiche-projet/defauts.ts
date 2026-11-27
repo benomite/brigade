@@ -7,7 +7,7 @@
 // Où la fiche vit, dans le dépôt du projet.
 export const CHEMIN_DE_LA_FICHE = ".brigade/fiche-projet.json";
 
-// Les gates d'un projet de code : le script que `/brigade:init` pose, dont le
+// Les gates d'un projet de code : le script que la mise en place du dépôt pose, dont le
 // code de sortie est le verdict de la pass (`gates.ts`).
 export const SCRIPT_GATES = ".claude/brigade/gates.sh";
 
