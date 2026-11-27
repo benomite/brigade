@@ -1,0 +1,10 @@
+{
+  "name": "brigade-autonomy-page",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Writes site/autonomie.json, the figures of the public autonomy page, from GitHub (pages workflow, #4500)",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  }
+}
