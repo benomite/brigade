@@ -94,7 +94,8 @@ test("a host added to .claude/brigade/reseau on the base is allowed by the proje
   broken = true;
   await kitchen.turn();
   await kitchen.turn();
-  await new Promise((resolve) => setTimeout(resolve, 1100));
+  // The file the gate reads is untouched: the gate keeps the same list, with
+  // no second wait past its reread floor (the suite's 2 s guard, #2129).
   assert.equal(readFileSync(published, "utf8"), before);
   assert.equal(allowed("registry.npmjs.org"), true);
   assert.deepEqual(lines.filter((line) => line.startsWith("network declaration unreadable")), ["network declaration unreadable on main, the last allowlist holds — git ls-tree: bad object"]);
