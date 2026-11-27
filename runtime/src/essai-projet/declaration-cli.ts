@@ -2,7 +2,7 @@
 // son dépôt montre (`declaration.ts`) :
 //   node runtime/src/essai-projet/declaration-cli.ts <dossier du projet>
 //
-// `/brigade:init` la lance à côté de la déclaration du bac à sable. Un fichier
+// Elle se lance à la main, à côté de la déclaration du bac à sable. Un fichier
 // déjà là n'est jamais réécrit ; un dépôt qui ne dit pas comment il s'essaie
 // n'en reçoit aucun — la commande le dit, rien n'est deviné.
 import { existsSync, realpathSync } from "node:fs";

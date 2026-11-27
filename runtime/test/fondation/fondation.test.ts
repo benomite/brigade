@@ -14,11 +14,11 @@ import type { GitHub } from "../../src/github.ts";
 import { MARQUE_D_ECHEC } from "../../src/qualite-github.ts";
 import { CALIBRE, FauxGitHub, fauxClient } from "../faux-github.ts";
 
-// Le `CLAUDE.md` qu'écrit `/brigade:init` sur un projet neuf (`commands/init.md`,
-// étape 5), et celui d'un projet dont les gates sont les vraies.
+// Le `CLAUDE.md` d'un projet neuf, dont la ligne dit les gates provisoires, et
+// celui d'un projet dont les gates sont les vraies.
 const PROVISOIRES = `# Project\n\n## Équipe multi-agents (plugin brigade)\n\n- **Gates** : \`.claude/brigade/gates.sh <WT>\`\n- **Gates provisoires** : until #1 ("Lay the project's foundation with TypeScript on Node") is merged — \`npm test\` has no test to run yet\n`;
 const REELLES = `# Project\n\n## Équipe multi-agents (plugin brigade)\n\n- **Gates** : \`.claude/brigade/gates.sh <WT>\`\n`;
-// Le `gates.sh` de `commands/init.md` (étape 6), avec et sans commande de test.
+// Le `gates.sh` d'un projet, avec et sans commande de test.
 const ENTETE = `#!/usr/bin/env bash\n# Verdict des gates du projet. Le code de sortie EST le verdict : 0 = vert.\n# Usage : gates.sh [<worktree>]\nset -euo pipefail\nWT="\${1:-$(git rev-parse --show-toplevel)}"\ncd "$WT"\n`;
 const AVEC_NPM_TEST = `${ENTETE}npm test\n`;
 const SANS_COMMANDE = `${ENTETE}\n# The test command comes with the foundation ticket.\n`;
@@ -54,7 +54,7 @@ const rienALire = () => assert.fail("GitHub is not read on real gates");
 test("with no test command and the foundation ticket unserved, an ordinary delivery is judged by nothing: 'the gates run nothing', never green", async (t) => {
   const attendu = /^nothing checked — the gates run nothing until the foundation ticket #1 is merged: no delivery but the `foundation` ticket's is merged on them$/;
   assert.match((await gatesQuiNeJugentPas(worktreeAvec(t, { gates: SANS_COMMANDE }), { labels: ["fire"] }, fondation("open"))) ?? "", attendu);
-  // Le projet neuf qu'écrit `/brigade:init` : `npm test` n'a encore rien à jouer, la ligne le dit.
+  // Le projet neuf : `npm test` n'a encore rien à jouer, la ligne le dit.
   assert.match((await gatesQuiNeJugentPas(worktreeAvec(t, { gates: AVEC_NPM_TEST, claudeMd: PROVISOIRES }), { labels: ["fire"] }, fondation("open"))) ?? "", attendu);
   // La ligne là, mais aucun ticket de fondation déposé : rien ne les rend réelles.
   assert.match((await gatesQuiNeJugentPas(worktreeAvec(t, { gates: AVEC_NPM_TEST, claudeMd: PROVISOIRES }), { labels: [] }, aucune)) ?? "", /^nothing checked — the gates run nothing until a ticket labelled `foundation` is filed and merged/);
@@ -186,7 +186,7 @@ test("with no test command and the foundation ticket unserved, an ordinary deliv
   nonJouees(avertis, "nothing checked — the gates run nothing until the foundation ticket #1 is merged");
 });
 
-test("on the new project `/brigade:init` sets up, whose `npm test` has nothing to run yet, an ordinary delivery is not merged before the foundation ticket is", async (t) => {
+test("on a new project whose `npm test` has nothing to run yet, an ordinary delivery is not merged before the foundation ticket is", async (t) => {
   const faux = new FauxGitHub();
   faux.feu(1, [LABEL_FONDATION]);
   faux.feu(757, CALIBRE);

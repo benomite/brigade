@@ -6,7 +6,7 @@
 //
 // Le compte du chef est celui que le résolveur rend (chef/chef.ts, #2928) : `chef`
 // des réglages du projet, relu à chaque passe, sinon le propriétaire du dépôt
-// ou l'auteur de son `/brigade:init` — jamais écrit en dur. Sans chef résolu,
+// ou l'auteur de la PR de sa mise en place — jamais écrit en dur. Sans chef résolu,
 // rien n'est mentionné, et la cuisine le dit une fois.
 //
 // Seule la file du chef mentionne : la prise, les renvois, les verdicts et les

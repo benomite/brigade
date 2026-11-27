@@ -2,7 +2,7 @@
 // montre de sa chaîne d'outils :
 //   node runtime/src/bac-a-sable/detection-projet.ts <dossier du projet>
 //
-// `/brigade:init` la lance à côté de la déclaration réseau (`reseau-cli.ts`).
+// Elle se lance à la main, à côté de la déclaration réseau (`reseau-cli.ts`).
 // La déclaration, `.claude/brigade/bac-a-sable.json`, tient deux clés :
 // `ports`, les ports de la boucle locale que les tests du projet joignent, et
 // `ecriture`, les dossiers sous `~` où ses outils écrivent en plus du

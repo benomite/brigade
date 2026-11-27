@@ -47,7 +47,6 @@ import { questionDuTicket } from "../alerte-publication-question.ts";
 import { attentesDuChef, type Attente, type AttenteDeTicket } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, testsInstablesDeLaCause } from "../events/pass.ts";
-import { REGLAGES_DU_PROJET } from "../mode-auto.ts";
 import { lireRail } from "../projections/rail.ts";
 import { DECLARATION_RESEAU } from "../reseau.ts";
 import { commentaireIllisible, commentaireRetenue } from "../commentaire-reponse-chef.ts";
@@ -70,6 +69,9 @@ const laPr = (pr: string | null) => pr ?? "its delivery";
 // livraison qui a un bloquant repart à la cuisine, sans carte. Un seul bouton,
 // la merger : c'est le geste du chef, que la pass ne fait jamais à sa place.
 type AttenteAMerger = Extract<AttenteDeTicket, { quoi: "merge" }>;
+
+// Les réglages de Claude Code du projet, relatifs à sa racine.
+const REGLAGES_DU_PROJET = ".claude/settings.json";
 
 // Ce que chaque déclaration ouvre, et ce que chaque juge vérifie.
 const DECLARATIONS_DITES: Record<string, string> = {

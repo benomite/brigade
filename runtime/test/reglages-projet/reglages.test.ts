@@ -82,7 +82,7 @@ test("the CLAUDE.md line is read with or without its markup, and an unreadable b
   assert.equal(brancheDuClaudeMd("- **Branche d'intégration** : `a..b`"), null);
 });
 
-test("the CLAUDE.md Roadmap line gives its issue number, as `/brigade:init` writes it or bare (#3436)", () => {
+test("the CLAUDE.md Roadmap line gives its issue number, with its writer note or bare (#3436)", () => {
   assert.equal(roadmapDuClaudeMd("- **Roadmap** : issue #1 (writer unique = Manager)"), 1);
   assert.equal(roadmapDuClaudeMd("Roadmap: #42"), 42);
   assert.equal(roadmapDuClaudeMd("- **Roadmap** : `#7`"), 7);
