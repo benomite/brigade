@@ -64,7 +64,7 @@ describe("le quota des faits", () => {
     assert.deepEqual(quotaRead(undefined), {});
     assert.deepEqual(quotaRead([]), {});
     const readOne = quotaRead({ limite: "core", utilise: "beaucoup", maximum: 5000, parStationEtProjet: [{ station: "x" }, ...CALLS] }).quotaGithub!;
-    assert.equal(readOne.parStationEtProjet.length, 3);
+    assert.equal(readOne.parStationEtProjet?.length, 3);
     assert.equal(readOfQuota(readOne).lisible, false);
     assert.equal(quotaRead({ limite: "core", utilise: 4500, maximum: 5000, renouvellement: "2026-11-13T18:00:00Z", parStationEtProjet: [] }).quotaGithub!.utilise, 4500);
   });
