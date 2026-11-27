@@ -9,7 +9,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { LABELS_D_AVANT_PARKED } from "../../runtime/src/github-etat/etats.ts";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -179,9 +178,9 @@ async function twoTimes<R>(ofDesktop: (client: ReturnType<typeof desktop>) => Pr
   assert.deepEqual(saysAtPhone, said, "the phone says what the desktop says");
   return { recues: atPhone.recues, etat: atPhone.etat(), dit: saysAtPhone, ecrits: writtenOnes };
 }
-// Déparquer : `parked` retiré, puis chaque label d'attente d'avant parked (runtime/src/github-etat/etats.ts) — un ticket que
-// l'un d'eux parque reprend aussi.
-const UNPARKED = (ticket: number) => ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+// « back to the kitchen » : `parked`, puis les labels d'avant parked que la cuisine lit encore (actions-github.ts).
+const LABELS_BEFORE_PARKED = ["waiting", "blocked-on-human"];
+const UNPARKED = (ticket: number) => ["parked", ...LABELS_BEFORE_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
 const resume = (received: Received[]) => received.map(({ methode: method, url, corps: body }) => `${method} ${url.slice(API.length - 1)}${body === undefined ? "" : ` ${JSON.stringify(body)}`}`);
 const HEADERS = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${TOKEN}` };
 

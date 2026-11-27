@@ -13,7 +13,6 @@ import { capturesOfCard, type CapturesOfCard, type CapturesRead } from "./captur
 import { LENGTH_MAX } from "./discussion.ts";
 import { KIND_PARKED_CHEF } from "./board/parked-chef-github.ts";
 import { shapeOfChef, type CardOfChef } from "./board/todo-github.ts";
-import { KIND_SENSITIVE } from "./vue/card-sensitive/card-sensitive-github.ts";
 import { capturesOfTheValidation, KIND_OF_VALIDATION } from "./vue/validation-design/validation-design-github.ts";
 import { tellThePrByItsTicket } from "./vue/pr-of-ticket.js";
 
@@ -37,8 +36,6 @@ export type ChoiceOfCard = { texte: string; prix: string };
 // `contexte` : ce que le commentaire d'une carte du chef lue de GitHub dit après sa question (#2434) — absent ailleurs.
 // `validation` : la carte « Validate its screen » (vue/validation-design/, ticket 3185) — la PR qu'elle valide, ou pourquoi
 // son issue ne la dit pas (`illisible`) — absente ailleurs.
-// `revue` : la carte « review before merge » d'un ticket sensible (vue/card-sensitive/, ticket 3224) — la PR qu'elle retient,
-// ou pourquoi son issue ne la dit pas (`illisible`) — absente ailleurs.
 export type ValidationOfCard = { pr: number; ticket: number } | { illisible: string };
 // `brief` : en tête du détail en grand d'une carte « Validate its screen » (ticket 3330), ce que le ticket demandait et ce
 // que le cook a changé à l'écran — `fait` nul, il n'en a rien dit.
@@ -49,7 +46,7 @@ export type BriefOfCard = { demande: string; fait: string[] | null };
 export type RecommendationOfCard = { rang: number; pourquoi: string };
 // `repondre` : le libellé du bouton de la réponse libre, quand ce n'est pas « send » ; `surGithub` : la carte a son bouton
 // « Open on GitHub » — celle d'un ticket que la nouvelle cuisine parque pour le chef (#4474), absents ailleurs.
-export type CardOfTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoiceOfCard[]; prixDuTexte: string; repondre?: string; surGithub?: true; recommandation?: RecommendationOfCard | null; captures?: CapturesOfCard; envoi?: SendSeen; validation?: ValidationOfCard; revue?: ValidationOfCard; brief?: BriefOfCard };
+export type CardOfTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoiceOfCard[]; prixDuTexte: string; repondre?: string; surGithub?: true; recommandation?: RecommendationOfCard | null; captures?: CapturesOfCard; envoi?: SendSeen; validation?: ValidationOfCard; brief?: BriefOfCard };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -97,16 +94,15 @@ function situationOf(context: string): string | undefined {
 // La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
 // libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
 // commentaire vide : il n'y a rien à quoi répondre.
-// La question d'une carte du chef telle que le chef la lit : celle d'une validation de design ou d'une revue sensible nomme sa
-// PR par son numéro (runtime/src/validation-design/, runtime/src/sensible/) — la carte la dit par son ticket (ticket 3716).
-export function questionOfChef({ texte: text, design, sensible: sensitive }: CardOfChef): string | null {
+// La question d'une carte du chef telle que le chef la lit : celle d'une validation de design nomme sa PR par son numéro
+// (runtime/src/validation-design/) — la carte la dit par son ticket (ticket 3716).
+export function questionOfChef({ texte: text, design }: CardOfChef): string | null {
   const { question } = shapeOfChef(text);
-  const delivery = design ?? sensitive;
-  return question === null || delivery === undefined ? question : tellThePrByItsTicket(question, delivery.ticket, delivery.pr);
+  return question === null || design === undefined ? question : tellThePrByItsTicket(question, design.ticket, design.pr);
 }
 
 export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
-  const { sorte: kind, texte: text, design, sensible: sensitive, recommandee: recommended } = card;
+  const { sorte: kind, texte: text, design, recommandee: recommended } = card;
   const { choix: choice, contexte: context } = shapeOfChef(text);
   const question = questionOfChef(card);
   if (question === null) return undefined;
@@ -122,17 +118,6 @@ export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
       ...(design === undefined
         ? { validation: { illisible: "its issue does not say which pull request it validates: validate it on GitHub" } }
         : { validation: { pr: design.pr, ticket: design.ticket }, captures: capturesOfTheValidation(design), ...(design.brief === undefined ? {} : { brief: design.brief }) }),
-    };
-  }
-  // La carte « review before merge » d'un ticket sensible (ticket 3224) : sa question, sa PR, et ses deux réponses — merger,
-  // ou renvoyer avec une note —, ni choix ni réponse libre. Une issue dont le corps ne dit pas sa PR ne se tranche pas d'ici.
-  if (kind === KIND_SENSITIVE) {
-    return {
-      sorte: kind,
-      question,
-      choix: [],
-      prixDuTexte: "",
-      revue: sensitive === undefined ? { illisible: "its issue does not say which pull request it holds: review it on GitHub" } : { pr: sensitive.pr, ticket: sensitive.ticket },
     };
   }
   // Un ticket que la nouvelle cuisine parque pour le chef (#4474) : ce qu'elle en dit, un seul geste — Answer, qui poste le
@@ -161,8 +146,7 @@ export function cardReadOfChef({ sorte: kind, texte: text }: CardOfChef): CardRe
   // La carte d'un ticket parqué par la nouvelle cuisine n'a que sa réponse libre (#4474).
   const choice = kind === KIND_PARKED_CHEF ? [] : readOnes;
   // La carte « Validate its screen » ne se répond pas : ses deux gestes sont la commande du runtime (vue/validation-design/).
-  // La carte « review before merge » non plus (vue/card-sensitive/, ticket 3224).
-  return question === null || kind === KIND_OF_VALIDATION || kind === KIND_SENSITIVE ? undefined : { type: kind, question, choix: choice, captures: null };
+  return question === null || kind === KIND_OF_VALIDATION ? undefined : { type: kind, question, choix: choice, captures: null };
 }
 
 const text = (value: unknown): value is string => typeof value === "string";

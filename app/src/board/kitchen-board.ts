@@ -11,7 +11,7 @@ const { ready: FIRE, taken: TAKEN, inPass: IN_PASS, parked: PARKED, parkedChef: 
 const LEGACY_PARKED = ["waiting", "chef-todo", "blocked-on-human"];
 
 export type BoardColumnKey = "backlog" | "ready" | "cooking" | "pass" | "parked" | "served";
-export type BoardCard = { ticket: number; title: string; url: string; tries: number; pr: { number: number; url: string } | null; forTheChef?: true };
+export type BoardCard = { ticket: number; title: string; url: string; tries: number; pr: { number: number; url: string } | null; forTheChef?: true; durationMs?: number; lines?: { added: number; removed: number } };
 export type BoardColumn = { key: BoardColumnKey; title: string; cards: BoardCard[] };
 export type KitchenBoard = { columns: BoardColumn[] };
 // An open issue of the board, as the TODO of the chef reads it (wait-of-chef.ts, `parqueesPourLeChef`): `assignes`, the
@@ -56,6 +56,40 @@ const priority = (labels: readonly string[]): number => {
 };
 
 const DAY_MS = 24 * 3_600_000;
+
+const labelsOfColumn = (column: BoardColumnKey, labels: readonly string[]): string[] =>
+  column === "cooking" ? [TAKEN] : column === "pass" ? [IN_PASS] : column === "ready" ? [FIRE] : column === "parked" ? labels.filter((label) => parked([label])) : [];
+
+// What a card shows beyond its labels, from the issue's timeline and its pull request — the only reads a card costs. Nothing
+// else of a card is looked for: the kitchen writes no station on GitHub (its comments, its commits and its labels name none,
+// and it assigns nobody), so a card shows none.
+async function detailsOf(board: KitchenBoard, issues: readonly Raw[], closedPrs: readonly Raw[], read: (path: string) => Promise<unknown>, repository: string, now: number): Promise<KitchenBoard> {
+  const labelsOfTicket = new Map(issues.map((issue) => [issue.number as number, labelsOf(issue)]));
+  const mergedAt = new Map(closedPrs.flatMap((pr) => (typeof pr.number === "number" ? [[pr.number, Date.parse(text(pr.merged_at))] as const] : [])));
+  const columns = await Promise.all(
+    board.columns.map(async (column) => ({
+      ...column,
+      cards: await Promise.all(
+        column.cards.map(async (card) => {
+          if (column.key === "backlog") return card;
+          const [timeline, pull] = await Promise.all([
+            read(`/repos/${repository}/issues/${card.ticket}/timeline?per_page=100`).catch(() => null),
+            card.pr === null ? null : read(`/repos/${repository}/pulls/${card.pr.number}`).catch(() => null),
+          ]);
+          // The latest time one of the column's labels was put on; for Served, from `taken` to the merge.
+          const wanted = column.key === "served" ? [TAKEN] : labelsOfColumn(column.key, labelsOfTicket.get(card.ticket) ?? []);
+          const puts = list(timeline).flatMap((event) => (event.event === "labeled" && wanted.includes(text(object(event.label)?.name)) ? [Date.parse(text(event.created_at))] : [])).filter((time) => !Number.isNaN(time));
+          const end = column.key === "served" ? (card.pr === null ? NaN : (mergedAt.get(card.pr.number) ?? NaN)) : now;
+          const start = column.key === "served" ? Math.max(...puts.filter((time) => time <= end)) : Math.max(...puts);
+          const done = object(pull);
+          const lines = typeof done?.additions === "number" && typeof done.deletions === "number" ? { added: done.additions, removed: done.deletions } : null;
+          return { ...card, ...(Number.isFinite(start) && Number.isFinite(end) && end >= start ? { durationMs: end - start } : {}), ...(lines === null ? {} : { lines }) };
+        }),
+      ),
+    })),
+  );
+  return { columns };
+}
 
 // The board, from what GitHub gave: the open issues (pull requests left out), the open pull requests and the closed ones.
 // The kitchen's order in each column — priority, then age; Served, the latest merged first. A served ticket is one whose
@@ -139,7 +173,8 @@ export async function readKitchenBoard({ depot: repository, appeler: call, now }
       const assignes = list(issue.assignees).flatMap(({ login }) => (typeof login === "string" ? [login] : []));
       return { ticket: issue.number as number, titre: text(issue.title), url: text(issue.html_url) || `https://github.com/${repository}/issues/${issue.number}`, creee: typeof issue.created_at === "string" ? issue.created_at : null, labels: labelsOf(issue), ...(assignes.length === 0 ? {} : { assignes }) };
     });
-  return { board: boardOf({ issues, openPrs, closedPrs, now }), open };
+  const bare = boardOf({ issues, openPrs, closedPrs, now });
+  return { board: await detailsOf(bare, issues, closedPrs, read, repository, now), open };
 }
 
 // `kitchenBoard`, from the root of `facts` (facts.ts, `comprendre`): nothing malformed sets it — the view then draws the
@@ -151,11 +186,12 @@ export function kitchenBoardRead(value: unknown): { kitchenBoard?: KitchenBoard 
     const { key, title, cards } = object(column) ?? {};
     if (key !== COLUMNS[rank]?.key || typeof title !== "string" || !Array.isArray(cards)) return null;
     const good = cards.flatMap((card: unknown) => {
-      const { ticket, title: name, url, tries, pr, forTheChef } = object(card) ?? {};
+      const { ticket, title: name, url, tries, pr, forTheChef, durationMs, lines } = object(card) ?? {};
+      const linesRead = object(lines);
       const prRead = pr === null ? null : object(pr);
       const prOk = pr === null || (prRead !== null && typeof prRead.number === "number" && typeof prRead.url === "string");
       if (typeof ticket !== "number" || typeof name !== "string" || typeof url !== "string" || typeof tries !== "number" || !prOk) return [];
-      return [{ ticket, title: name, url, tries, pr: prRead === null ? null : { number: prRead.number as number, url: prRead.url as string }, ...(forTheChef === true ? { forTheChef: true as const } : {}) }];
+      return [{ ticket, title: name, url, tries, pr: prRead === null ? null : { number: prRead.number as number, url: prRead.url as string }, ...(forTheChef === true ? { forTheChef: true as const } : {}), ...(typeof durationMs === "number" ? { durationMs } : {}), ...(typeof linesRead?.added === "number" && typeof linesRead.removed === "number" ? { lines: { added: linesRead.added, removed: linesRead.removed } } : {}) }];
     });
     return good.length === cards.length ? { key: key as BoardColumnKey, title, cards: good } : null;
   });

@@ -3,8 +3,8 @@
 // le refuse donc comme la box le refuserait, et avant de l'appeler : la même règle,
 // dite à la saisie avec sa raison.
 
-// La règle de la box : `NOM_DE_PROJET` (runtime/src/runtime.ts), et la longueur que son
-// geste d'installation admet (runtime/src/installateur.ts). Le test les compare.
+// La règle de la box : `NOM_DE_PROJET`, et la longueur que son
+// geste d'installation admet. Le test les compare.
 const SHAPE = /^[a-z0-9][a-z0-9-]*$/;
 const LENGTH_MAX = 63;
 export const SHAPE_EXPECTED = `lowercase letters, digits and hyphens, no leading hyphen, ${LENGTH_MAX} characters at most (\`shop\`, \`my-kitchen-2\`)`;

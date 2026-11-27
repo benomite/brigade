@@ -36,11 +36,8 @@ import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
 import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { approveTheAction, readTheHeld } from "./held/read.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
-import { writeOneRecurring, readTheRecurring } from "./vue/recurring/recurring-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
-import { writeTheExplanations, readTheExplanations } from "./vue/explanations/explanations-box.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
-import { plugTheKnowHow } from "./vue/know-how-tab/know-how-box.ts";
 import { readTheRecap, markTheRecap } from "./vue/recap/recap-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
@@ -74,14 +71,11 @@ import { changeTheSetting, changeTheVerifications, readTheCloser } from "./close
 import { changeTheKnowledge, readTheKnowledgeOfProject } from "./vue/know-how/know-how-github.ts";
 import { answerOnGithub } from "./board-actions/answer-github.ts";
 import { playTheValidation } from "./vue/validation-design/validation-design-github.ts";
-import { playTheReview } from "./vue/card-sensitive/card-sensitive-github.ts";
-import { playTheCancellation } from "./vue/undo/undo-github.ts";
 import { readTheAutonomyOfRepository, holdTheAutonomy } from "./vue/autonomy/autonomy-github.ts";
 import { changeTheDay, readTheDay, readTheResumes, publishTheResume, type ResumeWeekly, type ResumesOfProject } from "./vue/resume-weekly/resume-kitchen.ts";
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
-import { setTheCommand } from "./command-brigade.ts";
 import { searchOneUpdate, workstationOf, type Opinion as OpinionOfVersion } from "./update/opinion.ts";
 import { holdUpdate } from "./update/state.ts";
 import { apkLink, RELEASES_URL } from "./update/android.ts";
@@ -1633,38 +1627,11 @@ const writeOneHuman = async (name: unknown, action: { save: unknown } | { remove
 };
 ipcMain.handle("enregistrerUnHumain", (_, name: unknown, human: unknown) => writeOneHuman(name, { save: human }));
 ipcMain.handle("retirerUnHumain", (_, name: unknown, login: unknown) => writeOneHuman(name, { remove: login }));
-// Les tickets récurrents du projet, sous Settings (#3231) : lus par `recurring` là où sa cuisine tourne, et chacun suspendu,
-// repris ou retiré par elle (vue/recurring/recurring-box.ts).
-ipcMain.handle("listerLesRecurrents", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheRecurring(aims.nom, readOne, launchOnTheKitchen);
-});
-ipcMain.handle("changerUnRecurrent", (_, name: unknown, action: unknown, id: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeOneRecurring(aims.nom, readOne, action, id, launchOnTheKitchen);
-});
 // La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
 // poste (vue/card-project/card-project-folder.ts).
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, name: unknown, path: unknown, text: unknown) => writeInTheProject(knownOne(name), path, text));
 plugTheWordAtCook(ipcMain, kitchenOfProject, launchOnTheKitchen); // le mot au cook (#4048, vue/word-at-cook/word-at-cook-box.ts)
-plugTheKnowHow(ipcMain, kitchenOfProject, launchOnTheKitchen); // le savoir-faire du projet, sous Know-how (#4241, vue/know-how-tab/know-how-box.ts)
-// Les explications des mots de la cuisine (#3308) : ce que le chef de cet ordinateur — son compte GitHub — en a vu, lu,
-// marqué et effacé par `explanations` là où la cuisine du projet tourne, pour valoir sur tous ses appareils
-// (vue/explanations/explanations-box.ts).
-const accountOfExplanations = () => accountConnected.login();
-ipcMain.handle("lireLesExplications", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheExplanations(aims.nom, readOne, accountOfExplanations, launchOnTheKitchen);
-});
-ipcMain.handle("marquerUneExplication", (_, name: unknown, word: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeTheExplanations(aims.nom, readOne, accountOfExplanations, { vu: word }, launchOnTheKitchen);
-});
-ipcMain.handle("remontrerLesExplications", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : writeTheExplanations(aims.nom, readOne, accountOfExplanations, { effacer: true }, launchOnTheKitchen);
-});
 // Le récapitulatif de chaque projet, sur l'accueil (#3581, vue/recap/recap-box.ts) : lu par `recap` là où sa cuisine tourne,
 // et son marqueur avancé par elle quand la vue l'a montré. Seule l'adresse d'une PR qu'une lecture a rendue s'ouvre.
 const linksOfRecaps = new Set<string>();
@@ -1830,46 +1797,6 @@ ipcMain.handle("gesteDeValidation", async (_, name: unknown, ticket: unknown, ac
   if ("fait" in rendered) boards.oublier();
   return rendered;
 });
-// Une réponse du chef sur la carte « review before merge » d'un ticket sensible (vue/card-sensitive/, ticket 3224) : la
-// commande `sensitive` du runtime (runtime/src/sensible/commande.ts), importée et jouée ici, sous le `gh` de ce poste —
-// `merge` merge la PR et ferme la carte, `send-back` renvoie le ticket à un cook avec la note du chef. La carte est celle
-// que la dernière lecture porte. Faite, la lecture suivante va à GitHub : la carte fermée quitte TODO.
-ipcMain.handle("gesteSensible", async (_, name: unknown, ticket: unknown, action: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const rendered = await playTheReview({
-    depot: await repositoryOfProject(aims),
-    revue: facts.chef(aims.nom, ticket)?.sensible,
-    geste: action,
-    commande: async () => {
-      const [{ principal }, { Sortie: Output }] = await Promise.all([ofRuntime<typeof import("../../runtime/src/sensible/commande.ts")>("sensible", "commande.ts"), ofRuntime<typeof import("../../runtime/src/appel.ts")>("appel.ts")]);
-      return { principal, estUneSortie: (error: unknown): error is InstanceType<typeof Output> => error instanceof Output };
-    },
-    env: { ...process.env, BRIGADE_GH_BIN: ghHere },
-  });
-  if ("fait" in rendered) boards.oublier();
-  return rendered;
-});
-// « undo » sur la carte d'un ticket servi (vue/undo/, ticket 3274) : la commande `undo` du runtime (runtime/src/undo/
-// commande.ts), importée et jouée ici, sous le `gh` de ce poste — une PR revert le merge du ticket et passe la pass, et le
-// ticket est rouvert ; en conflit, un ticket est déposé pour la cuisine. Seul un ticket que la dernière lecture porte servi,
-// sa PR mergée, s'annule. Fait, la lecture suivante va à GitHub : rouvert, le ticket quitte Served.
-ipcMain.handle("annulerServi", async (_, name: unknown, ticket: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const rendered = await playTheCancellation({
-    depot: await repositoryOfProject(aims),
-    ticket,
-    servi: facts.ticket(aims.nom, ticket)?.etat === "servi" && facts.pr(aims.nom, ticket) !== undefined,
-    commande: async () => {
-      const [{ principal }, { Sortie: Output }] = await Promise.all([ofRuntime<typeof import("../../runtime/src/undo/commande.ts")>("undo", "commande.ts"), ofRuntime<typeof import("../../runtime/src/appel.ts")>("appel.ts")]);
-      return { principal, estUneSortie: (error: unknown): error is InstanceType<typeof Output> => error instanceof Output };
-    },
-    env: { ...process.env, BRIGADE_GH_BIN: ghHere },
-  });
-  if ("fait" in rendered) boards.oublier();
-  return rendered;
-});
 // La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :
 // une adresse https seulement, pour un projet que l'app connaît. Rend si elle a été ouverte.
 ipcMain.handle("ouvrirBilan", (_, name: unknown, url: unknown) => {
@@ -2027,8 +1954,6 @@ void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installedAtLaunch) return app.quit();
   serveTheAgents();
-  // La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
-  setTheCommand({ plateforme: platform, facon: locations.facon, maison: homedir(), version: app.getVersion(), runtime: locations.runtime, node: locations.node, racine: rootOfTheStation, chemin: process.env.PATH ?? "" });
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.
   // Windows : l'exécutable garde l'icône d'Electron, la fenêtre reçoit donc toujours la sienne — le
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.
