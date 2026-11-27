@@ -77,7 +77,7 @@ squashfs of a folder (the AppDir). Its AppDir:
 (Ubuntu 24.04), Electron would refuse to start. `AppRun` therefore starts the app with
 `--no-sandbox`, and `chrome-sandbox` is not carried.
 
-The app finds everything through `app/src/locations.ts`, unchanged: it knows it is installed
+The app finds everything through `app/src/emplacements.ts`, unchanged: it knows it is installed
 because its sources are `resources/app/src`, and it runs the station with `resources/node/bin/brigade-node`.
 Projects and settings are those of `~/.config/brigade/`, as for the app launched from the repository.
 

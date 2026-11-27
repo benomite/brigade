@@ -1,7 +1,7 @@
 /* La carte « Validate its screen » (ticket 3185, validation-design.js) : la question, puis les captures avant et après,
    l'une sous l'autre sur toute la largeur de la carte, lues sans un clic ; le lien de sa PR ; « Validate », le geste
    recommandé ; le commentaire et « Send back to the kitchen ». Dans TODO, elle est une carte de TODO (carte-attente.css) ;
-   sur le téléphone, la carte ouverte depuis la liste (cards-of-chef.css). Un clic l'ouvre en grand (ticket 3212), plus bas. */
+   sur le téléphone, la carte ouverte depuis la liste (cartes-du-chef.css). Un clic l'ouvre en grand (ticket 3212), plus bas. */
 .carte-validation div.captures-de-validation {
   display: flex;
   flex-direction: column;
@@ -107,7 +107,7 @@
   outline-offset: 2px;
 }
 
-/* Le détail en grand (detail-of-validation.js) : par-dessus toute l'app, sur un voile ; la question en tête, les captures de
+/* Le détail en grand (detail-de-validation.js) : par-dessus toute l'app, sur un voile ; la question en tête, les captures de
    chaque écran à la plus grande taille que la fenêtre laisse, le lien de la PR et les deux gestes au pied. Chaque écran prend
    toute la hauteur de la zone des captures ; plusieurs écrans passent de l'un à l'autre (« Screen 2 of 4 », ticket 3350). */
 #detail-de-validation {

@@ -1,7 +1,7 @@
 // La page de « parade », confiée à une station sans bac à sable, pendant son onboarding (#1113) : le
 // parcours attend le chef sur l'étape de la machine — l'avertissement en une phrase, et deux boutons :
 // choisir une autre station, ou continuer sans bac à sable. L'onboarding est celui que la station publie (#1110).
-import type { Onboarding } from "../../../app/src/projects/request.ts";
+import type { Onboarding } from "../../../app/src/projets/demande.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 

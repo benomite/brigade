@@ -9,13 +9,13 @@ const APP = join(import.meta.dirname, "../..");
 
 test("app/src/tray/ exists and every relative import of app/src and app/test resolves", () => {
   assert.ok(existsSync(join(APP, "src", "tray")), "app/src/tray/ exists");
-  const files = ["src", "test"].flatMap((d) => readdirSync(join(APP, d), { recursive: true, encoding: "utf8" }).map((f) => join(APP, d, f)))
+  const fichiers = ["src", "test"].flatMap((d) => readdirSync(join(APP, d), { recursive: true, encoding: "utf8" }).map((f) => join(APP, d, f)))
     .filter((f) => /\.ts$/.test(f) && !f.includes("node_modules"));
-  const broken: string[] = [];
-  for (const file of files) {
-    for (const [, target] of readFileSync(file, "utf8").matchAll(/(?:from\s+|import\(\s*)["'](\.\.?\/[^"']+\.(?:ts|js|cjs|mjs))["']/g)) {
-      if (!existsSync(resolve(dirname(file), target!))) broken.push(`${file.slice(APP.length + 1)} → ${target}`);
+  const casses: string[] = [];
+  for (const fichier of fichiers) {
+    for (const [, cible] of readFileSync(fichier, "utf8").matchAll(/(?:from\s+|import\(\s*)["'](\.\.?\/[^"']+\.(?:ts|js|cjs|mjs))["']/g)) {
+      if (!existsSync(resolve(dirname(fichier), cible!))) casses.push(`${fichier.slice(APP.length + 1)} → ${cible}`);
     }
   }
-  assert.deepEqual(broken, []);
+  assert.deepEqual(casses, []);
 });

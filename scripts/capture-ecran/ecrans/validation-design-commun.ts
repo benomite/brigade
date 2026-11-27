@@ -2,11 +2,11 @@
 // verte de #58 (PR #60) que la pass retient pour le chef (runtime/src/validation-design/), posée en issue #61 au label
 // `chef-todo` — le commentaire de sa sorte (`design-validation`) porte la question et le lien de la PR, le corps de l'issue
 // porte son marqueur et les captures avant et après, comme le runtime les écrit. La vue reçoit ce que l'app en tire
-// (app/src/board/wait-of-chef.ts, `avecLAttenteDuChef`), la carte lue du corps par `validationDuCorps`. L'image de chaque capture est la même image figée.
+// (app/src/tableau/attente-du-chef.ts, `avecLAttenteDuChef`), la carte lue du corps par `validationDuCorps`. L'image de chaque capture est la même image figée.
 import { readFileSync } from "node:fs";
-import { withTheWaitOfChef, type WaitOfChef } from "../../../app/src/board/wait-of-chef.ts";
-import { withTheRail } from "../../../app/src/vue/rail/github.ts";
-import { validationOfBody } from "../../../app/src/vue/validation-design/validation-design-github.ts";
+import { avecLAttenteDuChef, type AttenteDuChef } from "../../../app/src/tableau/attente-du-chef.ts";
+import { avecLeRail } from "../../../app/src/vue/rail/github.ts";
+import { validationDuCorps } from "../../../app/src/vue/validation-design/validation-design-github.ts";
 import { configuration, cuisine, demarrage, type Donnees, MAINTENANT } from "./commun.ts";
 import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { renduDeParade, SIGNES, SUR_GITHUB, TABLEAU_FIGE } from "./github-seul-commun.ts";
@@ -46,22 +46,22 @@ export const CORPS = [
   "",
 ].join("\n");
 
-export const CARTE: WaitOfChef = {
+export const CARTE: AttenteDuChef = {
   ticket: 61,
   titre: "Validate its screen",
   url: `https://github.com/${DEPOT}/issues/61`,
   depuis: "2026-10-13T09:40:00.000Z",
   quoi: "carte",
   ligne: `${QUESTION} — on its Todo card: Validate, or Send back to the kitchen with a comment`,
-  chef: { sorte: "design-validation", texte: TEXTE, design: validationOfBody(DEPOT, CORPS) ?? undefined },
+  chef: { sorte: "design-validation", texte: TEXTE, design: validationDuCorps(DEPOT, CORPS) ?? undefined },
 };
 
 const IMAGE = `data:image/png;base64,${readFileSync(new URL("../../../docs/captures/2909/tous-les-projets-apres.png", import.meta.url)).toString("base64")}`;
 
 export const OUVRIR_PARADE = { cliquer: '#projets > button[title^="parade — "]' };
 
-export const donnees = (carte: WaitOfChef = CARTE): Donnees => {
-  const lu = withTheWaitOfChef(withTheRail(TABLEAU_FIGE, SUR_GITHUB, SIGNES), { attentes: [carte], illisibles: [] });
+export const donnees = (carte: AttenteDuChef = CARTE): Donnees => {
+  const lu = avecLAttenteDuChef(avecLeRail(TABLEAU_FIGE, SUR_GITHUB, SIGNES), { attentes: [carte], illisibles: [] });
   return {
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], lireCapture: { image: IMAGE } },

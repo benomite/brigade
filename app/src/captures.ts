@@ -11,13 +11,13 @@
 // ticket, l'écran et le moment. L'image est lue par le `gh` du poste — celui du chef,
 // qui voit aussi un dépôt privé — et rendue à la vue en `data:` : la page ne demande
 // rien au réseau.
-import { failure, launch, type Settings } from "./question.ts";
-import { refusalOf, type CallGitHub, type AnswerGitHub } from "./board/client.ts";
+import { echec, lancer, type Reglages } from "./question.ts";
+import { refusDe, type AppelGitHub, type ReponseGitHub } from "./tableau/client.ts";
 
 // Ce que `facts` donne des captures d'un ticket : `complet`, chaque écran a ses deux
 // captures ; chaque écran, l'adresse de sa capture avant et de sa capture après — nulle,
 // le cook ne l'a pas livrée.
-export type CapturesRead = { complet: boolean; ecrans: Array<{ ecran: string; avant: string | null; apres: string | null }> };
+export type CapturesLues = { complet: boolean; ecrans: Array<{ ecran: string; avant: string | null; apres: string | null }> };
 
 export type Moment = "avant" | "apres";
 
@@ -27,44 +27,44 @@ export type Moment = "avant" | "apres";
 export type Capture = { moment: Moment; legende: string; livree: boolean; version: string };
 // Les captures d'une carte : chaque écran, avant puis après. `incomplete` : la livraison
 // ne les porte pas toutes, et la ligne qui le dit — `detail`, au survol, où les poser.
-export type CapturesOfCard = { ecrans: Array<{ ecran: string; avant: Capture; apres: Capture }>; incomplete?: { ligne: string; detail: string } };
+export type CapturesDeCarte = { ecrans: Array<{ ecran: string; avant: Capture; apres: Capture }>; incomplete?: { ligne: string; detail: string } };
 
-const LEGENDS: Record<Moment, string> = { avant: "before", apres: "after" };
-const NAMES: Record<Moment, string> = { avant: "the before screenshot", apres: "the after screenshot" };
+const LEGENDES: Record<Moment, string> = { avant: "before", apres: "after" };
+const NOMS: Record<Moment, string> = { avant: "the before screenshot", apres: "the after screenshot" };
 
 // L'adresse d'une capture, telle que la box la donne : le fichier au commit livré.
-const ADDRESS = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/blob\/([0-9a-f]{7,64})\/([^?#]+)\?raw=true$/;
-export function readAddress(address: string): { depot: string; sha: string; chemin: string } | undefined {
-  const [, owner, repository, sha, path] = ADDRESS.exec(address) ?? [];
-  if (owner === undefined || repository === undefined || sha === undefined || path === undefined) return undefined;
-  let readOne: string;
+const ADRESSE = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/blob\/([0-9a-f]{7,64})\/([^?#]+)\?raw=true$/;
+export function lireAdresse(adresse: string): { depot: string; sha: string; chemin: string } | undefined {
+  const [, proprietaire, depot, sha, chemin] = ADRESSE.exec(adresse) ?? [];
+  if (proprietaire === undefined || depot === undefined || sha === undefined || chemin === undefined) return undefined;
+  let lu: string;
   try {
-    readOne = path.split("/").map(decodeURIComponent).join("/");
+    lu = chemin.split("/").map(decodeURIComponent).join("/");
   } catch {
     return undefined;
   }
-  return readOne.split("/").some((segment) => segment === "" || segment === "." || segment === "..") ? undefined : { depot: `${owner}/${repository}`, sha, chemin: readOne };
+  return lu.split("/").some((segment) => segment === "" || segment === "." || segment === "..") ? undefined : { depot: `${proprietaire}/${depot}`, sha, chemin: lu };
 }
 
 // Ce que la carte pose des captures que la box donne.
-export function capturesOfCard(readEntries: CapturesRead): CapturesOfCard {
-  const capture = (screen: string, moment: Moment, address: string | null): Capture => ({
+export function capturesDeCarte(lues: CapturesLues): CapturesDeCarte {
+  const capture = (ecran: string, moment: Moment, adresse: string | null): Capture => ({
     moment,
-    legende: screen === "" ? LEGENDS[moment] : `${screen} — ${LEGENDS[moment]}`,
-    livree: address !== null,
-    version: address === null ? "" : (readAddress(address)?.sha ?? ""),
+    legende: ecran === "" ? LEGENDES[moment] : `${ecran} — ${LEGENDES[moment]}`,
+    livree: adresse !== null,
+    version: adresse === null ? "" : (lireAdresse(adresse)?.sha ?? ""),
   });
-  const missing = readEntries.ecrans.flatMap(({ ecran: screen, avant: before, apres: after }) =>
-    ([["avant", before], ["apres", after]] as const).flatMap(([moment, address]) => (address === null ? [`${NAMES[moment]}${screen === "" ? "" : ` of ${screen}`}`] : [])),
+  const manquantes = lues.ecrans.flatMap(({ ecran, avant, apres }) =>
+    ([["avant", avant], ["apres", apres]] as const).flatMap(([moment, adresse]) => (adresse === null ? [`${NOMS[moment]}${ecran === "" ? "" : ` of ${ecran}`}`] : [])),
   );
-  const lack = readEntries.ecrans.length === 0 ? "no screenshot" : missing.join(", ");
+  const manque = lues.ecrans.length === 0 ? "no screenshot" : manquantes.join(", ");
   return {
-    ecrans: readEntries.ecrans.map(({ ecran: screen, avant: before, apres: after }) => ({ ecran: screen, avant: capture(screen, "avant", before), apres: capture(screen, "apres", after) })),
-    ...(readEntries.complet && missing.length === 0 && readEntries.ecrans.length > 0
+    ecrans: lues.ecrans.map(({ ecran, avant, apres }) => ({ ecran, avant: capture(ecran, "avant", avant), apres: capture(ecran, "apres", apres) })),
+    ...(lues.complet && manquantes.length === 0 && lues.ecrans.length > 0
       ? {}
       : {
           incomplete: {
-            ligne: `incomplete delivery: screenshots missing — ${lack || "not all of them"}`,
+            ligne: `incomplete delivery: screenshots missing — ${manque || "not all of them"}`,
             detail: "an interface ticket shows each screen it changes before and after: the cook commits docs/captures/<ticket>/<screen>-avant.png and <screen>-apres.png, taken with scripts/capture-ecran/",
           },
         }),
@@ -75,75 +75,75 @@ export function capturesOfCard(readEntries: CapturesRead): CapturesOfCard {
 // l'est pas.
 // `lien` : la page du fichier sur GitHub, que le chef ouvre quand l'image ne se lit pas ici — nul quand l'adresse n'est pas celle d'un fichier.
 export type Image = { image: string } | { sans: string; lien?: string };
-export function linkOfTheCapture(address: string): string | undefined {
-  const readEntry = readAddress(address);
-  return readEntry === undefined ? undefined : `https://github.com/${readEntry.depot}/blob/${readEntry.sha}/${readEntry.chemin.split("/").map(encodeURIComponent).join("/")}`;
+export function lienDeLaCapture(adresse: string): string | undefined {
+  const lue = lireAdresse(adresse);
+  return lue === undefined ? undefined : `https://github.com/${lue.depot}/blob/${lue.sha}/${lue.chemin.split("/").map(encodeURIComponent).join("/")}`;
 }
 // Une image qui ne se lit pas : pourquoi, et la page du fichier.
-const without = (address: string, why: string): Image => {
-  const link = linkOfTheCapture(address);
-  return link === undefined ? { sans: why } : { sans: why, lien: link };
+const sans = (adresse: string, pourquoi: string): Image => {
+  const lien = lienDeLaCapture(adresse);
+  return lien === undefined ? { sans: pourquoi } : { sans: pourquoi, lien };
 };
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const SHA_BLOB = /^[0-9a-f]{40,64}$/;
-export async function readCapture(settings: Settings, address: string): Promise<Image> {
-  const readEntry = readAddress(address);
-  if (readEntry === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
-  const file = `repos/${readEntry.depot}/contents/${readEntry.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${readEntry.sha}`;
-  const read = (path: string, jq: string) => {
-    const args = ["api", path, "--jq", jq];
-    return launch(settings, args).then((rendered) => ({ args, rendu: rendered }));
+export async function lireCapture(reglages: Reglages, adresse: string): Promise<Image> {
+  const lue = lireAdresse(adresse);
+  if (lue === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
+  const fichier = `repos/${lue.depot}/contents/${lue.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${lue.sha}`;
+  const lire = (chemin: string, jq: string) => {
+    const args = ["api", chemin, "--jq", jq];
+    return lancer(reglages, args).then((rendu) => ({ args, rendu }));
   };
-  const first = await read(file, ".content");
-  if (first.rendu.erreur !== null) return without(address, failure(settings, first.args, { ...first.rendu, erreur: first.rendu.erreur }));
-  const content = first.rendu.sortie.replace(/\s+/g, "");
-  if (content !== "" && BASE64.test(content)) return { image: `data:image/png;base64,${content}` };
+  const premiere = await lire(fichier, ".content");
+  if (premiere.rendu.erreur !== null) return sans(adresse, echec(reglages, premiere.args, { ...premiere.rendu, erreur: premiere.rendu.erreur }));
+  const contenu = premiere.rendu.sortie.replace(/\s+/g, "");
+  if (contenu !== "" && BASE64.test(contenu)) return { image: `data:image/png;base64,${contenu}` };
   // Au-delà d'un mégaoctet, l'API des fichiers ne rend pas le contenu : il est vide. Le fichier se lit alors par son blob, qui le rend jusqu'à 100 Mo.
-  if (content === "") {
-    const fingerprint = await read(file, ".sha");
-    if (fingerprint.rendu.erreur !== null) return without(address, failure(settings, fingerprint.args, { ...fingerprint.rendu, erreur: fingerprint.rendu.erreur }));
-    const sha = fingerprint.rendu.sortie.trim();
+  if (contenu === "") {
+    const empreinte = await lire(fichier, ".sha");
+    if (empreinte.rendu.erreur !== null) return sans(adresse, echec(reglages, empreinte.args, { ...empreinte.rendu, erreur: empreinte.rendu.erreur }));
+    const sha = empreinte.rendu.sortie.trim();
     if (SHA_BLOB.test(sha)) {
-      const blob = await read(`repos/${readEntry.depot}/git/blobs/${sha}`, ".content");
-      if (blob.rendu.erreur !== null) return without(address, failure(settings, blob.args, { ...blob.rendu, erreur: blob.rendu.erreur }));
-      const big = blob.rendu.sortie.replace(/\s+/g, "");
-      if (big !== "" && BASE64.test(big)) return { image: `data:image/png;base64,${big}` };
-      return without(address, `$ ${settings.gh} ${blob.args.join(" ")} — its output is not the file's content`);
+      const blob = await lire(`repos/${lue.depot}/git/blobs/${sha}`, ".content");
+      if (blob.rendu.erreur !== null) return sans(adresse, echec(reglages, blob.args, { ...blob.rendu, erreur: blob.rendu.erreur }));
+      const gros = blob.rendu.sortie.replace(/\s+/g, "");
+      if (gros !== "" && BASE64.test(gros)) return { image: `data:image/png;base64,${gros}` };
+      return sans(adresse, `$ ${reglages.gh} ${blob.args.join(" ")} — its output is not the file's content`);
     }
   }
-  return without(address, `$ ${settings.gh} ${first.args.join(" ")} — its output is not the file's content`);
+  return sans(adresse, `$ ${reglages.gh} ${premiere.args.join(" ")} — its output is not the file's content`);
 }
 
-// La même image, lue sur l'API de GitHub par le `GET` de la lecture du téléphone (read-github-phone.ts), qui ne
+// La même image, lue sur l'API de GitHub par le `GET` de la lecture du téléphone (lecture-github-telephone.ts), qui ne
 // lance aucun `gh` : le contenu du fichier au commit livré, ou pourquoi il ne se lit pas.
-export async function readCaptureOnLAPI(call: CallGitHub, address: string): Promise<Image> {
-  const readEntry = readAddress(address);
-  if (readEntry === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
-  const path = `/repos/${readEntry.depot}/contents/${readEntry.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${readEntry.sha}`;
-  let rendered: AnswerGitHub;
+export async function lireCaptureSurLAPI(appeler: AppelGitHub, adresse: string): Promise<Image> {
+  const lue = lireAdresse(adresse);
+  if (lue === undefined) return { sans: "the address the station gave for this screenshot is not a file on GitHub: the app does not read it" };
+  const chemin = `/repos/${lue.depot}/contents/${lue.chemin.split("/").map(encodeURIComponent).join("/")}?ref=${lue.sha}`;
+  let rendu: ReponseGitHub;
   try {
-    rendered = await call(path);
-  } catch (error) {
-    return without(address, `GitHub did not answer for this screenshot: ${error instanceof Error ? error.message : String(error)}`);
+    rendu = await appeler(chemin);
+  } catch (erreur) {
+    return sans(adresse, `GitHub did not answer for this screenshot: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
-  if (rendered.status !== 200) return without(address, refusalOf("the reading of this screenshot", rendered).message);
-  const data = typeof rendered.data === "object" && rendered.data !== null ? (rendered.data as Record<string, unknown>) : {};
-  const content = typeof data.content === "string" ? data.content.replace(/\s+/g, "") : "";
-  if (content !== "" && BASE64.test(content)) return { image: `data:image/png;base64,${content}` };
+  if (rendu.status !== 200) return sans(adresse, refusDe("the reading of this screenshot", rendu).message);
+  const donnees = typeof rendu.data === "object" && rendu.data !== null ? (rendu.data as Record<string, unknown>) : {};
+  const contenu = typeof donnees.content === "string" ? donnees.content.replace(/\s+/g, "") : "";
+  if (contenu !== "" && BASE64.test(contenu)) return { image: `data:image/png;base64,${contenu}` };
   // Au-delà d'un mégaoctet, l'API des fichiers ne rend pas le contenu : il est vide. Le fichier se lit alors par son blob, qui le rend jusqu'à 100 Mo.
-  if (content === "" && typeof data.sha === "string" && SHA_BLOB.test(data.sha)) {
-    const pathBlob = `/repos/${readEntry.depot}/git/blobs/${data.sha}`;
-    let blob: AnswerGitHub;
+  if (contenu === "" && typeof donnees.sha === "string" && SHA_BLOB.test(donnees.sha)) {
+    const cheminBlob = `/repos/${lue.depot}/git/blobs/${donnees.sha}`;
+    let blob: ReponseGitHub;
     try {
-      blob = await call(pathBlob);
-    } catch (error) {
-      return without(address, `GitHub did not answer for this screenshot: ${error instanceof Error ? error.message : String(error)}`);
+      blob = await appeler(cheminBlob);
+    } catch (erreur) {
+      return sans(adresse, `GitHub did not answer for this screenshot: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
-    if (blob.status !== 200) return without(address, refusalOf("the reading of this screenshot", blob).message);
-    const rawBlob = typeof blob.data === "object" && blob.data !== null ? (blob.data as Record<string, unknown>).content : undefined;
-    const big = typeof rawBlob === "string" ? rawBlob.replace(/\s+/g, "") : "";
-    if (big !== "" && BASE64.test(big)) return { image: `data:image/png;base64,${big}` };
-    return without(address, `GET ${pathBlob} — its answer is not the file's content`);
+    if (blob.status !== 200) return sans(adresse, refusDe("the reading of this screenshot", blob).message);
+    const brutBlob = typeof blob.data === "object" && blob.data !== null ? (blob.data as Record<string, unknown>).content : undefined;
+    const gros = typeof brutBlob === "string" ? brutBlob.replace(/\s+/g, "") : "";
+    if (gros !== "" && BASE64.test(gros)) return { image: `data:image/png;base64,${gros}` };
+    return sans(adresse, `GET ${cheminBlob} — its answer is not the file's content`);
   }
-  return without(address, `GET ${path} — its answer is not the file's content`);
+  return sans(adresse, `GET ${chemin} — its answer is not the file's content`);
 }

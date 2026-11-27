@@ -30,7 +30,7 @@ export const CE_QUE_FAIT_ALLUME = "fired tickets are taken, the manager judges a
 export const CE_QUE_FAIT_ETEINT = "nothing new is taken, judged, split or merged — running cooks finish, their deliveries are judged and wait";
 
 // La ligne de l'interrupteur, pour `switch` et `status`. L'app la relit
-// (app/src/alerts.ts, `INTERRUPTEUR`) : tout changement de forme se répercute là-bas.
+// (app/src/alertes.ts, `INTERRUPTEUR`) : tout changement de forme se répercute là-bas.
 export function direInterrupteur(etat: EtatInterrupteur | null): string {
   if (etat === null) return "NOT SET — the runtime sets it at its next start, on";
   const depuis = `since ${etat.since} (by ${etat.by}${etat.cause === "default" ? ", on by default" : etat.cause === "carried-over" ? ", in place of the manager's switch" : ""})`;

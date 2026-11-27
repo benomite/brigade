@@ -80,7 +80,7 @@ It also adds:
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\com.github.benomite.brigade`: name,
   version, publisher, size, and the uninstall command (`QuietUninstallString` adds `/S`).
 
-The installed app finds everything through `app/src/locations.ts`, unchanged. It knows it is
+The installed app finds everything through `app/src/emplacements.ts`, unchanged. It knows it is
 installed because its sources are `resources\app\src`. It runs the station with
 `resources\node\bin\node`: Windows adds `.exe` to that name when it launches it. That folder goes
 last on the PATH the app passes to what it runs. Projects and settings are those of
@@ -156,7 +156,7 @@ writes the script, then `makensis` compiles it.
 - **Updates (#1156, done).** `latest.yml` is written next to the installer, in the format an
   electron-updater style updater reads: version, name, sha512 and size. The installed app reads it
   on the `app-v<version>` release, downloads the installer and runs it silently with
-  `/S /D=<its folder>` once it has quit (`app/src/update/windows.ts`). The `publier-app`
+  `/S /D=<its folder>` once it has quit (`app/src/mise-a-jour/windows.ts`). The `publier-app`
   workflow attaches `Brigade-<version>-x64-setup.exe` and `latest.yml` to the same `app-v<version>`
   release as the `.dmg`, signed or not (#4058). Signing goes in its "Signature (Windows)" step, before the release is
   published, and must rewrite `latest.yml` for the signed installer. The installer's name and

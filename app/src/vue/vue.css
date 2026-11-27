@@ -1,5 +1,5 @@
 /* La peau de l'app : un fond sombre, et dessus des cartes. Aucune couleur ne s'écrit ici, ni
-   aucune police : elles viennent de tokens.css, par leurs variables. La peau habille le cadre —
+   aucune police : elles viennent de jetons.css, par leurs variables. La peau habille le cadre —
    jamais ce que la box a rendu, qui reste mot pour mot, entier, dans ses blancs et ses lignes. */
 * {
   box-sizing: border-box;
@@ -124,7 +124,7 @@ pre.propos {
   border: 1px solid transparent;
   border-radius: var(--rayon-carte);
 }
-/* Le sigle d'un projet dans sa case (acronym.ts, ticket 1983) : trois signes au plus, en grand, sur une ligne — il
+/* Le sigle d'un projet dans sa case (sigle.ts, ticket 1983) : trois signes au plus, en grand, sur une ligne — il
    tient dans la case, rien ne le coupe. La largeur de la barre ne bouge pas ; le nom entier est au survol. */
 #projets .sigle-de-case {
   display: block;
@@ -133,7 +133,7 @@ pre.propos {
   white-space: nowrap;
   text-align: center;
 }
-/* Un projet a sa couleur d'onglet (colors.ts) : sa case la porte, choisie ou non — sa lettre
+/* Un projet a sa couleur d'onglet (couleurs.ts) : sa case la porte, choisie ou non — sa lettre
    et son trait, puis, choisie, son fond. */
 #projets button.teinte {
   color: var(--teinte);
@@ -223,7 +223,7 @@ main > header,
   background: var(--bandeau);
   border-bottom: 1px solid var(--trait);
 }
-/* L'espace d'un projet porte son accent (colors.ts) : un trait en tête de l'écran et du second,
+/* L'espace d'un projet porte son accent (couleurs.ts) : un trait en tête de l'écran et du second,
    et son nom. Jamais une couleur d'état : celles-là ne changent pas d'un projet à l'autre. */
 main > header,
 #second > header {
@@ -243,7 +243,7 @@ main > header,
 /* L'interrupteur de l'espace (tickets 906, 1406), à droite des onglets — un seul pour tout le projet : une
    glissière et son mot, « project on » ou « project off » — lisible sans rien lire d'autre. Allumé, la
    glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien.
-   Sa confirmation s'ouvre dessous, en ligne (components/confirmation). */
+   Sa confirmation s'ouvre dessous, en ligne (composants/confirmation). */
 .interrupteur-de-tete {
   flex: none;
   margin-left: var(--pas-4);
@@ -640,7 +640,7 @@ main > header,
   color: var(--texte-doux);
 }
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
-   chaque partie sous son petit titre — la machine (choice-station/choice-station.css), ses cooks —. Aucun
+   chaque partie sous son petit titre — la machine (choix-station/choix-station.css), ses cooks —. Aucun
    libellé n'est coupé : un libellé est au-dessus de son champ, et une ligne trop longue passe à la suivante. */
 #stations-du-projet .confiance {
   display: flex;
@@ -1276,7 +1276,7 @@ main > header,
 .premier-lancement :is(h3) .survol {
   margin-left: var(--pas-2);
 }
-/* Le premier lancement, en tête : sa phrase d'accueil, puis le compte GitHub de cet ordinateur (journey-project/account.js). */
+/* Le premier lancement, en tête : sa phrase d'accueil, puis le compte GitHub de cet ordinateur (parcours-projet/compte.js). */
 .premier-lancement > .bienvenue {
   margin: 0;
   font-size: var(--taille-intertitre);
@@ -1313,7 +1313,7 @@ main > header,
 .compte-du-premier .dit {
   color: var(--texte-doux);
 }
-/* L'écran « Add a project » (ticket 3181, journey-project/addition.js) : une carte. En tête son titre et l'attendu, puis le
+/* L'écran « Add a project » (ticket 3181, parcours-projet/ajout.js) : une carte. En tête son titre et l'attendu, puis le
    champ qui cherche parmi les dépôts du compte, une rangée par dépôt — les derniers poussés d'abord —, et le champ où
    coller un dépôt public, avec « add ». Ce que l'ouverture du dépôt choisi dit se lit dessous. */
 .ajout-d-un-projet.carte {
@@ -1475,7 +1475,7 @@ main > header,
 #station .projets-servis-par-la-station li a:hover {
   text-decoration: underline;
 }
-/* Dossiers et bac à sable (ticket 2644) : leurs réglages sont des rangées de réglage (components/setting, ticket 2920). */
+/* Dossiers et bac à sable (ticket 2644) : leurs réglages sont des rangées de réglage (composants/reglage, ticket 2920). */
 #station .dossiers-et-bac-a-sable .hote {
   margin-right: var(--pas-3);
 }
@@ -1646,7 +1646,7 @@ main > header,
   user-select: none;
 }
 /* Settings (ticket 1700) : trois groupes, un par niveau — le projet, cette machine, toi —, chacun une carte sous son
-   titre, le mot du niveau. Dedans, chaque réglage est la rangée de réglage de l'app (components/setting, ticket 2920), qui
+   titre, le mot du niveau. Dedans, chaque réglage est la rangée de réglage de l'app (composants/reglage, ticket 2920), qui
    porte sa peau : ici ne se pose que la place des groupes. Les réglages du projet dans son dépôt n'ont ni second cadre ni
    second titre : le groupe les porte. */
 #etat {
@@ -2061,7 +2061,7 @@ main > header,
    tourne, son plafond de cooks, ses capacités en étiquettes. Où elle tourne a trois mots, chacun sa couleur. */
 /* Une station s'édite (ticket 1510) : « edit » à droite de sa ligne, et sous elle, sur toute la largeur, son
    formulaire — son plafond et ses capacités en cases (celles de « + station », ticket 1307), chacun une rangée de
-   réglage qui s'applique dès qu'il change (components/setting, ticket 2920), puis « Close ».
+   réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920), puis « Close ».
    « Remove » (ticket 2914) est à côté d'« edit », sur la ligne : sa confirmation s'ouvre dessous, sur toute la largeur.
    Ce que le dernier geste a rendu passe dessous. */
 /* Sous les cases, une capacité hors de ces cases (ticket 1959) : un champ, « Add » et son aide au survol ; un refus
@@ -2146,12 +2146,12 @@ main > header,
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   align-items: start;
 }
-/* Chaque carte d'une colonne pleine de cartes rouges est le conteneur `todo-plein` : la feuille de la carte d'attente (components/card-wait) la compacte
+/* Chaque carte d'une colonne pleine de cartes rouges est le conteneur `todo-plein` : la feuille de la carte d'attente (composants/carte-attente) la compacte
    quand elle est dans l'un d'eux, sans nommer le rail. */
 #rail .colonne:has(> ol > li[data-carte="attente"]:nth-child(4)) > ol > li {
   container: todo-plein / inline-size;
 }
-/* Le TODO du chef déplié (tickets 3523, 4238, 4354) : sous sa ligne, que kitchen/kitchen.css montre au-dessus des colonnes. */
+/* Le TODO du chef déplié (tickets 3523, 4238, 4354) : sous sa ligne, que cuisine/cuisine.css montre au-dessus des colonnes. */
 #rail .todo-du-rail {
   display: flex;
   flex-wrap: wrap;
@@ -2173,7 +2173,7 @@ main > header,
   font-size: var(--taille-meta);
   color: var(--discret);
 }
-/* « Awaiting others » (tickets 2985, 3071) : le bloc replié, à côté du TODO (kitchen/kitchen.css). Dépliées, les cartes d'un
+/* « Awaiting others » (tickets 2985, 3071) : le bloc replié, à côté du TODO (cuisine/cuisine.css). Dépliées, les cartes d'un
    autre humain sont des cartes d'attente, avec en plus qui elles attendent. */
 #rail .replie.autres > ol {
   margin-top: var(--pas-2);
@@ -2826,7 +2826,7 @@ main > header,
   color: var(--texte);
 }
 
-/* Les briques communes (bricks.js) : le survol, la lecture indisponible, le bouton recommandé. */
+/* Les briques communes (briques.js) : le survol, la lecture indisponible, le bouton recommandé. */
 .survol {
   position: relative;
   display: inline-flex;
@@ -2851,7 +2851,7 @@ main > header,
   gap: var(--pas-2);
   align-items: center;
 }
-/* « Add a station », dans l'onglet Stations (ticket 2487, project/stations/AddStation.js) : la question en tête, cet
+/* « Add a station », dans l'onglet Stations (ticket 2487, projet/stations/AjoutStation.js) : la question en tête, cet
    ordinateur d'abord — le bouton recommandé —, puis une ligne par station appairée, son bouton et ce qu'elle en dit. */
 /* Les cinq tickets les plus chers — de la page des coûts, ou du projet sous sa fiabilité : une ligne par ticket, qui ouvre sa fiche. */
 .chers-cout {
@@ -3340,7 +3340,7 @@ main > header {
   border-radius: var(--rayon-bouton);
 }
 
-/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-of-account.js) : une machine que seul
+/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : une machine que seul
    son enregistrement fait connaître a sa ligne dans la liste des stations (ticket 1778), comme les autres, et ses projets
    à cocher dessous. Sous la liste, sans titre, ce que leur lecture a de plus à dire. */
 #toutes-les-stations .stations-du-compte {
@@ -3754,7 +3754,7 @@ main > header {
   padding: var(--pas-3) var(--pas-4) 0;
 }
 /* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
-   ses quatre réglages, chacun une rangée de réglage qui s'applique dès qu'il change (components/setting, ticket 2920).
+   ses quatre réglages, chacun une rangée de réglage qui s'applique dès qu'il change (composants/reglage, ticket 2920).
    Ici ne se pose que la place des cartes, alignées sur la liste des stations au-dessus (ticket 2487), et ce qui est à
    elles : les capacités sont des cases. Un réglage qui ne vaut pas est en retrait, par la rangée (`data-retrait`). */
 /* La carte a l'allure du panneau « edit » de Cooks (plus haut) ; ici, sa marge l'aligne sur la liste. */
@@ -3828,7 +3828,7 @@ main > header {
 .etape-projet .colle {
   flex: 1;
 }
-/* La vérification du dépôt choisi dans le parcours d'ajout (ticket 2627, addition-project/installation-of-repository.js) : une
+/* La vérification du dépôt choisi dans le parcours d'ajout (ticket 2627, ajout-projet/installation-du-depot.js) : une
    phrase — prêt, ce qui manque, en cours, échoué —, son détail au survol, et un seul bouton quand un geste est attendu. */
 .installation-du-depot {
   display: flex;
@@ -3893,7 +3893,7 @@ main > header {
   font-style: italic;
   color: var(--discret);
 }
-/* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de components/setting. */
+/* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de composants/reglage. */
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
 
 /* Les réglages d'une station que le projet déclare, dans « Details » de sa carte (tickets 2488, 3195) : ses rangées, ses

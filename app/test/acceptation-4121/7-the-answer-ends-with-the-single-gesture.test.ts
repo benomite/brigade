@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { ROLE_OF_SECOND } from "../../src/second/launch.ts";
-import { contextOfBlockage } from "../../src/second/context-of-blockage.ts";
+import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
+import { contexteDuBlocage } from "../../src/second/contexte-du-blocage.ts";
 
 const QUESTION = "pourquoi on est bloqués ?";
 const VUE = {
@@ -24,14 +24,14 @@ const VUE = {
 };
 
 test("the second ends with the single unblocking gesture and who makes it, or says there is none", () => {
-  const role = readFileSync(ROLE_OF_SECOND, "utf8");
+  const role = readFileSync(ROLE_DU_SECOND, "utf8");
   assert.match(role, /end[^\n]*(single|one) gesture[^\n]*who/i);
   assert.match(role, /no gesture[^\n]*(say so|never invent)/i);
   // without a known gesture the context says so instead of inventing one
-  const without = contextOfBlockage(QUESTION, { ...VUE, gesture: undefined });
-  assert.match(without, /no gesture/i);
+  const sans = contexteDuBlocage(QUESTION, { ...VUE, gesture: undefined });
+  assert.match(sans, /no gesture/i);
   // with one, it is given once, with its maker
-  const withIt = contextOfBlockage(QUESTION, { ...VUE, gesture: { what: "put #1078 back on the rail", by: "the manager" } });
-  assert.match(withIt, /put #1078 back on the rail/);
-  assert.match(withIt, /the manager/);
+  const avec = contexteDuBlocage(QUESTION, { ...VUE, gesture: { what: "put #1078 back on the rail", by: "the manager" } });
+  assert.match(avec, /put #1078 back on the rail/);
+  assert.match(avec, /the manager/);
 });

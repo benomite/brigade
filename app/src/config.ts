@@ -2,42 +2,42 @@
 // un dossier par projet. C'est tout ce qui se règle. Le chef l'écrit à la main, le second
 // le lit : l'app n'y ajoute qu'un projet, dans la même forme — n'en retire qu'un projet, et n'y change
 // l'ordre des projets que lorsque le chef les range dans la barre. Elle y
-// écrit aussi les couleurs d'un projet (colors.ts) : celles qui lui manquent, et celles
-// que le chef choisit — et les préférences du chef lues dans son gist (settings-personal/sync.ts).
+// écrit aussi les couleurs d'un projet (couleurs.ts) : celles qui lui manquent, et celles
+// que le chef choisit — et les préférences du chef lues dans son gist (reglages-perso/synchro.ts).
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, sep } from "node:path";
-import { ordinaryRead } from "./ordinary.ts";
-import { colorsRead, whole, isColor, ROLES, draw, type Colors, type Role } from "./colors.ts";
-import { refusalOfAcronym } from "./acronym.ts";
-import { same, set } from "./settings-personal/merge.ts";
-import { personal, type Preferences } from "./settings-personal/share.ts";
+import { ordinairesLus } from "./ordinaires.ts";
+import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
+import { refusDuSigle } from "./sigle.ts";
+import { memes, poser } from "./reglages-perso/fusion.ts";
+import { personnelles, type Preferences } from "./reglages-perso/partage.ts";
 
 // Le modèle et l'effort du manager et du reviewer d'un projet.
-export type ProjectCalibration = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
+export type CalibrageDuProjet = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
 
 // `refus` : ce projet reste dans la barre, mais ne s'ouvre pas — et dit pourquoi.
 // `calibrage` : celui que le chef a posé en l'ajoutant depuis l'app — l'écran d'ajout le propose
 // ensuite pour le projet suivant. Absent d'un projet écrit à la main : l'app n'en sait rien.
 // `couleurs` : celles de son onglet et de son accent, telles que le fichier les écrit — une qui
 // manque y est tirée, puis écrite (`colorerProjets`).
-// `sigle` : celui que le chef a écrit pour sa case de la barre (acronym.ts) — absent, l'app en tire un de son nom.
+// `sigle` : celui que le chef a écrit pour sa case de la barre (sigle.ts) — absent, l'app en tire un de son nom.
 // `depot`, `base` : son dépôt GitHub et sa branche d'intégration, posés à son ajout depuis l'app
-// (addition.ts) — c'est d'eux que se confie sa cuisine à une station. Absents d'un projet écrit à la main.
-export type Project = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; calibrage?: ProjectCalibration; couleurs?: Colors; sigle?: string; ordinaires?: boolean; limiteCooks?: number };
+// (ajout.ts) — c'est d'eux que se confie sa cuisine à une station. Absents d'un projet écrit à la main.
+export type Projet = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; calibrage?: CalibrageDuProjet; couleurs?: Couleurs; sigle?: string; ordinaires?: boolean; limiteCooks?: number };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
 // `barreDeMenus` : `false`, le chef a retiré l'état de la cuisine de la barre des menus du Mac et de la zone de
-// notification de Windows (menu-bar.ts, #3269) ; absent, il y est.
+// notification de Windows (barre-de-menus.ts, #3269) ; absent, il y est.
 // `quotaMax` : le réglage « quotaMax » du fichier, tel qu'écrit — la page des coûts le lit (vue/cost/part.js) et dit
 // « No share » quand il ne se lit pas : l'app n'en refuse pas le fichier.
-export type Configuration = { chemin: string; projets: Project[]; refus?: string; nonRelu?: string; barreDeMenus?: boolean; quotaMax?: unknown };
+export type Configuration = { chemin: string; projets: Projet[]; refus?: string; nonRelu?: string; barreDeMenus?: boolean; quotaMax?: unknown };
 // Un projet tel qu'il s'écrit dans le fichier.
-export type Declare = { nom: string; dossier: string; depot?: string; base?: string; calibrage?: ProjectCalibration };
+export type Declare = { nom: string; dossier: string; depot?: string; base?: string; calibrage?: CalibrageDuProjet };
 
 // Rien ici ne se recopie tel quel : chaque valeur dit ce qui la remplace.
-export const EXAMPLE = JSON.stringify(
+export const EXEMPLE = JSON.stringify(
   {
     projets: [{ nom: "<the project's name — that of its GitHub repository>", dossier: "<its folder on this workstation, absolute or starting with ~/>", depot: "<its GitHub repository, <owner>/<name>>", base: "<its integration branch>" }],
   },
@@ -45,124 +45,124 @@ export const EXAMPLE = JSON.stringify(
   2,
 );
 
-export function pathConfiguration(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
-  return env.BRIGADE_APP_CONFIG || join(home, ".config", "brigade", "app.json");
+export function cheminConfiguration(env: NodeJS.ProcessEnv = process.env, maison = homedir()): string {
+  return env.BRIGADE_APP_CONFIG || join(maison, ".config", "brigade", "app.json");
 }
 
-export function readConfiguration(path: string, home = homedir()): Configuration {
-  let text: string;
+export function lireConfiguration(chemin: string, maison = homedir()): Configuration {
+  let texte: string;
   try {
-    text = readFileSync(path, "utf8");
-  } catch (error) {
-    const refusal = (error as NodeJS.ErrnoException).code === "ENOENT" ? "this file does not exist" : `unreadable file: ${(error as Error).message}`;
-    return { chemin: path, projets: [], refus: refusal };
+    texte = readFileSync(chemin, "utf8");
+  } catch (erreur) {
+    const refus = (erreur as NodeJS.ErrnoException).code === "ENOENT" ? "this file does not exist" : `unreadable file: ${(erreur as Error).message}`;
+    return { chemin, projets: [], refus };
   }
-  return understand(path, text, home);
+  return comprendre(chemin, texte, maison);
 }
 
-function understand(path: string, text: string, home: string): Configuration {
-  const refuses = (refusal: string): Configuration => ({ chemin: path, projets: [], refus: refusal });
+function comprendre(chemin: string, texte: string, maison: string): Configuration {
+  const refuse = (refus: string): Configuration => ({ chemin, projets: [], refus });
 
-  let content: unknown;
+  let contenu: unknown;
   try {
-    content = JSON.parse(text);
-  } catch (error) {
-    return refuses(`unreadable JSON: ${(error as Error).message}`);
+    contenu = JSON.parse(texte);
+  } catch (erreur) {
+    return refuse(`unreadable JSON: ${(erreur as Error).message}`);
   }
-  const { projets: list, barreDeMenus: menuBar, quotaMax } = (content ?? {}) as { projets?: unknown; barreDeMenus?: unknown; quotaMax?: unknown };
-  if (!Array.isArray(list)) return refuses("“projets” must be a list");
-  if (menuBar !== undefined && typeof menuBar !== "boolean") return refuses("“barreDeMenus” must be true or false — whether the kitchen's state shows in the menu bar or the notification area");
+  const { projets: liste, barreDeMenus, quotaMax } = (contenu ?? {}) as { projets?: unknown; barreDeMenus?: unknown; quotaMax?: unknown };
+  if (!Array.isArray(liste)) return refuse("“projets” must be a list");
+  if (barreDeMenus !== undefined && typeof barreDeMenus !== "boolean") return refuse("“barreDeMenus” must be true or false — whether the kitchen's state shows in the menu bar or the notification area");
 
-  const projects: Project[] = [];
-  for (const [rank, declare] of list.entries()) {
-    const { nom: name, dossier: folder, commande: command } = (declare ?? {}) as { nom?: unknown; dossier?: unknown; commande?: unknown };
-    if (typeof name !== "string" || name.trim() === "") return refuses(`project #${rank + 1}: “nom” is missing`);
-    const which = `project #${rank + 1} (${name})`;
-    if (typeof folder !== "string" || folder === "") return refuses(`${which}: “dossier” is missing`);
-    if (projects.some((project) => project.nom === name)) return refuses(`two projects are named “${name}”`);
+  const projets: Projet[] = [];
+  for (const [rang, declare] of liste.entries()) {
+    const { nom, dossier, commande } = (declare ?? {}) as { nom?: unknown; dossier?: unknown; commande?: unknown };
+    if (typeof nom !== "string" || nom.trim() === "") return refuse(`project #${rang + 1}: “nom” is missing`);
+    const lequel = `project #${rang + 1} (${nom})`;
+    if (typeof dossier !== "string" || dossier === "") return refuse(`${lequel}: “dossier” is missing`);
+    if (projets.some((projet) => projet.nom === nom)) return refuse(`two projects are named “${nom}”`);
     // `~\` aussi, comme on l'écrit sous Windows.
-    const absolute = folder === "~" || folder.startsWith("~/") || (sep === "\\" && folder.startsWith("~\\")) ? join(home, folder.slice(1)) : folder;
-    if (!isAbsolute(absolute)) return refuses(`${which}: “dossier” must be an absolute path, or start with ~/`);
+    const absolu = dossier === "~" || dossier.startsWith("~/") || (sep === "\\" && dossier.startsWith("~\\")) ? join(maison, dossier.slice(1)) : dossier;
+    if (!isAbsolute(absolu)) return refuse(`${lequel}: “dossier” must be an absolute path, or start with ~/`);
     // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
-    if (command !== undefined) return refuses(`${which}: “commande” is no longer read — remove it: the app reads the project on GitHub and sends the station's actions there`);
-    const refusal = refusalOfFolder(absolute);
-    const calibration = readCalibration((declare as { calibrage?: unknown }).calibrage);
-    const colors = colorsRead((declare as { couleurs?: unknown }).couleurs);
-    if (typeof colors === "string") return refuses(`${which}: ${colors}`);
-    const { sigle: acronym } = declare as { sigle?: unknown };
-    const acronymRefuses = acronym === undefined ? undefined : refusalOfAcronym(acronym);
-    if (acronymRefuses !== undefined) return refuses(`${which}: ${acronymRefuses}`);
-    const ordinary = ordinaryRead(declare as { ordinaires?: unknown; limiteCooks?: unknown });
-    if (typeof ordinary === "string") return refuses(`${which}: ${ordinary}`);
-    const { depot: repository, base } = declare as { depot?: unknown; base?: unknown };
-    if (repository !== undefined && (typeof repository !== "string" || repository.trim() === "")) return refuses(`${which}: “depot” must be a non-empty string — its GitHub repository, \`<owner>/<name>\``);
-    if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuses(`${which}: “base” must be a non-empty string — its integration branch`);
-    projects.push({ nom: name, dossier: absolute, ...(repository === undefined ? {} : { depot: repository }), ...(base === undefined ? {} : { base }), ...ordinary, ...(calibration === undefined ? {} : { calibrage: calibration }), ...(refusal === undefined ? {} : { refus: refusal }), ...(colors === undefined ? {} : { couleurs: colors }), ...(typeof acronym === "string" ? { sigle: acronym.trim() } : {}) });
+    if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app reads the project on GitHub and sends the station's actions there`);
+    const refus = refusDuDossier(absolu);
+    const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
+    const couleurs = couleursLues((declare as { couleurs?: unknown }).couleurs);
+    if (typeof couleurs === "string") return refuse(`${lequel}: ${couleurs}`);
+    const { sigle } = declare as { sigle?: unknown };
+    const sigleRefuse = sigle === undefined ? undefined : refusDuSigle(sigle);
+    if (sigleRefuse !== undefined) return refuse(`${lequel}: ${sigleRefuse}`);
+    const ordinaires = ordinairesLus(declare as { ordinaires?: unknown; limiteCooks?: unknown });
+    if (typeof ordinaires === "string") return refuse(`${lequel}: ${ordinaires}`);
+    const { depot, base } = declare as { depot?: unknown; base?: unknown };
+    if (depot !== undefined && (typeof depot !== "string" || depot.trim() === "")) return refuse(`${lequel}: “depot” must be a non-empty string — its GitHub repository, \`<owner>/<name>\``);
+    if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuse(`${lequel}: “base” must be a non-empty string — its integration branch`);
+    projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(couleurs === undefined ? {} : { couleurs }), ...(typeof sigle === "string" ? { sigle: sigle.trim() } : {}) });
   }
-  return { chemin: path, projets: projects, ...(menuBar === undefined ? {} : { barreDeMenus: menuBar }), ...(quotaMax === undefined ? {} : { quotaMax }) };
+  return { chemin, projets, ...(barreDeMenus === undefined ? {} : { barreDeMenus }), ...(quotaMax === undefined ? {} : { quotaMax }) };
 }
 
 // Le calibrage écrit d'un projet, s'il est entier — sinon l'app n'en lit rien, et ne le refuse pas.
-function readCalibration(readOne: unknown): ProjectCalibration | undefined {
-  const text = (value: unknown) => (typeof value === "string" && value.trim() !== "" ? value : undefined);
-  const role = (value: unknown) => {
-    const { modele: model, effort } = (value ?? {}) as { modele?: unknown; effort?: unknown };
-    const [m, e] = [text(model), text(effort)];
+function calibrageLu(lu: unknown): CalibrageDuProjet | undefined {
+  const texte = (valeur: unknown) => (typeof valeur === "string" && valeur.trim() !== "" ? valeur : undefined);
+  const role = (valeur: unknown) => {
+    const { modele, effort } = (valeur ?? {}) as { modele?: unknown; effort?: unknown };
+    const [m, e] = [texte(modele), texte(effort)];
     return m === undefined || e === undefined ? undefined : { modele: m, effort: e };
   };
-  const { manager, reviewer } = (readOne ?? {}) as { manager?: unknown; reviewer?: unknown };
+  const { manager, reviewer } = (lu ?? {}) as { manager?: unknown; reviewer?: unknown };
   const [gestionnaire, relecteur] = [role(manager), role(reviewer)];
   return gestionnaire === undefined || relecteur === undefined ? undefined : { manager: gestionnaire, reviewer: relecteur };
 }
 
 // Le fichier qui manque est créé — une liste vide, et son dossier avec. Un
 // fichier déjà là n'est jamais réécrit ici. Rend la raison, s'il n'a pas pu l'être.
-export function createConfiguration(path: string): string | undefined {
-  const refusal = (error: unknown) => `this file could not be created: ${(error as Error).message}`;
+export function creerConfiguration(chemin: string): string | undefined {
+  const refus = (erreur: unknown) => `this file could not be created: ${(erreur as Error).message}`;
   try {
-    mkdirSync(dirname(path), { recursive: true });
-  } catch (error) {
-    return refusal(error);
+    mkdirSync(dirname(chemin), { recursive: true });
+  } catch (erreur) {
+    return refus(erreur);
   }
   try {
-    writeFileSync(path, written({ projets: [] }), { flag: "wx" });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") return refusal(error);
+    writeFileSync(chemin, ecrit({ projets: [] }), { flag: "wx" });
+  } catch (erreur) {
+    if ((erreur as NodeJS.ErrnoException).code !== "EEXIST") return refus(erreur);
     // Un lien pendant « existe » pour qui veut créer, et pour personne d'autre.
-    if (!existsSync(path)) return refusal(new Error("it is a link to a file that does not exist"));
+    if (!existsSync(chemin)) return refus(new Error("it is a link to a file that does not exist"));
   }
   return undefined;
 }
 
-const written = (content: unknown): string => `${JSON.stringify(content, null, 2)}\n`;
+const ecrit = (contenu: unknown): string => `${JSON.stringify(contenu, null, 2)}\n`;
 
-type Open = { contenu: { projets: unknown[] }; lue: Configuration } | { refus: string };
+type Ouvert = { contenu: { projets: unknown[] }; lue: Configuration } | { refus: string };
 
 // Le fichier tel qu'il est, pour y ajouter : créé s'il manque, et compris — ou
 // la raison. L'app n'écrit pas dans un fichier qu'elle n'a pas compris.
-function open(path: string, home: string): Open {
-  const created = createConfiguration(path);
-  return created === undefined ? reread(path, home) : { refus: created };
+function ouvrir(chemin: string, maison: string): Ouvert {
+  const cree = creerConfiguration(chemin);
+  return cree === undefined ? relu(chemin, maison) : { refus: cree };
 }
 
 // Le même, sans le créer : on ne retire rien d'un fichier qui n'existe pas.
-function reread(path: string, home: string): Open {
-  let text: string;
+function relu(chemin: string, maison: string): Ouvert {
+  let texte: string;
   try {
-    text = readFileSync(path, "utf8");
-  } catch (error) {
-    return { refus: `unreadable file: ${(error as Error).message}` };
+    texte = readFileSync(chemin, "utf8");
+  } catch (erreur) {
+    return { refus: `unreadable file: ${(erreur as Error).message}` };
   }
-  const readEntry = understand(path, text, home);
-  if (readEntry.refus !== undefined) return { refus: `the app does not write into a file it has not understood — ${readEntry.refus}` };
-  return { contenu: JSON.parse(text) as { projets: unknown[] }, lue: readEntry };
+  const lue = comprendre(chemin, texte, maison);
+  if (lue.refus !== undefined) return { refus: `the app does not write into a file it has not understood — ${lue.refus}` };
+  return { contenu: JSON.parse(texte) as { projets: unknown[] }, lue };
 }
 
-function rewrite(path: string, fresh: string): string | undefined {
+function reecrire(chemin: string, neuf: string): string | undefined {
   try {
-    writeFileSync(path, fresh);
-  } catch (error) {
-    return `this file could not be written: ${(error as Error).message}`;
+    writeFileSync(chemin, neuf);
+  } catch (erreur) {
+    return `this file could not be written: ${(erreur as Error).message}`;
   }
   return undefined;
 }
@@ -170,50 +170,50 @@ function rewrite(path: string, fresh: string): string | undefined {
 // Le fichier tel qu'il serait avec ce projet à la suite des autres — ou la raison
 // pour laquelle il n'y entre pas. Les règles sont celles de la lecture : le fichier
 // n'est écrit que s'il était compris avant, et s'il l'est encore après.
-function withProject(path: string, project: Declare, home: string): { neuf: string } | { refus: string } {
-  const opened = open(path, home);
-  if ("refus" in opened) return opened;
-  opened.contenu.projets.push({ nom: project.nom.trim(), dossier: project.dossier, ...(project.depot ? { depot: project.depot } : {}), ...(project.base ? { base: project.base } : {}), ...(project.calibrage === undefined ? {} : { calibrage: project.calibrage }) });
-  const fresh = written(opened.contenu);
-  const understood = understand(path, fresh, home);
+function avecProjet(chemin: string, projet: Declare, maison: string): { neuf: string } | { refus: string } {
+  const ouvert = ouvrir(chemin, maison);
+  if ("refus" in ouvert) return ouvert;
+  ouvert.contenu.projets.push({ nom: projet.nom.trim(), dossier: projet.dossier, ...(projet.depot ? { depot: projet.depot } : {}), ...(projet.base ? { base: projet.base } : {}), ...(projet.calibrage === undefined ? {} : { calibrage: projet.calibrage }) });
+  const neuf = ecrit(ouvert.contenu);
+  const comprise = comprendre(chemin, neuf, maison);
   // Un projet qui ne s'ouvrirait pas n'est pas ajouté : le chef est là pour en choisir un autre.
-  const refusal = understood.refus ?? understood.projets.at(-1)?.refus;
-  return refusal === undefined ? { neuf: fresh } : { refus: refusal };
+  const refus = comprise.refus ?? comprise.projets.at(-1)?.refus;
+  return refus === undefined ? { neuf } : { refus };
 }
 
 // Ajoute un projet à la suite des autres, et rend la raison s'il ne l'a pas été.
 // Ce que l'app n'y lit pas y reste.
-export function addProject(path: string, project: Declare, home = homedir()): string | undefined {
-  const withIt = withProject(path, project, home);
-  return "refus" in withIt ? withIt.refus : rewrite(path, withIt.neuf);
+export function ajouterProjet(chemin: string, projet: Declare, maison = homedir()): string | undefined {
+  const avec = avecProjet(chemin, projet, maison);
+  return "refus" in avec ? avec.refus : reecrire(chemin, avec.neuf);
 }
 
 // Retire un projet du fichier : sa ligne, et elle seule — ni les autres projets, ni
 // ce que l'app n'y lit pas. Rend la raison, s'il n'a pas été retiré.
-export function removeProject(path: string, name: string, home = homedir()): string | undefined {
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const { projets: projects } = opened.contenu;
-  const rank = projects.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === name);
-  if (rank === -1) return `“${name}” is not in this file: nothing was changed there`;
-  projects.splice(rank, 1);
-  return rewrite(path, written(opened.contenu));
+export function retirerProjet(chemin: string, nom: string, maison = homedir()): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const { projets } = ouvert.contenu;
+  const rang = projets.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === nom);
+  if (rang === -1) return `“${nom}” is not in this file: nothing was changed there`;
+  projets.splice(rang, 1);
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
 // Range un projet à une autre place de la liste — `rang`, compté depuis zéro, est celle qu'il
 // prend : les autres se décalent. Chaque ligne reste entière, et rien d'autre du fichier ne bouge.
 // C'est l'ordre du fichier que la barre et « Tous les projets » montrent : un projet ajouté
 // ensuite arrive à sa fin. Lâché à sa propre place, rien n'est écrit. Rend la raison, s'il n'a pas été rangé.
-export function tidyProject(path: string, name: string, rank: number, home = homedir()): string | undefined {
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const { projets: projects } = opened.contenu;
-  const before = projects.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === name);
-  if (before === -1) return `“${name}” is not in this file: nothing was changed there`;
-  if (!Number.isInteger(rank) || rank < 0 || rank >= projects.length) return `there is no place #${rank + 1} among ${projects.length} projects: nothing was changed there`;
-  if (rank === before) return undefined;
-  projects.splice(rank, 0, ...projects.splice(before, 1));
-  return rewrite(path, written(opened.contenu));
+export function rangerProjet(chemin: string, nom: string, rang: number, maison = homedir()): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const { projets } = ouvert.contenu;
+  const avant = projets.findIndex((declare) => (declare as { nom?: unknown } | null)?.nom === nom);
+  if (avant === -1) return `“${nom}” is not in this file: nothing was changed there`;
+  if (!Number.isInteger(rang) || rang < 0 || rang >= projets.length) return `there is no place #${rang + 1} among ${projets.length} projects: nothing was changed there`;
+  if (rang === avant) return undefined;
+  projets.splice(rang, 0, ...projets.splice(avant, 1));
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
 // Les couleurs qui manquent aux projets du fichier — à un projet qui vient d'y entrer, ou qui y
@@ -221,117 +221,117 @@ export function tidyProject(path: string, name: string, rank: number, home = hom
 // aucun rôle, tant qu'il en reste une, posée sur chaque rôle qui en manque et écrite dans
 // « couleurs ». Celles qui y sont ne changent pas, et rien n'est écrit s'il n'en manque aucune.
 // Rend la raison, si elles ne l'ont pas été.
-export function colorProjects(path: string, home = homedir(), chance: () => number = Math.random): string | undefined {
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const heldEntries: Colors[] = opened.lue.projets.map(({ couleurs: colors }) => ({ ...colors }));
-  if (heldEntries.every(whole)) return undefined;
+export function colorerProjets(chemin: string, maison = homedir(), hasard: () => number = Math.random): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const tenues: Couleurs[] = ouvert.lue.projets.map(({ couleurs }) => ({ ...couleurs }));
+  if (tenues.every(entieres)) return undefined;
   // Le fichier a été compris : ses projets sont ceux qui ont été lus, dans le même ordre.
-  for (const [rank, colors] of heldEntries.entries()) {
-    if (whole(colors)) continue;
-    const tint = draw(heldEntries.flatMap((other) => (other === colors ? [] : ROLES.map((role) => other[role]))), chance);
-    for (const role of ROLES) colors[role] ??= tint;
-    const declare = opened.contenu.projets[rank] as { couleurs?: Colors };
-    declare.couleurs = { ...declare.couleurs, ...colors };
+  for (const [rang, couleurs] of tenues.entries()) {
+    if (entieres(couleurs)) continue;
+    const teinte = tirer(tenues.flatMap((autre) => (autre === couleurs ? [] : ROLES.map((role) => autre[role]))), hasard);
+    for (const role of ROLES) couleurs[role] ??= teinte;
+    const declare = ouvert.contenu.projets[rang] as { couleurs?: Couleurs };
+    declare.couleurs = { ...declare.couleurs, ...couleurs };
   }
-  return rewrite(path, written(opened.contenu));
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
 // Change une couleur d'un projet : celle de son onglet, ou celle de son accent — rien d'autre du
 // fichier. Rend la raison, si elle ne l'a pas été.
-export function changeColor(path: string, name: string, role: Role, color: string, home = homedir()): string | undefined {
-  if (!isColor(color)) return `“${color}” is not a color written as \`#rrggbb\``;
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const declare = opened.contenu.projets.find((candidate) => (candidate as { nom?: unknown } | null)?.nom === name) as { couleurs?: Colors } | undefined;
-  if (declare === undefined) return `“${name}” is not in this file: nothing was changed there`;
-  declare.couleurs = { ...declare.couleurs, [role]: color.toLowerCase() };
-  return rewrite(path, written(opened.contenu));
+export function changerCouleur(chemin: string, nom: string, role: Role, couleur: string, maison = homedir()): string | undefined {
+  if (!estCouleur(couleur)) return `“${couleur}” is not a color written as \`#rrggbb\``;
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { couleurs?: Couleurs } | undefined;
+  if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
+  declare.couleurs = { ...declare.couleurs, [role]: couleur.toLowerCase() };
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
-// Change le sigle d'un projet, celui de sa case dans la barre (acronym.ts) : `null` le retire, et l'app en tire
+// Change le sigle d'un projet, celui de sa case dans la barre (sigle.ts) : `null` le retire, et l'app en tire
 // un de son nom. Un sigle qu'un autre projet porte déjà, écrit par le chef, est refusé — deux cases ne se
 // lisent pas pareil. Rien d'autre du fichier ne change. Rend la raison, s'il ne l'a pas été.
-export function changeAcronym(path: string, name: string, acronym: unknown, home = homedir()): string | undefined {
-  if (acronym !== null) {
-    const refusal = refusalOfAcronym(acronym);
-    if (refusal !== undefined) return `nothing was written: ${refusal}`;
+export function changerSigle(chemin: string, nom: string, sigle: unknown, maison = homedir()): string | undefined {
+  if (sigle !== null) {
+    const refus = refusDuSigle(sigle);
+    if (refus !== undefined) return `nothing was written: ${refus}`;
   }
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const declare = opened.contenu.projets.find((candidate) => (candidate as { nom?: unknown } | null)?.nom === name) as { sigle?: string } | undefined;
-  if (declare === undefined) return `“${name}” is not in this file: nothing was changed there`;
-  if (acronym === null) {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { sigle?: string } | undefined;
+  if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
+  if (sigle === null) {
     if (declare.sigle === undefined) return undefined;
     delete declare.sigle;
-    return rewrite(path, written(opened.contenu));
+    return reecrire(chemin, ecrit(ouvert.contenu));
   }
-  const wanted = (acronym as string).trim();
-  const other = opened.lue.projets.find((project) => project.nom !== name && project.sigle?.toUpperCase() === wanted.toUpperCase());
-  if (other !== undefined) return `nothing was written: “${other.sigle}” is already the label of ${other.nom}`;
-  if (declare.sigle === wanted) return undefined;
-  declare.sigle = wanted;
-  return rewrite(path, written(opened.contenu));
+  const voulu = (sigle as string).trim();
+  const autre = ouvert.lue.projets.find((projet) => projet.nom !== nom && projet.sigle?.toUpperCase() === voulu.toUpperCase());
+  if (autre !== undefined) return `nothing was written: “${autre.sigle}” is already the label of ${autre.nom}`;
+  if (declare.sigle === voulu) return undefined;
+  declare.sigle = voulu;
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
 // Règle, pour un projet, si la station de cet ordinateur prend aussi les tickets ordinaires et combien de cooks il
 // fait tourner (`null` : aucune limite écrite) — rien d'autre du fichier. Rend la raison, si
 // rien n'a été écrit.
-export function changeOrdinary(path: string, name: string, active: unknown, limit: unknown, home = homedir()): string | undefined {
-  if (typeof active !== "boolean") return "nothing was written: whether this computer's station takes the ordinary tickets is true or false";
-  if (limit !== null && (!Number.isInteger(limit) || (limit as number) < 1)) return "nothing was written: this computer's cook limit is a whole number, one or more — or empty, for none";
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const declare = opened.contenu.projets.find((candidate) => (candidate as { nom?: unknown } | null)?.nom === name) as { ordinaires?: boolean; limiteCooks?: number } | undefined;
-  if (declare === undefined) return `“${name}” is not in this file: nothing was changed there`;
-  declare.ordinaires = active;
-  if (limit === null) delete declare.limiteCooks;
-  else declare.limiteCooks = limit as number;
-  return rewrite(path, written(opened.contenu));
+export function changerOrdinaires(chemin: string, nom: string, actif: unknown, limite: unknown, maison = homedir()): string | undefined {
+  if (typeof actif !== "boolean") return "nothing was written: whether this computer's station takes the ordinary tickets is true or false";
+  if (limite !== null && (!Number.isInteger(limite) || (limite as number) < 1)) return "nothing was written: this computer's cook limit is a whole number, one or more — or empty, for none";
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { ordinaires?: boolean; limiteCooks?: number } | undefined;
+  if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
+  declare.ordinaires = actif;
+  if (limite === null) delete declare.limiteCooks;
+  else declare.limiteCooks = limite as number;
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
 // Montre ou retire l'état de la cuisine de la barre des menus du Mac et de la zone de notification de Windows
-// (menu-bar.ts, #3269) — rien d'autre du fichier. Rend la raison, si rien n'a été écrit.
-export function changeMenuBar(path: string, active: unknown, home = homedir()): string | undefined {
-  if (typeof active !== "boolean") return "nothing was written: whether the kitchen's state shows in the menu bar is true or false";
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const content = opened.contenu as { barreDeMenus?: boolean };
-  if ((content.barreDeMenus ?? true) === active) return undefined;
-  content.barreDeMenus = active;
-  return rewrite(path, written(opened.contenu));
+// (barre-de-menus.ts, #3269) — rien d'autre du fichier. Rend la raison, si rien n'a été écrit.
+export function changerBarreDeMenus(chemin: string, actif: unknown, maison = homedir()): string | undefined {
+  if (typeof actif !== "boolean") return "nothing was written: whether the kitchen's state shows in the menu bar is true or false";
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const contenu = ouvert.contenu as { barreDeMenus?: boolean };
+  if ((contenu.barreDeMenus ?? true) === actif) return undefined;
+  contenu.barreDeMenus = actif;
+  return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
-// Les préférences personnelles du fichier (settings-personal/share.ts), celles qui suivent le chef d'un
+// Les préférences personnelles du fichier (reglages-perso/partage.ts), celles qui suivent le chef d'un
 // appareil à l'autre — ou la raison pour laquelle il n'est pas compris : un fichier qu'un éditeur est
 // en train d'écrire ne dit pas que le chef a tout effacé.
-export function preferencesOfFile(path: string, home = homedir()): { preferences: Preferences } | { refus: string } {
-  const opened = reread(path, home);
-  return "refus" in opened ? opened : { preferences: personal(opened.contenu) };
+export function preferencesDuFichier(chemin: string, maison = homedir()): { preferences: Preferences } | { refus: string } {
+  const ouvert = relu(chemin, maison);
+  return "refus" in ouvert ? ouvert : { preferences: personnelles(ouvert.contenu) };
 }
 
-// Pose dans le fichier les préférences personnelles lues dans le gist (settings-personal/merge.ts) : les
+// Pose dans le fichier les préférences personnelles lues dans le gist (reglages-perso/fusion.ts) : les
 // couleurs, l'ordre et les réglages des projets qu'il connaît, et les préférences du fichier. Le dossier
 // d'un projet et tout ce qui ne vaut que pour cet ordinateur restent ceux du fichier. Rien
 // n'est écrit si rien ne change, ni si le fichier ne serait plus compris. Rend la raison, si elles ne
 // l'ont pas été.
-export function setPreferences(path: string, preferences: Preferences, home = homedir()): string | undefined {
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const pose = set(opened.contenu, preferences);
-  if (same(pose, opened.contenu)) return undefined;
-  const fresh = written(pose);
-  const understood = understand(path, fresh, home);
-  if (understood.refus !== undefined) return `the preferences read from GitHub were not written: the file would no longer be understood — ${understood.refus}`;
-  return rewrite(path, fresh);
+export function poserPreferences(chemin: string, preferences: Preferences, maison = homedir()): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const pose = poser(ouvert.contenu, preferences);
+  if (memes(pose, ouvert.contenu)) return undefined;
+  const neuf = ecrit(pose);
+  const comprise = comprendre(chemin, neuf, maison);
+  if (comprise.refus !== undefined) return `the preferences read from GitHub were not written: the file would no longer be understood — ${comprise.refus}`;
+  return reecrire(chemin, neuf);
 }
 
 // Un dossier absent n'invalide pas le fichier : un disque débranché ne doit pas
 // cacher les autres projets.
-function refusalOfFolder(folder: string): string | undefined {
+function refusDuDossier(dossier: string): string | undefined {
   try {
-    return statSync(folder).isDirectory() ? undefined : `this is not a folder: ${folder}`;
+    return statSync(dossier).isDirectory() ? undefined : `this is not a folder: ${dossier}`;
   } catch {
-    return `folder not found: ${folder}`;
+    return `folder not found: ${dossier}`;
   }
 }

@@ -6,147 +6,147 @@
 // l'absence portent les chiffres d'autonomie, ces chiffres ; sinon le bloc n'existe pas. Un seul bouton ferme l'écran.
 //
 // La date de la dernière ouverture est tenue dans le stockage de la vue (`localStorage`), comme la trace de la visite
-// guidée. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js).
+// guidée. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { button } from "../components/button/button.js";
-import { lineEmpty } from "../components/line-empty/line-empty.js";
-import { THIS_COMPUTER, READ_OF } from "../lexicon.js";
-import { WAIT, AUTONOMY, figuresOfTheAutonomy, weekSaid } from "../resume-weekly/resume-weekly.js";
+import { bouton } from "../composants/bouton/bouton.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { CET_ORDINATEUR, LECTURE_DE } from "../lexique.js";
+import { ATTENTE, AUTONOMIE, chiffresDeLAutonomie, semaineDite } from "../resume-hebdomadaire/resume-hebdomadaire.js";
 
-/** @typedef {import("../bricks.js").Fabrique} Fabrique */
-/** @typedef {import("../resume-weekly/resume-kitchen.ts").ResumesOfProject} Reading */
-/** @typedef {import("../resume-weekly/resume-kitchen.ts").ResumeWeekly} Resume */
-/** @typedef {{ ticket: number, titre?: string }} Wait */
-/** @typedef {{ projet: string, lecture: Reading | undefined, attentes: Wait[] }} OfProject */
-/** @typedef {{ getItem(key: string): string | null, setItem(key: string, value: string): void }} Storage */
+/** @typedef {import("../briques.js").Fabrique} Fabrique */
+/** @typedef {import("../resume-hebdomadaire/resume-cuisine.ts").ResumesDuProjet} Lecture */
+/** @typedef {import("../resume-hebdomadaire/resume-cuisine.ts").ResumeHebdomadaire} Resume */
+/** @typedef {{ ticket: number, titre?: string }} Attente */
+/** @typedef {{ projet: string, lecture: Lecture | undefined, attentes: Attente[] }} DuProjet */
+/** @typedef {{ getItem(cle: string): string | null, setItem(cle: string, valeur: string): void }} Stockage */
 
 // La trace, dans le stockage de la vue, de la dernière ouverture de l'app.
-export const KEY_OF_THE_LAST_OPENING = "brigade.derniere-ouverture";
+export const CLE_DE_LA_DERNIERE_OUVERTURE = "brigade.derniere-ouverture";
 // Plus de trois jours (72 heures) : à trois jours pile, l'écran ne vient pas.
-export const THRESHOLD_MS = 3 * 24 * 3600 * 1000;
-const DAY_MS = 24 * 3600 * 1000;
+export const SEUIL_MS = 3 * 24 * 3600 * 1000;
+const JOUR_MS = 24 * 3600 * 1000;
 
-export const TITLE = "Since you were away";
-export const SERVED = "Served while you were away";
-export const NOTHING_SERVED = "Nothing was served while you were away.";
-export const NOTHING_N_AWAITING = "Nothing is waiting for you.";
-export const SEE_WHAT_AWAITING = "See what is waiting for you";
-export const CLOSE = "Close";
-/** @param {number} since */
-export const ABSENCE_SINCE = (since) => `Last opened ${new Date(since).toISOString().slice(0, 10)}.`;
-/** @param {number} count */
-export const WAIT_OF = (count) => `${WAIT} (${count})`;
-export const NO_PROJECT = `No project is read on ${THIS_COMPUTER}.`;
+export const TITRE = "Since you were away";
+export const SERVI = "Served while you were away";
+export const RIEN_SERVI = "Nothing was served while you were away.";
+export const RIEN_N_ATTEND = "Nothing is waiting for you.";
+export const VOIR_CE_QUI_ATTEND = "See what is waiting for you";
+export const FERMER = "Close";
+/** @param {number} depuis */
+export const ABSENCE_DEPUIS = (depuis) => `Last opened ${new Date(depuis).toISOString().slice(0, 10)}.`;
+/** @param {number} nombre */
+export const ATTENTE_DE = (nombre) => `${ATTENTE} (${nombre})`;
+export const AUCUN_PROJET = `No project is read on ${CET_ORDINATEUR}.`;
 
 /**
  * Ce que l'ouverture décide : la date de la dernière ouverture (ms), quand l'écran doit venir — l'absence est de plus de
  * trois jours —, sinon rien. Puis la date d'aujourd'hui est écrite, dans tous les cas, une fois la décision prise. Pas de
  * trace, ou une trace qui ne se lit pas : premier lancement, pas d'écran. Un stockage absent ou qui refuse de lire ne
  * montre rien : l'app ne saurait pas de quand date l'absence.
- * @param {{ stockage: Storage | undefined, maintenant?: () => number }} options
+ * @param {{ stockage: Stockage | undefined, maintenant?: () => number }} options
  * @returns {number | undefined}
  */
-export function absenceALAperture({ stockage: storage, maintenant: now = Date.now }) {
-  if (storage === undefined) return undefined;
-  const here = now();
+export function absenceALAperture({ stockage, maintenant = Date.now }) {
+  if (stockage === undefined) return undefined;
+  const ici = maintenant();
   /** @type {number | undefined} */
-  let since;
+  let depuis;
   try {
-    const trace = storage.getItem(KEY_OF_THE_LAST_OPENING);
-    const readEntry = trace === null ? Number.NaN : Date.parse(trace);
-    if (Number.isFinite(readEntry) && here - readEntry > THRESHOLD_MS) since = readEntry;
+    const trace = stockage.getItem(CLE_DE_LA_DERNIERE_OUVERTURE);
+    const lue = trace === null ? Number.NaN : Date.parse(trace);
+    if (Number.isFinite(lue) && ici - lue > SEUIL_MS) depuis = lue;
   } catch {
-    since = undefined;
+    depuis = undefined;
   }
   try {
-    storage.setItem(KEY_OF_THE_LAST_OPENING, new Date(here).toISOString());
+    stockage.setItem(CLE_DE_LA_DERNIERE_OUVERTURE, new Date(ici).toISOString());
   } catch {
     // La trace ne s'écrit pas : l'app s'ouvre quand même.
   }
-  return since;
+  return depuis;
 }
 
 /**
  * Les résumés d'un projet dont la semaine touche l'absence : celle dont le dernier jour (`weekEnd`, compris) est à
  * l'instant `depuis` ou après.
- * @param {Reading | undefined} reading @param {number} since
+ * @param {Lecture | undefined} lecture @param {number} depuis
  * @returns {Resume[]}
  */
-export function resumesOfTheAbsence(reading, since) {
-  if (reading === undefined || !("resumes" in reading) || "sans" in reading.resumes) return [];
-  return reading.resumes.resumes.filter(({ weekEnd }) => Date.parse(weekEnd) + DAY_MS > since);
+export function resumesDeLAbsence(lecture, depuis) {
+  if (lecture === undefined || !("resumes" in lecture) || "sans" in lecture.resumes) return [];
+  return lecture.resumes.resumes.filter(({ weekEnd }) => Date.parse(weekEnd) + JOUR_MS > depuis);
 }
 
 /**
  * L'écran. `gestes.fermer(attend)` : `attend` dit si quelque chose attend le chef — le bouton le mène alors à ce qui l'attend.
  * @param {Fabrique} doc
- * @param {{ depuis: number, projets: OfProject[] }} entrees
- * @param {{ fermer: (awaiting: boolean) => void }} actions
+ * @param {{ depuis: number, projets: DuProjet[] }} entrees
+ * @param {{ fermer: (attend: boolean) => void }} gestes
  */
-export function setAbsence(doc, { depuis: since, projets: projects }, actions) {
-  const root = doc.createElement("article");
-  root.className = "absence";
-  const title = doc.createElement("h2");
-  title.textContent = TITLE;
-  const said = doc.createElement("p");
-  said.className = "attendu";
-  said.textContent = ABSENCE_SINCE(since);
-  root.append(title, said);
-  if (projects.length === 0) root.append(lineEmpty(doc, NO_PROJECT));
-  for (const project of projects) root.append(ofProject(doc, since, project));
-  const awaiting = projects.some(({ attentes: waits }) => waits.length > 0);
-  const action = button(doc, awaiting ? SEE_WHAT_AWAITING : CLOSE, () => actions.fermer(awaiting), { sorte: "recommande" });
-  action.className += " fermer-l-absence";
-  root.append(action);
-  return root;
+export function poserAbsence(doc, { depuis, projets }, gestes) {
+  const racine = doc.createElement("article");
+  racine.className = "absence";
+  const titre = doc.createElement("h2");
+  titre.textContent = TITRE;
+  const dit = doc.createElement("p");
+  dit.className = "attendu";
+  dit.textContent = ABSENCE_DEPUIS(depuis);
+  racine.append(titre, dit);
+  if (projets.length === 0) racine.append(ligneVide(doc, AUCUN_PROJET));
+  for (const projet of projets) racine.append(duProjet(doc, depuis, projet));
+  const attend = projets.some(({ attentes }) => attentes.length > 0);
+  const geste = bouton(doc, attend ? VOIR_CE_QUI_ATTEND : FERMER, () => gestes.fermer(attend), { sorte: "recommande" });
+  geste.className += " fermer-l-absence";
+  racine.append(geste);
+  return racine;
 }
 
-/** @param {Fabrique} doc @param {string} text */
-const subheading = (doc, text) => {
+/** @param {Fabrique} doc @param {string} texte */
+const intertitre = (doc, texte) => {
   const h4 = doc.createElement("h4");
-  h4.textContent = text;
+  h4.textContent = texte;
   return h4;
 };
 
-/** @param {Fabrique} doc @param {string[]} lines @param {string} classe */
-const list = (doc, lines, classe) => {
+/** @param {Fabrique} doc @param {string[]} lignes @param {string} classe */
+const liste = (doc, lignes, classe) => {
   const ul = doc.createElement("ul");
   ul.className = classe;
-  for (const line of lines) {
+  for (const ligne of lignes) {
     const li = doc.createElement("li");
-    li.textContent = line;
+    li.textContent = ligne;
     ul.append(li);
   }
   return ul;
 };
 
-/** @param {Fabrique} doc @param {number} since @param {OfProject} projet */
-function ofProject(doc, since, { projet: project, lecture: reading, attentes: waits }) {
+/** @param {Fabrique} doc @param {number} depuis @param {DuProjet} projet */
+function duProjet(doc, depuis, { projet, lecture, attentes }) {
   const section = doc.createElement("section");
   section.className = "absence-du-projet";
-  section.ariaLabel = project;
-  section.dataset.projet = project;
-  const name = doc.createElement("h3");
-  name.textContent = project;
-  section.append(name, subheading(doc, SERVED));
-  const resumes = resumesOfTheAbsence(reading, since);
-  if (reading === undefined) section.append(lineEmpty(doc, READ_OF("what was served")));
+  section.ariaLabel = projet;
+  section.dataset.projet = projet;
+  const nom = doc.createElement("h3");
+  nom.textContent = projet;
+  section.append(nom, intertitre(doc, SERVI));
+  const resumes = resumesDeLAbsence(lecture, depuis);
+  if (lecture === undefined) section.append(ligneVide(doc, LECTURE_DE("what was served")));
   else {
     // Les lignes viennent telles que le résumé les écrit : aucun mot n'est refait ici.
-    const lines = resumes.flatMap(({ themes }) => themes.flatMap(({ lines }) => lines.map(({ text, ticketNumber }) => `${text} (#${ticketNumber})`)));
-    section.append(lines.length === 0 ? lineEmpty(doc, NOTHING_SERVED) : list(doc, lines, "servis"));
+    const lignes = resumes.flatMap(({ themes }) => themes.flatMap(({ lines }) => lines.map(({ text, ticketNumber }) => `${text} (#${ticketNumber})`)));
+    section.append(lignes.length === 0 ? ligneVide(doc, RIEN_SERVI) : liste(doc, lignes, "servis"));
   }
-  const withAutonomy = resumes.filter(({ autonomy }) => autonomy !== undefined);
-  if (withAutonomy.length > 0) {
-    section.append(subheading(doc, AUTONOMY));
-    for (const resume of withAutonomy) {
-      const week = doc.createElement("p");
-      week.className = "semaine";
-      week.textContent = weekSaid(resume);
-      section.append(week, figuresOfTheAutonomy(doc, /** @type {NonNullable<Resume["autonomy"]>} */ (resume.autonomy)));
+  const avecAutonomie = resumes.filter(({ autonomy }) => autonomy !== undefined);
+  if (avecAutonomie.length > 0) {
+    section.append(intertitre(doc, AUTONOMIE));
+    for (const resume of avecAutonomie) {
+      const semaine = doc.createElement("p");
+      semaine.className = "semaine";
+      semaine.textContent = semaineDite(resume);
+      section.append(semaine, chiffresDeLAutonomie(doc, /** @type {NonNullable<Resume["autonomy"]>} */ (resume.autonomy)));
     }
   }
-  section.append(subheading(doc, WAIT_OF(waits.length)));
-  section.append(waits.length === 0 ? lineEmpty(doc, NOTHING_N_AWAITING) : list(doc, waits.map(({ ticket, titre: title }) => (title === undefined ? `#${ticket}` : `#${ticket} ${title}`)), "attentes"));
+  section.append(intertitre(doc, ATTENTE_DE(attentes.length)));
+  section.append(attentes.length === 0 ? ligneVide(doc, RIEN_N_ATTEND) : liste(doc, attentes.map(({ ticket, titre }) => (titre === undefined ? `#${ticket}` : `#${ticket} ${titre}`)), "attentes"));
   return section;
 }

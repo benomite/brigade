@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkControl } from "../../../src/vue/parked/park-control.js";
-import { Fake, repos } from "../../helpers/false-vue.ts";
+import { Faux, repos } from "../../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Fake(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise) };
 const SENDING = "sending…";
 const FIELDS = [
   { field: "who", missing: "nothing parked: say who it waits for — a person, or the chef" },
@@ -13,71 +13,71 @@ const FIELDS = [
   { field: "until", missing: "nothing parked: say until when — a date or a fact" },
 ];
 type Gesture = Parameters<typeof parkControl>[1]["gesture"];
-const set = (gesture: Gesture, form = {}) => parkControl(doc, { project: "parade", ticket: 41, step: "Cooks", gesture, form }) as unknown as Fake;
-const field = (c: Fake, name: string) => c.dessous("input").find(({ dataset }) => dataset.field === name)!;
-const press = (c: Fake, action: string) => c.dessous("button").find(({ dataset }) => dataset.action === action)!.click();
-const reason = (c: Fake) => c.dessous("p").find(({ className }) => className === "park-reason")!;
-const fill = (c: Fake, values: Record<string, string>) => Object.entries(values).forEach(([name, v]) => void (field(c, name).value = v));
+const poser = (gesture: Gesture, form = {}) => parkControl(doc, { project: "parade", ticket: 41, step: "Cooks", gesture, form }) as unknown as Faux;
+const champ = (c: Faux, nom: string) => c.dessous("input").find(({ dataset }) => dataset.field === nom)!;
+const presser = (c: Faux, action: string) => c.dessous("button").find(({ dataset }) => dataset.action === action)!.click();
+const raison = (c: Faux) => c.dessous("p").find(({ className }) => className === "park-reason")!;
+const remplir = (c: Faux, valeurs: Record<string, string>) => Object.entries(valeurs).forEach(([nom, v]) => void (champ(c, nom).value = v));
 
 for (const { field, missing } of FIELDS) {
   test(`without ${field}, the reason on screen says ${field} is missing`, () => {
     const calls: unknown[] = [];
-    const c = set((...a) => void calls.push(a));
-    fill(c, { who: "Camille", what: "the invoice", until: "2026-12-01", [field]: "   " });
-    press(c, "park");
-    assert.equal(reason(c).textContent, missing);
+    const c = poser((...a) => void calls.push(a));
+    remplir(c, { who: "Camille", what: "the invoice", until: "2026-12-01", [field]: "   " });
+    presser(c, "park");
+    assert.equal(raison(c).textContent, missing);
     assert.deepEqual(calls, []);
   });
 }
 
 test("a full form calls the gesture once, trimmed, with project, ticket and step; what it renders is said", async () => {
   const calls: unknown[][] = [];
-  let render: (v: unknown) => void = () => {};
-  const c = set((...a) => {
+  let rendre: (v: unknown) => void = () => {};
+  const c = poser((...a) => {
     calls.push(a);
-    return new Promise((r) => (render = r)) as never;
+    return new Promise((r) => (rendre = r)) as never;
   });
-  fill(c, { who: " Camille ", what: "the invoice", until: "the vendor answers" });
-  press(c, "park");
-  press(c, "unpark");
+  remplir(c, { who: " Camille ", what: "the invoice", until: "the vendor answers" });
+  presser(c, "park");
+  presser(c, "unpark");
   await repos();
-  assert.equal(reason(c).textContent, SENDING);
+  assert.equal(raison(c).textContent, SENDING);
   assert.deepEqual(calls, [[{ project: "parade", ticket: 41, step: "Cooks" }, { action: "park", who: "Camille", what: "the invoice", until: "the vendor answers" }]]);
-  render({ refus: "nothing is written: not a day", detail: "the runtime says why" });
+  rendre({ refus: "nothing is written: not a day", detail: "the runtime says why" });
   await repos();
-  assert.deepEqual([reason(c).textContent, reason(c).title], ["nothing is written: not a day", "the runtime says why"]);
-  press(c, "unpark");
+  assert.deepEqual([raison(c).textContent, raison(c).title], ["nothing is written: not a day", "the runtime says why"]);
+  presser(c, "unpark");
   await repos();
   assert.deepEqual(calls[1], [{ project: "parade", ticket: 41, step: "Cooks" }, { action: "unpark" }]);
-  render({ fait: "back to the kitchen" });
+  rendre({ fait: "back to the kitchen" });
   await repos();
-  assert.equal(reason(c).textContent, "back to the kitchen");
-  press(c, "unpark");
-  render(undefined);
+  assert.equal(raison(c).textContent, "back to the kitchen");
+  presser(c, "unpark");
+  rendre(undefined);
   await repos();
-  assert.equal(reason(c).textContent, "");
+  assert.equal(raison(c).textContent, "");
 });
 
 test("a gesture that throws is said on screen, and the control can send again", async () => {
-  let times = 0;
-  const c = set(() => {
-    times += 1;
+  let fois = 0;
+  const c = poser(() => {
+    fois += 1;
     throw new Error("bridge down");
   });
-  press(c, "unpark");
+  presser(c, "unpark");
   await repos();
-  assert.equal(reason(c).textContent, "nothing sent: bridge down");
-  press(c, "unpark");
+  assert.equal(raison(c).textContent, "nothing sent: bridge down");
+  presser(c, "unpark");
   await repos();
-  assert.equal(times, 2);
+  assert.equal(fois, 2);
 });
 
 test("what the chef types is kept in the form, and comes back on the next render", () => {
   const form: Record<string, string> = {};
-  const c = set(() => undefined, form);
-  field(c, "who").value = "Camille";
-  field(c, "who").declencher("input");
+  const c = poser(() => undefined, form);
+  champ(c, "who").value = "Camille";
+  champ(c, "who").declencher("input");
   assert.deepEqual(form, { who: "Camille" });
-  assert.equal(field(set(() => undefined, form), "who").value, "Camille");
-  assert.equal(field(set(() => undefined, form), "what").value, "");
+  assert.equal(champ(poser(() => undefined, form), "who").value, "Camille");
+  assert.equal(champ(poser(() => undefined, form), "what").value, "");
 });

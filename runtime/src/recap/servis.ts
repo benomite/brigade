@@ -7,7 +7,7 @@ import type { GitHub } from "../github.ts";
 
 // Le ticket qu'une PR sert : celui de sa branche de cook, sinon celui que son
 // corps ferme ; null si elle n'en nomme aucun. La règle du rail de l'app, qui
-// la reprend d'ici (app/src/board/rail-github.ts).
+// la reprend d'ici (app/src/tableau/rail-github.ts).
 export function ticketDeLaPR(tete: string, corps: string): number | null {
   const branche = /^cook\/(\d+)(?:-|$)/.exec(tete)?.[1];
   const ferme = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i.exec(corps)?.[1];

@@ -1,6 +1,6 @@
 /* L'onglet Agents (ticket 4224) : une carte par agent, dans la carte de l'app, en grille qui passe à la ligne. Une carte
    cassée porte le rouge sur son bord gauche et dans son état ; une carte au travail, l'accent. Les réglages sont des
-   rangées de réglage (components/setting), qui ne posent ici que leur place. Seules des variables de tokens.css portent
+   rangées de réglage (composants/reglage), qui ne posent ici que leur place. Seules des variables de jetons.css portent
    une couleur. */
 .agents {
   display: grid;

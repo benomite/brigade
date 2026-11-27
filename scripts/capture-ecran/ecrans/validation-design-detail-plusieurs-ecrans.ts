@@ -1,7 +1,7 @@
 // Le détail en grand d'une carte « Validate its screen » dont le ticket demande plusieurs écrans (ticket 3350) : « Screen 1 of 3 »,
 // « Previous screen » et « Next screen » en tête, un seul écran sous le brief, « Validate » et « Send back to the kitchen » au pied.
 import type { Ecran } from "./commun.ts";
-import { validationOfBody } from "../../../app/src/vue/validation-design/validation-design-github.ts";
+import { validationDuCorps } from "../../../app/src/vue/validation-design/validation-design-github.ts";
 import { CARTE, CORPS, donnees, TEXTE } from "./validation-design-commun.ts";
 import { OUVRIR_PARADE } from "./validation-design-commun.ts";
 
@@ -16,5 +16,5 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR_PARADE, { cliquer: ".carte-validation .captures-de-validation" }],
-  donnees: () => donnees({ ...CARTE, chef: { sorte: "design-validation", texte: TEXTE, design: validationOfBody(DEPOT, corps) ?? undefined } }),
+  donnees: () => donnees({ ...CARTE, chef: { sorte: "design-validation", texte: TEXTE, design: validationDuCorps(DEPOT, corps) ?? undefined } }),
 };

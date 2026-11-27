@@ -1,10 +1,10 @@
 // La page d'une station en panne, ouverte d'un clic sur sa ligne de « All stations », sur l'accueil (#3195) : ce que la station
-// publie sur GitHub (un document figé) passe par les modules de l'app (stations.ts, outages.ts,
+// publie sur GitHub (un document figé) passe par les modules de l'app (stations.ts, pannes.ts,
 // accueil.ts) — la vue reçoit ce qu'elle recevrait, la panne et ses mots sont ceux du code.
-import { type Home, type LineOfStation, lineOfStation } from "../../../app/src/home.ts";
-import { outagesOf } from "../../../app/src/outages/outages.ts";
+import { type Accueil, type LigneDeStation, ligneDeStation } from "../../../app/src/accueil.ts";
+import { pannesDe } from "../../../app/src/pannes/pannes.ts";
 import type { DocumentStation } from "../../../app/src/stations/document.ts";
-import { stateOf, lineOf, lineOfVersion, type StationVue } from "../../../app/src/stations/stations.ts";
+import { etatDe, ligneDe, ligneDeVersion, type StationVue } from "../../../app/src/stations/stations.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -34,23 +34,23 @@ export const DOCUMENTS = {
 } satisfies Record<string, DocumentStation>;
 
 // `plus` : ce que le `status` d'un projet ajoute à la ligne de la station (son plafond de cooks, ce qui la retient).
-export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes: Etape[] = [], plus: Partial<LineOfStation> = {}): Ecran {
+export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes: Etape[] = [], plus: Partial<LigneDeStation> = {}): Ecran {
   const document = DOCUMENTS[panne];
   const station: StationVue = {
     id: "box",
     nom: document.nom,
     machine: document.machine,
-    ...lineOf(document, instant),
-    pannes: outagesOf(document, instant),
-    dit: stateOf(document, instant).dit,
+    ...ligneDe(document, instant),
+    pannes: pannesDe(document, instant),
+    dit: etatDe(document, instant).dit,
     version: document.version,
     projets: document.projets,
-    max: stateOf(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
-    versionDit: lineOfVersion(document, instant, il_y_a(3 * 24 * 60)),
+    max: etatDe(document, instant).etat === "en-ligne" ? (document.connexionMax?.etat ?? null) : null,
+    versionDit: ligneDeVersion(document, instant, il_y_a(3 * 24 * 60)),
   };
-  const accueil: Home = {
+  const accueil: Accueil = {
     projets: [],
-    stations: [{ ...lineOfStation(station, 0, false), ...plus }],
+    stations: [{ ...ligneDeStation(station, 0, false), ...plus }],
     sante: { ton: "gris", dit: "Max ✓  ·  GitHub ✓", survol: "" },
   };
   return {

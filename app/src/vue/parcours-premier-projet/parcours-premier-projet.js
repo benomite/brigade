@@ -1,0 +1,313 @@
+// @ts-check
+// Ce que la page d'un projet montre tant qu'il n'est pas prêt (ticket 3166, épique 3164). « Add a project » choisit un
+// dépôt, crée le projet et ouvre sa page (ticket 3181) : là, à la place du rail, une question à la fois, sous une ligne qui
+// dit où l'on en est (« 1 of 2: who cooks it ») — rien d'autre ne lui dispute la page :
+//   1. qui le cuit — cet ordinateur d'abord, puis les stations du compte ; le choix recommandé est une station du compte
+//      en ligne, sinon cet ordinateur (ticket 3187, choix-station/). Un clic, et la page passe à la suite. Une station
+//      qui le cuit déjà : la question n'est pas posée ;
+//   2. sa mise en place pour Brigade, seulement s'il ne l'est pas (la lecture de ticket 2628, `checkRepoSetup`) : le second
+//      la fait dans sa colonne, à droite, et la page dit à chaque instant ce qui est attendu et de qui — le second qui lit
+//      le dépôt, le chef qui lui répond, la PR de mise en place qui attend son merge —, avec le bouton du geste quand il y en a un.
+// Prêt : le rail reprend la page, et le second demande au-dessus ce que le chef veut changer d'abord (premier-ticket/, ticket 3306).
+// Un projet où le compte ne peut pas écrire (ticket 3163) n'ouvre rien de tout cela.
+// La question « qui le cuit » est le choix de station de l'onglet Stations (stations-tab/choix.js, ticket 3195) : les mêmes
+// choix, la même liste ; cette page n'y ajoute que sa phrase. Sous la liste, « Add a server » (add-server/, ticket
+// 4347) : la ligne d'installation d'un serveur, puis le serveur vu arriver, à qui le projet se confie d'un clic.
+// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
+
+import { boutonAction, survol } from "../briques.js";
+import { gestes } from "../parcours-projet/connexion.js";
+import { refusDit } from "../projets-servis/projets-servis.js";
+import { PREPARER } from "../page-projet/depot-non-prepare.js";
+import { CET_ORDINATEUR, LECTURE_DE, REESSAYER } from "../lexique.js";
+import { AU_RETOUR } from "../choix-station/choix-station.js";
+import { ICI, poserLesChoix } from "../stations-tab/choix.js";
+import { placeAddServer } from "../add-server/add-server.js";
+
+/** @typedef {import("../briques.js").Fabrique} Fabrique */
+/** @typedef {import("../page-projet/depot-non-prepare.js").Etat} Preparation */
+// La question « qui le cuit » : à poser ; pas à poser, une station le cuit déjà (`inutile`) ; le choix qui s'écrit
+// (`enCours`, la clé du choix) ; répondue (`ajoutee`) ; ou refusée, sa ligne et son détail.
+/** @typedef {"a-faire" | "inutile" | "ajoutee" | { enCours: string } | { ligne: string, detail: string }} Station */
+/** @typedef {import("../stations-tab/choix.js").Choix} Choix */
+// Ce que la vue sait du second du projet : il ne part pas (`empeche`), il propose des choix au chef (`propose`), et ce
+// que le titre de son terminal dit — au travail, ou au repos à son invite (`travailDuSecond`).
+/** @typedef {{ empeche?: boolean, propose?: boolean, titre?: "travail" | "repos" }} Second */
+// De qui l'attente est : du chef, du second, ou de l'app.
+/** @typedef {"toi" | "second" | "app"} Qui */
+/**
+ * Où en est la mise en place, et qui on attend :
+ *   lecture     l'app lit si le projet est prêt pour Brigade
+ *   illisible   cette lecture a échoué : le chef relance
+ *   demarrage   le second démarre
+ *   lit         le second lit le dépôt et prépare la mise en place
+ *   repondre    le second attend la réponse du chef
+ *   merger      la PR de mise en place attend le merge du chef — sa carte est rouge sur le rail, comptée dans TODO (ticket 3458)
+ *   en-route    l'app met le projet en place (« Set up for Brigade », ticket 2628)
+ *   refus       cette mise en place a échoué : le chef relance
+ *   empeche     le second ne part pas : sa colonne dit pourquoi
+ * @typedef {"lecture" | "illisible" | "demarrage" | "lit" | "repondre" | "merger" | "en-route" | "refus" | "empeche"} Attente
+ */
+/** @typedef {{ etape: "station" } | { etape: "setup", attente: Attente, qui: Qui } | { etape: "pret" }} Vu */
+/**
+ * @typedef {{
+ *   choisir: (choix: Choix) => void,
+ *   relire: () => void,
+ *   preparer: () => void,
+ *   ouvrirLaCarte: () => void,
+ *   serveur?: import("../add-server/add-server.js").GestesDuServeur,
+ * }} GestesDuParcours
+ */
+
+export { choixDeStation, ICI } from "../stations-tab/choix.js";
+export const QUESTION_STATION = "who cooks it";
+export const QUESTION_SETUP = "its setup for Brigade";
+/** @param {number} rang @param {number | undefined} total @param {string} question */
+export const PROGRESSION = (rang, total, question) => (total === undefined ? `${question.charAt(0).toUpperCase()}${question.slice(1)}` : `${rang} of ${total}: ${question}`);
+/** @param {string} depot */
+export const QUI_CUIT = (depot) => `Who cooks ${depot}?`;
+/** @param {string} depot */
+export const MISE_EN_PLACE = (depot) => `${depot} is being set up for Brigade`;
+// La phrase du choix recommandé : cet ordinateur — mot pour mot celle du ticket —, ou une station du compte en ligne.
+export const ICI_DIT = "This computer cooks the project's tickets while it is on; you can add a server or another computer later.";
+/** @param {string} nom */
+export const STATION_DIT = (nom) => `${nom} is online: it cooks the project's tickets; you can add a server or another computer later.`;
+// Aucune station en ligne, et cet ordinateur sans station : rien n'est recommandé, et une station choisie prend le projet à
+// son retour.
+export const AUCUNE_EN_LIGNE = "None of your stations is online right now: the one you choose takes the project when it comes back.";
+export const AUCUN_CHOIX = `No station can take it: ${CET_ORDINATEUR} has no station, and none of yours is paired.`;
+/** @param {string} nom */
+export const INJOIGNABLE = (nom) => `${nom} could not be given the project.`;
+
+/** @param {string} depot */
+export const LECTURE = (depot) => `${LECTURE_DE(`whether ${depot} is set up for Brigade`)} Nothing is awaited from you.`;
+/** @param {string} depot */
+export const ILLISIBLE = (depot) => `Whether ${depot} is set up for Brigade could not be read. Waiting for you to try again.`;
+export const DEMARRAGE = "The second is starting, in its column on the right: it reads your repository first. Nothing is awaited from you yet.";
+export const LIT = "The second is reading your repository, in its column on the right. Nothing is awaited from you yet.";
+export const REPONDRE = "The second is waiting for your answer, in its column on the right.";
+export const MERGER = "The setup pull request is waiting for your merge: its card is red on the rail, counted in TODO.";
+// Pourquoi c'est au chef de la merger, comme la carte le dit (runtime/src/second-init/pr-de-setup.ts, `RAISON`).
+export const POURQUOI_MERGER = "Only you merge it: it sets what will judge every future delivery — the integration branch, the checks, the file zones. Once it is merged, the project shows as ready.";
+export const OUVRIR_LA_CARTE = "open its card";
+/** @param {string} depot */
+export const EN_ROUTE = (depot) => `The app is setting ${depot} up for Brigade. Nothing is awaited from you.`;
+/** @param {string} dit */
+export const REFUS = (dit) => `The setup failed: ${dit.replace(/\.$/, "")}. Waiting for you to try again.`;
+export const EMPECHE = "The second could not start: its column says why. Waiting for you to set the project up from here instead.";
+
+
+// Le titre de la carte qui attend le merge de la PR de mise en place, mot pour mot comme le runtime pose son issue
+// (runtime/src/second-init/pr-de-setup.ts, `TITRE`, ticket 3169).
+export const TITRE_DE_LA_CARTE_DE_SETUP = "Merge the setup pull request";
+
+// Les signes que `claude` met en tête du titre de son terminal, relevés par l'app pour sa saisie (saisie.ts) : « ✳ » au
+// repos à son invite, il attend le chef ; un des quatre quarts de cercle, il tourne.
+const REPOS = "✳";
+const TRAVAIL = ["◐", "◑", "◒", "◓"];
+
+// Ce que le titre du terminal du second dit de lui : au travail, au repos — ou rien qu'on sache lire.
+/** @param {string | undefined} titre @returns {"travail" | "repos" | undefined} */
+export function travailDuSecond(titre) {
+  if (titre === undefined) return undefined;
+  if (TRAVAIL.some((glyphe) => titre.startsWith(glyphe))) return "travail";
+  if (titre.startsWith(REPOS)) return "repos";
+  return undefined;
+}
+
+// La carte de la PR de mise en place, où qu'elle soit sur le rail : son ticket, ou rien.
+/** @param {readonly { cartes: readonly any[], autres?: readonly any[] }[] | undefined} colonnes @returns {any} */
+export function carteDeSetup(colonnes) {
+  return (colonnes ?? []).flatMap(({ cartes, autres = [] }) => [...cartes, ...autres]).find((carte) => (carte.titre ?? carte.fiche?.titre) === TITRE_DE_LA_CARTE_DE_SETUP);
+}
+
+
+// Où en est le parcours, d'après ce qui est lu. `preparation` : la lecture de ticket 2628 (absente, pas encore lue) ;
+// `illisible` : la dernière a échoué, sa phrase ; `carte` : la PR de mise en place attend son merge.
+/**
+ * @param {{ station: Station, preparation?: Preparation, illisible?: string, carte?: boolean, second: Second }} lu
+ * @returns {Vu}
+ */
+export function vuDuParcours({ station, preparation, illisible, carte = false, second }) {
+  if (station !== "ajoutee" && station !== "inutile") return { etape: "station" };
+  if (preparation?.etape === "prepare") return { etape: "pret" };
+  /** @param {Attente} attente @param {Qui} qui @returns {Vu} */
+  const setup = (attente, qui) => ({ etape: "setup", attente, qui });
+  if (preparation === undefined || preparation.etape === "inconnu") return illisible === undefined ? setup("lecture", "app") : setup("illisible", "toi");
+  if (carte) return setup("merger", "toi");
+  if (preparation.etape === "en-route") return setup("en-route", "app");
+  if (preparation.etape === "refus") return setup("refus", "toi");
+  if (second.empeche === true) return setup("empeche", "toi");
+  if (second.propose === true || second.titre === "repos") return setup("repondre", "toi");
+  if (second.titre === "travail") return setup("lit", "second");
+  return setup("demarrage", "second");
+}
+
+// La ligne de progression : le rang de la question montrée, et combien le projet en pose — la station si elle est à
+// poser, la mise en place si la lecture la dit à faire. Tant que la mise en place n'est pas lue, le compte n'est pas dit :
+// la ligne ne promet ni n'annonce une question qui n'aura peut-être rien à faire.
+/** @param {Vu} vu @param {{ station: Station, preparation?: Preparation }} lu @returns {string} */
+export function progression(vu, { station, preparation }) {
+  const avecStation = station !== "inutile";
+  const etape = preparation?.etape;
+  const setupConnu = etape !== undefined && etape !== "inconnu";
+  const total = setupConnu ? (avecStation ? 1 : 0) + (etape === "prepare" ? 0 : 1) : undefined;
+  if (vu.etape === "station") return PROGRESSION(1, total, QUESTION_STATION);
+  return PROGRESSION(avecStation ? 2 : 1, total, QUESTION_SETUP);
+}
+
+/** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
+function cree(doc, balise, texte) {
+  const pose = doc.createElement(balise);
+  if (texte !== undefined) pose.textContent = texte;
+  return pose;
+}
+
+// La question « qui le cuit » : la phrase du choix recommandé, puis le choix de station de l'onglet Stations
+// (stations-tab/choix.js) — un refus y dit sa cause et son geste (stations-du-compte.ts), ce que GitHub a répondu au survol —,
+// puis « Add a server » et son panneau (`serveur`, fermé s'il n'est pas dit).
+/** @param {Fabrique} doc @param {Station} station @param {readonly Choix[]} choix @param {GestesDuParcours} geste @param {import("../add-server/add-server.js").EtatDuServeur} [serveur] */
+function corpsDeLaStation(doc, station, choix, geste, serveur = { ouvert: false, vu: { etat: "attente" } }) {
+  const unServeur = placeAddServer(doc, serveur, geste.serveur ?? {});
+  if (choix.length === 0) return [cree(doc, "p", AUCUN_CHOIX), ...unServeur];
+  const recommande = choix.find((un) => un.recommande);
+  const dit = cree(doc, "p", recommande === undefined ? AUCUNE_EN_LIGNE : recommande.cle === ICI ? ICI_DIT : STATION_DIT(recommande.nom));
+  dit.className = "phrase";
+  const enCours = typeof station === "object" && "enCours" in station ? station.enCours : undefined;
+  const refus = typeof station === "object" && "ligne" in station ? station : undefined;
+  return [dit, ...poserLesChoix(doc, { choix, ...(enCours === undefined ? {} : { enCours }), ...(refus === undefined ? {} : { refus }) }, geste.choisir), ...unServeur];
+}
+
+// La mise en place : ce qui est attendu, et de qui — une phrase ; ce qui en dit plus au survol ; le bouton, quand le
+// geste est au chef ici même.
+/** @param {Fabrique} doc @param {string} depot @param {{ attente: Attente, qui: Qui }} vu @param {{ illisible?: string, refus?: string }} raisons @param {GestesDuParcours} geste */
+function corpsDuSetup(doc, depot, { attente, qui }, raisons, geste) {
+  /** @type {Record<Attente, string>} */
+  const phrases = {
+    lecture: LECTURE(depot),
+    illisible: ILLISIBLE(depot),
+    demarrage: DEMARRAGE,
+    lit: LIT,
+    repondre: REPONDRE,
+    merger: MERGER,
+    "en-route": EN_ROUTE(depot),
+    refus: REFUS(raisons.refus ?? ""),
+    empeche: EMPECHE,
+  };
+  const dit = cree(doc, "p", phrases[attente]);
+  dit.className = "phrase";
+  dit.dataset.attente = attente;
+  dit.dataset.qui = qui;
+  const detail = attente === "illisible" ? (raisons.illisible ?? "") : attente === "merger" ? POURQUOI_MERGER : "";
+  if (detail.trim() !== "") dit.append(survol(doc, detail));
+  const bouton =
+    attente === "illisible" ? boutonAction(doc, REESSAYER, geste.relire, { recommande: true })
+    : attente === "refus" ? boutonAction(doc, REESSAYER, geste.preparer, { recommande: true })
+    : attente === "merger" ? boutonAction(doc, OUVRIR_LA_CARTE, geste.ouvrirLaCarte, { recommande: true })
+    // Le second ne part pas : la mise en place se fait d'ici, par le geste de l'avis d'un projet pas préparé (ticket 2628).
+    : attente === "empeche" ? boutonAction(doc, PREPARER, geste.preparer, { recommande: true })
+    : undefined;
+  return [dit, ...(bouton === undefined ? [] : [gestes(doc, [bouton])])];
+}
+
+// La question montrée, à la place du rail : la ligne de progression, la question, puis son corps. `vu` n'est jamais
+// « pret » ici : prêt, le rail reprend la page, sous le premier ticket (premier-ticket/).
+/**
+ * @param {Fabrique} doc
+ * @param {{ depot: string, vu: Exclude<Vu, { etape: "pret" }>, progression: string, station: Station, choix: readonly Choix[], illisible?: string, refus?: string, absente?: string, serveur?: import("../add-server/add-server.js").EtatDuServeur }} donnees
+ * @param {GestesDuParcours} geste
+ */
+export function poserParcoursPremierProjet(doc, { depot, vu, progression: ligne, station, choix, illisible, refus, absente, serveur }, geste) {
+  const racine = cree(doc, "section");
+  racine.className = "parcours-premier-projet carte";
+  racine.ariaLabel = vu.etape === "station" ? QUI_CUIT(depot) : MISE_EN_PLACE(depot);
+  racine.dataset.etape = vu.etape;
+  const ou = cree(doc, "p", ligne);
+  ou.className = "progression";
+  const titre = cree(doc, "h2", vu.etape === "station" ? QUI_CUIT(depot) : MISE_EN_PLACE(depot));
+  titre.className = "attendu";
+  const corps =
+    vu.etape === "station" ? corpsDeLaStation(doc, station, choix, geste, serveur)
+    : corpsDuSetup(doc, depot, vu, { ...(illisible === undefined ? {} : { illisible }), ...(refus === undefined ? {} : { refus }) }, geste);
+  racine.append(ou, titre, ...(vu.etape === "station" ? [] : auRetour(doc, depot, absente)), ...corps);
+  return racine;
+}
+
+// La station choisie hors ligne (ticket 3187) : la page dit, en clair, qu'elle prend le projet à son retour.
+/** @param {Fabrique} doc @param {string} depot @param {string | undefined} absente */
+function auRetour(doc, depot, absente) {
+  if (absente === undefined) return [];
+  const dit = cree(doc, "p", AU_RETOUR(absente, depot));
+  dit.className = "au-retour";
+  return [dit];
+}
+
+// Les parcours tenus pour la vue, un par projet que « Add a project » a ouvert : son dépôt ; où en est « qui le cuit » et
+// la station qui l'a reçu ; la phrase d'une lecture de la mise en place qui a échoué ; si la mise en place a demandé
+// quelque chose (`setupVu`) ; et, prêt, le premier ticket qui reste au-dessus du rail (`pret`, premier-ticket/). Tenus le temps que l'app tourne.
+// `absente` : la station choisie était hors ligne — son nom, tant que la page le dit.
+/** @typedef {{ depot: string, station: Station, illisible?: string, setupVu: boolean, pret?: {}, absente?: string }} Parcours */
+/** @param {{ rendre: (projet: string) => void }} options */
+export function tenirLesParcours({ rendre }) {
+  /** @type {Map<string, Parcours>} */
+  const tenus = new Map();
+  /** @param {string} projet @param {(avant: Parcours) => Parcours} changer */
+  const changer = (projet, changer) => {
+    const avant = tenus.get(projet);
+    if (avant === undefined) return;
+    tenus.set(projet, changer(avant));
+    rendre(projet);
+  };
+  return {
+    /** @param {string} projet @returns {Parcours | undefined} */
+    de: (projet) => tenus.get(projet),
+    // `dejaCuit` : une station cuit déjà le projet — « qui le cuit » n'est pas posée.
+    /** @param {string} projet @param {string} depot @param {boolean} dejaCuit */
+    commencer(projet, depot, dejaCuit) {
+      tenus.set(projet, { depot, station: dejaCuit ? "inutile" : "a-faire", setupVu: false });
+      rendre(projet);
+    },
+    // `absente` : le nom de la station choisie quand elle était hors ligne.
+    /** @param {string} projet @param {Station} station @param {string} [absente] */
+    station: (projet, station, absente) => changer(projet, ({ absente: _, ...avant }) => ({ ...avant, station, ...(station === "ajoutee" && absente !== undefined ? { absente } : {}) })),
+    /** @param {string} projet @param {string | undefined} phrase */
+    illisible(projet, phrase) {
+      if (tenus.get(projet)?.illisible === phrase) return;
+      changer(projet, ({ illisible: _, ...reste }) => (phrase === undefined ? reste : { ...reste, illisible: phrase }));
+    },
+    // La mise en place a attendu quelque chose du chef ou du second : prêt, le premier ticket le suivra. Rien
+    // n'est redessiné — c'est le dessin qui le dit.
+    /** @param {string} projet */
+    setupMontre(projet) {
+      const avant = tenus.get(projet);
+      if (avant !== undefined) tenus.set(projet, { ...avant, setupVu: true });
+    },
+    // Prêt : la question part, le rail reprend la page. Le premier ticket reste, si le chef a répondu à
+    // quelque chose ; sinon, le parcours est fini — il n'y avait rien à faire.
+    /** @param {string} projet */
+    pret(projet) {
+      const avant = tenus.get(projet);
+      if (avant === undefined || avant.pret !== undefined) return;
+      if (avant.station === "ajoutee" || avant.setupVu) tenus.set(projet, { ...avant, pret: {} });
+      else tenus.delete(projet);
+      rendre(projet);
+    },
+    /** @param {string} projet */
+    fermer(projet) {
+      if (tenus.delete(projet)) rendre(projet);
+    },
+  };
+}
+
+// La station choisie par le geste que l'app a déjà : ce qu'il rend en devient l'état — ajoutée, ou son refus en une ligne.
+/** @param {string} nom @param {() => Promise<{ refus: string, detail?: string } | object>} ecrire @returns {Promise<Station>} */
+export async function ajouterLaStation(nom, ecrire) {
+  try {
+    const lu = await ecrire();
+    if (!("refus" in lu)) return "ajoutee";
+    const dit = refusDit(lu.refus.replace(/^not saved: /, ""));
+    return "detail" in lu && lu.detail !== undefined ? { ...dit, detail: [dit.detail, lu.detail].filter((bout) => bout !== "").join(" — ") } : dit;
+  } catch (erreur) {
+    return { ligne: INJOIGNABLE(nom), detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+}

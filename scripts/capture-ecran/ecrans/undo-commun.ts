@@ -1,6 +1,6 @@
 // Ce que les écrans de « undo » (ticket 3274) partagent : l'espace de « parade », assez large pour que sa colonne Served
 // se voie — #9 et #7 y sont servis, leur PR mergée.
-import type { Terminal } from "../../../app/src/terminals.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, cuisine, demarrage, type Donnees, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 

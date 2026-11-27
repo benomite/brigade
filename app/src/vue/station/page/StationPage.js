@@ -2,7 +2,7 @@
 // La page d'une station (ticket 2641, épique 2497) : la coque qui pose ses sections, dans cet ordre — son identité, ses
 // connexions, ses dossiers et son bac à sable, ses capacités, ses cooks, son moteur —, chacune sous son titre. vue.js la monte sur
 // la page d'une station, à son ouverture. Chaque section est un module de `sections/`, nommé dans SECTIONS, qui exporte
-// `setSection(doc, contexte)` et rend un élément (ou sa promesse). Une section n'est chargée que lorsque son fichier
+// `poserSection(doc, contexte)` et rend un élément (ou sa promesse). Une section n'est chargée que lorsque son fichier
 // est déclaré dans LIVREES : tant qu'il ne l'est pas, la coque pose son titre et une ligne qui dit qu'elle n'est pas
 // encore là, sans demander de fichier absent. Une section livrée qui ne se charge pas, ou qui lève en se posant, dit en
 // une ligne qu'elle est indisponible, son détail au survol ; les autres sections se posent quand même.
@@ -11,24 +11,24 @@
 // Aucun réglage du projet n'y paraît (ils sont sur l'onglet Stations du projet, ticket 2484) : `contexte.niveau(cle)`
 // refuse une clé de niveau « project ». Ce module ne touche pas `document` : il reçoit de quoi créer un élément.
 
-import { lineError } from "../../components/line-error/line-error.js";
-import { LEVELS } from "../../levels.js";
-import { levelSetting } from "./SettingLevel.js";
-import { NOT_REACHED } from "../../lexicon.js";
+import { ligneErreur } from "../../composants/ligne-erreur/ligne-erreur.js";
+import { NIVEAUX } from "../../niveaux.js";
+import { niveauReglage } from "./NiveauReglage.js";
+import { NON_ATTEINT } from "../../lexique.js";
 
-/** @typedef {import("../../bricks.js").Fabrique} Fabrique */
+/** @typedef {import("../../briques.js").Fabrique} Fabrique */
 /**
  * La station dont la page est ouverte : son id, celui que l'app compare à la station de ce poste, et son nom.
- * @typedef {{ id: string, nom: string }} StationOpen
+ * @typedef {{ id: string, nom: string }} StationOuverte
  */
 /**
  * Ce que chaque section reçoit : la station, si elle est celle de cet ordinateur, si elle se montre sans se régler, et
  * la marque du niveau d'un réglage, par sa clé de niveaux.js.
- * @typedef {{ station: StationOpen, ici: boolean, lectureSeule: boolean, niveau(key: string): any, reglages?: Port, connexions?: import("./sections/connections.js").Connections }} Context
+ * @typedef {{ station: StationOuverte, ici: boolean, lectureSeule: boolean, niveau(cle: string): any, reglages?: Port, connexions?: import("./sections/connexions.js").Connexions }} Contexte
  */
-/** @typedef {import("./sections/folders-and-sandbox.js").Port} Port */
-/** @typedef {{ setSection(doc: Fabrique, context: Context): any }} Section */
-/** @typedef {(file: string) => Promise<Partial<Section>> | undefined} Load */
+/** @typedef {import("./sections/dossiers-et-bac-a-sable.js").Port} Port */
+/** @typedef {{ poserSection(doc: Fabrique, contexte: Contexte): any }} Section */
+/** @typedef {(fichier: string) => Promise<Partial<Section>> | undefined} Charger */
 
 // Les sections, dans leur ordre sur la page : leur fichier sous `sections/` et leur titre.
 export const SECTIONS = /** @type {const} */ ([
@@ -42,75 +42,70 @@ export const SECTIONS = /** @type {const} */ ([
 
 // Les sections dont le fichier est livré sous `sections/` : le ticket qui livre une section y ajoute son nom.
 /** @type {ReadonlySet<string>} */
-export const DELIVERED = new Set(["dossiers-et-bac-a-sable", "connexions", "moteur"]);
-// Une section dont le module n'est pas `sections/<son nom>.js` : son module, par son nom (le moteur, ticket 3746, sous
-// `engine/` ; les fichiers renommés en anglais par le ticket 4413, dont le nom de section reste celui de la page).
+export const LIVREES = new Set(["dossiers-et-bac-a-sable", "connexions", "moteur"]);
+// Une section livrée hors de `sections/` : son module, par son nom (le moteur, ticket 3746, sous `moteur/`).
 /** @type {Readonly<Record<string, string>>} */
-const ELSEWHERE = {
-  moteur: "../../engine/EngineSection.js",
-  "dossiers-et-bac-a-sable": "./sections/folders-and-sandbox.js",
-  connexions: "./sections/connections.js",
-};
+const AILLEURS = { moteur: "../../moteur/SectionDuMoteur.js" };
 
-export const NOT_STILL = "not shown yet";
-export const UNAVAILABLE = NOT_REACHED("this section");
+export const PAS_ENCORE = "not shown yet";
+export const INDISPONIBLE = NON_ATTEINT("this section");
 
 // La page est celle de cet ordinateur quand la station ouverte est la station locale que l'app connaît.
-/** @param {StationOpen} station @param {string | null | undefined} locale */
-export function isThisComputer(station, locale) {
+/** @param {StationOuverte} station @param {string | null | undefined} locale */
+export function estCetOrdinateur(station, locale) {
   return typeof locale === "string" && locale !== "" && station.id === locale;
 }
 
-/** @type {Load} */
-const sinceSections = (file) => (DELIVERED.has(file) ? import(ELSEWHERE[file] ?? `./sections/${file}.js`) : undefined);
+/** @type {Charger} */
+const depuisSections = (fichier) => (LIVREES.has(fichier) ? import(AILLEURS[fichier] ?? `./sections/${fichier}.js`) : undefined);
 
 // La page entière : un élément par section, dans l'ordre de SECTIONS, posé quand toutes sont rendues.
-/** @param {Fabrique} doc @param {{ station: StationOpen, locale: string | null | undefined, charger?: Load, reglages?: Port, connexions?: import("./sections/connections.js").Connections }} ouverte */
-export async function setPageOfStation(doc, { station, locale, charger: load = sinceSections, reglages: settings, connexions: connections }) {
-  const here = isThisComputer(station, locale);
-  /** @type {Context} */
-  const context = {
+/** @param {Fabrique} doc @param {{ station: StationOuverte, locale: string | null | undefined, charger?: Charger, reglages?: Port, connexions?: import("./sections/connexions.js").Connexions }} ouverte */
+export async function poserPageDeStation(doc, { station, locale, charger = depuisSections, reglages, connexions }) {
+  const ici = estCetOrdinateur(station, locale);
+  /** @type {Contexte} */
+  const contexte = {
     station,
-    ici: here,
-    lectureSeule: !here,
-    reglages: settings,
-    connexions: connections,
-    niveau(key) {
-      const level = LEVELS[key];
-      if (level === undefined) throw new Error(`setting "${key}" has no level in levels.js`);
-      if (level === "project") throw new Error(`setting "${key}" belongs to the project: the station page shows none`);
-      return levelSetting(doc, level);
+    ici,
+    lectureSeule: !ici,
+    reglages,
+    connexions,
+    niveau(cle) {
+      const niveau = NIVEAUX[cle];
+      if (niveau === undefined) throw new Error(`setting "${cle}" has no level in niveaux.js`);
+      if (niveau === "project") throw new Error(`setting "${cle}" belongs to the project: the station page shows none`);
+      return niveauReglage(doc, niveau);
     },
   };
   const page = doc.createElement("div");
   page.className = "page-de-station";
-  page.dataset.ici = String(here);
-  page.append(...(await Promise.all(SECTIONS.map((section) => setOneSection(doc, section, context, load)))));
+  page.dataset.ici = String(ici);
+  page.append(...(await Promise.all(SECTIONS.map((section) => poserUneSection(doc, section, contexte, charger)))));
   return page;
 }
 
-/** @param {Fabrique} doc @param {(typeof SECTIONS)[number]} section @param {Context} context @param {Load} load */
-async function setOneSection(doc, { fichier: file, titre: title }, context, load) {
-  const root = doc.createElement("section");
-  root.className = "section-de-station";
-  root.dataset.section = file;
-  const head = doc.createElement("h3");
-  head.textContent = title;
-  root.append(head);
+/** @param {Fabrique} doc @param {(typeof SECTIONS)[number]} section @param {Contexte} contexte @param {Charger} charger */
+async function poserUneSection(doc, { fichier, titre }, contexte, charger) {
+  const racine = doc.createElement("section");
+  racine.className = "section-de-station";
+  racine.dataset.section = fichier;
+  const tete = doc.createElement("h3");
+  tete.textContent = titre;
+  racine.append(tete);
   try {
-    const loaded = load(file);
-    if (loaded === undefined) {
-      const empty = doc.createElement("p");
-      empty.className = "a-venir";
-      empty.textContent = NOT_STILL;
-      root.append(empty);
-      return root;
+    const chargee = charger(fichier);
+    if (chargee === undefined) {
+      const vide = doc.createElement("p");
+      vide.className = "a-venir";
+      vide.textContent = PAS_ENCORE;
+      racine.append(vide);
+      return racine;
     }
-    const module = await loaded;
-    if (typeof module?.setSection !== "function") throw new Error(`sections/${file}.js exports no setSection`);
-    root.append(await module.setSection(doc, context));
-  } catch (error) {
-    root.append(lineError(doc, UNAVAILABLE, error instanceof Error ? error.message : String(error)));
+    const module = await chargee;
+    if (typeof module?.poserSection !== "function") throw new Error(`sections/${fichier}.js exports no poserSection`);
+    racine.append(await module.poserSection(doc, contexte));
+  } catch (erreur) {
+    racine.append(ligneErreur(doc, INDISPONIBLE, erreur instanceof Error ? erreur.message : String(erreur)));
   }
-  return root;
+  return racine;
 }

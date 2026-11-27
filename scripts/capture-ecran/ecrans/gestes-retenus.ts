@@ -1,13 +1,13 @@
 // Les gestes retenus de « parade » (#4273) : son rail est vide, et deux découpages d'épique attendent l'OK du chef. La vue
 // les reçoit du pont (`gestesRetenus`, app/src/held/) : une carte par geste — son résumé, sa raison, Approve — à côté du
 // TODO, et le rail vide dit « 2 splits wait for your OK ».
-import type { BoardRead } from "../../../app/src/board/read.ts";
-import { withTheRail } from "../../../app/src/vue/rail/github.ts";
+import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
+import { avecLeRail } from "../../../app/src/vue/rail/github.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { renduDeParade, signe } from "./github-seul-commun.ts";
 
-const VIDE: BoardRead = {
+const VIDE: TableauLu = {
   lu: true,
   depot: "chef/parade",
   luLe: MAINTENANT,
@@ -18,7 +18,7 @@ const VIDE: BoardRead = {
   lignesDuRail: [],
   activites: [],
 };
-const RAIL_VIDE = renduDeParade(withTheRail(VIDE, { lu: MAINTENANT, tickets: [], nonPris: [] }, { lus: [signe("box", MAINTENANT)] }));
+const RAIL_VIDE = renduDeParade(avecLeRail(VIDE, { lu: MAINTENANT, tickets: [], nonPris: [] }, { lus: [signe("box", MAINTENANT)] }));
 const geste = (id: string, epique: number, tickets: number) => ({ id, kind: "manager", summary: `split #${epique} into ${tickets} tickets`, reason: "an epic split is held for your OK", approveCommand: `brigade parade manager approve ${id}`, heldAt: MAINTENANT });
 
 export const ecran: Ecran = {

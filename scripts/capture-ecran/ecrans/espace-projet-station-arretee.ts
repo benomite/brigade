@@ -1,7 +1,7 @@
 // L'espace d'un projet qui cuit sur ce Mac quand la station de ce Mac ne tourne pas (#1124) :
 // « parade » n'a rien à lire — la page le dit en une ligne, au lieu de rester vide.
 // « cantine », sur sa box, n'est pas concerné.
-import type { Terminal } from "../../../app/src/terminals.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS } from "./cuisine-figee.ts";
 

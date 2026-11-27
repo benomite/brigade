@@ -1,7 +1,7 @@
 // L'espace de « parade » au premier matin du jour (ticket 4274) : la carte du digest de la veille en tête du rail, et sous
 // ses colonnes le journal du jour, tiré des fils de ses agents — livré, cassé, réparé seul, non réparé avec ses erreurs.
-import type { Facts } from "../../../app/src/facts.ts";
-import type { Terminal } from "../../../app/src/terminals.ts";
+import type { Faits } from "../../../app/src/faits.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -27,6 +27,6 @@ export const ecran: Ecran = {
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND] },
-    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, fils: FILS, digest: DIGEST } as unknown as Facts } }),
+    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, fils: FILS, digest: DIGEST } as unknown as Faits } }),
   }),
 };

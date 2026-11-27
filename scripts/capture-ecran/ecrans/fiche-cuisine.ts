@@ -1,7 +1,7 @@
 // La fiche de #22, revenu de WAITING dans la colonne TODO de « parade » : « back to the kitchen » cliqué, puis confirmé.
 // Le geste part sur le tableau de la cuisine (#1740) : la fiche dit qu'il y est posté, son commentaire au survol.
-import { actionsOfCard } from "../../../app/src/card-actions.ts";
-import { situationOf } from "../../../app/src/story.ts";
+import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
+import { situationDe } from "../../../app/src/histoire.ts";
 // Le geste posté sur le Kitchen board, tel que le disait `tableau-gestes/rail.ts` (retiré par #2061).
 const POSTE = "posted on the Kitchen board — the box plays it at its next tick and answers under it";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
@@ -23,7 +23,7 @@ export const ecran: Ecran = {
     const carte = carteDe(RENDU, "parade", 22);
     return {
       maintenant: MAINTENANT,
-      reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], situation: situationOf(carte), gestesDeFiche: actionsOfCard(carte), gesteDeFiche: { fait: POSTE, detail: "https://github.com/chef/parade/issues/7#issuecomment-9001" } },
+      reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], situation: situationDe(carte), gestesDeFiche: gestesDeCarte(carte), gesteDeFiche: { fait: POSTE, detail: "https://github.com/chef/parade/issues/7#issuecomment-9001" } },
       envois: cuisine({ ...RENDUS, parade: RENDU }),
     };
   },

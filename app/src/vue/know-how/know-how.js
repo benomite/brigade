@@ -7,118 +7,118 @@
 // The section is held by `tenirLeSavoir`: it reads the file when shown — at most once a minute —, keeps what the chef
 // types, and is drawn again after each gesture. This module does not touch `document`: it receives what creates an element.
 
-import { hover } from "../bricks.js";
-import { button } from "../components/button/button.js";
-import { lineError } from "../components/line-error/line-error.js";
-import { lineEmpty } from "../components/line-empty/line-empty.js";
-import { saysOfSetting } from "../components/setting/setting.js";
-import { READ_OF, NOT_REACHED, NOT_STILL } from "../lexicon.js";
+import { survol } from "../briques.js";
+import { bouton } from "../composants/bouton/bouton.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
+import { ligneVide } from "../composants/ligne-vide/ligne-vide.js";
+import { ditDuReglage } from "../composants/reglage/reglage.js";
+import { LECTURE_DE, NON_ATTEINT, PAS_ENCORE } from "../lexique.js";
 
-/** @typedef {import("../bricks.js").Fabrique} Fabrique */
-/** @typedef {import("./know-how-github.ts").ReadOfSavoir} Reading */
-/** @typedef {import("./know-how-github.ts").ChangeOfSavoir} Change */
-/** @typedef {import("./know-how-github.ts").RenderedOfSavoir} Rendered */
-/** @typedef {import("../../../../runtime/src/know-how/know-how.ts").KnowHowEntry} Entry */
+/** @typedef {import("../briques.js").Fabrique} Fabrique */
+/** @typedef {import("./know-how-github.ts").LectureDuSavoir} Lecture */
+/** @typedef {import("./know-how-github.ts").ChangementDuSavoir} Changement */
+/** @typedef {import("./know-how-github.ts").RenduDuSavoir} Rendu */
+/** @typedef {import("../../../../runtime/src/know-how/know-how.ts").KnowHowEntry} Entree */
 // What the screen holds of one entry, by its line: the text being typed (an edit open), the change on its way, what the
 // last one returned.
-/** @typedef {{ edition?: string, enCours?: "edit" | "remove", dit?: { pr: string, numero: number, kind: "edit" | "remove" } | { refus: string, detail?: string } }} State */
+/** @typedef {{ edition?: string, enCours?: "edit" | "remove", dit?: { pr: string, numero: number, kind: "edit" | "remove" } | { refus: string, detail?: string } }} Etat */
 
-const TITLE = "Project know-how";
-const HELP =
+const TITRE = "Project know-how";
+const AIDE =
   "The lessons the cooks keep for the next ones, in .brigade/know-how.md of the project's repository. Editing or removing an entry opens a pull request on its integration branch, which the pass reviews; the list changes once it is merged.";
-const EMPTY = `${NOT_STILL("project know-how")} .brigade/know-how.md is missing or has no entry.`;
-const NOT_READ = NOT_REACHED("the project know-how");
-const EMPTY_DETAIL = "Cooks add an entry, - text (#ticket), under Conventions, Pitfalls or Tools, in the pull request of the ticket that taught it.";
-const WITHOUT_TICKET = "no source ticket";
-const OUTSIDE_SECTION = "Outside any section";
-const IN_PROGRESS = "opening the pull request…";
+const VIDE = `${PAS_ENCORE("project know-how")} .brigade/know-how.md is missing or has no entry.`;
+const NON_LU = NON_ATTEINT("the project know-how");
+const VIDE_DETAIL = "Cooks add an entry, - text (#ticket), under Conventions, Pitfalls or Tools, in the pull request of the ticket that taught it.";
+const SANS_TICKET = "no source ticket";
+const HORS_SECTION = "Outside any section";
+const EN_COURS = "opening the pull request…";
 const EDITION = "Enter proposes the new text, Escape cancels";
 // The sections of the file, in its order: the three it is made of, then any other the file has, in its order.
 const SECTIONS = ["Conventions", "Pitfalls", "Tools"];
 
-/** @param {Fabrique} doc @param {string} balise @param {string} [text] */
-function created(doc, balise, text) {
+/** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
+function cree(doc, balise, texte) {
   const pose = doc.createElement(balise);
-  if (text !== undefined) pose.textContent = text;
+  if (texte !== undefined) pose.textContent = texte;
   return pose;
 }
 
 // The entries by section, the file's three sections first.
-/** @param {readonly Entry[]} entries @returns {[string, Entry[]][]} */
-function parSection(entries) {
-  /** @type {Map<string, Entry[]>} */
-  const groups = new Map();
-  for (const entry of entries) groups.set(entry.section, [...(groups.get(entry.section) ?? []), entry]);
-  const rank = (/** @type {string} */ section) => (SECTIONS.includes(section) ? SECTIONS.indexOf(section) : SECTIONS.length);
-  return [...groups].sort(([a], [b]) => rank(a) - rank(b));
+/** @param {readonly Entree[]} entrees @returns {[string, Entree[]][]} */
+function parSection(entrees) {
+  /** @type {Map<string, Entree[]>} */
+  const groupes = new Map();
+  for (const entree of entrees) groupes.set(entree.section, [...(groupes.get(entree.section) ?? []), entree]);
+  const rang = (/** @type {string} */ section) => (SECTIONS.includes(section) ? SECTIONS.indexOf(section) : SECTIONS.length);
+  return [...groupes].sort(([a], [b]) => rang(a) - rang(b));
 }
 
 // What the last change of an entry says under it: on its way, the pull request opened, or the refusal.
-/** @param {Fabrique} doc @param {State | undefined} state @param {(url: string) => void} open */
-function saysOfTheEntry(doc, state, open) {
-  if (state?.enCours !== undefined) return saysOfSetting(doc, { enCours: IN_PROGRESS });
-  const said = state?.dit;
-  if (said !== undefined && "pr" in said) return saysOfSetting(doc, { pr: said.pr, numero: said.numero, valeur: said.kind === "edit" ? "the new text" : "the removal" }, { ouvrir: open });
-  return saysOfSetting(doc, said);
+/** @param {Fabrique} doc @param {Etat | undefined} etat @param {(url: string) => void} ouvrir */
+function ditDeLEntree(doc, etat, ouvrir) {
+  if (etat?.enCours !== undefined) return ditDuReglage(doc, { enCours: EN_COURS });
+  const dit = etat?.dit;
+  if (dit !== undefined && "pr" in dit) return ditDuReglage(doc, { pr: dit.pr, numero: dit.numero, valeur: dit.kind === "edit" ? "the new text" : "the removal" }, { ouvrir });
+  return ditDuReglage(doc, dit);
 }
 
 // One entry: its text and its source ticket, then Edit and Remove — or, its edit open, the field holding its text.
 /**
- * @param {Fabrique} doc @param {Entry} entry @param {State | undefined} state
- * @param {{ editer: (entry: Entry) => void, taper: (entry: Entry, text: string) => void, annuler: (entry: Entry) => void, changer: (changeEntry: Change) => void, ouvrir: (url: string) => void }} gestes
+ * @param {Fabrique} doc @param {Entree} entree @param {Etat | undefined} etat
+ * @param {{ editer: (entree: Entree) => void, taper: (entree: Entree, texte: string) => void, annuler: (entree: Entree) => void, changer: (changement: Changement) => void, ouvrir: (url: string) => void }} gestes
  */
-function setTheEntry(doc, entry, state, { editer: edit, taper: type, annuler: cancel, changer: change, ouvrir: open }) {
-  const item = created(doc, "li");
+function poserLEntree(doc, entree, etat, { editer, taper, annuler, changer, ouvrir }) {
+  const item = cree(doc, "li");
   item.className = "entree-du-savoir";
-  item.dataset.ligne = String(entry.line);
-  const busy = state?.enCours !== undefined;
-  const ticket = created(doc, "span", entry.ticket === null ? WITHOUT_TICKET : `#${entry.ticket}`);
-  ticket.className = entry.ticket === null ? "ticket sans" : "ticket mono";
-  const actions = created(doc, "span");
-  actions.className = "gestes";
-  if (state?.edition !== undefined) {
+  item.dataset.ligne = String(entree.line);
+  const occupe = etat?.enCours !== undefined;
+  const ticket = cree(doc, "span", entree.ticket === null ? SANS_TICKET : `#${entree.ticket}`);
+  ticket.className = entree.ticket === null ? "ticket sans" : "ticket mono";
+  const gestes = cree(doc, "span");
+  gestes.className = "gestes";
+  if (etat?.edition !== undefined) {
     // No Save button (ticket 2920): the field applies on its `change` — Enter, or leaving it — when its text is a new one; the
     // text left as it was, or emptied, closes it; Escape closes it.
-    const field = created(doc, "input");
-    field.type = "text";
-    field.ariaLabel = `new text of the entry${entry.ticket === null ? "" : ` from #${entry.ticket}`}`;
-    field.title = EDITION;
-    field.spellcheck = false;
-    field.value = state.edition;
-    field.disabled = busy;
-    field.addEventListener("input", () => type(entry, field.value));
-    field.addEventListener("change", () => {
-      const text = field.value.trim();
-      if (text === "" || text === entry.text) cancel(entry);
-      else change({ kind: "edit", line: entry.line, text: text, avant: entry.text });
+    const champ = cree(doc, "input");
+    champ.type = "text";
+    champ.ariaLabel = `new text of the entry${entree.ticket === null ? "" : ` from #${entree.ticket}`}`;
+    champ.title = EDITION;
+    champ.spellcheck = false;
+    champ.value = etat.edition;
+    champ.disabled = occupe;
+    champ.addEventListener("input", () => taper(entree, champ.value));
+    champ.addEventListener("change", () => {
+      const texte = champ.value.trim();
+      if (texte === "" || texte === entree.text) annuler(entree);
+      else changer({ kind: "edit", line: entree.line, text: texte, avant: entree.text });
     });
-    field.addEventListener("keydown", (/** @type {KeyboardEvent} */ event) => {
-      if (event.key === "Escape") cancel(entry);
+    champ.addEventListener("keydown", (/** @type {KeyboardEvent} */ evenement) => {
+      if (evenement.key === "Escape") annuler(entree);
     });
-    item.append(field, ticket, actions);
+    item.append(champ, ticket, gestes);
   } else {
-    const modify = button(doc, "Edit", () => edit(entry), { sorte: "discret" });
-    modify.className = "editer";
-    modify.disabled = busy;
-    const remove = button(
+    const modifier = bouton(doc, "Edit", () => editer(entree), { sorte: "discret" });
+    modifier.className = "editer";
+    modifier.disabled = occupe;
+    const retirer = bouton(
       doc,
       "Remove",
       () => {
-        if (!busy) change({ kind: "remove", line: entry.line, avant: entry.text });
+        if (!occupe) changer({ kind: "remove", line: entree.line, avant: entree.text });
       },
       { sorte: "discret" },
     );
-    remove.className = "retirer";
-    remove.disabled = busy;
-    actions.append(modify, remove);
-    item.append(created(doc, "span", entry.text), ticket, actions);
+    retirer.className = "retirer";
+    retirer.disabled = occupe;
+    gestes.append(modifier, retirer);
+    item.append(cree(doc, "span", entree.text), ticket, gestes);
   }
-  const below = saysOfTheEntry(doc, state, open);
-  if (below.length === 0) return item;
-  const under = created(doc, "div");
-  under.className = "sous";
-  under.append(...below);
-  item.append(under);
+  const dessous = ditDeLEntree(doc, etat, ouvrir);
+  if (dessous.length === 0) return item;
+  const sous = cree(doc, "div");
+  sous.className = "sous";
+  sous.append(...dessous);
+  item.append(sous);
   return item;
 }
 
@@ -126,42 +126,42 @@ function setTheEntry(doc, entry, state, { editer: edit, taper: type, annuler: ca
 // section of the file.
 /**
  * @param {Fabrique} doc
- * @param {{ lecture?: Reading, etats?: ReadonlyMap<number, State>, editer?: (entry: Entry) => void, taper?: (entry: Entry, text: string) => void, annuler?: (entry: Entry) => void, changer?: (changeEntry: Change) => void, ouvrir?: (url: string) => void }} [options]
+ * @param {{ lecture?: Lecture, etats?: ReadonlyMap<number, Etat>, editer?: (entree: Entree) => void, taper?: (entree: Entree, texte: string) => void, annuler?: (entree: Entree) => void, changer?: (changement: Changement) => void, ouvrir?: (url: string) => void }} [options]
  */
-function setBlockSavoir(doc, { lecture: reading, etats: states = new Map(), editer: edit = () => {}, taper: type = () => {}, annuler: cancel = () => {}, changer: change = () => {}, ouvrir: open = () => {} } = {}) {
-  const block = created(doc, "section");
-  block.className = "bloc-du-projet";
-  block.dataset.bloc = "know-how";
-  block.ariaLabel = TITLE;
-  const title = created(doc, "h3", TITLE);
-  title.append(hover(doc, HELP));
-  block.append(title);
-  if (reading === undefined) {
-    block.append(created(doc, "p", READ_OF("the project know-how")));
-    return block;
+function poserBlocSavoir(doc, { lecture, etats = new Map(), editer = () => {}, taper = () => {}, annuler = () => {}, changer = () => {}, ouvrir = () => {} } = {}) {
+  const bloc = cree(doc, "section");
+  bloc.className = "bloc-du-projet";
+  bloc.dataset.bloc = "know-how";
+  bloc.ariaLabel = TITRE;
+  const titre = cree(doc, "h3", TITRE);
+  titre.append(survol(doc, AIDE));
+  bloc.append(titre);
+  if (lecture === undefined) {
+    bloc.append(cree(doc, "p", LECTURE_DE("the project know-how")));
+    return bloc;
   }
-  if ("sans" in reading) {
-    block.append(lineError(doc, reading.sans, reading.detail ?? ""));
-    return block;
+  if ("sans" in lecture) {
+    bloc.append(ligneErreur(doc, lecture.sans, lecture.detail ?? ""));
+    return bloc;
   }
-  if (reading.vide) {
-    block.append(lineEmpty(doc, EMPTY, { classe: "savoir-vide", detail: EMPTY_DETAIL }));
-    return block;
+  if (lecture.vide) {
+    bloc.append(ligneVide(doc, VIDE, { classe: "savoir-vide", detail: VIDE_DETAIL }));
+    return bloc;
   }
-  for (const [section, entries] of parSection(reading.entries)) {
-    const part = created(doc, "div");
-    part.className = "section-du-savoir";
-    part.dataset.section = section;
-    const head = created(doc, "h4", section === "" ? OUTSIDE_SECTION : section);
-    const account = created(doc, "small", String(entries.length));
-    account.className = "compte";
-    head.append(account);
-    const list = created(doc, "ul");
-    list.append(...entries.map((entry) => setTheEntry(doc, entry, states.get(entry.line), { editer: edit, taper: type, annuler: cancel, changer: change, ouvrir: open })));
-    part.append(head, list);
-    block.append(part);
+  for (const [section, entrees] of parSection(lecture.entries)) {
+    const partie = cree(doc, "div");
+    partie.className = "section-du-savoir";
+    partie.dataset.section = section;
+    const tete = cree(doc, "h4", section === "" ? HORS_SECTION : section);
+    const compte = cree(doc, "small", String(entrees.length));
+    compte.className = "compte";
+    tete.append(compte);
+    const liste = cree(doc, "ul");
+    liste.append(...entrees.map((entree) => poserLEntree(doc, entree, etats.get(entree.line), { editer, taper, annuler, changer, ouvrir })));
+    partie.append(tete, liste);
+    bloc.append(partie);
   }
-  return block;
+  return bloc;
 }
 
 // The section of one project, held between two drawings: its reading, the state of each entry. `lire` and `changer` go
@@ -169,69 +169,69 @@ function setBlockSavoir(doc, { lecture: reading, etats: states = new Map(), edit
 // `garder`: not under a field the chef is typing in.
 /**
  * @param {Fabrique} doc
- * @param {{ lire: () => Promise<Reading | undefined>, changer: (changeEntry: Change) => Promise<Rendered | undefined>, ouvrir: (url: string) => void, reposer: (keep?: boolean) => void, maintenant?: () => number }} options
+ * @param {{ lire: () => Promise<Lecture | undefined>, changer: (changement: Changement) => Promise<Rendu | undefined>, ouvrir: (url: string) => void, reposer: (garder?: boolean) => void, maintenant?: () => number }} options
  */
-export function holdTheSavoir(doc, { lire: read, changer: change, ouvrir: open, reposer: rest, maintenant: now = Date.now }) {
-  /** @type {Reading | undefined} */
-  let reading;
-  let readThe = -Infinity;
-  let enRead = false;
-  /** @type {Map<number, State>} */
-  const states = new Map();
+export function tenirLeSavoir(doc, { lire, changer, ouvrir, reposer, maintenant = Date.now }) {
+  /** @type {Lecture | undefined} */
+  let lecture;
+  let luLe = -Infinity;
+  let enLecture = false;
+  /** @type {Map<number, Etat>} */
+  const etats = new Map();
 
-  const reread = () => {
-    if (enRead) return;
-    enRead = true;
-    readThe = now();
+  const relire = () => {
+    if (enLecture) return;
+    enLecture = true;
+    luLe = maintenant();
     void Promise.resolve()
-      .then(read)
+      .then(lire)
       .then(
-        (readEntry) => readEntry ?? { sans: NOT_READ, detail: "the app gave no reading" },
-        (/** @type {unknown} */ error) => ({ sans: NOT_READ, detail: error instanceof Error ? error.message : String(error) }),
+        (lue) => lue ?? { sans: NON_LU, detail: "the app gave no reading" },
+        (/** @type {unknown} */ erreur) => ({ sans: NON_LU, detail: erreur instanceof Error ? erreur.message : String(erreur) }),
       )
-      .then((readEntry) => {
-        enRead = false;
+      .then((lue) => {
+        enLecture = false;
         // A reading moves the lines: what was said of the old ones no longer names them.
-        if (JSON.stringify(readEntry) !== JSON.stringify(reading)) for (const [line, state] of states) if (state.enCours === undefined) states.delete(line);
-        reading = readEntry;
-        rest(true);
+        if (JSON.stringify(lue) !== JSON.stringify(lecture)) for (const [ligne, etat] of etats) if (etat.enCours === undefined) etats.delete(ligne);
+        lecture = lue;
+        reposer(true);
       });
   };
 
-  /** @param {Change} changeEntry */
-  const propose = async (changeEntry) => {
-    if (states.get(changeEntry.line)?.enCours !== undefined) return;
-    states.set(changeEntry.line, { ...states.get(changeEntry.line), enCours: changeEntry.kind, dit: undefined });
-    rest();
-    /** @type {Rendered} */
-    let rendered;
+  /** @param {Changement} changement */
+  const proposer = async (changement) => {
+    if (etats.get(changement.line)?.enCours !== undefined) return;
+    etats.set(changement.line, { ...etats.get(changement.line), enCours: changement.kind, dit: undefined });
+    reposer();
+    /** @type {Rendu} */
+    let rendu;
     try {
-      rendered = (await change(changeEntry)) ?? { refus: "nothing was proposed: nothing was sent" };
-    } catch (error) {
-      rendered = { refus: "nothing was proposed: nothing was sent", detail: error instanceof Error ? error.message : String(error) };
+      rendu = (await changer(changement)) ?? { refus: "nothing was proposed: nothing was sent" };
+    } catch (erreur) {
+      rendu = { refus: "nothing was proposed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
     }
-    if ("pr" in rendered) states.set(changeEntry.line, { dit: { pr: rendered.pr, numero: rendered.numero, kind: rendered.kind } });
-    else states.set(changeEntry.line, { ...states.get(changeEntry.line), enCours: undefined, dit: rendered });
-    rest();
+    if ("pr" in rendu) etats.set(changement.line, { dit: { pr: rendu.pr, numero: rendu.numero, kind: rendu.kind } });
+    else etats.set(changement.line, { ...etats.get(changement.line), enCours: undefined, dit: rendu });
+    reposer();
   };
 
   return {
     poser() {
-      if (now() - readThe > 60_000) reread();
-      return setBlockSavoir(doc, {
-        ...(reading === undefined ? {} : { lecture: reading }),
-        etats: states,
-        editer: (entry) => {
-          states.set(entry.line, { edition: entry.text });
-          rest();
+      if (maintenant() - luLe > 60_000) relire();
+      return poserBlocSavoir(doc, {
+        ...(lecture === undefined ? {} : { lecture }),
+        etats,
+        editer: (entree) => {
+          etats.set(entree.line, { edition: entree.text });
+          reposer();
         },
-        taper: (entry, text) => void states.set(entry.line, { ...states.get(entry.line), edition: text }),
-        annuler: (entry) => {
-          states.delete(entry.line);
-          rest();
+        taper: (entree, texte) => void etats.set(entree.line, { ...etats.get(entree.line), edition: texte }),
+        annuler: (entree) => {
+          etats.delete(entree.line);
+          reposer();
         },
-        changer: (changeEntry) => void propose(changeEntry),
-        ouvrir: open,
+        changer: (changement) => void proposer(changement),
+        ouvrir,
       });
     },
   };

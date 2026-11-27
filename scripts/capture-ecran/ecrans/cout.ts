@@ -1,7 +1,7 @@
 // L'onglet Cost de « parade » (#908) : `station` lue sur la box de chaque projet, avec ce qu'elle dit
 // de ce que le projet a lancé — `consommé`, en cours, sur 5 h et sur 24 h, mot pour mot comme
 // runtime/src/montrer-station.ts l'écrit (nombres en fr-FR, séparés d'une espace fine insécable).
-import type { Reading } from "../../../app/src/box.ts";
+import type { Lecture } from "../../../app/src/box.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Envoi, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -70,7 +70,7 @@ export const STATIONS: Record<string, string> = {
 
 // Ce que la lecture de l'onglet envoie à la vue : `station` de chaque projet, une lecture chacun.
 export const lu = (projet: string, stations = STATIONS): Envoi => {
-  const lecture: Reading = { projet, demande: 0, a: MAINTENANT, sorties: [{ commande: "station", texte: stations[projet] ?? "" }] };
+  const lecture: Lecture = { projet, demande: 0, a: MAINTENANT, sorties: [{ commande: "station", texte: stations[projet] ?? "" }] };
   return { sur: "surContenu", args: [lecture, undefined], demande: "onglet" };
 };
 

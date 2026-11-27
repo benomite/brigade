@@ -2,15 +2,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkControl } from "../../src/vue/parked/park-control.js";
-import { Fake, repos } from "../helpers/false-vue.ts";
+import { Faux, repos } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Fake(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise) };
 const FIELDS = { who: "Camille", what: "the invoice", until: "2026-12-01" };
 
 for (const missing of ["who", "what", "until"] as const) {
   test(`a form without ${missing} is rejected, with the reason on screen`, async () => {
     const calls: unknown[] = [];
-    const control = parkControl(doc, { project: "parade", ticket: 41, step: "pris", gesture: (...args: unknown[]) => void calls.push(args) }) as unknown as Fake;
+    const control = parkControl(doc, { project: "parade", ticket: 41, step: "pris", gesture: (...args: unknown[]) => void calls.push(args) }) as unknown as Faux;
     const field = (name: string) => control.dessous("input").find(({ dataset }) => dataset.field === name) ?? assert.fail(`no field ${name}`);
     for (const [name, value] of Object.entries(FIELDS)) field(name).value = name === missing ? "" : value;
     (control.dessous("button").find(({ dataset }) => dataset.action === "park") ?? assert.fail("no park button")).click();

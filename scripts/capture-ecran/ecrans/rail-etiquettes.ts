@@ -2,7 +2,7 @@
 // (`box`, le nom entier `box/claude` au survol) ; une carte dont le ticket demande des capacités porte une étiquette
 // tiretée par capacité (`browser`, `docker`), dans n'importe quelle colonne. Ce que la box rend : `station` et `requires`
 // des faits.
-import type { Facts } from "../../../app/src/facts.ts";
+import type { Faits } from "../../../app/src/faits.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -17,7 +17,7 @@ const FACTS = {
     ...(STATIONS[ligne.ticket] === undefined ? {} : { station: STATIONS[ligne.ticket] }),
     ...(REQUIERT[ligne.ticket] === undefined ? {} : { requires: REQUIERT[ligne.ticket] }),
   })),
-} as Facts;
+} as Faits;
 
 const donnees: Ecran["donnees"] = () => ({
   maintenant: MAINTENANT,

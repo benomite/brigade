@@ -5,7 +5,7 @@
 // suivant. Le geste retire donc le label, puis écrit au journal le fait que le
 // sondage y aurait écrit — la fiche relit le ticket sans attendre le tick. Changer la priorité n'est pas un geste de la box :
 // l'app change elle-même le label `prio:` de l'issue sur GitHub
-// (app/src/priority.ts), et le sondage le lit comme tout label.
+// (app/src/priorite.ts), et le sondage le lit comme tout label.
 //
 // Un geste dit toujours son prix (`price`), refusé comme accompli : le chef le
 // lit avant d'agir, et l'app l'affiche après.

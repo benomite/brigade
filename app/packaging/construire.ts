@@ -1,6 +1,6 @@
 // Construit l'app installable du Mac : un seul .dmg, pour Apple Silicon, qui porte l'app, le
 // runtime de sa station et le `node` qui le joue. Glissée dans Applications, l'app tourne sans
-// clone du dépôt, sans `node` ni `npm` sur la machine (src/locations.ts).
+// clone du dépôt, sans `node` ni `npm` sur la machine (src/emplacements.ts).
 //
 //   npm --prefix app run dist                         le .dmg du commit construit
 //   npm --prefix app run dist -- --version 1.2.0
@@ -46,8 +46,8 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { APP_OF_PACKAGE, COMMANDS_OF_PACKAGE, NODE_OF_PACKAGE, RUNTIME_OF_PACKAGE } from "../src/locations.ts";
-import { COMMANDS } from "../src/plugin-app.ts";
+import { APP_DU_PAQUET, COMMANDES_DU_PAQUET, NODE_DU_PAQUET, RUNTIME_DU_PAQUET } from "../src/emplacements.ts";
+import { COMMANDES } from "../src/plugin-app.ts";
 import { defautsDeNom, IDENTIFIANT } from "./verifier-plist.ts";
 
 const REFUS = 2;
@@ -70,9 +70,9 @@ export const COMMANDES_DU_DEPOT = join(RACINE, "commands");
 // Les commandes du plugin de l'app (src/plugin-app.ts), et elles seules, copiées de `commandes`
 // sous les ressources du paquet : l'app installée les pose dans les projets qu'elle ouvre.
 export function porterLesCommandes(ressources: string, commandes = COMMANDES_DU_DEPOT): void {
-  const dans = join(ressources, COMMANDS_OF_PACKAGE);
+  const dans = join(ressources, COMMANDES_DU_PAQUET);
   mkdirSync(dans, { recursive: true });
-  for (const nom of COMMANDS) cpSync(join(commandes, nom), join(dans, nom));
+  for (const nom of COMMANDES) cpSync(join(commandes, nom), join(dans, nom));
 }
 
 // Un refus ou un échec de la construction, avec le code qui le dit.
@@ -281,7 +281,7 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
 
   // L'app : ses sources, son package.json — au nom de l'app, à la version construite — et ses
   // dépendances de production, rangées comme dans le dépôt : la vue les charge par `../../node_modules`.
-  const dansApp = join(ressources, APP_OF_PACKAGE);
+  const dansApp = join(ressources, APP_DU_PAQUET);
   cpSync(join(app, "src"), join(dansApp, "src"), { recursive: true });
   const { devDependencies: _dev, scripts: _scripts, ...declare } = JSON.parse(readFileSync(join(app, "package.json"), "utf8"));
   writeFileSync(join(dansApp, "package.json"), `${JSON.stringify({ ...declare, productName: NOM, version: options.version }, null, 2)}\n`);
@@ -303,13 +303,13 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
 
   // Le runtime : ce que `node` exécute et le package.json qui en fait des modules ES — à la
   // version construite, celle que la station dit d'elle-même en démarrant.
-  const dansRuntime = join(ressources, RUNTIME_OF_PACKAGE);
+  const dansRuntime = join(ressources, RUNTIME_DU_PAQUET);
   cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
   writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
 
   porterLesCommandes(ressources, options.commandes);
 
-  const node = join(ressources, NODE_OF_PACKAGE);
+  const node = join(ressources, NODE_DU_PAQUET);
   mkdirSync(join(node, ".."), { recursive: true });
   cpSync(options.node, node);
   chmodSync(node, 0o755);
@@ -383,14 +383,14 @@ export function construire(options: OptionsConstruction): string {
   const paquet = assembler(options, volume);
   const defauts = defautsDeNom(paquet);
   if (defauts.length > 0) echouer(`the built app is not named “${NOM}”: ${defauts.join("; ")}`);
-  const node = join(paquet, "Contents", "Resources", NODE_OF_PACKAGE);
+  const node = join(paquet, "Contents", "Resources", NODE_DU_PAQUET);
   const lancer = (commande: string, args: string[], quoi: string) => {
     const rendu = executer(commande, args);
     if (rendu.status !== 0) echouer(`${quoi} failed (\`${commande} ${args.join(" ")}\`): ${dit(rendu)}`);
   };
   if (identite === undefined) {
     // Ce que node-pty lance est signé à part : `--deep` ne signe que ce qui est rangé en paquet.
-    const pty = join(paquet, "Contents", "Resources", APP_OF_PACKAGE, "node_modules", "node-pty", "prebuilds", `darwin-${ARCH}`);
+    const pty = join(paquet, "Contents", "Resources", APP_DU_PAQUET, "node_modules", "node-pty", "prebuilds", `darwin-${ARCH}`);
     for (const binaire of ["pty.node", "spawn-helper"]) if (existsSync(join(pty, binaire))) lancer("codesign", ["--force", "--sign", "-", join(pty, binaire)], `signing ${binaire}`);
     // Le `node` porté perd la signature de la Node.js Foundation : il est signé à part, sous un identifiant de Brigade.
     lancer("codesign", ["--force", "--sign", "-", "--identifier", IDENTIFIANT_DU_NODE, node], "signing the bundled node");

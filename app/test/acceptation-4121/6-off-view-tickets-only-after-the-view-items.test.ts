@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { ROLE_OF_SECOND } from "../../src/second/launch.ts";
-import { contextOfBlockage } from "../../src/second/context-of-blockage.ts";
+import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
+import { contexteDuBlocage } from "../../src/second/contexte-du-blocage.ts";
 
 const QUESTION = "pourquoi on est bloqués ?";
 const VUE = {
@@ -24,14 +24,14 @@ const VUE = {
 };
 
 test("#1078 is absent or comes after every view item", () => {
-  const context = contextOfBlockage(QUESTION, VUE);
-  const rank = context.indexOf("#1078");
-  if (rank >= 0) {
-    for (const motive of ["STOPPED", "FAULT #221", "queued - ready, waits for a place in the kitchen"]) {
-      assert.ok(context.indexOf(motive) >= 0 && context.indexOf(motive) < rank, `${motive} comes before #1078`);
+  const contexte = contexteDuBlocage(QUESTION, VUE);
+  const rang = contexte.indexOf("#1078");
+  if (rang >= 0) {
+    for (const motif of ["STOPPED", "FAULT #221", "queued - ready, waits for a place in the kitchen"]) {
+      assert.ok(contexte.indexOf(motif) >= 0 && contexte.indexOf(motif) < rang, `${motif} comes before #1078`);
     }
   }
   // with nothing off the rail that matters, none is invented
-  assert.ok(!contextOfBlockage(QUESTION, { ...VUE, offRail: [], rail: [{ ...VUE.rail[0]!, real: "cannot start", waitsOn: "the manager" }] }).includes("#1078"));
-  assert.match(readFileSync(ROLE_OF_SECOND, "utf8"), /not on the (project )?view[^\n]*(after|only)/i);
+  assert.ok(!contexteDuBlocage(QUESTION, { ...VUE, offRail: [], rail: [{ ...VUE.rail[0]!, real: "cannot start", waitsOn: "the manager" }] }).includes("#1078"));
+  assert.match(readFileSync(ROLE_DU_SECOND, "utf8"), /not on the (project )?view[^\n]*(after|only)/i);
 });

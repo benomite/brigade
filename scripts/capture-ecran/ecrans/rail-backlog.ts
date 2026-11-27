@@ -1,19 +1,19 @@
 // Le rail de « parade » avec un backlog lu sur GitHub : depuis #4354, rien de lui au-dessus des colonnes — ni bandeau Backlog,
 // ni haut du backlog —, la colonne Backlog seule le montre ; au-dessus, les cartes du supervisor et du closer et la ligne du
 // TODO. Ce que la lecture de GitHub publie (`avantLeRail`) est écrit
-// ici mot pour mot ; ce que la vue en reçoit est calculé par l'app, comme main.ts le fait du tableau lu (board/rail.ts,
+// ici mot pour mot ; ce que la vue en reçoit est calculé par l'app, comme main.ts le fait du tableau lu (tableau/rail.ts,
 // amont.ts).
-import type { Facts } from "../../../app/src/facts.ts";
-import { COMMAND, holdUpstream } from "../../../app/src/upstream.ts";
-import type { BoardRead } from "../../../app/src/board/read.ts";
-import { readOfBoard } from "../../../app/src/board/rail.ts";
+import type { Faits } from "../../../app/src/faits.ts";
+import { COMMANDE, tenirAmont } from "../../../app/src/amont.ts";
+import type { TableauLu } from "../../../app/src/tableau/lecture.ts";
+import { lectureDuTableau } from "../../../app/src/tableau/rail.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 const LU = "2026-10-13T10:03:58.000Z";
 // Les faits de la cuisine figée, avec l'entrée de chaque ticket dans son état et l'histogramme des 24 heures (`cadence`).
-const FAITS = PARADE.facts as Facts;
+const FAITS = PARADE.facts as Faits;
 // L'entrée de chaque ticket dans son état, à l'horloge de la box — celle que `status` dit « since ».
 const DEPUIS: Record<number, string> = {
   14: "2026-10-13T09:52:11.000Z",
@@ -37,7 +37,7 @@ const FACTS = {
   attend: [...(FAITS.attend ?? []), { ticket: 51, titre: "Garder les tickets un an ?", url: "https://github.com/chef/parade/issues/51" }],
   rail: FAITS.rail.map((ticket) => ({ ...ticket, depuis: DEPUIS[ticket.ticket] })),
   cadence: { hours, medianSeconds: { taken: 300, pass: 720 } },
-} as Facts;
+} as Faits;
 
 // Ce qui est avant le rail de « parade », tel que la lecture de GitHub le publie, dans l'ordre où le manager les lit :
 // quinze besoins ouverts, dont trois idées — #47 découpé en six tickets, dont quatre sur le rail et deux servis —, #55 tout servi hier à
@@ -71,13 +71,13 @@ export const AVANT_LE_RAIL = {
 
 // Le tableau de la cuisine de « parade », lu de GitHub par l'app : seul ce que la lecture de ce qui est avant le rail
 // y prend compte.
-const tableau = (avantLeRail: typeof AVANT_LE_RAIL) => ({ lu: true, depot: "chef/parade", numero: 3, luLe: MAINTENANT, avantLeRail }) as unknown as BoardRead;
+const tableau = (avantLeRail: typeof AVANT_LE_RAIL) => ({ lu: true, depot: "chef/parade", numero: 3, luLe: MAINTENANT, avantLeRail }) as unknown as TableauLu;
 
 // Les données de l'écran : la cuisine figée, et, quand l'espace de « parade » s'ouvre, ce qui est avant son rail — celui
 // de cet écran, ou celui qu'un autre lui donne.
 export function donnees(avantLeRail: typeof AVANT_LE_RAIL = AVANT_LE_RAIL): Donnees {
   const envois = cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } });
-  const vu = holdUpstream().recevoir(readOfBoard(tableau(avantLeRail), "parade", 0, [COMMAND]));
+  const vu = tenirAmont().recevoir(lectureDuTableau(tableau(avantLeRail), "parade", 0, [COMMANDE]));
   return {
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },

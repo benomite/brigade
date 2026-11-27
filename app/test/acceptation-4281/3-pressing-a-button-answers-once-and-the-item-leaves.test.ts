@@ -2,9 +2,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkedTodo } from "../../src/vue/parked/parked-todo.js";
-import { Fake, repos } from "../helpers/false-vue.ts";
+import { Faux, repos } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Fake(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise) };
 
 test("a button calls answer once with the ticket and the chosen answer, then the item leaves", async () => {
   const records = [
@@ -12,7 +12,7 @@ test("a button calls answer once with the ticket and the chosen answer, then the
     { ticket: 32, who: "chef", what: "approve the copy", until: "2026-12-02", step: "pass" },
   ];
   const calls: unknown[][] = [];
-  const todo = parkedTodo(doc, { records, chef: "chef", choices: ["go on", "drop it"], answer: (...args: unknown[]) => void calls.push(args) }) as unknown as Fake;
+  const todo = parkedTodo(doc, { records, chef: "chef", choices: ["go on", "drop it"], answer: (...args: unknown[]) => void calls.push(args) }) as unknown as Faux;
   const item = (n: number) => todo.dessous("li").find(({ dataset }) => dataset.ticket === String(n));
   (item(31) ?? assert.fail("no item")).dessous("button").find((b) => b.textContent.trim() === "drop it")?.click();
   await repos();

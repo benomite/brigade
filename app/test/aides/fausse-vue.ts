@@ -1,0 +1,556 @@
+// La vue jouée sans Electron ni navigateur : `vue.js` tel qu'il est, devant un faux document —
+// juste ce qu'elle en touche — et un faux pont. Ce qu'elle pose se relit élément par élément :
+// sa balise, sa classe, son texte. Rien n'y est mesuré ni peint — ce qui se voit est dans
+// vue.css, que peau.test.ts lit à part.
+//   const vue = await jouerLaVue({ demarrage: () => …, espace: () => [second] });
+//   vue.element("projets").children[1]?.click();   // un clic du chef
+//   vue.dire("surFaits", recue);                     // ce que le process principal envoie
+//   await repos();                                   // ce que la vue en fait, promesses comprises
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { runInThisContext } from "node:vm";
+import type { Pont } from "../../src/vue/pont.d.ts";
+
+const VUE = join(import.meta.dirname, "../../src/vue");
+
+type Noeud = Faux | string;
+// `dataTransfer` : ce qu'une case glissée porte (voir `glisser`) ; `relatedTarget` : où le pointeur va ;
+// `target` : là où le clic est tombé — rien ne remonte d'un élément à son parent, le test le dit.
+type Toucher = { clientX: number; clientY: number };
+// `clientX`, `clientY`, `pointerId`, `deltaY` : un pointeur, un doigt, la molette (le détail en grand d'une validation, #3212).
+type Evenement = { touches?: Toucher[]; changedTouches?: Toucher[]; key?: string; clientX?: number; clientY?: number; pointerId?: number; deltaY?: number; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
+type Ecoute = (evenement: Evenement) => unknown;
+
+// Un élément : ses enfants, son texte, ses écoutes. Ce que la vue y pose d'autre — `title`,
+// `ariaLabel`, `role` — s'y pose comme sur n'importe quel objet.
+export class Faux {
+  readonly balise: string;
+  id = "";
+  className = "";
+  hidden = false;
+  disabled = false;
+  title = "";
+  // Un onglet dit s'il est celui qui est affiché.
+  ariaSelected = "";
+  ariaPressed = "";
+  // Un bouton qui déplie — un détail, une confirmation — dit s'il l'a fait ; nul, il ne déplie rien.
+  ariaExpanded: string | null = "";
+  // Un interrupteur dit son rôle, et s'il est allumé — « mixed » : on ne sait pas.
+  role = "";
+  ariaChecked = "";
+  // L'entrée de la barre qui est affichée, et celle qui se glisse.
+  ariaCurrent = "";
+  // Le nom accessible d'un élément : le texte d'un survol (briques.js) y est lu.
+  ariaLabel = "";
+  draggable = false;
+  // Couvert par une page, le rail ne se clique pas au travers.
+  inert = false;
+  value = "";
+  // Ce qu'un champ montre vide, s'il se lit sans se changer, et s'il est signalé.
+  placeholder = "";
+  readOnly = false;
+  ariaInvalid = "";
+  // Une case à cocher dit si elle l'est.
+  checked = false;
+  // Un champ dit sa sorte — `date` —, un bouton s'il soumet son formulaire.
+  type = "";
+  dataset: Record<string, string> = {};
+  // Les variables que la vue y pose — la couleur d'un projet —, lues comme elle les a posées.
+  style = new FauxStyle();
+  parentElement: Faux | null = null;
+  #noeuds: Noeud[] = [];
+  #ecoutes = new Map<string, Ecoute[]>();
+  #attributs = new Set<string>();
+
+  constructor(balise: string) {
+    this.balise = balise;
+  }
+
+  get tagName(): string {
+    return this.balise.toUpperCase();
+  }
+  get textContent(): string {
+    return this.#noeuds.map((noeud) => (typeof noeud === "string" ? noeud : noeud.textContent)).join("");
+  }
+  set textContent(texte: string) {
+    this.replaceChildren(...(texte === "" ? [] : [texte]));
+  }
+  get children(): Faux[] {
+    return this.#noeuds.filter((noeud) => typeof noeud !== "string");
+  }
+  get childElementCount(): number {
+    return this.children.length;
+  }
+  get firstChild(): Noeud | null {
+    return this.#noeuds[0] ?? null;
+  }
+  get classList() {
+    const classes = () => this.className.split(" ").filter(Boolean);
+    const poser = (nom: string, voulue: boolean) => void (this.className = [...classes().filter((classe) => classe !== nom), ...(voulue ? [nom] : [])].join(" "));
+    return {
+      contains: (nom: string) => classes().includes(nom),
+      add: (nom: string) => poser(nom, true),
+      toggle: (nom: string, voulue = !classes().includes(nom)) => poser(nom, voulue),
+    };
+  }
+
+  // Un nœud n'a qu'une place : posé ici, il quitte celle qu'il avait.
+  #adopter(noeuds: Noeud[]): Noeud[] {
+    for (const noeud of noeuds) {
+      if (typeof noeud === "string") continue;
+      noeud.remove();
+      noeud.parentElement = this;
+    }
+    return noeuds;
+  }
+  // Adoptés d'abord : un enfant déjà posé ici quitte sa place avant d'aller au bout, comme dans le DOM.
+  append(...noeuds: Noeud[]): void {
+    const adoptes = this.#adopter(noeuds);
+    this.#noeuds.push(...adoptes);
+  }
+  prepend(...noeuds: Noeud[]): void {
+    const adoptes = this.#adopter(noeuds);
+    this.#noeuds.unshift(...adoptes);
+  }
+  replaceChildren(...noeuds: Noeud[]): void {
+    for (const ancien of this.children) ancien.parentElement = null;
+    this.#noeuds = [];
+    this.append(...noeuds);
+  }
+  after(...noeuds: Noeud[]): void {
+    const parent = this.parentElement;
+    if (parent === null) return;
+    const poses = parent.#adopter(noeuds);
+    parent.#noeuds.splice(parent.#noeuds.indexOf(this) + 1, 0, ...poses);
+  }
+  remove(): void {
+    const parent = this.parentElement;
+    if (parent === null) return;
+    parent.#noeuds = parent.#noeuds.filter((noeud) => noeud !== this);
+    this.parentElement = null;
+  }
+
+  addEventListener(type: string, ecoute: Ecoute): void {
+    this.#ecoutes.set(type, [...(this.#ecoutes.get(type) ?? []), ecoute]);
+  }
+  // Ce que les écoutes ont rendu : une promesse, pour celles qui attendent le pont.
+  declencher(type: string, evenement: Partial<Evenement> = {}): unknown[] {
+    return (this.#ecoutes.get(type) ?? []).map((ecoute) => ecoute({ preventDefault: () => {}, stopPropagation: () => {}, ...evenement }));
+  }
+  click(): void {
+    if (!this.disabled) this.declencher("click");
+  }
+  // Un attribut posé par son nom — ce que la vue écrit d'un élément SVG, qui n'a pas de propriétés pour cela.
+  #valeurs = new Map<string, string>();
+  setAttribute(nom: string, valeur: string): void {
+    this.#valeurs.set(nom, valeur);
+  }
+  getAttribute(nom: string): string | null {
+    return this.#valeurs.get(nom) ?? null;
+  }
+  hasAttribute(nom: string): boolean {
+    return this.#attributs.has(nom);
+  }
+  toggleAttribute(nom: string, voulu = !this.#attributs.has(nom)): void {
+    if (voulu) this.#attributs.add(nom);
+    else this.#attributs.delete(nom);
+  }
+  // Combien de fois il a pris le clavier.
+  focalise = 0;
+  focus(): void {
+    this.focalise++;
+  }
+  reset(): void {}
+
+  // La boîte de l'élément à l'écran : rien n'est mesuré ici, un test la pose. Un pointeur la reprend, sans rien en faire.
+  boite = { left: 0, top: 0, width: 0, height: 0 };
+  getBoundingClientRect(): { left: number; top: number; width: number; height: number } {
+    return this.boite;
+  }
+  setPointerCapture(): void {}
+
+  // Lui-même ou le plus proche de ses parents qui est d'une de ces balises — `button, a` : la vue
+  // n'en demande pas plus.
+  closest(selecteur: string): Faux | null {
+    const balises = selecteur.split(",").map((balise) => balise.trim());
+    for (let pose: Faux | null = this; pose !== null; pose = pose.parentElement) if (balises.includes(pose.balise)) return pose;
+    return null;
+  }
+
+  // Lui-même, ou posé dessous.
+  contains(autre: Faux | null): boolean {
+    return autre !== null && (autre === this || [...this.descendants()].includes(autre));
+  }
+
+  // Ceux posés dessous qui sont d'une de ces balises — `input, textarea` : la vue n'en demande pas plus.
+  querySelectorAll(selecteur: string): Faux[] {
+    const balises = selecteur.split(",").map((balise) => balise.trim());
+    return [...this.descendants()].filter(({ balise }) => balises.includes(balise));
+  }
+
+  // Tout ce qui est posé dessous, dans l'ordre de la page, en tableau : un test en compte (`.filter(…).length`, #4241).
+  descendants(): Faux[] {
+    return this.children.flatMap((enfant) => [enfant, ...enfant.descendants()]);
+  }
+  // Les éléments de cette balise posés dessous — `pre`, `button`…
+  dessous(balise: string): Faux[] {
+    return [...this.descendants()].filter((element) => element.balise === balise);
+  }
+}
+
+// Ce que porte un glisser du navigateur : ses données par type — lisibles au lâcher seulement,
+// leurs types à tout moment — et l'effet qu'il annonce.
+export class FauxTransfert {
+  readonly #donnees = new Map<string, string>();
+  effectAllowed = "uninitialized";
+  dropEffect = "none";
+  get types(): string[] {
+    return [...this.#donnees.keys()];
+  }
+  setData(type: string, valeur: string): void {
+    this.#donnees.set(type, valeur);
+  }
+  getData(type: string): string {
+    return this.#donnees.get(type) ?? "";
+  }
+}
+
+// Le style d'un élément : rien que ses propriétés posées une à une, sans cascade.
+export class FauxStyle {
+  readonly #proprietes = new Map<string, string>();
+  setProperty(nom: string, valeur: string): void {
+    this.#proprietes.set(nom, valeur);
+  }
+  removeProperty(nom: string): void {
+    this.#proprietes.delete(nom);
+  }
+  getPropertyValue(nom: string): string {
+    return this.#proprietes.get(nom) ?? "";
+  }
+  get color(): string {
+    return this.getPropertyValue("color");
+  }
+}
+
+// Le terminal : ce qu'on lui a réglé à sa création, et ce qui lui a été écrit, tel quel.
+export class FauxXterm {
+  readonly options: { fontFamily?: string; fontSize?: number; theme?: Record<string, string> };
+  readonly ecrits: string[] = [];
+  constructor(options: FauxXterm["options"]) {
+    this.options = options;
+  }
+  write(donnees: string): void {
+    this.ecrits.push(donnees);
+  }
+  loadAddon(): void {}
+  open(): void {}
+  // Ce que la vue fait d'une frappe : un test tape, comme le chef au clavier.
+  private saisie: ((donnees: string) => void) | undefined;
+  onData(ecoute: (donnees: string) => void): void {
+    this.saisie = ecoute;
+  }
+  taper(donnees: string): void {
+    this.saisie?.(donnees);
+  }
+  // Le filtre de touches que la vue y a posé : rend faux quand la touche n'est pas à xterm.
+  filtre: ((touche: { key: string; type: string; shiftKey: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => boolean) | undefined;
+  attachCustomKeyEventHandler(filtre: NonNullable<FauxXterm["filtre"]>): void {
+    this.filtre = filtre;
+  }
+  onResize(): void {}
+  // Le titre que `claude` donne à son terminal : un test le change, comme `claude` le fait (ticket 3166).
+  private titreChange: ((titre: string) => void) | undefined;
+  onTitleChange(ecoute: (titre: string) => void): void {
+    this.titreChange = ecoute;
+  }
+  titrer(titre: string): void {
+    this.titreChange?.(titre);
+  }
+  // Ce que le chef y a sélectionné : un test le pose, comme le chef à la souris.
+  selection = "";
+  hasSelection(): boolean {
+    return this.selection !== "";
+  }
+  getSelection(): string {
+    return this.selection;
+  }
+  // Combien de fois il a pris le clavier.
+  focalise = 0;
+  focus(): void {
+    this.focalise++;
+  }
+  dispose(): void {}
+}
+
+// Les variables que jetons.css pose sur la racine : le terminal y lit les siennes.
+export function jetonsDe(css: string): Map<string, string> {
+  const racine = /:root\s*\{([^}]*)\}/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""))?.[1] ?? "";
+  return new Map([...racine.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
+}
+
+type Ecoutes = { [G in keyof Pont as G extends `sur${string}` ? G : never]: Pont[G] };
+type Gestes = Omit<Pont, keyof Ecoutes>;
+// Ce que le faux pont répond, geste par geste — tout de suite, ou quand ce qu'il a lancé a fini. Un geste sans réponse
+// rend `undefined`.
+export type Reponses = { [G in keyof Gestes]?: (...args: Parameters<NonNullable<Gestes[G]>>) => Awaited<ReturnType<NonNullable<Gestes[G]>>> | Promise<Awaited<ReturnType<NonNullable<Gestes[G]>>>> };
+
+export type Jouee = {
+  // Un élément de la page, par son `id` — posé par index.html, ou par la vue.
+  element(id: string): Faux;
+  // Tout ce qui est dans la page : ses éléments, et ce que la vue a posé dessous.
+  poses(): Faux[];
+  // Ce que le process principal envoie à la vue : la lecture d'une box, la sortie d'un terminal…
+  dire<E extends keyof Ecoutes>(ecoute: E, ...args: Parameters<Parameters<NonNullable<Ecoutes[E]>>[0]>): void;
+  // Ce que la vue a demandé au pont, dans l'ordre.
+  appels: { geste: string; args: unknown[] }[];
+  // Le dernier appel d'un geste : ses arguments.
+  dernier(geste: keyof Gestes): unknown[];
+  xterms: FauxXterm[];
+  // Les polices que la vue a fait charger avant d'ouvrir un terminal.
+  polices: string[];
+};
+
+// Le stockage de la vue (`window.localStorage`) : ce qu'elle y a écrit, par clé. Un test le passe à deux vues
+// jouées l'une après l'autre — l'app fermée puis rouverte.
+export class FauxStockage {
+  readonly valeurs = new Map<string, string>();
+  getItem(cle: string): string | null {
+    return this.valeurs.get(cle) ?? null;
+  }
+  setItem(cle: string, valeur: string): void {
+    this.valeurs.set(cle, valeur);
+  }
+}
+
+// La largeur de l'écran, telle que la vue la demande (`window.matchMedia`, #1186) : étroit ou non, et la requête posée.
+// `changer` fait comme un téléphone qu'on tourne : la requête change de réponse, et la vue en est avertie.
+export class FauxEcran {
+  matches: boolean;
+  readonly requetes: string[] = [];
+  readonly #ecoutes: (() => void)[] = [];
+  constructor(etroit: boolean) {
+    this.matches = etroit;
+  }
+  addEventListener(_type: string, ecoute: () => void): void {
+    this.#ecoutes.push(ecoute);
+  }
+  changer(etroit: boolean): void {
+    this.matches = etroit;
+    for (const ecoute of this.#ecoutes) ecoute();
+  }
+}
+
+// Le module de la vue, tel qu'il est — moins ses deux imports de xterm, que le navigateur résout par
+// l'import map de index.html : ici, les faux prennent leur place. Ses modules à elle (`./briques.js`,
+// `./cost/tete.js`), le navigateur les résout à côté d'elle : ici, ils sont chargés par leur adresse sur
+// le disque, une fois par process comme dans la page, et chacun de ses imports devient la lecture
+// du module chargé — une ligne pour une ligne, les lignes d'une erreur restent celles de vue.js.
+// Le reste est joué tel quel, comme le corps d'une fonction asynchrone en mode strict — ce qu'est
+// un module, `await` compris : chaque vue est jouée de zéro, mais sur le même texte, que V8
+// n'analyse et ne compile qu'une fois par process. Importée comme un module, la vue devait avoir
+// une adresse neuve à chaque fois, et ses 400 Ko étaient relus, décodés et recompilés à chaque vue.
+// Ses minuteries (`setInterval`, `setTimeout`) sont celles du process, mais ne le retiennent pas (#2537) :
+// une page vit tant que sa fenêtre est ouverte, une vue jouée ne se ferme jamais, et ses minuteries
+// tenaient le fichier de tests ouvert pour toujours — sans `--test-force-exit`, un `node --test` à la
+// main ne rendait jamais la main. Elles se lisent sur `globalThis` à chaque appel : les minuteries
+// simulées d'un test (`t.mock.timers`) les remplacent comme avant. Elles tiennent sur la première
+// ligne : celles de vue.js ne bougent pas.
+const MINUTERIES_SANS_RETENUE = [
+  "const setInterval = (...args) => { const minuterie = globalThis.setInterval(...args); minuterie?.unref?.(); return minuterie; };",
+  "const setTimeout = (...args) => { const minuterie = globalThis.setTimeout(...args); minuterie?.unref?.(); return minuterie; };",
+].join(" ");
+let jouable: { texte: string; modules: string[] } | undefined;
+function laVueJouable(): { texte: string; modules: string[] } {
+  if (jouable !== undefined) return jouable;
+  const source = readFileSync(join(VUE, "vue.js"), "utf8");
+  const imports = /^import \{ FitAddon \} from "@xterm\/addon-fit";\nimport \{ Terminal as Xterm \} from "@xterm\/xterm";$/m;
+  const siens = /^import (\{[^}]*\}) from "\.\/((?:[a-z-]+\/)*[A-Za-z-]+\.js)";$/gm;
+  if (!imports.test(source) || /^import /m.test(source.replace(imports, "").replace(siens, ""))) throw new Error("vue.js n'importe plus ce que la fausse vue remplace : ses deux imports de xterm, et ses propres modules");
+  const modules: string[] = [];
+  const corps = source.replace(imports, "const { FitAddon } = globalThis.fauxXterm;\nconst { Xterm } = globalThis.fauxXterm;").replace(siens, (_, noms: string, module: string) => {
+    modules.push(module);
+    return `const ${noms.replace(/\b([A-Za-z_$][\w$]*) as ([A-Za-z_$][\w$]*)\b/g, "$1: $2")} = globalThis.modulesDeLaVue[${JSON.stringify(module)}];`;
+  });
+  jouable = { texte: `(async function () { "use strict"; ${MINUTERIES_SANS_RETENUE} ${corps}\n})`, modules };
+  return jouable;
+}
+
+// Charge une vue neuve — son module entier, jusqu'à son premier affichage. Sans stockage, la vue n'en a pas ; sans
+// écran, elle n'a pas de `matchMedia` : elle est large. `session` : le stockage de la session de la fenêtre
+// (`window.sessionStorage`) — passé à deux vues jouées l'une après l'autre, c'est la fenêtre rechargée (#3159).
+export async function jouerLaVue(reponses: Reponses & Required<Pick<Reponses, "demarrage">>, { stockage, ecran, session }: { stockage?: FauxStockage; ecran?: FauxEcran; session?: FauxStockage } = {}): Promise<Jouee> {
+  const html = readFileSync(join(VUE, "index.html"), "utf8");
+  const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
+
+  // Les éléments que la page porte et que la vue prend par leur nom : ceux qui ont un `id`, et
+  // `main`. Leur place dans la page n'est pas rejouée.
+  const parId = new Map<string, Faux>();
+  const principal = new Faux("main");
+  for (const [, balise = "", attributs = ""] of html.matchAll(/<([a-z0-9]+)\b([^>]*)>/g)) {
+    const id = /\bid="([^"]+)"/.exec(attributs)?.[1];
+    if (id === undefined) continue;
+    const pose = new Faux(balise);
+    pose.id = id;
+    pose.className = /\bclass="([^"]+)"/.exec(attributs)?.[1] ?? "";
+    pose.hidden = /\shidden\b/.test(attributs);
+    parId.set(id, pose);
+  }
+  const trouver = (id: string): Faux | null => {
+    const pose = parId.get(id);
+    if (pose !== undefined) return pose;
+    for (const racine of [principal, ...parId.values()]) for (const element of racine.descendants()) if (element.id === id) return element;
+    return null;
+  };
+
+  const appels: Jouee["appels"] = [];
+  const ecoutes = new Map<string, (...args: unknown[]) => void>();
+  const xterms: FauxXterm[] = [];
+  const polices: string[] = [];
+  const pont = new Proxy(
+    {},
+    {
+      get:
+        (_, geste: string) =>
+        (...args: unknown[]) => {
+          if (geste.startsWith("sur")) return void ecoutes.set(geste, args[0] as (...recus: unknown[]) => void);
+          appels.push({ geste, args });
+          const repondre = (reponses as Record<string, ((...recus: unknown[]) => unknown) | undefined>)[geste];
+          return Promise.resolve(repondre?.(...args));
+        },
+    },
+  );
+
+  Object.assign(globalThis, {
+    window: {
+      brigade: pont,
+      ...(stockage === undefined ? {} : { localStorage: stockage }),
+      ...(session === undefined ? {} : { sessionStorage: session }),
+      ...(ecran === undefined ? {} : { matchMedia: (requete: string) => (ecran.requetes.push(requete), ecran) }),
+    },
+    document: {
+      documentElement: new Faux("html"),
+      fonts: { load: (police: string) => (polices.push(police), Promise.resolve([])) },
+      getElementById: trouver,
+      querySelector: (selecteur: string) => (selecteur === "main" ? principal : null),
+      createElement: (balise: string) => new Faux(balise),
+      // Le tracé de la page des coûts (cost/courbe.js) : un élément SVG s'y pose comme un autre.
+      createElementNS: (_espace: string, balise: string) => new Faux(balise),
+    },
+    getComputedStyle: () => ({ getPropertyValue: (nom: string) => jetons.get(nom) ?? "" }),
+    ResizeObserver: class {
+      observe(): void {}
+    },
+    Option: function (this: Faux, texte: string, valeur: string) {
+      const option = new Faux("option");
+      option.textContent = texte;
+      option.value = valeur;
+      return option;
+    },
+    fauxXterm: {
+      FitAddon: class {
+        fit(): void {}
+      },
+      Xterm: class extends FauxXterm {
+        constructor(options: FauxXterm["options"]) {
+          super(options);
+          xterms.push(this);
+        }
+      },
+    },
+  });
+
+  const { texte, modules } = laVueJouable();
+  const charges = await Promise.all(modules.map(async (module) => [module, await import(pathToFileURL(join(VUE, module)).href)] as const));
+  Object.assign(globalThis, { modulesDeLaVue: Object.fromEntries(charges) });
+  await (runInThisContext(texte, { filename: join(VUE, "vue.js") }) as () => Promise<void>)();
+  await repos();
+
+  return {
+    element(id) {
+      const pose = id === "main" ? principal : trouver(id);
+      if (pose === null) throw new Error(`aucun élément « ${id} » dans la page`);
+      return pose;
+    },
+    poses: () => [...new Set([principal, ...parId.values()].flatMap((racine) => [racine, ...racine.descendants()]))],
+    dire(ecoute, ...args) {
+      const recevoir = ecoutes.get(ecoute);
+      if (recevoir === undefined) throw new Error(`la vue n'écoute pas « ${ecoute} »`);
+      recevoir(...args);
+    },
+    appels,
+    dernier(geste) {
+      const appel = appels.findLast((fait) => fait.geste === geste);
+      if (appel === undefined) throw new Error(`la vue n'a pas appelé « ${geste} »`);
+      return appel.args;
+    },
+    xterms,
+    polices,
+  };
+}
+
+// Ce que la vue fait d'un clic ou d'une lecture, promesses comprises : le faux pont répond sans
+// attendre, tout est donc fait quand la file des promesses est vide — aucun délai n'est couru.
+export const repos = (): Promise<void> => new Promise((fait) => setImmediate(fait));
+
+// Montre un onglet du projet comme le chef : d'un clic sur le menu, à côté de son nom (#1184, #2485, #2921). Rend l'onglet cliqué.
+export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Stations"): Promise<Faux> {
+  const onglet = vue.element("onglets-du-projet").children.find((candidat) => candidat.textContent === titre);
+  if (onglet === undefined) throw new Error(`pas d'onglet « ${titre} »`);
+  onglet.click();
+  await repos();
+  return onglet;
+}
+
+// La carte d'un ticket, sur l'onglet montré (toutes les colonnes sont sur Rail) :
+// cherchée sur l'onglet montré, puis sur l'autre, montré d'un clic comme le chef le ferait.
+export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
+  const trouve = () => vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`);
+  const ici = trouve();
+  if (ici !== undefined) return ici;
+  vue.element("onglets-du-projet").children.find((onglet) => onglet.textContent === "Rail")?.click();
+  return trouve();
+}
+
+// Ouvre une lecture comme le chef le fait depuis l'écran principal : Settings — une seule
+// page, qui ne lit rien (#1700) ; Log, par le geste « journal ». Rend l'élément
+// cliqué en dernier. Les pages Rail, Manager et General de Settings n'existent plus : les demander lève.
+export async function ouvrirLecture(vue: Jouee, titre: string): Promise<Faux> {
+  const cliquer = async (ou: Faux | undefined, nom: string): Promise<Faux> => {
+    const pose = ou?.children.find((candidat) => candidat.textContent === nom) ?? ou?.dessous("button").find((candidat) => candidat.textContent === nom);
+    if (pose === undefined) throw new Error(`pas de « ${nom} »`);
+    pose.click();
+    await repos();
+    return pose;
+  };
+  if (titre !== "Settings") throw new Error(`pas de page « ${titre} » : Settings n'a plus de sous-pages (#1700)`);
+  return cliquer(vue.element("onglets-du-projet"), "Settings");
+}
+
+// Les lignes de tous les projets, « Cost » et « Closer », sont en bas du bandeau de santé de chaque projet (#2638, #2921), une
+// section de Settings (#3014) : le premier projet de la barre s'ouvre, puis Settings, comme le chef le fait. Rend la ligne qui
+// porte ce nom.
+async function ligneDeTousLesProjets(vue: Jouee, nom: string): Promise<Faux> {
+  vue.element("projets").children[1]?.click();
+  await repos();
+  await ouvrirLecture(vue, "Settings");
+  const ligne = vue.element("de-tous-les-projets").dessous("button").find(({ ariaLabel }) => ariaLabel === nom);
+  if (ligne === undefined) throw new Error(`pas de ligne « ${nom} » dans le bandeau de santé`);
+  return ligne;
+}
+
+// Ouvre la page des coûts de tous les projets comme le chef le fait (#1022) : par sa ligne « Cost », sous Health (#2638).
+// Rend la page.
+export async function ouvrirLesCouts(vue: Jouee): Promise<Faux> {
+  (await ligneDeTousLesProjets(vue, "the cost of all projects")).click();
+  await repos();
+  return vue.element("cout");
+}
+
+// Toutes les stations et « + station », un bloc de l'accueil (#3195) : l'entrée « Tous les projets » de la barre l'ouvre.
+// Rend leur bloc.
+export async function ouvrirToutesLesStations(vue: Jouee): Promise<Faux> {
+  vue.element("projets").children[0]?.click();
+  await repos();
+  return vue.element("toutes-les-stations");
+}

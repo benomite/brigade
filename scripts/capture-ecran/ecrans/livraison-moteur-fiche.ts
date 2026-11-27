@@ -1,7 +1,7 @@
 // La fiche de #7, livrée sur une clé d'API Claude : sa ligne « cooked with » dit le moteur et son prix (#3747).
-import { actionsOfCard } from "../../../app/src/card-actions.ts";
-import { situationOf } from "../../../app/src/story.ts";
-import { discussionOf, storyOf } from "../../../app/test/helpers/cards-said.ts";
+import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
+import { situationDe } from "../../../app/src/histoire.ts";
+import { discussionDe, histoireDe } from "../../../app/test/aides/fiches-dites.ts";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS } from "./cuisine-figee.ts";
 import { AVEC_MOTEUR } from "./livraison-moteur-commun.ts";
@@ -18,10 +18,10 @@ export const ecran: Ecran = {
       reponses: {
         demarrage: demarrage(configuration(PROJETS)),
         espace: [],
-        situation: situationOf(carte),
-        gestesDeFiche: actionsOfCard(carte),
-        lireHistoire: storyOf({ steps: [], cost: { attempts: 1, tokens: 412806, durationMs: 722000, incomplete: false } }),
-        lireDiscussion: discussionOf({ found: true, issue: { title: "Les accès sous plafond", state: "closed", body: { author: "chef", at: "2026-10-12T17:20:00.000Z", body: "Un relevé par station." }, comments: [] } }),
+        situation: situationDe(carte),
+        gestesDeFiche: gestesDeCarte(carte),
+        lireHistoire: histoireDe({ steps: [], cost: { attempts: 1, tokens: 412806, durationMs: 722000, incomplete: false } }),
+        lireDiscussion: discussionDe({ found: true, issue: { title: "Les accès sous plafond", state: "closed", body: { author: "chef", at: "2026-10-12T17:20:00.000Z", body: "Un relevé par station." }, comments: [] } }),
       },
       envois: cuisine(AVEC_MOTEUR),
     };

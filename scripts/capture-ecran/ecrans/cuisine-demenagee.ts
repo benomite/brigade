@@ -1,9 +1,9 @@
 // Ce que les écrans du déménagement partagent (#1095) : « parade », confié par l'app à deux stations
 // appairées — la box, toujours allumée, et ce Mac —, et où il cuit, tel que leurs suivis le disent.
 // L'espace s'ouvre sur sa case de la barre, comme `espace-projet`.
-import type { Terminal } from "../../../app/src/terminals.ts";
-import { machineProposed, calibrationRecommended, type ProjectSeen, type SeenOfProjects } from "../../../app/src/projects/projects.ts";
-import type { StationVue, SeenOfStations } from "../../../app/src/stations/stations.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
+import { machineProposee, calibrageRecommande, type ProjetVu, type VuDesProjets } from "../../../app/src/projets/projets.ts";
+import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
 import { configuration, cuisine, demarrage, type Donnees, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -12,17 +12,17 @@ const ECRAN_DU_SECOND = ["\x1b[1msecond · parade\x1b[0m", "", "  /brigade:secon
 
 const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", pannes: [], dit: "online", version: "", projets: ["cantine"], max: null };
 const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "en-ligne", ligne: "online · no project", pannes: [], dit: "online", version: "", projets: [], max: null };
-const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [BOX, MAC] };
+const STATIONS: VuDesStations = { a: MAINTENANT, stations: [BOX, MAC] };
 
 const station = (id: string, nom: string) => ({ id, nom, etat: "servi" as const, dit: `served by ${nom}`, autoriser: [] });
 // parade cuit sur la box, ou sur ce Mac : les deux le servent, de la même façon.
-export const SUR_LA_BOX: ProjectSeen = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "box", nom: "box" }, stations: [station("box", "box"), station("macbook", "macbook")], servi: null, cuitSur: { id: "box", nom: "box", ici: false }, demenagement: null };
-export const SUR_CE_MAC: ProjectSeen = { ...SUR_LA_BOX, suiviPar: { id: "macbook", nom: "macbook" }, stations: [station("macbook", "macbook"), station("box", "box")], cuitSur: { id: "macbook", nom: "macbook", ici: true } };
+export const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "box", nom: "box" }, stations: [station("box", "box"), station("macbook", "macbook")], servi: null, cuitSur: { id: "box", nom: "box", ici: false }, demenagement: null };
+export const SUR_CE_MAC: ProjetVu = { ...SUR_LA_BOX, suiviPar: { id: "macbook", nom: "macbook" }, stations: [station("macbook", "macbook"), station("box", "box")], cuitSur: { id: "macbook", nom: "macbook", ici: true } };
 
 // Les données d'un écran : parade tel que `projet` le dit ; `reponses`, ce que les gestes rendent.
-export function donnees(projet: ProjectSeen, reponses: Record<string, unknown> = {}): Donnees {
+export function donnees(projet: ProjetVu, reponses: Record<string, unknown> = {}): Donnees {
   const envois = cuisine(RENDUS);
-  const vu: SeenOfProjects = { a: MAINTENANT, projets: [projet], locale: "macbook", recommandee: "box", avertissements: {}, machines: { box: machineProposed(BOX), macbook: machineProposed(MAC) }, calibrage: calibrationRecommended([]) };
+  const vu: VuDesProjets = { a: MAINTENANT, projets: [projet], locale: "macbook", recommandee: "box", avertissements: {}, machines: { box: machineProposee(BOX), macbook: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
   return {
     maintenant: MAINTENANT,
     reponses: { demarrage: { ...demarrage(configuration(PROJETS), (nom) => nom === "parade" && projet.cuitSur?.ici === true), stations: STATIONS, projetsDesStations: vu }, espace: [SECOND], ...reponses },

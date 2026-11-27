@@ -2,14 +2,14 @@
 // rien d'autre (#1307) : « Add a station », ce Mac choisi d'office, et ce qui est à lui seul, posé dès le premier
 // rendu — ses cooks, le dossier des espaces de travail de sa station, ses capacités, les détectées cochées. Ni dépôt
 // ni branche : la première station les sert, ou le clone du projet les dit.
-import type { DefaultsOfTheMachine } from "../../../app/src/projects/projects.ts";
+import type { DefautsDeLaMachine } from "../../../app/src/projets/projets.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
 export const AJOUTER = { cliquer: "#stations-du-projet button.ajout-de-station:not([hidden])" };
 
 // Ce que l'opération du runtime calcule pour ce Mac (#1306) : 10 cœurs, son dossier, ce qu'il a.
-export const DEFAUTS: DefaultsOfTheMachine = {
+export const DEFAUTS: DefautsDeLaMachine = {
   cooks: 8,
   cooksDit: "from this machine's 10 cores: two are kept for the kitchen itself, then about one per cook",
   espaceDeTravail: "/Users/chef/.local/state/brigade/worktrees",

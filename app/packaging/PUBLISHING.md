@@ -63,7 +63,7 @@ Two rules hold for every release, and the rest of the page depends on them:
 
 ## The update manifest
 
-The launch-time check (`app/src/update/android.ts`) reads `latest-android.json` and nothing
+The launch-time check (`app/src/mise-a-jour/android.ts`) reads `latest-android.json` and nothing
 else. Its fields, all in this form:
 
 ```json

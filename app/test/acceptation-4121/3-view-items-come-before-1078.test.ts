@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { ROLE_OF_SECOND } from "../../src/second/launch.ts";
-import { contextOfBlockage } from "../../src/second/context-of-blockage.ts";
+import { ROLE_DU_SECOND } from "../../src/second/lancement.ts";
+import { contexteDuBlocage } from "../../src/second/contexte-du-blocage.ts";
 
 const QUESTION = "pourquoi on est bloqués ?";
 const VUE = {
@@ -24,15 +24,15 @@ const VUE = {
 };
 
 test("first mention of #221, its title, STOPPED and FAULT #221 precedes the first mention of #1078", () => {
-  const context = contextOfBlockage(QUESTION, VUE);
-  const first1078 = context.indexOf("#1078");
-  for (const motive of ["#221", "Espace: sync the board", "STOPPED", "FAULT #221"]) {
-    const rank = context.indexOf(motive);
-    assert.ok(rank >= 0, `${motive} is in the context`);
-    assert.ok(first1078 < 0 || rank < first1078, `${motive} comes before #1078`);
+  const contexte = contexteDuBlocage(QUESTION, VUE);
+  const premier1078 = contexte.indexOf("#1078");
+  for (const motif of ["#221", "Espace: sync the board", "STOPPED", "FAULT #221"]) {
+    const rang = contexte.indexOf(motif);
+    assert.ok(rang >= 0, `${motif} is in the context`);
+    assert.ok(premier1078 < 0 || rang < premier1078, `${motif} comes before #1078`);
   }
   // the role tells the second to answer in that order
-  const role = readFileSync(ROLE_OF_SECOND, "utf8");
+  const role = readFileSync(ROLE_DU_SECOND, "utf8");
   assert.match(role, /why are we blocked|what is happening/i);
   assert.match(role, /(project view|banners?)[^\n]*(first|before)/i);
 });

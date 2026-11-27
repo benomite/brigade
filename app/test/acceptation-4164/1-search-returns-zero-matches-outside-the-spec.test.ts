@@ -6,15 +6,15 @@ import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const racine = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const SPEC = "docs/superpowers/specs/2026-11-24-simplified-process.md";
 
 test("grep for design cook wording finds nothing in docs/ and the bindings, except the spec", () => {
   const r = spawnSync(
     "grep",
     ["-rniE", "design[ _-]?cook|cook[ _-]?design|cook de design|cuisinier design", "docs/", "CLAUDE.md", ".claude-plugin", "agents"],
-    { cwd: root, encoding: "utf8" },
+    { cwd: racine, encoding: "utf8" },
   );
-  const remains = r.stdout.split("\n").filter((l) => l !== "" && !l.startsWith(`${SPEC}:`));
-  assert.deepEqual(remains, []);
+  const restes = r.stdout.split("\n").filter((l) => l !== "" && !l.startsWith(`${SPEC}:`));
+  assert.deepEqual(restes, []);
 });

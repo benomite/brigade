@@ -12,7 +12,7 @@ test("un ticket est d'interface quand sa zone touche la vue de l'app", () => {
   assert.equal(estDInterface({ zone: ["app/src/vue/vue.js"] }), true);
   // Un dossier qui contient la vue la touche.
   assert.equal(estDInterface({ zone: ["runtime/src", "app/src"] }), true);
-  for (const zone of [[], ["runtime/src"], ["docs"], ["scripts/capture-ecran"], ["app/src/facts.ts"]]) {
+  for (const zone of [[], ["runtime/src"], ["docs"], ["scripts/capture-ecran"], ["app/src/faits.ts"]]) {
     assert.equal(estDInterface({ zone }), false, String(zone));
   }
 });

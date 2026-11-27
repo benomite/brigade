@@ -16,7 +16,7 @@
 //         "miseAJour": null | { "visee": "…", "restauree": "…", "le": "<ISO>", "retourRate": false },
 //         "connexionMax": null | { "etat": "connectee" | "perdue" | "inconnue", "depuis": null | "<ISO>" } }
 //     `miseAJour` et `connexionMax` sont ce que l'app dit en panne sur la home
-//     (app/src/outages/) : la dernière mise à jour quand elle a raté et que la
+//     (app/src/pannes/) : la dernière mise à jour quand elle a raté et que la
 //     station est revenue en arrière, et la connexion Max de la machine. Des
 //     versions et des dates, jamais le motif d'un échec ni une commande.
 //     `coeurs`, ceux de la machine : l'app en tire le nombre de cooks qu'elle

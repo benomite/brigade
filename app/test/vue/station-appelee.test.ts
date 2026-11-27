@@ -1,0 +1,188 @@
+// « Cook it on a station that has it » (#1511, épique #1506), sur la carte d'un besoin que la station n'a pas : le clic
+// n'écrit pas le choix, il ouvre sur Stations le formulaire d'une station de ce poste (#1510) avec la capacité qui manque
+// offerte, en plus de celles que la station déclare : chaque case s'appliquant dès qu'elle change (#2920), c'est la cocher
+// qui la déclare. Les cartes sont écrites par le runtime lui-même, relues comme
+// l'app relit le suivi d'une station ; les stations déclarées sont lues par `lireStations` ; la vue est jouée contre le
+// faux pont (aides/fausse-vue.ts).
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { besoinNomme } from "../../../runtime/src/installation/besoins/catalogue.ts";
+import { choixPour } from "../../../runtime/src/installation/besoins/besoins.ts";
+import type { Accueil } from "../../src/accueil.ts";
+import { ALLUMAGE } from "../../src/allumage.ts";
+import { pourLaBarre } from "../../src/barre.ts";
+import { EXEMPLE, type Projet } from "../../src/config.ts";
+import { PALETTE } from "../../src/couleurs.ts";
+import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
+import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
+import type { Panne } from "../../src/pannes/pannes.ts";
+import { lireSuivi } from "../../src/projets/demande.ts";
+import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
+import { lireStations, type Guide } from "../../src/service.ts";
+import type { VuDesStations } from "../../src/stations/stations.ts";
+import { capaciteDuBesoin } from "../../src/vue/stations-declarees.js";
+import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+
+const A = "2026-10-23T10:04:12.000Z";
+const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Panne[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+const ACCUEIL: Accueil = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+// La cuisine de ce poste tourne avec pc/claude, qui ne fournit que du code.
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
+
+const DECLAREES =
+  lireStations(
+    JSON.stringify({
+      etape: { id: "stations", etat: "faite" },
+      proposees: [],
+      absent: null,
+      declarees: [
+        { nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"], cooks: 3, distante: true },
+        { nom: "pc/claude", moteur: "claude", fournit: ["code"], cooks: 2, distante: false },
+      ],
+    }),
+  ) ?? assert.fail("la forme de `installation stations --json` n'est plus lue");
+const guide = (stations: typeof DECLAREES | undefined): Guide => ({
+  projet: "parade",
+  deplie: false,
+  titre: "parade is installed",
+  lecture: { etat: "lue", a: A },
+  etapes: [],
+  courante: null,
+  annonces: { etat: "lues", liste: [] },
+  demarrage: { refus: "nothing to start: the station of this computer runs with the app" },
+  termine: true,
+  ...(stations === undefined ? {} : { controle: { a: A, stations } }),
+});
+
+const FAITS: Faits = {
+  etat: "ouverte",
+  lu: "2026-10-23T10:04:11.000Z",
+  dernierTick: "2026-10-23T10:04:02.000Z",
+  compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
+  dernierEvenement: null,
+  rail: [],
+  cooks: [],
+  attend: [],
+};
+
+const besoin = (id: string) => besoinNomme(id) ?? assert.fail(`aucun besoin « ${id} » au catalogue`);
+const enAttente = (id: string) => ({ ...choixPour({ besoin: besoin(id), preuves: ["the repository asks for it"] }, { projet: "parade", station: "box", ailleurs: [] }), status: "pending" as const });
+
+const vue = (choix: object[]): VuDesProjets => {
+  const lu = lireSuivi(JSON.stringify({ brigade: "projets-suivi", projets: [{ nom: "parade", etat: "servi", choix }] }))[0];
+  const projet: ProjetVu = {
+    nom: "parade",
+    depot: "benomite/parade",
+    base: "main",
+    suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat: "servi", dit: "", autoriser: [] }],
+    servi: null,
+    cuitSur: { id: "g1", nom: "box", ici: false },
+    ...(lu?.choix === undefined ? {} : { choix: lu.choix }),
+  };
+  return { a: A, projets: [projet], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX) }, calibrage: calibrageRecommande([]) };
+};
+
+const DEFAUTS = { cooks: 4, cooksDit: "from this computer's 10 cores", espaceDeTravail: "/tmp/worktrees", capacites: [{ capacite: "docker", nom: "Docker", detectee: true }] };
+
+async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLAREES) {
+  const envoyes: unknown[][] = [];
+  const jouee = await jouerLaVue({
+    demarrage: () => ({
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true, () => true),
+      palette: PALETTE,
+      exemple: EXEMPLE,
+      onglets: ONGLETS,
+      rubriques: RUBRIQUES,
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+      banniere: BANNIERE,
+      calibrage: { modeles: MODELES, efforts: EFFORTS },
+      code: undefined,
+      stations: { a: A, stations: [BOX] } satisfies VuDesStations,
+      accueil: ACCUEIL,
+      projetsDesStations: vue(choix),
+    }),
+    espace: () => [],
+    service: () => guide(stations ?? undefined),
+    defautsDeStation: () => DEFAUTS,
+    changerUneStation: (...args: unknown[]) => {
+      envoyes.push(args);
+      return { fait: "saved" };
+    },
+  });
+  (jouee.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
+  for (let tour = 0; tour < 5; tour++) await repos();
+  // Les lignes de station (et leur formulaire) se posent d'après la lecture de la cuisine : `facts` y porte ses stations.
+  const recue = tenirFaits().recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [] }) }] });
+  jouee.dire("surFaits", { ...recue, demande: jouee.dernier("faits")[0] as number });
+  for (let tour = 0; tour < 5; tour++) await repos();
+  return { jouee, envoyes };
+}
+
+const cliquerSurAilleurs = async (jouee: Awaited<ReturnType<typeof laPage>>["jouee"], id: string) => {
+  const carte = jouee.element("choix-du-projet").dessous("section").find((pose) => pose.dataset.choix === `need:${id}`) ?? assert.fail(`pas de carte « ${id} »`);
+  (carte.dessous("button").find((pose) => pose.textContent === "Cook it on a station that has it") ?? assert.fail("pas de bouton")).click();
+  for (let tour = 0; tour < 5; tour++) await repos();
+};
+// Les réglages de la station, dans « Details » de sa carte sur Stations (#3195) — ouvert, il porte la capacité offerte ;
+// replié, ils ne sont pas ouverts.
+const formulaire = (jouee: Awaited<ReturnType<typeof laPage>>["jouee"]) => {
+  const carte = jouee.element("rail").dessous("section").find(({ className, dataset }) => className === "carte-de-station" && dataset.station === "pc/claude");
+  return carte !== undefined && (carte.dessous("details")[0] as unknown as { open?: boolean } | undefined)?.open === true ? carte.dessous("section").find(({ className }) => className === "station-reglee") : undefined;
+};
+const cochees = (forme: Faux) => forme.dessous("input").filter(({ type, checked, ariaLabel }) => type === "checkbox" && checked).map(({ ariaLabel }) => ariaLabel);
+const caseDe = (forme: Faux, capacite: string) => forme.dessous("input").find(({ type, ariaLabel }) => type === "checkbox" && ariaLabel === capacite) ?? assert.fail(`pas de case « ${capacite} »`);
+
+describe("« Cook it on a station that has it » ouvre, sur Stations, les réglages de la station de ce poste", () => {
+  test("un navigateur qui manque : le formulaire de pc/claude, navigateur-headless offert à côté de code, et rien n'est écrit avant qu'il soit coché", async () => {
+    const { jouee, envoyes } = await laPage([enAttente("browser")]);
+    assert.equal(formulaire(jouee), undefined);
+    await cliquerSurAilleurs(jouee, "browser");
+    const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
+    assert.equal(forme.dataset.station, "pc/claude");
+    assert.deepEqual(cochees(forme), ["code"]);
+    assert.equal(caseDe(forme, "navigateur-headless").checked, false);
+    // Le choix lui-même n'est pas écrit : la carte reste, et rien ne part avant que le chef coche la case.
+    assert.throws(() => jouee.dernier("choisirUneIssue"), /n'a pas appelé/);
+    assert.equal(envoyes.length, 0);
+    // Aucun « Save » : la case cochée part aussitôt, la déclaration entière de la station avec elle.
+    assert.equal(forme.dessous("button").some(({ textContent }) => textContent === "Save"), false);
+    const coche = caseDe(forme, "navigateur-headless");
+    coche.checked = true;
+    coche.declencher("change");
+    for (let tour = 0; tour < 5; tour++) await repos();
+    assert.deepEqual(envoyes[0]?.slice(0, 2), ["parade", "pc/claude"]);
+    assert.deepEqual([...((envoyes[0]?.[2] as { fournit: string[] }).fournit)].sort(), ["code", "navigateur-headless"]);
+  });
+
+  test("un autre besoin, Docker : docker est offert, code reste coché, et la case de Docker est celle du catalogue du poste", async () => {
+    const { jouee } = await laPage([enAttente("docker")]);
+    await cliquerSurAilleurs(jouee, "docker");
+    const forme = formulaire(jouee) ?? assert.fail("le formulaire n'est pas ouvert");
+    assert.equal(forme.dataset.station, "pc/claude");
+    assert.deepEqual(cochees(forme), ["code"]);
+    assert.equal(caseDe(forme, "docker").checked, false);
+    assert.equal(forme.dessous("input").filter(({ ariaLabel }) => ariaLabel === "docker").length, 1);
+  });
+
+  test("une capacité qu'aucune case n'offrait : elle est offerte une seule fois, décochée", async () => {
+    const { jouee } = await laPage([enAttente("postgres")]);
+    await cliquerSurAilleurs(jouee, "postgres");
+    const forme = formulaire(jouee) ?? assert.fail("fermé");
+    assert.deepEqual(cochees(forme), ["code"]);
+    assert.equal(forme.dessous("input").filter(({ ariaLabel }) => ariaLabel === "postgres").length, 1);
+  });
+
+  test("aucune station lue : rien ne s'ouvre, une ligne sous la carte le dit", async () => {
+    const { jouee } = await laPage([enAttente("browser")], null);
+    await cliquerSurAilleurs(jouee, "browser");
+    assert.equal(formulaire(jouee), undefined);
+    assert.match(jouee.element("choix-du-projet").dessous("p").find(({ className }) => className === "refus-du-choix")?.textContent ?? "", /No station of the project read yet/);
+  });
+
+  test("la capacité d'un besoin : celle que le runtime déclare en premier au catalogue", () => {
+    for (const id of ["browser", "postgres", "mysql", "redis", "docker"]) assert.equal(capaciteDuBesoin(id), besoin(id).fourni.capacites[0], id);
+    assert.equal(capaciteDuBesoin("inconnu"), "inconnu");
+  });
+});

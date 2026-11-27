@@ -2,8 +2,8 @@
 // projet lus dans son dépôt, ses tickets
 // ordinaires sur ce poste, et ses couleurs. Un Mac sert la station de parade ; un PC sous Windows aussi, sans tickets
 // ordinaires ; le téléphone a la largeur d'un téléphone.
-import { blockOfOrdinary } from "../../../app/src/ordinary.ts";
-import { REMOVE } from "../../../app/src/removal.ts";
+import { blocDesOrdinaires } from "../../../app/src/ordinaires.ts";
+import { RETIRER } from "../../../app/src/retrait.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { LUS } from "./reglages-du-projet.ts";
@@ -25,9 +25,9 @@ export function donnees(poste: Poste): Donnees {
       demarrage: poste === "pc" ? { ...pose, poste: { nom: "this PC", mac: false } } : pose,
       espace: [],
       reglagesDuProjet: LUS,
-      ordinaires: blockOfOrdinary(parade, poste === "pc" ? "win32" : "darwin", stations, true),
-      // Ses gestes de retrait, tels que removal.ts les rend : Settings n'en garde que le premier, une ligne de toi.
-      retrait: { projet: "parade", titre: "Remove “parade”", retirer: { libelle: REMOVE, lignes: ["“parade” leaves the app: its tab, its colors.", "Nothing is sent to its station."] } },
+      ordinaires: blocDesOrdinaires(parade, poste === "pc" ? "win32" : "darwin", stations, true),
+      // Ses gestes de retrait, tels que retrait.ts les rend : Settings n'en garde que le premier, une ligne de toi.
+      retrait: { projet: "parade", titre: "Remove “parade”", retirer: { libelle: RETIRER, lignes: ["“parade” leaves the app: its tab, its colors.", "Nothing is sent to its station."] } },
     },
     envois: {
       ...cuisine(RENDUS),

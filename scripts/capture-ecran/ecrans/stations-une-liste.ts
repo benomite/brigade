@@ -2,8 +2,8 @@
 // publie sa présence, et s'est aussi enregistrée sous le compte GitHub. parade-box fait la cuisine de cinq projets, mais
 // rien ne lui est choisi dans l'app ; macbook-air-de-benoit ne fait la cuisine d'aucun, mais un dépôt lui est choisi ;
 // nas n'est qu'enregistrée. Avant #1778, la section les listait deux fois, et les deux lectures se contredisaient.
-import { type Home, lineOfStation } from "../../../app/src/home.ts";
-import type { StationVue, SeenOfStations } from "../../../app/src/stations/stations.ts";
+import { type Accueil, ligneDeStation } from "../../../app/src/accueil.ts";
+import type { StationVue, VuDesStations } from "../../../app/src/stations/stations.ts";
 import * as contrat from "../../../runtime/src/enregistrement-station/contrat.ts";
 import { stationDuGist, type StationEnregistree, type StationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
@@ -15,7 +15,7 @@ const IL_Y_A = (minutes: number) => new Date(INSTANT - minutes * 60_000).toISOSt
 // Ce que les gists de présence disent, tel que l'app le lit (stations/stations.ts).
 const BOX: StationVue = { id: "f0a1", nom: "parade-box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: ["brigade", "calculus-workspace", "espace", "mirrorscreen", "mirrorlab"], max: null };
 const MAC: StationVue = { id: "f0b2", nom: "macbook-air-de-benoit", machine: "macOS 15 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: [], max: null };
-const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [MAC, BOX] };
+const STATIONS: VuDesStations = { a: MAINTENANT, stations: [MAC, BOX] };
 
 // Ce que les gists d'enregistrement disent, écrits par le lecteur du runtime (`stationDuGist`).
 const enregistrement = (name: string, platform: string, machine: string) =>
@@ -41,7 +41,7 @@ export function stationsDuChef(dit: string, etapes: Etape[] = [], depots: { depo
     hauteur: 900,
     etapes,
     donnees: () => {
-      const accueil: Home = { projets: [], stations: STATIONS.stations.map((station) => lineOfStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+      const accueil: Accueil = { projets: [], stations: STATIONS.stations.map((station) => ligneDeStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
       return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil }, stationsDuCompte: DU_COMPTE, depotsDuChef: depots }, envois: cuisine(RENDUS) };
     },
   };

@@ -1,7 +1,7 @@
 // L'espace de « parade », son second qui pose une question à choix (#1520, épique #1518) : sous le terminal, un bouton
 // par choix que le second a publié par son canal (runtime/src/second-propositions/), chacun avec son libellé d'une ligne.
 import type { Proposition } from "../../../runtime/src/second-propositions/proposition.ts";
-import type { Terminal } from "../../../app/src/terminals.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 

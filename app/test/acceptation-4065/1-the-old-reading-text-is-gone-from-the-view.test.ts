@@ -5,14 +5,14 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const VUE = join(import.meta.dirname, "../../src/vue");
-const OLD = "Reading the stations you have paired, on GitHub…";
-const theFiles = (folder: string): string[] =>
-  readdirSync(folder, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? theFiles(join(folder, entry.name)) : [join(folder, entry.name)]));
+const VIEUX = "Reading the stations you have paired, on GitHub…";
+const lesFichiers = (dossier: string): string[] =>
+  readdirSync(dossier, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() ? lesFichiers(join(dossier, entree.name)) : [join(dossier, entree.name)]));
 
 test("the old text « Reading the stations you have paired, on GitHub… » is gone from app/src/vue/", () => {
-  const found = theFiles(VUE).filter((file) => {
-    const text = readFileSync(file, "utf8");
-    return text.includes(OLD) || text.includes("the stations you have paired, on GitHub");
+  const trouves = lesFichiers(VUE).filter((fichier) => {
+    const texte = readFileSync(fichier, "utf8");
+    return texte.includes(VIEUX) || texte.includes("the stations you have paired, on GitHub");
   });
-  assert.deepEqual(found, []);
+  assert.deepEqual(trouves, []);
 });

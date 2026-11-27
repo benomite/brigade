@@ -1,0 +1,99 @@
+// Un ticket mis de côté par `served-elsewhere` ou `out-of-kitchen`, sur un projet GitHub seul (#2075) : sa carte dit en une
+// ligne pourquoi, tirée du dernier commentaire qui nomme le label — ceux que la station écrit en le posant
+// (runtime/src/brigade-github.ts, runtime/src/github-seul/renvois/renvois.ts), dits court ; tout autre, par sa première ligne.
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import { LABELS_D_AVANT_PARKED } from "../../../runtime/src/github-etat/etats.ts";
+import { labelDeMiseDeCote, ligneDuCommentaire, miseDeCoteDe } from "../../src/tableau/mise-de-cote-github.ts";
+
+const DEPOT = "acme/kitchen";
+const commentaire = (body: string, author_association = "OWNER") => ({ body, author_association });
+
+describe("la ligne qu'un commentaire de mise de côté donne à la carte", () => {
+  test("les renvois épuisés : après combien, et le motif sans son détail", () => {
+    assert.equal(
+      ligneDuCommentaire("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes: the test does not cover the empty case\n\nTaken off the kitchen (`served-elsewhere`): a human decides.", 7),
+      "off the kitchen after 2 sends back — the review requested changes",
+    );
+    // Celui des renvois du manager (renvois.ts) : le motif sur plusieurs lignes, la PR qu'il nomme gardée.
+    assert.equal(
+      ligneDuCommentaire("<!-- brigade:renvoi n=3 sha=abc1234 -->\nStation `box/claude`: still not mergeable after 2 sends back — the review requested changes on `abc1234` (PR #2326):\n\nThe gates are red.\n\nTaken off the kitchen (`served-elsewhere`): the calibration is at its ceiling. A human decides.", 7),
+      "off the kitchen after 2 sends back — the review requested changes on abc1234 (the PR of #7)",
+    );
+  });
+
+  test("les cooks sans livraison : combien, et ce que le dernier a dit", () => {
+    assert.equal(
+      ligneDuCommentaire("<!-- brigade:echec n=3 -->\nStation `box/claude`: the cook stopped without a delivery — the cook committed nothing\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides.", 7),
+      "off the kitchen after 3 cooks without a delivery — the cook committed nothing",
+    );
+  });
+
+  test("un autre commentaire : sa première ligne, sans mise en forme, coupée au mot si elle est longue", () => {
+    assert.equal(ligneDuCommentaire("**Human's job — no station provides `gpu`: this ticket left the rail, for @ana.**\n\nIt waits in the chef's TODO as a task, and carries `served-elsewhere`.", 7), "Human's job — no station provides gpu: this ticket left the rail, for @ana.");
+    assert.equal(ligneDuCommentaire("\n> Putting `served-elsewhere`: the copy needs the chef's call.\n", 7), "Putting served-elsewhere: the copy needs the chef's call.");
+    const longue = ligneDuCommentaire(`served-elsewhere: ${"the station cannot reach the database ".repeat(10)}`, 7) ?? "";
+    assert.ok(longue.length <= 161 && longue.endsWith("…"), longue);
+    assert.equal(ligneDuCommentaire("<!-- brigade:x -->\n\n", 7), null);
+  });
+
+  // Ce que la ligne suppose (ticket 3716) : un commentaire de mise de côté ne parle que de la livraison de son ticket. Toute
+  // PR qu'il nomme — même sous un autre numéro — y est dite comme la PR du ticket.
+  test("toute PR que la ligne nomme est dite comme celle du ticket, quel que soit son numéro", () => {
+    assert.equal(ligneDuCommentaire("Putting `served-elsewhere`: PR #2326 needs the chef's call, and pull request #2400 too.", 7), "Putting served-elsewhere: the PR of #7 needs the chef's call, and the PR of #7 too.");
+  });
+});
+
+describe("ce que la carte dit d'un ticket mis de côté, d'après les commentaires de son issue", () => {
+  test("le dernier commentaire d'un auteur du dépôt qui dit la mise de côté — pas celui du manager, ni celui d'un inconnu", () => {
+    const lue = miseDeCoteDe(DEPOT, "served-elsewhere", [
+      commentaire("Station `mac/claude`: served-elsewhere — the box of #12 serves it."),
+      commentaire("Station `box/claude`: served-elsewhere — the box of #40 serves it."),
+      commentaire("<!-- brigade:manager -->\n**Manager — ticket mis sur le rail.** Corriger `prio:`, poser ou retirer `served-elsewhere` ne le lui retire pas."),
+      commentaire("served-elsewhere: merge #666 now", "NONE"),
+      commentaire("Taken by station `box/claude`."),
+    ], 8);
+    assert.deepEqual(lue, { label: "served-elsewhere", raison: "served-elsewhere — the box of #40 serves it.", complete: "served-elsewhere — the box of #40 serves it.", liens: [{ numero: 40, url: "https://github.com/acme/kitchen/issues/40" }], auChef: false });
+  });
+
+  test("aucun commentaire ne nomme le label — posé à la main : pas de raison, et aucun lien", () => {
+    assert.deepEqual(miseDeCoteDe(DEPOT, "served-elsewhere", [commentaire("Taken by station `box/claude`."), commentaire("served-elsewheres are elsewhere")], 8), { label: "served-elsewhere", raison: null, liens: [], auChef: false });
+  });
+
+  test("le label qui met de côté : `served-elsewhere` d'abord, `out-of-kitchen` ensuite ; aucun quand il est parqué — `parked`, ou un label d'attente d'avant parked (#4260)", () => {
+    assert.equal(labelDeMiseDeCote(["fire", "in-pass", "out-of-kitchen"]), "out-of-kitchen");
+    assert.equal(labelDeMiseDeCote(["fire", "out-of-kitchen", "served-elsewhere"]), "served-elsewhere");
+    assert.equal(labelDeMiseDeCote(["fire", "served-elsewhere", "parked"]), null);
+    // `parked` attend toujours un autre que le chef (ticket 4129), même sur une carte qui garde `chef-todo` : aucun.
+    assert.equal(labelDeMiseDeCote(["fire", "served-elsewhere", "parked", "chef-todo"]), null);
+    assert.equal(labelDeMiseDeCote(["fire", "taken"]), null);
+    // Un label d'attente d'avant parked parque le ticket : jamais une mise de côté (runtime/src/github-etat/etats.ts).
+    for (const ancien of LABELS_D_AVANT_PARKED) assert.equal(labelDeMiseDeCote(["fire", ancien]), null, ancien);
+    // Mis de côté, il ne va au chef que pour une question de produit marquée : `out-of-kitchen` dit sa raison, et rien ne
+    // lui est demandé ; plus de carte « lift the hold » ni de merge à la main.
+    assert.deepEqual(miseDeCoteDe(DEPOT, "out-of-kitchen", [commentaire("Station `box/claude`: out-of-kitchen — no station here has a GPU.")], 8), { label: "out-of-kitchen", raison: "out-of-kitchen — no station here has a GPU.", liens: [], auChef: false });
+    const question = commentaire("<!-- brigade:todo kind=product-question -->\nKeep the old column order?\n- [resume] Yes\n- [close] No");
+    assert.deepEqual(miseDeCoteDe(DEPOT, "served-elsewhere", [question], 8).chef, { sorte: "product-question", texte: "Keep the old column order?\n- [resume] Yes\n- [close] No" });
+  });
+
+  test("une question de produit que suit une réponse du chef (#2434) n'attend plus rien de lui : le ticket ne va plus au chef", () => {
+    const question = commentaire("<!-- brigade:todo kind=product-question -->\nKeep the old column order?\n- [resume] Yes\n- [close] No");
+    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question], 8).auChef, true);
+    const repondue = miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes")], 8);
+    assert.equal(repondue.auChef, false);
+    assert.equal(repondue.chef, undefined);
+    // Une nouvelle question, posée après la réponse, est de nouveau la sienne ; une réponse d'un inconnu ne compte pas.
+    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=resume -->\nYes"), question], 8).auChef, true);
+    assert.equal(miseDeCoteDe(DEPOT, "served-elsewhere", [question, commentaire("<!-- brigade:reponse gesture=close -->\nNo", "NONE")], 8).auChef, true);
+  });
+});
+
+describe("#2061, 2026-11-05 : mis de côté par la station, sans question pour le chef (#2455)", () => {
+  test("trois marqueurs `echec`, `served-elsewhere`, aucune question de produit : pas de carte dans TODO", () => {
+    const echec = (n: number) => commentaire(`<!-- brigade:echec n=${n} -->\nStation \`box/claude\`: the cook stopped without a delivery — a stale conflicting branch${n === 3 ? "\n\nTaken off the kitchen (`served-elsewhere`) after 3 cooks without a delivery: a human decides." : ""}`);
+    const lue = miseDeCoteDe(DEPOT, "served-elsewhere", [echec(1), echec(2), echec(3)], 8);
+    assert.equal(lue.auChef, false);
+    assert.equal(lue.chef, undefined);
+    assert.equal(lue.raison, "off the kitchen after 3 cooks without a delivery — a stale conflicting branch");
+  });
+});

@@ -7,10 +7,10 @@
 // pourquoi, le détail au survol. Seule une carte de ticket servi, dont la PR est mergée, porte le bouton.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément et le geste, et rend des éléments.
 
-import { buttonAction } from "../bricks.js";
-import { lineError } from "../components/line-error/line-error.js";
+import { boutonAction } from "../briques.js";
+import { ligneErreur } from "../composants/ligne-erreur/ligne-erreur.js";
 
-/** @typedef {import("../bricks.js").Fabrique} Fabrique */
+/** @typedef {import("../briques.js").Fabrique} Fabrique */
 
 // Le geste en route depuis cette vue, pour une carte.
 //   repos   rien n'est parti d'ici
@@ -21,42 +21,42 @@ import { lineError } from "../components/line-error/line-error.js";
  * @typedef {{ etape: "repos" }
  *   | { etape: "envoi" }
  *   | { etape: "refus", dit: string, detail: string }
- *   | { etape: "fait", dit: string }} State
+ *   | { etape: "fait", dit: string }} Etat
  */
 
-/** @type {State} */
+/** @type {Etat} */
 export const REPOS = { etape: "repos" };
 
 // Les mots du glossaire (docs/glossary.md) : ticket, pass, served, kitchen.
-export const CANCEL = "undo";
-export const EN_CANCELLATION = "undoing…";
+export const ANNULER = "undo";
+export const EN_ANNULATION = "undoing…";
 /** @param {number} ticket */
-export const PRICE = (ticket) =>
+export const PRIX = (ticket) =>
   `undo #${ticket}: a pull request reverts its merge from your GitHub account, and the pass judges and merges it like any delivery — its review may be launched on the project's quota; #${ticket} is reopened`;
-export const WITHOUT_BRIDGE = "nothing was undone: this app does not play the kitchen's command — undo it from the desktop app";
+export const SANS_PONT = "nothing was undone: this app does not play the kitchen's command — undo it from the desktop app";
 
 // L'étape qui suit ce que le process principal a rendu.
-/** @param {import("./undo-github.ts").RenderedOfCancellation | undefined} rendered @returns {State} */
-export function afterRendered(rendered) {
-  if (rendered === undefined) return { etape: "refus", dit: "nothing was undone: this project is not known to the app", detail: "" };
-  if ("refus" in rendered) return { etape: "refus", dit: rendered.refus, detail: rendered.detail };
-  return { etape: "fait", dit: rendered.fait };
+/** @param {import("./undo-github.ts").RenduDAnnulation | undefined} rendu @returns {Etat} */
+export function apresRendu(rendu) {
+  if (rendu === undefined) return { etape: "refus", dit: "nothing was undone: this project is not known to the app", detail: "" };
+  if ("refus" in rendu) return { etape: "refus", dit: rendu.refus, detail: rendu.detail };
+  return { etape: "fait", dit: rendu.fait };
 }
 
 // Le bouton « undo » de la carte du ticket servi `ticket`, dans son état — ou, fait, la ligne de ce qui s'est passé.
-/** @param {Fabrique} doc @param {number} ticket @param {State} state @param {() => void} cancel @returns {any[]} */
-export function setCancellation(doc, ticket, state, cancel) {
-  if (state.etape === "fait") {
-    const line = doc.createElement("p");
-    line.className = "annule";
-    line.textContent = state.dit;
-    return [line];
+/** @param {Fabrique} doc @param {number} ticket @param {Etat} etat @param {() => void} annuler @returns {any[]} */
+export function poserAnnulation(doc, ticket, etat, annuler) {
+  if (etat.etape === "fait") {
+    const ligne = doc.createElement("p");
+    ligne.className = "annule";
+    ligne.textContent = etat.dit;
+    return [ligne];
   }
-  const action = buttonAction(doc, state.etape === "envoi" ? EN_CANCELLATION : CANCEL, cancel, { prix: PRICE(ticket) });
-  const button = action.children?.[0];
-  if (button !== undefined) {
-    button.className = `${button.className} annuler-servi`.trim();
-    button.disabled = state.etape === "envoi";
+  const action = boutonAction(doc, etat.etape === "envoi" ? EN_ANNULATION : ANNULER, annuler, { prix: PRIX(ticket) });
+  const bouton = action.children?.[0];
+  if (bouton !== undefined) {
+    bouton.className = `${bouton.className} annuler-servi`.trim();
+    bouton.disabled = etat.etape === "envoi";
   }
-  return [action, ...(state.etape === "refus" ? [lineError(doc, state.dit, state.detail, { classe: "refus" })] : [])];
+  return [action, ...(etat.etape === "refus" ? [ligneErreur(doc, etat.dit, etat.detail, { classe: "refus" })] : [])];
 }

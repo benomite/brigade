@@ -4,88 +4,88 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkedTodo } from "../../../src/vue/parked/parked-todo.js";
-import { Fake } from "../../helpers/false-vue.ts";
+import { Faux } from "../../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Fake(balise) };
-const rec = (ticket: number, more: object = {}) => ({ ticket, who: "chef", what: `thing ${ticket}`, until: "2026-12-01", step: "Cooks", ...more });
+const doc = { createElement: (balise: string) => new Faux(balise) };
+const rec = (ticket: number, plus: object = {}) => ({ ticket, who: "chef", what: `thing ${ticket}`, until: "2026-12-01", step: "Cooks", ...plus });
 const headOf = (n: number) => `TODO (${n})`;
 const [NO_WHAT, NO_UNTIL, OPEN_PARK] = ["for what: not given", "no date set", "park or unpark…"];
-const items = (todo: Fake) => todo.dessous("li").filter(({ dataset }) => dataset.ticket !== undefined);
-const head = (todo: Fake) => todo.dessous("p").find(({ className }) => className === "tete-du-todo")?.textContent;
-const line = (item: Fake) => item.dessous("span").find(({ className }) => className === "qui-jusqua")?.textContent;
+const items = (todo: Faux) => todo.dessous("li").filter(({ dataset }) => dataset.ticket !== undefined);
+const tete = (todo: Faux) => todo.dessous("p").find(({ className }) => className === "tete-du-todo")?.textContent;
+const ligne = (item: Faux) => item.dessous("span").find(({ className }) => className === "qui-jusqua")?.textContent;
 
 test("the head counts the items, and an answered item leaves the count; a second click sends nothing more", () => {
   const calls: unknown[][] = [];
-  const todo = parkedTodo(doc, { records: [rec(1), rec(2), rec(3, { who: "Camille" })], chef: "chef", choices: ["go"], answer: (...a: unknown[]) => void calls.push(a) }) as unknown as Fake;
-  assert.equal(head(todo), headOf(2));
-  const button = items(todo)[0]!.dessous("button")[0]!;
-  button.click();
-  button.click();
+  const todo = parkedTodo(doc, { records: [rec(1), rec(2), rec(3, { who: "Camille" })], chef: "chef", choices: ["go"], answer: (...a: unknown[]) => void calls.push(a) }) as unknown as Faux;
+  assert.equal(tete(todo), headOf(2));
+  const bouton = items(todo)[0]!.dessous("button")[0]!;
+  bouton.click();
+  bouton.click();
   assert.deepEqual(calls, [[1, "go"]]);
-  assert.equal(head(todo), headOf(1));
+  assert.equal(tete(todo), headOf(1));
 });
 
 test("an item says who it waits for and until when, and what is not known; for what is the line above", () => {
-  const todo = parkedTodo(doc, { records: [rec(4), rec(5, { what: null, until: null }), rec(6, { who: "Camille" })], chef: "chef", choices: [], answer: () => {} }) as unknown as Fake;
-  const [four, five] = items(todo);
-  assert.equal(line(four!), "waits for chef · until 2026-12-01");
-  assert.deepEqual(four!.dessous("p").map(({ className, textContent }) => [className, textContent]), [["demande-du-todo", "thing 4"]]);
-  assert.equal(line(five!), `waits for chef · ${NO_WHAT} · ${NO_UNTIL}`);
-  assert.deepEqual(five!.dessous("p"), []);
-  const other = parkedTodo(doc, { records: [rec(6, { who: "Camille" })], chef: "Camille", choices: [], answer: () => {} }) as unknown as Fake;
-  assert.equal(line(items(other)[0]!), "waits for Camille · until 2026-12-01");
+  const todo = parkedTodo(doc, { records: [rec(4), rec(5, { what: null, until: null }), rec(6, { who: "Camille" })], chef: "chef", choices: [], answer: () => {} }) as unknown as Faux;
+  const [quatre, cinq] = items(todo);
+  assert.equal(ligne(quatre!), "waits for chef · until 2026-12-01");
+  assert.deepEqual(quatre!.dessous("p").map(({ className, textContent }) => [className, textContent]), [["demande-du-todo", "thing 4"]]);
+  assert.equal(ligne(cinq!), `waits for chef · ${NO_WHAT} · ${NO_UNTIL}`);
+  assert.deepEqual(cinq!.dessous("p"), []);
+  const autre = parkedTodo(doc, { records: [rec(6, { who: "Camille" })], chef: "Camille", choices: [], answer: () => {} }) as unknown as Faux;
+  assert.equal(ligne(items(autre)[0]!), "waits for Camille · until 2026-12-01");
 });
 
 test("each item can have its own buttons, the recommended one filled; without any, no row of buttons", () => {
   const calls: unknown[][] = [];
   const choices = ({ ticket }: { ticket: number }) => (ticket === 7 ? [{ texte: "Yes", recommande: true }, { texte: "No", recommande: false }] : []);
-  const todo = parkedTodo(doc, { records: [rec(7), rec(8)], chef: "chef", choices, answer: (...a: unknown[]) => void calls.push(a) }) as unknown as Fake;
-  const [seven, eight] = items(todo);
-  assert.deepEqual(seven!.dessous("button").map(({ textContent, className }) => [textContent, className]), [["Yes", "recommande"], ["No", ""]]);
-  assert.deepEqual(eight!.dessous("div"), []);
-  seven!.dessous("button")[1]!.click();
+  const todo = parkedTodo(doc, { records: [rec(7), rec(8)], chef: "chef", choices, answer: (...a: unknown[]) => void calls.push(a) }) as unknown as Faux;
+  const [sept, huit] = items(todo);
+  assert.deepEqual(sept!.dessous("button").map(({ textContent, className }) => [textContent, className]), [["Yes", "recommande"], ["No", ""]]);
+  assert.deepEqual(huit!.dessous("div"), []);
+  sept!.dessous("button")[1]!.click();
   assert.deepEqual(calls, [[7, "No"]]);
 });
 
 test("read-only, an item is listed without any button or park control", () => {
-  const todo = parkedTodo(doc, { records: [rec(9)], chef: "chef", choices: ["go"], answer: () => {}, readOnly: "no write access", control: () => new Fake("div") }) as unknown as Fake;
+  const todo = parkedTodo(doc, { records: [rec(9)], chef: "chef", choices: ["go"], answer: () => {}, readOnly: "no write access", control: () => new Faux("div") }) as unknown as Faux;
   assert.equal(items(todo).length, 1);
   assert.equal(todo.dessous("button").length, 0);
 });
 
 test("with `open`, an item's number and title open its card in one click, its title said on hover; without it, they are only read", () => {
-  const openEntries: number[] = [];
-  const todo = parkedTodo(doc, { records: [rec(11, { title: "Le menu" }), rec(12)], chef: "chef", choices: [], answer: () => {}, open: (n) => void openEntries.push(n), openTitle: (n) => `see #${n}` }) as unknown as Fake;
+  const ouvertes: number[] = [];
+  const todo = parkedTodo(doc, { records: [rec(11, { title: "Le menu" }), rec(12)], chef: "chef", choices: [], answer: () => {}, open: (n) => void ouvertes.push(n), openTitle: (n) => `see #${n}` }) as unknown as Faux;
   const [a, b] = items(todo).map((item) => item.dessous("button")[0]!);
   assert.deepEqual([a!.textContent, b!.textContent, a!.title], ["#11 Le menu", "#12", "see #11"]);
   a!.click();
-  assert.deepEqual(openEntries, [11]);
-  const parDefault = parkedTodo(doc, { records: [rec(10)], chef: "chef", choices: [], answer: () => {}, open: () => {} }) as unknown as Fake;
-  assert.equal(parDefault.dessous("button")[0]?.title, "open #10's card");
-  const readOne = parkedTodo(doc, { records: [rec(13, { title: "Le menu" })], chef: "chef", choices: [], answer: () => {} }) as unknown as Fake;
-  assert.equal(readOne.dessous("strong")[0]?.textContent, "#13 Le menu");
-  assert.equal(readOne.dessous("button").length, 0);
+  assert.deepEqual(ouvertes, [11]);
+  const parDefaut = parkedTodo(doc, { records: [rec(10)], chef: "chef", choices: [], answer: () => {}, open: () => {} }) as unknown as Faux;
+  assert.equal(parDefaut.dessous("button")[0]?.title, "open #10's card");
+  const lu = parkedTodo(doc, { records: [rec(13, { title: "Le menu" })], chef: "chef", choices: [], answer: () => {} }) as unknown as Faux;
+  assert.equal(lu.dessous("strong")[0]?.textContent, "#13 Le menu");
+  assert.equal(lu.dessous("button").length, 0);
 });
 
 test("« park or unpark… » opens the control under its item, closes it, and an opened one stays open on the next render", () => {
   const opened = new Set<number>();
-  const control = (r: { ticket: number }) => Object.assign(new Fake("div"), { className: `control-${r.ticket}` });
-  const set = () => parkedTodo(doc, { records: [rec(14), rec(15)], chef: "chef", choices: [], answer: () => {}, control, opened }) as unknown as Fake;
-  const controls = (todo: Fake) => todo.dessous("div").filter(({ className }) => className.startsWith("control-")).map(({ className }) => className);
-  const todo = set();
+  const control = (r: { ticket: number }) => Object.assign(new Faux("div"), { className: `control-${r.ticket}` });
+  const poser = () => parkedTodo(doc, { records: [rec(14), rec(15)], chef: "chef", choices: [], answer: () => {}, control, opened }) as unknown as Faux;
+  const controls = (todo: Faux) => todo.dessous("div").filter(({ className }) => className.startsWith("control-")).map(({ className }) => className);
+  const todo = poser();
   assert.deepEqual(controls(todo), []);
-  const open = (t: Fake, n: number) => items(t)[n]!.dessous("button").find(({ dataset }) => dataset.action === "open-park")!.click();
+  const ouvrir = (t: Faux, n: number) => items(t)[n]!.dessous("button").find(({ dataset }) => dataset.action === "open-park")!.click();
   assert.deepEqual(items(todo)[0]!.dessous("button").map(({ textContent }) => textContent), [OPEN_PARK]);
-  open(todo, 1);
+  ouvrir(todo, 1);
   assert.deepEqual(controls(todo), ["control-15"]);
   assert.deepEqual([...opened], [15]);
-  assert.deepEqual(controls(set()), ["control-15"]);
-  open(todo, 1);
+  assert.deepEqual(controls(poser()), ["control-15"]);
+  ouvrir(todo, 1);
   assert.deepEqual(controls(todo), []);
   assert.deepEqual([...opened], []);
-  const reopened = set();
-  open(reopened, 0);
-  assert.deepEqual(controls(reopened), ["control-14"]);
-  open(reopened, 0);
-  assert.deepEqual(controls(reopened), []);
+  const rouvert = poser();
+  ouvrir(rouvert, 0);
+  assert.deepEqual(controls(rouvert), ["control-14"]);
+  ouvrir(rouvert, 0);
+  assert.deepEqual(controls(rouvert), []);
 });

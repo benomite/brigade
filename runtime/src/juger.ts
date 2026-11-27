@@ -198,7 +198,7 @@ function questionAuChef(valeur: unknown): string | null {
 }
 
 // Une ligne de la carte (#3434) : une phrase sur une ligne, sans le « ? » qui la ferait lire pour la question de la carte
-// (app : board/set-aside-github.ts, `carteDeLEcart`). Rien d'autre n'en est une.
+// (app : tableau/mise-de-cote-github.ts, `carteDeLEcart`). Rien d'autre n'en est une.
 const uneLigne = (valeur: unknown): string | null => phrase(phrase(valeur)?.replace(/\s+/g, " ").replace(/[\s?]+$/, "") ?? null);
 const REPONSES_MAX = 4;
 

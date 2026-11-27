@@ -1,0 +1,128 @@
+/* La pastille de l'app (ticket 2917, maquette de docs/maquettes/app/) : posée par pastille.js, qui seul choisit la forme
+   et le ton. Aucune autre règle de la vue ne dessine une pastille ; un écran ne pose que sa place (marges, rangée). */
+
+/* Une couleur par ton. Un mot qui n'est pas d'un ton garde le marqueur vide et le texte nu. */
+[data-ton="vert"] {
+  --ton: var(--vert);
+}
+[data-ton="jaune"] {
+  --ton: var(--jaune);
+}
+[data-ton="rouge"] {
+  --ton: var(--rouge);
+}
+[data-ton="bleu"] {
+  --ton: var(--bleu);
+}
+[data-ton="orange"] {
+  --ton: var(--orange);
+}
+[data-ton="gris"] {
+  --ton: var(--gris);
+}
+
+/* Le marqueur : un disque de 10 px, à la couleur du ton. */
+.pastille {
+  display: inline-block;
+  flex: none;
+  align-self: center;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--discret);
+  border-radius: 50%;
+}
+.pastille[data-ton] {
+  background: var(--ton);
+  border-color: var(--ton);
+}
+/* La forme porte l'information, la couleur la renforce : en niveaux de gris, un disque plein, un losange, un carré,
+   un anneau creux, un triangle et une pause ne se confondent pas. */
+.pastille[data-forme="losange"] {
+  border-radius: 0;
+  transform: rotate(45deg) scale(0.85);
+}
+.pastille[data-forme="carre"] {
+  border-radius: 0;
+}
+.pastille[data-forme="anneau"] {
+  background: transparent;
+  border-width: 2px;
+}
+.pastille[data-forme="pause"] {
+  border: 0;
+  border-radius: 0;
+  width: 3px;
+  margin-right: var(--pas-3);
+  background: var(--ton);
+  box-shadow: 5px 0 0 var(--ton);
+}
+.pastille[data-forme="triangle"] {
+  border: 0;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+/* Au coin d'une case (la barre des projets) : cernée du fond de la barre. Pas encore lue, elle est en pointillé ;
+   sans faits, c'est un « ! » sans couleur d'état. */
+.pastille[data-pose="coin"] {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  font-size: var(--taille-meta);
+  font-weight: 700;
+  line-height: 8px;
+  text-align: center;
+  background-color: var(--barre);
+  box-shadow: 0 0 0 2px var(--barre);
+}
+.pastille[data-pose="coin"][data-ton] {
+  background-color: var(--ton);
+}
+.pastille[data-pose="coin"][data-lu="en-cours"] {
+  border-style: dotted;
+}
+.pastille[data-pose="coin"][data-lu="non"] {
+  color: var(--texte);
+  border-color: var(--texte);
+}
+
+/* La pilule : le mot d'état, arrondi, son marqueur à gauche. Une seule forme, pour les six états d'un ticket
+   (`data-pastille`) comme pour le mot d'état d'une station ou d'un projet (`pilule`). */
+.pilule,
+[data-pastille] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
+  padding: var(--pas-1) var(--pas-3);
+  font-family: var(--police-interface);
+  font-size: var(--taille-meta);
+  font-weight: 600;
+  line-height: 1.3;
+  color: inherit;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-pastille);
+  white-space: nowrap;
+}
+.pilule[data-ton] {
+  border-color: var(--ton);
+}
+[data-pastille="queued"] {
+  --ton: var(--gris);
+}
+[data-pastille="taken"] {
+  --ton: var(--bleu);
+}
+[data-pastille="pass"] {
+  --ton: var(--jaune);
+}
+[data-pastille="awaiting"] {
+  --ton: var(--rouge);
+}
+[data-pastille="waiting"] {
+  --ton: var(--orange);
+}
+[data-pastille="served"] {
+  --ton: var(--vert);
+}
+[data-pastille] {
+  border-color: var(--ton);
+}

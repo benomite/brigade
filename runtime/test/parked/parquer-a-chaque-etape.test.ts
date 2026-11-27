@@ -2,7 +2,7 @@
 // étapes — au backlog, en cuisson (`taken`), à la pass (`in-pass`) — et reprend exactement où il était à sa date (le
 // tour de la station, `ramenerALaRelance`). Avant, rien ne l'en sort : ni une date qui n'est pas la sienne, ni une date
 // pour un fait ou le chef — eux reprennent quand le fait arrive ou que la personne répond, par les gestes de l'app et du
-// second (app/test/parked/resume-a-each-step.test.ts).
+// second (app/test/parked/reprendre-a-chaque-etape.test.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { corpsDuParking, mettreEnAttenteGitHub } from "../../src/attente-github/attente-github.ts";

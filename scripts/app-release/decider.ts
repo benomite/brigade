@@ -8,7 +8,7 @@
 //   changed=true|false
 //   tag=app-v<version>     (only when changed=true)
 import { readFileSync } from "node:fs";
-import { compareVersions, isOneVersion, LABEL } from "../../app/src/update/flux.ts";
+import { comparerVersions, estUneVersion, ETIQUETTE } from "../../app/src/mise-a-jour/flux.ts";
 
 // The version published when no app-v tag exists yet.
 export const VERSION_DE_DEPART = "1.0.0";
@@ -26,10 +26,10 @@ export const touchLApp = (fichiers: string[]): boolean =>
 // The next version: the patch of the highest existing `app-v<x.y.z>` tag plus one.
 export function versionSuivante(etiquettes: string[]): string {
   const versions = etiquettes
-    .filter((etiquette) => etiquette.startsWith(LABEL))
-    .map((etiquette) => etiquette.slice(LABEL.length))
-    .filter((version) => /^\d+\.\d+\.\d+$/.test(version) && isOneVersion(version))
-    .sort((a, b) => compareVersions(b, a));
+    .filter((etiquette) => etiquette.startsWith(ETIQUETTE))
+    .map((etiquette) => etiquette.slice(ETIQUETTE.length))
+    .filter((version) => /^\d+\.\d+\.\d+$/.test(version) && estUneVersion(version))
+    .sort((a, b) => comparerVersions(b, a));
   const derniere = versions[0];
   if (derniere === undefined) return VERSION_DE_DEPART;
   const [majeure, mineure, correctif] = derniere.split(".").map(Number);
@@ -38,7 +38,7 @@ export function versionSuivante(etiquettes: string[]): string {
 
 export function decider(fichiers: string[], etiquettes: string[]): string {
   if (!touchLApp(fichiers)) return "changed=false\n";
-  return `changed=true\ntag=${LABEL}${versionSuivante(etiquettes)}\n`;
+  return `changed=true\ntag=${ETIQUETTE}${versionSuivante(etiquettes)}\n`;
 }
 
 if (import.meta.main) {

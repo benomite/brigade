@@ -4,14 +4,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { etatDOnboarding, type Entrees } from "../../../runtime/src/onboarding/etat.ts";
-import { readOnboarding } from "../../src/projects/request.ts";
-import { setJourney } from "../../src/vue/onboarding/journey.js";
-import { Fake } from "../helpers/false-vue.ts";
+import { lireOnboarding } from "../../src/projets/demande.ts";
+import { poserParcours } from "../../src/vue/onboarding/parcours.js";
+import { Faux } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Fake(balise) };
-const NOW = Date.parse("2026-10-13T10:04:00.000Z");
+const doc = { createElement: (balise: string) => new Faux(balise) };
+const MAINTENANT = Date.parse("2026-10-13T10:04:00.000Z");
 
-const WITHOUT_BAC: Entrees = {
+const SANS_BAC: Entrees = {
   projet: "mirrorlab",
   depot: "BOBL-tech/mirrorlab",
   station: "box",
@@ -24,29 +24,29 @@ const WITHOUT_BAC: Entrees = {
   dejaServi: false,
 };
 
-function screen(entries: Entrees): string {
-  const onboarding = etatDOnboarding(entries);
-  const tracking = JSON.stringify({ brigade: "projets-suivi", format: 1, a: "2026-10-13T10:00:00.000Z", projets: [], onboarding: { mirrorlab: onboarding } });
-  const readOne = readOnboarding(tracking).mirrorlab ?? assert.fail("onboarding illisible");
-  const section = setJourney(doc, { projet: "mirrorlab", onboarding: readOne, maintenant: NOW, ouvrir: () => {}, ecarter: () => {}, continuerSansBac: () => {}, autreStation: () => {} }) as Fake;
+function ecran(entrees: Entrees): string {
+  const onboarding = etatDOnboarding(entrees);
+  const suivi = JSON.stringify({ brigade: "projets-suivi", format: 1, a: "2026-10-13T10:00:00.000Z", projets: [], onboarding: { mirrorlab: onboarding } });
+  const lu = lireOnboarding(suivi).mirrorlab ?? assert.fail("onboarding illisible");
+  const section = poserParcours(doc, { projet: "mirrorlab", onboarding: lu, maintenant: MAINTENANT, ouvrir: () => {}, ecarter: () => {}, continuerSansBac: () => {}, autreStation: () => {} }) as Faux;
   return section.textContent;
 }
 
-function said(text: string, or: string) {
-  assert.match(text, /restricted mode: no sandbox/, or);
+function dit(texte: string, ou: string) {
+  assert.match(texte, /restricted mode: no sandbox/, ou);
   // Couvert.
-  assert.match(text, /credential/i, or);
-  assert.match(text, /network/i, or);
-  assert.match(text, /guard/i, or);
+  assert.match(texte, /credential/i, ou);
+  assert.match(texte, /network/i, ou);
+  assert.match(texte, /guard/i, ou);
   // Non couvert : les trous du shell du garde.
-  for (const hole of ["sed -i", "curl -o", "perl -i", "python -c"]) assert.ok(text.includes(hole), `${or} : ${hole}`);
+  for (const trou of ["sed -i", "curl -o", "perl -i", "python -c"]) assert.ok(texte.includes(trou), `${ou} : ${trou}`);
 }
 
 test("avant et après la décision du chef, l'écran de l'app et la ligne de la station disent « restricted mode: no sandbox », le couvert et le non-couvert", () => {
-  const after = { ...WITHOUT_BAC, decision: { station: "box" } };
-  for (const [name, entries] of [["décision attendue", WITHOUT_BAC], ["décision prise", after]] as const) {
-    const line = etatDOnboarding(entries).etapes.find(({ etape: step }) => step === "machine")?.dit ?? "";
-    said(`${line} ${etatDOnboarding(entries).etapes.find(({ etape: step }) => step === "machine")?.geste?.quoi ?? ""}`, `ligne de la station, ${name}`);
-    said(screen(entries), `écran de l'app, ${name}`);
+  const apres = { ...SANS_BAC, decision: { station: "box" } };
+  for (const [nom, entrees] of [["décision attendue", SANS_BAC], ["décision prise", apres]] as const) {
+    const ligne = etatDOnboarding(entrees).etapes.find(({ etape }) => etape === "machine")?.dit ?? "";
+    dit(`${ligne} ${etatDOnboarding(entrees).etapes.find(({ etape }) => etape === "machine")?.geste?.quoi ?? ""}`, `ligne de la station, ${nom}`);
+    dit(ecran(entrees), `écran de l'app, ${nom}`);
   }
 });

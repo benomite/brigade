@@ -1,5 +1,5 @@
 // Les cartes en pass et servies de « parade » avec « try it » (#3215) : aucun essai en cours.
-import type { Terminal } from "../../../app/src/terminals.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 

@@ -144,7 +144,7 @@ export const GESTE_DE_STATION = `déclarer une station par \`brigade <projet> st
 // Le même, quand le runtime a déjà un journal : le chef pose les stations par
 // une décision (`decisions.ts`), lue au réveil suivant, sans redémarrage.
 // Sans « : » : la ligne `stations` de `status` est « panne : geste », et l'app
-// la coupe au dernier « : » (app/src/alerts.ts, `coupee`).
+// la coupe au dernier « : » (app/src/alertes.ts, `coupee`).
 export const GESTE_DE_STATION_A_CHAUD = `les poser par \`${geste(`station stations ${EXEMPLE.split(",")[0]}`)}\`, lues au réveil suivant, sans redémarrage`;
 
 // Le même geste, en anglais : la ligne `stations` de `status`. Sans « : » non plus.

@@ -4,43 +4,43 @@ import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { Fake } from "../helpers/false-vue.ts";
+import { Faux } from "../aides/fausse-vue.ts";
 // @ts-ignore — the screen does not exist yet
-import { openCardProject } from "../../src/vue/card-project/card-project.js";
+import { ouvrirFicheProjet } from "../../src/vue/fiche-projet/fiche-projet.js";
 
 // Contract used by the four acceptance tests of #4240: `ouvrirFicheProjet(doc, { lire, ecrire })` resolves to the root element of
 // the screen. `lire(path)` and `ecrire(path, text)` read and write a file of the project, the path relative to its folder. Each of
 // the eight items is a field with `dataset.item` = its key and a `value` (or text); the save button has `dataset.geste = "enregistrer"`.
-const CARD = ".brigade/fiche-projet.json";
-const KEYS = ["work", "stages", "tools", "rules", "risks", "served", "recurring", "humans"];
-const doc = { createElement: (balise: string) => new Fake(balise) };
+const FICHE = ".brigade/fiche-projet.json";
+const CLES = ["work", "stages", "tools", "rules", "risks", "served", "recurring", "humans"];
+const doc = { createElement: (balise: string) => new Faux(balise) };
 
-function project(card?: unknown) {
-  const folder = mkdtempSync(join(tmpdir(), "fiche-projet-4240-"));
-  if (card !== undefined) {
-    mkdirSync(join(folder, ".brigade"), { recursive: true });
-    writeFileSync(join(folder, CARD), JSON.stringify(card));
+function projet(fiche?: unknown) {
+  const dossier = mkdtempSync(join(tmpdir(), "fiche-projet-4240-"));
+  if (fiche !== undefined) {
+    mkdirSync(join(dossier, ".brigade"), { recursive: true });
+    writeFileSync(join(dossier, FICHE), JSON.stringify(fiche));
   }
-  const writes: string[] = [];
-  const read = (path: string) => readFile(join(folder, path), "utf8");
-  const write = async (path: string, text: string) => {
-    writes.push(path);
-    mkdirSync(dirname(join(folder, path)), { recursive: true });
-    await writeFile(join(folder, path), text);
+  const ecritures: string[] = [];
+  const lire = (chemin: string) => readFile(join(dossier, chemin), "utf8");
+  const ecrire = async (chemin: string, texte: string) => {
+    ecritures.push(chemin);
+    mkdirSync(dirname(join(dossier, chemin)), { recursive: true });
+    await writeFile(join(dossier, chemin), texte);
   };
-  return { dossier: folder, ecritures: writes, ouvrir: () => openCardProject(doc, { lire: read, ecrire: write }) as Promise<Fake>, nettoyer: () => rmSync(folder, { recursive: true, force: true }) };
+  return { dossier, ecritures, ouvrir: () => ouvrirFicheProjet(doc, { lire, ecrire }) as Promise<Faux>, nettoyer: () => rmSync(dossier, { recursive: true, force: true }) };
 }
 
 // All the text a screen shows: text of every element and value of every field.
-function said(element: Fake): string {
-  return [element.textContent, element.value, ...element.children.map(said)].join("\n");
+function dit(element: Faux): string {
+  return [element.textContent, element.value, ...element.children.map(dit)].join("\n");
 }
-const find = (element: Fake, accepts: (e: Fake) => boolean): Fake | undefined => (accepts(element) ? element : element.children.map((e) => find(e, accepts)).find((e) => e !== undefined));
-const field = (screen: Fake, key: string) => find(screen, (e) => e.dataset.item === key);
-const record = (screen: Fake) => find(screen, (e) => e.dataset.geste === "enregistrer");
-const repos = () => new Promise<void>((done) => setImmediate(done));
+const trouver = (element: Faux, accepte: (e: Faux) => boolean): Faux | undefined => (accepte(element) ? element : element.children.map((e) => trouver(e, accepte)).find((e) => e !== undefined));
+const champ = (ecran: Faux, cle: string) => trouver(ecran, (e) => e.dataset.item === cle);
+const enregistrer = (ecran: Faux) => trouver(ecran, (e) => e.dataset.geste === "enregistrer");
+const repos = () => new Promise<void>((fait) => setImmediate(fait));
 
-const CARD_FULL = {
+const FICHE_PLEINE = {
   work: "an episode",
   stages: ["script", "storyboard", "voice", "render"],
   tools: ["the Labo Pop engine"],
@@ -52,14 +52,14 @@ const CARD_FULL = {
 };
 
 test("a project with no sheet: an empty state with a message, no error, nothing created", async () => {
-  const p = project();
+  const p = projet();
   try {
-    const screen = await p.ouvrir();
-    const text = said(screen).trim();
-    assert.notEqual(text, "", "the empty state says something");
-    assert.doesNotMatch(text, /error|failed|cannot|undefined|ENOENT/i);
+    const ecran = await p.ouvrir();
+    const texte = dit(ecran).trim();
+    assert.notEqual(texte, "", "the empty state says something");
+    assert.doesNotMatch(texte, /error|failed|cannot|undefined|ENOENT/i);
     assert.deepEqual(p.ecritures, []);
-    assert.throws(() => readFileSync(join(p.dossier, CARD)), { code: "ENOENT" });
+    assert.throws(() => readFileSync(join(p.dossier, FICHE)), { code: "ENOENT" });
   } finally {
     p.nettoyer();
   }

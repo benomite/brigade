@@ -1,6 +1,6 @@
 // L'espace de « parade », projet GitHub seul (ticket 3132) : son TODO se lit de GitHub, une carte par issue au
 // label `chef-todo`, sa sorte et son texte tirés du commentaire `<!-- brigade:todo kind=… -->` que le runtime y a posé.
-// `facts` porte ces cartes dans `attend[].chef`, comme board/todo-github.ts les y met ; le bloc `awaiting` de `status` est vide.
+// `facts` porte ces cartes dans `attend[].chef`, comme tableau/todo-github.ts les y met ; le bloc `awaiting` de `status` est vide.
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { SECOND } from "./rail-waiting-commun.ts";

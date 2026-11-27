@@ -1,16 +1,16 @@
 // La fiche d'un ticket, ouverte par sa carte sur le rail : #14, que le cook de parade tient. Ce
 // qu'elle demande au pont est calculé par les modules de l'app, à partir de faits bruts
-// (app/test/helpers/cards-said.ts).
-import { actionsOfCard } from "../../../app/src/card-actions.ts";
-import { situationOf } from "../../../app/src/story.ts";
-import { discussionOf, type StoryRaw, storyOf } from "../../../app/test/helpers/cards-said.ts";
-import type { Terminal } from "../../../app/src/terminals.ts";
+// (app/test/aides/fiches-dites.ts).
+import { gestesDeCarte } from "../../../app/src/gestes-fiche.ts";
+import { situationDe } from "../../../app/src/histoire.ts";
+import { discussionDe, type HistoireBrute, histoireDe } from "../../../app/test/aides/fiches-dites.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 
-const PASS: StoryRaw = {
+const PASS: HistoireBrute = {
   steps: [
     { kind: "arrived", at: "2026-10-13T09:40:02.000Z" },
     { kind: "taken", at: "2026-10-13T09:52:10.000Z", station: "box/claude" },
@@ -37,10 +37,10 @@ export const donneesDeLaFiche = (corps: string): Ecran["donnees"] => () => {
     reponses: {
       demarrage: demarrage(configuration(PROJETS)),
       espace: [SECOND],
-      situation: situationOf(carte),
-      gestesDeFiche: actionsOfCard(carte),
-      lireHistoire: storyOf(PASS),
-      lireDiscussion: discussionOf(issueDe(corps)),
+      situation: situationDe(carte),
+      gestesDeFiche: gestesDeCarte(carte),
+      lireHistoire: histoireDe(PASS),
+      lireDiscussion: discussionDe(issueDe(corps)),
     },
     envois: cuisine(RENDUS),
   };

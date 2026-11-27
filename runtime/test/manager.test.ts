@@ -284,7 +284,7 @@ describe("le manager", { concurrency: 8 }, () => {
     assert.match(jugements()[0]?.args[1] ?? "", /"reponses": \[/);
     const [dit = ""] = dits(30);
     // La question, puis un bouton par réponse dans ses mots — celle qui ferme l'issue la ferme —, puis la recommandée : la
-    // forme que la carte TODO lit (app : board/set-aside-github.ts, `carteDeLEcart`). Aucun « Back to the kitchen ».
+    // forme que la carte TODO lit (app : tableau/mise-de-cote-github.ts, `carteDeLEcart`). Aucun « Back to the kitchen ».
     assert.match(
       dit,
       /\nDo you grant the deploy role write access to the backup bucket\?\n- \[resume\] Grant it, read-only elsewhere\n- \[resume\] Refuse: backups stay read-only\n- \[close\] Close it: out of scope\n\n\*\*Recommended:\*\* Refuse: backups stay read-only — The read-only rule is what the backups rest on\.\n/,
@@ -321,7 +321,7 @@ describe("le manager", { concurrency: 8 }, () => {
     const { gh, labels, jugements } = brigade(t, { manager: { suite: ["juge-decision", "juge-ticket"] }, issues: [issue(30, [])] });
     await jusqua(() => labels(30).includes("chef-todo"));
 
-    // Ce que la réponse de la carte joue sur GitHub (app : board-actions/answer-github.ts) : son commentaire, et `resume`
+    // Ce que la réponse de la carte joue sur GitHub (app : tableau-gestes/reponse-github.ts) : son commentaire, et `resume`
     // retire `decision`.
     gh.repondre(30, "<!-- brigade:reponse gesture=resume -->\nYes: grant it, read-only everywhere else.");
     gh.poser(issue(30, [], { updatedAt: "2026-10-08T11:00:00Z" }));

@@ -2,16 +2,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkedTodo } from "../../src/vue/parked/parked-todo.js";
-import { Fake } from "../helpers/false-vue.ts";
+import { Faux } from "../aides/fausse-vue.ts";
 
-const doc = { createElement: (balise: string) => new Fake(balise) };
+const doc = { createElement: (balise: string) => new Faux(balise) };
 
 test("each item shows who, for what and until when, and one button per choice", () => {
   const records = [
     { ticket: 21, who: "chef", what: "the invoice approval", until: "2026-12-03", step: "pris" },
     { ticket: 22, who: "chef", what: "the logo choice", until: "the vendor answers", step: "pass" },
   ];
-  const todo = parkedTodo(doc, { records, chef: "chef", choices: ["go on", "drop it"], answer: () => {} }) as unknown as Fake;
+  const todo = parkedTodo(doc, { records, chef: "chef", choices: ["go on", "drop it"], answer: () => {} }) as unknown as Faux;
   const items = todo.dessous("li").filter(({ dataset }) => dataset.ticket !== undefined);
   assert.equal(items.length, 2);
   for (const [i, item] of items.entries()) {

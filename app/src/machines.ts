@@ -1,24 +1,24 @@
-// La machine où « + shell » propose d'ouvrir un shell persistant (persistence.ts) : ce poste. La vue ne
+// La machine où « + shell » propose d'ouvrir un shell persistant (persistance.ts) : ce poste. La vue ne
 // reçoit que ce qui se montre — un identifiant et un titre — et le rend.
-import type { Target } from "./persistence.ts";
-import { HERE } from "./platform.ts";
+import type { Cible } from "./persistance.ts";
+import { ICI } from "./plateforme.ts";
 
 // `id` : ce que la vue rend pour choisir. `titre` : ce qu'elle montre.
-export type Machine = { id: string; titre: string; cible: Target };
+export type Machine = { id: string; titre: string; cible: Cible };
 
-export const WORKSTATION = "poste";
+export const POSTE = "poste";
 
 // Les machines proposées : ce poste.
-export function machinesOf(): Machine[] {
-  return [{ id: WORKSTATION, titre: HERE, cible: { lieu: "poste" } }];
+export function machinesDe(): Machine[] {
+  return [{ id: POSTE, titre: ICI, cible: { lieu: "poste" } }];
 }
 
 // La machine que la vue a choisie, parmi celles proposées maintenant — rien, pour une autre.
-export function machineChosen(machines: readonly Machine[], id: unknown): Machine | undefined {
+export function machineChoisie(machines: readonly Machine[], id: unknown): Machine | undefined {
   return machines.find((machine) => machine.id === id);
 }
 
 // Où est un shell, dit comme la liste le dit : « this Mac » (« this PC » sous Windows).
-export function placeOf(_target: Target): string {
-  return HERE;
+export function lieuDe(_cible: Cible): string {
+  return ICI;
 }

@@ -10,7 +10,7 @@ import { fiche } from "../fiche.ts";
 
 // La marque du commentaire d'attente d'un cook, la même que celle de la porte de prise (attente-ticket.ts,
 // `corpsDeLAttente`) : redite ici, car attente-ticket.ts tire la base et les E/S que la lecture du rail ne charge pas
-// (app/test/board/read.test.ts) ; un test garde les deux égales.
+// (app/test/tableau/lecture.test.ts) ; un test garde les deux égales.
 const MARQUE_D_ATTENTE_DE_TICKET = "<!-- brigade:attend-ticket";
 
 // Les tickets que les commentaires d'un ticket lui font attendre, par source : sa fiche (`attend`), et les marques

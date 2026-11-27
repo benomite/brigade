@@ -1,5 +1,5 @@
 // #4262 — aucune commande de la box ne met un ticket en attente ni ne l'en sort : le second et l'app le parquent et le
-// déparquent sur son issue (app/src/second/parking.ts, app/src/vue/wait/wait-github.ts). Ni script du runtime, ni
+// déparquent sur son issue (app/src/second/parking.ts, app/src/vue/attente/attente-github.ts). Ni script du runtime, ni
 // commande de sa table, ni rôle, ni code qui en compose une.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";

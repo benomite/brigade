@@ -2,70 +2,70 @@
 // Test d'acceptation gelé (#3725).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { POWER_UP } from "../../src/power-up.ts";
-import { forTheBar } from "../../src/bar.ts";
-import { EXAMPLE } from "../../src/config.ts";
-import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
-import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
-import type { Terminal } from "../../src/terminals.ts";
-import { cardOfTicket, playTheVue, repos, type Fake, type Played } from "../helpers/false-vue.ts";
+import { ALLUMAGE } from "../../src/allumage.ts";
+import { pourLaBarre } from "../../src/barre.ts";
+import { EXEMPLE } from "../../src/config.ts";
+import { PALETTE } from "../../src/couleurs.ts";
+import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
+import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../../src/faits.ts";
+import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
+import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
+import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
+import type { Terminal } from "../../src/terminaux.ts";
+import { carteDuTicket, jouerLaVue, repos, type Faux, type Jouee } from "../aides/fausse-vue.ts";
 
-const REPOSITORY = "chef/parade";
-const READ = "2026-11-24T12:00:00.000Z";
-const OPEN_IT_Y_A_45_MIN = "2026-11-24T11:15:00.000Z";
+const DEPOT = "chef/parade";
+const LU = "2026-11-24T12:00:00.000Z";
+const OUVERTE_IL_Y_A_45_MIN = "2026-11-24T11:15:00.000Z";
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
-const startup = () => ({
-  configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+const demarrage = () => ({
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
-  exemple: EXAMPLE,
-  onglets: TABS,
-  rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
-  banniere: BANNER,
-  calibrage: { modeles: MODELS, efforts: EFFORTS },
+  exemple: EXEMPLE,
+  onglets: ONGLETS,
+  rubriques: RUBRIQUES,
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
+  banniere: BANNIERE,
+  calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
 
 // Le rail lu : #70 en pass avec sa PR #71 (+135 −21, ouverte il y a 45 min), #72 servi (PR #73, +8 −2), #74 en pass sans PR.
 // Contrat que ce test fixe, le ticket le laissant ouvert : la PR d'une carte du rail porte `additions`, `deletions` et `ouvertLe`.
-const facts = (): Facts =>
+const faits = (): Faits =>
   ({
     etat: "ouverte",
-    lu: READ,
-    dernierTick: READ,
+    lu: LU,
+    dernierTick: LU,
     compteurs: { rail: 3, auTravail: 0, aLaPass: 2, attend: 0, livres24h: 1 },
     dernierEvenement: null,
     rail: [
-      { ticket: 70, etat: "en pass", titre: "Pass one", url: `https://github.com/${REPOSITORY}/issues/70`, pr: { numero: 71, url: `https://github.com/${REPOSITORY}/pull/71`, additions: 135, deletions: 21, ouvertLe: OPEN_IT_Y_A_45_MIN } },
-      { ticket: 72, etat: "servi", titre: "Served one", url: `https://github.com/${REPOSITORY}/issues/72`, pr: { numero: 73, url: `https://github.com/${REPOSITORY}/pull/73`, additions: 8, deletions: 2, ouvertLe: OPEN_IT_Y_A_45_MIN } },
-      { ticket: 74, etat: "en pass", titre: "No PR yet", url: `https://github.com/${REPOSITORY}/issues/74` },
+      { ticket: 70, etat: "en pass", titre: "Pass one", url: `https://github.com/${DEPOT}/issues/70`, pr: { numero: 71, url: `https://github.com/${DEPOT}/pull/71`, additions: 135, deletions: 21, ouvertLe: OUVERTE_IL_Y_A_45_MIN } },
+      { ticket: 72, etat: "servi", titre: "Served one", url: `https://github.com/${DEPOT}/issues/72`, pr: { numero: 73, url: `https://github.com/${DEPOT}/pull/73`, additions: 8, deletions: 2, ouvertLe: OUVERTE_IL_Y_A_45_MIN } },
+      { ticket: 74, etat: "en pass", titre: "No PR yet", url: `https://github.com/${DEPOT}/issues/74` },
     ],
     cooks: [],
     attend: [],
-  }) as unknown as Facts;
-const drawable = (): Drawable => holdFacts(() => new Map()).recevoir({ projet: "parade", demande: 0, a: READ, sorties: [{ commande: "facts", texte: JSON.stringify(facts()) }] });
+  }) as unknown as Faits;
+const dessinable = (): Dessinable => tenirFaits(() => new Map()).recevoir({ projet: "parade", demande: 0, a: LU, sorties: [{ commande: "facts", texte: JSON.stringify(faits()) }] });
 
-async function open(): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }] } as never);
+async function ouvrir(): Promise<Jouee> {
+  const vue = await jouerLaVue({ demarrage, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }] } as never);
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
-  const requests = vue.appels.filter(({ geste: action }) => action === "faits" || action === "relireBox");
-  vue.dire("surFaits", { ...drawable(), demande: requests.at(-1)?.args[0] as number });
+  const demandes = vue.appels.filter(({ geste }) => geste === "faits" || geste === "relireBox");
+  vue.dire("surFaits", { ...dessinable(), demande: demandes.at(-1)?.args[0] as number });
   await repos();
   return vue;
 }
-const card = (vue: Played, ticket: number): Fake => cardOfTicket(vue, ticket) ?? assert.fail(`pas de carte #${ticket}`);
-const allTheText = (or: Fake) => [or, ...or.descendants()].map((e) => e.textContent).join(" ");
+const carte = (vue: Jouee, ticket: number): Faux => carteDuTicket(vue, ticket) ?? assert.fail(`pas de carte #${ticket}`);
+const toutLeTexte = (ou: Faux) => [ou, ...ou.descendants()].map((e) => e.textContent).join(" ");
 
 for (const [ticket, pr] of [[70, 71], [72, 73]] as const) {
   test(`sur la carte #${ticket}, « ${pr} » est un lien vers la PR`, async () => {
-    const vue = await open();
-    const links = card(vue, ticket).dessous("a").filter((a) => (a as unknown as { href?: string }).href === `https://github.com/${REPOSITORY}/pull/${pr}`);
-    assert.ok(links.length > 0, "aucun lien vers la PR");
-    assert.ok(links.some((a) => new RegExp(`(^|\\D)${pr}(\\D|$)`).test(a.textContent)), `le texte du lien dit le numéro ${pr}`);
+    const vue = await ouvrir();
+    const liens = carte(vue, ticket).dessous("a").filter((a) => (a as unknown as { href?: string }).href === `https://github.com/${DEPOT}/pull/${pr}`);
+    assert.ok(liens.length > 0, "aucun lien vers la PR");
+    assert.ok(liens.some((a) => new RegExp(`(^|\\D)${pr}(\\D|$)`).test(a.textContent)), `le texte du lien dit le numéro ${pr}`);
   });
 }

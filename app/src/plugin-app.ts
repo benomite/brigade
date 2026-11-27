@@ -12,7 +12,7 @@
 // Le mécanisme est celui de Claude Code lui-même :
 // - **un marketplace à l'app**, `brigade-app`, que l'app pose à côté du fichier des projets
 //   (`~/.config/brigade/plugin-app/`) depuis les commandes qu'elle porte — `commands/dev.md` et
-//   `commands/ask.md` du dépôt, ou leur copie dans son paquet (locations.ts). Il est déclaré une
+//   `commands/ask.md` du dépôt, ou leur copie dans son paquet (emplacements.ts). Il est déclaré une
 //   fois, dans les réglages du compte (`claude plugin marketplace add`) : il ne porte que le plugin
 //   `brigade-app`, et le marketplace `brigade` du plugin V1 n'est pas touché ;
 // - **le plugin `brigade-app`, en scope local** dans le dossier du projet : Claude Code l'écrit dans
@@ -34,54 +34,54 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import type { Project } from "./config.ts";
+import type { Projet } from "./config.ts";
 
 export const MARKETPLACE = "brigade-app";
 export const PLUGIN = "brigade-app";
 export const ID = `${PLUGIN}@${MARKETPLACE}`;
 // Le nom du manifeste : celui sous lequel les commandes se tapent, `/brigade:dev`.
-export const SPACE = "brigade";
+export const ESPACE = "brigade";
 // Les commandes du plugin copiées de `commands/` du dépôt.
-export const COMMANDS = ["dev.md", "ask.md"] as const;
+export const COMMANDES = ["dev.md", "ask.md"] as const;
 // Les commandes que l'app porte elle-même, dans `PROPRES` (#2595).
-export const COMMANDS_OF_THE_APP = ["init.md"] as const;
+export const COMMANDES_DE_L_APP = ["init.md"] as const;
 // Le dossier de ce que l'app porte elle-même : il est dans `src/`, que le paquet porte entier.
-export const OWN = join(import.meta.dirname, "plugin");
+export const PROPRES = join(import.meta.dirname, "plugin");
 // Le script de `/brigade:init`, posé dans le marketplace sous `scripts/` ; la commande le nomme par
 // `@SCRIPT@`, remplacé à la pose par son chemin.
 export const SCRIPT_INIT = "init.sh";
 // Le catalogue des labels que le script lit, posé à côté de lui.
-export const CATALOG_OF_LABELS = "labels.tsv";
-const BRAND_OF_SCRIPT = "@SCRIPT@";
+export const CATALOGUE_DES_LABELS = "labels.tsv";
+const MARQUE_DU_SCRIPT = "@SCRIPT@";
 // La commande du runtime qui lance ce script, pose la carte de sa PR dans le TODO et rend le mot de fin du second
 // (runtime/src/second-init/pr-de-setup.ts, #3169), et le `node` qui la joue : `@SETUP_PR@` et `@NODE@`, remplacés de même.
-const BRAND_OF_THE_PR = "@SETUP_PR@";
-const BRAND_OF_NODE = "@NODE@";
-export const PR_OF_SETUP = ["src", "second-init", "pr-de-setup.ts"] as const;
-// Où sont le runtime et son `node` (locations.ts) ; par défaut, le runtime à côté de l'app et le `node` du PATH.
-export type Places = { node: string; runtime: string };
-export const PLACES_PAR_DEFAULT: Places = { node: "node", runtime: join(import.meta.dirname, "..", "..", "runtime") };
+const MARQUE_DE_LA_PR = "@SETUP_PR@";
+const MARQUE_DU_NODE = "@NODE@";
+export const PR_DE_SETUP = ["src", "second-init", "pr-de-setup.ts"] as const;
+// Où sont le runtime et son `node` (emplacements.ts) ; par défaut, le runtime à côté de l'app et le `node` du PATH.
+export type Lieux = { node: string; runtime: string };
+export const LIEUX_PAR_DEFAUT: Lieux = { node: "node", runtime: join(import.meta.dirname, "..", "..", "runtime") };
 // Le dossier du marketplace, à côté du fichier des projets.
-export const FOLDER = "plugin-app";
+export const DOSSIER = "plugin-app";
 // Le fichier que Claude Code écrit dans le dossier du projet pour le scope local.
-export const SETTINGS_LOCAL = ".claude/settings.local.json";
+export const REGLAGES_LOCAUX = ".claude/settings.local.json";
 // La version que l'app se donne quand elle tourne depuis son dépôt (son package.json).
-const VERSION_OF_REPOSITORY = "0.0.0";
+const VERSION_DU_DEPOT = "0.0.0";
 
 // La version du plugin que l'app porte : la sienne, installée ; depuis le dépôt, l'empreinte des
 // commandes — une commande changée change la version, et les projets se mettent à jour.
-export function versionOfPlugin(versionOfTheApp: string, commands: string, own = OWN): string {
-  if (versionOfTheApp !== VERSION_OF_REPOSITORY) return versionOfTheApp;
-  const fingerprint = createHash("sha256");
-  for (const name of COMMANDS) fingerprint.update(name).update("\0").update(readFileSync(join(commands, name))).update("\0");
-  for (const name of [...COMMANDS_OF_THE_APP, SCRIPT_INIT, CATALOG_OF_LABELS]) fingerprint.update(name).update("\0").update(readFileSync(join(own, name))).update("\0");
-  return `${VERSION_OF_REPOSITORY}-${fingerprint.digest("hex").slice(0, 12)}`;
+export function versionDuPlugin(versionDeLApp: string, commandes: string, propres = PROPRES): string {
+  if (versionDeLApp !== VERSION_DU_DEPOT) return versionDeLApp;
+  const empreinte = createHash("sha256");
+  for (const nom of COMMANDES) empreinte.update(nom).update("\0").update(readFileSync(join(commandes, nom))).update("\0");
+  for (const nom of [...COMMANDES_DE_L_APP, SCRIPT_INIT, CATALOGUE_DES_LABELS]) empreinte.update(nom).update("\0").update(readFileSync(join(propres, nom))).update("\0");
+  return `${VERSION_DU_DEPOT}-${empreinte.digest("hex").slice(0, 12)}`;
 }
 
 // Pose le marketplace de l'app dans `dossier` : ses deux manifestes, les deux commandes copiées de
 // `commandes`, `/brigade:init` et son script copiés de `propres`. Un fichier déjà tel quel n'est pas réécrit.
-export function setTheMarketplace(folder: string, commands: string, version: string, own = OWN, places: Places = PLACES_PAR_DEFAULT): void {
-  const manifests = join(folder, ".claude-plugin");
+export function poserLeMarketplace(dossier: string, commandes: string, version: string, propres = PROPRES, lieux: Lieux = LIEUX_PAR_DEFAUT): void {
+  const manifestes = join(dossier, ".claude-plugin");
   const marketplace = {
     name: MARKETPLACE,
     description: "The brigade app's commands, installed by the app in the projects it opens",
@@ -89,59 +89,59 @@ export function setTheMarketplace(folder: string, commands: string, version: str
     plugins: [{ name: PLUGIN, source: "./", version, description: "/brigade:dev, /brigade:ask and /brigade:init, nothing else" }],
   };
   const plugin = {
-    name: SPACE,
+    name: ESPACE,
     version,
     description: "/brigade:dev <number>, /brigade:ask <number> and /brigade:init, installed by the brigade app",
     author: { name: "benomite" },
     license: "MIT",
     homepage: "https://github.com/benomite/brigade",
-    commands: [...COMMANDS, ...COMMANDS_OF_THE_APP].map((name) => `./commands/${name}`),
+    commands: [...COMMANDES, ...COMMANDES_DE_L_APP].map((nom) => `./commands/${nom}`),
   };
-  write(join(manifests, "marketplace.json"), `${JSON.stringify(marketplace, null, 2)}\n`);
-  write(join(manifests, "plugin.json"), `${JSON.stringify(plugin, null, 2)}\n`);
-  for (const name of COMMANDS) write(join(folder, "commands", name), readFileSync(join(commands, name), "utf8"));
+  ecrire(join(manifestes, "marketplace.json"), `${JSON.stringify(marketplace, null, 2)}\n`);
+  ecrire(join(manifestes, "plugin.json"), `${JSON.stringify(plugin, null, 2)}\n`);
+  for (const nom of COMMANDES) ecrire(join(dossier, "commands", nom), readFileSync(join(commandes, nom), "utf8"));
   // Le chemin du script, en barres obliques : la commande le passe à `bash`, Git Bash compris.
-  const script = join(folder, "scripts", SCRIPT_INIT);
-  write(script, readFileSync(join(own, SCRIPT_INIT), "utf8"));
+  const script = join(dossier, "scripts", SCRIPT_INIT);
+  ecrire(script, readFileSync(join(propres, SCRIPT_INIT), "utf8"));
   chmodSync(script, 0o755);
-  write(join(folder, "scripts", CATALOG_OF_LABELS), readFileSync(join(own, CATALOG_OF_LABELS), "utf8"));
-  const prOfSetup = join(places.runtime, ...PR_OF_SETUP);
-  for (const name of COMMANDS_OF_THE_APP)
-    write(
-      join(folder, "commands", name),
-      readFileSync(join(own, name), "utf8").replaceAll(BRAND_OF_SCRIPT, script.replaceAll("\\", "/")).replaceAll(BRAND_OF_THE_PR, prOfSetup.replaceAll("\\", "/")).replaceAll(BRAND_OF_NODE, places.node.replaceAll("\\", "/")),
+  ecrire(join(dossier, "scripts", CATALOGUE_DES_LABELS), readFileSync(join(propres, CATALOGUE_DES_LABELS), "utf8"));
+  const prDeSetup = join(lieux.runtime, ...PR_DE_SETUP);
+  for (const nom of COMMANDES_DE_L_APP)
+    ecrire(
+      join(dossier, "commands", nom),
+      readFileSync(join(propres, nom), "utf8").replaceAll(MARQUE_DU_SCRIPT, script.replaceAll("\\", "/")).replaceAll(MARQUE_DE_LA_PR, prDeSetup.replaceAll("\\", "/")).replaceAll(MARQUE_DU_NODE, lieux.node.replaceAll("\\", "/")),
     );
 }
 
-function write(path: string, content: string): void {
+function ecrire(chemin: string, contenu: string): void {
   try {
-    if (readFileSync(path, "utf8") === content) return;
+    if (readFileSync(chemin, "utf8") === contenu) return;
   } catch {}
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, content);
+  mkdirSync(dirname(chemin), { recursive: true });
+  writeFileSync(chemin, contenu);
 }
 
-export type Rendered = { code: number | null; sortie: string; erreur: string };
+export type Rendu = { code: number | null; sortie: string; erreur: string };
 // Lance une commande dans un dossier (ou celui de l'app) : `claude` ou `git`.
-export type Launch = (command: string, args: readonly string[], folder?: string) => Promise<Rendered>;
+export type Lancer = (commande: string, args: readonly string[], dossier?: string) => Promise<Rendu>;
 
-export const launchReally =
-  (env: Record<string, string | undefined>, delayMs = 60_000): Launch =>
-  (command, args, folder) =>
-    new Promise((settle) => {
+export const lancerVraiment =
+  (env: Record<string, string | undefined>, delaiMs = 60_000): Lancer =>
+  (commande, args, dossier) =>
+    new Promise((resoudre) => {
       // Rien ne lui sera tapé : son entrée est fermée, une question n'attend pas jusqu'au délai.
-      const child = execFile(command, [...args], { cwd: folder, env, timeout: delayMs, windowsHide: true, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 }, (error, output, outputError) => {
-        const code = error === null ? 0 : typeof error.code === "number" ? error.code : null;
-        settle({ code, sortie: output ?? "", erreur: `${outputError ?? ""}${error !== null && code === null ? error.message : ""}` });
+      const enfant = execFile(commande, [...args], { cwd: dossier, env, timeout: delaiMs, windowsHide: true, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 }, (erreur, sortie, sortieErreur) => {
+        const code = erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : null;
+        resoudre({ code, sortie: sortie ?? "", erreur: `${sortieErreur ?? ""}${erreur !== null && code === null ? erreur.message : ""}` });
       });
-      child.stdin?.end();
+      enfant.stdin?.end();
     });
 
 // Une installation du plugin, telle que `claude plugin list --json` la rend.
 type Installation = { id?: unknown; scope?: unknown; version?: unknown; projectPath?: unknown };
 
 export type OptionsPluginApp = {
-  lancer: Launch;
+  lancer: Lancer;
   claude: string;
   git?: string;
   // Le dossier où poser le marketplace (`DOSSIER`, à côté du fichier des projets).
@@ -150,39 +150,39 @@ export type OptionsPluginApp = {
   commandes: string;
   versionDeLApp: string;
   // Le runtime et son `node`, que `/brigade:init` lance pour finir (#3169).
-  lieux?: Places;
+  lieux?: Lieux;
   // Ce que l'app dit de ce qu'elle a fait, ou pas, pour le terminal qui l'a lancée.
-  dire: (line: string) => void;
+  dire: (ligne: string) => void;
 };
 
-export function holdThePluginApp(options: OptionsPluginApp) {
+export function tenirLePluginApp(options: OptionsPluginApp) {
   const git = options.git ?? "git";
-  const claude = (args: readonly string[], folder?: string) => options.lancer(options.claude, ["plugin", ...args], folder);
+  const claude = (args: readonly string[], dossier?: string) => options.lancer(options.claude, ["plugin", ...args], dossier);
   // Les dossiers déjà à jour pendant ce lancement de l'app.
-  const facts = new Set<string>();
+  const faits = new Set<string>();
   let declare: string | undefined;
   let file: Promise<unknown> = Promise.resolve();
-  const enFile = <T>(task: () => Promise<T>): Promise<T> => {
-    const suite = file.then(task);
+  const enFile = <T>(tache: () => Promise<T>): Promise<T> => {
+    const suite = file.then(tache);
     file = suite.catch(() => {});
     return suite;
   };
-  const reason = ({ code, sortie: output, erreur: error }: Rendered) => (error.trim() || output.trim()).split("\n").at(-1)?.trim() || `code ${code}`;
+  const raison = ({ code, sortie, erreur }: Rendu) => (erreur.trim() || sortie.trim()).split("\n").at(-1)?.trim() || `code ${code}`;
 
   // Le marketplace de l'app, posé à la version portée et déclaré ; rend sa version, ou rien s'il ne l'est pas.
   async function marketplace(): Promise<string | undefined> {
     let version: string;
     try {
-      version = versionOfPlugin(options.versionDeLApp, options.commandes);
-      setTheMarketplace(options.marketplace, options.commandes, version, OWN, options.lieux);
-    } catch (error) {
-      options.dire(`brigade: the app's plugin was not prepared — ${(error as Error).message}`);
+      version = versionDuPlugin(options.versionDeLApp, options.commandes);
+      poserLeMarketplace(options.marketplace, options.commandes, version, PROPRES, options.lieux);
+    } catch (erreur) {
+      options.dire(`brigade: the app's plugin was not prepared — ${(erreur as Error).message}`);
       return undefined;
     }
     if (declare === version) return version;
-    const addition = await claude(["marketplace", "add", options.marketplace]);
-    if (addition.code !== 0) {
-      options.dire(`brigade: the app's plugin marketplace was not added to Claude Code — ${reason(addition)}`);
+    const ajout = await claude(["marketplace", "add", options.marketplace]);
+    if (ajout.code !== 0) {
+      options.dire(`brigade: the app's plugin marketplace was not added to Claude Code — ${raison(ajout)}`);
       return undefined;
     }
     declare = version;
@@ -191,97 +191,97 @@ export function holdThePluginApp(options: OptionsPluginApp) {
 
   // Les installations locales du plugin, par dossier (chemin réel), ou rien si la liste ne se lit pas.
   async function installations(): Promise<Map<string, string> | undefined> {
-    const list = await claude(["list", "--json"]);
-    let readEntries: unknown;
+    const liste = await claude(["list", "--json"]);
+    let lues: unknown;
     try {
-      readEntries = list.code === 0 ? JSON.parse(list.sortie) : undefined;
+      lues = liste.code === 0 ? JSON.parse(liste.sortie) : undefined;
     } catch {}
-    if (!Array.isArray(readEntries)) {
-      options.dire(`brigade: Claude Code's plugins were not read — ${reason(list)}`);
+    if (!Array.isArray(lues)) {
+      options.dire(`brigade: Claude Code's plugins were not read — ${raison(liste)}`);
       return undefined;
     }
-    const parFolder = new Map<string, string>();
-    for (const { id, scope, version, projectPath } of readEntries as Installation[]) {
-      if (id === ID && scope === "local" && typeof projectPath === "string") parFolder.set(real(projectPath), typeof version === "string" ? version : "");
+    const parDossier = new Map<string, string>();
+    for (const { id, scope, version, projectPath } of lues as Installation[]) {
+      if (id === ID && scope === "local" && typeof projectPath === "string") parDossier.set(reel(projectPath), typeof version === "string" ? version : "");
     }
-    return parFolder;
+    return parDossier;
   }
 
   // Que git ignore `.claude/settings.local.json` dans ce dossier : par l'`info/exclude` du clone,
   // qui ne se commite pas, quand rien ne l'ignore déjà. Hors d'un dépôt git, rien à faire.
-  async function ignorer(folder: string): Promise<void> {
-    const prefix = await options.lancer(git, ["rev-parse", "--show-prefix"], folder);
-    if (prefix.code !== 0) return;
-    if ((await options.lancer(git, ["check-ignore", "-q", SETTINGS_LOCAL], folder)).code === 0) return;
-    const exclude = await options.lancer(git, ["rev-parse", "--git-path", "info/exclude"], folder);
+  async function ignorer(dossier: string): Promise<void> {
+    const prefixe = await options.lancer(git, ["rev-parse", "--show-prefix"], dossier);
+    if (prefixe.code !== 0) return;
+    if ((await options.lancer(git, ["check-ignore", "-q", REGLAGES_LOCAUX], dossier)).code === 0) return;
+    const exclude = await options.lancer(git, ["rev-parse", "--git-path", "info/exclude"], dossier);
     if (exclude.code !== 0) return;
-    const path = resolve(folder, exclude.sortie.trim());
-    let before = "";
+    const chemin = resolve(dossier, exclude.sortie.trim());
+    let avant = "";
     try {
-      before = readFileSync(path, "utf8");
+      avant = readFileSync(chemin, "utf8");
     } catch {}
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, `${before}${before === "" || before.endsWith("\n") ? "" : "\n"}# Claude Code's local settings, where the brigade app enables its plugin\n/${prefix.sortie.trim()}${SETTINGS_LOCAL}\n`);
+    mkdirSync(dirname(chemin), { recursive: true });
+    writeFileSync(chemin, `${avant}${avant === "" || avant.endsWith("\n") ? "" : "\n"}# Claude Code's local settings, where the brigade app enables its plugin\n/${prefixe.sortie.trim()}${REGLAGES_LOCAUX}\n`);
   }
 
   return {
     // Les projets ouverts par l'app : chacun reçoit le plugin à la version portée, s'il ne l'a pas déjà.
-    suivre(projects: readonly Project[]): Promise<void> {
+    suivre(projets: readonly Projet[]): Promise<void> {
       return enFile(async () => {
-        const openOnes = projects.filter(({ refus: refusal, dossier: folder }) => refusal === undefined && existsSync(folder) && !facts.has(real(folder)));
-        if (openOnes.length === 0) return;
+        const ouverts = projets.filter(({ refus, dossier }) => refus === undefined && existsSync(dossier) && !faits.has(reel(dossier)));
+        if (ouverts.length === 0) return;
         const version = await marketplace();
         if (version === undefined) return;
-        const installed = await installations();
-        if (installed === undefined) return;
-        for (const { nom: name, dossier: folder } of openOnes) {
-          const here = real(folder);
-          const installedOne = installed.get(here);
-          if (installedOne === version) {
-            facts.add(here);
+        const installes = await installations();
+        if (installes === undefined) return;
+        for (const { nom, dossier } of ouverts) {
+          const ici = reel(dossier);
+          const installee = installes.get(ici);
+          if (installee === version) {
+            faits.add(ici);
             continue;
           }
           try {
-            await ignorer(folder);
-          } catch (error) {
-            options.dire(`brigade: the app's plugin is not installed in “${name}” — git could not be told to ignore ${SETTINGS_LOCAL} (${(error as Error).message})`);
+            await ignorer(dossier);
+          } catch (erreur) {
+            options.dire(`brigade: the app's plugin is not installed in “${nom}” — git could not be told to ignore ${REGLAGES_LOCAUX} (${(erreur as Error).message})`);
             continue;
           }
-          const action = installedOne === undefined ? ["install", ID, "--scope", "local"] : ["update", ID, "--scope", "local"];
-          const rendered = await claude(action, folder);
-          if (rendered.code === 0) facts.add(here);
-          else options.dire(`brigade: the app's plugin was not ${installedOne === undefined ? "installed" : "updated"} in “${name}” — ${reason(rendered)}`);
+          const geste = installee === undefined ? ["install", ID, "--scope", "local"] : ["update", ID, "--scope", "local"];
+          const rendu = await claude(geste, dossier);
+          if (rendu.code === 0) faits.add(ici);
+          else options.dire(`brigade: the app's plugin was not ${installee === undefined ? "installed" : "updated"} in “${nom}” — ${raison(rendu)}`);
         }
       });
     },
 
     // Un projet retiré de l'app : `brigade-app` quitte le scope local de son dossier, et rien d'autre.
-    retirer({ nom: name, dossier: folder }: Pick<Project, "nom" | "dossier">): Promise<void> {
+    retirer({ nom, dossier }: Pick<Projet, "nom" | "dossier">): Promise<void> {
       return enFile(async () => {
-        const here = real(folder);
-        facts.delete(here);
-        const installed = await installations();
-        if (installed === undefined || !installed.has(here)) return;
-        const rendered = await claude(["uninstall", ID, "--scope", "local"], folder);
-        if (rendered.code !== 0) options.dire(`brigade: the app's plugin was not uninstalled from “${name}” — ${reason(rendered)}`);
+        const ici = reel(dossier);
+        faits.delete(ici);
+        const installes = await installations();
+        if (installes === undefined || !installes.has(ici)) return;
+        const rendu = await claude(["uninstall", ID, "--scope", "local"], dossier);
+        if (rendu.code !== 0) options.dire(`brigade: the app's plugin was not uninstalled from “${nom}” — ${raison(rendu)}`);
       });
     },
   };
 }
 
-export type PluginApp = ReturnType<typeof holdThePluginApp>;
+export type PluginApp = ReturnType<typeof tenirLePluginApp>;
 
 // L'app lancée avec un `claude` de remplacement (`BRIGADE_CLAUDE_BIN`, un essai) : le plugin n'est posé ni retiré
 // nulle part, et l'app le dit une fois.
-export function withoutPluginApp(tell: (line: string) => void): PluginApp {
-  tell("brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask, /brigade:init) is installed in no project");
+export function sansPluginApp(dire: (ligne: string) => void): PluginApp {
+  dire("brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask, /brigade:init) is installed in no project");
   return { suivre: async () => {}, retirer: async () => {} };
 }
 
-function real(path: string): string {
+function reel(chemin: string): string {
   try {
-    return realpathSync(path);
+    return realpathSync(chemin);
   } catch {
-    return resolve(path);
+    return resolve(chemin);
   }
 }

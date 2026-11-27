@@ -213,7 +213,7 @@ exit `$LASTEXITCODE
   }
 
   # What the launcher runs: the station, when the app does not already hold it. It takes the
-  # directory the way the app takes it (`app.pid`, app/src/workstation/station.ts) and keeps it until it
+  # directory the way the app takes it (`app.pid`, app/src/poste/station.ts) and keeps it until it
   # stops: the app opened afterwards sees it held, and does not launch a second one. Relaunched 5 s
   # after a failure, like a server's (brigade-station.service: Restart=on-failure), except when it
   # refused to start (code 2): retrying would change nothing.

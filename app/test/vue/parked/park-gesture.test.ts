@@ -4,28 +4,28 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkGesture } from "../../../src/vue/parked/park-gesture.js";
 
-const viaOneBridge = (rendered: unknown) => {
+const viaUnPont = (rendu: unknown) => {
   const calls: unknown[][] = [];
   const suites = { lues: 0 };
-  const action = parkGesture(
+  const geste = parkGesture(
     async (...a) => {
       calls.push(a);
-      if (rendered instanceof Error) throw rendered;
-      return rendered;
+      if (rendu instanceof Error) throw rendu;
+      return rendu;
     },
     { lire: () => void (suites.lues += 1) },
   );
-  return { geste: action, calls, suites };
+  return { geste, calls, suites };
 };
 const NO_KITCHEN = "nothing sent: this app does not play the kitchen's gestures for this project";
 const UNREAD = "nothing sent: the app did not say what happened";
-const target = (project: string) => ({ project, ticket: 7, step: "Cooks" });
+const cible = (project: string) => ({ project, ticket: 7, step: "Cooks" });
 
 test("park sets the wait from the form, unpark sends the ticket back to the kitchen, for any project", async () => {
   for (const project of ["parade", "atelier"]) {
-    const { geste: action, calls } = viaOneBridge({ fait: "done" });
-    await action(target(project), { action: "park", who: "Camille", what: "the keys", until: "2026-12-01" });
-    await action(target(project), { action: "unpark" });
+    const { geste, calls } = viaUnPont({ fait: "done" });
+    await geste(cible(project), { action: "park", who: "Camille", what: "the keys", until: "2026-12-01" });
+    await geste(cible(project), { action: "unpark" });
     assert.deepEqual(calls, [
       [project, "attente-poser", 7, { quoi: "the keys", qui: "Camille", relance: "2026-12-01" }],
       [project, "attente-arrivee", 7],
@@ -34,16 +34,16 @@ test("park sets the wait from the form, unpark sends the ticket back to the kitc
 });
 
 test("what the bridge renders is said: nothing, a refusal, a fact (the kitchen read again), an unread shape, an error", async () => {
-  for (const nothing of [undefined, null]) assert.deepEqual(await viaOneBridge(nothing).geste(target("parade"), { action: "unpark" }), { refus: NO_KITCHEN, detail: "" });
-  assert.deepEqual(await viaOneBridge({ refus: "no" }).geste(target("parade"), { action: "unpark" }), { refus: "no", detail: "" });
-  assert.deepEqual(await viaOneBridge({ refus: "no", detail: "why" }).geste(target("parade"), { action: "unpark" }), { refus: "no", detail: "why" });
-  const done = viaOneBridge({ fait: "posted" });
-  assert.deepEqual(await done.geste(target("parade"), { action: "unpark" }), { fait: "posted" });
-  assert.equal(done.suites.lues, 1);
+  for (const rien of [undefined, null]) assert.deepEqual(await viaUnPont(rien).geste(cible("parade"), { action: "unpark" }), { refus: NO_KITCHEN, detail: "" });
+  assert.deepEqual(await viaUnPont({ refus: "no" }).geste(cible("parade"), { action: "unpark" }), { refus: "no", detail: "" });
+  assert.deepEqual(await viaUnPont({ refus: "no", detail: "why" }).geste(cible("parade"), { action: "unpark" }), { refus: "no", detail: "why" });
+  const fait = viaUnPont({ fait: "posted" });
+  assert.deepEqual(await fait.geste(cible("parade"), { action: "unpark" }), { fait: "posted" });
+  assert.equal(fait.suites.lues, 1);
   // Ni fait ni refus — une forme que le pont ne rend plus (un terminal du second, avant le ticket 4262) : rien n'est dit parti.
-  const other = viaOneBridge({ id: 3, projet: "parade", genre: "second" });
-  assert.deepEqual(await other.geste(target("parade"), { action: "unpark" }), { refus: UNREAD, detail: "" });
-  assert.equal(other.suites.lues, 0);
-  assert.deepEqual(await viaOneBridge("odd").geste(target("parade"), { action: "unpark" }), { refus: UNREAD, detail: "odd" });
-  assert.deepEqual(await viaOneBridge(new Error("bridge down")).geste(target("parade"), { action: "unpark" }), { refus: "nothing sent: bridge down", detail: "" });
+  const autre = viaUnPont({ id: 3, projet: "parade", genre: "second" });
+  assert.deepEqual(await autre.geste(cible("parade"), { action: "unpark" }), { refus: UNREAD, detail: "" });
+  assert.equal(autre.suites.lues, 0);
+  assert.deepEqual(await viaUnPont("odd").geste(cible("parade"), { action: "unpark" }), { refus: UNREAD, detail: "odd" });
+  assert.deepEqual(await viaUnPont(new Error("bridge down")).geste(cible("parade"), { action: "unpark" }), { refus: "nothing sent: bridge down", detail: "" });
 });

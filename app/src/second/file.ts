@@ -3,126 +3,126 @@
 // comme contexte additionnel — le second la voit sans y penser (role.md, « On opening »). Rien que GitHub, par le `gh`
 // du poste (#1845) : ni box jointe, ni station, ni tableau de la cuisine (#2460).
 //
-// La lecture est celle du TODO de l'app (board/wait-of-chef.ts) : les issues du dépôt, leurs labels, leurs
+// La lecture est celle du TODO de l'app (tableau/attente-du-chef.ts) : les issues du dépôt, leurs labels, leurs
 // commentaires — les mêmes entrées, chacune avec sa question et son geste, dans le même bloc `awaiting`, bords compris ;
 // « nothing awaits the chef » quand rien n'attend. Le second et l'app ne se contredisent pas : ils lisent la même chose.
 //
-// Le crochet n'est que dans les réglages du lancement de l'onglet Second (launch.ts, `--settings`), qui le déclarent
-// par hook-of-the-file.ts : aucun fichier du projet ne le porte, une session `claude` ordinaire du même dossier ne le
+// Le crochet n'est que dans les réglages du lancement de l'onglet Second (lancement.ts, `--settings`), qui le déclarent
+// par crochet-de-la-file.ts : aucun fichier du projet ne le porte, une session `claude` ordinaire du même dossier ne le
 // joue pas.
 //
 // Une file qu'on n'a pas pu lire est dite telle, dans les mots de role.md, au lieu d'échouer en silence — et le crochet
 // sort toujours en 0 : il ne bloque jamais la session.
 import { execFile } from "node:child_process";
-import { repositoryOfTheOrigin } from "../addition.ts";
-import { blockOfChef, readWhatAwaitingTheChef } from "../board/wait-of-chef.ts";
-import { bodyRead, type CallGitHub } from "../board/client.ts";
-import { writingOnTheRepository } from "../board/writing.ts";
-import { EVENT, type Target } from "./hook-of-the-file.ts";
+import { depotDeLOrigine } from "../ajout.ts";
+import { blocDuChef, lireCeQuiAttendLeChef } from "../tableau/attente-du-chef.ts";
+import { corpsLu, type AppelGitHub } from "../tableau/client.ts";
+import { ecritureSurLeDepot } from "../tableau/ecriture.ts";
+import { EVENEMENT, type Cible } from "./crochet-de-la-file.ts";
 import { lireLesStationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import type { StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
-import { readTheRailBlocked } from "../vue/rail-blocked/rail-blocked.ts";
+import { lireLeRailBloque } from "../vue/rail-bloque/rail-bloque.ts";
 
 // Ce que la lecture entière a pour se faire, toutes ses vagues d'appels comprises — sous le délai du crochet
-// (hook-of-the-file.ts) : passé, `claude` tue le crochet, et le second n'aurait rien, pas même « file non lue ».
-export const DELAY_MS = 30_000;
+// (crochet-de-la-file.ts) : passé, `claude` tue le crochet, et le second n'aurait rien, pas même « file non lue ».
+export const DELAI_MS = 30_000;
 // Ce que la lecture a rendu : le bloc `awaiting` de ce qui attend le chef, et l'heure de la lecture ; ou pourquoi rien ne
 // se lit. `horsLigne` : GitHub n'a pas été joint du tout.
-export type Reading = { lue: true; depot: string; lu: string; texte: string } | { lue: false; raison: string; horsLigne?: true; sansDepot?: true };
+export type Lecture = { lue: true; depot: string; lu: string; texte: string } | { lue: false; raison: string; horsLigne?: true; sansDepot?: true };
 
 // Ce que le crochet dit au second — la file, ou pourquoi elle n'est pas lue, dans les mots de role.md.
-// `moment` : quand l'app l'a lue — au début de la session par défaut, ou après le merge de l'init (role-after-init.ts).
-export function contextOfTheFile(target: Target, reading: Reading, moment = "at the start of this session (or after a compaction)"): string {
-  const header = `The project's queue, read by the app ${moment} from GitHub only — the issues of the project, their labels and their comments, not the Kitchen board: what awaits the chef, the same items as the app's Todo, each with its question and its gesture, in the \`awaiting\` block of \`brigade ${target.nom} status\`. This is your reading: do not run it again.`;
-  const not = (sentence: string, suite = "") => `${header}\n\n${sentence}${suite === "" ? "" : `\n${suite}`}`;
-  if (!reading.lue && reading.sansDepot === true) return not("file non lue : aucun dépôt GitHub pour ce projet — ni `depot` dans ~/.config/brigade/app.json, ni `origin` GitHub dans son dossier");
-  if (!reading.lue && reading.horsLigne === true) return not("file non lue : GitHub pas joint", reading.raison);
-  if (!reading.lue) return not("file non lue : GitHub n'a pas rendu ce qui attend le chef", reading.raison);
-  return `${header} Read at ${reading.lu}, on ${reading.depot}.\n\n${reading.texte.replace(/\s+$/, "")}`;
+// `moment` : quand l'app l'a lue — au début de la session par défaut, ou après le merge de l'init (role-apres-init.ts).
+export function contexteDeLaFile(cible: Cible, lecture: Lecture, moment = "at the start of this session (or after a compaction)"): string {
+  const entete = `The project's queue, read by the app ${moment} from GitHub only — the issues of the project, their labels and their comments, not the Kitchen board: what awaits the chef, the same items as the app's Todo, each with its question and its gesture, in the \`awaiting\` block of \`brigade ${cible.nom} status\`. This is your reading: do not run it again.`;
+  const non = (phrase: string, suite = "") => `${entete}\n\n${phrase}${suite === "" ? "" : `\n${suite}`}`;
+  if (!lecture.lue && lecture.sansDepot === true) return non("file non lue : aucun dépôt GitHub pour ce projet — ni `depot` dans ~/.config/brigade/app.json, ni `origin` GitHub dans son dossier");
+  if (!lecture.lue && lecture.horsLigne === true) return non("file non lue : GitHub pas joint", lecture.raison);
+  if (!lecture.lue) return non("file non lue : GitHub n'a pas rendu ce qui attend le chef", lecture.raison);
+  return `${entete} Read at ${lecture.lu}, on ${lecture.depot}.\n\n${lecture.texte.replace(/\s+$/, "")}`;
 }
 
 // Ce que le second sait d'un dépôt où le compte GitHub du poste ne peut pas écrire (#3163) : la ligne que la vue pose en
 // tête du projet, et ce qu'elle implique pour lui — on lui parle pour comprendre, il ne change rien. Rien quand le compte
 // y écrit, ou quand GitHub ne l'a pas dit (`ecritureSurLeDepot`).
-export function contextOfTheWriting(repository: string, writing: boolean | null): string {
-  if (writing !== false) return "";
-  return `Read-only: your GitHub account cannot write to ${repository}. The chef can talk with you to understand what is happening on this project, but you cannot change anything there: no issue filed or edited, no label, no comment, no merge, no push. Say so at the top of your first answer, and again whenever the chef asks for a change there.`;
+export function contexteDeLEcriture(depot: string, ecriture: boolean | null): string {
+  if (ecriture !== false) return "";
+  return `Read-only: your GitHub account cannot write to ${depot}. The chef can talk with you to understand what is happening on this project, but you cannot change anything there: no issue filed or edited, no label, no comment, no merge, no push. Say so at the top of your first answer, and again whenever the chef asks for a change there.`;
 }
 
 // Le format que `claude` attend d'un crochet `SessionStart` : du JSON sur la sortie standard.
-export const outputOfHook = (context: string): string =>
-  JSON.stringify({ hookSpecificOutput: { hookEventName: EVENT, additionalContext: context } });
+export const sortieDuCrochet = (contexte: string): string =>
+  JSON.stringify({ hookSpecificOutput: { hookEventName: EVENEMENT, additionalContext: contexte } });
 
 // Le `GET` de l'API de GitHub par le `gh` du poste — son compte, son jeton, son réseau. Un refus de GitHub est une
 // réponse (son code, le corps qu'il a rendu) ; un `gh` absent, arrêté ou qui ne dit pas de code HTTP lève. La lecture de
 // ce qui attend le chef fait plusieurs vagues d'appels (les listes, puis les commentaires, puis les poses de label) : tous
 // partagent une échéance, `delaiMs` après la création de l'appel, et un appel qui la passe lève comme un GitHub muet.
-export function callParGh(gh: string, delayMs: number = DELAY_MS): CallGitHub {
-  const deadline = Date.now() + delayMs;
-  const silent = () => new Error(`no answer in ${Math.round(delayMs / 1000)} s`);
-  return (path) =>
-    new Promise((resolve, rejeter) => {
-      const remains = deadline - Date.now();
-      if (remains <= 0) return rejeter(silent());
-      execFile(gh, ["api", path.replace(/^\//, "")], { windowsHide: true, timeout: remains, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (error, output, errors) => {
-        if (error === null) return resolve({ status: 200, data: bodyRead(output) });
-        const http = /\(HTTP (\d{3})\)/.exec(errors)?.[1];
-        if (http !== undefined) return resolve({ status: Number(http), data: bodyRead(output) });
-        if (error.killed === true) return rejeter(silent());
-        if ((error as { code?: unknown }).code === "ENOENT") return rejeter(new Error(`\`${gh}\` is not on this computer`));
-        rejeter(new Error(errors.trim().split("\n").at(-1) || error.message));
+export function appelParGh(gh: string, delaiMs: number = DELAI_MS): AppelGitHub {
+  const echeance = Date.now() + delaiMs;
+  const muet = () => new Error(`no answer in ${Math.round(delaiMs / 1000)} s`);
+  return (chemin) =>
+    new Promise((resoudre, rejeter) => {
+      const reste = echeance - Date.now();
+      if (reste <= 0) return rejeter(muet());
+      execFile(gh, ["api", chemin.replace(/^\//, "")], { windowsHide: true, timeout: reste, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
+        if (erreur === null) return resoudre({ status: 200, data: corpsLu(sortie) });
+        const http = /\(HTTP (\d{3})\)/.exec(erreurs)?.[1];
+        if (http !== undefined) return resoudre({ status: Number(http), data: corpsLu(sortie) });
+        if (erreur.killed === true) return rejeter(muet());
+        if ((erreur as { code?: unknown }).code === "ENOENT") return rejeter(new Error(`\`${gh}\` is not on this computer`));
+        rejeter(new Error(erreurs.trim().split("\n").at(-1) || erreur.message));
       });
     });
 }
 
 // Ce qui attend le chef dans ce dépôt, lu comme le TODO de l'app le lit, rendu dans le bloc `awaiting`. `stations` : les
 // stations du compte — avec elles, le rail bloqué (#3358) se lit aussi, et sa ligne vient sous la tête du bloc.
-export async function readTheFile(call: CallGitHub, repository: string, now: () => Date = () => new Date(), stations?: () => Promise<StationsLues>): Promise<Reading> {
-  const instant = now();
-  const [readEntry, railBlocked] = await Promise.all([
-    readWhatAwaitingTheChef({ depot: repository, appeler: call, maintenant: () => instant, enWaiting: true }),
-    stations === undefined ? undefined : readTheRailBlocked({ depot: repository, appeler: call, stations, maintenant: instant.getTime() }),
+export async function lireLaFile(appeler: AppelGitHub, depot: string, maintenant: () => Date = () => new Date(), stations?: () => Promise<StationsLues>): Promise<Lecture> {
+  const instant = maintenant();
+  const [lue, railBloque] = await Promise.all([
+    lireCeQuiAttendLeChef({ depot, appeler, maintenant: () => instant, enWaiting: true }),
+    stations === undefined ? undefined : lireLeRailBloque({ depot, appeler, stations, maintenant: instant.getTime() }),
   ]);
-  if (!readEntry.lue) return { lue: false, raison: readEntry.raison, ...(readEntry.horsLigne === undefined ? {} : { horsLigne: true as const }) };
-  return { lue: true, depot: repository, lu: readEntry.lu, texte: blockOfChef({ ...readEntry, depot: repository, ...(railBlocked === undefined ? {} : { railBloque: railBlocked }) }).join("\n") };
+  if (!lue.lue) return { lue: false, raison: lue.raison, ...(lue.horsLigne === undefined ? {} : { horsLigne: true as const }) };
+  return { lue: true, depot, lu: lue.lu, texte: blocDuChef({ ...lue, depot, ...(railBloque === undefined ? {} : { railBloque }) }).join("\n") };
 }
 
 // Les stations du compte, par le `gh` du poste (runtime/src/enregistrement-station/stations-du-compte.ts) — dans le délai
 // du crochet : passé, elles sont dites illisibles, et la file se lit sans elles.
-export function stationsParGh(gh: string, delayMs: number = DELAY_MS): () => Promise<StationsLues> {
+export function stationsParGh(gh: string, delaiMs: number = DELAI_MS): () => Promise<StationsLues> {
   return async () => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const silent = new Promise<StationsLues>((resolve) => {
-      timer = setTimeout(() => resolve({ illisibles: `no answer in ${Math.round(delayMs / 1000)} s` }), delayMs);
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    const muettes = new Promise<StationsLues>((resoudre) => {
+      minuteur = setTimeout(() => resoudre({ illisibles: `no answer in ${Math.round(delaiMs / 1000)} s` }), delaiMs);
     });
-    const readEntries = lireLesStationsDuCompte({ gh, delaiMs: delayMs }).then((readOne): StationsLues => (readOne.state === "listed" ? { lues: readOne.stations } : { illisibles: readOne.reason }));
+    const lues = lireLesStationsDuCompte({ gh, delaiMs }).then((lu): StationsLues => (lu.state === "listed" ? { lues: lu.stations } : { illisibles: lu.reason }));
     try {
-      return await Promise.race([readEntries, silent]);
+      return await Promise.race([lues, muettes]);
     } finally {
-      clearTimeout(timer);
+      clearTimeout(minuteur);
     }
   };
 }
 
 // Ce que le crochet écrit : toujours un contexte, même quand la file n'a pas pu être lue. `dossier` : celui de la
 // session, dont l'`origin` donne le dépôt quand le fichier des projets ne le donne pas.
-export async function play(gh: string, target: Target, folder: string, delayMs: number = DELAY_MS): Promise<string> {
-  const repository = target.depot || (await repositoryOfTheOrigin(process.env.BRIGADE_GIT_BIN || "git", folder));
-  if (repository === undefined) return outputOfHook(contextOfTheFile(target, { lue: false, raison: "", sansDepot: true }));
-  const call = callParGh(gh, delayMs);
-  const [reading, writing] = await Promise.all([readTheFile(call, repository, undefined, stationsParGh(gh, delayMs)), writingOnTheRepository(repository, call)]);
-  const written = contextOfTheWriting(repository, writing);
-  return outputOfHook(`${contextOfTheFile(target, reading)}${written === "" ? "" : `\n\n${written}`}`);
+export async function jouer(gh: string, cible: Cible, dossier: string, delaiMs: number = DELAI_MS): Promise<string> {
+  const depot = cible.depot || (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", dossier));
+  if (depot === undefined) return sortieDuCrochet(contexteDeLaFile(cible, { lue: false, raison: "", sansDepot: true }));
+  const appeler = appelParGh(gh, delaiMs);
+  const [lecture, ecriture] = await Promise.all([lireLaFile(appeler, depot, undefined, stationsParGh(gh, delaiMs)), ecritureSurLeDepot(depot, appeler)]);
+  const ecrit = contexteDeLEcriture(depot, ecriture);
+  return sortieDuCrochet(`${contexteDeLaFile(cible, lecture)}${ecrit === "" ? "" : `\n\n${ecrit}`}`);
 }
 
 // À la main : `node app/src/second/file.ts <nom> [<depot> [<gh>]]`, dans le dossier du projet, rend ce que `claude`
 // recevrait.
 if (import.meta.main) {
-  const [name, repository, gh] = process.argv.slice(2);
+  const [nom, depot, gh] = process.argv.slice(2);
   try {
-    process.stdout.write(`${await play(gh || "gh", { nom: name ?? "", ...(repository ? { depot: repository } : {}) }, process.cwd())}\n`);
-  } catch (error) {
-    process.stdout.write(`${outputOfHook(`The project's queue could not be read: file non lue : ${error instanceof Error ? error.message : String(error)}`)}\n`);
+    process.stdout.write(`${await jouer(gh || "gh", { nom: nom ?? "", ...(depot ? { depot } : {}) }, process.cwd())}\n`);
+  } catch (erreur) {
+    process.stdout.write(`${sortieDuCrochet(`The project's queue could not be read: file non lue : ${erreur instanceof Error ? erreur.message : String(erreur)}`)}\n`);
   }
   process.exit(0);
 }

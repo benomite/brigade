@@ -1,12 +1,12 @@
 // La page de « parade », confiée à sa box, que la station refuse de servir (#1178) : à la place d'un projet qui
 // ne bouge pas, une phrase dit pourquoi et ce que le chef fait. Le refus est celui que la box publie (#1177), avec
 // le remède qui le lève (#1203) : son bouton porte sa phrase, avant tout clic (#1205).
-import type { ProjectSeen } from "../../../app/src/projects/projects.ts";
+import type { ProjetVu } from "../../../app/src/projets/projets.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
 // Refusé par la box : `refus`, tel que la box le publie (runtime/src/projets/refus.ts, remedes/catalogue/port.ts).
-export const refuse = (refus: NonNullable<ProjectSeen["refus"]>): ProjectSeen => ({
+export const refuse = (refus: NonNullable<ProjetVu["refus"]>): ProjetVu => ({
   ...SUR_LA_BOX,
   stations: SUR_LA_BOX.stations.map((station) => (station.id === SUR_LA_BOX.suiviPar?.id ? { ...station, etat: "refuse" as const, dit: "refused" } : station)),
   refus,

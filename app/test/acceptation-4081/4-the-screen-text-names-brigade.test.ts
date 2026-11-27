@@ -4,13 +4,13 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-const FOLDER = join(import.meta.dirname, "../../src/vue/first-launch");
+const DOSSIER = join(import.meta.dirname, "../../src/vue/premier-lancement");
 
 test("the first-launch screen text names the app 'Brigade'", () => {
-  assert.ok(existsSync(FOLDER), "app/src/vue/first-launch/ does not exist");
-  const text = readdirSync(FOLDER, { recursive: true, encoding: "utf8" })
+  assert.ok(existsSync(DOSSIER), "app/src/vue/premier-lancement/ does not exist");
+  const texte = readdirSync(DOSSIER, { recursive: true, encoding: "utf8" })
     .filter((f) => /\.(ts|js|html)$/.test(f))
-    .map((f) => readFileSync(join(FOLDER, f), "utf8"))
+    .map((f) => readFileSync(join(DOSSIER, f), "utf8"))
     .join("\n");
-  assert.match(text, /["'`>][^"'`<\n]*\bBrigade\b[^"'`<\n]*["'`<]/, "a text of the screen names Brigade");
+  assert.match(texte, /["'`>][^"'`<\n]*\bBrigade\b[^"'`<\n]*["'`<]/, "a text of the screen names Brigade");
 });

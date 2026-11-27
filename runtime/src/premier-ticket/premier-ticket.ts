@@ -1,11 +1,11 @@
 // Le premier ticket d'un projet neuf, écrit dans l'app (#3306, épique #3301).
 // Le projet prêt, l'app demande au chef, au nom du second, ce qu'il veut
-// changer d'abord (`app/src/vue/first-ticket/`). Ce module fait le reste,
+// changer d'abord (`app/src/vue/premier-ticket/`). Ce module fait le reste,
 // que l'app charge et joue sous le `gh` et le `claude` de son poste :
 //
 //   rediger(…)   le second écrit l'issue d'après la réponse du chef : sa
 //                consigne (`consigne`) donnée à `claude -p`, comme le triage
-//                du départ (`app/src/departure-of-project.ts`, #3268), avec le
+//                du départ (`app/src/depart-du-projet.ts`, #3268), avec le
 //                lanceur que l'app lui passe. Un « non » du chef, avec ce qu'il
 //                veut changer, la fait réécrire : le brouillon d'avant et les
 //                changements partent avec la réponse. Rien n'est créé ici.
@@ -30,7 +30,7 @@ export type Redaction = { draft: Brouillon } | { refus: string; detail: string }
 export type Creation = { ticket: number; url: string } | { refus: string; detail: string };
 
 // Lance `claude` avec ce texte sur son entrée standard (celui de l'app :
-// `lancerLeTriage`, `app/src/departure-of-project.ts`).
+// `lancerLeTriage`, `app/src/depart-du-projet.ts`).
 export type Lancer = (commande: string, args: readonly string[], entree: string, dossier: string, delaiMs: number) => Promise<{ code: number | null; sortie: string; erreur: string }>;
 
 // La question que le second pose au chef, le projet prêt.

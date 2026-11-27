@@ -4,12 +4,12 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Board } from "../../src/facts.ts";
-import type { VueOfProject } from "../../src/second/context-of-blockage.ts";
-import { dropTheVue } from "../../src/second/vue-of-project.ts";
+import type { Tableau } from "../../src/faits.ts";
+import type { VueDuProjet } from "../../src/second/contexte-du-blocage.ts";
+import { deposerLaVue } from "../../src/second/vue-du-projet.ts";
 
 const base = { attendu: false, attend: [], fiche: {}, ouvrable: true, dit: [] };
-const board = {
+const tableau = {
   rail: {
     colonnes: [
       { nom: "TODO", ton: "", compte: "1", cartes: [{ ...base, ticket: 4100, etat: "todo", titre: "Pick a design", attendu: true, question: true }], vide: "" },
@@ -18,20 +18,20 @@ const board = {
     ],
     hors: [],
   },
-} as unknown as Board;
+} as unknown as Tableau;
 
 test("seule la carte qui pose une question au chef attend le chef ; un cook au travail et la pass ne l'attendent pas", () => {
-  const views = mkdtempSync(join(tmpdir(), "vue-4195-"));
+  const vues = mkdtempSync(join(tmpdir(), "vue-4195-"));
   try {
-    dropTheVue("espace", board, views);
-    const vue = JSON.parse(readFileSync(join(views, "espace.json"), "utf8")) as VueOfProject;
-    const awaiting = (n: number) => vue.rail.find((c) => c.number === n)!.waitsOn;
-    assert.match(awaiting(4100), /chef/);
-    assert.doesNotMatch(awaiting(4200), /chef/);
-    assert.doesNotMatch(awaiting(4300), /chef/);
-    assert.match(awaiting(4200), /cook/i);
-    assert.match(awaiting(4300), /pass/i);
+    deposerLaVue("espace", tableau, vues);
+    const vue = JSON.parse(readFileSync(join(vues, "espace.json"), "utf8")) as VueDuProjet;
+    const attend = (n: number) => vue.rail.find((c) => c.number === n)!.waitsOn;
+    assert.match(attend(4100), /chef/);
+    assert.doesNotMatch(attend(4200), /chef/);
+    assert.doesNotMatch(attend(4300), /chef/);
+    assert.match(attend(4200), /cook/i);
+    assert.match(attend(4300), /pass/i);
   } finally {
-    rmSync(views, { recursive: true, force: true });
+    rmSync(vues, { recursive: true, force: true });
   }
 });

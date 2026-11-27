@@ -1,6 +1,6 @@
 // L'espace d'un projet : le rail au centre, son second à droite — « parade », ouvert par sa case
 // dans la barre.
-import type { Terminal } from "../../../app/src/terminals.ts";
+import type { Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 

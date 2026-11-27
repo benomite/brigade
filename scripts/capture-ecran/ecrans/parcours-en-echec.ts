@@ -1,7 +1,7 @@
 // La page de « parade », confiée à sa box, pendant son onboarding (#1111) : le parcours en quatre
 // étapes sous la ligne de ses stations, la préparation du dépôt en échec — sa raison, l'heure de son
 // prochain essai —, son ticket à ouvrir. L'onboarding est celui que la box publie (#1110).
-import type { Onboarding } from "../../../app/src/projects/request.ts";
+import type { Onboarding } from "../../../app/src/projets/demande.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 

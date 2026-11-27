@@ -2206,7 +2206,7 @@ test("a cook that takes a ticket whose PR's CI is red is given what the red chec
       ],
       annotationsDuCheck: async (check) => {
         lus.push(check.name);
-        return check.name === "tests app (3/3)" ? [{ chemin: null, ligne: null, titre: "tests app (3/3)", message: "✖ failing tests:\n\ntest at test/skin.test.ts:57:1\n✖ the skin has no hard-coded colour" }] : [];
+        return check.name === "tests app (3/3)" ? [{ chemin: null, ligne: null, titre: "tests app (3/3)", message: "✖ failing tests:\n\ntest at test/peau.test.ts:57:1\n✖ the skin has no hard-coded colour" }] : [];
       },
     },
     depot: { connait: (branche) => branche === "cook/14-github", preparer: async () => assert.fail("the branch is resumed"), reprendre: async (run) => join(repertoire, run), retirer: () => {}, ranger: async () => null, pousser: () => {}, commits: () => 1, changes: () => [], diff: () => "", tete: () => "a".repeat(40) },
