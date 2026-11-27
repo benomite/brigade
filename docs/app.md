@@ -2620,7 +2620,13 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
 - **`+ shell`** opens a shell on **this workstation** (`this Mac`): the app opens no shell on any other machine and
   asks nothing. Where a project cooks elsewhere, you work on that machine yourself.
 - This shell is **persistent**: it lives in a `tmux` session (or `screen`, where `tmux` is missing)
-  on this workstation, under your account. It opens **on the right, next to the second**: it has its tab (`shell 1`,
+  on this workstation, under your account. The mouse wheel scrolls back through what was printed, as in
+  the second, and the mouse stays the view's (selection and copy). Under `tmux`, the wheel scrolls the
+  session's own history (its copy mode, driven by the app; the next key leaves it before going to the
+  shell); a program on the session's alternate screen (`vim`, `less`) gets arrow keys instead. Under
+  `screen`, the session writes on the terminal's normal screen (`termcapinfo * ti@:te@`, read at the
+  session's creation), so the terminal keeps what scrolled by; a screen session created before keeps
+  its alternate screen until destroyed. It opens **on the right, next to the second**: it has its tab (`shell 1`,
   `shell 2`…) and is shown in place of the second, which does not stop for all that. **A shell never
   replaces the second**: a click on the second's tab brings it back, with its conversation; a
   click on a shell's tab shows it again, as you left it. The terminal shown takes the
