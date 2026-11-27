@@ -50,7 +50,7 @@ export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes
   };
   const accueil: Home = {
     projets: [],
-    stations: [{ ...lineOfStation(station, 0, false), ...plus }],
+    stations: [{ ...lineOfStation(station, 0, []), ...plus }],
     sante: { ton: "gris", dit: "Max ✓  ·  GitHub ✓", survol: "" },
   };
   return {
