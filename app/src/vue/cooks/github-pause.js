@@ -1,13 +1,22 @@
 // @ts-check
-// Ce que dit la page d'un projet dont le rail n'est pas lu parce que GitHub est en pause (ticket 4620) : le quota horaire du jeton
-// du chef est presque épuisé, l'app ne lit plus rien jusqu'à l'heure où il se remplit. Une station sert le projet : la phrase
-// ne dit pas le contraire.
+// La ligne que la page d'un projet pose au-dessus du rail quand l'app retient ses lectures pour le quota GitHub (tickets 4620,
+// 4645) : ce qui est retenu, ce qui reste, et quand la lecture reprend — « GitHub quota: 0 of 5,000 left — reading resumes at
+// 17:27 », à l'heure locale du chef. Rail gardé ou pas, c'est la même ligne ; elle part avec la pause.
 
 /** @param {string} iso */
-const hourOf = (iso) => `${new Date(iso).toISOString().slice(11, 16)} UTC`;
+const hourOf = (iso) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 
 /** @param {{ jusqua: string, restant?: number, total?: number }} pause */
-export function sentenceOfPause({ jusqua: until, restant: left, total }) {
-  const quota = left !== undefined && total !== undefined ? `GitHub's hourly quota is almost used up (${left.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} left)` : "GitHub's hourly quota is used up";
-  return `${quota}: the rail is read again at ${hourOf(until)}`;
+function sentenceOfPause({ jusqua: until, restant: left, total }) {
+  const quota = left !== undefined && total !== undefined ? `${left.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} left` : "reads paused";
+  return `GitHub quota: ${quota} — reading resumes at ${hourOf(until)}`;
+}
+
+/** @param {{ createElement(balise: string): any }} doc @param {{ jusqua: string, restant?: number, total?: number }} pause */
+export function setThePause(doc, pause) {
+  const line = doc.createElement("p");
+  line.className = "pause-github";
+  line.textContent = sentenceOfPause(pause);
+  line.title = "The app sends no GitHub read for any project until then, to leave the rest of the hourly quota to you: what the rail shows is its last reading.";
+  return line;
 }

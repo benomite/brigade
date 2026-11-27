@@ -10,6 +10,7 @@ import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Promp
 import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
+import { removeWorktreesOfClosedTickets } from "../station/closed-worktrees.ts";
 import { forget, listRuns, startRun, type Finished, type Kind, type Launch } from "./runs.ts";
 
 export type Git = (cwd: string, args: string[]) => Promise<string>;
@@ -57,6 +58,7 @@ const calibrationOf = (labels: readonly string[], fallback: { model: string; eff
   model: labels.find((label) => label.startsWith("model:"))?.slice(6) ?? fallback.model,
   effort: labels.find((label) => label.startsWith("effort:"))?.slice(7) ?? fallback.effort,
 });
+const WORKTREE_SWEEP_EVERY_MS = 10 * 60_000;
 const COOK = { model: "sonnet", effort: "medium" };
 const JUDGE = { model: "opus", effort: "medium" };
 
@@ -292,6 +294,26 @@ export function openKitchen(options: KitchenOptions) {
         log(`${action.kind}${"issue" in action ? ` #${action.issue}` : ""} failed — ${(error as Error).message}`);
       }
     }
+    await sweepClosedWorktrees(new Set(state.issues.map((one) => one.number))).catch((error: Error) => log(`the worktrees of closed tickets could not be swept — ${error.message}`));
+  }
+
+  // A ticket closed, merged or not, has no use for its worktree: the disk must not grow with the kitchen's work (#4658).
+  let lastSweep = Number.NEGATIVE_INFINITY;
+  async function sweepClosedWorktrees(openTickets: Set<number>) {
+    if (now() - lastSweep < WORKTREE_SWEEP_EVERY_MS) return;
+    lastSweep = now();
+    const busy = new Set(listRuns(runs).running.flatMap((run) => (run.issue === null ? [] : [run.issue])));
+    const removed = await removeWorktreesOfClosedTickets({
+      dossier: options.worktrees,
+      // A ticket in the open list is open; any other is read, and only a ticket read closed loses its worktree.
+      ferme: async (ticket) => !openTickets.has(ticket) && (JSON.parse(await gh(["api", `repos/${repo}/issues/${ticket}`])) as { state?: string }).state === "closed",
+      enCuisine: (ticket) => busy.has(ticket) || openTickets.has(ticket),
+      retirer: async (path) => {
+        await git(options.clone, ["worktree", "remove", "--force", path]);
+      },
+      avertir: log,
+    });
+    for (const path of removed) log(`worktree ${path} removed: its ticket is closed`);
   }
 
   return { turn };

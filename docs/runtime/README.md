@@ -39,7 +39,7 @@ tool launches beside it:
 | `mise-a-jour/main.ts` | `brigade-station-mise-a-jour.timer`: the station's update |
 | `connexion-max/connecter-cli.ts` | `installer-station.sh`, under Linux: the Max connection of the station's account |
 | `reseau-cli.ts`, `bac-a-sable/detection-projet.ts`, `essai-projet/declaration-cli.ts` | by hand, from the project folder: they write `.claude/brigade/reseau`, `.claude/brigade/bac-a-sable.json` and `.brigade/try.json` when absent |
-| `second-init/pr-de-setup.ts` | the repository setup, in the session the app opens in the second (`app/src/plugin-app.ts`) |
+| `second-init/pr-de-setup.ts` | the repository setup, in the session the app opens in the second (`app/src/setup/instructions.md`) |
 | `fermeture-alerte-publication.ts` | `.github/workflows/publier-app.yml`: closes the alerts of a release once it is published |
 | `station/geste.ts` | the app (`ACTION`, `app/src/box.ts`; the gestures written into the second, `app/src/actions.ts`): `node src/station/geste.ts <project> <command> [arguments…]`, run from `runtime/` with `BRIGADE_STATION_DIR` |
 | the scripts of `runtime/package.json` but `start`, `test` and `typecheck` | `station/geste.ts`, which runs the file its command's script names |
@@ -60,6 +60,7 @@ One line per project in `<BRIGADE_STATION_DIR>/kitchen/projects`, read again at 
 - `PLACES` is the number of cooks at once (4 by default).
 - `CLONE` points at an existing clone; without it, the clone is `<BRIGADE_STATION_DIR>/<name>/depot`.
 - The project's state, its agents' runs and their worktrees go to `<BRIGADE_STATION_DIR>/kitchen/<name>/`.
+- A closed or merged ticket keeps no worktree: the kitchen sweeps `worktrees/` every ten minutes and removes those of closed tickets (not one in the kitchen, not one it cannot read). The station unit has a private `/tmp` (`PrivateTmp=yes`), emptied when the unit stops, and each package update restarts it.
 
 What the project's base branch declares, read before each turn:
 

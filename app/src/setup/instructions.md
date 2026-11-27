@@ -1,8 +1,6 @@
----
-description: Prépare ce dépôt pour Brigade (bindings, gates, setup des worktrees, labels) — une PR à merger, rejouable sans dégât
----
+# Préparer ce dépôt pour Brigade
 
-Tu prépares **ce dépôt** pour Brigade, sur le seul chemin GitHub : ni box, ni ssh, ni plugin V1. C'est la commande que porte le plugin de l'app (#2595), en attendant que l'ajout d'un projet le fasse d'un geste (#2584). Tu parles français avec l'utilisateur ; ce qui s'écrit dans le dépôt est en anglais.
+Ces instructions sont celles de cette session : l'app l'a ouverte pour préparer **ce dépôt** pour Brigade, sur le seul chemin GitHub — ni box, ni ssh, ni plugin. Suis-les dès le premier message ; aucune commande n'est à taper ni à invoquer. Tu parles français avec l'utilisateur ; ce qui s'écrit dans le dépôt est en anglais.
 
 Le résultat est **une pull request** que l'utilisateur merge : le bloc `## Équipe multi-agents` à la fin de `CLAUDE.md`, `.claude/brigade/gates.sh` et `.claude/brigade/worktree-setup.sh`. Les labels du rail, eux, sont posés tout de suite sur le dépôt. Rien n'est écrit dans le dossier de travail de l'utilisateur : le script travaille dans un worktree jetable.
 

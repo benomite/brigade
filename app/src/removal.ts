@@ -36,7 +36,7 @@ export function holdRemovals(options: {
       return {
         projet: name,
         titre: "Remove this project from the app",
-        retirer: { libelle: REMOVE, lignes: [`“${REMOVE}” takes “${name}” off the bar and out of ${options.chemin}, and uninstalls the app's plugin (/brigade:dev, /brigade:ask, /brigade:init) from its folder's local Claude Code settings — nothing else.`, `Nothing is sent to its station: the project stays installed there, with its log intact. Uninstalling it is done on the station itself (${DOC}).`, REMAINS] },
+        retirer: { libelle: REMOVE, lignes: [`“${REMOVE}” takes “${name}” off the bar and out of ${options.chemin}, and uninstalls the app's plugin (/brigade:dev, /brigade:ask) from its folder's local Claude Code settings — nothing else.`, `Nothing is sent to its station: the project stays installed there, with its log intact. Uninstalling it is done on the station itself (${DOC}).`, REMAINS] },
       };
     },
 

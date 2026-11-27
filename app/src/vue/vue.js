@@ -93,7 +93,6 @@ import { setEngine, WITHOUT_ENGINE } from "./delivery-engine/display.js";
 import { holdTheFiguresOfAutonomy } from "./autonomy/figures.js";
 import { holdTheTeam } from "./autonomy/team.js";
 import { holdTheAgents } from "./agents/agents.js";
-import { dayOf, setTheCardOfDigest, setTheLog, holdTheCardOfMorning } from "./log/log.js";
 import { capacityOfNeed, capacityChoice, comeBack, ONLY, stationAOpen } from "./stations-declared.js";
 import { SAYS_TEMPORARY, TEMPORARY } from "./learning.js";
 import { keepTheKeyboard } from "./keep-the-keyboard.js";
@@ -109,6 +108,7 @@ import { setOpinionOfTodo } from "./todo/opinion-todo.js";
 import { setTheOthers } from "./todo/others.js";
 import { LIST_OF_CHEF, isRed, tidyTheRail } from "./todo/todo.js";
 import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
+import { holdSinceLastLooked } from "./since-last-looked/since-last-looked.js";
 import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "./kitchen/kitchen.js";
 import { lineOfAlerts } from "./line-of-status/line-of-status.js";
 import { setLineOfBreaker } from "./todo-breaker-line.js";
@@ -159,7 +159,7 @@ import { additionsOfProject as additionsOfRecorded, detailsOf, stateSays, issueO
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
 import { setToolsOfSecond } from "./tools-of-second.js";
 import { NO_STATION } from "./cooks/without-station.js";
-import { sentenceOfPause } from "./cooks/github-pause.js";
+import { setThePause } from "./cooks/github-pause.js";
 import { brandAfter } from "./card-wait/card-wait.js";
 import { waitExhausted, RAIL_NOT_READ } from "./wait-of-rail.js";
 import { AGENTS, MENU, KNOW_HOW, STATIONS } from "./project/menu/menu.js";
@@ -659,13 +659,20 @@ const delayOfProject = element("delai-du-projet");
 const teamOfProject = holdTheTeam(document, element("equipe-du-projet"), (name) => {
   if (current?.nom === name) setRail(current);
 }, () => chooseTab(AGENTS));
+// "Since you last looked" (ticket 4649, since-last-looked/): read from GitHub at each opening of a project, posed at the top
+// of its view until the next opening.
+const sinceLastLooked = holdSinceLastLooked(document, {
+  read: async (name) => brigade.sinceYouLastLooked?.(name),
+  open: (name, ticket) => void (current?.nom === name ? openIssue(current, ticket) : undefined),
+  redraw: (name) => {
+    if (current?.nom === name) setRail(current);
+  },
+});
 // L'onglet Agents du projet affiché (ticket 4224, agents/) : ses agents au travail, lus à l'ouverture de l'onglet (ticket 4569).
 const agentsOfProject = holdTheAgents(document);
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
-// La carte du digest de la veille (ticket 4274, journal/) : en tête du rail à la première ouverture du projet dans le jour.
-const cardOfMorning = holdTheCardOfMorning(storageOfTheVue());
 const offerOfPhone = element("offre-telephone");
 const offer = holdTheOffer({
   stockage: storageOfTheVue(),
@@ -4150,12 +4157,6 @@ function signStale({ raison: reason }, readOne) {
   const saidOne = tellTheRead({ reading: true, readAt: readOne, stale: true, refusal: { kind: "other" } }, { maintenant: Date.now(), pourquoi: reason, panneauVisible: panelAFicher() });
   return setTheRead(document, saidOne);
 }
-// Le rail gardé que rend la pause du budget de GitHub (ticket 4620), un redémarrage compris : l'heure de la lecture montrée, son âge, et
-// l'heure où la lecture reprend.
-/** @param {{ jusqua: string }} pause @param {number | string} readOne */
-function signPause({ jusqua: until }, readOne) {
-  return setTheRead(document, tellTheRead({ reading: true, readAt: readOne, stale: true, refusal: { kind: "rate-limit", resetAt: until } }, { maintenant: Date.now(), panneauVisible: false }));
-}
 // Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
 /** @param {string} since */
 function signOutsideLine(since) {
@@ -4857,7 +4858,7 @@ function setTheRail(project) {
   // tête avec ses cartes et leurs gestes (ticket 2076). Hors ligne, le signe seul, comme pour tout rail (ticket 1818).
   const ofBoard = (held !== undefined && "tableau" in held) || outsideLine !== undefined;
   // Le quota de GitHub retient la lecture, sans rail gardé : ce n'est pas qu'aucune station ne sert le projet.
-  if (!ofBoard && held !== undefined && "pause" in held && held.pause !== undefined && project.sansStation !== true) return rail.replaceChildren(block("h3", sentenceOfPause(held.pause)));
+  if (!ofBoard && held !== undefined && "pause" in held && held.pause !== undefined && project.sansStation !== true) return rail.replaceChildren(setThePause(document, held.pause));
   if (!itselfLit(project) && project.sansStation !== true && !ofBoard) return rail.replaceChildren(block("h3", NO_STATION));
   // Sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
   // Le bon posé pour chaque carte, celles des stations comprises (ticket 1270) : celui de la fiche ouverte y reprend
@@ -4865,8 +4866,9 @@ function setTheRail(project) {
   /** @type {Map<import("../facts.ts").Card, HTMLElement>} */
   const setEntries = new Map();
   setCooking(project);
+  // At the very top, the card "Since you last looked" (ticket 4649), once the project's opening has read it.
   /** @param {(HTMLElement | string)[]} poses */
-  const set = (...poses) => rail.replaceChildren(...(alertOfKitchen.hidden ? [] : [alertOfKitchen]), ...poses);
+  const set = (...poses) => rail.replaceChildren(...sinceLastLooked.poser(project.nom), ...(alertOfKitchen.hidden ? [] : [alertOfKitchen]), ...poses);
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (project.sansStation === true) return rail.replaceChildren(block("h3", STATION_STOPPED));
@@ -5048,17 +5050,16 @@ function setTheRail(project) {
     [
       issueOfTheKitchen === undefined ? [] : withItsAction(lineOfAlerts(document, alerts), `open #${issueOfTheKitchen.ticket}`, () => void openIssue(project, issueOfTheKitchen.ticket)),
       headOfRail(project),
-      rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? signPause(held.pause, held.a) : freshness(held.a)),
+      rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? [] : freshness(held.a)),
     ].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
   // La bande du haut (ticket 4354) : les cartes du supervisor et du closer sur une ligne.
   const bandOfTop = setTheBandOfTop(document, { roles: held.tableau.rolesCuisine, montre: (name) => teamOfProject.agent(project.nom, name) !== undefined, alerte: issueOfTheKitchen?.ticket, maintenant: Date.now(), deplies: unfoldsOf(project.nom) });
   const age = held.publieLe === undefined ? undefined : ageOfRail(held.publieLe, held.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   if (age !== undefined) for (const carrier of [status[0], grid]) if (carrier !== undefined && !carrier.title) carrier.title = age;
-  // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
-  const { journal: log, digest } = held.tableau;
-  const ofMorning = digest !== undefined && cardOfMorning.aMontrer(project.nom, dayOf(new Date())) ? [setTheCardOfDigest(document, digest)] : [];
-  set(...ofMorning, bandOfTop, ...status, ...(log === undefined ? [] : [setTheLog(document, log)]), grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
+  // Les lectures retenues pour le quota GitHub : une ligne au-dessus du rail, qui part avec la pause.
+  const lineOfPause = held.pause === undefined ? [] : [setThePause(document, held.pause)];
+  set(...lineOfPause, bandOfTop, ...status, grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
   renderTheKeyboard(resumption);
   placeTheRow(project, grid, scrolls);
   if (sameRail) rail.scrollTop = topOfRail;
@@ -8384,6 +8385,7 @@ async function pasteOneRepository(text) {
 async function open(project) {
   current = project;
   teamOfProject.lire(project.nom);
+  sinceLastLooked.lire(project.nom);
   recordedAReread = true;
   stationOpen = undefined;
   pageOfTheApp = undefined;

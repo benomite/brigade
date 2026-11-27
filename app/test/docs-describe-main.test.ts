@@ -14,7 +14,7 @@ function files(folder: string): string[] {
 const texts = FOLDERS.flatMap((folder) => files(join(ROOT, folder))).filter((path) => /\.(md|html|svg|json)$/.test(path));
 
 // Ce qui n'existe plus : l'arrêt et l'état ouvert de la cuisine (#4509), les colonnes de l'ancien rail, l'onglet Cooks,
-// les plafonds, le disjoncteur et le second juge de l'ancien runtime, le label `sensitive` (#4505), `/brigade:init`.
+// les plafonds, le disjoncteur et le second juge de l'ancien runtime, le label `sensitive` (#4505), la commande d'init du plugin.
 const GONE: RegExp[] = [
   /Stop the kitchen/,
   /\bkitchen open\b/,
@@ -30,7 +30,7 @@ const GONE: RegExp[] = [
   /second judge/,
   /halts every cook/,
   /garde-fous\.md/,
-  /\/brigade:init/,
+  /\/brigade:(init)\b/,
 ];
 
 test("the pages left in these folders name nothing removed from main", () => {

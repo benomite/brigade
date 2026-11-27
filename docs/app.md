@@ -634,9 +634,9 @@ reading with the same frozen data, so no server can arrive between two readings;
 `parcours-premier-projet/parcours-premier-projet.js`; its state and gestures in `app/src/vue/vue.js` (`serveurAttendu`,
 `gestesDuServeur`). Tests: `app/test/add-server/`, `app/test/acceptation-4347/`.*
 
-### The account's GitHub quota gauge, on the Stations tab (#3483, epic #3475)
+### The account's GitHub quota gauge, on the Stations tab (#3483, epic #3475, #4645)
 
-Under the top line, when the runtime's `facts` carry `quotaGithub` (`app/src/vue/stations-quota/`), a gauge says `<used> / <limit> calls used` and when the window renews (`renews around 11:00`, the chef's local time; `renewal time unknown` when it does not read). It is **green** under 80 % used and **orange** from 80 %: a warning before any pause, neither the yellow of GitHub's pause line nor red. Behind it, a folded `Calls over the last hour` lists the calls per station and per project in plain words (`Mac station, secondes: 39 writes on issues`), the biggest user first; with no calls it says `No GitHub calls recorded over the last hour.` A quota that does not read (no limit, a count that is not a number) says `GitHub quota unreadable`, with no figure made up. Without `quotaGithub`, no gauge.
+The app reads the account's quota from GitHub itself (#4645, `app/src/quota-github.ts`): `GET /rate_limit`, the one call GitHub does not count against the quota, at most once a minute, alongside each rail reading but outside the app's read budget, so the pause does not hold it back. It is put in the read's `facts` as `quotaGithub` (`core`: the token's REST calls). Under the top line (`app/src/vue/stations-quota/`), a gauge says `<used> / <limit> calls used (reads and writes)` and when the window renews (`renews around 11:00`, the chef's local time; `renewal time unknown` when it does not read). It is **green** under 80 % used and **orange** from 80 %: a warning before any pause, neither the yellow of GitHub's pause line nor red. When the quota carries `parStationEtProjet` (GitHub's `rate_limit` does not), behind it a folded `Calls over the last hour` lists the calls per station and per project in plain words (`Mac station, secondes: 39 writes on issues`), the biggest user first; with no calls it says `No GitHub calls recorded over the last hour.` A quota that does not read (no limit, a count that is not a number) says `GitHub quota unreadable`, with no figure made up. Without `quotaGithub`, no gauge.
 
 ### Every setting of each station, on the Stations tab (#2488, epic #2484)
 
@@ -827,6 +827,37 @@ up. When the team is read, the supervisor and the closer have no card of the Rai
 `app/test/autonomy/team-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
 `propose`, with a gesture awaiting its `OK`).
 
+### Since you last looked, at the top of the project view (#4649, epic #4647)
+
+The app remembers, per project, when the chef last opened its view: the time of each opening is kept in
+`last-looked.json`, beside the app's configuration. At the next opening, a card at the very top of the Rail view,
+**Since you last looked**, says what changed on GitHub since then, in three groups, always all three:
+
+- **Merged** — the tickets whose pull request was merged since then (by its branch `cook/<n>-…` or its `Closes #n`); a
+  revert is not counted here;
+- **Sent back or reverted** — the deliveries the kitchen sent back (its comment `Sent back to a cook`, or `Parked for the
+  supervisor: refused` when the tries ran out, written by an owner, member or collaborator of the repository), and the
+  tickets a merged revert undid (`Revert …` in its title, or GitHub's `revert-<pr>-cook/<n>-…` branch); each entry says
+  which (`— sent back`, `— reverted`);
+- **Parked for you** — the open issues that carry `parked:chef` now and got it since then (the `labeled` event of their
+  timeline).
+
+Each heading counts everything its group holds, one per ticket (`Merged · 12`); the group shows its three latest
+tickets, an empty one says `nothing`. A click on an entry opens its issue on GitHub; the time of the last look is on
+the card's hover. The first opening of a project has no card (there is no last look to compare with): it only sets the
+time. A reading GitHub refuses says why in one line in the card, and keeps the last look where it was, so the next
+opening still compares with the last one the chef got. Lists longer than ten pages are cut, and the card says the counts
+stop there.
+
+Nothing is read but GitHub: the open issues by the very path the board reads, the closed pull requests back to the last
+look, the repository's issue comments since then, the timeline of each `parked:chef` issue, and the issue of a shown entry
+whose title the lists did not give — all through the board's conditional memory, so a reread unchanged costs nothing. The
+card is read once per opening, never at the rail's reads.
+
+*Code: `app/src/since-last-looked.ts` (the reading and the last looks), `app/src/vue/since-last-looked/` (the card),
+`sinceYouLastLooked` in `app/src/main.ts`. Tests: `app/test/since-last-looked/reading.test.ts` (the groups and their counts
+from a fake GitHub), `app/test/since-last-looked/vue.test.ts` (the view opened twice, and an entry clicked).*
+
 ### The Know-how tab (#4570, epic #4135)
 
 The project's menu has a **Know-how** tab, between Agents and Settings; the project remembers it like the other tabs. It
@@ -857,27 +888,6 @@ supervisor) is listed too, with no time. The kitchen writes no station on GitHub
 The `closer` and `reviewer` are not listed: the kitchen runs neither. Captures (in git history): `docs/captures/4569/` (`onglet-agents-avant.png` — the tab saying `The agents not reached.` —,
 `onglet-agents-apres.png`, `onglet-agents-vide-apres.png`).
 
-### The logbook of the day and the morning digest card (#4274, epic #4025)
-
-Above the columns of the rail, **Today's logbook** reads the day (the UTC day of the last `facts` reading) from the
-agents' threads (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, T1): four groups, always all
-four — **Delivered**, **Broke**, **Fixed by the system**, **Not fixed**, with **The system's own mistakes** under Not
-fixed. Each entry is one gesture of a thread: its time, the agent, its line and its outcome, its reason on hover; an
-empty group says `nothing`. At the first opening of a project in a day (the day of the computer's clock), a card with
-**yesterday**'s digest sits at the top of the view, the number of outages seen first by the chef as its first line; it
-stays while the app stays open that day, and another opening that day does not show it. Both are readings: neither
-asks for a notification.
-
-Both come from `facts`, like the rest of the view: `fils` (one list of gestures per agent, each `at`, `line`,
-`reason`, `outcome`, `kind` — `delivered`, `broke`, `fixed`, `unfixed` or `mistake`) and `digest` (a text, one line
-per thing said), read by `app/src/log/threads.ts` and sorted by `app/src/projects/log-of-day.ts`. A runtime that
-does not give them shows neither. `fils` of another shape says `the agents' threads are not readable`; a gesture of
-another shape, or of an unknown kind, is counted in one line, never sorted; a `digest` that is not a text says
-`yesterday's digest is not readable`. The line about outages is the one that holds the words `seen first by the
-chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/log/threads.ts`, the words the runtime's digest must write); a
-digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
-the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures (in git history): `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
-
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail is drawn from
@@ -887,8 +897,11 @@ the project's repository alone — nothing comes from a box —, at most once a 
 That token's hourly budget (5,000 requests) is shared with the chef's own `gh`, so the app keeps its own reads far below
 it (#3007, `app/src/budget-github.ts`): when GitHub says less than 20% of the budget is left (`x-ratelimit-remaining`),
 or refuses a read for going over the rate limit, the app sends no read for any project until the time GitHub gives
-(`x-ratelimit-reset`, or `retry-after`; one minute when it gives none). Each project keeps its last rail meanwhile; one
-never read says the reads are paused and until when. In `app/test/budget-github.test.ts`, six projects that each change
+(`x-ratelimit-reset`, or `retry-after`; one minute when it gives none). Each project keeps its last rail meanwhile. While
+the pause holds, the project view says so in one line above the rail, kept rail or none (#4645,
+`app/src/vue/cooks/github-pause.js`): `GitHub quota: 0 of 5,000 left — reading resumes at 17:27` (the chef's local time;
+`GitHub quota: reads paused — …` when GitHub did not say what is left); the line goes away with the first reading after
+the pause. In `app/test/budget-github.test.ts`, six projects that each change
 every three minutes, polled for eight simulated hours against a fake GitHub, cost at most 894 counted requests (every
 answer but a 304) in any hour, under the 1,000 the test allows.
 
@@ -1345,21 +1358,23 @@ matter, **in this order**, and the app skips none:
 
 | | The action | What the app does | What stays with you |
 |---|---|---|---|
-| 1 | **Prime the repo** — `Run /brigade:init in the second` | opens the space's second on the session: `claude /brigade:init`, a fresh conversation in the project folder | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
-| 2 | **Merge** — the box `The result of /brigade:init is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
+| 1 | **Prime the repo** — `Run the repository setup in the second` | opens the space's second on the setup session: a fresh `claude` conversation in the project folder, with the setup instructions in its system prompt — no command is typed | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
+| 2 | **Merge** — the box `The result of the repository setup is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
 | 3 | **Check** | runs `installation` through the project's station, for you, and displays **everything** it returned | settle what it names, and check again |
 | 4 | **Start** | writes nothing: this computer's station runs in the background, started at login or by the app when it opens, there is no service to start | — |
 
 **Three states**, and the check is possible only once init is said merged: **init is not said merged** (`Check` is
-inactive: `No check: the result of /brigade:init is not said merged…`); **the check is incomplete** (`NOT READY`, or
+inactive: `No check: the result of the repository setup is not said merged…`); **the check is incomplete** (`NOT READY`, or
 nothing yet, or what the app got instead); **everything is ready** (`installation` exited with `0`: `READY — checked
 at 14:32:07`). An inactive button has its reason written below, and the main process refuses likewise.
 
-**`/brigade:init` — the app puts you there.** If the space's second is not running, it is launched on the
-session, and the line under the right-hand tabs says so (``session launched on `/brigade:init`: `claude
-/brigade:init`, a fresh conversation in this folder``). If it is already running, it is not replaced:
-`/brigade:init` is written there, without Enter, as by a button. The session can be replayed without harm. The
-brigade plugin is needed on your workstation: without it, it is `claude` that says it does not know the command.
+**The repository setup — the app puts you there (#4632).** If the space's second is not running, it is launched on the
+setup session: `claude` with the setup instructions appended to its system prompt (`app/src/setup/instructions.md`,
+rendered next to the projects file with the paths of this computer's `node`, runtime and setup script) and a
+one-line first message that starts it; the line under the right-hand tabs says so (`setup session launched: …`). No
+slash command is typed or shown, and no plugin is needed. If the second is already running, it is not replaced: a
+one-line request naming the instructions file is written there, without Enter, as by a button. The session can be
+replayed without harm.
 
 **Merging is you.** The station sees of the repo only what its origin carries: as long as the result of init is not
 on the integration branch, it can serve nothing. A repo **already primed and merged** does not have to replay the
@@ -2594,7 +2609,7 @@ The command plays the same two functions as the app's buttons (`parquer`, `depar
 computer's `gh` token: no box, on any project. It says in one line what was written, or why nothing was, and exits 0
 (done), 1 (refused by the form or by GitHub) or 2 (a malformed command). The hook always exits 0.
 
-**The role is given again once `/brigade:init` is merged (#2689).** A second opened on a project not set up yet has no
+**The role is given again once the setup's pull request is merged (#2689).** A second opened on a project not set up yet has no
 bindings in its context: it starts the setup, which ends with a PR to merge (#3167, below). So the launch settings also carry
 `app/src/second/role-after-init.ts` twice. At each start (`SessionStart`), it notes whether the folder's `CLAUDE.md` has the
 `## Équipe multi-agents` section — what `claude` just loaded — in a file of the computer's temporary folder, per session.
@@ -2603,7 +2618,7 @@ project's integration branch (`base`, or the repository's default branch) with `
 — the init's PR merged — that message carries, as additional context, the role's text, the section as read on GitHub, and
 the queue read fresh: the same session answers as the second, with nothing to type or invoke. Once only; a session born
 with the section costs its messages nothing — no `gh`, no output. The hook always exits 0. Neither the role nor the end
-of `/brigade:init` points to `/brigade:po` or any V1 role, and model and effort are left to the manager.
+of the repository setup points to `/brigade:po` or any V1 role, and model and effort are left to the manager.
 
 **The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
 `PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refusal.ts`. It denies any
@@ -2641,8 +2656,8 @@ fold button. The logic is in `app/src/vue/project/panel-second/`.
 **Each shell carries a banner, at the top of its terminal: where it is, with which account** —
 `this Mac · benoit`. Its color is the project's tab color: changing space changes it.
 
-**A session that does not have the role is not called Second.** When the app opens a session on
-another command (`/brigade:init`, to prime the repo), the second's tab is called **Claude**;
+**A session that does not have the role is not called Second.** When the app opens the repository setup session
+(to prime the repo), the second's tab is called **Claude**;
 it becomes **Second** again if you relaunch it with one key, which launches it with the second's role.
 
 - **`+ shell`** opens a shell on **this workstation** (`this Mac`): the app opens no shell on any other machine and
@@ -2682,35 +2697,47 @@ at the head of its TODO: one sentence saying what is missing (`Not set up for Br
 missing.`, the names on hover) and one recommended button, `Set up for Brigade` — the same single gesture as adding a
 project (`runRepoSetup`). While it runs the button waits and the notice says so; on failure the notice gives one
 sentence and `Try again`; once done it leaves on both views without a reload. The state is read once per project with
-`checkRepoSetup`; a set up project shows nothing, and `/brigade:init` is never shown. The bindings section counts when
+`checkRepoSetup`; a set up project shows nothing, and no setup command is ever shown. The bindings section counts when
 the local copy's `CLAUDE.md` has it, or else the `CLAUDE.md` of the integration branch on GitHub: once the setup's PR is
 merged, the next reading says the project is set up, without pulling the copy (#3170). Modules:
 `app/src/vue/page-project/repository-not-prepare.js`, `app/src/vue/todo/opinion-todo.js`. Captures (in git history):
 `docs/captures/2628/`.
 
-### `/brigade:dev`, `/brigade:ask` and `/brigade:init` in every project the app opens (#2160, #2595)
+### The repository setup session (#2595, #4632)
 
-Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
-second, a shell of the app, or a terminal of your own — `/brigade:dev <number>`, `/brigade:ask <number>` and
-`/brigade:init` answer, with nothing to install by hand. These three commands, and only these: no V1 role
-(`/brigade:po`, `/brigade:manager`, `/brigade:designer`, `/brigade:sync`) and no agent — the app and the
-stations replace them.
+The app sets a repository up for Brigade on the GitHub-only path — no box, no ssh, no plugin — in a Claude Code
+session it opens in the project's second, with **no slash command**: the session gets its instructions the way the
+second gets its role, appended to its system prompt (`--append-system-prompt-file`), and a one-line first message
+starts it. The instructions are `app/src/setup/instructions.md`; the app renders them next to the projects file
+(`~/.config/brigade/setup/`), their `@NODE@`, `@SETUP_PR@` and `@SCRIPT@` marks replaced by this computer's `node`,
+the runtime's `pr-de-setup.ts` and the setup script copied there, executable (`app/src/setup/setup.ts`).
 
-- **`/brigade:init` is the app's own, not the V1 one** (`app/src/plugin/init.md`): it sets a repository up on
-  the GitHub-only path — no box, no ssh, no V1 plugin. The session deduces the test and install commands (and
-  asks only for what it cannot deduce), then a script the app writes into its marketplace
-  (`app/src/plugin/init.sh`, under `scripts/`) does the writing: the rail's labels on the repository at once,
-  then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end of
-  `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
-  **a pull request you merge**; the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
-  The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
+- The session deduces the test and install commands (and asks only for what it cannot deduce), then the script
+  (`app/src/setup/init.sh`, its label catalogue `labels.tsv` beside it) does the writing: the rail's labels on the
+  repository at once, then, in a throwaway worktree on `brigade/init`, the `## Équipe multi-agents` block at the end
+  of `CLAUDE.md`, `.claude/brigade/gates.sh` and `.claude/brigade/worktree-setup.sh` — each only if absent — and
+  **a pull request you merge**, its commit and body saying they were written by the Brigade app's repository setup;
+  the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see
+  `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
+- The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
   puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
   card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
   gives the session its last message: the pull request's address, why you are the one to merge it (it sets what
   will judge every future delivery: the integration branch, the checks, the file zones), and that the project
   shows as ready once it is merged. Replayed on the same pull request, it adds no second issue or card.
-It leaves the plugin once adding a project sets
-  the repository up in one gesture (#2584), not before.
+- The packaged app carries `src/` whole, so `src/setup/` ships with it (`app/packaging/construire.ts`, `linux.ts`,
+  `windows.ts`).
+
+*Code: `app/src/setup/`; tests: `app/test/setup/setup.test.ts`, a fresh repository set up against a bare `origin`
+and a stand-in `gh` by the script the rendered instructions name.*
+
+### `/brigade:dev` and `/brigade:ask` in every project the app opens (#2160)
+
+Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
+second, a shell of the app, or a terminal of your own — `/brigade:dev <number>` and `/brigade:ask <number>`
+answer, with nothing to install by hand. These two commands, and only these: no V1 role
+(`/brigade:po`, `/brigade:manager`, `/brigade:designer`, `/brigade:sync`), no setup command and no agent — the app
+and the stations replace them.
 
 - **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
   `.claude/settings.local.json` of the project's folder. If git does not already ignore that file, the app adds
@@ -2723,9 +2750,9 @@ It leaves the plugin once adding a project sets
 - **Beside the published plugin, nothing collides** (#4525). A project can also have `brigade@brigade`, the plugin
   published from `main` (`/brigade:start`, `/brigade:ask`, `/brigade:ticket`, `/brigade:todo`). Both type their commands as `/brigade:…`: the only
   command both carry, `/brigade:ask`, is the same `commands/ask.md`, so either copy says the same thing;
-  `/brigade:dev` and `/brigade:init` come only from the app's, `/brigade:start`, `/brigade:ticket` and `/brigade:todo` only from the published one.
+  `/brigade:dev` comes only from the app's, `/brigade:start`, `/brigade:ticket` and `/brigade:todo` only from the published one.
 - **The version is the app's.** The installed app installs its own version; launched from the repository
-  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the commands and the init script. At launch, each
+  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the two commands. At launch, each
   project at another version is updated: after an app update, the installed version is the new app's. A
   project added while the app runs gets it at once.
 - **Removing a project from the app uninstalls `brigade-app`** from its folder's local scope, and nothing
@@ -2737,10 +2764,8 @@ It leaves the plugin once adding a project sets
 - **A trial launched with `BRIGADE_CLAUDE_BIN` installs the plugin nowhere**, and removes it from nowhere: the
   stand-in `claude` is a session, not Claude Code's plugin manager. The app says so once in its terminal.
 
-*Code: `app/src/plugin-app.ts`, `app/src/plugin/`; tests: `app/test/plugin-app.test.ts`, against the real `git`
-and a stand-in `claude` that keeps its registry like the real one (claude 2.1.300), and
-`app/test/plugin-init.test.ts`, a fresh repository opened by the app and set up against a bare `origin` and a
-stand-in `gh`.*
+*Code: `app/src/plugin-app.ts`; tests: `app/test/plugin-app.test.ts`, against the real `git`
+and a stand-in `claude` that keeps its registry like the real one (claude 2.1.300).*
 
 ### A project's colors
 
@@ -4151,7 +4176,8 @@ trial file.
 has a `fire` ticket for it — on your quota, with no permission prompt, in a worktree of its folder. To try it without a
 quota: use the stand-in `claude` above, and a trial file whose projects have no station on this computer.
 
-The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
+The fake `claude` says `reçu : <first message>` when it is opened on the setup session, and the first line of its
+instructions (`rôle : …`).
 
 - **No build.** The main process is TypeScript run as is by Electron (its Node strips the types, like
   the runtime's); the view is JavaScript checked by `tsc` (`// @ts-check`), which imports xterm.js
@@ -4274,7 +4300,7 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
   (`docs/installer.md`, "Prepare the box"). The app says what to do and where, it does not do it.
 - Start a service for you: this computer's station runs in the background, started at login or by the app when it
   opens, and a station on another machine is started on that machine.
-- Know whether the result of `/brigade:init` is merged, or whether the session succeeded: you say
+- Know whether the result of the repository setup is merged, or whether the session succeeded: you say
   so, and `installation` verifies it on the origin.
 - Fix what `installation` names — create the labels, protect the branch: it shows the arrow, the
   action is typed (`docs/installer.md`, "Check that the project is ready").

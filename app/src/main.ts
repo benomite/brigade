@@ -33,6 +33,7 @@ import { COMMAND_OF_LOG, openTheReport, versionAimed } from "./vue/report/openin
 import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
 import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
+import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
@@ -50,6 +51,7 @@ import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-a
 import { tokenOfGh } from "./board/token-gh.ts";
 import { keptReadsInFile } from "./board/kept-reads.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
+import { holdTheQuotaGitHub, withTheQuota } from "./quota-github.ts";
 import { ticketOfTheBiggest } from "./spenders-of-token.ts";
 import { REPOSITORY_OF_THE_VISIT } from "./visit.ts";
 import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
@@ -109,6 +111,7 @@ import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_PLUGIN, launchReally, withoutPluginApp, holdThePluginApp } from "./plugin-app.ts";
+import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
 import { holdServices } from "./service.ts";
 import { installerTheStation } from "./workstation/installer.ts";
 import { memoriesInFile } from "./memories.ts";
@@ -218,6 +221,8 @@ const terminals = openTerminals({
   planDuSecond: (folder, args) => ({ state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: folder, env: {} }, missing: [], tools: [] }),
   souvenirs: memoriesInFile(join(dirname(pathConfiguration()), "shells.json")),
   node: locations.node,
+  // La session qui prépare un dépôt : ses instructions, posées à côté du fichier des projets (setup/setup.ts, #4632).
+  preparation: () => setTheSetup(join(dirname(pathConfiguration()), FOLDER_OF_SETUP), { node: locations.node, runtime: locations.runtime }),
   // La file que le second lit à son ouverture vient de GitHub seul, par le `gh` du poste (second/file.ts, #2460).
   gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
@@ -260,8 +265,15 @@ const signalTheBiggest = (report: Parameters<typeof ticketOfTheBiggest>[0], unti
   const ticket = ticketOfTheBiggest(report);
   if (ticket !== null) void clientOfLabels.ecrire("POST", `/repos/${REPOSITORY_OF_THE_VISIT}/issues`, { title: ticket.title, body: ticket.body, labels: ["product"] }).catch(() => undefined);
 };
+// Le quota du compte, pour la jauge de l'onglet Stations (#4645) : lu par `/rate_limit`, hors du budget — GitHub ne le compte
+// pas, et la pause ne le retient pas.
+const quotaOfAccount = holdTheQuotaGitHub({ appeler: callGitHub });
 const readTheBoard = async (project: Project): Promise<ReadOfBoardOfRepository> => {
   const repository = await repositoryOfProject(project);
+  const [readOne, quota] = await Promise.all([readTheBoardUnderBudget(project, repository), quotaOfAccount.lire()]);
+  return withTheQuota(readOne, quota);
+};
+const readTheBoardUnderBudget = (project: Project, repository: string): Promise<ReadOfBoardOfRepository> => {
   return readingUnderBudget({
     signaler: signalTheBiggest,
     budget: budgetGitHub,
@@ -500,7 +512,7 @@ const services = holdServices({
     return rendered;
   },
   cuisine: kitchens.cuisineDe,
-  session: terminals.session,
+  setup: terminals.setup,
   shell: terminals.shell,
   surGuide: (guide) => {
     tell("guide", guide);
@@ -527,7 +539,6 @@ const pluginApp = process.env.BRIGADE_CLAUDE_BIN
       marketplace: join(dirname(pathConfiguration()), FOLDER_OF_PLUGIN),
       commandes: locations.commandes,
       versionDeLApp: app.getVersion(),
-      lieux: { node: locations.node, runtime: locations.runtime },
       dire: (line) => console.error(line),
     });
 // Retirer un projet de l'app (removal.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et
@@ -776,7 +787,7 @@ ipcMain.handle("ranger", (_, name: unknown, rank: unknown) => {
   return typeof rank === "number" ? tracking.ranger(aims.nom, rank) : `nothing was done: “${String(rank)}” is not a place in the bar`;
 });
 // L'installation guidée : la vue nomme le projet et le geste, ce qu'il en advient se décide
-// dans service.ts — les étapes lues sur la box, la session `/brigade:init` dans le second,
+// dans service.ts — les étapes lues sur la box, la session qui prépare le dépôt dans le second,
 // chaque étape faite par la commande du runtime qui la fait, et le démarrage, écrit dans un
 // shell et refusé tant que la box n'a pas terminé l'installation. Ce qui change arrive par `surGuide`.
 const gone = (name: unknown) => ({ refus: `nothing was done: “${String(name)}” is no longer in the projects file` });
@@ -1428,6 +1439,19 @@ ipcMain.handle("agentsAtWork", (_, name: unknown) => {
   if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
   return readTheAgents({ station: hostname(), readOne, launch: launchOnTheKitchen, board: () => boards.lire(aims), now: Date.now });
 });
+// "Since you last looked" (#4649, since-last-looked.ts): the vue asks it each time the chef opens a project, and this opening
+// becomes the last look, kept per project beside the configuration. Read from GitHub alone, through the board's conditional
+// memory; the addresses it gives are the ones its entries open (`ouvrirIssue`).
+const lastLooks = holdLastLooks(join(dirname(pathConfiguration()), "last-looked.json"));
+const addressesLooked = new Map<string, Map<number, string>>();
+ipcMain.handle("sinceYouLastLooked", async (_, name: unknown) => {
+  const aims = knownOne(name);
+  if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
+  const repository = await repositoryOfProject(aims);
+  const read = await sinceYouLastLooked({ projet: aims.nom, depot: repository, appeler: readConditional(callUnderBudget, memoryOfRail(repository)), looks: lastLooks });
+  if ("groups" in read) addressesLooked.set(aims.nom, new Map(read.groups.flatMap(({ entries }) => entries.map(({ ticket, url }) => [ticket, url] as const))));
+  return read;
+});
 // Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humans-of-project.ts).
 ipcMain.handle("listerLesHumains", (_, name: unknown) => {
@@ -1599,7 +1623,7 @@ ipcMain.handle("lireFeu", async (_, name: unknown) => {
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
-  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? adressesOfFire.get(String(name))?.get(ticket) : undefined);
+  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket) ?? addressesLooked.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(
     () => true,
     () => false,

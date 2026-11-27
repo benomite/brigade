@@ -11,7 +11,7 @@ import { carteEnCours, CHEF_TODO } from "../../src/github-seul/carte-todo/carte-
 import { BRANCHE, MARQUEUR, MESSAGE_INCHANGE, ouvrirLaPrDeSetup, principal, type GitHubDuSetup, type Script } from "../../src/second-init/pr-de-setup.ts";
 import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
 
-const PLUGIN_DE_L_APP = join(import.meta.dirname, "..", "..", "..", "app", "src", "plugin");
+const PLUGIN_DE_L_APP = join(import.meta.dirname, "..", "..", "..", "app", "src", "setup");
 const URL = "https://github.com/acme/shop/pull/7";
 const SANS_BASH = process.platform === "win32" && "le script de la mise en place du dépôt et son `gh` doublure sont joués par bash";
 
@@ -94,7 +94,7 @@ test("la mise en place finit par la PR de setup, ouverte avec ses fichiers par l
   const dits: string[] = [];
   const redits: string[] = [];
 
-  // Par la commande que la mise en place du dépôt lance (app/src/plugin/init.md).
+  // Par la commande que la mise en place du dépôt lance (app/src/setup/instructions.md).
   await principal({ args: [script, ...VALEURS], env, dire: (ligne) => dits.push(ligne), redire: (ligne) => redits.push(ligne) }, { dossier: clone, github: () => github });
 
   assert.deepEqual(redits, []);
