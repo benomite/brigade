@@ -82,6 +82,8 @@ import { writeSettingsOfTheStation, readSettingsOfTheStation as readTheSettingsO
 import { EFFORTS, MODELS, servedElsewhere, holdProjects, type FoldersOfTheStation, type SeenOfProjects } from "./projects/projects.ts";
 import { memoryInFile, holdNotifications } from "./notification.ts";
 import { holdKitchensHere } from "./workstation/kitchen-here.ts";
+import { spawnSync } from "node:child_process";
+import { offerOnThisComputer } from "./make-cook.ts";
 import { isOneMac, nameOfWorkstation, persistentOn, shellOfWorkstation } from "./platform.ts";
 import { roleOf } from "./workstation/role.ts";
 import { whatProvidesThisComputer } from "./stations/provides.ts";
@@ -604,6 +606,17 @@ async function holdWhatProvidesThisComputer(seenOne: SeenOfStations): Promise<vo
 // l'a vu, et l'écran ne revient plus.
 const opinionOfBackground = holdTheOpinionOfBackground(() => tell("avisDeFond"));
 const brandOfTheOpinionOfBackground = join(dirname(pathConfiguration()), "avis-de-fond-vu");
+// "Make this computer cook" (#4744): offered on a computer that is not a station; on a Mac the command opens in Terminal.
+const offerToCook = () => offerOnThisComputer(rootOfTheStation, (command, args) => spawnSync(command, args, { timeout: 10_000, stdio: "ignore" }).status === 0);
+ipcMain.handle("offreDeCuisiner", () => offerToCook());
+ipcMain.handle("cuisinerIci", () => {
+  const offer = offerToCook();
+  if (!offer.offered) return { refus: "this computer is already a station" };
+  if (!isOneMac(platform)) return { commande: offer.command };
+  const script = `tell application "Terminal" to activate\ntell application "Terminal" to do script ${JSON.stringify(offer.command)}`;
+  spawnSync("osascript", ["-e", script], { timeout: 10_000, stdio: "ignore" });
+  return { commande: offer.command };
+});
 ipcMain.handle("avisDeFond", () => opinionOfBackground.attendu());
 ipcMain.handle("continuerLePremierLancement", () => opinionOfBackground.continuer());
 const afterTheOpinionOfBackground = <T>(declencher: () => Promise<T>): Promise<T> =>

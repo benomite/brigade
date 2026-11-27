@@ -17,6 +17,10 @@
 # Run twice, it changes nothing. A station that cannot have its sandbox (bwrap),
 # its account or its gate is refused, with the reason in one line.
 #
+# BRIGADE_PROJECTS_FILE=<file> gives the project lines (name, repository, base, places;
+# no CLONE=) a station moved from the chef's app: they are written to
+# /var/lib/brigade/kitchen/projects when the station has none, and it clones afresh.
+#
 # BRIGADE_RACINE=<dir> prefixes every path it writes (tests); BRIGADE_TERMINAL is
 # where the tokens are asked (default /dev/tty).
 set -eu
@@ -100,6 +104,15 @@ fi
 # 3. The state and the secrets.
 directory "$STATE" 750 "$ACCOUNT:$ACCOUNT"
 directory "$SECRETS" 750 "root:$ACCOUNT"
+
+# The projects moved from the app's embedded station, only into a station that has none.
+if [ -n "${BRIGADE_PROJECTS_FILE:-}" ] && [ -f "$BRIGADE_PROJECTS_FILE" ] && [ ! -e "$STATE/kitchen/projects" ]; then
+  directory "$STATE/kitchen" 750 "$ACCOUNT:$ACCOUNT"
+  cp "$BRIGADE_PROJECTS_FILE" "$STATE/kitchen/projects"
+  chmod 640 "$STATE/kitchen/projects"
+  chown "$ACCOUNT:$ACCOUNT" "$STATE/kitchen/projects"
+  say "projects moved from the app's station"
+fi
 
 # 4. The command.
 mkdir -p "$(dirname "$LINK")"
