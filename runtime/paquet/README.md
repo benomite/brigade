@@ -36,10 +36,8 @@ Le paquet pèse une trentaine de mégaoctets : le binaire `node` en fait l'essen
 |---|---|
 | `/usr/lib/brigade-station/runtime/` | `src/`, `agents/kitchen/second-judge.md` (la consigne du second juge, celle de ce commit — les archives macOS et Windows la portent aussi) et `package.json` du runtime — ni tests ni dépendances de dev |
 | `/usr/lib/brigade-station/node/bin/node` | le `node` de la station : celui de la machine n'y est pour rien |
-| `/usr/lib/brigade-station/renouvellement` | le renouvellement de la session Max (`runtime/deploy/brigade-renouvellement`, repris tel quel) |
 | `/usr/lib/systemd/system/brigade-station.service` | la station : la cuisine, un seul process, tous les projets de `/var/lib/brigade/kitchen/projects` |
 | `/usr/lib/systemd/system/brigade-station-porte.service` | ses portes : la sortie réseau de la station et de chaque projet, un process pour toutes |
-| `/usr/lib/systemd/system/brigade-station-renouvellement.{service,timer}` | le renouvellement, toutes les trente secondes |
 | `/usr/lib/systemd/system/brigade-station-mise-a-jour.{service,timer}` | la mise à jour de la station, toutes les dix minutes — la seule part de la station qui tourne sous root |
 
 Rien sous `/etc` que l'installation ne pose : ni drop-in, ni règle sudoers, ni fichier de

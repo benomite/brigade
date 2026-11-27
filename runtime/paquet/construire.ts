@@ -57,7 +57,7 @@ const DEPENDANCES = ["adduser", "ca-certificates", "git", "gh", "bubblewrap", "l
 // L'architecture Debian de chaque architecture de `node`.
 const ARCHITECTURES: Record<string, string> = { x64: "amd64", arm64: "arm64" };
 
-const UNITES = ["brigade-station.service", "brigade-station-porte.service", "brigade-station-renouvellement.service", "brigade-station-renouvellement.timer", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"];
+const UNITES = ["brigade-station.service", "brigade-station-porte.service", "brigade-station-mise-a-jour.service", "brigade-station-mise-a-jour.timer"];
 
 function refuser(motif: string): never {
   console.error(`brigade : paquet non construit — ${motif}`);
@@ -168,8 +168,6 @@ try {
   // archives carry it too.
   for (const prompt of readdirSync(join(RACINE, "agents", "kitchen"))) poser(join(RACINE, "agents", "kitchen", prompt), join(runtime, "agents", "kitchen", prompt), 0o644);
   poser(node, dans(INSTALLATION.slice(1), "node", "bin", "node"), 0o755);
-  // Le renouvellement de la session Max.
-  poser(join(RUNTIME, "deploy", "brigade-renouvellement"), dans(INSTALLATION.slice(1), "renouvellement"), 0o755);
   for (const unite of UNITES) poser(join(ICI, "systemd", unite), dans("usr", "lib", "systemd", "system", unite), 0o644);
   // La source de la mise à jour : le dépôt qui publie ce paquet.
   const miseAJour = dans("usr", "lib", "systemd", "system", "brigade-station-mise-a-jour.service");
@@ -211,8 +209,8 @@ try {
       " Un seul service par machine, brigade-station : la cuisine, qui sert tous les",
       " projets de /var/lib/brigade/kitchen/projects : elle prend leurs tickets sur",
       " GitHub et y fait travailler des agents, sous la connexion Max du compte",
-      " brigade. Le paquet porte le runtime, son node, ses unités systemd et le",
-      " renouvellement de la session Max ; il n'écrit aucune règle sudoers.",
+      " brigade. Le paquet porte le runtime, son node, et ses unités systemd ;",
+      " il n'écrit aucune règle sudoers.",
       "",
     ].join("\n"),
   );

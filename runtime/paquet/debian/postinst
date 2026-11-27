@@ -6,15 +6,39 @@
 set -e
 
 COMPTE=brigade
-UNITES="brigade-station.service brigade-station-renouvellement.timer"
+UNITES="brigade-station.service"
 # Les portes de la station : pas activées pour elles-mêmes, la station les
 # réclame.
 PORTES=brigade-station-porte.service
-# The kitchen's own unit, installed by hand on the box before the station ran
-# the kitchen: the station runs it now, and two kitchens must never serve the
-# same projects.
-CUISINE=brigade-kitchen.service
+# Les unités de l'ancien runtime, posées à la main ou par une version
+# précédente du paquet : la station fait tourner la cuisine seule (deux cuisines
+# ne servent jamais les mêmes projets), les cooks lisent /etc/brigade/jeton.env
+# (plus de renouvellement), et l'état de l'ancien runtime n'est plus à
+# sauvegarder. Les modèles à instances (brigade-sauvegarde@<projet>) sont
+# retrouvés par leurs liens d'activation et leurs drop-ins.
+ANCIENNES="brigade-kitchen.service brigade-arbitre.service brigade-renouvellement.service brigade-renouvellement.timer brigade-station-renouvellement.service brigade-station-renouvellement.timer brigade-sauvegarde@.service brigade-sauvegarde@.timer"
 UNITES_A_LA_MAIN=/etc/systemd/system
+
+# Arrête, désactive et supprime chaque unité de l'ancien runtime que la machine
+# porte encore, avec ses drop-ins ; ce que la machine n'a pas n'est pas touché.
+retirer_anciennes() {
+  liste="$ANCIENNES"
+  for lien in "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.timer "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.service \
+      "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.service.d "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.timer.d; do
+    [ -e "$lien" ] || [ -L "$lien" ] || continue
+    nom=${lien##*/}
+    liste="$liste ${nom%.d}"
+  done
+  for unite in $liste; do
+    presente=
+    for chemin in "$UNITES_A_LA_MAIN/$unite" "$UNITES_A_LA_MAIN/$unite.d" "$UNITES_A_LA_MAIN"/*.wants/"$unite"; do
+      if [ -e "$chemin" ] || [ -L "$chemin" ]; then presente=oui; fi
+    done
+    [ -n "$presente" ] || continue
+    case "$unite" in *@.*) ;; *) systemctl disable --now "$unite" || true ;; esac
+    rm -rf "$UNITES_A_LA_MAIN/$unite" "$UNITES_A_LA_MAIN/$unite.d" "$UNITES_A_LA_MAIN"/*.wants/"$unite"
+  done
+}
 
 case "$1" in
   configure)
@@ -30,12 +54,9 @@ case "$1" in
 
     # Sans systemd en marche (un chroot, un conteneur), rien à démarrer.
     if [ -d /run/systemd/system ]; then
-      # Its agents in flight keep running under their relays (KillMode=process):
+      # Their agents in flight keep running under their relays (KillMode=process):
       # the station's kitchen takes them back.
-      if [ -f "$UNITES_A_LA_MAIN/$CUISINE" ]; then
-        systemctl disable --now "$CUISINE" || true
-        rm -f "$UNITES_A_LA_MAIN/$CUISINE"
-      fi
+      retirer_anciennes
       systemctl daemon-reload
       if [ -z "${2:-}" ]; then
         # Première installation : la station démarre, et redémarrera avec la

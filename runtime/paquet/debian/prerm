@@ -10,7 +10,7 @@ case "$1" in
     # (KillMode=process), sans réseau. Rien de son état n'est touché :
     # /var/lib/brigade reste.
     if [ -d /run/systemd/system ]; then
-      systemctl stop brigade-station.service brigade-station-renouvellement.timer brigade-station-porte.service || true
+      systemctl stop brigade-station.service brigade-station-porte.service || true
     fi
     ;;
 esac
