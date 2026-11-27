@@ -4,15 +4,12 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { holdBands, type Band } from "../src/alerts.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, holdFacts, type Facts } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { type Fake, FakeScreen, type Played, playTheVue, openTab, repos } from "./helpers/false-vue.ts";
@@ -54,7 +51,7 @@ const startup = () => ({
   exemple: EXAMPLE,
   onglets: TABS,
   rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
@@ -62,7 +59,7 @@ const startup = () => ({
 
 // L'espace de « parade » ouvert, son rail lu, sa bande dite.
 async function open(status = OPEN, state: Facts["etat"] = "retenue", readOnly = false): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup, espace: () => [], geste: () => undefined });
+  const vue = await playTheVue({ demarrage: startup, espace: () => [] });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   const receivedOne = holdFacts().recevoir(reading("facts", JSON.stringify({ ...FACTS, ...(readOnly ? { lectureSeule: { depot: REPOSITORY } } : {}) })));
@@ -110,7 +107,7 @@ describe("la ligne du disjoncteur, hors du rail : elle n'offre aucun geste (#352
   });
 
   test("à la largeur d'un téléphone : la ligne est en tête de la liste des cartes, avec ce que la station en écrit sous son nom", async () => {
-    const vue = await playTheVue({ demarrage: startup, espace: () => [], geste: () => undefined } as never, { ecran: new FakeScreen(true) });
+    const vue = await playTheVue({ demarrage: startup, espace: () => [] } as never, { ecran: new FakeScreen(true) });
     const receivedOne = holdFacts().recevoir(reading("facts", JSON.stringify(FACTS)));
     vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });
     vue.dire("surAlertes", bandRead(OPEN));
@@ -118,12 +115,5 @@ describe("la ligne du disjoncteur, hors du rail : elle n'offre aucun geste (#352
     const setOne = vue.element("cartes-du-chef").dessous("div").find(({ className }) => className === "ligne-disjoncteur") ?? assert.fail("pas de ligne du disjoncteur dans la liste");
     assert.deepEqual(buttons(setOne), []);
     assert.equal(setOne.dessous("p").find(({ className }) => className === "pourquoi")?.textContent, "breaker OPEN for 1 h 00 (3 failures in a row)");
-  });
-
-  test("le geste d'une autre ligne reste offert : « resume » de la cuisine arrêtée se presse sur un projet ordinaire, pas en lecture seule", async () => {
-    const ordinary = await open(CLOSES_AGAIN, "arrêtée");
-    assert.ok(buttons(ordinary.element("alertes")).some(({ textContent }) => /resume/i.test(textContent)), "pas de bouton « resume » sur la ligne de la cuisine arrêtée");
-    const only = await open(CLOSES_AGAIN, "arrêtée", true);
-    assert.ok(!buttons(only.element("alertes")).some(({ textContent }) => /resume/i.test(textContent)), "« resume » offert en lecture seule");
   });
 });

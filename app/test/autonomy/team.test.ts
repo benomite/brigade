@@ -4,13 +4,10 @@
 // (autonomy/source.js) est remplacé par un faux, comme la vue l'appelle : par l'objet `source`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER, holdFacts } from "../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { holdTheTeam } from "../../src/vue/autonomy/team.js";
@@ -61,7 +58,7 @@ test("the project view shows the fixture's agents at its top: supervisor and clo
     exemple: EXAMPLE,
     onglets: TABS,
     rubriques: HEADINGS,
-    gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+    gestes: {},
     banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
     code: undefined,

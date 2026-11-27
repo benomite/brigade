@@ -78,24 +78,11 @@ time, at your local time: `GitHub is rate-limiting calls: too many writes per mi
 "detail". Nothing is asked of you, so the line has no button; it leaves by itself at the first `facts` without the
 entry, with no reload. A limit name the app does not know still makes the line, without its plain words
 (`app/src/vue/banner-limit-github.ts`).
-**One switch for the whole project** (#1406), in place of the manager's switch
-(#906): it is not a line of the band, it is at the head of the space, to the right of the tabs —
-`project on`, green slider on the right, or `project off`, grey on the left —, always in view, and one
-click toggles it. On, fired tickets are taken, the manager judges and splits, green deliveries are merged;
-off, nothing new is (`brigade <projet> switch [on | off]`, `docs/runtime/README.md`, "The project
-switch"). A project added from the app starts **on**: the runtime sets it at its first start, nothing to
-flip. Its state is read in the `manager` line, which the manager writes from the project switch it follows.
-Switching off goes to the second; switching on opens its confirmation below, which says its price in one
-sentence with the real number of issues the manager will judge (`it will judge the 23 open issues`, or
-`it will judge 21 of the 23 open issues — 2 carry blocked-on-human`), what it commits to on hover. Off,
-**the page says so in one line: the head of the rail is marked as stopped** — a hatched bar, `project off
-— nothing new is taken, split or merged` —, with `switch the project on…` next to it (#3454): the switch's own
-gesture, whose confirmation opens below the line (none in read-only). Running cooks finish, nothing new is taken; the
-kitchen it holds makes no second line. Once the `manager` line is read on, the line and its button go, with no reload. The `manager` line of the box (`OFF since … (by chef) — the project switch is
-off: …`) is now only on hover of the switch: the Manager page is gone from Settings (#1700), and the manager has
-no switch of its own. Not yet read, or not read, the switch says neither (`project …`) and toggles nothing; a read that
-fails makes its "unchecked" line in the band. On the bar, the tile of a project switched off keeps its
-signal.
+**The project switch is no longer in the app** (#4681): the app has no switch at the head of the space and launches
+no `switch` command. A project that is off is still told, in one line: the head of the rail is marked as stopped — a
+hatched bar, `project off — nothing new is taken, split or merged` — with no button, and the `manager` line of the box
+(`OFF since … (by chef) — …`) on hover. Not yet read, or not read, says neither; a read that fails makes its "unchecked"
+line in the band. On the bar, the tile of a project switched off keeps its signal.
 **"All projects" is the overview of
 brigade**: one line per project, one per station, each with its pill and what is going on there in
 a few words, and one click opens it — you do not act there, you look, then go where it is decided.
@@ -461,7 +448,9 @@ the idle guard"**, then one line per stop — its time and the activity where th
 `no activity read`), the run on hover. It stays as long as the box sends it: the ticket is not relaunched silently. A ticket
 stopped once, or by two different guardrails, shows nothing.
 
-### A word to the cook, from the card of a taken ticket (#4048, epic #4043)
+### A word to the cook, from the card of a taken ticket (#4048, epic #4043) — removed (#4681)
+
+**Removed in #4681**: the app no longer launches `send-word`; the card has no field. To steer a cook, comment on its issue on GitHub. What follows is kept as history.
 
 The card of a taken ticket has a one-line field, **"a word to the cook…"**, and a **send** button: the chef steers the cook
 without opening its session. Enter or **send** passes the line once to the runtime command `send-word`, with
@@ -2878,6 +2867,8 @@ A button of the app **does not act**. It writes its command into the space's **s
 after it, and stops there: you read it, you correct or complete it, and **it is your Enter that
 sends it**. In front of the `claude` prompt, a `stop` therefore does not go out from a stray
 click — in front of any other screen, read "The limit" below.
+
+**Removed in #4681: the app launches no `guardrails` command, and has no stop / resume button; what follows is history.**
 
 **A button that stops says what it stops.** `guardrails stop` exists only in a project's
 panel, and stops only **that project's kitchen**: the command it writes names it

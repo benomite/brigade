@@ -41,11 +41,11 @@ tool launches beside it:
 | `reseau-cli.ts`, `bac-a-sable/detection-projet.ts`, `essai-projet/declaration-cli.ts` | by hand, from the project folder: they write `.claude/brigade/reseau`, `.claude/brigade/bac-a-sable.json` and `.brigade/try.json` when absent |
 | `second-init/pr-de-setup.ts` | the repository setup, in the session the app opens in the second (`app/src/setup/instructions.md`) |
 | `fermeture-alerte-publication.ts` | `.github/workflows/publier-app.yml`: closes the alerts of a release once it is published |
-| `station/geste.ts` | the app (`ACTION`, `app/src/box.ts`; the gestures written into the second, `app/src/actions.ts`): `node src/station/geste.ts <project> <command> [arguments…]`, run from `runtime/` with `BRIGADE_STATION_DIR` |
+| `station/geste.ts` | the app (`ACTION`, `app/src/box.ts`): `node src/station/geste.ts <project> <command> [arguments…]`, run from `runtime/` with `BRIGADE_STATION_DIR` |
 | the scripts of `runtime/package.json` but `start`, `test` and `typecheck` | `station/geste.ts`, which runs the file its command's script names |
 
 The commands behind the gesture are the ones the app launches, and only those: `setting`, `humans`,
-`contributor-stations`, `switch`, `manager`, `send-word`, `guardrails`, and
+`contributor-stations`, `manager`, and
 `help`, which lists them (`commandes.ts`). `app/test/geste-serves-every-command.test.ts` collects what the app
 launches and runs each one through the real `geste.ts`: a command dropped while the app still launches it fails there.
 

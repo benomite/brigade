@@ -253,8 +253,6 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
 // bouton inventé.
 const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
   "log in": ["outages/outages.ts", 'libelle: "log in"'],
-  "resume the kitchen": ["kitchen.ts", 'libelle: "resume the kitchen"'],
-  Kitchen: ["vue/vue.js", 'rowOfSetting("Kitchen"'],
   "Closer’s calibration": ["settings-of-project.ts", `closer: "Closer’s calibration"`],
   "Closer’s start threshold (cooks in flight)": ["settings-of-project.ts", `"closer-cooks": "Closer’s start threshold (cooks in flight)"`],
   "project off": ["vue/vue.js", '"project off"'],

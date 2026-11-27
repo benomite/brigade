@@ -8,14 +8,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Faits as FactsOfRuntime } from "../../../runtime/src/etat.ts";
-import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
 import { actionsOfCard } from "../../src/card-actions.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { type Fake, FakeScreen, type Played, playTheVue, type Answers, repos } from "../helpers/false-vue.ts";
@@ -34,7 +31,7 @@ const startup = () => ({
   exemple: EXAMPLE,
   onglets: TABS,
   rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,

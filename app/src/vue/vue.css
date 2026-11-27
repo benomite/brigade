@@ -240,19 +240,6 @@ main > header,
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-/* L'interrupteur de l'espace (tickets 906, 1406), à droite des onglets — un seul pour tout le projet : une
-   glissière et son mot, « project on » ou « project off » — lisible sans rien lire d'autre. Allumé, la
-   glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien.
-   Sa confirmation s'ouvre dessous, en ligne (components/confirmation). */
-.interrupteur-de-tete {
-  flex: none;
-  margin-left: var(--pas-4);
-}
-/* Sa confirmation s'ouvre en ligne, sous le geste : l'interrupteur prend alors toute la rangée de la tête. */
-.interrupteur-de-tete:has(> .confirmation) {
-  flex: 1 1 100%;
-  margin-right: var(--pas-4);
-}
 /* Les onglets de pages : en haut, dans le bandeau, à droite du nom du projet. Trop nombreux pour
    la largeur, ils défilent. */
 /* Les onglets du projet (ticket 1184, 2921), Rail et Stations, entre son nom et Settings : les mêmes onglets, soulignés de
@@ -1486,10 +1473,6 @@ main > header,
   font-size: var(--taille-corps);
   font-weight: 700;
 }
-#etat #arreter-cuisine {
-  display: block;
-  padding: 0;
-}
 /* Les plafonds, le closer et les lignes de tous les projets (ticket 3014) : leurs blocs s'alignent sur les rangées des
    autres groupes, et le dernier ne double pas le bord de la carte. */
 #etat #bandeau-sante > .bloc-du-projet {
@@ -1789,20 +1772,6 @@ main > header,
   margin: 0;
   font-size: var(--taille-corps);
   color: var(--texte-doux);
-}
-/* La tête du rail, le manager éteint (#906) : une barre hachurée, à l'arrêt, sur toute la largeur — rien
-   de neuf n'entre —, sa pastille grise et sa ligne courte. Elle se voit sans se lire. */
-#rail .arret-manager {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: var(--pas-2) var(--pas-4) 0;
-  padding: var(--pas-2) var(--pas-3);
-  color: var(--texte-doux);
-  background-color: var(--bandeau);
-  background-image: repeating-linear-gradient(135deg, transparent 0 8px, var(--case) 8px 16px);
-  border: 1px dashed var(--trait-fort);
-  border-radius: var(--rayon-bouton);
 }
 /* Six colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
    étroite, la zone défile. La quatrième, TODO, est plus large : ses cartes portent une ligne du bloc ;

@@ -3,16 +3,13 @@
 // du haut que l'équipe lue remplit, et chaque message du haut avec le geste qu'il offre au chef.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { POWER_UP } from "../../../src/power-up.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
 import { holdBands } from "../../../src/alerts.ts";
 import { putAside } from "../../../src/awaiting.ts";
 import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
 import { actionsOfCard } from "../../../src/card-actions.ts";
-import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { Terminal } from "../../../src/terminals.ts";
@@ -31,7 +28,7 @@ const doc = { createElement: (balise: string) => new Element(balise) };
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
 });
 async function open(answers: Record<string, unknown> = {}): Promise<Played> {
@@ -192,7 +189,7 @@ describe("le plan, colonne par colonne", () => {
 });
 
 describe("le haut du rail, sous la bande", () => {
-  test("le disjoncteur ouvert n'est plus sur le rail : la bande de l'espace le dit — pas la ligne du projet éteint, que son interrupteur dit", async () => {
+  test("le disjoncteur ouvert n'est plus sur le rail : la bande de l'espace le dit — ", async () => {
     const vue = await open({ geste: () => undefined });
     await show(vue, { rail: [entry(21, "en attente")] });
     const readOne = (command: string, text: string) => ({ projet: PARADE, demande: 1, a: A, sorties: [{ commande: command, texte: text }] });
@@ -202,7 +199,6 @@ describe("le haut du rail, sous la bande", () => {
     bands.status(putAside(readOne("status", ["project    parade", "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)", ""].join("\n"))));
     vue.dire("surAlertes", bands.manager(readOne("manager", "manager               ÉTEINT depuis le 2026-11-03T09:25:21.838Z (par chef) — aucune issue n'est jugée, ce qu'il a posé reste posé\n")));
     await repos();
-    assert.doesNotMatch(vue.element("alertes").textContent, /project off/);
     assert.match(vue.element("alertes").textContent, /breaker open/);
     assert.doesNotMatch(vue.element("rail").textContent, /breaker open/);
   });

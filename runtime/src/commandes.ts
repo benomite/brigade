@@ -20,10 +20,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "setting", description: "The project's settings, from its repository, for the app; a change is refused: make it by a pull request on GitHub" },
   { nom: "humans", description: "The project's humans, from its repository, for the app: save <login> [<role>…], remove <login> — each change opens a pull request" },
   { nom: "contributor-stations", description: "The contributor stations that took a ticket, for the app: refuse <station>, accept <station> — a refused station takes no ticket" },
-  { nom: "switch", description: "The project switch, one for the whole project: on (tickets are taken, the manager judges and splits, green deliveries are merged), off (nothing new is)" },
   { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream; approve <n> does once a gesture an agent holds for the chef's OK", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
-  { nom: "send-word", description: "A word to the cook of a taken ticket: <owner>/<repo>#<ticket> <word…> posts it on the issue and queues it; it reaches the cook at the end of its current turn, never in the middle of it. Answers {\"ok\":true} or {\"ok\":false,\"reason\":\"…\"} on one line" },
-  { nom: "guardrails", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
   { nom: "help", description: "List these commands" },
 ];
 

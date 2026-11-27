@@ -98,7 +98,7 @@ describe("les commandes du runtime", { concurrency: 4 }, () => {
     for (const nom of anglais) assert.match(scripts[nom] ?? "", /^node src\/[\w-]+\.ts$/, nom);
     assert.equal(new Set(anglais).size, anglais.length);
     // Les anciens mots, dont chacun a son essai plus bas.
-    assert.ok(ESSAIS.length >= 4);
+    assert.ok(ESSAIS.length >= 3);
   });
 
   // Une commande, un test : chacun joue son fichier, et se juge à sa propre durée.

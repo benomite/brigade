@@ -17,7 +17,6 @@ import { withoutQuestion } from "../src/handover-second.ts";
 import { hourHM } from "../src/format.ts";
 import { ACTIVITY_NOT_COMMUNICATED, BANNER, COMMAND, understand, draw, tellInThisMoment, duration, event, rail, board, holdFacts, tick, titleOfFailure, type Facts } from "../src/facts.ts";
 import type { Header } from "../src/card.ts";
-import { commandOfAction, CONFIRMED } from "../src/actions.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 // L'exemple que la doc de l'ancien runtime donnait des faits (ses champs `dernierTick` et `compteurs`).
@@ -967,18 +966,14 @@ describe("la bannière d'arrêt", () => {
     assert.deepEqual(["arrêtée", "éteinte", "retenue", "ouverte", "ARRÊTÉE", "muette"].map((state) => board({ ...FACTS, etat: state }).arretee), [true, false, false, false, false, false]);
   });
 
-  test("son geste est celui du socle qui la relance — la commande de la doc, confirmée avant de partir", () => {
-    const kitchen = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
-    const written = commandOfAction(BANNER.bouton, { nom: "parade", dossier: "/projets/parade" }, kitchen);
-
-    assert.ok(CONFIRMED.includes(BANNER.bouton));
-    assert.deepEqual(written, { commande: `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${ACTION} parade guardrails resume)` });
+  test("elle n'a pas de geste : l'app ne relance pas la cuisine", () => {
+    assert.equal("bouton" in BANNER, false);
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime/ en dit", () => {
     assert.deepEqual(BANNER.texte, [
       "KITCHEN STOPPED — your “stop” holds",
-      "All running cooks have been stopped, and none is launched any more — runtime restarts included, until “resume”.",
+      "All running cooks have been stopped, and none is launched any more — runtime restarts included.",
     ]);
   });
 });

@@ -14,10 +14,7 @@
     "setting": "node src/reglage-cli.ts",
     "humans": "node src/humains-cli.ts",
     "contributor-stations": "node src/contributor-stations-cli.ts",
-    "switch": "node src/interrupteur-cli.ts",
     "manager": "node src/manager-cli.ts",
-    "send-word": "node src/send-word-cli.ts",
-    "guardrails": "node src/garde-fous-cli.ts",
     "help": "node src/aide.ts"
   },
   "devDependencies": {
