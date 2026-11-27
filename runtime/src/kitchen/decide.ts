@@ -2,8 +2,6 @@
 // and which agents run, the gestures of this turn. No memory: a restarted
 // kitchen reads the same state and decides the same thing.
 // Spec: docs/superpowers/specs/2026-11-26-agents-in-prompts.md.
-import { epicBlock } from "../epics.ts";
-
 export type Checks = "pending" | "success" | "failure" | "none";
 
 export type Issue = {
@@ -95,8 +93,7 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
     if (reviewing.has(issue.number)) continue;
     const pr = prOf.get(issue.number);
     if (has(issue, LABELS.epic)) {
-      const reason = epicBlock(issue, pr, issues);
-      if (reason !== "") actions.push({ kind: "epic-child", epic: issue.number, reason });
+      if (epicBlock(issue, pr, issues) !== "") actions.push({ kind: "epic-child", epic: issue.number, reason: epicBlock(issue, pr, issues) });
       continue;
     }
     if (pr === undefined) actions.push({ kind: "requeue", issue: issue.number, reason: "it is in pass with no open pull request" });
@@ -133,3 +130,6 @@ export function decide(issues: readonly Issue[], prs: readonly PullRequest[], co
   if (!context.running.supervisor && context.now - context.lastSupervisor >= context.supervisorEveryMs) actions.push({ kind: "supervisor" });
   return actions;
 }
+
+export const epicBlock = (epic: Issue, pr: PullRequest | undefined, issues: readonly Issue[]): string =>
+  issues.some((one) => one.epic === epic.number) ? "" : pr?.conflicting === true ? "its branch conflicts with main" : pr?.checks === "failure" ? `the CI is red: ${pr.failing.slice(0, 5).join(", ") || "a check failed"}` : "";

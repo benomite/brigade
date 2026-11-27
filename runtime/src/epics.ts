@@ -91,7 +91,3 @@ export async function openFinishedEpics(state: { issues: Issue[]; prs: Array<{ i
     }
   }
 }
-
-// An epic's PR that cannot merge gets one child, then nothing while a child is open; a sound one waits for its judge (#4701).
-export const epicBlock = (epic: Issue, pr: PullRequest | undefined, issues: readonly Issue[]): string =>
-  issues.some((one) => one.epic === epic.number) ? "" : pr?.conflicting === true ? "its branch conflicts with main" : pr?.checks === "failure" ? `the CI is red: ${pr.failing.slice(0, 5).join(", ") || "a check failed"}` : "";
