@@ -195,7 +195,5 @@ export function openStandby(options: {
   };
 }
 
-// Un runtime d'avant la commande la refuse en la nommant (`geste.ts`, code 66) : il se met à jour.
-
 // Ce que dit une proposition de réglage qui ouvre une pull request.
 export const PROPOSES = "proposed as a pull request — it applies once merged";
