@@ -16,7 +16,7 @@ export const ecran: Ecran = {
   hauteur: 900,
   etapes: [],
   donnees: () => {
-    const lignes: Home = { projets: [], stations: STATIONS.stations.map((station) => lineOfStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+    const lignes: Home = { projets: [], stations: STATIONS.stations.map((station) => lineOfStation(station, 0, [])), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
     return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil: lignes } }, envois: cuisine(RENDUS) };
   },
 };

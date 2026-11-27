@@ -4,10 +4,9 @@
 // Answer : la réponse du chef est postée sur l'issue et `parked:chef` retiré — le ticket retourne sur le rail
 // (board-actions/answer-github.ts). Rien n'est lu du runtime d'avant : l'issue et ses commentaires, sur GitHub.
 import type { CardOfChef } from "./todo-github.ts";
+import { LABELS } from "../../../runtime/src/kitchen/decide.ts";
 
-// Le label de la cuisine (runtime/src/kitchen/decide.ts, `LABELS.parkedChef`), écrit ici : la lecture du rail ne charge
-// du runtime que ses états de GitHub (test/board/read.test.ts).
-export const LABEL_PARKED_CHEF = "parked:chef";
+export const LABEL_PARKED_CHEF = LABELS.parkedChef;
 export const KIND_PARKED_CHEF = "parked-chef";
 // Les auteurs dont un commentaire de la cuisine se croit : la cuisine écrit avec le `gh` de sa station.
 const OF_TRUST = ["OWNER", "MEMBER", "COLLABORATOR"];

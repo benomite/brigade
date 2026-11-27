@@ -12,7 +12,7 @@ import { clientGitHub, bodyRead, DELAY_MS, refusalOf, type CallGitHub, type Answ
 
 // Les priorités qu'un ticket peut prendre : 1 est servi d'abord ; `none` retire son label, il passe après les autres.
 export const PRIORITIES: readonly string[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "none"];
-// Les labels de priorité que la box lit (runtime/src/alimenter.ts, `priorite`) : `prio:0` à `prio:9`.
+// Les labels de priorité que la cuisine lit (board/kitchen-board.ts, `priority`) : `prio:0` à `prio:9`.
 const LABEL_OF_PRIORITY = /^prio:([0-9])$/;
 
 // Un `POST` ou un `DELETE` à cette adresse — ou un `PUT`, un `PATCH`, pour la réponse à une carte du chef (#2434,
