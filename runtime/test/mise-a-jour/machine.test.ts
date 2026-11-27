@@ -86,12 +86,16 @@ const faits = (etatDuProjet: string, type: string) => {
 // La station tourne, en `version`, sous le pid que systemd lui donne.
 // Le pid rendu est celui que systemd vient de donner : chaque question à
 // systemd est un process de la doublure, il n'est pas reposé.
+// Une station morte ne sera jamais en service : l'attendre userait le délai du
+// test sans rien dire (#4552). Rouge tout de suite, sa sortie nomme la cause.
 async function enService(machine: Machine, version: string): Promise<number> {
   let pid = 0;
   await jusqua(() => {
+    const service = machine.service();
+    if (service.actif === "failed") throw new Error(`la station s'est arrêtée en échec au lieu de tourner en ${version} :\n${machine.sortie("brigade-station.service").slice(-4000)}`);
     const dite = lireEnService(machine.station);
     if (dite?.version !== version) return false;
-    pid = machine.service().pid;
+    pid = service.pid;
     return dite.pid === pid;
   });
   return pid;

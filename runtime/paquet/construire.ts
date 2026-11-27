@@ -35,7 +35,7 @@
 import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
 const REFUS = 2;
@@ -141,6 +141,27 @@ try {
   cpSync(join(RUNTIME, "src"), join(runtime, "src"), { recursive: true });
   writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")), version }, null, 2)}\n`);
   chmodSync(join(runtime, "package.json"), 0o644);
+  // Les fichiers du dépôt hors de runtime/src que le runtime importe
+  // (app/src/vue/autonomy/compute.ts), et ceux qu'ils importent, posés au même
+  // chemin sous l'installation : sans eux la station ne démarre pas (#4552).
+  const horsDuRuntime = new Set<string>();
+  const suivre = (fichier: string) => {
+    for (const [, cible = ""] of readFileSync(fichier, "utf8").matchAll(/(?:from|import\()\s*["'](\.{1,2}\/[^"']+)["']/g)) {
+      const chemin = resolve(dirname(fichier), cible);
+      if (chemin.startsWith(join(RUNTIME, "src") + sep) || horsDuRuntime.has(chemin)) continue;
+      horsDuRuntime.add(chemin);
+      suivre(chemin);
+    }
+  };
+  const parcourir = (repertoire: string) => {
+    for (const entree of readdirSync(repertoire, { withFileTypes: true })) {
+      const chemin = join(repertoire, entree.name);
+      if (entree.isDirectory()) parcourir(chemin);
+      else if (/\.[cm]?[jt]s$/.test(entree.name)) suivre(chemin);
+    }
+  };
+  parcourir(join(RUNTIME, "src"));
+  for (const chemin of horsDuRuntime) poser(chemin, dans(INSTALLATION.slice(1), relative(RACINE, chemin)), 0o644);
   // La consigne du second juge, lue dans la version du runtime qui tourne
   // (jamais dans la livraison jugée) : dans le dossier du runtime, que les
   // archives macOS et Windows portent aussi.
