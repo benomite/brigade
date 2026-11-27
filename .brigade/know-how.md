@@ -54,3 +54,4 @@
 - A test that writes a temp path into a `#!/bin/sh` fake agent must pass it with forward slashes and quoted: on Windows `C:\Users\…` loses its backslashes in sh and the file is never written (#4566)
 - Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)
 - A kitchen test whose fake cook ends with a short message (under 40 characters) now gets a "delivered without a report" log line and ticket comment: give the fake a real report (#4574)
+- `app/test/links-read.test.ts` checks no docs link (it tests `LinksRead`): the docs link tests are `runtime/test/acceptation-4062/1-no-broken-link.test.ts` (installation.md, index.md) and `acceptation-4351`; a docs cut is checked by `git grep -l "<page>.md" -- "*test*"`, then those tests and a relative-link walk of the `.md` files that point to the changed pages (#4588)
