@@ -17,9 +17,6 @@ export const FIN_DES_ANCIENS_NOMS = "2027-01-14";
 export type DeLaBox = { nom: string; description: string; mots?: Readonly<Record<string, string>>; rang?: number };
 
 export const COMMANDES: readonly DeLaBox[] = [
-  { nom: "setting", description: "The project's settings, from its repository, for the app; a change is refused: make it by a pull request on GitHub" },
-  { nom: "humans", description: "The project's humans, from its repository, for the app: save <login> [<role>…], remove <login> — each change opens a pull request" },
-  { nom: "contributor-stations", description: "The contributor stations that took a ticket, for the app: refuse <station>, accept <station> — a refused station takes no ticket" },
   { nom: "manager", description: "The manager's decisions — it follows the project switch: return <n°>, backlog, upstream; approve <n> does once a gesture an agent holds for the chef's OK", mots: { allumer: "on", eteindre: "off", rendre: "return" } },
   { nom: "help", description: "List these commands" },
 ];

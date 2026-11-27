@@ -35,7 +35,7 @@ describe("la rangée de réglage", () => {
 
   test("un réglage gardé dans le dépôt — son niveau « project », ou `depot` — dit sur sa rangée qu'un changement ouvre une PR", () => {
     for (const row of [
-      rowOfSetting(doc, { nom: "calibration ceiling", niveau: levelOf(doc, "plafond"), controle: [new Fake("select")] }),
+      rowOfSetting(doc, { nom: "calibration ceiling", niveau: levelOf(doc, "branche"), controle: [new Fake("select")] }),
       rowOfSetting(doc, { nom: "max cook duration", depot: true, controle: [new Fake("input")] }),
     ]) {
       assert.equal(row.dataset.depot, "");
@@ -45,7 +45,7 @@ describe("la rangée de réglage", () => {
       assert.equal(row.children.indexOf(line as Fake), 3);
     }
     // `depot: false` l'emporte sur le niveau.
-    assert.equal(rowOfSetting(doc, { nom: "x", niveau: levelOf(doc, "plafond"), depot: false }).dataset.depot, undefined);
+    assert.equal(rowOfSetting(doc, { nom: "x", niveau: levelOf(doc, "branche"), depot: false }).dataset.depot, undefined);
   });
 
   test("ce que le dernier changement a rendu : rien, en route, fait, la PR ouverte et son bouton, ou le refus en une ligne", () => {

@@ -20,7 +20,7 @@
 // Ce module compose les demandes ; ce qui les porte est donné (`ClientDeLaPriorite`).
 import { FILE as PROJECT_JSON, readTheFile, type PrOpen, proposeTheFile, textOfFile } from "./caps-duration.ts";
 import type { ClientOfThePriority } from "./priority.ts";
-import { PROPOSES } from "./settings-of-project.ts";
+import { PROPOSES } from "./box.ts";
 import { EFFORTS, MODELS } from "./projects/projects.ts";
 import { refusalOf } from "./board/client.ts";
 

@@ -344,7 +344,6 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/manager-cli.test.ts", test: "GitHub pas joint : elle échoue en le disant, sans rien lister — ce n'est pas « rien en amont »" },
   { file: "test/manager-cli.test.ts", test: "sans journal, ou avec un argument de trop, elle est refusée sans rien demander à GitHub" },
   { file: "test/pause.test.ts", test: "demander la pause pose une carte dans la file : la durée attendue, et les tickets en vol qu'elle retiendra — chacun avec ce qui lui arrivera" },
-  { file: "test/reglage-cli.test.ts", test: "with no argument, it shows the settings the kitchen applies — the repository's first — and where each comes from" },
   { file: "test/relire.test.ts", test: "sans BRIGADE_STATE_DIR, la commande échoue et nomme la variable" },
   { file: "test/relire.test.ts", test: "le journal d'un ticket se relit en entier et dans l'ordre, pendant que le runtime tourne" },
   { file: "test/bac-a-sable/configuration.test.ts", garde: "timeout: 90_000" },

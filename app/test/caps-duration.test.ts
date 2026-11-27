@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { reglagesDuTexte, SEUILS_DU_PROJET, seuilsDuProjet } from "../../runtime/src/reglages-projet/reglages.ts";
 import { changeTheCap, FILE, readTheCaps, CAPS, valueProposed } from "../src/caps-duration.ts";
-import { PROPOSES } from "../src/settings-of-project.ts";
+import { PROPOSES } from "../src/box.ts";
 import type { ClientOfThePriority } from "../src/priority.ts";
 import type { AnswerGitHub } from "../src/board/client.ts";
 

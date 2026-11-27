@@ -204,23 +204,10 @@ export type GitHub = {
   // Le sha du dernier commit de la branche d'intégration. Facultatif : seul le
   // client réel le porte (`brigade-github.ts`, le contrôle de la base).
   teteDeLaBase?(branche: string): Promise<string>;
-  // Vrai si ce compte existe sur GitHub, faux s'il n'existe pas (#2929).
-  // Facultatif, comme les trois suivants : seul le client réel le porte
-  // (`humains/service.ts`, les humains du projet).
-  compteExiste?(login: string): Promise<boolean>;
-  // Vrai si ce compte a accès au dépôt, quel que soit son droit (lecture
-  // comprise) ; faux s'il n'en a aucun.
-  aAccesAuDepot?(login: string): Promise<boolean>;
   // Le droit de ce compte sur le dépôt, tel que GitHub le dit (« admin »,
   // « maintain », « write », « triage », « read » ou « none ») ; « none » pour
   // un compte que GitHub ne connaît pas comme collaborateur (#4421).
   permissionSurLeDepot?(login: string): Promise<string>;
-  // Un fichier du dépôt tel que `ref` le porte — son texte, et l'empreinte de
-  // son blob que sa réécriture doit citer —, ou null s'il n'y est pas.
-  fichier?(chemin: string, ref: string): Promise<{ texte: string; sha: string } | null>;
-  // Crée la branche `branche` sur la tête de `base`, et y commite `texte` dans
-  // `chemin`. `sha` : l'empreinte du fichier remplacé, null s'il est neuf.
-  ecrireSurBranche?(ecriture: { base: string; branche: string; chemin: string; texte: string; sha: string | null; message: string }): Promise<void>;
   // Le diff d'une PR, tel que GitHub le rend.
   diff(numero: number): Promise<string>;
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
@@ -522,7 +509,7 @@ export function decouper(sortie: string): Reponse | null {
 // Combien de lectures de jobs finis un client garde, les plus anciennes oubliées d'abord.
 const JOBS_GARDES = 200;
 
-export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "compteExiste" | "aAccesAuDepot" | "permissionSurLeDepot" | "fichier" | "ecrireSurBranche" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers" | "ouvertesDuLabel" | "desassigner">> {
+export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<GitHub, "commentairesDepuis" | "prsMergeesDepuis" | "permissionSurLeDepot" | "droits" | "fourcher" | "tagExiste" | "releaseDuTag" | "creerRelease" | "teteDeLaBase" | "rouvrirIssue" | "commitGit" | "creerCommit" | "creerBranche" | "fusionnerDansLaBranche" | "supprimerBranche" | "fichierBinaire" | "publierFichiers" | "ouvertesDuLabel" | "desassigner">> {
   const { depot } = options;
   const bin = options.bin ?? "gh";
   const abandon = new AbortController();
@@ -982,16 +969,6 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       return (await Promise.all(commits.map(({ sha }) => this.ci(sha)))).flat();
     },
     teteDeLaBase: teteDe,
-    async compteExiste(login) {
-      const chemin = `users/${encodeURIComponent(login)}`;
-      const reponse = await lireSousCondition([chemin]);
-      if (reponse.statut === 404) return false;
-      exiger(reponse, chemin);
-      return true;
-    },
-    async aAccesAuDepot(login) {
-      return (await this.permissionSurLeDepot(login)) !== "none";
-    },
     async permissionSurLeDepot(login) {
       const chemin = `repos/${depot}/collaborators/${encodeURIComponent(login)}/permission`;
       const reponse = await lireSousCondition([chemin]);
@@ -999,14 +976,6 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const { permission } = JSON.parse(exiger(reponse, chemin).corps) as { permission?: unknown };
       if (typeof permission !== "string") throw new Error(`gh api ${chemin} : réponse sans droit`);
       return permission;
-    },
-    async fichier(chemin, ref) {
-      const lu = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
-      const reponse = await lireSousCondition([lu]);
-      if (reponse.statut === 404) return null;
-      const { content, encoding, sha } = JSON.parse(exiger(reponse, lu).corps) as { content?: unknown; encoding?: unknown; sha?: unknown };
-      if (typeof content !== "string" || encoding !== "base64" || typeof sha !== "string" || sha === "") throw new Error(`gh api ${lu} : fichier illisible`);
-      return { texte: Buffer.from(content, "base64").toString("utf8"), sha };
     },
     async fichierBinaire(chemin, ref) {
       const lu = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
@@ -1032,14 +1001,6 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub & Required<Pick<Git
       const { sha: commit } = await envoyer(`repos/${depot}/git/commits`, { message, tree, parents: [] });
       await creer(`repos/${depot}/git/refs`, { ref: `refs/brigade/captures/${commit}`, sha: commit });
       return commit;
-    },
-    async ecrireSurBranche({ base, branche, chemin, texte, sha, message }) {
-      const tete = await teteDe(base);
-      await creer(`repos/${depot}/git/refs`, { ref: `refs/heads/${branche}`, sha: tete });
-      const ecrit = `repos/${depot}/contents/${chemin.split("/").map(encodeURIComponent).join("/")}`;
-      const champs = { message, content: Buffer.from(texte, "utf8").toString("base64"), branch: branche, ...(sha === null ? {} : { sha }) };
-      const reponse = await appeler(["-X", "PUT", ...Object.entries(champs).flatMap(([nom, valeur]) => ["-f", `${nom}=${valeur}`]), ecrit]);
-      exiger(reponse, ecrit, sha === null ? 201 : 200);
     },
     async diff(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;

@@ -6,7 +6,6 @@ import { blockOfOrdinary } from "../../../app/src/ordinary.ts";
 import { REMOVE } from "../../../app/src/removal.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import { LUS } from "./reglages-du-projet.ts";
 
 export type Poste = "mac" | "pc" | "telephone";
 export const LARGEURS: Record<Poste, { largeur: number; hauteur: number }> = { mac: { largeur: 1440, hauteur: 1100 }, pc: { largeur: 1920, hauteur: 1080 }, telephone: { largeur: 412, hauteur: 1700 } };
@@ -24,7 +23,6 @@ export function donnees(poste: Poste): Donnees {
     reponses: {
       demarrage: poste === "pc" ? { ...pose, poste: { nom: "this PC", mac: false } } : pose,
       espace: [],
-      reglagesDuProjet: LUS,
       ordinaires: blockOfOrdinary(parade, poste === "pc" ? "win32" : "darwin", stations, true),
       // Ses gestes de retrait, tels que removal.ts les rend : Settings n'en garde que le premier, une ligne de toi.
       retrait: { projet: "parade", titre: "Remove “parade”", retirer: { libelle: REMOVE, lignes: ["“parade” leaves the app: its tab, its colors.", "Nothing is sent to its station."] } },
