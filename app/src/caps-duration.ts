@@ -1,7 +1,7 @@
 // Les plafonds de durée d'un projet, réglés depuis Kitchen > Health (#2490, épique #2484) : les seuils de dérive que le
-// chef déclare (`drift.*` de `.claude/brigade/projet.json`, runtime/src/reglages-projet/reglages.ts) — au-delà, la
+// chef déclare (`drift.*` de `.claude/brigade/projet.json`) — au-delà, la
 // cuisine le signale. Ils vivent dans le dépôt du projet, sur sa branche d'intégration, et le runtime les y relit à
-// chaque rapatriement (runtime/src/reglages-projet/en-vigueur.ts) : changer un plafond, c'est écrire ce fichier sur
+// chaque rapatriement : changer un plafond, c'est écrire ce fichier sur
 // GitHub, par l'API REST et le jeton du `gh` de ce poste — comme la priorité d'un ticket (priority.ts). Ni box : gardé
 // dans le dépôt, un plafond changé s'y propose par une pull request (#2920), et vaut une fois mergée, au rapatriement
 // suivant de la station.
@@ -21,7 +21,7 @@ export const FILE = ".claude/brigade/projet.json";
 
 // Les seuils de dérive, tels que le runtime les lit, dans l'ordre où la page les montre : les durées d'abord.
 // `unite` : ce que la valeur compte ; `entier` : le runtime n'y lit qu'un entier ; `defaut` : la valeur que le runtime
-// prend quand rien n'est déclaré, ni dans le dépôt ni sur la station (runtime/src/derive.ts).
+// prend quand rien n'est déclaré, ni dans le dépôt ni sur la station.
 export const CAPS = [
   { cle: "gatesSeconds", nom: "Gates duration", unite: "s", entier: false, duree: true, defaut: 100 },
   { cle: "ticketTokens", nom: "Costliest ticket", unite: "tokens", entier: true, duree: false },

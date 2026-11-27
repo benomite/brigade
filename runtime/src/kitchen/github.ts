@@ -9,10 +9,8 @@ export type Gh = (args: string[], input?: string) => Promise<string>;
 export function ghCli(bin: string, env: NodeJS.ProcessEnv): Gh {
   return (args, input) =>
     new Promise((resolve, reject) => {
-      const child = execFile(bin, args, { env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-        if (error) reject(new Error(`gh ${args.slice(0, 3).join(" ")}: ${stderr.trim() || error.message}`));
-        else resolve(stdout);
-      });
+      const child = execFile(bin, args, { env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) =>
+        error ? reject(new Error(`gh ${args.slice(0, 3).join(" ")}: ${stderr.trim() || error.message}`)) : resolve(stdout));
       child.stdin?.end(input ?? "");
     });
 }
@@ -21,8 +19,8 @@ const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 export const ACCEPTED = "accepted";
 export const branchOf = (issue: number) => `cook/${issue}-github`;
 const issueOfBranch = (branch: string): number | null => {
-  const match = /^cook\/(\d+)-github$/.exec(branch);
-  return match === null ? null : Number(match[1]);
+  const issue = /^cook\/(\d+)-github$/.exec(branch)?.[1];
+  return issue === undefined ? null : Number(issue);
 };
 
 // The tickets this one waits for: every #N after "depends on", "blocked by" or "after" on a line of its body,
@@ -78,8 +76,7 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
     if (cursor === null) {
       prs = (data.pullRequests.nodes as RawPr[]).flatMap((raw) => {
         const issue = issueOfBranch(raw.headRefName);
-        if (issue === null) return [];
-        return [{ number: raw.number, issue, conflicting: raw.mergeable === "CONFLICTING", ...checksOf(raw.commits.nodes[0]?.commit.statusCheckRollup ?? null) }];
+        return issue === null ? [] : [{ number: raw.number, issue, conflicting: raw.mergeable === "CONFLICTING", ...checksOf(raw.commits.nodes[0]?.commit.statusCheckRollup ?? null) }];
       });
     }
     cursor = data.issues.pageInfo.hasNextPage ? data.issues.pageInfo.endCursor : null;

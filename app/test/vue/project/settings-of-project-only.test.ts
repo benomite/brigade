@@ -38,11 +38,6 @@ const STORAGE: Record<string, string> = {
   "barre-de-menus": FILE_OF_PROJECTS,
   // Les stations contributrices que le chef refuse (#2936) : une liste que garde la station, dans son répertoire d'état.
   "stations-contributrices": STATION,
-  // Les tickets récurrents du projet (#3231) : `recurring.json`, que garde la station dans son répertoire d'état.
-  "recurrents-du-projet": STATION,
-  // Les explications des mots de la cuisine que le chef a vues (#3308) : `explanations.json`, que garde la station dans son
-  // répertoire d'état, par chef.
-  "explications-du-chef": STATION,
   // La fiche du projet (#4240) : `.brigade/fiche-projet.json`, dans le dossier du projet sur ce poste.
   "fiche-du-projet": ".brigade/fiche-projet.json, in the project's folder",
   // Les plafonds et le closer (#3014) : `drift.*` et `closer.*` de projet.json, et les vérifications en plus du closer dans
@@ -77,6 +72,6 @@ describe("Settings : les réglages du projet seulement", () => {
   // cette liste se vide — et que tout autre bloc hors de projet.json soit vu.
   test("les blocs qui ne sont pas encore dans projet.json sont ceux-là, et eux seuls", () => {
     const outside = BLOCKS.filter((id) => STORAGE[id] !== PROJECT_JSON).sort();
-    assert.deepEqual(outside, ["arreter-cuisine", "bandeau-sante", "barre-de-menus", "couleurs", "explications-du-chef", "fiche-du-projet", "recurrents-du-projet", "retrait", "sigle", "stations-contributrices"]);
+    assert.deepEqual(outside, ["arreter-cuisine", "bandeau-sante", "barre-de-menus", "couleurs", "fiche-du-projet", "retrait", "sigle", "stations-contributrices"]);
   });
 });

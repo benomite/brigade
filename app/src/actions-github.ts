@@ -10,8 +10,7 @@
 //
 // Rien ne part pour un ticket que la dernière lecture du rail ne porte pas — ni sur son rail, ni dans TODO —, ni sans
 // lecture : chaque fois une phrase, et rien n'est écrit.
-import { LABEL_PARKED } from "../../runtime/src/attente-github/marque.ts";
-import { LABELS_D_AVANT_PARKED } from "../../runtime/src/github-etat/etats.ts";
+import { LABELS } from "../../runtime/src/kitchen/decide.ts";
 import { refusalOf } from "./board/client.ts";
 import type { BoardRead } from "./board/read.ts";
 import type { ClientOfThePriority } from "./priority.ts";
@@ -22,7 +21,9 @@ export type Written = { fait: string; detail: string } | { refus: string; detail
 
 // Les gestes de la fiche qui s'écrivent sur GitHub, et le label que chacun retire de l'issue.
 // `cuisine` : le ticket parqué reprend où il était (#4129, d'abord `waiting`).
-export const LABELS_OF_ACTIONS = { retirer: "fire", cuisine: LABEL_PARKED } as const;
+export const LABELS_OF_ACTIONS = { retirer: LABELS.ready, cuisine: LABELS.parked } as const;
+// Les labels d'attente d'avant parked que la cuisine lit encore comme parqués (runtime/src/kitchen/decide.ts).
+const LABELS_BEFORE_PARKED: readonly string[] = ["waiting", "blocked-on-human"];
 export type ActionOnGithub = keyof typeof LABELS_OF_ACTIONS;
 export const onGithub = (id: unknown): id is ActionOnGithub => typeof id === "string" && Object.hasOwn(LABELS_OF_ACTIONS, id);
 
@@ -53,7 +54,7 @@ export async function removeTheLabel(readOne: BoardRead | undefined, id: ActionO
 }
 
 // Déparquer un ticket (#4262) : le label `parked` retiré de son issue — et chaque label d'attente d'avant parked
-// (runtime/src/github-etat/etats.ts) : un ticket que l'un d'eux parque reprend aussi —, sur tout dépôt, sans box. C'est
+// (`LABELS_BEFORE_PARKED`) : un ticket que l'un d'eux parque reprend aussi —, sur tout dépôt, sans box. C'est
 // le seul chemin qui le sort de son attente, que l'app le joue (« resume », « it arrived, back to the kitchen », « back to
 // the kitchen » de la fiche) ou le second (second/parking.ts) : il reprend exactement où il était.
 export const unpark = (repository: string, ticket: number, client: ClientOfThePriority): Promise<Written> => removeOfTheIssue(repository, ticket, "cuisine", client);
@@ -69,7 +70,7 @@ const REMOVALS: Record<ActionOnGithub, (repository: string, ticket: number, clie
 async function removeOfTheIssue(repository: string, ticket: number, id: ActionOnGithub, client: ClientOfThePriority): Promise<Written> {
   const label = LABELS_OF_ACTIONS[id];
   const issue = `https://github.com/${repository}/issues/${ticket}`;
-  for (const removed of id === "cuisine" ? [label, ...LABELS_D_AVANT_PARKED] : [label]) {
+  for (const removed of id === "cuisine" ? [label, ...LABELS_BEFORE_PARKED] : [label]) {
     try {
       const answer = await client.ecrire("DELETE", `/repos/${repository}/issues/${ticket}/labels/${encodeURIComponent(removed)}`);
       if (answer.status !== 200 && answer.status !== 404) throw refusalOf(`the removal of \`${removed}\``, answer);
