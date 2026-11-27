@@ -19,7 +19,7 @@ export type ClosedWorktrees = {
   ferme: (ticket: number) => Promise<boolean>;
   enCuisine: (ticket: number) => boolean;
   // Retire un worktree que git connaît ; s'il ne le connaît plus, le répertoire part quand même.
-  retirer: (chemin: string) => void;
+  retirer: (chemin: string) => void | Promise<void>;
   avertir?: (message: string) => void;
 };
 
@@ -39,7 +39,7 @@ export async function removeWorktreesOfClosedTickets({ dossier, ferme, enCuisine
     try {
       if (!(await ferme(ticket))) continue;
       try {
-        retirer(chemin);
+        await retirer(chemin);
       } catch {
         // git ne le connaît plus : ce qu'il en reste part quand même.
       }
