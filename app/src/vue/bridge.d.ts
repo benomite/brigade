@@ -86,16 +86,6 @@ export type Bridge = {
   // Retire le projet du fichier des projets, et rien d'autre : rien ne part vers sa box. Rend
   // l'avis à montrer — ou pourquoi il n'est pas retiré. Retiré, il part par `surConfiguration`.
   retirerDeLApp(project: string): Promise<{ avis: Opinion } | { refus: string }>;
-  // Le chef coche l'option qui supprime le journal avec le projet, ou la décoche : le plan
-  // rendu pour l'autre réglage ne vaut plus.
-  direJournal(project: string, ticked: boolean): Promise<Removal | undefined>;
-  // Demande à la box ce qu'elle retirerait du projet, et rend le retrait tel qu'il en sort.
-  // Rien n'est retiré.
-  planifier(project: string): Promise<Removal | undefined>;
-  // Désinstalle le projet de sa box — rien ne part tant que la box n'a pas rendu son plan, et
-  // tant que `confirmation` n'est pas le nom du projet. Désinstallé, il arrive sans sa box par
-  // `surConfiguration`.
-  desinstaller(project: string, confirmation: string): Promise<Removal | undefined>;
   espace(project: string): Promise<Terminal[]>;
   // Tous les terminaux ouverts, de tous les projets, et ce que chacun a écrit (ticket 3159) : une vue rechargée les retrouve,
   // sans rien relancer. Un pont qui n'en tient pas (le téléphone) ne le porte pas.
@@ -129,10 +119,10 @@ export type Bridge = {
   // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
   departDuProjet(project: string): Promise<import("../departure-of-project.ts").Departure>;
   mettreSurLeRail(project: string, lines: { ticket: number; priorite: number }[]): Promise<import("../departure-of-project.ts").Putting | { refus: string; detail?: string }>;
-  // Le premier ticket d'un projet prêt (ticket 3306, runtime/src/premier-ticket/) : le second l'écrit d'après la réponse du chef —
+  // Le premier ticket d'un projet prêt (ticket 3306, first-ticket.ts) : le second l'écrit d'après la réponse du chef —
   // ou le réécrit avec ses changements —, et rien n'est créé ; sur le « oui » seul, l'issue est créée avec ses labels, `fire` compris.
-  redigerLePremierTicket(project: string, request: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Demande): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Redaction>;
-  creerLePremierTicket(project: string, draft: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Brouillon): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Creation>;
+  redigerLePremierTicket(project: string, request: import("../first-ticket.ts").Request): Promise<import("../first-ticket.ts").Redaction>;
+  creerLePremierTicket(project: string, draft: import("../first-ticket.ts").Draft): Promise<import("../first-ticket.ts").Creation>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (story.ts).
   lireHistoire(project: string, ticket: number): Promise<import("../story.ts").Story | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
@@ -279,7 +269,7 @@ export type Bridge = {
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projects/move.ts).
   demenagerLaCuisine(name: string, to: string): Promise<Move>;
   // « Continue without sandbox », devant une station sans bac à sable (ticket 1113) : le chef décide pour la
-  // station du projet, et la retenue du rail se lève (runtime/src/onboarding/attente.ts). Rend ce qui est fait, ou pourquoi rien.
+  // station du projet, et la retenue du rail se lève. Rend ce qui est fait, ou pourquoi rien.
   continuerSansBacASable(name: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
   // Le bouton du refus de la station (ticket 1205) : la principale du projet joue le remède que ce refus offre
   // — son code, l'identifiant du remède —, puis dit s'il est levé, s'il tient et pourquoi, ou que rien n'est fait.
@@ -370,8 +360,8 @@ export type Bridge = {
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RemovalOfStation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identities-github.js) : ce qu'elle a de chaque rôle —
-  // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une, la clé passée au runtime qui la range
-  // (runtime/src/identites-stations.ts). Absents, ou rien de rendu : cet appareil n'a pas de station.
+  // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une. Absents, ou rien de rendu : cet appareil n'a
+  // pas de station — la cuisine de cet ordinateur n'en range aucune.
   appsDeLaStation?(): Promise<import("./identities-github.js").ReadOfApps | undefined>;
   rangerUneApp?(role: import("./identities-github.js").Role, id: string, key: string): Promise<import("./identities-github.js").RenderedOfCleanup>;
   // Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : la liste qu'elle
@@ -386,7 +376,7 @@ export type Bridge = {
   // reprise ou clonée par le runtime, puis le projet ajouté au fichier des projets — il arrive par `surConfiguration` —,
   // ou pourquoi il ne l'est pas. `base` : la branche par défaut que GitHub a donnée du dépôt, sa branche d'intégration.
   ouvrirDUneStation?(name: string, repository: string, base?: string): Promise<Opening>;
-  // Lance la connexion à GitHub que le runtime nomme : rend le code à taper et sa page, déjà ouverte — ou pourquoi
+  // Lance la connexion à GitHub par le `gh` de cet ordinateur : rend le code à taper et sa page, déjà ouverte — ou pourquoi
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
   // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.
   seConnecterAGitHub?(): Promise<StartOfConnection>;
