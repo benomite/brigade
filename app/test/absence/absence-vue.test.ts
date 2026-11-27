@@ -4,73 +4,73 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { resumeDeLaSemaine } from "../../../runtime/src/resume-hebdomadaire/resume.ts";
-import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE, type Projet } from "../../src/config.ts";
-import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
-import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import type { ResumesDuProjet } from "../../src/vue/resume-hebdomadaire/resume-cuisine.ts";
-import { CLE_DE_LA_DERNIERE_OUVERTURE, FERMER } from "../../src/vue/absence/absence.js";
-import { FauxStockage, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { POWER_UP } from "../../src/power-up.ts";
+import { forTheBar } from "../../src/bar.ts";
+import { EXAMPLE, type Project } from "../../src/config.ts";
+import { PALETTE } from "../../src/colors.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNER } from "../../src/facts.ts";
+import { CONFIRMED, DIRECT } from "../../src/actions.ts";
+import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
+import type { ResumesOfProject } from "../../src/vue/resume-weekly/resume-kitchen.ts";
+import { KEY_OF_THE_LAST_OPENING, CLOSE } from "../../src/vue/absence/absence.js";
+import { FakeStorage, playTheVue, repos } from "../helpers/false-vue.ts";
 
-const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade" };
-const SEMAINE = resumeDeLaSemaine({
+const PROJECT: Project = { nom: "parade", dossier: "/tmp/parade" };
+const WEEK = resumeDeLaSemaine({
   project: "parade",
   weekStart: new Date(Date.now() - 9 * 24 * 3600_000).toISOString().slice(0, 10),
   weekEnd: new Date(Date.now() - 3 * 24 * 3600_000).toISOString().slice(0, 10),
   servis: [{ number: 12, title: "Show the rail age on the tile", url: "https://github.com/chef/parade/issues/12", labels: [], epic: null }],
   attentes: [],
 });
-const LU: ResumesDuProjet = { projet: "parade", jour: { jour: "monday", pose: false }, resumes: { resumes: [SEMAINE], illisibles: [] } };
-const ouvrir = (stockage: FauxStockage) =>
-  jouerLaVue(
+const READ: ResumesOfProject = { projet: "parade", jour: { jour: "monday", pose: false }, resumes: { resumes: [WEEK], illisibles: [] } };
+const open = (storage: FakeStorage) =>
+  playTheVue(
     {
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET] }, () => true),
+        configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PROJECT] }, () => true),
         palette: PALETTE,
-        exemple: EXEMPLE,
-        onglets: ONGLETS,
-        rubriques: RUBRIQUES,
-        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
-        banniere: BANNIERE,
-        calibrage: { modeles: MODELES, efforts: EFFORTS },
+        exemple: EXAMPLE,
+        onglets: TABS,
+        rubriques: HEADINGS,
+        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        banniere: BANNER,
+        calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,
       }),
       espace: () => [],
-      lireLesResumesHebdomadaires: () => LU,
+      lireLesResumesHebdomadaires: () => READ,
     },
-    { stockage },
+    { stockage: storage },
   );
 
 describe("l'écran « since you were away » dans la vue (#3305)", () => {
   test("cinq jours d'absence : l'écran est posé d'abord, son bouton le ferme ; la réouverture ne le remontre pas", async () => {
-    const stockage = new FauxStockage();
-    stockage.setItem(CLE_DE_LA_DERNIERE_OUVERTURE, new Date(Date.now() - 5 * 24 * 3600_000).toISOString());
-    const vue = await ouvrir(stockage);
+    const storage = new FakeStorage();
+    storage.setItem(KEY_OF_THE_LAST_OPENING, new Date(Date.now() - 5 * 24 * 3600_000).toISOString());
+    const vue = await open(storage);
     await repos();
-    const ecran = vue.element("absence");
-    assert.equal(ecran.hidden, false);
-    assert.match(ecran.textContent, /Since you were away/);
-    assert.match(ecran.textContent, /Nothing is waiting for you/);
-    const geste = ecran.dessous("button").find(({ textContent }) => textContent === FERMER);
-    assert.ok(geste !== undefined, "un seul bouton, qui ferme quand rien n'attend");
-    geste.click();
+    const screen = vue.element("absence");
+    assert.equal(screen.hidden, false);
+    assert.match(screen.textContent, /Since you were away/);
+    assert.match(screen.textContent, /Nothing is waiting for you/);
+    const action = screen.dessous("button").find(({ textContent }) => textContent === CLOSE);
+    assert.ok(action !== undefined, "un seul bouton, qui ferme quand rien n'attend");
+    action.click();
     assert.equal(vue.element("absence").hidden, true);
-    assert.ok(Date.now() - Date.parse(stockage.getItem(CLE_DE_LA_DERNIERE_OUVERTURE) ?? "") < 60_000, "la date d'ouverture est celle d'aujourd'hui");
-    const rouverte = await ouvrir(stockage);
+    assert.ok(Date.now() - Date.parse(storage.getItem(KEY_OF_THE_LAST_OPENING) ?? "") < 60_000, "la date d'ouverture est celle d'aujourd'hui");
+    const reopened = await open(storage);
     await repos();
-    assert.equal(rouverte.element("absence").hidden, true);
+    assert.equal(reopened.element("absence").hidden, true);
   });
 
   test("premier lancement : pas d'écran, la date est posée", async () => {
-    const stockage = new FauxStockage();
-    const vue = await ouvrir(stockage);
+    const storage = new FakeStorage();
+    const vue = await open(storage);
     await repos();
     assert.equal(vue.element("absence").hidden, true);
-    assert.notEqual(stockage.getItem(CLE_DE_LA_DERNIERE_OUVERTURE), null);
+    assert.notEqual(storage.getItem(KEY_OF_THE_LAST_OPENING), null);
   });
 });

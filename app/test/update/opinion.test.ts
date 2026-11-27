@@ -1,0 +1,81 @@
+// The "newer version" notice (update/opinion.ts): newest app-v release above the running version,
+// the running version beside it, the direct package link of this device and the first-open hint. Nothing
+// dismisses it (#2431).
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { searchOneUpdate, hintOf, workstationOf, type Workstation } from "../../src/update/opinion.ts";
+
+const BASE = "https://github.com/benomite/brigade/releases/download";
+const ASSETS = ["Brigade-%V.dmg", "Brigade-Setup-%V.exe", "brigade-%V.apk", "latest-mac.yml"];
+const release = (version: string, names: string[] = ASSETS) => ({
+  html_url: `https://github.com/benomite/brigade/releases/tag/app-v${version}`,
+  assets: names.map((n) => ({ name: n.replace("%V", version), browser_download_url: `${BASE}/app-v${version}/${n.replace("%V", version)}` })),
+});
+// A fake GitHub: the tags it lists, and the release body of each.
+const github = (published: Record<string, unknown>, status = 200): typeof fetch =>
+  (async (url: string | URL | Request) => {
+    const address = String(url);
+    if (status !== 200) return new Response("no", { status: status });
+    if (address.endsWith("/git/matching-refs/tags/app-v")) return Response.json(Object.keys(published).map((v) => ({ ref: `refs/tags/app-v${v}` })));
+    const version = decodeURIComponent(address.split("/releases/tags/app-v")[1] ?? "");
+    return version in published ? Response.json(published[version]) : new Response("none", { status: 404 });
+  }) as typeof fetch;
+const search = (version: string, workstation: Workstation, fetcher: typeof fetch) => searchOneUpdate({ version, poste: workstation, fetch: fetcher });
+
+for (const [workstation, extension, hint] of [
+  ["mac", ".dmg", "mac-right-click-open"],
+  ["windows", ".exe", "windows-more-info-run-anyway"],
+  ["android", ".apk", undefined],
+] as const) {
+  test(`a newer release gives its version and the direct ${extension} link on ${workstation}`, async () => {
+    const opinion = await search("1.0.0", workstation, github({ "1.0.0": release("1.0.0"), "1.2.0": release("1.2.0") }));
+    assert.equal(opinion?.version, "1.2.0");
+    assert.equal(opinion?.courante, "1.0.0");
+    assert.match(opinion?.url ?? "", new RegExp(`^${BASE}/app-v1\\.2\\.0/.+\\${extension}$`));
+    assert.doesNotMatch(opinion?.url ?? "", /\/releases\/tag\//);
+    assert.equal(opinion?.indice, hint);
+    assert.equal("indice" in (opinion ?? {}), hint !== undefined);
+  });
+}
+
+test("versions compare by their numbers, not as text", async () => {
+  assert.equal((await search("1.9.0", "mac", github({ "1.10.0": release("1.10.0") })))?.version, "1.10.0");
+});
+
+test("an app on the latest version, or ahead of it, gets no update", async () => {
+  const gh = github({ "1.2.0": release("1.2.0") });
+  assert.equal(await search("1.2.0", "mac", gh), undefined);
+  assert.equal(await search("1.3.0", "mac", gh), undefined);
+});
+
+test("a release lacking the package of this device gives no update and does not throw", async () => {
+  const gh = github({ "1.2.0": release("1.2.0", ["Brigade-%V.dmg"]) });
+  assert.equal(await search("1.0.0", "windows", gh), undefined);
+  assert.equal(await search("1.0.0", "android", gh), undefined);
+  assert.equal((await search("1.0.0", "mac", gh))?.version, "1.2.0");
+});
+
+test("a newest release without the package gives way to the next one down", async () => {
+  const gh = github({ "1.1.0": release("1.1.0"), "1.2.0": release("1.2.0", ["latest-mac.yml"]) });
+  assert.equal((await search("1.0.0", "mac", gh))?.version, "1.1.0");
+});
+
+test("the first-open hint exists for Mac and Windows and not for Android", () => {
+  assert.equal(hintOf("mac"), "mac-right-click-open");
+  assert.equal(hintOf("windows"), "windows-more-info-run-anyway");
+  assert.equal(hintOf("android"), undefined);
+  assert.deepEqual([workstationOf("darwin"), workstationOf("win32"), workstationOf("linux")], ["mac", "windows", undefined]);
+});
+
+test("a network failure, a bad status or malformed data gives no update without throwing", async () => {
+  const failure = (async () => { throw new Error("offline"); }) as typeof fetch;
+  assert.equal(await search("1.0.0", "mac", failure), undefined);
+  assert.equal(await search("1.0.0", "mac", github({}, 500)), undefined);
+  const badly = (body: unknown): typeof fetch => (async () => Response.json(body)) as typeof fetch;
+  assert.equal(await search("1.0.0", "mac", badly({ not: "a list" })), undefined);
+  assert.equal(await search("1.0.0", "mac", badly([{ ref: 3 }, null, { ref: "refs/tags/app-v1.2.0" }])), undefined);
+  assert.equal(await search("1.0.0", "mac", github({ "1.2.0": { assets: "nope" } })), undefined);
+  assert.equal(await search("1.0.0", "mac", github({ "1.2.0": { assets: [null, { name: 4 }, { name: "x.dmg" }] } })), undefined);
+  assert.equal(await search("not a version", "mac", github({ "1.2.0": release("1.2.0") })), undefined);
+  assert.equal(await search("1.0.0", "mac", (async () => new Response("{ broken")) as typeof fetch), undefined);
+});

@@ -2,7 +2,7 @@
 // (runtime/src/resume-hebdomadaire/resume.ts) pour la semaine du 5 au 11 octobre 2026 de « parade », qui cuit sur ce Mac —
 // avec ses chiffres d'autonomie, puis sans.
 import { resumeDeLaSemaine } from "../../../runtime/src/resume-hebdomadaire/resume.ts";
-import type { ResumesDuProjet } from "../../../app/src/vue/resume-hebdomadaire/resume-cuisine.ts";
+import type { ResumesOfProject } from "../../../app/src/vue/resume-weekly/resume-kitchen.ts";
 import { configuration, demarrage, type Donnees } from "./commun.ts";
 import { PROJETS } from "./cuisine-figee.ts";
 import { donnees, OUVRIR, SUR_CE_MAC } from "./cuisine-demenagee.ts";
@@ -21,7 +21,7 @@ const AUTONOMIE = { tickets: 4, sansHumain: 3, partSansHumain: 0.75, delaiMedian
 
 const semaine = (autonomie: typeof AUTONOMIE | null) => resumeDeLaSemaine({ project: "parade", weekStart: "2026-10-05", weekEnd: "2026-10-11", servis: SERVIS, autonomie: autonomie as never, attentes: ATTENTES });
 const PRECEDENTE = resumeDeLaSemaine({ project: "parade", weekStart: "2026-09-28", weekEnd: "2026-10-04", servis: SERVIS.slice(0, 1), attentes: [] });
-const lus = (autonomie: typeof AUTONOMIE | null): ResumesDuProjet => ({
+const lus = (autonomie: typeof AUTONOMIE | null): ResumesOfProject => ({
   projet: "parade",
   jour: { jour: "monday", pose: false },
   resumes: { resumes: [semaine(autonomie), PRECEDENTE], illisibles: [] },
@@ -29,7 +29,7 @@ const lus = (autonomie: typeof AUTONOMIE | null): ResumesDuProjet => ({
 
 export const ETAPES = [OUVRIR, SETTINGS, { cliquer: "#resumes-de-tous button" }];
 // Seul « parade » est servi : le faux pont rend la même lecture à chaque projet, et « cantine » n'a pas de page à lui.
-function deParade(lue: ResumesDuProjet): Donnees {
+function deParade(lue: ResumesOfProject): Donnees {
   const figees = donnees(SUR_CE_MAC, { lireLesResumesHebdomadaires: lue });
   const parade = demarrage(configuration(PROJETS), (nom) => nom === "parade", true, ({ nom }) => nom === "parade");
   return { ...figees, reponses: { ...figees.reponses, demarrage: { ...(figees.reponses.demarrage as object), configuration: parade.configuration } } };

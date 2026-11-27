@@ -412,7 +412,7 @@ station restarts as soon as a release is ready**: the box's updater hands the ve
 without waiting for anything (the unit keeps the cooks alive with `KillMode=process`), and the
 computer's station asks for its restart as soon as the release is downloaded and checked
 (`runtime/src/station-update/`; `launchd` keeps them with `AbandonProcessGroup`); an app update leaves
-the station and its cooks running (`app/src/mise-a-jour-fond/`). A restart it asked for and the app did not play (a refused
+the station and its cooks running (`app/src/update-background/`). A restart it asked for and the app did not play (a refused
 release, a missing runtime) is not asked again: still running 5 minutes after its request, the
 station waits for a newer release (#2820). After a send back, "added
 nothing since its last delivery" is a failed cook only if the cook ran past its first 3 turns;

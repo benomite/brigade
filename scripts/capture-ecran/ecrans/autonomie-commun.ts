@@ -2,7 +2,7 @@
 // pour chaque ticket, les événements et les commentaires de son issue, comme l'API REST les rend. Les chiffres sont ceux
 // du calcul du runtime (runtime/src/autonomie/chiffres/chiffres.ts) sur ces données, sur les 7 derniers jours.
 import { chiffresDAutonomie, type Defauts, type DonneesDuDepot } from "../../../runtime/src/autonomie/chiffres/chiffres.ts";
-import { nommerLesProjets, type LectureDAutonomie } from "../../../app/src/vue/autonomie/autonomie-github.ts";
+import { nameTheProjects, type ReadOfAutonomy } from "../../../app/src/vue/autonomy/autonomy-github.ts";
 import { MAINTENANT } from "./commun.ts";
 
 const HEURE = 3600 * 1000;
@@ -56,9 +56,9 @@ const CANTINE = depot("chef/cantine", [
   { n: 4, titre: "Opening hours", servi: 120, duree: 2 },
 ]);
 
-const lecture = (donnees: DonneesDuDepot[], projets: Record<string, string>, partiels: { projet: string; depuis: string; raison: string }[] = []): LectureDAutonomie => {
+const lecture = (donnees: DonneesDuDepot[], projets: Record<string, string>, partiels: { projet: string; depuis: string; raison: string }[] = []): ReadOfAutonomy => {
   const chiffres = chiffresDAutonomie(donnees, 7, new Date(MAINTENANT));
-  return { jours: 7, chiffres: nommerLesProjets(chiffres, (depot) => projets[depot] ?? depot), manquants: [], partiels };
+  return { jours: 7, chiffres: nameTheProjects(chiffres, (depot) => projets[depot] ?? depot), manquants: [], partiels };
 };
 export const DE_TOUS = lecture([PARADE, CANTINE], { "chef/parade": "parade", "chef/cantine": "cantine" });
 export const DE_PARADE = lecture([PARADE], { "chef/parade": "parade" });

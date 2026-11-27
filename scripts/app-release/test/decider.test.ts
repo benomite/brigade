@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { comparerVersions, estUneVersion } from "../../../app/src/mise-a-jour/flux.ts";
+import { compareVersions, isOneVersion } from "../../../app/src/update/flux.ts";
 import { decider, touchLApp, versionSuivante, VERSION_DE_DEPART } from "../decider.ts";
 
 const script = fileURLToPath(new URL("../decider.ts", import.meta.url));
@@ -42,8 +42,8 @@ test("the output carries the tag only when the app changed", () => {
 test("the printed version is accepted by the update check of the app, and above the latest", () => {
   for (const derniere of [undefined, "app-v1.2.3", "app-v0.0.9"]) {
     const version = versionSuivante(derniere === undefined ? [] : [derniere]);
-    assert.equal(estUneVersion(version), true);
-    if (derniere !== undefined) assert.ok(comparerVersions(version, derniere.slice("app-v".length)) > 0);
+    assert.equal(isOneVersion(version), true);
+    if (derniere !== undefined) assert.ok(compareVersions(version, derniere.slice("app-v".length)) > 0);
   }
 });
 

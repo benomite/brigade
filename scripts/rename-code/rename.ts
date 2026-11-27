@@ -13,28 +13,37 @@
 //   rename.sh --check         list the glossary terms left in identifiers and
 //                             file names that the table does not keep: exit 1
 //                             if there is one
+//   … --only <zone>           rename (or check) the names of one zone only,
+//                             `runtime` or `app`; the other zone follows
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 import { exchangedMembers, findNode } from "./exchanged.ts";
-import { FIXUPS, KEPT_FILES, KEPT_MEMBERS, KEPT_NAMES, NAMES, PATHS, WORDS } from "./table.ts";
+import { FIXUPS, KEPT_FILES, KEPT_MEMBERS, KEPT_NAMES, newNameOf, PATHS, WORDS } from "./table.ts";
 import { translate } from "./words.ts";
 
 // The tree the tool works on: the repository it lives in, or the copy a dry
 // run makes of it (`main`).
 const HOME = resolve(import.meta.dirname, "../..");
 let REPO = HOME;
-// Where names are renamed: declarations and file names.
-const OWN = ["runtime/src", "runtime/test", "app/src", "app/test"];
+// Where names are renamed: declarations and file names. `--only <zone>`
+// narrows it to one zone (#4413): the other one only follows.
+const ZONES = ["runtime", "app"];
+let OWN = ZONES.flatMap((zone) => [`${zone}/src`, `${zone}/test`]);
+// Under `--only`, members keep their names: a member of one zone matches the
+// other zone's by structure alone (`Extract<T, { a: unknown }>`), which no
+// reference carries. Only bindings and files are renamed.
+let ONLY: string | undefined;
 // Code that only follows: it imports the renamed code, its references and the
-// paths it names follow, its own names do not change.
-const FOLLOWERS = ["scripts/capture-ecran"];
+// paths it names follow, its own names do not change. Under `--only`, the
+// other zone follows too (`runtime/test` imports `app/src`).
+let FOLLOWERS = ["scripts/capture-ecran", "scripts/app-release", "app/packaging"];
 // Text whose paths follow the renamed files. History (the CHANGELOG, the
 // dated specs) is left as it was written; the role files are the agents'
 // voice and name no renamed file.
-const PATH_TEXT = ["runtime", "app", "scripts/capture-ecran", ".claude/brigade", "docs", "README.md", "CLAUDE.md"];
+const PATH_TEXT = ["runtime", "app", "scripts/capture-ecran", "scripts/app-release", ".claude/brigade", "docs", "README.md", "CLAUDE.md"];
 const PATH_TEXT_SKIPPED = ["docs/superpowers/"];
 // The zones whose dependencies the program's types come from: those
 // `.claude/brigade/worktree-setup.sh` installs.
@@ -168,7 +177,7 @@ function declarations(program: ts.Program, files: string[]): Declared[] {
   return found;
 }
 
-const newName = (declared: Pick<Declared, "name" | "file">): string => NAMES[`${declared.file}#${declared.name}`] ?? NAMES[declared.name] ?? translate(declared.name, translator);
+const newName = (declared: Pick<Declared, "name" | "file">): string => newNameOf(declared.file, declared.name);
 const keptName = (name: string) => KEPT_NAMES.some((kept) => kept.names.includes(name));
 const keptMember = (name: string) => KEPT_MEMBERS.some((kept) => kept.names.includes(name));
 
@@ -283,7 +292,9 @@ function bases(file: string): string[] {
   const zone = file.split("/")[0]!;
   const out = [dirname(abs(file)), REPO];
   for (const root of ["runtime", "app"]) out.push(abs(root), abs(`${root}/src`), abs(`${root}/test`));
-  if (zone === "scripts") out.push(abs("scripts/capture-ecran"));
+  if (zone === "scripts") out.push(abs("scripts/capture-ecran"), abs("scripts/app-release"));
+  // The view's files are read by their path under the view (`lire("composants/bon/bon.css")`).
+  if (zone === "app" || zone === "scripts") out.push(abs("app/src/vue"));
   return [...new Set(out)];
 }
 
@@ -295,12 +306,19 @@ function pathEdits(file: string, text: string, renamed: Map<string, string>, exi
     const escaped = token.includes("\\.");
     const plain = token.replace(/\\\./g, ".").replace(/\.+$/, "");
     if (plain === "" || plain.startsWith("//")) continue;
+    // One word beside a slash (`ton projet/` closing a regex, `${racine}/cuisine`)
+    // is a word, not a path: a path has two parts, an extension, or starts with `./`.
+    const words = plain.split("/").filter((part) => part !== "" && part !== "." && part !== "..");
+    if (words.length < 2 && !/\.[a-z]+$/.test(plain) && !/^\.\.?\//.test(plain)) continue;
     // `${WT}/app/src/bon.ts`: after an interpolation, a leading slash
     // belongs to the path, not to the root.
     const interpolated = plain.startsWith("/") && text[found.index! - 1] === "}";
     const path = interpolated ? plain.slice(1) : plain;
     let replacement: string | undefined;
-    for (const base of bases(file)) {
+    // A bare file name is read from its own zone: `gestes.ts` in `runtime/` is not `app/src/gestes.ts`.
+    const zone = file.split("/")[0]!;
+    const own = (base: string) => path.includes("/") || base === dirname(abs(file)) || base.startsWith(abs(zone) + "/") || base === abs(zone);
+    for (const base of bases(file).filter(own)) {
       const target = resolve(base, path);
       if (!target.startsWith(REPO + "/") || !existing.has(target)) continue;
       // Rewrite the parts of the token, one by one, from where it is read.
@@ -320,10 +338,20 @@ function pathEdits(file: string, text: string, renamed: Map<string, string>, exi
       break;
     }
     // A bare file name (`join(VUE, "jetons.css")`) that only one moved file
-    // bears, wherever it is read from.
+    // bears, wherever it is read from — unless a file that stays bears it
+    // too, as near to the text: `fiche.ts` in `runtime/` names the
+    // runtime's, not the app's.
     if (replacement === undefined && !plain.includes("/")) {
       const bearers = [...renamed].filter(([old]) => old.endsWith("/" + plain));
-      if (bearers.length === 1) replacement = escaped ? bearers[0]![1].replace(/\./g, "\\.") : bearers[0]![1];
+      const near = (path: string) => {
+        const a = abs(file).split("/");
+        const b = path.split("/");
+        let at = 0;
+        while (at < a.length && at < b.length && a[at] === b[at]) at++;
+        return at;
+      };
+      const staying = [...existing].filter((path) => path.endsWith("/" + plain) && !renamed.has(path));
+      if (bearers.length === 1 && staying.every((path) => near(path) < near(bearers[0]![0]))) replacement = escaped ? bearers[0]![1].replace(/\./g, "\\.") : bearers[0]![1];
     }
     if (replacement === undefined) continue;
     const start = found.index!;
@@ -385,6 +413,13 @@ type Kept = { declared: Declared; to: string; why: string };
 type Plan = { edits: Map<string, Edit[]>; renamed: Map<string, string>; renames: { declared: Declared; to: string; at: number }[]; members: Kept[]; refused: string[] };
 
 const CONSTANT = /^[A-Z][A-Z0-9_]*$/;
+// A reserved word, or one of strict mode's (`let`, `static`, `interface`…).
+const reserved = (name: string) => {
+  // `stringToToken` is in the JavaScript API, not in its declarations.
+  const token = (ts as unknown as { stringToToken(text: string): ts.SyntaxKind | undefined }).stringToToken(name);
+  if (token === undefined) return false;
+  return (token >= ts.SyntaxKind.FirstReservedWord && token <= ts.SyntaxKind.LastReservedWord) || (token >= ts.SyntaxKind.FirstFutureReservedWord && token <= ts.SyntaxKind.LastFutureReservedWord);
+};
 
 function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
   const files = codeFiles();
@@ -423,12 +458,35 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
     for (const group of groups) for (const reference of group.references) at(reference.fileName, reference.textSpan.start, reference.textSpan.length);
     return [...spans.values()];
   };
+  const checker = program.getTypeChecker();
+  const MEANING = ts.SymbolFlags.Value | ts.SymbolFlags.Type | ts.SymbolFlags.Namespace;
+  // The bindings already renamed, by their new name.
+  const renamedTo = new Map<string, { name: string; symbol: ts.Symbol }[]>();
+  const clashAt = (locations: readonly ts.RenameLocation[], to: string, name: string): string | undefined => {
+    for (const location of locations) {
+      const node = findNode(program.getSourceFile(location.fileName)!, location.textSpan.start);
+      if (node === undefined) continue;
+      const where = `${rel(location.fileName)}@${location.textSpan.start}`;
+      if (checker.resolveName(to, node, MEANING, true) !== undefined) return where;
+      for (const other of renamedTo.get(to) ?? []) if (other.name !== name && checker.resolveName(other.name, node, MEANING, true) === other.symbol) return `${where} (${other.name})`;
+    }
+    return undefined;
+  };
   const all = declarations(program, files.filter((file) => under(file, OWN)));
   for (const declared of all) {
     const to = newName(declared);
     if (to === declared.name) continue;
     if (keptName(declared.name)) continue;
     const member = declared.kind === "member";
+    // A binding cannot be a reserved word (`interrupteur` → `switch`): NAMES gives it another.
+    if (!member && reserved(to)) {
+      refused.push(`${declared.file}:${declared.name}: its new name \`${to}\` is a reserved word — give it one in names.ts`);
+      continue;
+    }
+    if (member && ONLY !== undefined) {
+      members.push({ declared, to, why: `a member, kept under --only ${ONLY}` });
+      continue;
+    }
     if (member && keptMember(declared.name)) {
       members.push({ declared, to, why: "kept by the table" });
       continue;
@@ -447,7 +505,21 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
       else refused.push(`${declared.file}:${declared.name}: ${info.localizedErrorMessage}`);
       continue;
     }
-    const locations = (declared.syntax === "ShorthandPropertyAssignment" ? propertyOf(declared) : undefined) ?? ls.findRenameLocations(abs(declared.file), declared.start, false, false, preferences) ?? [];
+    const locations = [...((declared.syntax === "ShorthandPropertyAssignment" ? propertyOf(declared) : undefined) ?? ls.findRenameLocations(abs(declared.file), declared.start, false, false, preferences) ?? [])];
+    // `export { a } from "./b.js"` keeps its old public name (`a as a`), so
+    // its importers are not among the locations: the export is renamed too
+    // (below), and its importers follow it, down the chain.
+    for (let index = 0; index < locations.length; index++) {
+      const location = locations[index]!;
+      const node = findNode(program.getSourceFile(location.fileName)!, location.textSpan.start);
+      if (!(location.suffixText ?? "").startsWith(" as ") || node === undefined || !ts.isExportSpecifier(node.parent)) continue;
+      // Asked from the export, the rename gives its importers (and keeps
+      // `a as` on the export itself, which is already among the locations).
+      for (const next of ls.findRenameLocations(location.fileName, location.textSpan.start, false, false, preferences) ?? []) {
+        if (locations.some((known) => known.fileName === next.fileName && known.textSpan.start === next.textSpan.start)) continue;
+        locations.push(next);
+      }
+    }
     const key = locations.map((location) => `${location.fileName}:${location.textSpan.start}`).sort().join(",");
     if (seen.has(key)) continue;
     seen.add(key);
@@ -469,6 +541,22 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
         continue;
       }
     }
+    // A binding cannot take a name that is already seen where it is used
+    // (`geste` → `action` beside an `action`), nor the new name of another
+    // binding seen there (`fiche` and `carte` → `card`): NAMES gives it another.
+    if (!member) {
+      const clash = clashAt(locations, to, declared.name);
+      if (clash !== undefined) {
+        refused.push(`${declared.file}:${declared.name}: its new name \`${to}\` is already seen in ${clash} — give it one in names.ts (\`${declared.file}#${declared.name}\`)`);
+        continue;
+      }
+      const symbol = checker.getSymbolAtLocation(declared.node);
+      if (symbol !== undefined) {
+        const list = renamedTo.get(to) ?? [];
+        list.push({ name: declared.name, symbol });
+        renamedTo.set(to, list);
+      }
+    }
     renames.push({ declared, to, at: locations.length });
     for (const location of locations) {
       // `export { a }` would become `export { b as a }`: the export is
@@ -476,7 +564,10 @@ function plan(): { plan: Plan; ls: ts.LanguageService; files: string[] } {
       const node = findNode(program.getSourceFile(location.fileName)!, location.textSpan.start);
       const reexport = (location.suffixText ?? "").startsWith(" as ") && node !== undefined && ts.isExportSpecifier(node.parent);
       const text = (location.prefixText ?? "") + to + (reexport ? "" : (location.suffixText ?? ""));
-      addEdit(edits, location.fileName, { start: location.textSpan.start, end: location.textSpan.start + location.textSpan.length, text, prefix: (location.prefixText ?? "").length, why: `${declared.name} → ${to}` });
+      // `{ a }` destructured by a follower, whose binding keeps its name: `{ b: a }`, and the binding is now after the colon.
+      const kept = node?.parent !== undefined && ts.isBindingElement(node.parent) && (location.suffixText ?? "").startsWith(": ") && !under(rel(location.fileName), OWN);
+      const prefix = kept ? text.length - (location.suffixText ?? "").length + 2 : (location.prefixText ?? "").length;
+      addEdit(edits, location.fileName, { start: location.textSpan.start, end: location.textSpan.start + location.textSpan.length, text, prefix, why: `${declared.name} → ${to}` });
     }
   }
   const everything = tracked(...OWN, ...FOLLOWERS, ...PATH_TEXT);
@@ -612,7 +703,8 @@ function rename(computed: Plan, ls: ts.LanguageService, files: string[]): string
   const broken = prove(before, computed.edits, computed.renamed, newFiles);
   // Last, the fixups, on the renamed tree: a string the references do not
   // carry (a test that names a function or a file in text).
-  for (const fixup of FIXUPS) {
+  // A fixup of a zone that is not renamed (`--only`) has nothing to fix.
+  for (const fixup of FIXUPS.filter((candidate) => under(candidate.file, OWN))) {
     const text = readFileSync(abs(fixup.file), "utf8");
     const count = text.split(fixup.from).length - 1;
     if (count !== (fixup.count ?? 1)) throw new Error(`fixup found ${count} time(s) in ${fixup.file}, not ${fixup.count ?? 1}: ${fixup.from}`);
@@ -629,7 +721,7 @@ function report(computed: Plan, broken: string[]): string[] {
   for (const kept of computed.members) lines.push(`kept\t${kept.declared.file}\t${kept.declared.syntax}\t${kept.declared.name}\t${kept.to}\t${kept.why}`);
   for (const [path, to] of computed.renamed) lines.push(`move\t${rel(path)}\t${to}`);
   for (const [file, list] of computed.edits) for (const edit of list.filter((candidate) => candidate.why.startsWith("path "))) lines.push(`path\t${rel(file)}\t${edit.why.slice(5)}\t${edit.text}`);
-  for (const fixup of FIXUPS) lines.push(`fixup\t${fixup.file}\t${fixup.from}\t${fixup.to}`);
+  for (const fixup of FIXUPS.filter((candidate) => under(candidate.file, OWN))) lines.push(`fixup\t${fixup.file}\t${fixup.from}\t${fixup.to}`);
   for (const refused of computed.refused) lines.push(`unresolved\t${refused}`);
   for (const line of broken) lines.push(`unresolved\t${line}`);
   return [...new Set(lines)].sort();
@@ -665,9 +757,21 @@ function copy(dir: string, commit: string) {
   }
 }
 
-const USAGE = "usage: scripts/rename-code/rename.sh [--keep <dir> | --apply | --check]";
+const USAGE = "usage: scripts/rename-code/rename.sh [--keep <dir> | --apply | --check] [--only runtime|app]";
 
 function main(args: string[]): number {
+  const onlyAt = args.indexOf("--only");
+  const only = onlyAt === -1 ? undefined : args[onlyAt + 1];
+  if (onlyAt !== -1) {
+    if (only === undefined || !ZONES.includes(only)) {
+      console.error(USAGE);
+      return 2;
+    }
+    ONLY = only;
+    OWN = [`${only}/src`, `${only}/test`];
+    FOLLOWERS = [...FOLLOWERS, ...ZONES.filter((zone) => zone !== only).flatMap((zone) => [`${zone}/src`, `${zone}/test`])];
+    args = args.filter((_, index) => index !== onlyAt && index !== onlyAt + 1);
+  }
   if (args.includes("--check")) return check();
   const applying = args.includes("--apply");
   const keepAt = args.indexOf("--keep");

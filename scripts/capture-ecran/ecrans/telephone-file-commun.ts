@@ -2,7 +2,7 @@
 // attend la décision du chef ; #14 cuit sur la box et #15 sur le Mac, qui le disent (`cuisson`, #1183) —, reçue par
 // l'app Android appairée à la box, en largeur de téléphone. La vue est celle du desktop, et ce qu'elle reçoit est
 // calculé par les mêmes modules : seul le démarrage est celui du téléphone — appairé, sans code d'app ni stations lues.
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Etape, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { FACTS, STATUS } from "./file-ou-cuit.ts";
@@ -10,7 +10,7 @@ import { FACTS, STATUS } from "./file-ou-cuit.ts";
 // La case de `parade` dans la barre, en haut sur un téléphone : son espace s'ouvre sur Rail.
 export const OUVRIR_PARADE: Etape = { cliquer: '#projets > button[title^="parade — "]' };
 
-export const FAITS: Faits = { ...FACTS, stations: (FACTS.stations ?? []).map((station) => ({ ...station, cuisson: "cooking", arreteeDepuis: null, refus: null })) };
+export const FAITS: Facts = { ...FACTS, stations: (FACTS.stations ?? []).map((station) => ({ ...station, cuisson: "cooking", arreteeDepuis: null, refus: null })) };
 
 export function donneesDeLaFile(): Donnees {
   const tout = demarrage(configuration(PROJETS));

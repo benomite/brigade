@@ -2,7 +2,7 @@
 // that holds issues and pull requests in memory, and a fake agent.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -11,7 +11,7 @@ import type { Gh } from "../../src/kitchen/github.ts";
 import type { Kind } from "../../src/kitchen/runs.ts";
 
 type FakeIssue = { number: number; title: string; body: string; labels: string[]; comments: string[]; closed: boolean };
-type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean };
+type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; log?: string };
 
 function fakeGh() {
   const issues = new Map<number, FakeIssue>();
@@ -20,6 +20,12 @@ function fakeGh() {
   const gh: Gh = async (args, input) => {
     const flag = (name: string) => args[args.indexOf(name) + 1] ?? "";
     if (args[0] === "api" && args.at(-1)?.includes("/comments")) return "[[]]";
+    if (args[0] === "api" && /^repos\/o\/r\/pulls\/\d+$/.test(args[1] ?? "")) return JSON.stringify({ head: { sha: `sha${args[1]?.split("/").pop()}` } });
+    if (args[0] === "api" && args[1]?.includes("/check-runs")) {
+      const pr = prs.find((p) => args[1]?.includes(`/commits/sha${p.number}/`)) as FakePr;
+      return JSON.stringify({ check_runs: [{ name: "tests", conclusion: pr.checks.toLowerCase(), html_url: `https://github.com/o/r/actions/runs/7/job/${pr.number}` }] });
+    }
+    if (args[0] === "run" && args[1] === "view") return (prs.find((p) => String(p.number) === args[3]) as FakePr).log ?? "";
     if (args[0] === "api" && args[1]?.startsWith("repos/")) {
       const i = issues.get(Number(args[1].split("/").pop())) as FakeIssue;
       return JSON.stringify({ title: i.title, body: i.body, author_association: "OWNER", labels: i.labels.map((name) => ({ name })) });
@@ -162,4 +168,48 @@ test("a ticket the manager gives no usable gesture is parked for the chef, not h
   });
   await until(() => fake.issues.get(issue)?.labels.includes("parked:chef") === true, kitchen.turn);
   assert.deepEqual(lines, ["manager called on #1", "#1 parked for the chef — the manager gave no usable gesture"]);
+});
+
+test("a red delivery goes back to a cook with the last lines of its failing check's log, secrets masked", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const fake = fakeGh();
+  const issue = fake.add("Add a feature", ["in-pass"]);
+  const log = Array.from({ length: 60 }, (_, i) => `tests\tRun tests\t2026-11-26T10:00:00Z line ${i + 1}`);
+  log[58] = "tests\tRun tests\tnot ok 3 - token ghp_secretvalue1234 rejected";
+  fake.prs.push({ number: 100, head: "cook/1-github", checks: "FAILURE", merged: false, log: `${log.join("\n")}\n` });
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone: root,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: fake.gh,
+    git: gitCli(process.env),
+    launch: () => {
+      throw new Error("no agent is launched");
+    },
+    places: () => 2,
+    riskPaths: () => [],
+    secrets: { GH_TOKEN: "ghp_secretvalue1234" },
+    supervisorEveryMs: Number.MAX_SAFE_INTEGER,
+    log: (line) => lines.push(line),
+  });
+  await kitchen.turn();
+  const comment = fake.issues.get(issue)?.comments.at(-1) ?? "";
+  assert.match(comment, /^Sent back to a cook \(try 1\/3\): the CI is red: tests/);
+  assert.match(comment, /#### tests/);
+  assert.match(comment, /line 60\n````$/);
+  assert.match(comment, /2026-11-26T10:00:00Z line 21\n/);
+  assert.doesNotMatch(comment, /line 20\n/);
+  assert.doesNotMatch(comment, /Run tests\t/);
+  assert.match(comment, /token \[secret:GH_TOKEN\] rejected/);
+  assert.doesNotMatch(comment, /ghp_secretvalue1234/);
+  assert.deepEqual(fake.issues.get(issue)?.labels, ["try:1"]);
+});
+
+test("the kitchen stays under 1,000 lines", () => {
+  const dir = join(import.meta.dirname, "../../src/kitchen");
+  const lines = readdirSync(dir).reduce((sum, file) => sum + readFileSync(join(dir, file), "utf8").split("\n").length - 1, 0);
+  assert.ok(lines < 1000, `${lines} lines`);
 });

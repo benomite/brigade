@@ -59,6 +59,7 @@ function kitchenOf(project: KitchenProject) {
       git,
       places: () => project.places,
       riskPaths: () => risk,
+      secrets: Object.fromEntries(["GH_TOKEN", "GITHUB_TOKEN"].flatMap((name) => (process.env[name] ? [[name, process.env[name] as string]] : []))),
       log: log(project.name),
       launch: launcher.launch,
     }),

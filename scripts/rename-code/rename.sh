@@ -10,4 +10,5 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 if [ ! -f "$HERE/node_modules/typescript/package.json" ]; then
   npm ci --prefix "$HERE" --no-audit --no-fund >&2
 fi
-exec node "$HERE/rename.ts" "$@"
+# Both zones in one program, plus the proof's second one: past the default heap.
+exec node --max-old-space-size=12288 "$HERE/rename.ts" "$@"
