@@ -59,3 +59,4 @@
 - `screen -dmS` does not read its `-c` rc at creation but at the first attach: a rc deleted right after `-dmS` is lost (alternate screen comes back); keep it in a 0700 user dir (`~/.brigade/screen`), never a predictable /tmp name (#4576)
 - A TODO entry of a card answered in words only (`parked:chef`, `todo.repondre`) has no choice buttons: its `Answer` opens the card (fiche or phone list), where the field and the posting Answer live; the kanban draws no `bon`, so `renderCard` carries the TODO card itself (#4593)
 - A comment in a vue file must not carry a `#1234` ticket number: `app/test/skin.test.ts` reads it as a hard-coded colour (#4593)
+- The CI plans its matrix in tests.yml's `plan` job from tests-touches.mjs: a zone with no test touched has no shard (skipped jobs count as success for `gates`); Windows runs on main only (#4607)
