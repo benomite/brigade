@@ -164,15 +164,29 @@ export function gestures(gh: Gh, repo: string) {
     failedLogs: async (pr: number, max = 5, lines = 40): Promise<Array<{ name: string; log: string }>> => {
       const sha = (JSON.parse(await gh(["api", `repos/${repo}/pulls/${pr}`])) as { head: { sha: string } }).head.sha;
       const runs = (JSON.parse(await gh(["api", `repos/${repo}/commits/${sha}/check-runs?per_page=100`])) as { check_runs: Array<{ name: string; conclusion: string | null; html_url: string }> }).check_runs;
-      const failed = runs.filter((check) => FAILED.has((check.conclusion ?? "").toUpperCase())).slice(0, max);
-      return Promise.all(failed.map(async (check) => {
+      // `gates` only aggregates the other jobs.
+      const failed = runs.filter((check) => FAILED.has((check.conclusion ?? "").toUpperCase()) && check.name !== "gates");
+      const entries = await Promise.all(failed.map(async (check): Promise<{ name: string; log: string } | null> => {
         const job = /\/job\/(\d+)/.exec(check.html_url)?.[1];
         if (job === undefined) return { name: check.name, log: `(no Actions log: ${check.html_url})` };
-        const raw = await gh(["run", "view", "--job", job, ...r, "--log-failed"]).catch((error: Error) => `(log unreadable: ${error.message})`);
-        // Each line is `<job>\t<step>\t<text>`: only the text is kept.
-        const text = raw.trimEnd().split("\n").map((line) => line.replace(/^[^\t]*\t[^\t]*\t/, "").slice(0, 300));
-        return { name: check.name, log: text.slice(-lines).join("\n") };
+        let unreadable = "";
+        const raw = await gh(["run", "view", "--job", job, ...r, "--log-failed"]).catch((error: Error) => { unreadable = error.message; return ""; });
+        if (unreadable === "") {
+          // Each line is `<job>\t<step>\t<text>`: only the text is kept.
+          const text = raw.trimEnd().split("\n").map((line) => line.replace(/^[^\t]*\t[^\t]*\t/, "").slice(0, 300));
+          return { name: check.name, log: text.slice(-lines).join("\n") };
+        }
+        // The log can't be read: the check-run annotations carry the failing test and its assertion (#4724).
+        const notes = await gh(["api", `repos/${repo}/check-runs/${job}/annotations?per_page=100`]).then(
+          (out) => (JSON.parse(out) as Array<{ path?: string; start_line?: number; message?: string }>).filter((note) => note.message),
+          () => [],
+        );
+        if (notes.length === 0) return { name: check.name, log: `(log unreadable: ${unreadable})` };
+        // A job only cancelled because another failed is not a failure to report.
+        if (notes.every((note) => /was cancell?ed/i.test(note.message ?? ""))) return null;
+        return { name: check.name, log: notes.map((note) => `${note.path ? `${note.path}${note.start_line ? `:${note.start_line}` : ""}: ` : ""}${(note.message ?? "").slice(0, 300)}`).slice(0, lines).join("\n") };
       }));
+      return entries.filter((entry): entry is { name: string; log: string } => entry !== null).slice(0, max);
     },
     merge: (pr: number) => gh(["pr", "merge", String(pr), ...r, "--merge", "--delete-branch"]),
     ensureLabels: async (names: string[]) => { for (const name of names) await gh(["label", "create", name, ...r, "--force"]).catch(() => ""); },
