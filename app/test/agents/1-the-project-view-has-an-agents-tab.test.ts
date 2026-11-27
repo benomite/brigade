@@ -1,8 +1,5 @@
-// Test d'acceptation gelé (#4224). Contrat que ces tests fixent, parce que le ticket le laisse ouvert : la vue lit le runtime par `fetch`
-// sur les chemins du ticket (GET /api/agents, GET|PUT /api/agents/:id/settings, GET /api/agents/:id/gestures) ; les tests posent un faux
-// `fetch` (globalThis) qui répond selon le contrat, d'où que la vue prenne sa base. L'onglet Agents est un titre du menu `onglets-du-projet` ;
-// une carte est le plus petit élément qui porte le nom, le rôle, la prochaine passe et les chiffres de l'agent ; un réglage modifiable est
-// un champ (input ou select) dans une rangée qui porte son libellé.
+// The project view has an Agents tab (#4224), which shows the agents at work the bridge reads (#4569): the main process answers `agentsAtWork`
+// from GitHub and the station (team-of-the-box.ts). The tab is a title of the menu `onglets-du-projet`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { POWER_UP } from "../../src/power-up.ts";
@@ -28,51 +25,8 @@ const startup = () => ({
   code: undefined,
 });
 
-type Field = { key: string; label: string; kind: string; value: unknown; source: string; editable: boolean; livesIn: string | null; changedAt: string | null; changedBy: string | null };
-type Agent = { id: string; name: string; role: string; state: "idle" | "working" | "broken"; workingOn: number | null; nextRun: string; figures: { label: string; value: string; meaning: string }[]; settings: unknown };
-type Action = { at: string; summary: string; reason: string; issue: number | null };
-type Call = { methode: string; chemin: string; corps: unknown };
-
-const field = (key: string, more: Partial<Field> = {}): Field => ({ key, label: `label of ${key}`, kind: "text", value: "v", source: "runtime", editable: true, livesIn: null, changedAt: null, changedBy: null, ...more });
-const agent = (id: string, more: Partial<Agent> = {}): Agent => ({
-  id,
-  name: `agent-${id}`,
-  role: `Role sentence of ${id}.`,
-  state: "idle",
-  workingOn: null,
-  nextRun: `next run of ${id} in 3 h`,
-  figures: [
-    { label: `figure one of ${id}`, value: "12", meaning: `meaning one of ${id}` },
-    { label: `figure two of ${id}`, value: "34 %", meaning: `meaning two of ${id}` },
-  ],
-  settings: {},
-  ...more,
-});
-
-// Le faux du contrat du runtime (GET /api/agents, GET|PUT /api/agents/:id/settings, GET /api/agents/:id/gestures), posé en
-// `fetch` : l'URL est lue par son chemin, d'où que la vue prenne sa base. Chaque appel est gardé.
-function fakeRuntime(agents: Agent[], { reglages: settings = {}, gestes: actions = {}, put }: { reglages?: Record<string, Field[]>; gestes?: Record<string, Action[]>; put?: (id: string, body: { key: string; value: unknown }) => { status: number; corps: unknown } } = {}): Call[] {
-  const calls: Call[] = [];
-  const answer = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-  Object.assign(globalThis, {
-    fetch: async (entry: unknown, options: { method?: string; body?: string } = {}) => {
-      const url = new URL(typeof entry === "string" ? entry : entry instanceof URL ? entry.href : (entry as { url: string }).url, "http://runtime.test");
-      const method = (options.method ?? "GET").toUpperCase();
-      const body = options.body === undefined ? undefined : JSON.parse(options.body);
-      calls.push({ methode: method, chemin: url.pathname, corps: body });
-      if (url.pathname === "/api/agents" && method === "GET") return answer(200, agents);
-      const [, id, what] = /^\/api\/agents\/([^/]+)\/(settings|gestures)$/.exec(url.pathname) ?? [];
-      if (id === undefined) return answer(404, { error: "unknown" });
-      if (what === "gestures") return answer(200, actions[id] ?? []);
-      if (method === "PUT") {
-        const rendered = put?.(id, body) ?? { status: 400, corps: { reason: "no" } };
-        return answer(rendered.status, rendered.corps);
-      }
-      return answer(200, { fields: settings[id] ?? [] });
-    },
-  });
-  return calls;
-}
+// The bridge's `agentsAtWork`, which the main process answers from GitHub and the station (team-of-the-box.ts): what it says.
+const reading = (agents: unknown[] = [{ agent: "cook", ticket: 41, since: "2026-10-01T00:00:00.000Z", station: "box" }]) => ({ agents, stations: [] });
 
 async function open(answers: Partial<Answers> = {}): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }], ...answers } as never);
@@ -90,7 +44,6 @@ const visible = (node: Fake): boolean => {
   for (let pose: Fake | null = node; pose !== null; pose = pose.parentElement) if (pose.hidden) return false;
   return true;
 };
-const all = (vue: Played): Fake[] => vue.poses().filter(visible);
 const shows = (node: Fake): string => (node.hidden ? "" : [...node.descendants()].some((threads) => threads.hidden) ? node.children.map(shows).join(" ") : node.textContent);
 const textShows = (vue: Played): string =>
   vue
@@ -98,35 +51,11 @@ const textShows = (vue: Played): string =>
     .filter((pose) => pose.parentElement === null && !pose.hidden)
     .map(shows)
     .join("\n");
-// Le plus petit élément montré dont le texte contient tout ce qui est dit.
-const moreSmall = (vue: Played, ...texts: string[]): Fake => {
-  const found = all(vue).filter((pose) => texts.every((text) => pose.textContent.includes(text)));
-  assert.ok(found.length > 0, `rien de montré ne porte ${JSON.stringify(texts)}`);
-  return found.reduce((small, pose) => (pose.textContent.length < small.textContent.length ? pose : small));
-};
-const card = (vue: Played, a: Agent): Fake => moreSmall(vue, a.name, a.role);
-// Un clic sur un agent : sur son nom, puis sur ce qui le porte, jusqu'à ce que ses gestes aient été demandés.
-async function clickOnTheAgent(vue: Played, calls: Call[], a: Agent): Promise<void> {
-  const path: Fake[] = [];
-  for (let pose: Fake | null = moreSmall(vue, a.name); pose !== null && !pose.hidden; pose = pose.parentElement) path.push(pose);
-  for (const pose of path) {
-    pose.click();
-    for (let i = 0; i < 3; i++) await repos();
-    if (calls.some(({ chemin: request }) => request === `/api/agents/${a.id}/gestures`)) return;
-  }
-}
-const atTheRow = (vue: Played, a: Agent, key: Field): Fake => {
-  const inside = card(vue, a);
-  const found = [inside, ...inside.descendants()].filter((pose) => pose.textContent.includes(key.label) && (key.editable ? pose.dessous("input").length + pose.dessous("select").length > 0 : true));
-  assert.ok(found.length > 0, `pas de rangée « ${key.label} » sur la carte`);
-  return found.reduce((small, pose) => (pose.textContent.length < small.textContent.length ? pose : small));
-};
 
 // #4224, critère 1 : la vue du projet a un onglet Agents, à côté de Rail, Stations et Settings.
-test("the project view has an Agents tab next to Rail, Stations and Settings", async () => {
-  const agents = [agent("a1")];
-  const calls = fakeRuntime(agents);
-  const vue = await open();
+test("the project view has an Agents tab next to Rail, Stations and Settings, and it shows the agents at work the bridge reads", async () => {
+  const asked: string[] = [];
+  const vue = await open({ agentsAtWork: async (project: string) => (asked.push(project), reading()) } as never);
   const titles = vue.element("onglets-du-projet").children.map((pose) => pose.textContent.trim());
   for (const title of ["Rail", "Stations", "Settings", "Agents"]) assert.ok(titles.includes(title), `l'onglet « ${title} » est dans le menu`);
   const place = titles.indexOf("Agents");
@@ -134,6 +63,6 @@ test("the project view has an Agents tab next to Rail, Stations and Settings", a
   assert.ok(Math.abs(place - Math.min(...neighbors)) <= 3 && Math.abs(place - Math.max(...neighbors)) <= 3, "à côté des trois autres, dans le même menu");
   tabAgents(vue).click();
   for (let i = 0; i < 4; i++) await repos();
-  assert.ok(calls.some(({ methode: method, chemin: path }) => method === "GET" && path === "/api/agents"), "l'onglet lit GET /api/agents");
-  assert.ok(textShows(vue).includes("agent-a1"), "l'onglet montre ce que le runtime rend");
+  assert.deepEqual(asked, ["parade"]);
+  assert.match(textShows(vue), /cook · #41 · since .* · on box/);
 });
