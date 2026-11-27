@@ -71,4 +71,4 @@ To check: `ls -d /Applications/Brigade.app`, the window shows the first-run scre
 
 ## Updating
 
-The app updates itself. When a newer version is out, a line at the top of the window says so and shows where the update is (downloading, then **Install now**, or it installs at the next launch). Only if that line offers a **Download** link instead, download the new `.dmg` and drag **Brigade** over the old one.
+The app updates itself. When a newer version is out, a line at the top of the window says so and shows where the update is (downloading, then **Update now**, or it installs at the next launch). Only if that line offers a **Download** link instead, download the new `.dmg` and drag **Brigade** over the old one.
