@@ -8,6 +8,22 @@ import { VIEWS, vueOf } from "./blockage-of-second.ts";
 
 const THE_CHEF = "the chef";
 
+// Les mots du geste que l'attente du rail nomme (vue/rail/github.ts la calcule de GitHub) : ceux que le rail dit au chef.
+const WORDS_OF_GESTURE: Record<NonNullable<NonNullable<Board["attenteDuRail"]>["geste"]>, string> = {
+  "demarrer-la-station": "Start it on its computer",
+  "ajouter-a-une-station": "Add the project to a station",
+};
+
+// Le bandeau STOPPED : ce que l'arrêt attend — le statut que la lecture du rail a dit tel quel —, et qui, d'après sa cause.
+function bannerOfStop(stop: NonNullable<Board["arretCuisine"]>): BannerOfTheVue {
+  const { cause } = stop;
+  const waitsFor = stop.statut ?? "cause unknown";
+  if (cause.kind === "frozen-zone") return { label: "STOPPED", waitsFor, waitsOn: `whoever serves #${cause.ticket}, or the chef who sets it free` };
+  if (cause.kind === "zone-held") return { label: "STOPPED", waitsFor, waitsOn: `whoever serves PR ${cause.pr}, or the chef who merges or closes it` };
+  if (cause.kind === "main-red") return { label: "STOPPED", waitsFor, waitsOn: "the repair of main" };
+  return { label: "STOPPED", waitsFor, waitsOn: THE_CHEF };
+}
+
 // Qui est vraiment attendu d'une carte : le chef seulement quand elle lui demande quelque chose.
 function whoAwaiting(c: Card, state: string | undefined): string {
   if (c.attendu || c.question) return THE_CHEF;
@@ -20,23 +36,28 @@ function whoAwaiting(c: Card, state: string | undefined): string {
 }
 
 function vueOfBoard(board: Board): VueOfProject {
+  const action = board.attenteDuRail?.geste;
   const banners: BannerOfTheVue[] = [];
+  if (board.arretCuisine !== undefined) banners.push(bannerOfStop(board.arretCuisine));
   for (const a of board.alertesDuRail ?? []) {
     // Une alerte que la station gère déjà (boucle arrêtée, carte mise de côté) n'attend pas le chef : le rail la dit gérée.
     if (a.geree !== null) continue;
     banners.push({ label: a.fait.ticket === undefined ? "FAULT" : `FAULT #${a.fait.ticket}`, waitsFor: a.phrase, waitsOn: a.geste ?? THE_CHEF });
   }
-  // « base rouge » n'est dit que si le rail dit la base rouge : une alerte de base rouge.
-  const baseRed = (board.alertesDuRail ?? []).some((a) => a.sorte === "base-rouge");
+  const wait = board.attenteDuRail;
+  // « base rouge » n'est dit que si le rail dit la base rouge : une alerte de base rouge, ou un arrêt dû à main rouge.
+  const baseRed = (board.alertesDuRail ?? []).some((a) => a.sorte === "base-rouge") || board.arretCuisine?.cause.kind === "main-red";
   const rail: CardOfTheVue[] = board.rail.colonnes.flatMap((column) =>
     column.cartes.filter((c) => c.etat !== "served" && column.nom !== "SERVED").map((c) => {
       const staleOne = c.etat === "base rouge" && !baseRed;
       const state = staleOne ? "in pass" : c.etat;
       const displayed = staleOne ? "in pass" : c.ligne === undefined ? (c.mot ?? c.etat ?? column.nom) : `${c.etat ?? column.nom} - ${c.ligne}`;
-      return { number: c.ticket, title: c.titre ?? "", displayed, real: displayed, waitsOn: whoAwaiting(c, state) };
+      // La raison que le rail dit à la file qui ne part pas vaut pour les cartes en file : c'est l'état réel de chacune.
+      const inFile = c.etat === "queued" && wait !== undefined && wait.raison !== "normale";
+      return { number: c.ticket, title: c.titre ?? "", displayed, real: inFile ? wait.phrase : displayed, waitsOn: inFile ? (action ? WORDS_OF_GESTURE[action] : THE_CHEF) : whoAwaiting(c, state) };
     }),
   );
-  return { banners, rail };
+  return { banners, rail, ...(action ? { gesture: { what: WORDS_OF_GESTURE[action], by: THE_CHEF } } : {}) };
 }
 
 // Dépose la vue du projet pour son second. Un dépôt qui échoue se dit, et le second n'a alors pas de vue : le crochet ne rend rien.
