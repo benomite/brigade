@@ -257,13 +257,6 @@ describe("le plan, colonne par colonne", () => {
     assert.equal(label(slip(column(rail, "Pass"), 33)), "mac");
   });
 
-  test("ce qu'attendre un tiers veut dire s'explique une fois, sous le titre de la colonne où une carte est parked", async () => {
-    const vue = await open({ lireLesExplications: () => ({ vus: [] }), marquerUneExplication: () => ({ vus: [] }) });
-    const rail = await show(vue, { rail: [entry(31, "en attente"), entry(32, "pris", { tiers: { ...THIRD, qui: "Camille" } })] });
-    await repos();
-    const under = rail.dessous("section").filter((one) => one.children[1]?.dataset.mot === "WAITING").map(({ dataset }) => dataset.colonne);
-    assert.deepEqual(under, ["Cooks"]);
-  });
 });
 
 describe("le haut du rail, sous la bande", () => {

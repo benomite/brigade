@@ -37,6 +37,15 @@ const OPEN = [
 const OPEN_PRS = [pr(40, 4)];
 const CLOSED_PRS = [pr(38, 6, { merged_at: at(2) }), pr(36, 7, { merged_at: at(30), updated_at: at(30) }), pr(35, 9, { merged_at: null, updated_at: at(1) })];
 
+const labeled = (name: string, hoursAgo: number) => ({ event: "labeled", label: { name }, created_at: at(hoursAgo) });
+const TIMELINES: Record<number, object[]> = {
+  2: [labeled("fire", 5)],
+  3: [labeled("fire", 9), labeled("taken", 4), { event: "commented", created_at: at(1) }],
+  4: [labeled("taken", 8), labeled("in-pass", 2)],
+  5: [labeled("parked:chef", 26)],
+  6: [labeled("taken", 7), labeled("taken", 6)],
+};
+
 function github(options: { kitchen?: boolean } = {}): { appeler: CallGitHub; paths: string[] } {
   const paths: string[] = [];
   return {
@@ -50,7 +59,8 @@ function github(options: { kitchen?: boolean } = {}): { appeler: CallGitHub; pat
       if (path === `/repos/${REPOSITORY}`) return ok({ default_branch: "main", permissions: { push: true } });
       // What only the old rail reads.
       if (path.includes("/check-runs")) return ok({ check_runs: [] });
-      if (/\/pulls\/\d+$/.test(path)) return ok({ additions: 1, deletions: 1 });
+      if (/\/pulls\/\d+$/.test(path)) return ok({ additions: 12, deletions: 3 });
+      if (/\/issues\/\d+\/timeline/.test(path)) return ok(TIMELINES[Number(/issues\/(\d+)\//.exec(path)?.[1])] ?? []);
       if (/\/issues\/\d+\/(comments|events)/.test(path)) return ok([]);
       return { status: 404, data: { message: "Not Found" } };
     },
@@ -69,10 +79,10 @@ test("a project on the new kitchen: one issue in each of the six columns, from i
   assert.deepEqual(board.columns.map(({ title }) => title), ["Backlog", "Ready", "Cooking", "Pass", "Parked", "Served"]);
   assert.deepEqual(ticketsByColumn(board), { backlog: [1], ready: [2], cooking: [3], pass: [4], parked: [5], served: [6] });
   // Its try count and its links: the issue, and the pull request that delivers or served it.
-  assert.deepEqual(cardOf(board, 3), { ticket: 3, title: "Ticket 3", url: `https://github.com/${REPOSITORY}/issues/3`, tries: 1, pr: null });
-  assert.deepEqual(cardOf(board, 4), { ticket: 4, title: "Ticket 4", url: `https://github.com/${REPOSITORY}/issues/4`, tries: 2, pr: { number: 40, url: `https://github.com/${REPOSITORY}/pull/40` } });
-  assert.deepEqual(cardOf(board, 5), { ticket: 5, title: "Ticket 5", url: `https://github.com/${REPOSITORY}/issues/5`, tries: 3, pr: null, forTheChef: true });
-  assert.deepEqual(cardOf(board, 6), { ticket: 6, title: "Ticket 6", url: `https://github.com/${REPOSITORY}/issues/6`, tries: 0, pr: { number: 38, url: `https://github.com/${REPOSITORY}/pull/38` } });
+  assert.deepEqual(cardOf(board, 3), { ticket: 3, title: "Ticket 3", url: `https://github.com/${REPOSITORY}/issues/3`, tries: 1, pr: null, durationMs: 4 * HOUR });
+  assert.deepEqual(cardOf(board, 4), { ticket: 4, title: "Ticket 4", url: `https://github.com/${REPOSITORY}/issues/4`, tries: 2, pr: { number: 40, url: `https://github.com/${REPOSITORY}/pull/40` }, durationMs: 2 * HOUR, lines: { added: 12, removed: 3 } });
+  assert.deepEqual(cardOf(board, 5), { ticket: 5, title: "Ticket 5", url: `https://github.com/${REPOSITORY}/issues/5`, tries: 3, pr: null, forTheChef: true, durationMs: 26 * HOUR });
+  assert.deepEqual(cardOf(board, 6), { ticket: 6, title: "Ticket 6", url: `https://github.com/${REPOSITORY}/issues/6`, tries: 0, pr: { number: 38, url: `https://github.com/${REPOSITORY}/pull/38` }, durationMs: 4 * HOUR, lines: { added: 12, removed: 3 } });
   // The old rail stays empty, and its line says the board.
   assert.deepEqual(readOne.faits.rail, []);
   assert.deepEqual(readOne.faits.compteurs, { rail: 1, auTravail: 1, aLaPass: 1, attend: 0, livres24h: 1 });
@@ -90,7 +100,14 @@ test("nothing of the old runtime is read for a project on the new kitchen: no cl
   assert.deepEqual([...new Set(read)].sort(), [
     `/repos/${REPOSITORY}`,
     `/repos/${REPOSITORY}/contents/.brigade/kitchen.json`,
+    `/repos/${REPOSITORY}/issues/2/timeline`,
+    `/repos/${REPOSITORY}/issues/3/timeline`,
+    `/repos/${REPOSITORY}/issues/4/timeline`,
+    `/repos/${REPOSITORY}/issues/5/timeline`,
+    `/repos/${REPOSITORY}/issues/6/timeline`,
     `/repos/${REPOSITORY}/issues?state=open&sort=created&direction=asc`,
+    `/repos/${REPOSITORY}/pulls/38`,
+    `/repos/${REPOSITORY}/pulls/40`,
     `/repos/${REPOSITORY}/pulls?state=closed&sort=updated&direction=desc`,
     `/repos/${REPOSITORY}/pulls?state=open`,
   ]);
@@ -157,4 +174,48 @@ test("`kitchenBoard` read back from `facts`: the board as written, and nothing f
   assert.deepEqual(kitchenBoardRead(undefined), {});
   assert.deepEqual(kitchenBoardRead({ columns: board.columns.slice(1) }), {});
   assert.deepEqual(kitchenBoardRead({ columns: board.columns.map((column) => ({ ...column, cards: [{ ticket: "1" }] })) }), {});
+});
+
+test("a card shows how long it has been in its column, and a served one how long it took; a card with a PR shows its lines", async () => {
+  const { appeler: call } = github();
+  const readOne = (await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => NOW })) as BoardRead;
+  const board = readOne.faits.kitchenBoard as KitchenBoard;
+  assert.equal(cardOf(board, 1).durationMs, undefined, "the backlog has no column label");
+  assert.equal(cardOf(board, 2).durationMs, 5 * HOUR, "Ready: since `fire`");
+  assert.equal(cardOf(board, 3).durationMs, 4 * HOUR, "Cooking: since `taken`, not since `fire`");
+  assert.equal(cardOf(board, 4).durationMs, 2 * HOUR, "Pass: since `in-pass`");
+  assert.equal(cardOf(board, 5).durationMs, 26 * HOUR, "Parked: since `parked:chef`");
+  assert.equal(cardOf(board, 6).durationMs, 4 * HOUR, "Served: from the latest `taken` to the merge (2 h ago, taken 6 h ago)");
+  assert.deepEqual(cardOf(board, 4).lines, { added: 12, removed: 3 });
+  assert.deepEqual(cardOf(board, 6).lines, { added: 12, removed: 3 });
+  assert.equal(cardOf(board, 3).lines, undefined, "no PR, no lines");
+  assert.ok(!JSON.stringify(board).includes("station"), "no station: GitHub holds none");
+  assert.deepEqual(kitchenBoardRead(JSON.parse(JSON.stringify(board))), { kitchenBoard: board });
+});
+
+test("a reading of the timeline or the PR GitHub refuses leaves the card without it, and the board is still read", async () => {
+  const { appeler: call } = github();
+  const refusing: CallGitHub = async (path) => (/\/timeline|\/pulls\/\d+$/.test(path) ? { status: 500, data: {} } : call(path));
+  const readOne = (await readTheBoardOfRepository({ depot: REPOSITORY, appeler: refusing, maintenant: () => NOW })) as BoardRead;
+  assert.equal(readOne.lu, true);
+  assert.deepEqual(cardOf(readOne.faits.kitchenBoard as KitchenBoard, 4), { ticket: 4, title: "Ticket 4", url: `https://github.com/${REPOSITORY}/issues/4`, tries: 2, pr: { number: 40, url: `https://github.com/${REPOSITORY}/pull/40` } });
+});
+
+test("an unchanged card is read again for free: the second reading answers 304 to every card's reads", async () => {
+  const memory: MemoryOfReads = new Map();
+  const { appeler: inner } = github();
+  let full = 0;
+  const call: CallGitHub = async (path, headers) => {
+    if (/\/timeline|\/pulls\/\d+$/.test(path)) {
+      if (headers?.["If-None-Match"] === "v1") return { status: 304, data: null };
+      full++;
+      return { ...(await inner(path)), etag: "v1" };
+    }
+    return inner(path);
+  };
+  await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => NOW, memoire: memory });
+  const first = full;
+  const again = (await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => NOW, memoire: memory })) as BoardRead;
+  assert.equal(full, first, "no counted read the second time");
+  assert.equal(cardOf(again.faits.kitchenBoard as KitchenBoard, 4).lines?.added, 12);
 });

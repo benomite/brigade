@@ -133,7 +133,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
   test("Rail, Stations et Second, et chacun se montre d'un tap : le second à la place du centre, jamais à côté", async () => {
     const { vue, ecran: screen } = await open();
     assert.ok(screen.requetes.length > 0, "la vue demande la largeur de l'écran");
-    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
+    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Settings", "Second"]);
     assert.deepEqual(shows(vue), ["Rail"]);
     assert.deepEqual(seenOne(vue), { centre: true, second: false });
 
@@ -203,7 +203,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
     assert.deepEqual(seenOne(reopened), { centre: false, second: true });
     // Sur un écran large, la conversation n'est pas un onglet : le même projet s'y rouvre sur Rail, le second à droite.
     const { vue: large } = await open({ stockage: storage, etroit: false });
-    assert.deepEqual(titles(large), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
+    assert.deepEqual(titles(large), ["Rail", "Stations", "Agents", "Settings"]);
     assert.deepEqual(shows(large), ["Rail"]);
     assert.deepEqual(seenOne(large), { centre: true, second: true });
   });
@@ -256,7 +256,7 @@ describe("l'onglet Stations d'un écran étroit, en lecture seule", () => {
 describe("sur un écran large, rien ne change", () => {
   test("deux onglets, et le second à droite quel que soit l'onglet ; Stations porte ses stations", async () => {
     const { vue } = await open({ etroit: false });
-    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
+    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Settings"]);
     assert.deepEqual(seenOne(vue), { centre: true, second: true });
     await type(vue, "Stations");
     assert.deepEqual(seenOne(vue), { centre: true, second: true });
@@ -271,12 +271,12 @@ describe("sur un écran large, rien ne change", () => {
     const { vue, ecran: screen } = await open({ etroit: false });
     screen.changer(true);
     await repos();
-    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings", "Second"]);
+    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Settings", "Second"]);
     assert.deepEqual(seenOne(vue), { centre: true, second: false });
     await type(vue, "Second");
     screen.changer(false);
     await repos();
-    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
+    assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Settings"]);
     assert.deepEqual(shows(vue), ["Rail"]);
     assert.deepEqual(seenOne(vue), { centre: true, second: true });
   });

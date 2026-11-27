@@ -1,6 +1,6 @@
 // Le mot au cook, côté process principal (ticket 4048, épique 4043) : le chef écrit une ligne au cook d'un ticket en
 // cuisine, depuis sa carte, sans ouvrir sa session. La ligne part par la commande du runtime `send-word` (un autre ticket de
-// l'épique la construit), là où la cuisine du projet tourne, comme les tickets récurrents (vue/recurring/recurring-box.ts) :
+// l'épique la construit), là où la cuisine du projet tourne :
 //   - `send-word '<{"ticket":<n>,"text":<la ligne>}>'` : l'entrée `{ticket, text}`, en un seul mot JSON ;
 //   - la réponse, sur la dernière ligne de la sortie : `{"ok":true}` ou `{"ok":false,"reason":<une ligne>}`.
 // Ce qui ne se lit pas ne se devine pas : la vue reçoit toujours `{ok: false, reason}` en une ligne, le détail au survol.

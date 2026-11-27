@@ -1,6 +1,6 @@
 // La cuisine d'un projet, station par station (#1185) : ce que chaque station déclarée fait du projet —
 // elle cuit, elle est arrêtée, saturée, ou elle le refuse —, ses cooks en cours. Tout vient de
-// `facts`, champ `stations` (runtime/src/etat.ts, `cuisson`, #1183) : un mot lu, que l'app ne déduit jamais.
+// `facts`, champ `stations` (`cuisson`, #1183) : un mot lu, que l'app ne déduit jamais.
 // Ce qui demande un geste au chef — une station saturée, ou qui refuse le projet — tient en une ligne, que
 // l'onglet Rail pose avec de quoi ouvrir Cooks.
 // Une station distante que la principale ne voit pas (`presente`, #1830) ne cuit pas, quel que soit son mot : elle ne
@@ -80,7 +80,7 @@ function lineOf(station: FactsStation, cooks: readonly Cook[], readOne: string, 
 
 // Ce que la pass fait elle-même d'une livraison, comme la carte du ticket en pass le dit : ses phases de travail. Une
 // livraison qui attend — la pass, sa CI coupée, le chef — ne la fait pas tourner. La même liste que le runtime
-// (runtime/src/activites.ts, `PASS_A_L_OUVRAGE`) : un test les compare.
+// (`PASS_A_L_OUVRAGE`) : un test les compare.
 export const PASS_AT_THE_WORK: ReadonlySet<string> = new Set(["running the gates", "review running since", "judging", "merging"]);
 const passALWork = (doneIn: string): boolean => [...PASS_AT_THE_WORK].some((start) => doneIn.startsWith(start));
 
