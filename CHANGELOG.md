@@ -11,6 +11,7 @@ Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new
 
 ### Changed
 
+- The repository's marketplace publishes the `brigade` plugin from `main` again, in English: `/brigade:start` (what brigade is, `gh` and the repository checked, the app download for your computer) and `/brigade:ask` (with `/brigade:ticket`, #4526, and `/brigade:todo`, #4527), no V1 role and no agent; V1 stays installable from the tag `v1-final`, and the plugin lives beside the app's own without a collision (#4525)
 - The second and the app park and unpark a ticket the same way — the same two functions, written on its issue, on any project, with no box command: the second runs the parking command the app gives it at each session start. The `waiting` box command (and its old name `attente`) is removed (#4262)
 - The `sensitive` and `design` gestures take the ticket's number (`sensitive merge <owner>/<repo>#3709`): they act on that ticket's pull request, the pull request's number is still accepted, and a ticket with no pull request is refused by name; what they say names the pull request ticket first, `the delivery of #3709 (PR 3710)`, as do the questions of their cards, the words that close them, the send-backs and kept answers they write on the ticket, the chef's answers given on the ticket, and `undo` (#3718)
 - Roles name a pull request by its ticket first (`the delivery of #3709 (PR 3710)`, never `#3710` alone) and give the chef merge and review commands with the ticket number (#3717)
