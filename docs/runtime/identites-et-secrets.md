@@ -84,7 +84,7 @@ a place of its own.
    file, given once.
 5. **Hand the three IDs and keys to the app**, which gives them to any station that runs the
    project: on the computer that runs the station, Settings → **this machine** → `GitHub Apps`, one
-   line per role (`docs/app.md`, "This station's GitHub Apps, in Settings"). A station receives them from the app, never from a file it keeps by hand.
+   line per role. A station receives them from the app, never from a file it keeps by hand.
 6. **Reserve the merge** with a branch rule — add a rule, do not remove one. An active *ruleset*
    on the integration branch (*Settings → Rules → Rulesets*, or `gh api -X POST
    repos/<owner>/<repo>/rulesets`) with **Restrict updates**, **Restrict deletions**, **Block force
