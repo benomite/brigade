@@ -156,7 +156,15 @@ jobs:
           fetch-depth: 2
       # `origin/main` : des tests relisent la base (regles-claude-md/2-…, #4016), que le checkout ne pose pas.
       - name: Base origin/main
-        run: git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main
+        shell: bash
+        run: |
+          # Un fetch qui échoue sur un incident réseau passager ne doit pas rougir main (#4717).
+          for essai in 1 2 3 4 5; do
+            git fetch --no-tags --depth=1 origin main:refs/remotes/origin/main && exit 0
+            echo "fetch origin/main : essai $essai en échec" >&2
+            sleep $((essai * 5))
+          done
+          exit 1
       - uses: actions/setup-node@v4
         with:
           node-version: 26
