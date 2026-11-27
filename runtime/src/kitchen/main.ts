@@ -6,6 +6,7 @@ import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
 import { projectHosts } from "../bac-a-sable/kitchen-sandbox.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
+import { publishStatus } from "../operator-status.ts";
 import { REGLES_DE_BASE, passerParLaPorte, type Regle } from "../reseau.ts";
 import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
@@ -68,11 +69,10 @@ if (import.meta.main) {
   const stationPort = portsFile && existsSync(portsFile) ? lirePortes(portsFile).station : null;
   if (stationPort !== null) passerParLaPorte(stationPort);
   type Served = Exclude<ReturnType<typeof kitchenOf>, { refused: string }>;
-  const kitchens = new Map<string, Served>();
-  // A refused project is tried again each turn; its reason is logged when it changes.
-  const refusals = new Map<string, string>();
+  const kitchens = new Map<string, Served>(), refusals = new Map<string, string>(); // a refused project is tried again each turn; its reason is logged when it changes
   // What the station's update and the app wait for: this kitchen started, and the projects it serves.
   annoncerEnService(root, () => ({ servis: [...kitchens.keys()], refuses: Object.fromEntries(refusals) }), { dire: console.error });
+  publishStatus(root, () => ({ projects: [...kitchens.keys()], refused: Object.fromEntries(refusals) }), { gh: ghCli(process.env.BRIGADE_GH_BIN || "gh", process.env), updateDir: process.env.BRIGADE_MISE_A_JOUR_DIR, dir: process.env.BRIGADE_STATUS_DIR, say: console.error });
   const file = projectsFile(root);
   for (;;) {
     let projects: KitchenProject[] = [];
