@@ -282,6 +282,50 @@ test("a pull request parked for the chef's merge that starts conflicting goes ba
   assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), ["#1 taken", "#1 delivered", "#1 in review (PR #100)", "#1 sent back — its branch conflicts with the base branch", "#1 taken", "#1 delivered", "#1 in review (PR #100)"]);
 });
 
+test("a pull request waiting for the chef's merge that lost its approved label still goes back to a cook once it conflicts (#4558)", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const fake = fakeGh();
+  const approval = (pr: number) => `The pass approves PR #${pr}, but it touches a risk zone (runtime/x.ts): it waits for the chef to merge it.`;
+  const lost = fake.add("Approved, label lost", ["fire", "parked:chef"]);
+  fake.issues.get(lost)?.comments.push(approval(100));
+  fake.prs.push({ number: 100, head: `cook/${lost}-github`, checks: "SUCCESS", merged: false, conflicting: true });
+  const question = fake.add("Parked with a question after an approval", ["fire", "parked:chef"]);
+  fake.issues.get(question)?.comments.push(approval(101), "Parked for the chef by its cook: which colour?");
+  fake.prs.push({ number: 101, head: `cook/${question}-github`, checks: "SUCCESS", merged: false, conflicting: true });
+  const mergeable = fake.add("Approved, label lost, still mergeable", ["fire", "parked:chef"]);
+  fake.issues.get(mergeable)?.comments.push(approval(102));
+  fake.prs.push({ number: 102, head: `cook/${mergeable}-github`, checks: "SUCCESS", merged: false });
+  let reads = 0;
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone: root,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: (args, input) => {
+      if (args[0] === "api" && args.at(-1) === `repos/o/r/issues/${question}/comments?per_page=100`) reads += 1;
+      return fake.gh(args, input);
+    },
+    git: gitCli(process.env),
+    launch: () => {
+      throw new Error("no agent is launched");
+    },
+    places: () => 0,
+    riskPaths: () => [],
+    supervisorEveryMs: Number.MAX_SAFE_INTEGER,
+    log: (line) => lines.push(line),
+  });
+  await kitchen.turn();
+  await kitchen.turn();
+  assert.deepEqual(fake.issues.get(lost)?.labels, ["fire"], lines.join("\n"));
+  assert.equal(fake.issues.get(lost)?.comments.at(-1), "Sent back to a cook: its branch conflicts with the base branch");
+  assert.deepEqual(fake.issues.get(question)?.labels, ["fire", "parked:chef"], "a ticket holding a question stays parked");
+  assert.equal(reads, 1, "its comments are read once");
+  assert.deepEqual(fake.issues.get(mergeable)?.labels, ["fire", "parked:chef"], "a mergeable pull request keeps waiting for the chef");
+  assert.deepEqual(lines.filter((line) => !line.startsWith("network ")), [`#${lost} sent back — its branch conflicts with the base branch`]);
+});
+
 test("a red delivery goes back to a cook with the last lines of its failing check's log, secrets masked", async () => {
   const root = mkdtempSync(join(tmpdir(), "kitchen-"));
   const fake = fakeGh();

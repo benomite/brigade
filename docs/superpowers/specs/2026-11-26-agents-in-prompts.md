@@ -57,7 +57,7 @@ One loop, one turn per minute:
 
 1. **Pass.** For each `in-pass` PR whose CI is complete: if red, send it back. If green, launch the pass agent. It writes a verdict file: `merge` or `refuse` with a reason. The scheduler then does the gesture:
    - **merge:** only if the CI is green and the diff touches no risk zone;
-   - **a risk zone:** the ticket is parked for the chef (`parked:chef`). When the chef answers `merge` on it, the scheduler merges the approved PR, with no cook and no new pass; if the branch must first be brought up to date with the base, a cook does it, and after the new pass the answer still holds: the ticket is merged, not parked again. A refusal that counts a try lifts the answer (#4489);
+   - **a risk zone:** the ticket is parked for the chef (`parked:chef`). When the chef answers `merge` on it, the scheduler merges the approved PR, with no cook and no new pass; if the branch must first be brought up to date with the base, a cook does it, and after the new pass the answer still holds: the ticket is merged, not parked again. A refusal that counts a try lifts the answer (#4489). While it waits, a PR that starts conflicting with the base goes back to a cook, then to the pass, then waits for the chef again: the chef is only asked to merge what can be merged. The waiting ticket carries `approved` beside `parked:chef` (#4492); one that lost that label is still recognized by the pass's risk-zone comment, its last move, and gets the label back (#4558);
    - **refuse:** a comment, the next `try:n`, `in-pass` removed;
    - **send back on conflict:** treated like a refusal, and it does not count as a try.
 

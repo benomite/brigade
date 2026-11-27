@@ -8,6 +8,7 @@ import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullR
 import { branchOf, gestures, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
 import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
+import { chefSaidMerge, riskZoneComment, waitsForChefMerge } from "../chef-merge.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
 import { forget, listRuns, startRun, type Finished, type Kind, type Launch } from "./runs.ts";
@@ -38,20 +39,6 @@ export type KitchenOptions = {
   now?: () => number;
   log: (line: string) => void;
 };
-
-// A PR the pass approves in a risk zone waits for the chef. The chef's merge answer holds for
-// that PR until a pass refuses the ticket: a branch only brought up to date keeps it (#4489).
-const riskZoneComment = (pr: number) => `The pass approves PR #${pr}, but it touches a risk zone`;
-const answerText = (body: string) => body.replace(/^\s*<!--\s*brigade:reponse\b[^>]*-->/, "").trim();
-function chefSaidMerge(comments: readonly string[], pr: number): boolean {
-  let asked = false, granted = false;
-  for (const body of comments) {
-    if (body.startsWith(riskZoneComment(pr))) asked = true;
-    else if (body.startsWith("Sent back to a cook (try ") || body.startsWith("Parked for the chef: refused")) asked = granted = false;
-    else if (asked && /^merge\b/i.test(answerText(body))) granted = true;
-  }
-  return granted;
-}
 
 const calibrationOf = (labels: readonly string[], fallback: { model: string; effort: string }) => ({
   model: labels.find((label) => label.startsWith("model:"))?.slice(6) ?? fallback.model,
@@ -227,6 +214,7 @@ export function openKitchen(options: KitchenOptions) {
 
   const publishAllowlist = allowlistPublisher(join(options.state, KITCHEN_ALLOWLIST), base, (args) => git(options.clone, args), log);
   let labelled = false;
+  const asked = new Set<string>();
   async function turn() {
     await publishAllowlist();
     if (!labelled) {
@@ -258,6 +246,16 @@ export function openKitchen(options: KitchenOptions) {
         forget(run);
       }
       state = await readState(gh, repo);
+    }
+    // A ticket parked for the chef's merge that lost `approved` gets it back once its PR conflicts, so decide sends it back (#4558).
+    for (const issue of state.issues.filter((one) => one.labels.includes(LABELS.parkedChef) && !one.labels.includes(LABELS.approved))) {
+      const pr = state.prs.find((one) => one.issue === issue.number && one.conflicting);
+      if (pr === undefined || asked.has(`${issue.number}:${pr.number}`)) continue;
+      // A ticket that holds a question keeps it: its comments are read once.
+      const comments = await trustedComments(gh, repo, issue.number).catch(() => null);
+      if (comments === null) continue;
+      if (!waitsForChefMerge(comments.map((one) => one.body), pr.number)) asked.add(`${issue.number}:${pr.number}`);
+      else await act.labels(issue.number, [LABELS.approved]).then(() => issue.labels.push(LABELS.approved), (error: Error) => log(`#${issue.number} lost its approved label, not given back — ${error.message}`));
     }
     const { running } = listRuns(runs);
     const actions = decide(state.issues, state.prs, {
