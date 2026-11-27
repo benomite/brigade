@@ -148,55 +148,6 @@ $brigade = @{ code = 0 }
   }
 
   # ---------------------------------------------------------------------------------------------
-  # The `brigade` command of this account, the same as a server's: brigade.cmd runs
-  # src\station\geste.ts of the station's runtime, as runtime/deploy/brigade does on Linux, with
-  # what the station runs with (the launcher below). Its directory goes on the user PATH -- user
-  # scope, no administrator right --, once. Rewritten on each run, which changes nothing when it is
-  # the same.
-  function PoserLaCommande([string]$base) {
-    $commande = @'
-@echo off
-rem Written by installer-station.ps1, and rewritten on each run: do not edit.
-rem   brigade <project> <command> [arguments...]
-rem   brigade <project> help
-setlocal
-set "BRIGADE_STATION_DIR=%USERPROFILE%\.config\brigade\station"
-set "PATH=%~dp0..\node;%USERPROFILE%\.local\bin;%PATH%"
-pushd "%~dp0..\runtime" 2>nul || (
-  echo brigade: the station's runtime ^(%~dp0..\runtime^) is not there -- rerun the install command ^(docs/installation-station.md^) 1>&2
-  exit /b 70
-)
-"%~dp0..\node\node.exe" src\station\geste.ts %*
-set "code=%ERRORLEVEL%"
-popd
-exit /b %code%
-'@
-    $bin = Dans $base 'bin'
-    New-Item -ItemType Directory -Force -Path $bin | Out-Null
-    $fichier = Dans $bin 'brigade.cmd'
-    $neuf = Dans $bin 'brigade.cmd.neuf'
-    [IO.File]::WriteAllText($neuf, ($commande -replace "`r?`n", "`r`n"))
-    if (Pareil $neuf $fichier) { Remove-Item -LiteralPath $neuf -Force } else { Move-Item -LiteralPath $neuf -Destination $fichier -Force }
-
-    # The user PATH as written, its %VARIABLES% kept: rewritten with its kind of value.
-    try {
-      $environnement = Get-Item -LiteralPath 'HKCU:\Environment' -ErrorAction Stop
-      $lu = [string]$environnement.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
-    } catch { Refuser "the user PATH cannot be read (HKCU\Environment): $($_.Exception.Message)" }
-    $entrees = @($lu -split ';' | Where-Object { $_ })
-    $deja = @($entrees | Where-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') -ieq $bin })
-    if ($deja.Count -gt 0) { return }
-    $entrees += $bin
-    try {
-      Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value ($entrees -join ';') -ErrorAction Stop
-    } catch { Refuser "the brigade command cannot be put on the user PATH (HKCU\Environment): $($_.Exception.Message)" }
-    # Removing a variable that is not there tells the open windows the environment changed: a
-    # terminal opened from now on has the new PATH.
-    [Environment]::SetEnvironmentVariable('BRIGADE_PATH_RELU', $null, 'User')
-    Dire "the brigade command is on the PATH of the terminals you open from now on ($bin)"
-  }
-
-  # ---------------------------------------------------------------------------------------------
   # The launcher: what the logon starts, hidden. It gives the station what it runs with, then
   # hands it to lancer-station.mjs.
   function Lanceur([string]$base, [string]$racine, [string]$node, [string]$maison) {
@@ -277,7 +228,7 @@ const rendre = () => {
 
 for (;;) {
   const sortie = openSync(journal, "a");
-  const station = spawn(process.execPath, ["src/station/main.ts"], { cwd: join(ici, "runtime"), stdio: ["ignore", sortie, sortie], windowsHide: true });
+  const station = spawn(process.execPath, ["src/kitchen/main.ts"], { cwd: join(ici, "runtime"), stdio: ["ignore", sortie, sortie], windowsHide: true });
   if (station.pid !== undefined) writeFileSync(join(ici, "station.pid"), `${station.pid}\n`);
   const code = await new Promise((fin) => {
     station.once("error", () => fin(-1));
@@ -365,7 +316,7 @@ for (;;) {
       Obtenir $source $paquet
       $neuf = Dans $travail 'neuf'
       if (-not (Ouvrir $paquet $neuf)) { Refuser "the station's archive does not open ($source)" }
-      if (-not (Test-Path -LiteralPath (Dans (Dans (Dans (Dans $neuf 'runtime') 'src') 'station') 'main.ts') -PathType Leaf)) { Refuser "the archive does not carry the station's runtime ($source)" }
+      if (-not (Test-Path -LiteralPath (Dans (Dans (Dans (Dans $neuf 'runtime') 'src') 'kitchen') 'main.ts') -PathType Leaf)) { Refuser "the archive does not carry the station's kitchen ($source)" }
       $version = VersionDe (Dans (Dans $neuf 'runtime') 'package.json')
       $runtime = Dans $base 'runtime'
       $runtimeChange = (-not (Test-Path -LiteralPath $runtime)) -or ($version -ne (VersionDe (Dans $runtime 'package.json')))
@@ -431,12 +382,11 @@ for (;;) {
     } finally {
       Remove-Item -LiteralPath $travail -Recurse -Force -ErrorAction SilentlyContinue
     }
-    PoserLaCommande $base
     Write-Host ''
     Dire "station installed and running -- $version (its launcher: pid $(PidVivant $lanceurPid); its log: $journal)"
 
     if (-not (Terminal)) {
-      Dire "next: the GitHub sign-in and the Claude sign-in, then pairing with the app -- no terminal here for the sign-ins: rerun the same command from a PowerShell window (the guide: docs/installation-station.md, repository $Depot)"
+      Dire "next: the GitHub sign-in and the Claude sign-in, then your projects -- no terminal here for the sign-ins: rerun the same command from a PowerShell window (the guide: docs/installation-station.md, repository $Depot)"
       return
     }
     if (-not (ConnexionGithub)) { NonConnectee 'its GitHub sign-in is not made' }
@@ -449,7 +399,7 @@ for (;;) {
       & claude auth login
       if ($LASTEXITCODE -ne 0) { NonConnectee 'its Claude sign-in is not made' }
     }
-    Dire "the station is signed in to GitHub and to Claude -- it sees it within the minute; next: pairing with the app (the guide: docs/installation-station.md, repository $Depot)"
+    Dire "the station is signed in to GitHub and to Claude -- next: your projects, one line each in $racine\kitchen\projects (the guide: docs/installation-station.md, repository $Depot)"
   }
 
   try {

@@ -37,7 +37,7 @@ test("the guard follows the real platform by default", () => {
 test("the Windows job plays every test file of the runtime, none set aside", () => {
   const tous = fichiersDeTest();
   assert.ok(tous.includes("test/support/plateforme.test.ts"));
-  assert.ok(tous.includes("test/bascule/bascule.test.ts"));
+  assert.ok(tous.includes("test/kitchen/kitchen.test.ts"));
   assert.deepEqual(tous, [...tous].sort());
   assert.equal(tous.length, globSync("test/**/*.test.ts", { cwd: join(import.meta.dirname, "../..") }).length);
 });

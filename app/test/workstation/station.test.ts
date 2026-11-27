@@ -1,72 +1,14 @@
-// L'app d'un ordinateur est une station : elle lance la vraie station de la machine
-// (runtime/src/station/main.ts), l'appaire seule par le geste du chef, et la station apparaît sur
-// la home comme celle d'un serveur. Un projet qu'on lui ajoute y cuit. Contre des doublures de
-// `gh` (les gists du compte, les tickets d'un projet) et de `claude` : ni réseau, ni quota.
+// L'app d'un ordinateur est une station : elle tient la station de la machine
+// (runtime/src/kitchen/main.ts) — relancée si elle meurt, retentée si elle refuse, une seule par
+// répertoire. Contre des stations d'essai écrites dans le test.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { ouvrirJournal } from "../../../runtime/src/journal.ts";
-import { brancheDuTicket } from "../../../runtime/src/brigade-github.ts";
-import { accepterSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
-import { BASE, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { roleOf } from "../../src/workstation/role.ts";
-import { holdStationLocale, HELD_BY, type OptionsStationLocale, type StationLocale } from "../../src/workstation/station.ts";
-import { FILE_STATION } from "../../src/stations/document.ts";
-import { githubOfStations } from "../../src/stations/github.ts";
-import { holdStations, type Pairing, type Stations } from "../../src/stations/stations.ts";
+import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
+import { holdStationLocale, HELD_BY, type OptionsStationLocale } from "../../src/workstation/station.ts";
 import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
-import { ghOfDirectory } from "../helpers/gh-of-directory.ts";
-import { WITHOUT_POSIX } from "../helpers/posix.ts";
-import { reply } from "../stations/fake-gh-gists.ts";
-
-const ENVELOPE = join(import.meta.dirname, "../../src/workstation/envelope.ts");
-const RUNTIME = join(import.meta.dirname, "../../../runtime");
-const role = roleOf({ plateforme: "darwin", runtime: RUNTIME, env: {} });
-const PRINCIPAL = role.role === "station" ? role.principal : assert.fail("la station n'est pas à côté de l'app");
-
-// GitHub, hors de la machine : les gists du compte du chef, que l'app et la station lisent et
-// écrivent chacune par son `gh` — la même doublure (helpers/gh-of-directory.ts).
-function oneGitHub(t: TestContext) {
-  const directory = mkdtempSync(join(tmpdir(), "brigade-app-gists-"));
-  writeFileSync(join(directory, "appels"), "");
-  const gh = ghOfDirectory(directory, reply);
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  // Les gists de la présence de la station : celui de son enregistrement sous le compte
-  // (runtime/src/enregistrement-station/) est à côté, sans `brigade-station.json`.
-  const files = (gist: string) => (JSON.parse(readFileSync(join(directory, gist), "utf8")) as { files: Record<string, { content: string }> }).files;
-  const gists = () => readdirSync(directory).filter((name) => name.endsWith(".gist.json") && FILE_STATION in files(name));
-  const state = (gist: string) => JSON.parse(files(gist)[FILE_STATION]?.content ?? "null") as { nom: string; arreteeLe: string | null };
-  return { repertoire: directory, gh, gists, etat: state };
-}
-
-// La home de l'app : ses stations, lues sur GitHub.
-function theHome(t: TestContext, github: { gh: string }): Stations {
-  const stations = holdStations({ github: githubOfStations({ gh: github.gh, delaiMs: 30_000 }), surLecture: () => {}, cadenceMs: 3_600_000 });
-  t.after(() => stations.fermer());
-  return stations;
-}
-
-// Ce que l'app passe à sa station : son environnement — ici, celui d'une machine d'essai.
-function oneComputer(t: TestContext, github: { gh: string }) {
-  const machine = repertoireTemporaire(t);
-  const root = join(machine, "station");
-  const account = join(machine, "compte");
-  mkdirSync(account);
-  const env = {
-    ...ENV_GIT,
-    HOME: account,
-    BRIGADE_GH_BIN: github.gh,
-    BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
-    BRIGADE_STATION_NOM: "ordi",
-    BRIGADE_MAX_LOAD_PER_CORE: "1000000",
-    BRIGADE_MIN_FREE_MEMORY_MB: "0",
-    BRIGADE_MIN_FREE_DISK_MB: "0",
-  };
-  return { racine: root, env };
-}
 
 // L'app qui tient la station, arrêtée en fin de test si le test ne l'a pas fait.
 function hold(t: TestContext, options: Omit<OptionsStationLocale, "dire"> & { dire?: (line: string) => void }) {
@@ -76,109 +18,13 @@ function hold(t: TestContext, options: Omit<OptionsStationLocale, "dire"> & { di
   return { station, lignes: lines, dit: () => lines.join("\n") };
 }
 
-const inLine = (home: Stations) => home.vu()?.stations.find((station) => station.nom === "ordi");
-
-test("installer l'app sur un ordinateur : sa station démarre, s'appaire seule, et apparaît sur la home « en ligne · version X » ; l'app fermée, elle passe hors ligne", { skip: WITHOUT_POSIX }, async (t) => {
-  const github = oneGitHub(t);
-  const home = theHome(t, github);
-  const { racine: root, env } = oneComputer(t, github);
-  const { station, dit: said } = hold(t, { node: process.execPath, principal: PRINCIPAL, racine: root, env, appairer: (code) => home.appairer(code), reessaiMs: 200 });
-
-  await jusqua(() => /paired with the app, as “ordi”/.test(said()));
-  assert.equal(station.etat(), "demarree");
-  // Ce que la station dit d'elle est dans le terminal de l'app, tel quel — celle d'un serveur le dit pareil.
-  assert.match(said(), /brigade : station démarrée — pid \d+, configuration .*station\/projets ; aucun projet servi/);
-  assert.match(said(), /brigade : station à appairer — tape ce code dans l'app : [0-9A-Z]{4}-[0-9A-Z]{4}/);
-  await home.relire();
-  assert.equal(inLine(home)?.etat, "en-ligne");
-  assert.match(inLine(home)?.ligne ?? "", /^online · version \S.* · no project$/);
-  assert.equal(readFileSync(join(root, HELD_BY), "utf8"), `${process.pid}\n`);
-
-  // Fermer l'app : la station s'arrête et l'écrit sur GitHub ; la home la dit hors ligne, sans attendre.
-  await station.arreter();
-  assert.equal(station.etat(), "arretee");
-  assert.match(said(), /brigade : station arrêtée \(SIGTERM\)/);
-  assert.equal(existsSync(join(root, HELD_BY)), false);
-  const [gist] = github.gists();
-  assert.notEqual(github.etat(gist ?? "").arreteeLe, null);
-  await home.relire();
-  assert.match(inLine(home)?.ligne ?? "", /^offline for less than a minute · version /);
-
-  // Rouverte, l'app relance sa station : elle relit son appairage sur GitHub, et n'a plus de code à taper.
-  const reopened = hold(t, { node: process.execPath, principal: PRINCIPAL, racine: root, env, appairer: () => assert.fail("une station appairée n'affiche plus de code") });
-  await jusqua(() => github.etat(gist ?? "").arreteeLe === null);
-  await home.relire();
-  assert.equal(inLine(home)?.etat, "en-ligne");
-  assert.equal(github.gists().length, 1);
-  await reopened.station.arreter();
-});
-
-test("l'app tuée net : l'entrée de sa station se ferme, et la station s'arrête comme sur un SIGTERM — l'heure de son arrêt est sur GitHub", { skip: WITHOUT_POSIX }, async (t) => {
-  const github = oneGitHub(t);
-  const { racine: root, env } = oneComputer(t, github);
-  const child = spawn(process.execPath, [ENVELOPE, PRINCIPAL], { env: { ...env, BRIGADE_STATION_DIR: root }, stdio: ["pipe", "pipe", "pipe"] });
-  t.after(() => void child.kill("SIGKILL"));
-  let output = "";
-  child.stdout.on("data", (piece: Buffer) => (output += piece.toString()));
-  const end = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
-  await jusqua(() => output.includes("station à appairer"));
-
-  // Le process de l'app meurt : ses bouts des tuyaux se ferment tous d'un coup — plus personne ne lit.
-  child.stdout.destroy();
-  child.stderr.destroy();
-  child.stdin.destroy();
-  assert.equal(await end, 0);
-  const [gist] = github.gists();
-  assert.notEqual(github.etat(gist ?? "").arreteeLe, null);
-});
-
-test("ajouter un projet à cette station : elle le sert sur GitHub seul, et prend un ticket du projet à son nom", { skip: WITHOUT_POSIX }, async (t) => {
-  const github = oneGitHub(t);
-  const { racine: root, env } = oneComputer(t, github);
-  // Le projet, tel que l'ajout le pose sur la station : ses décisions au journal, sa ligne. Sur GitHub, un ticket
-  // calibré que personne ne tient, sur une base verte.
-  const { clone } = depotGit(t);
-  const gh = fauxGh(t);
-  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-  // Le compte de la machine écrit sur le dépôt : la station GitHub seul sert le projet, pas la contributrice (#2935).
-  gh.repondre("user", { corps: { login: "chef" } });
-  gh.repondre("repos/acme/brigade", { corps: { full_name: "acme/brigade", owner: { login: "acme", type: "Organization" }, permissions: { push: true } } });
-  gh.repondre("repos/acme/brigade/issues/15/events?per_page=100", { corps: [] });
-  // Sans PR : la station lit celle du ticket avant de le prendre (#2622).
-  gh.repondre(`repos/acme/brigade/pulls?head=acme:${brancheDuTicket(15)}&state=all&per_page=1`, { corps: [] });
-  gh.repondre(`repos/acme/brigade/commits/${BASE}/check-runs?per_page=100`, { corps: { check_runs: [] } });
-  gh.repondre(`repos/acme/brigade/commits/${BASE}/status?per_page=100`, { corps: { statuses: [] } });
-  const state = join(root, "etat", "brigade");
-  mkdirSync(state, { recursive: true });
-  const log = ouvrirJournal(state);
-  for (const [name, value] of Object.entries({ BRIGADE_STATIONS: "ordi/claude:30:code", BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "medium" })) {
-    log.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
-  }
-  log.fermer();
-  // Cette cuisine tourne sans bac à sable : le chef a décidé de continuer ainsi.
-  accepterSansBacASable({ repertoireEtat: state, station: "ordi" });
-  writeFileSync(join(root, "projets"), `brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
-
-  const { dit: said } = hold(t, { node: process.execPath, principal: PRINCIPAL, racine: root, env: { ...env, FAUX_CLAUDE: "livre" }, appairer: async (): Promise<Pairing> => ({ refus: "pas de home dans ce test" }), reessaiMs: 3_600_000 });
-  // La prise de la station, postée sur l'issue du ticket : le premier geste du chemin GitHub seul.
-  const taken = () =>
-    gh
-      .appels()
-      .filter((args) => args.includes("POST") && args.at(-1) === "repos/acme/brigade/issues/15/comments")
-      .map((args) => args.find((arg) => arg.startsWith("body="))?.slice("body=".length));
-  await jusqua(() => taken().length > 0);
-
-  assert.match(said(), /brigade \[brigade\] : servi par la station — acme\/brigade, branche v2/);
-  assert.deepEqual(taken(), ["<!-- brigade:prise station=ordi/claude -->\nTaken by station `ordi/claude`."]);
-});
-
 // Une station d'essai, plus simple que la vraie : ce qu'elle fait à chaque lancement est écrit
 // dans le test — dire une ligne, sortir, attendre son SIGTERM.
 function onePrincipal(t: TestContext, body: string): string {
   const folder = repertoireTemporaire(t);
-  // La place du point d'entrée dans le runtime : `<runtime>/src/station/main.ts`.
-  mkdirSync(join(folder, "src", "station"), { recursive: true });
-  const principal = join(folder, "src", "station", "main.ts");
+  // La place du point d'entrée dans le runtime : `<runtime>/src/kitchen/main.ts`.
+  mkdirSync(join(folder, "src", "kitchen"), { recursive: true });
+  const principal = join(folder, "src", "kitchen", "main.ts");
   writeFileSync(principal, body);
   return principal;
 }

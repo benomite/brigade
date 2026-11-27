@@ -10,7 +10,7 @@ const RUNTIME = join(import.meta.dirname, "../../../runtime");
 
 test("sur un ordinateur — Mac, Windows, Linux de bureau —, l'app est une station : elle lance le point d'entrée du runtime à côté d'elle", () => {
   for (const platform of ["darwin", "win32", "linux", "freebsd"]) {
-    assert.deepEqual(roleOf({ plateforme: platform, runtime: RUNTIME, env: {} }), { role: "station", principal: join(RUNTIME, "src/station/main.ts") }, platform);
+    assert.deepEqual(roleOf({ plateforme: platform, runtime: RUNTIME, env: {} }), { role: "station", principal: join(RUNTIME, "src/kitchen/main.ts") }, platform);
   }
 });
 

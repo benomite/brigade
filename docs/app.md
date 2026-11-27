@@ -187,7 +187,7 @@ entry, with no reload. A limit name the app does not know still makes the line, 
 (#906): it is not a line of the band, it is at the head of the space, to the right of the tabs —
 `project on`, green slider on the right, or `project off`, grey on the left —, always in view, and one
 click toggles it. On, fired tickets are taken, the manager judges and splits, green deliveries are merged;
-off, nothing new is (`brigade <projet> switch [on | off]`, `docs/runtime/exploitation.md`, "The project
+off, nothing new is (`brigade <projet> switch [on | off]`, `docs/runtime/README.md`, "The project
 switch"). A project added from the app starts **on**: the runtime sets it at its first start, nothing to
 flip. Its state is read in the `manager` line, which the manager writes from the project switch it follows.
 Switching off goes to the second; switching on opens its confirmation below, which says its price in one
@@ -569,7 +569,7 @@ kept (#2151, below); offline, the last rail stays dimmed, marked `offline since`
 ### A ticket killed twice by the same guardrail says why on its card (#3650, epic #3645)
 
 When the same guardrail has stopped the same ticket twice (`gardeRepetee` of its entry in `facts`,
-`docs/runtime/garde-fous.md`), its card on the rail says it under its head, in the card's alert ink: **"Stopped 2 times by
+`docs/runtime/README.md`), its card on the rail says it under its head, in the card's alert ink: **"Stopped 2 times by
 the idle guard"**, then one line per stop — its time and the activity where the cook was (`07:12 — was finishing`, or
 `no activity read`), the run on hover. It stays as long as the box sends it: the ticket is not relaunched silently. A ticket
 stopped once, or by two different guardrails, shows nothing.
@@ -1275,7 +1275,7 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 with choices, a click on each gesture against a fake GitHub).*
 
 **The card `Validate its screen` (#3185, epic #3180).** On a project where a human validates the designs, the pass holds a
-green design delivery for the chef instead of merging it (#3184, `docs/runtime/pass.md`): since #3615, the ticket itself,
+green design delivery for the chef instead of merging it (#3184, `docs/runtime/README.md`): since #3615, the ticket itself,
 labelled `chef-todo`, its marked comment of kind `design-validation` carrying the pull request, the head and the captures
 (a card posted before as a `chef-todo` issue titled `Validate its screen` reads the same from its body). In Todo, its line says `A design delivery waits for
 you to validate its screen.`, then the card shows, in this order: the question (`Does the screen of #<ticket> look
@@ -1389,7 +1389,7 @@ nothing, and asks for no confirmation.
   on hover. A refusal after the new label is put (the old one could not be removed) says which `prio:` labels the issue
   now carries. The chosen value stays chosen: one click tries again.
 
-The box has no command for it: the label is read like any other (`docs/runtime/journal-et-rail.md`). Captures:
+The box has no command for it: the label is read like any other (`docs/runtime/README.md`). Captures:
 `docs/captures/1739/` — `fiche-priorite-avant.png` (the old path: the command went into the second, through the box),
 `fiche-priorite-apres.png` (the label changed on GitHub, the sheet showing `prio:1`) and `fiche-priorite-echec-apres.png`
 (GitHub refused: the sheet keeps `prio:2` and says why).
@@ -1752,7 +1752,7 @@ recomputed by the app):
   was not read), and the deliveries sent back with the time of their passes sent back.
 
 With no delivery measured in the 7 days, the block says only `No measure yet. No delivery merged in the last 7 days has its
-pass measured.` How each stage is measured: "How long each stage of the pass takes" in [`runtime/pass.md`](runtime/pass.md).
+pass measured.` How each stage is measured: "How long each stage of the pass takes" in [`runtime/README.md`](runtime/README.md).
 The ticket names the Cooks tab, beside the ticket times: #2921 removed that tab and #3523 the line of figures that showed
 the ticket time, so the pass time sits with the project's other kitchen figures. Captures: `docs/captures/3512/`.
 
@@ -2163,7 +2163,7 @@ and the version of its machine are not written on the page: they are read on hov
 saturated station takes no ticket while that lasts: its sentence says only that.
 
 - **The app reaches no station.** Each station writes its state to a secret gist in your
-  GitHub account ([docs/runtime/](runtime/station-machine.md), "Une station par machine"), and the app reads it
+  GitHub account ([docs/runtime/](runtime/README.md), "Une station par machine"), and the app reads it
   there, through your own `gh`, every thirty seconds (`app/src/stations/`). The tracking is therefore
   accurate to the minute, not to the second.
 - **A station that is off stays in the list**, offline, with how long ago: right
@@ -2211,7 +2211,7 @@ sign of life) is stated only once: the page header does not repeat the state whe
   Max, are made by the one-line installer that `Add a server` shows and copies (see "Add a server, from the app" below);
   rerun on a server where the station is already installed, the same line redoes only the Max connection
   ([installation-station.md](installation-station.md), step 5).
-- What the app knows about it, the station publishes in its gist ([docs/runtime/](runtime/station-machine.md), "Une
+- What the app knows about it, the station publishes in its gist ([docs/runtime/](runtime/README.md), "Une
   station par machine"): versions and dates, no reason and no command. An offline station
   no longer states its connection — what it published before going silent is no longer reliable.
 
@@ -2395,7 +2395,7 @@ whose Stations tab shows the station — and each one is a link to that tab (#34
   repository waits, and a sentence says so.
 - **Once confirmed**, the app writes the request in the gist of each chosen station (`app/src/projects/`); the
   main station reads it within half a minute, prepares it and adds it to its configuration
-  ([docs/runtime/](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal"). If its GitHub
+  ([docs/runtime/](runtime/README.md), "Ajouter un projet à une station depuis l'app, sans terminal"). If its GitHub
   Apps must be authorized on the repository, one **"authorize on GitHub"** button per App opens
   GitHub's page: one click, and the station carries on on its own.
 
@@ -2418,7 +2418,7 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
   <projet> when it comes back.` Every station cooks, takes, reviews and merges. The machines and these
   rules are in `app/src/vue/choice-station/`.
 - **The number of cooks at a time comes preset**, drawn from the cores of the chosen station itself —
-  those it publishes in its gist (`coeurs`, [docs/runtime/](runtime/station-machine.md)) —, by the very rule
+  those it publishes in its gist (`coeurs`, [docs/runtime/](runtime/README.md)) —, by the very rule
   the station applies: `max(1, cores − 2)`, 6 for 8 cores. Below:
   `recommended — from <station>'s 8 cores: …`. A station that does not publish its cores yet: 2,
   and the line says so. Choosing another machine makes the number follow its own cores, as long as you have not typed it.
@@ -2557,7 +2557,7 @@ read on the project's integration branch, on GitHub, with the chef's `gh` token 
 opens, then at most once a minute while it stays open; each part that fails to read is one line, its detail on hover, and
 does not take the others along.
 **What it did**: its last 5 passes, newest first. A pass is a closing issue the runtime opened (`fire`, titled `Closing
-pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/fermeture.md`,
+pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/README.md`,
 "On GitHub, the only path"); its PR merged — the PR of its cook's branch (`cook/<n>-github`) —, it says `its PR merged`:
 the lines it removed are no longer shown, the Agents tab carries the closer's figures (#4224). Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
 the pass`, `nothing removed` (closed with no PR, or its PR closed without a merge). The issue number and the PR open in the
@@ -2639,7 +2639,7 @@ decision is recorded; the station then republishes the state that says it for go
 ### Where a project cooks, and moving it in one gesture (#1095)
 
 - **The line says where it cooks**, as its stations publish it (`cuitSur` in their tracking,
-  [docs/runtime/](runtime/station-distante.md), "Déménager la cuisine d'un projet, quand on veut") — not what the
+  [docs/runtime/](runtime/README.md), "Déménager la cuisine d'un projet, quand on veut") — not what the
   app asked for: a refused move leaves it cooking where it was cooking, and so does the line.
   The station tag beside the Stations tab says `parade-box · cooking` for a project on its box; for a project that this
   computer's station serves, its hover says that its kitchen stops when you close the app — never said of another
@@ -2691,7 +2691,7 @@ reached by the app); a project cooked elsewhere is read from its GitHub reposito
 | On screen | What the app got | What it shows below |
 |---|---|---|
 | `drivable — read at 14:32:07` | the commands succeeded | their outputs. **A project where nothing is happening is here**: a quiet `status`, not an error |
-| `REACHED, BUT NO LONGER DRIVABLE — attempt at …`, in yellow, dotted line | the station's gesture ran, and a command failed there or returned nothing within thirty seconds (stopped at the timeout) | the command that ran, what it wrote, its code — then **the action**: update the runtime (`docs/runtime/exploitation.md`, "Piloter") |
+| `REACHED, BUT NO LONGER DRIVABLE — attempt at …`, in yellow, dotted line | the station's gesture ran, and a command failed there or returned nothing within thirty seconds (stopped at the timeout) | the command that ran, what it wrote, its code — then **the action**: update the runtime (`docs/runtime/README.md`, "Piloter") |
 | `REACHED, BUT UNKNOWN TO THE STATION — attempt at …`, in yellow, solid line | the gesture refused the project (code 65): the station serves no project under that name | **what the gesture said about it**, as is — then the name the app gave it, and where it comes from (`nom`, in `app.json`) |
 | `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — attempt at …`, in yellow, solid line | the gesture refused your account (code 68) | **what the gesture said about it**, as is |
 | `REACHED, BUT A COMMAND IS MISSING ON THE STATION — attempt at …`, in yellow, solid line | the gesture says a command is missing (code 69) | **what it said about it**, as is — then where these commands go (`docs/installer.md`, "Prepare the box") |
@@ -3191,7 +3191,7 @@ column heads — shows through. Clicking the tab again closes the page, and **th
 scrolled where it was. The alert band, above, stays visible: no page covers it, nor do the terminals, on the right.
 
 Two **content readings** remain, plus the one Settings makes. A reading relays **as text, word for word,** the output of
-a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
+a runtime command (`docs/runtime/README.md`, "Piloter"):
 
 | Reading | The command the app runs through the project's station | What you read there |
 |---|---|---|
@@ -3213,7 +3213,7 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
 **No longer laid** (#4511): the kitchen keeps no App, `appsDeLaStation` answers nothing and the block is not shown.
 
-**Each role acts on GitHub under its own App** (`docs/runtime/identites-et-secrets.md`): you create the three Apps once on
+**Each role acts on GitHub under its own App** (`docs/runtime/README.md`): you create the three Apps once on
 your GitHub account, then hand each station their IDs and private keys **through the app** — on the computer that runs
 the station. In Settings' **this computer** group, a line `GitHub Apps` says, in one sentence, that **the keys stay on this
 station and are never sent to the repository** (what the Apps are for on hover). Then **one line per role**, `cook App`,
@@ -3288,7 +3288,7 @@ none.
 | the state panel, under the time of the read | `guardrails stop` | `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> guardrails stop)` |
 | | `guardrails resume` | `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> guardrails resume)` |
 
-- **It is the doc's command, word for word**: `brigade <project> <command>` of `docs/runtime/exploitation.md`, "Piloter",
+- **It is the doc's command, word for word**: `brigade <project> <command>` of `docs/runtime/README.md`, "Piloter",
   in its station form for this computer — the gesture of the local station, run from the runtime's folder with the
   station's directory (`(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <project> <command>)`). The `!`
   in front is the one that runs a command on the Mac from a `claude` session. It stays in the
@@ -3422,7 +3422,7 @@ why — always followed by ``— the command did not go out, and nothing is writ
 Four things, and only them, because they are a **table of states**: the bar's pill,
 the project tile, the rail, the stop banner. The app draws them from no sentence: it
 reads `brigade <name> facts`, the command by which the runtime gives its facts as facts
-(`docs/runtime/etat-et-mesures.md`, "Les faits, pour un programme") — a state is **a word read**, a counter **a
+(`docs/runtime/README.md`, "Les faits, pour un programme") — a state is **a word read**, a counter **a
 number read**. For all projects whose kitchen runs on this computer, every thirty seconds, whatever the
 screen.
 
@@ -3440,7 +3440,7 @@ last event — merge.done · #216 · 13 s before the read
 
 | What you read | Where it comes from |
 |---|---|
-| the pill and the word | `etat`: `open` (green), `held` (yellow), `stopped` or `off` (red) — what each means is in `docs/runtime/etat-et-mesures.md`. *Why* the kitchen is held is read in `status`, below |
+| the pill and the word | `etat`: `open` (green), `held` (yellow), `stopped` or `off` (red) — what each means is in `docs/runtime/README.md`. *Why* the kitchen is held is read in `status`, below |
 | `read at …` | your workstation's time at the read |
 | `last tick … before the read` | the gap between the runtime's last tick and the box's time at the read. **The app shows it and concludes nothing**: `open` with a ten-minute-old tick is a runtime to go and look at (`systemctl status brigade@<project>`), and it is you who says so. `no tick`: runtime stopped, or no tick yet since its start |
 | the five numbers | `rail` (queued, `BLOCKED` included), `taken` (`taken`), `at pass`, `awaiting you` (the decisions of the `awaiting` block), `served 24 h` |
@@ -3589,7 +3589,7 @@ Settings. The screenshots of a served interface ticket stay on the card.
 
 **The sheet carries what the queue says about the ticket** (`app/src/slip.ts`) — five things, in this order,
 with `right now` (what the kitchen is doing with it, `rail[].activite`, see "Ce que fait un cook en ce moment"
-in `docs/runtime/garde-fous.md`) first:
+in `docs/runtime/README.md`) first:
 
 | On the sheet | What it is | Where it comes from |
 |---|---|---|
@@ -3618,7 +3618,7 @@ section. With the section laid, `right now` is not repeated under it.
   project, three at most, each with the `provisional` badge of the Cooks tab (its meaning on hover), its id and
   its text — `reconfirmed` when the retro reconfirms a lesson the project already had —, then what its cook wrote
   between `<retro>` and `</retro>`, as is. It comes from `retro` in `pass <n> --json` (see "Voir la pass" in
-  `docs/runtime/pass-merge.md`). A ticket with no retro says `no retro for this ticket yet`; one served whose cook
+  `docs/runtime/README.md`). A ticket with no retro says `no retro for this ticket yet`; one served whose cook
   wrote none says `served, but its cook wrote no retro`; a box from before the retro on the sheet says
   `retro unavailable`, its why on hover — never an empty section.
 - **A rail card's history and discussion come from GitHub, not from the box** (#1735): the sheet reads the ticket's
@@ -3691,7 +3691,7 @@ section. With the section laid, `right now` is not repeated under it.
 | **Served** | the tickets served in the last 24 h, **the most recent on top** — whether their issue is closed or not: as many cards as the `served 24 h` counter | **`livres`, in `facts`**; from a box that does not give it yet, the `served` tickets of the rail |
 
 - **On the rail is in the order the runtime serves** (#1347) — the order of `rail[]` in `facts`, by
-  `prio:` label then age (`docs/runtime/journal-et-rail.md`), the same order `status`
+  `prio:` label then age (`docs/runtime/README.md`), the same order `status`
   prints under its `rail` line: after a reload or a restart of the app, the column shows it again. Each
   queued card carries **its priority**, as its `status` line writes it (`prio:2`), or `no prio` when its
   issue has none. **The card at the top of the queue that does not leave says why**, on its line:
@@ -3722,7 +3722,7 @@ section. With the section laid, `right now` is not repeated under it.
   `no remarks`, `4 remarks`, or `2 remarks, 1 of them blocking` for a delivery merged by
   hand despite a red review. **A click on this number expands them** on the card, each in its
   order, with the file it names and its text as the reviewer wrote it; a second click folds
-  them back. They come from `relecture`, in `livres` (`docs/runtime/etat-et-mesures.md`, "The facts, for a
+  them back. They come from `relecture`, in `livres` (`docs/runtime/README.md`, "The facts, for a
   program").
 - **With no review, the card says so, and invents nothing**: `what was served: not given —
   no readable review bears on this delivery (merged by hand, served without going through the
@@ -3857,7 +3857,7 @@ section. With the section laid, `right now` is not repeated under it.
   - **"ask the second" stays on the sheet**, under the question, for those that deserve an
     explanation: it writes the same request as before.
 - **An idle kitchen with cards on the rail is a fault** (#1863, `panneDe` in `app/src/facts.ts`). When `facts` carries
-  `cuisineOisive` (#1862, `docs/runtime/etat-et-mesures.md`) — cards on the rail, no cook for 30 min, the project on,
+  `cuisineOisive` (#1862, `docs/runtime/README.md`) — cards on the rail, no cook for 30 min, the project on,
   not every card waiting for a capability or a third party —, the head of the rail opens with a **red fault bar**,
   above everything else: a `FAULT` mark and `Kitchen idle for 42 min with 3 cards on the rail`, the duration counted
   between two times of the box (the last mark, the reading). On hover, the tickets that should cook and where the
@@ -3894,12 +3894,12 @@ section. With the section laid, `right now` is not repeated under it.
   filled, the last. Each dot says on hover which attempt it is, and — for a finished one — how long it cooked and why it
   stopped, in the runtime's word (`attempt 1 of 3 — stopped after 17 min: turns`; `idle`, `failed`, `interrupted`…). A ticket
   on its first attempt shows no dot. The Pass card draws the same age and, if the box gives `essais` for it, the same dots.
-  Everything is read in `facts` (`cadence`, and each rail ticket's `depuis`: `docs/runtime/etat-et-mesures.md`), never
+  Everything is read in `facts` (`cadence`, and each rail ticket's `depuis`: `docs/runtime/README.md`), never
   from the app's own memory: it is right as soon as the app opens. A runtime from before these fields draws neither.
 - **The triage, day by day (#1283)**: at the head of the rail, a compact block — `triage, day by day` — gives, for each of the last
   seven days (UTC), the most recent first, two counts: `decided alone` (the cards the triage settled itself) and `sent to TODO`
   (the cards it let into TODO). A day with no activity says `0` and `0`, never a blank. The runtime counts (`facts`, `triage`:
-  `docs/runtime/etat-et-mesures.md`); the app only lays them out, and draws nothing from a runtime from before that field.
+  `docs/runtime/README.md`); the app only lays them out, and draws nothing from a runtime from before that field.
 - **The columns fit in the window at its opening size**; narrower, they scroll.
   The rail and what the displayed tab shows below it share the height, half and half; the
   rail scrolls within its own. A project that no station serves on this computer has no rail — nothing is read from it — and
@@ -3976,7 +3976,7 @@ therefore runs at most one command per project it serves, not two.
 
 | On screen | What the app obtained | What it shows below |
 |---|---|---|
-| ``REACHED, BUT `facts` DID NOT ANSWER — tried …`` | the station's gesture ran, and the command failed there without its code saying a case. **A runtime from before `facts` is the expected case** | the command launched, what it wrote, its code — then the action: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
+| ``REACHED, BUT `facts` DID NOT ANSWER — tried …`` | the station's gesture ran, and the command failed there without its code saying a case. **A runtime from before `facts` is the expected case** | the command launched, what it wrote, its code — then the action: update the runtime on its box (`docs/runtime/README.md`, "Piloter") |
 | `REACHED, BUT UNKNOWN TO THE BOX`, `… WITHOUT THE RIGHT TO THE ACTION`, `… A COMMAND IS MISSING ON THE BOX`, `… THE BOX'S NODE DOES NOT SUIT THE RUNTIME` | the station's gesture refused (codes 65, 68, 69, 70): **the same case as under `status`**, with the same words | what the box said of it, as is — then **the pointer for that case**, the one from the table of "A station reading: seven states". No runtime update: it is not the runtime that is old |
 | ``THE BOX DID NOT RETURN THE SHAPE OF `facts` — tried …`` | the command succeeded, and its output is not the shape: not JSON, a missing field, a counter that is not a whole number | **the output, word for word**, then what is not the shape (`"compteurs.rail" is not a positive whole number`) |
 | `NOT REACHED — tried …` | nothing that proves the box was reached | the message, as is — the same as under `status`, where its pointers are given |
@@ -4098,7 +4098,7 @@ end awaiting
   `nothing awaits the chef` on the first, `end awaiting` on the second. The app does not write
   that sentence and writes no other: if the runtime changes it, it changes here.
 - **To set it apart, the app reads only the edge**: the only line of the output that starts with
-  `awaiting`, the only one that equals `end awaiting` (`docs/runtime/etat-et-mesures.md`, "Ce qui
+  `awaiting`, the only one that equals `end awaiting` (`docs/runtime/README.md`, "Ce qui
   attend le chef"). Nothing the block carries is counted or reworded. So it does not know *whether*
   anything awaits you: the full block and the empty block have the same background, no alert
   color, no counter in the bar.
@@ -4124,14 +4124,14 @@ end awaiting
   ```
 
   The expected case is a runtime from before this edge — the action is then to update it on its box
-  (`docs/runtime/exploitation.md`, "Piloter") — but the app does not guess: it says what it did
+  (`docs/runtime/README.md`, "Piloter") — but the app does not guess: it says what it did
   not find. The project stays `pilotable`: `status` answered.
 - A failed read has nothing to set apart: the error takes all the room, as before.
 
 ### What `status` says about the rest
 
 What asks for your attention without awaiting you is where `status` puts it, and said as it says it
-(see "The state of the kitchen" in `docs/runtime/etat-et-mesures.md`):
+(see "The state of the kitchen" in `docs/runtime/README.md`):
 
 | What you are looking for | Where `status` says it |
 |---|---|
@@ -4145,7 +4145,7 @@ The head lines of `status` that the app reads (`kitchen`, `connection`, `setup`,
 
 **Nothing to declare.** The app reads a project's `status` through the gesture of the station that cooks it on this
 computer: `brigade <nom> status` and, for the content tab displayed, `rail`, `station` or `log`
-(`docs/runtime/exploitation.md`, "Piloter"). The gesture is run from the runtime's folder with the station's directory
+(`docs/runtime/README.md`, "Piloter"). The gesture is run from the runtime's folder with the station's directory
 (`BRIGADE_STATION_DIR`), by the `node` that plays the station: the account, the installation and the environment are
 read there. No other machine is reached. A project whose kitchen does not run on this computer is not read this way:
 the app says so in place of the state, and its rail, its cooks and its queue come from its GitHub repository
@@ -4269,7 +4269,7 @@ The app runs this computer's station (see "This computer is a station; a phone i
 cooks here is read and driven through it. **The app does not play a station for another machine**: a workstation no
 longer plays a remote station of a project's box, pulls no ticket from it and launches no cook for it. A ticket that
 asks for what only a given computer provides (`chrome-connecté`, your signed-in browser) is cooked by a station that
-runs on that computer and provides it (`docs/runtime/station-distante.md`).
+runs on that computer and provides it (`docs/runtime/README.md`).
 
 **Ordinary tickets, from the project's settings (#852).** In Settings of a project whose kitchen cooks on this computer,
 the block is titled with this computer's name — "Ordinary tickets on this Mac", "Ordinary tickets on this PC" under
@@ -4282,7 +4282,7 @@ its single line says why** — `This PC takes no ordinary ticket: a cook of an o
 sandbox, which the station sets up only on macOS.` The runtime sets up the sandbox of a local kitchen only on macOS
 (`runtime/src/bac-a-sable/local.ts`): the app says so rather than hiding the setting. **When the project does not
 cook here, the block does not exist.** The sandbox state is read in `facts` (`stations` field,
-[docs/runtime/](runtime/station-distante.md), "Les tickets ordinaires sur le poste du chef"): when the
+[docs/runtime/](runtime/README.md), "Les tickets ordinaires sur le poste du chef"): when the
 station says it is unavailable, the block writes it beside the option, with the reason the station
 gives. As long as it has said nothing, the app guesses nothing.
 
@@ -4493,7 +4493,7 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
   changed one by one; in the played view, the tinted tile, the space's accent, the choice under
   Settings; none is a state color), `tabs.ts` (the five content tabs: each relays a script that
   exists in `runtime/package.json`, and only what is displayed is read), `boutons.ts` (what the
-  closer button writes, compared with "Piloter" in `docs/runtime/exploitation.md` — and, in the registry
+  closer button writes, compared with "Piloter" in `docs/runtime/README.md` — and, in the registry
   and on the real pty, that nothing is sent), `gestes.ts` (the actions that are written into a shell
   of the space, and the two that go into the second: each command compared, character for
   character, with "Piloter", that nothing sends a written action, and that no action exposes a
@@ -4501,7 +4501,7 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
   `manager`: on, off, never on, no decision, with its decisions and its set-asides — on outputs the
   test has `runtime/src/manager-cli.ts` itself write, on a real log; what does not have the shape is
   never read as "off"), `power-up.ts` (what turning it on commits: its warning compared with that of
-  `docs/runtime/manager.md`, and the two numbers read on a known backlog — the line is written by
+  `docs/runtime/README.md`, and the two numbers read on a known backlog — the line is written by
   `manager backlog` of `runtime/src/manager-cli.ts` itself, in front of a fake `gh`, then returned
   by a stand-in gesture; a station not reached, a runtime from before the command or an output without the
   line never give "0"), `amont.ts` (what is not yet on the rail: the output written by
@@ -4510,7 +4510,7 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
   a box not reached or a runtime from before the command never give a number; and, in the played
   view, the number at the head of the rail, the list it unfolds, the card an issue opens, and what an
   empty rail says), `faits.ts` (what gets drawn: the shape read field by field on the example in
-  `docs/runtime/etat-et-mesures.md`, what is not that shape refused without a zero, a color on the
+  `docs/runtime/README.md`, what is not that shape refused without a zero, a color on the
   words of closed lists only, an issue's address, the banner — the rail sorted into five columns,
   Awaiting you from the shape's `awaiting` and the `awaiting` block held next to the facts — the view
   receives a ready-to-lay array and computes nothing in it), `slip.ts` (what a rail card carries: the
@@ -4595,7 +4595,7 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
 - Show the manager's state outside its tab — in the bar, the tile or "All projects": it is read in
   the **Manager** tab, as long as it is displayed.
 - Say, when turning the manager on, how many open issues it is going to judge: the action writes the
-  command, and `docs/runtime/manager.md`, "Le manager", says what it commits.
+  command, and `docs/runtime/README.md`, "Le manager", says what it commits.
 - Follow the log live outside a terminal: the **Log** tab reads its end again, every thirty
   seconds.
 - Read what the second displays: the app does not read the terminal. A button writes after your

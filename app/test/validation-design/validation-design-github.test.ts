@@ -1,13 +1,11 @@
 // La carte « Validate its screen » (ticket 3185), de bout en bout sur une carte d'essai : le runtime la pose comme la pass
 // la pose (runtime/src/validation-design/, `retenirLeDesign`) sur un faux GitHub ; l'app la lit comme son TODO la lit
-// (board/wait-of-chef.ts) — la question, la PR, les captures avant et après — ; puis chaque geste joue la vraie
-// commande du runtime (`principal` de runtime/src/validation-design/commande.ts) sur le même faux : « Validate » merge la PR
-// et ferme la carte, « Send back to the kitchen » renvoie la livraison à un cook avec le commentaire, et ferme la carte.
-// Aucun runtime ne tourne, aucun `gh` n'est lancé.
+// (board/wait-of-chef.ts) — la question, la PR, les captures avant et après — ; puis ce que `playTheValidation` fait
+// d'une commande qui refuse, ne se charge pas ou lève. Les gestes joués par la commande de l'ancien runtime
+// (runtime/src/validation-design/commande.ts) sont supprimés avec lui (#4499). Aucun runtime ne tourne, aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { Sortie } from "../../../runtime/src/appel.ts";
-import { principal } from "../../../runtime/src/validation-design/commande.ts";
 import { corpsDeCeQuiEstFait } from "../../../runtime/src/validation-design/brief.ts";
 import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
@@ -107,12 +105,8 @@ async function readEntry(call: CallGitHub) {
   return wait.lue ? wait.attentes : [];
 }
 
-// La commande du runtime, sur le faux GitHub, et sa `Sortie` — ce que main.ts charge du runtime. `appels` : les arguments de
-// chaque appel.
+// Une commande chargée, et la `Sortie` du runtime qui dit son refus.
 const isOneOutput = (error: unknown): error is Sortie => error instanceof Sortie;
-const commandOn =
-  (fake: ReturnType<typeof fakeGitHub>, calls: string[][] = []): (() => Promise<CommandLoaded>) =>
-  async () => ({ principal: (call) => (calls.push(call.args), principal(call, () => fake.github as never)), estUneSortie: isOneOutput });
 const loaded = (principal: CommandOfRuntime) => async (): Promise<CommandLoaded> => ({ principal, estUneSortie: isOneOutput });
 
 describe("l'app lit la carte que le runtime pose", () => {
@@ -213,32 +207,7 @@ describe("l'app lit la carte que le runtime pose", () => {
   });
 });
 
-describe("les deux gestes jouent la commande du runtime", () => {
-  test("« Validate » : `validate chef/parade#60` — la PR est mergée à la tête jugée verte, la carte fermée, elle quitte TODO", async () => {
-    const fake = await cardOfTrial();
-    const [card] = await readEntry(fake.appeler);
-    const calls: string[][] = [];
-    const rendered = await playTheValidation({ depot: REPOSITORY, design: card?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandOn(fake, calls) });
-    assert.deepEqual(calls, [["validate", `${REPOSITORY}#${PR}`]]);
-    assert.deepEqual(rendered, { fait: `${REPOSITORY}: the delivery of #${TICKET} (PR ${PR}) validated: merged, card #58 closed — ticket #${TICKET} is served` });
-    assert.deepEqual(fake.merges, [[PR, SHA]]);
-    assert.equal(fake.issues.get(TICKET)?.labels.has("chef-todo"), false);
-    assert.deepEqual(await readEntry(fake.appeler), [], "la carte a quitté TODO");
-  });
-
-  test("« Send back to the kitchen » : `send-back chef/parade#60 --comment …` — le commentaire part au ticket, rien n'est mergé, la carte quitte TODO", async () => {
-    const fake = await cardOfTrial();
-    const [card] = await readEntry(fake.appeler);
-    const calls: string[][] = [];
-    const rendered = await playTheValidation({ depot: REPOSITORY, design: card?.chef?.design, geste: { geste: "renvoyer", commentaire: "  The export button is cut off.\r\nKeep it on one line.  " }, env: {}, commande: commandOn(fake, calls) });
-    assert.deepEqual(calls, [["send-back", `${REPOSITORY}#${PR}`, "--comment", "The export button is cut off.\nKeep it on one line."]]);
-    assert.match("fait" in rendered ? rendered.fait : assert.fail(JSON.stringify(rendered)), /sent back: #58 goes back to a cook with your comment, card #58 closed/);
-    assert.deepEqual(fake.merges, []);
-    assert.ok(fake.issues.get(TICKET)?.comments.some(({ body }) => body.includes("The export button is cut off.\nKeep it on one line.")));
-    assert.equal(fake.issues.get(TICKET)?.labels.has("in-pass"), false);
-    assert.deepEqual(await readEntry(fake.appeler), [], "la carte a quitté TODO");
-  });
-
+describe("les gestes de la carte, sans la commande du runtime", () => {
   test("un renvoi sans commentaire, ou une carte que la lecture ne porte plus : rien ne part", async () => {
     const fake = await cardOfTrial();
     const [card] = await readEntry(fake.appeler);
@@ -248,29 +217,6 @@ describe("les deux gestes jouent la commande du runtime", () => {
     assert.deepEqual(await playTheValidation({ depot: REPOSITORY, design: undefined, geste: { geste: "valider" }, env: {}, commande: command }), { refus: UNKNOWN, detail: "" });
     assert.equal(launchedOne, false);
     assert.equal(fake.issues.get(TICKET)?.labels.has("chef-todo"), true);
-  });
-
-  test("un refus du runtime — la PR fermée sans merge — se dit en une ligne, son détail au survol, et la carte reste", async () => {
-    const fake = await cardOfTrial();
-    const [card] = await readEntry(fake.appeler);
-    fake.pr.state = "closed";
-    const rendered = await playTheValidation({ depot: REPOSITORY, design: card?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandOn(fake) });
-    assert.ok("refus" in rendered);
-    assert.match(rendered.refus, /^nothing was done: the delivery of #58 \(PR 60\) is closed without being merged/);
-    assert.match(rendered.detail, /^brigade : the delivery of #58 \(PR 60\) is closed without being merged/);
-    assert.deepEqual(fake.merges, []);
-    assert.equal((await readEntry(fake.appeler)).length, 1, "la carte reste dans TODO");
-  });
-
-  test("« Validate » après une mise à jour de la branche depuis sa base (ticket 3332) : rien ne se merge tout de suite, la validation est gardée sur le ticket, la carte quitte TODO et dit ce qui suit", async () => {
-    const fake = await cardOfTrial();
-    const [card] = await readEntry(fake.appeler);
-    fake.pr.sha = "b".repeat(40);
-    const rendered = await playTheValidation({ depot: REPOSITORY, design: card?.chef?.design, geste: { geste: "valider" }, env: {}, commande: commandOn(fake) });
-    assert.deepEqual(rendered, { fait: `${REPOSITORY}: the delivery of #${TICKET} (PR ${PR}) validated: your validation is kept, card #58 closed — the branch was updated since the card and is being checked again; the pass merges it once its head is green` });
-    assert.deepEqual(fake.merges, []);
-    assert.deepEqual(await readEntry(fake.appeler), [], "la carte a quitté TODO");
-    assert.ok(fake.issues.get(TICKET)?.comments.some(({ body }) => body.startsWith(`<!-- brigade:validation-design-validee carte=58 pr=${PR} sha=${SHA} -->\nValidated by the chef on card #58 — merge pending.`)));
   });
 
   test("une commande qui ne se charge pas, ou qui lève, se dit : rien n'est fait", async () => {

@@ -19,8 +19,3 @@ test("the app no longer posts `/resume` for the chef: no « Resume » flow on th
   const ligne = dans("app/src/vue/todo-breaker-line.js");
   if (existsSync(ligne)) assert.doesNotMatch(readFileSync(ligne, "utf8"), /Resume|\/resume|poserReprise/);
 });
-
-test("`guardrails` status no longer tells the chef to `resume` to close an open breaker", () => {
-  const cli = readFileSync(dans("runtime/src/garde-fous-cli.ts"), "utf8");
-  assert.doesNotMatch(cli, /resume\W+to close it/);
-});
