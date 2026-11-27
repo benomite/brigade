@@ -36,7 +36,7 @@ const request = (projects: { nom: string; depot: string }[]) => JSON.stringify({
 
 // Le compte du chef : `atelier`, une station enregistrée à qui l'app a choisi `chef/parade` et `chef/cantine` ; une
 // station appairée à qui elle a demandé `chef/parade` sous le nom `parade` ; et un gist sans rapport.
-// `parade` : #1 sur le rail, #12 mis de côté sur une question de produit, #20 une carte du chef, #6 avant le rail.
+// `parade` : #1 prêt (`fire`), #12 et #20 parqués pour le chef par la cuisine (`parked:chef`, #4474), #6 au backlog.
 // `cantine` : rien du tout — ni issue, ni attente.
 const WORLD: World = {
   gists: {
@@ -46,11 +46,10 @@ const WORLD: World = {
   },
   depots: {
     "chef/parade": {
-      // #1, calibré par le manager : rien ne le bloque (le rail bloqué, ticket 3358, se compte à l'heure de chaque lecteur).
       1: { labels: ["fire", "prio:2", "model:sonnet", "effort:medium"] },
       6: { labels: [] },
-      12: { labels: ["fire", "served-elsewhere"], commentaires: [said("<!-- brigade:todo kind=product-question -->\nDoes the export keep the old column order?\n- [merge] Yes, merge PR #40 as delivered\n- [close] No, we drop the export", "2026-11-06T07:00:00Z")] },
-      20: { labels: ["chef-todo"], commentaires: [said("<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", "2026-11-06T08:00:00Z")] },
+      12: { labels: ["parked:chef"], commentaires: [said("Parked for the chef by its cook: does the export keep the old column order?", "2026-11-06T07:00:00Z")] },
+      20: { labels: ["parked:chef"], commentaires: [said("Parked for the chef: which token does the box use for the registry?", "2026-11-06T08:00:00Z")] },
     },
     "chef/cantine": {},
   },
@@ -123,6 +122,8 @@ const boardOf = (receivedOne: Drawable | undefined): Board => {
   return receivedOne.tableau;
 };
 const columns = (seenOne: Board) => Object.fromEntries(seenOne.rail.colonnes.map(({ nom: name, cartes: cards }) => [name, cards.map(({ ticket }) => ticket)]));
+// Le kanban de la cuisine (board/kitchen-board.ts, #4507) : chaque colonne, ses tickets.
+const kanban = (seenOne: Board) => Object.fromEntries((seenOne.kitchenBoard ?? assert.fail("no kanban")).columns.map(({ key, cards }) => [key, cards.map(({ ticket }) => ticket)]));
 
 // Ce que le desktop dessine du même projet, sur le même GitHub (main.ts : `lireLeTableau`, puis la veille des faits et
 // celle de `status`) : la lecture du rail, ce qui attend le chef, `facts`, puis `status` mis à part.
@@ -156,7 +157,7 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     await reading.faits(1);
     await reading.regarder("parade", 2);
     const seenOne = boardOf(rail("parade"));
-    assert.deepEqual(columns(seenOne)["On the rail"], [1]);
+    assert.deepEqual(kanban(seenOne), { backlog: [6], ready: [1], cooking: [], pass: [], parked: [12, 20], served: [] });
     assert.deepEqual(columns(seenOne)["Awaiting you"], [12, 20]);
     assert.deepEqual(rail("parade"), await asTheDesktop("parade", "chef/parade", 1, 2));
     // Dans « All projects », le `status` de chacun est lu : le TODO de chacun aussi.
@@ -174,18 +175,8 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     const seenOne = boardOf(rail("parade"));
     const todo = seenOne.rail.colonnes.find(({ nom: name }) => name === "Awaiting you");
     assert.deepEqual(todo?.cartes.map(({ ticket }) => ticket), [12]);
-    assert.deepEqual(todo?.autres?.map(({ ticket, todo: card, qui: who }) => ({ ticket, question: card?.question, qui: who })), [{ ticket: 20, question: "Which token does the box use for the registry?", qui: ["alice"] }]);
+    assert.deepEqual(todo?.autres?.map(({ ticket, todo: card, qui: who }) => ({ ticket, question: card?.question, qui: who })), [{ ticket: 20, question: "Parked for the chef: which token does the box use for the registry?", qui: ["alice"] }]);
     assert.deepEqual(seenOne.rail.hors, []);
-  });
-
-  test("dans l'espace d'un projet, ce qui est avant son rail se lit aussi, comme sur le desktop", async () => {
-    const { envoyer: send } = github();
-    const { lecture: reading, recus: receivedOnes } = phone({ envoyer: send });
-    await reading.faits(1);
-    await reading.regarder("parade", 2);
-    const upstream = receivedOnes.surAmont?.at(-1)?.[0] as { projet: string } & Record<string, unknown>;
-    assert.equal(upstream.projet, "parade");
-    assert.match(JSON.stringify(upstream), /Ticket 6/);
   });
 
   test("aucune demande ne part à une station : toutes vont à l'API de GitHub, avec le jeton du chef", async () => {
@@ -384,16 +375,17 @@ async function until(done: () => boolean): Promise<void> {
   for (let tour = 0; tour < 2000 && !done(); tour++) await repos();
   assert.ok(done(), "the fact never came");
 }
-// Les cartes rouges du rail, qui attendent le chef dans la colonne de leur étape (#3458).
-const red = (vue: Played) => vue.element("rail").dessous("li").filter((li) => li.dataset.carte === "attente").map((li) => li.children[0]?.children[0]?.textContent);
+// Le kanban dessiné (vue/kitchen-board/, #4507) : chaque colonne, les tickets de ses cartes.
 const columnsViews = (vue: Played) =>
   Object.fromEntries(
     vue
       .element("rail")
       .dessous("section")
       .filter((pose) => pose.className === "colonne")
-      .map((column) => [column.children[0]?.children[0]?.textContent, column.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent)]),
+      .map((column) => [column.dataset.colonne, column.dessous("li").flatMap((li) => (li.dataset.ticket === undefined ? [] : [`#${li.dataset.ticket}`]))]),
   );
+// La ligne du TODO du chef, au-dessus des colonnes (vue/kitchen/kitchen.js, `setTheTodo`).
+const lineOfTodo = (vue: Played) => vue.element("rail").dessous("button").find((button) => button.className.split(" ").includes("ligne-du-todo"))?.textContent;
 const caseOf = (vue: Played, name: string): Fake => vue.element("projets").children.find((pose) => pose.ariaLabel?.split(" — ")[0] === name) ?? assert.fail(`no case for ${name} in the bar`);
 
 describe("l'app Android lit ses projets sur GitHub par son pont, aucune station jointe", () => {
@@ -441,14 +433,13 @@ describe("l'app Android lit ses projets sur GitHub par son pont, aucune station 
     await until(() => ["cantine", "parade"].every((name) => vue.element("projets").children.some((pose) => pose.ariaLabel?.split(" — ")[0] === name)));
     assert.match(vue.element("connexion-github").textContent, /^Signed in to GitHub as chef\./);
     caseOf(vue, "parade").click();
-    await until(() => red(vue).length === 2);
-    assert.deepEqual(red(vue).toSorted(), ["#12", "#20"]);
-    assert.deepEqual((columnsViews(vue)["Backlog"] ?? []).filter((number: string | undefined) => !red(vue).includes(number)), ["#1"]);
+    await until(() => lineOfTodo(vue) === "2 wait for you");
+    assert.deepEqual(columnsViews(vue), { Backlog: ["#6"], Ready: ["#1"], Cooking: [], Pass: [], Parked: ["#12", "#20"], Served: [] });
     assert.ok(!("Awaiting you" in columnsViews(vue)), "TODO n'est pas une colonne");
-    // Le projet vide : un rail sans carte, dont la première colonne le dit — pas un écran vide, et plus de ligne « nothing awaits you » (#3523).
+    // Le projet vide : un kanban sans carte, dont chaque colonne le dit — pas un écran vide, et aucune ligne de TODO.
     caseOf(vue, "cantine").click();
-    await until(() => /nothing on the rail/.test(vue.element("rail").textContent));
-    assert.deepEqual(red(vue), []);
+    await until(() => /no ticket in the backlog/.test(vue.element("rail").textContent));
+    assert.equal(lineOfTodo(vue), undefined);
     assert.deepEqual(Object.values(columnsViews(vue)).flat(), []);
     assert.deepEqual(http().filter((url) => !url.startsWith(`${API_GITHUB}/`)), []);
   });

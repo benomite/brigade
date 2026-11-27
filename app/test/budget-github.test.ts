@@ -50,7 +50,7 @@ function fakeGitHub(clock: { t: number }, options: { changeToutesLes?: number; l
     if (path.includes("/contents/")) return { data: { content: btoa(JSON.stringify({ chef: "chef" })) }, version: 0 };
     if (path.includes("/check-runs")) return { data: { check_runs: [{ conclusion: "success" }] }, version: 0 };
     if (path.includes("/issues/2/comments")) return { data: [{ id: 9, body: "<!-- brigade:prise station=box/claude -->", author_association: "OWNER", created_at: "2026-11-09T07:30:00Z" }], version };
-    if (/\/issues\/\d+\/(comments|events)/.test(path)) return { data: [], version: 0 };
+    if (/\/issues\/\d+\/(comments|events|timeline)/.test(path)) return { data: [], version: 0 };
     return { status: 404 };
   };
   const call: CallGitHub = async (path, headers = {}) => {

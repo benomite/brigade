@@ -100,7 +100,13 @@ export function gestures(gh: Gh, repo: string) {
   return {
     labels: async (issue: number, add: string[], remove: string[] = []) => {
       if (add.length === 0 && remove.length === 0) return;
-      await gh(["issue", "edit", String(issue), ...r, ...(add.length ? ["--add-label", add.join(",")] : []), ...(remove.length ? ["--remove-label", remove.join(",")] : [])]);
+      const edit = () => gh(["issue", "edit", String(issue), ...r, ...(add.length ? ["--add-label", add.join(",")] : []), ...(remove.length ? ["--remove-label", remove.join(",")] : [])]);
+      // A label the repo lacks fails the whole edit: create the ones being added and try once more; a second failure is thrown.
+      await edit().catch(async (error) => {
+        if (add.length === 0) throw error;
+        for (const name of add) await gh(["label", "create", name, ...r, "--force"]).catch(() => "");
+        await edit();
+      });
     },
     close: (issue: number, body: string) => gh(["issue", "close", String(issue), ...r, "--reason", "not planned", "--comment", body]),
     // Adds lines at the end of the issue's body.
@@ -130,9 +136,7 @@ export function gestures(gh: Gh, repo: string) {
       }));
     },
     merge: (pr: number) => gh(["pr", "merge", String(pr), ...r, "--merge", "--delete-branch"]),
-    ensureLabels: async (names: string[]) => {
-      for (const name of names) await gh(["label", "create", name, ...r, "--force"]).catch(() => "");
-    },
+    ensureLabels: async (names: string[]) => { for (const name of names) await gh(["label", "create", name, ...r, "--force"]).catch(() => ""); },
   };
 }
 export type Gestures = ReturnType<typeof gestures>;
