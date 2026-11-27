@@ -279,10 +279,7 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/deploy/installer-station-windows.test.ts", test: "pour la même version publiée : même point d'entrée, même runtime, même répertoire, même node, mêmes connexions" },
   { file: "test/acceptation-3996/3-a-type-error-in-the-branchs-own-test-turns-the-gates-red-before-any-push.test.ts", test: "in the runtime zone turns the gates red before the delivery is pushed" },
   { file: "test/acceptation-3996/3-a-type-error-in-the-branchs-own-test-turns-the-gates-red-before-any-push.test.ts", test: "in the app zone turns the gates red before the delivery is pushed" },
-  { file: "test/cout-des-gates.test.ts", test: "le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts`" },
   { file: "test/cout-des-gates.test.ts", test: "un setup en échec ne lance pas les gates : rien n'est écrit" },
-  { file: "test/cout-des-gates.test.ts", test: "sans budget posé, le projet a le défaut — 100 s d'horloge, 400 s de processeur ; posé par le chef, le sien" },
-  { file: "test/cout-des-gates.test.ts", test: "le dernier jour compte les passages, leur horloge et leur processeur ; un passage de plus de 24 h, ou d'un autre projet, n'y est pas" },
   { file: "test/declarer-stations.test.ts", test: "l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien ne peut y manquer" },
   { file: "test/declarer-stations.test.ts", test: "la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machine fournit et le geste qui déclare" },
   { file: "test/decoupage.test.ts", test: "deux tickets concurrents du découpage sur le même fichier : le code pose la dépendance, la fiche la porte, l'épique le dit" },
@@ -386,6 +383,5 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/support/windows.ts", garde: "GARDE_MS: 60_000" },
   { file: "test/support/windows.ts", garde: "timeout: 300000" },
   { file: "test/support/windows.ts", garde: "timeout: 60_000" },
-  { file: "test/cout-des-gates.test.ts", garde: "delaiMs: 120_000" },
   { file: "test/cout-des-gates.test.ts", garde: "delaiMs: 60_000" },
 ];

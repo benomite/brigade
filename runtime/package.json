@@ -21,7 +21,6 @@
     "send-word": "node src/send-word-cli.ts",
     "guardrails": "node src/garde-fous-cli.ts",
     "installation": "node src/installation-cli.ts",
-    "agents": "node src/agents-cli.ts",
     "help": "node src/aide.ts"
   },
   "devDependencies": {
