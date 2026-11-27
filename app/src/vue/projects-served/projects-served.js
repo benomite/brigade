@@ -1,7 +1,7 @@
 // @ts-check
 // Les projets que la station de cet ordinateur sert (ticket 2359, épique 2356), sous cette machine — un bloc que Settings
 // ne montre plus depuis le ticket 2494 : il attend, caché, avec ce qui était sous « This machine ». La
-// station n'en a qu'une liste, sa configuration (runtime/src/station-ordinateur/projets-servis.ts, ticket 3402) ; l'écran
+// station n'en a qu'une liste, sa configuration (ticket 3402) ; l'écran
 // la lit par le process principal, sans la changer : un projet s'ajoute ou se retire de cette liste sur son onglet
 // Stations (project/stations/).
 //

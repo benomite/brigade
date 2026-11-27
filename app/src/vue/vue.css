@@ -627,17 +627,11 @@ main > header,
   align-items: flex-start;
   gap: var(--pas-2);
 }
-/* Le remède du refus (ticket 1205) : son bouton porte sa phrase entière, qui passe à la ligne plutôt que
-   d'être coupée. Pourquoi il n'y a pas de bouton, la demande en route et ce que la station a répondu se
-   disent en texte doux, sous la consigne. La confirmation reprend la brique commune. */
+/* Les boutons du bloc (le clone, l'accès) portent leur phrase entière, qui passe à la ligne plutôt que d'être coupée. */
 #stations-du-projet .depot-retenu button {
   max-width: 100%;
   text-align: left;
   white-space: normal;
-}
-#stations-du-projet .depot-retenu .remede-en-cours,
-#stations-du-projet .depot-retenu .remede-dit {
-  color: var(--texte-doux);
 }
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
    chaque partie sous son petit titre — la machine (choice-station/choice-station.css), ses cooks —. Aucun
@@ -3234,79 +3228,6 @@ main > header {
 .outil-manquant .gestes {
   gap: var(--pas-2);
   padding: 0;
-}
-/* Les choix du second, sous son terminal (ticket 1520) : ce qu'on attend du chef, puis un bouton par choix — sa valeur,
-   ce qu'un clic tape, et son libellé, qui passe à la ligne plutôt que d'être coupé. Le terminal garde le reste. */
-#choix-du-second {
-  max-height: 40%;
-  overflow-y: auto;
-  padding: var(--pas-3) var(--pas-4) var(--pas-3);
-  border-top: 1px solid var(--trait);
-  user-select: none;
-}
-.choix-du-second .attendu,
-.geste-du-second .attendu {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-2);
-  font-weight: 600;
-  color: var(--texte);
-}
-.choix-du-second ul {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.choix-du-second button.choix {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  gap: var(--pas-3);
-  width: 100%;
-  text-align: left;
-}
-.choix-du-second .valeur {
-  flex: 0 0 auto;
-  min-width: 1.5em;
-  font-weight: 700;
-  color: var(--accent);
-}
-.choix-du-second .libelle {
-  min-width: 0;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-/* Le geste que le second nomme (ticket 1521) : sous le terminal, à la place des choix, un bouton dit en mots ; la commande
-   exacte, entière — ses espaces gardés, une commande longue passe à la ligne, rien n'est coupé —, est au survol du bouton
-   et dans l'aide repliée de la confirmation commune que le clic ouvre, avant « run it ». */
-.geste-du-second > .survol {
-  display: block;
-}
-.geste-du-second button.geste {
-  display: flex;
-  justify-content: flex-start;
-  width: 100%;
-  text-align: left;
-}
-.geste-du-second .commande {
-  font-size: var(--taille-corps);
-  white-space: pre-wrap;
-}
-.geste-du-second .commande .mot {
-  display: inline-block;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-.geste-du-second .replie > summary {
-  cursor: pointer;
-}
-.geste-du-second .replie > summary .resume {
-  margin-left: var(--pas-2);
-  color: var(--discret);
 }
 /* Le niveau d'un réglage (ticket 1310) : une petite étiquette à côté de son nom — project, this machine ou you. */
 .niveau {

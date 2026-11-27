@@ -6,7 +6,7 @@
 // Le rôle est un fichier livré avec l'app (`role.md`, à côté de ce module : le paquet porte `src/` entier,
 // packaging/construire.ts et packaging/windows.ts), que `claude` lit lui-même (`--append-system-prompt-file`).
 // Son texte ne passe pas par la ligne de commande : sous Windows, un `claude.cmd` ne reçoit aucun argument
-// sur plusieurs lignes (runtime/src/sans-invite.ts, `ligneDeCmd`).
+// sur plusieurs lignes (`ligneDeCmd`).
 //
 // Les réglages (`--settings`) sont un objet de ce lancement, donné sur la ligne de commande : rien n'est
 // écrit dans le `.claude/` du projet, ni dans aucun fichier qu'une autre session lirait. Un `claude` lancé

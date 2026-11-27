@@ -26,7 +26,7 @@ export type Data = { ticket: number; titre: string; url: string; priorite: numbe
 // La sortie de `manager upstream` : l'heure de la box à la lecture des issues, le dépôt lu, les issues.
 export type Upstream = { lu: string; depot: string; issues: Data[] };
 
-// Les cinq états de la liste fermée (runtime/src/amont.ts, `ETATS_AVANT_LE_RAIL`), dans l'ordre où le bandeau Backlog
+// Les cinq états de la liste fermée (`ETATS_AVANT_LE_RAIL`), dans l'ordre où le bandeau Backlog
 // les range, et ce que chacun veut dire en mots simples ; puis les deux que la lecture de GitHub ajoute d'un besoin
 // découpé (#3460) : ses tickets en cours, ou tous servis. Un mot que la box ajouterait se pose après eux, tel quel.
 export const GROUPS = [

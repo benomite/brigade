@@ -1,22 +1,24 @@
 // Le dépôt choisi dans le parcours « Add a project » est-il prêt pour brigade, et le geste qui l'y prépare (#2627) :
-// le contrat du runtime (#2626, `runtime/src/depot-prepare/preparation.ts`), `checkRepoSetup` et `runRepoSetup`,
-// joué sur la copie locale du dépôt — celle que l'app tient pour lui sur cet ordinateur, reprise si elle existe,
-// clonée sinon (`projets/copie-locale.ts`). C'est là que `/brigade:init` travaille : la section des bindings s'écrit
+// le contrat de préparation (#2626), `checkRepoSetup` et `runRepoSetup`, que le process principal charge, joué sur
+// la copie locale du dépôt — celle que l'app tient pour lui sur cet ordinateur, reprise si elle existe, clonée sinon. C'est là que `/brigade:init` travaille : la section des bindings s'écrit
 // dans le `CLAUDE.md` de cette copie, les labels sur GitHub.
 //
 // Rendu à la vue : le constat `{ ready, missingBindings, missingLabels }`, ou `{ refus }` — une phrase, celle du
 // runtime ou de la copie qui n'a pas pu se faire. Le préchargement fait du refus un rejet : la vue le dit et propose
 // « try again ».
-import type { CopieLocale } from "../../../runtime/src/projets/copie-locale.ts";
-import type { Repo, RepoSetup } from "../../../runtime/src/depot-prepare/preparation.ts";
+import type { LocalCopy } from "../first-launch.ts";
 import { SHAPE_OF_REPOSITORY } from "./github.ts";
+
+// Le dépôt à préparer, sa copie et sa branche ; et ce que le contrat en constate.
+export type Repo = { dir: string; github: string; branch?: string };
+export type RepoSetup = { ready: boolean; missingBindings: boolean; missingLabels: string[] };
 
 export type Finding = RepoSetup | { refus: string };
 export type Contract = { checkRepoSetup(repo: Repo): Promise<RepoSetup>; runRepoSetup(repo: Repo): Promise<RepoSetup> };
 
 export type Dependencies = {
   // La copie locale du dépôt `owner/repo` sur cet ordinateur.
-  ouvrirLaCopie: (repository: string) => Promise<CopieLocale>;
+  ouvrirLaCopie: (repository: string) => Promise<LocalCopy>;
   // La branche de cette copie : celle que la section des bindings déclare, quand elle l'écrit.
   lireLaBase: (folder: string) => Promise<string | undefined>;
   // Le contrat du runtime, chargé de celui qui est à côté de l'app.

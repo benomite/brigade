@@ -118,7 +118,6 @@ import { relaunchOf, holdPassage } from "./catch-up.ts";
 import { holdAnswered } from "./answered.ts";
 import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
-import { type Proposals, type AnswerOfChef, holdTheProposals } from "./second/proposals.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_PLUGIN, launchReally, withoutPluginApp, holdThePluginApp } from "./plugin-app.ts";
 import { holdServices } from "./service.ts";
@@ -581,10 +580,6 @@ const removals = holdRemovals({
   retirer: (name) => tracking.retirer(name),
   desinstaller: (project) => void pluginApp.retirer(project),
 });
-// Ce que le second de chaque projet propose au chef (second/proposals.ts, #1520) : le canal du runtime
-// (runtime/src/second-propositions/canal.ts, #1519), chargé une fois de celui qui est à côté de l'app. Tant qu'il ne
-// l'est pas, aucun second n'a de proposition ; s'il ne se charge pas, le terminal reste tel quel, sans boutons dessous.
-let proposalsOfSecond: Proposals | undefined;
 // Ce que la veille de `status` lit en ce moment, tel que la vue l'a demandé en dernier :
 // rejoué, il se relit avec les projets tels que l'app les montre maintenant.
 let see = () => {};
@@ -615,8 +610,6 @@ const tracking = followConfiguration({
     tellTheHome(home.relire());
     // La barre des menus aussi — et le chef l'a peut-être allumée ou éteinte.
     setTheMenuBar();
-    // Le second de chaque projet qui s'ouvre est suivi dans son dossier tel qu'il est maintenant.
-    proposalsOfSecond?.suivre(projects());
     // Un projet qui vient d'y entrer reçoit le plugin de l'app.
     void pluginApp.suivre(projects());
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
@@ -677,13 +670,6 @@ const projectsOfStations = holdProjects({
         },
       }
     : {}),
-  // Lever le refus d'un projet : la demande part par le gist de sa principale, quelle qu'elle soit — c'est
-  // l'opération du runtime qui l'écrit et attend la réponse (projects/remedy.ts). Le runtime est à côté de
-  // l'app, du dépôt comme du paquet (locations.ts).
-  demanderLeRemede: async (request) => {
-    const { demanderLeRemede: askTheRemedy } = (await import(pathToFileURL(join(locations.runtime, "src", "remedes", "distant.ts")).href)) as typeof import("../../runtime/src/remedes/distant.ts");
-    return askTheRemedy(request);
-  },
   ...(role.role === "station" ? { demenager: moverOfRuntime({ node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env, delaiMs: 60_000 }) } : {}),
   // Le dépôt et la branche d'un projet, lus dans son clone sur cet ordinateur par l'opération du runtime (#1306) :
   // une station de plus les en prend quand la première ne les dit pas.
@@ -1270,9 +1256,6 @@ ipcMain.handle("retirerDUneStation", (_, name: unknown) => projectsOfStations.re
 // « Continue without sandbox » (#1113) : la décision du chef se note par la fonction du runtime, dans l'état
 // du projet sur la station de cet ordinateur.
 ipcMain.handle("continuerSansBacASable", (_, name: unknown) => projectsOfStations.continuerSansBac(name));
-// Le bouton du refus d'un projet (#1205) : sa principale joue le remède que le refus offre, puis dit s'il
-// tient (projects/projects.ts, `remedier`).
-ipcMain.handle("leverLeRefus", (_, name: unknown, refusal: unknown, remedy: unknown) => projectsOfStations.remedier(name, refusal, remedy));
 // Une issue d'un choix, sur la carte d'un besoin qui manque (#1400) : elle s'écrit dans la demande de la principale,
 // qui la pose à son journal (projects/projects.ts, `choisir`).
 ipcMain.handle("choisirUneIssue", (_, name: unknown, choice: unknown, issue: unknown) => projectsOfStations.choisir(name, choice, issue));
@@ -1304,13 +1287,6 @@ const standbyMachine =
       })
     : undefined;
 ipcMain.handle("veilleMachine", () => standbyMachine?.relire());
-void ofRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>("second-propositions", "canal.ts").then(
-  (channel) => {
-    proposalsOfSecond = holdTheProposals({ canal: channel, surProposition: (project, proposal) => tell("proposition", project, proposal) });
-    proposalsOfSecond.suivre(projects());
-  },
-  (error: unknown) => console.error(`brigade: the second's proposals cannot be followed — ${error instanceof Error ? error.message : String(error)}`),
-);
 // Les GitHub Apps de la station de cet ordinateur, depuis Settings (#2317, vue/identities-github.js) : ce qu'elle a
 // de chaque rôle, et en ranger une, par ce que le runtime en fait (identites-stations.ts : `appsRangees`, `rangerApp`)
 // dans le répertoire de la station. La clé ne fait que passer : rien ne la garde ici, et rien ne la rend à la vue — ni
@@ -1991,14 +1967,6 @@ ipcMain.handle("ouvrirPrDuCook", (_, name: unknown, ticket: unknown) => {
       );
 });
 ipcMain.on("ecrire", (_, id: number, data: string) => terminals.ecrire(id, data));
-ipcMain.handle("propositionsDuSecond", () => proposalsOfSecond?.vu() ?? {});
-// Le chef a répondu au second — d'un clic, dont la vue a déjà tapé le choix dans son terminal, ou en tapant : le canal
-// l'efface, s'il porte encore la proposition à laquelle il a répondu.
-ipcMain.handle("repondreAuSecond", (_, name: unknown, answer: AnswerOfChef) => {
-  const aims = knownOne(name);
-  if (aims === undefined || proposalsOfSecond === undefined) return { state: "refused", reason: "nothing to answer: this project's second is not followed", current: null };
-  return proposalsOfSecond.repondre(aims.nom, answer);
-});
 ipcMain.on("redimensionner", (_, id: number, columns: number, lines: number) => terminals.redimensionner(id, columns, lines));
 
 // Les pty appartiennent à l'app, pas à la fenêtre — mais il n'y a qu'une
@@ -2009,7 +1977,6 @@ app.on("will-quit", () => {
   menuBar.fermer();
   preferences.fermer();
   terminals.fermer();
-  proposalsOfSecond?.arreter();
   turns.fermer();
   standby.fermer();
   standbyOfTab.fermer();

@@ -174,7 +174,6 @@ import { additionsOfProject as additionsOfRecorded, detailsOf, stateSays, issueO
 import { setRailPublished } from "./rail-published.js";
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
 import { setToolsOfSecond } from "./tools-of-second.js";
-import { setChoiceOfSecond, answerTyped, holdTheChoice } from "./second/choice.js";
 import { NO_STATION } from "./cooks/without-station.js";
 import { brandAfter } from "./card-wait/card-wait.js";
 import { waitExhausted, RAIL_NOT_READ } from "./wait-of-rail.js";
@@ -194,7 +193,6 @@ import { holdTheKnowledge } from "./know-how/know-how.js";
 import { setBlockCloser } from "./project/banner-health/Closer.js";
 import { setBlockTimeOfThePass } from "./project/banner-health/PassTime.js";
 import { setBlockPostMortems } from "./project/banner-health/PostMortems.js";
-import { setActionOfSecond } from "./second/action.js";
 import { holdTheReport } from "./report/action.js";
 import { casesOfVersions, caseOfHere, setVersionsOfStations, statusRead } from "./station-version/station-version.js";
 import { lineEmpty } from "./components/line-empty/line-empty.js";
@@ -303,7 +301,6 @@ const noteSecond = element("note-second");
 const explanationSecond = element("explication-second");
 const explanationsOfChef = element("explications-du-chef");
 const toolsOfSecond = element("outils-du-second");
-const choiceOfSecond = element("choix-du-second");
 // Le stockage de la vue, ou rien quand son accès est refusé : la lecture de `window.localStorage` lève alors (SecurityError),
 // et chacun de ses usagers fait sans lui plutôt que de casser la vue au démarrage.
 /** @returns {Storage | undefined} */
@@ -335,9 +332,6 @@ const resumesOfTheAbsence = new Map();
 const readsOfTheAbsence = new Set();
 let absenceClosed = false;
 let absenceSet = "";
-// Ce que le second de chaque projet propose, tel que son canal le dit (ticket 1520) : ses choix, sous son terminal — ou
-// le geste qu'il nomme (ticket 1521).
-const proposalsOfSecond = holdTheChoice();
 // Ce que la page d'un projet montre tant qu'il n'est pas prêt (ticket 3166, parcours-premier-projet/) : à la place du rail,
 // une question à la fois — qui le cuit, puis sa mise en place s'il le faut. Le parcours de chaque projet qu'« Add a
 // project » a ouvert ; ceux qui attendent leur première lecture — elle seule dit si le compte GitHub peut écrire dans
@@ -1446,13 +1440,7 @@ function vue(id) {
     thread.append(frame);
     xterm.loadAddon(adjusts);
     xterm.open(frame);
-    xterm.onData((data) => {
-      brigade.ecrire(id, data);
-      // Une réponse tapée dans le terminal du second répond aussi à ses choix, ou au geste qu'il nomme : leurs boutons
-      // partent (tickets 1520 et 1521).
-      const { terminal } = vue(id);
-      if (terminal.genre === "second" && answerTyped(data)) answeredAtKeyboard(terminal.projet);
-    });
+    xterm.onData((data) => brigade.ecrire(id, data));
     // Shift+Entrée : xterm l'envoie comme Entrée (`\r`) et le shell comme `claude` l'exécutent ou
     // l'envoient. Un retour à la ligne, lui, ne part pas : `ESC` + `\r` pour `claude` (son Alt+Entrée),
     // un saut de ligne cité (`^V` `^J`) pour le shell.
@@ -1672,7 +1660,6 @@ function setSecond(openable, shows) {
           }),
         ]),
   );
-  setUnderTheSecond(openable && phoneSeen === undefined ? shows : undefined);
 }
 
 // « Try again » d'un second empêché : les outils relus d'abord (ticket 4059) — la lecture rattache au PATH de l'app un
@@ -1686,77 +1673,6 @@ async function retryTheSecond(id) {
     // Rien à dire ici : le second relancé dit ce qui lui manque.
   }
   brigade.ecrire(id, "");
-}
-
-// Sous le terminal du second, ses choix quand il demande de choisir (ticket 1520), ou le geste qu'il nomme (ticket
-// 1521) : seulement quand c'est lui qui est montré, qu'il tourne, et que son canal en porte qui n'ont pas eu de
-// réponse. Sinon, rien sous le terminal.
-/** @param {Terminal | undefined} shows */
-function setUnderTheSecond(shows) {
-  const second = shows?.genre === "second" && !shows.arrete && shows.empeche === undefined ? shows : undefined;
-  const proposal = second === undefined ? undefined : proposalsOfSecond.aMontrer(second.projet);
-  const gesture = second === undefined ? undefined : proposalsOfSecond.geste(second.projet);
-  choiceOfSecond.hidden = proposal === undefined && gesture === undefined;
-  choiceOfSecond.replaceChildren(
-    ...(second === undefined
-      ? []
-      : proposal !== undefined
-        ? [setChoiceOfSecond(document, proposal, { choisir: (value) => chooseAtSecond(second, value) })]
-        : gesture !== undefined
-          ? [
-              setActionOfSecond(document, gesture, {
-                ouverte: proposalsOfSecond.confirmationOuverte(second.projet),
-                basculer: () => confirmTheAction(second, !proposalsOfSecond.confirmationOuverte(second.projet)),
-                annuler: () => confirmTheAction(second, false),
-                lancer: () => launchTheAction(second, gesture.id),
-              }),
-            ]
-          : []),
-  );
-}
-
-// Le bouton du geste ouvre sa confirmation, recliqué la referme ; « cancel » la referme. Rien n'est écrit dans le
-// terminal du second.
-/** @param {Terminal} second @param {boolean} openOne */
-function confirmTheAction(second, openOne) {
-  proposalsOfSecond.confirmer(second.projet, openOne);
-  show();
-}
-
-// Le « run it » du chef — le seul chemin qui lance un geste : sa commande part dans le terminal du second, telle que
-// publiée, puis Entrée, comme si le chef l'avait tapée ; le bouton part, et le canal apprend que le chef l'a fait. Si
-// le second a publié autre chose depuis, ou est passé à autre chose, rien ne part. Le terminal reprend le clavier.
-/** @param {Terminal} second @param {string} id */
-function launchTheAction(second, id) {
-  const gesture = proposalsOfSecond.lancer(second.projet, id);
-  if (gesture === undefined) return;
-  brigade.ecrire(second.id, gesture.command);
-  brigade.ecrire(second.id, "\r");
-  void brigade.repondreAuSecond?.(second.projet, { id: gesture.id, by: "click" });
-  aFocus = second.id;
-  show();
-}
-
-// Un clic sur un choix : sa valeur part dans le terminal du second, puis Entrée, comme si le chef l'avait tapée ; les
-// boutons partent, et le canal apprend la réponse. Le terminal reprend le clavier.
-/** @param {Terminal} second @param {string} value */
-function chooseAtSecond(second, value) {
-  const answeredOne = proposalsOfSecond.repondre(second.projet);
-  if (answeredOne === undefined) return;
-  brigade.ecrire(second.id, value);
-  brigade.ecrire(second.id, "\r");
-  void brigade.repondreAuSecond?.(second.projet, { id: answeredOne.id, by: "click", value: value });
-  aFocus = second.id;
-  show();
-}
-
-// Le chef a répondu en tapant dans le terminal du second : ses choix, ou le geste nommé, partent, et le canal l'apprend.
-/** @param {string} project */
-function answeredAtKeyboard(project) {
-  const answeredOne = proposalsOfSecond.repondreAuClavier(project);
-  if (answeredOne === undefined) return;
-  void brigade.repondreAuSecond?.(project, { id: answeredOne.id, by: "text" });
-  show();
 }
 
 // Un terminal qu'un geste a rendu se montre à droite, et prend le clavier : un shell, à côté du
@@ -6857,45 +6773,6 @@ async function continueWithoutSandbox(name) {
   }
   setStationsOfProject();
 }
-// Le bouton du refus de la station (ticket 1205) : la station qui porte le suivi du projet joue le remède que le refus publie. Ce
-// qu'il en est se tient ici, par projet, d'une relecture à l'autre : la confirmation ouverte, la demande en route,
-// ce que la station a répondu. Levé, le refus quitte la page sans attendre : la relecture suivante dit ce qu'il en
-// est vraiment. Tenu, la phrase reste tant que la station publie un refus.
-/** @type {Map<string, import("./onboarding/repository-held.js").StateOfRemedy | { etape: "leve" }>} */
-const remediesOfRefusal = new Map();
-// Ce que la page dit d'un remède qui n'est pas parti, ou dont on ne sait rien : la phrase, sans ce que GitHub a
-// répondu — qui suit le tiret, au survol.
-/** @param {string} error */
-function errorOfRemedy(error) {
-  const [head = "", ...remains] = error.split(" — ");
-  return { dit: `${head.charAt(0).toUpperCase()}${head.slice(1).replace(/\.?$/, ".")}`, detail: remains.join(" — ") };
-}
-/** @param {string} name */
-async function liftTheRefusal(name) {
-  const seenOne = projectsSeen?.projets.find((project) => project.nom === name);
-  const refusal = seenOne?.refus ?? null;
-  const state = remediesOfRefusal.get(name);
-  if (refusal === null || refusal.remedy === undefined || state?.etape === "en-cours") return;
-  const station = seenOne?.suiviPar?.nom ?? "its station";
-  remediesOfRefusal.set(name, { etape: "en-cours", station });
-  setStationsOfProject();
-  /** @type {import("../projects/remedy.ts").IssueOfRemedy} */
-  let issue;
-  try {
-    issue = await brigade.leverLeRefus(name, refusal.code, refusal.remedy.id);
-  } catch (error) {
-    issue = { outcome: "error", error: error instanceof Error ? error.message : String(error) };
-  }
-  remediesOfRefusal.set(
-    name,
-    issue.outcome === "lifted"
-      ? { etape: "leve" }
-      : issue.outcome === "holds"
-        ? { etape: "dit", dit: issue.reason }
-        : { etape: "dit", ...errorOfRemedy(issue.error) },
-  );
-  if (current?.nom === name) setStationsOfProject();
-}
 function closeMove() {
   move = undefined;
   choiceOfMove.hidden = true;
@@ -6987,20 +6864,7 @@ function setStationsOfProject() {
   openTheTrust.hidden = trust !== undefined || move !== undefined || !readEntries || openTheTrust.textContent === "+ station";
   const seenOne = projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
   const onboarding = seenOne?.onboarding ?? null;
-  const remedy = remediesOfRefusal.get(project.nom);
-  const refusal = remedy?.etape === "leve" ? null : (seenOne?.refus ?? null);
-  const retained = setRepositoryHeld(document, { acces: seenOne?.acces ?? null, clone: seenOne?.clone ?? null, refus: refusal, worktree: seenOne?.worktree ?? null, maintenant: Date.now(), copier: (command) => void navigator.clipboard.writeText(command), ouvrir: (url) => void brigade.autoriserSurGitHub(url), remede: {
-    ...(remedy === undefined || remedy.etape === "leve" ? {} : { etat: remedy }),
-    ouvrir: () => {
-      remediesOfRefusal.set(project.nom, { etape: "confirmer" });
-      setStationsOfProject();
-    },
-    lancer: () => void liftTheRefusal(project.nom),
-    renoncer: () => {
-      remediesOfRefusal.delete(project.nom);
-      setStationsOfProject();
-    },
-  } });
+  const retained = setRepositoryHeld(document, { acces: seenOne?.acces ?? null, clone: seenOne?.clone ?? null, refus: seenOne?.refus ?? null, worktree: seenOne?.worktree ?? null, maintenant: Date.now(), copier: (command) => void navigator.clipboard.writeText(command), ouvrir: (url) => void brigade.autoriserSurGitHub(url) });
   repositoryHeld.hidden = retained === null;
   repositoryHeld.replaceChildren(...(retained === null ? [] : [retained]));
   // La station dit ce qui la retient : la phrase qui promet de se préparer « within a minute » ne se dit plus.
@@ -8547,14 +8411,13 @@ function restThePage(project) {
   setRail(project);
 }
 
-// Ce que la vue sait du second du projet : il ne part pas, il propose au chef, et ce que le titre de son terminal dit.
+// Ce que la vue sait du second du projet : il ne part pas, et ce que le titre de son terminal dit.
 /** @param {string} name @returns {import("./journey-first-project/journey-first-project.js").Second} */
 function secondOfJourney(name) {
   const second = [...views.values()].find(({ terminal }) => terminal.projet === name && terminal.genre === "second")?.terminal;
   const title = workOfSecond(titlesOfSeconds.get(name));
   return {
     ...(second?.empeche === undefined ? {} : { empeche: true }),
-    ...(proposalsOfSecond.aMontrer(name) === undefined && proposalsOfSecond.geste(name) === undefined ? {} : { propose: true }),
     ...(title === undefined ? {} : { titre: title }),
   };
 }
@@ -9095,12 +8958,6 @@ let terminalsFoundAgain = false;
 brigade.surSortie((id, data) => {
   if (terminalsFoundAgain && !closed.has(id)) vue(id).xterm.write(data);
 });
-// Le second publie une proposition, ou passe à autre chose : ce qui est sous son terminal suit (ticket 1520).
-brigade.surProposition?.((project, proposal) => {
-  proposalsOfSecond.recevoir(project, proposal);
-  if (project === current?.nom) show();
-  if (project === current?.nom) setTheProjectAPrepare();
-});
 brigade.surEtat((terminal) => {
   if (terminal.genre === "shell" && terminal.arrete) {
     // Un shell qui sort ferme son onglet ; s'il était montré, le second reprend sa place à droite.
@@ -9309,11 +9166,6 @@ brigade.surAccueil((seenOne) => {
 brigade.surProjetsDesStations((seenOne) => {
   projectsSeen = seenOne;
   setBlockStation();
-  // Le refus levé se relit : s'il est encore publié, il revient. Une phrase sur un refus qui n'est plus publié s'en va.
-  for (const [name, state] of remediesOfRefusal) {
-    const refusal = seenOne.projets.find((project) => project.nom === name)?.refus ?? null;
-    if (state.etape === "leve" || (state.etape === "dit" && refusal === null)) remediesOfRefusal.delete(name);
-  }
   setProjects();
   setStationsOfProject();
   // La station de ce poste se connaît par cette lecture : la page d'une station ouverte sait si elle est la sienne.
@@ -9520,8 +9372,6 @@ function display() {
 }
 
 const startup = await brigade.demarrage();
-// Ce que les seconds proposaient déjà quand la vue s'est ouverte ; ce qui est arrivé depuis, par `surProposition`, est plus récent.
-proposalsOfSecond.recevoirToutes((await brigade.propositionsDuSecond?.()) ?? {});
 WORKSTATION = startup.poste ?? WORKSTATION;
 const example = startup.exemple;
 PALETTE = startup.palette;

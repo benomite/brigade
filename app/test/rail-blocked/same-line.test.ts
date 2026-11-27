@@ -1,5 +1,6 @@
-// Le rail bloqué (ticket 3358) se dit d'une seule phrase partout dans l'app : la file du second (second/file.ts), le
-// `status` que l'app tire de sa lecture du rail et la ligne en tête de ce rail (vue/rail/github.ts, `avecLeRail`).
+// Le rail bloqué (ticket 3358) se dit d'une seule phrase partout dans l'app : le `status` que l'app tire de sa lecture
+// du rail et la ligne en tête de ce rail (vue/rail/github.ts, `avecLeRail`). La file du second ne le dit plus : il se lit
+// par les gists des stations, que la nouvelle cuisine ne publie pas (#4503).
 // `brigade <project> status` sur la station ne le dit plus : le superviseur du runtime a pris sa place (ticket 3945). Un même GitHub — ses issues `fire`, leurs
 // commentaires et leurs événements, et les gists des stations du compte — est lu par chacun avec le même `gh`, et
 // chacun écrit la même ligne.
@@ -11,7 +12,9 @@ import { describe, test, type TestContext } from "node:test";
 import { noterGitHubSeul } from "../../../runtime/src/github-seul-etat.ts";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
 import { principal as status } from "../../../runtime/src/status.ts";
-import { callByGh, readTheFile, stationsByGh } from "../../src/second/file.ts";
+import { lireLesStationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
+import { callByGh, readTheFile } from "../../src/second/file.ts";
 import { readTheBoardOfRepository } from "../../src/board/read.ts";
 import { statusOfBoard } from "../../src/board/rail.ts";
 import { ghOfDirectory, type StandIn } from "../helpers/gh-of-directory.ts";
@@ -72,13 +75,22 @@ async function statusOfTheStation(t: TestContext, gh: string): Promise<string[]>
   return lines;
 }
 
+// Les stations du compte, lues par le même `gh` : ce que la lecture du rail prend pour ses signes.
+const stationsByGh = (gh: string, delayMs: number) => async (): Promise<StationsLues> => {
+  const readOne = await lireLesStationsDuCompte({ gh, delaiMs: delayMs });
+  return readOne.state === "listed" ? { lues: readOne.stations } : { illisibles: readOne.reason };
+};
+
 // Les trois lectures de l'app, au même instant : la file du second, son `status` et la ligne en tête du rail. Chaque
 // lecture a son propre appel, donc sa propre échéance de 2 s : une seule, partagée, ne laissait à la seconde que ce que
 // la première n'avait pas pris, et la CI chargée la passait (ticket 3761).
 async function readsOfTheApp(gh: string, instant: number) {
   const stations = stationsByGh(gh, 2_000);
-  const file = await readTheFile(callByGh(gh, 2_000), REPOSITORY, () => new Date(instant), stations);
+  const file = await readTheFile(callByGh(gh, 2_000), REPOSITORY, () => new Date(instant));
   assert.ok(file.lue, JSON.stringify(file));
+  // Une première lecture des stations, comme la file du second la faisait : leurs gists se relisent ensuite par leur ETag,
+  // et la lecture du rail tient dans ses 2 s.
+  await stations();
   const signs = async () => {
     const readEntries = await stations();
     return "lues" in readEntries ? { lus: readEntries.lues.map((station) => ({ ...station })) } : { illisible: readEntries.illisibles };
@@ -94,16 +106,16 @@ const UNDER_THE_HEAD = (lines: readonly string[]) => {
   return lines[head + 1] ?? "";
 };
 
-describe("la même ligne dans `status` et dans la file du second", { skip: WITHOUT_POSIX }, () => {
+describe("la même ligne dans le `status` de l'app et dans le rail, aucune dans la file du second", { skip: WITHOUT_POSIX }, () => {
   // L'app garde sa ligne telle qu'avant (#3945 : « do not rework their behavior ») ; seul `status` de la station la quitte.
-  test("huit tickets qu'aucun manager n'a pris, leur station arrêtée : la file du second, le status de l'app et le rail disent la même phrase", async (t) => {
+  test("huit tickets qu'aucun manager n'a pris, leur station arrêtée : le status de l'app et le rail disent la même phrase, la file du second n'en dit rien", async (t) => {
     const directory = folder(t);
     const instant = Date.now();
     station(directory, instant, true);
     const gh = ghOf(directory, world(["fire"], instant));
     const app = await readsOfTheApp(gh, instant);
     const expected = "  STUCK RAIL  8 tickets on the rail, no manager has taken them for 3 d: its station box/claude is stopped. Start it on its computer.";
-    assert.equal(UNDER_THE_HEAD(app.file), expected);
+    assert.doesNotMatch(app.file.join("\n"), /STUCK RAIL/);
     assert.equal(UNDER_THE_HEAD(app.status), expected);
     assert.equal(`  STUCK RAIL  ${app.railBloque?.phrase}`, expected);
   });

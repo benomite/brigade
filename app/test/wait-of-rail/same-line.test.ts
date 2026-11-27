@@ -10,7 +10,9 @@ import { describe, test, type TestContext } from "node:test";
 import { noterGitHubSeul } from "../../../runtime/src/github-seul-etat.ts";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
 import { principal as status } from "../../../runtime/src/status.ts";
-import { callByGh, stationsByGh } from "../../src/second/file.ts";
+import { lireLesStationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
+import { callByGh } from "../../src/second/file.ts";
 import { readTheBoardOfRepository } from "../../src/board/read.ts";
 import { statusOfBoard } from "../../src/board/rail.ts";
 import { ghOfDirectory, type StandIn } from "../helpers/gh-of-directory.ts";
@@ -70,6 +72,12 @@ async function statusOfTheStation(t: TestContext, gh: string): Promise<string[]>
   await status({ args: [], env: { BRIGADE_STATE_DIR: state, BRIGADE_GITHUB_REPO: REPOSITORY, BRIGADE_GH_BIN: gh }, dire: (line) => void lines.push(line), redire: (line) => void lines.push(line) });
   return lines;
 }
+
+// Les stations du compte, lues par le même `gh` : ce que la lecture du rail prend pour ses signes.
+const stationsByGh = (gh: string, delayMs: number) => async (): Promise<StationsLues> => {
+  const readOne = await lireLesStationsDuCompte({ gh, delaiMs: delayMs });
+  return readOne.state === "listed" ? { lues: readOne.stations } : { illisibles: readOne.reason };
+};
 
 // Le `status` de l'app et le rail, au même instant.
 async function readOfTheApp(gh: string, instant: number) {

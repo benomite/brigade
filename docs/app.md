@@ -568,7 +568,7 @@ column on the right (#3164); each state says in one sentence what is awaited and
 | unreadable | `Whether <owner/repo> is set up for Brigade could not be read. Waiting for you to try again.`, the reason on hover, `Try again` | `checkRepoSetup` failed — it is never taken for set up |
 | the second starts | `The second is starting, in its column on the right: it reads your repository first. Nothing is awaited from you yet.` | the second's terminal has no title yet |
 | the second reads | `The second is reading your repository, in its column on the right. Nothing is awaited from you yet.` | the title `claude` gives its terminal starts with a working sign (`◐`…), as `app/src/input.ts` reads it |
-| you answer | `The second is waiting for your answer, in its column on the right.` | the title starts with `✳` (at its prompt), or the second proposes choices or a gesture (#1520, #1521) |
+| you answer | `The second is waiting for your answer, in its column on the right.` | the title starts with `✳` (at its prompt) |
 | you merge | `The setup pull request is waiting for your merge: its card is red on the rail, counted in TODO.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
 | the second cannot start | `The second could not start: its column says why. Waiting for you to set the project up from here instead.`, `Set up for Brigade` | the second's terminal says it cannot start (#1435) |
 | set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
@@ -1596,55 +1596,6 @@ width).
 ### The `brigade` command on the chef's Mac (#4072)
 
 The installed app (the .dmg) writes `~/.local/bin/brigade` at each start (`app/src/command-brigade.ts`) and adds `~/.local/bin` to the PATH with the line `installer-station.sh` already writes, in `~/.zprofile` (or in the bash profile if it exists), once, so a new terminal and the second's tab find `brigade <project> <command> …` (for example `status` and `rail`) with no step from the chef. The command runs the station's gesture (`runtime/src/station/geste.ts`) with the runtime and the `node` of the app's package. It carries the app's version on its second line and is rewritten when its text differs, so after an update it points at the new runtime. Nothing is written from the repo (`npm start`), on Linux or on Windows. If the write fails, the app starts anyway and logs it.
-
-### The second's choices, as buttons under its terminal (#1520)
-
-When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel
-(`runtime/src/second-propositions/`, #1519): the app never reads the terminal. Under the second's terminal, one
-line says `The second asks you to choose` (how to answer is in its `?` hover), then **one button per choice**: what
-a click types — its value, `A` — and its one-line label, whole; a long label wraps, it is not cut.
-
-- **A click answers**: the value is typed into the second, then Enter, exactly as if you had typed it; the buttons
-  go away and the terminal takes the keyboard back.
-- **Typing your own answer** in the terminal works as before: once you press Enter, the buttons go away too. A
-  keystroke without Enter, a newline (Shift+Enter) or a paste leaves them.
-- Either way, the app tells the channel you answered, and the channel clears that proposal — and only that one.
-- **A new proposal replaces the buttons** of the previous one; when the second moves on, it clears its proposal and
-  nothing stays under the terminal.
-- **With no pending proposal, nothing is shown**: the terminal is as before. The buttons are only under the second
-  — not under a shell, not under another project's second, not under a second that stopped (a keypress restarts it,
-  it would not receive the choice).
-
-A gesture the second publishes (a merge, a box command) is shown in the same place, as a button: see below.
-
-*Code: `app/src/vue/second/choice.js` (the buttons), `app/src/second/proposals.ts` (the channel followed for each
-project, in the main process). Captures: `docs/captures/1520/`.*
-
-### The gesture the second names, as a confirm-then-run button (#1521)
-
-When what you have to do is a command — a merge, a pass on the box —, the second publishes it as a gesture through
-the same channel. Under its terminal, one line says `The second asks you to run a command` (how it works is in its
-`?` hover), then **one button, `Run the second's command…`**, in plain words: no command line is written on the screen. The
-exact command, in full, is read on hovering the button, and again in the confirmation: nothing shortened or rewritten
-— a long command wraps between its words, its spaces and quotes kept as published.
-
-- **A click opens a confirmation**, under the button: `Run this command in the second's terminal, in your name?`,
-  a folded `the exact command` line that opens on the full command, then `run it` and `cancel`. Nothing runs yet; a second click on the button closes it.
-- **`cancel` runs nothing**: the confirmation closes, nothing is typed into the terminal, and the button stays — the
-  gesture is still proposed.
-- **`run it` types the command into the second's terminal**, exactly as published, then Enter — as if you had typed
-  it yourself, in your name (`! …` is `claude`'s shell mode). The button goes away, the terminal takes the keyboard
-  back, and the app tells the channel you did it.
-- **The second never runs it.** Publishing, publishing again or writing the command in its terminal only shows the
-  button; the only path that types the command is your click, then your `run it`.
-- **When the second moves on** (it clears its proposal) **or publishes a new one**, the button goes away, and an open
-  confirmation with it: its `run it` no longer runs anything. Typing your own answer in the terminal (Enter) also
-  answers the gesture, as for choices.
-- Like the choices, the button is only under the second of its project, while it runs.
-
-*Code: `app/src/vue/second/action.js` (the button and its confirmation), `tenirLesChoix` in
-`app/src/vue/second/choice.js` (what the view holds: the open confirmation, the gesture run), `lancerLeGeste` in
-`app/src/vue/vue.js` (the only write). Captures: `docs/captures/1521/`.*
 
 ### From the app
 
@@ -2736,18 +2687,8 @@ longer stated. With neither, nothing changes. **The station's refusal** (#1178):
 project with no refused access to state, its tracking carries `refus` (#1177: a stable code, a sentence, the
 chef's action); the same block puts down the sentence (`This project's settings choose a network port that the station reserves
 for itself.`, the code on hover) then the action below — never the raw text of the `en-service` file, nor a
-path. **The button comes from the refusal alone** (#1205): the station publishes with it the remedy that lifts it
-(#1203: `remedy`, what it will do in one sentence, whether it removes or erases something, its id), and that sentence
-is the label of a recommended button, readable before any click — the screen knows no refusal code, so a refusal
-type added later on the station shows its button with no change to the app. A remedy that removes or erases opens a
-confirmation first, with the same sentence, `yes, do it` and `cancel`; the others go on click. The click asks the
-project's principal station to run it, through its gist, the same way for this Mac and for a remote station (the
-runtime's `demanderLeRemede`, from `app/src/projects/remedy.ts`): while it waits, the button is disabled and a line
-says `asking <station> to do it — it reads the app's requests every 30 s…`. Lifted, the refusal leaves the page; still
-held, one sentence under the action says why, and the button stays to try again; nothing sent, one line says so, what
-GitHub answered on hover. Without a remedy, the action stays written, followed by the station's sentence saying why
-there is no button (`noRemedy`). The refused access, being more precise, takes precedence over it. Screenshots:
-`docs/captures/1178/`, `docs/captures/1205/`. The station clears it when the gesture is done: the page re-read
+path. The app offers no button to lift it (#4503: the remedy ran through the old runtime's station gists). Screenshots:
+`docs/captures/1178/`. The station clears it when the gesture is done: the page re-read
 (each read of the stations) goes back to its message, without reloading the app. The module is
 `app/src/vue/onboarding/repository-held.js`.
 
@@ -4188,7 +4129,7 @@ section. With the section laid, `right now` is not repeated under it.
   station restarts for an update, the project says `restarting: update to <version>` (yellow) and shows neither
   `FAULT` nor stuck-rail nor queue-wait alert for a stopped or offline station (#3637). On "All projects" the
   project is **stuck**, in red (`8 tickets no manager takes, for 14 h`, the whole sentence on hover). The same sentence
-  is under the head of the `awaiting` block of the app's `status`, of the second's queue, and of
+  is under the head of the `awaiting` block of the app's `status` (no longer of the second's queue, #4503), and of
   `brigade <project> status` on a GitHub-only station. Tickets whose comments cannot be read are said there as `not
   checked`, never as a calm rail.
 - **The rail says why its queued tickets do not start** (#3433, `app/src/vue/wait-of-rail/`, one sentence per reason in
