@@ -58,6 +58,7 @@ function fakeGh() {
       const i = issues.get(n) as FakeIssue;
       if (args.includes("--add-label")) for (const l of flag("--add-label").split(",")) if (!i.labels.includes(l)) i.labels.push(l);
       if (args.includes("--remove-label")) i.labels = i.labels.filter((l) => !flag("--remove-label").split(",").includes(l));
+      if (args.includes("--body-file")) i.body = input ?? "";
       return "";
     }
     if (args[0] === "issue" && args[1] === "comment") {
@@ -181,6 +182,51 @@ test("a ticket the manager gives no usable gesture is parked for the chef, not h
   });
   await until(() => fake.issues.get(issue)?.labels.includes("parked:chef") === true, kitchen.turn);
   assert.deepEqual(lines, ["manager called on #1", "#1 parked for the chef — the manager gave no usable gesture"]);
+});
+
+// The supervisor puts #1 back on the rail as blocked by #2, still open: `actions` is its JSON answer.
+async function unparkedBlocked(actions: unknown[]) {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const answer = join(root, "answer.json");
+  writeFileSync(answer, JSON.stringify({ type: "result", result: `Back on the rail.\n\`\`\`json\n${JSON.stringify({ actions })}\n\`\`\`` }));
+  const agent = join(root, "agent.sh");
+  writeFileSync(agent, AGENT.replace('  *) echo', `  *"Tu es le **superviseur**"*) cat ${answer} ;;\n  *) echo`), { mode: 0o755 });
+  const fake = fakeGh();
+  const blocked = fake.add("Blocked one", ["fire", "parked:chef"]);
+  const blocker = fake.add("Blocker", ["idea"]);
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone: root,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: fake.gh,
+    git: gitCli(process.env),
+    launch: (_kind: Kind, cwd, _write, _calibration, input) => ({ command: agent, args: [], input, cwd, env: process.env, secrets: {} }),
+    places: () => 2,
+    riskPaths: () => [],
+    supervisorEveryMs: 0,
+    log: (line) => lines.push(line),
+  });
+  const ticket = fake.issues.get(blocked) as FakeIssue;
+  await until(() => !ticket.labels.includes("parked:chef"), kitchen.turn);
+  for (let i = 0; i < 5; i++) await kitchen.turn();
+  return { ticket, blocker, lines };
+}
+
+test("a ticket put back on the rail as blocked by an open ticket gets its Depends on line, and no cook takes it (#4546)", async () => {
+  const { ticket, lines } = await unparkedBlocked([{ unpark: 1, dependsOn: [2] }]);
+  assert.match(ticket.body, /^Depends on #2 \(noted by the supervisor when putting it back on the rail\)\.$/m, lines.join("\n"));
+  assert.equal(ticket.body.match(/Depends on/g)?.length, 1);
+  assert.ok(!lines.includes("#1 taken"), lines.join("\n"));
+  assert.deepEqual(ticket.labels, ["fire"]);
+});
+
+test("a ticket unparked with a comment saying it is blocked by an open ticket gets the same line: the comment alone would let a cook take it (#4546)", async () => {
+  const { ticket, lines } = await unparkedBlocked([{ unpark: 1 }, { comment: 1, body: "Back on the rail, blocked by #2. It waits on its own until #2 is merged." }]);
+  assert.match(ticket.body, /^Depends on #2 /m, lines.join("\n"));
+  assert.ok(!lines.includes("#1 taken"), lines.join("\n"));
 });
 
 async function riskKitchen() {

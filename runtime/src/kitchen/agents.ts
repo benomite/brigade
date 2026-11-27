@@ -4,7 +4,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { LABELS, type Issue } from "./decide.ts";
-import { ACCEPTED, type Gestures } from "./github.ts";
+import { ACCEPTED, dependsOn, type Gestures } from "./github.ts";
 import type { Run } from "./runs.ts";
 
 export type Prompts = { dir: string };
@@ -52,7 +52,7 @@ export type AgentAction =
   | { calibrate: number; model: string; effort: string }
   | { split: number; tickets: Array<{ title: string; body: string }> }
   | { park: number; reason: string }
-  | { unpark: number }
+  | { unpark: number; dependsOn?: number[] }
   | { labels: number; add?: string[]; remove?: string[] }
   | { comment: number; body: string }
   | { close: number; reason: string }
@@ -102,6 +102,9 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
         acted.add(action.park);
         log(`${who}: #${action.park} parked for the chef`);
       } else if ("unpark" in action && known(action.unpark)) {
+        // Put back on the rail as blocked by a ticket (its `dependsOn`, or "blocked by #N" in its comment): the body says it first, or it stays parked (#4546).
+        const waits = [...new Set([...(action.dependsOn ?? []), ...actions.flatMap((one) => ("comment" in one && one.comment === action.unpark && typeof one.body === "string" ? dependsOn(one.body) : []))])].filter((n) => Number.isInteger(n) && n !== action.unpark && !issues.get(action.unpark)?.dependsOn.includes(n));
+        if (waits.length > 0) await act.appendToBody(action.unpark, `Depends on ${waits.map((n) => `#${n}`).join(", ")} (noted by the ${who} when putting it back on the rail).`);
         await act.labels(action.unpark, [], [LABELS.parkedChef, LABELS.parked]);
         log(`${who}: #${action.unpark} unparked`);
       } else if ("labels" in action && known(action.labels)) {
