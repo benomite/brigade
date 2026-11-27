@@ -127,6 +127,11 @@ export function gestures(gh: Gh, repo: string) {
       });
     },
     close: (issue: number, body: string, reason = "not planned") => gh(["issue", "close", String(issue), ...r, "--reason", reason, "--comment", body]),
+    // A branch from the head of another; one that already exists is left as it is.
+    createBranch: async (name: string, from: string) => {
+      const sha = (JSON.parse(await gh(["api", `repos/${repo}/git/ref/heads/${from}`])) as { object: { sha: string } }).object.sha;
+      await gh(["api", "-X", "POST", `repos/${repo}/git/refs`, "-f", `ref=refs/heads/${name}`, "-f", `sha=${sha}`]).catch((error: Error) => { if (!/already exists/i.test(error.message)) throw error; });
+    },
     // Adds lines at the end of the issue's body.
     appendToBody: async (issue: number, lines: string) => {
       const body = (JSON.parse(await gh(["api", `repos/${repo}/issues/${issue}`])) as { body: string | null }).body ?? "";

@@ -78,3 +78,10 @@ test("tries are read from the try:N labels", () => {
   assert.equal(triesOf(["fire", "try:2"]), 2);
   assert.equal(triesOf(["fire"]), 0);
 });
+
+test("with nothing to calibrate and a short rail, the manager is called on the top unsplit epic, never a split one (#4700)", () => {
+  const unsplit = decide([issue(8, ["epic", "prio:2"]), issue(9, ["epic", "prio:1"]), issue(7, ["epic"], { split: true })], [], context());
+  assert.deepEqual(unsplit, [{ kind: "manager", issues: [9] }]);
+  assert.deepEqual(decide([issue(7, ["epic"], { split: true })], [], context()), []);
+  assert.deepEqual(decide([issue(9, ["epic", "parked:chef"])], [], context()), []);
+});

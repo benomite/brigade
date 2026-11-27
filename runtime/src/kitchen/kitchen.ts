@@ -62,7 +62,6 @@ const calibrationOf = (labels: readonly string[], fallback: { model: string; eff
 const WORKTREE_SWEEP_EVERY_MS = 10 * 60_000;
 const COOK = { model: "sonnet", effort: "medium" };
 const JUDGE = { model: "opus", effort: "medium" };
-
 // Under this many characters, a cook's last message is not a report.
 const MIN_REPORT = 40;
 
@@ -77,7 +76,6 @@ export function openKitchen(options: KitchenOptions) {
   mkdirSync(runs, { recursive: true });
   const maskSecrets = masqueDesSecrets(options.secrets ?? {});
   const mask = (raw: string) => masquerIdentifiants(maskSecrets(raw)).texte;
-
   const lastSupervisor = () => (existsSync(lastSupervisorFile) ? Number(readFileSync(lastSupervisorFile, "utf8")) || 0 : 0);
 
   // The failing checks' last log lines, for a cook that has no token to read them.
@@ -264,7 +262,7 @@ export function openKitchen(options: KitchenOptions) {
           if (run.kind === "cook") await onCookEnd(run, issue);
           else if (run.kind === "pass") await onPassEnd(run, issue, run.issue === null ? undefined : prs.get(run.issue));
           else {
-            const acted = await applyAgentActions(parseAgentActions(run.result), { act, issues, log, who: run.kind });
+            const acted = await applyAgentActions(parseAgentActions(run.result), { act, issues, log, who: run.kind, base });
             // A ticket the manager gave no usable gesture would come back to it every turn: it waits for the chef instead.
             for (const n of (run.given ?? []).filter((one) => !acted.has(one) && issues.has(one))) {
               await act.labels(n, [LABELS.parkedChef]);
