@@ -236,3 +236,10 @@ test("uninstall removes services, account, versions and link, and keeps the stat
   assert.equal(done.code, 1);
   assert.match(done.err, /FAILED .*Permission denied/);
 });
+
+test("docs/station.md documents every subcommand of the usage text", () => {
+  const doc = readFileSync(join(import.meta.dirname, "..", "..", "docs", "station.md"), "utf8");
+  const commands = USAGE.split("\n").filter((line) => /^ {2}\S/.test(line)).map((line) => line.trim().split(/ {2,}/)[0]!);
+  assert.ok(commands.length >= 7, "the usage lists the subcommands");
+  for (const command of commands) assert.ok(doc.includes(`\`brigade ${command}\``), `docs/station.md misses \`brigade ${command}\``);
+});
