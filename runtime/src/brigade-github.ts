@@ -1,6 +1,5 @@
-// Un projet servi sur l'état GitHub seul (épique #2053, spec
-// `docs/superpowers/specs/2026-11-02-github-only-state.md`) : le tour d'une
-// station qui prend, cuisine et merge les tickets en ne lisant et n'écrivant
+// Un projet servi sur l'état GitHub seul (épique #2053) : le tour d'une station
+// qui prend, cuisine et merge les tickets en ne lisant et n'écrivant
 // que GitHub — ni relais de prise, ni boîte aux lettres, ni journal qui
 // arbitre. Aucune station n'y est principale : chacune prend, chacune relit,
 // chacune merge, et l'arrêt de l'une n'arrête pas les autres.
