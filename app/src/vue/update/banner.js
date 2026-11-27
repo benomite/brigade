@@ -61,7 +61,7 @@ export function lineOfVersion(opinion, state) {
 // La ligne : la phrase, puis la suite que donne l'état de la mise à jour — son geste « Update now », ou le lien
 // « Download » quand l'app ne se met pas à jour d'elle-même. `refus` : pourquoi « Update now » n'a pas installé.
 // `demande` : « Update now » a été cliqué, et attend la fin du téléchargement pour installer.
-// La ligne ne nomme jamais deux versions à venir (#4494) : la suite dit où en est la dernière ; une mise à jour qui
+// La ligne ne nomme jamais deux versions à venir (ticket 4494) : la suite dit où en est la dernière ; une mise à jour qui
 // porte une version moins haute (une plus haute est sortie depuis) n'en dit rien, et « Update now » va chercher la
 // dernière.
 /** @param {Fabrique} doc @param {{ courante: string, derniere: string, nouvelle?: string }} line @param {Opinion | undefined} opinion @param {StateOfUpdate | undefined} state @param {{ telecharger: (url: string) => void, installer: () => void }} gestes @param {string} [refusal] @param {boolean} [asked] */

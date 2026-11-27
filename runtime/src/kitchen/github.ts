@@ -25,13 +25,19 @@ const issueOfBranch = (branch: string): number | null => {
   return match === null ? null : Number(match[1]);
 };
 
-export const dependsOn = (body: string): number[] => [...body.matchAll(/depends on #(\d+)/gi)].map((match) => Number(match[1]));
+// The tickets this one waits for: every #N after "depends on", "blocked by" or "after" on a line of its body,
+// plus GitHub's own "blocked by" links. A ticket that waits is not a question for the chef: it waits on its own.
+export const dependsOn = (body: string): number[] =>
+  body.split("\n").flatMap((line) => {
+    const at = line.search(/\b(depends on|blocked by|waits for|after)\s+#\d/i);
+    return at < 0 ? [] : [...line.slice(at).matchAll(/#(\d+)/g)].map((match) => Number(match[1]));
+  });
 
 const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}) {
       pageInfo { hasNextPage endCursor }
-      nodes { number title body authorAssociation labels(first: 30) { nodes { name } } }
+      nodes { number title body authorAssociation labels(first: 30) { nodes { name } } blockedBy(first: 20) { nodes { number state } } }
     }
     pullRequests(states: OPEN, first: 100) {
       nodes { number headRefName mergeable commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 60) { nodes {
@@ -42,7 +48,7 @@ const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
 
 type Context = { __typename: string; name?: string; conclusion?: string | null; status?: string; context?: string; state?: string };
 type RawPr = { number: number; headRefName: string; mergeable: string; commits: { nodes: Array<{ commit: { statusCheckRollup: { state: string; contexts: { nodes: Context[] } } | null } }> } };
-type RawIssue = { number: number; title: string; body: string; authorAssociation: string; labels: { nodes: Array<{ name: string }> } };
+type RawIssue = { number: number; title: string; body: string; authorAssociation: string; labels: { nodes: Array<{ name: string }> }; blockedBy?: { nodes: Array<{ number: number; state: string }> } };
 
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "ACTION_REQUIRED", "ERROR"]);
 
@@ -67,7 +73,7 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
     const data = JSON.parse(await gh(args)).data.repository;
     for (const raw of data.issues.nodes as RawIssue[]) {
       const labels = raw.labels.nodes.map((label) => label.name);
-      issues.push({ number: raw.number, title: raw.title, labels, trusted: TRUSTED.has(raw.authorAssociation) || labels.includes(ACCEPTED), dependsOn: dependsOn(raw.body) });
+      issues.push({ number: raw.number, title: raw.title, labels, trusted: TRUSTED.has(raw.authorAssociation) || labels.includes(ACCEPTED), dependsOn: [...new Set([...dependsOn(raw.body), ...(raw.blockedBy?.nodes ?? []).filter((one) => one.state === "OPEN").map((one) => one.number)])] });
     }
     if (cursor === null) {
       prs = (data.pullRequests.nodes as RawPr[]).flatMap((raw) => {
@@ -86,10 +92,15 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
 export async function ticketText(gh: Gh, repo: string, issue: number): Promise<string> {
   // The REST API, not `gh issue view`: only it says each author's association.
   const raw = JSON.parse(await gh(["api", `repos/${repo}/issues/${issue}`])) as { title: string; body: string | null; author_association: string; labels: Array<{ name: string }> };
-  const pages = JSON.parse(await gh(["api", "--paginate", "--slurp", `repos/${repo}/issues/${issue}/comments?per_page=100`])) as Array<Array<{ user: { login: string } | null; author_association: string; body: string }>>;
   const trusted = TRUSTED.has(raw.author_association) || raw.labels.some((label) => label.name === ACCEPTED);
-  const comments = pages.flat().filter((one) => TRUSTED.has(one.author_association)).map((one) => `--- ${one.user?.login ?? "?"} ---\n${one.body}`);
+  const comments = (await trustedComments(gh, repo, issue)).map((one) => `--- ${one.author} ---\n${one.body}`);
   return [`# #${issue} ${raw.title}`, trusted ? (raw.body ?? "") : "(body withheld: its author is not trusted)", ...(comments.length > 0 ? ["## Comments", ...comments] : [])].join("\n\n");
+}
+
+// The comments of trusted authors on an issue, oldest first.
+export async function trustedComments(gh: Gh, repo: string, issue: number): Promise<Array<{ author: string; body: string }>> {
+  const pages = JSON.parse(await gh(["api", "--paginate", "--slurp", `repos/${repo}/issues/${issue}/comments?per_page=100`])) as Array<Array<{ user: { login: string } | null; author_association: string; body: string }>>;
+  return pages.flat().filter((one) => TRUSTED.has(one.author_association)).map((one) => ({ author: one.user?.login ?? "?", body: one.body }));
 }
 
 export function gestures(gh: Gh, repo: string) {
@@ -100,6 +111,11 @@ export function gestures(gh: Gh, repo: string) {
       await gh(["issue", "edit", String(issue), ...r, ...(add.length ? ["--add-label", add.join(",")] : []), ...(remove.length ? ["--remove-label", remove.join(",")] : [])]);
     },
     close: (issue: number, body: string) => gh(["issue", "close", String(issue), ...r, "--reason", "not planned", "--comment", body]),
+    // Adds lines at the end of the issue's body.
+    appendToBody: async (issue: number, lines: string) => {
+      const body = (JSON.parse(await gh(["api", `repos/${repo}/issues/${issue}`])) as { body: string | null }).body ?? "";
+      await gh(["issue", "edit", String(issue), ...r, "--body-file", "-"], `${body.trimEnd()}\n\n${lines}\n`);
+    },
     comment: (issue: number, body: string) => gh(["issue", "comment", String(issue), ...r, "--body-file", "-"], body),
     open: async (title: string, body: string, labels: string[] = []): Promise<number> => {
       const url = await gh(["issue", "create", ...r, "--title", title, "--body-file", "-", ...(labels.length ? ["--label", labels.join(",")] : [])], body);
