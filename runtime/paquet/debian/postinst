@@ -17,12 +17,23 @@ PORTES=brigade-station-porte.service
 # sauvegarder. Les modèles à instances (brigade-sauvegarde@<projet>) sont
 # retrouvés par leurs liens d'activation et leurs drop-ins.
 ANCIENNES="brigade-kitchen.service brigade-arbitre.service brigade-renouvellement.service brigade-renouvellement.timer brigade-station-renouvellement.service brigade-station-renouvellement.timer brigade-sauvegarde@.service brigade-sauvegarde@.timer"
+# Celles qu'une version précédente du paquet livrait sous /usr/lib : dpkg a déjà
+# retiré leurs fichiers, mais le processus ou l'état « failed » reste chez systemd
+# — elles sont arrêtées sans condition, qu'un fichier de /etc les porte ou non.
+LIVREES="brigade-station-renouvellement.service brigade-station-renouvellement.timer"
 UNITES_A_LA_MAIN=/etc/systemd/system
+# Les unités retirées (ou arrêtées) par retirer_anciennes, dont l'état « failed »
+# est oublié après le daemon-reload.
+RETIREES=
 
 # Arrête, désactive et supprime chaque unité de l'ancien runtime que la machine
 # porte encore, avec ses drop-ins ; ce que la machine n'a pas n'est pas touché.
 retirer_anciennes() {
   liste="$ANCIENNES"
+  for unite in $LIVREES; do
+    systemctl disable --now "$unite" || true
+    RETIREES="$RETIREES $unite"
+  done
   for lien in "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.timer "$UNITES_A_LA_MAIN"/*.wants/brigade-sauvegarde@*.service \
       "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.service.d "$UNITES_A_LA_MAIN"/brigade-sauvegarde@*.timer.d; do
     [ -e "$lien" ] || [ -L "$lien" ] || continue
@@ -35,7 +46,10 @@ retirer_anciennes() {
       if [ -e "$chemin" ] || [ -L "$chemin" ]; then presente=oui; fi
     done
     [ -n "$presente" ] || continue
-    case "$unite" in *@.*) ;; *) systemctl disable --now "$unite" || true ;; esac
+    case "$unite" in
+      *@.*) ;;
+      *) case " $LIVREES " in *" $unite "*) ;; *) systemctl disable --now "$unite" || true; RETIREES="$RETIREES $unite" ;; esac ;;
+    esac
     rm -rf "$UNITES_A_LA_MAIN/$unite" "$UNITES_A_LA_MAIN/$unite.d" "$UNITES_A_LA_MAIN"/*.wants/"$unite"
   done
 }
@@ -58,6 +72,10 @@ case "$1" in
       # the station's kitchen takes them back.
       retirer_anciennes
       systemctl daemon-reload
+      # Une unité retirée qui avait échoué resterait listée en « failed ».
+      for unite in $RETIREES; do
+        systemctl reset-failed "$unite" || true
+      done
       if [ -z "${2:-}" ]; then
         # Première installation : la station démarre, et redémarrera avec la
         # machine.
