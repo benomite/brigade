@@ -54,7 +54,7 @@ export const SCRIPT_INIT = "init.sh";
 export const CATALOG_OF_LABELS = "labels.tsv";
 const BRAND_OF_SCRIPT = "@SCRIPT@";
 // La commande du runtime qui lance ce script, pose la carte de sa PR dans le TODO et rend le mot de fin du second
-// (runtime/src/second-init/pr-de-setup.ts, #3169), et le `node` qui la joue : `@SETUP_PR@` et `@NODE@`, remplacés de même.
+// (#3169), et le `node` qui la joue : `@SETUP_PR@` et `@NODE@`, remplacés de même.
 const BRAND_OF_THE_PR = "@SETUP_PR@";
 const BRAND_OF_NODE = "@NODE@";
 export const PR_OF_SETUP = ["src", "second-init", "pr-de-setup.ts"] as const;

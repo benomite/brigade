@@ -269,8 +269,6 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/station-freshness.ts",
     // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
     "app/src/vue/backlog/progress-github.ts",
-    // Le label `sensitive`, sans import : la carte d'un ticket sensible le dit (ticket 3224).
-    "app/src/vue/card-sensitive/label.ts",
     "app/src/vue/cooks/taken.ts",
     // Une PR dite par son ticket, sans import (ticket 3716).
     "app/src/vue/pr-of-ticket.js",

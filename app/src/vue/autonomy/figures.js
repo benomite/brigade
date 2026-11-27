@@ -22,7 +22,7 @@ import { durationInClear } from "../project/delay.js";
 /** @typedef {Extract<Reading, { chiffres: unknown }>["chiffres"]} Figures */
 
 export const TITLE = "Autonomy";
-// Les périodes offertes, en jours (runtime/src/autonomie/chiffres/chiffres.ts, `PERIODES`) — le test les compare.
+// Les périodes offertes, en jours (compute.ts, `PERIODES`) — le test les compare.
 export const PERIODS = /** @type {const} */ ([7, 30]);
 /** @param {number} days */
 export const periodSaid = (days) => `last ${days} days`;

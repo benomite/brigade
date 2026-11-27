@@ -145,10 +145,10 @@ test("un dépôt choisi n'appelle que son ouverture — sa copie, puis le fichie
   // Ajouter ne lance rien d'autre : aucun geste vers une station, aucune machine jointe. Sa page lit le rail que
   // sa station publierait sur GitHub (#1435), et le tableau de la cuisine de son dépôt (#1588) ; l'accueil, les stations du
   // compte GitHub (#1706), les GitHub Apps de la station de cet ordinateur (#2317), les projets qu'elle sert (#2359), ses
-  // humains, les stations qui y contribuent et les explications que le chef a vues (#3308), ses agents (#4029), les outils
+  // humains, les stations qui y contribuent, ses agents (#4029), les outils
   // que son clone demande (#4059), sa fiche (#4240) : des lectures, pas des gestes.
   assert.deepEqual(
-    played.appels.slice(calledBefore).map(({ geste: action }) => action).filter((action) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "listerLesHumains", "listerLesStationsContributrices", "listerLesRecurrents", "lireLesExplications", "lireLesAgents", "outilsManquants", "lireUnFichierDuProjet"].includes(action)),
+    played.appels.slice(calledBefore).map(({ geste: action }) => action).filter((action) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "listerLesHumains", "listerLesStationsContributrices", "lireLesAgents", "outilsManquants", "lireUnFichierDuProjet"].includes(action)),
     [],
   );
   assert.equal(played.appels.some(({ geste: action }) => action === "confierAUneStation" || action === "ajouterAUneStation"), false);

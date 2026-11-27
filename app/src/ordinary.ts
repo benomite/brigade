@@ -6,7 +6,7 @@
 import type { Project } from "./config.ts";
 import { isOneMac, nameOfWorkstation } from "./platform.ts";
 
-// Ce que `facts` dit d'une station (runtime/src/etat.ts, `stations`) — ce que l'app en lit.
+// Ce que `facts` dit d'une station (`stations`) — ce que l'app en lit.
 // `bacASable` : nul, la station n'en a rien dit.
 // `cuisson` : ce que la station fait du projet — `cooking`, `stopped`, `refused` (#1183) ;
 // `arreteeDepuis` : le chef l'a arrêtée, depuis quand — nul, ce n'est pas lui, ou elle cuit ; `refus` : pourquoi
@@ -44,8 +44,7 @@ const inHead = (workstation: string) => `${workstation.charAt(0).toUpperCase()}$
 export const explanation = (workstation: string): string => `Cooks on ${workstation} run in Claude Code's sandbox: they write only in their own worktree, and reach only the network hosts on the project's list.`;
 
 // Hors d'un Mac — un PC sous Windows, un Linux de bureau —, la station ne prend aucun ticket
-// ordinaire : le runtime ne monte le bac à sable d'une cuisine locale que sous macOS
-// (runtime/src/bac-a-sable/local.ts), et une station distante sans bac à sable n'en prend pas
+// ordinaire : le runtime ne monte le bac à sable d'une cuisine locale que sous macOS, et une station distante sans bac à sable n'en prend pas
 // (`prendLesOrdinaires`). L'app le dit, à la place de l'option, plutôt que de taire le réglage.
 export const withoutSandbox = (workstation: string): string =>
   `${inHead(workstation)} takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's sandbox, which the station sets up only on macOS.`;

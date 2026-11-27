@@ -18,7 +18,7 @@ import { READ_OF, NOT_REACHED, NOT_STILL } from "../lexicon.js";
 /** @typedef {import("./know-how-github.ts").ReadOfKnowledge} Reading */
 /** @typedef {import("./know-how-github.ts").ChangeOfKnowledge} Change */
 /** @typedef {import("./know-how-github.ts").RenderedOfKnowledge} Rendered */
-/** @typedef {import("../../../../runtime/src/know-how/know-how.ts").KnowHowEntry} Entry */
+/** @typedef {import("./entries.ts").KnowHowEntry} Entry */
 // What the screen holds of one entry, by its line: the text being typed (an edit open), the change on its way, what the
 // last one returned.
 /** @typedef {{ edition?: string, enCours?: "edit" | "remove", dit?: { pr: string, numero: number, kind: "edit" | "remove" } | { refus: string, detail?: string } }} State */

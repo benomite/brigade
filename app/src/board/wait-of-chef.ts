@@ -44,7 +44,6 @@ import { cardOfTheQuestionOfEpic, EPIC_LABEL, questionOfEpicThe } from "./questi
 import { parkedChefCard, LABEL_PARKED_CHEF, whyParked, KIND_PARKED_CHEF } from "./parked-chef-github.ts";
 import { cardOfComment, shapeOfChef, LABEL_OF_CHEF, type CardOfChef } from "./todo-github.ts";
 import { thirdOfComments } from "../vue/wait/wait-github.ts";
-import { reviewOfBody, KIND_SENSITIVE } from "../vue/card-sensitive/card-sensitive-github.ts";
 import { KIND_OF_VALIDATION, validationOfBody } from "../vue/validation-design/validation-design-github.ts";
 
 const LABEL_FIRE = "fire";
@@ -124,7 +123,6 @@ class OutsideLine extends Error {}
 function lineOfTheCard({ sorte: kind, texte: said }: CardOfChef): string {
   const { question, choix: choice } = shapeOfChef(said);
   if (kind === KIND_OF_VALIDATION && question !== null) return `${question} — on its Todo card: Validate, or Send back to the kitchen with a comment`;
-  if (kind === KIND_SENSITIVE && question !== null) return `${question} — on its Todo card: Merge, or Send back with a note`;
   if (kind === KIND_PARKED_CHEF && question !== null) return `${question} — on its Todo card: Answer, in your own words — the ticket goes back on the rail`;
   const reply = choice.length === 0 ? "answer on its Todo card, in your own words" : `answer on its Todo card: ${choice.map(({ texte: wording }) => `“${wording}”`).join(" or ")} — or in your own words`;
   return `${question ?? `A ${kind} card without its question: what does it ask you?`} — ${reply}`;
@@ -235,15 +233,12 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
       // La carte « Validate its screen » (ticket 3185) : sa PR et ses captures, lues du corps de son issue — ou du commentaire
       // de la carte, quand la validation est demandée sur le ticket même (ticket 3615).
       const design = brand.carte.sorte === KIND_OF_VALIDATION ? (validationOfBody(repository, text(issue.body)) ?? validationOfBody(repository, brand.corps)) : null;
-      // La carte « review before merge » d'un ticket sensible (ticket 3224) : sa PR et son ticket, lus du corps de son issue —
-      // ou du commentaire de la carte (ticket 3615).
-      const sensitive = brand.carte.sorte === KIND_SENSITIVE ? (reviewOfBody(repository, text(issue.body)) ?? reviewOfBody(repository, brand.corps)) : null;
       // La carte d'une question du manager, qui parque l'issue pour le chef (#4129) : la réponse qu'il recommande, comme sur
       // un écart (#3434) — sa ligne `Recommended:` quitte le texte. Sans elle, la carte est comme toute autre.
       const shape = shapeOfChef(brand.carte.texte.replace(/\*\*/g, ""));
       const recommended = recommendedOf(shape.contexte, shape.choix);
       const textOfTheCard = recommended === null ? brand.carte.texte : [shape.question ?? "", ...shape.choix.map(({ texte: wording, suite }) => `- [${suite}] ${wording}`), ...(recommended.contexte === "" ? [] : ["", recommended.contexte])].join("\n");
-      const chef = { ...brand.carte, texte: textOfTheCard, ...(recommended === null ? {} : { recommandee: recommended.recommandee }), ...(design === null ? {} : { design }), ...(sensitive === null ? {} : { sensible: sensitive }) };
+      const chef = { ...brand.carte, texte: textOfTheCard, ...(recommended === null ? {} : { recommandee: recommended.recommandee }), ...(design === null ? {} : { design }) };
       set({ ...entry(issue), depuis: brand.le ?? created(issue), quoi: "carte", ligne: lineOfTheCard(brand.carte), chef });
     }
     // Les issues que la nouvelle cuisine parque pour le chef, si aucune carte ne les dit déjà : depuis son commentaire.

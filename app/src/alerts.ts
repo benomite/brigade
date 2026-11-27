@@ -16,7 +16,7 @@
 // lecture, ou quand cette lecture échoue — et la ligne dit pourquoi.
 // D'où vient chaque état : la cuisine de `faits` (facts.ts), la cause d'une
 // cuisine retenue des lignes de tête de `status` — celles que le runtime écrit
-// d'un titre et d'une valeur (runtime/src/etat.ts, `decrireEtat`) —, le manager de la
+// d'un titre et d'une valeur (`decrireEtat`) —, le manager de la
 // sortie de `manager` (manager.ts). Le setup du projet bloqué est une cause de la cuisine :
 // sa ligne de tête dit qu'il l'est, son entrée `setup` du bloc `attend` en dit la cause et le
 // geste — c'est elle que la ligne de la bande reprend. Ce que la box dit se pose mot pour mot ; l'app n'y
@@ -66,7 +66,7 @@ export type Alert = { sujet: Subject; verifie: boolean; ton: string; dit: string
 export type Signal = { etat: "urgence" | "alerte" | "non-verifie" | "injoignable"; dit: string };
 // L'état de l'interrupteur du projet, pour l'interrupteur de son espace (#906, #1406) : allumé ou
 // éteint, tel qu'il vient d'être lu — sans le délai d'affichage d'une ligne de la bande. Un seul pour
-// tout le projet : le manager le suit, et c'est sa ligne qui le dit (runtime/src/manager-cli.ts) —
+// tout le projet : le manager le suit, et c'est sa ligne qui le dit —
 // allumé, les tickets lancés sont pris, le manager juge et découpe, une livraison verte est mergée.
 // `dit` : ce que la tête du rail en dit, éteint — la même phrase que la ligne de la bande.
 // `releve` : la ligne `manager` du runtime, mot pour mot, que l'interrupteur montre au survol.
@@ -154,7 +154,7 @@ function ofWritesHeld(status: string | Without): Alert[] {
 
 // --- L'urgence ----------------------------------------------------------------
 //
-// Plus rien ne cuit, et c'est le chef que toute la cuisine attend (runtime/src/urgence.ts) : pas une
+// Plus rien ne cuit, et c'est le chef que toute la cuisine attend : pas une
 // panne parmi d'autres, la seule chose qui, faite, relance tout. Sa ligne passe au-dessus de toutes
 // les autres, marquée à part. Elle dit qui attend quoi — la décision qui retient le plus de tickets —,
 // depuis combien de temps tout est à l'arrêt — un âge entre deux heures de la box —, les tickets
@@ -163,8 +163,8 @@ function ofWritesHeld(status: string | Without): Alert[] {
 // du rail n'est pas une urgence : la box n'en donne pas, rien ne se dit ici — et un runtime d'avant le
 // champ n'en dit rien non plus : ce qu'il ne donne pas, les autres lignes le disent déjà.
 
-// Ce que la cuisine attend du chef, d'après le mot de la cause (runtime/src/etat.ts,
-// `CAUSES_D_URGENCE`) et ce qui nomme la décision. Un mot que l'app n'a pas ici se dit tel quel.
+// Ce que la cuisine attend du chef, d'après le mot de la cause
+// (`CAUSES_D_URGENCE`) et ce qui nomme la décision. Un mot que l'app n'a pas ici se dit tel quel.
 const EXPECTED: ReadonlyMap<string, (decision: string) => string> = new Map([
   ["merge", (decision: string) => `your merge of ${decision}`],
   ["remontée", (decision: string) => `your decision on ${decision}, escalated by the pass`],
@@ -272,7 +272,7 @@ const stateOfManager = (manager: Switch | Without): StateOfManager => ("sans" in
 // --- La cuisine -------------------------------------------------------------
 
 // Une ligne de tête de `status` : son titre, sa valeur, et les lignes qui la précisent
-// (runtime/src/etat.ts, `ligne` : le titre complété d'espaces jusqu'à onze caractères).
+// (`ligne` : le titre complété d'espaces jusqu'à onze caractères).
 type Head = { titre: string; valeur: string; suite: string[] };
 const LINE_OF_HEAD = /^(\S+) +(\S.*)$/;
 const SUITE_OF_HEAD = /^ {11}(\S.*)$/;
@@ -373,12 +373,12 @@ function statusRead(status: string | Without): string | Without {
 
 // --- Le setup du projet -------------------------------------------------------
 
-// La ligne de tête `setup` de `status` (runtime/src/etat.ts, `decrireSetup`) : `BLOCKED for …
+// La ligne de tête `setup` de `status` (`decrireSetup`) : `BLOCKED for …
 // on <commit> — …` (`BLOQUÉ depuis …` avant #928). Absente, le setup du projet n'est pas bloqué : rien à dire.
 const SETUP_BLOCKED = /^(?:BLOQUÉ|BLOCKED)(?![\p{L}\p{N}_])/u;
 const blocksTheSetup = (status: string) => headsOf(status).some(({ titre: title, valeur: value }) => title === "setup" && SETUP_BLOCKED.test(value));
 
-// L'entrée `setup` du bloc `attend` (runtime/src/attend.ts, `decrireAttentes`) : deux espaces,
+// L'entrée `setup` du bloc `attend` (`decrireAttentes`) : deux espaces,
 // `setup`, deux espaces, depuis quand, deux espaces, puis la cause et le geste — c'est ce qui en
 // est repris, mot pour mot, avec les lignes qui la précisent, sans leur retrait. Rien quand le
 // texte n'en a pas. Depuis quand se dit `depuis …` ou `for …` (#927).
@@ -488,7 +488,7 @@ function ofTheKitchen(project: string, facts: Facts | Without, status: string | 
 // qui n'a pas pu se faire n'invente aucune perte — et la box pas jointe, les autres lignes le disent.
 
 // Les gestes de box, par la section de docs/installer.md que la flèche de leur manque nomme
-// (runtime/src/installation.ts, `jugerReglageDuGeste`), et ce que
+// (`jugerReglageDuGeste`), et ce que
 // leur absence empêche, en mots simples.
 const ACTIONS_OF_BOX = [
   { section: "« Le geste d'installation »", nom: "install a project", empeche: "installing a project on this station by its installation action would be refused" },
