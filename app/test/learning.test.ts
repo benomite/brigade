@@ -5,9 +5,17 @@
 // est écrit dans la forme même du runtime (`Apprentissage`) : l'app lit ce que la box écrit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Apprentissage as LearningOfRuntime } from "../../runtime/src/apprentissage/projet.ts";
 import { learningOf, learningRead, type Learning } from "../src/learning.ts";
 import { understand, board } from "../src/facts.ts";
+
+// The box's `apprentissage` field, as the runtime wrote it (its module is gone, #4683): the shape this test pins.
+type Delivery = { retenus: number; premiers: number; premierCoup: number; essaisMoyens: number };
+type Progress = { avant: Delivery | null; apres: Delivery | null };
+type Origin = { kind: "retro" } | { kind: "pass-send-back"; ticket: number } | { kind: "chef-correction"; ticket: number };
+type LearningOfRuntime = {
+  lecons: Array<{ id: string; texte: string; statut: "provisoire" | "promue"; date: string; tickets: number[]; origine: Origin; cooks: number; progres: Progress; url?: string }>;
+  profils: Array<{ nom: string; domaine: string; skills: string[]; perimetre: string[]; carnet: Array<{ id: string; texte: string; etat: string; origine: Origin }>; tickets: number[]; progres: Progress }>;
+};
 
 const A = "2026-10-19T10:00:00.000Z";
 const LINE = "https://github.com/chef/parade/blob/main/.claude/brigade/carnet.md#L5";

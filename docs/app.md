@@ -820,18 +820,15 @@ Nothing of the old runtime is read and nothing is added to `runtime/`. Screensho
 The project's menu has an **Agents** tab, between Stations and Settings; the project remembers it like Rail and
 Stations. It shows **one line per agent at work**, read when the tab opens: its **kind** (`cook`, `pass`, `manager`,
 `supervisor`), its **ticket** (`#N`, none for the manager and the supervisor), **since when** (`since 42 min`) and **on
-which station** (`on box`). With none at work it says `No agent at work`, never an error. A station that cannot be read
-says why in one sentence beneath (`box could not be read: its runtime does not serve the agents yet.`) while the agents
-GitHub gave stay listed; a reading that fails (GitHub refuses, the project left the file) says `The agents not
+which station** (`on box`). With none at work it says `No agent at work`, never an error. A reading that fails (GitHub refuses, the project left the file) says `The agents not
 reached.`, its detail on hover.
 
-Nothing is added to the runtime and nothing asks the old runtime's `facts`: the main process answers the bridge's
-`agentsAtWork` (`app/src/team-of-the-box.ts`) from **GitHub** — the board the rail already reads: a ticket with the
-`taken` label has a cook, a ticket `in-pass` has the pass, since the label was put on (the timeline's `labeled` event) —
-and from **what the kitchen writes on its station**: the `agents` command reads its run files
-(`runtime/src/agents-tab/kitchen.ts`), and an agent it says at work that the board does not show (the manager, the
-supervisor) is listed too, with no time. The kitchen writes no station on GitHub, so a station is the computer's own
-(`hostname`), and none for a project that does not cook on this computer.
+Nothing is added to the runtime and nothing is launched on a station (#4683: the `agents` command is gone): the main
+process answers the bridge's `agentsAtWork` (`app/src/team-of-the-box.ts`) from **GitHub** alone — the board the rail
+already reads: a ticket with the `taken` label has a cook, a ticket `in-pass` has the pass, since the label was put on
+(the timeline's `labeled` event). The manager and the supervisor, which only the station's run files showed, are no longer
+listed. The kitchen writes no station on GitHub, so a station is the computer's own (`hostname`), and none for a project
+that does not cook on this computer.
 
 The `closer` and `reviewer` are not listed: the kitchen runs neither. Captures (in git history): `docs/captures/4569/` (`onglet-agents-avant.png` — the tab saying `The agents not reached.` —,
 `onglet-agents-apres.png`, `onglet-agents-vide-apres.png`).

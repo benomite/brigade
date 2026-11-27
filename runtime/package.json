@@ -16,7 +16,6 @@
     "humans": "node src/humains-cli.ts",
     "contributor-stations": "node src/contributor-stations-cli.ts",
     "manager": "node src/manager-cli.ts",
-    "agents": "node src/agents-cli.ts",
     "help": "node src/aide.ts"
   },
   "devDependencies": {
