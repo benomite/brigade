@@ -4,7 +4,8 @@
 // Au lancement, puis tous les quarts d'heure (#2431) — et quand la vue le demande —, elle regarde si une
 // version plus haute que la sienne est publiée. S'il y en a une, elle l'annonce (`disponible`, avec
 // son numéro) et la télécharge aussitôt, vérifiée contre la taille et le sha512 publiés
-// (`telechargement`, puis `prete`). Ensuite, deux chemins : le chef dit « installer maintenant » —
+// (`telechargement`, puis `prete`). Prête, elle relit le flux à chaque vérification : une version plus haute sortie
+// depuis se télécharge à sa place (#4494). Ensuite, deux chemins : le chef dit « installer maintenant » —
 // elle se ferme, l'installeur la remplace et la rouvre (installation.ts) —, ou il ne dit rien, et la
 // version téléchargée s'installe à son lancement suivant, avant que rien n'y démarre. Tout cela est
 // le même sur un Mac et sous Windows : seuls l'installeur téléchargé (le .dmg, ou le setup .exe) et
@@ -84,7 +85,8 @@ export type Update = {
   // La première vérification, puis une toutes les `cadenceMs`.
   demarrer(): void;
   verifier(): Promise<StateOfUpdate>;
-  // « Installer maintenant » : télécharge si ce n'est pas fait, lance l'installeur et ferme l'app —
+  // « Installer maintenant » : télécharge la dernière version publiée si ce n'est pas fait — ou attend la fin de son
+  // téléchargement —, lance l'installeur et ferme l'app —
   // rien n'est rendu — ou dit pourquoi elle reste sur sa version.
   installerMaintenant(): Promise<{ refus: string } | undefined>;
   fermer(): void;
@@ -232,13 +234,18 @@ export function holdUpdate(options: OptionsUpdate): Update {
     }));
 
   const check = (): Promise<StateOfUpdate> => {
-    // Depuis le dépôt, rien ne se lit ; téléchargée, ou en route, la version ne se relit pas.
-    if (state.etat === "inactive" || state.etat === "telechargement" || state.etat === "prete" || state.etat === "installation") return Promise.resolve(state);
+    // Depuis le dépôt, rien ne se lit ; en route, ou en train de s'installer, la version ne se relit pas.
+    if (state.etat === "inactive" || state.etat === "telechargement" || state.etat === "installation") return Promise.resolve(state);
     return (verification ??= (async () => {
-      set({ etat: "verification", version });
+      // Prête, la version relit le flux sans changer d'état (#4494) : une plus haute sortie depuis se télécharge à
+      // sa place, et l'ancienne s'en va — l'app n'offre jamais d'installer moins que la dernière qu'elle connaît.
+      // Rien de plus haut, ou un flux muet : la version prête le reste.
+      const readyOne = state.etat === "prete" ? state.nouvelle : undefined;
+      if (readyOne === undefined) set({ etat: "verification", version });
       try {
         const published = await options.flux.nouvelle(version, AbortSignal.any([stop.signal, AbortSignal.timeout(delayFluxMs)]));
         if (stop.signal.aborted) return state;
+        if (readyOne !== undefined && (published === undefined || compareVersions(published.version, readyOne) <= 0)) return state;
         if (published === undefined) {
           set({ etat: "a-jour", version, verifieeLe: now().toISOString() });
           return state;
@@ -252,6 +259,7 @@ export function holdUpdate(options: OptionsUpdate): Update {
         void downloadThe(published);
         return state;
       } catch (error) {
+        if (readyOne !== undefined) return state;
         if (!stop.signal.aborted) set({ etat: "erreur", version, raison: `the update feed (${options.flux.nom}) could not be read: ${message(error)}` });
         return state;
       }
@@ -295,8 +303,16 @@ export function holdUpdate(options: OptionsUpdate): Update {
     installerMaintenant() {
       if (state.etat === "inactive") return Promise.resolve({ refus: `this app does not update itself here: ${state.raison}` });
       return (installation ??= (async (): Promise<{ refus: string } | undefined> => {
-        if (state.etat !== "prete" && download === undefined) await check();
+        // Même prête, la version relit le flux : « installer maintenant » installe la dernière publiée, et attend
+        // la fin de son téléchargement quand il est en route.
+        // Pendant un téléchargement, le flux se relit à sa fin : une version sortie depuis passe devant.
+        const readBefore = download === undefined;
+        if (readBefore) await check();
         if (download !== undefined) await download;
+        if (!readBefore && state.etat === "prete") {
+          await check();
+          if (download !== undefined) await download;
+        }
         const readEntry = readReady();
         if (state.etat !== "prete" || readEntry === undefined) {
           const seenOne = state;

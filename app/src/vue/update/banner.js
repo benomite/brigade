@@ -1,8 +1,8 @@
 // @ts-check
 // La ligne d'une version plus haute (le ticket 1528, épique 1525 ; une ligne, sans croix, depuis le ticket 2431), en tête
 // de l'app sur un Mac, sous Windows et sur Android : « Brigade 1.4.0 is running — 1.5.0 is out », puis où en est la
-// mise à jour de l'app installée — `downloading it, 40 %`, `downloaded: it installs at the next launch` avec
-// « Install now », `installing it — the app relaunches itself…` —, ou, quand elle ne se fait pas d'elle-même (une
+// mise à jour de l'app installée — `downloading 1.5.0, 40 %`, `1.5.0 is downloaded: it installs at the next launch`,
+// `installing 1.5.0 — the app relaunches itself…`, avec « Update now » tant qu'elle n'est pas lancée —, ou, quand elle ne se fait pas d'elle-même (une
 // release sans `latest-mac.yml`, une mise à jour en échec, Android), le lien « Download » du paquet de ce poste — le
 // .dmg, l'installeur .exe ou l'.apk —, jamais la page des releases. Elle reste tant que l'app ne tourne pas sur la
 // dernière version : rien ne l'écarte. Sans version plus haute, rien n'est posé.
@@ -58,29 +58,37 @@ export function lineOfVersion(opinion, state) {
   return { courante: current, derniere: last, nouvelle: newEntry };
 }
 
-// La ligne : la phrase, puis la suite que donne l'état de la mise à jour — son geste « Install now », ou le lien
-// « Download » quand l'app ne se met pas à jour d'elle-même. `refus` : pourquoi « Install now » n'a pas installé.
-/** @param {Fabrique} doc @param {{ courante: string, derniere: string, nouvelle?: string }} line @param {Opinion | undefined} opinion @param {StateOfUpdate | undefined} state @param {{ telecharger: (url: string) => void, installer: () => void }} gestes @param {string} [refusal] */
-export function setBanner(doc, line, opinion, state, { telecharger: fetchDownload, installer }, refusal) {
+// La ligne : la phrase, puis la suite que donne l'état de la mise à jour — son geste « Update now », ou le lien
+// « Download » quand l'app ne se met pas à jour d'elle-même. `refus` : pourquoi « Update now » n'a pas installé.
+// `demande` : « Update now » a été cliqué, et attend la fin du téléchargement pour installer.
+// La ligne ne nomme jamais deux versions à venir (#4494) : la suite dit où en est la dernière ; une mise à jour qui
+// porte une version moins haute (une plus haute est sortie depuis) n'en dit rien, et « Update now » va chercher la
+// dernière.
+/** @param {Fabrique} doc @param {{ courante: string, derniere: string, nouvelle?: string }} line @param {Opinion | undefined} opinion @param {StateOfUpdate | undefined} state @param {{ telecharger: (url: string) => void, installer: () => void }} gestes @param {string} [refusal] @param {boolean} [asked] */
+export function setBanner(doc, line, opinion, state, { telecharger: fetchDownload, installer }, refusal, asked = false) {
   const root = doc.createElement("div");
   root.className = "bandeau-mise-a-jour";
   root.role = "status";
   const sentence = doc.createElement("p");
   sentence.className = "phrase";
   sentence.append(`Brigade ${line.courante} is running — ${line.derniere} is out`);
-  // La version que la mise à jour porte, quand ce n'est pas la dernière (une plus haute est sortie depuis).
-  const it = line.nouvelle === undefined || line.nouvelle === line.derniere ? "it" : line.nouvelle;
+  const latest = line.derniere;
+  const ofTheLatest = line.nouvelle === line.derniere;
+  const then = asked ? " — it installs as soon as it is downloaded, then the app relaunches itself" : "";
   /** @type {string | undefined} */
   let suite;
   let link = false;
-  if (state?.etat === "telechargement") suite = `downloading ${it}, ${state.taille > 0 ? Math.floor((100 * state.recus) / state.taille) : 0} %`;
-  else if (state?.etat === "disponible") suite = `downloading ${it}`;
-  else if (state?.etat === "prete") suite = refusal ?? `${it === "it" ? "it is" : `${it} is`} downloaded: it installs at the next launch`;
-  else if (state?.etat === "installation") suite = `installing ${it} — the app relaunches itself…`;
-  else if (state?.etat === "erreur") {
+  if (state?.etat === "erreur") {
     suite = "it could not update itself";
     sentence.title = state.raison;
     link = true;
+  } else if (state?.etat === "telechargement" || state?.etat === "disponible" || state?.etat === "prete" || state?.etat === "installation") {
+    if (refusal !== undefined) suite = refusal;
+    else if (!ofTheLatest) suite = undefined;
+    else if (state.etat === "telechargement") suite = `downloading ${latest}, ${state.taille > 0 ? Math.floor((100 * state.recus) / state.taille) : 0} %${then}`;
+    else if (state.etat === "disponible") suite = `downloading ${latest}${then}`;
+    else if (state.etat === "prete") suite = `${latest} is downloaded: it installs at the next launch`;
+    else suite = `installing ${latest} — the app relaunches itself…`;
   } else link = true;
   if (suite !== undefined) sentence.append(` · ${suite}`);
   if (link && opinion !== undefined) {
@@ -97,7 +105,9 @@ export function setBanner(doc, line, opinion, state, { telecharger: fetchDownloa
     sentence.append(" — ", download);
   }
   root.append(sentence);
-  if (state?.etat === "prete") root.append(buttonAction(doc, PUT_A_DAY, installer, { recommande: true, prix: "closes the app's terminals, then relaunches it on the new version" }));
+  // « Update now » installe la dernière version : prête, elle s'installe ; en route, elle s'installe à la fin de son
+  // téléchargement, sans second clic.
+  if (!asked && (state?.etat === "prete" || state?.etat === "telechargement" || state?.etat === "disponible")) root.append(buttonAction(doc, PUT_A_DAY, installer, { recommande: true, prix: `closes the app's terminals, then relaunches it on ${latest}` }));
   return root;
 }
 
@@ -111,6 +121,7 @@ export function holdBanner(place, doc, bridge) {
   let state;
   /** @type {string | undefined} */
   let refusal;
+  let asked = false;
   const set = () => {
     const line = lineOfVersion(opinion, state);
     place.hidden = line === undefined;
@@ -120,13 +131,16 @@ export function holdBanner(place, doc, bridge) {
         : [
             setBanner(doc, line, opinion, state, {
               telecharger: (url) => void bridge.telecharger(url),
-              installer: () =>
+              installer: () => {
+                asked = true;
+                set();
                 void Promise.resolve(bridge.installer()).then((rendered) => {
-                  if (rendered === undefined) return;
-                  refusal = rendered.refus;
+                  asked = false;
+                  if (rendered !== undefined) refusal = rendered.refus;
                   set();
-                }),
-            }, refusal),
+                });
+              },
+            }, refusal, asked),
           ]),
     );
   };
