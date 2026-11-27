@@ -41,6 +41,12 @@ test("a conflicting delivery goes back without counting a try", () => {
   assert.deepEqual(actions, [{ kind: "send-back", issue: 1, reason: "its branch conflicts with the base branch", counts: false }]);
 });
 
+test("a pull request parked for the chef's merge that starts conflicting goes back to a cook, without counting a try (#4492)", () => {
+  const issues = [issue(1, ["fire", "parked:chef", "approved"]), issue(2, ["fire", "parked:chef", "approved"]), issue(3, ["fire", "parked:chef"])];
+  const actions = decide(issues, [pr(1, { conflicting: true }), pr(2), pr(3, { conflicting: true })], context());
+  assert.deepEqual(actions, [{ kind: "send-back", issue: 1, reason: "its branch conflicts with the base branch", counts: false }]);
+});
+
 test("a green delivery is reviewed within the pass places; a pending one waits", () => {
   const issues = [issue(1, ["fire", "in-pass"]), issue(2, ["fire", "in-pass"]), issue(3, ["fire", "in-pass"])];
   const actions = decide(issues, [pr(1), pr(2, { checks: "none" }), pr(3, { checks: "pending" })], context({ passPlaces: 1 }));

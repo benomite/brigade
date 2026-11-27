@@ -1,6 +1,4 @@
-// How the kitchen launches one agent (cook, closer, reviewer, manager):
-// `claude` with its calibration and its environment, inside the enclosure of
-// `bac-a-sable/kitchen-sandbox.ts` — none on a Mac without a sandbox, so no launcher.
+// How the kitchen launches an agent: `claude` in `bac-a-sable/kitchen-sandbox.ts`'s enclosure, or no launcher without one.
 import { argumentsClaude, environnementCook } from "../claude.ts";
 import { kitchenEnclosure, type EnclosurePlace } from "../bac-a-sable/kitchen-sandbox.ts";
 import { environnementClaude } from "../jeton-claude.ts";

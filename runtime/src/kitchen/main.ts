@@ -43,11 +43,7 @@ function kitchenOf(project: KitchenProject) {
   return {
     // What the base branch declares, read before each turn.
     readBase: async () => {
-      try {
-        risk = (JSON.parse(await git(project.clone, ["show", `origin/${project.base}:.brigade/kitchen.json`])) as { risk?: string[] }).risk ?? [];
-      } catch {
-        risk = [];
-      }
+      risk = await git(project.clone, ["show", `origin/${project.base}:.brigade/kitchen.json`]).then((text) => (JSON.parse(text) as { risk?: string[] }).risk ?? []).catch(() => []);
       hosts = await projectHosts(git, project.clone, project.base);
     },
     kitchen: openKitchen({
@@ -86,16 +82,13 @@ if (import.meta.main) {
     }
     for (const project of projects) {
       try {
-        if (!kitchens.has(project.name)) {
-          const opened = kitchenOf(project);
-          if ("refused" in opened) {
-            if (refusals.get(project.name) !== opened.refused) log(project.name)(opened.refused);
-            refusals.set(project.name, opened.refused);
-            continue;
-          }
-          kitchens.set(project.name, opened);
+        const served = kitchens.get(project.name) ?? kitchenOf(project);
+        if ("refused" in served) {
+          if (refusals.get(project.name) !== served.refused) log(project.name)(served.refused);
+          refusals.set(project.name, served.refused);
+          continue;
         }
-        const served = kitchens.get(project.name) as Served;
+        kitchens.set(project.name, served);
         await served.readBase();
         await served.kitchen.turn();
       } catch (error) {
