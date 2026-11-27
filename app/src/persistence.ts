@@ -8,7 +8,7 @@
 // lui-même la destruction, qui n'a pas besoin de terminal.
 //
 // La session est réglée pour se comporter comme un terminal ordinaire : rien n'y
-// capture la souris (la sélection, la copie et le collage restent ceux de la vue), aucun
+// capture la souris, et le défilement de la vue remonte l'historique (la sélection, la copie et le collage restent ceux de la vue), aucun
 // mode de copie n'est à apprendre, et aucune touche n'est prise par le multiplexeur.
 // Le second ne passe jamais par ici.
 import { execFile, type ExecFileException } from "node:child_process";
@@ -61,6 +61,17 @@ const LOCALE_UTF8 = [
   "esac",
 ];
 
+// Le multiplexeur écrit sur l'écran normal du terminal, pas sur l'écran alterné (`smcup`/`rmcup`
+// retirés) : ce qui défile alimente alors le défilement de xterm.js, et la molette le remonte comme
+// pour le second — sans que le multiplexeur prenne la souris, la sélection reste celle de la vue.
+// `terminal-overrides` est une option du serveur, lue au rattachement d'un client : elle se pose avant
+// lui, une seule fois.
+export const OVERRIDE_TMUX = "*:smcup@:rmcup@";
+// `screen` ne le lit qu'à la création de la session, par un fichier de réglage (`-c`) : ni `-X`, ni
+// `-c` au rattachement n'y changent rien. Une session créée avant ce réglage garde l'écran alterné
+// jusqu'à sa destruction.
+export const RC_SCREEN_NORMAL_SCREEN = "termcapinfo * ti@:te@";
+
 // Le script qui crée la session ou s'y rattache. Il est lu par `sh`.
 // `TMUX`, `STY` : une app lancée depuis un multiplexeur ne s'y emboîte pas.
 export function scriptOfAttachment(name: string): string {
@@ -71,9 +82,18 @@ export function scriptOfAttachment(name: string): string {
     "if command -v tmux >/dev/null 2>&1; then",
     `  tmux -u has-session -t =${name} 2>/dev/null || tmux -u new-session -d -s ${name} -c "$PWD" || exit`,
     ...SETTINGS_TMUX.map((setting) => `  tmux -u set-option -t =${name} ${setting}`),
+    `  tmux -u show-options -sv terminal-overrides | grep -qF "${OVERRIDE_TMUX}" || tmux -u set-option -sa terminal-overrides ",${OVERRIDE_TMUX}"`,
     `  exec tmux -u attach-session -t =${name}`,
     "elif command -v screen >/dev/null 2>&1; then",
-    `  ${screenExists(name)} || screen -U -dmS ${name} || exit`,
+    `  ${screenExists(name)} || {`,
+    // Le fichier de réglage vit dans un répertoire du chef (`~/.brigade/screen`, 0700), jamais sous un nom
+    // prévisible d'un répertoire partagé. Il n'est pas supprimé : `screen` ne le lit qu'au premier
+    // rattachement, pas à `-dmS`. `-c` remplace `~/.screenrc` : il le charge d'abord, le réglage du chef reste.
+    '    dir="$HOME/.brigade/screen"; mkdir -p "$dir" && chmod 700 "$dir" || exit',
+    `    rc="$dir/${name}.screenrc"`,
+    '    { [ ! -f "$HOME/.screenrc" ] || echo "source \\"$HOME/.screenrc\\""; echo "' + RC_SCREEN_NORMAL_SCREEN + '"; } > "$rc" || exit',
+    `    screen -U -c "$rc" -dmS ${name} || exit`,
+    "  }",
     ...SETTINGS_SCREEN.map((setting) => `  screen -S ${name} -X ${setting}`),
     `  exec screen -U -x ${name}`,
     "fi",
