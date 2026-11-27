@@ -563,7 +563,7 @@ removalOfStation.className = "retrait-de-station";
 // cooks — posées par la coque de station/page/StationPage.js.
 const sectionsOfStation = document.createElement("div");
 sectionsOfStation.className = "sections-de-station";
-pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, factsOfStation, outagesOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
+pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, outagesOfStation, factsOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
 // Les chiffres d'autonomie de tous les projets (ticket 3222) : ils valent pour l'ensemble, ils vivent donc au niveau de
 // l'app, pas dans un projet. Une ligne « Autonomy » ouvre leur page, en bas du bandeau de santé de chaque projet. Le coût
 // en tokens qu'elle montrait avant (ticket 1022), que seul l'ancien runtime calculait, en est retiré (ticket 4509).
