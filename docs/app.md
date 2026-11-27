@@ -1404,7 +1404,7 @@ queued, without going through TODO.
 - **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `parked` — it resumes exactly where
   it was`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
   is on its way, the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are
-  inactive. An issue that no longer carries `parked` counts as done.
+  inactive. An issue that no longer carries `parked` or `parked:chef` counts as done; the line names the one(s) it removed (`parked` and `parked:chef`, or whichever the issue carried).
 - **Not done**: nothing changes and the card says why in one line, in red — the rail not read yet, a ticket the
   latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `parked` from #<n>``,
   GitHub's answer on hover). One click tries again.
