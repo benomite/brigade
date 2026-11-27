@@ -1,5 +1,4 @@
-// Le superviseur d'un projet (#3943, spec 2026-11-20-kitchen-spinning,
-// section B) : à chaque observation du projet, il se réveille si l'une de ses
+// Le superviseur d'un projet (#3943, épique #3904) : à chaque observation du projet, il se réveille si l'une de ses
 // causes tient (`declencheur.ts`), et remet alors au manager son dossier
 // (`dossier.ts`) — un seul run par projet à la fois (`un-seul-run.ts`). Le
 // manager rend ce qu'il a vu et l'un des six gestes du superviseur, que le run

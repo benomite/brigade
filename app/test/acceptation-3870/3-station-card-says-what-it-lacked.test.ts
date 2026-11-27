@@ -2,11 +2,7 @@
 // l'onglet Stations, pour que le chef sache quoi réparer ou décocher.
 // Test d'acceptation gelé (#3725) : la ligne de la station dans les `facts` porte `lacks`, et la carte la dit une fois.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, test } from "node:test";
-import { ajouterProjetServi } from "../../../runtime/src/station-ordinateur/projets-servis.ts";
+import { test } from "node:test";
 import type { Home } from "../../src/home.ts";
 import { POWER_UP } from "../../src/power-up.ts";
 import { putAside } from "../../src/awaiting.ts";
@@ -34,16 +30,7 @@ const SEEN: SeenOfProjects = { a: A, projets: [SEEN_PROJECT], locale: "gmac", re
 const lineOfMac = { station: "macbook/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "idle", arreteeDepuis: null, refus: null, presente: true, cooks: [], lacks: GAP };
 const FACTS = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [], stations: [lineOfMac] } as unknown as Facts;
 
-const roots: string[] = [];
-after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
-});
-
 test("a station that lacked what a ticket needs says it in one line on its card in the Stations tab", async () => {
-  const root = mkdtempSync(join(tmpdir(), "acceptation-3870-"));
-  roots.push(root);
-  ajouterProjetServi(root, OTHER.depot ?? "");
-  ajouterProjetServi(root, REPOSITORY);
   const vue = await playTheVue({
     demarrage: () => ({
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PROJECT, OTHER] }, () => true, (name) => name === "brigade"),

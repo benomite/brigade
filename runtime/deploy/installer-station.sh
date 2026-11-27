@@ -190,7 +190,7 @@ linux() {
   dire "tout ce qu'elle demande au système vient avec son paquet : sa vie courante ne demande aucune commande root"
 
   if ! terminal; then
-    dire "la suite : la connexion GitHub et la connexion Max du compte $COMPTE, puis l'appairage avec l'app — pas de terminal ici pour les connexions : relance la même commande depuis un terminal du serveur (le guide : docs/installation-station.md, dépôt $DEPOT)"
+    dire "la suite : la connexion GitHub et la connexion Max du compte $COMPTE, puis tes projets — pas de terminal ici pour les connexions : relance la même commande depuis un terminal du serveur (le guide : docs/installation-station.md, dépôt $DEPOT)"
     return 0
   fi
   MAISON="$(getent passwd "$COMPTE" | cut -d: -f6)"
@@ -200,7 +200,7 @@ linux() {
   echo
   dire "la connexion Max du compte $COMPTE"
   en_root "$NODE" "$CONNEXION" <"$TERMINAL" || non_connectee "sa connexion Max n'est pas faite"
-  dire "la station est connectée à GitHub et à Claude — la suite : l'appairage avec l'app (le guide : docs/installation-station.md, dépôt $DEPOT)"
+  dire "la station est connectée à GitHub et à Claude — la suite : tes projets, une ligne chacun dans /var/lib/brigade/kitchen/projects (le guide : docs/installation-station.md, dépôt $DEPOT)"
 }
 
 # ----------------------------------------------------------------------------
@@ -231,38 +231,6 @@ poser() {
   mv "$1" "$2" || refuser "$2 ne s'écrit pas"
 }
 
-# Une valeur posée dans un script sh, entre apostrophes.
-cite() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
-
-# La ligne qui met ~/.local/bin sur le PATH des terminaux de ce compte, dans
-# le profil que son shell lit à l'ouverture d'un terminal : zsh, celui de
-# macOS, lit ~/.zprofile ; bash, le premier de ~/.bash_profile, ~/.bash_login
-# et ~/.profile. Déjà là, elle n'est pas redoublée.
-au_profil() {
-  case "${SHELL:-/bin/zsh}" in
-    */zsh) profil="$HOME/.zprofile" ;;
-    */bash)
-      if [ -f "$HOME/.bash_profile" ]; then
-        profil="$HOME/.bash_profile"
-      elif [ -f "$HOME/.bash_login" ]; then
-        profil="$HOME/.bash_login"
-      elif [ -f "$HOME/.profile" ]; then
-        profil="$HOME/.profile"
-      else
-        profil="$HOME/.bash_profile"
-      fi
-      ;;
-    *)
-      dire "la commande brigade est dans $HOME/.local/bin, que le PATH de ton shell ($SHELL) ne porte pas : ajoute-le à son PATH"
-      return 0
-      ;;
-  esac
-  ligne='export PATH="$HOME/.local/bin:$PATH" # la commande brigade (installer-station.sh)'
-  grep -qxF "$ligne" "$profil" 2>/dev/null && return 0
-  printf '\n%s\n' "$ligne" >>"$profil" || refuser "$profil ne s'écrit pas : la commande brigade n'est pas sur le PATH de tes terminaux"
-  dire "la commande brigade est sur le PATH des terminaux que tu ouvriras ($profil)"
-}
-
 tourne() { launchctl print "$DOMAINE/$ETIQUETTE" 2>/dev/null | grep -q 'state = running'; }
 
 mac() {
@@ -283,8 +251,6 @@ mac() {
   # Le PATH de la station : son node, le gh qu'elle a pu poser, le claude de
   # l'installeur officiel, Homebrew, le système. launchd n'en donne pas d'autre.
   PATH_STATION="$BASE/node/bin:$BASE/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-  # Le PATH des terminaux de ce compte, avant que la commande y ajoute le sien.
-  PATH_DU_COMPTE="$PATH"
   PATH="$PATH:$PATH_STATION"
   export PATH
 
@@ -340,7 +306,7 @@ mac() {
   obtenir "$source" "$travail/runtime.tar.gz"
   mkdir "$travail/neuf"
   tar -xzf "$travail/runtime.tar.gz" -C "$travail/neuf" || refuser "l'archive de la station ne s'ouvre pas ($source)"
-  [ -f "$travail/neuf/runtime/src/station/main.ts" ] || refuser "l'archive ne porte pas le runtime de la station ($source)"
+  [ -f "$travail/neuf/runtime/src/kitchen/main.ts" ] || refuser "l'archive ne porte pas la cuisine de la station ($source)"
   version="$(version_de "$travail/neuf/runtime/package.json")"
   if [ ! -d "$BASE/runtime" ] || [ "$version" != "$(version_de "$BASE/runtime/package.json")" ]; then
     [ ! -d "$BASE/runtime" ] || mv "$BASE/runtime" "$travail/ancien"
@@ -381,35 +347,10 @@ while ! (set -C && echo $$ >"$tenue") 2>/dev/null; do
   esac
 done
 cd "$ici/runtime"
-exec "$ici/node/bin/node" src/station/main.ts
+exec "$ici/node/bin/node" src/kitchen/main.ts
 LANCER
   chmod 0755 "$travail/lancer-station"
   if poser "$travail/lancer-station" "$BASE/lancer-station"; then change=oui; fi
-
-  # La commande `brigade` de ce compte, la même que celle d'un serveur : elle
-  # lance src/station/geste.ts du runtime, comme deploy/brigade sous Linux,
-  # dans l'environnement que launchd donne à la station. Dans ~/.local/bin,
-  # sans droit d'administrateur ; réécrite à chaque passage, jamais doublée.
-  mkdir -p "$HOME/.local/bin"
-  cat >"$travail/brigade" <<COMMANDE
-#!/bin/sh
-# Écrit par installer-station.sh, et réécrit à chaque passage : ne pas l'éditer.
-#   brigade <project> <command> [arguments…]
-#   brigade <project> help
-cd $(cite "$BASE/runtime") 2>/dev/null || {
-  echo $(cite "brigade : le runtime de la station ($BASE/runtime) n'est pas là — relance la commande d'installation (docs/installation-station.md)") >&2
-  exit 70
-}
-exec env -i BRIGADE_STATION_DIR=$(cite "$RACINE") HOME=$(cite "$HOME") PATH=$(cite "$PATH_STATION") LANG=en_US.UTF-8 \${USER:+"USER=\$USER"} \${LOGNAME:+"LOGNAME=\$LOGNAME"} \${TMPDIR:+"TMPDIR=\$TMPDIR"} \${TERM:+"TERM=\$TERM"} $(cite "$BASE/node/bin/node") src/station/geste.ts "\$@"
-COMMANDE
-  poser "$travail/brigade" "$HOME/.local/bin/brigade" || true
-  chmod 0755 "$HOME/.local/bin/brigade" || refuser "$HOME/.local/bin/brigade ne se rend pas exécutable"
-  # Un terminal neuf la trouve : ~/.local/bin est sur son PATH, sinon le
-  # profil de son shell l'y met — une ligne, posée une fois.
-  case ":$PATH_DU_COMPTE:" in
-    *":$HOME/.local/bin:"*) ;;
-    *) au_profil ;;
-  esac
 
   # L'agent launchd : lancé à l'ouverture de session, relancé s'il tombe.
   # `AbandonProcessGroup` : son arrêt n'emporte pas les cooks, qui finissent
@@ -491,7 +432,7 @@ PLIST
   dire "station installée et active — $version (launchctl print $DOMAINE/$ETIQUETTE ; son journal : $JOURNAL)"
 
   if ! terminal; then
-    dire "la suite : la connexion GitHub et la connexion Claude, puis l'appairage avec l'app — pas de terminal ici pour les connexions : relance la même commande depuis un terminal (le guide : docs/installation-station.md, dépôt $DEPOT)"
+    dire "la suite : la connexion GitHub et la connexion Claude, puis tes projets — pas de terminal ici pour les connexions : relance la même commande depuis un terminal (le guide : docs/installation-station.md, dépôt $DEPOT)"
     return 0
   fi
   connexion_github env || non_connectee "sa connexion GitHub n'est pas faite"
@@ -502,7 +443,7 @@ PLIST
     dire "la connexion Claude — la page de connexion s'ouvre dans ton navigateur, une seule fois"
     claude auth login <"$TERMINAL" || non_connectee "sa connexion Claude n'est pas faite"
   fi
-  dire "la station est connectée à GitHub et à Claude — elle le voit dans la minute ; la suite : l'appairage avec l'app (le guide : docs/installation-station.md, dépôt $DEPOT)"
+  dire "la station est connectée à GitHub et à Claude — la suite : tes projets, une ligne chacun dans $RACINE/kitchen/projects (le guide : docs/installation-station.md, dépôt $DEPOT)"
 }
 
 case "$(uname -s)" in

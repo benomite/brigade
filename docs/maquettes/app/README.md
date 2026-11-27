@@ -1,6 +1,6 @@
 # The app mockup
 
-Drawn on **2026-11-08** on a Claude Design canvas (epic #2897), from the inventory in [`docs/design/inventaire/`](../../design/inventaire/README.md). The chef took its design decisions the same day. The mockup is authoritative: each app ticket names the artboard it serves, and the cook checks what it delivers against it.
+Drawn on **2026-11-08** on a Claude Design canvas (epic #2897), from the screen inventory of #2899. The chef took its design decisions the same day. The mockup is authoritative: each app ticket names the artboard it serves, and the cook checks what it delivers against it.
 
 The canvas: https://claude.ai/artifact/AgM5UQ7NdNk2smuoKzem7L. These files are a copy of it, and they render only inside the canvas, so read them as source: the labels, sizes, colors and states are all in plain sight.
 

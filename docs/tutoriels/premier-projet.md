@@ -49,7 +49,7 @@ The card moves to **Taken**, with the cook's name. **Cooks** shows the station's
 
 The pass runs the gates and the review on the pull request and writes its verdict on the issue. Open the pull request from the **Pass** card to read the diff and the verdict.
 
-**Do not merge by hand unless the pass stops.** A green delivery, with its verdict approved and its CI green, is merged by the pass itself (`docs/runtime/pass-merge.md`).
+**Do not merge by hand unless the pass stops.** A green delivery, with its verdict approved and its CI green, is merged by the pass itself (`docs/runtime/README.md`).
 
 A delivery waits for you, in **TODO** with the buttons `send back to the kitchen` and `remove from the rail`, only when:
 

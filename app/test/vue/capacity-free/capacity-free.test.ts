@@ -1,12 +1,10 @@
 // Une capacité hors du catalogue, dans « What it provides » (#1959, épique #1950) : sous les cases du formulaire d'une
 // station, un champ et « Add ». Le nom tapé devient une case cochée, et part aussitôt avec les autres — aucun « Save »
 // (#2920) ; relue, la station la fournit, cochée à sa prochaine ouverture, et le formulaire d'une autre station l'offre.
-// Un nom vide ou déjà dans le formulaire est refusé en une ligne, et rien n'est envoyé. La règle du nom est celle du runtime
-// (runtime/src/capacite-libre/), que la vue ne peut pas importer : ce test les tient identiques. La vue jouée telle
-// qu'elle est, devant un faux document (helpers/false-vue.ts).
+// Un nom vide ou déjà dans le formulaire est refusé en une ligne, et rien n'est envoyé. La vue jouée telle qu'elle est,
+// devant un faux document (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { capaciteLibre as ofRuntime } from "../../../../runtime/src/capacite-libre/capacite-libre.ts";
 import { POWER_UP } from "../../../src/power-up.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
@@ -17,7 +15,7 @@ import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { readStations, type Guide, type StationsRead } from "../../../src/service.ts";
-import { ADD, capacityFree } from "../../../src/vue/capacity-free/capacity-free.js";
+import { ADD } from "../../../src/vue/capacity-free/capacity-free.js";
 import { type Fake, type Played, playTheVue, openTab, repos } from "../../helpers/false-vue.ts";
 
 const A = "2026-11-01T10:04:12.000Z";
@@ -118,12 +116,6 @@ const type = (shape: Fake, text: string) => {
 const refusal = (shape: Fake) => shape.dessous("div").find(({ className }) => className === "capacite-libre")?.dessous("p").find(({ className }) => className === "indisponible")?.textContent;
 
 describe("une capacité hors du catalogue, tapée dans « What it provides »", () => {
-  test("la vue applique au nom tapé la règle du runtime, mot pour mot", () => {
-    const present = ["code", "docker", "chrome-connecté", "navigateur-headless"];
-    const tapes = ["", "  ", "``", "enregistrement-ecran", "  machine vierge  comptes tiers ", "`enregistrement-ecran`", "Xcode", "caméra".normalize("NFD"), "docker", " `code` ", "chrome connecté", "a+b", "-x", "a:b", "point.", "Docker"];
-    for (const tape of tapes) assert.deepEqual(capacityFree(tape, present), ofRuntime(tape, present), JSON.stringify(tape));
-  });
-
   test("tapée et ajoutée, elle devient une case cochée et part aussitôt ; relue, elle est cochée chez sa station et offerte à l'autre", async () => {
     const { vue, envoyes: sent } = await open();
     let shape = await edit(vue, "box/claude");

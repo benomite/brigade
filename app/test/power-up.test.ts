@@ -1,19 +1,17 @@
 // Ce qu'engage l'allumage du manager, dit au geste « allumer » : l'avertissement
 // de docs/runtime/, et deux nombres — les issues ouvertes, et celles qui
-// sont parquées (#4260). Les nombres lus ici sont écrits par la commande du
-// runtime elle-même (runtime/src/manager-cli.ts, `backlog`), jouée dans ce
-// process sur un backlog connu, dicté par un faux `gh` : la forme que l'app lit
-// est tenue contre celle que le runtime écrit. Elle arrive par un faux `node` de
+// sont parquées (#4260). Les nombres lus ici sont ceux qu'écrivait la commande de
+// l'ancien runtime (runtime/src/manager-cli.ts, `backlog`, supprimé avec lui, #4499),
+// jouée sur un backlog connu, dicté par un faux `gh`, et recopiés tels quels : la forme
+// que l'app lit est celle que le runtime écrivait. Elle arrive par un faux `node` de
 // la station de cet ordinateur, écrit par chaque test. Et le geste est confirmé : sa confirmation dit
 // l'avertissement et ces nombres (confirmation.ts), et rien ne part avant son
 // « oui » — qui n'attend rien de cette lecture.
-import { docRuntime } from "./helpers/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { principal } from "../../runtime/src/manager-cli.ts";
 import { POWER_UP, WARNING, backlogOf, COMMAND, count, ACTION } from "../src/power-up.ts";
 import { confirmationOf } from "../src/confirmation.ts";
 import { writeAction, ACTIONS, WITHOUT_YES } from "../src/actions.ts";
@@ -21,54 +19,25 @@ import { ACTION as ACTION_OF_THE_STATION, type Kitchen, type Read } from "../src
 import { openTerminals } from "../src/terminals.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
-const ROOT = join(import.meta.dirname, "../..");
-const doc = docRuntime(ROOT);
 const KITCHEN: Kitchen = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
 const REPOSITORY = "benomite/parade";
 
-// Une issue ouverte, telle que l'API de GitHub la rend dans sa liste.
-const issue = (number: number, labels: string[], pr = false) => ({
-  number,
-  title: `Issue ${number}`,
-  state: "open",
-  created_at: "2026-10-01T00:00:00Z",
-  updated_at: "2026-10-08T09:00:00Z",
-  html_url: `https://github.com/${REPOSITORY}/issues/${number}`,
-  labels: labels.map((name) => ({ name })),
-  ...(pr ? { pull_request: {} } : {}),
-});
-
-// Le backlog connu : sept issues ouvertes, dont trois parquées — et une PR,
-// que l'API rend parmi elles et qui n'en est pas une.
-const KNOWN = [
-  issue(10, []),
-  issue(11, ["parked"]),
-  issue(12, ["fire", "model:haiku", "effort:low"]),
-  issue(13, ["epic", "chef-todo"]),
-  issue(14, ["idea"]),
-  issue(15, ["parked"], true),
-  issue(16, ["prio:1", "parked"]),
-  issue(17, ["served-elsewhere"]),
-];
+// La sortie de `manager backlog` sur un backlog que dicte un faux `gh`, telle que l'ancien runtime l'écrivait.
+const BACKLOG = {
+  // Le backlog connu : sept issues ouvertes, dont trois parquées — et une PR, parquée, que l'API rend parmi elles
+  // et qui n'en est pas une.
+  KNOWN: "backlog               7 open issues, of which 3 are parked — read just now on GitHub (benomite/parade)\n",
+  // Une seule issue, parquée.
+  ONE: "backlog               1 open issue, of which 1 is parked — read just now on GitHub (benomite/parade)\n",
+  // Aucune issue.
+  NONE: "backlog               0 open issues, of which 0 are parked — read just now on GitHub (benomite/parade)\n",
+};
 
 function directory(t: TestContext): string {
   const root = mkdtempSync(join(tmpdir(), "brigade-app-allumage-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   return root;
-}
-
-// `manager backlog`, jouée comme le geste de la box la joue, sur ce backlog : un faux `gh` rend
-// la liste des issues ouvertes telle que `gh api -i` la rend. Sa sortie, telle quelle.
-async function runtime(t: TestContext, backlog: readonly object[]): Promise<string> {
-  const root = directory(t);
-  const gh = join(root, "gh");
-  writeFileSync(join(root, "corps"), JSON.stringify(backlog));
-  writeFileSync(gh, `#!/bin/sh\nprintf 'HTTP/2.0 200\\r\\nContent-Type: application/json\\r\\n\\r\\n'\ncat '${root}/corps'\n`);
-  chmodSync(gh, 0o755);
-  const lines: string[] = [];
-  await principal({ args: ["backlog"], env: { BRIGADE_GITHUB_REPO: REPOSITORY, BRIGADE_GH_BIN: gh }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-  return `${lines.join("\n")}\n`;
 }
 
 // Un faux `node` de la station : un script sh, où `$D` est le répertoire du test. Il note ce qu'il reçoit.
@@ -110,7 +79,7 @@ describe("l'avertissement de l'allumage", () => {
 
 describe("les deux nombres : `manager backlog`, lancée une fois par la station de ce poste", () => {
   test("sur un backlog connu, ce sont les siens : sept issues ouvertes, dont trois parquées — la PR n'en est pas une", { skip: WITHOUT_POSIX }, async (t) => {
-    const output = await runtime(t, KNOWN);
+    const output = BACKLOG.KNOWN;
     const { reglages: settings, lu: readOne } = station(t, said(output));
 
     const account = await count(settings, readOne);
@@ -121,8 +90,8 @@ describe("les deux nombres : `manager backlog`, lancée une fois par la station 
   });
 
   test("une seule issue, aucune : les nombres sont lus quand même, et la phrase dit qu'il ne jugera rien", { skip: WITHOUT_POSIX }, async (t) => {
-    const one = await runtime(t, [issue(11, ["parked"])]);
-    const no = await runtime(t, []);
+    const one = BACKLOG.ONE;
+    const no = BACKLOG.NONE;
 
     assert.deepEqual(backlogOf(one), { ouvertes: 1, retenues: 1 });
     assert.deepEqual(backlogOf(no), { ouvertes: 0, retenues: 0 });
@@ -134,15 +103,13 @@ describe("les deux nombres : `manager backlog`, lancée une fois par la station 
     assert.equal("dit" in empty && empty.dit, "it will judge no issue: none is open");
   });
 
-  test("ce qui part est le geste de la station, comme la veille le lance — une commande que la doc cite, et rien de plus", { skip: WITHOUT_POSIX }, async (t) => {
-    const { reglages: settings, lu: readOne, appels: calls, racine: root } = station(t, said(await runtime(t, KNOWN)));
+  test("ce qui part est le geste de la station, comme la veille le lance, et rien de plus", { skip: WITHOUT_POSIX }, async (t) => {
+    const { reglages: settings, lu: readOne, appels: calls, racine: root } = station(t, said(BACKLOG.KNOWN));
 
     await count(settings, readOne);
 
     assert.equal(COMMAND, "manager backlog");
     assert.equal(calls(), `${join(root, "src", "station", "geste.ts")} parade manager backlog\n`);
-    assert.ok(doc.includes("`brigade <projet> manager [return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager backlog`");
-    assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime/ ne cite pas `manager -- backlog`");
   });
 
   test("la ligne `backlog` d'avant #951, en français, se lit encore : les mêmes nombres", () => {

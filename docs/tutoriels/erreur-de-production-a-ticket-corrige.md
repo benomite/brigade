@@ -28,7 +28,7 @@ Sentry creates a GitHub issue from an alert rule, with the action that creates a
 
 ## 3. What happens next
 
-**The first gate: an issue from Sentry is not trusted by default.** Sentry's integration is not an account with write access to your repository. The manager sets aside any issue written by someone without a hand on the repository, **even with the label `fire`**, as `untrusted-author` ([`docs/runtime/manager.md`](../runtime/manager.md)). Only the `github-actions` bot is exempt. So an issue opened by Sentry does not go straight to the rail:
+**The first gate: an issue from Sentry is not trusted by default.** Sentry's integration is not an account with write access to your repository. The manager sets aside any issue written by someone without a hand on the repository, **even with the label `fire`**, as `untrusted-author` ([`docs/runtime/README.md`](../runtime/README.md)). Only the `github-actions` bot is exempt. So an issue opened by Sentry does not go straight to the rail:
 
 1. **The manager triages it, once.** It comments with a proposal (`duplicate of #N`, `out of scope`, or `ticket` with a `prio:`) and opens a **TODO** card for the project's `product` human (the chef if there is none), with two buttons, **on the rail** or **close**, and a free answer.
 2. **A human answers.** Nothing reaches the rail until you, or an account with write access, answer on the card or on the issue. `on the rail` puts the proposed `prio:` (or the one you write, `on the rail prio:N`; `fire` if there is none) and the issue is judged on the manager's next wake-up. `close` closes it.
@@ -39,8 +39,8 @@ Once the issue is on the rail, this is Brigade's ordinary path:
 
 3. **The manager qualifies it.** If it lacks what a cook needs, it completes it or asks; it sets the calibration labels `model:` and `effort:` (and may propose the `sensitive` mark with its reason, see below). A project switched off (`project off`) takes nothing.
 4. **A cook takes it** in its own worktree on a branch `cook/<run>`, reads the Sentry error in the issue body, implements a fix and opens a pull request. The card goes from **Taken** to **Pass**.
-5. **The pass judges it**: gates, CI and an independent review, and writes its verdict on the issue ([`docs/runtime/pass.md`](../runtime/pass.md)). A green delivery is merged by the pass itself.
-6. **The ticket is fixed**: the pull request is merged, the issue closed, the card is in **Served** ([`docs/runtime/pass-merge.md`](../runtime/pass-merge.md)).
+5. **The pass judges it**: gates, CI and an independent review, and writes its verdict on the issue ([`docs/runtime/README.md`](../runtime/README.md)). A green delivery is merged by the pass itself.
+6. **The ticket is fixed**: the pull request is merged, the issue closed, the card is in **Served** ([`docs/runtime/README.md`](../runtime/README.md)).
 
 A delivery the pass cannot settle alone waits for you in **TODO**.
 

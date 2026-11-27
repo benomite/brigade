@@ -1,5 +1,4 @@
-// Le déclencheur du superviseur (spec 2026-11-20-kitchen-spinning, section B,
-// ticket #3943) : il dit si le superviseur se réveille pour un projet, et
+// Le déclencheur du superviseur (épique #3904, ticket #3943) : il dit si le superviseur se réveille pour un projet, et
 // pourquoi. Il se réveille dans l'un de trois cas :
 // - rien n'a été mergé depuis 30 min alors qu'un ticket est cuisinable ;
 // - un ticket a été pris 3 fois sans livrer ;

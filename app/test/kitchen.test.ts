@@ -3,7 +3,6 @@
 // second, s'il est dit libre (terminals.test.ts) — sinon rien n'est écrit, nulle part.
 // Vérifier l'installation part au clic ; reprendre et arrêter sont confirmés : sans le
 // « oui » du chef, rien ne part, et la confirmation dit leur prix (confirmation.test.ts).
-import { docRuntime } from "./helpers/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -32,12 +31,7 @@ describe("les gestes de la cuisine et de l'installation", () => {
     for (const { id } of KITCHEN_ACTIONS) assert.ok(ACTIONS.some((action) => action.id === id), `« ${id} » n'est pas un geste du socle`);
   });
 
-  test("reprendre et arrêter sont confirmés, vérifier l'installation est direct ; chacun envoie la commande de la doc mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
-    const doc = docRuntime(ROOT);
-    assert.ok(doc.includes("`brigade <projet> guardrails [stop \\| resume]`"), "docs/runtime/, « Piloter », ne cite plus guardrails stop | resume");
-    assert.ok(doc.includes("npm --prefix runtime run guardrails -- stop"));
-    assert.ok(doc.includes("npm --prefix runtime run guardrails -- resume"));
-    assert.ok(/^\| .*`brigade <projet> installation`/m.test(doc) || doc.includes("brigade <projet> installation"), "docs/runtime/ ne cite plus `brigade <projet> installation`");
+  test("reprendre et arrêter sont confirmés, vérifier l'installation est direct ; chacun envoie sa commande mot pour mot dans le second, aucun n'ouvre de shell — et d'un second qui démarre, rien ne part", async () => {
     assert.deepEqual(KITCHEN_ACTIONS.map(({ id }) => (CONFIRMED.includes(id) ? "confirmé" : DIRECT.includes(id) ? "direct" : "?")), ["confirmé", "confirmé", "direct"]);
 
     for (const { id } of KITCHEN_ACTIONS) {
