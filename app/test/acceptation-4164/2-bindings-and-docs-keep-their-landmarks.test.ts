@@ -21,7 +21,7 @@ test("CLAUDE.md keeps its French labels and its Interface binding names the proj
 });
 
 test("the pages the docs rewrite touches still exist", () => {
-  for (const p of ["docs/reglages.md", "docs/runtime/station.md", "docs/runtime/station-cook.md", "docs/runtime/manager.md", "docs/runtime/pass.md", "docs/maquettes/app/README.md", "docs/superpowers/specs/2026-11-24-simplified-process.md"]) {
+  for (const p of ["docs/reglages.md", "docs/runtime/README.md", "docs/maquettes/app/README.md", "docs/superpowers/specs/2026-11-24-simplified-process.md"]) {
     assert.ok(existsSync(resolve(root, p)), p);
   }
 });

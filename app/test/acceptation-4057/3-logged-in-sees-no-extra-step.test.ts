@@ -4,8 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import type { CopieLocale } from "../../../runtime/src/projets/copie-locale.ts";
-import { openOfAStation } from "../../src/first-launch.ts";
+import { openOfAStation, type LocalCopy } from "../../src/first-launch.ts";
 import { followConfiguration } from "../../src/tracking.ts";
 
 type Connection = "connectee" | "perdue" | "inconnue";
@@ -20,7 +19,7 @@ function theFirstLaunch(t: TestContext, claude: () => Connection) {
   const copy = join(folder, "projects", "parade");
   const log: string[] = [];
   const open = openOfAStation({
-    ouvrirLaCopie: async (): Promise<CopieLocale> => {
+    ouvrirLaCopie: async (): Promise<LocalCopy> => {
       log.push("kitchen");
       mkdirSync(copy, { recursive: true });
       return { state: "open", project: "parade", repository: "benomite/parade", folder: copy, cloned: true };

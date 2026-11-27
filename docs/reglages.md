@@ -27,18 +27,18 @@ The file is versioned with the code. Its fields:
 | `integrationBranch` | the branch every worktree starts from and every PR aims at | the name of a git branch (required) |
 | `defaultCalibrations` | the default model and effort of the manager and of the reviewer; keyed by role | `manager` and/or `reviewer`, each `{ "model", "effort" }` (optional) |
 | `calibrationCeiling` | the ceiling of calibration for the whole project; it replaces the ceiling set on the box | `{ "model", "effort" }` (optional) |
-| `closer` | the settings of the project's closer — the closing pass that writes ([`runtime/fermeture.md`](runtime/fermeture.md)); each one it sets replaces the box's | an object of the keys below, each optional (optional) |
+| `closer` | the settings of the project's closer — the closing pass that writes ([`runtime/README.md`](runtime/README.md)); each one it sets replaces the box's | an object of the keys below, each optional (optional) |
 | `drift`, `correction`, `profile`, `gates` | the project's thresholds and the gates' limits (#1672): what is too expensive or too drifted, when a correction repeats, when a cook profile is worth proposing, how long and how costly its gates and CI may be; each one it sets replaces the box's | objects of the keys below, each optional (optional) |
 | `commonPaths` | the paths the rail treats as common to all tickets (#1673); it replaces the box's `BRIGADE_COMMON_PATHS` | a list of paths relative to the repository's root, no pattern, no comma (optional) |
 | `rail`, `lessons` | the project's rail rule and notebook policy (#1673): the lease on a taken ticket, the roadmap issue the manager reads, and how many lessons a cook receives, when one is promoted or expires; each one it sets replaces the box's | objects of the keys below, each optional (optional) |
 | `chef` | the chef's GitHub login (#1954): what tells the chef's issues from the ones other people open, which the product role answers within a day; and the account each TODO card @-mentions on its issue, so GitHub Mobile notifies the chef (#2746) | a GitHub login (optional; without it, the product role answers no outside issue, and TODO cards mention the chef resolved by default — the repository owner, or for an organization the author of the `/brigade:init` PR (#2928) —, which `status` shows with its source) |
 | `humans` | the humans working on the project and their roles (#2759): a list of `{login, roles}`, `login` a GitHub login, `roles` a list among `product`, `design`, `review`, `client-contact`. Roles belong to this project: the same login may carry other roles elsewhere. Validated by `runtime/src/humains/humains.ts`, which looks humans up by role; the kitchen, opening, says them role by role at the end of its `project settings` line (`humans product alice, review alice bob`) | a list (optional; without it, the project has no humans declared). An unknown role, an empty login or a login declared twice is refused, naming the entry |
-| `humanValidatesDesigns` | a human validates the project's designs and visuals (#3184): once the pass judges a design delivery green (one that changes what the user sees — the app's view, the site, a mockup, or captures), it does not merge it but holds it on a `chef-todo` card, `Validate its screen`, asked on the ticket itself and its PR (#3615) ([`runtime/pass.md`](runtime/pass.md), "A design validated by a human") | `true` or `false` (optional; without it, off: the pass merges a green design delivery itself). `true` on benomite/brigade |
-| `weeklySummaryDay` | the day each week the kitchen writes its summary of what it served over the seven days before and @-mentions the chef with it (#3261, [`runtime/etat-et-mesures.md`](runtime/etat-et-mesures.md), "The weekly kitchen summary") | `monday` to `sunday` (optional; without it, `monday`). Any other value is refused |
+| `humanValidatesDesigns` | a human validates the project's designs and visuals (#3184): once the pass judges a design delivery green (one that changes what the user sees — the app's view, the site, a mockup, or captures), it does not merge it but holds it on a `chef-todo` card, `Validate its screen`, asked on the ticket itself and its PR (#3615) ([`runtime/README.md`](runtime/README.md), "A design validated by a human") | `true` or `false` (optional; without it, off: the pass merges a green design delivery itself). `true` on benomite/brigade |
+| `weeklySummaryDay` | the day each week the kitchen writes its summary of what it served over the seven days before and @-mentions the chef with it (#3261, [`runtime/README.md`](runtime/README.md), "The weekly kitchen summary") | `monday` to `sunday` (optional; without it, `monday`). Any other value is refused |
 | `recurring` | the calendar (#4138): the project's recurring work, each entry opening one issue in the backlog per period. An entry is `{ "name", "frequency", "priority" }`: `name` is the title of the issue to open, `frequency` is exactly `daily` (a period is a day), `weekly` (an ISO week) or `monthly` (a calendar month), `priority` is a `prio:N` label (N from 0 to 9). Periods are UTC | a list of entries (optional; without it, no recurring work). An entry with a missing field, an unknown frequency or a malformed priority is refused alone, with an error naming the entry and the field — the kitchen says it on its service log and goes on with the other entries |
 | `tools` | the tools the project offers its cooks (#4162, rule 4 of [`superpowers/specs/2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md)): cooks specialise by these tools, not by a cook kind. A ticket states the tools it needs in a `Tools:` line of its body (below); the cook gets those the project declares, and a tool the ticket needs and the project does not declare is reported by name | a list of tool names, each lowercase letters, digits and dashes starting with a letter, none twice (optional; without it, the project declares no tool). `screenshots` is wired: the screenshot capture of `scripts/capture-ecran/`, into `docs/captures/<ticket>/`. Other names, such as `browser`, the project's CLI or a connector, are declared and handed to the cook by name |
-| `risk` | the risk ranking of the kinds of actions (#4230, rule 10 of [`superpowers/specs/2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md)): at the pass, the merge of a ticket whose kind of action is ranked `chef` is parked for the chef, and one ranked `safe` never reaches the chef ([`runtime/risk-levels.md`](runtime/risk-levels.md)) | an object, kind -> `chef` or `safe` (optional; without it, `publish`, `pay` and `write-to-client` are `chef`, `fix-typo` is `safe`, any other kind is `chef`). Any other rank is refused |
-| `githubOnlyState` | **No longer read** (#2061): every project runs on the GitHub-only state, the only path ([`runtime/github-seul.md`](runtime/github-seul.md)). The key is still accepted, so a settings file that carries it stays readable; it can be removed. | `true` or `false` (optional; ignored) |
+| `risk` | the risk ranking of the kinds of actions (#4230, rule 10 of [`superpowers/specs/2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md)): at the pass, the merge of a ticket whose kind of action is ranked `chef` is parked for the chef, and one ranked `safe` never reaches the chef ([`runtime/README.md`](runtime/README.md)) | an object, kind -> `chef` or `safe` (optional; without it, `publish`, `pay` and `write-to-client` are `chef`, `fix-typo` is `safe`, any other kind is `chef`). Any other rank is refused |
+| `githubOnlyState` | **No longer read** (#2061): every project runs on the GitHub-only state, the only path ([`runtime/README.md`](runtime/README.md)). The key is still accepted, so a settings file that carries it stays readable; it can be removed. | `true` or `false` (optional; ignored) |
 
 **The ticket's tools field.** A ticket states the tools it needs on one line of its body, `Tools:` followed by tool names separated by commas, for example `Tools: screenshots, browser`. At cook launch, `runtime/src/outils-du-cook.ts` gives the cook the tools that are both in that line and in the project's `tools` — the same cook kind for every ticket. A ticket without the line gets no tool beyond the project's default, which is none. A tool named on the line and absent from the project's `tools` is not given: the station says so in its log, naming the tool, and the cook's brief carries the same message so that it reports it instead of going without it silently.
 
@@ -51,7 +51,7 @@ The `closer` keys, each one in place of a setting the box held (`brigade <projet
 | `maxTokens` | the tokens cap of one pass | an integer greater than zero (default 500,000) | `closer-tokens` |
 | `maxRemovedLines` | the cap on the lines one pass may remove | an integer greater than zero (default 500) | `closer-retraits` |
 
-On a GitHub-only project, the old closer stops at its entry and the closer runs on GitHub instead (#2361): only `calibration` and `maxRemovedLines` are read there, see [fermeture.md](runtime/fermeture.md), "On a GitHub-only project".
+On a GitHub-only project, the old closer stops at its entry and the closer runs on GitHub instead (#2361): only `calibration` and `maxRemovedLines` are read there, see [README.md](runtime/README.md), "On a GitHub-only project".
 
 The thresholds, each one in place of a variable of the box (the four cost ones also of a gesture of `brigade <projet> station`):
 
@@ -128,7 +128,7 @@ The file is written in one fixed form (two spaces, keys in this order), so the s
 the same bytes. Edit it by hand only if you know this form; otherwise change it from the app — the
 project's page, Settings, `Project settings`, one row per setting above, the closer's included
 ([`app.md`](app.md), "The project's settings, changed by a pull request") — or propose the change
-with `brigade <projet> setting` (see [`runtime/exploitation.md`](runtime/exploitation.md), "setting").
+with `brigade <projet> setting` (see [`runtime/README.md`](runtime/README.md), "setting").
 Both open the pull request, and neither sets anything on the box. A value the file would refuse is
 refused before any pull request, by the same check as the file's, in one sentence.
 
@@ -147,7 +147,7 @@ branch takes effect at the next fetch, with no restart and no `sudo`.
   The first one that answers wins, and the station says where it came from.
 - **The calibrations of the manager and the reviewer**: without the file, or without the role in it,
   the values the box sets for that project apply (`BRIGADE_MANAGER_MODEL`, `BRIGADE_MANAGER_EFFORT`,
-  `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT`, see [`runtime/exploitation.md`](runtime/exploitation.md)).
+  `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT`, see [`runtime/README.md`](runtime/README.md)).
 - **The ceiling of calibration**: without `calibrationCeiling`, the box's `BRIGADE_CEILING_MODEL` and
   `BRIGADE_CEILING_EFFORT` apply; without them, the runtime's default (`opus` / `high`).
 - **The closer's settings**, one by one: a key of `closer` the file leaves out is the box's decision
@@ -181,7 +181,7 @@ machine reads them. What a station decides for itself:
 
 - **its cook cap** — how many cooks it runs at once (`cooks <N>`, or `cooks auto`);
 - **its capabilities** — what the machine knows how to do (`code`, `navigateur-headless`…), and whether
-  it takes the ordinary tickets (`ordinaires`, `ensemble`) — see [`runtime/station-machine.md`](runtime/station-machine.md);
+  it takes the ordinary tickets (`ordinaires`, `ensemble`) — see [`runtime/README.md`](runtime/README.md);
 - **its folders** — where it puts its clones and its worktrees (`BRIGADE_STATION_DIR` on a server);
 - **its projects** — one line per project it serves, and whether this station is the project's main one.
 
@@ -223,22 +223,3 @@ repository runs the app with their own `app.json` and reads their own gist: your
 and your gist never reach them, and nothing of yours reaches the project's repository.
 **`projet.json` is not affected**: nothing in this section reads or writes it. The project's shared
 settings stay in §1, and change by a pull request.
-
-## 4. Moving the box's settings into the repository — the migration
-
-The settings that the box held for a project before `projet.json` existed (the integration branch,
-the manager and reviewer calibrations, the ceiling) move into the project's repository once, with
-the migration script. Its README is [`scripts/migration-reglages-projet/README.md`](../scripts/migration-reglages-projet/README.md).
-
-The chef runs it **on the box**, from the brigade checkout:
-
-```sh
-# Dry run (the default): per project, the target repository and the proposed file. Changes nothing.
-node scripts/migration-reglages-projet/migrer.ts --config projets.json
-
-# For real: one pull request per project that has a difference.
-node scripts/migration-reglages-projet/migrer.ts --config projets.json --apply
-```
-
-A project whose integration branch already has the file is skipped. The pull request is merged by the
-chef; until then, the box keeps its own settings.

@@ -1,4 +1,4 @@
-// Connecter cet ordinateur à GitHub d'un bouton (#1434) : le geste du runtime (`connexionGitHub`), lancé tel quel,
+// Connecter cet ordinateur à GitHub d'un bouton (#1434) : le geste de l'app (`signInToGitHub`), lancé tel quel,
 // sans terminal. Le code que `gh` donne revient à la vue ; sa page s'ouvre — par `gh` quand il attend Entrée, par
 // l'app sinon ; la fin, réussie ou non, est dite. Un second clic pendant qu'il attend ne lance rien de plus.
 // Contre un faux `gh` qui écrit ce que le vrai écrit, et attend qu'on le laisse finir.
@@ -7,8 +7,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { connexionGitHub } from "../../runtime/src/appairage/stations-du-chef.ts";
-import { holdConnectionGitHub, type EndOfConnection } from "../src/connection-github.ts";
+import { holdConnectionGitHub, signInToGitHub, type EndOfConnection } from "../src/connection-github.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
 const directory = (t: TestContext) => {
@@ -41,7 +40,7 @@ function oneFakeGh(t: TestContext, { interactif, code = 0, sansCode: withoutCode
 function oneConnection(gh: string) {
   const openEntries: string[] = [];
   const ends: EndOfConnection[] = [];
-  const connect = holdConnectionGitHub({ commande: async () => connexionGitHub(gh).command, env: process.env, ouvrir: (address) => openEntries.push(address), apres: (end) => ends.push(end) });
+  const connect = holdConnectionGitHub({ commande: async () => signInToGitHub(gh), env: process.env, ouvrir: (address) => openEntries.push(address), apres: (end) => ends.push(end) });
   return { connecter: connect, ouvertes: openEntries, fins: ends };
 }
 
@@ -57,7 +56,7 @@ test("`gh` attend Entrée : l'app la lui donne — il ouvre la page —, le code
   const fake = oneFakeGh(t, { interactif: true });
   const { connecter: connect, ouvertes: openEntries, fins: ends } = oneConnection(fake.gh);
   assert.deepEqual(await connect(), { code: "A1B2-C3D4", page: "https://github.com/login/device" });
-  assert.deepEqual(fake.appels(), [connexionGitHub(fake.gh).command.slice(1).join(" ")]);
+  assert.deepEqual(fake.appels(), [signInToGitHub(fake.gh).slice(1).join(" ")]);
   assert.deepEqual(fake.appels(), ["auth login --hostname github.com --web --git-protocol https"]);
   await until(() => fake.lu().length === 1);
   assert.deepEqual(openEntries, []);

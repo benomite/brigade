@@ -2,9 +2,7 @@
 // plus (#4507) : la cuisine n'a rien avant son rail, son Backlog est une colonne du kanban (board/kitchen-board.ts) — la
 // sortie de `manager upstream` n'est pas publiée, et la vue n'en dit rien. Ce qui reste ici : la forme de cette sortie
 // telle qu'une box la donne, ses états dans l'ordre du bandeau, et ce qu'une lecture ratée en dit.
-import { docRuntime } from "./helpers/doc-runtime.ts";
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { describe, test } from "node:test";
 import { DEPOT } from "../../runtime/test/outils.ts";
 import { COMMAND, understand, GROUPS, group, holdUpstream, see, type Seen } from "../src/upstream.ts";
@@ -85,13 +83,6 @@ describe("ce qui est avant le rail, lu sur GitHub", () => {
     assert.match(without(see(reading(JSON.stringify({ lu: A, depot: DEPOT, issues: [{ ticket: 3, titre: "t", url: "u", priorite: null, etat: "non-lue" }] })))), /“issues\[0\]\.dit” is not a string/);
   });
 
-  test("la commande que la lecture de GitHub remplace est celle que docs/runtime/ documente, dans le dépôt et sur la box", () => {
-    const doc = docRuntime(join(import.meta.dirname, "../.."));
-
-    assert.equal(COMMAND, "manager upstream");
-    assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime/ ne cite pas `manager -- upstream`");
-    assert.ok(doc.includes("`brigade <projet> manager [return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager upstream`");
-  });
   test("un champ de plus est laissé de côté, un champ qui manque refuse la forme entière", () => {
     const issue = { ticket: 3, titre: "t", url: "https://github.com/x/y/issues/3", priorite: 2, etat: "non-lue", dit: "d" };
 

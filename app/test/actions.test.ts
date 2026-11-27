@@ -1,11 +1,9 @@
-// Les gestes du chef : chacun envoie dans le second une commande de la doc, mot
-// pour mot (`envoyer`) — direct, au clic ; confirmé, seulement avec le « oui » du
-// chef. Ce qui part se compare ici à docs/runtime/ — la forme de
-// poste, et la ligne de chaque commande. Qu'un geste confirmé ne parte pas sans son
-// « oui » se prouve sur `envoyer`, puis sur le registre et de faux pty ; et
+// Les gestes du chef : chacun envoie dans le second sa commande, mot pour mot
+// (`envoyer`) — direct, au clic ; confirmé, seulement avec le « oui » du chef.
+// Ce qui part se compare ici à la forme de poste, et à la ligne de chaque commande.
+// Qu'un geste confirmé ne parte pas sans son « oui » se prouve sur `envoyer`, puis sur le registre et de faux pty ; et
 // qu'aucun geste n'expose de shell, de `sudo` ni de commande libre, sur le socle
 // lui-même.
-import { docRuntime, SOURCE_DOC } from "./helpers/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -25,8 +23,6 @@ import { openTerminals, WITHOUT_WRITE, type Terminal } from "../src/terminals.ts
 import { playTheVue, openRead, type Answers, repos } from "./helpers/false-vue.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
-const SOURCE = SOURCE_DOC;
-const doc = docRuntime(ROOT);
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
 
 // La forme que la doc donne d'une commande du runtime.
@@ -35,42 +31,6 @@ const OF_BOX = "brigade <projet> <commande>";
 // La cuisine de cet ordinateur, et ce que le geste de sa station écrit pour « parade » : la forme de poste, citée mot à mot.
 const KITCHEN: Kitchen = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const written = (suite: string, name = "parade") => `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${ACTION} ${name} ${suite})`;
-
-// Ce qu'une commande citée par la doc écrit : entre crochets c'est facultatif, et `|` y sépare les choix.
-function shapes(usage: string): string[] {
-  let or = 0;
-  // Une suite, jusqu'au `|` ou au `]` qui la ferme : chacune de ses écritures.
-  const suite = (): string[] => {
-    let writtenEntries = [""];
-    while (or < usage.length && usage[or] !== "|" && usage[or] !== "]") {
-      const readOne = usage[or++] as string;
-      if (readOne !== "[") {
-        writtenEntries = writtenEntries.map((start) => start + readOne);
-        continue;
-      }
-      const choice = [""];
-      do choice.push(...suite());
-      while (usage[or++] === "|");
-      assert.equal(usage[or - 1], "]", `un crochet ne se ferme pas dans \`${usage}\``);
-      writtenEntries = writtenEntries.flatMap((start) => choice.map((taken) => start + taken));
-    }
-    return writtenEntries;
-  };
-  const allEntries = suite();
-  assert.equal(or, usage.length, `\`${usage}\` ne se lit pas jusqu'au bout`);
-  return allEntries.map((shape) => shape.replace(/\s+/g, " ").trim());
-}
-
-// Toutes les commandes du runtime que la doc cite, chacune écrite en entier.
-const CITED = new Set(
-  [...doc.matchAll(/`([^`\n]+)`/g)]
-    .map(([, cite = ""]) => cite)
-    // Un `|` nu sépare des alternatives hors d'un tableau (`yes|no`), et ne se développe pas : seules les écritures de tableau (`\|`) sont des formes.
-    .filter((cite) => !/(^|[^\\])\|/.test(cite))
-    .map((cite) => cite.replaceAll("\\|", "|"))
-    .filter((cite) => cite.startsWith("brigade <projet> "))
-    .flatMap(shapes),
-);
 
 // Chaque geste : la commande que la doc cite, et ce qui s'écrit pour « parade » sur cet ordinateur.
 const ACTIONS_OF_THE_DOC: readonly [id: string, citee: string, ecrite: string][] = [
@@ -109,18 +69,14 @@ const PARTENT = ACTIONS_OF_THE_DOC.filter(([id]) => DIRECT.includes(id));
 const CONFIRMED_OF_THE_DOC = ACTIONS_OF_THE_DOC.filter(([id]) => CONFIRMED.includes(id));
 
 describe("les gestes du chef", () => {
-  test("ils sont cinq, ceux que le chef répète, et chacun est une commande du runtime : rien de ce qui se joue sur la machine à côté", () => {
+  test("ils sont cinq, ceux que le chef répète : rien de ce qui se joue sur la machine à côté", () => {
     assert.deepEqual(
       ACTIONS.map(({ id }) => id),
       ACTIONS_OF_THE_DOC.map(([id]) => id),
     );
     assert.equal(new Set(ACTIONS.map(({ id }) => id)).size, ACTIONS.length);
 
-    const { scripts } = JSON.parse(readFileSync(join(ROOT, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
-    for (const { id, commande: words } of ACTIONS) {
-      assert.ok((words.split(" ")[0] ?? "") in scripts, `« ${id} » n'est pas un script du runtime`);
-      assert.doesNotMatch(words, /systemctl|login|sudo/);
-    }
+    for (const { commande: words } of ACTIONS) assert.doesNotMatch(words, /systemctl|login|sudo/);
   });
 
   test("aucun geste n'écrit autre chose que la commande du runtime qu'il nomme : ni shell, ni `sudo`, ni commande libre", () => {
@@ -154,13 +110,8 @@ describe("les gestes du chef", () => {
     }
   });
 
-  test(`${SOURCE} donne la forme \`${OF_BOX}\` : c'est elle que le geste de la station de cet ordinateur lance`, () => {
-    assert.ok(doc.includes(`\`${OF_BOX}\``), `${SOURCE} ne donne plus la forme \`${OF_BOX}\``);
-  });
-
   for (const [id, citee, writtenOne] of ACTIONS_OF_THE_DOC) {
-    test(`« ${id} » écrit \`${writtenOne}\` — la commande de ${SOURCE} : \`${citee}\`, lancée par le geste de la station de cet ordinateur`, () => {
-      assert.ok(CITED.has(citee), `${SOURCE} ne cite plus \`${citee}\``);
+    test(`« ${id} » écrit \`${writtenOne}\` — la commande \`${citee}\`, lancée par le geste de la station de cet ordinateur`, () => {
       // La commande de la doc, avec le nom de ce projet : rien d'autre n'y est changé.
       const words = citee.slice(OF_BOX.indexOf("<commande>"));
       assert.equal(OF_BOX.replace("<commande>", words), citee);

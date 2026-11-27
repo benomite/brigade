@@ -10,11 +10,11 @@ UNITES="brigade-station.service brigade-station-renouvellement.timer"
 # Les portes de la station : pas activées pour elles-mêmes, la station les
 # réclame.
 PORTES=brigade-station-porte.service
-# La bascule d'une machine qui servait ses projets avant le paquet, une unité
-# par projet (runtime/src/bascule/) : le node et le code que le paquet pose.
-RACINE=/
-NODE=/usr/lib/brigade-station/node/bin/node
-BASCULE=/usr/lib/brigade-station/runtime/src/bascule/main.ts
+# The kitchen's own unit, installed by hand on the box before the station ran
+# the kitchen: the station runs it now, and two kitchens must never serve the
+# same projects.
+CUISINE=brigade-kitchen.service
+UNITES_A_LA_MAIN=/etc/systemd/system
 
 case "$1" in
   configure)
@@ -30,15 +30,11 @@ case "$1" in
 
     # Sans systemd en marche (un chroot, un conteneur), rien à démarrer.
     if [ -d /run/systemd/system ]; then
-      # Une machine qui servait déjà ses projets, chacun par son unité : la
-      # station les reprend avant de démarrer — journal, décisions et tickets
-      # en cours laissés où ils sont —, et ce que cette installation avait
-      # posé dans le système part. Sans elle, rien à faire. Refusée, rien n'a
-      # changé : l'installation s'arrête et dit pourquoi.
-      bascule=""
-      if [ -x "$NODE" ]; then
-        "$NODE" "$BASCULE" --racine "$RACINE"
-        bascule=oui
+      # Its agents in flight keep running under their relays (KillMode=process):
+      # the station's kitchen takes them back.
+      if [ -f "$UNITES_A_LA_MAIN/$CUISINE" ]; then
+        systemctl disable --now "$CUISINE" || true
+        rm -f "$UNITES_A_LA_MAIN/$CUISINE"
       fi
       systemctl daemon-reload
       if [ -z "${2:-}" ]; then
@@ -47,7 +43,7 @@ case "$1" in
         systemctl enable --now $UNITES
       else
         # Une mise à jour : ce qui est activé repart sur le nouveau code — les
-        # cooks en cours, eux, finissent (KillMode=process). Ce que
+        # agents en cours, eux, finissent (KillMode=process). Ce que
         # l'administrateur a désactivé le reste. Les portes d'abord, si elles
         # tournent : chacune reprend son port, et la station la retrouve ; une
         # station qui ne les connaissait pas les démarre en repartant (Wants=).
@@ -59,11 +55,6 @@ case "$1" in
             systemctl restart "$unite"
           fi
         done
-      fi
-      # La cuisine des projets repris s'est arrêtée à la bascule : elle
-      # reprend quand la station les sert. Combien de temps, c'est dit ici.
-      if [ -n "$bascule" ]; then
-        "$NODE" "$BASCULE" attendre --racine "$RACINE" || true
       fi
     fi
     ;;

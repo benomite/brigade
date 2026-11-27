@@ -2,86 +2,44 @@
 // vraie machine (`aides/machine.ts`) : de vrais paquets construits depuis ce
 // dépôt, installés comme le guide les installe, puis des versions publiées
 // l'une après l'autre. Le minuteur de la mise à jour se déclenche ; personne
-// ne tape de commande. C'est le code installé qui tourne — la station et sa
-// mise à jour —, ses unités et son postinst.
+// ne tape de commande. C'est le code installé qui tourne — la station, qui est
+// la cuisine (`src/kitchen/main.ts`), et sa mise à jour —, ses unités et son
+// postinst.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, test, type TestContext } from "node:test";
-import { decrireEtat, lireEtat } from "../../src/etat.ts";
-import { ouvrirJournal } from "../../src/journal.ts";
 import { lireEnService } from "../../src/mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../../src/mise-a-jour/etat.ts";
-import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, mort, repertoireTemporaire, tuerLesRelais, vivant } from "../outils.ts";
+import { BASE, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, git, jusqua, repertoireTemporaire, vivant } from "../outils.ts";
 import { construirePaquet, deriverPaquet, sansDpkgDeb, uneMachine, type Machine } from "./aides/machine.ts";
 
 const UNITE = "usr/lib/systemd/system/brigade-station.service";
-const MAIN = "usr/lib/brigade-station/runtime/src/station/main.ts";
+const MAIN = "usr/lib/brigade-station/runtime/src/kitchen/main.ts";
 
-// L'heure d'un instant, à la minute, à l'heure de la machine : « 14:02 ».
-const heure = (instant: string) => {
-  const lu = new Date(instant);
-  return `${String(lu.getHours()).padStart(2, "0")}:${String(lu.getMinutes()).padStart(2, "0")}`;
-};
-
-// Les décisions sans lesquelles un projet ne sert pas.
-const DECIDE = {
-  BRIGADE_STATIONS: "box/claude:30:code",
-  BRIGADE_MANAGER_MODEL: "sonnet",
-  BRIGADE_MANAGER_EFFORT: "medium",
-  BRIGADE_REVIEWER_MODEL: "sonnet",
-  BRIGADE_REVIEWER_EFFORT: "medium",
-};
-
-// Une installation de test qui sert un projet, `brigade` : son journal, ses
-// décisions, son clone et son `gh`, tels qu'ils seraient avant la première
-// version.
-function machineAvecUnProjet(t: TestContext): Machine & { etatDuProjet: string } {
+// Une installation de test dont la cuisine sert un projet, `brigade` : sa
+// ligne dans `kitchen/projects`, son clone et son `gh`, tels qu'ils seraient
+// avant la première version.
+function machineAvecUnProjet(t: TestContext): Machine {
   const compte = repertoireTemporaire(t);
+  const gh = fauxGh(t);
+  gh.issues([]);
   const machine = uneMachine(t, {
     ...ENV_GIT,
     HOME: compte,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
-    BRIGADE_MAX_LOAD_PER_CORE: "1000000",
-    BRIGADE_MIN_FREE_MEMORY_MB: "0",
-    BRIGADE_MIN_FREE_DISK_MB: "0",
+    FAUX_SYSTEMD_ENV: JSON.stringify({ BRIGADE_GH_BIN: gh.bin, BRIGADE_SANDBOX_BIN: FAUX_BWRAP }),
   });
-  const etatDuProjet = join(machine.station, "etat/brigade");
-  mkdirSync(etatDuProjet, { recursive: true });
-  const journal = ouvrirJournal(etatDuProjet);
-  for (const [name, value] of Object.entries(DECIDE)) journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
-  journal.fermer();
-  const clone = join(machine.station, "clones/brigade");
+  // Son clone là où la station le pose, sous le répertoire que la cloison masque.
+  const clone = join(machine.station, "brigade/depot");
   mkdirSync(clone, { recursive: true });
   git(clone, "init", "-q");
-  const gh = fauxGh(t);
-  gh.issues([]);
-  writeFileSync(join(machine.station, "projets"), `brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP}\n`);
-  return { ...machine, etatDuProjet };
+  mkdirSync(join(machine.station, "kitchen"), { recursive: true });
+  writeFileSync(join(machine.station, "kitchen/projects"), `brigade acme/brigade ${BASE}\n`);
+  return machine;
 }
-
-// Le bloc `awaiting` de l'état du projet : la file.
-function file(etatDuProjet: string): string[] {
-  const journal = ouvrirJournal(etatDuProjet, { lectureSeule: true });
-  try {
-    const lignes = decrireEtat(lireEtat(journal), new Date());
-    const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting"));
-    return lignes.slice(debut, lignes.indexOf("end awaiting", debut) + 1);
-  } finally {
-    journal.fermer();
-  }
-}
-
-const faits = (etatDuProjet: string, type: string) => {
-  const journal = ouvrirJournal(etatDuProjet, { lectureSeule: true });
-  try {
-    return journal.tout().flatMap((e) => (e.type === type ? [e.payload as Record<string, unknown>] : []));
-  } finally {
-    journal.fermer();
-  }
-};
 
 // La station tourne, en `version`, sous le pid que systemd lui donne.
 // Le pid rendu est celui que systemd vient de donner : chaque question à
@@ -125,7 +83,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
   });
   after(() => rmSync(dossier, { recursive: true, force: true }));
 
-  test("deux versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage", async (t) => {
+  test("deux versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et l'état de la mise à jour dit chaque passage", async (t) => {
     const machine = machineAvecUnProjet(t);
     machine.installer(premier);
     assert.equal(machine.installee(), "1.0.0");
@@ -147,10 +105,8 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(machine.installee(), "1.1.0", dit());
     const pid2 = await enService(machine, "1.1.0");
     assert.notEqual(pid2, pid1);
-    await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 1);
-    const [passage] = faits(machine.etatDuProjet, "update.installed");
-    assert.deepEqual([passage?.version, passage?.previous], ["1.1.0", "1.0.0"]);
-    assert.deepEqual(file(machine.etatDuProjet), ["awaiting   nothing awaits the chef", `  switched to version 1.1.0 at ${heure(String(passage?.at))}`, "end awaiting"]);
+    const passage = lireEtatMiseAJour(machine.miseAJour)?.derniere;
+    assert.deepEqual(passage?.quoi === "passee" && [passage.version, passage.depuis], ["1.1.0", "1.0.0"], dit());
 
     // 1.2.0 change l'unité de la station : elle tourne sous la nouvelle.
     assert.equal(machine.envDeLaStation().BRIGADE_ESSAI_UNITE, undefined);
@@ -166,15 +122,10 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
       appels.slice(installation).filter((a) => /daemon-reload|restart brigade-station\.service/.test(a)),
       ["systemctl daemon-reload", "systemctl restart brigade-station.service"],
     );
-    // Une troisième version simple ne disait rien de plus que 1.1.0 (#2464) : la file dit la dernière des deux.
-    await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 2);
-    assert.deepEqual(
-      faits(machine.etatDuProjet, "update.installed").map((p) => p.version),
-      ["1.1.0", "1.2.0"],
-    );
-    const dernier = faits(machine.etatDuProjet, "update.installed").at(-1);
-    assert.deepEqual(file(machine.etatDuProjet).slice(1, 2), [`  switched to version 1.2.0 at ${heure(String(dernier?.at))}`]);
+    const dernier = lireEtatMiseAJour(machine.miseAJour)?.derniere;
+    assert.deepEqual(dernier?.quoi === "passee" && [dernier.version, dernier.depuis], ["1.2.0", "1.1.0"], dit());
     // Le projet n'a jamais cessé d'être servi, et seule la station a été relancée.
+    await jusqua(() => lireEnService(machine.station)?.servis.includes("brigade") === true);
     assert.deepEqual(lireEnService(machine.station)?.servis, ["brigade"]);
     assert.deepEqual(
       machine.appels().filter((a) => /^systemctl (stop|restart|start) brigade-station\.service/.test(a)),
@@ -183,7 +134,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(lireEtatMiseAJour(machine.miseAJour)?.installee, "1.2.0");
   });
 
-  test("une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée", async (t) => {
+  test("une version dont le démarrage échoue : la station revient seule à la précédente, l'état de la mise à jour le dit — version visée, version restaurée —, et elle n'est pas réessayée", async (t) => {
     const machine = machineAvecUnProjet(t);
     machine.installer(premier);
     machine.publier("1.0.0", premier);
@@ -201,13 +152,10 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(etat?.derniere?.quoi, "revenue");
     assert.deepEqual(etat?.ratees, ["1.1.0"]);
 
-    await jusqua(() => faits(machine.etatDuProjet, "update.reverted").length === 1);
-    const [retour] = faits(machine.etatDuProjet, "update.reverted");
-    assert.deepEqual([retour?.target, retour?.restored, retour?.restoreFailed], ["1.1.0", "1.0.0", null]);
-    const [, ligne] = file(machine.etatDuProjet);
-    assert.equal(
-      ligne,
-      `  update to version 1.1.0 failed at ${heure(String(retour?.at))}: la station s'est arrêtée en échec en 1.1.0 (systemd : failed) — back on version 1.0.0; 1.1.0 is not retried, the next one will be`,
+    const retour = etat?.derniere;
+    assert.deepEqual(
+      retour?.quoi === "revenue" && [retour.visee, retour.restauree, retour.retour, retour.motif],
+      ["1.1.0", "1.0.0", null, "la station s'est arrêtée en échec en 1.1.0 (systemd : failed)"],
     );
 
     // Elle n'est pas réessayée : rien n'est réinstallé.

@@ -31,7 +31,7 @@ import {
   holdTheFirstTickets,
   type State,
 } from "../../src/vue/first-ticket/first-ticket.js";
-import type { Brouillon, Creation, Demande, Redaction } from "../../../runtime/src/premier-ticket/premier-ticket.ts";
+import type { Draft as Brouillon, Creation, Request as Demande, Redaction } from "../../src/first-ticket.ts";
 import { Fake, playTheVue, type Played, type Answers, repos } from "../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
