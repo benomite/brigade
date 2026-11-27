@@ -2579,7 +2579,7 @@ works in its own worktree on a branch, runs the gates, opens a pull request that
 (which goes through the pass like any delivery) and comments on the issue that the second took it, and
 why. What stays forbidden, exception or not: **merging** (the chef or the pass does; the second only
 gives the command) and **reading the chef's secrets** (`.env.local`, the Max token). The text is in
-`app/src/second/role.md`; the V1 role (`commands/po.md`, with its Codex mirror) carries the same rule (#2178).
+`app/src/second/role.md` (#2178).
 
 **The role exists only in the Second tab.** The role and the settings of the launch (`--settings`, the
 hooks the app gives the second) are arguments of the command the tab runs, and nothing else: the app
