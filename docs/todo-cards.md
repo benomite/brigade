@@ -19,7 +19,7 @@ Above the columns, `TODO (N)`, then one entry per ticket parked for the chef (`s
 1. its number and title — a click opens its card, where its answer field and `ask the second` are;
 2. what is asked — the last `Parked for the chef` comment of the kitchen, as it is. With no such comment (the label set by hand), the card says so and asks anyway.
 
-A `parked:chef` card is answered only in words: its entry has no button, and its number opens its card and its field (`actionsOfTodo`). On a project in read-only (#3163), the entries say what is asked, with no button.
+A `parked:chef` card is answered only in words: its entry has one button, `Answer`, which opens its card and its field, like its number (`actionsOfTodo`). On a project in read-only (#3163), the entries say what is asked, with no button.
 
 ### Answering sends the ticket on
 
