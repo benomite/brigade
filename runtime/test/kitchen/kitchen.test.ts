@@ -11,7 +11,7 @@ import type { Gh } from "../../src/kitchen/github.ts";
 import type { Kind } from "../../src/kitchen/runs.ts";
 
 type FakeIssue = { number: number; title: string; body: string; labels: string[]; comments: string[]; closed: boolean };
-type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; conflicting?: boolean; log?: string; body?: string };
+type FakePr = { number: number; head: string; checks: "SUCCESS" | "FAILURE"; merged: boolean; running?: boolean; conflicting?: boolean; log?: string; body?: string };
 
 function fakeGh() {
   const issues = new Map<number, FakeIssue>();
@@ -43,7 +43,7 @@ function fakeGh() {
               nodes: [...issues.values()].filter((i) => !i.closed).map((i) => ({ number: i.number, title: i.title, body: i.body, authorAssociation: "OWNER", labels: { nodes: i.labels.map((name) => ({ name })) } })),
             },
             pullRequests: {
-              nodes: prs.filter((p) => !p.merged).map((p) => ({ number: p.number, headRefName: p.head, mergeable: p.conflicting === true ? "CONFLICTING" : "MERGEABLE", commits: { nodes: [{ commit: { statusCheckRollup: { state: p.checks, contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: p.checks }] } } } }] } })),
+              nodes: prs.filter((p) => !p.merged).map((p) => ({ number: p.number, headRefName: p.head, mergeable: p.conflicting === true ? "CONFLICTING" : "MERGEABLE", commits: { nodes: [{ commit: { checkSuites: { nodes: [{ status: p.running === true ? "IN_PROGRESS" : "COMPLETED", app: { slug: "github-actions" } }, { status: "QUEUED", app: { slug: "claude" } }] }, statusCheckRollup: { state: p.checks, contexts: { nodes: [{ __typename: "CheckRun", name: "tests", status: "COMPLETED", conclusion: p.checks }] } } } }] } })),
             },
           },
         },
@@ -403,6 +403,46 @@ test("a red delivery goes back to a cook with the last lines of its failing chec
   assert.match(comment, /token \[secret:GH_TOKEN\] rejected/);
   assert.doesNotMatch(comment, /ghp_secretvalue1234/);
   assert.deepEqual(fake.issues.get(issue)?.labels, ["try:1"]);
+});
+
+test("a pass that ends while the CI's workflow still runs does not merge: the PR waits for the next pass, once the workflow is over (#4589)", async () => {
+  const { root, clone, agent } = origin();
+  const fake = fakeGh();
+  const issue = fake.add("Add a feature", ["fire"]);
+  const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
+  const lines: string[] = [];
+  let passes = 0;
+  const kitchen = openKitchen({
+    repo: "o/r",
+    base: "main",
+    clone,
+    worktrees: join(root, "wt"),
+    state: join(root, "state"),
+    gh: fake.gh,
+    git: gitCli(env),
+    // While the first pass reads, the workflow plans jobs that do not exist yet: every check so far is green.
+    launch: (kind: Kind, cwd, _write, _calibration, input) => {
+      if (kind === "pass" && passes++ === 0) for (const pr of fake.prs) pr.running = true;
+      return { command: agent, args: [], input, cwd, env, secrets: {} };
+    },
+    places: () => 2,
+    riskPaths: () => [],
+    supervisorEveryMs: Number.MAX_SAFE_INTEGER,
+    log: (line) => lines.push(line),
+  });
+  await until(() => passes === 1, kitchen.turn);
+  // The pass ends and the kitchen reads the PR again: a few turns, enough for the pass to finish.
+  for (let i = 0; i < 15; i++) {
+    await kitchen.turn();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(fake.issues.get(issue)?.closed, false, lines.join("\n"));
+  assert.equal(passes, 1);
+  assert.ok(fake.issues.get(issue)?.labels.includes("in-pass"));
+  for (const pr of fake.prs) pr.running = false;
+  await until(() => fake.issues.get(issue)?.closed === true, kitchen.turn);
+  assert.equal(fake.issues.get(issue)?.closed, true, lines.join("\n"));
+  assert.equal(passes, 2);
 });
 
 test("the kitchen stays under 1,000 lines", () => {
