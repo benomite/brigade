@@ -1,16 +1,14 @@
 // Le process de l'icône de fond (#3631), lancé par entry.ts quand le binaire de l'app reçoit `--tray-fond` — à
 // l'ouverture de session par son agent launchd ou sa valeur `Run` (system.ts), et par l'app à chaque ouverture. Il n'a
 // pas de fenêtre : une icône dans la barre des menus du Mac ou la zone de notification de Windows, qui reste là l'app
-// fermée. Toutes les quinze secondes, il relit les `facts` de chaque projet que la station de cet ordinateur sert, et
-// redit la ligne et le menu quand ils changent (tray-background.ts). Le chef la retire dans Settings, comme celle de l'app
+// fermée. Toutes les quinze secondes, il relit les projets que la station de cet ordinateur sert, et redit la ligne et le
+// menu quand ils changent (tray-background.ts) : il ne lance aucune commande du runtime. Le chef la retire dans Settings, comme celle de l'app
 // (`barreDeMenus`, config.ts).
 import { spawn } from "node:child_process";
 import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import { app, dialog, nativeImage, type MenuItemConstructorOptions } from "electron";
-import { launchHere, type Locale } from "../box.ts";
-import type { ProjectRead } from "../menu-bar.ts";
 import { pathConfiguration, readConfiguration } from "../config.ts";
 import { RELEASES_URL } from "../update/android.ts";
 import { pathOf, locationsOf, readPathOfShell } from "../locations.ts";
@@ -18,13 +16,10 @@ import { shellOfWorkstation } from "../platform.ts";
 import { servedBy } from "../workstation/kitchen-here.ts";
 import { takeThePlace } from "./instance.ts";
 import { createIfFree, ICON_OF_THE_BAR, type IconUnique } from "../tray/icon.ts";
-import { lineOfBackground } from "../tray/line.ts";
-import { playTheAction, readTheProjects, type Launch } from "./read.ts";
 import { FOLDER_OF_BACKGROUND, writeTheVersionOfBackground, run, quitTheStation } from "./system.ts";
-import { clickOnTheApp, confirmationOfQuit, stateOfTheStation, menuOfBackground, questionsOfBackground, type EntryOfBackground, type Action } from "./tray-background.ts";
+import { clickOnTheApp, confirmationOfQuit, lineOfTheStationHere, menuOfBackground, type EntryOfBackground, type Action } from "./tray-background.ts";
 
 const INTERVAL_MS = 15_000;
-const DELAY_MS = 30_000;
 
 // Ses propres données, à part de celles de l'app : les deux tournent en même temps. Un seul process d'icône par compte.
 app.setPath("userData", join(app.getPath("userData"), FOLDER_OF_BACKGROUND));
@@ -56,11 +51,9 @@ const locations = locationsOf({ ressources: process.resourcesPath, src, env: pro
 const path = pathOf({ emplacements: locations, env: process.env, maison: homedir(), plateforme: platform, duShell: () => (platform === "win32" ? undefined : readPathOfShell(shellOfWorkstation(platform, process.env).commande, 10_000)) });
 if (path !== undefined) process.env.PATH = path;
 const root = process.env.BRIGADE_STATION_DIR || join(dirname(pathConfiguration()), "station");
-const locale: Locale = { node: locations.node, runtime: locations.runtime, racine: root, env: process.env };
-const launch: Launch = (project, command) => launchHere(locale, project, command, DELAY_MS);
 
 let icon: IconUnique | undefined;
-let projects: ProjectRead[] = [];
+let projects: string[] = [];
 let saidOne = "";
 let inProgress = false;
 
@@ -86,15 +79,13 @@ async function play(action: Action): Promise<void> {
   inProgress = true;
   try {
     if (action === "quitter") {
-      const text = confirmationOfQuit(projects);
+      const text = confirmationOfQuit();
       const { response } = await dialog.showMessageBox({ type: "warning", message: text.message, detail: text.detail, buttons: [text.quitter, text.annuler], defaultId: 1, cancelId: 1 });
       if (response !== 0) return;
       await tell(await quitTheStation({ plateforme: platform, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, binaire: process.execPath, executer: run }));
       app.quit();
       return;
     }
-    await tell(await playTheAction(action, projects, launch, DELAY_MS));
-    await reread();
   } finally {
     inProgress = false;
   }
@@ -128,19 +119,17 @@ function set(active: boolean): void {
       return;
     }
   }
-  const station = stateOfTheStation(projects);
-  const entries = menuOfBackground(projects, station);
+  const entries = menuOfBackground(projects);
   const pose = JSON.stringify(entries);
   if (pose === saidOne) return;
   // Une place tenue par l'app : rien n'est dit, et la lecture suivante essaie encore.
   saidOne = icon ? pose : "";
-  const line = lineOfBackground(projects, station);
-  icon?.ligne(image, { infobulle: "brigade station", ligne: line, questions: questionsOfBackground(projects) });
+  icon?.ligne(image, { infobulle: "brigade station", ligne: lineOfTheStationHere(projects), questions: 0 });
   icon?.menu(entries.map(entryOfMenu));
 }
 
 async function reread(): Promise<void> {
-  projects = await readTheProjects(servedBy(root), launch);
+  projects = servedBy(root);
   set(readConfiguration(pathConfiguration()).barreDeMenus !== false);
 }
 
