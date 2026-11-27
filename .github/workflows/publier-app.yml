@@ -1,5 +1,5 @@
 # Publie l'app : à chaque merge sur la branche d'intégration qui change l'app, une release `app-v<version>` avec ce que
-# les apps installées lisent et téléchargent (app/src/mise-a-jour/flux.ts) — pour le Mac
+# les apps installées lisent et téléchargent (app/src/update/flux.ts) — pour le Mac
 # `Brigade-<version>-arm64.dmg` et `latest-mac.yml`, pour Windows `Brigade-<version>-x64-setup.exe`
 # et `latest.yml`, tous à la racine de la release. Personne ne pose de tag : ce workflow crée le
 # tag et la release lui-même, dans le même run que les constructions (un tag créé avec
@@ -282,7 +282,7 @@ jobs:
           echo "::warning::The builds are unsigned: no signing secret is set."
           npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
       # L'app installée d'un Mac se remplace par ce .dmg (#2431) : son installeur refuse une app dont la
-      # signature, même ad hoc, ne se vérifie pas (app/src/mise-a-jour/installation.ts). Ce qu'il
+      # signature, même ad hoc, ne se vérifie pas (app/src/update/installation.ts). Ce qu'il
       # vérifie se vérifie ici, avant de publier un `latest-mac.yml` qui mènerait à un échec chez le chef.
       - name: Vérifier ce que l'app installée vérifiera, non signé
         if: needs.detecter-secrets.outputs.non_signe == 'true'
@@ -311,7 +311,7 @@ jobs:
           point=$(mktemp -d "$RUNNER_TEMP/dmg.XXXXXX")
           hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$point" "$dmg" > /dev/null
           trap 'hdiutil detach "$point" -force > /dev/null || true' EXIT
-          # Ce que vérifie l'app installée avant de se remplacer (app/src/mise-a-jour/installation.ts).
+          # Ce que vérifie l'app installée avant de se remplacer (app/src/update/installation.ts).
           codesign --verify --deep --strict --verbose=2 "$point/Brigade.app"
           xcrun stapler validate "$point/Brigade.app"
           spctl --assess --type execute --verbose=2 "$point/Brigade.app"

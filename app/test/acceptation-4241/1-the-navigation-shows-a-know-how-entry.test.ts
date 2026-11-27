@@ -1,100 +1,100 @@
-// Test d'acceptation gelé (#4241), critère 1. La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
+// Test d'acceptation gelé (#4241), critère 1. La vue est jouée telle qu'elle est, devant un faux document (helpers/false-vue.ts).
 // Le contrat que ce test fixe, parce que le ticket le laisse ouvert : le savoir-faire du projet passe par UN petit module,
-// `app/src/vue/savoir-faire/source.js`, qui exporte l'objet `source` — `source.lire()` rend les entrées `{ id, text, ticket }`
+// `app/src/vue/know-how-tab/source.js`, qui exporte l'objet `source` — `source.lire()` rend les entrées `{ id, text, ticket }`
 // (le ticket d'où l'entrée est née), `source.modifier(id, texte)` en change le texte, `source.retirer(id)` la retire. La vue les appelle
 // par l'objet, à chaque usage : le test les remplace par un faux qui tient son état. L'entrée du menu est un bouton « Know-how » de
 // `onglets-du-projet`, voisin de Stations ; l'écran se rouvre en montrant un autre onglet puis celui-là. Une entrée se modifie dans un
 // champ (`textarea` ou `input`) qui porte son texte, un bouton « save » l'enregistre ; elle se retire d'un bouton « remove » (ou « delete »).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ALLUMAGE } from "../../src/allumage.ts";
-import { pourLaBarre } from "../../src/barre.ts";
-import { EXEMPLE } from "../../src/config.ts";
-import { PALETTE } from "../../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE } from "../../src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../src/gestes.ts";
-import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
-import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { source } from "../../src/vue/savoir-faire/source.js";
-import { jouerLaVue, repos, type Faux, type Jouee } from "../aides/fausse-vue.ts";
+import { POWER_UP } from "../../src/power-up.ts";
+import { forTheBar } from "../../src/bar.ts";
+import { EXAMPLE } from "../../src/config.ts";
+import { PALETTE } from "../../src/colors.ts";
+import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
+import { BANNER } from "../../src/facts.ts";
+import { CONFIRMED, DIRECT } from "../../src/actions.ts";
+import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
+import { source } from "../../src/vue/know-how-tab/source.js";
+import { playTheVue, repos, type Fake, type Played } from "../helpers/false-vue.ts";
 
-const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
+const startup = () => ({
+  configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
-  exemple: EXEMPLE,
-  onglets: ONGLETS,
-  rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES },
-  banniere: BANNIERE,
-  calibrage: { modeles: MODELES, efforts: EFFORTS },
+  exemple: EXAMPLE,
+  onglets: TABS,
+  rubriques: HEADINGS,
+  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  banniere: BANNER,
+  calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
 });
-type Entree = { id: string; text: string; ticket: number };
-const ENTREES: Entree[] = [
+type Entry = { id: string; text: string; ticket: number };
+const ENTRIES: Entry[] = [
   { id: "L1", text: "Run the typecheck before pushing", ticket: 4001 },
   { id: "L2", text: "Never kill a process by name", ticket: 4002 },
   { id: "L3", text: "Fakes live in test/aides", ticket: 4003 },
 ];
 
 // Le faux tient son état : une relecture rend ce que l'écran rouvert doit montrer.
-function fauxModule(depart: Entree[]) {
-  const etat = structuredClone(depart);
+function fakeModule(departure: Entry[]) {
+  const state = structuredClone(departure);
   Object.assign(source, {
-    lire: async () => structuredClone(etat),
-    modifier: async (id: string, texte: string) => {
-      const cible = etat.find((entree) => entree.id === id);
-      if (cible !== undefined) cible.text = texte;
+    lire: async () => structuredClone(state),
+    modifier: async (id: string, text: string) => {
+      const target = state.find((entry) => entry.id === id);
+      if (target !== undefined) target.text = text;
     },
     retirer: async (id: string) => {
-      const i = etat.findIndex((entree) => entree.id === id);
-      if (i >= 0) etat.splice(i, 1);
+      const i = state.findIndex((entry) => entry.id === id);
+      if (i >= 0) state.splice(i, 1);
     },
   });
 }
-async function ouvrirLeProjet(): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }] } as never);
+async function openTheProject(): Promise<Played> {
+  const vue = await playTheVue({ demarrage: startup, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }] } as never);
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;
 }
-const onglets = (vue: Jouee): Faux[] => vue.element("onglets-du-projet").children;
-const onglet = (vue: Jouee, titre: string): Faux => onglets(vue).find((o) => o.textContent.trim() === titre) ?? assert.fail(`pas d'onglet « ${titre} »`);
-const visible = (noeud: Faux): boolean => {
-  for (let pose: Faux | null = noeud; pose !== null; pose = pose.parentElement) if (pose.hidden) return false;
+const tabs = (vue: Played): Fake[] => vue.element("onglets-du-projet").children;
+const tab = (vue: Played, title: string): Fake => tabs(vue).find((o) => o.textContent.trim() === title) ?? assert.fail(`pas d'onglet « ${title} »`);
+const visible = (node: Fake): boolean => {
+  for (let pose: Fake | null = node; pose !== null; pose = pose.parentElement) if (pose.hidden) return false;
   return true;
 };
-const tout = (vue: Jouee): Faux[] => vue.poses().filter(visible);
-const montre = (vue: Jouee): string => tout(vue).map((p) => p.textContent).join("\n");
-async function ouvrirLeSavoirFaire(vue: Jouee): Promise<void> {
-  onglet(vue, "Know-how").click();
+const all = (vue: Played): Fake[] => vue.poses().filter(visible);
+const shows = (vue: Played): string => all(vue).map((p) => p.textContent).join("\n");
+async function openTheKnowHow(vue: Played): Promise<void> {
+  tab(vue, "Know-how").click();
   await repos();
 }
-async function rouvrir(vue: Jouee): Promise<void> {
-  onglet(vue, "Rail").click();
+async function reopen(vue: Played): Promise<void> {
+  tab(vue, "Rail").click();
   await repos();
-  await ouvrirLeSavoirFaire(vue);
+  await openTheKnowHow(vue);
 }
-const boutons = (vue: Jouee, mot: RegExp): Faux[] => tout(vue).filter((p) => p.balise === "button" && mot.test(p.textContent.trim()));
-const champ = (vue: Jouee, valeur: string): Faux | undefined => tout(vue).find((p) => (p.balise === "textarea" || p.balise === "input") && p.value === valeur);
+const buttons = (vue: Played, word: RegExp): Fake[] => all(vue).filter((p) => p.balise === "button" && word.test(p.textContent.trim()));
+const field = (vue: Played, value: string): Fake | undefined => all(vue).find((p) => (p.balise === "textarea" || p.balise === "input") && p.value === value);
 // Le bouton « mot » de l'entrée : celui du plus bas ancêtre du texte de l'entrée qui n'en porte qu'un.
-function boutonDeLEntree(vue: Jouee, texte: string, mot: RegExp): Faux {
-  const ancre = tout(vue).find((p) => p.children.length === 0 && p.textContent.includes(texte)) ?? champ(vue, texte) ?? assert.fail(`pas d'entrée « ${texte} »`);
-  for (let r: Faux | null = ancre; r !== null; r = r.parentElement) {
-    const trouves = r.descendants().filter((d) => d.balise === "button" && !d.hidden && mot.test(d.textContent.trim()));
-    if (trouves.length === 1) return trouves[0] as Faux;
-    if (trouves.length > 1) break;
+function buttonOfTheEntry(vue: Played, text: string, word: RegExp): Fake {
+  const anchor = all(vue).find((p) => p.children.length === 0 && p.textContent.includes(text)) ?? field(vue, text) ?? assert.fail(`pas d'entrée « ${text} »`);
+  for (let r: Fake | null = anchor; r !== null; r = r.parentElement) {
+    const found = r.descendants().filter((d) => d.balise === "button" && !d.hidden && word.test(d.textContent.trim()));
+    if (found.length === 1) return found[0] as Fake;
+    if (found.length > 1) break;
   }
-  return assert.fail(`pas de bouton ${mot} pour « ${texte} »`);
+  return assert.fail(`pas de bouton ${word} pour « ${text} »`);
 }
 
 // #4241, critère 1 : l'entrée Know-how est dans le menu, à côté de Stations et de Settings.
 test("the navigation shows a Know-how entry next to Stations and Settings", async () => {
-  fauxModule(ENTREES);
-  const vue = await ouvrirLeProjet();
-  const titres = onglets(vue).map((o) => o.textContent.trim());
-  const [stations, savoir, settings] = ["Stations", "Know-how", "Settings"].map((t) => titres.indexOf(t)) as [number, number, number];
-  assert.ok(savoir >= 0, `Know-how est dans le menu (${titres.join(" · ")})`);
+  fakeModule(ENTRIES);
+  const vue = await openTheProject();
+  const titles = tabs(vue).map((o) => o.textContent.trim());
+  const [stations, knowledge, settings] = ["Stations", "Know-how", "Settings"].map((t) => titles.indexOf(t)) as [number, number, number];
+  assert.ok(knowledge >= 0, `Know-how est dans le menu (${titles.join(" · ")})`);
   assert.ok(stations >= 0 && settings >= 0, "Stations et Settings y sont aussi");
-  assert.ok(Math.abs(savoir - stations) <= 1 || Math.abs(savoir - settings) <= 1, "Know-how est voisin de Stations ou de Settings");
+  assert.ok(Math.abs(knowledge - stations) <= 1 || Math.abs(knowledge - settings) <= 1, "Know-how est voisin de Stations ou de Settings");
 });

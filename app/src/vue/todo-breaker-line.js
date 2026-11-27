@@ -5,22 +5,22 @@
 //
 // Sur un autre onglet que Rail, la ligne du disjoncteur reste dans la bande d'alertes, la même.
 //
-// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js) et rend des éléments.
+// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js) et rend des éléments.
 
-import { survol } from "./briques.js";
+import { hover } from "./bricks.js";
 
-/** @typedef {import("./briques.js").Fabrique} Fabrique */
+/** @typedef {import("./bricks.js").Fabrique} Fabrique */
 
-export const TITRE = "the breaker holds the kitchen";
+export const TITLE = "the breaker holds the kitchen";
 // L'état du projet que la ligne dit, partout de la même façon (ticket 3602) : « held: breaker open », puis ce que la station en écrit.
-export const RETENUE = "held: breaker open";
-/** @param {string} dit */
-const retenue = (dit) => dit.replace(/breaker open:?/, `${RETENUE} —`);
+export const HELD = "held: breaker open";
+/** @param {string} said */
+const retainedOne = (said) => said.replace(/breaker open:?/, `${HELD} —`);
 
-/** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
-function cree(doc, balise, texte) {
+/** @param {Fabrique} doc @param {string} balise @param {string} [text] */
+function created(doc, balise, text) {
   const pose = doc.createElement(balise);
-  if (texte !== undefined) pose.textContent = texte;
+  if (text !== undefined) pose.textContent = text;
   return pose;
 }
 
@@ -31,18 +31,18 @@ function cree(doc, balise, texte) {
  * @param {Fabrique} doc
  * @param {{ marque: any, dit: string, releve?: string, pourquoi?: string }} ligne
  */
-export function poserLigneDuDisjoncteur(doc, { marque, dit, releve, pourquoi }) {
-  const racine = cree(doc, "div");
-  racine.className = "ligne-disjoncteur";
-  racine.ariaLabel = TITRE;
-  const tete = cree(doc, "p");
-  tete.className = "dit";
-  tete.append(marque, cree(doc, "strong", retenue(dit)), ...(releve === undefined || releve.trim() === "" ? [] : [survol(doc, releve)]));
-  racine.append(tete);
-  if (pourquoi !== undefined && pourquoi.trim() !== "") {
-    const raison = cree(doc, "p", pourquoi);
-    raison.className = "pourquoi";
-    racine.append(raison);
+export function setLineOfBreaker(doc, { marque: brand, dit: said, releve: reading, pourquoi: why }) {
+  const root = created(doc, "div");
+  root.className = "ligne-disjoncteur";
+  root.ariaLabel = TITLE;
+  const head = created(doc, "p");
+  head.className = "dit";
+  head.append(brand, created(doc, "strong", retainedOne(said)), ...(reading === undefined || reading.trim() === "" ? [] : [hover(doc, reading)]));
+  root.append(head);
+  if (why !== undefined && why.trim() !== "") {
+    const reason = created(doc, "p", why);
+    reason.className = "pourquoi";
+    root.append(reason);
   }
-  return racine;
+  return root;
 }

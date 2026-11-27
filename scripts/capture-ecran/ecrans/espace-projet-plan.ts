@@ -2,8 +2,8 @@
 // pass, served. #22 est parked dans le backlog, il attend Stripe support ; #16, pris, est parked dans Cooks et attend le chef :
 // il est aussi dans son TODO, avec #12 — une ligne, « 2 wait for you » (#4354). En haut, l'équipe de la fixture, un badge d'une
 // ligne par agent.
-import type { Faits } from "../../../app/src/faits.ts";
-import { EQUIPE } from "../../../app/test/autonomie/equipe-fixture.ts";
+import type { Facts } from "../../../app/src/facts.ts";
+import { TEAM } from "../../../app/test/autonomy/team-fixture.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -24,7 +24,7 @@ export const FACTS = {
     { role: "supervisor", does: "watches the whole kitchen", latest: { what: "parked #16 for the chef", ticket: 16, at: "2026-10-13T09:40:00.000Z" } },
     { role: "closer", does: "tidies what is served", latest: { what: "removed 412 dead lines", ticket: null, at: "2026-10-13T03:12:00.000Z" } },
   ],
-} as Faits;
+} as Facts;
 
 export const ecran: Ecran = {
   dit: "L'espace de « parade » : le plan de la cuisine — backlog (le rail en tête), manager, cooks, pass, served —, #22 parked dans le backlog, #16 parked pour le chef dans Cooks, « 2 wait for you » au-dessus des colonnes, l'équipe en badges d'une ligne (#4238, #4354)",
@@ -33,7 +33,7 @@ export const ecran: Ecran = {
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],
   donnees: () => ({
     maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), lireLesAgents: EQUIPE },
+    reponses: { demarrage: demarrage(configuration(PROJETS)), lireLesAgents: TEAM },
     envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } }),
   }),
 };

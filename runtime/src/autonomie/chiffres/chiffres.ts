@@ -11,7 +11,7 @@
 // Everything is read from what GitHub holds — the merged pull requests, and
 // the events and comments of each ticket's issue —, never from a file of the
 // machine: a new computer shows the same figures. Pure functions: nothing is
-// read or written here; the app fetches (app/src/vue/autonomie/autonomie-github.ts)
+// read or written here; the app fetches (app/src/vue/autonomy/autonomy-github.ts)
 // and hands the data over. Several repositories together give the figures of
 // all projects: their tickets are pooled, not their shares averaged.
 //

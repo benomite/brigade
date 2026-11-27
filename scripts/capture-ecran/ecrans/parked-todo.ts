@@ -1,7 +1,7 @@
 // Le TODO du chef fait des tickets parked qui l'attendent (#4281) : #16 et #17, pris, parked pour le chef — pour quoi, qui,
 // jusqu'à quand, leurs boutons et « park or unpark… ». #22 est parked dans le backlog pour Stripe support : il n'y est pas.
 // Rien d'autre n'attend le chef : le TODO a ses deux entrées.
-import type { Faits } from "../../../app/src/faits.ts";
+import type { Facts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -17,7 +17,7 @@ const FACTS = {
     { ticket: 17, etat: "pris", titre: "La carte des vins", url: issue(17), activite: null, attente: null, tiers: pourLeChef("the wine supplier to pick", "2026-10-16T08:00:00.000Z") },
   ],
   attend: [],
-} as Faits;
+} as Facts;
 
 export const donneesDuTodoParked = () => ({
   maintenant: MAINTENANT,

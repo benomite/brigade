@@ -7,6 +7,8 @@ import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
 import { branchOf, gestures, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
+import { masquerIdentifiants } from "../identifiants.ts";
+import { masqueDesSecrets } from "../masque.ts";
 import { forget, listRuns, startRun, type Finished, type Kind, type Launch } from "./runs.ts";
 
 export type Git = (cwd: string, args: string[]) => Promise<string>;
@@ -28,15 +30,16 @@ export type KitchenOptions = {
   places: () => number;
   passPlaces?: number;
   riskPaths: () => string[];
+  // The kitchen's own secrets, masked by value in the CI logs it posts, as the relay masks an agent's.
+  secrets?: Record<string, string>;
   prompts?: Prompts;
   supervisorEveryMs?: number;
   now?: () => number;
   log: (line: string) => void;
 };
 
-// A PR the pass approves in a risk zone waits for the chef. The chef's answer
-// that says merge, posted after it, holds for that PR until a pass refuses the
-// ticket: a branch only brought up to date with the base keeps it (#4489).
+// A PR the pass approves in a risk zone waits for the chef. The chef's merge answer holds for
+// that PR until a pass refuses the ticket: a branch only brought up to date keeps it (#4489).
 const riskZoneComment = (pr: number) => `The pass approves PR #${pr}, but it touches a risk zone`;
 const answerText = (body: string) => body.replace(/^\s*<!--\s*brigade:reponse\b[^>]*-->/, "").trim();
 function chefSaidMerge(comments: readonly string[], pr: number): boolean {
@@ -66,6 +69,8 @@ export function openKitchen(options: KitchenOptions) {
   const now = options.now ?? Date.now;
   const worktreeOf = (issue: number) => join(options.worktrees, `${issue}-github`);
   mkdirSync(runs, { recursive: true });
+  const maskSecrets = masqueDesSecrets(options.secrets ?? {});
+  const mask = (raw: string) => masquerIdentifiants(maskSecrets(raw)).texte;
 
   const lastSupervisor = () => {
     try {
@@ -75,17 +80,23 @@ export function openKitchen(options: KitchenOptions) {
     }
   };
 
-  async function sendBack(issue: Issue, reason: string, counts: boolean) {
+  // The failing checks' last log lines, for a cook that has no token to read them.
+  async function ciLogs(pr: number): Promise<string> {
+    const logs = await act.failedLogs(pr).catch((error: Error) => [{ name: "CI logs", log: `unreadable: ${error.message}` }]);
+    return logs.map((one) => `\n\n#### ${one.name}\n\n\`\`\`\`\n${mask(one.log).replaceAll("````", "` ` ` `")}\n\`\`\`\``).join("");
+  }
+
+  async function sendBack(issue: Issue, reason: string, counts: boolean, details = "") {
     const tries = triesOf(issue.labels) + (counts ? 1 : 0);
     const old = issue.labels.filter((label) => /^try:\d+$/.test(label));
     if (counts && tries >= TRIES_MAX) {
       await act.labels(issue.number, [LABELS.parkedChef], [LABELS.inPass, LABELS.taken]);
-      await act.comment(issue.number, `Parked for the chef: refused ${tries} times. Last reason: ${reason}`);
+      await act.comment(issue.number, `Parked for the chef: refused ${tries} times. Last reason: ${reason}${details}`);
       log(`#${issue.number} parked for the chef after ${tries} tries — ${reason}`);
       return;
     }
     await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, ...(counts ? old : [])]);
-    await act.comment(issue.number, `Sent back to a cook${counts ? ` (try ${tries}/${TRIES_MAX})` : ""}: ${reason}`);
+    await act.comment(issue.number, `Sent back to a cook${counts ? ` (try ${tries}/${TRIES_MAX})` : ""}: ${reason}${details}`);
     log(`#${issue.number} sent back — ${reason}`);
   }
 
@@ -176,8 +187,10 @@ export function openKitchen(options: KitchenOptions) {
   async function execute(action: Action, issues: Map<number, Issue>, prs: Map<number, PullRequest>) {
     const issue = action.kind === "manager" || action.kind === "supervisor" ? undefined : issues.get(action.issue);
     switch (action.kind) {
-      case "send-back":
-        return sendBack(issue as Issue, action.reason, action.counts);
+      case "send-back": {
+        const pr = prs.get(action.issue);
+        return sendBack(issue as Issue, action.reason, action.counts, pr !== undefined && !pr.conflicting && pr.checks === "failure" ? await ciLogs(pr.number) : "");
+      }
       case "requeue":
         await act.labels(action.issue, [], [LABELS.taken, LABELS.inPass]);
         return log(`#${action.issue} back on the rail — ${action.reason}`);
@@ -267,10 +280,9 @@ export function openKitchen(options: KitchenOptions) {
       supervisorEveryMs: options.supervisorEveryMs ?? 15 * 60_000,
     });
     const issues = new Map(state.issues.map((issue) => [issue.number, issue]));
-    const prs = new Map(state.prs.map((pr) => [pr.issue, pr]));
     for (const action of actions) {
       try {
-        await execute(action, issues, prs);
+        await execute(action, issues, new Map(state.prs.map((pr) => [pr.issue, pr])));
       } catch (error) {
         log(`${action.kind}${"issue" in action ? ` #${action.issue}` : ""} failed — ${(error as Error).message}`);
       }

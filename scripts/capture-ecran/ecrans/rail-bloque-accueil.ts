@@ -1,7 +1,7 @@
 // « Tous les projets » avec « parade » au rail bloqué (#3358, rail-bloque-commun.ts) et « cantine » calme : chaque ligne
-// est celle que l'app tire de leurs `facts` (app/src/accueil.ts, `ligneDeProjet`).
-import { ligneDeProjet, type Accueil } from "../../../app/src/accueil.ts";
-import { comprendre, type Faits } from "../../../app/src/faits.ts";
+// est celle que l'app tire de leurs `facts` (app/src/home.ts, `ligneDeProjet`).
+import { lineOfProject, type Home } from "../../../app/src/home.ts";
+import { understand, type Facts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { RENDU_BLOQUE } from "./rail-bloque-commun.ts";
@@ -9,8 +9,8 @@ import { RENDU_BLOQUE } from "./rail-bloque-commun.ts";
 const RENDUS_BLOQUES: Record<string, Rendu> = { ...RENDUS, parade: RENDU_BLOQUE };
 const ligne = (nom: string) => {
   const rendu = RENDUS_BLOQUES[nom] as Rendu;
-  const faits = comprendre(JSON.stringify(rendu.facts)) as Faits;
-  return ligneDeProjet({ nom, servi: true }, { a: MAINTENANT, faits }, { texte: rendu.status });
+  const faits = understand(JSON.stringify(rendu.facts)) as Facts;
+  return lineOfProject({ nom, servi: true }, { a: MAINTENANT, faits }, { texte: rendu.status });
 };
 
 export const ecran: Ecran = {
@@ -19,7 +19,7 @@ export const ecran: Ecran = {
   hauteur: 700,
   etapes: [],
   donnees: () => {
-    const accueil: Accueil = { projets: [ligne("parade"), ligne("cantine")], stations: [], sante: { ton: "vert", dit: "", survol: "" } };
+    const accueil: Home = { projets: [ligne("parade"), ligne("cantine")], stations: [], sante: { ton: "vert", dit: "", survol: "" } };
     return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), accueil } }, envois: cuisine(RENDUS_BLOQUES) };
   },
 };

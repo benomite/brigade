@@ -1,0 +1,96 @@
+/* La table d'autonomie d'un projet (ticket 1563) : la même carte que les réglages du projet. En tête, ce qui est
+   attendu, puis les trois profils ; une rangée par sorte de décision — son nom, ses trois positions en un seul
+   groupe — trois boutons de la famille (components/button), celle en vigueur pressée —, et d'où elle vient ; dessous, les rangées verrouillées, en retrait. Seules des
+   variables de tokens.css portent une couleur. */
+.autonomie {
+  margin: var(--pas-3) var(--pas-4) 0;
+  padding: var(--pas-3) var(--pas-4);
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.autonomie h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin: 0 0 var(--pas-1);
+  font-weight: 600;
+}
+.autonomie p {
+  margin: 0;
+}
+.autonomie .attendu {
+  margin-bottom: var(--pas-3);
+  color: var(--texte-doux);
+}
+.autonomie .nom {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pas-2);
+  color: var(--discret);
+}
+.autonomie .profils {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pas-2) var(--pas-2);
+  padding-bottom: var(--pas-2);
+  border-bottom: 1px solid var(--trait-doux);
+}
+.autonomie .profils .nom {
+  margin-right: var(--pas-1);
+}
+.autonomie .profil > button {
+  white-space: nowrap;
+}
+.autonomie .rangee {
+  display: grid;
+  grid-template-columns: 220px auto 1fr;
+  align-items: center;
+  gap: var(--pas-1) var(--pas-3);
+  padding: var(--pas-1) 0;
+}
+.autonomie .rangee + .rangee {
+  border-top: 1px solid var(--trait-doux);
+}
+.autonomie .positions {
+  display: inline-flex;
+  gap: var(--pas-1);
+}
+.autonomie .positions > button {
+  white-space: nowrap;
+}
+.autonomie .positions > button.demandee {
+  outline: 1px dashed var(--accent);
+  outline-offset: -3px;
+}
+.autonomie .source {
+  font-size: var(--taille-corps);
+  color: var(--discret);
+}
+.autonomie .dit > span + * {
+  margin-left: var(--pas-2);
+}
+/* Les rangées verrouillées : ni accent ni survol, la position en vigueur seulement soulignée. */
+.autonomie .fixes {
+  margin-top: var(--pas-3);
+  padding-top: var(--pas-2);
+  border-top: 1px solid var(--trait);
+}
+.autonomie .tete-fixes {
+  display: flex;
+  align-items: center;
+  gap: var(--pas-2);
+  margin-bottom: var(--pas-1);
+}
+.autonomie .tete-fixes strong {
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+.autonomie .verrou {
+  padding: 0 var(--pas-2);
+  font-size: var(--taille-meta);
+  color: var(--discret);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}

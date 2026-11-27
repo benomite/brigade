@@ -1,5 +1,5 @@
 // Pourquoi la file du rail ne part pas, dans `brigade <project> status` (#3433) : la phrase au-dessus de la ligne `rail`, puis
-// la ligne de chaque carte — les mêmes que l'app écrit (app/test/attente-du-rail/meme-ligne.test.ts les compare).
+// la ligne de chaque carte — les mêmes que l'app écrit (app/test/wait-of-rail/same-line.test.ts les compare).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { DEBUT, FIN } from "../../src/epique.ts";

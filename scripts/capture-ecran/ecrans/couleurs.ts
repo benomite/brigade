@@ -1,7 +1,7 @@
 // La palette entière (ticket 1106) : un projet par teinte, chacun la portant en onglet et en accent —
 // la barre les montre toutes, en pastille ; les réglages de « parade », ouverts, ses deux rangées
 // de pastilles, le sélecteur d'une couleur libre, et son accent dans l'espace.
-import { PALETTE } from "../../../app/src/couleurs.ts";
+import { PALETTE } from "../../../app/src/colors.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 

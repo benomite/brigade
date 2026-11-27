@@ -2,11 +2,11 @@
 // phrase, sa cause dessous ; le geste que l'app sait faire en bouton, la page où le faire hors de l'app en lien
 // qui la nomme ; ce qu'une commande a dit, replié derrière « details ». Les blocages sont ceux que la box publie
 // dans son suivi (runtime/src/installation/blocages/), sous `blocages`.
-import type { Blocage } from "../../../app/src/projets/demande.ts";
+import type { Blockage } from "../../../app/src/projects/request.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
-export const BLOCAGES: Blocage[] = [
+export const BLOCAGES: Blockage[] = [
   {
     id: "clone",
     message: "box cannot clone benomite/parade: the GitHub account brigade-cook does not see this repository.",
