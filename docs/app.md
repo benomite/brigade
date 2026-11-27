@@ -2795,21 +2795,19 @@ registers it at login on each opening — a launchd agent `~/Library/LaunchAgent
 `brigade-tray` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows — and no longer puts its own
 icon, so there is only one. The installed app keeps one process: opened again, it brings its window to the front. The icon process does not hold Electron's single-instance lock, which belongs to the app alone: it keeps a pid file in its own data folder, so an app opened while the icon runs shows its window instead of handing off to a process that has none (#3864). The app hands off only to a process launched like itself: the pid left by a quit app, given by the system to another process (the icon, the station host), does not stop it from showing its window (#4071). On a Mac the icon is a process of the app's bundle, so a click on the quit app (Dock, Finder) is sent to the icon while it runs: the icon then opens the app. It ignores the same event in its first two seconds, which Electron also sends when launchd starts the icon at login, so the window does not open at each login. After an update installed by the app, the installer reopens it with `open -n`, a new instance, for the same reason; and the app, on opening, restarts an icon that still runs another version (`launchctl kickstart -k`), without touching the station or its cooks. If the window cannot be shown, the app says so in one sentence with what to do — quit and open it again, or download it again from the releases page — and writes the details to its log; the icon says the same when it cannot open the app.
 
-- **The line** is the same (`3 cooking · 1 for you`, the disc on Windows), read every 15 s from the `facts` of each
-  project the station serves, through the station's own gesture, as the app reads them. It adds `· paused` or
-  `· stopped` when the station is.
-- **The menu**: **Open brigade** (starts the app, or brings it to the front), **Pause the station** (`switch off` on
-  each project: running cooks finish, nothing new starts — then **Resume the station**, `switch on`), **Stop the
-  station** (`station stop <station>` on each project, for this computer's stations: it takes no more ticket, running
-  cooks finish — then **Start the station**, `station start <station>`), and **Quit the station…**.
+- **The line** says how many projects the station serves (`2 projects on this station`), read every 15 s from the
+  station's projects file. It no longer counts cooks or questions, nor says `paused` or `stopped`: the icon launches no
+  command of the runtime (the `facts` command is gone, ticket 4677), so it reads nothing of the kitchen.
+- **The menu**: **Open brigade** (starts the app, or brings it to the front) and **Quit the station…**. **Pause**,
+  **Stop** and **Start the station** are gone from this icon.
 - **Quit is the only action that stops the kitchen.** It first asks: `Quit the station? This stops the kitchen.` —
-  the running cooks stop, and the projects stop cooking on this computer until the station starts again. Cancel leaves
+  the cooks running stop, and the projects stop cooking on this computer until the station starts again. Cancel leaves
   it running. Confirmed, it unloads the station's launchd agent then the icon's own (`launchctl bootout`), or on Windows
   stops the station's launcher, then the station and its cooks. Both come back at the next login.
 - A command the station refuses is shown in a dialog; the `Menu bar` setting turns this icon off too.
 
-The modules are in `app/src/tray-background/`: `tray-background.ts` (the line, the menu, the commands, the confirmation),
-`lecture.ts` (reading `facts`, playing a gesture), `systeme.ts` (login registration, quit), `process.ts` (the Electron
+The modules are in `app/src/tray-background/`: `tray-background.ts` (the line, the menu, the confirmation),
+`systeme.ts` (login registration, quit), `process.ts` (the Electron
 process), `entry.ts` (the app's entry, which routes `--tray-fond`). Tests: `app/test/tray-background.test.ts`,
 `app/test/tray-background-station.test.ts`.
 

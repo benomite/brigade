@@ -1,12 +1,9 @@
-// Les faits que l'app dessine, en lecture seule, dans une forme destinée à un
-// programme : `npm --prefix runtime run facts` rend un objet JSON, sur une
-// ligne. C'est la lecture de `status`, autrement dite — et un contrat :
-// docs/runtime/etat-et-mesures.md, « Les faits, pour un programme ».
-//
-// La lecture se fait aussi sans process (`lireLesFaits`).
+// Les faits d'un projet, en lecture seule, dans une forme destinée à un programme :
+// un objet JSON (`lireLesFaits`). Plus aucune commande ne les rend (ticket 4677) :
+// l'onglet des agents (agents-tab/sources.ts) les lit sans process.
 import { cadenceDeLaCuisine } from "./activite-cuisine/cadence.ts";
 import { activiteDeLaCuisine } from "./activite-cuisine/comptes.ts";
-import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";
+import { LectureImpossible } from "./appel.ts";
 import { triagesDesDerniersJours } from "./carte-todo.ts";
 import { faits, lireEtat } from "./etat.ts";
 import { lireGitHubSeul } from "./github-seul-etat.ts";
@@ -31,31 +28,12 @@ import { ticketDuBudget } from "./budget-des-gates.ts";
 import { lireBlocagesSansQuestion } from "./blocages-sans-question.ts";
 import { lireLesFinsDesPannes, lirePostMortems } from "./post-mortems/post-mortems.ts";
 
-const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
+const MANQUE = "BRIGADE_STATE_DIR n'est pas défini";
 
-export function principal({ args, env, dire, redire }: Appel): void {
-  function echouer(code: number, message: string): never {
-    redire(`brigade : ${message}`);
-    throw new Sortie(code);
-  }
-
-  if (!env.BRIGADE_STATE_DIR) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
-  if (args.length > 0) echouer(2, USAGE);
-  let forme;
-  try {
-    forme = lireLesFaits(env);
-  } catch (erreur) {
-    if (erreur instanceof LectureImpossible) echouer(erreur.code, erreur.message);
-    throw erreur;
-  }
-  dire(JSON.stringify(forme));
-}
-
-// Les faits du projet de cet environnement, à cet instant : l'objet que
-// `facts` écrit. Lève `LectureImpossible` quand son journal ne se lit pas.
+// Les faits du projet de cet environnement, à cet instant : l'objet des faits. Lève `LectureImpossible` quand son journal ne se lit pas.
 export function lireLesFaits(env: Record<string, string | undefined>, maintenant = new Date()): Record<string, unknown> {
   const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) throw new LectureImpossible(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!repertoireEtat) throw new LectureImpossible(2, MANQUE);
 
   let journal;
   try {
@@ -140,5 +118,3 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     journal.fermer();
   }
 }
-
-if (import.meta.main) await enProcess(principal);
