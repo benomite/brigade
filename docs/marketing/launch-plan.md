@@ -140,7 +140,7 @@ Space them out: Show HN and Reddit on a weekday morning US Eastern time, never t
 ### 2. r/ClaudeCode — day 2
 
 - **Why**: Claude Code users who already run agents; the "while I'm away" use case lands here.
-- **Angle**: the workflow and the guardrails (caps, stop, worktree per ticket), shorter than r/ClaudeAI. Do not repost the same text.
+- **Angle**: the workflow and the guardrails (cap on cooks, sandbox, worktree per ticket), shorter than r/ClaudeAI. Do not repost the same text.
 - **Rules link**: https://www.reddit.com/r/ClaudeCode/about/rules
 - **Rule quoted**: *chef to paste.* Not verified. Search showed only that self-promotion is a common post type there (secondary source), which is not a rule.
 - **Checklist**: same as above; if posting twice in two subs is flagged as spam, wait a week.
@@ -195,8 +195,8 @@ How you use it:
 What happens next:
 
 - A real `claude` session (a "cook") takes the ticket in its own git worktree and opens a pull request.
-- A "pass" judges the PR: your gates, your CI and an independent review. Only a green PR merges.
-- Guardrails: caps on duration, tokens and simultaneous cooks, a breaker after repeated failures, and one `stop` that halts every cook.
+- A "pass" judges the PR: your CI and an independent review. Only a green PR merges.
+- Guardrails: a cap on simultaneous cooks, a ticket parked for you after three refused tries, and each cook in a sandbox behind a network filter.
 - It only calls you for a product or design choice, or a review only you can make. On my phone that is a GitHub notification, plus a notification in the Android app.
 
 Brigade builds itself: 1,503 of its 1,678 merged PRs (90%, counted on 2026-11-23) came from a cook's branch (the branch name shows who cooked, not who clicked merge). Other orchestrators are closing or being absorbed; Brigade stays open source and serves a GitHub project on its own. Demo, two minutes: [DEMO LINK]
@@ -220,8 +220,8 @@ Claude Code cooks in git worktrees, one per GitHub ticket, so you can leave the 
 I wanted Claude Code to keep working when I'm not at my computer, without a pile of sessions to watch: autonomy you can trust. Brigade is what I ended up with. Other orchestrators are closing or being absorbed; this one stays open source and serves a GitHub project on its own.
 
 - Put the `fire` label on a GitHub issue; a `claude` session takes it in its own worktree and opens a PR.
-- A separate pass runs your gates and CI and reviews the PR before merging.
-- Each ticket is bounded: a cap on duration and tokens, an idle stop, a breaker, and a `stop` for everything.
+- A separate pass waits for your CI and reviews the PR before merging.
+- Each ticket is bounded: its own sandbox, and after three refused tries it is parked for you instead of being tried again.
 - If a cook dies, the committed work survives and the next cook resumes from it.
 - Questions that are really yours come to your phone; everything else it settles itself.
 
@@ -243,9 +243,9 @@ Show HN: Brigade, Claude Code agents that work your GitHub tickets while you're 
 
 **Text** (form to confirm against the HN pages: URL field = the repo, this text as the first comment; HN also accepts a text-only submission, but then there is no URL)
 
-Hi HN, I'm the author. Brigade is an MIT-licensed desktop app (Mac, Windows) plus a runtime. You put a `fire` label on a GitHub issue; a `claude` session takes it in its own git worktree and opens a PR; a separate "pass" runs the gates and CI, has a model review it, and merges only if everything is green. You are called only for product or design choices. The angle is autonomy you can trust: bounded, judged, reversible. Other orchestrators are closing or being absorbed; this one stays open source and serves a GitHub project on its own.
+Hi HN, I'm the author. Brigade is an MIT-licensed desktop app (Mac, Windows) plus a kitchen that runs on your machine or your own server. You put a `fire` label on a GitHub issue; a `claude` session takes it in its own git worktree and opens a PR; a separate "pass" waits for the CI, has a model review it, and merges only if everything is green. You are called only for product or design choices. The angle is autonomy you can trust: bounded, judged, reversible. Other orchestrators are closing or being absorbed; this one stays open source and serves a GitHub project on its own.
 
-What it is not: it is not hosted, it does not use an API key (the cooks run on your Claude Max session), and the stop halts every cook within the second.
+What it is not: it is not hosted, and it does not use an API key (the cooks run on your Claude Max session).
 
 Numbers, counted on 2026-11-23: of 1,678 merged PRs in this repo, 1,503 (90%) came from a cook's branch. The branch name shows who cooked, not who clicked merge.
 
@@ -299,21 +299,21 @@ Use these as answers in the threads. Each ends on what is true today; do not pro
 
 - Brigade itself costs nothing: MIT, no subscription, no per-ticket fee, no commission ([`site/tarifs.html`](../../site/tarifs.html)).
 - The cooks use the Claude Max session you already pay for. An API key does not fit, so there is no per-token surprise bill; the limit is your plan's.
-- The only other cost is a machine, if you choose a cloud station, paid to your own provider. A station runs only while the rail has servable tickets.
-- You set the ceiling: caps on duration, tokens and simultaneous cooks ([`docs/runtime/README.md`](../runtime/README.md)), so a runaway ticket cannot use more than you allowed.
+- The only other cost is a machine, if you choose a cloud station, paid to your own provider.
+- You set how many cooks run at once (`PLACES` per project), and a ticket refused three times is parked for you rather than retried.
 - Honest limit: if you do not have Max, Brigade is not for you yet. Say so.
 
 ### 2. "I don't trust auto-merge"
 
-- A PR merges once its verdict is approved and the CI of its head is green; GitHub refuses the merge if the branch moved after it was judged ([`docs/runtime/README.md`](../runtime/README.md)).
-- The brakes are the `stop`, which halts every cook within the second, and a second judge for any delivery that changes what judges it. The verdict is on the PR, so "why is this on `main`?" has an answer.
-- Honest limit, stated in the doc: code lands without a human having read it; its judges are the gates, the CI and a reviewer that is a model.
+- A PR merges once its CI is green and the pass's verdict is `merge`; a red or conflicting one goes back to a cook.
+- The brake is the risk zones: a delivery that touches a path the project declares in `.brigade/kitchen.json` waits for your merge, even approved. The verdict is on the ticket, so "why is this on `main`?" has an answer.
+- Honest limit: code outside the risk zones lands without a human having read it; its judges are the CI and a reviewer that is a model.
 
 ### 3. "What about security?"
 
 - Brigade has no server of its own. The app and the cooks run on your machine or your own cloud station, with your repo and your accounts. Nothing goes through a Brigade service.
 - Credentials: the app signs you in to GitHub and Claude in your browser.
-- Blast radius: one worktree per ticket, caps, a breaker and a `stop` that halts every cook within the second ([`docs/runtime/README.md`](../runtime/README.md)).
+- Blast radius: one worktree per ticket, each agent in a sandbox behind its project's network filter, and only text from authors with write access (or an issue a writer labelled `accepted`) reaches an agent.
 - Honest limits: a cook is a `claude` session that runs code on the machine you give it, so use a throwaway repository for a first run, and a dedicated machine for a cloud station. No third-party security audit exists; do not say otherwise. There is no `SECURITY.md` yet: if someone reports a vulnerability, point them to a private GitHub security advisory on the repo.
 
 ## After posting (chef)
