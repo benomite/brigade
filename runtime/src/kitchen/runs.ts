@@ -70,8 +70,12 @@ export function listRuns(root: string): { running: Run[]; finished: Finished[] }
     const end = readJson<FinDuRelais>(files(dir).end);
     if (end !== null) finished.push({ ...run, end, result: resultOf(files(dir).stream) });
     else if (alive(dir, name)) running.push(run);
-    // Neither alive nor ended: its relay died with the machine. It ended with nothing to say.
-    else finished.push({ ...run, end: { code: null, signal: null, erreur: "its relay is gone", masques: 0 }, result: "" });
+    // Not alive: read its end again, a relay may have written it and exited since the first read. Still none: it died
+    // with the machine, and ended with nothing to say.
+    else {
+      const late = readJson<FinDuRelais>(files(dir).end);
+      finished.push(late !== null ? { ...run, end: late, result: resultOf(files(dir).stream) } : { ...run, end: { code: null, signal: null, erreur: "its relay is gone", masques: 0 }, result: "" });
+    }
   }
   return { running, finished };
 }
